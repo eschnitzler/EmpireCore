@@ -1,0 +1,11 @@
+{
+  "keep": {
+    "name": "Keep",
+    "type": "main"
+  },
+  "woodcutter": {
+    "name": "Woodcutter",
+    "type": "resource",
+    "produces": "wood"
+  }
+}

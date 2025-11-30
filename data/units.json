@@ -1,0 +1,15 @@
+{
+  "620": {
+    "id": 620,
+    "name": "Militia",
+    "kingdom": "green",
+    "cost": {
+      "wood": 10,
+      "stone": 0,
+      "food": 10
+    },
+    "training_time": 30,
+    "speed": 5,
+    "carry_capacity": 50
+  }
+}

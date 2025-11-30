@@ -291,3 +291,276 @@ Based on: https://goodgameempire.fandom.com/wiki/GoodGame_Empire_Wiki
 
 **Note**: This is a living document. Update as we discover more through testing and wiki research.
 
+
+---
+
+## 📚 Additional Wiki Resources
+
+### Secondary Wiki: https://goodgameempirewiki.wordpress.com/
+
+This WordPress-based wiki provides additional detailed information:
+
+#### Key Resources Available
+- **Unit Details**: Comprehensive unit stats tables
+- **Building Data**: Upgrade costs and requirements
+- **Combat Mechanics**: Detailed battle calculations
+- **Resource Production**: Production rate formulas
+- **Research Tree**: Technology unlocks
+- **Commander System**: Skills and equipment
+- **Event Guides**: Seasonal and special events
+
+#### Useful Sections to Explore
+1. **Units Section**
+   - Full unit stats (attack, defense, speed, cost)
+   - Training times
+   - Unit counters and effectiveness
+   - Special abilities by kingdom
+
+2. **Buildings Section**
+   - Upgrade costs per level (1-70+)
+   - Build time formulas
+   - Production rates by level
+   - Requirements and prerequisites
+   - Space requirements
+
+3. **Combat Section**
+   - Battle algorithm details
+   - Wall effectiveness
+   - Unit counter system
+   - Morale mechanics
+   - Commander bonuses
+
+4. **Economy Section**
+   - Resource production formulas
+   - Tax rates and population
+   - Market exchange rates
+   - Trade routes
+
+5. **Strategy Guides**
+   - Optimal build orders
+   - Army compositions
+   - Farming strategies
+   - Defense setups
+
+#### Data Extraction Priorities
+
+**High Priority - Needed for Bot:**
+1. ✅ Unit costs (W, S, F) - For training decisions
+2. ✅ Unit speeds - For travel time calculations
+3. ✅ Building costs by level - For upgrade planning
+4. ✅ Production rates - For resource optimization
+5. ⏳ Unit stats (attack/defense) - For combat calculator
+
+**Medium Priority - Nice to Have:**
+6. Training times - For queue management
+7. Build times - For construction planning
+8. Commander skills - For advanced optimization
+9. Research costs - For tech tree
+10. Event schedules - For automation timing
+
+**Low Priority - Future Features:**
+11. Decorations and cosmetics
+12. Achievement requirements
+13. Glory system details
+14. Alliance fortress mechanics
+
+#### Web Scraping Strategy
+
+For extracting data from both wikis:
+
+```python
+# Pseudo-code for data extraction
+import requests
+from bs4 import BeautifulSoup
+
+def scrape_unit_data():
+    """
+    Extract unit data from wiki tables.
+    
+    Target fields:
+    - Unit ID (internal game ID)
+    - Name
+    - Cost (wood, stone, food)
+    - Training time
+    - Speed
+    - Carrying capacity
+    - Attack/Defense values
+    """
+    # Implementation needed
+    pass
+
+def scrape_building_data():
+    """
+    Extract building upgrade costs.
+    
+    Target fields:
+    - Building type
+    - Level (1-70+)
+    - Cost (wood, stone, food, gold)
+    - Build time
+    - Production rate (if applicable)
+    """
+    # Implementation needed
+    pass
+```
+
+#### Known Unit IDs (from testing)
+- **620**: Militia (infantry, basic unit)
+  - Cost: W:10, F:10
+  - Training time: ~30 seconds (estimated)
+  - Speed: Slow
+  - Good for: Early game, farming weak barbarians
+
+#### Known Building Types
+From our `dcl` responses, we see:
+- **BL**: Building list with IDs and levels
+- Buildings tracked by internal ID
+- Need to map ID to building type from wiki
+
+#### Map Object Types (from testing)
+- **Type 32**: Barbarian camps (safe to attack)
+- **Type ?**: Player castles
+- **Type ?**: Robber barons
+- **Type ?**: NPC castles
+- Need comprehensive list from wiki
+
+---
+
+## 🎯 Action Items from Wiki Research
+
+### Immediate (This Week)
+1. [ ] Create unit database from wiki data
+   - Start with basic units (militia, swordsman, archer)
+   - Focus on cost, speed, carry capacity
+   - Store as JSON or SQLite
+
+2. [ ] Create building cost tables
+   - Focus on resource buildings (woodcutter, quarry, farm)
+   - Keep levels 1-20 (most relevant)
+   - Include build times
+
+3. [ ] Map object type reference
+   - Document all map object types
+   - Create enum for easy reference
+   - Add to state management
+
+### Short Term (Next 2 Weeks)
+4. [ ] Combat calculation data
+   - Unit attack/defense values
+   - Wall effectiveness formulas
+   - Counter system multipliers
+
+5. [ ] Production formulas
+   - Base production rates
+   - Level multipliers
+   - Population effects
+
+6. [ ] Research tree data
+   - Technology costs
+   - Research times
+   - Unlock requirements
+
+### Long Term (Month)
+7. [ ] Commander system
+   - Skill tree data
+   - Equipment stats
+   - Bonus calculations
+
+8. [ ] Event mechanics
+   - Event types and rewards
+   - Participation requirements
+   - Optimal strategies
+
+9. [ ] Alliance features
+   - Fortress mechanics
+   - Shared technologies
+   - Diplomatic options
+
+---
+
+## 📝 Data Schema for Extracted Information
+
+### Units Table
+```python
+{
+    "unit_id": 620,
+    "name": "Militia",
+    "kingdom": "green",  # or 0
+    "type": "infantry",
+    "cost": {
+        "wood": 10,
+        "stone": 0,
+        "food": 10,
+        "gold": 0
+    },
+    "training_time": 30,  # seconds
+    "speed": 5,  # tiles per hour
+    "carry_capacity": 50,  # resources
+    "attack": 5,
+    "defense": 3,
+    "health": 100,
+    "special_abilities": []
+}
+```
+
+### Buildings Table
+```python
+{
+    "building_id": 1,
+    "name": "Woodcutter",
+    "type": "resource",
+    "max_level": 70,
+    "levels": [
+        {
+            "level": 1,
+            "cost": {"wood": 100, "stone": 50},
+            "build_time": 60,  # seconds
+            "production": 10  # per hour
+        },
+        # ... more levels
+    ]
+}
+```
+
+### Map Objects Reference
+```python
+{
+    "type_id": 32,
+    "name": "Barbarian Camp",
+    "description": "NPC enemy, safe to attack",
+    "can_attack": True,
+    "retaliates": False,
+    "loot": "resources and items",
+    "levels": [1, 2, 3, 4, 5, 10, 15, 20, 25, 30]
+}
+```
+
+---
+
+## 🔗 Combined Wiki Strategy
+
+### Use Fandom Wiki For:
+- Quick reference
+- General mechanics
+- Strategy guides
+- Community discussions
+
+### Use WordPress Wiki For:
+- Detailed data tables
+- Precise statistics
+- Formula documentation
+- Advanced mechanics
+
+### Cross-Reference:
+- Verify data between both sources
+- Fill gaps from one wiki with the other
+- Note discrepancies (may be from game updates)
+- Prefer more recent/updated source
+
+---
+
+**Last Updated**: 2025-11-30
+**Sources**: 
+- https://goodgameempire.fandom.com/wiki/GoodGame_Empire_Wiki
+- https://goodgameempirewiki.wordpress.com/
+
