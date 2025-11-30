@@ -247,11 +247,11 @@ class GameActions:
         payload = {
             "AID": castle_id,
             "UID": unit_id,
-            "CNT": count
+            "C": count  # Fixed: use 'C' not 'CNT'
         }
         
-        # Send command (command name might be 'rcu' for recruit)
-        packet = f"%xt%{self.config.default_zone}%rcu%1%{json.dumps(payload)}%"
+        # Send command (command is 'tru' for train units)
+        packet = f"%xt%{self.config.default_zone}%tru%1%{json.dumps(payload)}%"
         
         try:
             await self.client.connection.send(packet)
