@@ -1,0 +1,336 @@
+import asyncio
+import logging
+import json
+from typing import Optional, Dict
+
+from empire_core.network.connection import SFSConnection
+from empire_core.config import default_config, EmpireConfig
+from empire_core.protocol.packet import Packet
+from empire_core.events.manager import EventManager
+from empire_core.events.base import PacketEvent
+from empire_core.state.manager import GameState
+from empire_core.client.actions import GameActions
+from empire_core.client.commands import GameCommands
+from empire_core.utils.decorators import handle_errors
+from empire_core.utils.response_awaiter import ResponseAwaiter
+from empire_core.exceptions import LoginError, TimeoutError, ActionError
+
+logger = logging.getLogger(__name__)
+
+class EmpireClient:
+    def __init__(self, config: Optional[EmpireConfig] = None):
+        self.config = config or default_config
+        self.connection = SFSConnection(self.config.game_url)
+        self.username: Optional[str] = self.config.username
+        self.is_logged_in = False
+        
+        self.events = EventManager()
+        self.state = GameState()
+        self.actions = GameActions(self)
+        self.commands = GameCommands(self)
+        self.response_awaiter = ResponseAwaiter()
+        self.connection.packet_handler = self._on_packet
+
+    @property
+    def event(self):
+        """Decorator for registering event handlers."""
+        return self.events.listen
+
+    @handle_errors(log_msg="Error processing packet", re_raise=False)
+    async def _on_packet(self, packet: Packet):
+        """Global packet handler called by connection."""
+        logger.debug(f"Client received packet: {packet.command_id}")
+        
+        if packet.command_id == "gaa":
+            logger.debug(f"GAA Payload: {packet.payload}")
+        
+        # Update State
+        if packet.command_id and isinstance(packet.payload, dict):
+            self.state.update_from_packet(packet.command_id, packet.payload)
+        
+        # Notify response awaiter
+        if packet.command_id:
+            self.response_awaiter.set_response(packet.command_id, packet.payload)
+
+        pkt_event = PacketEvent(
+            command_id=packet.command_id or "unknown",
+            payload=packet.payload,
+            is_xml=packet.is_xml
+        )
+        await self.events.emit(pkt_event)
+
+    @handle_errors(log_msg="Login failed")
+    async def login(self, username: str = None, password: str = None):
+        """
+        Performs the full login sequence:
+        Connect -> Version Check -> XML Login (Zone) -> AutoJoin -> XT Login (Auth)
+        """
+        username = username or self.config.username
+        password = password or self.config.password
+        
+        if not username or not password:
+            raise ValueError("Username and password must be provided")
+            
+        self.username = username
+        
+        if not self.connection.connected:
+            await self.connection.connect()
+
+        # 1. Version Check
+        logger.info("Handshake: Sending Version Check...")
+        ver_waiter = self.connection.create_waiter(
+            "apiOK", 
+            predicate=lambda p: p.is_xml and p.command_id == 'apiOK'
+        )
+        
+        ver_packet = f"<msg t='sys'><body action='verChk' r='0'><ver v='{self.config.game_version}' /></body></msg>"
+        await self.connection.send(ver_packet)
+
+        try:
+            await asyncio.wait_for(ver_waiter, timeout=self.config.request_timeout)
+            logger.info("Handshake: Version OK.")
+        except asyncio.TimeoutError:
+            raise TimeoutError("Handshake: Version Check timed out.")
+
+        # 2. XML Login (Zone Entry)
+        logger.info(f"Handshake: Entering Zone {self.config.default_zone}...")
+        
+        login_packet = (
+            f"<msg t='sys'><body action='login' r='0'>"
+            f"<login z='{self.config.default_zone}'>"
+            f"<nick><![CDATA[]]></nick>"
+            f"<pword><![CDATA[undefined%en%0]]></pword>"
+            f"</login></body></msg>"
+        )
+        
+        # Wait for 'rlu' (Room List Update)
+        rlu_waiter = self.connection.create_waiter("rlu")
+        
+        await self.connection.send(login_packet)
+
+        try:
+            await asyncio.wait_for(rlu_waiter, timeout=self.config.login_timeout)
+            logger.info("Handshake: Received Room List (Zone Entered).")
+        except asyncio.TimeoutError:
+            raise TimeoutError("Handshake: Zone Login (rlu) timed out.")
+
+        # 3. AutoJoin (Room Join)
+        logger.info("Handshake: Joining Room (AutoJoin)...")
+        join_packet = "<msg t='sys'><body action='autoJoin' r='-1'></body></msg>"
+        
+        join_ok_waiter = self.connection.create_waiter(
+            "joinOK", 
+            predicate=lambda p: p.is_xml and p.command_id == 'joinOK'
+        )
+        
+        await self.connection.send(join_packet)
+        
+        try:
+            await asyncio.wait_for(join_ok_waiter, timeout=self.config.request_timeout)
+            logger.info("Handshake: Room Joined (joinOK received).")
+        except asyncio.TimeoutError:
+            logger.warning("Handshake: joinOK timed out, but proceeding...")
+
+        # 4. XT Login (Real Auth)
+        logger.info(f"Handshake: Authenticating as {username}...")
+        
+        xt_login_payload = {
+            "CONM": 175,
+            "RTM": 24,
+            "ID": 0,
+            "PL": 1,
+            "NOM": username,
+            "PW": password,
+            "LT": None,
+            "LANG": "en",
+            "DID": "0",
+            "AID": "1745592024940879420",
+            "KID": "",
+            "REF": "https://empire.goodgamestudios.com",
+            "GCI": "",
+            "SID": 9,
+            "PLFID": 1,
+        }
+        
+        xt_packet = f"%xt%{self.config.default_zone}%lli%1%{json.dumps(xt_login_payload)}%"
+        
+        # Wait for lli response
+        lli_waiter = self.connection.create_waiter("lli")
+        await self.connection.send(xt_packet)
+        
+        try:
+            lli_packet = await asyncio.wait_for(lli_waiter, timeout=self.config.login_timeout)
+            
+            # Check status
+            if lli_packet.error_code != 0:
+                # Check for cooldown (453)
+                # Example payload: {"CD": 120, ...}
+                if lli_packet.error_code == 453:
+                    cooldown = 0
+                    if isinstance(lli_packet.payload, dict):
+                        cooldown = int(lli_packet.payload.get("CD", 0))
+                    
+                    logger.warning(f"Handshake: Login Slowdown active. Wait {cooldown}s.")
+                    from empire_core.exceptions import LoginCooldownError
+                    raise LoginCooldownError(cooldown)
+                
+                logger.error(f"Handshake: Auth Failed with status {lli_packet.error_code}")
+                raise LoginError(f"Auth Failed with status {lli_packet.error_code}")
+
+            logger.info("Handshake: Authenticated.")
+        except asyncio.TimeoutError:
+            raise TimeoutError("XT Login timed out.")
+        
+        self.is_logged_in = True
+        logger.info("Handshake: Ready.")
+
+    @handle_errors(log_msg="Error getting map chunk")
+    async def get_map_chunk(self, kingdom: int, x: int, y: int):
+        """
+        Requests a chunk of the map.
+        
+        Args:
+            kingdom: Kingdom ID (0=Green, 2=Ice, 1=Sands, 3=Fire)
+            x: Top-Left X
+            y: Top-Left Y
+        """
+        # Command: gaa (Get Area)
+        # Payload: { "KID": k, "AX1": x, "AY1": y, "AX2": x+12, "AY2": y+12 }
+        payload = {
+            "KID": kingdom,
+            "AX1": x,
+            "AY1": y,
+            "AX2": x + 12, # Standard chunk size usually
+            "AY2": y + 12
+        }
+        
+        # We don't necessarily wait for response here if we rely on state updates via _on_packet
+        # But usually we might want to confirm.
+        packet = f"%xt%{self.config.default_zone}%gaa%1%{json.dumps(payload)}%"
+        await self.connection.send(packet)
+        
+    @handle_errors(log_msg="Error getting movements")
+    async def get_movements(self):
+        """
+        Requests list of army movements.
+        """
+        # Command: gam
+        packet = f"%xt%{self.config.default_zone}%gam%1%{{}}%"
+        await self.connection.send(packet)
+
+    @handle_errors(log_msg="Error getting detailed castle info")
+    async def get_detailed_castle_info(self):
+        """
+        Requests detailed information for all own castles (Resources, Units, etc.).
+        """
+        # Command: dcl
+        packet = f"%xt%{self.config.default_zone}%dcl%1%{{}}%"
+        await self.connection.send(packet)
+    
+    # ========== Action Commands ==========
+    
+    @handle_errors(log_msg="Error sending attack")
+    async def send_attack(
+        self,
+        origin_castle_id: int,
+        target_area_id: int,
+        units: Dict[int, int],
+        kingdom_id: int = 0,
+        wait_for_response: bool = False,
+        timeout: float = 5.0
+    ) -> bool:
+        """
+        Send an attack from your castle to a target.
+        
+        Args:
+            origin_castle_id: Your castle ID
+            target_area_id: Target area ID
+            units: Dictionary of {unit_id: count}
+            kingdom_id: Kingdom ID (default 0)
+            wait_for_response: Wait for server confirmation (default False)
+            timeout: Response timeout in seconds (default 5.0)
+            
+        Returns:
+            bool: True if successful
+        """
+        return await self.actions.send_attack(
+            origin_castle_id, target_area_id, units, kingdom_id,
+            wait_for_response, timeout
+        )
+    
+    @handle_errors(log_msg="Error sending transport")
+    async def send_transport(
+        self,
+        origin_castle_id: int,
+        target_area_id: int,
+        wood: int = 0,
+        stone: int = 0,
+        food: int = 0,
+        wait_for_response: bool = False,
+        timeout: float = 5.0
+    ) -> bool:
+        """
+        Send resources from your castle to another location.
+        
+        Args:
+            origin_castle_id: Your castle ID
+            target_area_id: Target area ID
+            wood: Amount of wood
+            stone: Amount of stone
+            food: Amount of food
+            wait_for_response: Wait for server confirmation (default False)
+            timeout: Response timeout in seconds (default 5.0)
+            
+        Returns:
+            bool: True if successful
+        """
+        return await self.actions.send_transport(
+            origin_castle_id, target_area_id, wood, stone, food,
+            wait_for_response, timeout
+        )
+    
+    @handle_errors(log_msg="Error upgrading building")
+    async def upgrade_building(
+        self,
+        castle_id: int,
+        building_id: int,
+        building_type: Optional[int] = None
+    ) -> bool:
+        """
+        Upgrade or build a building in your castle.
+        
+        Args:
+            castle_id: Your castle ID
+            building_id: Building ID to upgrade
+            building_type: Building type (if constructing new)
+            
+        Returns:
+            bool: True if successful
+        """
+        return await self.actions.upgrade_building(
+            castle_id, building_id, building_type
+        )
+    
+    @handle_errors(log_msg="Error recruiting units")
+    async def recruit_units(
+        self,
+        castle_id: int,
+        unit_id: int,
+        count: int
+    ) -> bool:
+        """
+        Recruit/train units in your castle.
+        
+        Args:
+            castle_id: Your castle ID
+            unit_id: Unit type ID
+            count: Number of units to recruit
+            
+        Returns:
+            bool: True if successful
+        """
+        return await self.actions.recruit_units(castle_id, unit_id, count)
+
+    @handle_errors(log_msg="Error closing client", re_raise=False)
+    async def close(self):
+        await self.connection.disconnect()
