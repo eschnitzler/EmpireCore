@@ -1,104 +1,94 @@
 """
 Additional game commands.
 """
-import json
+
 import logging
-from typing import Optional
+from typing import Dict, Any, TYPE_CHECKING
+
 from empire_core.exceptions import ActionError
+from empire_core.protocol.packet import Packet
+
+if TYPE_CHECKING:
+    from empire_core.client.client import EmpireClient
 
 logger = logging.getLogger(__name__)
 
 
 class GameCommands:
     """Additional game commands beyond actions."""
-    
-    def __init__(self, client):
+
+    def __init__(self, client: "EmpireClient"):
         self.client = client
         self.config = client.config
-    
+
+    async def _send_command(
+        self, command: str, payload: Dict[str, Any], action_name: str
+    ) -> bool:
+        """
+        Send a command packet.
+
+        Args:
+            command: Command ID
+            payload: Command payload
+            action_name: Human-readable name for logging/errors
+
+        Returns:
+            True if successful
+
+        Raises:
+            ActionError: If command fails
+        """
+        packet = Packet.build_xt(self.config.default_zone, command, payload)
+        try:
+            await self.client.connection.send(packet)
+            logger.info(f"{action_name} successful")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to {action_name.lower()}: {e}")
+            raise ActionError(f"{action_name} failed: {e}")
+
     async def cancel_building(self, castle_id: int, queue_id: int) -> bool:
         """Cancel building upgrade."""
-        payload = {"AID": castle_id, "QID": queue_id}
-        packet = f"%xt%{self.config.default_zone}%cbu%1%{json.dumps(payload)}%"
-        
-        try:
-            await self.client.connection.send(packet)
-            logger.info(f"Cancelled building in castle {castle_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to cancel building: {e}")
-            raise ActionError(f"Cancel failed: {e}")
-    
+        return await self._send_command(
+            "cbu",
+            {"AID": castle_id, "QID": queue_id},
+            f"Cancel building in castle {castle_id}",
+        )
+
     async def speed_up_building(self, castle_id: int, queue_id: int) -> bool:
         """Speed up building with rubies."""
-        payload = {"AID": castle_id, "QID": queue_id}
-        packet = f"%xt%{self.config.default_zone}%sbu%1%{json.dumps(payload)}%"
-        
-        try:
-            await self.client.connection.send(packet)
-            logger.info(f"Speeding up building in castle {castle_id}")
-            return True
-        except Exception as e:
-            raise ActionError(f"Speed up failed: {e}")
-    
+        return await self._send_command(
+            "sbu",
+            {"AID": castle_id, "QID": queue_id},
+            f"Speed up building in castle {castle_id}",
+        )
+
     async def collect_quest_reward(self, quest_id: int) -> bool:
         """Collect quest reward."""
-        payload = {"QID": quest_id}
-        packet = f"%xt%{self.config.default_zone}%cqr%1%{json.dumps(payload)}%"
-        
-        try:
-            await self.client.connection.send(packet)
-            logger.info(f"Collected quest {quest_id} reward")
-            return True
-        except Exception as e:
-            raise ActionError(f"Quest collection failed: {e}")
-    
+        return await self._send_command(
+            "cqr", {"QID": quest_id}, f"Collect quest {quest_id} reward"
+        )
+
     async def recall_army(self, movement_id: int) -> bool:
         """Recall/cancel army movement."""
-        payload = {"MID": movement_id}
-        packet = f"%xt%{self.config.default_zone}%cam%1%{json.dumps(payload)}%"
-        
-        try:
-            await self.client.connection.send(packet)
-            logger.info(f"Recalled movement {movement_id}")
-            return True
-        except Exception as e:
-            raise ActionError(f"Recall failed: {e}")
-    
+        return await self._send_command(
+            "cam", {"MID": movement_id}, f"Recall movement {movement_id}"
+        )
+
     async def send_message(self, player_id: int, subject: str, message: str) -> bool:
         """Send message to player."""
-        payload = {
-            "RID": player_id,
-            "S": subject,
-            "M": message
-        }
-        packet = f"%xt%{self.config.default_zone}%smg%1%{json.dumps(payload)}%"
-        
-        try:
-            await self.client.connection.send(packet)
-            logger.info(f"Sent message to player {player_id}")
-            return True
-        except Exception as e:
-            raise ActionError(f"Send message failed: {e}")
-    
+        return await self._send_command(
+            "smg",
+            {"RID": player_id, "S": subject, "M": message},
+            f"Send message to player {player_id}",
+        )
+
     async def read_mail(self, mail_id: int) -> bool:
         """Mark mail as read."""
-        payload = {"MID": mail_id}
-        packet = f"%xt%{self.config.default_zone}%rma%1%{json.dumps(payload)}%"
-        
-        try:
-            await self.client.connection.send(packet)
-            return True
-        except Exception as e:
-            raise ActionError(f"Read mail failed: {e}")
-    
+        return await self._send_command("rma", {"MID": mail_id}, f"Read mail {mail_id}")
+
     async def delete_mail(self, mail_id: int) -> bool:
         """Delete mail."""
-        payload = {"MID": mail_id}
-        packet = f"%xt%{self.config.default_zone}%dma%1%{json.dumps(payload)}%"
-        
-        try:
-            await self.client.connection.send(packet)
-            return True
-        except Exception as e:
-            raise ActionError(f"Delete mail failed: {e}")
+        return await self._send_command(
+            "dma", {"MID": mail_id}, f"Delete mail {mail_id}"
+        )
