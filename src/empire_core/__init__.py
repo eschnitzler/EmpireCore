@@ -1,10 +1,11 @@
 """
 EmpireCore - Python library for Goodgame Empire automation.
 """
+
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
 from empire_core.state.models import Player, Castle, Resources, Building, Alliance
-from empire_core.state.world_models import Movement, MapObject
+from empire_core.state.world_models import Movement, MapObject, MovementResources
 from empire_core.state.unit_models import Army, UnitStats, UNIT_IDS
 from empire_core.state.quest_models import Quest, DailyQuest
 from empire_core.utils.calculations import (
@@ -20,6 +21,22 @@ from empire_core.utils.helpers import (
     ResourceHelper,
     PlayerHelper,
 )
+from empire_core.utils.enums import MovementType, MapObjectType, KingdomType
+from empire_core.events import (
+    Event,
+    PacketEvent,
+    EventManager,
+    MovementEvent,
+    MovementStartedEvent,
+    MovementUpdatedEvent,
+    MovementArrivedEvent,
+    MovementCancelledEvent,
+    IncomingAttackEvent,
+    ReturnArrivalEvent,
+    AttackSentEvent,
+    ScoutSentEvent,
+    TransportSentEvent,
+)
 
 __version__ = "0.1.0"
 
@@ -33,11 +50,16 @@ __all__ = [
     "Building",
     "Alliance",
     "Movement",
+    "MovementResources",
     "MapObject",
     "Army",
     "UnitStats",
     "Quest",
     "DailyQuest",
+    # Enums
+    "MovementType",
+    "MapObjectType",
+    "KingdomType",
     # Constants
     "UNIT_IDS",
     # Utilities
@@ -50,4 +72,18 @@ __all__ = [
     "MovementHelper",
     "ResourceHelper",
     "PlayerHelper",
+    # Events
+    "Event",
+    "PacketEvent",
+    "EventManager",
+    "MovementEvent",
+    "MovementStartedEvent",
+    "MovementUpdatedEvent",
+    "MovementArrivedEvent",
+    "MovementCancelledEvent",
+    "IncomingAttackEvent",
+    "ReturnArrivalEvent",
+    "AttackSentEvent",
+    "ScoutSentEvent",
+    "TransportSentEvent",
 ]
