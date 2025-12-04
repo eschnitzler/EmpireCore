@@ -4,7 +4,13 @@ import json
 from typing import Optional, Dict, List, Callable, Awaitable, Any
 
 from empire_core.network.connection import SFSConnection
-from empire_core.config import default_config, EmpireConfig
+from empire_core.config import (
+    default_config,
+    EmpireConfig,
+    MAP_CHUNK_SIZE,
+    ServerError,
+    LOGIN_DEFAULTS,
+)
 from empire_core.protocol.packet import Packet
 from empire_core.events.manager import EventManager
 from empire_core.events.base import PacketEvent
@@ -135,21 +141,9 @@ class EmpireClient:
         logger.info(f"Handshake: Authenticating as {username}...")
 
         xt_login_payload = {
-            "CONM": 175,
-            "RTM": 24,
-            "ID": 0,
-            "PL": 1,
+            **LOGIN_DEFAULTS,
             "NOM": username,
             "PW": password,
-            "LT": None,
-            "LANG": "en",
-            "DID": "0",
-            "AID": "1745592024940879420",
-            "KID": "",
-            "REF": "https://empire.goodgamestudios.com",
-            "GCI": "",
-            "SID": 9,
-            "PLFID": 1,
         }
 
         xt_packet = (
@@ -167,9 +161,8 @@ class EmpireClient:
 
             # Check status
             if lli_packet.error_code != 0:
-                # Check for cooldown (453)
-                # Example payload: {"CD": 120, ...}
-                if lli_packet.error_code == 453:
+                # Check for cooldown
+                if lli_packet.error_code == ServerError.LOGIN_COOLDOWN:
                     cooldown = 0
                     if isinstance(lli_packet.payload, dict):
                         cooldown = int(lli_packet.payload.get("CD", 0))
@@ -204,18 +197,15 @@ class EmpireClient:
             y: Top-Left Y
         """
         # Command: gaa (Get Area)
-        # Payload: { "KID": k, "AX1": x, "AY1": y, "AX2": x+12, "AY2": y+12 }
         payload = {
             "KID": kingdom,
             "AX1": x,
             "AY1": y,
-            "AX2": x + 12,  # Standard chunk size usually
-            "AY2": y + 12,
+            "AX2": x + MAP_CHUNK_SIZE,
+            "AY2": y + MAP_CHUNK_SIZE,
         }
 
-        # We don't necessarily wait for response here if we rely on state updates via _on_packet
-        # But usually we might want to confirm.
-        packet = f"%xt%{self.config.default_zone}%gaa%1%{json.dumps(payload)}%"
+        packet = Packet.build_xt(self.config.default_zone, "gaa", payload)
         await self.connection.send(packet)
 
     @handle_errors(log_msg="Error getting movements")
@@ -223,8 +213,7 @@ class EmpireClient:
         """
         Requests list of army movements.
         """
-        # Command: gam
-        packet = f"%xt%{self.config.default_zone}%gam%1%{{}}%"
+        packet = Packet.build_xt(self.config.default_zone, "gam", {})
         await self.connection.send(packet)
 
     @handle_errors(log_msg="Error getting detailed castle info")
@@ -232,8 +221,7 @@ class EmpireClient:
         """
         Requests detailed information for all own castles (Resources, Units, etc.).
         """
-        # Command: dcl
-        packet = f"%xt%{self.config.default_zone}%dcl%1%{{}}%"
+        packet = Packet.build_xt(self.config.default_zone, "dcl", {})
         await self.connection.send(packet)
 
     # ========== Action Commands ==========

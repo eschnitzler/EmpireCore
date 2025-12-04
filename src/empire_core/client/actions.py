@@ -7,6 +7,7 @@ from typing import Dict, Optional, Any, TYPE_CHECKING
 
 from empire_core.exceptions import ActionError
 from empire_core.protocol.packet import Packet
+from empire_core.config import ResourceType, TroopActionType
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
@@ -131,7 +132,7 @@ class GameActions:
             "OID": origin_castle_id,
             "TID": target_area_id,
             "UN": units,
-            "TT": 1,  # Attack type
+            "TT": TroopActionType.ATTACK,
             "KID": kingdom_id,
         }
 
@@ -179,7 +180,11 @@ class GameActions:
         payload = {
             "OID": origin_castle_id,
             "TID": target_area_id,
-            "RES": {"1": wood, "2": stone, "3": food},
+            "RES": {
+                ResourceType.WOOD: wood,
+                ResourceType.STONE: stone,
+                ResourceType.FOOD: food,
+            },
         }
 
         response = await self._send_command(
