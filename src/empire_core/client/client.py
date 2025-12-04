@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import json
-from typing import Optional, Dict
+from typing import Optional, Dict, List, Callable, Awaitable, Any
 
 from empire_core.network.connection import SFSConnection
 from empire_core.config import default_config, EmpireConfig
@@ -9,6 +9,7 @@ from empire_core.protocol.packet import Packet
 from empire_core.events.manager import EventManager
 from empire_core.events.base import PacketEvent
 from empire_core.state.manager import GameState
+from empire_core.state.world_models import Movement
 from empire_core.client.actions import GameActions
 from empire_core.client.commands import GameCommands
 from empire_core.utils.decorators import handle_errors
@@ -17,13 +18,14 @@ from empire_core.exceptions import LoginError, TimeoutError, ActionError
 
 logger = logging.getLogger(__name__)
 
+
 class EmpireClient:
     def __init__(self, config: Optional[EmpireConfig] = None):
         self.config = config or default_config
         self.connection = SFSConnection(self.config.game_url)
         self.username: Optional[str] = self.config.username
         self.is_logged_in = False
-        
+
         self.events = EventManager()
         self.state = GameState()
         self.actions = GameActions(self)
@@ -40,14 +42,14 @@ class EmpireClient:
     async def _on_packet(self, packet: Packet):
         """Global packet handler called by connection."""
         logger.debug(f"Client received packet: {packet.command_id}")
-        
+
         if packet.command_id == "gaa":
             logger.debug(f"GAA Payload: {packet.payload}")
-        
+
         # Update State
         if packet.command_id and isinstance(packet.payload, dict):
             self.state.update_from_packet(packet.command_id, packet.payload)
-        
+
         # Notify response awaiter
         if packet.command_id:
             self.response_awaiter.set_response(packet.command_id, packet.payload)
@@ -55,7 +57,7 @@ class EmpireClient:
         pkt_event = PacketEvent(
             command_id=packet.command_id or "unknown",
             payload=packet.payload,
-            is_xml=packet.is_xml
+            is_xml=packet.is_xml,
         )
         await self.events.emit(pkt_event)
 
@@ -67,22 +69,21 @@ class EmpireClient:
         """
         username = username or self.config.username
         password = password or self.config.password
-        
+
         if not username or not password:
             raise ValueError("Username and password must be provided")
-            
+
         self.username = username
-        
+
         if not self.connection.connected:
             await self.connection.connect()
 
         # 1. Version Check
         logger.info("Handshake: Sending Version Check...")
         ver_waiter = self.connection.create_waiter(
-            "apiOK", 
-            predicate=lambda p: p.is_xml and p.command_id == 'apiOK'
+            "apiOK", predicate=lambda p: p.is_xml and p.command_id == "apiOK"
         )
-        
+
         ver_packet = f"<msg t='sys'><body action='verChk' r='0'><ver v='{self.config.game_version}' /></body></msg>"
         await self.connection.send(ver_packet)
 
@@ -94,7 +95,7 @@ class EmpireClient:
 
         # 2. XML Login (Zone Entry)
         logger.info(f"Handshake: Entering Zone {self.config.default_zone}...")
-        
+
         login_packet = (
             f"<msg t='sys'><body action='login' r='0'>"
             f"<login z='{self.config.default_zone}'>"
@@ -102,10 +103,10 @@ class EmpireClient:
             f"<pword><![CDATA[undefined%en%0]]></pword>"
             f"</login></body></msg>"
         )
-        
+
         # Wait for 'rlu' (Room List Update)
         rlu_waiter = self.connection.create_waiter("rlu")
-        
+
         await self.connection.send(login_packet)
 
         try:
@@ -117,14 +118,13 @@ class EmpireClient:
         # 3. AutoJoin (Room Join)
         logger.info("Handshake: Joining Room (AutoJoin)...")
         join_packet = "<msg t='sys'><body action='autoJoin' r='-1'></body></msg>"
-        
+
         join_ok_waiter = self.connection.create_waiter(
-            "joinOK", 
-            predicate=lambda p: p.is_xml and p.command_id == 'joinOK'
+            "joinOK", predicate=lambda p: p.is_xml and p.command_id == "joinOK"
         )
-        
+
         await self.connection.send(join_packet)
-        
+
         try:
             await asyncio.wait_for(join_ok_waiter, timeout=self.config.request_timeout)
             logger.info("Handshake: Room Joined (joinOK received).")
@@ -133,7 +133,7 @@ class EmpireClient:
 
         # 4. XT Login (Real Auth)
         logger.info(f"Handshake: Authenticating as {username}...")
-        
+
         xt_login_payload = {
             "CONM": 175,
             "RTM": 24,
@@ -151,16 +151,20 @@ class EmpireClient:
             "SID": 9,
             "PLFID": 1,
         }
-        
-        xt_packet = f"%xt%{self.config.default_zone}%lli%1%{json.dumps(xt_login_payload)}%"
-        
+
+        xt_packet = (
+            f"%xt%{self.config.default_zone}%lli%1%{json.dumps(xt_login_payload)}%"
+        )
+
         # Wait for lli response
         lli_waiter = self.connection.create_waiter("lli")
         await self.connection.send(xt_packet)
-        
+
         try:
-            lli_packet = await asyncio.wait_for(lli_waiter, timeout=self.config.login_timeout)
-            
+            lli_packet = await asyncio.wait_for(
+                lli_waiter, timeout=self.config.login_timeout
+            )
+
             # Check status
             if lli_packet.error_code != 0:
                 # Check for cooldown (453)
@@ -169,18 +173,23 @@ class EmpireClient:
                     cooldown = 0
                     if isinstance(lli_packet.payload, dict):
                         cooldown = int(lli_packet.payload.get("CD", 0))
-                    
-                    logger.warning(f"Handshake: Login Slowdown active. Wait {cooldown}s.")
+
+                    logger.warning(
+                        f"Handshake: Login Slowdown active. Wait {cooldown}s."
+                    )
                     from empire_core.exceptions import LoginCooldownError
+
                     raise LoginCooldownError(cooldown)
-                
-                logger.error(f"Handshake: Auth Failed with status {lli_packet.error_code}")
+
+                logger.error(
+                    f"Handshake: Auth Failed with status {lli_packet.error_code}"
+                )
                 raise LoginError(f"Auth Failed with status {lli_packet.error_code}")
 
             logger.info("Handshake: Authenticated.")
         except asyncio.TimeoutError:
             raise TimeoutError("XT Login timed out.")
-        
+
         self.is_logged_in = True
         logger.info("Handshake: Ready.")
 
@@ -188,7 +197,7 @@ class EmpireClient:
     async def get_map_chunk(self, kingdom: int, x: int, y: int):
         """
         Requests a chunk of the map.
-        
+
         Args:
             kingdom: Kingdom ID (0=Green, 2=Ice, 1=Sands, 3=Fire)
             x: Top-Left X
@@ -200,15 +209,15 @@ class EmpireClient:
             "KID": kingdom,
             "AX1": x,
             "AY1": y,
-            "AX2": x + 12, # Standard chunk size usually
-            "AY2": y + 12
+            "AX2": x + 12,  # Standard chunk size usually
+            "AY2": y + 12,
         }
-        
+
         # We don't necessarily wait for response here if we rely on state updates via _on_packet
         # But usually we might want to confirm.
         packet = f"%xt%{self.config.default_zone}%gaa%1%{json.dumps(payload)}%"
         await self.connection.send(packet)
-        
+
     @handle_errors(log_msg="Error getting movements")
     async def get_movements(self):
         """
@@ -226,9 +235,9 @@ class EmpireClient:
         # Command: dcl
         packet = f"%xt%{self.config.default_zone}%dcl%1%{{}}%"
         await self.connection.send(packet)
-    
+
     # ========== Action Commands ==========
-    
+
     @handle_errors(log_msg="Error sending attack")
     async def send_attack(
         self,
@@ -237,11 +246,11 @@ class EmpireClient:
         units: Dict[int, int],
         kingdom_id: int = 0,
         wait_for_response: bool = False,
-        timeout: float = 5.0
+        timeout: float = 5.0,
     ) -> bool:
         """
         Send an attack from your castle to a target.
-        
+
         Args:
             origin_castle_id: Your castle ID
             target_area_id: Target area ID
@@ -249,15 +258,19 @@ class EmpireClient:
             kingdom_id: Kingdom ID (default 0)
             wait_for_response: Wait for server confirmation (default False)
             timeout: Response timeout in seconds (default 5.0)
-            
+
         Returns:
             bool: True if successful
         """
         return await self.actions.send_attack(
-            origin_castle_id, target_area_id, units, kingdom_id,
-            wait_for_response, timeout
+            origin_castle_id,
+            target_area_id,
+            units,
+            kingdom_id,
+            wait_for_response,
+            timeout,
         )
-    
+
     @handle_errors(log_msg="Error sending transport")
     async def send_transport(
         self,
@@ -267,11 +280,11 @@ class EmpireClient:
         stone: int = 0,
         food: int = 0,
         wait_for_response: bool = False,
-        timeout: float = 5.0
+        timeout: float = 5.0,
     ) -> bool:
         """
         Send resources from your castle to another location.
-        
+
         Args:
             origin_castle_id: Your castle ID
             target_area_id: Target area ID
@@ -280,52 +293,49 @@ class EmpireClient:
             food: Amount of food
             wait_for_response: Wait for server confirmation (default False)
             timeout: Response timeout in seconds (default 5.0)
-            
+
         Returns:
             bool: True if successful
         """
         return await self.actions.send_transport(
-            origin_castle_id, target_area_id, wood, stone, food,
-            wait_for_response, timeout
+            origin_castle_id,
+            target_area_id,
+            wood,
+            stone,
+            food,
+            wait_for_response,
+            timeout,
         )
-    
+
     @handle_errors(log_msg="Error upgrading building")
     async def upgrade_building(
-        self,
-        castle_id: int,
-        building_id: int,
-        building_type: Optional[int] = None
+        self, castle_id: int, building_id: int, building_type: Optional[int] = None
     ) -> bool:
         """
         Upgrade or build a building in your castle.
-        
+
         Args:
             castle_id: Your castle ID
             building_id: Building ID to upgrade
             building_type: Building type (if constructing new)
-            
+
         Returns:
             bool: True if successful
         """
         return await self.actions.upgrade_building(
             castle_id, building_id, building_type
         )
-    
+
     @handle_errors(log_msg="Error recruiting units")
-    async def recruit_units(
-        self,
-        castle_id: int,
-        unit_id: int,
-        count: int
-    ) -> bool:
+    async def recruit_units(self, castle_id: int, unit_id: int, count: int) -> bool:
         """
         Recruit/train units in your castle.
-        
+
         Args:
             castle_id: Your castle ID
             unit_id: Unit type ID
             count: Number of units to recruit
-            
+
         Returns:
             bool: True if successful
         """
@@ -334,3 +344,151 @@ class EmpireClient:
     @handle_errors(log_msg="Error closing client", re_raise=False)
     async def close(self):
         await self.connection.disconnect()
+
+    # ============================================================
+    # Movement Tracking Methods
+    # ============================================================
+
+    @property
+    def movements(self) -> Dict[int, Movement]:
+        """Get all currently tracked movements."""
+        return self.state.movements
+
+    def get_all_movements(self) -> List[Movement]:
+        """Get all tracked movements as a list."""
+        return self.state.get_all_movements()
+
+    def get_incoming_movements(self) -> List[Movement]:
+        """Get all incoming movements (attacks, supports, transports to us)."""
+        return self.state.get_incoming_movements()
+
+    def get_outgoing_movements(self) -> List[Movement]:
+        """Get all outgoing movements (our attacks, transports, etc.)."""
+        return self.state.get_outgoing_movements()
+
+    def get_returning_movements(self) -> List[Movement]:
+        """Get all returning movements (armies coming back)."""
+        return self.state.get_returning_movements()
+
+    def get_incoming_attacks(self) -> List[Movement]:
+        """Get all incoming attack movements (high priority)."""
+        return self.state.get_incoming_attacks()
+
+    def get_movements_to_castle(self, castle_id: int) -> List[Movement]:
+        """Get all movements targeting a specific castle."""
+        return self.state.get_movements_to_castle(castle_id)
+
+    def get_movements_from_castle(self, castle_id: int) -> List[Movement]:
+        """Get all movements originating from a specific castle."""
+        return self.state.get_movements_from_castle(castle_id)
+
+    def get_next_arrival(self) -> Optional[Movement]:
+        """Get the movement that will arrive soonest."""
+        return self.state.get_next_arrival()
+
+    def get_movement(self, movement_id: int) -> Optional[Movement]:
+        """Get a specific movement by ID."""
+        return self.state.get_movement_by_id(movement_id)
+
+    @handle_errors(log_msg="Error refreshing movements")
+    async def refresh_movements(
+        self, wait: bool = True, timeout: float = 5.0
+    ) -> List[Movement]:
+        """
+        Refresh movement data from server.
+
+        Args:
+            wait: Wait for response before returning
+            timeout: Timeout in seconds when waiting
+
+        Returns:
+            List of all current movements
+        """
+        if wait:
+            self.response_awaiter.create_waiter("gam")
+
+        await self.get_movements()
+
+        if wait:
+            try:
+                await self.response_awaiter.wait_for("gam", timeout=timeout)
+            except asyncio.TimeoutError:
+                logger.warning("Refresh movements timed out")
+
+        return self.get_all_movements()
+
+    async def watch_movements(
+        self,
+        interval: float = 5.0,
+        callback: Optional[Callable[[List[Movement]], Awaitable[None]]] = None,
+        stop_event: Optional[asyncio.Event] = None,
+    ):
+        """
+        Continuously poll for movement updates.
+
+        Args:
+            interval: Polling interval in seconds
+            callback: Optional async callback to call with movements list
+            stop_event: Optional event to signal stopping
+        """
+        stop = stop_event or asyncio.Event()
+
+        while not stop.is_set():
+            try:
+                movements = await self.refresh_movements(wait=True, timeout=interval)
+
+                if callback:
+                    await callback(movements)
+
+                # Check for incoming attacks
+                attacks = self.get_incoming_attacks()
+                if attacks:
+                    for attack in attacks:
+                        logger.warning(
+                            f"Incoming attack! ID: {attack.MID}, "
+                            f"Target: {attack.target_area_id}, "
+                            f"Time: {attack.format_time_remaining()}"
+                        )
+
+            except Exception as e:
+                logger.error(f"Error in movement watch: {e}")
+
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=interval)
+                break
+            except asyncio.TimeoutError:
+                continue
+
+    def format_movements_summary(self) -> str:
+        """Get a formatted summary of all movements."""
+        lines = []
+
+        incoming = self.get_incoming_movements()
+        outgoing = self.get_outgoing_movements()
+        returning = self.get_returning_movements()
+
+        if not incoming and not outgoing and not returning:
+            return "No active movements."
+
+        if incoming:
+            lines.append(f"Incoming ({len(incoming)}):")
+            for m in sorted(incoming, key=lambda x: x.time_remaining):
+                lines.append(
+                    f"  - {m.movement_type_name} from {m.source_area_id}: {m.format_time_remaining()}"
+                )
+
+        if outgoing:
+            lines.append(f"Outgoing ({len(outgoing)}):")
+            for m in sorted(outgoing, key=lambda x: x.time_remaining):
+                lines.append(
+                    f"  - {m.movement_type_name} to {m.target_area_id}: {m.format_time_remaining()}"
+                )
+
+        if returning:
+            lines.append(f"Returning ({len(returning)}):")
+            for m in sorted(returning, key=lambda x: x.time_remaining):
+                lines.append(
+                    f"  - From {m.source_area_id}: {m.format_time_remaining()}"
+                )
+
+        return "\n".join(lines)
