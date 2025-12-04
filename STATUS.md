@@ -63,6 +63,16 @@ All core features are implemented and tested with real game accounts.
 - [x] Farming bot structure
 - [x] Response awaiter for async commands
 
+### 7. Advanced Automation (NEW)
+- [x] **MapScanner** - Spiral map scanning with caching, rate limiting, progress callbacks
+- [x] **ResourceManager** - Cross-castle resource monitoring and auto-balancing
+- [x] **BuildingManager** - Priority build queues with auto-upgrade and recommendations
+- [x] **UnitManager** - Production queues with target-based recruitment
+- [x] **AllianceManager** - Member tracking, messaging, attack coordination
+- [x] **ChatManager** - Chat history, private messages, message callbacks
+- [x] **QuestManager** - Quest tracking and completion automation
+- [x] **BattleReportManager** - Report parsing and analysis
+
 ### 7. Event System
 - [x] Event emitter/listener pattern
 - [x] Type-safe events
@@ -130,16 +140,43 @@ async def main():
 asyncio.run(main())
 ```
 
+### Automation Examples
+
+```python
+# Map scanning
+await client.scanner.scan_area(origin=(500, 500), radius=50)
+targets = client.scanner.find_npc_camps(max_level=5)
+
+# Resource management
+low_castles = await client.resources.get_low_resource_castles(threshold=0.3)
+await client.resources.auto_balance_resources()
+
+# Building queue
+client.buildings.queue_upgrade(castle_id, "fortress", priority=1)
+await client.buildings.process_queue()
+
+# Unit production
+client.units.set_target(castle_id, "swordsman", target_count=1000)
+await client.units.auto_recruit()
+
+# Alliance tools
+await client.alliance.send_alliance_message("Rally at 500,500!")
+await client.chat.send_private_message(player_id, "Need support")
+```
+
 ---
 
 ## Next Steps (Optional Enhancements)
 
 - [x] Quest completion automation
-- [ ] Alliance management features
+- [x] Alliance management features
 - [ ] Market/trading automation
 - [x] Detailed combat reports parsing
-- [ ] Map scanning optimizations
+- [x] Map scanning optimizations
+- [ ] Defense coordination system
+- [ ] Rally attack system
+- [ ] Resource trading automation
 
 ---
 
-**Last Updated:** December 4, 2024
+**Last Updated:** December 3, 2025

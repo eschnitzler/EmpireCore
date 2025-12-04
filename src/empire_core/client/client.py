@@ -20,6 +20,11 @@ from empire_core.client.actions import GameActions
 from empire_core.client.commands import GameCommands
 from empire_core.automation.quest_automation import QuestAutomation
 from empire_core.automation.battle_reports import BattleReportAutomation
+from empire_core.automation.alliance_tools import AllianceManager, ChatManager
+from empire_core.automation.map_scanner import MapScanner
+from empire_core.automation.resource_manager import ResourceManager
+from empire_core.automation.building_queue import BuildingManager
+from empire_core.automation.unit_production import UnitManager
 from empire_core.utils.decorators import handle_errors
 from empire_core.utils.response_awaiter import ResponseAwaiter
 from empire_core.exceptions import LoginError, TimeoutError, ActionError
@@ -40,6 +45,12 @@ class EmpireClient:
         self.commands = GameCommands(self)
         self.quests = QuestAutomation(self)
         self.battle_reports = BattleReportAutomation(self)
+        self.alliance = AllianceManager(self)
+        self.chat = ChatManager(self)
+        self.scanner = MapScanner(self)
+        self.resources = ResourceManager(self)
+        self.buildings = BuildingManager(self)
+        self.units = UnitManager(self)
         self.response_awaiter = ResponseAwaiter()
         self.connection.packet_handler = self._on_packet
 

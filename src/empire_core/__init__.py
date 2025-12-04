@@ -8,8 +8,14 @@ from empire_core.state.models import Player, Castle, Resources, Building, Allian
 from empire_core.state.world_models import Movement, MapObject, MovementResources
 from empire_core.state.unit_models import Army, UnitStats, UNIT_IDS
 from empire_core.state.quest_models import Quest, DailyQuest
+from empire_core.state.report_models import BattleReport, ReportManager
 from empire_core.automation.quest_automation import QuestAutomation
 from empire_core.automation.battle_reports import BattleReportAutomation
+from empire_core.automation.alliance_tools import AllianceManager, ChatManager
+from empire_core.automation.map_scanner import MapScanner
+from empire_core.automation.resource_manager import ResourceManager
+from empire_core.automation.building_queue import BuildingManager
+from empire_core.automation.unit_production import UnitManager
 from empire_core.utils.calculations import (
     calculate_distance,
     calculate_travel_time,
@@ -58,8 +64,17 @@ __all__ = [
     "UnitStats",
     "Quest",
     "DailyQuest",
+    "BattleReport",
+    "ReportManager",
+    # Automation
     "QuestAutomation",
     "BattleReportAutomation",
+    "AllianceManager",
+    "ChatManager",
+    "MapScanner",
+    "ResourceManager",
+    "BuildingManager",
+    "UnitManager",
     # Enums
     "MovementType",
     "MapObjectType",
