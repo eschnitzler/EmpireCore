@@ -26,6 +26,7 @@ All core features are implemented and tested with real game accounts.
 - [x] Population (P, NDP)
 - [x] Building lists with IDs and levels
 - [x] Unit counts by type
+- [x] Castle coordinates (X, Y)
 - [x] Map object tracking
 
 ### 3. Movement Tracking (NEW)
@@ -133,12 +134,12 @@ asyncio.run(main())
 
 ## Next Steps (Optional Enhancements)
 
-- [ ] Quest completion automation
+- [x] Quest completion automation
 - [ ] Alliance management features
 - [ ] Market/trading automation
-- [ ] Detailed combat reports parsing
+- [x] Detailed combat reports parsing
 - [ ] Map scanning optimizations
 
 ---
 
-**Last Updated:** December 3, 2024
+**Last Updated:** December 4, 2024
