@@ -5,16 +5,17 @@ from typing import Callable, Any, Optional, Type, Union, Tuple
 
 from empire_core.exceptions import EmpireError
 
+
 def handle_errors(
     logger: Optional[logging.Logger] = None,
     log_msg: Optional[str] = None,
     re_raise: bool = True,
     cleanup_method: Optional[str] = None,
-    ignore: Optional[Tuple[Type[Exception], ...]] = None,
+    ignore: Optional[Tuple[Type[BaseException], ...]] = None,
 ):
     """
     Decorator to centralize error handling, logging, and cleanup.
-    
+
     Args:
         logger: The logger instance to use. If None, tries to get 'logger' from instance or module.
         log_msg: Custom message to prefix the error log with.
@@ -22,6 +23,7 @@ def handle_errors(
         cleanup_method: Name of a method on 'self' to call if an exception occurs (for instance methods).
         ignore: Tuple of exception types to ignore (not log as error, just debug/pass).
     """
+
     def decorator(func: Callable):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
@@ -29,8 +31,8 @@ def handle_errors(
             _logger = logger
             if _logger is None:
                 # Try to get 'self.logger' or module level logger
-                if args and hasattr(args[0], 'logger'):
-                    _logger = getattr(args[0], 'logger')
+                if args and hasattr(args[0], "logger"):
+                    _logger = getattr(args[0], "logger")
                 else:
                     _logger = logging.getLogger(func.__module__)
 
@@ -63,5 +65,7 @@ def handle_errors(
 
                 if re_raise:
                     raise e
+
         return wrapper
+
     return decorator
