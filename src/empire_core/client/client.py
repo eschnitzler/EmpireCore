@@ -18,6 +18,8 @@ from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
 from empire_core.client.actions import GameActions
 from empire_core.client.commands import GameCommands
+from empire_core.automation.quest_automation import QuestAutomation
+from empire_core.automation.battle_reports import BattleReportAutomation
 from empire_core.utils.decorators import handle_errors
 from empire_core.utils.response_awaiter import ResponseAwaiter
 from empire_core.exceptions import LoginError, TimeoutError, ActionError
@@ -36,6 +38,8 @@ class EmpireClient:
         self.state = GameState()
         self.actions = GameActions(self)
         self.commands = GameCommands(self)
+        self.quests = QuestAutomation(self)
+        self.battle_reports = BattleReportAutomation(self)
         self.response_awaiter = ResponseAwaiter()
         self.connection.packet_handler = self._on_packet
 
@@ -68,7 +72,9 @@ class EmpireClient:
         await self.events.emit(pkt_event)
 
     @handle_errors(log_msg="Login failed")
-    async def login(self, username: str = None, password: str = None):
+    async def login(
+        self, username: Optional[str] = None, password: Optional[str] = None
+    ):
         """
         Performs the full login sequence:
         Connect -> Version Check -> XML Login (Zone) -> AutoJoin -> XT Login (Auth)

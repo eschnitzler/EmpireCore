@@ -5,6 +5,7 @@ from empire_core.state.models import Player, Castle, Resources, Building
 from empire_core.state.world_models import MapObject, Movement, MovementResources
 from empire_core.state.quest_models import DailyQuest, Quest
 from empire_core.state.unit_models import Army
+from empire_core.state.report_models import BattleReport, ReportManager
 from empire_core.events.base import (
     MovementStartedEvent,
     MovementUpdatedEvent,
@@ -38,6 +39,9 @@ class GameState:
 
         # Quests
         self.daily_quests: Optional[DailyQuest] = None
+
+        # Reports
+        self.reports = ReportManager()
 
         # Armies (castle_id -> Army)
         self.armies: Dict[int, Army] = {}
@@ -79,6 +83,10 @@ class GameState:
             self._handle_ata(payload)
         elif cmd_id == "cam":  # Cancel army movement response
             self._handle_cam(payload)
+        elif cmd_id == "rep":  # Battle reports
+            self._handle_rep(payload)
+        elif cmd_id == "red":  # Battle report details
+            self._handle_red(payload)
         # Add more as needed
 
     def _handle_gbd(self, data: Dict[str, Any]):
@@ -147,10 +155,12 @@ class GameState:
                     if isinstance(raw_ai, list) and len(raw_ai) > 10:
                         area_id = raw_ai[3]
                         owner_id = raw_ai[4]
+                        x = raw_ai[0] if len(raw_ai) > 0 else 0
+                        y = raw_ai[1] if len(raw_ai) > 1 else 0
                         name = raw_ai[10]
 
                         if owner_id == self.local_player.id:
-                            castle = Castle(OID=area_id, N=name, KID=kid)
+                            castle = Castle(OID=area_id, N=name, KID=kid, X=x, Y=y)
                             self.castles[area_id] = castle
                             self.local_player.castles[area_id] = castle
 
@@ -748,3 +758,49 @@ class GameState:
     def get_movement_by_id(self, movement_id: int) -> Optional[Movement]:
         """Get a specific movement by ID."""
         return self.movements.get(movement_id)
+
+    def _handle_rep(self, data: Dict[str, Any]):
+        """
+        Handle 'Battle Reports' packet.
+        """
+        reports_data = data.get("R", [])
+        if not isinstance(reports_data, list):
+            return
+
+        for report_data in reports_data:
+            try:
+                # Parse basic report info
+                report = BattleReport(**report_data)
+                self.reports.add_battle_report(report)
+                logger.debug(f"Parsed battle report {report.report_id}")
+            except Exception as e:
+                logger.error(f"Failed to parse battle report: {e}")
+
+        logger.info(f"GameState: Parsed {len(reports_data)} battle reports")
+
+    def _handle_red(self, data: Dict[str, Any]):
+        """
+        Handle 'Battle Report Details' packet.
+        """
+        try:
+            report_id = data.get("RID")
+            if report_id and report_id in self.reports.battle_reports:
+                # Update existing report with detailed data
+                report = self.reports.battle_reports[report_id]
+
+                # Parse detailed battle data
+                battle_data = data.get("B", {})
+
+                # Parse attacker
+                if "A" in battle_data:
+                    attacker_data = battle_data["A"]
+                    if isinstance(attacker_data, dict):
+                        # This would need more detailed parsing based on actual packet structure
+                        # For now, just log that we received detailed data
+                        logger.debug(
+                            f"Received detailed battle data for report {report_id}"
+                        )
+
+                logger.debug(f"Updated battle report {report_id} with details")
+        except Exception as e:
+            logger.error(f"Failed to parse battle report details: {e}")

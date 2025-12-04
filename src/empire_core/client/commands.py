@@ -75,6 +75,18 @@ class GameCommands:
             "cam", {"MID": movement_id}, f"Recall movement {movement_id}"
         )
 
+    async def get_battle_reports(self, count: int = 10) -> bool:
+        """Get battle reports."""
+        return await self._send_command(
+            "rep", {"C": count}, f"Get {count} battle reports"
+        )
+
+    async def get_battle_report_details(self, report_id: int) -> bool:
+        """Get detailed battle report."""
+        return await self._send_command(
+            "red", {"RID": report_id}, f"Get battle report {report_id} details"
+        )
+
     async def send_message(self, player_id: int, subject: str, message: str) -> bool:
         """Send message to player."""
         return await self._send_command(
