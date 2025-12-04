@@ -2,7 +2,7 @@
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/asyncio-powered-green.svg" alt="Asyncio">
   <img src="https://img.shields.io/badge/pydantic-v2-purple.svg" alt="Pydantic v2">
-  <img src="https://img.shields.io/badge/license-MIT-orange.svg" alt="MIT License">
+  <img src="https://img.shields.io/badge/status-WIP-red.svg" alt="Work in Progress">
 </p>
 
 <h1 align="center">EmpireCore</h1>
@@ -18,6 +18,12 @@
   <a href="#examples">Examples</a> •
   <a href="#documentation">Documentation</a>
 </p>
+
+---
+
+> **⚠️ Work in Progress**
+> 
+> This library is under active development. APIs may change, and some features are incomplete or untested. Use at your own risk.
 
 ---
 
