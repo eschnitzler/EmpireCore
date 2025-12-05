@@ -18,6 +18,7 @@ from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
 from empire_core.client.actions import GameActionsMixin
 from empire_core.client.commands import GameCommandsMixin
+from empire_core.client.defense import DefenseMixin
 from empire_core.automation.quest_automation import QuestMixin
 from empire_core.automation.battle_reports import BattleReportMixin
 from empire_core.automation.alliance_tools import AllianceMixin, ChatMixin
@@ -35,6 +36,7 @@ logger = logging.getLogger(__name__)
 class EmpireClient(
     GameActionsMixin,
     GameCommandsMixin,
+    DefenseMixin,
     QuestMixin,
     BattleReportMixin,
     AllianceMixin,
