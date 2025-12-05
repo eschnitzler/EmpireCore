@@ -18,9 +18,9 @@ from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
 from empire_core.client.actions import GameActionsMixin
 from empire_core.client.commands import GameCommandsMixin
-from empire_core.automation.quest_automation import QuestAutomation
-from empire_core.automation.battle_reports import BattleReportAutomation
-from empire_core.automation.alliance_tools import AllianceManager, ChatManager
+from empire_core.automation.quest_automation import QuestMixin
+from empire_core.automation.battle_reports import BattleReportMixin
+from empire_core.automation.alliance_tools import AllianceMixin, ChatMixin
 from empire_core.automation.map_scanner import MapScanner
 from empire_core.automation.resource_manager import ResourceManager
 from empire_core.automation.building_queue import BuildingManager
@@ -32,7 +32,14 @@ from empire_core.exceptions import LoginError, TimeoutError, ActionError
 logger = logging.getLogger(__name__)
 
 
-class EmpireClient(GameActionsMixin, GameCommandsMixin):
+class EmpireClient(
+    GameActionsMixin,
+    GameCommandsMixin,
+    QuestMixin,
+    BattleReportMixin,
+    AllianceMixin,
+    ChatMixin,
+):
     def __init__(self, config: Optional[EmpireConfig] = None):
         self.config = config or default_config
         self.connection = SFSConnection(self.config.game_url)
@@ -41,15 +48,22 @@ class EmpireClient(GameActionsMixin, GameCommandsMixin):
 
         self.events = EventManager()
         self.state = GameState()
-        # self.actions and self.commands are now mixed in
-        self.quests = QuestAutomation(self)
-        self.battle_reports = BattleReportAutomation(self)
-        self.alliance = AllianceManager(self)
-        self.chat = ChatManager(self)
+        
+        # Mixin State Initialization
+        # AllianceMixin
+        self.alliance_members = {}
+        self._alliance_callbacks = []
+        
+        # ChatMixin
+        self.chat_history = []
+        self._chat_callbacks = []
+
+        # Automation Bots (Still Composition)
         self.scanner = MapScanner(self)
         self.resources = ResourceManager(self)
         self.buildings = BuildingManager(self)
         self.units = UnitManager(self)
+        
         self.response_awaiter = ResponseAwaiter()
         self.connection.packet_handler = self._on_packet
 

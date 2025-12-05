@@ -13,36 +13,38 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class BattleReportAutomation:
-    """Automates battle report fetching and analysis."""
-
-    def __init__(self, client: "EmpireClient"):
-        self.client = client
+class BattleReportMixin:
+    """Mixin for battle report fetching and analysis."""
 
     @property
-    def reports(self) -> ReportManager:
-        """Get the report manager."""
-        return self.client.state.reports
+    def reports_manager(self) -> ReportManager:
+        """Get the report manager from state."""
+        client: "EmpireClient" = self  # type: ignore
+        return client.state.reports
 
     async def fetch_recent_reports(self, count: int = 10) -> bool:
         """Fetch recent battle reports from server."""
-        return await self.client.get_battle_reports(count)
+        client: "EmpireClient" = self  # type: ignore
+        # Using mixed-in method from GameCommandsMixin
+        return await client.get_battle_reports(count)
 
     async def fetch_report_details(self, report_id: int) -> bool:
         """Fetch detailed data for a specific battle report."""
-        return await self.client.get_battle_report_details(report_id)
+        client: "EmpireClient" = self  # type: ignore
+        # Using mixed-in method from GameCommandsMixin
+        return await client.get_battle_report_details(report_id)
 
     def get_recent_reports(self, count: int = 10) -> List[BattleReport]:
         """Get most recent battle reports."""
-        return self.reports.get_recent_reports(count)
+        return self.reports_manager.get_recent_reports(count)
 
     def get_unread_reports(self) -> List[BattleReport]:
         """Get all unread battle reports."""
-        return self.reports.get_unread_reports()
+        return self.reports_manager.get_unread_reports()
 
     def mark_report_read(self, report_id: int):
         """Mark a battle report as read."""
-        self.reports.mark_as_read(report_id)
+        self.reports_manager.mark_as_read(report_id)
 
     def get_report_summary(self, report: BattleReport) -> Dict[str, Any]:
         """Get a summary of a battle report."""

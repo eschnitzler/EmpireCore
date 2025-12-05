@@ -14,25 +14,25 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class QuestAutomation:
-    """Automates quest completion and reward collection."""
-
-    def __init__(self, client: "EmpireClient"):
-        self.client = client
+class QuestMixin:
+    """Mixin for quest automation and rewards."""
 
     @property
     def daily_quests(self) -> Optional[DailyQuest]:
         """Get current daily quests."""
-        return self.client.state.daily_quests
+        client: "EmpireClient" = self  # type: ignore
+        return client.state.daily_quests
 
     async def refresh_quests(self) -> bool:
         """Refresh quest data from server."""
-        packet = Packet.build_xt(self.client.config.default_zone, "dql", {})
-        await self.client.connection.send(packet)
+        client: "EmpireClient" = self  # type: ignore
+        packet = Packet.build_xt(client.config.default_zone, "dql", {})
+        await client.connection.send(packet)
         return True
 
     async def collect_available_rewards(self) -> List[int]:
         """Collect rewards for completed quests. Returns list of collected quest IDs."""
+        client: "EmpireClient" = self  # type: ignore
         if not self.daily_quests:
             logger.debug("No daily quests data available")
             return []
@@ -40,7 +40,8 @@ class QuestAutomation:
         collected = []
         for quest_id in self.daily_quests.finished_quests:
             try:
-                success = await self.client.collect_quest_reward(quest_id)
+                # Using mixed-in method from GameCommandsMixin
+                success = await client.collect_quest_reward(quest_id)
                 if success:
                     collected.append(quest_id)
                     logger.info(f"Collected reward for quest {quest_id}")

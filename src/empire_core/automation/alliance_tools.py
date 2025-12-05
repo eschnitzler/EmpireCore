@@ -38,26 +38,27 @@ class ChatMessage:
     channel: str = "global"
 
 
-class AllianceManager:
-    """Manage alliance operations."""
-
-    def __init__(self, client: "EmpireClient"):
-        self.client = client
-        self.members: Dict[int, AllianceMember] = {}
-        self._member_callbacks: List[Callable[[List[AllianceMember]], None]] = []
+class AllianceMixin:
+    """Mixin for alliance operations."""
+    
+    # State for this mixin must be initialized in EmpireClient
+    # self.alliance_members: Dict[int, AllianceMember]
+    # self._alliance_callbacks: List[Callable[[List[AllianceMember]], None]]
 
     @property
     def alliance(self):
         """Get current alliance info from player state."""
-        if self.client.state.local_player:
-            return self.client.state.local_player.alliance
+        client: "EmpireClient" = self  # type: ignore
+        if client.state.local_player:
+            return client.state.local_player.alliance
         return None
 
     @property
     def alliance_id(self) -> Optional[int]:
         """Get alliance ID."""
-        if self.client.state.local_player:
-            return self.client.state.local_player.AID
+        client: "EmpireClient" = self  # type: ignore
+        if client.state.local_player:
+            return client.state.local_player.AID
         return None
 
     @property
@@ -71,18 +72,20 @@ class AllianceManager:
             logger.warning("Not in an alliance")
             return False
 
-        packet = Packet.build_xt(self.client.config.default_zone, "gal", {})
-        await self.client.connection.send(packet)
+        client: "EmpireClient" = self  # type: ignore
+        packet = Packet.build_xt(client.config.default_zone, "gal", {})
+        await client.connection.send(packet)
         return True
 
-    async def send_message(self, message: str) -> bool:
+    async def send_alliance_chat(self, message: str) -> bool:
         """Send message to alliance chat."""
         if not self.is_in_alliance:
             logger.warning("Not in an alliance")
             return False
 
-        packet = Packet.build_xt(self.client.config.default_zone, "sam", {"M": message})
-        await self.client.connection.send(packet)
+        client: "EmpireClient" = self  # type: ignore
+        packet = Packet.build_xt(client.config.default_zone, "sam", {"M": message})
+        await client.connection.send(packet)
         logger.info(f"Sent alliance message: {message[:50]}...")
         return True
 
@@ -91,34 +94,39 @@ class AllianceManager:
     ) -> bool:
         """Send attack coordination message to alliance."""
         message = f"⚔️ Attack: {target_name} at ({target_x}, {target_y})"
-        return await self.send_message(message)
+        return await self.send_alliance_chat(message)
 
     async def request_support(
         self, castle_id: int, castle_name: str, reason: str = "under attack"
     ) -> bool:
         """Request support from alliance members."""
         message = f"🛡️ Need support at {castle_name} (ID: {castle_id}) - {reason}"
-        return await self.send_message(message)
+        return await self.send_alliance_chat(message)
 
     def get_online_members(self) -> List[AllianceMember]:
         """Get online alliance members."""
-        return [m for m in self.members.values() if m.online]
+        # Assumes self.alliance_members is initialized
+        return [m for m in self.alliance_members.values() if m.online] # type: ignore
 
     def get_members_by_rank(self, rank: str) -> List[AllianceMember]:
         """Get members by rank."""
-        return [m for m in self.members.values() if m.rank.lower() == rank.lower()]
+        return [m for m in self.alliance_members.values() if m.rank.lower() == rank.lower()] # type: ignore
 
     def get_member(self, player_id: int) -> Optional[AllianceMember]:
         """Get specific member by ID."""
-        return self.members.get(player_id)
+        return self.alliance_members.get(player_id) # type: ignore
 
     def get_member_count(self) -> int:
         """Get total member count."""
-        return len(self.members)
+        return len(self.alliance_members) # type: ignore
 
     def update_members(self, members_data: List[Dict[str, Any]]):
         """Update member list from server data."""
-        self.members.clear()
+        if not hasattr(self, 'alliance_members'):
+             # Fallback if init missed
+             self.alliance_members = {} # type: ignore
+
+        self.alliance_members.clear() # type: ignore
         for m_data in members_data:
             member = AllianceMember(
                 player_id=m_data.get("PID", 0),
@@ -129,68 +137,77 @@ class AllianceManager:
                 last_seen=m_data.get("LS", 0),
                 castle_count=m_data.get("CC", 0),
             )
-            self.members[member.player_id] = member
+            self.alliance_members[member.player_id] = member # type: ignore
 
-        logger.info(f"Updated {len(self.members)} alliance members")
+        logger.info(f"Updated {len(self.alliance_members)} alliance members") # type: ignore
 
         # Notify callbacks
-        for callback in self._member_callbacks:
-            try:
-                callback(list(self.members.values()))
-            except Exception as e:
-                logger.error(f"Member callback error: {e}")
+        if hasattr(self, '_alliance_callbacks'):
+            for callback in self._alliance_callbacks: # type: ignore
+                try:
+                    callback(list(self.alliance_members.values())) # type: ignore
+                except Exception as e:
+                    logger.error(f"Member callback error: {e}")
 
     def on_members_updated(self, callback: Callable[[List[AllianceMember]], None]):
         """Register callback for when member list updates."""
-        self._member_callbacks.append(callback)
+        if not hasattr(self, '_alliance_callbacks'):
+            self._alliance_callbacks = [] # type: ignore
+        self._alliance_callbacks.append(callback) # type: ignore
 
 
-class ChatManager:
-    """Manage chat functionality."""
-
+class ChatMixin:
+    """Mixin for chat functionality."""
+    
+    # State for this mixin must be initialized in EmpireClient
+    # self.chat_history: List[ChatMessage]
+    # self._chat_callbacks: List[Callable[[ChatMessage], None]]
+    
     MAX_HISTORY = 100
 
-    def __init__(self, client: "EmpireClient"):
-        self.client = client
-        self.chat_history: List[ChatMessage] = []
-        self._message_callbacks: List[Callable[[ChatMessage], None]] = []
-
-    async def send_global(self, message: str) -> bool:
+    async def send_global_chat(self, message: str) -> bool:
         """Send message to global chat."""
         return await self._send_chat(message, "global")
 
-    async def send_kingdom(self, message: str, kingdom_id: int = 0) -> bool:
+    async def send_kingdom_chat(self, message: str, kingdom_id: int = 0) -> bool:
         """Send message to kingdom chat."""
         return await self._send_chat(message, f"kingdom_{kingdom_id}")
 
-    async def send_private(self, player_id: int, message: str) -> bool:
+    async def send_private_message(self, player_id: int, message: str) -> bool:
         """Send private message to a player."""
+        client: "EmpireClient" = self  # type: ignore
         packet = Packet.build_xt(
-            self.client.config.default_zone,
+            client.config.default_zone,
             "spm",
             {"RID": player_id, "M": message},
         )
-        await self.client.connection.send(packet)
+        await client.connection.send(packet)
         logger.info(f"Sent PM to {player_id}")
         return True
 
     async def _send_chat(self, message: str, channel: str) -> bool:
         """Send chat message to channel."""
+        client: "EmpireClient" = self  # type: ignore
         packet = Packet.build_xt(
-            self.client.config.default_zone,
+            client.config.default_zone,
             "sct",
             {"M": message, "C": channel},
         )
-        await self.client.connection.send(packet)
+        await client.connection.send(packet)
         logger.debug(f"Sent to {channel}: {message[:50]}...")
         return True
 
-    def on_message(self, callback: Callable[[ChatMessage], None]):
+    def on_chat_message(self, callback: Callable[[ChatMessage], None]):
         """Register callback for incoming messages."""
-        self._message_callbacks.append(callback)
+        if not hasattr(self, '_chat_callbacks'):
+            self._chat_callbacks = [] # type: ignore
+        self._chat_callbacks.append(callback) # type: ignore
 
-    def handle_incoming(self, data: Dict[str, Any]):
+    def handle_incoming_chat(self, data: Dict[str, Any]):
         """Handle incoming chat message from server."""
+        if not hasattr(self, 'chat_history'):
+            self.chat_history = [] # type: ignore
+            
         msg = ChatMessage(
             timestamp=data.get("T", 0),
             player_name=data.get("N", ""),
@@ -198,29 +215,36 @@ class ChatManager:
             message=data.get("M", ""),
             channel=data.get("C", "global"),
         )
-        self.chat_history.append(msg)
+        self.chat_history.append(msg) # type: ignore
 
         # Trim history
-        if len(self.chat_history) > self.MAX_HISTORY:
-            self.chat_history = self.chat_history[-self.MAX_HISTORY :]
+        if len(self.chat_history) > self.MAX_HISTORY: # type: ignore
+            self.chat_history = self.chat_history[-self.MAX_HISTORY :] # type: ignore
 
         # Notify callbacks
-        for callback in self._message_callbacks:
-            try:
-                callback(msg)
-            except Exception as e:
-                logger.error(f"Chat callback error: {e}")
+        if hasattr(self, '_chat_callbacks'):
+            for callback in self._chat_callbacks: # type: ignore
+                try:
+                    callback(msg)
+                except Exception as e:
+                    logger.error(f"Chat callback error: {e}")
 
-    def get_history(
+    def get_chat_history(
         self, channel: Optional[str] = None, limit: int = 50
     ) -> List[ChatMessage]:
         """Get chat history, optionally filtered by channel."""
-        messages = self.chat_history
+        if not hasattr(self, 'chat_history'):
+            return []
+            
+        messages = self.chat_history # type: ignore
         if channel:
             messages = [m for m in messages if m.channel == channel]
         return messages[-limit:]
 
-    def search_history(self, keyword: str) -> List[ChatMessage]:
+    def search_chat_history(self, keyword: str) -> List[ChatMessage]:
         """Search chat history for keyword."""
+        if not hasattr(self, 'chat_history'):
+            return []
+            
         keyword_lower = keyword.lower()
-        return [m for m in self.chat_history if keyword_lower in m.message.lower()]
+        return [m for m in self.chat_history if keyword_lower in m.message.lower()] # type: ignore
