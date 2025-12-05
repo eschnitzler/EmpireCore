@@ -40,7 +40,7 @@ class QuestAutomation:
         collected = []
         for quest_id in self.daily_quests.finished_quests:
             try:
-                success = await self.client.commands.collect_quest_reward(quest_id)
+                success = await self.client.collect_quest_reward(quest_id)
                 if success:
                     collected.append(quest_id)
                     logger.info(f"Collected reward for quest {quest_id}")

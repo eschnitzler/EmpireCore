@@ -26,11 +26,11 @@ class BattleReportAutomation:
 
     async def fetch_recent_reports(self, count: int = 10) -> bool:
         """Fetch recent battle reports from server."""
-        return await self.client.commands.get_battle_reports(count)
+        return await self.client.get_battle_reports(count)
 
     async def fetch_report_details(self, report_id: int) -> bool:
         """Fetch detailed data for a specific battle report."""
-        return await self.client.commands.get_battle_report_details(report_id)
+        return await self.client.get_battle_report_details(report_id)
 
     def get_recent_reports(self, count: int = 10) -> List[BattleReport]:
         """Get most recent battle reports."""

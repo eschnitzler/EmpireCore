@@ -15,20 +15,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class GameActions:
-    """Handles game action commands."""
+class GameActionsMixin:
+    """Mixin for game action commands."""
 
-    def __init__(self, client: "EmpireClient"):
-        """
-        Initialize with reference to client.
-
-        Args:
-            client: EmpireClient instance
-        """
-        self.client = client
-        self.config = client.config
-
-    async def _send_command(
+    async def _send_command_action(
         self,
         command: str,
         payload: Dict[str, Any],
@@ -52,25 +42,28 @@ class GameActions:
         Raises:
             ActionError: If command fails
         """
-        if wait_for_response:
-            self.client.response_awaiter.create_waiter(command)
+        # self.client is now self (EmpireClient)
+        client: "EmpireClient" = self  # type: ignore
 
-        packet = Packet.build_xt(self.config.default_zone, command, payload)
+        if wait_for_response:
+            client.response_awaiter.create_waiter(command)
+
+        packet = Packet.build_xt(client.config.default_zone, command, payload)
 
         try:
-            await self.client.connection.send(packet)
+            await client.connection.send(packet)
             logger.info(f"{action_name} command sent successfully")
 
             if wait_for_response:
                 logger.debug(f"Waiting for {command} response...")
-                response = await self.client.response_awaiter.wait_for(command, timeout)
+                response = await client.response_awaiter.wait_for(command, timeout)
                 logger.info(f"{action_name} response received: {response}")
                 return response
 
             return True
         except Exception as e:
             if wait_for_response:
-                self.client.response_awaiter.cancel_command(command)
+                client.response_awaiter.cancel_command(command)
             logger.error(f"Failed to {action_name.lower()}: {e}")
             raise ActionError(f"{action_name} failed: {e}")
 
@@ -136,7 +129,7 @@ class GameActions:
             "KID": kingdom_id,
         }
 
-        response = await self._send_command(
+        response = await self._send_command_action(
             "att", payload, "Attack", wait_for_response, timeout
         )
 
@@ -187,12 +180,59 @@ class GameActions:
             },
         }
 
-        response = await self._send_command(
+        response = await self._send_command_action(
             "tra", payload, "Transport", wait_for_response, timeout
         )
 
         if wait_for_response:
             return self._parse_action_response(response, "transport")
+        return True
+
+    async def send_spy(
+        self,
+        origin_castle_id: int,
+        target_area_id: int,
+        units: Dict[int, int],
+        kingdom_id: int = 0,
+        wait_for_response: bool = False,
+        timeout: float = 5.0,
+    ) -> bool:
+        """
+        Send spies to a target.
+
+        Args:
+            origin_castle_id: ID of attacking castle
+            target_area_id: ID of target area
+            units: Dictionary of {unit_id: count} (e.g., spies)
+            kingdom_id: Kingdom ID (default 0)
+            wait_for_response: Wait for server confirmation (default False)
+            timeout: Response timeout in seconds (default 5.0)
+
+        Returns:
+            bool: True if spies sent successfully
+
+        Raises:
+            ActionError: If spy action fails
+        """
+        logger.info(f"Sending spies from {origin_castle_id} to {target_area_id}")
+
+        if not units or all(count <= 0 for count in units.values()):
+            raise ActionError("Must specify at least one unit")
+
+        payload = {
+            "OID": origin_castle_id,
+            "TID": target_area_id,
+            "UN": units,
+            "TT": TroopActionType.SPY,
+            "KID": kingdom_id,
+        }
+
+        response = await self._send_command_action(
+            "scl", payload, "Spy", wait_for_response, timeout
+        )
+
+        if wait_for_response:
+            return self._parse_action_response(response, "spy")
         return True
 
     async def upgrade_building(
@@ -218,7 +258,7 @@ class GameActions:
         if building_type is not None:
             payload["BTYP"] = building_type
 
-        await self._send_command("bui", payload, "Building upgrade")
+        await self._send_command_action("bui", payload, "Building upgrade")
         return True
 
     async def recruit_units(self, castle_id: int, unit_id: int, count: int) -> bool:
@@ -243,5 +283,5 @@ class GameActions:
 
         payload = {"AID": castle_id, "UID": unit_id, "C": count}
 
-        await self._send_command("tru", payload, "Unit recruitment")
+        await self._send_command_action("tru", payload, "Unit recruitment")
         return True

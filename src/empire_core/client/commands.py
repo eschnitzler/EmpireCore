@@ -14,14 +14,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class GameCommands:
-    """Additional game commands beyond actions."""
+class GameCommandsMixin:
+    """Mixin for additional game commands."""
 
-    def __init__(self, client: "EmpireClient"):
-        self.client = client
-        self.config = client.config
-
-    async def _send_command(
+    async def _send_command_generic(
         self, command: str, payload: Dict[str, Any], action_name: str
     ) -> bool:
         """
@@ -38,9 +34,12 @@ class GameCommands:
         Raises:
             ActionError: If command fails
         """
-        packet = Packet.build_xt(self.config.default_zone, command, payload)
+        # self is EmpireClient
+        client: "EmpireClient" = self  # type: ignore
+
+        packet = Packet.build_xt(client.config.default_zone, command, payload)
         try:
-            await self.client.connection.send(packet)
+            await client.connection.send(packet)
             logger.info(f"{action_name} successful")
             return True
         except Exception as e:
@@ -49,7 +48,7 @@ class GameCommands:
 
     async def cancel_building(self, castle_id: int, queue_id: int) -> bool:
         """Cancel building upgrade."""
-        return await self._send_command(
+        return await self._send_command_generic(
             "cbu",
             {"AID": castle_id, "QID": queue_id},
             f"Cancel building in castle {castle_id}",
@@ -57,7 +56,7 @@ class GameCommands:
 
     async def speed_up_building(self, castle_id: int, queue_id: int) -> bool:
         """Speed up building with rubies."""
-        return await self._send_command(
+        return await self._send_command_generic(
             "sbu",
             {"AID": castle_id, "QID": queue_id},
             f"Speed up building in castle {castle_id}",
@@ -65,31 +64,31 @@ class GameCommands:
 
     async def collect_quest_reward(self, quest_id: int) -> bool:
         """Collect quest reward."""
-        return await self._send_command(
+        return await self._send_command_generic(
             "cqr", {"QID": quest_id}, f"Collect quest {quest_id} reward"
         )
 
     async def recall_army(self, movement_id: int) -> bool:
         """Recall/cancel army movement."""
-        return await self._send_command(
+        return await self._send_command_generic(
             "cam", {"MID": movement_id}, f"Recall movement {movement_id}"
         )
 
     async def get_battle_reports(self, count: int = 10) -> bool:
         """Get battle reports."""
-        return await self._send_command(
+        return await self._send_command_generic(
             "rep", {"C": count}, f"Get {count} battle reports"
         )
 
     async def get_battle_report_details(self, report_id: int) -> bool:
         """Get detailed battle report."""
-        return await self._send_command(
+        return await self._send_command_generic(
             "red", {"RID": report_id}, f"Get battle report {report_id} details"
         )
 
     async def send_message(self, player_id: int, subject: str, message: str) -> bool:
         """Send message to player."""
-        return await self._send_command(
+        return await self._send_command_generic(
             "smg",
             {"RID": player_id, "S": subject, "M": message},
             f"Send message to player {player_id}",
@@ -97,10 +96,12 @@ class GameCommands:
 
     async def read_mail(self, mail_id: int) -> bool:
         """Mark mail as read."""
-        return await self._send_command("rma", {"MID": mail_id}, f"Read mail {mail_id}")
+        return await self._send_command_generic(
+            "rma", {"MID": mail_id}, f"Read mail {mail_id}"
+        )
 
     async def delete_mail(self, mail_id: int) -> bool:
         """Delete mail."""
-        return await self._send_command(
+        return await self._send_command_generic(
             "dma", {"MID": mail_id}, f"Delete mail {mail_id}"
         )

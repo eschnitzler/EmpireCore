@@ -16,8 +16,8 @@ from empire_core.events.manager import EventManager
 from empire_core.events.base import PacketEvent
 from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
-from empire_core.client.actions import GameActions
-from empire_core.client.commands import GameCommands
+from empire_core.client.actions import GameActionsMixin
+from empire_core.client.commands import GameCommandsMixin
 from empire_core.automation.quest_automation import QuestAutomation
 from empire_core.automation.battle_reports import BattleReportAutomation
 from empire_core.automation.alliance_tools import AllianceManager, ChatManager
@@ -32,7 +32,7 @@ from empire_core.exceptions import LoginError, TimeoutError, ActionError
 logger = logging.getLogger(__name__)
 
 
-class EmpireClient:
+class EmpireClient(GameActionsMixin, GameCommandsMixin):
     def __init__(self, config: Optional[EmpireConfig] = None):
         self.config = config or default_config
         self.connection = SFSConnection(self.config.game_url)
@@ -41,8 +41,7 @@ class EmpireClient:
 
         self.events = EventManager()
         self.state = GameState()
-        self.actions = GameActions(self)
-        self.commands = GameCommands(self)
+        # self.actions and self.commands are now mixed in
         self.quests = QuestAutomation(self)
         self.battle_reports = BattleReportAutomation(self)
         self.alliance = AllianceManager(self)
@@ -240,111 +239,6 @@ class EmpireClient:
         """
         packet = Packet.build_xt(self.config.default_zone, "dcl", {})
         await self.connection.send(packet)
-
-    # ========== Action Commands ==========
-
-    @handle_errors(log_msg="Error sending attack")
-    async def send_attack(
-        self,
-        origin_castle_id: int,
-        target_area_id: int,
-        units: Dict[int, int],
-        kingdom_id: int = 0,
-        wait_for_response: bool = False,
-        timeout: float = 5.0,
-    ) -> bool:
-        """
-        Send an attack from your castle to a target.
-
-        Args:
-            origin_castle_id: Your castle ID
-            target_area_id: Target area ID
-            units: Dictionary of {unit_id: count}
-            kingdom_id: Kingdom ID (default 0)
-            wait_for_response: Wait for server confirmation (default False)
-            timeout: Response timeout in seconds (default 5.0)
-
-        Returns:
-            bool: True if successful
-        """
-        return await self.actions.send_attack(
-            origin_castle_id,
-            target_area_id,
-            units,
-            kingdom_id,
-            wait_for_response,
-            timeout,
-        )
-
-    @handle_errors(log_msg="Error sending transport")
-    async def send_transport(
-        self,
-        origin_castle_id: int,
-        target_area_id: int,
-        wood: int = 0,
-        stone: int = 0,
-        food: int = 0,
-        wait_for_response: bool = False,
-        timeout: float = 5.0,
-    ) -> bool:
-        """
-        Send resources from your castle to another location.
-
-        Args:
-            origin_castle_id: Your castle ID
-            target_area_id: Target area ID
-            wood: Amount of wood
-            stone: Amount of stone
-            food: Amount of food
-            wait_for_response: Wait for server confirmation (default False)
-            timeout: Response timeout in seconds (default 5.0)
-
-        Returns:
-            bool: True if successful
-        """
-        return await self.actions.send_transport(
-            origin_castle_id,
-            target_area_id,
-            wood,
-            stone,
-            food,
-            wait_for_response,
-            timeout,
-        )
-
-    @handle_errors(log_msg="Error upgrading building")
-    async def upgrade_building(
-        self, castle_id: int, building_id: int, building_type: Optional[int] = None
-    ) -> bool:
-        """
-        Upgrade or build a building in your castle.
-
-        Args:
-            castle_id: Your castle ID
-            building_id: Building ID to upgrade
-            building_type: Building type (if constructing new)
-
-        Returns:
-            bool: True if successful
-        """
-        return await self.actions.upgrade_building(
-            castle_id, building_id, building_type
-        )
-
-    @handle_errors(log_msg="Error recruiting units")
-    async def recruit_units(self, castle_id: int, unit_id: int, count: int) -> bool:
-        """
-        Recruit/train units in your castle.
-
-        Args:
-            castle_id: Your castle ID
-            unit_id: Unit type ID
-            count: Number of units to recruit
-
-        Returns:
-            bool: True if successful
-        """
-        return await self.actions.recruit_units(castle_id, unit_id, count)
 
     @handle_errors(log_msg="Error closing client", re_raise=False)
     async def close(self):
