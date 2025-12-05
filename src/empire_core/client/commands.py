@@ -105,3 +105,65 @@ class GameCommandsMixin:
         return await self._send_command_generic(
             "dma", {"MID": mail_id}, f"Delete mail {mail_id}"
         )
+
+    async def search_player(self, name: str) -> bool:
+        """
+        Search for a player by name.
+        
+        Args:
+            name: Player name to search for
+            
+        Returns:
+            True if command sent successfully
+        """
+        return await self._send_command_generic(
+            "wsp", {"S": name}, f"Search player '{name}'"
+        )
+
+    async def get_player_details(self, player_id: int) -> bool:
+        """
+        Get detailed public profile of a player.
+        
+        Args:
+            player_id: Player ID
+            
+        Returns:
+            True if command sent successfully
+        """
+        return await self._send_command_generic(
+            "gdi", {"PID": player_id}, f"Get details for player {player_id}"
+        )
+
+    async def get_attack_info(
+        self, origin_id: int, target_id: int, units: Dict[int, int]
+    ) -> bool:
+        """
+        Get attack pre-calculation info (travel time, loot, etc.).
+        
+        Args:
+            origin_id: Origin castle ID
+            target_id: Target castle/area ID
+            units: Unit dictionary {unit_id: count}
+            
+        Returns:
+            True if command sent successfully
+        """
+        return await self._send_command_generic(
+            "gai", 
+            {"OID": origin_id, "TID": target_id, "UN": units}, 
+            f"Get attack info from {origin_id} to {target_id}"
+        )
+
+    async def get_castle_defense_info(self, target_id: int) -> bool:
+        """
+        Get defense information for a target castle.
+        
+        Args:
+            target_id: Target castle/area ID
+            
+        Returns:
+            True if command sent successfully
+        """
+        return await self._send_command_generic(
+            "aci", {"TID": target_id}, f"Get defense info for {target_id}"
+        )
