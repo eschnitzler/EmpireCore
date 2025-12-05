@@ -7,6 +7,7 @@ from .map_scanner import MapScanner
 from .resource_manager import ResourceManager
 from .building_queue import BuildingManager
 from .unit_production import UnitManager
+from .defense_manager import DefenseManager
 
 __all__ = [
     "QuestMixin",
@@ -17,4 +18,5 @@ __all__ = [
     "ResourceManager",
     "BuildingManager",
     "UnitManager",
+    "DefenseManager",
 ]

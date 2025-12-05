@@ -18,6 +18,7 @@ from empire_core.automation.map_scanner import MapScanner
 from empire_core.automation.resource_manager import ResourceManager
 from empire_core.automation.building_queue import BuildingManager
 from empire_core.automation.unit_production import UnitManager
+from empire_core.automation.defense_manager import DefenseManager
 from empire_core.utils.calculations import (
     calculate_distance,
     calculate_travel_time,
@@ -78,6 +79,7 @@ __all__ = [
     "ResourceManager",
     "BuildingManager",
     "UnitManager",
+    "DefenseManager",
     # Enums
     "MovementType",
     "MapObjectType",

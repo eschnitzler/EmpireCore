@@ -26,6 +26,7 @@ from empire_core.automation.map_scanner import MapScanner
 from empire_core.automation.resource_manager import ResourceManager
 from empire_core.automation.building_queue import BuildingManager
 from empire_core.automation.unit_production import UnitManager
+from empire_core.automation.defense_manager import DefenseManager # NEW IMPORT
 from empire_core.utils.decorators import handle_errors
 from empire_core.utils.response_awaiter import ResponseAwaiter
 from empire_core.exceptions import LoginError, TimeoutError, ActionError
@@ -65,6 +66,7 @@ class EmpireClient(
         self.resources = ResourceManager(self)
         self.buildings = BuildingManager(self)
         self.units = UnitManager(self)
+        self.defense_manager = DefenseManager(self) # NEW INITIALIZATION
         
         self.response_awaiter = ResponseAwaiter()
         self.connection.packet_handler = self._on_packet
