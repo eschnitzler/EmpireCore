@@ -15,8 +15,15 @@ logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger("ActionTest")
 
 async def main():
-    username = "zazerzeezba"
-    password = "abc123"
+    from empire_core.utils.account_loader import get_test_account
+    
+    account = get_test_account()
+    if not account:
+        logger.error("No test account found in accounts.json. Please create one based on accounts.json.template")
+        return
+
+    username = account["username"]
+    password = account["password"]
     
     config = EmpireConfig(username=username, password=password)
     client = EmpireClient(config)

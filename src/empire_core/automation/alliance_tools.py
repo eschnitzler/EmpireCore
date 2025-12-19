@@ -103,6 +103,57 @@ class AllianceMixin:
         message = f"🛡️ Need support at {castle_name} (ID: {castle_id}) - {reason}"
         return await self.send_alliance_chat(message)
 
+    async def donate_resources_to_alliance(
+        self,
+        alliance_id: int,
+        kingdom_id: int = 0,
+        wood: int = 0,
+        stone: int = 0,
+        food: int = 0,
+        wait_for_response: bool = False,
+        timeout: float = 5.0,
+    ) -> bool:
+        """
+        Donate resources to the alliance.
+
+        Args:
+            alliance_id: ID of the alliance to donate to.
+            kingdom_id: Kingdom ID (KID, default 0).
+            wood: Amount of wood to donate.
+            stone: Amount of stone to donate.
+            food: Amount of food to donate.
+            wait_for_response: Whether to wait for server confirmation.
+            timeout: Response timeout in seconds.
+
+        Returns:
+            bool: True if donation sent successfully.
+        """
+        if wood <= 0 and stone <= 0 and food <= 0:
+            raise ValueError("Must specify at least one resource to donate.")
+
+        logger.info(
+            f"Donating {wood}W/{stone}S/{food}F to alliance {alliance_id} in K{kingdom_id}"
+        )
+
+        payload = {
+            "AID": alliance_id,
+            "KID": kingdom_id,
+            "RV": {
+                "O": wood,  # Wood
+                "G": stone,  # Stone
+                "C": food,  # Food
+            },
+        }
+        
+        # Use _send_command_generic inherited from GameCommandsMixin
+        client: "EmpireClient" = self  # type: ignore
+        response = await client._send_command_generic(
+            "ado", payload, "Alliance Donation", wait_for_response, timeout
+        )
+
+        # Assuming _send_command_generic handles response parsing or returns bool
+        return response
+
     def get_online_members(self) -> List[AllianceMember]:
         """Get online alliance members."""
         # Assumes self.alliance_members is initialized

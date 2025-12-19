@@ -357,6 +357,20 @@ class GameState:
                                 Building(id=building_id, level=building_level)
                             )
 
+                    # Update Units from 'UN'
+                    # UN format: {unit_id_str: count}
+                    raw_units = castle_data.get("UN", {})
+                    castle.units.clear()
+                    for uid_str, count in raw_units.items():
+                        try:
+                            uid = int(uid_str)
+                            castle.units[uid] = int(count)
+                        except (ValueError, TypeError):
+                            pass
+
+                    # Update global armies state for UnitManager
+                    self.armies[aid] = Army(units=castle.units.copy())
+
                     updated_count += 1
 
         logger.info(

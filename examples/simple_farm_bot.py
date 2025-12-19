@@ -6,12 +6,15 @@ import asyncio
 import logging
 import sys
 
-sys.path.insert(0, '../src')
+import os
+# Add src to path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
 from empire_core.automation.farming import FarmingBot
 from empire_core.automation.scheduler import TaskScheduler
+from empire_core.utils.account_loader import get_test_account
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(message)s')
 logger = logging.getLogger("FarmBot")
@@ -19,7 +22,12 @@ logger = logging.getLogger("FarmBot")
 
 async def main():
     # Setup
-    config = EmpireConfig(username="YourUsername", password="YourPassword")
+    account = get_test_account()
+    if not account:
+        logger.error("No account found in accounts.json")
+        return
+
+    config = EmpireConfig(username=account["username"], password=account["password"])
     client = EmpireClient(config)
     
     try:

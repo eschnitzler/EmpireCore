@@ -130,3 +130,6 @@ dmypy.json
 .idea/
 *.swp
 *.swo
+
+# Config
+accounts.json

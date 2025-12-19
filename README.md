@@ -45,6 +45,27 @@ cd EmpireCore
 pip install -r requirements.txt
 ```
 
+## Configuration
+
+To use the test scripts or manage multiple accounts, create a `accounts.json` file in the root directory. You can use the provided template:
+
+```bash
+cp accounts.json.template accounts.json
+```
+
+Then edit `accounts.json` with your credentials:
+
+```json
+[
+    {
+        "username": "YourUsername",
+        "password": "YourPassword"
+    }
+]
+```
+
+This file is git-ignored to keep your credentials safe.
+
 ## Quick Start
 
 ```python

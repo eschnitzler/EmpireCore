@@ -8,17 +8,20 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../s
 
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
+from empire_core.utils.account_loader import get_test_account
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("StateTest")
 
-# Use credentials
-USERNAME = "Biasthe"
-PASSWORD = "abc123"
 
 async def main():
-    config = EmpireConfig(username=USERNAME, password=PASSWORD)
+    account = get_test_account()
+    if not account:
+        logger.error("No test account found in accounts.json")
+        return
+
+    config = EmpireConfig(username=account["username"], password=account["password"])
     client = EmpireClient(config)
     
     try:

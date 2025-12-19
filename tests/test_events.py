@@ -7,6 +7,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
 from empire_core.client.client import EmpireClient
+from empire_core.config import EmpireConfig
 from empire_core.events.base import PacketEvent
 from empire_core.protocol.packet import Packet
 
@@ -15,7 +16,8 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(leve
 logger = logging.getLogger("EventTest")
 
 async def test_events():
-    client = EmpireClient("localhost", 1234)
+    config = EmpireConfig() # Use defaults
+    client = EmpireClient(config)
     
     received_events = []
     

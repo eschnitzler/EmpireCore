@@ -55,7 +55,7 @@ async def run_client():
     # Give server time to start
     await asyncio.sleep(1)
     
-    client = SFSConnection(HOST, PORT)
+    client = SFSConnection(f"ws://{HOST}:{PORT}")
     await client.connect()
 
     try:
