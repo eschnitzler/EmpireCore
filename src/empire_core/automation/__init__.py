@@ -8,6 +8,7 @@ from .resource_manager import ResourceManager
 from .building_queue import BuildingManager
 from .unit_production import UnitManager
 from .defense_manager import DefenseManager
+from . import tasks
 
 __all__ = [
     "QuestMixin",
@@ -19,4 +20,5 @@ __all__ = [
     "BuildingManager",
     "UnitManager",
     "DefenseManager",
+    "tasks",
 ]
