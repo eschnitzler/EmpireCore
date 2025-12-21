@@ -16,10 +16,14 @@ dependencies = [
     "aiohttp>=3.9",
     "pydantic>=2.5",
     "python-dotenv>=1.0",
+    "typer>=0.9.0",
 ]
 
 [project.urls]
 Repository = "https://github.com/eschnitzler/EmpireCore"
+
+[project.scripts]
+empire = "empire_core.cli:app"
 
 [project.optional-dependencies]
 dev = [
