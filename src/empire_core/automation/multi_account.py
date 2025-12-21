@@ -136,57 +136,54 @@ class AccountPool:
 
 
 class MultiAccountManager:
-    """Manage multiple game accounts."""
+    """Manage multiple active game sessions."""
     
     def __init__(self):
-        self.accounts: Dict[str, EmpireClient] = {}
-        self.configs: Dict[str, AccountConfig] = {}
-        self.running = False
-    
-    def add_account(self, config: AccountConfig):
-        """Add an account."""
-        self.configs[config.username] = config
-        logger.info(f"Added account: {config.username}")
-    
-    def remove_account(self, username: str):
-        """Remove an account."""
-        if username in self.configs:
-            del self.configs[username]
-        if username in self.accounts:
-            del self.accounts[username]
-        logger.info(f"Removed account: {username}")
-    
+        self.clients: Dict[str, EmpireClient] = {}
+        
+    def load_from_registry(self, tag: Optional[str] = None):
+        """
+        Load accounts from the central registry into the manager.
+        
+        Args:
+            tag: Optional tag to filter accounts (e.g., 'farmer').
+        """
+        target_accounts = accounts.get_by_tag(tag) if tag else accounts.get_all()
+        count = 0
+        for acc in target_accounts:
+            if acc.active and acc.username not in self.clients:
+                self.clients[acc.username] = acc.get_client()
+                count += 1
+        logger.info(f"Manager: Loaded {count} accounts (Total: {len(self.clients)})")
+
     async def login_all(self):
-        """Login to all accounts."""
-        logger.info(f"Logging in to {len(self.configs)} accounts...")
+        """Login to all managed accounts."""
+        if not self.clients:
+            logger.warning("No accounts loaded in manager.")
+            return
+
+        logger.info(f"Logging in to {len(self.clients)} accounts...")
         
         tasks = []
-        for username, config in self.configs.items():
-            if config.enabled:
-                task = self._login_account(username, config)
-                tasks.append(task)
+        for username, client in self.clients.items():
+            if not client.is_logged_in:
+                tasks.append(self._login_client(username, client))
         
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        success = sum(1 for r in results if r is True)
-        logger.info(f"Logged in {success}/{len(tasks)} accounts")
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            success = sum(1 for r in results if r is True)
+            logger.info(f"Logged in {success}/{len(tasks)} accounts")
     
-    async def _login_account(self, username: str, config: AccountConfig) -> bool:
-        """Login to single account."""
+    async def _login_client(self, username: str, client: EmpireClient) -> bool:
+        """Login to single client."""
         try:
-            emp_config = EmpireConfig(
-                username=config.username,
-                password=config.password
-            )
-            client = EmpireClient(emp_config)
-            
             await client.login()
-            await asyncio.sleep(1)
+            # staggered delay to avoid burst
+            await asyncio.sleep(1) 
             
             # Get initial state
             await client.get_detailed_castle_info()
             
-            self.accounts[username] = client
             logger.info(f"✅ {username} logged in")
             return True
             
@@ -196,31 +193,38 @@ class MultiAccountManager:
     
     async def logout_all(self):
         """Logout all accounts."""
-        for username, client in self.accounts.items():
+        for username, client in self.clients.items():
             try:
                 await client.close()
                 logger.info(f"Logged out: {username}")
             except Exception as e:
                 logger.error(f"Error logging out {username}: {e}")
         
-        self.accounts.clear()
+        self.clients.clear()
     
-    def get_account(self, username: str) -> Optional[EmpireClient]:
-        """Get client for account."""
-        return self.accounts.get(username)
+    def get_client(self, username: str) -> Optional[EmpireClient]:
+        """Get client for username."""
+        return self.clients.get(username)
     
-    def get_all_accounts(self) -> List[EmpireClient]:
-        """Get all account clients."""
-        return list(self.accounts.values())
+    def get_all_clients(self) -> List[EmpireClient]:
+        """Get all managed clients."""
+        return list(self.clients.values())
     
     async def execute_on_all(self, func, *args, **kwargs):
-        """Execute function on all accounts."""
+        """
+        Execute an async function on all clients.
+        The function must accept 'client' as the first argument.
+        """
         tasks = []
         
-        for username, client in self.accounts.items():
-            task = func(client, *args, **kwargs)
-            tasks.append(task)
+        for client in self.clients.values():
+            if client.is_logged_in:
+                task = func(client, *args, **kwargs)
+                tasks.append(task)
         
+        if not tasks:
+            return []
+
         results = await asyncio.gather(*tasks, return_exceptions=True)
         return results
     
@@ -228,7 +232,7 @@ class MultiAccountManager:
         """Get total resources across all accounts."""
         totals = {'wood': 0, 'stone': 0, 'food': 0, 'gold': 0, 'rubies': 0}
         
-        for client in self.accounts.values():
+        for client in self.clients.values():
             player = client.state.local_player
             if not player:
                 continue
@@ -246,14 +250,13 @@ class MultiAccountManager:
     def get_stats(self) -> Dict:
         """Get statistics for all accounts."""
         stats = {
-            'total_accounts': len(self.configs),
-            'logged_in': len(self.accounts),
+            'logged_in': len([c for c in self.clients.values() if c.is_logged_in]),
             'total_castles': 0,
             'total_population': 0,
             'resources': self.get_total_resources()
         }
         
-        for client in self.accounts.values():
+        for client in self.clients.values():
             player = client.state.local_player
             if player:
                 stats['total_castles'] += len(player.castles)
