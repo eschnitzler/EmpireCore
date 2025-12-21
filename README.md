@@ -77,6 +77,18 @@ If you prefer not to activate the environment globally, use the binary directly:
 ./.venv/bin/pytest tests/
 ```
 
+## CLI Tool
+
+The library includes a CLI for quick status checks.
+
+```bash
+# Check configured accounts
+uv run empire status
+
+# Test login
+uv run empire login
+```
+
 ## Configuration
 
 To use the test scripts or manage multiple accounts, create a `accounts.json` file in the root directory. You can use the provided template:

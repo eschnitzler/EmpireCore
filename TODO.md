@@ -12,9 +12,9 @@
 - [ ] Create `.pre-commit-config.yaml` (Ruff, Mypy, Conventional Commits)
 
 ## Phase 3: CLI Entry Point
-- [ ] Add `typer` dependency
-- [ ] Create `src/empire_core/cli.py` skeleton
-- [ ] Register script entry point (`empire-cli`)
+- [x] Add `typer` dependency
+- [x] Create `src/empire_core/cli.py` skeleton
+- [x] Register script entry point (`empire`)
 
 ## Phase 4: Release Automation
 - [ ] Configure `commitizen` for version bumping and changelogs
