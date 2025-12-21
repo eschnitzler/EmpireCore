@@ -50,3 +50,18 @@ def get_test_account() -> Optional[Dict[str, str]]:
     if accounts:
         return accounts[0]
     return None
+
+def get_first_account_config() -> Optional["EmpireConfig"]:
+    """
+    Returns an EmpireConfig for the first available account.
+    Useful for examples and scripts.
+    """
+    from empire_core.config import EmpireConfig
+    
+    account = get_test_account()
+    if account:
+        return EmpireConfig(
+            username=account.get("username", ""),
+            password=account.get("password", "")
+        )
+    return None

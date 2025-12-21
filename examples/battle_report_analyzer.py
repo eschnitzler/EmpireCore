@@ -9,6 +9,7 @@ to understand farming efficiency and combat outcomes.
 import asyncio
 import logging
 from empire_core import EmpireClient, EmpireConfig
+from empire_core.utils.account_loader import get_first_account_config
 
 # Enable logging
 logging.basicConfig(level=logging.INFO)
@@ -19,10 +20,11 @@ async def battle_report_example():
     """Example of fetching and analyzing battle reports."""
 
     # Create client
-    config = EmpireConfig(
-        username="YourUsername",  # Replace with your username
-        password="YourPassword",  # Replace with your password
-    )
+    config = get_first_account_config()
+    if not config:
+        logger.error("No account found in accounts.json")
+        return
+
     client = EmpireClient(config)
 
     try:
@@ -86,10 +88,11 @@ async def battle_report_example():
 async def farming_efficiency_monitor():
     """Example of monitoring farming efficiency over time."""
 
-    config = EmpireConfig(
-        username="YourUsername",  # Replace with your username
-        password="YourPassword",  # Replace with your password
-    )
+    config = get_first_account_config()
+    if not config:
+        logger.error("No account found in accounts.json")
+        return
+
     client = EmpireClient(config)
 
     try:

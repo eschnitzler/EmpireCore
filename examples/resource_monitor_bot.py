@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../s
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
 from empire_core.events.base import PacketEvent
+from empire_core.utils.account_loader import get_first_account_config
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("Bot")
@@ -57,10 +58,11 @@ class ResourceMonitorBot:
         await self.client.close()
 
 async def main():
-    config = EmpireConfig(
-        username=os.getenv("GGE_USERNAME", "Biasthe"),
-        password=os.getenv("GGE_PASSWORD", "abc123")
-    )
+    config = get_first_account_config()
+    if not config:
+        logger.error("No account found in accounts.json")
+        return
+        
     bot = ResourceMonitorBot(config)
     await bot.start()
 

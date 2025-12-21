@@ -26,6 +26,7 @@ from empire_core import (
     IncomingAttackEvent,
     ReturnArrivalEvent,
 )
+from empire_core.utils.account_loader import get_first_account_config
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -34,8 +35,12 @@ logger = logging.getLogger("MovementTracker")
 
 
 async def main():
-    # Setup - replace with your credentials
-    config = EmpireConfig(username="YourUsername", password="YourPassword")
+    # Setup
+    config = get_first_account_config()
+    if not config:
+        logger.error("No account found in accounts.json")
+        return
+
     client = EmpireClient(config)
 
     # Register event handlers

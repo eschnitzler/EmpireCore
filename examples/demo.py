@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'src'
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
 from empire_core.events.base import PacketEvent
+from empire_core.utils.account_loader import get_first_account_config
 
 # Configure logging
 logging.basicConfig(
@@ -24,18 +25,13 @@ logger = logging.getLogger("Demo")
 async def main():
     """Demo the EmpireCore client capabilities."""
     
-    # 1. Create client with configuration
-    # Use environment variables or fallback to test account
-    # Rotating through accounts to avoid cooldown
-    username = os.getenv("GGE_USERNAME", "--Jordan--")
-    password = os.getenv("GGE_PASSWORD", "abc123")
-    
-    logger.info(f"Using account: {username}")
-    
-    config = EmpireConfig(
-        username=username,
-        password=password
-    )
+    # 1. Load configuration
+    config = get_first_account_config()
+    if not config:
+        logger.error("No account found. Please create accounts.json from accounts.json.template")
+        return
+
+    logger.info(f"Using account: {config.username}")
     
     client = EmpireClient(config)
     
