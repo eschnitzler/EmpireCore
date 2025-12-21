@@ -201,26 +201,11 @@ class MapScanner:
         logger.info(f"Scan complete: {completed} chunks, {objects_found} new objects in {duration:.1f}s")
         return result
 
-    async def scan_around_castles(
-        self,
-        radius: int = 3,
-        rescan: bool = False,
-    ) -> List[ScanResult]:
-        """
-        Scan around all player castles.
-
-        Args:
-            radius: Scan radius in chunks around each castle
-            rescan: Force rescan
-
-        Returns:
-            List of ScanResults, one per castle
-        """
-        results = []
+    async def scan_around_castles(self, radius: int = 5, rescan: bool = False) -> List[ScanResult]:
+        """Scan areas around all player castles."""
+        results: List[ScanResult] = []
         player = self.client.state.local_player
-
         if not player or not player.castles:
-            logger.warning("No castles available for scanning")
             return results
 
         for _castle_id, castle in player.castles.items():

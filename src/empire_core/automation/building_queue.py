@@ -6,9 +6,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
-
-from empire_core.state.models import Castle
+from typing import TYPE_CHECKING, Any, Dict, List
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
@@ -48,286 +46,135 @@ class BuildingTask:
 
     castle_id: int
     building_id: int
-    building_type: Optional[int] = None
     target_level: int = 1
-    priority: int = 0
-    cost_wood: int = 0
-    cost_stone: int = 0
-    cost_food: int = 0
-
-
-@dataclass
-class BuildingStatus:
-    """Status of a building."""
-
-    building_id: int
-    building_type: int
-    level: int
-    is_upgrading: bool = False
-    upgrade_time_remaining: int = 0
+    priority: int = 1
+    description: str = ""
 
 
 class BuildingManager:
     """
-    Manages building upgrades and construction.
+    Manages building and upgrade queues for castles.
 
     Features:
-    - Priority-based build queue
-    - Auto-upgrade when resources available
-    - Build order recommendations
-    - Progress tracking
+    - Queue buildings for automatic upgrade.
+    - Priority-based build order.
+    - Monitor build progress.
+    - Building recommendations.
     """
 
     def __init__(self, client: "EmpireClient"):
         self.client = client
         self.queue: List[BuildingTask] = []
-        self.in_progress: Dict[int, BuildingTask] = {}  # castle_id -> active task
-        self._auto_build_enabled = False
-        self._running = False
+        self.in_progress: Dict[int, BuildingTask] = {}  # castle_id -> current task
+        self.is_running = False
 
-    @property
-    def castles(self) -> Dict[int, Castle]:
-        """Get player's castles."""
-        player = self.client.state.local_player
-        if player:
-            return player.castles
-        return {}
-
-    def add_task(
-        self,
-        castle_id: int,
-        building_id: int,
-        building_type: Optional[int] = None,
-        target_level: int = 1,
-        priority: int = 0,
-    ) -> BuildingTask:
-        """
-        Add a building task to the queue.
-
-        Args:
-            castle_id: Castle to build in
-            building_id: Building slot ID
-            building_type: Type of building (for new construction)
-            target_level: Target level to reach
-            priority: Higher = built first
-
-        Returns:
-            The created BuildingTask
-        """
+    def queue_upgrade(self, castle_id: int, building_id: int, target_level: int = 1, priority: int = 1):
+        """Add a building to the upgrade queue."""
         task = BuildingTask(
             castle_id=castle_id,
             building_id=building_id,
-            building_type=building_type,
             target_level=target_level,
             priority=priority,
+            description=f"Upgrade building {building_id} to level {target_level}",
         )
         self.queue.append(task)
         self._sort_queue()
-        logger.info(
-            f"Added build task: Castle {castle_id}, Building {building_id}, "
-            f"Target Level {target_level}, Priority {priority}"
-        )
-        return task
+        logger.info(f"Queued building {building_id} for castle {castle_id} (priority: {priority})")
 
-    def add_upgrade_all(
-        self,
-        castle_id: int,
-        building_type: int,
-        target_level: int,
-        priority: int = 0,
-    ):
-        """
-        Add tasks to upgrade all buildings of a type to target level.
+    def cancel_task(self, castle_id: int, building_id: int):
+        """Remove a task from the queue."""
+        self.queue = [t for t in self.queue if not (t.castle_id == castle_id and t.building_id == building_id)]
+        logger.info(f"Cancelled build task for building {building_id} in castle {castle_id}")
 
-        Args:
-            castle_id: Castle ID
-            building_type: Type of buildings to upgrade
-            target_level: Target level
-            priority: Task priority
-        """
-        castle = self.castles.get(castle_id)
-        if not castle:
-            logger.warning(f"Castle {castle_id} not found")
+    async def process_queue(self):
+        """Check queue and start next available build tasks."""
+        if not self.queue:
             return
 
-        for building in castle.buildings:
-            if building.id == building_type and building.level < target_level:
-                self.add_task(
-                    castle_id=castle_id,
-                    building_id=building.id,
-                    target_level=target_level,
-                    priority=priority,
-                )
+        # Check each castle's availability
+        # Note: In this game, usually one build slot per castle (unless rubies/premium)
+        active_castles = set(self.in_progress.keys())
 
-    def remove_task(self, castle_id: int, building_id: int) -> bool:
-        """Remove a task from the queue."""
-        for i, task in enumerate(self.queue):
-            if task.castle_id == castle_id and task.building_id == building_id:
-                self.queue.pop(i)
-                logger.info(f"Removed task: Castle {castle_id}, Building {building_id}")
-                return True
-        return False
+        for task in list(self.queue):
+            if task.castle_id in active_castles:
+                continue
 
-    def clear_queue(self, castle_id: Optional[int] = None):
-        """Clear the build queue, optionally for a specific castle."""
-        if castle_id:
-            self.queue = [t for t in self.queue if t.castle_id != castle_id]
-        else:
-            self.queue.clear()
-        logger.info(f"Cleared build queue for castle {castle_id or 'all'}")
+            # Attempt to start build
+            success = await self._start_build(task)
+            if success:
+                self.in_progress[task.castle_id] = task
+                self.queue.remove(task)
+                logger.info(f"Started building {task.building_id} in castle {task.castle_id}")
 
-    def get_next_task(self, castle_id: Optional[int] = None) -> Optional[BuildingTask]:
-        """Get the next task to execute."""
-        if not self.queue:
-            return None
-
-        if castle_id:
-            for task in self.queue:
-                if task.castle_id == castle_id:
-                    return task
-            return None
-
-        return self.queue[0]
-
-    def get_queue_for_castle(self, castle_id: int) -> List[BuildingTask]:
-        """Get all queued tasks for a castle."""
-        return [t for t in self.queue if t.castle_id == castle_id]
-
-    def can_afford(self, castle: Castle, task: BuildingTask) -> bool:
-        """Check if castle can afford the building task."""
-        r = castle.resources
-        return r.wood >= task.cost_wood and r.stone >= task.cost_stone and r.food >= task.cost_food
-
-    def get_building_status(self, castle_id: int, building_id: int) -> Optional[BuildingStatus]:
-        """Get status of a specific building."""
-        castle = self.castles.get(castle_id)
-        if not castle:
-            return None
-
-        for building in castle.buildings:
-            if building.id == building_id:
-                return BuildingStatus(
-                    building_id=building.id,
-                    building_type=building.id,  # In this game, building_id is often the type
-                    level=building.level,
-                    is_upgrading=castle_id in self.in_progress,
-                )
-        return None
-
-    def get_castle_buildings(self, castle_id: int) -> List[BuildingStatus]:
-        """Get all buildings in a castle."""
-        castle = self.castles.get(castle_id)
-        if not castle:
-            return []
-
-        return [
-            BuildingStatus(
-                building_id=b.id,
-                building_type=b.id,
-                level=b.level,
-                is_upgrading=castle_id in self.in_progress,
-            )
-            for b in castle.buildings
-        ]
-
-    async def execute_task(self, task: BuildingTask) -> bool:
-        """Execute a building task."""
+    async def _start_build(self, task: BuildingTask) -> bool:
+        """Internal: Send build command to server."""
         try:
+            # Command: bui (Build)
+            # Needs implementation in GameActionsMixin/EmpireClient
             success = await self.client.upgrade_building(
                 castle_id=task.castle_id,
                 building_id=task.building_id,
-                building_type=task.building_type,
             )
-
-            if success:
-                self.in_progress[task.castle_id] = task
-                # Remove from queue
-                self.queue = [
-                    t for t in self.queue if not (t.castle_id == task.castle_id and t.building_id == task.building_id)
-                ]
-                logger.info(f"Started building: Castle {task.castle_id}, Building {task.building_id}")
-
             return bool(success)
         except Exception as e:
-            logger.error(f"Build task failed: {e}")
+            logger.error(f"Failed to start build: {e}")
             return False
 
-    async def process_queue(self) -> int:
-        """
-        Process the build queue, executing tasks where possible.
+    async def refresh_status(self):
+        """Update status of in-progress builds."""
+        # Refresh state from server
+        await self.client.get_detailed_castle_info()
 
-        Returns:
-            Number of tasks executed
-        """
-        executed = 0
+        # Check if in-progress buildings are finished
+        player = self.client.state.local_player
+        if not player:
+            return
 
-        # Group tasks by castle
-        tasks_by_castle: Dict[int, List[BuildingTask]] = {}
-        for task in self.queue:
-            if task.castle_id not in tasks_by_castle:
-                tasks_by_castle[task.castle_id] = []
-            tasks_by_castle[task.castle_id].append(task)
-
-        for castle_id, tasks in tasks_by_castle.items():
-            # Skip if castle already has a build in progress
-            if castle_id in self.in_progress:
-                continue
-
-            castle = self.castles.get(castle_id)
+        finished_castles = []
+        for castle_id, task in self.in_progress.items():
+            castle = player.castles.get(castle_id)
             if not castle:
                 continue
 
-            # Try to execute first affordable task
-            for task in tasks:
-                if self.can_afford(castle, task):
-                    success = await self.execute_task(task)
-                    if success:
-                        executed += 1
-                        break  # Only one build per castle at a time
+            # Check if building reached target level
+            # In this game, buildings list in dcl contains current level
+            is_finished = False
+            for building in castle.buildings:
+                if building.id == task.building_id and building.level >= task.target_level:
+                    is_finished = True
+                    break
 
-            await asyncio.sleep(0.5)  # Rate limit
+            if is_finished:
+                finished_castles.append(castle_id)
+                logger.info(f"Build finished: {task.description} in castle {castle_id}")
 
-        return executed
+        for cid in finished_castles:
+            del self.in_progress[cid]
 
-    async def start_auto_build(self, interval: int = 60):
-        """
-        Start automatic building.
+    async def start_automation(self, interval: int = 60):
+        """Start automatic build queue processing."""
+        self.is_running = True
+        logger.info("Building automation started")
 
-        Args:
-            interval: Check interval in seconds
-        """
-        self._auto_build_enabled = True
-        self._running = True
-
-        logger.info(f"Auto-build started (interval: {interval}s)")
-
-        while self._running and self._auto_build_enabled:
+        while self.is_running:
             try:
-                # Refresh castle data
-                await self.client.get_detailed_castle_info()
-                await asyncio.sleep(1)
-
-                # Process queue
-                executed = await self.process_queue()
-                if executed:
-                    logger.info(f"Auto-build: executed {executed} tasks")
+                await self.refresh_status()
+                await self.process_queue()
             except Exception as e:
-                logger.error(f"Auto-build error: {e}")
+                logger.error(f"Building automation error: {e}")
 
             await asyncio.sleep(interval)
 
-    def stop_auto_build(self):
-        """Stop automatic building."""
-        self._auto_build_enabled = False
-        self._running = False
-        logger.info("Auto-build stopped")
+    def stop_automation(self):
+        """Stop automatic build queue processing."""
+        self.is_running = False
+        logger.info("Building automation stopped")
 
-    def get_summary(self) -> Dict[str, Any]:
-        """Get build queue summary."""
+    def get_status(self) -> Dict[str, Any]:
+        """Get current status of queue and active builds."""
         return {
-            "queue_length": len(self.queue),
-            "in_progress_count": len(self.in_progress),
-            "tasks_by_castle": {
+            "queue_size": len(self.queue),
+            "queue_by_castle": {
                 castle_id: len([t for t in self.queue if t.castle_id == castle_id])
                 for castle_id in set(t.castle_id for t in self.queue)
             },
@@ -338,19 +185,10 @@ class BuildingManager:
         """Sort queue by priority (highest first)."""
         self.queue.sort(key=lambda t: t.priority, reverse=True)
 
-    def recommend_upgrades(self, castle_id: int, focus: str = "balanced") -> List[BuildingTask]:
-        """
-        Recommend building upgrades for a castle.
-
-        Args:
-            castle_id: Castle to analyze
-            focus: "balanced", "military", "economy", "defense"
-
-        Returns:
-            List of recommended BuildingTask objects
-        """
-        recommendations = []
-        castle = self.castles.get(castle_id)
+    def get_recommendations(self, castle_id: int, focus: str = "balanced") -> List[BuildingTask]:
+        """Get recommended buildings to build/upgrade."""
+        recommendations: List[BuildingTask] = []
+        castle = self.client.state.castles.get(castle_id)
         if not castle:
             return recommendations
 
@@ -358,6 +196,7 @@ class BuildingManager:
         buildings = {b.id: b.level for b in castle.buildings}
 
         # Define priority based on focus
+        priority_types: List[int] = []
         if focus == "military":
             priority_types = [
                 BuildingType.BARRACKS,
@@ -390,13 +229,14 @@ class BuildingManager:
         for i, building_type in enumerate(priority_types):
             if building_type in buildings:
                 current_level = buildings[building_type]
-                recommendations.append(
-                    BuildingTask(
-                        castle_id=castle_id,
-                        building_id=building_type,
-                        target_level=current_level + 1,
-                        priority=len(priority_types) - i,  # Higher priority first
+                if current_level < 10:  # Simple threshold
+                    recommendations.append(
+                        BuildingTask(
+                            castle_id=castle_id,
+                            building_id=building_type,
+                            target_level=current_level + 1,
+                            priority=len(priority_types) - i,  # Higher priority first
+                        )
                     )
-                )
 
-        return recommendations[:5]  # Return top 5 recommendations
+        return recommendations

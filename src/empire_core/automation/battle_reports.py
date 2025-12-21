@@ -88,10 +88,11 @@ class BattleReportService:
 
     def analyze_battle_efficiency(self, report: BattleReport) -> Dict[str, Any]:
         """Analyze the efficiency of a battle."""
+        loot_total = sum(report.loot.values())
         analysis = {
             "report_id": report.report_id,
             "victory": report.winner == "attacker",
-            "loot_total": sum(report.loot.values()),
+            "loot_total": loot_total,
             "loot_breakdown": report.loot,
         }
 
@@ -110,7 +111,7 @@ class BattleReportService:
 
             # Calculate efficiency metrics
             if attacker_losses > 0:
-                loot_per_loss = analysis["loot_total"] / attacker_losses
+                loot_per_loss = loot_total / attacker_losses
                 analysis["loot_per_attacker_loss"] = loot_per_loss
 
                 # Simple efficiency rating (higher is better)
@@ -130,32 +131,37 @@ class BattleReportService:
         if not reports:
             return {"total_battles": 0}
 
-        stats = {
-            "total_battles": len(reports),
-            "victories": 0,
-            "defeats": 0,
-            "total_loot": {"wood": 0, "stone": 0, "food": 0},
-            "total_losses": 0,
-        }
+        total_battles = len(reports)
+        victories = 0
+        defeats = 0
+        total_loot = {"wood": 0, "stone": 0, "food": 0}
+        total_losses = 0
 
         for report in reports:
             if report.winner == "attacker":
-                stats["victories"] += 1
+                victories += 1
             else:
-                stats["defeats"] += 1
+                defeats += 1
 
             # Sum loot
             for resource, amount in report.loot.items():
-                if resource in stats["total_loot"]:
-                    stats["total_loot"][resource] += amount
+                if resource in total_loot:
+                    total_loot[resource] += amount
 
             # Sum losses (if available)
             if report.attacker:
-                stats["total_losses"] += sum(report.attacker.losses.values())
+                total_losses += sum(report.attacker.losses.values())
 
-        stats["win_rate"] = stats["victories"] / stats["total_battles"] if stats["total_battles"] > 0 else 0
+        win_rate = victories / total_battles if total_battles > 0 else 0
 
-        return stats
+        return {
+            "total_battles": total_battles,
+            "victories": victories,
+            "defeats": defeats,
+            "total_loot": total_loot,
+            "total_losses": total_losses,
+            "win_rate": win_rate,
+        }
 
     async def auto_fetch_and_analyze(self, count: int = 10, wait_time: float = 1.0) -> Dict[str, Any]:
         """

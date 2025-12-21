@@ -188,7 +188,7 @@ class MultiAccountManager:
 
     async def logout_all(self):
         """Logout all accounts."""
-        for username, client in self.clients.items():
+        for username, client in self.accounts.items():
             try:
                 await client.close()
                 logger.info(f"Logged out: {username}")
@@ -225,37 +225,52 @@ class MultiAccountManager:
 
     def get_total_resources(self) -> Dict[str, int]:
         """Get total resources across all accounts."""
-        totals = {"wood": 0, "stone": 0, "food": 0, "gold": 0, "rubies": 0}
+        total_wood = 0
+        total_stone = 0
+        total_food = 0
+        total_gold = 0
+        total_rubies = 0
 
         for client in self.clients.values():
             player = client.state.local_player
             if not player:
                 continue
 
-            totals["gold"] += player.gold
-            totals["rubies"] += player.rubies
+            total_gold += player.gold
+            total_rubies += player.rubies
 
             for castle in player.castles.values():
-                totals["wood"] += castle.resources.wood
-                totals["stone"] += castle.resources.stone
-                totals["food"] += castle.resources.food
+                total_wood += castle.resources.wood
+                total_stone += castle.resources.stone
+                total_food += castle.resources.food
 
-        return totals
+        return {
+            "wood": total_wood,
+            "stone": total_stone,
+            "food": total_food,
+            "gold": total_gold,
+            "rubies": total_rubies,
+        }
 
     def get_stats(self) -> Dict:
         """Get statistics for all accounts."""
-        stats = {
-            "logged_in": len([c for c in self.clients.values() if c.is_logged_in]),
-            "total_castles": 0,
-            "total_population": 0,
-            "resources": self.get_total_resources(),
-        }
+        resources = self.get_total_resources()
+        total_castles = 0
+        total_population = 0
+        logged_in_count = 0
 
         for client in self.clients.values():
+            if client.is_logged_in:
+                logged_in_count += 1
             player = client.state.local_player
             if player:
-                stats["total_castles"] += len(player.castles)
+                total_castles += len(player.castles)
                 for castle in player.castles.values():
-                    stats["total_population"] += castle.population
+                    total_population += castle.population
 
-        return stats
+        return {
+            "logged_in": logged_in_count,
+            "total_castles": total_castles,
+            "total_population": total_population,
+            "resources": resources,
+        }

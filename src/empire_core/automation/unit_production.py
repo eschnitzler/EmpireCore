@@ -536,7 +536,7 @@ class UnitManager:
         Returns:
             Dict of {unit_type: deficit_count}
         """
-        deficit = {}
+        deficit: Dict[int, int] = {}
         target = self.targets.get(castle_id)
         if not target:
             return deficit

@@ -12,16 +12,7 @@ repos:
     hooks:
       - id: mypy
         additional_dependencies: [ pydantic, aiohttp, python-dotenv, typer ]
-        args: [ 
-          --ignore-missing-imports, 
-          --disable-error-code=var-annotated, 
-          --disable-error-code=operator, 
-          --disable-error-code=has-type, 
-          --disable-error-code=index, 
-          --disable-error-code=arg-type, 
-          --disable-error-code=assignment,
-          --disable-error-code=valid-type
-        ]
+        args: [ --ignore-missing-imports ]
 
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v3.1.0

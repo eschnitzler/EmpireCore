@@ -46,7 +46,7 @@ class ResponseAwaiter:
         self.sequence += 1
         waiter_id = f"{command_id}_{self.sequence}_{time.time()}"
 
-        future = asyncio.Future()
+        future: asyncio.Future = asyncio.Future()
         self.pending[waiter_id] = future
 
         logger.debug(f"Created waiter: {waiter_id}")
