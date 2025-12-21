@@ -1,34 +1,46 @@
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.poetry]
+[project]
 name = "empire-core"
 version = "0.1.0"
 description = "Asynchronous Python framework for Goodgame Empire"
-authors = ["Your Name <you@example.com>"]
-license = "MIT"
 readme = "README.md"
-repository = "https://github.com/yourusername/EmpireCore"
-documentation = "https://empirecore.readthedocs.io"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "E Joseph", email = "east1499@gmail.com" }
+]
+dependencies = [
+    "aiohttp>=3.9",
+    "pydantic>=2.5",
+    "python-dotenv>=1.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-aiohttp = "^3.9"
-pydantic = "^2.5"
+[project.urls]
+Repository = "https://github.com/eschnitzler/EmpireCore"
 
-[tool.poetry.dev-dependencies]
-pytest = "^7.0"
-pytest-asyncio = "^0.23"
-black = "^24.0"
-isort = "^5.13"
-flake8 = "^7.0"
-mypy = "^1.8"
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.1.0",
+    "mypy>=1.8",
+]
 
-[tool.black]
+[tool.hatch.build.targets.wheel]
+packages = ["src/empire_core"]
+
+[tool.ruff]
 line-length = 88
-target-version = ['py310']
+target-version = "py310"
 
-[tool.isort]
-profile = "black"
-multi_line_output = 3
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"] # Pycodestyle, Pyflakes, Isort, Bugbear
+ignore = []
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = "test_*.py"

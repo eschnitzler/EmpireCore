@@ -1,9 +1,9 @@
 # Modernization & Packaging Roadmap
 
 ## Phase 1: Project Metadata & `uv` Migration
-- [ ] Audit current `pyproject.toml`
-- [ ] Migrate dependencies from `requirements.txt` to `pyproject.toml` (PEP 621)
-- [ ] Remove `requirements.txt`
+- [x] Audit current `pyproject.toml`
+- [x] Migrate dependencies from `requirements.txt` to `pyproject.toml` (PEP 621)
+- [x] Remove `requirements.txt`
 - [ ] Verify `uv` lockfile generation
 
 ## Phase 2: Code Quality & Hooks
