@@ -54,9 +54,9 @@ Comparing EmpireCore with pygge (Python GGE library)
 |---------|-----------|-------|--------|
 | **Target Finder** | ✅ Full implementation | ✅ Yes | **Equal** |
 | **World Scanner** | ✅ Spiral pattern | ✅ Yes | **Equal** |
-| **Farming Bot** | ✅ Configurable | ✅ Yes | **Equal** |
+| **Custom Bots** | ✅ Via Task Loops | ✅ Yes | **Equal** |
 | **Building Queue** | ✅ Priority system | ⚠️ Basic | **EmpireCore** |
-| **Task Scheduler** | ✅ Full scheduler | ❌ Not present | **EmpireCore** |
+| **Task Loops** | ✅ Modern async loop | ❌ Not present | **EmpireCore** |
 | **Resource Collector** | ✅ Auto-balance | ⚠️ Limited | **EmpireCore** |
 
 ### Advanced Features

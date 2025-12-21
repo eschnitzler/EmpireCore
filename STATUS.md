@@ -57,10 +57,9 @@ All core features are implemented and tested with real game accounts.
 - [x] Movement helpers
 
 ### 6. Automation Framework
-- [x] Task scheduler with priority
+- [x] Async task loops (discord.py style)
 - [x] Target finder with filters
 - [x] Multi-account manager
-- [x] Farming bot structure
 - [x] Response awaiter for async commands
 
 ### 7. Advanced Automation (NEW)
@@ -179,4 +178,4 @@ await client.chat.send_private_message(player_id, "Need support")
 
 ---
 
-**Last Updated:** December 3, 2025
+**Last Updated:** December 21, 2025

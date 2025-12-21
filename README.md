@@ -34,7 +34,7 @@
 | **Connection** | WebSocket, auto-reconnect, login cooldown handling |
 | **State Tracking** | Player, castles, resources, buildings, units, movements |
 | **Actions** | Attacks, transports, recruiting, building, with response validation |
-| **Automation** | Farming bots, task scheduler, multi-account, target finder |
+| **Automation** | Task loops, multi-account, target finder, map scanner |
 | **Analysis** | Battle simulation, travel time calc, resource forecasting |
 
 ## Installation
@@ -117,24 +117,29 @@ async def on_incoming_attack(event):
 
 ## Automation
 
+Use the `tasks` module to create custom automation loops easily.
+
 ```python
-from empire_core.automation import FarmingBot, TaskScheduler
+from empire_core.automation import tasks
 
 async def main():
     client = EmpireClient(config)
     await client.login()
+
+    # Define a farming loop
+    @tasks.loop(minutes=5)
+    async def farm_loop():
+        print("Running farm cycle...")
+        # Add your target finding and attack logic here
+        # targets = client.scanner.find_targets(...)
+        # await client.send_attack(...)
+
+    # Start the task
+    farm_loop.start()
     
-    # Configure farming
-    bot = FarmingBot(client)
-    bot.max_distance = 30.0
-    bot.farm_interval = 300
-    
-    # Schedule tasks
-    scheduler = TaskScheduler()
-    scheduler.add_task("farm", bot._farm_cycle, interval=300)
-    scheduler.add_task("refresh", client.get_detailed_castle_info, interval=600)
-    
-    await scheduler.start()
+    # Keep running
+    while True:
+        await asyncio.sleep(1)
 ```
 
 ## Examples
