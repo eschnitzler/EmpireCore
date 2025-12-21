@@ -19,7 +19,7 @@ from empire_core.state.world_models import Movement
 from empire_core.client.actions import GameActionsMixin
 from empire_core.client.commands import GameCommandsMixin
 from empire_core.client.defense import DefenseMixin
-from empire_core.automation.quest_automation import QuestMixin
+from empire_core.automation.quest_automation import QuestService
 from empire_core.automation.battle_reports import BattleReportMixin
 from empire_core.automation.alliance_tools import AllianceMixin, ChatMixin
 from empire_core.automation.map_scanner import MapScanner
@@ -38,7 +38,6 @@ class EmpireClient(
     GameActionsMixin,
     GameCommandsMixin,
     DefenseMixin,
-    QuestMixin,
     BattleReportMixin,
     AllianceMixin,
     ChatMixin,
@@ -66,6 +65,7 @@ class EmpireClient(
         self.resources = ResourceManager(self)
         self.buildings = BuildingManager(self)
         self.units = UnitManager(self)
+        self.quests = QuestService(self)
         self.defense_manager = DefenseManager(self) # NEW INITIALIZATION
         
         self.response_awaiter = ResponseAwaiter()

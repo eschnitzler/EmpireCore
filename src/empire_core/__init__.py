@@ -10,7 +10,7 @@ from empire_core.state.unit_models import Army, UnitStats, UNIT_IDS
 from empire_core.state.quest_models import Quest, DailyQuest
 from empire_core.state.report_models import BattleReport, ReportManager
 # Mixins (formerly Automation classes)
-from empire_core.automation.quest_automation import QuestMixin
+from empire_core.automation.quest_automation import QuestService
 from empire_core.automation.battle_reports import BattleReportMixin
 from empire_core.automation.alliance_tools import AllianceMixin, ChatMixin
 # Automation Bots
@@ -71,7 +71,7 @@ __all__ = [
     "BattleReport",
     "ReportManager",
     # Mixins
-    "QuestMixin",
+    "QuestService",
     "BattleReportMixin",
     "AllianceMixin",
     "ChatMixin",

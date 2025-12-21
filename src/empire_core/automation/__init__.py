@@ -1,6 +1,6 @@
 """Automation modules for EmpireCore."""
 
-from .quest_automation import QuestMixin
+from .quest_automation import QuestService
 from .battle_reports import BattleReportMixin
 from .alliance_tools import AllianceMixin, ChatMixin
 from .map_scanner import MapScanner
@@ -11,7 +11,7 @@ from .defense_manager import DefenseManager
 from . import tasks
 
 __all__ = [
-    "QuestMixin",
+    "QuestService",
     "BattleReportMixin",
     "AllianceMixin",
     "ChatMixin",
