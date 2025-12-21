@@ -11,8 +11,6 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
 
 from empire_core.client.client import EmpireClient
-from empire_core.config import EmpireConfig
-from empire_core.events.base import PacketEvent
 from empire_core import accounts
 
 # Configure logging
@@ -34,21 +32,6 @@ async def main():
     logger.info(f"Using account: {account.username}")
     
     client = account.get_client()
-    
-    # Track if we've already logged initial data
-    logged_initial_data = False
-    
-    # 2. Register event handlers
-    @client.event
-    async def on_gbd(event: PacketEvent):
-        nonlocal logged_initial_data
-        """Big Data packet - contains player info, castles, etc."""
-        if not logged_initial_data and client.state.local_player:
-            logged_initial_data = True
-            player = client.state.local_player
-            logger.info("✅ Login successful!")
-            logger.info(f"📊 Player: {player.name} (Level {player.level})")
-            logger.info(f"💰 Gold: {player.gold:,} | Rubies: {player.rubies}")
     
     try:
         # 3. Login
