@@ -16,5 +16,6 @@
 - [x] Create `src/empire_core/cli.py` skeleton
 - [x] Register script entry point (`empire`)
 
-## Phase 4: Release Automation
-- [ ] Configure `commitizen` for version bumping and changelogs
+## Phase 4: Release Automation (Ready for CI)
+- [x] Configure `conventional-pre-commit` for commit validation
+- [ ] Setup GitHub Actions for automated publishing
