@@ -88,9 +88,9 @@ class EmpireClient(
         if packet.command_id and isinstance(packet.payload, dict):
             self.state.update_from_packet(packet.command_id, packet.payload)
 
-        # Notify response awaiter
+        # Notify response awaiter - Pass FULL packet so error_code is available
         if packet.command_id:
-            self.response_awaiter.set_response(packet.command_id, packet.payload)
+            self.response_awaiter.set_response(packet.command_id, packet)
 
         pkt_event = PacketEvent(
             command_id=packet.command_id or "unknown",

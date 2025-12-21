@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
 from empire_core.utils.account_loader import load_accounts_from_file
+from empire_core.exceptions import LoginCooldownError
 
 logger = logging.getLogger(__name__)
 
@@ -63,47 +64,53 @@ class AccountPool:
     async def lease_account(self, username: Optional[str] = None, tag: Optional[str] = None) -> Optional[EmpireClient]:
         """
         Leases an account from the pool, logs it in, and returns the client.
-        If username is provided, tries to get that specific account.
-        If tag is provided, gets an available account with that tag.
+        Iterates through available accounts if one fails (e.g. cooldown).
         """
-        target_account: Optional[AccountConfig] = None
+        candidates = []
 
         if username:
             for acc in self.accounts:
                 if acc.username == username and acc.username not in self._busy_accounts:
-                    target_account = acc
-                    break
+                    candidates.append(acc)
         else:
-            # Find first available
-            available = self.get_available_accounts(tag)
-            if available:
-                target_account = available[0]
+            candidates = self.get_available_accounts(tag)
 
-        if not target_account:
-            logger.warning(f"AccountPool: No available account found (User: {username}, Tag: {tag})")
+        if not candidates:
+            logger.warning(f"AccountPool: No idle accounts found (User: {username}, Tag: {tag})")
             return None
 
-        # Mark as busy immediately to prevent race conditions
-        self._busy_accounts.add(target_account.username)
+        for target_account in candidates:
+            # Mark as busy immediately
+            self._busy_accounts.add(target_account.username)
 
-        try:
-            # Create and login client
-            config = EmpireConfig(
-                username=target_account.username,
-                password=target_account.password
-            )
-            client = EmpireClient(config)
-            await client.login()
-            
-            # Cache the client
-            self._clients[target_account.username] = client
-            logger.info(f"AccountPool: Leased and logged in {target_account.username}")
-            return client
-            
-        except Exception as e:
-            logger.error(f"AccountPool: Failed to login {target_account.username}: {e}")
-            self._busy_accounts.remove(target_account.username)
-            return None
+            try:
+                # Create and login client
+                config = EmpireConfig(
+                    username=target_account.username,
+                    password=target_account.password
+                )
+                client = EmpireClient(config)
+                await client.login()
+                
+                # Cache the client
+                self._clients[target_account.username] = client
+                logger.info(f"AccountPool: Leased and logged in {target_account.username}")
+                return client
+                
+            except LoginCooldownError as e:
+                logger.warning(f"AccountPool: {target_account.username} on cooldown ({e.cooldown}s). Trying next...")
+                self._busy_accounts.remove(target_account.username)
+                await client.close()
+                continue
+                
+            except Exception as e:
+                logger.error(f"AccountPool: Failed to login {target_account.username}: {e}")
+                self._busy_accounts.remove(target_account.username)
+                await client.close()
+                continue
+
+        logger.error("AccountPool: All available accounts failed to login.")
+        return None
 
     async def release_account(self, client: EmpireClient):
         """Logs out and returns the account to the pool."""

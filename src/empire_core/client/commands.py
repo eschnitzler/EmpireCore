@@ -2,6 +2,7 @@
 Additional game commands.
 """
 
+import asyncio
 import logging
 from typing import Dict, Any, TYPE_CHECKING
 
@@ -18,8 +19,13 @@ class GameCommandsMixin:
     """Mixin for additional game commands."""
 
     async def _send_command_generic(
-        self, command: str, payload: Dict[str, Any], action_name: str
-    ) -> bool:
+        self, 
+        command: str, 
+        payload: Dict[str, Any], 
+        action_name: str,
+        wait_for_response: bool = False,
+        timeout: float = 5.0
+    ) -> Any:
         """
         Send a command packet.
 
@@ -27,20 +33,46 @@ class GameCommandsMixin:
             command: Command ID
             payload: Command payload
             action_name: Human-readable name for logging/errors
+            wait_for_response: If True, waits for server response
+            timeout: Timeout for response in seconds
 
         Returns:
-            True if successful
+            True if successful (fire-and-forget), or response payload if waiting
 
         Raises:
             ActionError: If command fails
+            TimeoutError: If response times out
         """
         # self is EmpireClient
         client: "EmpireClient" = self  # type: ignore
 
+        if wait_for_response:
+            client.response_awaiter.create_waiter(command)
+
         packet = Packet.build_xt(client.config.default_zone, command, payload)
         try:
             await client.connection.send(packet)
-            logger.info(f"{action_name} successful")
+            logger.info(f"{action_name} sent")
+            
+            if wait_for_response:
+                try:
+                    response = await client.response_awaiter.wait_for(command, timeout=timeout)
+                    
+                    # Check for Packet object with error code
+                    if hasattr(response, 'error_code'):
+                        if response.error_code != 0:
+                            raise ActionError(f"{action_name} failed with error code {response.error_code}")
+                        
+                        logger.info(f"{action_name} response received (OK)")
+                        return response.payload
+                    
+                    # Legacy/fallback behavior (if response is just payload)
+                    logger.info(f"{action_name} response received")
+                    return response
+                    
+                except asyncio.TimeoutError:
+                    raise ActionError(f"{action_name} timed out waiting for response")
+            
             return True
         except Exception as e:
             logger.error(f"Failed to {action_name.lower()}: {e}")
@@ -106,6 +138,30 @@ class GameCommandsMixin:
             "dma", {"MID": mail_id}, f"Delete mail {mail_id}"
         )
 
+    async def send_direct_message(
+        self, recipient_name: str, subject: str, body: str
+    ) -> bool:
+        """
+        Send a direct message (mail) to a player by name.
+
+        Args:
+            recipient_name: Name of the player
+            subject: Subject of the message
+            body: Message content
+
+        Returns:
+            True if command sent successfully and confirmed by server
+        """
+        # This command requires verification
+        response = await self._send_command_generic(
+            "sms",
+            {"RN": recipient_name, "MH": subject, "TXT": body},
+            f"Send DM to '{recipient_name}'",
+            wait_for_response=True
+        )
+        
+        return True
+
     async def search_player(self, name: str) -> bool:
         """
         Search for a player by name.
@@ -117,7 +173,7 @@ class GameCommandsMixin:
             True if command sent successfully
         """
         return await self._send_command_generic(
-            "wsp", {"S": name}, f"Search player '{name}'"
+            "wsp", {"PN": name}, f"Search player '{name}'"
         )
 
     async def get_player_details(self, player_id: int) -> bool:
