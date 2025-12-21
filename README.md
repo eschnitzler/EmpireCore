@@ -39,10 +39,42 @@
 
 ## Installation
 
+It is strongly recommended to use a Python virtual environment to keep dependencies isolated.
+
 ```bash
 git clone https://github.com/eschnitzler/EmpireCore.git
 cd EmpireCore
+
+# 1. Create a virtual environment (named .venv)
+python3 -m venv .venv
+
+# 2. Activate the virtual environment
+# On Linux/macOS:
+source .venv/bin/activate
+# On Windows:
+# .venv\Scripts\activate
+
+# 3. Install dependencies
 pip install -r requirements.txt
+```
+
+## Running Scripts & Tests
+
+Once your virtual environment is active (via `source .venv/bin/activate`), you can run scripts directly:
+
+```bash
+# Run the demo
+python examples/demo.py
+
+# Run unit tests
+python -m pytest tests/
+```
+
+If you prefer not to activate the environment globally, use the binary directly:
+
+```bash
+./.venv/bin/python examples/demo.py
+./.venv/bin/pytest tests/
 ```
 
 ## Configuration
