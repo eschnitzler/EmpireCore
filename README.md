@@ -70,13 +70,17 @@ This file is git-ignored to keep your credentials safe.
 
 ```python
 import asyncio
-from empire_core import EmpireClient, EmpireConfig
+from empire_core import accounts
 
 async def main():
-    client = EmpireClient(EmpireConfig(
-        username="YourUsername",
-        password="YourPassword"
-    ))
+    # Load default account from accounts.json
+    account = accounts.get_default()
+    if not account:
+        print("Please configure accounts.json first!")
+        return
+
+    # Create client directly from account object
+    client = account.get_client()
     
     await client.login()
     await client.get_detailed_castle_info()
@@ -121,9 +125,11 @@ Use the `tasks` module to create custom automation loops easily.
 
 ```python
 from empire_core.automation import tasks
+from empire_core import accounts
 
 async def main():
-    client = EmpireClient(config)
+    account = accounts.get_default()
+    client = account.get_client()
     await client.login()
 
     # Define a farming loop
