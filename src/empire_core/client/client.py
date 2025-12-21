@@ -18,10 +18,10 @@ from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
 from empire_core.client.actions import GameActionsMixin
 from empire_core.client.commands import GameCommandsMixin
-from empire_core.client.defense import DefenseMixin
+from empire_core.client.defense import DefenseService
 from empire_core.automation.quest_automation import QuestService
-from empire_core.automation.battle_reports import BattleReportMixin
-from empire_core.automation.alliance_tools import AllianceMixin, ChatMixin
+from empire_core.automation.battle_reports import BattleReportService
+from empire_core.automation.alliance_tools import AllianceService, ChatService
 from empire_core.automation.map_scanner import MapScanner
 from empire_core.automation.resource_manager import ResourceManager
 from empire_core.automation.building_queue import BuildingManager
@@ -37,10 +37,6 @@ logger = logging.getLogger(__name__)
 class EmpireClient(
     GameActionsMixin,
     GameCommandsMixin,
-    DefenseMixin,
-    BattleReportMixin,
-    AllianceMixin,
-    ChatMixin,
 ):
     def __init__(self, config: Optional[EmpireConfig] = None):
         self.config = config or default_config
@@ -51,22 +47,19 @@ class EmpireClient(
         self.events = EventManager()
         self.state = GameState()
         
-        # Mixin State Initialization
-        # AllianceMixin
-        self.alliance_members = {}
-        self._alliance_callbacks = []
-        
-        # ChatMixin
-        self.chat_history = []
-        self._chat_callbacks = []
-
-        # Automation Bots (Still Composition)
+        # Services (Composition)
         self.scanner = MapScanner(self)
         self.resources = ResourceManager(self)
         self.buildings = BuildingManager(self)
         self.units = UnitManager(self)
         self.quests = QuestService(self)
-        self.defense_manager = DefenseManager(self) # NEW INITIALIZATION
+        self.defense_manager = DefenseManager(self)
+        
+        # Core Services
+        self.defense = DefenseService(self)
+        self.reports = BattleReportService(self)
+        self.alliance = AllianceService(self)
+        self.chat = ChatService(self)
         
         self.response_awaiter = ResponseAwaiter()
         self.connection.packet_handler = self._on_packet

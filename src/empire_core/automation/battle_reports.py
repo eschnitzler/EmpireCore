@@ -13,26 +13,26 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class BattleReportMixin:
-    """Mixin for battle report fetching and analysis."""
+class BattleReportService:
+    """Service for battle report fetching and analysis."""
+
+    def __init__(self, client: "EmpireClient"):
+        self.client = client
 
     @property
     def reports_manager(self) -> ReportManager:
         """Get the report manager from state."""
-        client: "EmpireClient" = self  # type: ignore
-        return client.state.reports
+        return self.client.state.reports
 
     async def fetch_recent_reports(self, count: int = 10) -> bool:
         """Fetch recent battle reports from server."""
-        client: "EmpireClient" = self  # type: ignore
-        # Using mixed-in method from GameCommandsMixin
-        return await client.get_battle_reports(count)
+        # Using client method
+        return await self.client.get_battle_reports(count)
 
     async def fetch_report_details(self, report_id: int) -> bool:
         """Fetch detailed data for a specific battle report."""
-        client: "EmpireClient" = self  # type: ignore
-        # Using mixed-in method from GameCommandsMixin
-        return await client.get_battle_report_details(report_id)
+        # Using client method
+        return await self.client.get_battle_report_details(report_id)
 
     def get_recent_reports(self, count: int = 10) -> List[BattleReport]:
         """Get most recent battle reports."""

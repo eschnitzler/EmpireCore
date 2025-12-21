@@ -9,10 +9,11 @@ from empire_core.state.world_models import Movement, MapObject, MovementResource
 from empire_core.state.unit_models import Army, UnitStats, UNIT_IDS
 from empire_core.state.quest_models import Quest, DailyQuest
 from empire_core.state.report_models import BattleReport, ReportManager
-# Mixins (formerly Automation classes)
+# Services (formerly Mixins)
+from empire_core.client.defense import DefenseService
 from empire_core.automation.quest_automation import QuestService
-from empire_core.automation.battle_reports import BattleReportMixin
-from empire_core.automation.alliance_tools import AllianceMixin, ChatMixin
+from empire_core.automation.battle_reports import BattleReportService
+from empire_core.automation.alliance_tools import AllianceService, ChatService
 # Automation Bots
 from empire_core.automation.map_scanner import MapScanner
 from empire_core.automation.resource_manager import ResourceManager
@@ -70,11 +71,12 @@ __all__ = [
     "DailyQuest",
     "BattleReport",
     "ReportManager",
-    # Mixins
+    # Services
+    "DefenseService",
     "QuestService",
-    "BattleReportMixin",
-    "AllianceMixin",
-    "ChatMixin",
+    "BattleReportService",
+    "AllianceService",
+    "ChatService",
     # Automation Bots
     "MapScanner",
     "ResourceManager",

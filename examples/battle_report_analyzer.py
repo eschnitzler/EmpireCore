@@ -32,11 +32,11 @@ async def battle_report_example():
 
         # Fetch recent battle reports
         logger.info("Fetching battle reports...")
-        await client.battle_reports.fetch_recent_reports(20)
+        await client.reports.fetch_recent_reports(20)
         await asyncio.sleep(2)  # Wait for response
 
         # Get recent reports
-        reports = client.battle_reports.get_recent_reports(10)
+        reports = client.reports.get_recent_reports(10)
         logger.info(f"Retrieved {len(reports)} battle reports")
 
         if not reports:
@@ -48,7 +48,7 @@ async def battle_report_example():
         # Analyze each report
         for i, report in enumerate(reports[:5]):  # Show first 5
             logger.info(f"\n--- Battle Report {i + 1} ---")
-            summary = client.battle_reports.get_report_summary(report)
+            summary = client.reports.get_report_summary(report)
             logger.info(f"ID: {summary['report_id']}")
             logger.info(f"Time: {summary['datetime']}")
             logger.info(
@@ -58,7 +58,7 @@ async def battle_report_example():
             logger.info(f"Loot: {summary['loot']}")
 
             # Analyze efficiency
-            analysis = client.battle_reports.analyze_battle_efficiency(report)
+            analysis = client.reports.analyze_battle_efficiency(report)
             logger.info(f"Victory: {analysis['victory']}")
             logger.info(f"Total Loot: {analysis['loot_total']}")
             if "efficiency" in analysis:
@@ -68,7 +68,7 @@ async def battle_report_example():
 
         # Get aggregate statistics
         logger.info("\n--- Aggregate Statistics ---")
-        stats = client.battle_reports.get_battle_stats(reports)
+        stats = client.reports.get_battle_stats(reports)
         logger.info(f"Total Battles: {stats['total_battles']}")
         logger.info(f"Win Rate: {stats['win_rate']:.1%}")
         logger.info(f"Victories: {stats['victories']}")
@@ -101,14 +101,14 @@ async def farming_efficiency_monitor():
         while True:
             try:
                 # Fetch latest reports
-                await client.battle_reports.fetch_recent_reports(50)
+                await client.reports.fetch_recent_reports(50)
                 await asyncio.sleep(2)
 
                 # Analyze recent farming efficiency
-                reports = client.battle_reports.get_recent_reports(
+                reports = client.reports.get_recent_reports(
                     20
                 )  # Last 20 battles
-                analysis = await client.battle_reports.auto_fetch_and_analyze(20)
+                analysis = await client.reports.auto_fetch_and_analyze(20)
 
                 stats = analysis["stats"]
                 logger.info("\n📊 Farming Efficiency Report")

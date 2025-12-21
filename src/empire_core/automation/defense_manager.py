@@ -78,7 +78,7 @@ class DefenseManager:
         logger.info(f"Applying defense preset '{preset_name}' to castle {castle.name}...")
 
         # Apply wall defense
-        wall_success = await self.client.set_wall_defense(
+        wall_success = await self.client.defense.set_wall_defense(
             castle_id=castle.id,
             castle_x=castle.x,
             castle_y=castle.y,
@@ -100,7 +100,7 @@ class DefenseManager:
         await asyncio.sleep(0.5) # Rate limit
 
         # Apply moat defense
-        moat_success = await self.client.set_moat_defense(
+        moat_success = await self.client.defense.set_moat_defense(
             castle_id=castle.id,
             castle_x=castle.x,
             castle_y=castle.y,
