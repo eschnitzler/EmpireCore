@@ -23,8 +23,8 @@ GOLD_ALERT_THRESHOLD = 10000
 CHECK_INTERVAL = 60
 
 class ResourceMonitorBot:
-    def __init__(self, config: EmpireConfig):
-        self.client = EmpireClient(config)
+    def __init__(self, client: EmpireClient):
+        self.client = client
         self.last_gold = 0
         self.running = False
         self.client.event(self.on_gbd)
@@ -63,8 +63,8 @@ async def main():
         logger.error("No account found in accounts.json")
         return
         
-    config = account.to_empire_config()
-    bot = ResourceMonitorBot(config)
+    client = account.get_client()
+    bot = ResourceMonitorBot(client)
     await bot.start()
 
 if __name__ == "__main__":

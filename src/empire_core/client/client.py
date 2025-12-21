@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import json
-from typing import Optional, Dict, List, Callable, Awaitable, Any
+from typing import Optional, Dict, List, Callable, Awaitable, Any, Union, TYPE_CHECKING
 
 from empire_core.network.connection import SFSConnection
 from empire_core.config import (
@@ -11,6 +11,10 @@ from empire_core.config import (
     ServerError,
     LOGIN_DEFAULTS,
 )
+
+if TYPE_CHECKING:
+    from empire_core.accounts import Account
+
 from empire_core.protocol.packet import Packet
 from empire_core.events.manager import EventManager
 from empire_core.events.base import PacketEvent
@@ -38,8 +42,16 @@ class EmpireClient(
     GameActionsMixin,
     GameCommandsMixin,
 ):
-    def __init__(self, config: Optional[EmpireConfig] = None):
-        self.config = config or default_config
+    def __init__(self, config: Union[EmpireConfig, "Account"] = None):
+        if config is None:
+            self.config = default_config
+        elif hasattr(config, "to_empire_config"):
+            # Handle Account object
+            self.config = config.to_empire_config()
+        else:
+            # Handle EmpireConfig object
+            self.config = config
+
         self.connection = SFSConnection(self.config.game_url)
         self.username: Optional[str] = self.config.username
         self.is_logged_in = False

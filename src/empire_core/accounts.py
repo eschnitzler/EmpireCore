@@ -44,6 +44,11 @@ class Account(BaseModel):
         """Check if account has a specific tag (case-insensitive)."""
         return tag.lower() in [t.lower() for t in self.tags]
 
+    def get_client(self) -> "EmpireClient":
+        """Create and return an EmpireClient for this account."""
+        from empire_core.client.client import EmpireClient
+        return EmpireClient(self)
+
 
 class AccountRegistry:
     """

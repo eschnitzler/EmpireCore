@@ -33,8 +33,7 @@ async def main():
 
     logger.info(f"Using account: {account.username}")
     
-    config = account.to_empire_config()
-    client = EmpireClient(config)
+    client = account.get_client()
     
     # Track if we've already logged initial data
     logged_initial_data = {"value": False}

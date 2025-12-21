@@ -25,8 +25,7 @@ async def battle_report_example():
         logger.error("No account found in accounts.json")
         return
 
-    config = account.to_empire_config()
-    client = EmpireClient(config)
+    client = account.get_client()
 
     try:
         # Login
@@ -95,8 +94,7 @@ async def farming_efficiency_monitor():
         logger.error("No account found in accounts.json")
         return
 
-    config = account.to_empire_config()
-    client = EmpireClient(config)
+    client = account.get_client()
 
     try:
         await client.login()

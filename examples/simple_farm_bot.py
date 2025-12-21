@@ -28,8 +28,7 @@ async def main():
         logger.error("No account found in accounts.json")
         return
 
-    config = account.to_empire_config()
-    client = EmpireClient(config)
+    client = account.get_client()
 
     # Bot Configuration
     farm_settings = {

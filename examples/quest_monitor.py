@@ -25,8 +25,7 @@ async def quest_monitor_example():
         logger.error("No account found in accounts.json")
         return
 
-    config = account.to_empire_config()
-    client = EmpireClient(config)
+    client = account.get_client()
 
     try:
         # Login
@@ -79,8 +78,7 @@ async def continuous_quest_monitor():
         logger.error("No account found in accounts.json")
         return
 
-    config = account.to_empire_config()
-    client = EmpireClient(config)
+    client = account.get_client()
 
     try:
         await client.login()

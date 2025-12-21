@@ -22,9 +22,7 @@ async def main():
         return
 
     # Configure via Pydantic Config
-    config = account.to_empire_config()
-    
-    client = EmpireClient(config)
+    client = account.get_client()
     
     try:
         await client.login()
