@@ -3,14 +3,11 @@ import inspect
 import logging
 from typing import (
     Any,
-    Awaitable,
     Callable,
     Coroutine,
     Dict,
     List,
     Type,
-    Union,
-    get_type_hints,
 )
 
 from empire_core.events.base import Event
@@ -40,9 +37,7 @@ class EventManager:
         params = list(sig.parameters.values())
 
         if not params:
-            raise ValueError(
-                f"Handler {func.__name__} must have at least one argument (the event)."
-            )
+            raise ValueError(f"Handler {func.__name__} must have at least one argument (the event).")
 
         # Get type hint of first arg
         event_arg = params[0]
@@ -81,15 +76,10 @@ class EventManager:
             # logger.debug(f"No listeners for {event_type.__name__}")
             return
 
-        tasks = []
-        for handler in handlers:
-            try:
-                res = handler(event)
-                if inspect.isawaitable(res):
-                    # Handler is async function, so res is a coroutine
-                    tasks.append(asyncio.create_task(res))  # type: ignore[arg-type]
-            except Exception as e:
-                logger.error(f"Error preparing handler {handler.__name__}: {e}")
+        # Run all listeners in parallel
+        tasks: List[Coroutine] = []
+        for func in handlers:
+            tasks.append(func(event))
 
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)

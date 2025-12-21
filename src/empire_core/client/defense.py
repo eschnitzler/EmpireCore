@@ -3,12 +3,9 @@ Defense management mixin for deploying defense units and tools.
 """
 
 import logging
-from typing import Dict, Any, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, List, Optional
 
-from empire_core.exceptions import ActionError
-from empire_core.protocol.packet import Packet
 # Assuming GameCommandsMixin provides _send_command_generic
-from empire_core.client.commands import GameCommandsMixin
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
@@ -27,17 +24,17 @@ class DefenseService:
         if not items:
             # Common pattern is to send [[-1, 0]] for empty slots or specific padding
             # Assuming up to 5 slots based on khan.py example for dfw
-            return [[-1, 0]] * 5 
-        
+            return [[-1, 0]] * 5
+
         payload = []
         for item_id, count in items.items():
             payload.append([item_id, count])
-        
+
         # Pad with [-1, 0] if less than expected slots
-        while len(payload) < 5: # Assuming 5 slots based on typical defense setups
+        while len(payload) < 5:  # Assuming 5 slots based on typical defense setups
             payload.append([-1, 0])
-            
-        return payload[:5] # Ensure max 5 items for wall slots
+
+        return payload[:5]  # Ensure max 5 items for wall slots
 
     async def set_wall_defense(
         self,
@@ -47,8 +44,8 @@ class DefenseService:
         left_tools: Optional[Dict[int, int]] = None,
         middle_tools: Optional[Dict[int, int]] = None,
         right_tools: Optional[Dict[int, int]] = None,
-        left_units_up: int = 0, # UP field, assuming Units Placed
-        left_units_count: int = 0, # UC field, assuming Unit Count
+        left_units_up: int = 0,  # UP field, assuming Units Placed
+        left_units_count: int = 0,  # UC field, assuming Unit Count
         middle_units_up: int = 0,
         middle_units_count: int = 0,
         right_units_up: int = 0,
@@ -105,12 +102,10 @@ class DefenseService:
         }
 
         # Use client's command sender
-        response = await self.client._send_command_generic(
-            "dfw", payload, "Set Wall Defense", wait_for_response, timeout
-        )
+        await self.client._send_command_generic("dfw", payload, "Set Wall Defense", wait_for_response, timeout)
 
         # Use client's response parser if available or implemented here?
-        # The Mixin had _parse_action_response as a stub. 
+        # The Mixin had _parse_action_response as a stub.
         # Checking if client has it. GameActionsMixin usually has it.
         # If not, we just return True for now if response is valid.
         return True
@@ -156,8 +151,6 @@ class DefenseService:
             "RS": self._build_defense_slot_payload(right_slots),
         }
 
-        response = await self.client._send_command_generic(
-            "dfm", payload, "Set Moat Defense", wait_for_response, timeout
-        )
+        await self.client._send_command_generic("dfm", payload, "Set Moat Defense", wait_for_response, timeout)
 
         return True

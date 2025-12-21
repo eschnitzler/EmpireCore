@@ -3,7 +3,7 @@ Alliance management and chat tools.
 """
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from empire_core.protocol.packet import Packet
@@ -40,7 +40,7 @@ class ChatMessage:
 
 class AllianceService:
     """Service for alliance operations."""
-    
+
     def __init__(self, client: "EmpireClient"):
         self.client = client
         self.alliance_members: Dict[int, AllianceMember] = {}
@@ -86,16 +86,12 @@ class AllianceService:
         logger.info(f"Sent alliance message: {message[:50]}...")
         return True
 
-    async def coordinate_attack(
-        self, target_x: int, target_y: int, target_name: str = "Target"
-    ) -> bool:
+    async def coordinate_attack(self, target_x: int, target_y: int, target_name: str = "Target") -> bool:
         """Send attack coordination message to alliance."""
         message = f"⚔️ Attack: {target_name} at ({target_x}, {target_y})"
         return await self.send_alliance_chat(message)
 
-    async def request_support(
-        self, castle_id: int, castle_name: str, reason: str = "under attack"
-    ) -> bool:
+    async def request_support(self, castle_id: int, castle_name: str, reason: str = "under attack") -> bool:
         """Request support from alliance members."""
         message = f"🛡️ Need support at {castle_name} (ID: {castle_id}) - {reason}"
         return await self.send_alliance_chat(message)
@@ -128,9 +124,7 @@ class AllianceService:
         if wood <= 0 and stone <= 0 and food <= 0:
             raise ValueError("Must specify at least one resource to donate.")
 
-        logger.info(
-            f"Donating {wood}W/{stone}S/{food}F to alliance {alliance_id} in K{kingdom_id}"
-        )
+        logger.info(f"Donating {wood}W/{stone}S/{food}F to alliance {alliance_id} in K{kingdom_id}")
 
         payload = {
             "AID": alliance_id,
@@ -141,7 +135,7 @@ class AllianceService:
                 "C": food,  # Food
             },
         }
-        
+
         response = await self.client._send_command_generic(
             "ado", payload, "Alliance Donation", wait_for_response, timeout
         )
@@ -195,7 +189,7 @@ class AllianceService:
 
 class ChatService:
     """Service for chat functionality."""
-    
+
     MAX_HISTORY = 100
 
     def __init__(self, client: "EmpireClient"):
@@ -259,9 +253,7 @@ class ChatService:
             except Exception as e:
                 logger.error(f"Chat callback error: {e}")
 
-    def get_chat_history(
-        self, channel: Optional[str] = None, limit: int = 50
-    ) -> List[ChatMessage]:
+    def get_chat_history(self, channel: Optional[str] = None, limit: int = 50) -> List[ChatMessage]:
         """Get chat history, optionally filtered by channel."""
         messages = self.chat_history
         if channel:

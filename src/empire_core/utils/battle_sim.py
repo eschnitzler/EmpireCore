@@ -1,9 +1,10 @@
 """
 Battle simulation engine.
 """
+
 import logging
-from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +12,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class UnitType:
     """Unit type definition."""
+
     id: int
     name: str
     attack: int
@@ -35,6 +37,7 @@ UNIT_TYPES = {
 @dataclass
 class BattleResult:
     """Result of a battle simulation."""
+
     attacker_wins: bool
     attacker_losses: Dict[int, int]
     defender_losses: Dict[int, int]
@@ -46,42 +49,42 @@ class BattleResult:
 
 class BattleSimulator:
     """Simulate battles between armies."""
-    
+
     def __init__(self):
         self.unit_types = UNIT_TYPES
-    
+
     def simulate(
         self,
         attacker_army: Dict[int, int],
         defender_army: Dict[int, int],
         attacker_bonus: float = 0.0,
         defender_bonus: float = 0.0,
-        defender_wall_level: int = 0
+        defender_wall_level: int = 0,
     ) -> BattleResult:
         """
         Simulate a battle.
-        
+
         Args:
             attacker_army: {unit_id: count}
             defender_army: {unit_id: count}
             attacker_bonus: Attack bonus % (0-100)
             defender_bonus: Defense bonus % (0-100)
             defender_wall_level: Wall level (adds defense)
-            
+
         Returns:
             BattleResult
         """
         # Calculate total power
         attacker_power = self._calculate_power(attacker_army, attacker_bonus)
         defender_power = self._calculate_power(defender_army, defender_bonus)
-        
+
         # Add wall bonus
         wall_bonus = defender_wall_level * 50  # 50 defense per level
         defender_power += wall_bonus
-        
+
         # Determine winner
         attacker_wins = attacker_power > defender_power
-        
+
         # Calculate losses (simplified)
         if attacker_wins:
             # Attacker wins - defender loses all, attacker loses some
@@ -93,30 +96,23 @@ class BattleSimulator:
             power_ratio = attacker_power / defender_power if defender_power > 0 else 0
             attacker_losses = attacker_army.copy()
             defender_losses = self._calculate_losses(defender_army, power_ratio)
-        
+
         # Calculate survivors
-        attacker_survivors = {
-            uid: count - attacker_losses.get(uid, 0)
-            for uid, count in attacker_army.items()
-        }
-        defender_survivors = {
-            uid: count - defender_losses.get(uid, 0)
-            for uid, count in defender_army.items()
-        }
-        
+        attacker_survivors = {uid: count - attacker_losses.get(uid, 0) for uid, count in attacker_army.items()}
+        defender_survivors = {uid: count - defender_losses.get(uid, 0) for uid, count in defender_army.items()}
+
         # Calculate loot (if attacker wins)
         loot = {}
         if attacker_wins:
             total_capacity = sum(
-                UNIT_TYPES.get(uid, UNIT_TYPES[620]).capacity * count
-                for uid, count in attacker_survivors.items()
+                UNIT_TYPES.get(uid, UNIT_TYPES[620]).capacity * count for uid, count in attacker_survivors.items()
             )
             loot = {
-                'wood': int(total_capacity * 0.33),
-                'stone': int(total_capacity * 0.33),
-                'food': int(total_capacity * 0.34)
+                "wood": int(total_capacity * 0.33),
+                "stone": int(total_capacity * 0.33),
+                "food": int(total_capacity * 0.34),
             }
-        
+
         return BattleResult(
             attacker_wins=attacker_wins,
             attacker_losses=attacker_losses,
@@ -124,56 +120,44 @@ class BattleSimulator:
             attacker_survivors=attacker_survivors,
             defender_survivors=defender_survivors,
             loot=loot,
-            rounds=1  # Simplified - single round
+            rounds=1,  # Simplified - single round
         )
-    
-    def _calculate_power(
-        self,
-        army: Dict[int, int],
-        bonus: float = 0.0
-    ) -> float:
+
+    def _calculate_power(self, army: Dict[int, int], bonus: float = 0.0) -> float:
         """Calculate total army power."""
         total = 0.0
-        
+
         for unit_id, count in army.items():
             unit = self.unit_types.get(unit_id)
             if not unit:
                 continue
-            
+
             unit_power = (unit.attack + unit.defense + unit.health) / 3
             total += unit_power * count
-        
+
         # Apply bonus
-        total *= (1 + bonus / 100)
-        
+        total *= 1 + bonus / 100
+
         return total
-    
-    def _calculate_losses(
-        self,
-        army: Dict[int, int],
-        loss_ratio: float
-    ) -> Dict[int, int]:
+
+    def _calculate_losses(self, army: Dict[int, int], loss_ratio: float) -> Dict[int, int]:
         """Calculate unit losses."""
         losses = {}
-        
+
         for unit_id, count in army.items():
             lost = int(count * loss_ratio)
             if lost > 0:
                 losses[unit_id] = lost
-        
+
         return losses
-    
-    def estimate_outcome(
-        self,
-        attacker_army: Dict[int, int],
-        defender_army: Dict[int, int]
-    ) -> str:
+
+    def estimate_outcome(self, attacker_army: Dict[int, int], defender_army: Dict[int, int]) -> str:
         """Quick estimate of battle outcome."""
         att_power = self._calculate_power(attacker_army)
         def_power = self._calculate_power(defender_army)
-        
+
         ratio = att_power / def_power if def_power > 0 else 999
-        
+
         if ratio > 2.0:
             return "Easy Win"
         elif ratio > 1.5:
@@ -186,4 +170,3 @@ class BattleSimulator:
             return "Likely Loss"
         else:
             return "Heavy Loss"
-

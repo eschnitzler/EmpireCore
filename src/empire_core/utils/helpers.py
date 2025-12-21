@@ -2,11 +2,10 @@
 Helper functions for common game operations.
 """
 
-from typing import List, Dict, Tuple, Optional
-import time
+from typing import Dict, List, Optional
+
 from empire_core.state.models import Castle, Player
 from empire_core.state.world_models import Movement
-from empire_core.utils.calculations import calculate_distance, calculate_travel_time
 from empire_core.utils.enums import MovementType
 
 
@@ -14,15 +13,9 @@ class CastleHelper:
     """Helper for castle operations."""
 
     @staticmethod
-    def has_sufficient_resources(
-        castle: Castle, wood: int = 0, stone: int = 0, food: int = 0
-    ) -> bool:
+    def has_sufficient_resources(castle: Castle, wood: int = 0, stone: int = 0, food: int = 0) -> bool:
         """Check if castle has sufficient resources."""
-        return (
-            castle.resources.wood >= wood
-            and castle.resources.stone >= stone
-            and castle.resources.food >= food
-        )
+        return castle.resources.wood >= wood and castle.resources.stone >= stone and castle.resources.food >= food
 
     @staticmethod
     def get_resource_overflow(castle: Castle) -> Dict[str, int]:
@@ -49,9 +42,7 @@ class CastleHelper:
         cost_food: int = 0,
     ) -> bool:
         """Check if building can be upgraded."""
-        return CastleHelper.has_sufficient_resources(
-            castle, cost_wood, cost_stone, cost_food
-        )
+        return CastleHelper.has_sufficient_resources(castle, cost_wood, cost_stone, cost_food)
 
 
 class MovementHelper:
@@ -73,23 +64,17 @@ class MovementHelper:
         return [m for m in movements.values() if m.is_returning]
 
     @staticmethod
-    def get_movements_to_area(
-        movements: Dict[int, Movement], area_id: int
-    ) -> List[Movement]:
+    def get_movements_to_area(movements: Dict[int, Movement], area_id: int) -> List[Movement]:
         """Get all movements to specific area."""
         return [m for m in movements.values() if m.target_area_id == area_id]
 
     @staticmethod
-    def get_movements_from_area(
-        movements: Dict[int, Movement], area_id: int
-    ) -> List[Movement]:
+    def get_movements_from_area(movements: Dict[int, Movement], area_id: int) -> List[Movement]:
         """Get all movements from specific area."""
         return [m for m in movements.values() if m.source_area_id == area_id]
 
     @staticmethod
-    def get_movements_by_type(
-        movements: Dict[int, Movement], movement_type: MovementType
-    ) -> List[Movement]:
+    def get_movements_by_type(movements: Dict[int, Movement], movement_type: MovementType) -> List[Movement]:
         """Get all movements of a specific type."""
         return [m for m in movements.values() if m.T == movement_type]
 
@@ -121,16 +106,12 @@ class MovementHelper:
         return min(attacks, key=lambda m: m.time_remaining)
 
     @staticmethod
-    def sort_by_arrival(
-        movements: List[Movement], ascending: bool = True
-    ) -> List[Movement]:
+    def sort_by_arrival(movements: List[Movement], ascending: bool = True) -> List[Movement]:
         """Sort movements by arrival time."""
         return sorted(movements, key=lambda m: m.time_remaining, reverse=not ascending)
 
     @staticmethod
-    def get_movements_arriving_within(
-        movements: Dict[int, Movement], seconds: int
-    ) -> List[Movement]:
+    def get_movements_arriving_within(movements: Dict[int, Movement], seconds: int) -> List[Movement]:
         """Get all movements arriving within specified seconds."""
         return [m for m in movements.values() if m.time_remaining <= seconds]
 
@@ -156,9 +137,7 @@ class MovementHelper:
     @staticmethod
     def format_movement(movement: Movement) -> str:
         """Format a movement for display."""
-        direction = (
-            "→" if movement.is_outgoing else "←" if movement.is_incoming else "↺"
-        )
+        direction = "→" if movement.is_outgoing else "←" if movement.is_incoming else "↺"
         if movement.is_returning:
             direction = "↩"
 
@@ -174,9 +153,7 @@ class MovementHelper:
         if not movements:
             return "No movements."
 
-        lines = [
-            f"{'ID':<10} {'Type':<12} {'From':<10} {'To':<10} {'Units':<8} {'Time':<12}"
-        ]
+        lines = [f"{'ID':<10} {'Type':<12} {'From':<10} {'To':<10} {'Units':<8} {'Time':<12}"]
         lines.append("-" * 65)
 
         for m in sorted(movements, key=lambda x: x.time_remaining):
@@ -189,9 +166,7 @@ class MovementHelper:
         return "\n".join(lines)
 
     @staticmethod
-    def is_attack_imminent(
-        movements: Dict[int, Movement], threshold_seconds: int = 60
-    ) -> bool:
+    def is_attack_imminent(movements: Dict[int, Movement], threshold_seconds: int = 60) -> bool:
         """Check if any attack is arriving within threshold."""
         attacks = MovementHelper.get_incoming_attacks(movements)
         return any(a.time_remaining <= threshold_seconds for a in attacks)
@@ -232,9 +207,7 @@ class ResourceHelper:
         return result
 
     @staticmethod
-    def get_optimal_transport_amount(
-        source: Castle, target_capacity: int, resource_type: str = "wood"
-    ) -> int:
+    def get_optimal_transport_amount(source: Castle, target_capacity: int, resource_type: str = "wood") -> int:
         """Calculate optimal amount to transport."""
         if resource_type == "wood":
             available = source.resources.wood

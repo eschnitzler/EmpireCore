@@ -16,19 +16,21 @@ Usage:
 """
 
 import asyncio
-import logging
-import inspect
 import datetime
+import inspect
+import logging
 import traceback
-from typing import Optional, Callable, Any, Union, Awaitable
+from typing import Any, Awaitable, Callable, Optional
 
 logger = logging.getLogger(__name__)
+
 
 class Loop:
     """
     A background task loop.
     Created via the @tasks.loop decorator.
     """
+
     def __init__(
         self,
         coro: Callable[..., Awaitable[Any]],
@@ -57,7 +59,7 @@ class Loop:
         self._before_loop: Optional[Callable[..., Awaitable[Any]]] = None
         self._after_loop: Optional[Callable[..., Awaitable[Any]]] = None
         self._error_handler: Optional[Callable[[Exception], Awaitable[Any]]] = None
-        
+
         # Calculate interval in seconds
         self._interval = seconds + (minutes * 60.0) + (hours * 3600.0)
 
@@ -77,7 +79,7 @@ class Loop:
 
         self._current_loop = 0
         self._stop_next_iteration = False
-        
+
         # Main execution loop
         while True:
             if self._stop_next_iteration:
@@ -88,7 +90,7 @@ class Loop:
 
             self._last_iteration = datetime.datetime.now(datetime.timezone.utc)
             self._next_iteration = self._last_iteration + datetime.timedelta(seconds=self._interval)
-            
+
             try:
                 await self.coro(*args, **kwargs)
             except asyncio.CancelledError:
@@ -98,9 +100,9 @@ class Loop:
                 await self._handle_error(e)
                 if not self.reconnect:
                     self._stop_next_iteration = True
-            
+
             self._current_loop += 1
-            
+
             if self._stop_next_iteration:
                 break
 
@@ -207,6 +209,7 @@ def loop(
         reconnect: If True, handles errors and continues. If False, stops on error.
         loop: Optional asyncio loop.
     """
+
     def decorator(func: Callable[..., Awaitable[Any]]) -> Loop:
         return Loop(
             func,
@@ -217,4 +220,5 @@ def loop(
             reconnect=reconnect,
             loop=loop,
         )
+
     return decorator

@@ -1,19 +1,19 @@
 import logging
 import time
-from typing import Dict, Optional, Any, List, Callable, Awaitable, Set
-from empire_core.state.models import Player, Castle, Resources, Building
-from empire_core.state.world_models import MapObject, Movement, MovementResources
-from empire_core.state.quest_models import DailyQuest, Quest
-from empire_core.state.unit_models import Army
-from empire_core.state.report_models import BattleReport, ReportManager
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Set
+
 from empire_core.events.base import (
+    IncomingAttackEvent,
+    MovementArrivedEvent,
     MovementStartedEvent,
     MovementUpdatedEvent,
-    MovementArrivedEvent,
-    MovementCancelledEvent,
-    IncomingAttackEvent,
     ReturnArrivalEvent,
 )
+from empire_core.state.models import Building, Castle, Player
+from empire_core.state.quest_models import DailyQuest
+from empire_core.state.report_models import BattleReport, ReportManager
+from empire_core.state.unit_models import Army
+from empire_core.state.world_models import MapObject, Movement, MovementResources
 
 logger = logging.getLogger(__name__)
 
@@ -101,9 +101,7 @@ class GameState:
                 if pid not in self.players:
                     self.players[pid] = Player(**gpi)
                 self.local_player = self.players[pid]
-                logger.info(
-                    f"GameState: Local player set to {self.local_player.name} (ID: {pid})"
-                )
+                logger.info(f"GameState: Local player set to {self.local_player.name} (ID: {pid})")
 
         # 2. XP/Level (gxp)
         gxp = data.get("gxp", {})
@@ -128,9 +126,7 @@ class GameState:
 
         # 4. Alliance (gal)
         gal = data.get("gal", {})
-        if (
-            gal and self.local_player and gal.get("AID")
-        ):  # Only if player has an alliance
+        if gal and self.local_player and gal.get("AID"):  # Only if player has an alliance
             try:
                 from empire_core.state.models import Alliance
 
@@ -164,9 +160,7 @@ class GameState:
                             self.castles[area_id] = castle
                             self.local_player.castles[area_id] = castle
 
-            logger.info(
-                f"GameState: Parsed {len(self.local_player.castles)} castles for local player."
-            )
+            logger.info(f"GameState: Parsed {len(self.local_player.castles)} castles for local player.")
 
     def _handle_gaa(self, data: Dict[str, Any]):
         """Handle 'Get Area' (Map Chunk) response."""
@@ -239,22 +233,14 @@ class GameState:
                 mov = Movement(**m_data)
 
                 # Extract target area details if available
-                if (
-                    mov.target_area
-                    and isinstance(mov.target_area, list)
-                    and len(mov.target_area) >= 5
-                ):
+                if mov.target_area and isinstance(mov.target_area, list) and len(mov.target_area) >= 5:
                     # TA format: [type, x, y, area_id, owner_id, ...]
                     mov.target_x = mov.target_area[1]
                     mov.target_y = mov.target_area[2]
                     mov.target_area_id = mov.target_area[3]
 
                 # Extract source area details if available
-                if (
-                    mov.source_area
-                    and isinstance(mov.source_area, list)
-                    and len(mov.source_area) >= 3
-                ):
+                if mov.source_area and isinstance(mov.source_area, list) and len(mov.source_area) >= 3:
                     # SA format: [type, x, y, ...]
                     mov.source_x = mov.source_area[1]
                     mov.source_y = mov.source_area[2]
@@ -332,19 +318,11 @@ class GameState:
 
                     # Special resources (from top level and gpa)
                     res.iron = int(castle_data.get("I", gpa_data.get("MRI", res.iron)))
-                    res.glass = int(
-                        castle_data.get("G", gpa_data.get("MRG", res.glass))
-                    )
+                    res.glass = int(castle_data.get("G", gpa_data.get("MRG", res.glass)))
                     res.ash = int(castle_data.get("A", gpa_data.get("MRA", res.ash)))
-                    res.honey = int(
-                        castle_data.get("HONEY", gpa_data.get("MRHONEY", res.honey))
-                    )
-                    res.mead = int(
-                        castle_data.get("MEAD", gpa_data.get("MRMEAD", res.mead))
-                    )
-                    res.beef = int(
-                        castle_data.get("BEEF", gpa_data.get("MRBEEF", res.beef))
-                    )
+                    res.honey = int(castle_data.get("HONEY", gpa_data.get("MRHONEY", res.honey)))
+                    res.mead = int(castle_data.get("MEAD", gpa_data.get("MRMEAD", res.mead)))
+                    res.beef = int(castle_data.get("BEEF", gpa_data.get("MRBEEF", res.beef)))
 
                     # Update Buildings from 'AC'
                     raw_buildings = castle_data.get("AC", [])
@@ -353,9 +331,7 @@ class GameState:
                         if isinstance(b_data, list) and len(b_data) >= 2:
                             building_id = b_data[0]
                             building_level = b_data[1]
-                            castle.buildings.append(
-                                Building(id=building_id, level=building_level)
-                            )
+                            castle.buildings.append(Building(id=building_id, level=building_level))
 
                     # Update Units from 'UN'
                     # UN format: {unit_id_str: count}
@@ -373,9 +349,7 @@ class GameState:
 
                     updated_count += 1
 
-        logger.info(
-            f"GameState: Updated details for {updated_count} castles (Resources, Buildings, Population)."
-        )
+        logger.info(f"GameState: Updated details for {updated_count} castles (Resources, Buildings, Population).")
 
     def _handle_dql(self, data: Dict[str, Any]):
         """Handle 'Daily Quest List' packet."""
@@ -425,36 +399,24 @@ class GameState:
             mov.last_updated = time.time()
 
             # Extract target area details if available
-            if (
-                mov.target_area
-                and isinstance(mov.target_area, list)
-                and len(mov.target_area) >= 5
-            ):
+            if mov.target_area and isinstance(mov.target_area, list) and len(mov.target_area) >= 5:
                 # TA format: [type, x, y, area_id, owner_id, ...]
                 mov.target_x = mov.target_area[1]
                 mov.target_y = mov.target_area[2]
                 mov.target_area_id = mov.target_area[3]
                 # Try to get name if available (index 10+)
                 if len(mov.target_area) > 10:
-                    mov.target_name = (
-                        str(mov.target_area[10]) if mov.target_area[10] else ""
-                    )
+                    mov.target_name = str(mov.target_area[10]) if mov.target_area[10] else ""
 
             # Extract source area details if available
-            if (
-                mov.source_area
-                and isinstance(mov.source_area, list)
-                and len(mov.source_area) >= 3
-            ):
+            if mov.source_area and isinstance(mov.source_area, list) and len(mov.source_area) >= 3:
                 # SA format: [type, x, y, area_id, ...]
                 mov.source_x = mov.source_area[1]
                 mov.source_y = mov.source_area[2]
                 if len(mov.source_area) >= 4:
                     mov.source_area_id = mov.source_area[3]
                 if len(mov.source_area) > 10:
-                    mov.source_name = (
-                        str(mov.source_area[10]) if mov.source_area[10] else ""
-                    )
+                    mov.source_name = str(mov.source_area[10]) if mov.source_area[10] else ""
 
             # Parse units from wrapper if available
             if m_wrapper:
@@ -491,7 +453,9 @@ class GameState:
         Handle 'Get Army Movements' response with delta detection.
         Returns list of events to emit.
         """
-        events_to_emit = []
+        from empire_core.events.base import Event
+
+        events_to_emit: List[Event] = []
         movements_list = data.get("M", [])
 
         current_movement_ids: Set[int] = set()
@@ -524,7 +488,7 @@ class GameState:
                 new_movements.append(mov)
 
                 # Create MovementStartedEvent
-                event = MovementStartedEvent(
+                start_event = MovementStartedEvent(
                     movement_id=mov.MID,
                     movement_type=mov.T,
                     movement_type_name=mov.movement_type_name,
@@ -535,7 +499,7 @@ class GameState:
                     total_time=mov.TT,
                     unit_count=mov.unit_count,
                 )
-                events_to_emit.append(event)
+                events_to_emit.append(start_event)
 
                 # If incoming attack, emit special alert
                 if mov.is_incoming and mov.is_attack:
@@ -551,9 +515,7 @@ class GameState:
                         source_y=mov.source_y,
                     )
                     events_to_emit.append(attack_event)
-                    logger.warning(
-                        f"INCOMING ATTACK! Movement {mov.MID} - {mov.time_remaining}s remaining"
-                    )
+                    logger.warning(f"INCOMING ATTACK! Movement {mov.MID} - {mov.time_remaining}s remaining")
             else:
                 # Existing movement - preserve created_at, update rest
                 existing = self.movements.get(mid)
@@ -562,7 +524,7 @@ class GameState:
 
                 # Emit update event if progress changed significantly
                 if existing and abs(mov.PT - existing.PT) >= 1:
-                    event = MovementUpdatedEvent(
+                    update_event = MovementUpdatedEvent(
                         movement_id=mov.MID,
                         movement_type=mov.T,
                         movement_type_name=mov.movement_type_name,
@@ -575,17 +537,21 @@ class GameState:
                         time_remaining=mov.time_remaining,
                         progress_percent=mov.progress_percent,
                     )
-                    events_to_emit.append(event)
+                    events_to_emit.append(update_event)
 
             self.movements[mid] = mov
 
         # Detect removed movements (arrived or cancelled)
         removed_ids = self._previous_movement_ids - current_movement_ids
         for mid in removed_ids:
-            old_mov = self.movements.get(mid)
-            if old_mov:
-                # Movement completed/arrived
-                event = MovementArrivedEvent(
+            if mid not in current_movement_ids:
+                # Movement disappeared - assume arrived or cancelled
+                old_mov = self.movements.get(mid)
+                if not old_mov:
+                    continue
+
+                # Create MovementArrivedEvent
+                arrived_event = MovementArrivedEvent(
                     movement_id=old_mov.MID,
                     movement_type=old_mov.T,
                     movement_type_name=old_mov.movement_type_name,
@@ -596,7 +562,7 @@ class GameState:
                     was_incoming=old_mov.is_incoming,
                     was_outgoing=old_mov.is_outgoing,
                 )
-                events_to_emit.append(event)
+                events_to_emit.append(arrived_event)
 
                 # If it was a returning movement with loot
                 if old_mov.is_returning and not old_mov.resources.is_empty:
@@ -644,7 +610,7 @@ class GameState:
             # Single movement
             self._process_single_movement_update(m_data)
 
-        logger.debug(f"GameState: Processed mov packet")
+        logger.debug("GameState: Processed mov packet")
 
     def _process_single_movement_update(self, m_data: Dict[str, Any]):
         """Process a single movement update from a mov packet."""
@@ -690,9 +656,7 @@ class GameState:
         self._previous_movement_ids.discard(mid)
 
         if old_mov:
-            logger.info(
-                f"GameState: Movement {mid} ({old_mov.movement_type_name}) arrived at {old_mov.target_area_id}"
-            )
+            logger.info(f"GameState: Movement {mid} ({old_mov.movement_type_name}) arrived at {old_mov.target_area_id}")
         else:
             logger.debug(f"GameState: atv for unknown movement {mid}")
 
@@ -709,9 +673,7 @@ class GameState:
             self._previous_movement_ids.discard(mid)
 
             if old_mov:
-                logger.info(
-                    f"GameState: Attack {mid} arrived at area {aid or old_mov.target_area_id}"
-                )
+                logger.info(f"GameState: Attack {mid} arrived at area {aid or old_mov.target_area_id}")
 
     def _handle_cam(self, data: Dict[str, Any]):
         """
@@ -800,7 +762,7 @@ class GameState:
             report_id = data.get("RID")
             if report_id and report_id in self.reports.battle_reports:
                 # Update existing report with detailed data
-                report = self.reports.battle_reports[report_id]
+                self.reports.battle_reports[report_id]
 
                 # Parse detailed battle data
                 battle_data = data.get("B", {})
@@ -811,9 +773,7 @@ class GameState:
                     if isinstance(attacker_data, dict):
                         # This would need more detailed parsing based on actual packet structure
                         # For now, just log that we received detailed data
-                        logger.debug(
-                            f"Received detailed battle data for report {report_id}"
-                        )
+                        logger.debug(f"Received detailed battle data for report {report_id}")
 
                 logger.debug(f"Updated battle report {report_id} with details")
         except Exception as e:

@@ -65,9 +65,7 @@ class MapScanner:
     def __init__(self, client: "EmpireClient"):
         self.client = client
         self._scanned_chunks: Dict[int, Set[Tuple[int, int]]] = {}  # kingdom -> chunks
-        self._scan_timestamps: Dict[
-            Tuple[int, int, int], float
-        ] = {}  # (kid, x, y) -> time
+        self._scan_timestamps: Dict[Tuple[int, int, int], float] = {}  # (kid, x, y) -> time
         self._progress_callbacks: List[Callable[[ScanProgress], None]] = []
         self._running = False
         self._stop_event = asyncio.Event()
@@ -189,11 +187,7 @@ class MapScanner:
         # Count by type
         targets_by_type: Dict[MapObjectType, int] = {}
         for obj in self.map_objects.values():
-            obj_type = (
-                obj.type
-                if isinstance(obj.type, MapObjectType)
-                else MapObjectType.UNKNOWN
-            )
+            obj_type = obj.type if isinstance(obj.type, MapObjectType) else MapObjectType.UNKNOWN
             targets_by_type[obj_type] = targets_by_type.get(obj_type, 0) + 1
 
         result = ScanResult(
@@ -204,9 +198,7 @@ class MapScanner:
             targets_by_type=targets_by_type,
         )
 
-        logger.info(
-            f"Scan complete: {completed} chunks, {objects_found} new objects in {duration:.1f}s"
-        )
+        logger.info(f"Scan complete: {completed} chunks, {objects_found} new objects in {duration:.1f}s")
         return result
 
     async def scan_around_castles(
@@ -231,10 +223,8 @@ class MapScanner:
             logger.warning("No castles available for scanning")
             return results
 
-        for castle_id, castle in player.castles.items():
-            logger.info(
-                f"Scanning around castle {castle.name} ({castle.x}, {castle.y})"
-            )
+        for _castle_id, castle in player.castles.items():
+            logger.info(f"Scanning around castle {castle.name} ({castle.x}, {castle.y})")
             result = await self.scan_area(
                 center_x=castle.x,
                 center_y=castle.y,
@@ -279,11 +269,7 @@ class MapScanner:
         for obj in self.map_objects.values():
             # Filter by type
             if target_types:
-                obj_type = (
-                    obj.type
-                    if isinstance(obj.type, MapObjectType)
-                    else MapObjectType.UNKNOWN
-                )
+                obj_type = obj.type if isinstance(obj.type, MapObjectType) else MapObjectType.UNKNOWN
                 if obj_type not in target_types:
                     continue
 
@@ -317,9 +303,7 @@ class MapScanner:
             MapObjectType.ALIEN_CAMP,
             MapObjectType.FACTION_CAMP,
         ]
-        return self.find_nearby_targets(
-            origin_x, origin_y, max_distance, target_types=npc_types
-        )
+        return self.find_nearby_targets(origin_x, origin_y, max_distance, target_types=npc_types)
 
     def find_player_targets(
         self,
@@ -341,17 +325,11 @@ class MapScanner:
         """Get summary of all scanned data."""
         type_counts: Dict[str, int] = {}
         for obj in self.map_objects.values():
-            obj_type = (
-                obj.type
-                if isinstance(obj.type, MapObjectType)
-                else MapObjectType.UNKNOWN
-            )
+            obj_type = obj.type if isinstance(obj.type, MapObjectType) else MapObjectType.UNKNOWN
             type_name = obj_type.name
             type_counts[type_name] = type_counts.get(type_name, 0) + 1
 
-        kingdoms_scanned = {
-            kid: len(chunks) for kid, chunks in self._scanned_chunks.items()
-        }
+        kingdoms_scanned = {kid: len(chunks) for kid, chunks in self._scanned_chunks.items()}
 
         return {
             "total_objects": len(self.map_objects),
@@ -372,9 +350,7 @@ class MapScanner:
             self._scanned_chunks.clear()
             self._scan_timestamps.clear()
 
-    def _generate_spiral_pattern(
-        self, center_x: int, center_y: int, radius: int
-    ) -> List[Tuple[int, int]]:
+    def _generate_spiral_pattern(self, center_x: int, center_y: int, radius: int) -> List[Tuple[int, int]]:
         """Generate spiral scan pattern from center outward."""
         center_chunk_x = center_x // MAP_CHUNK_SIZE
         center_chunk_y = center_y // MAP_CHUNK_SIZE

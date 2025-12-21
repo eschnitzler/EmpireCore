@@ -8,7 +8,8 @@ to understand farming efficiency and combat outcomes.
 
 import asyncio
 import logging
-from empire_core import EmpireClient, EmpireConfig, accounts
+
+from empire_core import accounts
 
 # Enable logging
 logging.basicConfig(level=logging.INFO)
@@ -42,9 +43,7 @@ async def battle_report_example():
         logger.info(f"Retrieved {len(reports)} battle reports")
 
         if not reports:
-            logger.info(
-                "No battle reports found. Try attacking some barbarian camps first!"
-            )
+            logger.info("No battle reports found. Try attacking some barbarian camps first!")
             return
 
         # Analyze each report
@@ -53,9 +52,7 @@ async def battle_report_example():
             summary = client.reports.get_report_summary(report)
             logger.info(f"ID: {summary['report_id']}")
             logger.info(f"Time: {summary['datetime']}")
-            logger.info(
-                f"Target: {summary['target']['name']} ({summary['target']['x']}, {summary['target']['y']})"
-            )
+            logger.info(f"Target: {summary['target']['name']} ({summary['target']['x']}, {summary['target']['y']})")
             logger.info(f"Winner: {summary['winner']}")
             logger.info(f"Loot: {summary['loot']}")
 
@@ -109,9 +106,7 @@ async def farming_efficiency_monitor():
                 await asyncio.sleep(2)
 
                 # Analyze recent farming efficiency
-                reports = client.reports.get_recent_reports(
-                    20
-                )  # Last 20 battles
+                client.reports.get_recent_reports(20)  # Last 20 battles
                 analysis = await client.reports.auto_fetch_and_analyze(20)
 
                 stats = analysis["stats"]
@@ -122,9 +117,7 @@ async def farming_efficiency_monitor():
                 logger.info(f"Total Losses: {stats['total_losses']}")
 
                 if stats["total_losses"] > 0:
-                    avg_loot_per_loss = (
-                        sum(stats["total_loot"].values()) / stats["total_losses"]
-                    )
+                    avg_loot_per_loss = sum(stats["total_loot"].values()) / stats["total_losses"]
                     logger.info(f"Avg Loot per Loss: {avg_loot_per_loss:.1f}")
 
                     if avg_loot_per_loss > 100:
@@ -134,9 +127,7 @@ async def farming_efficiency_monitor():
                     elif avg_loot_per_loss > 20:
                         logger.info("🤔 Fair farming efficiency")
                     else:
-                        logger.info(
-                            "⚠️ Poor farming efficiency - consider different targets"
-                        )
+                        logger.info("⚠️ Poor farming efficiency - consider different targets")
 
                 # Wait before next check
                 logger.info(f"⏰ Next check in {check_interval // 60} minutes...")

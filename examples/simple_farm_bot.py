@@ -4,22 +4,22 @@ Simple farming bot example.
 Demonstrates building a custom bot using the EmpireCore API.
 This replaces the old pre-packaged 'FarmingBot' to show how to use the tools directly.
 """
+
 import asyncio
 import logging
-import sys
 import os
+import sys
 
 # Add src to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
-from empire_core.client.client import EmpireClient
-from empire_core.config import EmpireConfig
+from empire_core import accounts
 from empire_core.automation import tasks
 from empire_core.automation.target_finder import TargetFinder
-from empire_core import accounts
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(message)s")
 logger = logging.getLogger("FarmBot")
+
 
 async def main():
     # Setup
@@ -32,7 +32,7 @@ async def main():
 
     # Bot Configuration
     farm_settings = {
-        "interval": 300,        # 5 minutes
+        "interval": 300,  # 5 minutes
         "max_distance": 30.0,
         "default_units": {620: 50},  # 50 militia
     }
@@ -83,7 +83,7 @@ async def main():
         logger.info("Waiting for login...")
         while not client.is_logged_in:
             await asyncio.sleep(1)
-        
+
         # Refresh state manually to ensure we have castle data
         await client.get_detailed_castle_info()
         logger.info("Ready to farm.")
@@ -92,7 +92,7 @@ async def main():
         # Login
         logger.info("Logging in...")
         await client.login()
-        
+
         # Start the background task
         farm_loop.start()
 
@@ -100,16 +100,18 @@ async def main():
         logger.info("Bot started. Press Ctrl+C to stop.")
         while True:
             await asyncio.sleep(1)
-            
+
     except KeyboardInterrupt:
         logger.info("Stopping bot...")
         farm_loop.cancel()
     except Exception as e:
         logger.error(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         await client.close()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

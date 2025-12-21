@@ -1,7 +1,9 @@
 import asyncio
 import logging
+from typing import Awaitable, Callable, Dict, Optional, Set, Tuple
+
 import aiohttp
-from typing import Optional, Dict, Set, Callable, Awaitable, Tuple
+
 from empire_core.protocol.packet import Packet
 from empire_core.utils.decorators import handle_errors
 
@@ -21,9 +23,7 @@ class SFSConnection:
         self._read_task: Optional[asyncio.Task] = None
 
         # Waiters: cmd_id -> Set of (Future, Predicate)
-        self._waiters: Dict[
-            str, Set[Tuple[asyncio.Future, Callable[[Packet], bool]]]
-        ] = {}
+        self._waiters: Dict[str, Set[Tuple[asyncio.Future, Callable[[Packet], bool]]]] = {}
 
         # Global callback
         self.packet_handler: Optional[Callable[[Packet], Awaitable[None]]] = None
@@ -89,9 +89,7 @@ class SFSConnection:
 
         await self._ws.send_str(data)
 
-    def create_waiter(
-        self, cmd_id: str, predicate: Optional[Callable[[Packet], bool]] = None
-    ) -> asyncio.Future:
+    def create_waiter(self, cmd_id: str, predicate: Optional[Callable[[Packet], bool]] = None) -> asyncio.Future:
         if not self.connected:
             raise RuntimeError("Cannot wait for packet when not connected")
 
@@ -102,7 +100,9 @@ class SFSConnection:
             self._waiters[cmd_id] = set()
 
         if predicate is None:
-            predicate = lambda p: True
+
+            def predicate(p):
+                return True
 
         entry = (fut, predicate)
         self._waiters[cmd_id].add(entry)
@@ -144,9 +144,7 @@ class SFSConnection:
                 elif msg.type == aiohttp.WSMsgType.BINARY:
                     await self._process_message(msg.data)
                 elif msg.type == aiohttp.WSMsgType.ERROR:
-                    logger.error(
-                        "WS connection closed with exception %s", self._ws.exception()
-                    )
+                    logger.error("WS connection closed with exception %s", self._ws.exception())
                     break
         finally:
             logger.warning("Connection closed.")

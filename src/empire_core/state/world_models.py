@@ -1,7 +1,9 @@
-from typing import List, Optional, Dict, Any, Union
-from pydantic import BaseModel, Field, ConfigDict
-from empire_core.utils.enums import MapObjectType, MovementType
 import time
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from empire_core.utils.enums import MapObjectType, MovementType
 
 
 class MapObject(BaseModel):
@@ -97,9 +99,7 @@ class Movement(BaseModel):
     source_player_name: str = Field(default="")
 
     # Timestamps for tracking
-    created_at: float = Field(
-        default_factory=time.time
-    )  # When we first saw this movement
+    created_at: float = Field(default_factory=time.time)  # When we first saw this movement
     last_updated: float = Field(default_factory=time.time)  # Last update time
 
     @property

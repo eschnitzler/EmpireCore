@@ -5,7 +5,7 @@ Defense management and automation for castles.
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, Optional
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DefensePreset:
     """A predefined defense configuration."""
+
     name: str
     wall_left_tools: Dict[int, int] = field(default_factory=dict)
     wall_middle_tools: Dict[int, int] = field(default_factory=dict)
@@ -57,7 +58,7 @@ class DefenseManager:
     async def apply_defense_preset(self, castle_id: int, preset_name: str) -> bool:
         """
         Apply a named defense preset to a specific castle.
-        
+
         Args:
             castle_id: The ID of the castle to apply the preset to.
             preset_name: The name of the defense preset.
@@ -70,7 +71,9 @@ class DefenseManager:
             logger.warning(f"Defense preset '{preset_name}' not found.")
             return False
 
-        castle: Optional["Castle"] = self.client.state.local_player.castles.get(castle_id) if self.client.state.local_player else None
+        castle: Optional["Castle"] = (
+            self.client.state.local_player.castles.get(castle_id) if self.client.state.local_player else None
+        )
         if not castle:
             logger.error(f"Castle {castle_id} not found in state.")
             return False
@@ -91,13 +94,13 @@ class DefenseManager:
             middle_units_count=preset.wall_middle_units_count,
             right_units_up=preset.wall_right_units_up,
             right_units_count=preset.wall_right_units_count,
-            wait_for_response=True # Always wait for critical defense commands
+            wait_for_response=True,  # Always wait for critical defense commands
         )
         if not wall_success:
             logger.error(f"Failed to apply wall defense for castle {castle_id}.")
             return False
 
-        await asyncio.sleep(0.5) # Rate limit
+        await asyncio.sleep(0.5)  # Rate limit
 
         # Apply moat defense
         moat_success = await self.client.defense.set_moat_defense(
@@ -107,7 +110,7 @@ class DefenseManager:
             left_slots=preset.moat_left_slots,
             middle_slots=preset.moat_middle_slots,
             right_slots=preset.moat_right_slots,
-            wait_for_response=True # Always wait for critical defense commands
+            wait_for_response=True,  # Always wait for critical defense commands
         )
         if not moat_success:
             logger.error(f"Failed to apply moat defense for castle {castle_id}.")

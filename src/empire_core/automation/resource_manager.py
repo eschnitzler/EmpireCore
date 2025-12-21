@@ -4,10 +4,10 @@ Resource management and auto-balancing between castles.
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from empire_core.state.models import Castle, Resources
+from empire_core.state.models import Castle
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
@@ -65,16 +65,12 @@ class CastleResourceStatus:
     @property
     def is_near_capacity(self) -> bool:
         """Check if any resource is above 90% capacity."""
-        return (
-            self.wood_percent > 90 or self.stone_percent > 90 or self.food_percent > 90
-        )
+        return self.wood_percent > 90 or self.stone_percent > 90 or self.food_percent > 90
 
     @property
     def is_low(self) -> bool:
         """Check if any resource is below 20% capacity."""
-        return (
-            self.wood_percent < 20 or self.stone_percent < 20 or self.food_percent < 20
-        )
+        return self.wood_percent < 20 or self.stone_percent < 20 or self.food_percent < 20
 
     def get_excess(self, threshold_percent: float = 70) -> Dict[str, int]:
         """Get excess resources above threshold."""
@@ -180,28 +176,20 @@ class ResourceManager:
                 statuses.append(status)
         return statuses
 
-    def get_overflow_castles(
-        self, threshold: float = OVERFLOW_THRESHOLD
-    ) -> List[CastleResourceStatus]:
+    def get_overflow_castles(self, threshold: float = OVERFLOW_THRESHOLD) -> List[CastleResourceStatus]:
         """Get castles with resources above threshold."""
         return [
             s
             for s in self.get_all_status()
-            if s.wood_percent > threshold
-            or s.stone_percent > threshold
-            or s.food_percent > threshold
+            if s.wood_percent > threshold or s.stone_percent > threshold or s.food_percent > threshold
         ]
 
-    def get_low_castles(
-        self, threshold: float = LOW_THRESHOLD
-    ) -> List[CastleResourceStatus]:
+    def get_low_castles(self, threshold: float = LOW_THRESHOLD) -> List[CastleResourceStatus]:
         """Get castles with resources below threshold."""
         return [
             s
             for s in self.get_all_status()
-            if s.wood_percent < threshold
-            or s.stone_percent < threshold
-            or s.food_percent < threshold
+            if s.wood_percent < threshold or s.stone_percent < threshold or s.food_percent < threshold
         ]
 
     def calculate_transfers(
@@ -216,7 +204,7 @@ class ResourceManager:
         Returns:
             List of ResourceTransfer objects
         """
-        transfers = []
+        transfers: List[ResourceTransfer] = []
         statuses = self.get_all_status()
 
         if len(statuses) < 2:
@@ -370,15 +358,9 @@ class ResourceManager:
                 "food": total_food_cap,
             },
             "overall_percent": {
-                "wood": (total_wood / total_wood_cap * 100)
-                if total_wood_cap > 0
-                else 0,
-                "stone": (total_stone / total_stone_cap * 100)
-                if total_stone_cap > 0
-                else 0,
-                "food": (total_food / total_food_cap * 100)
-                if total_food_cap > 0
-                else 0,
+                "wood": (total_wood / total_wood_cap * 100) if total_wood_cap > 0 else 0,
+                "stone": (total_stone / total_stone_cap * 100) if total_stone_cap > 0 else 0,
+                "food": (total_food / total_food_cap * 100) if total_food_cap > 0 else 0,
             },
             "overflow_castles": len(self.get_overflow_castles()),
             "low_castles": len(self.get_low_castles()),

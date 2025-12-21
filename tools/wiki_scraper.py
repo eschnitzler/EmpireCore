@@ -2,6 +2,7 @@
 """
 Wiki data scraper - Extract unit and building data from GGE wikis.
 """
+
 import json
 import os
 
@@ -14,7 +15,7 @@ UNITS_DATABASE = {
         "cost": {"wood": 10, "stone": 0, "food": 10},
         "training_time": 30,
         "speed": 5,
-        "carry_capacity": 50
+        "carry_capacity": 50,
     }
 }
 
@@ -23,19 +24,17 @@ BUILDINGS_DATABASE = {
     "woodcutter": {"name": "Woodcutter", "type": "resource", "produces": "wood"},
 }
 
-MAP_OBJECTS = {
-    "32": {"type_id": 32, "name": "Barbarian Camp", "safe_target": True}
-}
+MAP_OBJECTS = {"32": {"type_id": 32, "name": "Barbarian Camp", "safe_target": True}}
 
-os.makedirs('data', exist_ok=True)
+os.makedirs("data", exist_ok=True)
 
-with open('data/units.json', 'w') as f:
+with open("data/units.json", "w") as f:
     json.dump(UNITS_DATABASE, f, indent=2)
 
-with open('data/buildings.json', 'w') as f:
+with open("data/buildings.json", "w") as f:
     json.dump(BUILDINGS_DATABASE, f, indent=2)
 
-with open('data/map_objects.json', 'w') as f:
+with open("data/map_objects.json", "w") as f:
     json.dump(MAP_OBJECTS, f, indent=2)
 
 print("✅ Created starter databases in data/ directory")

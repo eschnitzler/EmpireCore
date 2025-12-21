@@ -1,0 +1,31 @@
+# Pre-commit configuration for EmpireCore
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.14
+    hooks:
+      - id: ruff
+        args: [ --fix ]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies: [ pydantic, aiohttp, python-dotenv, typer ]
+        args: [ 
+          --ignore-missing-imports, 
+          --disable-error-code=var-annotated, 
+          --disable-error-code=operator, 
+          --disable-error-code=has-type, 
+          --disable-error-code=index, 
+          --disable-error-code=arg-type, 
+          --disable-error-code=assignment,
+          --disable-error-code=valid-type
+        ]
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.1.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [ commit-msg ]
+        args: []

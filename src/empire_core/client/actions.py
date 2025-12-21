@@ -3,11 +3,11 @@ Action commands for performing game actions (attack, transport, build, etc.)
 """
 
 import logging
-from typing import Dict, Optional, Any, TYPE_CHECKING, List
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from empire_core.config import ResourceType, TroopActionType
 from empire_core.exceptions import ActionError
 from empire_core.protocol.packet import Packet
-from empire_core.config import ResourceType, TroopActionType
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
@@ -85,36 +85,27 @@ class GameActionsMixin:
             if response.get("success") or response.get("MID"):
                 return True
             if response.get("error"):
-                raise ActionError(
-                    f"Server rejected {action_name}: {response.get('error')}"
-                )
+                raise ActionError(f"Server rejected {action_name}: {response.get('error')}")
         return True
 
     def _build_unit_or_tool_payload(self, items: Optional[Dict[int, int]]) -> List[List[int]]:
         """Helper to build unit or tool list for cra payload."""
         if not items:
-            return [[-1, 0]] * 6 # Fill with dummy values if empty, matches khan.py pattern
-        
+            return [[-1, 0]] * 6  # Fill with dummy values if empty, matches khan.py pattern
+
         payload = []
         for item_id, count in items.items():
             payload.append([item_id, count])
-        
+
         # Pad with [-1, 0] if less than 6 items to match common packet structure
         while len(payload) < 6:
             payload.append([-1, 0])
-            
-        return payload[:6] # Ensure max 6 items
 
-    def _build_flank_payload(
-        self,
-        units: Optional[Dict[int, int]],
-        tools: Optional[Dict[int, int]]
-    ) -> Dict[str, Any]:
+        return payload[:6]  # Ensure max 6 items
+
+    def _build_flank_payload(self, units: Optional[Dict[int, int]], tools: Optional[Dict[int, int]]) -> Dict[str, Any]:
         """Helper to build flank payload for cra command."""
-        return {
-            "T": self._build_unit_or_tool_payload(tools),
-            "U": self._build_unit_or_tool_payload(units)
-        }
+        return {"T": self._build_unit_or_tool_payload(tools), "U": self._build_unit_or_tool_payload(units)}
 
     async def send_attack(
         self,
@@ -122,10 +113,10 @@ class GameActionsMixin:
         origin_y: int,
         target_x: int,
         target_y: int,
-        target_area_id: int, # LID
+        target_area_id: int,  # LID
         kingdom_id: int = 0,
-        attack_type: int = 0, # ATT
-        world_type: int = 0, # WT
+        attack_type: int = 0,  # ATT
+        world_type: int = 0,  # WT
         middle_units: Optional[Dict[int, int]] = None,
         left_units: Optional[Dict[int, int]] = None,
         right_units: Optional[Dict[int, int]] = None,
@@ -163,8 +154,7 @@ class GameActionsMixin:
             ActionError: If attack fails or no units/tools are specified.
         """
         logger.info(
-            f"Sending detailed attack from ({origin_x},{origin_y}) "
-            f"to ({target_x},{target_y}) LID:{target_area_id}"
+            f"Sending detailed attack from ({origin_x},{origin_y}) to ({target_x},{target_y}) LID:{target_area_id}"
         )
 
         # Ensure at least some units or tools are being sent
@@ -192,12 +182,21 @@ class GameActionsMixin:
             "ATT": attack_type,
             "A": full_army_payload,
             # Other fields from khan.py example can be added as needed or set to default/0
-            "HBW": 0, "BPC": 0, "AV": 0, "LP": 1, "FC": 0, "PTT": 0, "SD": 0, "ICA": 0, "CD": 99, "BKS": [], "AST": [-1,-1,-1], "RW": [[-1,0],[-1,0],[-1,0],[-1,0],[-1,0],[-1,0],[-1,0],[-1,0]]
+            "HBW": 0,
+            "BPC": 0,
+            "AV": 0,
+            "LP": 1,
+            "FC": 0,
+            "PTT": 0,
+            "SD": 0,
+            "ICA": 0,
+            "CD": 99,
+            "BKS": [],
+            "AST": [-1, -1, -1],
+            "RW": [[-1, 0], [-1, 0], [-1, 0], [-1, 0], [-1, 0], [-1, 0], [-1, 0], [-1, 0]],
         }
 
-        response = await self._send_command_action(
-            "cra", payload, "Detailed Attack", wait_for_response, timeout
-        )
+        response = await self._send_command_action("cra", payload, "Detailed Attack", wait_for_response, timeout)
 
         if wait_for_response:
             return self._parse_action_response(response, "detailed attack")
@@ -246,9 +245,7 @@ class GameActionsMixin:
             },
         }
 
-        response = await self._send_command_action(
-            "tra", payload, "Transport", wait_for_response, timeout
-        )
+        response = await self._send_command_action("tra", payload, "Transport", wait_for_response, timeout)
 
         if wait_for_response:
             return self._parse_action_response(response, "transport")
@@ -293,9 +290,7 @@ class GameActionsMixin:
             "KID": kingdom_id,
         }
 
-        response = await self._send_command_action(
-            "scl", payload, "Spy", wait_for_response, timeout
-        )
+        response = await self._send_command_action("scl", payload, "Spy", wait_for_response, timeout)
 
         if wait_for_response:
             return self._parse_action_response(response, "spy")
@@ -322,9 +317,7 @@ class GameActionsMixin:
 
         payload = {"AID": castle_id}
 
-        response = await self._send_command_action(
-            "har", payload, "Harvest", wait_for_response, timeout
-        )
+        response = await self._send_command_action("har", payload, "Harvest", wait_for_response, timeout)
 
         if wait_for_response:
             return self._parse_action_response(response, "harvest")
@@ -363,17 +356,13 @@ class GameActionsMixin:
         if target_id:
             payload["TID"] = target_id
 
-        response = await self._send_command_action(
-            "itu", payload, "Use Item", wait_for_response, timeout
-        )
+        response = await self._send_command_action("itu", payload, "Use Item", wait_for_response, timeout)
 
         if wait_for_response:
             return self._parse_action_response(response, "use_item")
         return True
 
-    async def upgrade_building(
-        self, castle_id: int, building_id: int, building_type: Optional[int] = None
-    ) -> bool:
+    async def upgrade_building(self, castle_id: int, building_id: int, building_type: Optional[int] = None) -> bool:
         """
         Upgrade or build a building in a castle.
 

@@ -4,11 +4,11 @@ Building queue management and automation.
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from empire_core.state.models import Building, Castle
+from empire_core.state.models import Castle
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
@@ -196,15 +196,9 @@ class BuildingManager:
     def can_afford(self, castle: Castle, task: BuildingTask) -> bool:
         """Check if castle can afford the building task."""
         r = castle.resources
-        return (
-            r.wood >= task.cost_wood
-            and r.stone >= task.cost_stone
-            and r.food >= task.cost_food
-        )
+        return r.wood >= task.cost_wood and r.stone >= task.cost_stone and r.food >= task.cost_food
 
-    def get_building_status(
-        self, castle_id: int, building_id: int
-    ) -> Optional[BuildingStatus]:
+    def get_building_status(self, castle_id: int, building_id: int) -> Optional[BuildingStatus]:
         """Get status of a specific building."""
         castle = self.castles.get(castle_id)
         if not castle:
@@ -249,17 +243,9 @@ class BuildingManager:
                 self.in_progress[task.castle_id] = task
                 # Remove from queue
                 self.queue = [
-                    t
-                    for t in self.queue
-                    if not (
-                        t.castle_id == task.castle_id
-                        and t.building_id == task.building_id
-                    )
+                    t for t in self.queue if not (t.castle_id == task.castle_id and t.building_id == task.building_id)
                 ]
-                logger.info(
-                    f"Started building: Castle {task.castle_id}, "
-                    f"Building {task.building_id}"
-                )
+                logger.info(f"Started building: Castle {task.castle_id}, Building {task.building_id}")
 
             return bool(success)
         except Exception as e:
@@ -352,9 +338,7 @@ class BuildingManager:
         """Sort queue by priority (highest first)."""
         self.queue.sort(key=lambda t: t.priority, reverse=True)
 
-    def recommend_upgrades(
-        self, castle_id: int, focus: str = "balanced"
-    ) -> List[BuildingTask]:
+    def recommend_upgrades(self, castle_id: int, focus: str = "balanced") -> List[BuildingTask]:
         """
         Recommend building upgrades for a castle.
 

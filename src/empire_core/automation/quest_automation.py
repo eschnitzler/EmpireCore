@@ -76,9 +76,7 @@ class QuestService:
         """Automatically collect all available quest rewards. Returns count collected."""
         collected = await self.collect_available_rewards()
         if collected:
-            logger.info(
-                f"Auto-collected rewards for {len(collected)} quests: {collected}"
-            )
+            logger.info(f"Auto-collected rewards for {len(collected)} quests: {collected}")
         return len(collected)
 
     def get_daily_quest_summary(self) -> Dict[str, Any]:

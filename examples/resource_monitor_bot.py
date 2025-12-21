@@ -3,24 +3,24 @@
 Example Bot: Resource Monitor
 Demonstrates how to build a simple bot using EmpireCore.
 """
+
 import asyncio
 import logging
-import sys
 import os
-from datetime import datetime
+import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
-from empire_core.client.client import EmpireClient
-from empire_core.config import EmpireConfig
-from empire_core.events.base import PacketEvent
 from empire_core import accounts
+from empire_core.client.client import EmpireClient
+from empire_core.events.base import PacketEvent
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("Bot")
 
 GOLD_ALERT_THRESHOLD = 10000
 CHECK_INTERVAL = 60
+
 
 class ResourceMonitorBot:
     def __init__(self, client: EmpireClient):
@@ -28,7 +28,7 @@ class ResourceMonitorBot:
         self.last_gold = 0
         self.running = False
         self.client.event(self.on_gbd)
-    
+
     async def on_gbd(self, event: PacketEvent):
         if self.client.state.local_player:
             player = self.client.state.local_player
@@ -38,13 +38,13 @@ class ResourceMonitorBot:
             self.last_gold = player.gold
             if player.gold < GOLD_ALERT_THRESHOLD:
                 logger.warning(f"LOW GOLD: {player.gold:,}")
-    
+
     async def start(self):
         logger.info("Starting bot...")
         await self.client.login()
         await asyncio.sleep(3)
         self.running = True
-        
+
         while self.running:
             try:
                 if self.client.state.local_player:
@@ -54,18 +54,20 @@ class ResourceMonitorBot:
                 await asyncio.sleep(CHECK_INTERVAL)
             except KeyboardInterrupt:
                 break
-        
+
         await self.client.close()
+
 
 async def main():
     account = accounts.get_default()
     if not account:
         logger.error("No account found in accounts.json")
         return
-        
+
     client = account.get_client()
     bot = ResourceMonitorBot(client)
     await bot.start()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -1,13 +1,15 @@
 """
 Multi-account management.
 """
+
 import asyncio
 import logging
-from typing import Dict, List, Optional, Set
 from dataclasses import dataclass
+from typing import Dict, List, Optional, Set
+
+from empire_core.accounts import Account, accounts
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
-from empire_core.accounts import accounts, Account
 from empire_core.exceptions import LoginCooldownError
 
 logger = logging.getLogger(__name__)
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AccountConfig:
     """Configuration for a single account."""
+
     username: str
     password: str
     enabled: bool = True
@@ -25,12 +28,7 @@ class AccountConfig:
 
     @classmethod
     def from_account(cls, acc: Account) -> "AccountConfig":
-        return cls(
-            username=acc.username,
-            password=acc.password,
-            enabled=acc.active,
-            tags=acc.tags
-        )
+        return cls(username=acc.username, password=acc.password, enabled=acc.active, tags=acc.tags)
 
 
 class AccountPool:
@@ -38,10 +36,10 @@ class AccountPool:
     Manages a pool of accounts loaded from the central registry.
     Allows bots to 'lease' accounts so they aren't used by multiple processes simultaneously.
     """
-    
+
     def __init__(self):
         self._busy_accounts: Set[str] = set()  # Set of usernames currently in use
-        self._clients: Dict[str, EmpireClient] = {} # Active clients
+        self._clients: Dict[str, EmpireClient] = {}  # Active clients
 
     @property
     def all_accounts(self) -> List[AccountConfig]:
@@ -81,24 +79,21 @@ class AccountPool:
 
             try:
                 # Create and login client
-                config = EmpireConfig(
-                    username=target_account.username,
-                    password=target_account.password
-                )
+                config = EmpireConfig(username=target_account.username, password=target_account.password)
                 client = EmpireClient(config)
                 await client.login()
-                
+
                 # Cache the client
                 self._clients[target_account.username] = client
                 logger.info(f"AccountPool: Leased and logged in {target_account.username}")
                 return client
-                
+
             except LoginCooldownError as e:
                 logger.warning(f"AccountPool: {target_account.username} on cooldown ({e.cooldown}s). Trying next...")
                 self._busy_accounts.remove(target_account.username)
                 await client.close()
                 continue
-                
+
             except Exception as e:
                 logger.error(f"AccountPool: Failed to login {target_account.username}: {e}")
                 self._busy_accounts.remove(target_account.username)
@@ -114,7 +109,7 @@ class AccountPool:
             return
 
         username = client.username
-        
+
         try:
             if client.is_logged_in:
                 await client.close()
@@ -137,14 +132,14 @@ class AccountPool:
 
 class MultiAccountManager:
     """Manage multiple active game sessions."""
-    
+
     def __init__(self):
         self.clients: Dict[str, EmpireClient] = {}
-        
+
     def load_from_registry(self, tag: Optional[str] = None):
         """
         Load accounts from the central registry into the manager.
-        
+
         Args:
             tag: Optional tag to filter accounts (e.g., 'farmer').
         """
@@ -163,34 +158,34 @@ class MultiAccountManager:
             return
 
         logger.info(f"Logging in to {len(self.clients)} accounts...")
-        
+
         tasks = []
         for username, client in self.clients.items():
             if not client.is_logged_in:
                 tasks.append(self._login_client(username, client))
-        
+
         if tasks:
             results = await asyncio.gather(*tasks, return_exceptions=True)
             success = sum(1 for r in results if r is True)
             logger.info(f"Logged in {success}/{len(tasks)} accounts")
-    
+
     async def _login_client(self, username: str, client: EmpireClient) -> bool:
         """Login to single client."""
         try:
             await client.login()
             # staggered delay to avoid burst
-            await asyncio.sleep(1) 
-            
+            await asyncio.sleep(1)
+
             # Get initial state
             await client.get_detailed_castle_info()
-            
+
             logger.info(f"✅ {username} logged in")
             return True
-            
+
         except Exception as e:
             logger.error(f"❌ {username} login failed: {e}")
             return False
-    
+
     async def logout_all(self):
         """Logout all accounts."""
         for username, client in self.clients.items():
@@ -199,68 +194,68 @@ class MultiAccountManager:
                 logger.info(f"Logged out: {username}")
             except Exception as e:
                 logger.error(f"Error logging out {username}: {e}")
-        
+
         self.clients.clear()
-    
+
     def get_client(self, username: str) -> Optional[EmpireClient]:
         """Get client for username."""
         return self.clients.get(username)
-    
+
     def get_all_clients(self) -> List[EmpireClient]:
         """Get all managed clients."""
         return list(self.clients.values())
-    
+
     async def execute_on_all(self, func, *args, **kwargs):
         """
         Execute an async function on all clients.
         The function must accept 'client' as the first argument.
         """
         tasks = []
-        
+
         for client in self.clients.values():
             if client.is_logged_in:
                 task = func(client, *args, **kwargs)
                 tasks.append(task)
-        
+
         if not tasks:
             return []
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
         return results
-    
+
     def get_total_resources(self) -> Dict[str, int]:
         """Get total resources across all accounts."""
-        totals = {'wood': 0, 'stone': 0, 'food': 0, 'gold': 0, 'rubies': 0}
-        
+        totals = {"wood": 0, "stone": 0, "food": 0, "gold": 0, "rubies": 0}
+
         for client in self.clients.values():
             player = client.state.local_player
             if not player:
                 continue
-            
-            totals['gold'] += player.gold
-            totals['rubies'] += player.rubies
-            
+
+            totals["gold"] += player.gold
+            totals["rubies"] += player.rubies
+
             for castle in player.castles.values():
-                totals['wood'] += castle.resources.wood
-                totals['stone'] += castle.resources.stone
-                totals['food'] += castle.resources.food
-        
+                totals["wood"] += castle.resources.wood
+                totals["stone"] += castle.resources.stone
+                totals["food"] += castle.resources.food
+
         return totals
-    
+
     def get_stats(self) -> Dict:
         """Get statistics for all accounts."""
         stats = {
-            'logged_in': len([c for c in self.clients.values() if c.is_logged_in]),
-            'total_castles': 0,
-            'total_population': 0,
-            'resources': self.get_total_resources()
+            "logged_in": len([c for c in self.clients.values() if c.is_logged_in]),
+            "total_castles": 0,
+            "total_population": 0,
+            "resources": self.get_total_resources(),
         }
-        
+
         for client in self.clients.values():
             player = client.state.local_player
             if player:
-                stats['total_castles'] += len(player.castles)
+                stats["total_castles"] += len(player.castles)
                 for castle in player.castles.values():
-                    stats['total_population'] += castle.population
-        
+                    stats["total_population"] += castle.population
+
         return stats

@@ -495,9 +495,7 @@ class UnitManager:
         )
         self.queue.append(task)
         self._sort_queue()
-        logger.info(
-            f"Added recruitment: {count}x Unit {unit_type} in Castle {castle_id}"
-        )
+        logger.info(f"Added recruitment: {count}x Unit {unit_type} in Castle {castle_id}")
         return task
 
     def remove_task(self, castle_id: int, unit_type: int) -> bool:
@@ -553,9 +551,7 @@ class UnitManager:
 
         return deficit
 
-    def calculate_recruitment_tasks(
-        self, castle_id: Optional[int] = None
-    ) -> List[RecruitmentTask]:
+    def calculate_recruitment_tasks(self, castle_id: Optional[int] = None) -> List[RecruitmentTask]:
         """
         Calculate recruitment tasks needed to meet targets.
 
@@ -594,16 +590,9 @@ class UnitManager:
             if success:
                 # Remove from queue
                 self.queue = [
-                    t
-                    for t in self.queue
-                    if not (
-                        t.castle_id == task.castle_id and t.unit_type == task.unit_type
-                    )
+                    t for t in self.queue if not (t.castle_id == task.castle_id and t.unit_type == task.unit_type)
                 ]
-                logger.info(
-                    f"Started recruitment: {task.count}x Unit {task.unit_type} "
-                    f"in Castle {task.castle_id}"
-                )
+                logger.info(f"Started recruitment: {task.count}x Unit {task.unit_type} in Castle {task.castle_id}")
 
             return bool(success)
         except Exception as e:
@@ -680,14 +669,10 @@ class UnitManager:
         return {
             "queue_length": len(self.queue),
             "castles_with_targets": len(self.targets),
-            "total_deficit": sum(
-                sum(self.get_deficit(cid).values()) for cid in self.targets
-            ),
+            "total_deficit": sum(sum(self.get_deficit(cid).values()) for cid in self.targets),
         }
 
-    def recommend_composition(
-        self, focus: str = "balanced", size: int = 500
-    ) -> Dict[int, int]:
+    def recommend_composition(self, focus: str = "balanced", size: int = 500) -> Dict[int, int]:
         """
         Recommend army composition.
 

@@ -1,14 +1,14 @@
 """Automation modules for EmpireCore."""
 
-from .quest_automation import QuestService
-from .battle_reports import BattleReportService
-from .alliance_tools import AllianceService, ChatService
-from .map_scanner import MapScanner
-from .resource_manager import ResourceManager
-from .building_queue import BuildingManager
-from .unit_production import UnitManager
-from .defense_manager import DefenseManager
 from . import tasks
+from .alliance_tools import AllianceService, ChatService
+from .battle_reports import BattleReportService
+from .building_queue import BuildingManager
+from .defense_manager import DefenseManager
+from .map_scanner import MapScanner
+from .quest_automation import QuestService
+from .resource_manager import ResourceManager
+from .unit_production import UnitManager
 
 __all__ = [
     "QuestService",

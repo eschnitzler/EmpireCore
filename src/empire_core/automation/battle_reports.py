@@ -153,17 +153,11 @@ class BattleReportService:
             if report.attacker:
                 stats["total_losses"] += sum(report.attacker.losses.values())
 
-        stats["win_rate"] = (
-            stats["victories"] / stats["total_battles"]
-            if stats["total_battles"] > 0
-            else 0
-        )
+        stats["win_rate"] = stats["victories"] / stats["total_battles"] if stats["total_battles"] > 0 else 0
 
         return stats
 
-    async def auto_fetch_and_analyze(
-        self, count: int = 10, wait_time: float = 1.0
-    ) -> Dict[str, Any]:
+    async def auto_fetch_and_analyze(self, count: int = 10, wait_time: float = 1.0) -> Dict[str, Any]:
         """
         Fetch recent reports and return analysis.
 

@@ -1,9 +1,7 @@
+import asyncio
 import functools
 import logging
-import asyncio
-from typing import Callable, Any, Optional, Type, Union, Tuple
-
-from empire_core.exceptions import EmpireError
+from typing import Callable, Optional, Tuple, Type
 
 
 def handle_errors(
@@ -32,13 +30,13 @@ def handle_errors(
             if _logger is None:
                 # Try to get 'self.logger' or module level logger
                 if args and hasattr(args[0], "logger"):
-                    _logger = getattr(args[0], "logger")
+                    _logger = args[0].logger
                 else:
                     _logger = logging.getLogger(func.__module__)
 
             try:
                 return await func(*args, **kwargs)
-            except (asyncio.CancelledError,) as e:
+            except asyncio.CancelledError as e:
                 # CancelledError is usually control flow, maybe just re-raise
                 if ignore and asyncio.CancelledError in ignore:
                     pass

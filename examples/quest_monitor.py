@@ -8,7 +8,8 @@ and monitor daily quest progress.
 
 import asyncio
 import logging
-from empire_core import EmpireClient, EmpireConfig, accounts
+
+from empire_core import accounts
 
 # Enable logging
 logging.basicConfig(level=logging.INFO)
@@ -86,7 +87,7 @@ async def continuous_quest_monitor():
 
         check_interval = 300  # Check every 5 minutes
 
-        for i in range(12):  # Run for 1 hour (12 * 5 minutes)
+        for _i in range(12):  # Run for 1 hour (12 * 5 minutes)
             try:
                 # Refresh quest data
                 await client.quests.refresh_quests()

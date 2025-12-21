@@ -1,16 +1,16 @@
 from empire_core.events.base import (
+    # Action events
+    AttackSentEvent,
     Event,
-    PacketEvent,
+    IncomingAttackEvent,
+    MovementArrivedEvent,
+    MovementCancelledEvent,
     # Movement events
     MovementEvent,
     MovementStartedEvent,
     MovementUpdatedEvent,
-    MovementArrivedEvent,
-    MovementCancelledEvent,
-    IncomingAttackEvent,
+    PacketEvent,
     ReturnArrivalEvent,
-    # Action events
-    AttackSentEvent,
     ScoutSentEvent,
     TransportSentEvent,
 )

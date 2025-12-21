@@ -1,7 +1,7 @@
-from dataclasses import dataclass
-from typing import Optional, Dict, Any, Union
 import json
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, Union
 
 
 @dataclass
@@ -20,9 +20,7 @@ class Packet:
     payload: Union[Dict[str, Any], ET.Element, None] = None
 
     @staticmethod
-    def build_xt(
-        zone: str, command: str, payload: Dict[str, Any], request_id: int = 1
-    ) -> str:
+    def build_xt(zone: str, command: str, payload: Dict[str, Any], request_id: int = 1) -> str:
         """
         Build an XT (Extended) packet string.
 

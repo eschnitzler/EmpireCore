@@ -1,39 +1,39 @@
 import asyncio
-import logging
 import json
-from typing import Optional, Dict, List, Callable, Awaitable, Any, Union, TYPE_CHECKING
+import logging
+from typing import TYPE_CHECKING, Awaitable, Callable, Dict, List, Optional, Union
 
-from empire_core.network.connection import SFSConnection
 from empire_core.config import (
-    default_config,
-    EmpireConfig,
-    MAP_CHUNK_SIZE,
-    ServerError,
     LOGIN_DEFAULTS,
+    MAP_CHUNK_SIZE,
+    EmpireConfig,
+    ServerError,
+    default_config,
 )
+from empire_core.network.connection import SFSConnection
 
 if TYPE_CHECKING:
     from empire_core.accounts import Account
 
-from empire_core.protocol.packet import Packet
-from empire_core.events.manager import EventManager
-from empire_core.events.base import PacketEvent
-from empire_core.state.manager import GameState
-from empire_core.state.world_models import Movement
+from empire_core.automation.alliance_tools import AllianceService, ChatService
+from empire_core.automation.battle_reports import BattleReportService
+from empire_core.automation.building_queue import BuildingManager
+from empire_core.automation.defense_manager import DefenseManager  # NEW IMPORT
+from empire_core.automation.map_scanner import MapScanner
+from empire_core.automation.quest_automation import QuestService
+from empire_core.automation.resource_manager import ResourceManager
+from empire_core.automation.unit_production import UnitManager
 from empire_core.client.actions import GameActionsMixin
 from empire_core.client.commands import GameCommandsMixin
 from empire_core.client.defense import DefenseService
-from empire_core.automation.quest_automation import QuestService
-from empire_core.automation.battle_reports import BattleReportService
-from empire_core.automation.alliance_tools import AllianceService, ChatService
-from empire_core.automation.map_scanner import MapScanner
-from empire_core.automation.resource_manager import ResourceManager
-from empire_core.automation.building_queue import BuildingManager
-from empire_core.automation.unit_production import UnitManager
-from empire_core.automation.defense_manager import DefenseManager # NEW IMPORT
+from empire_core.events.base import PacketEvent
+from empire_core.events.manager import EventManager
+from empire_core.exceptions import LoginError, TimeoutError
+from empire_core.protocol.packet import Packet
+from empire_core.state.manager import GameState
+from empire_core.state.world_models import Movement
 from empire_core.utils.decorators import handle_errors
 from empire_core.utils.response_awaiter import ResponseAwaiter
-from empire_core.exceptions import LoginError, TimeoutError, ActionError
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class EmpireClient(
     GameActionsMixin,
     GameCommandsMixin,
 ):
-    def __init__(self, config: Union[EmpireConfig, "Account"] = None):
+    def __init__(self, config: Union[EmpireConfig, "Account", None] = None):
         if config is None:
             self.config = default_config
         elif hasattr(config, "to_empire_config"):
@@ -58,7 +58,7 @@ class EmpireClient(
 
         self.events = EventManager()
         self.state = GameState()
-        
+
         # Services (Composition)
         self.scanner = MapScanner(self)
         self.resources = ResourceManager(self)
@@ -66,13 +66,13 @@ class EmpireClient(
         self.units = UnitManager(self)
         self.quests = QuestService(self)
         self.defense_manager = DefenseManager(self)
-        
+
         # Core Services
         self.defense = DefenseService(self)
         self.reports = BattleReportService(self)
         self.alliance = AllianceService(self)
         self.chat = ChatService(self)
-        
+
         self.response_awaiter = ResponseAwaiter()
         self.connection.packet_handler = self._on_packet
 
@@ -105,9 +105,7 @@ class EmpireClient(
         await self.events.emit(pkt_event)
 
     @handle_errors(log_msg="Login failed")
-    async def login(
-        self, username: Optional[str] = None, password: Optional[str] = None
-    ):
+    async def login(self, username: Optional[str] = None, password: Optional[str] = None):
         """
         Performs the full login sequence:
         Connect -> Version Check -> XML Login (Zone) -> AutoJoin -> XT Login (Auth)
@@ -125,9 +123,7 @@ class EmpireClient(
 
         # 1. Version Check
         logger.info("Handshake: Sending Version Check...")
-        ver_waiter = self.connection.create_waiter(
-            "apiOK", predicate=lambda p: p.is_xml and p.command_id == "apiOK"
-        )
+        ver_waiter = self.connection.create_waiter("apiOK", predicate=lambda p: p.is_xml and p.command_id == "apiOK")
 
         ver_packet = f"<msg t='sys'><body action='verChk' r='0'><ver v='{self.config.game_version}' /></body></msg>"
         await self.connection.send(ver_packet)
@@ -185,18 +181,14 @@ class EmpireClient(
             "PW": password,
         }
 
-        xt_packet = (
-            f"%xt%{self.config.default_zone}%lli%1%{json.dumps(xt_login_payload)}%"
-        )
+        xt_packet = f"%xt%{self.config.default_zone}%lli%1%{json.dumps(xt_login_payload)}%"
 
         # Wait for lli response
         lli_waiter = self.connection.create_waiter("lli")
         await self.connection.send(xt_packet)
 
         try:
-            lli_packet = await asyncio.wait_for(
-                lli_waiter, timeout=self.config.login_timeout
-            )
+            lli_packet = await asyncio.wait_for(lli_waiter, timeout=self.config.login_timeout)
 
             # Check status
             if lli_packet.error_code != 0:
@@ -206,16 +198,12 @@ class EmpireClient(
                     if isinstance(lli_packet.payload, dict):
                         cooldown = int(lli_packet.payload.get("CD", 0))
 
-                    logger.warning(
-                        f"Handshake: Login Slowdown active. Wait {cooldown}s."
-                    )
+                    logger.warning(f"Handshake: Login Slowdown active. Wait {cooldown}s.")
                     from empire_core.exceptions import LoginCooldownError
 
                     raise LoginCooldownError(cooldown)
 
-                logger.error(
-                    f"Handshake: Auth Failed with status {lli_packet.error_code}"
-                )
+                logger.error(f"Handshake: Auth Failed with status {lli_packet.error_code}")
                 raise LoginError(f"Auth Failed with status {lli_packet.error_code}")
 
             logger.info("Handshake: Authenticated.")
@@ -313,9 +301,7 @@ class EmpireClient(
         return self.state.get_movement_by_id(movement_id)
 
     @handle_errors(log_msg="Error refreshing movements")
-    async def refresh_movements(
-        self, wait: bool = True, timeout: float = 5.0
-    ) -> List[Movement]:
+    async def refresh_movements(self, wait: bool = True, timeout: float = 5.0) -> List[Movement]:
         """
         Refresh movement data from server.
 
@@ -395,22 +381,16 @@ class EmpireClient(
         if incoming:
             lines.append(f"Incoming ({len(incoming)}):")
             for m in sorted(incoming, key=lambda x: x.time_remaining):
-                lines.append(
-                    f"  - {m.movement_type_name} from {m.source_area_id}: {m.format_time_remaining()}"
-                )
+                lines.append(f"  - {m.movement_type_name} from {m.source_area_id}: {m.format_time_remaining()}")
 
         if outgoing:
             lines.append(f"Outgoing ({len(outgoing)}):")
             for m in sorted(outgoing, key=lambda x: x.time_remaining):
-                lines.append(
-                    f"  - {m.movement_type_name} to {m.target_area_id}: {m.format_time_remaining()}"
-                )
+                lines.append(f"  - {m.movement_type_name} to {m.target_area_id}: {m.format_time_remaining()}")
 
         if returning:
             lines.append(f"Returning ({len(returning)}):")
             for m in sorted(returning, key=lambda x: x.time_remaining):
-                lines.append(
-                    f"  - From {m.source_area_id}: {m.format_time_remaining()}"
-                )
+                lines.append(f"  - From {m.source_area_id}: {m.format_time_remaining()}")
 
         return "\n".join(lines)

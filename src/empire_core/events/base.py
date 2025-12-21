@@ -1,8 +1,9 @@
+from typing import TYPE_CHECKING, Any, Dict
+
 from pydantic import BaseModel, ConfigDict
-from typing import Any, Dict, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from empire_core.state.world_models import Movement
+    pass
 
 
 class Event(BaseModel):

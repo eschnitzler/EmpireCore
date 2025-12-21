@@ -1,5 +1,6 @@
 from enum import IntEnum
 
+
 class MapObjectType(IntEnum):
     EMPTY = 0
     CASTLE = 1
@@ -42,6 +43,7 @@ class MapObjectType(IntEnum):
     NO_OUTPOST = 99
     UNKNOWN = -1
 
+
 class KingdomType(IntEnum):
     GREEN = 0
     SANDS = 1
@@ -49,8 +51,10 @@ class KingdomType(IntEnum):
     FIRE = 3
     STORM = 4
 
+
 class MovementType(IntEnum):
     """Types of army movements."""
+
     ATTACK = 1
     SUPPORT = 2
     TRANSPORT = 3
