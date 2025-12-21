@@ -7,7 +7,6 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
 from empire_core.automation.multi_account import AccountPool
-from empire_core.utils.account_loader import get_test_account
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(message)s')
@@ -18,11 +17,11 @@ async def test_pool():
     # Ensure we have a valid accounts.json first (from previous steps)
     pool = AccountPool()
     
-    if not pool.accounts:
+    if not pool.all_accounts:
         logger.error("No accounts loaded in pool! Please check accounts.json")
         return
 
-    logger.info(f"Pool initialized with {len(pool.accounts)} accounts.")
+    logger.info(f"Pool initialized with {len(pool.all_accounts)} accounts.")
     
     # 2. Test Get Available
     available = pool.get_available_accounts()

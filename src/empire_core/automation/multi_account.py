@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Set
 from dataclasses import dataclass
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
-from empire_core.utils.account_loader import load_accounts_from_file
+from empire_core.accounts import accounts, Account
 from empire_core.exceptions import LoginCooldownError
 
 logger = logging.getLogger(__name__)
@@ -23,40 +23,36 @@ class AccountConfig:
     collect_interval: int = 600
     tags: Optional[List[str]] = None  # e.g., ["farmer", "fighter"]
 
+    @classmethod
+    def from_account(cls, acc: Account) -> "AccountConfig":
+        return cls(
+            username=acc.username,
+            password=acc.password,
+            enabled=acc.active,
+            tags=acc.tags
+        )
+
 
 class AccountPool:
     """
-    Manages a pool of accounts loaded from configuration.
+    Manages a pool of accounts loaded from the central registry.
     Allows bots to 'lease' accounts so they aren't used by multiple processes simultaneously.
     """
     
-    def __init__(self, account_file: str = "accounts.json"):
-        self.account_file = account_file
-        self.accounts: List[AccountConfig] = []
+    def __init__(self):
         self._busy_accounts: Set[str] = set()  # Set of usernames currently in use
         self._clients: Dict[str, EmpireClient] = {} # Active clients
-        
-        self.load_pool()
 
-    def load_pool(self):
-        """Loads accounts from the file into the pool."""
-        raw_accounts = load_accounts_from_file(self.account_file)
-        self.accounts = []
-        for acc in raw_accounts:
-            # Handle potential missing fields gracefully
-            if "username" in acc and "password" in acc:
-                self.accounts.append(AccountConfig(
-                    username=acc["username"],
-                    password=acc["password"],
-                    tags=acc.get("tags", [])
-                ))
-        logger.info(f"AccountPool: Loaded {len(self.accounts)} accounts.")
+    @property
+    def all_accounts(self) -> List[AccountConfig]:
+        """Get all accounts wrapped in AccountConfig."""
+        return [AccountConfig.from_account(acc) for acc in accounts.get_all()]
 
     def get_available_accounts(self, tag: Optional[str] = None) -> List[AccountConfig]:
         """Returns a list of idle accounts, optionally filtered by tag."""
         available = []
-        for acc in self.accounts:
-            if acc.username not in self._busy_accounts:
+        for acc in self.all_accounts:
+            if acc.username not in self._busy_accounts and acc.enabled:
                 if tag is None or (acc.tags and tag in acc.tags):
                     available.append(acc)
         return available
@@ -69,7 +65,7 @@ class AccountPool:
         candidates = []
 
         if username:
-            for acc in self.accounts:
+            for acc in self.all_accounts:
                 if acc.username == username and acc.username not in self._busy_accounts:
                     candidates.append(acc)
         else:

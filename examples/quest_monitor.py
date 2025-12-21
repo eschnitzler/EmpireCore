@@ -8,8 +8,7 @@ and monitor daily quest progress.
 
 import asyncio
 import logging
-from empire_core import EmpireClient, EmpireConfig
-from empire_core.utils.account_loader import get_first_account_config
+from empire_core import EmpireClient, EmpireConfig, accounts
 
 # Enable logging
 logging.basicConfig(level=logging.INFO)
@@ -20,11 +19,13 @@ async def quest_monitor_example():
     """Example of quest monitoring and auto-collection."""
 
     # Create client
-    config = get_first_account_config()
-    if not config:
+    # Create client
+    account = accounts.get_default()
+    if not account:
         logger.error("No account found in accounts.json")
         return
 
+    config = account.to_empire_config()
     client = EmpireClient(config)
 
     try:
@@ -72,11 +73,13 @@ async def quest_monitor_example():
 async def continuous_quest_monitor():
     """Example of continuous quest monitoring with periodic checks."""
 
-    config = get_first_account_config()
-    if not config:
+    # Create client
+    account = accounts.get_default()
+    if not account:
         logger.error("No account found in accounts.json")
         return
 
+    config = account.to_empire_config()
     client = EmpireClient(config)
 
     try:

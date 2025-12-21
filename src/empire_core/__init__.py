@@ -9,6 +9,8 @@ from empire_core.state.world_models import Movement, MapObject, MovementResource
 from empire_core.state.unit_models import Army, UnitStats, UNIT_IDS
 from empire_core.state.quest_models import Quest, DailyQuest
 from empire_core.state.report_models import BattleReport, ReportManager
+# Accounts
+from empire_core.accounts import Account, accounts
 # Services (formerly Mixins)
 from empire_core.client.defense import DefenseService
 from empire_core.automation.quest_automation import QuestService
@@ -56,6 +58,9 @@ __version__ = "0.1.0"
 __all__ = [
     "EmpireClient",
     "EmpireConfig",
+    # Accounts
+    "Account",
+    "accounts",
     # Models
     "Player",
     "Castle",

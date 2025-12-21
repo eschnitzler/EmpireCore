@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../s
 
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
-from empire_core.utils.account_loader import get_test_account
+from empire_core import accounts
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -16,16 +16,13 @@ logger = logging.getLogger("RealNetworkTest")
 
 
 async def main():
-    account = get_test_account()
+    account = accounts.get_default()
     if not account:
         logger.error("No test account found in accounts.json")
         return
 
     # Configure via Pydantic Config
-    config = EmpireConfig(
-        username=account["username"],
-        password=account["password"]
-    )
+    config = account.to_empire_config()
     
     client = EmpireClient(config)
     

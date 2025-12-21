@@ -16,19 +16,19 @@ from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
 from empire_core.automation import tasks
 from empire_core.automation.target_finder import TargetFinder
-from empire_core.utils.account_loader import get_test_account
+from empire_core import accounts
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(message)s')
 logger = logging.getLogger("FarmBot")
 
 async def main():
     # Setup
-    account = get_test_account()
+    account = accounts.get_default()
     if not account:
         logger.error("No account found in accounts.json")
         return
 
-    config = EmpireConfig(username=account["username"], password=account["password"])
+    config = account.to_empire_config()
     client = EmpireClient(config)
 
     # Bot Configuration

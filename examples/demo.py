@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'src'
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
 from empire_core.events.base import PacketEvent
-from empire_core.utils.account_loader import get_first_account_config
+from empire_core import accounts
 
 # Configure logging
 logging.basicConfig(
@@ -26,13 +26,14 @@ async def main():
     """Demo the EmpireCore client capabilities."""
     
     # 1. Load configuration
-    config = get_first_account_config()
-    if not config:
-        logger.error("No account found. Please create accounts.json from accounts.json.template")
+    account = accounts.get_default()
+    if not account:
+        logger.error("No account found. Please create accounts.json or set env vars.")
         return
 
-    logger.info(f"Using account: {config.username}")
+    logger.info(f"Using account: {account.username}")
     
+    config = account.to_empire_config()
     client = EmpireClient(config)
     
     # Track if we've already logged initial data
