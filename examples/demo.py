@@ -36,14 +36,15 @@ async def main():
     client = account.get_client()
     
     # Track if we've already logged initial data
-    logged_initial_data = {"value": False}
+    logged_initial_data = False
     
     # 2. Register event handlers
     @client.event
     async def on_gbd(event: PacketEvent):
+        nonlocal logged_initial_data
         """Big Data packet - contains player info, castles, etc."""
-        if not logged_initial_data["value"] and client.state.local_player:
-            logged_initial_data["value"] = True
+        if not logged_initial_data and client.state.local_player:
+            logged_initial_data = True
             player = client.state.local_player
             logger.info("✅ Login successful!")
             logger.info(f"📊 Player: {player.name} (Level {player.level})")
