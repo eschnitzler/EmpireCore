@@ -9,6 +9,7 @@ import asyncio
 import logging
 import os
 import sys
+from typing import Dict
 
 # Add src to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
@@ -17,7 +18,7 @@ from empire_core import accounts
 from empire_core.automation import tasks
 from empire_core.automation.target_finder import TargetFinder
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("FarmBot")
 
 
@@ -31,14 +32,12 @@ async def main():
     client = account.get_client()
 
     # Bot Configuration
-    farm_settings = {
-        "interval": 300,  # 5 minutes
-        "max_distance": 30.0,
-        "default_units": {620: 50},  # 50 militia
-    }
+    interval: float = 300.0
+    max_distance: float = 30.0
+    default_units: Dict[int, int] = {620: 50}  # 50 militia
 
     # Define the farming loop using the tasks decorator
-    @tasks.loop(seconds=farm_settings["interval"])
+    @tasks.loop(seconds=interval)
     async def farm_loop():
         """Main farming logic."""
         player = client.state.local_player
@@ -55,7 +54,7 @@ async def main():
 
         # Find targets
         finder = TargetFinder(client.state.map_objects)
-        targets = finder.find_npc_camps(origin_x, origin_y, farm_settings["max_distance"])
+        targets = finder.find_npc_camps(origin_x, origin_y, max_distance)
 
         if not targets:
             logger.info("No farming targets found.")
@@ -68,10 +67,13 @@ async def main():
         try:
             # Note: In a real bot, you'd check for available units first!
             await client.send_attack(
-                origin_castle_id=castle_id,
+                origin_x=origin_x,
+                origin_y=origin_y,
+                target_x=target.x,
+                target_y=target.y,
                 target_area_id=target.area_id,
-                units=farm_settings["default_units"],
-                kingdom_id=0,
+                middle_units=default_units,
+                kingdom_id=castle.kingdom_id,
             )
             logger.info("Attack sent successfully")
         except Exception as e:

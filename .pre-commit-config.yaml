@@ -11,8 +11,8 @@ repos:
     rev: v1.8.0
     hooks:
       - id: mypy
-        additional_dependencies: [ pydantic, aiohttp, python-dotenv, typer ]
-        args: [ --ignore-missing-imports ]
+        additional_dependencies: [ pydantic, aiohttp, python-dotenv, typer, sqlmodel, aiosqlite, sqlalchemy ]
+        args: []
 
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v3.1.0

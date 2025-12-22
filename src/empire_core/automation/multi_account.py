@@ -188,7 +188,7 @@ class MultiAccountManager:
 
     async def logout_all(self):
         """Logout all accounts."""
-        for username, client in self.accounts.items():
+        for username, client in self.clients.items():
             try:
                 await client.close()
                 logger.info(f"Logged out: {username}")

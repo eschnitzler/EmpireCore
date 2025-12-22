@@ -120,6 +120,10 @@ class EmpireClient(
 
         self.username = username
 
+        # 0. Initialize Database & Services
+        await self.db.initialize()
+        await self.scanner.initialize()
+
         if not self.connection.connected:
             await self.connection.connect()
 

@@ -33,8 +33,10 @@ async def main():
         await asyncio.sleep(2)
 
         # 3. Check current database state
-        summary = client.scanner.get_scan_summary()
-        logger.info(f"📊 Initial DB State: {summary['database_objects']} objects, {summary['total_chunks_scanned']} chunks.")
+        summary = await client.scanner.get_scan_summary()
+        logger.info(
+            f"📊 Initial DB State: {summary['database_objects']} objects, {summary['total_chunks_scanned']} chunks."
+        )
 
         # 4. Scan a small area if DB is empty
         if summary["database_objects"] < 10:
@@ -44,8 +46,8 @@ async def main():
                 main_castle = list(player.castles.values())[0]
                 # Scan 3x3 chunks around castle
                 await client.scanner.scan_area(main_castle.x, main_castle.y, radius=1)
-                
-                summary = client.scanner.get_scan_summary()
+
+                summary = await client.scanner.get_scan_summary()
                 logger.info(f"📊 New DB State: {summary['database_objects']} objects.")
         else:
             logger.info("✅ Using cached data from database.")
@@ -57,33 +59,34 @@ async def main():
             MapObjectType.SAMURAI_CAMP,
             MapObjectType.ALIEN_CAMP,
         ]
-        
+
         # Search around main castle coordinates from DB data
         if client.state.local_player and client.state.local_player.castles:
             castle = list(client.state.local_player.castles.values())[0]
-            
-            targets = client.scanner.find_nearby_targets(
+
+            targets = await client.scanner.find_nearby_targets(
                 origin_x=castle.x,
                 origin_y=castle.y,
                 max_distance=30.0,
                 target_types=npc_types,
                 max_level=10,
-                use_db=True
+                use_db=True,
             )
 
             logger.info(f"✨ Found {len(targets)} matching targets in persistent world map.")
             for i, (target, dist) in enumerate(targets[:5]):
-                # Target can be a dict (from DB) or MapObject (from memory)
-                name = target.get("name") if isinstance(target, dict) else target.name
-                lvl = target.get("level") if isinstance(target, dict) else target.level
-                tx = target.get("x") if isinstance(target, dict) else target.x
-                ty = target.get("y") if isinstance(target, dict) else target.y
-                
+                # Target can be a record (from DB) or MapObject (from memory)
+                name = getattr(target, "name", "Unknown")
+                lvl = getattr(target, "level", 0)
+                tx = getattr(target, "x", 0)
+                ty = getattr(target, "y", 0)
+
                 logger.info(f"   [{i+1}] {name} (Lvl {lvl}) at ({tx}, {ty}) - {dist:.1f} tiles away")
 
     except Exception as e:
         logger.error(f"❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         await client.close()

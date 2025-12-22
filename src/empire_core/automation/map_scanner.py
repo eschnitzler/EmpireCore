@@ -1,5 +1,5 @@
 """
-Map scanning and exploration automation with database persistence.
+Map scanning and exploration automation with asynchronous database persistence.
 """
 
 import asyncio
@@ -53,7 +53,7 @@ class MapScanner:
 
     Features:
     - Spiral scan pattern from origin point
-    - Persistent chunk caching in SQLite database
+    - Persistent chunk caching in SQLite database (async)
     - Rate limiting to prevent server throttling
     - Progress callbacks for UI updates
     - Database-backed target discovery
@@ -65,19 +65,15 @@ class MapScanner:
     def __init__(self, client: "EmpireClient"):
         self.client = client
         self._scanned_chunks: Dict[int, Set[Tuple[int, int]]] = {}  # kingdom -> chunks
-        self._scan_timestamps: Dict[Tuple[int, int, int], float] = {}  # (kid, x, y) -> time
         self._progress_callbacks: List[Callable[[ScanProgress], None]] = []
         self._running = False
         self._stop_event = asyncio.Event()
 
-        # Load existing scanned chunks from database
-        self._load_cache_from_db()
-
-    def _load_cache_from_db(self):
-        """Load scanned chunk cache from database."""
+    async def initialize(self):
+        """Initialize scanner and load cache from database."""
         try:
-            for kid in [0, 1, 2, 3, 4]:  # Common kingdoms
-                chunks = self.client.db.get_scanned_chunks(kid)
+            for kid in [0, 1, 2, 3, 4]:
+                chunks = await self.client.db.get_scanned_chunks(kid)
                 if chunks:
                     self._scanned_chunks[kid] = chunks
             logger.debug(f"MapScanner: Loaded cache for {len(self._scanned_chunks)} kingdoms from DB")
@@ -113,14 +109,6 @@ class MapScanner:
     ) -> ScanResult:
         """
         Scan an area around a center point and persist results.
-
-        Args:
-            center_x: Center X coordinate
-            center_y: Center Y coordinate
-            radius: Radius in chunks
-            kingdom_id: Kingdom to scan
-            rescan: Force rescan even if already scanned
-            rate_limit: Maximum chunks per second
         """
         start_time = time.time()
         objects_before = len(self.map_objects)
@@ -152,23 +140,17 @@ class MapScanner:
             tile_y = chunk_y * MAP_CHUNK_SIZE
 
             try:
-                # Capture objects count before this chunk
-                objs_before_chunk = len(self.map_objects)
-
                 await self.client.get_map_chunk(kingdom_id, tile_x, tile_y)
 
-                # Wait a bit for state update (packet processing is async)
+                # Wait for state update
                 await asyncio.sleep(0.2)
 
                 # Persist discovered objects to DB
-                # Note: This is a bit naive as it saves ALL objects currently in memory
-                # But it's effective for ensuring they are in the DB.
-                # A more optimized version would track only the NEW objects from this chunk.
-                self.client.db.save_map_objects(list(self.map_objects.values()))
+                await self.client.db.save_map_objects(list(self.map_objects.values()))
 
                 # Update cache
                 self._scanned_chunks[kingdom_id].add(chunk_key)
-                self.client.db.mark_chunk_scanned(kingdom_id, chunk_x, chunk_y)
+                await self.client.db.mark_chunk_scanned(kingdom_id, chunk_x, chunk_y)
 
             except Exception as e:
                 logger.warning(f"Failed to scan chunk ({chunk_x}, {chunk_y}): {e}")
@@ -231,7 +213,7 @@ class MapScanner:
 
         return results
 
-    def find_nearby_targets(
+    async def find_nearby_targets(
         self,
         origin_x: int,
         origin_y: int,
@@ -250,20 +232,15 @@ class MapScanner:
         # 1. Search Database first
         if use_db:
             db_types = [int(t) for t in target_types] if target_types else None
-            # Need to know kingdom_id. Assuming kingdom 0 for now or adding KID to params
-            # For robustness, we search KID 0 (Green) by default or pass it.
-            # Here we'll search across kingdoms if needed, but DB query currently needs kid.
-            db_results = self.client.db.find_targets(0, max_level=max_level, types=db_types)
-            for row in db_results:
-                if row["owner_id"] in exclude_ids:
+            db_results = await self.client.db.find_targets(0, max_level=max_level, types=db_types)
+            for record in db_results:
+                if record.owner_id in exclude_ids:
                     continue
-                dist = calculate_distance(origin_x, origin_y, row["x"], row["y"])
+                dist = calculate_distance(origin_x, origin_y, record.x, record.y)
                 if dist <= max_distance:
-                    # Convert row to a dummy object or actual MapObject if possible
-                    # For simplicity in this helper, we return the row or MapObject
-                    targets_dict[row["area_id"]] = (row, dist)
+                    targets_dict[record.area_id] = (record, dist)
 
-        # 2. Search Memory (might have more recent data)
+        # 2. Search Memory
         for obj in self.map_objects.values():
             if target_types and obj.type not in target_types:
                 continue
@@ -280,10 +257,10 @@ class MapScanner:
         results.sort(key=lambda t: t[1])
         return results
 
-    def get_scan_summary(self) -> Dict[str, Any]:
+    async def get_scan_summary(self) -> Dict[str, Any]:
         """Get summary including database stats."""
         mem_summary = {kid: len(chunks) for kid, chunks in self._scanned_chunks.items()}
-        db_count = self.client.db.get_object_count()
+        db_count = await self.client.db.get_object_count()
 
         return {
             "memory_objects": len(self.map_objects),

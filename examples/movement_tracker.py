@@ -89,6 +89,10 @@ async def main():
         await asyncio.sleep(1)
 
         player = client.state.local_player
+        if not player:
+            logger.error("Failed to load player info.")
+            return
+
         logger.info(f"Logged in as {player.name}, Level {player.level}")
 
         # Get initial movements
