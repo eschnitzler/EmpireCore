@@ -1,7 +1,8 @@
 """
-Asynchronous Database storage using SQLModel and aiosqlite.
+Asynchronous Database storage using SQLModel and aiosqlite with Write Queue.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -63,71 +64,131 @@ class ScannedChunkRecord(SQLModel, table=True):
 
 
 class GameDatabase:
-    """Async database manager for EmpireCore."""
+    """Async database manager with serialized write queue."""
 
     def __init__(self, db_path: str = "empire_data.db"):
         self.db_url = f"sqlite+aiosqlite:///{db_path}"
-        # Set timeout to 30s to handle high concurrency
+        # Set timeout to 30s
         self.engine = create_async_engine(self.db_url, echo=False, connect_args={"timeout": 30})
         self.async_session_factory = async_sessionmaker(self.engine, expire_on_commit=False)
 
+        # Write Queue
+        self._write_queue: asyncio.Queue = asyncio.Queue()
+        self._writer_task: Optional[asyncio.Task] = None
+        self._running = False
+
     async def initialize(self):
-        """Create tables if they don't exist and enable WAL mode."""
+        """Create tables and start writer loop."""
         async with self.engine.begin() as conn:
-            # Enable Write-Ahead Logging for better concurrency
             await conn.execute(text("PRAGMA journal_mode=WAL;"))
             await conn.execute(text("PRAGMA synchronous=NORMAL;"))
             await conn.run_sync(SQLModel.metadata.create_all)
+
         logger.info(f"Database initialized: {self.db_url} (WAL Mode)")
+        self._start_writer()
+
+    def _start_writer(self):
+        """Start the background writer task."""
+        if not self._running:
+            self._running = True
+            self._writer_task = asyncio.create_task(self._writer_loop())
+            logger.debug("Database writer loop started.")
 
     async def close(self):
-        """Shutdown engine."""
+        """Shutdown engine and writer."""
+        self._running = False
+        if self._writer_task:
+            # Wait for queue to drain
+            await self._write_queue.join()
+            self._writer_task.cancel()
+            try:
+                await self._writer_task
+            except asyncio.CancelledError:
+                pass
+
         await self.engine.dispose()
 
-    # === Operations ===
+    async def _writer_loop(self):
+        """Consumes write operations from the queue and executes them serially."""
+        while self._running:
+            try:
+                # Get batch of operations
+                operation = await self._write_queue.get()
+                batch = [operation]
+
+                # Try to grab more if available (up to 50)
+                try:
+                    for _ in range(50):
+                        batch.append(self._write_queue.get_nowait())
+                except asyncio.QueueEmpty:
+                    pass
+
+                async with self.async_session_factory() as session:
+                    try:
+                        for op_type, data in batch:
+                            if op_type == "player_snapshot":
+                                session.add(data)
+                            elif op_type == "map_objects":
+                                for obj in data:
+                                    await session.merge(obj)
+                            elif op_type == "scanned_chunk":
+                                await session.merge(data)
+
+                        await session.commit()
+                    except Exception as e:
+                        logger.error(f"Database write error: {e}")
+                        await session.rollback()
+                    finally:
+                        for _ in batch:
+                            self._write_queue.task_done()
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Critical error in writer loop: {e}")
+                await asyncio.sleep(1)
+
+    # === Write Operations (Queued) ===
 
     async def save_player_snapshot(self, player: Any):
-        """Save a snapshot of the current player state."""
-        async with self.async_session_factory() as session:
-            snapshot = PlayerSnapshot(
-                player_id=player.id,
-                level=player.level,
-                gold=player.gold,
-                rubies=player.rubies,
-            )
-            session.add(snapshot)
-            await session.commit()
+        """Queue player snapshot save."""
+        snapshot = PlayerSnapshot(
+            player_id=player.id,
+            level=player.level,
+            gold=player.gold,
+            rubies=player.rubies,
+        )
+        await self._write_queue.put(("player_snapshot", snapshot))
 
     async def save_map_objects(self, objects: List[Any]):
-        """Persist multiple map objects."""
+        """Queue map objects save."""
         if not objects:
             return
 
-        async with self.async_session_factory() as session:
-            for obj in objects:
-                record = MapObjectRecord(
-                    area_id=obj.area_id,
-                    kingdom_id=obj.kingdom_id,
-                    x=obj.x,
-                    y=obj.y,
-                    type=int(obj.type),
-                    level=obj.level,
-                    name=obj.name,
-                    owner_id=obj.owner_id,
-                    owner_name=obj.owner_name,
-                    alliance_id=obj.alliance_id,
-                    alliance_name=obj.alliance_name,
-                )
-                # Merge performs an "Insert or Update" based on primary key
-                await session.merge(record)
-            await session.commit()
+        records = [
+            MapObjectRecord(
+                area_id=obj.area_id,
+                kingdom_id=obj.kingdom_id,
+                x=obj.x,
+                y=obj.y,
+                type=int(obj.type),
+                level=obj.level,
+                name=obj.name,
+                owner_id=obj.owner_id,
+                owner_name=obj.owner_name,
+                alliance_id=obj.alliance_id,
+                alliance_name=obj.alliance_name,
+            )
+            for obj in objects
+        ]
+        await self._write_queue.put(("map_objects", records))
 
     async def mark_chunk_scanned(self, kingdom_id: int, chunk_x: int, chunk_y: int):
-        """Mark a chunk as scanned."""
-        async with self.async_session_factory() as session:
-            record = ScannedChunkRecord(kingdom_id=kingdom_id, chunk_x=chunk_x, chunk_y=chunk_y)
-            await session.merge(record)
-            await session.commit()
+        """Queue chunk scanned mark."""
+        record = ScannedChunkRecord(kingdom_id=kingdom_id, chunk_x=chunk_x, chunk_y=chunk_y)
+        await self._write_queue.put(("scanned_chunk", record))
+
+    # === Read Operations (Direct) ===
 
     async def get_scanned_chunks(self, kingdom_id: int) -> Set[Tuple[int, int]]:
         """Get all scanned chunks for a kingdom."""
@@ -162,7 +223,7 @@ class GameDatabase:
             # Simple way to get count in SQLModel
             statement = select(MapObjectRecord)
             results = await session.execute(statement)
-            return len(results.scalars().all())  # Note: Inefficient for large DBs, but works for now.
+            return len(results.scalars().all())
 
     async def get_object_counts_by_type(self) -> Dict[int, int]:
         """Get counts of objects grouped by type."""

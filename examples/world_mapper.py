@@ -12,15 +12,16 @@ import os
 import sys
 
 from tabulate import tabulate
+from tqdm import tqdm
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
 from empire_core import accounts
 
-# Configure logging
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s - %(levelname)s - %(message)s")
+# Configure logging to be less verbose for the demo
+logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("WorldMapper")
+logger.setLevel(logging.INFO)
 
 
 async def main(radius: int = 5, quit_on_empty: int = 5, full_scan: bool = False):
@@ -37,7 +38,7 @@ async def main(radius: int = 5, quit_on_empty: int = 5, full_scan: bool = False)
         logger.info(f"🔐 Logging in as {account.username}...")
         await client.login()
 
-        # 3. Wait for initial data (only if relying on castle location, skipped for full scan)
+        # 3. Wait for initial data
         if not full_scan:
             logger.info("📡 Fetching initial castle data...")
             await client.get_detailed_castle_info()
@@ -50,21 +51,33 @@ async def main(radius: int = 5, quit_on_empty: int = 5, full_scan: bool = False)
         )
 
         # 5. Start Scanning
+        logger.info("🛰️ Starting world scan...")
+
+        # Setup progress bar
+        pbar = tqdm(total=0, unit="chunk", desc="Scanning")
+
+        def update_progress(progress):
+            if pbar.total == 0:
+                pbar.total = progress.total_chunks
+            pbar.n = progress.completed_chunks
+            pbar.set_postfix(objects=progress.objects_found)
+            pbar.refresh()
+
+        client.scanner.on_progress(update_progress)
+
         if full_scan:
-            logger.info("🌍 STARTING FULL KINGDOM 0 SCAN (Center 600,600, Radius 60 chunks)...")
-            # Green Kingdom is roughly 0-1200 coords. Center ~600,600.
-            # 60 chunks * 13 tiles = 780 tiles radius -> Covers 0-1200 range nicely.
             await client.scanner.scan_area(
                 center_x=600,
                 center_y=600,
                 radius=60,
                 kingdom_id=0,
                 rescan=False,
-                quit_on_empty=None,  # Don't quit early on full scan
+                quit_on_empty=None,
             )
         else:
-            logger.info(f"🛰️ Starting local scan (Radius: {radius} chunks, Early quit: {quit_on_empty})...")
             await client.scanner.scan_around_castles(radius=radius, quit_on_empty=quit_on_empty)
+
+        pbar.close()
 
         # 6. Final Report
         final_summary = await client.scanner.get_scan_summary()
