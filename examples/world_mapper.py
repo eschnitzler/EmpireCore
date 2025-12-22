@@ -12,26 +12,31 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
 from empire_core import accounts
+from empire_core.automation.multi_account import AccountPool
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("WorldMapper")
 
 
 async def main(radius: int = 5):
-    # 1. Setup
-    account = accounts.get_default()
-    if not account:
-        logger.error("No account found in accounts.json")
+    # 1. Setup Pool
+    pool = AccountPool()
+    
+    # 2. Lease an account (logs in automatically)
+    logger.info("📡 Leasing an available account...")
+    client = await pool.lease_account()
+    
+    if not client:
+        logger.error("No accounts available (all on cooldown or none configured).")
         return
 
-    client = account.get_client()
-
     try:
-        # 2. Login
-        logger.info(f"🔐 Logging in as {account.username}...")
-        await client.login()
+        # 3. Wait for initial data
+        logger.info(f"📡 Fetching initial castle data for {client.username}...")
+        await client.get_detailed_castle_info()
+        await asyncio.sleep(2)
 
-        # 3. Show current DB status
+        # 4. Show current DB status
         summary = await client.scanner.get_scan_summary()
         logger.info(
             f"📊 Current Database: {summary['database_objects']} objects across {summary['total_chunks_scanned']} chunks."

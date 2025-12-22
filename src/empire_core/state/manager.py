@@ -191,13 +191,36 @@ class GameState:
 
             aid = -1
             oid = -1
+            name = ""
+            owner_name = ""
+            alliance_name = ""
+            alliance_id = -1
 
             if len(area) > 3:
                 aid = area[3]
             if len(area) > 4:
                 oid = area[4]
+            if len(area) > 10:
+                name = str(area[10]) if area[10] else ""
+            if len(area) > 11:
+                owner_name = str(area[11]) if area[11] else ""
+            if len(area) > 13:
+                alliance_name = str(area[13]) if area[13] else ""
+            if len(area) > 14:
+                alliance_id = area[14] if isinstance(area[14], int) else -1
 
-            map_obj = MapObject(AID=aid, OID=oid, T=atype, X=x, Y=y, KID=kid)
+            map_obj = MapObject(
+                AID=aid,
+                OID=oid,
+                T=atype,
+                X=x,
+                Y=y,
+                KID=kid,
+                name=name,
+                owner_name=owner_name,
+                alliance_name=alliance_name,
+                alliance_id=alliance_id,
+            )
             # Only store if it has a valid ID or we want to store by coordinate
             # Usually map objects have AID. Empty spots might not.
             if aid != -1:

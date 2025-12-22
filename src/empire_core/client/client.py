@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 from empire_core.automation.alliance_tools import AllianceService, ChatService
 from empire_core.automation.battle_reports import BattleReportService
 from empire_core.automation.building_queue import BuildingManager
-from empire_core.automation.defense_manager import DefenseManager  # NEW IMPORT
+from empire_core.automation.defense_manager import DefenseManager
 from empire_core.automation.map_scanner import MapScanner
 from empire_core.automation.quest_automation import QuestService
 from empire_core.automation.resource_manager import ResourceManager
@@ -84,6 +84,7 @@ class EmpireClient(
         self._auto_reconnect = True
         self._max_reconnect_attempts = 10
         self._reconnect_delay = 5.0  # Initial delay
+        self._is_reconnecting = False
 
     async def _handle_disconnect(self):
         """Called when the underlying connection is lost."""
@@ -91,6 +92,7 @@ class EmpireClient(
         logger.warning("Client: Connection lost. Resetting logged_in state.")
 
         if self._auto_reconnect and not self._reconnect_task:
+            self._is_reconnecting = True
             self._reconnect_task = asyncio.create_task(self._reconnect_loop())
 
     async def _reconnect_loop(self):
@@ -98,27 +100,29 @@ class EmpireClient(
         attempt = 0
         delay = self._reconnect_delay
 
-        while attempt < self._max_reconnect_attempts:
-            if self.is_logged_in:
-                break
+        try:
+            while attempt < self._max_reconnect_attempts:
+                if self.is_logged_in:
+                    break
 
-            attempt += 1
-            logger.info(f"Client: Reconnection attempt {attempt}/{self._max_reconnect_attempts} in {delay}s...")
-            await asyncio.sleep(delay)
+                attempt += 1
+                logger.info(f"Client: Reconnection attempt {attempt}/{self._max_reconnect_attempts} in {delay}s...")
+                await asyncio.sleep(delay)
 
-            try:
-                # Try to re-login (login() handles connect() + handshake)
-                await self.login()
-                logger.info("Client: Reconnection successful!")
-                self._reconnect_task = None
-                return
-            except Exception as e:
-                logger.error(f"Client: Reconnection attempt {attempt} failed: {e}")
-                # Exponential backoff
-                delay = min(delay * 2, 60.0)
+                try:
+                    # Try to re-login (login() handles connect() + handshake)
+                    await self.login()
+                    logger.info("Client: Reconnection successful!")
+                    return
+                except Exception as e:
+                    logger.error(f"Client: Reconnection attempt {attempt} failed: {e}")
+                    # Exponential backoff
+                    delay = min(delay * 2, 60.0)
 
-        logger.critical("Client: Maximum reconnection attempts reached. Giving up.")
-        self._reconnect_task = None
+            logger.critical("Client: Maximum reconnection attempts reached. Giving up.")
+        finally:
+            self._reconnect_task = None
+            self._is_reconnecting = False
 
     @property
     def event(self):
@@ -208,9 +212,7 @@ class EmpireClient(
         logger.info("Handshake: Joining Room (AutoJoin)...")
         join_packet = "<msg t='sys'><body action='autoJoin' r='-1'></body></msg>"
 
-        join_ok_waiter = self.connection.create_waiter(
-            "joinOK", predicate=lambda p: p.is_xml and p.command_id == "joinOK"
-        )
+        join_ok_waiter = self.connection.create_waiter("joinOK", predicate=lambda p: p.is_xml and p.command_id == "joinOK")
 
         await self.connection.send(join_packet)
 
@@ -305,21 +307,28 @@ class EmpireClient(
         if self._reconnect_task:
             self._reconnect_task.cancel()
         await self.connection.disconnect()
+        await self.db.close()
 
-    async def wait_until_ready(self, timeout: Optional[float] = None):
+    async def wait_until_ready(self, timeout: float = 60.0):
         """Wait until the client is logged in and ready."""
         if self.is_logged_in:
             return
 
         start = time.time()
         while not self.is_logged_in:
-            if timeout and (time.time() - start) > timeout:
+            if (time.time() - start) > timeout:
                 raise TimeoutError("Timed out waiting for client to be ready")
+
+            if not self._is_reconnecting and not self.connection.connected:
+                # If we are not logged in, not reconnecting, and not connected,
+                # then we've either given up or auto-reconnect is off.
+                raise RuntimeError("Client not connected and not attempting reconnection.")
+
             await asyncio.sleep(0.5)
 
-    # ============================================================
+    # ============================================================ 
     # Movement Tracking Methods
-    # ============================================================
+    # ============================================================ 
 
     @property
     def movements(self) -> Dict[int, Movement]:

@@ -266,10 +266,21 @@ class MapScanner:
         """Get summary including database stats."""
         mem_summary = {kid: len(chunks) for kid, chunks in self._scanned_chunks.items()}
         db_count = await self.client.db.get_object_count()
+        db_types = await self.client.db.get_object_counts_by_type()
+
+        # Map type IDs back to names
+        readable_types = {}
+        for type_id, count in db_types.items():
+            try:
+                name = MapObjectType(type_id).name
+            except ValueError:
+                name = f"Unknown({type_id})"
+            readable_types[name] = count
 
         return {
             "memory_objects": len(self.map_objects),
             "database_objects": db_count,
+            "objects_by_type": readable_types,
             "chunks_by_kingdom": mem_summary,
             "total_chunks_scanned": sum(mem_summary.values()),
         }

@@ -21,6 +21,12 @@ class MapObject(BaseModel):
     y: int = Field(default=0, alias="Y")
     kingdom_id: int = Field(default=0, alias="KID")
 
+    # Metadata
+    name: str = Field(default="")
+    owner_name: str = Field(default="")
+    alliance_id: int = Field(default=-1)
+    alliance_name: str = Field(default="")
+
 
 class Army(BaseModel):
     """Represents troops in a movement or castle."""

@@ -3,8 +3,9 @@ Asynchronous Database storage using SQLModel and aiosqlite.
 """
 
 import logging
+import sqlite3
 from datetime import datetime
-from typing import Any, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import Field, SQLModel, col, select
@@ -152,3 +153,12 @@ class GameDatabase:
             statement = select(MapObjectRecord)
             results = await session.execute(statement)
             return len(results.scalars().all())  # Note: Inefficient for large DBs, but works for now.
+
+    async def get_object_counts_by_type(self) -> Dict[int, int]:
+        """Get counts of objects grouped by type."""
+        from sqlalchemy import func
+
+        async with self.async_session_factory() as session:
+            statement = select(MapObjectRecord.type, func.count(MapObjectRecord.area_id)).group_by(MapObjectRecord.type)
+            results = await session.execute(statement)
+            return {row[0]: row[1] for row in results.all()}
