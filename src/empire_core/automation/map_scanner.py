@@ -19,6 +19,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# The step between chunks is size + 1 (e.g., 12 + 1 = 13)
+MAP_STEP = MAP_CHUNK_SIZE + 1
+
 
 @dataclass
 class ScanResult:
@@ -84,10 +87,6 @@ class MapScanner:
     async def _on_gaa_packet(self, event: PacketEvent):
         """Handle incoming map data and persist immediately."""
         if event.command_id == "gaa":
-            # The GameState already updated its map_objects before this event is emitted
-            # so we can just grab all current objects and save them.
-            # A more surgical approach would be parsing the payload here too,
-            # but GameState is already doing that.
             try:
                 objects = list(self.client.state.map_objects.values())
                 if objects:
@@ -106,7 +105,7 @@ class MapScanner:
 
     def is_chunk_scanned(self, kingdom_id: int, x: int, y: int) -> bool:
         """Check if a chunk has been scanned."""
-        chunk_key = (x // MAP_CHUNK_SIZE, y // MAP_CHUNK_SIZE)
+        chunk_key = (x // MAP_STEP, y // MAP_STEP)
         return chunk_key in self._scanned_chunks.get(kingdom_id, set())
 
     def on_progress(self, callback: Callable[[ScanProgress], None]):
@@ -139,7 +138,7 @@ class MapScanner:
         self._running = True
         self._stop_event.clear()
 
-        # Fire and forget / High speed
+        # High-speed parallel dispatch
         for chunk_x, chunk_y in chunks:
             if self._stop_event.is_set():
                 logger.info("Scan cancelled")
@@ -151,19 +150,21 @@ class MapScanner:
                 completed += 1
                 continue
 
-            tile_x = chunk_x * MAP_CHUNK_SIZE
-            tile_y = chunk_y * MAP_CHUNK_SIZE
+            # Calculate coordinates using step
+            tile_x = chunk_x * MAP_STEP
+            tile_y = chunk_y * MAP_STEP
 
             try:
+                # Ensure we are connected
+                if not self.client.connection.connected or not self.client.is_logged_in:
+                    await self.client.wait_until_ready()
+
                 objs_before_chunk = len(self.map_objects)
-                
-                # Send request without awaiting full processing (commands are fast)
                 await self.client.get_map_chunk(kingdom_id, tile_x, tile_y)
                 
-                # Small yield to allow event loop to process outgoing network buffer
+                # Small yield
                 await asyncio.sleep(0) 
 
-                # Check if we found anything (this might lag slightly behind network)
                 new_in_chunk = len(self.map_objects) - objs_before_chunk
                 if new_in_chunk > 0:
                     consecutive_empty = 0
@@ -198,13 +199,10 @@ class MapScanner:
                     logger.error(f"Progress callback error: {e}")
 
         self._running = False
-        
-        # Give a small window for last packets to arrive before final summary
         await asyncio.sleep(1.0)
         
         duration = time.time() - start_time
         objects_found = len(self.map_objects) - objects_before
-
         summary = await self.get_scan_summary()
         
         result = ScanResult(
@@ -256,7 +254,7 @@ class MapScanner:
         targets_dict: Dict[int, Tuple[Any, float]] = {}
         exclude_ids = set(exclude_player_ids or [])
 
-        # 1. Search Database first
+        # 1. Search Database
         if use_db:
             db_types = [int(t) for t in target_types] if target_types else None
             db_results = await self.client.db.find_targets(0, max_level=max_level, types=db_types)
@@ -279,7 +277,6 @@ class MapScanner:
             if dist <= max_distance:
                 targets_dict[obj.area_id] = (obj, dist)
 
-        # Sort and return
         results = list(targets_dict.values())
         results.sort(key=lambda t: t[1])
         return results
@@ -310,7 +307,6 @@ class MapScanner:
         db_count = await self.client.db.get_object_count()
         db_types = await self.client.db.get_object_counts_by_type()
 
-        # Map type IDs back to names and categories
         readable_types = {}
         category_counts = {"Player": 0, "NPC": 0, "Event": 0, "Resource": 0, "Other": 0}
 
@@ -345,8 +341,8 @@ class MapScanner:
 
     def _generate_spiral_pattern(self, center_x: int, center_y: int, radius: int) -> List[Tuple[int, int]]:
         """Generate spiral scan pattern from center outward, ensuring coordinates are positive."""
-        center_chunk_x = max(0, center_x // MAP_CHUNK_SIZE)
-        center_chunk_y = max(0, center_y // MAP_CHUNK_SIZE)
+        center_chunk_x = max(0, center_x // MAP_STEP)
+        center_chunk_y = max(0, center_y // MAP_STEP)
 
         chunks = [(center_chunk_x, center_chunk_y)]
 
@@ -359,11 +355,11 @@ class MapScanner:
             for x in range(center_chunk_x - r, center_chunk_x + r + 1):
                 if x >= 0:
                     chunks.append((x, center_chunk_y + r))
-            # Left column (excluding corners)
+            # Left column
             for y in range(center_chunk_y - r + 1, center_chunk_y + r):
                 if (center_chunk_x - r) >= 0 and y >= 0:
                     chunks.append((center_chunk_x - r, y))
-            # Right column (excluding corners)
+            # Right column
             for y in range(center_chunk_y - r + 1, center_chunk_y + r):
                 if y >= 0:
                     chunks.append((center_chunk_x + r, y))
