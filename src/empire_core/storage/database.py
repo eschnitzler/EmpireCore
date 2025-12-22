@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import Field, SQLModel, col, select
 
@@ -66,14 +67,18 @@ class GameDatabase:
 
     def __init__(self, db_path: str = "empire_data.db"):
         self.db_url = f"sqlite+aiosqlite:///{db_path}"
-        self.engine = create_async_engine(self.db_url, echo=False)
+        # Set timeout to 30s to handle high concurrency
+        self.engine = create_async_engine(self.db_url, echo=False, connect_args={"timeout": 30})
         self.async_session_factory = async_sessionmaker(self.engine, expire_on_commit=False)
 
     async def initialize(self):
-        """Create tables if they don't exist."""
+        """Create tables if they don't exist and enable WAL mode."""
         async with self.engine.begin() as conn:
+            # Enable Write-Ahead Logging for better concurrency
+            await conn.execute(text("PRAGMA journal_mode=WAL;"))
+            await conn.execute(text("PRAGMA synchronous=NORMAL;"))
             await conn.run_sync(SQLModel.metadata.create_all)
-        logger.info(f"Database initialized: {self.db_url}")
+        logger.info(f"Database initialized: {self.db_url} (WAL Mode)")
 
     async def close(self):
         """Shutdown engine."""

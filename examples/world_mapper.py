@@ -59,8 +59,8 @@ async def main(radius: int = 5, quit_on_empty: int = 5, full_scan: bool = False)
                 center_y=600,
                 radius=60,
                 kingdom_id=0,
-                rescan=False, 
-                quit_on_empty=None # Don't quit early on full scan
+                rescan=False,
+                quit_on_empty=None,  # Don't quit early on full scan
             )
         else:
             logger.info(f"🛰️ Starting local scan (Radius: {radius} chunks, Early quit: {quit_on_empty})...")
@@ -68,18 +68,18 @@ async def main(radius: int = 5, quit_on_empty: int = 5, full_scan: bool = False)
 
         # 6. Final Report
         final_summary = await client.scanner.get_scan_summary()
-        
+
         print("\n" + "=" * 60)
         print("🌎 WORLD MAP SUMMARY")
         print("=" * 60)
-        
+
         stats_data = [
             ["Total Objects", final_summary["database_objects"]],
             ["Total Chunks Scanned", final_summary["total_chunks_scanned"]],
             ["Memory Objects", final_summary["memory_objects"]],
         ]
         print(tabulate(stats_data, headers=["Metric", "Value"], tablefmt="fancy_grid"))
-        
+
         print("\n📂 CATEGORY BREAKDOWN")
         cat_data = [[cat, count] for cat, count in final_summary["objects_by_category"].items() if count > 0]
         print(tabulate(cat_data, headers=["Category", "Count"], tablefmt="fancy_grid"))
@@ -90,7 +90,7 @@ async def main(radius: int = 5, quit_on_empty: int = 5, full_scan: bool = False)
         for obj_type, count in sorted_types:
             if count > 0:
                 breakdown_data.append([obj_type, count])
-        
+
         print(tabulate(breakdown_data, headers=["Object Type", "Count"], tablefmt="fancy_grid"))
         print("=" * 60 + "\n")
 
@@ -104,9 +104,9 @@ if __name__ == "__main__":
     scan_radius = 5
     early_quit = 5
     full_scan = False
-    
+
     args = sys.argv[1:]
-    
+
     if "--full" in args:
         full_scan = True
     elif len(args) >= 1:

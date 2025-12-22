@@ -139,7 +139,7 @@ class EmpireClient(
 
         # Update State
         if packet.command_id and isinstance(packet.payload, dict):
-            self.state.update_from_packet(packet.command_id, packet.payload)
+            await self.state.update_from_packet(packet.command_id, packet.payload)
 
         # Notify response awaiter - Pass FULL packet so error_code is available
         if packet.command_id:

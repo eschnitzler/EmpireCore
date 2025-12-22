@@ -1,9 +1,9 @@
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, List
 
 from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:
-    pass
+    from empire_core.state.world_models import MapObject
 
 
 class Event(BaseModel):
@@ -21,6 +21,18 @@ class PacketEvent(Event):
     command_id: str
     payload: Any
     is_xml: bool
+
+
+# ============================================================
+# Map Events
+# ============================================================
+
+
+class MapChunkParsedEvent(Event):
+    """Triggered when a map chunk is parsed."""
+
+    kingdom_id: int
+    map_objects: List["MapObject"]
 
 
 # ============================================================

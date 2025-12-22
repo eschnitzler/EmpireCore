@@ -8,7 +8,6 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple
 
-from empire_core.config import MAP_CHUNK_SIZE
 from empire_core.events.base import PacketEvent
 from empire_core.state.world_models import MapObject
 from empire_core.utils.calculations import calculate_distance
@@ -19,8 +18,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# The step between chunks is size + 1 (e.g., 12 + 1 = 13)
-MAP_STEP = MAP_CHUNK_SIZE + 1
+# The step between chunks is exactly 13 tiles (index 0-12 inclusive)
+MAP_STEP = 13
 
 
 @dataclass
@@ -56,7 +55,7 @@ class MapScanner:
     Automated map scanning with intelligent chunk management and persistence.
 
     Features:
-    - High-speed spiral scan pattern
+    - High-speed spiral scan pattern aligned to 13x13 grid
     - Persistent chunk caching in SQLite database (async)
     - Real-time database persistence via packet events
     - Progress callbacks for UI updates
@@ -65,7 +64,7 @@ class MapScanner:
 
     def __init__(self, client: "EmpireClient"):
         self.client = client
-        self._scanned_chunks: Dict[int, Set[Tuple[int, int]]] = {}  # kingdom -> chunks
+        self._scanned_chunks: Dict[int, Set[Tuple[int, int]]] = {}  # kingdom -> chunk_coordinates
         self._progress_callbacks: List[Callable[[ScanProgress], None]] = []
         self._running = False
         self._stop_event = asyncio.Event()
@@ -104,9 +103,10 @@ class MapScanner:
         return len(self._scanned_chunks.get(kingdom_id, set()))
 
     def is_chunk_scanned(self, kingdom_id: int, x: int, y: int) -> bool:
-        """Check if a chunk has been scanned."""
-        chunk_key = (x // MAP_STEP, y // MAP_STEP)
-        return chunk_key in self._scanned_chunks.get(kingdom_id, set())
+        """Check if a coordinate belongs to a scanned chunk."""
+        chunk_x = x // MAP_STEP
+        chunk_y = y // MAP_STEP
+        return (chunk_x, chunk_y) in self._scanned_chunks.get(kingdom_id, set())
 
     def on_progress(self, callback: Callable[[ScanProgress], None]):
         """Register callback for scan progress updates."""
@@ -138,7 +138,6 @@ class MapScanner:
         self._running = True
         self._stop_event.clear()
 
-        # High-speed parallel dispatch
         for chunk_x, chunk_y in chunks:
             if self._stop_event.is_set():
                 logger.info("Scan cancelled")
@@ -150,7 +149,7 @@ class MapScanner:
                 completed += 1
                 continue
 
-            # Calculate coordinates using step
+            # Calculate top-left tile coordinates for this chunk
             tile_x = chunk_x * MAP_STEP
             tile_y = chunk_y * MAP_STEP
 
@@ -160,10 +159,13 @@ class MapScanner:
                     await self.client.wait_until_ready()
 
                 objs_before_chunk = len(self.map_objects)
+
+                # GAA command uses AX1, AY1, AX2, AY2.
+                # To match 13-tile step, we request size 12 chunks (step-1).
                 await self.client.get_map_chunk(kingdom_id, tile_x, tile_y)
-                
+
                 # Small yield
-                await asyncio.sleep(0) 
+                await asyncio.sleep(0)
 
                 new_in_chunk = len(self.map_objects) - objs_before_chunk
                 if new_in_chunk > 0:
@@ -174,11 +176,11 @@ class MapScanner:
                 # Update cache and DB for chunk
                 self._scanned_chunks[kingdom_id].add(chunk_key)
                 await self.client.db.mark_chunk_scanned(kingdom_id, chunk_x, chunk_y)
-                
+
                 if quit_on_empty and consecutive_empty >= quit_on_empty:
                     logger.info(f"MapScanner: Stopping early after {consecutive_empty} empty chunks.")
                     break
-                
+
             except Exception as e:
                 logger.warning(f"Failed to scan chunk ({chunk_x}, {chunk_y}): {e}")
 
@@ -200,11 +202,11 @@ class MapScanner:
 
         self._running = False
         await asyncio.sleep(1.0)
-        
+
         duration = time.time() - start_time
         objects_found = len(self.map_objects) - objects_before
         summary = await self.get_scan_summary()
-        
+
         result = ScanResult(
             kingdom_id=kingdom_id,
             chunks_scanned=completed,
@@ -341,6 +343,7 @@ class MapScanner:
 
     def _generate_spiral_pattern(self, center_x: int, center_y: int, radius: int) -> List[Tuple[int, int]]:
         """Generate spiral scan pattern from center outward, ensuring coordinates are positive."""
+        # Using MAP_STEP (13) for chunk grid
         center_chunk_x = max(0, center_x // MAP_STEP)
         center_chunk_y = max(0, center_y // MAP_STEP)
 

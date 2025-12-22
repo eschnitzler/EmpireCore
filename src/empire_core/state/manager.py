@@ -4,6 +4,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Set
 
 from empire_core.events.base import (
     IncomingAttackEvent,
+    MapChunkParsedEvent,
     MovementArrivedEvent,
     MovementStartedEvent,
     MovementUpdatedEvent,
@@ -58,16 +59,16 @@ class GameState:
             except Exception as e:
                 logger.error(f"Error emitting event: {e}")
 
-    def update_from_packet(self, cmd_id: str, payload: Dict[str, Any]):
+    async def update_from_packet(self, cmd_id: str, payload: Dict[str, Any]):
         """
         Central update router.
         """
         if cmd_id == "gbd":
             self._handle_gbd(payload)
         elif cmd_id == "gaa":  # Get Area (Map Chunk)
-            self._handle_gaa(payload)
+            await self._handle_gaa(payload)
         elif cmd_id == "gam":  # Get Army Movements
-            self._handle_gam(payload)
+            await self._handle_gam(payload)
         elif cmd_id == "dcl":  # Detailed Castle List
             self._handle_dcl(payload)
         elif cmd_id == "dql":  # Daily Quest List
@@ -76,7 +77,7 @@ class GameState:
             self._handle_gus(payload)
         # Real-time movement updates
         elif cmd_id == "mov":  # Movement update
-            self._handle_mov(payload)
+            await self._handle_mov(payload)
         elif cmd_id == "atv":  # Attack/movement arrival
             self._handle_atv(payload)
         elif cmd_id == "ata":  # Attack arrived
@@ -160,13 +161,14 @@ class GameState:
 
             logger.info(f"GameState: Parsed {len(self.local_player.castles)} castles for local player.")
 
-    def _handle_gaa(self, data: Dict[str, Any]):
+    async def _handle_gaa(self, data: Dict[str, Any]):
         """Handle 'Get Area' (Map Chunk) response."""
         areas = data.get("AI", [])
         if not areas:
             areas = data.get("A", [])
 
         kid = data.get("KID", 0)
+        parsed_objects = []
 
         count = 0
         for area in areas:
@@ -215,52 +217,21 @@ class GameState:
             )
             if aid != -1:
                 self.map_objects[aid] = map_obj
+                parsed_objects.append(map_obj)
 
             count += 1
 
         logger.debug(f"GameState: Parsed {count} map objects in K{kid}")
 
-    def _handle_gam(self, data: Dict[str, Any]):
+        # Emit event with new/updated objects
+        if parsed_objects:
+            await self._emit_event(MapChunkParsedEvent(kingdom_id=kid, map_objects=parsed_objects))
+
+    async def _handle_gam(self, data: Dict[str, Any]):
         """Handle 'Get Army Movements' response."""
-        movements_list = data.get("M", [])
-
-        count = 0
-        for m_wrapper in movements_list:
-            if not isinstance(m_wrapper, dict):
-                continue
-
-            m_data = m_wrapper.get("M", {})
-            if not m_data:
-                continue
-
-            mid = m_data.get("MID")
-            if not mid:
-                continue
-
-            try:
-                mov = Movement(**m_data)
-
-                if mov.target_area and isinstance(mov.target_area, list) and len(mov.target_area) >= 5:
-                    mov.target_x = mov.target_area[1]
-                    mov.target_y = mov.target_area[2]
-                    mov.target_area_id = mov.target_area[3]
-
-                if mov.source_area and isinstance(mov.source_area, list) and len(mov.source_area) >= 3:
-                    mov.source_x = mov.source_area[1]
-                    mov.source_y = mov.source_area[2]
-                    if len(mov.source_area) >= 4:
-                        mov.source_area_id = mov.source_area[3]
-
-                self.movements[mid] = mov
-                count += 1
-
-            except Exception as e:
-                logger.debug(f"GameState: Failed to parse movement {mid}: {e}")
-
-        if count > 0:
-            logger.info(f"GameState: Parsed {count} active movements.")
-        else:
-            logger.debug("GameState: No active movements.")
+        events = self._handle_gam_with_events(data)
+        for event in events:
+            await self._emit_event(event)
 
     def _handle_dcl(self, data: Dict[str, Any]):
         """Handle 'Detailed Castle List' response."""
@@ -535,7 +506,7 @@ class GameState:
 
         return events_to_emit
 
-    def _handle_mov(self, data: Dict[str, Any]):
+    async def _handle_mov(self, data: Dict[str, Any]):
         """Handle real-time 'mov' packet."""
         m_data = data.get("M", data)
 

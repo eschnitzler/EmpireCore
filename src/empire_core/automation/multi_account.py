@@ -52,15 +52,15 @@ class AccountPool:
         """Returns a list of idle accounts, optionally filtered by tag."""
         available = []
         all_accs = self.all_accounts
-        
+
         # Sort/Cycle logic: Start from the next index after the last leased one
         num_accs = len(all_accs)
         if num_accs == 0:
             return []
-            
+
         start_idx = (self._last_leased_index + 1) % num_accs
         cycled_indices = [(start_idx + i) % num_accs for i in range(num_accs)]
-        
+
         for idx in cycled_indices:
             acc = all_accs[idx]
             if acc.username not in self._busy_accounts and acc.enabled:
