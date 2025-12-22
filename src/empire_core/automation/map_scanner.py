@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple
 
 from empire_core.config import MAP_CHUNK_SIZE
+from empire_core.events.base import PacketEvent
 from empire_core.state.world_models import MapObject
 from empire_core.utils.calculations import calculate_distance
 from empire_core.utils.enums import MapObjectType
@@ -27,7 +28,7 @@ class ScanResult:
     chunks_scanned: int
     objects_found: int
     duration: float
-    targets_by_type: Dict[MapObjectType, int] = field(default_factory=dict)
+    targets_by_type: Dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -52,15 +53,12 @@ class MapScanner:
     Automated map scanning with intelligent chunk management and persistence.
 
     Features:
-    - Spiral scan pattern from origin point
+    - High-speed spiral scan pattern
     - Persistent chunk caching in SQLite database (async)
-    - Rate limiting to prevent server throttling
+    - Real-time database persistence via packet events
     - Progress callbacks for UI updates
     - Database-backed target discovery
     """
-
-    # Default scan rate (chunks per second)
-    DEFAULT_SCAN_RATE = 2.0
 
     def __init__(self, client: "EmpireClient"):
         self.client = client
@@ -77,8 +75,25 @@ class MapScanner:
                 if chunks:
                     self._scanned_chunks[kid] = chunks
             logger.debug(f"MapScanner: Loaded cache for {len(self._scanned_chunks)} kingdoms from DB")
+
+            # Register real-time persistence handler
+            self.client.events.listen(self._on_gaa_packet)
         except Exception as e:
-            logger.warning(f"MapScanner: Failed to load cache from DB: {e}")
+            logger.warning(f"MapScanner: Failed to initialize: {e}")
+
+    async def _on_gaa_packet(self, event: PacketEvent):
+        """Handle incoming map data and persist immediately."""
+        if event.command_id == "gaa":
+            # The GameState already updated its map_objects before this event is emitted
+            # so we can just grab all current objects and save them.
+            # A more surgical approach would be parsing the payload here too,
+            # but GameState is already doing that.
+            try:
+                objects = list(self.client.state.map_objects.values())
+                if objects:
+                    await self.client.db.save_map_objects(objects)
+            except Exception as e:
+                logger.error(f"MapScanner: Failed to persist map objects from packet: {e}")
 
     @property
     def map_objects(self) -> Dict[int, MapObject]:
@@ -105,20 +120,10 @@ class MapScanner:
         radius: int = 5,
         kingdom_id: int = 0,
         rescan: bool = False,
-        rate_limit: float = DEFAULT_SCAN_RATE,
         quit_on_empty: Optional[int] = None,
     ) -> ScanResult:
         """
-        Scan an area around a center point and persist results.
-
-        Args:
-            center_x: Center X coordinate
-            center_y: Center Y coordinate
-            radius: Radius in chunks
-            kingdom_id: Kingdom to scan
-            rescan: Force rescan even if already scanned
-            rate_limit: Maximum chunks per second
-            quit_on_empty: If set, stop scan after this many consecutive chunks with no NEW objects.
+        Scan an area around a center point at maximum speed.
         """
         start_time = time.time()
         objects_before = len(self.map_objects)
@@ -134,8 +139,7 @@ class MapScanner:
         self._running = True
         self._stop_event.clear()
 
-        delay = 1.0 / rate_limit
-
+        # Fire and forget / High speed
         for chunk_x, chunk_y in chunks:
             if self._stop_event.is_set():
                 logger.info("Scan cancelled")
@@ -152,27 +156,28 @@ class MapScanner:
 
             try:
                 objs_before_chunk = len(self.map_objects)
+                
+                # Send request without awaiting full processing (commands are fast)
                 await self.client.get_map_chunk(kingdom_id, tile_x, tile_y)
+                
+                # Small yield to allow event loop to process outgoing network buffer
+                await asyncio.sleep(0) 
 
-                # Wait for state update
-                await asyncio.sleep(0.3)
-
+                # Check if we found anything (this might lag slightly behind network)
                 new_in_chunk = len(self.map_objects) - objs_before_chunk
                 if new_in_chunk > 0:
                     consecutive_empty = 0
-                    # Persist discovered objects to DB
-                    await self.client.db.save_map_objects(list(self.map_objects.values()))
                 else:
                     consecutive_empty += 1
 
-                # Update cache
+                # Update cache and DB for chunk
                 self._scanned_chunks[kingdom_id].add(chunk_key)
                 await self.client.db.mark_chunk_scanned(kingdom_id, chunk_x, chunk_y)
-
+                
                 if quit_on_empty and consecutive_empty >= quit_on_empty:
                     logger.info(f"MapScanner: Stopping early after {consecutive_empty} empty chunks.")
                     break
-
+                
             except Exception as e:
                 logger.warning(f"Failed to scan chunk ({chunk_x}, {chunk_y}): {e}")
 
@@ -192,27 +197,25 @@ class MapScanner:
                 except Exception as e:
                     logger.error(f"Progress callback error: {e}")
 
-            await asyncio.sleep(delay)
-
         self._running = False
+        
+        # Give a small window for last packets to arrive before final summary
+        await asyncio.sleep(1.0)
+        
         duration = time.time() - start_time
         objects_found = len(self.map_objects) - objects_before
 
-        # Count by type
-        targets_by_type: Dict[MapObjectType, int] = {}
-        for obj in self.map_objects.values():
-            obj_type = obj.type if isinstance(obj.type, MapObjectType) else MapObjectType.UNKNOWN
-            targets_by_type[obj_type] = targets_by_type.get(obj_type, 0) + 1
-
+        summary = await self.get_scan_summary()
+        
         result = ScanResult(
             kingdom_id=kingdom_id,
             chunks_scanned=completed,
             objects_found=objects_found,
             duration=duration,
-            targets_by_type=targets_by_type,
+            targets_by_type=summary["objects_by_type"],
         )
 
-        logger.info(f"Scan complete: {completed} chunks, {objects_found} new objects saved to DB")
+        logger.info(f"High-speed scan complete: {completed} chunks in {duration:.1f}s")
         return result
 
     async def scan_around_castles(
