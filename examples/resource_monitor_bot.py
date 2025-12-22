@@ -65,7 +65,7 @@ class ResourceMonitorBot:
     async def start(self):
         logger.info("Starting bot...")
         await self.client.login()
-        
+
         # Wait for initial data sync
         await asyncio.sleep(3)
         self.running = True
@@ -74,10 +74,10 @@ class ResourceMonitorBot:
             try:
                 # Always fetch fresh details before printing
                 await self.client.get_detailed_castle_info()
-                await asyncio.sleep(1) # Wait for state to update
-                
+                await asyncio.sleep(1)  # Wait for state to update
+
                 self._print_status()
-                
+
                 await asyncio.sleep(CHECK_INTERVAL)
             except KeyboardInterrupt:
                 break

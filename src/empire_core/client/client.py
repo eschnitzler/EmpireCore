@@ -32,6 +32,7 @@ from empire_core.exceptions import LoginError, TimeoutError
 from empire_core.protocol.packet import Packet
 from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
+from empire_core.storage.database import GameDatabase
 from empire_core.utils.decorators import handle_errors
 from empire_core.utils.response_awaiter import ResponseAwaiter
 
@@ -58,6 +59,7 @@ class EmpireClient(
 
         self.events = EventManager()
         self.state = GameState()
+        self.db = GameDatabase()
 
         # Services (Composition)
         self.scanner = MapScanner(self)
