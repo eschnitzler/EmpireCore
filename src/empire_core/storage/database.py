@@ -3,7 +3,6 @@ Asynchronous Database storage using SQLModel and aiosqlite.
 """
 
 import logging
-import sqlite3
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -19,6 +18,8 @@ logger = logging.getLogger(__name__)
 class PlayerSnapshot(SQLModel, table=True):
     """Historical snapshot of player progress."""
 
+    __tablename__ = "player_snapshots"
+
     id: Optional[int] = Field(default=None, primary_key=True)
     player_id: int = Field(index=True)
     timestamp: int = Field(default_factory=lambda: int(datetime.now().timestamp()))
@@ -29,6 +30,8 @@ class PlayerSnapshot(SQLModel, table=True):
 
 class MapObjectRecord(SQLModel, table=True):
     """Persistent record of a discovered world object."""
+
+    __tablename__ = "map_objects"
 
     area_id: int = Field(primary_key=True)
     kingdom_id: int = Field(index=True)
@@ -46,6 +49,8 @@ class MapObjectRecord(SQLModel, table=True):
 
 class ScannedChunkRecord(SQLModel, table=True):
     """Record of a scanned map chunk."""
+
+    __tablename__ = "scanned_chunks"
 
     kingdom_id: int = Field(primary_key=True)
     chunk_x: int = Field(primary_key=True)
@@ -159,6 +164,8 @@ class GameDatabase:
         from sqlalchemy import func
 
         async with self.async_session_factory() as session:
-            statement = select(MapObjectRecord.type, func.count(MapObjectRecord.area_id)).group_by(MapObjectRecord.type)
+            statement = select(col(MapObjectRecord.type), func.count(col(MapObjectRecord.area_id))).group_by(
+                col(MapObjectRecord.type)
+            )
             results = await session.execute(statement)
             return {row[0]: row[1] for row in results.all()}

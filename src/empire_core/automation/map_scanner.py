@@ -153,10 +153,10 @@ class MapScanner:
             try:
                 objs_before_chunk = len(self.map_objects)
                 await self.client.get_map_chunk(kingdom_id, tile_x, tile_y)
-                
+
                 # Wait for state update
                 await asyncio.sleep(0.3)
-                
+
                 new_in_chunk = len(self.map_objects) - objs_before_chunk
                 if new_in_chunk > 0:
                     consecutive_empty = 0
@@ -168,11 +168,11 @@ class MapScanner:
                 # Update cache
                 self._scanned_chunks[kingdom_id].add(chunk_key)
                 await self.client.db.mark_chunk_scanned(kingdom_id, chunk_x, chunk_y)
-                
+
                 if quit_on_empty and consecutive_empty >= quit_on_empty:
                     logger.info(f"MapScanner: Stopping early after {consecutive_empty} empty chunks.")
                     break
-                
+
             except Exception as e:
                 logger.warning(f"Failed to scan chunk ({chunk_x}, {chunk_y}): {e}")
 

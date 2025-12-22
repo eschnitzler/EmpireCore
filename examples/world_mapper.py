@@ -51,11 +51,11 @@ async def main(radius: int = 5, quit_on_empty: int = 5):
 
         # 7. Final Report
         final_summary = await client.scanner.get_scan_summary()
-        
+
         print("\n" + "=" * 60)
         print("🌎 WORLD MAP SUMMARY")
         print("=" * 60)
-        
+
         # General Stats Table
         stats_data = [
             ["Total Objects", final_summary["database_objects"]],
@@ -63,7 +63,7 @@ async def main(radius: int = 5, quit_on_empty: int = 5):
             ["Memory Objects", final_summary["memory_objects"]],
         ]
         print(tabulate(stats_data, headers=["Metric", "Value"], tablefmt="fancy_grid"))
-        
+
         print("\n📂 CATEGORY BREAKDOWN")
         cat_data = [[cat, count] for cat, count in final_summary["objects_by_category"].items() if count > 0]
         print(tabulate(cat_data, headers=["Category", "Count"], tablefmt="fancy_grid"))
@@ -76,7 +76,7 @@ async def main(radius: int = 5, quit_on_empty: int = 5):
         for obj_type, count in sorted_types:
             if count > 0:
                 breakdown_data.append([obj_type, count])
-        
+
         print(tabulate(breakdown_data, headers=["Object Type", "Count"], tablefmt="fancy_grid"))
         print("=" * 60 + "\n")
 
@@ -90,15 +90,17 @@ if __name__ == "__main__":
     # Args: [radius] [quit_on_empty]
     scan_radius = 5
     early_quit = 5
-    
+
     if len(sys.argv) > 1:
         try:
             scan_radius = int(sys.argv[1])
-        except ValueError: pass
-    
+        except ValueError:
+            pass
+
     if len(sys.argv) > 2:
         try:
             early_quit = int(sys.argv[2])
-        except ValueError: pass
+        except ValueError:
+            pass
 
     asyncio.run(main(scan_radius, early_quit))

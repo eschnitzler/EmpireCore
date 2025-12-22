@@ -212,7 +212,9 @@ class EmpireClient(
         logger.info("Handshake: Joining Room (AutoJoin)...")
         join_packet = "<msg t='sys'><body action='autoJoin' r='-1'></body></msg>"
 
-        join_ok_waiter = self.connection.create_waiter("joinOK", predicate=lambda p: p.is_xml and p.command_id == "joinOK")
+        join_ok_waiter = self.connection.create_waiter(
+            "joinOK", predicate=lambda p: p.is_xml and p.command_id == "joinOK"
+        )
 
         await self.connection.send(join_packet)
 
@@ -326,9 +328,9 @@ class EmpireClient(
 
             await asyncio.sleep(0.5)
 
-    # ============================================================ 
+    # ============================================================
     # Movement Tracking Methods
-    # ============================================================ 
+    # ============================================================
 
     @property
     def movements(self) -> Dict[int, Movement]:

@@ -40,17 +40,14 @@ class SFSConnection:
             return
 
         logger.info(f"Connecting to {self.url}...")
-        
+
         # Ensure previous resources are cleaned up
         await self._close_resources()
-        
+
         self._session = aiohttp.ClientSession()
         try:
             # Add timeout to connection attempt
-            self._ws = await asyncio.wait_for(
-                self._session.ws_connect(self.url, heartbeat=30.0), 
-                timeout=10.0
-            )
+            self._ws = await asyncio.wait_for(self._session.ws_connect(self.url, heartbeat=30.0), timeout=10.0)
             self._read_task = asyncio.create_task(self._read_loop())
             logger.info("Connected.")
         except Exception as e:
@@ -61,10 +58,10 @@ class SFSConnection:
         """Cleanly disconnect and close resources."""
         if self._disconnecting:
             return
-        
+
         self._disconnecting = True
         logger.info("Disconnecting...")
-        
+
         try:
             if self._read_task and not self._read_task.done():
                 self._read_task.cancel()
@@ -89,7 +86,7 @@ class SFSConnection:
             except Exception:
                 pass
             self._ws = None
-            
+
         if self._session:
             try:
                 if not self._session.closed:
@@ -137,6 +134,7 @@ class SFSConnection:
             self._waiters[cmd_id] = set()
 
         if predicate is None:
+
             def predicate(p):
                 return True
 
@@ -167,12 +165,13 @@ class SFSConnection:
             return await asyncio.wait_for(fut, timeout)
         except asyncio.TimeoutError:
             from empire_core.exceptions import TimeoutError
+
             raise TimeoutError(f"Timed out waiting for command '{cmd_id}'")
 
     async def _read_loop(self):
         """Continuous loop reading from the WebSocket."""
         logger.debug("Read loop started.")
-        
+
         try:
             if not self._ws:
                 return
@@ -194,9 +193,10 @@ class SFSConnection:
             logger.warning("Connection lost.")
             await self._close_resources()
             self._cancel_all_waiters()
-            
+
             # Notify client of disconnection in a safe way
             if self.on_close and not self._disconnecting:
+
                 async def _trigger_close():
                     try:
                         if self.on_close:
