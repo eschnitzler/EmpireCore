@@ -32,6 +32,7 @@ class MapObjectType(IntEnum):
     SAMURAI_CAMP = 29
     FACTION_INVASION_CAMP = 30
     DYNAMIC = 31
+    ROBBER_BARON_CASTLE = 32  # Added explicitly
     SAMURAI_ALIEN_CAMP = 33
     RED_ALIEN_CAMP = 34
     ALLIANCE_NOMAD_CAMP = 35
@@ -42,6 +43,47 @@ class MapObjectType(IntEnum):
     WOLF_KING = 42
     NO_OUTPOST = 99
     UNKNOWN = -1
+
+    @property
+    def is_player(self) -> bool:
+        """Is this object a player-owned entity?"""
+        return self in (
+            MapObjectType.CASTLE,
+            MapObjectType.OUTPOST,
+            MapObjectType.CAPITAL,
+            MapObjectType.METRO,
+        )
+
+    @property
+    def is_npc(self) -> bool:
+        """Is this a permanent NPC/Robber Baron target?"""
+        return self in (
+            MapObjectType.DUNGEON,
+            MapObjectType.ROBBER_BARON_CASTLE,
+            MapObjectType.BOSS_DUNGEON,
+        )
+
+    @property
+    def is_event(self) -> bool:
+        """Is this a temporary event target (Nomad, Samurai, Alien)?"""
+        return self in (
+            MapObjectType.NOMAD_CAMP,
+            MapObjectType.SAMURAI_CAMP,
+            MapObjectType.ALIEN_CAMP,
+            MapObjectType.SAMURAI_ALIEN_CAMP,
+            MapObjectType.RED_ALIEN_CAMP,
+            MapObjectType.ALLIANCE_NOMAD_CAMP,
+            MapObjectType.EVENT_DUNGEON,
+        )
+
+    @property
+    def is_resource(self) -> bool:
+        """Is this a resource village or island?"""
+        return self in (
+            MapObjectType.VILLAGE,
+            MapObjectType.ISLE_RESOURCE,
+            MapObjectType.FACTION_VILLAGE,
+        )
 
 
 class KingdomType(IntEnum):

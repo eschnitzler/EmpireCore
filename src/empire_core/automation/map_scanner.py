@@ -281,25 +281,61 @@ class MapScanner:
         results.sort(key=lambda t: t[1])
         return results
 
+    async def find_npc_targets(self, x: int, y: int, dist: float = 30.0) -> List[Tuple[Any, float]]:
+        """Find permanent NPC targets (Robber Barons, etc)."""
+        npc_types = [MapObjectType.ROBBER_BARON_CASTLE, MapObjectType.DUNGEON, MapObjectType.BOSS_DUNGEON]
+        return await self.find_nearby_targets(x, y, max_distance=dist, target_types=npc_types)
+
+    async def find_player_targets(self, x: int, y: int, dist: float = 50.0) -> List[Tuple[Any, float]]:
+        """Find player targets (Castles, Outposts)."""
+        player_types = [MapObjectType.CASTLE, MapObjectType.OUTPOST, MapObjectType.CAPITAL]
+        return await self.find_nearby_targets(x, y, max_distance=dist, target_types=player_types)
+
+    async def find_event_targets(self, x: int, y: int, dist: float = 40.0) -> List[Tuple[Any, float]]:
+        """Find active event targets (Nomads, Samurai, Aliens)."""
+        event_types = [
+            MapObjectType.NOMAD_CAMP,
+            MapObjectType.SAMURAI_CAMP,
+            MapObjectType.ALIEN_CAMP,
+            MapObjectType.RED_ALIEN_CAMP,
+        ]
+        return await self.find_nearby_targets(x, y, max_distance=dist, target_types=event_types)
+
     async def get_scan_summary(self) -> Dict[str, Any]:
         """Get summary including database stats."""
         mem_summary = {kid: len(chunks) for kid, chunks in self._scanned_chunks.items()}
         db_count = await self.client.db.get_object_count()
         db_types = await self.client.db.get_object_counts_by_type()
 
-        # Map type IDs back to names
+        # Map type IDs back to names and categories
         readable_types = {}
+        category_counts = {"Player": 0, "NPC": 0, "Event": 0, "Resource": 0, "Other": 0}
+
         for type_id, count in db_types.items():
             try:
-                name = MapObjectType(type_id).name
+                enum_type = MapObjectType(type_id)
+                name = enum_type.name
+                if enum_type.is_player:
+                    category_counts["Player"] += count
+                elif enum_type.is_npc:
+                    category_counts["NPC"] += count
+                elif enum_type.is_event:
+                    category_counts["Event"] += count
+                elif enum_type.is_resource:
+                    category_counts["Resource"] += count
+                else:
+                    category_counts["Other"] += count
             except ValueError:
                 name = f"Unknown({type_id})"
+                category_counts["Other"] += count
+
             readable_types[name] = count
 
         return {
             "memory_objects": len(self.map_objects),
             "database_objects": db_count,
             "objects_by_type": readable_types,
+            "objects_by_category": category_counts,
             "chunks_by_kingdom": mem_summary,
             "total_chunks_scanned": sum(mem_summary.values()),
         }

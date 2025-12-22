@@ -64,7 +64,11 @@ async def main(radius: int = 5, quit_on_empty: int = 5):
         ]
         print(tabulate(stats_data, headers=["Metric", "Value"], tablefmt="fancy_grid"))
         
-        print("\n📦 OBJECT BREAKDOWN")
+        print("\n📂 CATEGORY BREAKDOWN")
+        cat_data = [[cat, count] for cat, count in final_summary["objects_by_category"].items() if count > 0]
+        print(tabulate(cat_data, headers=["Category", "Count"], tablefmt="fancy_grid"))
+
+        print("\n📦 DETAILED TYPE BREAKDOWN")
         # Breakdown Table
         breakdown_data = []
         # Sort by count descending

@@ -27,6 +27,34 @@ class MapObject(BaseModel):
     alliance_id: int = Field(default=-1)
     alliance_name: str = Field(default="")
 
+    @property
+    def is_player(self) -> bool:
+        return self.type.is_player
+
+    @property
+    def is_npc(self) -> bool:
+        return self.type.is_npc
+
+    @property
+    def is_event(self) -> bool:
+        return self.type.is_event
+
+    @property
+    def is_resource(self) -> bool:
+        return self.type.is_resource
+
+    @property
+    def category(self) -> str:
+        if self.is_player:
+            return "Player"
+        if self.is_npc:
+            return "NPC"
+        if self.is_event:
+            return "Event"
+        if self.is_resource:
+            return "Resource"
+        return "Other"
+
 
 class Army(BaseModel):
     """Represents troops in a movement or castle."""
