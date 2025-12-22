@@ -106,9 +106,19 @@ class MapScanner:
         kingdom_id: int = 0,
         rescan: bool = False,
         rate_limit: float = DEFAULT_SCAN_RATE,
+        quit_on_empty: Optional[int] = None,
     ) -> ScanResult:
         """
         Scan an area around a center point and persist results.
+
+        Args:
+            center_x: Center X coordinate
+            center_y: Center Y coordinate
+            radius: Radius in chunks
+            kingdom_id: Kingdom to scan
+            rescan: Force rescan even if already scanned
+            rate_limit: Maximum chunks per second
+            quit_on_empty: If set, stop scan after this many consecutive chunks with no NEW objects.
         """
         start_time = time.time()
         objects_before = len(self.map_objects)
@@ -116,6 +126,7 @@ class MapScanner:
         chunks = self._generate_spiral_pattern(center_x, center_y, radius)
         total_chunks = len(chunks)
         completed = 0
+        consecutive_empty = 0
 
         if kingdom_id not in self._scanned_chunks:
             self._scanned_chunks[kingdom_id] = set()
@@ -140,23 +151,28 @@ class MapScanner:
             tile_y = chunk_y * MAP_CHUNK_SIZE
 
             try:
-                # Ensure we are connected before requesting
-                if not self.client.connection.connected or not self.client.is_logged_in:
-                    logger.warning("MapScanner: Connection lost during scan. Waiting for reconnection...")
-                    await self.client.wait_until_ready()
-
+                objs_before_chunk = len(self.map_objects)
                 await self.client.get_map_chunk(kingdom_id, tile_x, tile_y)
-
+                
                 # Wait for state update
-                await asyncio.sleep(0.2)
-
-                # Persist discovered objects to DB
-                await self.client.db.save_map_objects(list(self.map_objects.values()))
+                await asyncio.sleep(0.3)
+                
+                new_in_chunk = len(self.map_objects) - objs_before_chunk
+                if new_in_chunk > 0:
+                    consecutive_empty = 0
+                    # Persist discovered objects to DB
+                    await self.client.db.save_map_objects(list(self.map_objects.values()))
+                else:
+                    consecutive_empty += 1
 
                 # Update cache
                 self._scanned_chunks[kingdom_id].add(chunk_key)
                 await self.client.db.mark_chunk_scanned(kingdom_id, chunk_x, chunk_y)
-
+                
+                if quit_on_empty and consecutive_empty >= quit_on_empty:
+                    logger.info(f"MapScanner: Stopping early after {consecutive_empty} empty chunks.")
+                    break
+                
             except Exception as e:
                 logger.warning(f"Failed to scan chunk ({chunk_x}, {chunk_y}): {e}")
 
@@ -199,7 +215,9 @@ class MapScanner:
         logger.info(f"Scan complete: {completed} chunks, {objects_found} new objects saved to DB")
         return result
 
-    async def scan_around_castles(self, radius: int = 5, rescan: bool = False) -> List[ScanResult]:
+    async def scan_around_castles(
+        self, radius: int = 5, rescan: bool = False, quit_on_empty: Optional[int] = None
+    ) -> List[ScanResult]:
         """Scan areas around all player castles."""
         results: List[ScanResult] = []
         player = self.client.state.local_player
@@ -213,6 +231,7 @@ class MapScanner:
                 radius=radius,
                 kingdom_id=castle.KID,
                 rescan=rescan,
+                quit_on_empty=quit_on_empty,
             )
             results.append(result)
 
