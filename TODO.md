@@ -16,6 +16,11 @@
 - [x] Create `src/empire_core/cli.py` skeleton
 - [x] Register script entry point (`empire`)
 
-## Phase 4: Release Automation (Ready for CI)
+## Phase 4: Storage & Persistence
+- [x] Integrate `SQLModel` for ORM capabilities
+- [x] Implement `aiosqlite` for non-blocking DB access
+- [x] Persistent world map caching
+
+## Phase 5: Release Automation (Ready for CI)
 - [x] Configure `conventional-pre-commit` for commit validation
 - [ ] Setup GitHub Actions for automated publishing

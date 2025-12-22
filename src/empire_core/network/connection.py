@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Awaitable, Callable, Dict, Optional, Set, Tuple
+from typing import Awaitable, Callable, Dict, Optional, Set, Tuple, Union
 
 import aiohttp
 
@@ -25,8 +25,9 @@ class SFSConnection:
         # Waiters: cmd_id -> Set of (Future, Predicate)
         self._waiters: Dict[str, Set[Tuple[asyncio.Future, Callable[[Packet], bool]]]] = {}
 
-        # Global callback
+        # Callbacks
         self.packet_handler: Optional[Callable[[Packet], Awaitable[None]]] = None
+        self.on_close: Optional[Callable[[], Awaitable[None]]] = None
 
     @property
     def connected(self) -> bool:
@@ -39,10 +40,13 @@ class SFSConnection:
 
         logger.info(f"Connecting to {self.url}...")
         self._session = aiohttp.ClientSession()
-        # If ws_connect fails, the decorator catches it, logs, runs cleanup, and re-raises
-        self._ws = await self._session.ws_connect(self.url)
-        self._read_task = asyncio.create_task(self._read_loop())
-        logger.info("Connected.")
+        try:
+            self._ws = await self._session.ws_connect(self.url, heartbeat=30.0)
+            self._read_task = asyncio.create_task(self._read_loop())
+            logger.info("Connected.")
+        except Exception as e:
+            await self._close_resources()
+            raise e
 
     async def disconnect(self):
         logger.info("Disconnecting...")
@@ -69,17 +73,15 @@ class SFSConnection:
         for waiters in self._waiters.values():
             for fut, _ in waiters:
                 if not fut.done():
-                    fut.cancel()
+                    fut.set_exception(asyncio.CancelledError("Connection closed"))
         self._waiters.clear()
 
-    async def send(self, data: bytes | str):
+    async def send(self, data: Union[bytes, str]):
         if not self.connected:
             raise RuntimeError("Not connected")
 
         if self._ws is None:
             raise RuntimeError("WebSocket not initialized")
-
-        assert self._ws is not None  # Type hint for mypy
 
         if isinstance(data, bytes):
             data = data.decode("utf-8")
@@ -87,11 +89,19 @@ class SFSConnection:
         if data.endswith("\x00"):
             data = data[:-1]
 
-        await self._ws.send_str(data)
+        try:
+            await self._ws.send_str(data)
+        except Exception as e:
+            logger.error(f"Error sending data: {e}")
+            await self.disconnect()
+            raise e
 
     def create_waiter(self, cmd_id: str, predicate: Optional[Callable[[Packet], bool]] = None) -> asyncio.Future:
         if not self.connected:
-            raise RuntimeError("Cannot wait for packet when not connected")
+            # We don't raise here because we might be in the middle of reconnecting
+            # and want to set up a waiter for the next connection.
+            # But usually it's safer to ensure we are connected.
+            pass
 
         loop = asyncio.get_running_loop()
         fut = loop.create_future()
@@ -129,9 +139,10 @@ class SFSConnection:
         try:
             return await asyncio.wait_for(fut, timeout)
         except asyncio.TimeoutError:
+            from empire_core.exceptions import TimeoutError
+
             raise TimeoutError(f"Timed out waiting for command '{cmd_id}'")
 
-    @handle_errors(log_msg="Read loop error", ignore=(asyncio.CancelledError,))
     async def _read_loop(self):
         logger.debug("Read loop started.")
         if not self._ws:
@@ -146,8 +157,21 @@ class SFSConnection:
                 elif msg.type == aiohttp.WSMsgType.ERROR:
                     logger.error("WS connection closed with exception %s", self._ws.exception())
                     break
+                elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING):
+                    break
+        except Exception as e:
+            logger.error(f"Error in read loop: {e}")
         finally:
-            logger.warning("Connection closed.")
+            logger.warning("Connection lost.")
+            await self._close_resources()
+            self._cancel_all_waiters()
+            if self.on_close:
+                # Wrap in a coroutine to satisfy mypy
+                async def _trigger_close():
+                    if self.on_close:
+                        await self.on_close()
+
+                asyncio.create_task(_trigger_close())
 
     @handle_errors(log_msg="Failed to parse packet", re_raise=False)
     async def _process_message(self, data: bytes):

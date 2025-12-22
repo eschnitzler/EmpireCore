@@ -140,6 +140,11 @@ class MapScanner:
             tile_y = chunk_y * MAP_CHUNK_SIZE
 
             try:
+                # Ensure we are connected before requesting
+                if not self.client.connection.connected or not self.client.is_logged_in:
+                    logger.warning("MapScanner: Connection lost during scan. Waiting for reconnection...")
+                    await self.client.wait_until_ready()
+
                 await self.client.get_map_chunk(kingdom_id, tile_x, tile_y)
 
                 # Wait for state update
