@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
 World Mapper - A tool to build a local database of the game world.
-Usage: uv run examples/world_mapper.py [radius] [quit_after_empty_chunks]
+Usage: 
+    uv run examples/world_mapper.py [radius] [quit_after_empty_chunks]
+    uv run examples/world_mapper.py --full
 """
 
 import asyncio
@@ -21,8 +23,8 @@ logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s - %(levelname)s - %(mes
 logger = logging.getLogger("WorldMapper")
 
 
-async def main(radius: int = 5, quit_on_empty: int = 5):
-    # 1. Get account
+async def main(radius: int = 5, quit_on_empty: int = 5, full_scan: bool = False):
+    # 1. Get default account
     account = accounts.get_default()
     if not account:
         logger.error("No accounts configured.")
@@ -35,10 +37,11 @@ async def main(radius: int = 5, quit_on_empty: int = 5):
         logger.info(f"🔐 Logging in as {account.username}...")
         await client.login()
 
-        # 3. Wait for initial data
-        logger.info("📡 Fetching initial castle data...")
-        await client.get_detailed_castle_info()
-        await asyncio.sleep(2)
+        # 3. Wait for initial data (only if relying on castle location, skipped for full scan)
+        if not full_scan:
+            logger.info("📡 Fetching initial castle data...")
+            await client.get_detailed_castle_info()
+            await asyncio.sleep(2)
 
         # 4. Show current DB status
         summary = await client.scanner.get_scan_summary()
@@ -47,9 +50,21 @@ async def main(radius: int = 5, quit_on_empty: int = 5):
         )
 
         # 5. Start Scanning
-        logger.info(f"🛰️ Starting world scan (Radius: {radius} chunks, Early quit: {quit_on_empty})...")
-
-        await client.scanner.scan_around_castles(radius=radius, quit_on_empty=quit_on_empty)
+        if full_scan:
+            logger.info("🌍 STARTING FULL KINGDOM 0 SCAN (Center 600,600, Radius 60 chunks)...")
+            # Green Kingdom is roughly 0-1200 coords. Center ~600,600.
+            # 60 chunks * 13 tiles = 780 tiles radius -> Covers 0-1200 range nicely.
+            await client.scanner.scan_area(
+                center_x=600,
+                center_y=600,
+                radius=60,
+                kingdom_id=0,
+                rescan=False, 
+                quit_on_empty=None # Don't quit early on full scan
+            )
+        else:
+            logger.info(f"🛰️ Starting local scan (Radius: {radius} chunks, Early quit: {quit_on_empty})...")
+            await client.scanner.scan_around_castles(radius=radius, quit_on_empty=quit_on_empty)
 
         # 6. Final Report
         final_summary = await client.scanner.get_scan_summary()
@@ -58,7 +73,6 @@ async def main(radius: int = 5, quit_on_empty: int = 5):
         print("🌎 WORLD MAP SUMMARY")
         print("=" * 60)
         
-        # General Stats Table
         stats_data = [
             ["Total Objects", final_summary["database_objects"]],
             ["Total Chunks Scanned", final_summary["total_chunks_scanned"]],
@@ -71,9 +85,7 @@ async def main(radius: int = 5, quit_on_empty: int = 5):
         print(tabulate(cat_data, headers=["Category", "Count"], tablefmt="fancy_grid"))
 
         print("\n📦 DETAILED TYPE BREAKDOWN")
-        # Breakdown Table
         breakdown_data = []
-        # Sort by count descending
         sorted_types = sorted(final_summary["objects_by_type"].items(), key=lambda x: x[1], reverse=True)
         for obj_type, count in sorted_types:
             if count > 0:
@@ -89,18 +101,20 @@ async def main(radius: int = 5, quit_on_empty: int = 5):
 
 
 if __name__ == "__main__":
-    # Args: [radius] [quit_on_empty]
     scan_radius = 5
     early_quit = 5
+    full_scan = False
     
-    if len(sys.argv) > 1:
-        try:
-            scan_radius = int(sys.argv[1])
-        except ValueError: pass
+    args = sys.argv[1:]
     
-    if len(sys.argv) > 2:
+    if "--full" in args:
+        full_scan = True
+    elif len(args) >= 1:
         try:
-            early_quit = int(sys.argv[2])
-        except ValueError: pass
+            scan_radius = int(args[0])
+            if len(args) >= 2:
+                early_quit = int(args[1])
+        except ValueError:
+            pass
 
-    asyncio.run(main(scan_radius, early_quit))
+    asyncio.run(main(radius=scan_radius, quit_on_empty=early_quit, full_scan=full_scan))
