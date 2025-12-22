@@ -7,7 +7,7 @@ from pydantic import BaseModel
 # ============================================================
 
 # Map chunk size for gaa requests
-MAP_CHUNK_SIZE = 12
+MAP_CHUNK_SIZE = 10
 
 
 # Server error codes

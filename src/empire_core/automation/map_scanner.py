@@ -344,18 +344,28 @@ class MapScanner:
         }
 
     def _generate_spiral_pattern(self, center_x: int, center_y: int, radius: int) -> List[Tuple[int, int]]:
-        """Generate spiral scan pattern from center outward."""
-        center_chunk_x = center_x // MAP_CHUNK_SIZE
-        center_chunk_y = center_y // MAP_CHUNK_SIZE
+        """Generate spiral scan pattern from center outward, ensuring coordinates are positive."""
+        center_chunk_x = max(0, center_x // MAP_CHUNK_SIZE)
+        center_chunk_y = max(0, center_y // MAP_CHUNK_SIZE)
 
         chunks = [(center_chunk_x, center_chunk_y)]
 
         for r in range(1, radius + 1):
+            # Top row
             for x in range(center_chunk_x - r, center_chunk_x + r + 1):
-                chunks.append((x, center_chunk_y - r))
-                chunks.append((x, center_chunk_y + r))
+                if x >= 0 and (center_chunk_y - r) >= 0:
+                    chunks.append((x, center_chunk_y - r))
+            # Bottom row
+            for x in range(center_chunk_x - r, center_chunk_x + r + 1):
+                if x >= 0:
+                    chunks.append((x, center_chunk_y + r))
+            # Left column (excluding corners)
             for y in range(center_chunk_y - r + 1, center_chunk_y + r):
-                chunks.append((center_chunk_x - r, y))
-                chunks.append((center_chunk_x + r, y))
+                if (center_chunk_x - r) >= 0 and y >= 0:
+                    chunks.append((center_chunk_x - r, y))
+            # Right column (excluding corners)
+            for y in range(center_chunk_y - r + 1, center_chunk_y + r):
+                if y >= 0:
+                    chunks.append((center_chunk_x + r, y))
 
         return chunks

@@ -15,12 +15,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../s
 
 from empire_core import accounts
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+# Configure logging
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("WorldMapper")
 
 
 async def main(radius: int = 5, quit_on_empty: int = 5):
-    # 1. Get default account
+    # 1. Get account
     account = accounts.get_default()
     if not account:
         logger.error("No accounts configured.")
@@ -29,33 +31,33 @@ async def main(radius: int = 5, quit_on_empty: int = 5):
     client = account.get_client()
 
     try:
-        # 3. Login
+        # 2. Login
         logger.info(f"🔐 Logging in as {account.username}...")
         await client.login()
 
-        # 4. Wait for initial data
+        # 3. Wait for initial data
         logger.info("📡 Fetching initial castle data...")
         await client.get_detailed_castle_info()
         await asyncio.sleep(2)
 
-        # 5. Show current DB status
+        # 4. Show current DB status
         summary = await client.scanner.get_scan_summary()
         logger.info(
             f"📊 Current Database: {summary['database_objects']} objects across {summary['total_chunks_scanned']} chunks."
         )
 
-        # 6. Start Scanning
+        # 5. Start Scanning
         logger.info(f"🛰️ Starting world scan (Radius: {radius} chunks, Early quit: {quit_on_empty})...")
 
         await client.scanner.scan_around_castles(radius=radius, quit_on_empty=quit_on_empty)
 
-        # 7. Final Report
+        # 6. Final Report
         final_summary = await client.scanner.get_scan_summary()
-
+        
         print("\n" + "=" * 60)
         print("🌎 WORLD MAP SUMMARY")
         print("=" * 60)
-
+        
         # General Stats Table
         stats_data = [
             ["Total Objects", final_summary["database_objects"]],
@@ -63,7 +65,7 @@ async def main(radius: int = 5, quit_on_empty: int = 5):
             ["Memory Objects", final_summary["memory_objects"]],
         ]
         print(tabulate(stats_data, headers=["Metric", "Value"], tablefmt="fancy_grid"))
-
+        
         print("\n📂 CATEGORY BREAKDOWN")
         cat_data = [[cat, count] for cat, count in final_summary["objects_by_category"].items() if count > 0]
         print(tabulate(cat_data, headers=["Category", "Count"], tablefmt="fancy_grid"))
@@ -76,7 +78,7 @@ async def main(radius: int = 5, quit_on_empty: int = 5):
         for obj_type, count in sorted_types:
             if count > 0:
                 breakdown_data.append([obj_type, count])
-
+        
         print(tabulate(breakdown_data, headers=["Object Type", "Count"], tablefmt="fancy_grid"))
         print("=" * 60 + "\n")
 
@@ -90,17 +92,15 @@ if __name__ == "__main__":
     # Args: [radius] [quit_on_empty]
     scan_radius = 5
     early_quit = 5
-
+    
     if len(sys.argv) > 1:
         try:
             scan_radius = int(sys.argv[1])
-        except ValueError:
-            pass
-
+        except ValueError: pass
+    
     if len(sys.argv) > 2:
         try:
             early_quit = int(sys.argv[2])
-        except ValueError:
-            pass
+        except ValueError: pass
 
     asyncio.run(main(scan_radius, early_quit))

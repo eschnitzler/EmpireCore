@@ -1,5 +1,5 @@
 """
-Multi-account management.
+Multi-account management and account pooling.
 """
 
 import asyncio
@@ -35,11 +35,13 @@ class AccountPool:
     """
     Manages a pool of accounts loaded from the central registry.
     Allows bots to 'lease' accounts so they aren't used by multiple processes simultaneously.
+    Implements automatic cycling and cooldown handling.
     """
 
     def __init__(self):
         self._busy_accounts: Set[str] = set()  # Set of usernames currently in use
         self._clients: Dict[str, EmpireClient] = {}  # Active clients
+        self._last_leased_index = -1
 
     @property
     def all_accounts(self) -> List[AccountConfig]:
@@ -49,7 +51,18 @@ class AccountPool:
     def get_available_accounts(self, tag: Optional[str] = None) -> List[AccountConfig]:
         """Returns a list of idle accounts, optionally filtered by tag."""
         available = []
-        for acc in self.all_accounts:
+        all_accs = self.all_accounts
+        
+        # Sort/Cycle logic: Start from the next index after the last leased one
+        num_accs = len(all_accs)
+        if num_accs == 0:
+            return []
+            
+        start_idx = (self._last_leased_index + 1) % num_accs
+        cycled_indices = [(start_idx + i) % num_accs for i in range(num_accs)]
+        
+        for idx in cycled_indices:
+            acc = all_accs[idx]
             if acc.username not in self._busy_accounts and acc.enabled:
                 if tag is None or (acc.tags and tag in acc.tags):
                     available.append(acc)
@@ -58,7 +71,7 @@ class AccountPool:
     async def lease_account(self, username: Optional[str] = None, tag: Optional[str] = None) -> Optional[EmpireClient]:
         """
         Leases an account from the pool, logs it in, and returns the client.
-        Iterates through available accounts if one fails (e.g. cooldown).
+        Automatically cycles through available accounts if one is on cooldown.
         """
         candidates = []
 
@@ -74,6 +87,13 @@ class AccountPool:
             return None
 
         for target_account in candidates:
+            # Update last leased index to ensure true cycling
+            all_accs = self.all_accounts
+            for i, acc in enumerate(all_accs):
+                if acc.username == target_account.username:
+                    self._last_leased_index = i
+                    break
+
             # Mark as busy immediately
             self._busy_accounts.add(target_account.username)
 
@@ -100,7 +120,7 @@ class AccountPool:
                 await client.close()
                 continue
 
-        logger.error("AccountPool: All available accounts failed to login.")
+        logger.error("AccountPool: All available candidate accounts failed to login.")
         return None
 
     async def release_account(self, client: EmpireClient):
