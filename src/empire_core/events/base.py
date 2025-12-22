@@ -2,8 +2,7 @@ from typing import TYPE_CHECKING, Any, Dict, List
 
 from pydantic import BaseModel, ConfigDict
 
-if TYPE_CHECKING:
-    from empire_core.state.world_models import MapObject
+from empire_core.state.world_models import MapObject
 
 
 class Event(BaseModel):
@@ -32,7 +31,7 @@ class MapChunkParsedEvent(Event):
     """Triggered when a map chunk is parsed."""
 
     kingdom_id: int
-    map_objects: List["MapObject"]
+    map_objects: List[MapObject]
 
 
 # ============================================================
