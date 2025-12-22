@@ -134,3 +134,5 @@ dmypy.json
 # Config
 accounts.json
 *.db
+*.db-shm
+*.db-wal
