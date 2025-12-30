@@ -81,10 +81,15 @@ commit_message = "chore(release): {version}"
 tag_format = "v{version}"
 major_on_zero = false
 
+[tool.semantic_release.branches.master]
+match = "master"
+prerelease = false
+
 [tool.semantic_release.commit_parser_options]
 allowed_tags = ["feat", "fix", "perf", "refactor", "build", "chore", "docs", "style", "test"]
 minor_tags = ["feat"]
 patch_tags = ["fix", "perf", "refactor"]
+default_bump_level = 0
 
 [tool.semantic_release.remote]
 type = "github"
