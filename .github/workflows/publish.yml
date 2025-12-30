@@ -1,27 +1,22 @@
 name: Release
 
 on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [master]
   workflow_dispatch:
-    inputs:
-      bump:
-        description: 'Version bump type'
-        required: true
-        default: 'patch'
-        type: choice
-        options:
-          - patch
-          - minor
 
 jobs:
   release:
     name: Semantic Release
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     concurrency: release
     permissions:
       contents: write
     outputs:
       released: ${{ steps.release.outputs.released }}
-      version: ${{ steps.release.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,17 +39,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Force the bump type selected by user
-          uv run semantic-release version --${{ inputs.bump }} --no-push
-          
-          if [ -d "dist" ] && [ "$(ls -A dist)" ]; then
-            version=$(grep 'version = ' pyproject.toml | head -1 | cut -d'"' -f2)
+          output=$(uv run semantic-release version 2>&1) || true
+          echo "$output"
+          if echo "$output" | grep -q "No release will be made"; then
+            echo "released=false" >> $GITHUB_OUTPUT
+          elif [ -d "dist" ] && [ "$(ls -A dist)" ]; then
             echo "released=true" >> $GITHUB_OUTPUT
-            echo "version=$version" >> $GITHUB_OUTPUT
-            
-            # Push changes and publish
-            git push origin master
-            git push origin --tags
             uv run semantic-release publish
           else
             echo "released=false" >> $GITHUB_OUTPUT
@@ -70,8 +60,6 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: v${{ needs.release.outputs.version }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
