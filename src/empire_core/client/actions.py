@@ -410,3 +410,102 @@ class GameActionsMixin:
 
         await self._send_command_action("tru", payload, "Unit recruitment")
         return True
+
+    async def send_support(
+        self,
+        origin_castle_id: int,
+        target_x: int,
+        target_y: int,
+        kingdom_id: int,
+        units: List[List[int]],
+        target_location_id: int = -14,
+        world_type: int = 12,
+        wait_for_response: bool = False,
+        timeout: float = 5.0,
+    ) -> bool:
+        """
+        Send troops as support to a location (used for birding troops).
+
+        This uses the 'cds' command which sends troops to a map location
+        for support/defense. Commonly used for sending troops to bird
+        protection bookmarks.
+
+        Args:
+            origin_castle_id: ID of sending castle (SID)
+            target_x: Target X coordinate
+            target_y: Target Y coordinate
+            kingdom_id: Kingdom ID (0=Green, 2=Ice, 1=Sands, 3=Storm, 4=Fire)
+            units: List of [unit_id, count] pairs, max 10 per request
+            target_location_id: Target location ID (default -14 for bird)
+            world_type: World type (default 12)
+            wait_for_response: Wait for server confirmation
+            timeout: Response timeout in seconds
+
+        Returns:
+            bool: True if support sent successfully
+
+        Raises:
+            ActionError: If support fails
+
+        Example:
+            # Send 100 soldiers (unit 1) and 50 archers (unit 2) to bird
+            await client.send_support(
+                origin_castle_id=12345,
+                target_x=100,
+                target_y=200,
+                kingdom_id=0,
+                units=[[1, 100], [2, 50]]
+            )
+        """
+        logger.info(f"Sending support from castle {origin_castle_id} to ({target_x},{target_y})")
+
+        if not units or len(units) == 0:
+            raise ActionError("Must specify at least one unit for support")
+
+        # Limit to 10 units per request (game limitation)
+        if len(units) > 10:
+            logger.warning(f"Truncating units list from {len(units)} to 10 (max per request)")
+            units = units[:10]
+
+        payload = {
+            "SID": origin_castle_id,
+            "TX": target_x,
+            "TY": target_y,
+            "LID": target_location_id,
+            "WT": world_type,
+            "HBW": -1,
+            "BPC": 1,
+            "PTT": 1,
+            "SD": 0,
+            "A": units,
+            "KID": kingdom_id,
+        }
+
+        response = await self._send_command_action("cds", payload, "Support", wait_for_response, timeout)
+
+        if wait_for_response:
+            return self._parse_action_response(response, "support")
+        return True
+
+    async def get_bookmarks(
+        self,
+        wait_for_response: bool = True,
+        timeout: float = 5.0,
+    ) -> Any:
+        """
+        Get alliance bookmarks.
+
+        This uses the 'gbl' command to retrieve alliance bookmarks,
+        which can include bird protection locations.
+
+        Args:
+            wait_for_response: Wait for server response
+            timeout: Response timeout in seconds
+
+        Returns:
+            Bookmark data if wait_for_response, else True
+        """
+        logger.info("Getting alliance bookmarks")
+
+        response = await self._send_command_action("gbl", {}, "Get bookmarks", wait_for_response, timeout)
+        return response
