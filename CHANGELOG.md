@@ -2,6 +2,33 @@
 
 <!-- version list -->
 
+## v0.2.1 (2026-01-04)
+
+### Bug Fixes
+
+- Ensure publish job gets latest version after semantic-release bump
+  ([`272e3c3`](https://github.com/eschnitzler/EmpireCore/commit/272e3c3f38694da164af65b39d30f75a7dc582b0))
+
+- Exclude _archive from pytest collection
+  ([`2ba8b8c`](https://github.com/eschnitzler/EmpireCore/commit/2ba8b8cce5f51f8939831c2eb393c3ce56a19528))
+
+- Require env vars for credentials in examples
+  ([`cf005e3`](https://github.com/eschnitzler/EmpireCore/commit/cf005e34c179455abce766130cfcb50f5ecea8c2))
+
+- Resolve CI failures by archiving old async code and fixing type errors
+  ([`a514161`](https://github.com/eschnitzler/EmpireCore/commit/a51416187e9b59b87eead37f2a988d5b6fb369b9))
+
+### Code Style
+
+- Auto-fix ruff lint errors
+  ([`3483e3e`](https://github.com/eschnitzler/EmpireCore/commit/3483e3e56e514ecb047ab8c1560658568c9fa7c7))
+
+### Refactoring
+
+- Replace async architecture with sync + threading
+  ([`67315c6`](https://github.com/eschnitzler/EmpireCore/commit/67315c6699d580305cafe8cc5e165039ccb3cc4b))
+
+
 ## v0.2.0 (2025-12-31)
 
 ### Features
