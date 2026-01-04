@@ -11,10 +11,9 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
-from empire_core.events.base import PacketEvent
-
 from empire_core import accounts
 from empire_core.client.client import EmpireClient
+from empire_core.events.base import PacketEvent
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("Bot")

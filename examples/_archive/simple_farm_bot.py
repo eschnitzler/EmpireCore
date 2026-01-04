@@ -14,10 +14,9 @@ from typing import Dict
 # Add src to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
+from empire_core import accounts
 from empire_core.automation import tasks
 from empire_core.automation.target_finder import TargetFinder
-
-from empire_core import accounts
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("FarmBot")

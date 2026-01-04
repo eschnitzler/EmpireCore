@@ -6,10 +6,9 @@ import sys
 # Add src to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
-from empire_core.utils.account_loader import get_test_account
-
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
+from empire_core.utils.account_loader import get_test_account
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")

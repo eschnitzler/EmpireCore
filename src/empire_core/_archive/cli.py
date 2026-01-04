@@ -6,7 +6,6 @@ import asyncio
 import logging
 
 import typer
-
 from empire_core import accounts
 
 # Configure logging for CLI

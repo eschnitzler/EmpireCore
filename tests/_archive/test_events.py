@@ -6,10 +6,9 @@ import sys
 # Add src to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
-from empire_core.events.base import PacketEvent
-
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
+from empire_core.events.base import PacketEvent
 from empire_core.protocol.packet import Packet
 
 # Configure logging
