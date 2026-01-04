@@ -5,9 +5,11 @@ Uses a threaded Connection class, designed to work well with Discord.py
 by not competing for the event loop.
 """
 
+from __future__ import annotations
+
 import json
 import logging
-from typing import List, Optional
+from typing import TYPE_CHECKING, Callable, List, Optional, TypeVar
 
 from empire_core.config import (
     LOGIN_DEFAULTS,
@@ -17,11 +19,18 @@ from empire_core.config import (
 )
 from empire_core.exceptions import LoginCooldownError, LoginError, TimeoutError
 from empire_core.network.connection import Connection
+from empire_core.protocol.models import BaseRequest, BaseResponse, parse_response
 from empire_core.protocol.packet import Packet
+from empire_core.services import get_registered_services
 from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
 
+if TYPE_CHECKING:
+    from empire_core.services import BaseService
+
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T", bound=BaseResponse)
 
 
 class EmpireClient:
@@ -53,16 +62,52 @@ class EmpireClient:
         self.state = GameState()
         self.is_logged_in = False
 
+        # Command -> handlers mapping for efficient dispatch
+        # Only commands with handlers will be parsed
+        self._handlers: dict[str, list[Callable[[BaseResponse], None]]] = {}
+
         # Wire up packet handler for state updates
         self.connection.on_packet = self._on_packet
         self.connection.on_disconnect = self._on_disconnect
 
+        # Auto-attach registered services
+        self._services: dict[str, "BaseService"] = {}
+        for name, service_cls in get_registered_services().items():
+            service = service_cls(self)
+            self._services[name] = service
+            setattr(self, name, service)
+
+    def _register_handler(self, command: str, handler: Callable[[BaseResponse], None]) -> None:
+        """
+        Register a handler for a specific command.
+
+        Called by services to register interest in specific responses.
+        Only commands with handlers will be parsed and dispatched.
+        """
+        if command not in self._handlers:
+            self._handlers[command] = []
+        self._handlers[command].append(handler)
+
     def _on_packet(self, packet: Packet) -> None:
-        """Handle incoming packets for state updates."""
-        if packet.command_id and isinstance(packet.payload, dict):
-            # GameState.update_from_packet is async in the old code,
-            # but we can make a sync version or just update directly
-            self._update_state(packet.command_id, packet.payload)
+        """Handle incoming packets for state updates and service dispatch."""
+        cmd = packet.command_id
+        if not cmd or not isinstance(packet.payload, dict):
+            return
+
+        # Update internal state (always runs for state-tracked commands)
+        self._update_state(cmd, packet.payload)
+
+        # Only parse and dispatch if handlers are registered
+        handlers = self._handlers.get(cmd)
+        if handlers:
+            response = parse_response(cmd, packet.payload)
+            if response:
+                # Copy list to avoid issues if handlers are added during iteration
+                for handler in list(handlers):
+                    try:
+                        handler(response)
+                    except Exception:
+                        pass
 
     def _update_state(self, cmd: str, payload: dict) -> None:
         """Sync state update from packet."""
@@ -75,8 +120,8 @@ class EmpireClient:
                     try:
                         movement = Movement.model_validate(m_data)
                         self.state.movements[movement.MID] = movement
-                    except Exception as e:
-                        logger.debug(f"Failed to parse movement: {e}")
+                    except Exception:
+                        pass
 
     def _on_disconnect(self) -> None:
         """Handle disconnect."""
@@ -102,18 +147,15 @@ class EmpireClient:
             self.connection.connect(timeout=self.config.connection_timeout)
 
         # 1. Version Check
-        logger.debug("Sending version check...")
         ver_packet = f"<msg t='sys'><body action='verChk' r='0'><ver v='{self.config.game_version}' /></body></msg>"
         self.connection.send(ver_packet)
 
         try:
             response = self.connection.wait_for("apiOK", timeout=self.config.request_timeout)
-            logger.debug("Version OK")
         except TimeoutError:
             raise TimeoutError("Version check timed out")
 
         # 2. Zone Login (XML)
-        logger.debug(f"Entering zone {self.config.default_zone}...")
         login_packet = (
             f"<msg t='sys'><body action='login' r='0'>"
             f"<login z='{self.config.default_zone}'>"
@@ -125,24 +167,20 @@ class EmpireClient:
 
         try:
             self.connection.wait_for("rlu", timeout=self.config.login_timeout)
-            logger.debug("Zone entered (rlu received)")
         except TimeoutError:
             raise TimeoutError("Zone login timed out")
 
         # 3. AutoJoin Room
-        logger.debug("Joining room...")
         join_packet = "<msg t='sys'><body action='autoJoin' r='-1'></body></msg>"
         self.connection.send(join_packet)
 
         try:
             self.connection.wait_for("joinOK", timeout=self.config.request_timeout)
-            logger.debug("Room joined")
         except TimeoutError:
             # joinOK sometimes doesn't come, proceed anyway
-            logger.debug("joinOK timed out, proceeding...")
+            pass
 
         # 4. XT Login (Real Auth)
-        logger.debug(f"Authenticating as {self.username}...")
         xt_payload = {
             **LOGIN_DEFAULTS,
             "NOM": self.username,
@@ -174,6 +212,46 @@ class EmpireClient:
         self.is_logged_in = False
         self.connection.disconnect()
 
+    def send(
+        self,
+        request: BaseRequest,
+        wait: bool = False,
+        timeout: float = 5.0,
+    ) -> BaseResponse | None:
+        """
+        Send a request to the server using protocol models.
+
+        Args:
+            request: The request model to send
+            wait: Whether to wait for a response
+            timeout: Timeout in seconds when waiting
+
+        Returns:
+            The parsed response if wait=True, otherwise None
+
+        Example:
+            from empire_core.protocol.models import AllianceChatMessageRequest
+
+            request = AllianceChatMessageRequest.create("Hello!")
+            client.send(request)
+
+            # Or wait for response:
+            response = client.send(GetCastlesRequest(), wait=True)
+        """
+        packet = request.to_packet(zone=self.config.default_zone)
+        self.connection.send(packet)
+
+        if wait:
+            command = request.get_command()
+            try:
+                response_packet = self.connection.wait_for(command, timeout=timeout)
+                if response_packet and isinstance(response_packet.payload, dict):
+                    return parse_response(command, response_packet.payload)
+            except Exception:
+                return None
+
+        return None
+
     # ============================================================
     # Game Commands
     # ============================================================
@@ -196,7 +274,7 @@ class EmpireClient:
             try:
                 self.connection.wait_for("gam", timeout=timeout)
             except TimeoutError:
-                logger.warning("get_movements timed out")
+                pass
 
         return list(self.state.movements.values())
 
@@ -208,10 +286,18 @@ class EmpireClient:
             message: The message to send
         """
         # Alliance chat command: acm (Alliance Chat Message)
-        payload = {"TXT": message}
+        # Payload format: {"M": "message text"}
+        # Note: Special chars need encoding: % -> &percnt;, " -> &quot;, etc.
+        encoded_message = (
+            message.replace("%", "&percnt;")
+            .replace('"', "&quot;")
+            .replace("'", "&145;")
+            .replace("\n", "<br />")
+            .replace("\\", "%5C")
+        )
+        payload = {"M": encoded_message}
         packet = Packet.build_xt(self.config.default_zone, "acm", payload)
         self.connection.send(packet)
-        logger.debug(f"Sent alliance chat: {message}")
 
     def get_player_info(self, player_id: int, wait: bool = True, timeout: float = 5.0) -> Optional[dict]:
         """
@@ -234,7 +320,6 @@ class EmpireClient:
                 response = self.connection.wait_for("gpi", timeout=timeout)
                 return response.payload if isinstance(response.payload, dict) else None
             except TimeoutError:
-                logger.warning(f"get_player_info({player_id}) timed out")
                 return None
 
         return None
@@ -260,7 +345,6 @@ class EmpireClient:
                 response = self.connection.wait_for("gia", timeout=timeout)
                 return response.payload if isinstance(response.payload, dict) else None
             except TimeoutError:
-                logger.warning(f"get_alliance_info({alliance_id}) timed out")
                 return None
 
         return None
@@ -285,17 +369,42 @@ class EmpireClient:
     # Chat Subscription
     # ============================================================
 
+    def get_alliance_chat(self, wait: bool = True, timeout: float = 5.0) -> Optional[dict]:
+        """
+        Get alliance chat history.
+
+        Args:
+            wait: If True, wait for response
+            timeout: Timeout in seconds
+
+        Returns:
+            Chat history dict or None
+        """
+        # Alliance chat list command: acl
+        packet = Packet.build_xt(self.config.default_zone, "acl", {})
+        self.connection.send(packet)
+
+        if wait:
+            try:
+                response = self.connection.wait_for("acl", timeout=timeout)
+                return response.payload if isinstance(response.payload, dict) else None
+            except TimeoutError:
+                return None
+
+        return None
+
     def subscribe_alliance_chat(self, callback) -> None:
         """
         Subscribe to alliance chat messages.
 
         Args:
-            callback: Function to call with each chat packet
+            callback: Function to call with each chat packet.
+                      Packet payload will have format:
+                      {"CM": {"PN": "player_name", "MT": "message_text", ...}}
         """
-        # Alliance chat incoming: aci (Alliance Chat Incoming) or similar
-        # Need to verify the actual command ID from packet captures
-        self.connection.subscribe("aci", callback)
+        # Alliance chat messages come via 'acm' command (not 'aci')
+        self.connection.subscribe("acm", callback)
 
     def unsubscribe_alliance_chat(self, callback) -> None:
         """Unsubscribe from alliance chat."""
-        self.connection.unsubscribe("aci", callback)
+        self.connection.unsubscribe("acm", callback)

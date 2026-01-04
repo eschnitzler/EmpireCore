@@ -8,14 +8,15 @@
 <h1 align="center">EmpireCore</h1>
 
 <p align="center">
-  <strong>Fully typed Python API for Goodgame Empire</strong>
+  <strong>Fully typed Python library for Goodgame Empire</strong>
 </p>
 
 <p align="center">
   <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
   <a href="#quick-start">Quick Start</a> •
-  <a href="#roadmap">Roadmap</a>
+  <a href="#services">Services</a> •
+  <a href="#contributing">Contributing</a>
 </p>
 
 ---
@@ -28,16 +29,24 @@
 
 ## Features
 
-| Category | Capabilities |
+| Category | Description |
 |----------|-------------|
-| **Connection** | WebSocket with threading, auto-reconnect, keepalive, login cooldown handling |
+| **Connection** | WebSocket with background threads, auto-reconnect, keepalive |
+| **Protocol Models** | Pydantic models for all GGE commands with type-safe request/response handling |
+| **Services** | High-level APIs for alliance, castle, and more - auto-attached to client |
 | **State Tracking** | Player, castles, resources, movements |
-| **Protocol** | Packet parsing (XML handshake, XT/JSON game data) |
-| **Models** | Pydantic models for type-safe game data |
 
 ## Installation
 
-This project uses [uv](https://github.com/astral-sh/uv) for dependency management.
+```bash
+# Using uv (recommended)
+uv add empire-core
+
+# Or with pip
+pip install empire-core
+```
+
+For development:
 
 ```bash
 git clone https://github.com/eschnitzler/EmpireCore.git
@@ -53,45 +62,104 @@ from empire_core import EmpireClient
 client = EmpireClient(username="your_user", password="your_pass")
 client.login()
 
-movements = client.get_movements()
-print(f"Found {len(movements)} movements")
+# Services are auto-attached to the client
+client.alliance.send_chat("Hello alliance!")
+client.alliance.help_all()
 
-for m in client.get_incoming_attacks():
-    print(f"Incoming attack! {m.time_remaining}s remaining")
+castles = client.castle.get_all()
+for c in castles:
+    print(f"{c.castle_name} at ({c.x}, {c.y})")
 
 client.close()
 ```
 
-## Roadmap
+## Services
 
-### Done
+Services provide high-level APIs and are automatically attached to the client.
 
-- [x] **Sync Connection** - WebSocket with `websocket-client`, receive thread, keepalive thread
-- [x] **Message Routing** - Waiters (request/response) and Subscribers (pub/sub for events)
-- [x] **EmpireClient** - Login sequence, basic commands (get_movements, send_alliance_chat)
-- [x] **Packet Protocol** - XML and XT packet parsing
-- [x] **State Models** - Player, Castle, Movement, MapObject with Pydantic
+### AllianceService (`client.alliance`)
 
-### In Progress
+```python
+# Send chat message
+client.alliance.send_chat("Hello!")
 
-- [ ] **Alliance Chat Detection** - Identify incoming chat packet command ID
-- [ ] **State Manager Sync** - Port GameState from async to sync
+# Get chat history
+history = client.alliance.get_chat_log()
+for entry in history:
+    print(f"{entry.player_name}: {entry.decoded_text}")
 
-### Planned
+# Help all members
+response = client.alliance.help_all()
+print(f"Helped {response.helped_count} members")
 
-- [ ] **More Commands** - search_alliance, get_alliance_members, attack, transport, etc.
-- [ ] **AccountPool** - Manage multiple accounts for parallel operations
-- [ ] **Dreambot Integration** - Use from Discord.py via thread pool
+# Subscribe to incoming messages
+def on_message(msg):
+    print(f"[{msg.player_name}] {msg.decoded_text}")
 
-### Archived (for later)
+client.alliance.on_chat_message(on_message)
+```
 
-The following async services are archived in `_archive/` for future porting as needed:
+### CastleService (`client.castle`)
 
-- `AllianceService`, `ChatService` - Alliance management and chat
-- `MapScanner` - World map scanning
-- `ResourceManager`, `BuildingManager`, `UnitManager` - Automation
-- `DefenseManager`, `QuestService`, `BattleReportService` - Game automation
-- `EventManager` - Async event system
+```python
+# Get all castles
+castles = client.castle.get_all()
+
+# Get detailed info
+details = client.castle.get_details(castle_id=12345)
+print(f"Buildings: {len(details.buildings)}")
+
+# Select a castle
+client.castle.select(castle_id=12345)
+
+# Get resources
+resources = client.castle.get_resources(castle_id=12345)
+print(f"Wood: {resources.wood}, Stone: {resources.stone}")
+```
+
+## Protocol Models
+
+For lower-level access, use protocol models directly:
+
+```python
+from empire_core.protocol.models import (
+    AllianceChatMessageRequest,
+    GetCastlesRequest,
+    parse_response,
+)
+
+# Build a request
+request = AllianceChatMessageRequest.create("Hello 100%!")
+packet = request.to_packet()
+# -> "%xt%EmpireEx_21%acm%1%{"M": "Hello 100&percnt;!"}%"
+
+# Send via client
+client.send(request)
+
+# Or wait for response
+response = client.send(GetCastlesRequest(), wait=True)
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+
+- Adding new protocol commands
+- Creating new services
+- Protocol model conventions
+- Testing guidelines
+
+## Architecture
+
+```
+empire_core/
+├── client/          # EmpireClient - main entry point
+├── protocol/
+│   └── models/      # Pydantic models for GGE commands
+├── services/        # High-level service APIs
+├── state/           # Game state models
+└── network/         # WebSocket connection
+```
 
 ---
 
