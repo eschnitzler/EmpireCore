@@ -1,9 +1,7 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
+  push:
     branches: [master]
   workflow_dispatch:
 
@@ -11,17 +9,22 @@ jobs:
   release:
     name: Semantic Release
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     concurrency: release
     permissions:
       contents: write
+      id-token: write
     outputs:
       released: ${{ steps.release.outputs.released }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -37,7 +40,7 @@ jobs:
       - name: Semantic Release
         id: release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           output=$(uv run semantic-release version 2>&1) || true
           echo "$output"
@@ -45,10 +48,17 @@ jobs:
             echo "released=false" >> $GITHUB_OUTPUT
           elif [ -d "dist" ] && [ "$(ls -A dist)" ]; then
             echo "released=true" >> $GITHUB_OUTPUT
-            uv run semantic-release publish
           else
             echo "released=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Upload dist artifacts
+        if: steps.release.outputs.released == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 1
 
   publish:
     name: Publish to PyPI
@@ -59,24 +69,11 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
         with:
-          ref: master
-          fetch-depth: 0
-
-      - name: Pull latest changes
-        run: git pull origin master
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          version: "latest"
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Build package
-        run: uv build
+          name: dist
+          path: dist/
 
       - name: Upload to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
