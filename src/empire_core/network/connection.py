@@ -159,6 +159,8 @@ class Connection:
             data = data[:-1]
 
         try:
+            if self.ws is None:
+                raise RuntimeError("Not connected")
             self.ws.send(data)
             logger.debug(f"Sent: {data[:100]}...")
         except Exception as e:

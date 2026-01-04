@@ -48,7 +48,11 @@ class Account(BaseModel):
         """Create and return an EmpireClient for this account."""
         from empire_core.client.client import EmpireClient
 
-        return EmpireClient(self)
+        return EmpireClient(
+            username=self.username,
+            password=self.password,
+            config=self.to_empire_config(),
+        )
 
 
 class AccountRegistry:

@@ -1,8 +1,7 @@
 from typing import Any, Dict, List
 
-from pydantic import BaseModel, ConfigDict
-
 from empire_core.state.world_models import MapObject
+from pydantic import BaseModel, ConfigDict
 
 
 class Event(BaseModel):

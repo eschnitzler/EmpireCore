@@ -6,9 +6,9 @@ import logging
 import time
 from typing import Any, Callable, Dict, List, Optional, Set
 
-from empire_core.state.models import Building, Castle, Player, Alliance
-from empire_core.state.world_models import MapObject, Movement, MovementResources
+from empire_core.state.models import Alliance, Castle, Player
 from empire_core.state.unit_models import Army
+from empire_core.state.world_models import MapObject, Movement, MovementResources
 
 logger = logging.getLogger(__name__)
 

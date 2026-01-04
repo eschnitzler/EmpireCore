@@ -3,7 +3,6 @@ import logging
 from typing import Awaitable, Callable, Dict, Optional, Set, Tuple, Union
 
 import aiohttp
-
 from empire_core.protocol.packet import Packet
 from empire_core.utils.decorators import handle_errors
 

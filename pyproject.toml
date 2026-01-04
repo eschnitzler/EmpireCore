@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "empire-core"
 version = "0.2.0"
-description = "Asynchronous Python framework for Goodgame Empire"
+description = "Fully typed Python API for Goodgame Empire"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -27,8 +27,9 @@ dependencies = [
 [project.urls]
 Repository = "https://github.com/eschnitzler/EmpireCore"
 
-[project.scripts]
-empire = "empire_core.cli:app"
+# CLI temporarily disabled during sync refactor
+# [project.scripts]
+# empire = "empire_core.cli:app"
 
 [project.optional-dependencies]
 dev = [
@@ -67,6 +68,9 @@ python_files = "test_*.py"
 plugins = ["sqlalchemy.ext.mypy.plugin"]
 ignore_missing_imports = true
 check_untyped_defs = true
+exclude = [
+    ".*_archive.*",
+]
 
 
 [dependency-groups]

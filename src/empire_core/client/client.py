@@ -7,7 +7,7 @@ by not competing for the event loop.
 
 import json
 import logging
-from typing import Dict, List, Optional, Union
+from typing import List, Optional
 
 from empire_core.config import (
     LOGIN_DEFAULTS,
