@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, List, Optional, TypeVar
+from typing import TYPE_CHECKING, Callable, List, Optional, TypeVar
 
 from empire_core.config import (
     LOGIN_DEFAULTS,
@@ -62,6 +62,10 @@ class EmpireClient:
         self.state = GameState()
         self.is_logged_in = False
 
+        # Command -> handlers mapping for efficient dispatch
+        # Only commands with handlers will be parsed
+        self._handlers: dict[str, list[Callable[[BaseResponse], None]]] = {}
+
         # Wire up packet handler for state updates
         self.connection.on_packet = self._on_packet
         self.connection.on_disconnect = self._on_disconnect
@@ -73,24 +77,37 @@ class EmpireClient:
             self._services[name] = service
             setattr(self, name, service)
 
+    def _register_handler(self, command: str, handler: Callable[[BaseResponse], None]) -> None:
+        """
+        Register a handler for a specific command.
+
+        Called by services to register interest in specific responses.
+        Only commands with handlers will be parsed and dispatched.
+        """
+        if command not in self._handlers:
+            self._handlers[command] = []
+        self._handlers[command].append(handler)
+
     def _on_packet(self, packet: Packet) -> None:
         """Handle incoming packets for state updates and service dispatch."""
-        if packet.command_id and isinstance(packet.payload, dict):
-            # Update internal state
-            self._update_state(packet.command_id, packet.payload)
+        cmd = packet.command_id
+        if not cmd or not isinstance(packet.payload, dict):
+            return
 
-            # Parse response using protocol models and dispatch to services
-            response = parse_response(packet.command_id, packet.payload)
+        # Update internal state (always runs for state-tracked commands)
+        self._update_state(cmd, packet.payload)
+
+        # Only parse and dispatch if handlers are registered
+        handlers = self._handlers.get(cmd)
+        if handlers:
+            response = parse_response(cmd, packet.payload)
             if response:
-                self._dispatch_to_services(packet.command_id, response)
-
-    def _dispatch_to_services(self, command: str, response: BaseResponse) -> None:
-        """Dispatch a parsed response to all registered services."""
-        for service in self._services.values():
-            try:
-                service.handle_response(command, response)
-            except Exception:
-                pass
+                # Copy list to avoid issues if handlers are added during iteration
+                for handler in list(handlers):
+                    try:
+                        handler(response)
+                    except Exception:
+                        pass
 
     def _update_state(self, cmd: str, payload: dict) -> None:
         """Sync state update from packet."""

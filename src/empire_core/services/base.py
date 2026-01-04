@@ -54,7 +54,6 @@ class BaseService:
 
     def __init__(self, client: "EmpireClient") -> None:
         self.client = client
-        self._response_handlers: dict[str, list[Callable[[BaseResponse], None]]] = {}
 
     @property
     def zone(self) -> str:
@@ -91,26 +90,14 @@ class BaseService:
         """
         Register a handler for a specific response type.
 
+        Handlers are registered with the client for efficient routing.
+        Only commands with registered handlers will be parsed.
+
         Args:
             command: The command code to handle (e.g., "acm")
             handler: Callback function that receives the parsed response
         """
-        if command not in self._response_handlers:
-            self._response_handlers[command] = []
-        self._response_handlers[command].append(handler)
-
-    def handle_response(self, command: str, response: BaseResponse) -> None:
-        """
-        Dispatch a response to registered handlers.
-
-        Called by the client when a response is received.
-        """
-        handlers = self._response_handlers.get(command, [])
-        for handler in handlers:
-            try:
-                handler(response)
-            except Exception:
-                pass  # Silently ignore handler errors
+        self.client._register_handler(command, handler)
 
 
 __all__ = [

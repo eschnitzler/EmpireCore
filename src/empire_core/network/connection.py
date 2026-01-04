@@ -304,31 +304,43 @@ class Connection:
         1. Check waiters (consumed on match)
         2. Notify subscribers (broadcast)
         3. Call global handler
+
+        Uses copy-on-read pattern to minimize lock hold time.
         """
         cmd_id = packet.command_id
 
-        # 1. Check waiters first (request/response pattern)
+        waiter = None
+        callbacks = None
+
+        # Acquire locks briefly just to extract what we need
         if cmd_id:
+            # Check waiters (request/response pattern)
             with self._waiters_lock:
-                if cmd_id in self._waiters and self._waiters[cmd_id]:
-                    # Take the first waiter (FIFO)
-                    waiter = self._waiters[cmd_id].pop(0)
-                    if not self._waiters[cmd_id]:
+                waiters_list = self._waiters.get(cmd_id)
+                if waiters_list:
+                    waiter = waiters_list.pop(0)
+                    if not waiters_list:
                         del self._waiters[cmd_id]
-                    waiter.result = packet
-                    waiter.event.set()
 
-        # 2. Notify subscribers (pub/sub pattern)
-        if cmd_id:
+            # Get subscriber callbacks (copy the list)
             with self._subscribers_lock:
-                if cmd_id in self._subscribers:
-                    for callback in self._subscribers[cmd_id]:
-                        try:
-                            callback(packet)
-                        except Exception as e:
-                            logger.error(f"Subscriber error: {e}")
+                subs = self._subscribers.get(cmd_id)
+                if subs:
+                    callbacks = list(subs)
 
-        # 3. Global handler
+        # Now dispatch outside of locks
+        if waiter:
+            waiter.result = packet
+            waiter.event.set()
+
+        if callbacks:
+            for callback in callbacks:
+                try:
+                    callback(packet)
+                except Exception as e:
+                    logger.error(f"Subscriber error: {e}")
+
+        # Global handler
         if self.on_packet:
             try:
                 self.on_packet(packet)
