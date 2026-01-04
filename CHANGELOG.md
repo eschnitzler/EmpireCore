@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.3.1 (2026-01-04)
+
+### Bug Fixes
+
+- Use dynamic version from package metadata ([#4](https://github.com/eschnitzler/EmpireCore/pull/4),
+  [`4efe3d5`](https://github.com/eschnitzler/EmpireCore/commit/4efe3d51cbc0d8fc0b2ae69190205ed3c9b3434f))
+
+
 ## v0.3.0 (2026-01-04)
 
 ### Bug Fixes
