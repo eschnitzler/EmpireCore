@@ -38,6 +38,10 @@ class GameState:
 
         # Callbacks for specific events (optional)
         self.on_incoming_attack: Optional[Callable[[Movement], None]] = None
+        self.on_movement_recalled: Optional[Callable[[Movement], None]] = None
+
+        # Track movements that arrived normally (vs recalled)
+        self._arrived_movement_ids: Set[int] = set()
 
     def update_from_packet(self, cmd_id: str, payload: Dict[str, Any]) -> None:
         """
@@ -116,7 +120,19 @@ class GameState:
     def _handle_gam(self, data: Dict[str, Any]) -> None:
         """Handle 'Get Army Movements' response."""
         movements_list = data.get("M", [])
+        owners_list = data.get("O", [])  # Owner info array
         current_ids: Set[int] = set()
+
+        # Build owner lookup: OID -> {name, alliance_name}
+        owner_info: Dict[int, Dict[str, str]] = {}
+        for owner in owners_list:
+            if isinstance(owner, dict):
+                oid = owner.get("OID")
+                if oid:
+                    owner_info[oid] = {
+                        "name": owner.get("N", ""),
+                        "alliance_name": owner.get("AN", ""),
+                    }
 
         for m_wrapper in movements_list:
             if not isinstance(m_wrapper, dict):
@@ -131,7 +147,7 @@ class GameState:
                 continue
 
             current_ids.add(mid)
-            mov = self._parse_movement(m_data, m_wrapper)
+            mov = self._parse_movement(m_data, m_wrapper, owner_info)
             if not mov:
                 continue
 
@@ -148,9 +164,18 @@ class GameState:
 
             self.movements[mid] = mov
 
-        # Remove completed movements
+        # Remove completed movements and detect recalls
         removed_ids = self._previous_movement_ids - current_ids
         for mid in removed_ids:
+            # If we didn't get an arrival packet, this was a recall
+            if mid not in self._arrived_movement_ids:
+                recalled_mov = self.movements.get(mid)
+                if recalled_mov and self.on_movement_recalled:
+                    try:
+                        self.on_movement_recalled(recalled_mov)
+                    except Exception as e:
+                        logger.error(f"on_movement_recalled callback error: {e}")
+            self._arrived_movement_ids.discard(mid)
             self.movements.pop(mid, None)
 
         self._previous_movement_ids = current_ids
@@ -190,6 +215,7 @@ class GameState:
         """Handle movement arrival."""
         mid = data.get("MID")
         if mid:
+            self._arrived_movement_ids.add(mid)  # Mark as arrived, not recalled
             self.movements.pop(mid, None)
             self._previous_movement_ids.discard(mid)
 
@@ -197,10 +223,16 @@ class GameState:
         """Handle attack arrival."""
         mid = data.get("MID")
         if mid:
+            self._arrived_movement_ids.add(mid)  # Mark as arrived, not recalled
             self.movements.pop(mid, None)
             self._previous_movement_ids.discard(mid)
 
-    def _parse_movement(self, m_data: Dict[str, Any], m_wrapper: Optional[Dict[str, Any]] = None) -> Optional[Movement]:
+    def _parse_movement(
+        self,
+        m_data: Dict[str, Any],
+        m_wrapper: Optional[Dict[str, Any]] = None,
+        owner_info: Optional[Dict[int, Dict[str, str]]] = None,
+    ) -> Optional[Movement]:
         """Parse a Movement from packet data."""
         mid = m_data.get("MID")
         if not mid:
@@ -243,6 +275,20 @@ class GameState:
                         F=gs_data.get("F", 0),
                     )
 
+            # Extract owner names and alliances from owner_info
+            if owner_info:
+                # Attacker info (OID = owner of the movement)
+                attacker_id = mov.OID
+                if attacker_id in owner_info:
+                    mov.source_player_name = owner_info[attacker_id].get("name", "")
+                    mov.source_alliance_name = owner_info[attacker_id].get("alliance_name", "")
+
+                # Defender info (TID = target player)
+                defender_id = mov.TID
+                if defender_id in owner_info:
+                    mov.target_player_name = owner_info[defender_id].get("name", "")
+                    mov.target_alliance_name = owner_info[defender_id].get("alliance_name", "")
+
             return mov
         except Exception as e:
             logger.debug(f"Failed to parse movement {mid}: {e}")
@@ -259,11 +305,19 @@ class GameState:
         if not mov:
             return
 
-        if existing:
-            mov.created_at = existing.created_at
-        else:
+        is_new = existing is None
+        if is_new:
             mov.created_at = time.time()
             self._previous_movement_ids.add(mid)
+
+            # Trigger callback for new incoming attacks
+            if mov.is_incoming and mov.is_attack and self.on_incoming_attack:
+                try:
+                    self.on_incoming_attack(mov)
+                except Exception as e:
+                    logger.error(f"on_incoming_attack callback error: {e}")
+        elif existing:
+            mov.created_at = existing.created_at
 
         self.movements[mid] = mov
 

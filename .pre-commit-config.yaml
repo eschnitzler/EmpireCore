@@ -11,7 +11,7 @@ repos:
     rev: v1.8.0
     hooks:
       - id: mypy
-        additional_dependencies: [ pydantic, aiohttp, python-dotenv, typer, sqlmodel, aiosqlite, sqlalchemy, types-tabulate ]
+        additional_dependencies: [ pydantic, aiohttp, python-dotenv, typer, sqlmodel, aiosqlite, sqlalchemy, types-tabulate, types-requests, requests ]
         args: [ --config-file=pyproject.toml ]
         exclude: "_archive/"
 

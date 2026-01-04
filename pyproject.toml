@@ -40,6 +40,7 @@ dev = [
     "pre-commit>=3.5.0",
     "sqlalchemy[mypy]",
     "types-tabulate",
+    "types-requests",
     "python-semantic-release>=9.0.0",
 ]
 
