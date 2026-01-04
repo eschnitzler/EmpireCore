@@ -63,6 +63,7 @@ ignore = ["B904", "E501", "E701", "F841", "B007"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = "test_*.py"
+norecursedirs = ["_archive"]
 
 [tool.mypy]
 plugins = ["sqlalchemy.ext.mypy.plugin"]
