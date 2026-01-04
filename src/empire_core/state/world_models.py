@@ -131,6 +131,8 @@ class Movement(BaseModel):
     source_name: str = Field(default="")
     target_player_name: str = Field(default="")
     source_player_name: str = Field(default="")
+    target_alliance_name: str = Field(default="")
+    source_alliance_name: str = Field(default="")
 
     # Timestamps for tracking
     created_at: float = Field(default_factory=time.time)  # When we first saw this movement
@@ -226,8 +228,15 @@ class Movement(BaseModel):
 
     @property
     def unit_count(self) -> int:
-        """Total number of units in this movement."""
+        """Total number of units in this movement (includes all unit types)."""
         return sum(self.units.values())
+
+    @property
+    def troop_count(self) -> int:
+        """Count of actual troops only (excludes equipment/tools)."""
+        from empire_core.utils.troops import count_troops
+
+        return count_troops(self.units)
 
     def has_arrived(self) -> bool:
         """Check if movement has arrived (time remaining <= 0)."""
