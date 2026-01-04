@@ -24,9 +24,13 @@ logging.getLogger("websocket").setLevel(logging.WARNING)
 def main():
     from empire_core.client.client import EmpireClient
 
-    # Get credentials from environment or use test values
-    username = os.getenv("GGE_USERNAME", "Lirin")
-    password = os.getenv("GGE_PASSWORD", "1499")
+    # Get credentials from environment
+    username = os.getenv("GGE_USERNAME")
+    password = os.getenv("GGE_PASSWORD")
+
+    if not username or not password:
+        print("Error: GGE_USERNAME and GGE_PASSWORD environment variables required")
+        sys.exit(1)
 
     print(f"Testing client with user: {username}")
 
