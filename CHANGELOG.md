@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.4.0 (2026-01-04)
+
+### Bug Fixes
+
+- Use dynamic version from package metadata
+  ([`c09a706`](https://github.com/eschnitzler/EmpireCore/commit/c09a70661bc1f110a260bf599aa22b781b2bc0d6))
+
+### Features
+
+- Add troop filtering, alliance names, and recall detection
+  ([`803ac07`](https://github.com/eschnitzler/EmpireCore/commit/803ac079a682528dc6339e0efd8d2d8cf021c26c))
+
+
 ## v0.3.1 (2026-01-04)
 
 ### Bug Fixes
