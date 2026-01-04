@@ -1,6 +1,5 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/asyncio-powered-green.svg" alt="Asyncio">
   <img src="https://img.shields.io/badge/pydantic-v2-purple.svg" alt="Pydantic v2">
   <img src="https://img.shields.io/badge/tool-uv-orange.svg" alt="UV">
   <img src="https://img.shields.io/badge/status-WIP-red.svg" alt="Work in Progress">
@@ -9,22 +8,21 @@
 <h1 align="center">EmpireCore</h1>
 
 <p align="center">
-  <strong>Modern async Python library for Goodgame Empire automation</strong>
+  <strong>Fully typed Python API for Goodgame Empire</strong>
 </p>
 
 <p align="center">
   <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
   <a href="#quick-start">Quick Start</a> •
-  <a href="#examples">Examples</a> •
-  <a href="#documentation">Documentation</a>
+  <a href="#roadmap">Roadmap</a>
 </p>
 
 ---
 
-> **⚠️ Work in Progress**
+> **Warning: Work in Progress**
 > 
-> This library is under active development. APIs may change, and some features are incomplete or untested. Use at your own risk.
+> This library is under active development. APIs may change, and some features are incomplete or untested.
 
 ---
 
@@ -32,101 +30,68 @@
 
 | Category | Capabilities |
 |----------|-------------|
-| **Connection** | WebSocket, auto-reconnect, login cooldown handling |
-| **State Tracking** | Player, castles, resources, buildings, units, movements |
-| **Actions** | Attacks, transports, recruiting, building, with response validation |
-| **Automation** | Task loops, multi-account, target finder, map scanner |
-| **CLI** | Account status, login testing, state summary |
+| **Connection** | WebSocket with threading, auto-reconnect, keepalive, login cooldown handling |
+| **State Tracking** | Player, castles, resources, movements |
+| **Protocol** | Packet parsing (XML handshake, XT/JSON game data) |
+| **Models** | Pydantic models for type-safe game data |
 
 ## Installation
 
-This project uses [uv](https://github.com/astral-sh/uv) for blazing-fast dependency management.
+This project uses [uv](https://github.com/astral-sh/uv) for dependency management.
 
 ```bash
 git clone https://github.com/eschnitzler/EmpireCore.git
 cd EmpireCore
-
-# Install dependencies and create venv automatically
 uv sync
 ```
-
-### Traditional Installation (Pip)
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install .
-```
-
-## Configuration
-
-Create an `accounts.json` file in the root directory. You can use the provided template:
-
-```bash
-cp accounts.json.template accounts.json
-```
-
-Then edit `accounts.json` with your credentials. This file is git-ignored to keep your credentials safe.
 
 ## Quick Start
 
 ```python
-import asyncio
-from empire_core import accounts
+from empire_core import EmpireClient
 
-async def main():
-    # Load default account from accounts.json
-    account = accounts.get_default()
-    if not account:
-        print("Please configure accounts.json first!")
-        return
+client = EmpireClient(username="your_user", password="your_pass")
+client.login()
 
-    # Create client directly from account object
-    client = account.get_client()
-    
-    await client.login()
-    await client.get_detailed_castle_info()
-    
-    player = client.state.local_player
-    print(f"{player.name} | Level {player.level} | {player.gold} gold")
-    
-    await client.close()
+movements = client.get_movements()
+print(f"Found {len(movements)} movements")
 
-asyncio.run(main())
+for m in client.get_incoming_attacks():
+    print(f"Incoming attack! {m.time_remaining}s remaining")
+
+client.close()
 ```
 
-## CLI Tool
+## Roadmap
 
-The library includes a CLI for quick operations:
+### Done
 
-```bash
-# Check configured accounts
-uv run empire status
+- [x] **Sync Connection** - WebSocket with `websocket-client`, receive thread, keepalive thread
+- [x] **Message Routing** - Waiters (request/response) and Subscribers (pub/sub for events)
+- [x] **EmpireClient** - Login sequence, basic commands (get_movements, send_alliance_chat)
+- [x] **Packet Protocol** - XML and XT packet parsing
+- [x] **State Models** - Player, Castle, Movement, MapObject with Pydantic
 
-# Test login and show player stats
-uv run empire login
-```
+### In Progress
 
-## Running Examples & Tests
+- [ ] **Alliance Chat Detection** - Identify incoming chat packet command ID
+- [ ] **State Manager Sync** - Port GameState from async to sync
 
-```bash
-# Run the demo
-uv run examples/demo.py
+### Planned
 
-# Run unit tests
-uv run pytest
-```
+- [ ] **More Commands** - search_alliance, get_alliance_members, attack, transport, etc.
+- [ ] **AccountPool** - Manage multiple accounts for parallel operations
+- [ ] **Dreambot Integration** - Use from Discord.py via thread pool
 
-## Development
+### Archived (for later)
 
-We use `ruff` for linting and `mypy` for type checking.
+The following async services are archived in `_archive/` for future porting as needed:
 
-```bash
-# Setup pre-commit hooks
-uv run pre-commit install
-
-# Run all checks manually
-uv run pre-commit run --all-files
-```
+- `AllianceService`, `ChatService` - Alliance management and chat
+- `MapScanner` - World map scanning
+- `ResourceManager`, `BuildingManager`, `UnitManager` - Automation
+- `DefenseManager`, `QuestService`, `BattleReportService` - Game automation
+- `EventManager` - Async event system
 
 ---
 

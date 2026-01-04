@@ -1,229 +1,364 @@
-import asyncio
-import logging
-from typing import Awaitable, Callable, Dict, Optional, Set, Tuple, Union
+"""
+Synchronous WebSocket connection for EmpireCore.
 
-import aiohttp
+Uses websocket-client library with a dedicated receive thread.
+Designed to work well with Discord.py by not competing for the event loop.
+"""
+
+import logging
+import threading
+import time
+from dataclasses import dataclass, field
+from typing import Callable, Dict, List, Optional
+
+import websocket
 
 from empire_core.protocol.packet import Packet
-from empire_core.utils.decorators import handle_errors
 
 logger = logging.getLogger(__name__)
 
 
-class SFSConnection:
+@dataclass
+class ResponseWaiter:
+    """A waiter for a specific command response."""
+
+    event: threading.Event = field(default_factory=threading.Event)
+    result: Optional[Packet] = None
+    error: Optional[Exception] = None
+
+
+class Connection:
     """
-    Manages the WebSocket connection to the SmartFoxServer.
-    Handles async reading, writing, and packet dispatching.
+    Synchronous WebSocket connection with threaded message routing.
+
+    Features:
+    - Request/response pattern via waiters (consumed on match)
+    - Pub/sub pattern via subscribers (broadcast to all)
+    - Automatic keepalive thread
+    - Thread-safe operations
     """
 
     def __init__(self, url: str):
         self.url = url
-        self._session: Optional[aiohttp.ClientSession] = None
-        self._ws: Optional[aiohttp.ClientWebSocketResponse] = None
-        self._read_task: Optional[asyncio.Task] = None
-        self._disconnecting = False
+        self.ws: Optional[websocket.WebSocket] = None
 
-        # Waiters: cmd_id -> Set of (Future, Predicate)
-        self._waiters: Dict[str, Set[Tuple[asyncio.Future, Callable[[Packet], bool]]]] = {}
+        self._running = False
+        self._recv_thread: Optional[threading.Thread] = None
+        self._keepalive_thread: Optional[threading.Thread] = None
 
-        # Callbacks
-        self.packet_handler: Optional[Callable[[Packet], Awaitable[None]]] = None
-        self.on_close: Optional[Callable[[], Awaitable[None]]] = None
+        # Request/response waiters: cmd_id -> ResponseWaiter
+        # These are consumed when matched (one response per waiter)
+        self._waiters: Dict[str, List[ResponseWaiter]] = {}
+        self._waiters_lock = threading.Lock()
+
+        # Pub/sub subscribers: cmd_id -> list of callbacks
+        # These receive copies of all matching packets
+        self._subscribers: Dict[str, List[Callable[[Packet], None]]] = {}
+        self._subscribers_lock = threading.Lock()
+
+        # Global packet handler (for state updates, etc.)
+        self.on_packet: Optional[Callable[[Packet], None]] = None
+
+        # Disconnect callback
+        self.on_disconnect: Optional[Callable[[], None]] = None
 
     @property
     def connected(self) -> bool:
-        return self._ws is not None and not self._ws.closed
+        """Check if connection is active."""
+        return self.ws is not None and self.ws.connected and self._running
 
-    @handle_errors(log_msg="Connection failed", cleanup_method="_close_resources")
-    async def connect(self):
+    def connect(self, timeout: float = 10.0) -> None:
+        """
+        Connect to the WebSocket server.
+
+        Args:
+            timeout: Connection timeout in seconds
+        """
         if self.connected:
+            logger.warning("Already connected")
             return
 
         logger.info(f"Connecting to {self.url}...")
 
-        # Ensure previous resources are cleaned up
-        await self._close_resources()
+        self.ws = websocket.WebSocket()
+        self.ws.settimeout(timeout)
 
-        self._session = aiohttp.ClientSession()
         try:
-            # Add timeout to connection attempt
-            self._ws = await asyncio.wait_for(self._session.ws_connect(self.url, heartbeat=30.0), timeout=10.0)
-            self._read_task = asyncio.create_task(self._read_loop())
-            logger.info("Connected.")
-        except Exception as e:
-            await self._close_resources()
-            raise e
+            self.ws.connect(self.url)
+            self._running = True
 
-    async def disconnect(self):
-        """Cleanly disconnect and close resources."""
-        if self._disconnecting:
+            # Start receive thread
+            self._recv_thread = threading.Thread(
+                target=self._recv_loop,
+                name="EmpireCore-Recv",
+                daemon=True,
+            )
+            self._recv_thread.start()
+
+            # Start keepalive thread
+            self._keepalive_thread = threading.Thread(
+                target=self._keepalive_loop,
+                name="EmpireCore-Keepalive",
+                daemon=True,
+            )
+            self._keepalive_thread.start()
+
+            logger.info("Connected successfully")
+
+        except Exception as e:
+            logger.error(f"Connection failed: {e}")
+            self._cleanup()
+            raise
+
+    def disconnect(self) -> None:
+        """Disconnect from the server and cleanup resources."""
+        if not self._running:
             return
 
-        self._disconnecting = True
         logger.info("Disconnecting...")
+        self._running = False
 
-        try:
-            if self._read_task and not self._read_task.done():
-                self._read_task.cancel()
-                try:
-                    # Wait for read loop to finish its finally block
-                    await asyncio.wait_for(self._read_task, timeout=2.0)
-                except (asyncio.CancelledError, asyncio.TimeoutError):
-                    pass
+        # Cancel all waiters
+        self._cancel_all_waiters()
 
-            await self._close_resources()
-            self._cancel_all_waiters()
-            logger.info("Disconnected.")
-        finally:
-            self._disconnecting = False
+        # Close websocket
+        self._cleanup()
 
-    async def _close_resources(self):
-        """Close WebSocket and Session with timeouts."""
-        if self._ws:
+        # Wait for threads to finish
+        if self._recv_thread and self._recv_thread.is_alive():
+            self._recv_thread.join(timeout=2.0)
+        if self._keepalive_thread and self._keepalive_thread.is_alive():
+            self._keepalive_thread.join(timeout=2.0)
+
+        logger.info("Disconnected")
+
+    def _cleanup(self) -> None:
+        """Close websocket connection."""
+        if self.ws:
             try:
-                if not self._ws.closed:
-                    await asyncio.wait_for(self._ws.close(), timeout=2.0)
+                self.ws.close()
             except Exception:
                 pass
-            self._ws = None
+            self.ws = None
 
-        if self._session:
-            try:
-                if not self._session.closed:
-                    await asyncio.wait_for(self._session.close(), timeout=2.0)
-            except Exception:
-                pass
-            self._session = None
+    def send(self, data: str) -> None:
+        """
+        Send data to the server.
 
-    def _cancel_all_waiters(self):
-        """Cancel all pending futures with a descriptive exception."""
-        for waiters in list(self._waiters.values()):
-            for fut, _ in list(waiters):
-                if not fut.done():
-                    fut.set_exception(asyncio.CancelledError("Connection closed"))
-        self._waiters.clear()
+        Args:
+            data: String data to send
 
-    async def send(self, data: Union[bytes, str]):
-        """Send data to the server."""
+        Raises:
+            RuntimeError: If not connected
+        """
         if not self.connected:
             raise RuntimeError("Not connected")
 
-        if self._ws is None:
-            raise RuntimeError("WebSocket not initialized")
-
-        if isinstance(data, bytes):
-            data = data.decode("utf-8")
-
+        # Remove null terminator if present (we'll add it)
         if data.endswith("\x00"):
             data = data[:-1]
 
         try:
-            await self._ws.send_str(data)
+            self.ws.send(data)
+            logger.debug(f"Sent: {data[:100]}...")
         except Exception as e:
-            logger.error(f"Error sending data: {e}")
-            # Don't call disconnect() here to avoid potential recursion if disconnect calls send
-            # Instead, let the read loop handle the failure or the next operation
-            raise e
+            logger.error(f"Send failed: {e}")
+            raise
 
-    def create_waiter(self, cmd_id: str, predicate: Optional[Callable[[Packet], bool]] = None) -> asyncio.Future:
-        """Create a future that will be resolved when a matching packet arrives."""
-        loop = asyncio.get_running_loop()
-        fut = loop.create_future()
+    def send_bytes(self, data: bytes) -> None:
+        """Send raw bytes to the server."""
+        self.send(data.decode("utf-8"))
 
-        if cmd_id not in self._waiters:
-            self._waiters[cmd_id] = set()
-
-        if predicate is None:
-
-            def predicate(p):
-                return True
-
-        entry = (fut, predicate)
-        self._waiters[cmd_id].add(entry)
-
-        def _cleanup(_):
-            if cmd_id in self._waiters:
-                try:
-                    self._waiters[cmd_id].remove(entry)
-                    if not self._waiters[cmd_id]:
-                        del self._waiters[cmd_id]
-                except (KeyError, ValueError):
-                    pass
-
-        fut.add_done_callback(_cleanup)
-        return fut
-
-    async def wait_for(
+    def wait_for(
         self,
         cmd_id: str,
-        predicate: Optional[Callable[[Packet], bool]] = None,
         timeout: float = 5.0,
     ) -> Packet:
-        """Wait for a specific packet from the server."""
-        fut = self.create_waiter(cmd_id, predicate)
+        """
+        Wait for a response with the given command ID.
+
+        This is a blocking call that waits for a matching packet.
+        The waiter is consumed when a match is found.
+
+        Args:
+            cmd_id: Command ID to wait for
+            timeout: Timeout in seconds
+
+        Returns:
+            The matching Packet
+
+        Raises:
+            TimeoutError: If no response within timeout
+            RuntimeError: If connection closed while waiting
+        """
+        waiter = ResponseWaiter()
+
+        with self._waiters_lock:
+            if cmd_id not in self._waiters:
+                self._waiters[cmd_id] = []
+            self._waiters[cmd_id].append(waiter)
+
         try:
-            return await asyncio.wait_for(fut, timeout)
-        except asyncio.TimeoutError:
-            from empire_core.exceptions import TimeoutError
-
-            raise TimeoutError(f"Timed out waiting for command '{cmd_id}'")
-
-    async def _read_loop(self):
-        """Continuous loop reading from the WebSocket."""
-        logger.debug("Read loop started.")
-
-        try:
-            if not self._ws:
-                return
-
-            async for msg in self._ws:
-                if msg.type == aiohttp.WSMsgType.TEXT:
-                    await self._process_message(msg.data.encode("utf-8"))
-                elif msg.type == aiohttp.WSMsgType.BINARY:
-                    await self._process_message(msg.data)
-                elif msg.type == aiohttp.WSMsgType.ERROR:
-                    logger.error("WS connection error: %s", self._ws.exception())
-                    break
-                elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING):
-                    break
-        except Exception as e:
-            if not isinstance(e, asyncio.CancelledError):
-                logger.error(f"Error in read loop: {e}")
+            if waiter.event.wait(timeout=timeout):
+                if waiter.error:
+                    raise waiter.error
+                if waiter.result:
+                    return waiter.result
+                raise RuntimeError("Waiter completed without result")
+            else:
+                raise TimeoutError(f"Timeout waiting for '{cmd_id}'")
         finally:
-            logger.warning("Connection lost.")
-            await self._close_resources()
-            self._cancel_all_waiters()
-
-            # Notify client of disconnection in a safe way
-            if self.on_close and not self._disconnecting:
-
-                async def _trigger_close():
+            # Clean up waiter
+            with self._waiters_lock:
+                if cmd_id in self._waiters:
                     try:
-                        if self.on_close:
-                            await self.on_close()
-                    except Exception as e:
-                        logger.error(f"Error in on_close callback: {e}")
+                        self._waiters[cmd_id].remove(waiter)
+                        if not self._waiters[cmd_id]:
+                            del self._waiters[cmd_id]
+                    except ValueError:
+                        pass
 
-                asyncio.create_task(_trigger_close())
+    def subscribe(self, cmd_id: str, callback: Callable[[Packet], None]) -> None:
+        """
+        Subscribe to packets with the given command ID.
 
-    @handle_errors(log_msg="Failed to parse packet", re_raise=False)
-    async def _process_message(self, data: bytes):
-        packet = Packet.from_bytes(data)
-        await self._dispatch_packet(packet)
+        Unlike waiters, subscribers receive ALL matching packets
+        and are not consumed.
 
-    @handle_errors(log_msg="Error dispatching packet", re_raise=False)
-    async def _dispatch_packet(self, packet: Packet):
-        # 1. Notify Waiters
-        if packet.command_id and packet.command_id in self._waiters:
-            current_waiters = list(self._waiters[packet.command_id])
-            for fut, predicate in current_waiters:
-                if not fut.done():
-                    try:
-                        if predicate(packet):
-                            fut.set_result(packet)
-                    except Exception as e:
-                        logger.error(f"Error in waiter predicate: {e}")
+        Args:
+            cmd_id: Command ID to subscribe to
+            callback: Function to call with matching packets
+        """
+        with self._subscribers_lock:
+            if cmd_id not in self._subscribers:
+                self._subscribers[cmd_id] = []
+            self._subscribers[cmd_id].append(callback)
 
-        # 2. Global Handler
-        if self.packet_handler:
-            await self.packet_handler(packet)
+    def unsubscribe(self, cmd_id: str, callback: Callable[[Packet], None]) -> None:
+        """Remove a subscriber."""
+        with self._subscribers_lock:
+            if cmd_id in self._subscribers:
+                try:
+                    self._subscribers[cmd_id].remove(callback)
+                    if not self._subscribers[cmd_id]:
+                        del self._subscribers[cmd_id]
+                except ValueError:
+                    pass
+
+    def _recv_loop(self) -> None:
+        """Background thread that receives and routes messages."""
+        logger.debug("Receive loop started")
+
+        while self._running:
+            try:
+                if not self.ws:
+                    break
+
+                # Set a timeout so we can check _running periodically
+                self.ws.settimeout(1.0)
+
+                try:
+                    data = self.ws.recv()
+                except websocket.WebSocketTimeoutException:
+                    continue  # Check _running and try again
+
+                if not data:
+                    continue
+
+                # Parse packet
+                if isinstance(data, bytes):
+                    packet = Packet.from_bytes(data)
+                else:
+                    packet = Packet.from_bytes(data.encode("utf-8"))
+
+                # Route the packet
+                self._route_packet(packet)
+
+            except websocket.WebSocketConnectionClosedException:
+                logger.warning("Connection closed by server")
+                break
+            except Exception as e:
+                if self._running:
+                    logger.error(f"Error in receive loop: {e}")
+                break
+
+        # Connection lost
+        self._running = False
+        self._cancel_all_waiters()
+
+        if self.on_disconnect:
+            try:
+                self.on_disconnect()
+            except Exception as e:
+                logger.error(f"Error in disconnect callback: {e}")
+
+        logger.debug("Receive loop ended")
+
+    def _route_packet(self, packet: Packet) -> None:
+        """
+        Route a packet to waiters and subscribers.
+
+        Order:
+        1. Check waiters (consumed on match)
+        2. Notify subscribers (broadcast)
+        3. Call global handler
+        """
+        cmd_id = packet.command_id
+
+        # 1. Check waiters first (request/response pattern)
+        if cmd_id:
+            with self._waiters_lock:
+                if cmd_id in self._waiters and self._waiters[cmd_id]:
+                    # Take the first waiter (FIFO)
+                    waiter = self._waiters[cmd_id].pop(0)
+                    if not self._waiters[cmd_id]:
+                        del self._waiters[cmd_id]
+                    waiter.result = packet
+                    waiter.event.set()
+
+        # 2. Notify subscribers (pub/sub pattern)
+        if cmd_id:
+            with self._subscribers_lock:
+                if cmd_id in self._subscribers:
+                    for callback in self._subscribers[cmd_id]:
+                        try:
+                            callback(packet)
+                        except Exception as e:
+                            logger.error(f"Subscriber error: {e}")
+
+        # 3. Global handler
+        if self.on_packet:
+            try:
+                self.on_packet(packet)
+            except Exception as e:
+                logger.error(f"Packet handler error: {e}")
+
+    def _keepalive_loop(self) -> None:
+        """Background thread that sends keepalive pings."""
+        logger.debug("Keepalive loop started")
+
+        while self._running:
+            time.sleep(30)
+
+            if not self._running:
+                break
+
+            try:
+                # Send GGE-specific keepalive
+                self.send("%xt%EmpireEx_21%pin%1%<RoundHouseKick>%")
+                logger.debug("Sent keepalive ping")
+            except Exception as e:
+                if self._running:
+                    logger.error(f"Keepalive failed: {e}")
+                break
+
+        logger.debug("Keepalive loop ended")
+
+    def _cancel_all_waiters(self) -> None:
+        """Cancel all pending waiters."""
+        with self._waiters_lock:
+            for waiters in self._waiters.values():
+                for waiter in waiters:
+                    waiter.error = RuntimeError("Connection closed")
+                    waiter.event.set()
+            self._waiters.clear()

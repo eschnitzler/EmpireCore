@@ -1,194 +1,119 @@
-import asyncio
+"""
+EmpireClient for EmpireCore.
+
+Uses a threaded Connection class, designed to work well with Discord.py
+by not competing for the event loop.
+"""
+
 import json
 import logging
-import time
-from typing import TYPE_CHECKING, Awaitable, Callable, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from empire_core.config import (
     LOGIN_DEFAULTS,
-    MAP_CHUNK_SIZE,
     EmpireConfig,
     ServerError,
     default_config,
 )
-from empire_core.network.connection import SFSConnection
-
-if TYPE_CHECKING:
-    from empire_core.accounts import Account
-
-from empire_core.automation.alliance_tools import AllianceService, ChatService
-from empire_core.automation.battle_reports import BattleReportService
-from empire_core.automation.building_queue import BuildingManager
-from empire_core.automation.defense_manager import DefenseManager
-from empire_core.automation.map_scanner import MapScanner
-from empire_core.automation.quest_automation import QuestService
-from empire_core.automation.resource_manager import ResourceManager
-from empire_core.automation.unit_production import UnitManager
-from empire_core.client.actions import GameActionsMixin
-from empire_core.client.commands import GameCommandsMixin
-from empire_core.client.defense import DefenseService
-from empire_core.events.base import PacketEvent
-from empire_core.events.manager import EventManager
-from empire_core.exceptions import LoginError, TimeoutError
+from empire_core.exceptions import LoginCooldownError, LoginError, TimeoutError
+from empire_core.network.connection import Connection
 from empire_core.protocol.packet import Packet
 from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
-from empire_core.storage.database import GameDatabase
-from empire_core.utils.decorators import handle_errors
-from empire_core.utils.response_awaiter import ResponseAwaiter
 
 logger = logging.getLogger(__name__)
 
 
-class EmpireClient(
-    GameActionsMixin,
-    GameCommandsMixin,
-):
-    def __init__(self, config: Union[EmpireConfig, "Account", None] = None):
-        if config is None:
-            self.config = default_config
-        elif hasattr(config, "to_empire_config"):
-            # Handle Account object
-            self.config = config.to_empire_config()
-        else:
-            # Handle EmpireConfig object
-            self.config = config
+class EmpireClient:
+    """
+    Empire client for connecting to GGE game servers.
 
-        self.connection = SFSConnection(self.config.game_url)
-        self.username: Optional[str] = self.config.username
-        self.is_logged_in = False
+    This client uses blocking I/O with a background receive thread,
+    making it safe to use from Discord.py without blocking the event loop
+    (run client operations in a thread pool).
 
-        self.events = EventManager()
+    Usage:
+        client = EmpireClient(username="user", password="pass")
+        client.login()
+        movements = client.get_movements()
+        client.close()
+    """
+
+    def __init__(
+        self,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        config: Optional[EmpireConfig] = None,
+    ):
+        self.config = config or default_config
+        self.username = username or self.config.username
+        self.password = password or self.config.password
+
+        self.connection = Connection(self.config.game_url)
         self.state = GameState()
-        self.db = GameDatabase()
-
-        # Services (Composition)
-        self.scanner = MapScanner(self)
-        self.resources = ResourceManager(self)
-        self.buildings = BuildingManager(self)
-        self.units = UnitManager(self)
-        self.quests = QuestService(self)
-        self.defense_manager = DefenseManager(self)
-
-        # Core Services
-        self.defense = DefenseService(self)
-        self.reports = BattleReportService(self)
-        self.alliance = AllianceService(self)
-        self.chat = ChatService(self)
-
-        self.response_awaiter = ResponseAwaiter()
-        self.connection.packet_handler = self._on_packet
-        self.connection.on_close = self._handle_disconnect
-
-        self._reconnect_task: Optional[asyncio.Task] = None
-        self._auto_reconnect = True
-        self._max_reconnect_attempts = 10
-        self._reconnect_delay = 5.0  # Initial delay
-        self._is_reconnecting = False
-
-    async def _handle_disconnect(self):
-        """Called when the underlying connection is lost."""
         self.is_logged_in = False
-        logger.warning("Client: Connection lost. Resetting logged_in state.")
 
-        if self._auto_reconnect and not self._reconnect_task:
-            self._is_reconnecting = True
-            self._reconnect_task = asyncio.create_task(self._reconnect_loop())
+        # Wire up packet handler for state updates
+        self.connection.on_packet = self._on_packet
+        self.connection.on_disconnect = self._on_disconnect
 
-    async def _reconnect_loop(self):
-        """Internal loop to handle reconnection attempts."""
-        attempt = 0
-        delay = self._reconnect_delay
-
-        try:
-            while attempt < self._max_reconnect_attempts:
-                if self.is_logged_in:
-                    break
-
-                attempt += 1
-                logger.info(f"Client: Reconnection attempt {attempt}/{self._max_reconnect_attempts} in {delay}s...")
-                await asyncio.sleep(delay)
-
-                try:
-                    # Try to re-login (login() handles connect() + handshake)
-                    await self.login()
-                    logger.info("Client: Reconnection successful!")
-                    return
-                except Exception as e:
-                    logger.error(f"Client: Reconnection attempt {attempt} failed: {e}")
-                    # Exponential backoff
-                    delay = min(delay * 2, 60.0)
-
-            logger.critical("Client: Maximum reconnection attempts reached. Giving up.")
-        finally:
-            self._reconnect_task = None
-            self._is_reconnecting = False
-
-    @property
-    def event(self):
-        """Decorator for registering event handlers."""
-        return self.events.listen
-
-    @handle_errors(log_msg="Error processing packet", re_raise=False)
-    async def _on_packet(self, packet: Packet):
-        """Global packet handler called by connection."""
-        logger.debug(f"Client received packet: {packet.command_id}")
-
-        if packet.command_id == "gaa":
-            logger.debug(f"GAA Payload: {packet.payload}")
-
-        # Update State
+    def _on_packet(self, packet: Packet) -> None:
+        """Handle incoming packets for state updates."""
         if packet.command_id and isinstance(packet.payload, dict):
-            await self.state.update_from_packet(packet.command_id, packet.payload)
+            # GameState.update_from_packet is async in the old code,
+            # but we can make a sync version or just update directly
+            self._update_state(packet.command_id, packet.payload)
 
-        # Notify response awaiter - Pass FULL packet so error_code is available
-        if packet.command_id:
-            self.response_awaiter.set_response(packet.command_id, packet)
+    def _update_state(self, cmd: str, payload: dict) -> None:
+        """Sync state update from packet."""
+        # Handle movement updates
+        if cmd == "gam":
+            # Get Army Movements response
+            if "M" in payload:
+                self.state.movements.clear()
+                for m_data in payload["M"]:
+                    try:
+                        movement = Movement.model_validate(m_data)
+                        self.state.movements[movement.MID] = movement
+                    except Exception as e:
+                        logger.debug(f"Failed to parse movement: {e}")
 
-        pkt_event = PacketEvent(
-            command_id=packet.command_id or "unknown",
-            payload=packet.payload,
-            is_xml=packet.is_xml,
-        )
-        await self.events.emit(pkt_event)
+    def _on_disconnect(self) -> None:
+        """Handle disconnect."""
+        self.is_logged_in = False
+        logger.warning("Client disconnected")
 
-    @handle_errors(log_msg="Login failed")
-    async def login(self, username: Optional[str] = None, password: Optional[str] = None):
+    def login(self) -> None:
         """
-        Performs the full login sequence:
-        Connect -> Version Check -> XML Login (Zone) -> AutoJoin -> XT Login (Auth)
+        Perform the full login sequence:
+        1. Connect WebSocket
+        2. Version Check
+        3. Zone Login (XML)
+        4. AutoJoin Room
+        5. XT Login (Auth)
         """
-        username = username or self.config.username
-        password = password or self.config.password
+        if not self.username or not self.password:
+            raise ValueError("Username and password are required")
 
-        if not username or not password:
-            raise ValueError("Username and password must be provided")
+        logger.info(f"Logging in as {self.username}...")
 
-        self.username = username
-
-        # 0. Initialize Database & Services
-        await self.db.initialize()
-        await self.scanner.initialize()
-
+        # Connect if not already connected
         if not self.connection.connected:
-            await self.connection.connect()
+            self.connection.connect(timeout=self.config.connection_timeout)
 
         # 1. Version Check
-        logger.info("Handshake: Sending Version Check...")
-        ver_waiter = self.connection.create_waiter("apiOK", predicate=lambda p: p.is_xml and p.command_id == "apiOK")
-
+        logger.debug("Sending version check...")
         ver_packet = f"<msg t='sys'><body action='verChk' r='0'><ver v='{self.config.game_version}' /></body></msg>"
-        await self.connection.send(ver_packet)
+        self.connection.send(ver_packet)
 
         try:
-            await asyncio.wait_for(ver_waiter, timeout=self.config.request_timeout)
-            logger.info("Handshake: Version OK.")
-        except asyncio.TimeoutError:
-            raise TimeoutError("Handshake: Version Check timed out.")
+            response = self.connection.wait_for("apiOK", timeout=self.config.request_timeout)
+            logger.debug("Version OK")
+        except TimeoutError:
+            raise TimeoutError("Version check timed out")
 
-        # 2. XML Login (Zone Entry)
-        logger.info(f"Handshake: Entering Zone {self.config.default_zone}...")
-
+        # 2. Zone Login (XML)
+        logger.debug(f"Entering zone {self.config.default_zone}...")
         login_packet = (
             f"<msg t='sys'><body action='login' r='0'>"
             f"<login z='{self.config.default_zone}'>"
@@ -196,274 +121,181 @@ class EmpireClient(
             f"<pword><![CDATA[undefined%en%0]]></pword>"
             f"</login></body></msg>"
         )
-
-        # Wait for 'rlu' (Room List Update)
-        rlu_waiter = self.connection.create_waiter("rlu")
-
-        await self.connection.send(login_packet)
+        self.connection.send(login_packet)
 
         try:
-            await asyncio.wait_for(rlu_waiter, timeout=self.config.login_timeout)
-            logger.info("Handshake: Received Room List (Zone Entered).")
-        except asyncio.TimeoutError:
-            raise TimeoutError("Handshake: Zone Login (rlu) timed out.")
+            self.connection.wait_for("rlu", timeout=self.config.login_timeout)
+            logger.debug("Zone entered (rlu received)")
+        except TimeoutError:
+            raise TimeoutError("Zone login timed out")
 
-        # 3. AutoJoin (Room Join)
-        logger.info("Handshake: Joining Room (AutoJoin)...")
+        # 3. AutoJoin Room
+        logger.debug("Joining room...")
         join_packet = "<msg t='sys'><body action='autoJoin' r='-1'></body></msg>"
-
-        join_ok_waiter = self.connection.create_waiter(
-            "joinOK", predicate=lambda p: p.is_xml and p.command_id == "joinOK"
-        )
-
-        await self.connection.send(join_packet)
+        self.connection.send(join_packet)
 
         try:
-            await asyncio.wait_for(join_ok_waiter, timeout=self.config.request_timeout)
-            logger.info("Handshake: Room Joined (joinOK received).")
-        except asyncio.TimeoutError:
-            logger.warning("Handshake: joinOK timed out, but proceeding...")
+            self.connection.wait_for("joinOK", timeout=self.config.request_timeout)
+            logger.debug("Room joined")
+        except TimeoutError:
+            # joinOK sometimes doesn't come, proceed anyway
+            logger.debug("joinOK timed out, proceeding...")
 
         # 4. XT Login (Real Auth)
-        logger.info(f"Handshake: Authenticating as {username}...")
-
-        xt_login_payload = {
+        logger.debug(f"Authenticating as {self.username}...")
+        xt_payload = {
             **LOGIN_DEFAULTS,
-            "NOM": username,
-            "PW": password,
+            "NOM": self.username,
+            "PW": self.password,
         }
-
-        xt_packet = f"%xt%{self.config.default_zone}%lli%1%{json.dumps(xt_login_payload)}%"
-
-        # Wait for lli response
-        lli_waiter = self.connection.create_waiter("lli")
-        await self.connection.send(xt_packet)
+        xt_packet = f"%xt%{self.config.default_zone}%lli%1%{json.dumps(xt_payload)}%"
+        self.connection.send(xt_packet)
 
         try:
-            lli_packet = await asyncio.wait_for(lli_waiter, timeout=self.config.login_timeout)
+            lli_response = self.connection.wait_for("lli", timeout=self.config.login_timeout)
 
-            # Check status
-            if lli_packet.error_code != 0:
-                # Check for cooldown
-                if lli_packet.error_code == ServerError.LOGIN_COOLDOWN:
+            if lli_response.error_code != 0:
+                if lli_response.error_code == ServerError.LOGIN_COOLDOWN:
                     cooldown = 0
-                    if isinstance(lli_packet.payload, dict):
-                        cooldown = int(lli_packet.payload.get("CD", 0))
-
-                    logger.warning(f"Handshake: Login Slowdown active. Wait {cooldown}s.")
-                    from empire_core.exceptions import LoginCooldownError
-
+                    if isinstance(lli_response.payload, dict):
+                        cooldown = int(lli_response.payload.get("CD", 0))
                     raise LoginCooldownError(cooldown)
 
-                logger.error(f"Handshake: Auth Failed with status {lli_packet.error_code}")
-                raise LoginError(f"Auth Failed with status {lli_packet.error_code}")
+                raise LoginError(f"Auth failed with code {lli_response.error_code}")
 
-            logger.info("Handshake: Authenticated.")
-        except asyncio.TimeoutError:
-            raise TimeoutError("XT Login timed out.")
+            logger.info(f"Logged in as {self.username}")
+            self.is_logged_in = True
 
-        self.is_logged_in = True
-        logger.info("Handshake: Ready.")
+        except TimeoutError:
+            raise TimeoutError("XT login timed out")
 
-    @handle_errors(log_msg="Error getting map chunk")
-    async def get_map_chunk(self, kingdom: int, x: int, y: int):
-        """
-        Requests a chunk of the map.
-
-        Args:
-            kingdom: Kingdom ID (0=Green, 2=Ice, 1=Sands, 3=Fire)
-            x: Top-Left X
-            y: Top-Left Y
-        """
-        # Command: gaa (Get Area)
-        payload = {
-            "KID": kingdom,
-            "AX1": x,
-            "AY1": y,
-            "AX2": x + MAP_CHUNK_SIZE,
-            "AY2": y + MAP_CHUNK_SIZE,
-        }
-
-        packet = Packet.build_xt(self.config.default_zone, "gaa", payload)
-        await self.connection.send(packet)
-
-    @handle_errors(log_msg="Error getting movements")
-    async def get_movements(self):
-        """
-        Requests list of army movements.
-        """
-        packet = Packet.build_xt(self.config.default_zone, "gam", {})
-        await self.connection.send(packet)
-
-    @handle_errors(log_msg="Error getting detailed castle info")
-    async def get_detailed_castle_info(self):
-        """
-        Requests detailed information for all own castles (Resources, Units, etc.).
-        """
-        packet = Packet.build_xt(self.config.default_zone, "dcl", {})
-        await self.connection.send(packet)
-
-    @handle_errors(log_msg="Error closing client", re_raise=False)
-    async def close(self):
-        self._auto_reconnect = False
-        if self._reconnect_task:
-            self._reconnect_task.cancel()
-        await self.connection.disconnect()
-        await self.db.close()
-
-    async def wait_until_ready(self, timeout: float = 60.0):
-        """Wait until the client is logged in and ready."""
-        if self.is_logged_in:
-            return
-
-        start = time.time()
-        while not self.is_logged_in:
-            if (time.time() - start) > timeout:
-                raise TimeoutError("Timed out waiting for client to be ready")
-
-            if not self._is_reconnecting and not self.connection.connected:
-                # If we are not logged in, not reconnecting, and not connected,
-                # then we've either given up or auto-reconnect is off.
-                raise RuntimeError("Client not connected and not attempting reconnection.")
-
-            await asyncio.sleep(0.5)
+    def close(self) -> None:
+        """Disconnect from the server."""
+        self.is_logged_in = False
+        self.connection.disconnect()
 
     # ============================================================
-    # Movement Tracking Methods
+    # Game Commands
     # ============================================================
 
-    @property
-    def movements(self) -> Dict[int, Movement]:
-        """Get all currently tracked movements."""
-        return self.state.movements
-
-    def get_all_movements(self) -> List[Movement]:
-        """Get all tracked movements as a list."""
-        return self.state.get_all_movements()
-
-    def get_incoming_movements(self) -> List[Movement]:
-        """Get all incoming movements (attacks, supports, transports to us)."""
-        return self.state.get_incoming_movements()
-
-    def get_outgoing_movements(self) -> List[Movement]:
-        """Get all outgoing movements (our attacks, transports, etc.)."""
-        return self.state.get_outgoing_movements()
-
-    def get_returning_movements(self) -> List[Movement]:
-        """Get all returning movements (armies coming back)."""
-        return self.state.get_returning_movements()
-
-    def get_incoming_attacks(self) -> List[Movement]:
-        """Get all incoming attack movements (high priority)."""
-        return self.state.get_incoming_attacks()
-
-    def get_movements_to_castle(self, castle_id: int) -> List[Movement]:
-        """Get all movements targeting a specific castle."""
-        return self.state.get_movements_to_castle(castle_id)
-
-    def get_movements_from_castle(self, castle_id: int) -> List[Movement]:
-        """Get all movements originating from a specific castle."""
-        return self.state.get_movements_from_castle(castle_id)
-
-    def get_next_arrival(self) -> Optional[Movement]:
-        """Get the movement that will arrive soonest."""
-        return self.state.get_next_arrival()
-
-    def get_movement(self, movement_id: int) -> Optional[Movement]:
-        """Get a specific movement by ID."""
-        return self.state.get_movement_by_id(movement_id)
-
-    @handle_errors(log_msg="Error refreshing movements")
-    async def refresh_movements(self, wait: bool = True, timeout: float = 5.0) -> List[Movement]:
+    def get_movements(self, wait: bool = True, timeout: float = 5.0) -> List[Movement]:
         """
-        Refresh movement data from server.
+        Request army movements from server.
 
         Args:
-            wait: Wait for response before returning
+            wait: If True, wait for response before returning
             timeout: Timeout in seconds when waiting
 
         Returns:
-            List of all current movements
+            List of Movement objects
         """
-        if wait:
-            self.response_awaiter.create_waiter("gam")
-
-        await self.get_movements()
+        packet = Packet.build_xt(self.config.default_zone, "gam", {})
+        self.connection.send(packet)
 
         if wait:
             try:
-                await self.response_awaiter.wait_for("gam", timeout=timeout)
-            except asyncio.TimeoutError:
-                logger.warning("Refresh movements timed out")
+                self.connection.wait_for("gam", timeout=timeout)
+            except TimeoutError:
+                logger.warning("get_movements timed out")
 
-        return self.get_all_movements()
+        return list(self.state.movements.values())
 
-    async def watch_movements(
-        self,
-        interval: float = 5.0,
-        callback: Optional[Callable[[List[Movement]], Awaitable[None]]] = None,
-        stop_event: Optional[asyncio.Event] = None,
-    ):
+    def send_alliance_chat(self, message: str) -> None:
         """
-        Continuously poll for movement updates.
+        Send a message to alliance chat.
 
         Args:
-            interval: Polling interval in seconds
-            callback: Optional async callback to call with movements list
-            stop_event: Optional event to signal stopping
+            message: The message to send
         """
-        stop = stop_event or asyncio.Event()
+        # Alliance chat command: acm (Alliance Chat Message)
+        payload = {"TXT": message}
+        packet = Packet.build_xt(self.config.default_zone, "acm", payload)
+        self.connection.send(packet)
+        logger.debug(f"Sent alliance chat: {message}")
 
-        while not stop.is_set():
+    def get_player_info(self, player_id: int, wait: bool = True, timeout: float = 5.0) -> Optional[dict]:
+        """
+        Get info about a player.
+
+        Args:
+            player_id: The player's ID
+            wait: If True, wait for response
+            timeout: Timeout in seconds
+
+        Returns:
+            Player info dict or None
+        """
+        payload = {"PID": player_id}
+        packet = Packet.build_xt(self.config.default_zone, "gpi", payload)
+        self.connection.send(packet)
+
+        if wait:
             try:
-                movements = await self.refresh_movements(wait=True, timeout=interval)
+                response = self.connection.wait_for("gpi", timeout=timeout)
+                return response.payload if isinstance(response.payload, dict) else None
+            except TimeoutError:
+                logger.warning(f"get_player_info({player_id}) timed out")
+                return None
 
-                if callback:
-                    await callback(movements)
+        return None
 
-                # Check for incoming attacks
-                attacks = self.get_incoming_attacks()
-                if attacks:
-                    for attack in attacks:
-                        logger.warning(
-                            f"Incoming attack! ID: {attack.MID}, "
-                            f"Target: {attack.target_area_id}, "
-                            f"Time: {attack.format_time_remaining()}"
-                        )
+    def get_alliance_info(self, alliance_id: int, wait: bool = True, timeout: float = 5.0) -> Optional[dict]:
+        """
+        Get info about an alliance.
 
-            except Exception as e:
-                logger.error(f"Error in movement watch: {e}")
+        Args:
+            alliance_id: The alliance ID
+            wait: If True, wait for response
+            timeout: Timeout in seconds
 
+        Returns:
+            Alliance info dict or None
+        """
+        payload = {"AID": alliance_id}
+        packet = Packet.build_xt(self.config.default_zone, "gia", payload)
+        self.connection.send(packet)
+
+        if wait:
             try:
-                await asyncio.wait_for(stop.wait(), timeout=interval)
-                break
-            except asyncio.TimeoutError:
-                continue
+                response = self.connection.wait_for("gia", timeout=timeout)
+                return response.payload if isinstance(response.payload, dict) else None
+            except TimeoutError:
+                logger.warning(f"get_alliance_info({alliance_id}) timed out")
+                return None
 
-    def format_movements_summary(self) -> str:
-        """Get a formatted summary of all movements."""
-        lines = []
+        return None
 
-        incoming = self.get_incoming_movements()
-        outgoing = self.get_outgoing_movements()
-        returning = self.get_returning_movements()
+    # ============================================================
+    # Movement Helpers
+    # ============================================================
 
-        if not incoming and not outgoing and not returning:
-            return "No active movements."
+    def get_incoming_attacks(self) -> List[Movement]:
+        """Get all incoming attack movements."""
+        return [m for m in self.state.movements.values() if m.is_incoming and m.is_attack]
 
-        if incoming:
-            lines.append(f"Incoming ({len(incoming)}):")
-            for m in sorted(incoming, key=lambda x: x.time_remaining):
-                lines.append(f"  - {m.movement_type_name} from {m.source_area_id}: {m.format_time_remaining()}")
+    def get_incoming_movements(self) -> List[Movement]:
+        """Get all incoming movements."""
+        return [m for m in self.state.movements.values() if m.is_incoming]
 
-        if outgoing:
-            lines.append(f"Outgoing ({len(outgoing)}):")
-            for m in sorted(outgoing, key=lambda x: x.time_remaining):
-                lines.append(f"  - {m.movement_type_name} to {m.target_area_id}: {m.format_time_remaining()}")
+    def get_outgoing_movements(self) -> List[Movement]:
+        """Get all outgoing movements."""
+        return [m for m in self.state.movements.values() if m.is_outgoing]
 
-        if returning:
-            lines.append(f"Returning ({len(returning)}):")
-            for m in sorted(returning, key=lambda x: x.time_remaining):
-                lines.append(f"  - From {m.source_area_id}: {m.format_time_remaining()}")
+    # ============================================================
+    # Chat Subscription
+    # ============================================================
 
-        return "\n".join(lines)
+    def subscribe_alliance_chat(self, callback) -> None:
+        """
+        Subscribe to alliance chat messages.
+
+        Args:
+            callback: Function to call with each chat packet
+        """
+        # Alliance chat incoming: aci (Alliance Chat Incoming) or similar
+        # Need to verify the actual command ID from packet captures
+        self.connection.subscribe("aci", callback)
+
+    def unsubscribe_alliance_chat(self, callback) -> None:
+        """Unsubscribe from alliance chat."""
+        self.connection.unsubscribe("aci", callback)
