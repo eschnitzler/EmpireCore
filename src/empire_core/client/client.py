@@ -208,7 +208,16 @@ class EmpireClient:
             message: The message to send
         """
         # Alliance chat command: acm (Alliance Chat Message)
-        payload = {"TXT": message}
+        # Payload format: {"M": "message text"}
+        # Note: Special chars need encoding: % -> &percnt;, " -> &quot;, etc.
+        encoded_message = (
+            message.replace("%", "&percnt;")
+            .replace('"', "&quot;")
+            .replace("'", "&145;")
+            .replace("\n", "<br />")
+            .replace("\\", "%5C")
+        )
+        payload = {"M": encoded_message}
         packet = Packet.build_xt(self.config.default_zone, "acm", payload)
         self.connection.send(packet)
         logger.debug(f"Sent alliance chat: {message}")
@@ -285,17 +294,43 @@ class EmpireClient:
     # Chat Subscription
     # ============================================================
 
+    def get_alliance_chat(self, wait: bool = True, timeout: float = 5.0) -> Optional[dict]:
+        """
+        Get alliance chat history.
+
+        Args:
+            wait: If True, wait for response
+            timeout: Timeout in seconds
+
+        Returns:
+            Chat history dict or None
+        """
+        # Alliance chat list command: acl
+        packet = Packet.build_xt(self.config.default_zone, "acl", {})
+        self.connection.send(packet)
+
+        if wait:
+            try:
+                response = self.connection.wait_for("acl", timeout=timeout)
+                return response.payload if isinstance(response.payload, dict) else None
+            except TimeoutError:
+                logger.warning("get_alliance_chat timed out")
+                return None
+
+        return None
+
     def subscribe_alliance_chat(self, callback) -> None:
         """
         Subscribe to alliance chat messages.
 
         Args:
-            callback: Function to call with each chat packet
+            callback: Function to call with each chat packet.
+                      Packet payload will have format:
+                      {"CM": {"PN": "player_name", "MT": "message_text", ...}}
         """
-        # Alliance chat incoming: aci (Alliance Chat Incoming) or similar
-        # Need to verify the actual command ID from packet captures
-        self.connection.subscribe("aci", callback)
+        # Alliance chat messages come via 'acm' command (not 'aci')
+        self.connection.subscribe("acm", callback)
 
     def unsubscribe_alliance_chat(self, callback) -> None:
         """Unsubscribe from alliance chat."""
-        self.connection.unsubscribe("aci", callback)
+        self.connection.unsubscribe("acm", callback)
