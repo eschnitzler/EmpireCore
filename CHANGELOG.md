@@ -2,6 +2,61 @@
 
 <!-- version list -->
 
+## v0.3.0 (2026-01-04)
+
+### Bug Fixes
+
+- **cd**: Pass built artifacts from release job to publish job
+  ([#3](https://github.com/eschnitzler/EmpireCore/pull/3),
+  [`615483d`](https://github.com/eschnitzler/EmpireCore/commit/615483d71c6a879f6f06b8f7036ef58fbf3542d6))
+
+- **cd**: Trigger release on push to master instead of CI workflow_run
+  ([#3](https://github.com/eschnitzler/EmpireCore/pull/3),
+  [`615483d`](https://github.com/eschnitzler/EmpireCore/commit/615483d71c6a879f6f06b8f7036ef58fbf3542d6))
+
+- **cd**: Use no-commit mode for semantic-release to work with branch protection
+  ([#3](https://github.com/eschnitzler/EmpireCore/pull/3),
+  [`615483d`](https://github.com/eschnitzler/EmpireCore/commit/615483d71c6a879f6f06b8f7036ef58fbf3542d6))
+
+- **cd**: Use RELEASE_TOKEN PAT for semantic-release
+  ([#3](https://github.com/eschnitzler/EmpireCore/pull/3),
+  [`615483d`](https://github.com/eschnitzler/EmpireCore/commit/615483d71c6a879f6f06b8f7036ef58fbf3542d6))
+
+- **ci**: Align job names with branch protection rules
+  ([#2](https://github.com/eschnitzler/EmpireCore/pull/2),
+  [`0957f15`](https://github.com/eschnitzler/EmpireCore/commit/0957f15ed3580334f88d3019504b8dfcd11d8ad6))
+
+- **ci**: Only run CI on pull requests ([#3](https://github.com/eschnitzler/EmpireCore/pull/3),
+  [`615483d`](https://github.com/eschnitzler/EmpireCore/commit/615483d71c6a879f6f06b8f7036ef58fbf3542d6))
+
+- **ci**: Only run CI on pull requests, not on merge to master
+  ([#3](https://github.com/eschnitzler/EmpireCore/pull/3),
+  [`615483d`](https://github.com/eschnitzler/EmpireCore/commit/615483d71c6a879f6f06b8f7036ef58fbf3542d6))
+
+### Chores
+
+- Remove stale documentation and empty test ([#2](https://github.com/eschnitzler/EmpireCore/pull/2),
+  [`0957f15`](https://github.com/eschnitzler/EmpireCore/commit/0957f15ed3580334f88d3019504b8dfcd11d8ad6))
+
+### Features
+
+- Add protocol models and service layer ([#2](https://github.com/eschnitzler/EmpireCore/pull/2),
+  [`0957f15`](https://github.com/eschnitzler/EmpireCore/commit/0957f15ed3580334f88d3019504b8dfcd11d8ad6))
+
+- Add service layer with auto-registration ([#2](https://github.com/eschnitzler/EmpireCore/pull/2),
+  [`0957f15`](https://github.com/eschnitzler/EmpireCore/commit/0957f15ed3580334f88d3019504b8dfcd11d8ad6))
+
+- **protocol**: Add Pydantic models for GGE protocol commands
+  ([#2](https://github.com/eschnitzler/EmpireCore/pull/2),
+  [`0957f15`](https://github.com/eschnitzler/EmpireCore/commit/0957f15ed3580334f88d3019504b8dfcd11d8ad6))
+
+### Performance Improvements
+
+- Optimize packet dispatch for high message volume
+  ([#2](https://github.com/eschnitzler/EmpireCore/pull/2),
+  [`0957f15`](https://github.com/eschnitzler/EmpireCore/commit/0957f15ed3580334f88d3019504b8dfcd11d8ad6))
+
+
 ## v0.2.1 (2026-01-04)
 
 ### Bug Fixes
