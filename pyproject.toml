@@ -87,8 +87,6 @@ commit_message = "chore(release): {version}"
 tag_format = "v{version}"
 major_on_zero = false
 allow_zero_version = true
-commit_version_number = false  # Don't commit version bump - works with branch protection
-no_git_verify = true
 
 [tool.semantic_release.commit_parser_options]
 allowed_tags = ["feat", "fix", "perf", "refactor", "build", "chore", "docs", "style", "test"]

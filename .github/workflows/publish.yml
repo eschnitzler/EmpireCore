@@ -12,13 +12,19 @@ jobs:
     concurrency: release
     permissions:
       contents: write
+      id-token: write
     outputs:
       released: ${{ steps.release.outputs.released }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -34,19 +40,14 @@ jobs:
       - name: Semantic Release
         id: release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
-          # Use --no-commit to avoid pushing to protected branch
-          # This only creates the tag and GitHub release
-          output=$(uv run semantic-release version --no-commit --no-push 2>&1) || true
+          output=$(uv run semantic-release version 2>&1) || true
           echo "$output"
           if echo "$output" | grep -q "No release will be made"; then
             echo "released=false" >> $GITHUB_OUTPUT
           elif [ -d "dist" ] && [ "$(ls -A dist)" ]; then
             echo "released=true" >> $GITHUB_OUTPUT
-            # Push only the tag, not commits
-            git push --tags
-            uv run semantic-release publish
           else
             echo "released=false" >> $GITHUB_OUTPUT
           fi
