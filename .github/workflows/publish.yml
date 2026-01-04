@@ -36,12 +36,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          output=$(uv run semantic-release version 2>&1) || true
+          # Use --no-commit to avoid pushing to protected branch
+          # This only creates the tag and GitHub release
+          output=$(uv run semantic-release version --no-commit --no-push 2>&1) || true
           echo "$output"
           if echo "$output" | grep -q "No release will be made"; then
             echo "released=false" >> $GITHUB_OUTPUT
           elif [ -d "dist" ] && [ "$(ls -A dist)" ]; then
             echo "released=true" >> $GITHUB_OUTPUT
+            # Push only the tag, not commits
+            git push --tags
             uv run semantic-release publish
           else
             echo "released=false" >> $GITHUB_OUTPUT
