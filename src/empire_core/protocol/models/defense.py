@@ -177,14 +177,19 @@ class GetSupportDefenseRequest(BaseRequest):
     Get defense info for an alliance member's castle.
 
     Command: sdi
-    Payload: {"SCID": castle_id}
+    Payload: {"TX": target_x, "TY": target_y, "SX": source_x, "SY": source_y}
 
     Note: Can only query castles of players in the same alliance.
+    TX/TY = Target castle coordinates (the one being attacked)
+    SX/SY = Source castle coordinates (your castle sending support)
     """
 
     command = "sdi"
 
-    castle_id: int = Field(alias="SCID")
+    target_x: int = Field(alias="TX")
+    target_y: int = Field(alias="TY")
+    source_x: int = Field(alias="SX")
+    source_y: int = Field(alias="SY")
 
 
 class GetSupportDefenseResponse(BaseResponse):
@@ -199,6 +204,9 @@ class GetSupportDefenseResponse(BaseResponse):
     - B: Commander/Lord info
     - gui: Unit inventory
     - gli: Lords info
+    - UYL: Total yard limit (max troops in courtyard)
+    - AUYL: Available yard limit
+    - UWL: Wall limit
 
     To get total defenders, sum all unit counts across all positions in S.
     """
@@ -220,6 +228,11 @@ class GetSupportDefenseResponse(BaseResponse):
     # Lords info
     lords_info: dict | None = Field(alias="gli", default=None)
 
+    # Capacity limits
+    yard_limit: int = Field(alias="UYL", default=0)  # Total yard/courtyard limit
+    available_yard_limit: int = Field(alias="AUYL", default=0)  # Available yard space
+    wall_limit: int = Field(alias="UWL", default=0)  # Wall limit
+
     def get_total_defenders(self) -> int:
         """
         Calculate total number of defending troops.
@@ -235,6 +248,18 @@ class GetSupportDefenseResponse(BaseResponse):
                         # unit_pair is [unit_id, count]
                         total += unit_pair[1]
         return total
+
+    def get_max_defense(self) -> int:
+        """
+        Get the maximum defense capacity for this castle.
+
+        This is the sum of yard (courtyard) limit and wall limit.
+        If limits are not available, returns 0.
+
+        Returns:
+            Maximum number of troops that can defend this castle.
+        """
+        return self.yard_limit + self.wall_limit
 
     def get_units_by_position(self) -> list[dict[int, int]]:
         """

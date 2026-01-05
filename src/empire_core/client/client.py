@@ -408,7 +408,13 @@ class EmpireClient:
     # ============================================================
 
     def get_castle_defense(
-        self, castle_id: int, wait: bool = True, timeout: float = 5.0
+        self,
+        target_x: int,
+        target_y: int,
+        source_x: int | None = None,
+        source_y: int | None = None,
+        wait: bool = True,
+        timeout: float = 5.0,
     ) -> GetSupportDefenseResponse | None:
         """
         Get defense info for an alliance member's castle.
@@ -418,7 +424,10 @@ class EmpireClient:
         in the same alliance as the bot.
 
         Args:
-            castle_id: The castle/area ID to query (target_area_id from movement)
+            target_x: Target castle X coordinate
+            target_y: Target castle Y coordinate
+            source_x: Source castle X coordinate (defaults to bot's main castle)
+            source_y: Source castle Y coordinate (defaults to bot's main castle)
             wait: If True, wait for response
             timeout: Timeout in seconds
 
@@ -426,7 +435,16 @@ class EmpireClient:
             GetSupportDefenseResponse with defense info, or None on failure.
             Use response.get_total_defenders() to get total troop count.
         """
-        request = GetSupportDefenseRequest(SCID=castle_id)
+        # Default to bot's main castle as source
+        if source_x is None or source_y is None:
+            if self.state.castles:
+                main_castle = list(self.state.castles.values())[0]
+                source_x = main_castle.x
+                source_y = main_castle.y
+            else:
+                return None
+
+        request = GetSupportDefenseRequest(TX=target_x, TY=target_y, SX=source_x, SY=source_y)
         response = self.send(request, wait=wait, timeout=timeout)
 
         if isinstance(response, GetSupportDefenseResponse):
