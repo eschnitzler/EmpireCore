@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.6.0 (2026-01-05)
+
+### Features
+
+- Add defense capacity limits (yard_limit, wall_limit) to SDI response
+  ([`ec886df`](https://github.com/eschnitzler/EmpireCore/commit/ec886dfbfd588a90dd4b9f82b653acfc38c05a47))
+
+
 ## v0.5.0 (2026-01-05)
 
 ### Features
