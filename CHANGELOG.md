@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.4.1 (2026-01-05)
+
+### Bug Fixes
+
+- Trigger attack callback for all attacks, not just incoming
+  ([`0592812`](https://github.com/eschnitzler/EmpireCore/commit/0592812aecd74fff39ddc37e152dc9fe60c39c68))
+
+
 ## v0.4.0 (2026-01-04)
 
 ### Bug Fixes
