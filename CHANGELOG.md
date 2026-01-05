@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.4.4 (2026-01-05)
+
+### Bug Fixes
+
+- Parse GA (Garrison Army) units from movement wrapper
+  ([`83ff404`](https://github.com/eschnitzler/EmpireCore/commit/83ff40424ad583c324d8790616cac5e81de25eb4))
+
+### Chores
+
+- Bump version to 0.4.4
+  ([`6f14f68`](https://github.com/eschnitzler/EmpireCore/commit/6f14f6867546550751cdad4df0073df3176d253b))
+
+
 ## v0.4.2 (2026-01-05)
 
 ### Bug Fixes
