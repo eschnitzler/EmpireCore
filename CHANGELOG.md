@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.4.5 (2026-01-05)
+
+### Bug Fixes
+
+- Extract GA units from wrapper level, not inside UM
+  ([`d645968`](https://github.com/eschnitzler/EmpireCore/commit/d6459687b1e1c43cc5c49156ec6ed06d914ca107))
+
+
 ## v0.4.4 (2026-01-05)
 
 ### Bug Fixes
