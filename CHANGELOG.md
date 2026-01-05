@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.5.0 (2026-01-05)
+
+### Features
+
+- Add SDI (Support Defense Info) command for querying alliance castle defense
+  ([`abcc58d`](https://github.com/eschnitzler/EmpireCore/commit/abcc58d4855849991bbb923e98d9525216be487b))
+
+
 ## v0.4.5 (2026-01-05)
 
 ### Bug Fixes
