@@ -20,6 +20,10 @@ from empire_core.config import (
 from empire_core.exceptions import LoginCooldownError, LoginError, TimeoutError
 from empire_core.network.connection import Connection
 from empire_core.protocol.models import BaseRequest, BaseResponse, parse_response
+from empire_core.protocol.models.defense import (
+    GetSupportDefenseRequest,
+    GetSupportDefenseResponse,
+)
 from empire_core.protocol.packet import Packet
 from empire_core.services import get_registered_services
 from empire_core.state.manager import GameState
@@ -398,3 +402,33 @@ class EmpireClient:
     def unsubscribe_alliance_chat(self, callback) -> None:
         """Unsubscribe from alliance chat."""
         self.connection.unsubscribe("acm", callback)
+
+    # ============================================================
+    # Defense Info
+    # ============================================================
+
+    def get_castle_defense(
+        self, castle_id: int, wait: bool = True, timeout: float = 5.0
+    ) -> GetSupportDefenseResponse | None:
+        """
+        Get defense info for an alliance member's castle.
+
+        Uses the SDI (Support Defense Info) command to query the total
+        troops defending a castle. Can only query castles of players
+        in the same alliance as the bot.
+
+        Args:
+            castle_id: The castle/area ID to query (target_area_id from movement)
+            wait: If True, wait for response
+            timeout: Timeout in seconds
+
+        Returns:
+            GetSupportDefenseResponse with defense info, or None on failure.
+            Use response.get_total_defenders() to get total troop count.
+        """
+        request = GetSupportDefenseRequest(SCID=castle_id)
+        response = self.send(request, wait=wait, timeout=timeout)
+
+        if isinstance(response, GetSupportDefenseResponse):
+            return response
+        return None

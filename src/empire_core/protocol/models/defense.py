@@ -167,6 +167,94 @@ class ChangeMoatDefenseResponse(BaseResponse):
     error_code: int = Field(alias="E", default=0)
 
 
+# =============================================================================
+# SDI - Support Defense Info (Alliance Member Castle Defense)
+# =============================================================================
+
+
+class GetSupportDefenseRequest(BaseRequest):
+    """
+    Get defense info for an alliance member's castle.
+
+    Command: sdi
+    Payload: {"SCID": castle_id}
+
+    Note: Can only query castles of players in the same alliance.
+    """
+
+    command = "sdi"
+
+    castle_id: int = Field(alias="SCID")
+
+
+class GetSupportDefenseResponse(BaseResponse):
+    """
+    Response containing defense information for an alliance member's castle.
+
+    Command: sdi
+
+    The response contains:
+    - SCID: Castle ID queried
+    - S: List of 6 defense positions, each containing [[unit_id, count], ...] pairs
+    - B: Commander/Lord info
+    - gui: Unit inventory
+    - gli: Lords info
+
+    To get total defenders, sum all unit counts across all positions in S.
+    """
+
+    command = "sdi"
+
+    castle_id: int = Field(alias="SCID", default=0)
+
+    # S contains 6 arrays (defense positions), each with [unit_id, count] pairs
+    # e.g. [[[487, 5174], [488, 20]], [[487, 347]], ...]
+    defense_positions: list = Field(alias="S", default_factory=list)
+
+    # Commander/Lord info (optional, not always present)
+    commander_info: dict | None = Field(alias="B", default=None)
+
+    # Unit inventory info
+    unit_inventory: dict | None = Field(alias="gui", default=None)
+
+    # Lords info
+    lords_info: dict | None = Field(alias="gli", default=None)
+
+    def get_total_defenders(self) -> int:
+        """
+        Calculate total number of defending troops.
+
+        Returns:
+            Total count of all units across all defense positions.
+        """
+        total = 0
+        for position in self.defense_positions:
+            if isinstance(position, list):
+                for unit_pair in position:
+                    if isinstance(unit_pair, list) and len(unit_pair) >= 2:
+                        # unit_pair is [unit_id, count]
+                        total += unit_pair[1]
+        return total
+
+    def get_units_by_position(self) -> list[dict[int, int]]:
+        """
+        Get unit counts grouped by defense position.
+
+        Returns:
+            List of 6 dicts, each mapping unit_id -> count for that position.
+        """
+        result = []
+        for position in self.defense_positions:
+            units: dict[int, int] = {}
+            if isinstance(position, list):
+                for unit_pair in position:
+                    if isinstance(unit_pair, list) and len(unit_pair) >= 2:
+                        unit_id, count = unit_pair[0], unit_pair[1]
+                        units[unit_id] = units.get(unit_id, 0) + count
+            result.append(units)
+        return result
+
+
 __all__ = [
     # DFC - Get Defense
     "GetDefenseRequest",
@@ -181,4 +269,7 @@ __all__ = [
     # DFM - Moat Defense
     "ChangeMoatDefenseRequest",
     "ChangeMoatDefenseResponse",
+    # SDI - Support Defense Info
+    "GetSupportDefenseRequest",
+    "GetSupportDefenseResponse",
 ]

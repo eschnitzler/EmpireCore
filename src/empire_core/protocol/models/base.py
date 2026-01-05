@@ -106,6 +106,7 @@ class GGECommand:
     DFK = "dfk"  # Change keep defense
     DFW = "dfw"  # Change wall defense
     DFM = "dfm"  # Change moat defense
+    SDI = "sdi"  # Get support defense info (alliance member castle defense)
 
     # Shop
     SBP = "sbp"  # Buy package

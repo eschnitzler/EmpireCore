@@ -168,6 +168,8 @@ from .defense import (
     DefenseConfiguration,
     GetDefenseRequest,
     GetDefenseResponse,
+    GetSupportDefenseRequest,
+    GetSupportDefenseResponse,
 )
 from .map import (
     FindNPCRequest,
@@ -332,4 +334,6 @@ __all__ = [
     "ChangeWallDefenseResponse",
     "ChangeMoatDefenseRequest",
     "ChangeMoatDefenseResponse",
+    "GetSupportDefenseRequest",
+    "GetSupportDefenseResponse",
 ]
