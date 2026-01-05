@@ -110,18 +110,8 @@ class EmpireClient:
                         pass
 
     def _update_state(self, cmd: str, payload: dict) -> None:
-        """Sync state update from packet."""
-        # Handle movement updates
-        if cmd == "gam":
-            # Get Army Movements response
-            if "M" in payload:
-                self.state.movements.clear()
-                for m_data in payload["M"]:
-                    try:
-                        movement = Movement.model_validate(m_data)
-                        self.state.movements[movement.MID] = movement
-                    except Exception:
-                        pass
+        """Sync state update from packet - delegates to GameState."""
+        self.state.update_from_packet(cmd, payload)
 
     def _on_disconnect(self) -> None:
         """Handle disconnect."""
