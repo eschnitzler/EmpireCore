@@ -258,10 +258,9 @@ class GameState:
                 if len(mov.source_area) >= 4:
                     mov.source_area_id = mov.source_area[3]
 
-            # Extract units from wrapper (GA = Garrison Army)
+            # Extract units from wrapper (GA = Garrison Army at wrapper level)
             if m_wrapper:
-                um_data = m_wrapper.get("UM", {})
-                ga_data = um_data.get("GA", {})
+                ga_data = m_wrapper.get("GA", {})
 
                 # GA contains unit arrays in L (left), M (melee), R (ranged), RW (ranged wall)
                 # Each is a list of [unit_id, count] pairs
