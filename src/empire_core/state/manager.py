@@ -258,14 +258,24 @@ class GameState:
                 if len(mov.source_area) >= 4:
                     mov.source_area_id = mov.source_area[3]
 
-            # Extract units from wrapper
+            # Extract units from wrapper (GA = Garrison Army)
             if m_wrapper:
                 um_data = m_wrapper.get("UM", {})
-                for uid_str, count in um_data.items():
-                    try:
-                        mov.units[int(uid_str)] = int(count)
-                    except (ValueError, TypeError):
-                        pass
+                ga_data = um_data.get("GA", {})
+
+                # GA contains unit arrays in L (left), M (melee), R (ranged), RW (ranged wall)
+                # Each is a list of [unit_id, count] pairs
+                for key in ("L", "M", "R", "RW"):
+                    unit_list = ga_data.get(key, [])
+                    if isinstance(unit_list, list):
+                        for item in unit_list:
+                            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                                try:
+                                    unit_id = int(item[0])
+                                    count = int(item[1])
+                                    mov.units[unit_id] = mov.units.get(unit_id, 0) + count
+                                except (ValueError, TypeError):
+                                    pass
 
                 # Extract resources
                 gs_data = m_wrapper.get("GS", {})
