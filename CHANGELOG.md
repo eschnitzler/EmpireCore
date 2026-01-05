@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.4.2 (2026-01-05)
+
+### Bug Fixes
+
+- Include T=0 as attack movement type
+  ([`1b4b219`](https://github.com/eschnitzler/EmpireCore/commit/1b4b219add109c7500a6124cbf9b7c828ea2ddce))
+
+
 ## v0.4.1 (2026-01-05)
 
 ### Bug Fixes
