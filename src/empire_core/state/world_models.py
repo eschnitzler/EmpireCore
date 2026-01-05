@@ -204,7 +204,10 @@ class Movement(BaseModel):
     @property
     def is_attack(self) -> bool:
         """Check if this is an attack movement."""
+        # T=0 appears to be a standard attack on player castles
+        # T=1 is ATTACK, T=5 is RAID, T=9 is ATTACK_CAMP, T=10 is RAID_CAMP
         return self.T in (
+            0,  # Standard attack (observed in gam packets)
             MovementType.ATTACK,
             MovementType.ATTACK_CAMP,
             MovementType.RAID,
