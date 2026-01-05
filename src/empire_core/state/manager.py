@@ -155,8 +155,9 @@ class GameState:
             if is_new:
                 mov.created_at = time.time()
 
-                # Trigger callback for incoming attacks
-                if mov.is_incoming and mov.is_attack and self.on_incoming_attack:
+                # Trigger callback for attacks (server pushes gam for alliance attacks)
+                # Don't filter by is_incoming - that's relative to local player
+                if mov.is_attack and self.on_incoming_attack:
                     try:
                         self.on_incoming_attack(mov)
                     except Exception as e:
