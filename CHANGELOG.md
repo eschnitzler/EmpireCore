@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.7.3 (2026-01-06)
+
+### Bug Fixes
+
+- Don't remove movements in gam handler, wait for arrival/recall packets
+  ([`0b5d49f`](https://github.com/eschnitzler/EmpireCore/commit/0b5d49f5ba2cc52860544fe2e463475046dca88a))
+
+
 ## v0.7.2 (2026-01-06)
 
 ### Bug Fixes
