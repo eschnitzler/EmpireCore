@@ -253,13 +253,13 @@ class GetSupportDefenseResponse(BaseResponse):
         """
         Get the maximum defense capacity for this castle.
 
-        This is the sum of yard (courtyard) limit and wall limit.
-        If limits are not available, returns 0.
+        UYL (yard_limit) represents the total capacity including
+        courtyard limit plus room for alliance support.
 
         Returns:
             Maximum number of troops that can defend this castle.
         """
-        return self.yard_limit + self.wall_limit
+        return self.yard_limit
 
     def get_units_by_position(self) -> list[dict[int, int]]:
         """
