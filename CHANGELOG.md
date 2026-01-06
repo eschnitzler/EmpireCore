@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.6.5 (2026-01-06)
+
+### Bug Fixes
+
+- Coerce SA field to string in Alliance model
+  ([`b6b23aa`](https://github.com/eschnitzler/EmpireCore/commit/b6b23aa459ff2e0d0fb223a3dba5e4c5eb8a5b80))
+
+### Chores
+
+- Add info-level logging for SDI debugging
+  ([`faf9564`](https://github.com/eschnitzler/EmpireCore/commit/faf95645810ef7be1d7673439e60669da00b18e3))
+
+
 ## v0.6.4 (2026-01-06)
 
 ### Bug Fixes
