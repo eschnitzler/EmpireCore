@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.6.1 (2026-01-06)
+
+### Bug Fixes
+
+- Correct castle coordinate parsing from lli response
+  ([`db057d1`](https://github.com/eschnitzler/EmpireCore/commit/db057d10cbfd4a5692c5731b8963945c4245bbe6))
+
+
 ## v0.6.0 (2026-01-05)
 
 ### Features
