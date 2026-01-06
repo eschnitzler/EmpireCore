@@ -443,15 +443,16 @@ class EmpireClient:
                 main_castle = list(self.state.castles.values())[0]
                 source_x = main_castle.x
                 source_y = main_castle.y
-                logger.debug(f"SDI: Using source castle at {source_x}:{source_y}")
+                logger.info(f"SDI: Using source castle at {source_x}:{source_y}")
             else:
                 logger.warning("SDI: No castles available for source coordinates")
                 return None
 
-        logger.debug(f"SDI: Sending request TX={target_x}, TY={target_y}, SX={source_x}, SY={source_y}")
+        logger.info(f"SDI: Sending request TX={target_x}, TY={target_y}, SX={source_x}, SY={source_y}")
         request = GetSupportDefenseRequest(TX=target_x, TY=target_y, SX=source_x, SY=source_y)
+        logger.info(f"SDI: Request packet = {request.to_packet(zone=self.config.default_zone)}")
         response = self.send(request, wait=wait, timeout=timeout)
-        logger.debug(f"SDI: Response type = {type(response)}")
+        logger.info(f"SDI: Response = {response}")
 
         if isinstance(response, GetSupportDefenseResponse):
             return response
