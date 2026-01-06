@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.7.1 (2026-01-06)
+
+### Bug Fixes
+
+- Detect recalls via maa packet instead of gam comparison
+  ([`82ed870`](https://github.com/eschnitzler/EmpireCore/commit/82ed8708b6aae0134e4c65ef2d62d4d1fea93e3e))
+
+
 ## v0.7.0 (2026-01-06)
 
 ### Features
