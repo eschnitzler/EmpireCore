@@ -86,6 +86,8 @@ class GameState:
             self._handle_atv(payload)
         elif cmd_id == "ata":
             self._handle_ata(payload)
+        elif cmd_id == "maa":
+            self._handle_maa(payload)
 
     def _handle_gbd(self, data: Dict[str, Any]) -> None:
         """Handle 'Get Big Data' packet - initial login data."""
@@ -197,14 +199,10 @@ class GameState:
 
             self.movements[mid] = mov
 
-        # Remove completed movements and detect recalls
+        # Clean up movements no longer in the gam response
+        # Note: Recalls are detected via the maa packet, not by comparing gam snapshots
         removed_ids = self._previous_movement_ids - current_ids
         for mid in removed_ids:
-            # If we didn't get an arrival packet, this was a recall
-            if mid not in self._arrived_movement_ids:
-                recalled_mov = self.movements.get(mid)
-                if recalled_mov and self.on_movement_recalled:
-                    self._dispatch_callback(self.on_movement_recalled, recalled_mov)
             self._arrived_movement_ids.discard(mid)
             self.movements.pop(mid, None)
 
@@ -254,6 +252,16 @@ class GameState:
         mid = data.get("MID")
         if mid:
             self._arrived_movement_ids.add(mid)  # Mark as arrived, not recalled
+            self.movements.pop(mid, None)
+            self._previous_movement_ids.discard(mid)
+
+    def _handle_maa(self, data: Dict[str, Any]) -> None:
+        """Handle movement recall (maa = Move Army Abort)."""
+        mid = data.get("MID")
+        if mid:
+            recalled_mov = self.movements.get(mid)
+            if recalled_mov and self.on_movement_recalled:
+                self._dispatch_callback(self.on_movement_recalled, recalled_mov)
             self.movements.pop(mid, None)
             self._previous_movement_ids.discard(mid)
 
