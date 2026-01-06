@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.7.0 (2026-01-06)
+
+### Features
+
+- Add estimated_size field to Movement for non-visible armies
+  ([`23fed4d`](https://github.com/eschnitzler/EmpireCore/commit/23fed4d0a10c33bcb1ab1244327dba767f3d1647))
+
+
 ## v0.6.6 (2026-01-06)
 
 ### Bug Fixes
