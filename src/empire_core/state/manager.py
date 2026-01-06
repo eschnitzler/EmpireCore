@@ -199,13 +199,8 @@ class GameState:
 
             self.movements[mid] = mov
 
-        # Clean up movements no longer in the gam response
-        # Note: Recalls are detected via the maa packet, not by comparing gam snapshots
-        removed_ids = self._previous_movement_ids - current_ids
-        for mid in removed_ids:
-            self._arrived_movement_ids.discard(mid)
-            self.movements.pop(mid, None)
-
+        # Don't remove movements here - wait for explicit arrival (atv/ata) or recall (mrm)
+        # packets so we can properly dispatch callbacks with full movement data
         self._previous_movement_ids = current_ids
 
     def _handle_dcl(self, data: Dict[str, Any]) -> None:
