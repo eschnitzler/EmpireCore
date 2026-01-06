@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.6.6 (2026-01-06)
+
+### Bug Fixes
+
+- Handle GS as int and SA as int in gam/gal packets
+  ([`51855ae`](https://github.com/eschnitzler/EmpireCore/commit/51855ae13f34bc8390e45f96889a73df4e9a2ca3))
+
+
 ## v0.6.5 (2026-01-06)
 
 ### Bug Fixes
