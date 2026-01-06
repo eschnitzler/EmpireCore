@@ -86,8 +86,8 @@ class GameState:
             self._handle_atv(payload)
         elif cmd_id == "ata":
             self._handle_ata(payload)
-        elif cmd_id == "maa":
-            self._handle_maa(payload)
+        elif cmd_id == "mrm":
+            self._handle_mrm(payload)
 
     def _handle_gbd(self, data: Dict[str, Any]) -> None:
         """Handle 'Get Big Data' packet - initial login data."""
@@ -255,8 +255,8 @@ class GameState:
             self.movements.pop(mid, None)
             self._previous_movement_ids.discard(mid)
 
-    def _handle_maa(self, data: Dict[str, Any]) -> None:
-        """Handle movement recall (maa = Move Army Abort)."""
+    def _handle_mrm(self, data: Dict[str, Any]) -> None:
+        """Handle movement recall (mrm = Move Recall Movement)."""
         mid = data.get("MID")
         if mid:
             recalled_mov = self.movements.get(mid)
