@@ -120,6 +120,7 @@ class EmpireClient:
     def _on_disconnect(self) -> None:
         """Handle disconnect."""
         self.is_logged_in = False
+        self.state.shutdown()
         logger.warning("Client disconnected")
 
     def login(self) -> None:
@@ -204,6 +205,7 @@ class EmpireClient:
     def close(self) -> None:
         """Disconnect from the server."""
         self.is_logged_in = False
+        self.state.shutdown()
         self.connection.disconnect()
 
     def send(

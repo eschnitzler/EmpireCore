@@ -4,6 +4,7 @@ GameState - Tracks game state from server packets.
 
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from empire_core.state.models import Alliance, Castle, Player
@@ -19,6 +20,9 @@ class GameState:
 
     This is a simplified sync version - no async, no event emission.
     State is updated directly and can be queried at any time.
+
+    Callbacks are dispatched in a thread pool to avoid blocking the receive loop.
+    This allows callbacks to make blocking calls (like waiting for responses).
     """
 
     def __init__(self):
@@ -42,6 +46,26 @@ class GameState:
 
         # Track movements that arrived normally (vs recalled)
         self._arrived_movement_ids: Set[int] = set()
+
+        # Thread pool for dispatching callbacks (avoids blocking receive loop)
+        self._callback_executor: ThreadPoolExecutor = ThreadPoolExecutor(
+            max_workers=4, thread_name_prefix="gge_callback"
+        )
+
+    def shutdown(self) -> None:
+        """Shutdown the callback executor. Call on disconnect."""
+        self._callback_executor.shutdown(wait=False)
+
+    def _dispatch_callback(self, callback: Callable, *args: Any, **kwargs: Any) -> None:
+        """Dispatch a callback in the thread pool."""
+
+        def wrapped():
+            try:
+                callback(*args, **kwargs)
+            except Exception as e:
+                logger.error(f"Callback error: {e}")
+
+        self._callback_executor.submit(wrapped)
 
     def update_from_packet(self, cmd_id: str, payload: Dict[str, Any]) -> None:
         """
@@ -159,11 +183,9 @@ class GameState:
 
                 # Trigger callback for attacks (server pushes gam for alliance attacks)
                 # Don't filter by is_incoming - that's relative to local player
+                # Dispatch in thread pool to avoid blocking receive loop
                 if mov.is_attack and self.on_incoming_attack:
-                    try:
-                        self.on_incoming_attack(mov)
-                    except Exception as e:
-                        logger.error(f"on_incoming_attack callback error: {e}")
+                    self._dispatch_callback(self.on_incoming_attack, mov)
 
             self.movements[mid] = mov
 
@@ -174,10 +196,7 @@ class GameState:
             if mid not in self._arrived_movement_ids:
                 recalled_mov = self.movements.get(mid)
                 if recalled_mov and self.on_movement_recalled:
-                    try:
-                        self.on_movement_recalled(recalled_mov)
-                    except Exception as e:
-                        logger.error(f"on_movement_recalled callback error: {e}")
+                    self._dispatch_callback(self.on_movement_recalled, recalled_mov)
             self._arrived_movement_ids.discard(mid)
             self.movements.pop(mid, None)
 
@@ -323,13 +342,19 @@ class GameState:
             self._previous_movement_ids.add(mid)
 
             # Trigger callback for new incoming attacks
+            # Dispatch in thread pool to avoid blocking receive loop
             if mov.is_incoming and mov.is_attack and self.on_incoming_attack:
-                try:
-                    self.on_incoming_attack(mov)
-                except Exception as e:
-                    logger.error(f"on_incoming_attack callback error: {e}")
+                self._dispatch_callback(self.on_incoming_attack, mov)
         elif existing:
+            # Preserve metadata from existing movement that real-time packets don't include
             mov.created_at = existing.created_at
+            mov.source_player_name = existing.source_player_name or mov.source_player_name
+            mov.source_alliance_name = existing.source_alliance_name or mov.source_alliance_name
+            mov.target_player_name = existing.target_player_name or mov.target_player_name
+            mov.target_alliance_name = existing.target_alliance_name or mov.target_alliance_name
+            # Preserve units if the update doesn't have them
+            if not mov.units and existing.units:
+                mov.units = existing.units
 
         self.movements[mid] = mov
 
