@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.6.3 (2026-01-06)
+
+### Bug Fixes
+
+- Dispatch callbacks in thread pool to avoid blocking receive loop
+  ([`a30562f`](https://github.com/eschnitzler/EmpireCore/commit/a30562f172d409bae74ba1cd645bbfa780bfa9d7))
+
+
 ## v0.6.2 (2026-01-06)
 
 ### Bug Fixes
