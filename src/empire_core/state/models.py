@@ -62,11 +62,11 @@ class Building(BaseModel):
 class Alliance(BaseModel):
     """Represents an alliance/guild."""
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", coerce_numbers_to_str=True)
 
     AID: int = Field(default=-1)  # Alliance ID
     N: str = Field(default="")  # Alliance Name
-    SA: str = Field(default="")  # Short/Abbreviation
+    SA: str = Field(default="")  # Short/Abbreviation (server sends 0 if none)
     R: int = Field(default=0)  # Rank
 
     @property
