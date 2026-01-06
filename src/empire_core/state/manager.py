@@ -104,10 +104,12 @@ class GameState:
                 for area_entry in area_infos:
                     raw_ai = area_entry.get("AI")
                     if isinstance(raw_ai, list) and len(raw_ai) > 10:
+                        # AI array format from lli: [type, x, y, area_id, owner_id, ...]
+                        # Index 10 contains the castle name
+                        x = raw_ai[1]
+                        y = raw_ai[2]
                         area_id = raw_ai[3]
                         owner_id = raw_ai[4]
-                        x = raw_ai[0] if len(raw_ai) > 0 else 0
-                        y = raw_ai[1] if len(raw_ai) > 1 else 0
                         name = raw_ai[10]
 
                         if owner_id == self.local_player.id:
