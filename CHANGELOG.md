@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.6.4 (2026-01-06)
+
+### Bug Fixes
+
+- Handle lli packet for alliance info + add debug logging
+  ([`7cdb545`](https://github.com/eschnitzler/EmpireCore/commit/7cdb545bfbf870a92c162c62ebe899481f1ef339))
+
+
 ## v0.6.3 (2026-01-06)
 
 ### Bug Fixes
