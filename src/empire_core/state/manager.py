@@ -42,7 +42,8 @@ class GameState:
 
         # Callbacks for specific events (optional)
         self.on_incoming_attack: Optional[Callable[[Movement], None]] = None
-        self.on_movement_recalled: Optional[Callable[[Movement], None]] = None
+        self.on_movement_recalled: Optional[Callable[[int], None]] = None  # MID only
+        self.on_movement_arrived: Optional[Callable[[int], None]] = None  # MID only
 
         # Track movements that arrived normally (vs recalled)
         self._arrived_movement_ids: Set[int] = set()
@@ -239,6 +240,8 @@ class GameState:
         mid = data.get("MID")
         if mid:
             self._arrived_movement_ids.add(mid)  # Mark as arrived, not recalled
+            if self.on_movement_arrived:
+                self._dispatch_callback(self.on_movement_arrived, mid)
             self.movements.pop(mid, None)
             self._previous_movement_ids.discard(mid)
 
@@ -247,6 +250,8 @@ class GameState:
         mid = data.get("MID")
         if mid:
             self._arrived_movement_ids.add(mid)  # Mark as arrived, not recalled
+            if self.on_movement_arrived:
+                self._dispatch_callback(self.on_movement_arrived, mid)
             self.movements.pop(mid, None)
             self._previous_movement_ids.discard(mid)
 
@@ -254,9 +259,8 @@ class GameState:
         """Handle movement recall (mrm = Move Recall Movement)."""
         mid = data.get("MID")
         if mid:
-            recalled_mov = self.movements.get(mid)
-            if recalled_mov and self.on_movement_recalled:
-                self._dispatch_callback(self.on_movement_recalled, recalled_mov)
+            if self.on_movement_recalled:
+                self._dispatch_callback(self.on_movement_recalled, mid)
             self.movements.pop(mid, None)
             self._previous_movement_ids.discard(mid)
 
