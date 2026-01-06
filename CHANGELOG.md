@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.7.2 (2026-01-06)
+
+### Bug Fixes
+
+- Use mrm packet for recall detection, not maa
+  ([`6c8c461`](https://github.com/eschnitzler/EmpireCore/commit/6c8c46101bb65fe995725b17da1b99568087f951))
+
+
 ## v0.7.1 (2026-01-06)
 
 ### Bug Fixes
