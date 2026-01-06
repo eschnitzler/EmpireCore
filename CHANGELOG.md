@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.6.2 (2026-01-06)
+
+### Bug Fixes
+
+- Get_max_defense returns yard_limit only (includes support capacity)
+  ([`22c9fdc`](https://github.com/eschnitzler/EmpireCore/commit/22c9fdc7788cf920b6cbab63355e43331a1ba774))
+
+
 ## v0.6.1 (2026-01-06)
 
 ### Bug Fixes
