@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.8.0 (2026-01-06)
+
+### Features
+
+- Add on_movement_arrived callback and change recall/arrived to pass MID only
+  ([`6e8084d`](https://github.com/eschnitzler/EmpireCore/commit/6e8084dc949596a3813004179476635c6e4086c2))
+
+
 ## v0.7.3 (2026-01-06)
 
 ### Bug Fixes
