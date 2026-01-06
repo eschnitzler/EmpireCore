@@ -113,7 +113,6 @@ class GameState:
 
         # Alliance
         gal = data.get("gal", {})
-        logger.debug(f"gbd: gal data = {gal}")
         if gal and self.local_player and gal.get("AID"):
             try:
                 self.local_player.alliance = Alliance(**gal)
@@ -306,9 +305,9 @@ class GameState:
                                 except (ValueError, TypeError):
                                     pass
 
-                # Extract resources
-                gs_data = m_wrapper.get("GS", {})
-                if gs_data:
+                # Extract resources (GS can be a dict or an int)
+                gs_data = m_wrapper.get("GS")
+                if isinstance(gs_data, dict):
                     mov.resources = MovementResources(
                         W=gs_data.get("W", 0),
                         S=gs_data.get("S", 0),

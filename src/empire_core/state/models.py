@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Coordinate(BaseModel):
@@ -62,12 +62,20 @@ class Building(BaseModel):
 class Alliance(BaseModel):
     """Represents an alliance/guild."""
 
-    model_config = ConfigDict(extra="ignore", coerce_numbers_to_str=True)
+    model_config = ConfigDict(extra="ignore")
 
     AID: int = Field(default=-1)  # Alliance ID
     N: str = Field(default="")  # Alliance Name
     SA: str = Field(default="")  # Short/Abbreviation (server sends 0 if none)
     R: int = Field(default=0)  # Rank
+
+    @field_validator("SA", mode="before")
+    @classmethod
+    def coerce_sa_to_str(cls, v: Any) -> str:
+        """Server sends 0 when there's no abbreviation."""
+        if v is None or v == 0:
+            return ""
+        return str(v)
 
     @property
     def id(self) -> int:
