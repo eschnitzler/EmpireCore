@@ -73,6 +73,9 @@ class GameState:
         """
         if cmd_id == "gbd":
             self._handle_gbd(payload)
+        elif cmd_id == "lli":
+            # Login response contains the same data as gbd
+            self._handle_gbd(payload)
         elif cmd_id == "gam":
             self._handle_gam(payload)
         elif cmd_id == "dcl":
@@ -110,13 +113,14 @@ class GameState:
 
         # Alliance
         gal = data.get("gal", {})
+        logger.debug(f"gbd: gal data = {gal}")
         if gal and self.local_player and gal.get("AID"):
             try:
                 self.local_player.alliance = Alliance(**gal)
                 self.local_player.AID = gal.get("AID")
                 logger.info(f"Alliance: {self.local_player.alliance.name}")
             except Exception as e:
-                logger.debug(f"Could not parse alliance: {e}")
+                logger.warning(f"Could not parse alliance: {e}")
 
         # Castles
         gcl = data.get("gcl", {})
@@ -178,6 +182,10 @@ class GameState:
                 continue
 
             is_new = mid not in self._previous_movement_ids
+            logger.debug(
+                f"gam: MID={mid}, is_new={is_new}, T={mov.T}, is_attack={mov.is_attack}, "
+                f"callback_set={self.on_incoming_attack is not None}"
+            )
             if is_new:
                 mov.created_at = time.time()
 
@@ -185,6 +193,7 @@ class GameState:
                 # Don't filter by is_incoming - that's relative to local player
                 # Dispatch in thread pool to avoid blocking receive loop
                 if mov.is_attack and self.on_incoming_attack:
+                    logger.info(f"gam: Dispatching callback for MID={mid}")
                     self._dispatch_callback(self.on_incoming_attack, mov)
 
             self.movements[mid] = mov
