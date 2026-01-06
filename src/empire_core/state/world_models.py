@@ -123,6 +123,9 @@ class Movement(BaseModel):
     # Units in movement (UnitID -> Count)
     units: Dict[int, int] = Field(default_factory=dict)
 
+    # Estimated army size (GS field when army not visible)
+    estimated_size: int = Field(default=0)
+
     # Resources being transported (for transport/return movements)
     resources: MovementResources = Field(default_factory=MovementResources)
 

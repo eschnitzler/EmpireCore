@@ -305,9 +305,13 @@ class GameState:
                                 except (ValueError, TypeError):
                                     pass
 
-                # Extract resources (GS can be a dict or an int)
+                # Extract resources or estimated size from GS field
+                # GS is an int when army not visible (estimated size)
+                # GS is a dict when transporting resources
                 gs_data = m_wrapper.get("GS")
-                if isinstance(gs_data, dict):
+                if isinstance(gs_data, int):
+                    mov.estimated_size = gs_data
+                elif isinstance(gs_data, dict):
                     mov.resources = MovementResources(
                         W=gs_data.get("W", 0),
                         S=gs_data.get("S", 0),
