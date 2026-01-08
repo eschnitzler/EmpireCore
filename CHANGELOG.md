@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.11.0 (2026-01-08)
+
+### Features
+
+- Add no_cache option to get_member() for fresh data
+  ([`ba26735`](https://github.com/eschnitzler/EmpireCore/commit/ba2673566585be33bc9134e6c526d9752704c6e5))
+
+
 ## v0.10.1 (2026-01-08)
 
 ### Refactoring
