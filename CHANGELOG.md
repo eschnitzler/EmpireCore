@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.10.1 (2026-01-08)
+
+### Refactoring
+
+- Rename get_my_* to get_local_* for consistency
+  ([`75caebd`](https://github.com/eschnitzler/EmpireCore/commit/75caebdceeb62578ff97af013600d9959df72107))
+
+
 ## v0.10.0 (2026-01-08)
 
 ### Features
