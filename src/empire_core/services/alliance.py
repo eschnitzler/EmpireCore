@@ -153,6 +153,67 @@ class AllianceService(BaseService):
         return self._members.copy()
 
     # =========================================================================
+    # Own Alliance Operations
+    # =========================================================================
+
+    @property
+    def local_alliance_id(self) -> int | None:
+        """
+        Get the local player's alliance ID.
+
+        Returns:
+            Alliance ID if in an alliance, None otherwise
+        """
+        if self.client.state.local_player:
+            return self.client.state.local_player.alliance_id
+        return None
+
+    def get_my_members(self, timeout: float = 5.0) -> list[AllianceMember]:
+        """
+        Get members of the local player's alliance.
+
+        Convenience method that automatically uses the logged-in player's
+        alliance ID.
+
+        Args:
+            timeout: Timeout in seconds to wait for response
+
+        Returns:
+            List of AllianceMember objects, empty list if not in alliance
+
+        Example:
+            members = client.alliance.get_my_members()
+            for member in members:
+                print(f"{member.name}: {'online' if member.is_online else f'{member.hours_since_online}h ago'}")
+        """
+        alliance_id = self.local_alliance_id
+        if alliance_id is None:
+            return []
+        return self.get_members(alliance_id, timeout=timeout)
+
+    def get_my_online_members(self, timeout: float = 5.0) -> list[AllianceMember]:
+        """
+        Get online members of the local player's alliance.
+
+        Convenience method that automatically uses the logged-in player's
+        alliance ID and filters to online members only.
+
+        Args:
+            timeout: Timeout in seconds to wait for response
+
+        Returns:
+            List of online AllianceMember objects, empty list if not in alliance
+
+        Example:
+            online = client.alliance.get_my_online_members()
+            print(f"{len(online)} alliance members online")
+        """
+        alliance_id = self.local_alliance_id
+        if alliance_id is None:
+            return []
+        return self.get_online_members(alliance_id, timeout=timeout)
+
+    # =========================================================================
     # Chat Operations
     # =========================================================================
 
