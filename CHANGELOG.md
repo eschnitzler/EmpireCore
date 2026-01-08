@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.10.0 (2026-01-08)
+
+### Features
+
+- Add convenience methods for local player's alliance data
+  ([`0de1e9a`](https://github.com/eschnitzler/EmpireCore/commit/0de1e9a25bbeb104ce1cbd4d6290c647ea297b46))
+
+
 ## v0.9.0 (2026-01-08)
 
 ### Features
