@@ -119,24 +119,23 @@ class AllianceService(BaseService):
         members = self.get_members(alliance_id, timeout=timeout)
         return [m for m in members if m.is_online]
 
-    def get_member(self, player_id: int) -> AllianceMember | None:
+    def get_member(self, player_id: int, no_cache: bool = False) -> AllianceMember | None:
         """
-        Get a specific member by player ID from the cached member list.
-
-        Note: Call get_members() first to populate/refresh the cache.
+        Get a specific member by player ID.
 
         Args:
             player_id: The player's ID
+            no_cache: If True, refresh alliance data from server first
 
         Returns:
             AllianceMember if found, None otherwise
 
         Example:
-            client.alliance.get_members(190426)  # Refresh cache
-            member = client.alliance.get_member(12345)
-            if member:
-                print(f"Last seen: {member.hours_since_online}h ago")
+            member = client.alliance.get_member(12345)  # From cache
+            member = client.alliance.get_member(12345, no_cache=True)  # Fresh data
         """
+        if no_cache:
+            self.get_local_members()
         return self._members.get(player_id)
 
     @property
