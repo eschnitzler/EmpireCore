@@ -168,7 +168,7 @@ class AllianceService(BaseService):
             return self.client.state.local_player.alliance_id
         return None
 
-    def get_my_members(self, timeout: float = 5.0) -> list[AllianceMember]:
+    def get_local_members(self, timeout: float = 5.0) -> list[AllianceMember]:
         """
         Get members of the local player's alliance.
 
@@ -191,7 +191,7 @@ class AllianceService(BaseService):
             return []
         return self.get_members(alliance_id, timeout=timeout)
 
-    def get_my_online_members(self, timeout: float = 5.0) -> list[AllianceMember]:
+    def get_local_online_members(self, timeout: float = 5.0) -> list[AllianceMember]:
         """
         Get online members of the local player's alliance.
 
