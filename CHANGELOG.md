@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.9.0 (2026-01-08)
+
+### Features
+
+- Add alliance info command (ain) with member online status
+  ([`fcc9977`](https://github.com/eschnitzler/EmpireCore/commit/fcc9977580d05144cd8ff8e4a818a3a8f8caf710))
+
+
 ## v0.8.0 (2026-01-06)
 
 ### Features
