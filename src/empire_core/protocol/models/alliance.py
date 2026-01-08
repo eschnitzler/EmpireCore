@@ -2,6 +2,7 @@
 Alliance protocol models.
 
 Commands:
+- ain: Get alliance info (includes member list)
 - ahc: Help a specific member (heal/repair/recruit)
 - aha: Help all members
 - ahr: Request help from alliance
@@ -11,7 +12,292 @@ from __future__ import annotations
 
 from pydantic import ConfigDict, Field
 
-from .base import BaseRequest, BaseResponse, HelpType
+from .base import BasePayload, BaseRequest, BaseResponse, HelpType
+
+# =============================================================================
+# Alliance Member Model
+# =============================================================================
+
+
+class MemberEmblem(BasePayload):
+    """Member's emblem/avatar configuration."""
+
+    background_type: int = Field(alias="BGT", default=0)
+    background_color1: int = Field(alias="BGC1", default=0)
+    background_color2: int = Field(alias="BGC2", default=0)
+    symbol_type: int = Field(alias="SPT", default=0)
+    symbol1: int = Field(alias="S1", default=0)
+    symbol_color1: int = Field(alias="SC1", default=0)
+    symbol2: int = Field(alias="S2", default=0)
+    symbol_color2: int = Field(alias="SC2", default=0)
+    icon_style: int = Field(alias="IS", default=0)
+
+
+class MemberCastle(BasePayload):
+    """
+    Member castle position info from AP array.
+
+    AP array format: [[kingdom, area_id, x, y, castle_type], ...]
+    """
+
+    kingdom: int = 0
+    area_id: int = 0
+    x: int = 0
+    y: int = 0
+    castle_type: int = 0  # 1=main castle, 4=outpost
+
+    @classmethod
+    def from_list(cls, data: list) -> "MemberCastle":
+        """Parse from AP array entry."""
+        return cls(
+            kingdom=data[0] if len(data) > 0 else 0,
+            area_id=data[1] if len(data) > 1 else 0,
+            x=data[2] if len(data) > 2 else 0,
+            y=data[3] if len(data) > 3 else 0,
+            castle_type=data[4] if len(data) > 4 else 0,
+        )
+
+
+class AllianceMember(BasePayload):
+    """
+    Alliance member information from ain response.
+
+    Server field mapping:
+    - OID: Player/Object ID
+    - N: Player Name
+    - L: Level
+    - LL: Legendary Level
+    - H: Hours since last seen (0 = currently online)
+    - AR: Alliance Rank (0=member, 8=leader, etc.)
+    - CF: Castle count (main castles)
+    - HF: Total castles including outposts
+    - MP: Might/Power points
+    - E: Emblem configuration
+    - DUM: Is dummy/inactive account
+    - AVP: Avatar points
+    - PRE: Title prefix
+    - SUF: Title suffix
+    - R: Global rank
+    - AID: Alliance ID
+    - AN: Alliance Name
+    - AP: Castle positions [[kingdom, area_id, x, y, type], ...]
+    - SA: Special ability/status
+    - VF: VIP flag
+    - PF: Premium flag
+    """
+
+    player_id: int = Field(alias="OID", default=0)
+    name: str = Field(alias="N", default="Unknown")
+    level: int = Field(alias="L", default=0)
+    legendary_level: int = Field(alias="LL", default=0)
+    hours_since_online: int = Field(alias="H", default=0)
+    alliance_rank: int = Field(alias="AR", default=0)
+    castle_count: int = Field(alias="CF", default=0)
+    total_castles: int = Field(alias="HF", default=0)
+    might: int = Field(alias="MP", default=0)
+
+    # Additional fields
+    is_dummy: bool = Field(alias="DUM", default=False)
+    avatar_points: int = Field(alias="AVP", default=0)
+    title_prefix: int = Field(alias="PRE", default=0)
+    title_suffix: int = Field(alias="SUF", default=-1)
+    global_rank: int = Field(alias="R", default=0)
+    alliance_id: int = Field(alias="AID", default=0)
+    alliance_name: str = Field(alias="AN", default="")
+    special_ability: int = Field(alias="SA", default=0)
+    vip_flag: int = Field(alias="VF", default=0)
+    premium_flag: int = Field(alias="PF", default=0)
+    top_ranking: int = Field(alias="TOPX", default=-1)
+    report_type: int = Field(alias="RPT", default=0)
+    resource_request_date: int = Field(alias="RRD", default=0)
+    title_index: int = Field(alias="TI", default=-1)
+
+    # Emblem
+    emblem: MemberEmblem | None = Field(alias="E", default=None)
+
+    # Castle positions (raw - can be parsed with MemberCastle.from_list)
+    castle_positions: list = Field(alias="AP", default_factory=list)
+    village_positions: list = Field(alias="VP", default_factory=list)
+
+    @property
+    def is_online(self) -> bool:
+        """Check if the member is currently online (H=0 means online)."""
+        return self.hours_since_online == 0
+
+    @property
+    def last_seen_hours(self) -> int:
+        """Get hours since the member was last online."""
+        return self.hours_since_online
+
+    @property
+    def castles(self) -> list[MemberCastle]:
+        """Parse castle positions into MemberCastle objects."""
+        return [MemberCastle.from_list(pos) for pos in self.castle_positions]
+
+    @property
+    def is_leader(self) -> bool:
+        """Check if member is alliance leader (AR=8)."""
+        return self.alliance_rank == 8
+
+    @property
+    def is_officer(self) -> bool:
+        """Check if member is an officer (AR > 0 and < 8)."""
+        return 0 < self.alliance_rank < 8
+
+
+# =============================================================================
+# Alliance Building Model
+# =============================================================================
+
+
+class AllianceBuilding(BasePayload):
+    """Alliance building info from ABL array."""
+
+    building_type: int = Field(alias="BT", default=0)
+    level: int = Field(alias="L", default=0)
+    cooldown: int = Field(alias="CD", default=-1)
+
+
+# =============================================================================
+# Alliance Storage Model
+# =============================================================================
+
+
+class AllianceStorage(BasePayload):
+    """Alliance storage/treasury from STO object."""
+
+    stone: int = Field(alias="S", default=0)
+    wood: int = Field(alias="W", default=0)
+    food: int = Field(alias="O", default=0)  # O for food? might be oil
+    coins1: int = Field(alias="C1", default=0)
+    gold: int = Field(alias="G", default=0)
+    coins2: int = Field(alias="C2", default=0)
+    coins: int = Field(alias="C", default=0)
+    iron: int = Field(alias="I", default=0)
+
+
+# =============================================================================
+# Alliance Info Model
+# =============================================================================
+
+
+class AllianceInfo(BasePayload):
+    """
+    Full alliance information from ain response.
+
+    Contains alliance details, member list, buildings, storage, etc.
+    """
+
+    alliance_id: int = Field(alias="AID", default=0)
+    name: str = Field(alias="N", default="")
+    members: list[AllianceMember] = Field(alias="M", default_factory=list)
+
+    # Alliance stats
+    castle_count: int = Field(alias="CF", default=0)
+    total_castles: int = Field(alias="HF", default=0)
+    might: int = Field(alias="MP", default=0)
+    highest_alliance_might: int = Field(alias="HAMP", default=0)
+    description: str = Field(alias="D", default="")
+    language: str = Field(alias="ALL", default="en")
+
+    # Alliance settings
+    homepage: int = Field(alias="HP", default=0)
+    invite_only: int = Field(alias="IS", default=0)
+    ignore_applications: int = Field(alias="IA", default=0)
+    kick_applications: int = Field(alias="KA", default=0)
+    abbreviation: str = Field(alias="A", default="")
+    friendly_raids: int = Field(alias="FR", default=0)
+    support_priority: int = Field(alias="SP", default=0)
+    auto_accept: int = Field(alias="AA", default=0)
+    alliance_war: int = Field(alias="AW", default=0)
+    member_limit: int = Field(alias="ML", default=0)
+    attack_protection: int = Field(alias="AP", default=0)
+    required_trust: int = Field(alias="RT", default=-1)
+    message_filter: int = Field(alias="MF", default=0)
+    invite_friends: int = Field(alias="IF", default=0)
+
+    # Alliance resources
+    storage: AllianceStorage | None = Field(alias="STO", default=None)
+
+    # Alliance buildings
+    buildings: list[AllianceBuilding] = Field(alias="ABL", default_factory=list)
+
+    # Member info arrays (for donation tracking etc)
+    # AMI: [[player_id, donations...], ...]
+    member_info: list = Field(alias="AMI", default_factory=list)
+
+    # Alliance diplomacy lists
+    alliance_diplomacy: list = Field(alias="ADL", default_factory=list)
+    alliance_contracts: list = Field(alias="ACA", default_factory=list)
+    alliance_truces: list = Field(alias="ATC", default_factory=list)
+    alliance_kingdoms: list = Field(alias="AKT", default_factory=list)
+    alliance_monuments: list = Field(alias="AMO", default_factory=list)
+    alliance_landmarks: list = Field(alias="ALA", default_factory=list)
+
+    # Resource usage flags
+    spend_resources_food_upgrade: int = Field(alias="SRFU", default=0)
+    help_resources_food_upgrade: int = Field(alias="HRFU", default=0)
+
+    @property
+    def member_count(self) -> int:
+        """Get the number of members."""
+        return len(self.members)
+
+    @property
+    def online_members(self) -> list[AllianceMember]:
+        """Get list of currently online members."""
+        return [m for m in self.members if m.is_online]
+
+    @property
+    def online_count(self) -> int:
+        """Get count of online members."""
+        return len(self.online_members)
+
+
+# =============================================================================
+# AIN - Get Alliance Info
+# =============================================================================
+
+
+class GetAllianceInfoRequest(BaseRequest):
+    """
+    Request alliance information including member list.
+
+    Command: ain
+    Payload: {"AID": alliance_id}
+
+    Returns full alliance info with all members, their online status
+    (via hours_since_online), level, rank, castle count, and might.
+    """
+
+    command = "ain"
+
+    alliance_id: int = Field(alias="AID")
+
+
+class GetAllianceInfoResponse(BaseResponse):
+    """
+    Response containing alliance information.
+
+    Command: ain
+    Payload: {"A": {"AID": ..., "N": ..., "M": [...], ...}}
+    """
+
+    command = "ain"
+
+    alliance: AllianceInfo = Field(alias="A")
+    error_code: int = Field(alias="E", default=0)
+
+    @property
+    def members(self) -> list[AllianceMember]:
+        """Convenience accessor for alliance members."""
+        return self.alliance.members
+
+    @property
+    def online_members(self) -> list[AllianceMember]:
+        """Get list of currently online members."""
+        return self.alliance.online_members
+
 
 # =============================================================================
 # AHC - Help Member
@@ -172,6 +458,16 @@ class HelpRequestNotification(BaseResponse):
 
 
 __all__ = [
+    # Alliance Member
+    "AllianceMember",
+    "AllianceInfo",
+    "AllianceBuilding",
+    "AllianceStorage",
+    "MemberEmblem",
+    "MemberCastle",
+    # AIN - Get Alliance Info
+    "GetAllianceInfoRequest",
+    "GetAllianceInfoResponse",
     # AHC - Help Member
     "HelpMemberRequest",
     "HelpMemberResponse",

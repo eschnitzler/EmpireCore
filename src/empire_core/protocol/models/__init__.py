@@ -27,13 +27,21 @@ TODO (lower priority):
 """
 
 from .alliance import (
+    AllianceBuilding,
+    AllianceInfo,
+    AllianceMember,
+    AllianceStorage,
     AskHelpRequest,
     AskHelpResponse,
+    GetAllianceInfoRequest,
+    GetAllianceInfoResponse,
     HelpAllRequest,
     HelpAllResponse,
     HelpMemberRequest,
     HelpMemberResponse,
     HelpRequestNotification,
+    MemberCastle,
+    MemberEmblem,
 )
 from .army import (
     CancelHealRequest,
@@ -224,6 +232,14 @@ __all__ = [
     "AllianceChatLogResponse",
     "ChatLogEntry",
     # Alliance
+    "AllianceMember",
+    "AllianceInfo",
+    "AllianceBuilding",
+    "AllianceStorage",
+    "MemberEmblem",
+    "MemberCastle",
+    "GetAllianceInfoRequest",
+    "GetAllianceInfoResponse",
     "HelpMemberRequest",
     "HelpMemberResponse",
     "HelpAllRequest",

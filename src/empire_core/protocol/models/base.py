@@ -46,6 +46,7 @@ class GGECommand:
     ACL = "acl"  # Get alliance chat log
 
     # Alliance
+    AIN = "ain"  # Get alliance info (includes member list)
     AHC = "ahc"  # Help member
     AHA = "aha"  # Help all
     AHR = "ahr"  # Ask for help (request)

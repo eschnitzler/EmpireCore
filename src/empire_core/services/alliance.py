@@ -2,6 +2,7 @@
 Alliance service for EmpireCore.
 
 Provides high-level APIs for:
+- Alliance members (get members, online status, last seen)
 - Alliance chat (send messages, get history)
 - Alliance help (help members, help all, request help)
 """
@@ -15,8 +16,11 @@ from empire_core.protocol.models import (
     AllianceChatLogResponse,
     AllianceChatMessageRequest,
     AllianceChatMessageResponse,
+    AllianceMember,
     AskHelpRequest,
     ChatLogEntry,
+    GetAllianceInfoRequest,
+    GetAllianceInfoResponse,
     HelpAllRequest,
     HelpAllResponse,
     HelpMemberRequest,
@@ -55,9 +59,98 @@ class AllianceService(BaseService):
     def __init__(self, client) -> None:
         super().__init__(client)
         self._chat_callbacks: list[Callable[[AllianceChatMessageResponse], None]] = []
+        self._members: dict[int, AllianceMember] = {}
 
         # Register internal handler for chat messages
         self.on_response("acm", self._handle_chat_message)
+
+    # =========================================================================
+    # Member Operations
+    # =========================================================================
+
+    def get_members(self, alliance_id: int, timeout: float = 5.0) -> list[AllianceMember]:
+        """
+        Get the list of alliance members from the server.
+
+        This fetches alliance info and returns all members with their
+        online status (via hours_since_online), level, rank, etc.
+
+        Args:
+            alliance_id: The alliance ID to get members for
+            timeout: Timeout in seconds to wait for response
+
+        Returns:
+            List of AllianceMember objects
+
+        Example:
+            members = client.alliance.get_members(190426)
+            for member in members:
+                print(f"{member.name}: online={member.is_online}, "
+                      f"last seen {member.hours_since_online}h ago")
+        """
+        request = GetAllianceInfoRequest(AID=alliance_id)
+        response = self.send(request, wait=True, timeout=timeout)
+
+        if isinstance(response, GetAllianceInfoResponse):
+            # Update cached members
+            self._members = {m.player_id: m for m in response.members}
+            return response.members
+
+        return []
+
+    def get_online_members(self, alliance_id: int, timeout: float = 5.0) -> list[AllianceMember]:
+        """
+        Get alliance members who are currently online.
+
+        Fetches the member list and filters to only online members
+        (members with hours_since_online == 0).
+
+        Args:
+            alliance_id: The alliance ID to get members for
+            timeout: Timeout in seconds to wait for response
+
+        Returns:
+            List of online AllianceMember objects
+
+        Example:
+            online = client.alliance.get_online_members(190426)
+            print(f"{len(online)} members online")
+        """
+        members = self.get_members(alliance_id, timeout=timeout)
+        return [m for m in members if m.is_online]
+
+    def get_member(self, player_id: int) -> AllianceMember | None:
+        """
+        Get a specific member by player ID from the cached member list.
+
+        Note: Call get_members() first to populate/refresh the cache.
+
+        Args:
+            player_id: The player's ID
+
+        Returns:
+            AllianceMember if found, None otherwise
+
+        Example:
+            client.alliance.get_members(190426)  # Refresh cache
+            member = client.alliance.get_member(12345)
+            if member:
+                print(f"Last seen: {member.hours_since_online}h ago")
+        """
+        return self._members.get(player_id)
+
+    @property
+    def cached_members(self) -> dict[int, AllianceMember]:
+        """
+        Get the cached member dictionary.
+
+        Returns members from the last get_members() call, keyed by player_id.
+        Call get_members() to refresh.
+
+        Returns:
+            Dict mapping player_id to AllianceMember
+        """
+        return self._members.copy()
 
     # =========================================================================
     # Chat Operations
