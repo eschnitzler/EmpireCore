@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v0.13.0 (2026-01-10)
+
+### Features
+
+- Add activity_tier property to AllianceMember for tiered offline status
+  ([`cd67fae`](https://github.com/eschnitzler/EmpireCore/commit/cd67fae55bfa78bc81fc7b92a7202975b3fb071b))
+
+### Breaking Changes
+
+- _online property replaced with _activity_tier
+
+
 ## v0.11.0 (2026-01-08)
 
 ### Features
