@@ -73,7 +73,7 @@ class AllianceService(BaseService):
         Get the list of alliance members from the server.
 
         This fetches alliance info and returns all members with their
-        online status (via hours_since_online), level, rank, etc.
+        online status (via AMI array), level, rank, etc.
 
         Args:
             alliance_id: The alliance ID to get members for
@@ -85,8 +85,7 @@ class AllianceService(BaseService):
         Example:
             members = client.alliance.get_members(190426)
             for member in members:
-                print(f"{member.name}: online={member.is_online}, "
-                      f"last seen {member.hours_since_online}h ago")
+                print(f"{member.name}: online={member.is_online}")
         """
         request = GetAllianceInfoRequest(AID=alliance_id)
         response = self.send(request, wait=True, timeout=timeout)
@@ -103,7 +102,7 @@ class AllianceService(BaseService):
         Get alliance members who are currently online.
 
         Fetches the member list and filters to only online members
-        (members with hours_since_online == 0).
+        (members with online status from AMI array).
 
         Args:
             alliance_id: The alliance ID to get members for
@@ -183,7 +182,7 @@ class AllianceService(BaseService):
         Example:
             members = client.alliance.get_my_members()
             for member in members:
-                print(f"{member.name}: {'online' if member.is_online else f'{member.hours_since_online}h ago'}")
+                print(f"{member.name}: {'online' if member.is_online else 'offline'}")
         """
         alliance_id = self.local_alliance_id
         if alliance_id is None:

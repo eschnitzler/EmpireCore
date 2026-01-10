@@ -67,7 +67,7 @@ class AllianceMember(BasePayload):
     - N: Player Name
     - L: Level
     - LL: Legendary Level
-    - H: Hours since last seen (0 = currently online)
+    - H: Unknown metric (NOT online status - possibly honor or other stat)
     - AR: Alliance Rank (0=member, 8=leader, etc.)
     - CF: Castle count (main castles)
     - HF: Total castles including outposts
@@ -84,13 +84,17 @@ class AllianceMember(BasePayload):
     - SA: Special ability/status
     - VF: VIP flag
     - PF: Premium flag
+
+    Note: Online status comes from the AMI array in AllianceInfo, not the H field.
+    The AMI array format is: [player_id, field1, field2, field3, online_status, ...]
+    where online_status == 0 means online, any other value means offline.
     """
 
     player_id: int = Field(alias="OID", default=0)
     name: str = Field(alias="N", default="Unknown")
     level: int = Field(alias="L", default=0)
     legendary_level: int = Field(alias="LL", default=0)
-    hours_since_online: int = Field(alias="H", default=0)
+    h_field: int = Field(alias="H", default=0)  # Unknown metric, NOT online status
     alliance_rank: int = Field(alias="AR", default=0)
     castle_count: int = Field(alias="CF", default=0)
     total_castles: int = Field(alias="HF", default=0)
@@ -119,15 +123,26 @@ class AllianceMember(BasePayload):
     castle_positions: list = Field(alias="AP", default_factory=list)
     village_positions: list = Field(alias="VP", default_factory=list)
 
-    @property
-    def is_online(self) -> bool:
-        """Check if the member is currently online (H=0 means online)."""
-        return self.hours_since_online == 0
+    # Online status (populated from AMI array, not from server directly)
+    # None means unknown, True means online, False means offline
+    _online: bool | None = None
 
     @property
-    def last_seen_hours(self) -> int:
-        """Get hours since the member was last online."""
-        return self.hours_since_online
+    def is_online(self) -> bool:
+        """
+        Check if the member is currently online.
+
+        Online status comes from the AMI array in AllianceInfo (index 4).
+        AMI[4] == 0 means online, any other value means offline.
+
+        Returns False if online status is unknown.
+        """
+        return self._online is True
+
+    @property
+    def honor(self) -> int:
+        """Get member's honor points (H field)."""
+        return self.h_field
 
     @property
     def castles(self) -> list[MemberCastle]:
@@ -223,7 +238,8 @@ class AllianceInfo(BasePayload):
     buildings: list[AllianceBuilding] = Field(alias="ABL", default_factory=list)
 
     # Member info arrays (for donation tracking etc)
-    # AMI: [[player_id, donations...], ...]
+    # AMI: [[player_id, field1, field2, field3, online_status, ...], ...]
+    # online_status at index 4: 0 = online, non-zero = offline
     member_info: list = Field(alias="AMI", default_factory=list)
 
     # Alliance diplomacy lists
@@ -253,6 +269,33 @@ class AllianceInfo(BasePayload):
         """Get count of online members."""
         return len(self.online_members)
 
+    def model_post_init(self, __context) -> None:
+        """Populate member online status from AMI array after parsing."""
+        self._populate_online_status()
+
+    def _populate_online_status(self) -> None:
+        """
+        Populate member online status from the AMI array.
+
+        AMI format: [[player_id, field1, field2, field3, online_status, ...], ...]
+        online_status at index 4: 0 = online, non-zero = offline
+        """
+        if not self.member_info:
+            return
+
+        # Build lookup: player_id -> online status
+        online_lookup: dict[int, bool] = {}
+        for ami_entry in self.member_info:
+            if len(ami_entry) >= 5:
+                player_id = ami_entry[0]
+                online_status = ami_entry[4]
+                online_lookup[player_id] = online_status == 0
+
+        # Set online status on each member
+        for member in self.members:
+            if member.player_id in online_lookup:
+                member._online = online_lookup[member.player_id]
+
 
 # =============================================================================
 # AIN - Get Alliance Info
@@ -267,7 +310,7 @@ class GetAllianceInfoRequest(BaseRequest):
     Payload: {"AID": alliance_id}
 
     Returns full alliance info with all members, their online status
-    (via hours_since_online), level, rank, castle count, and might.
+    (via AMI array), level, rank, castle count, and might.
     """
 
     command = "ain"
