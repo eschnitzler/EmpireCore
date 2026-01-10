@@ -85,9 +85,9 @@ class AllianceMember(BasePayload):
     - VF: VIP flag
     - PF: Premium flag
 
-    Note: Online status comes from the AMI array in AllianceInfo, not the H field.
-    The AMI array format is: [player_id, field1, field2, field3, online_status, ...]
-    where online_status == 0 means online, any other value means offline.
+    Note: Activity status comes from the AMI array in AllianceInfo, not the H field.
+    The AMI array format is: [player_id, field1, field2, field3, activity_tier, ...]
+    Activity tiers: 0=online, 1=<12hrs, 2=<48hrs, 3=<7days, 4=7+days offline.
     """
 
     player_id: int = Field(alias="OID", default=0)
@@ -123,21 +123,35 @@ class AllianceMember(BasePayload):
     castle_positions: list = Field(alias="AP", default_factory=list)
     village_positions: list = Field(alias="VP", default_factory=list)
 
-    # Online status (populated from AMI array, not from server directly)
-    # None means unknown, True means online, False means offline
-    _online: bool | None = None
+    # Activity tier (populated from AMI array, not from server directly)
+    # None means unknown, 0-4 are the activity tiers from the server
+    _activity_tier: int | None = None
+
+    @property
+    def activity_tier(self) -> int | None:
+        """
+        Get the member's activity tier from AMI array (index 4).
+
+        Activity tiers:
+        - 0: Online now
+        - 1: Offline < 12 hours
+        - 2: Offline < 48 hours
+        - 3: Offline < 7 days
+        - 4: Offline 7+ days
+
+        Returns None if activity status is unknown.
+        """
+        return self._activity_tier
 
     @property
     def is_online(self) -> bool:
         """
         Check if the member is currently online.
 
-        Online status comes from the AMI array in AllianceInfo (index 4).
-        AMI[4] == 0 means online, any other value means offline.
-
-        Returns False if online status is unknown.
+        Returns True only if activity_tier == 0.
+        Returns False if offline or unknown.
         """
-        return self._online is True
+        return self._activity_tier == 0
 
     @property
     def honor(self) -> int:
@@ -238,8 +252,8 @@ class AllianceInfo(BasePayload):
     buildings: list[AllianceBuilding] = Field(alias="ABL", default_factory=list)
 
     # Member info arrays (for donation tracking etc)
-    # AMI: [[player_id, field1, field2, field3, online_status, ...], ...]
-    # online_status at index 4: 0 = online, non-zero = offline
+    # AMI: [[player_id, field1, field2, field3, activity_tier, ...], ...]
+    # activity_tier at index 4: 0=online, 1=<12hrs, 2=<48hrs, 3=<7days, 4=7+days offline
     member_info: list = Field(alias="AMI", default_factory=list)
 
     # Alliance diplomacy lists
@@ -270,31 +284,37 @@ class AllianceInfo(BasePayload):
         return len(self.online_members)
 
     def model_post_init(self, __context) -> None:
-        """Populate member online status from AMI array after parsing."""
-        self._populate_online_status()
+        """Populate member activity tier from AMI array after parsing."""
+        self._populate_activity_tier()
 
-    def _populate_online_status(self) -> None:
+    def _populate_activity_tier(self) -> None:
         """
-        Populate member online status from the AMI array.
+        Populate member activity tier from the AMI array.
 
-        AMI format: [[player_id, field1, field2, field3, online_status, ...], ...]
-        online_status at index 4: 0 = online, non-zero = offline
+        AMI format: [[player_id, field1, field2, field3, activity_tier, ...], ...]
+
+        Activity tiers at index 4:
+        - 0: Online now
+        - 1: Offline < 12 hours
+        - 2: Offline < 48 hours
+        - 3: Offline < 7 days
+        - 4: Offline 7+ days
         """
         if not self.member_info:
             return
 
-        # Build lookup: player_id -> online status
-        online_lookup: dict[int, bool] = {}
+        # Build lookup: player_id -> activity tier
+        activity_lookup: dict[int, int] = {}
         for ami_entry in self.member_info:
             if len(ami_entry) >= 5:
                 player_id = ami_entry[0]
-                online_status = ami_entry[4]
-                online_lookup[player_id] = online_status == 0
+                activity_tier = ami_entry[4]
+                activity_lookup[player_id] = activity_tier
 
-        # Set online status on each member
+        # Set activity tier on each member
         for member in self.members:
-            if member.player_id in online_lookup:
-                member._online = online_lookup[member.player_id]
+            if member.player_id in activity_lookup:
+                member._activity_tier = activity_lookup[member.player_id]
 
 
 # =============================================================================
