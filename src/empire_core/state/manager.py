@@ -184,18 +184,16 @@ class GameState:
                 continue
 
             is_new = mid not in self._previous_movement_ids
-            logger.debug(
-                f"gam: MID={mid}, is_new={is_new}, T={mov.T}, is_attack={mov.is_attack}, "
-                f"callback_set={self.on_incoming_attack is not None}"
-            )
+
             if is_new:
                 mov.created_at = time.time()
 
                 # Trigger callback for attacks (server pushes gam for alliance attacks)
-                # Don't filter by is_incoming - that's relative to local player
-                # Dispatch in thread pool to avoid blocking receive loop
                 if mov.is_attack and self.on_incoming_attack:
-                    logger.info(f"gam: Dispatching callback for MID={mid}")
+                    self._dispatch_callback(self.on_incoming_attack, mov)
+            else:
+                # Dispatch callback for updates to existing attacks too (e.g., visibility change)
+                if mov.is_attack and self.on_incoming_attack:
                     self._dispatch_callback(self.on_incoming_attack, mov)
 
             self.movements[mid] = mov
