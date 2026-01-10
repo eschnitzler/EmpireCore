@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.14.0 (2026-01-10)
+
+### Features
+
+- Dispatch on_incoming_attack callback for movement updates
+  ([`db39eda`](https://github.com/eschnitzler/EmpireCore/commit/db39eda257edda791d94b6102b098ab9544f7765))
+
+
 ## v0.13.0 (2026-01-10)
 
 ### Features
