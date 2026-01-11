@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.17.1 (2026-01-11)
+
+### Bug Fixes
+
+- Change library logging from INFO to DEBUG
+  ([`b31a461`](https://github.com/eschnitzler/EmpireCore/commit/b31a461d07f782f92a278f12107560deb3a06aef))
+
+
 ## v0.17.0 (2026-01-11)
 
 ### Features
