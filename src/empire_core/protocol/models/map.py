@@ -43,8 +43,8 @@ class MapItemType(IntEnum):
     """
 
     EMPTY = 0
-    MOVING_FLAG = 1  # Castle relocation destination flag
-    CASTLE = 2  # Player castle
+    CASTLE = 1  # Player main castle (also moving destination when relocating)
+    EMPTY_CASTLE_SLOT = 2  # Unoccupied castle spawn point
     CAPITAL = 3  # Player capital
     OUTPOST = 4  # Player outpost
     RUIN = 5  # Abandoned ruin
@@ -123,8 +123,10 @@ class MapAreaItem(BaseResponse):
 
     @property
     def is_moving_flag(self) -> bool:
-        """Check if this is a moving castle flag."""
-        return self.item_type == MapItemType.MOVING_FLAG and self.owner_id != -1
+        """Check if this is a castle that is being relocated (moving)."""
+        # A type-1 castle with owner represents either a stationary castle or one in transit
+        # To detect "moving", you need to track state changes or check movement endpoints
+        return self.item_type == MapItemType.CASTLE and self.owner_id != -1
 
     @property
     def is_castle(self) -> bool:
