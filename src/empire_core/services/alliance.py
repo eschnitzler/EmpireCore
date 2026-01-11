@@ -17,6 +17,7 @@ from empire_core.protocol.models import (
     AllianceChatMessageRequest,
     AllianceChatMessageResponse,
     AllianceMember,
+    AllianceSearchResult,
     AskHelpRequest,
     ChatLogEntry,
     GetAllianceInfoRequest,
@@ -24,6 +25,8 @@ from empire_core.protocol.models import (
     HelpAllRequest,
     HelpAllResponse,
     HelpMemberRequest,
+    SearchAllianceRequest,
+    SearchAllianceResponse,
 )
 
 from .base import BaseService, register_service
@@ -149,6 +152,34 @@ class AllianceService(BaseService):
             Dict mapping player_id to AllianceMember
         """
         return self._members.copy()
+
+    # =========================================================================
+    # Search Operations
+    # =========================================================================
+
+    def search_alliances(self, search_term: str, timeout: float = 5.0) -> list[AllianceSearchResult]:
+        """
+        Search for alliances by name.
+
+        Args:
+            search_term: The alliance name to search for (partial match)
+            timeout: Timeout in seconds to wait for response
+
+        Returns:
+            List of AllianceSearchResult objects matching the search
+
+        Example:
+            results = client.alliance.search_alliances("HOPE")
+            for alliance in results:
+                print(f"{alliance.name} (ID: {alliance.alliance_id}, {alliance.member_count} members)")
+        """
+        request = SearchAllianceRequest.create(search_term)
+        response = self.send(request, wait=True, timeout=timeout)
+
+        if isinstance(response, SearchAllianceResponse):
+            return response.results
+
+        return []
 
     # =========================================================================
     # Own Alliance Operations

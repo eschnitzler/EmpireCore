@@ -204,6 +204,13 @@ from .player import (
     PlayerOwnerInfo,
     get_location_type_name,
 )
+from .search import (
+    AllianceSearchResult,
+    SearchAllianceRequest,
+    SearchAllianceResponse,
+    SearchListType,
+    SearchType,
+)
 
 __all__ = [
     # Base
@@ -373,4 +380,10 @@ __all__ = [
     "ChangeMoatDefenseResponse",
     "GetSupportDefenseRequest",
     "GetSupportDefenseResponse",
+    # Search
+    "SearchType",
+    "SearchListType",
+    "AllianceSearchResult",
+    "SearchAllianceRequest",
+    "SearchAllianceResponse",
 ]
