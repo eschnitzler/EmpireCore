@@ -207,6 +207,13 @@ class EmpireClient:
 
                 raise LoginError(f"Auth failed with code {lli_response.error_code}")
 
+            # Wait for gbd (Get Big Data) which contains player info, castles, etc.
+            # This arrives shortly after lli success
+            try:
+                self.connection.wait_for("gbd", timeout=self.config.request_timeout)
+            except TimeoutError:
+                logger.warning("gbd packet not received, player state may be incomplete")
+
             logger.info(f"Logged in as {self.username}")
             self.is_logged_in = True
             return True
