@@ -323,6 +323,14 @@ class GameState:
                         F=gs_data.get("F", 0),
                     )
 
+                # Extract commander data from UM.L (Lord/commander info)
+                um_data = m_wrapper.get("UM", {})
+                if isinstance(um_data, dict):
+                    lord_data = um_data.get("L", {})
+                    if isinstance(lord_data, dict):
+                        mov.commander_equipment = lord_data.get("EQ", [])
+                        mov.commander_effects = lord_data.get("AE", [])
+
             # Extract owner names and alliances from owner_info
             if owner_info:
                 # Attacker info (OID = owner of the movement)

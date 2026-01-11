@@ -141,6 +141,11 @@ class Movement(BaseModel):
     created_at: float = Field(default_factory=time.time)  # When we first saw this movement
     last_updated: float = Field(default_factory=time.time)  # Last update time
 
+    # Commander raw data (from UM.L in movement wrapper)
+    # These are exposed for consumers to calculate stats using dynamic effect IDs
+    commander_equipment: list = Field(default_factory=list)  # EQ array from UM.L
+    commander_effects: list = Field(default_factory=list)  # AE array from UM.L
+
     @property
     def movement_id(self) -> int:
         return self.MID
