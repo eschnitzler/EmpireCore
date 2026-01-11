@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.17.0 (2026-01-11)
+
+### Features
+
+- Add alliance search (hgh command)
+  ([`9629811`](https://github.com/eschnitzler/EmpireCore/commit/9629811bf3a334d872dfafb83f045e3b9ed5967f))
+
+
 ## v0.16.0 (2026-01-11)
 
 ### Bug Fixes
