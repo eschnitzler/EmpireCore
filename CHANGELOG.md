@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.15.0 (2026-01-11)
+
+### Features
+
+- Expose raw commander data in movements
+  ([`f461d49`](https://github.com/eschnitzler/EmpireCore/commit/f461d49790b9477a033c04bc89cf295c1464795a))
+
+
 ## v0.14.0 (2026-01-10)
 
 ### Features
