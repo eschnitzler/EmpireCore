@@ -532,23 +532,23 @@ class EmpireClient:
         self,
         kingdom: Kingdom = Kingdom.GREEN,
         item_types: list[MapItemType] | None = None,
-        timeout: float = 120.0,
-        batch_delay: float = 0.5,
+        timeout: float = 300.0,
+        request_timeout: float = 5.0,
     ) -> list[MapAreaItem]:
         """
         Scan a kingdom map with dynamic boundary detection.
 
-        Starts from the bot's castle position and expands outward in waves,
-        automatically detecting map boundaries. Sends requests in batches
-        with delays to avoid overwhelming the server.
+        Uses BFS expansion from the bot's castle position, sending one request
+        at a time and waiting for each response before continuing. This ensures
+        no chunks are missed due to timeouts.
 
         Args:
             kingdom: Kingdom to scan (GREEN, SANDS, ICE, FIRE, STORM)
             item_types: List of MapItemType values to collect.
                        Defaults to [CASTLE] if None (finds all player castles).
                        Pass empty list [] to collect ALL items.
-            timeout: Maximum time to wait for scan completion
-            batch_delay: Delay in seconds between request batches
+            timeout: Maximum total time for the entire scan
+            request_timeout: Timeout for each individual chunk request
 
         Returns:
             List of MapAreaItem objects matching the filter.
@@ -558,7 +558,7 @@ class EmpireClient:
             # Scan for castles (default)
             items = client.scan_kingdom(kingdom=Kingdom.GREEN)
             for item in items:
-                print(f"Player {item.owner_id} moving to {item.x}:{item.y}")
+                print(f"Player {item.owner_id} at {item.x}:{item.y}")
 
             # Scan for monuments and labs
             items = client.scan_kingdom(
@@ -570,16 +570,15 @@ class EmpireClient:
             all_items = client.scan_kingdom(kingdom=Kingdom.GREEN, item_types=[])
 
         Note:
-            Uses dynamic boundary detection - adapts to actual map size.
-            Sends requests in batches with delays to be gentle on the server.
+            Uses sequential request/response to ensure reliability.
+            BFS expansion detects map boundaries automatically.
         """
-        import threading
         import time
 
         CHUNK_SIZE = 90  # Max allowed by GGE server
         MAX_COORD = 20  # Max chunk coordinate (20 * 90 = 1800, well beyond any map)
 
-        # Get starting position
+        # Get starting position from bot's castle
         start_x, start_y = self._get_kingdom_start_position(kingdom)
         start_cx, start_cy = start_x // CHUNK_SIZE, start_y // CHUNK_SIZE
 
@@ -590,12 +589,6 @@ class EmpireClient:
         # Empty list means collect everything
         filter_types = set(item_types) if item_types else None
 
-        # Tracking state (protected by lock)
-        collected_items: list[MapAreaItem] = []
-        chunk_responses: dict[tuple[int, int], bool] = {}  # (cx, cy) -> has_content
-        pending_chunks: set[tuple[int, int]] = set()
-        lock = threading.Lock()
-
         filter_desc = f"types={list(item_types)}" if item_types else "all types"
         logger.info(f"Scanning kingdom {kingdom.name} from chunk ({start_cx}, {start_cy}) for {filter_desc}...")
 
@@ -605,161 +598,118 @@ class EmpireClient:
             y1 = cy * CHUNK_SIZE
             return (x1, y1, x1 + CHUNK_SIZE, y1 + CHUNK_SIZE)
 
-        def handle_gaa_response(packet: Packet) -> None:
-            """Process chunk response, collect items."""
-            if not isinstance(packet.payload, dict):
-                return
+        def process_chunk(cx: int, cy: int) -> bool:
+            """
+            Request a single chunk and process the response.
+            Returns True if chunk had content, False if empty.
+            """
+            x1, y1, x2, y2 = chunk_bounds(cx, cy)
+            request = GetMapAreaRequest(KID=kingdom, AX1=x1, AY1=y1, AX2=x2, AY2=y2)
 
-            # Extract chunk coords from response
-            ax1 = packet.payload.get("AX1", 0)
-            ay1 = packet.payload.get("AY1", 0)
-            cx, cy = ax1 // CHUNK_SIZE, ay1 // CHUNK_SIZE
+            # Send and wait for response
+            self.send(request, wait=False)
+            try:
+                response = self.connection.wait_for("gaa", timeout=request_timeout)
+            except TimeoutError:
+                logger.warning(f"Chunk ({cx}, {cy}) timed out, retrying...")
+                # Retry once
+                self.send(request, wait=False)
+                try:
+                    response = self.connection.wait_for("gaa", timeout=request_timeout)
+                except TimeoutError:
+                    logger.error(f"Chunk ({cx}, {cy}) failed after retry")
+                    return False
 
-            ai_array = packet.payload.get("AI", [])
+            if not isinstance(response.payload, dict):
+                return False
+
+            ai_array = response.payload.get("AI", [])
             has_content = len(ai_array) > 0
 
-            with lock:
-                chunk_responses[(cx, cy)] = has_content
-                pending_chunks.discard((cx, cy))
+            # Collect matching items
+            for raw_item in ai_array:
+                if isinstance(raw_item, list) and len(raw_item) >= 4:
+                    item = MapAreaItem.from_list(raw_item)
 
-                # Collect matching items
-                for raw_item in ai_array:
-                    if isinstance(raw_item, list) and len(raw_item) >= 4:
-                        item = MapAreaItem.from_list(raw_item)
+                    # Apply filter (None = collect all)
+                    if filter_types is None or item.item_type in filter_types:
+                        # Skip unowned items (empty locations, unplaced flags, etc)
+                        if item.owner_id == -1:
+                            continue
+                        collected_items.append(item)
 
-                        # Apply filter (None = collect all)
-                        if filter_types is None or item.item_type in filter_types:
-                            # Skip unowned items (empty locations, unplaced flags, etc)
-                            if item.owner_id == -1:
-                                continue
-                            collected_items.append(item)
+            return has_content
 
-        # Subscribe to gaa responses
-        self.connection.subscribe("gaa", handle_gaa_response)
+        # State tracking
+        collected_items: list[MapAreaItem] = []
+        visited: set[tuple[int, int]] = set()
+        chunk_has_content: dict[tuple[int, int], bool] = {}
 
-        try:
-            visited: set[tuple[int, int]] = set()
-            current_wave: set[tuple[int, int]] = {(start_cx, start_cy)}
-            total_requests = 0
-            waves_processed = 0
+        # BFS queue - process one chunk at a time
+        queue: list[tuple[int, int]] = [(start_cx, start_cy)]
+        total_requests = 0
+        start_time = time.time()
 
-            # Track boundaries - stop expanding when we hit edges
-            # We consider a direction "bounded" after 2 consecutive empty waves in that direction
-            min_x_bounded = False
-            max_x_bounded = False
-            min_y_bounded = False
-            max_y_bounded = False
+        # Track boundaries
+        min_x_found = start_cx
+        max_x_found = start_cx
+        min_y_found = start_cy
+        max_y_found = start_cy
 
-            start_time = time.time()
+        while queue:
+            if time.time() - start_time > timeout:
+                logger.warning(f"Kingdom scan timeout after {total_requests} requests")
+                break
 
-            while current_wave:
-                if time.time() - start_time > timeout:
-                    logger.warning(f"Kingdom scan timeout after {total_requests} requests")
-                    break
+            cx, cy = queue.pop(0)
 
-                # Filter valid chunks for this wave
-                valid_chunks = []
-                for cx, cy in current_wave:
-                    if (cx, cy) in visited:
-                        continue
-                    # Skip clearly out-of-bounds
-                    if cx < 0 or cy < 0 or cx > MAX_COORD or cy > MAX_COORD:
-                        continue
-                    visited.add((cx, cy))
-                    valid_chunks.append((cx, cy))
+            # Skip if already visited or out of bounds
+            if (cx, cy) in visited:
+                continue
+            if cx < 0 or cy < 0 or cx > MAX_COORD or cy > MAX_COORD:
+                continue
 
-                if not valid_chunks:
-                    break
+            visited.add((cx, cy))
+            total_requests += 1
 
-                # Send this batch
-                with lock:
-                    pending_chunks.update(valid_chunks)
+            # Process this chunk
+            has_content = process_chunk(cx, cy)
+            chunk_has_content[(cx, cy)] = has_content
 
-                for cx, cy in valid_chunks:
-                    x1, y1, x2, y2 = chunk_bounds(cx, cy)
-                    request = GetMapAreaRequest(KID=kingdom, AX1=x1, AY1=y1, AX2=x2, AY2=y2)
-                    self.send(request, wait=False)
-                    total_requests += 1
+            # Update bounds tracking
+            if has_content:
+                min_x_found = min(min_x_found, cx)
+                max_x_found = max(max_x_found, cx)
+                min_y_found = min(min_y_found, cy)
+                max_y_found = max(max_y_found, cy)
 
-                # Wait for this batch to complete
-                batch_start = time.time()
-                while True:
-                    with lock:
-                        if not pending_chunks:
-                            break
-                    if time.time() - batch_start > 10.0:
-                        logger.warning(f"Batch timeout, {len(pending_chunks)} chunks pending")
-                        with lock:
-                            pending_chunks.clear()
-                        break
-                    time.sleep(0.02)
+            # Add neighbors to queue (BFS expansion)
+            # Only expand if this chunk or adjacent chunks had content
+            # This prevents infinite expansion into empty areas
+            neighbors = [(cx - 1, cy), (cx + 1, cy), (cx, cy - 1), (cx, cy + 1)]
+            for nx, ny in neighbors:
+                if (nx, ny) not in visited:
+                    # Always explore if within 2 chunks of known content
+                    if min_x_found - 2 <= nx <= max_x_found + 2 and min_y_found - 2 <= ny <= max_y_found + 2:
+                        queue.append((nx, ny))
+                    # Or if this chunk had content, explore neighbors
+                    elif has_content:
+                        queue.append((nx, ny))
 
-                waves_processed += 1
+            # Log progress periodically
+            if total_requests % 50 == 0:
+                elapsed = time.time() - start_time
+                logger.info(
+                    f"Scan progress: {total_requests} chunks, {len(collected_items)} items, {elapsed:.1f}s elapsed"
+                )
 
-                # Build next wave - expand in all 4 directions from visited chunks
-                next_wave: set[tuple[int, int]] = set()
-
-                # Analyze this wave's results for boundary detection
-                wave_min_x = min(cx for cx, _ in valid_chunks)
-                wave_max_x = max(cx for cx, _ in valid_chunks)
-                wave_min_y = min(cy for _, cy in valid_chunks)
-                wave_max_y = max(cy for _, cy in valid_chunks)
-
-                # Check if edge chunks were empty (indicates boundary)
-                with lock:
-                    edge_min_x_empty = all(
-                        not chunk_responses.get((wave_min_x, cy), False) for _, cy in valid_chunks if _ == wave_min_x
-                    )
-                    edge_max_x_empty = all(
-                        not chunk_responses.get((wave_max_x, cy), False) for _, cy in valid_chunks if _ == wave_max_x
-                    )
-                    edge_min_y_empty = all(
-                        not chunk_responses.get((cx, wave_min_y), False) for cx, _ in valid_chunks if _ == wave_min_y
-                    )
-                    edge_max_y_empty = all(
-                        not chunk_responses.get((cx, wave_max_y), False) for cx, _ in valid_chunks if _ == wave_max_y
-                    )
-
-                # Update boundary flags
-                if edge_min_x_empty and wave_min_x <= 1:
-                    min_x_bounded = True
-                if edge_max_x_empty and wave_max_x >= MAX_COORD - 1:
-                    max_x_bounded = True
-                if edge_min_y_empty and wave_min_y <= 1:
-                    min_y_bounded = True
-                if edge_max_y_empty and wave_max_y >= MAX_COORD - 1:
-                    max_y_bounded = True
-
-                # Add neighbors for next wave
-                for cx, cy in valid_chunks:
-                    neighbors = [
-                        (cx - 1, cy) if not min_x_bounded else None,
-                        (cx + 1, cy) if not max_x_bounded else None,
-                        (cx, cy - 1) if not min_y_bounded else None,
-                        (cx, cy + 1) if not max_y_bounded else None,
-                    ]
-                    for neighbor in neighbors:
-                        if neighbor and neighbor not in visited:
-                            next_wave.add(neighbor)
-
-                # Check if fully bounded
-                if min_x_bounded and max_x_bounded and min_y_bounded and max_y_bounded:
-                    logger.debug("All boundaries detected, scan complete")
-                    break
-
-                current_wave = next_wave
-
-                # Delay between batches
-                if current_wave and batch_delay > 0:
-                    time.sleep(batch_delay)
-
-        finally:
-            self.connection.unsubscribe("gaa", handle_gaa_response)
-
+        elapsed = time.time() - start_time
         logger.info(
             f"Kingdom {kingdom.name} scan complete. "
-            f"Sent {total_requests} requests in {waves_processed} waves, "
-            f"found {len(collected_items)} items."
+            f"Scanned {total_requests} chunks in {elapsed:.1f}s, "
+            f"found {len(collected_items)} items. "
+            f"Map bounds: x=[{min_x_found * CHUNK_SIZE}-{(max_x_found + 1) * CHUNK_SIZE}] "
+            f"y=[{min_y_found * CHUNK_SIZE}-{(max_y_found + 1) * CHUNK_SIZE}]"
         )
         return collected_items
 
