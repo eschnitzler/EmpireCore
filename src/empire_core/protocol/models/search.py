@@ -79,7 +79,18 @@ class SearchAllianceResponse(BaseResponse):
     @property
     def results(self) -> list[AllianceSearchResult]:
         """Parse and return alliance search results."""
-        return [AllianceSearchResult(raw) for raw in self.L if isinstance(raw, list)]
+        results = []
+        for raw in self.L:
+            if isinstance(raw, list) and len(raw) >= 3 and isinstance(raw[2], list):
+                # Format: [rank, score, [alliance_id, name, member_count, ...]]
+                results.append(AllianceSearchResult(raw[2]))
+            elif isinstance(raw, list) and len(raw) >= 2 and isinstance(raw[1], list):
+                # Format: [score, [alliance_id, name, member_count, ...]]
+                results.append(AllianceSearchResult(raw[1]))
+            elif isinstance(raw, list):
+                # Fallback: direct format [alliance_id, name, member_count, ...]
+                results.append(AllianceSearchResult(raw))
+        return results
 
     @property
     def count(self) -> int:

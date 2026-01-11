@@ -146,7 +146,7 @@ class EmpireClient:
         if not self.username or not self.password:
             raise ValueError("Username and password are required")
 
-        logger.info(f"Logging in as {self.username}...")
+        logger.debug(f"Logging in as {self.username}...")
 
         # Connect if not already connected
         if not self.connection.connected:
@@ -214,7 +214,7 @@ class EmpireClient:
             except TimeoutError:
                 logger.warning("gbd packet not received, player state may be incomplete")
 
-            logger.info(f"Logged in as {self.username}")
+            logger.debug(f"Logged in as {self.username}")
             self.is_logged_in = True
             return True
 
@@ -462,16 +462,16 @@ class EmpireClient:
                 main_castle = list(self.state.castles.values())[0]
                 source_x = main_castle.x
                 source_y = main_castle.y
-                logger.info(f"SDI: Using source castle at {source_x}:{source_y}")
+                logger.debug(f"SDI: Using source castle at {source_x}:{source_y}")
             else:
                 logger.warning("SDI: No castles available for source coordinates")
                 return None
 
-        logger.info(f"SDI: Sending request TX={target_x}, TY={target_y}, SX={source_x}, SY={source_y}")
+        logger.debug(f"SDI: Sending request TX={target_x}, TY={target_y}, SX={source_x}, SY={source_y}")
         request = GetSupportDefenseRequest(TX=target_x, TY=target_y, SX=source_x, SY=source_y)
-        logger.info(f"SDI: Request packet = {request.to_packet(zone=self.config.default_zone)}")
+        logger.debug(f"SDI: Request packet = {request.to_packet(zone=self.config.default_zone)}")
         response = self.send(request, wait=wait, timeout=timeout)
-        logger.info(f"SDI: Response = {response}")
+        logger.debug(f"SDI: Response = {response}")
 
         if isinstance(response, GetSupportDefenseResponse):
             return response
@@ -597,7 +597,7 @@ class EmpireClient:
         filter_types = set(item_types) if item_types else None
 
         filter_desc = f"types={list(item_types)}" if item_types else "all types"
-        logger.info(f"Scanning kingdom {kingdom.name} from chunk ({start_cx}, {start_cy}) for {filter_desc}...")
+        logger.debug(f"Scanning kingdom {kingdom.name} from chunk ({start_cx}, {start_cy}) for {filter_desc}...")
 
         def chunk_bounds(cx: int, cy: int) -> tuple[int, int, int, int]:
             """Convert chunk coords to world bounds."""
@@ -706,12 +706,12 @@ class EmpireClient:
             # Log progress periodically
             if total_requests % 50 == 0:
                 elapsed = time.time() - start_time
-                logger.info(
+                logger.debug(
                     f"Scan progress: {total_requests} chunks, {len(collected_items)} items, {elapsed:.1f}s elapsed"
                 )
 
         elapsed = time.time() - start_time
-        logger.info(
+        logger.debug(
             f"Kingdom {kingdom.name} scan complete. "
             f"Scanned {total_requests} chunks in {elapsed:.1f}s, "
             f"found {len(collected_items)} items. "
