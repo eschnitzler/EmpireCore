@@ -2,6 +2,28 @@
 
 <!-- version list -->
 
+## v0.16.0 (2026-01-11)
+
+### Bug Fixes
+
+- Revert version for semantic-release
+  ([`8e8e35f`](https://github.com/eschnitzler/EmpireCore/commit/8e8e35fa9e947d66d633c834f28b410d7fa2b70d))
+
+- Rewrite scan_kingdom with sequential request/response
+  ([`37fc924`](https://github.com/eschnitzler/EmpireCore/commit/37fc924709b48a26ab8fce7fef624d619d76c291))
+
+- Wait for gbd packet after login to populate player state
+  ([`3057b5e`](https://github.com/eschnitzler/EmpireCore/commit/3057b5ee6fa9b0315ab4d4fa76ed832691d65e25))
+
+### Features
+
+- Add Kingdom enum and alliance tracking support
+  ([`0b6a4d4`](https://github.com/eschnitzler/EmpireCore/commit/0b6a4d49484df1f8072e7d2b1f202386ac712ac3))
+
+- Add scan_kingdom with BFS wave expansion
+  ([`d14af84`](https://github.com/eschnitzler/EmpireCore/commit/d14af846b739cd99497f7840f06ca165ceda90a6))
+
+
 ## v0.15.0 (2026-01-11)
 
 ### Features
