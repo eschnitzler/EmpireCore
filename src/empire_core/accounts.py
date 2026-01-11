@@ -81,7 +81,7 @@ class AccountRegistry:
         self._load_from_env()
 
         self._loaded = True
-        logger.info(f"AccountRegistry loaded {len(self._accounts)} active accounts.")
+        logger.debug(f"AccountRegistry loaded {len(self._accounts)} active accounts.")
 
     def _load_from_file(self, path_str: str):
         """Internal: Load from JSON file."""

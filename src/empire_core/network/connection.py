@@ -78,7 +78,7 @@ class Connection:
             logger.warning("Already connected")
             return
 
-        logger.info(f"Connecting to {self.url}...")
+        logger.debug(f"Connecting to {self.url}...")
 
         self.ws = websocket.WebSocket()
         self.ws.settimeout(timeout)
@@ -103,7 +103,7 @@ class Connection:
             )
             self._keepalive_thread.start()
 
-            logger.info("Connected successfully")
+            logger.debug("Connected successfully")
 
         except Exception as e:
             logger.error(f"Connection failed: {e}")
@@ -115,7 +115,7 @@ class Connection:
         if not self._running:
             return
 
-        logger.info("Disconnecting...")
+        logger.debug("Disconnecting...")
         self._running = False
 
         # Cancel all waiters
@@ -130,7 +130,7 @@ class Connection:
         if self._keepalive_thread and self._keepalive_thread.is_alive():
             self._keepalive_thread.join(timeout=2.0)
 
-        logger.info("Disconnected")
+        logger.debug("Disconnected")
 
     def _cleanup(self) -> None:
         """Close websocket connection."""

@@ -100,7 +100,7 @@ class GameState:
                 if pid not in self.players:
                     self.players[pid] = Player(**gpi)
                 self.local_player = self.players[pid]
-                logger.info(f"Local player: {self.local_player.name} (ID: {pid})")
+                logger.debug(f"Local player: {self.local_player.name} (ID: {pid})")
 
         # XP/Level
         gxp = data.get("gxp", {})
@@ -120,7 +120,7 @@ class GameState:
             try:
                 self.local_player.alliance = Alliance(**gal)
                 self.local_player.AID = gal.get("AID")
-                logger.info(f"Alliance: {self.local_player.alliance.name}")
+                logger.debug(f"Alliance: {self.local_player.alliance.name}")
             except Exception as e:
                 logger.warning(f"Could not parse alliance: {e}")
 
@@ -147,7 +147,7 @@ class GameState:
                             self.castles[area_id] = castle
                             self.local_player.castles[area_id] = castle
 
-            logger.info(f"Parsed {len(self.local_player.castles)} castles")
+            logger.debug(f"Parsed {len(self.local_player.castles)} castles")
 
     def _handle_gam(self, data: Dict[str, Any]) -> None:
         """Handle 'Get Army Movements' response."""

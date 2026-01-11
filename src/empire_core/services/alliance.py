@@ -174,10 +174,24 @@ class AllianceService(BaseService):
                 print(f"{alliance.name} (ID: {alliance.alliance_id}, {alliance.member_count} members)")
         """
         request = SearchAllianceRequest.create(search_term)
-        response = self.send(request, wait=True, timeout=timeout)
+        packet = request.to_packet(zone=self.zone)
+        self.client.connection.send(packet)
 
-        if isinstance(response, SearchAllianceResponse):
-            return response.results
+        try:
+            response_packet = self.client.connection.wait_for("hgh", timeout=timeout)
+
+            # Check for error code (e.g., 114 = not found)
+            if response_packet.error_code != 0:
+                return []
+
+            if isinstance(response_packet.payload, dict):
+                from empire_core.protocol.models import parse_response
+
+                response = parse_response("hgh", response_packet.payload)
+                if isinstance(response, SearchAllianceResponse):
+                    return response.results
+        except Exception:
+            pass
 
         return []
 
