@@ -188,10 +188,21 @@ from .map import (
     GetMovementsResponse,
     GetTargetInfoRequest,
     GetTargetInfoResponse,
+    Kingdom,
+    MapAreaItem,
+    MapItemType,
     MapObject,
     Movement,
     NPCLocation,
     TargetInfo,
+)
+from .player import (
+    LOCATION_TYPES,
+    GetPlayerInfoRequest,
+    GetPlayerInfoResponse,
+    LocationCapture,
+    PlayerOwnerInfo,
+    get_location_type_name,
 )
 
 __all__ = [
@@ -267,6 +278,9 @@ __all__ = [
     "GetProductionResponse",
     "ProductionRates",
     # Map
+    "Kingdom",
+    "MapItemType",
+    "MapAreaItem",
     "GetMapAreaRequest",
     "GetMapAreaResponse",
     "MapObject",
@@ -279,6 +293,13 @@ __all__ = [
     "GetTargetInfoRequest",
     "GetTargetInfoResponse",
     "TargetInfo",
+    # Player
+    "GetPlayerInfoRequest",
+    "GetPlayerInfoResponse",
+    "PlayerOwnerInfo",
+    "LocationCapture",
+    "LOCATION_TYPES",
+    "get_location_type_name",
     # Attack
     "CreateAttackRequest",
     "CreateAttackResponse",

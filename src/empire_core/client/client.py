@@ -24,6 +24,17 @@ from empire_core.protocol.models.defense import (
     GetSupportDefenseRequest,
     GetSupportDefenseResponse,
 )
+from empire_core.protocol.models.map import (
+    GetMapAreaRequest,
+    GetMapAreaResponse,
+    Kingdom,
+    MapAreaItem,
+    MapItemType,
+)
+from empire_core.protocol.models.player import (
+    GetPlayerInfoRequest,
+    GetPlayerInfoResponse,
+)
 from empire_core.protocol.packet import Packet
 from empire_core.services import get_registered_services
 from empire_core.state.manager import GameState
@@ -123,7 +134,7 @@ class EmpireClient:
         self.state.shutdown()
         logger.warning("Client disconnected")
 
-    def login(self) -> None:
+    def login(self) -> bool:
         """
         Perform the full login sequence:
         1. Connect WebSocket
@@ -196,8 +207,16 @@ class EmpireClient:
 
                 raise LoginError(f"Auth failed with code {lli_response.error_code}")
 
+            # Wait for gbd (Get Big Data) which contains player info, castles, etc.
+            # This arrives shortly after lli success
+            try:
+                self.connection.wait_for("gbd", timeout=self.config.request_timeout)
+            except TimeoutError:
+                logger.warning("gbd packet not received, player state may be incomplete")
+
             logger.info(f"Logged in as {self.username}")
             self.is_logged_in = True
+            return True
 
         except TimeoutError:
             raise TimeoutError("XT login timed out")
@@ -455,5 +474,279 @@ class EmpireClient:
         logger.info(f"SDI: Response = {response}")
 
         if isinstance(response, GetSupportDefenseResponse):
+            return response
+        return None
+
+    # ============================================================
+    # Map Scanning
+    # ============================================================
+
+    def scan_map_area(
+        self,
+        x1: int,
+        y1: int,
+        x2: int,
+        y2: int,
+        kingdom: Kingdom = Kingdom.GREEN,
+        wait: bool = True,
+        timeout: float = 5.0,
+    ) -> GetMapAreaResponse | None:
+        """
+        Scan a specific area of the map.
+
+        Args:
+            x1: Left X coordinate
+            y1: Top Y coordinate
+            x2: Right X coordinate
+            y2: Bottom Y coordinate
+            kingdom: Kingdom to scan (GREEN, SANDS, ICE, FIRE, STORM)
+            wait: If True, wait for response
+            timeout: Timeout in seconds
+
+        Returns:
+            GetMapAreaResponse with map data, or None on failure.
+        """
+        request = GetMapAreaRequest(KID=kingdom, AX1=x1, AY1=y1, AX2=x2, AY2=y2)
+        response = self.send(request, wait=wait, timeout=timeout)
+
+        if isinstance(response, GetMapAreaResponse):
+            return response
+        return None
+
+    def _get_kingdom_start_position(self, kingdom: Kingdom) -> tuple[int, int]:
+        """
+        Get a starting position for scanning a kingdom.
+
+        Uses the bot's own castle position in the target kingdom if available.
+        Falls back to map center (650, 650) if no castle found.
+
+        Args:
+            kingdom: The kingdom to find a starting position for
+
+        Returns:
+            (x, y) tuple for the starting position
+        """
+        if self.state and self.state.castles:
+            # Find a castle in the target kingdom
+            for castle in self.state.castles.values():
+                if castle.KID == kingdom.value:
+                    return (castle.X, castle.Y)
+
+        # No castle in this kingdom - use map center as fallback
+        return (650, 650)
+
+    def scan_kingdom(
+        self,
+        kingdom: Kingdom = Kingdom.GREEN,
+        item_types: list[MapItemType] | None = None,
+        timeout: float = 300.0,
+        request_timeout: float = 5.0,
+    ) -> list[MapAreaItem]:
+        """
+        Scan a kingdom map with dynamic boundary detection.
+
+        Uses BFS expansion from the bot's castle position, sending one request
+        at a time and waiting for each response before continuing. This ensures
+        no chunks are missed due to timeouts.
+
+        Args:
+            kingdom: Kingdom to scan (GREEN, SANDS, ICE, FIRE, STORM)
+            item_types: List of MapItemType values to collect.
+                       Defaults to [CASTLE] if None (finds all player castles).
+                       Pass empty list [] to collect ALL items.
+            timeout: Maximum total time for the entire scan
+            request_timeout: Timeout for each individual chunk request
+
+        Returns:
+            List of MapAreaItem objects matching the filter.
+            Each item has: item_type, x, y, owner_id, raw_data
+
+        Example:
+            # Scan for castles (default)
+            items = client.scan_kingdom(kingdom=Kingdom.GREEN)
+            for item in items:
+                print(f"Player {item.owner_id} at {item.x}:{item.y}")
+
+            # Scan for monuments and labs
+            items = client.scan_kingdom(
+                kingdom=Kingdom.GREEN,
+                item_types=[MapItemType.MONUMENT, MapItemType.LABORATORY]
+            )
+
+            # Scan for everything on the map
+            all_items = client.scan_kingdom(kingdom=Kingdom.GREEN, item_types=[])
+
+        Note:
+            Uses sequential request/response to ensure reliability.
+            BFS expansion detects map boundaries automatically.
+        """
+        import time
+
+        CHUNK_SIZE = 90  # Max allowed by GGE server
+        MAX_COORD = 20  # Max chunk coordinate (20 * 90 = 1800, well beyond any map)
+
+        # Get starting position from bot's castle
+        start_x, start_y = self._get_kingdom_start_position(kingdom)
+        start_cx, start_cy = start_x // CHUNK_SIZE, start_y // CHUNK_SIZE
+
+        # Default to castles (type 1 = player main castles)
+        if item_types is None:
+            item_types = [MapItemType.CASTLE]
+
+        # Empty list means collect everything
+        filter_types = set(item_types) if item_types else None
+
+        filter_desc = f"types={list(item_types)}" if item_types else "all types"
+        logger.info(f"Scanning kingdom {kingdom.name} from chunk ({start_cx}, {start_cy}) for {filter_desc}...")
+
+        def chunk_bounds(cx: int, cy: int) -> tuple[int, int, int, int]:
+            """Convert chunk coords to world bounds."""
+            x1 = cx * CHUNK_SIZE
+            y1 = cy * CHUNK_SIZE
+            return (x1, y1, x1 + CHUNK_SIZE, y1 + CHUNK_SIZE)
+
+        def process_chunk(cx: int, cy: int) -> bool:
+            """
+            Request a single chunk and process the response.
+            Returns True if chunk had content, False if empty.
+            """
+            x1, y1, x2, y2 = chunk_bounds(cx, cy)
+            request = GetMapAreaRequest(KID=kingdom, AX1=x1, AY1=y1, AX2=x2, AY2=y2)
+
+            # Send and wait for response
+            self.send(request, wait=False)
+            try:
+                response = self.connection.wait_for("gaa", timeout=request_timeout)
+            except TimeoutError:
+                logger.warning(f"Chunk ({cx}, {cy}) timed out, retrying...")
+                # Retry once
+                self.send(request, wait=False)
+                try:
+                    response = self.connection.wait_for("gaa", timeout=request_timeout)
+                except TimeoutError:
+                    logger.error(f"Chunk ({cx}, {cy}) failed after retry")
+                    return False
+
+            if not isinstance(response.payload, dict):
+                return False
+
+            ai_array = response.payload.get("AI", [])
+            has_content = len(ai_array) > 0
+
+            # Collect matching items
+            for raw_item in ai_array:
+                if isinstance(raw_item, list) and len(raw_item) >= 4:
+                    item = MapAreaItem.from_list(raw_item)
+
+                    # Apply filter (None = collect all)
+                    if filter_types is None or item.item_type in filter_types:
+                        # Skip unowned items (empty locations, unplaced flags, etc)
+                        if item.owner_id == -1:
+                            continue
+                        collected_items.append(item)
+
+            return has_content
+
+        # State tracking
+        collected_items: list[MapAreaItem] = []
+        visited: set[tuple[int, int]] = set()
+        chunk_has_content: dict[tuple[int, int], bool] = {}
+
+        # BFS queue - process one chunk at a time
+        queue: list[tuple[int, int]] = [(start_cx, start_cy)]
+        total_requests = 0
+        start_time = time.time()
+
+        # Track boundaries
+        min_x_found = start_cx
+        max_x_found = start_cx
+        min_y_found = start_cy
+        max_y_found = start_cy
+
+        while queue:
+            if time.time() - start_time > timeout:
+                logger.warning(f"Kingdom scan timeout after {total_requests} requests")
+                break
+
+            cx, cy = queue.pop(0)
+
+            # Skip if already visited or out of bounds
+            if (cx, cy) in visited:
+                continue
+            if cx < 0 or cy < 0 or cx > MAX_COORD or cy > MAX_COORD:
+                continue
+
+            visited.add((cx, cy))
+            total_requests += 1
+
+            # Process this chunk
+            has_content = process_chunk(cx, cy)
+            chunk_has_content[(cx, cy)] = has_content
+
+            # Update bounds tracking
+            if has_content:
+                min_x_found = min(min_x_found, cx)
+                max_x_found = max(max_x_found, cx)
+                min_y_found = min(min_y_found, cy)
+                max_y_found = max(max_y_found, cy)
+
+            # Add neighbors to queue (BFS expansion)
+            # Only expand if this chunk or adjacent chunks had content
+            # This prevents infinite expansion into empty areas
+            neighbors = [(cx - 1, cy), (cx + 1, cy), (cx, cy - 1), (cx, cy + 1)]
+            for nx, ny in neighbors:
+                if (nx, ny) not in visited:
+                    # Always explore if within 2 chunks of known content
+                    if min_x_found - 2 <= nx <= max_x_found + 2 and min_y_found - 2 <= ny <= max_y_found + 2:
+                        queue.append((nx, ny))
+                    # Or if this chunk had content, explore neighbors
+                    elif has_content:
+                        queue.append((nx, ny))
+
+            # Log progress periodically
+            if total_requests % 50 == 0:
+                elapsed = time.time() - start_time
+                logger.info(
+                    f"Scan progress: {total_requests} chunks, {len(collected_items)} items, {elapsed:.1f}s elapsed"
+                )
+
+        elapsed = time.time() - start_time
+        logger.info(
+            f"Kingdom {kingdom.name} scan complete. "
+            f"Scanned {total_requests} chunks in {elapsed:.1f}s, "
+            f"found {len(collected_items)} items. "
+            f"Map bounds: x=[{min_x_found * CHUNK_SIZE}-{(max_x_found + 1) * CHUNK_SIZE}] "
+            f"y=[{min_y_found * CHUNK_SIZE}-{(max_y_found + 1) * CHUNK_SIZE}]"
+        )
+        return collected_items
+
+    # ============================================================
+    # Player Details (gdi - includes capture info)
+    # ============================================================
+
+    def get_player_details(
+        self,
+        player_id: int,
+        wait: bool = True,
+        timeout: float = 5.0,
+    ) -> GetPlayerInfoResponse | None:
+        """
+        Get detailed player information including castle list with capture info.
+
+        This uses the 'gdi' command which provides more detail than 'gpi',
+        including which locations are being captured and by whom.
+
+        Args:
+            player_id: The player ID to look up
+            wait: If True, wait for response
+            timeout: Timeout in seconds
+
+        Returns:
+            GetPlayerInfoResponse with player details, or None on failure.
+        """
+        request = GetPlayerInfoRequest(PID=player_id)
+        response = self.send(request, wait=wait, timeout=timeout)
+
+        if isinstance(response, GetPlayerInfoResponse):
             return response
         return None
