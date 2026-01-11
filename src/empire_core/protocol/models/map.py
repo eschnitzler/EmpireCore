@@ -10,10 +10,53 @@ Commands:
 
 from __future__ import annotations
 
+from enum import IntEnum
+
 from pydantic import ConfigDict, Field
 
 from .base import BaseRequest, BaseResponse, PlayerInfo, Position
 
+# =============================================================================
+# Map Item Types
+# =============================================================================
+
+
+class Kingdom(IntEnum):
+    """
+    Kingdom identifiers used throughout the game.
+
+    Each kingdom has different terrain and unit types.
+    """
+
+    GREEN = 0  # Green Kingdom - basic/starter kingdom
+    SANDS = 1  # Sand Kingdom - desert units
+    ICE = 2  # Ice Kingdom - ice/frost units
+    FIRE = 3  # Fire Kingdom - lava/fire units
+    STORM = 4  # Storm Kingdom - storm/lightning units
+
+
+class MapItemType(IntEnum):
+    """
+    Known map item types from the AI array.
+
+    These are the object types returned in map scan responses.
+    """
+
+    EMPTY = 0
+    MOVING_FLAG = 1  # Castle relocation destination flag
+    CASTLE = 2  # Player castle
+    CAPITAL = 3  # Player capital
+    OUTPOST = 4  # Player outpost
+    RUIN = 5  # Abandoned ruin
+    ROBBER_BARON = 6  # Robber Baron castle
+    KHAN_TENT = 7  # Khan's tent (event)
+    METRO = 22  # Metropolis
+    MONUMENT = 26  # Alliance monument
+    LABORATORY = 28  # Laboratory
+
+
+# =============================================================================
+# GAA - Get Map Area
 # =============================================================================
 # GAA - Get Map Area
 # =============================================================================
@@ -24,18 +67,82 @@ class GetMapAreaRequest(BaseRequest):
     Get a chunk of the map.
 
     Command: gaa
-    Payload: {"X": x, "Y": y, "W": width, "H": height, "KID": kingdom_id}
+    Payload: {"KID": kingdom_id, "AX1": x1, "AY1": y1, "AX2": x2, "AY2": y2}
 
     Returns information about all objects in the specified area.
+
+    The server allows a maximum chunk size of ~90 tiles in each dimension.
+    Invalid coordinates (outside map bounds) return empty AI array.
+
+    Example:
+        request = GetMapAreaRequest(KID=0, AX1=622, AY1=235, AX2=712, AY2=325)
     """
 
     command = "gaa"
 
-    x: int = Field(alias="X")
-    y: int = Field(alias="Y")
-    width: int = Field(alias="W", default=10)
-    height: int = Field(alias="H", default=10)
-    kingdom_id: int = Field(alias="KID", default=0)
+    kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
+    x1: int = Field(alias="AX1")
+    y1: int = Field(alias="AY1")
+    x2: int = Field(alias="AX2")
+    y2: int = Field(alias="AY2")
+
+
+class MapAreaItem(BaseResponse):
+    """
+    A raw map area item from the AI array.
+
+    AI array format: [[type, x, y, owner_id, ...], ...]
+
+    Common types (see MapItemType enum):
+    - 1: Moving castle flag (owner_id = player moving there)
+    - 2: Castle
+    - 3: Capital
+    - 4: Outpost
+    - 22: Metropolis
+    - 26: Monument
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    item_type: int = 0
+    x: int = 0
+    y: int = 0
+    owner_id: int = -1
+    raw_data: list = []  # Full raw array for extended parsing
+
+    @classmethod
+    def from_list(cls, data: list) -> "MapAreaItem":
+        """Parse from AI array entry."""
+        return cls(
+            item_type=data[0] if len(data) > 0 else 0,
+            x=data[1] if len(data) > 1 else 0,
+            y=data[2] if len(data) > 2 else 0,
+            owner_id=data[3] if len(data) > 3 else -1,
+            raw_data=data,
+        )
+
+    @property
+    def is_moving_flag(self) -> bool:
+        """Check if this is a moving castle flag."""
+        return self.item_type == MapItemType.MOVING_FLAG and self.owner_id != -1
+
+    @property
+    def is_castle(self) -> bool:
+        """Check if this is any player-owned location."""
+        return self.item_type in (
+            MapItemType.CASTLE,
+            MapItemType.CAPITAL,
+            MapItemType.OUTPOST,
+            MapItemType.METRO,
+        )
+
+    @property
+    def type_name(self) -> str:
+        """Get human-readable type name."""
+        try:
+            return MapItemType(self.item_type).name
+        except ValueError:
+            return f"UNKNOWN_{self.item_type}"
 
 
 class MapObject(BaseResponse):
@@ -65,11 +172,37 @@ class GetMapAreaResponse(BaseResponse):
     Response containing map area data.
 
     Command: gaa
+    Response format: {"KID": 0, "AI": [[type, x, y, owner_id, ...], ...], ...}
+
+    The AI array contains raw map items. Use get_moving_flags() to extract
+    castle moving destinations.
     """
 
     command = "gaa"
 
-    objects: list[MapObject] = Field(alias="O", default_factory=list)
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
+    raw_items: list = Field(alias="AI", default_factory=list)
+    objects: list[MapObject] = Field(alias="OI", default_factory=list)
+
+    @property
+    def items(self) -> list[MapAreaItem]:
+        """Parse raw AI array into MapAreaItem objects."""
+        return [MapAreaItem.from_list(item) for item in self.raw_items if isinstance(item, list) and len(item) >= 4]
+
+    def get_moving_flags(self) -> dict[int, tuple[int, int]]:
+        """
+        Extract moving castle flags from the response.
+
+        Returns:
+            Dict mapping player_id -> (destination_x, destination_y)
+        """
+        result = {}
+        for item in self.items:
+            if item.is_moving_flag:
+                result[item.owner_id] = (item.x, item.y)
+        return result
 
 
 # =============================================================================
@@ -160,7 +293,7 @@ class FindNPCRequest(BaseRequest):
 
     npc_type: int = Field(alias="NT")
     level: int | None = Field(alias="L", default=None)
-    kingdom_id: int = Field(alias="KID", default=0)
+    kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
 
 
 class NPCLocation(BaseResponse):
@@ -209,7 +342,7 @@ class GetTargetInfoRequest(BaseRequest):
 
     x: int = Field(alias="X")
     y: int = Field(alias="Y")
-    kingdom_id: int = Field(alias="KID", default=0)
+    kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
 
 
 class TargetInfo(BaseResponse):
@@ -250,9 +383,14 @@ class GetTargetInfoResponse(BaseResponse):
 
 
 __all__ = [
+    # Kingdom
+    "Kingdom",
+    # Map Item Types
+    "MapItemType",
     # GAA - Map Area
     "GetMapAreaRequest",
     "GetMapAreaResponse",
+    "MapAreaItem",
     "MapObject",
     # GAM - Movements
     "GetMovementsRequest",

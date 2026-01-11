@@ -24,6 +24,17 @@ from empire_core.protocol.models.defense import (
     GetSupportDefenseRequest,
     GetSupportDefenseResponse,
 )
+from empire_core.protocol.models.map import (
+    GetMapAreaRequest,
+    GetMapAreaResponse,
+    Kingdom,
+    MapAreaItem,
+    MapItemType,
+)
+from empire_core.protocol.models.player import (
+    GetPlayerInfoRequest,
+    GetPlayerInfoResponse,
+)
 from empire_core.protocol.packet import Packet
 from empire_core.services import get_registered_services
 from empire_core.state.manager import GameState
@@ -455,5 +466,194 @@ class EmpireClient:
         logger.info(f"SDI: Response = {response}")
 
         if isinstance(response, GetSupportDefenseResponse):
+            return response
+        return None
+
+    # ============================================================
+    # Map Scanning
+    # ============================================================
+
+    def scan_map_area(
+        self,
+        x1: int,
+        y1: int,
+        x2: int,
+        y2: int,
+        kingdom: Kingdom = Kingdom.GREEN,
+        wait: bool = True,
+        timeout: float = 5.0,
+    ) -> GetMapAreaResponse | None:
+        """
+        Scan a specific area of the map.
+
+        Args:
+            x1: Left X coordinate
+            y1: Top Y coordinate
+            x2: Right X coordinate
+            y2: Bottom Y coordinate
+            kingdom: Kingdom to scan (GREEN, SANDS, ICE, FIRE, STORM)
+            wait: If True, wait for response
+            timeout: Timeout in seconds
+
+        Returns:
+            GetMapAreaResponse with map data, or None on failure.
+        """
+        request = GetMapAreaRequest(KID=kingdom, AX1=x1, AY1=y1, AX2=x2, AY2=y2)
+        response = self.send(request, wait=wait, timeout=timeout)
+
+        if isinstance(response, GetMapAreaResponse):
+            return response
+        return None
+
+    def scan_kingdom(
+        self,
+        kingdom: Kingdom = Kingdom.GREEN,
+        item_types: list[MapItemType] | None = None,
+        chunk_size: int = 90,
+        map_size: int = 1300,
+        timeout: float = 30.0,
+    ) -> list[MapAreaItem]:
+        """
+        Scan an entire kingdom map for specific item types.
+
+        Scans the map in chunks and collects all matching items.
+        Useful for detecting moving flags, monuments, labs, etc.
+
+        Args:
+            kingdom: Kingdom to scan (GREEN, SANDS, ICE, FIRE, STORM)
+            item_types: List of MapItemType values to collect.
+                       Defaults to [MOVING_FLAG] if None.
+                       Pass empty list [] to collect ALL items.
+            chunk_size: Size of each chunk to scan (max ~90 allowed by server)
+            map_size: Total map size (default 1300x1300)
+            timeout: Maximum time to wait for all responses
+
+        Returns:
+            List of MapAreaItem objects matching the filter.
+            Each item has: item_type, x, y, owner_id, raw_data
+
+        Example:
+            # Scan for moving flags (default)
+            items = client.scan_kingdom(kingdom=Kingdom.GREEN)
+            for item in items:
+                print(f"Player {item.owner_id} moving to {item.x}:{item.y}")
+
+            # Scan for monuments and labs
+            items = client.scan_kingdom(
+                kingdom=Kingdom.GREEN,
+                item_types=[MapItemType.MONUMENT, MapItemType.LABORATORY]
+            )
+
+            # Scan for everything on the map
+            all_items = client.scan_kingdom(kingdom=Kingdom.GREEN, item_types=[])
+
+        Note:
+            Sends ~225 requests for a full kingdom scan. May take several seconds.
+        """
+        import threading
+        import time
+
+        # Default to moving flags
+        if item_types is None:
+            item_types = [MapItemType.MOVING_FLAG]
+
+        # Empty list means collect everything
+        filter_types = set(item_types) if item_types else None
+
+        collected_items: list[MapAreaItem] = []
+        responses_received = 0
+        lock = threading.Lock()
+
+        # Generate chunk coordinates
+        chunks = []
+        for x in range(0, map_size, chunk_size):
+            for y in range(0, map_size, chunk_size):
+                x2 = min(x + chunk_size, map_size)
+                y2 = min(y + chunk_size, map_size)
+                chunks.append((x, y, x2, y2))
+
+        total_chunks = len(chunks)
+        filter_desc = f"types={list(item_types)}" if item_types else "all types"
+        logger.info(f"Scanning kingdom {kingdom.name} with {total_chunks} chunks for {filter_desc}...")
+
+        def handle_gaa_response(packet: Packet) -> None:
+            """Collect matching items from each response."""
+            nonlocal responses_received
+            if not isinstance(packet.payload, dict):
+                return
+
+            # Parse the AI array
+            ai_array = packet.payload.get("AI", [])
+            for raw_item in ai_array:
+                if isinstance(raw_item, list) and len(raw_item) >= 4:
+                    item = MapAreaItem.from_list(raw_item)
+
+                    # Apply filter (None = collect all)
+                    if filter_types is None or item.item_type in filter_types:
+                        # For moving flags, only include if owner is set
+                        if item.item_type == MapItemType.MOVING_FLAG and item.owner_id == -1:
+                            continue
+                        with lock:
+                            collected_items.append(item)
+
+            with lock:
+                responses_received += 1
+
+        # Subscribe to gaa responses
+        self.connection.subscribe("gaa", handle_gaa_response)
+
+        try:
+            # Send all chunk requests
+            for x1, y1, x2, y2 in chunks:
+                request = GetMapAreaRequest(KID=kingdom, AX1=x1, AY1=y1, AX2=x2, AY2=y2)
+                self.send(request, wait=False)
+
+            # Wait for all responses (or timeout)
+            start_time = time.time()
+            while responses_received < total_chunks:
+                if time.time() - start_time > timeout:
+                    logger.warning(f"Kingdom scan timeout: received {responses_received}/{total_chunks} responses")
+                    break
+                time.sleep(0.1)
+
+        finally:
+            # Unsubscribe
+            self.connection.unsubscribe("gaa", handle_gaa_response)
+
+        logger.info(
+            f"Kingdom {kingdom.name} scan complete. "
+            f"Received {responses_received}/{total_chunks} responses, "
+            f"found {len(collected_items)} items."
+        )
+        return collected_items
+
+    # ============================================================
+    # Player Details (gdi - includes capture info)
+    # ============================================================
+
+    def get_player_details(
+        self,
+        player_id: int,
+        wait: bool = True,
+        timeout: float = 5.0,
+    ) -> GetPlayerInfoResponse | None:
+        """
+        Get detailed player information including castle list with capture info.
+
+        This uses the 'gdi' command which provides more detail than 'gpi',
+        including which locations are being captured and by whom.
+
+        Args:
+            player_id: The player ID to look up
+            wait: If True, wait for response
+            timeout: Timeout in seconds
+
+        Returns:
+            GetPlayerInfoResponse with player details, or None on failure.
+        """
+        request = GetPlayerInfoRequest(PID=player_id)
+        response = self.send(request, wait=wait, timeout=timeout)
+
+        if isinstance(response, GetPlayerInfoResponse):
             return response
         return None

@@ -10,6 +10,8 @@ Commands:
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from pydantic import ConfigDict, Field
 
 from .base import BasePayload, BaseRequest, BaseResponse, HelpType
@@ -112,7 +114,7 @@ class AllianceMember(BasePayload):
     vip_flag: int = Field(alias="VF", default=0)
     premium_flag: int = Field(alias="PF", default=0)
     top_ranking: int = Field(alias="TOPX", default=-1)
-    report_type: int = Field(alias="RPT", default=0)
+    revenge_protection_seconds: int = Field(alias="RPT", default=0)
     resource_request_date: int = Field(alias="RRD", default=0)
     title_index: int = Field(alias="TI", default=-1)
 
@@ -172,6 +174,27 @@ class AllianceMember(BasePayload):
     def is_officer(self) -> bool:
         """Check if member is an officer (AR > 0 and < 8)."""
         return 0 < self.alliance_rank < 8
+
+    @property
+    def has_bird(self) -> bool:
+        """Check if member has revenge protection (bird) active."""
+        return self.revenge_protection_seconds > 0
+
+    @property
+    def bird_end_time(self) -> datetime | None:
+        """
+        Calculate when bird protection ends.
+
+        Returns:
+            Datetime when bird expires, or None if no bird active.
+
+        Note:
+            This is calculated relative to when the data was fetched,
+            so it should be used soon after fetching alliance info.
+        """
+        if self.revenge_protection_seconds <= 0:
+            return None
+        return datetime.now() + timedelta(seconds=self.revenge_protection_seconds)
 
 
 # =============================================================================
