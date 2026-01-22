@@ -27,12 +27,15 @@ TODO (lower priority):
 """
 
 from .alliance import (
+    AllianceBookmark,
     AllianceBuilding,
     AllianceInfo,
     AllianceMember,
     AllianceStorage,
     AskHelpRequest,
     AskHelpResponse,
+    GetAllianceBookmarksRequest,
+    GetAllianceBookmarksResponse,
     GetAllianceInfoRequest,
     GetAllianceInfoResponse,
     HelpAllRequest,
@@ -65,6 +68,8 @@ from .army import (
     ProduceUnitsRequest,
     ProduceUnitsResponse,
     ProductionQueueItem,
+    SendSupportRequest,
+    SendSupportResponse,
     SkipHealRequest,
     SkipHealResponse,
 )
@@ -256,6 +261,9 @@ __all__ = [
     "AllianceStorage",
     "MemberEmblem",
     "MemberCastle",
+    "AllianceBookmark",
+    "GetAllianceBookmarksRequest",
+    "GetAllianceBookmarksResponse",
     "GetAllianceInfoRequest",
     "GetAllianceInfoResponse",
     "HelpMemberRequest",
@@ -362,6 +370,8 @@ __all__ = [
     "HealUnitsResponse",
     "CancelHealRequest",
     "CancelHealResponse",
+    "SendSupportRequest",
+    "SendSupportResponse",
     "SkipHealRequest",
     "SkipHealResponse",
     "DeleteWoundedRequest",
