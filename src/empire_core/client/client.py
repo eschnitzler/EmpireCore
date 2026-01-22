@@ -138,10 +138,11 @@ class EmpireClient:
         """
         Perform the full login sequence:
         1. Connect WebSocket
-        2. Version Check
+        2. Version Check (XML)
         3. Zone Login (XML)
-        4. AutoJoin Room
-        5. XT Login (Auth)
+        4. AutoJoin Room (XML)
+        5. XT Version Check
+        6. XT Login (Auth)
         """
         if not self.username or not self.password:
             raise ValueError("Username and password are required")
@@ -161,12 +162,14 @@ class EmpireClient:
         except TimeoutError:
             raise TimeoutError("Version check timed out")
 
+        conm_value = 1150008
+
         # 2. Zone Login (XML)
         login_packet = (
             f"<msg t='sys'><body action='login' r='0'>"
             f"<login z='{self.config.default_zone}'>"
             f"<nick><![CDATA[]]></nick>"
-            f"<pword><![CDATA[undefined%en%0]]></pword>"
+            f"<pword><![CDATA[{conm_value}%en%0]]></pword>"
             f"</login></body></msg>"
         )
         self.connection.send(login_packet)
@@ -183,10 +186,17 @@ class EmpireClient:
         try:
             self.connection.wait_for("joinOK", timeout=self.config.request_timeout)
         except TimeoutError:
-            # joinOK sometimes doesn't come, proceed anyway
             pass
 
-        # 4. XT Login (Real Auth)
+        roundtrip_packet = "<msg t='sys'><body action='roundTrip' r='1'></body></msg>"
+        self.connection.send(roundtrip_packet)
+
+        try:
+            self.connection.wait_for("roundTripRes", timeout=self.config.request_timeout)
+        except TimeoutError:
+            pass
+
+        # 5. XT Login (Real Auth)
         xt_payload = {
             **LOGIN_DEFAULTS,
             "NOM": self.username,

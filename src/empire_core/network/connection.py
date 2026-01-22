@@ -351,15 +351,21 @@ class Connection:
         """Background thread that sends keepalive pings."""
         logger.debug("Keepalive loop started")
 
+        try:
+            from empire_core.protocol.models.base import DEFAULT_ZONE
+
+            zone = DEFAULT_ZONE
+        except ImportError:
+            zone = "EmpireEx_21"
+
         while self._running:
-            time.sleep(30)
+            time.sleep(60)
 
             if not self._running:
                 break
 
             try:
-                # Send GGE-specific keepalive
-                self.send("%xt%EmpireEx_21%pin%1%<RoundHouseKick>%")
+                self.send(f"%xt%{zone}%pin%1%<RoundHouseKick>%")
                 logger.debug("Sent keepalive ping")
             except Exception as e:
                 if self._running:
