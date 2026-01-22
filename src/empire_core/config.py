@@ -40,7 +40,7 @@ class TroopActionType:
 
 # Default login payload values
 LOGIN_DEFAULTS: Dict[str, Any] = {
-    "CONM": 175,
+    "CONM": 1150008,
     "RTM": 24,
     "ID": 0,
     "PL": 1,
