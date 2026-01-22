@@ -543,6 +543,53 @@ class HelpRequestNotification(BaseResponse):
     building_id: int | None = Field(alias="BID", default=None)
 
 
+# =============================================================================
+# ABO - Get Alliance Bookmarks
+# =============================================================================
+
+
+class GetAllianceBookmarksRequest(BaseRequest):
+    """
+    Request alliance bookmarks.
+
+    Command: abo
+    Payload: {} (empty)
+    """
+
+    command = "abo"
+
+
+class AllianceBookmark(BasePayload):
+    """
+    Alliance bookmark information from ABO response.
+    """
+
+    name: str = Field(alias="N", default="")
+    # OI contains bookmark details like coordinates
+    # For birding we need to parse AP from OI
+    # AP: [[kingdom, area_id, x, y, type], ...]
+    object_info: dict = Field(alias="OI", default_factory=dict)
+
+    @property
+    def positions(self) -> list[list[int]]:
+        """Get list of positions from object info."""
+        return self.object_info.get("AP", [])
+
+
+class GetAllianceBookmarksResponse(BaseResponse):
+    """
+    Response containing alliance bookmarks.
+
+    Command: abo
+    Payload: {"ABL": [{"N": "name", "OI": {...}}, ...]}
+    """
+
+    command = "abo"
+
+    bookmarks: list[AllianceBookmark] = Field(alias="ABL", default_factory=list)
+    error_code: int = Field(alias="E", default=0)
+
+
 __all__ = [
     # Alliance Member
     "AllianceMember",
@@ -563,6 +610,10 @@ __all__ = [
     # AHR - Ask Help
     "AskHelpRequest",
     "AskHelpResponse",
+    # ABO - Alliance Bookmarks
+    "GetAllianceBookmarksRequest",
+    "GetAllianceBookmarksResponse",
+    "AllianceBookmark",
     # Notifications
     "HelpRequestNotification",
 ]

@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 
 from empire_core.protocol.models import (
+    AllianceBookmark,
     AllianceChatLogRequest,
     AllianceChatLogResponse,
     AllianceChatMessageRequest,
@@ -20,6 +21,8 @@ from empire_core.protocol.models import (
     AllianceSearchResult,
     AskHelpRequest,
     ChatLogEntry,
+    GetAllianceBookmarksRequest,
+    GetAllianceBookmarksResponse,
     GetAllianceInfoRequest,
     GetAllianceInfoResponse,
     HelpAllRequest,
@@ -414,6 +417,28 @@ class AllianceService(BaseService):
         """
         request = AskHelpRequest.recruit(castle_id)
         self.send(request)
+
+    # =========================================================================
+    # Bookmark Operations
+    # =========================================================================
+
+    def get_bookmarks(self, timeout: float = 5.0) -> list[AllianceBookmark]:
+        """
+        Get alliance bookmarks.
+
+        Args:
+            timeout: Timeout in seconds to wait for response
+
+        Returns:
+            List of AllianceBookmark objects
+        """
+        request = GetAllianceBookmarksRequest()
+        response = self.send(request, wait=True, timeout=timeout)
+
+        if isinstance(response, GetAllianceBookmarksResponse):
+            return response.bookmarks
+
+        return []
 
 
 __all__ = ["AllianceService"]

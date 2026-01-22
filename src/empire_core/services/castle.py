@@ -217,5 +217,48 @@ class CastleService(BaseService):
 
         return None, None
 
+    # =========================================================================
+    # Support Operations
+    # =========================================================================
+
+    def send_support(
+        self,
+        castle_id: int,
+        target_x: int,
+        target_y: int,
+        kingdom_id: int,
+        units: list[list[int]],
+        timeout: float = 5.0,
+    ) -> bool:
+        """
+        Send support troops from a castle to a target location.
+
+        Args:
+            castle_id: Source castle ID
+            target_x: Target X coordinate
+            target_y: Target Y coordinate
+            kingdom_id: Target kingdom ID
+            units: List of [unit_id, count] pairs
+            timeout: Timeout in seconds
+
+        Returns:
+            True if successful, False otherwise
+        """
+        from empire_core.protocol.models import SendSupportRequest, SendSupportResponse
+
+        request = SendSupportRequest(
+            CID=castle_id,
+            TX=target_x,
+            TY=target_y,
+            KID=kingdom_id,
+            U=units,
+        )
+        response = self.send(request, wait=True, timeout=timeout)
+
+        if isinstance(response, SendSupportResponse):
+            return response.success
+
+        return False
+
 
 __all__ = ["CastleService"]

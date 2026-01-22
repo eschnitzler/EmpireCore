@@ -406,6 +406,47 @@ class HealAllResponse(BaseResponse):
     error_code: int = Field(alias="E", default=0)
 
 
+# =============================================================================
+# SSP - Send Support
+# =============================================================================
+
+
+class SendSupportRequest(BaseRequest):
+    """
+    Send support troops to a location.
+
+    Command: ssp
+    Payload: {
+        "CID": source_castle_id,
+        "TX": target_x,
+        "TY": target_y,
+        "KID": kingdom_id,
+        "U": [[unit_id, count], ...]
+    }
+    """
+
+    command = "ssp"
+
+    castle_id: int = Field(alias="CID")
+    target_x: int = Field(alias="TX")
+    target_y: int = Field(alias="TY")
+    kingdom_id: int = Field(alias="KID")
+    units: list[list[int]] = Field(alias="U")
+
+
+class SendSupportResponse(BaseResponse):
+    """
+    Response to sending support.
+
+    Command: ssp
+    """
+
+    command = "ssp"
+
+    success: bool = Field(default=True)
+    error_code: int = Field(alias="E", default=0)
+
+
 __all__ = [
     # BUP - Produce Units
     "ProduceUnitsRequest",
@@ -441,4 +482,7 @@ __all__ = [
     # HRA - Heal All
     "HealAllRequest",
     "HealAllResponse",
+    # SSP - Send Support
+    "SendSupportRequest",
+    "SendSupportResponse",
 ]
