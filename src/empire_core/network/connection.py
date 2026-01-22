@@ -13,6 +13,7 @@ from typing import Callable, Dict, List, Optional
 
 import websocket
 
+from empire_core.exceptions import TimeoutError
 from empire_core.protocol.packet import Packet
 
 logger = logging.getLogger(__name__)
