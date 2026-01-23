@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import TYPE_CHECKING, Callable, List, Optional, TypeVar
 
 from empire_core.config import (
@@ -766,3 +767,56 @@ class EmpireClient:
         if isinstance(response, GetPlayerInfoResponse):
             return response
         return None
+
+    def get_player_details_bulk(
+        self,
+        player_ids: list[int],
+        timeout: float = 10.0,
+    ) -> dict[int, GetPlayerInfoResponse]:
+        """
+        Get detailed info for multiple players in parallel.
+
+        Sends all requests in a burst and collects responses.
+
+        Args:
+            player_ids: List of player IDs to fetch
+            timeout: Max time to wait for responses
+
+        Returns:
+            Dict mapping player_id -> GetPlayerInfoResponse
+        """
+        if not player_ids:
+            return {}
+
+        for pid in set(player_ids):
+            request = GetPlayerInfoRequest(PID=pid)
+            self.send(request, wait=False)
+
+        collected: dict[int, GetPlayerInfoResponse] = {}
+        start_time = time.time()
+        expected_count = len(set(player_ids))
+
+        captured_responses = []
+
+        def capture_gdi(response: BaseResponse):
+            if isinstance(response, GetPlayerInfoResponse):
+                captured_responses.append(response)
+
+        self._register_handler("gdi", capture_gdi)
+
+        while time.time() - start_time < timeout:
+            for resp in captured_responses[:]:
+                if resp.player_id in player_ids:
+                    collected[resp.player_id] = resp
+                    captured_responses.remove(resp)
+
+            if len(collected) >= expected_count:
+                break
+
+            time.sleep(0.1)
+
+        if "gdi" in self._handlers:
+            if capture_gdi in self._handlers["gdi"]:
+                self._handlers["gdi"].remove(capture_gdi)
+
+        return collected
