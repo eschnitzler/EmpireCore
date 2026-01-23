@@ -31,6 +31,7 @@ from .alliance import (
     AllianceBuilding,
     AllianceInfo,
     AllianceMember,
+    AllianceSearchResult,
     AllianceStorage,
     AskHelpRequest,
     AskHelpResponse,
@@ -45,6 +46,8 @@ from .alliance import (
     HelpRequestNotification,
     MemberCastle,
     MemberEmblem,
+    SearchAllianceRequest,
+    SearchAllianceResponse,
 )
 from .army import (
     CancelHealRequest,
@@ -171,19 +174,7 @@ from .chat import (
     ChatLogEntry,
     ChatMessageData,
 )
-from .defense import (
-    ChangeKeepDefenseRequest,
-    ChangeKeepDefenseResponse,
-    ChangeMoatDefenseRequest,
-    ChangeMoatDefenseResponse,
-    ChangeWallDefenseRequest,
-    ChangeWallDefenseResponse,
-    DefenseConfiguration,
-    GetDefenseRequest,
-    GetDefenseResponse,
-    GetSupportDefenseRequest,
-    GetSupportDefenseResponse,
-)
+from .lords import GetLordsRequest, GetLordsResponse, Lord
 from .map import (
     FindNPCRequest,
     FindNPCResponse,
@@ -208,13 +199,6 @@ from .player import (
     LocationCapture,
     PlayerOwnerInfo,
     get_location_type_name,
-)
-from .search import (
-    AllianceSearchResult,
-    SearchAllianceRequest,
-    SearchAllianceResponse,
-    SearchListType,
-    SearchType,
 )
 
 __all__ = [
@@ -273,6 +257,9 @@ __all__ = [
     "AskHelpRequest",
     "AskHelpResponse",
     "HelpRequestNotification",
+    "SearchAllianceRequest",
+    "SearchAllianceResponse",
+    "AllianceSearchResult",
     # Castle
     "GetCastlesRequest",
     "GetCastlesResponse",
@@ -370,30 +357,15 @@ __all__ = [
     "HealUnitsResponse",
     "CancelHealRequest",
     "CancelHealResponse",
-    "SendSupportRequest",
-    "SendSupportResponse",
     "SkipHealRequest",
     "SkipHealResponse",
     "DeleteWoundedRequest",
     "DeleteWoundedResponse",
     "HealAllRequest",
     "HealAllResponse",
-    # Defense
-    "GetDefenseRequest",
-    "GetDefenseResponse",
-    "DefenseConfiguration",
-    "ChangeKeepDefenseRequest",
-    "ChangeKeepDefenseResponse",
-    "ChangeWallDefenseRequest",
-    "ChangeWallDefenseResponse",
-    "ChangeMoatDefenseRequest",
-    "ChangeMoatDefenseResponse",
-    "GetSupportDefenseRequest",
-    "GetSupportDefenseResponse",
-    # Search
-    "SearchType",
-    "SearchListType",
-    "AllianceSearchResult",
-    "SearchAllianceRequest",
-    "SearchAllianceResponse",
+    "SendSupportRequest",
+    "SendSupportResponse",
+    "GetLordsRequest",
+    "GetLordsResponse",
+    "Lord",
 ]

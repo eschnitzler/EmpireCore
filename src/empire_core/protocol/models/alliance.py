@@ -544,7 +544,7 @@ class HelpRequestNotification(BaseResponse):
 
 
 # =============================================================================
-# ABO - Get Alliance Bookmarks
+# GBL - Get Alliance Bookmarks
 # =============================================================================
 
 
@@ -552,16 +552,16 @@ class GetAllianceBookmarksRequest(BaseRequest):
     """
     Request alliance bookmarks.
 
-    Command: abo
+    Command: gbl
     Payload: {} (empty)
     """
 
-    command = "abo"
+    command = "gbl"
 
 
 class AllianceBookmark(BasePayload):
     """
-    Alliance bookmark information from ABO response.
+    Alliance bookmark information from GBL response.
     """
 
     name: str = Field(alias="N", default="")
@@ -580,13 +580,57 @@ class GetAllianceBookmarksResponse(BaseResponse):
     """
     Response containing alliance bookmarks.
 
-    Command: abo
+    Command: gbl
     Payload: {"ABL": [{"N": "name", "OI": {...}}, ...]}
     """
 
-    command = "abo"
+    command = "gbl"
 
     bookmarks: list[AllianceBookmark] = Field(alias="ABL", default_factory=list)
+    error_code: int = Field(alias="E", default=0)
+
+
+# =============================================================================
+# HGH - Search Alliance (Highscore/Search)
+# =============================================================================
+
+
+class AllianceSearchResult(BasePayload):
+    """Result from alliance search."""
+
+    alliance_id: int = Field(alias="AID")
+    name: str = Field(alias="N")
+    member_count: int = Field(alias="MC", default=0)
+    # Add other fields as needed
+
+
+class SearchAllianceRequest(BaseRequest):
+    """
+    Search for an alliance.
+
+    Command: hgh
+    Payload: {"N": name_query}
+    """
+
+    command = "hgh"
+
+    name_query: str = Field(alias="N")
+
+    @classmethod
+    def create(cls, query: str) -> "SearchAllianceRequest":
+        return cls(N=query)
+
+
+class SearchAllianceResponse(BaseResponse):
+    """
+    Response to alliance search.
+
+    Command: hgh
+    """
+
+    command = "hgh"
+
+    results: list[AllianceSearchResult] = Field(alias="L", default_factory=list)
     error_code: int = Field(alias="E", default=0)
 
 

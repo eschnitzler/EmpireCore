@@ -124,7 +124,7 @@ class GameState:
             except Exception as e:
                 logger.warning(f"Could not parse alliance: {e}")
 
-        # Castles
+        # Castles (GCL)
         gcl = data.get("gcl", {})
         if gcl and self.local_player:
             kingdoms = gcl.get("C", [])
@@ -148,6 +148,11 @@ class GameState:
                             self.local_player.castles[area_id] = castle
 
             logger.debug(f"Parsed {len(self.local_player.castles)} castles")
+
+        # Detailed Castle List (DCL) - often inside GBD
+        dcl = data.get("dcl", {})
+        if dcl:
+            self._handle_dcl(dcl)
 
     def _handle_gam(self, data: Dict[str, Any]) -> None:
         """Handle 'Get Army Movements' response."""
@@ -221,6 +226,17 @@ class GameState:
                     res.wood = int(castle_data.get("W", res.wood))
                     res.stone = int(castle_data.get("S", res.stone))
                     res.food = int(castle_data.get("F", res.food))
+
+                    # Update units from AC array
+                    # AC: [[unit_id, count], ...]
+                    ac = castle_data.get("AC", [])
+                    if ac:
+                        castle.units.clear()
+                        for u_data in ac:
+                            if isinstance(u_data, list) and len(u_data) >= 2:
+                                uid = u_data[0]
+                                count = u_data[1]
+                                castle.units[uid] = count
 
     def _handle_mov(self, data: Dict[str, Any]) -> None:
         """Handle real-time movement update."""
