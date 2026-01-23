@@ -41,7 +41,7 @@ from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
 
 if TYPE_CHECKING:
-    from empire_core.services import BaseService
+    from empire_core.services import AllianceService, ArmyService, BaseService, CastleService, LordsService
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,12 @@ class EmpireClient:
         movements = client.get_movements()
         client.close()
     """
+
+    if TYPE_CHECKING:
+        alliance: AllianceService
+        castle: CastleService
+        army: ArmyService
+        lords: LordsService
 
     def __init__(
         self,

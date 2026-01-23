@@ -18,8 +18,10 @@ Usage:
 
 # Import services to trigger registration
 from .alliance import AllianceService
+from .army import ArmyService
 from .base import BaseService, get_registered_services, register_service
 from .castle import CastleService
+from .lords import LordsService
 
 __all__ = [
     "BaseService",
@@ -27,5 +29,7 @@ __all__ = [
     "get_registered_services",
     # Services
     "AllianceService",
+    "ArmyService",
     "CastleService",
+    "LordsService",
 ]

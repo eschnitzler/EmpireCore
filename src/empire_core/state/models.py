@@ -174,6 +174,10 @@ class Player(BaseModel):
     # Alliance
     alliance: Optional[Alliance] = None
 
+    # Premium/VIP
+    PF: int = Field(default=0)  # Premium Flag
+    VF: int = Field(default=0)  # VIP Flag
+
     # Python-friendly properties
     @property
     def id(self) -> int:
@@ -213,3 +217,8 @@ class Player(BaseModel):
     @property
     def email(self) -> Optional[str]:
         return self.E
+
+    @property
+    def is_premium(self) -> bool:
+        """Check if user has premium account."""
+        return self.PF > 0
