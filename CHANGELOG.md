@@ -2,6 +2,34 @@
 
 <!-- version list -->
 
+## v0.18.0 (2026-01-23)
+
+### Bug Fixes
+
+- Align send_support fields with pygge patterns (add KID, rename LID)
+  ([`cc1a57f`](https://github.com/eschnitzler/EmpireCore/commit/cc1a57f6fc1e0d51483aa0d7cabb995d369e5c66))
+
+- Export AllianceBookmark in models init
+  ([`b9cdbfe`](https://github.com/eschnitzler/EmpireCore/commit/b9cdbfe69381f9f9ef5e40a0a68dcb994406bbff))
+
+- Update login sequence to match pygge (remove vck, add roundTrip, update CONM)
+  ([`be1e0af`](https://github.com/eschnitzler/EmpireCore/commit/be1e0af697299c41d36005ef75c2fbdc9a83be53))
+
+- Use custom TimeoutError in Connection to allow catching in Client
+  ([`f3c37a6`](https://github.com/eschnitzler/EmpireCore/commit/f3c37a6c975d6139f227a28ce56be240a6c7699d))
+
+### Features
+
+- Add AllianceBookmark models and service method
+  ([`b9cdbfe`](https://github.com/eschnitzler/EmpireCore/commit/b9cdbfe69381f9f9ef5e40a0a68dcb994406bbff))
+
+- Add Birding capabilities (Army, Lords, Alliance Search)
+  ([`0cbcac9`](https://github.com/eschnitzler/EmpireCore/commit/0cbcac92c2d013741cb374afa46fde2eb6278683))
+
+- Enhance send_support with full protocol parameters from pygge
+  ([`cc1a57f`](https://github.com/eschnitzler/EmpireCore/commit/cc1a57f6fc1e0d51483aa0d7cabb995d369e5c66))
+
+
 ## v0.17.1 (2026-01-11)
 
 ### Bug Fixes
