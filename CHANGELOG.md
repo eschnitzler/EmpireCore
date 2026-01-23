@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.19.1 (2026-01-23)
+
+### Bug Fixes
+
+- Reduce keepalive interval to 30s to prevent disconnects
+  ([`9b99ec1`](https://github.com/eschnitzler/EmpireCore/commit/9b99ec18b23283a4d52e2b923b2623557b57be29))
+
+
 ## v0.19.0 (2026-01-23)
 
 ### Features
