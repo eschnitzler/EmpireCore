@@ -360,7 +360,8 @@ class Connection:
             zone = "EmpireEx_21"
 
         while self._running:
-            time.sleep(60)
+            # Send keepalive every 30s to avoid timeouts (server idle timeout is ~60s)
+            time.sleep(30)
 
             if not self._running:
                 break
