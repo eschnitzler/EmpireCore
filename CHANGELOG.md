@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.19.0 (2026-01-23)
+
+### Features
+
+- Add get_player_details_bulk for fast player lookup
+  ([`cac62dd`](https://github.com/eschnitzler/EmpireCore/commit/cac62dd0f6f628381a2551083092a7a942359029))
+
+
 ## v0.18.0 (2026-01-23)
 
 ### Bug Fixes
