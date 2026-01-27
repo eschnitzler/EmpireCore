@@ -1,8 +1,7 @@
 """
 GGE Protocol Models - Pydantic models for Goodgame Empire protocol commands.
 
-This package contains type-safe models for all GGE protocol commands extracted
-from pygge and GGE-BOT implementations.
+This package contains type-safe models for all GGE protocol commands.
 
 Structure:
 - base.py: Base classes and common types
