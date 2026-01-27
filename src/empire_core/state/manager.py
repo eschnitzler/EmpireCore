@@ -89,6 +89,8 @@ class GameState:
             self._handle_ata(payload)
         elif cmd_id == "mrm":
             self._handle_mrm(payload)
+        elif cmd_id == "sce":
+            self._handle_sce(payload)
 
     def _handle_gbd(self, data: Dict[str, Any]) -> None:
         """Handle 'Get Big Data' packet - initial login data."""
@@ -113,6 +115,16 @@ class GameState:
         if self.local_player and gcu:
             self.local_player.gold = gcu.get("C1", 0)
             self.local_player.rubies = gcu.get("C2", 0)
+
+        # Inventory (SCE)
+        sce = data.get("sce", [])
+        if sce and self.local_player:
+            for item in sce:
+                if isinstance(item, list) and len(item) >= 2:
+                    key = str(item[0])
+                    val = int(item[1])
+                    self.local_player.inventory[key] = val
+            logger.debug(f"Parsed {len(self.local_player.inventory)} inventory items")
 
         # Alliance
         gal = data.get("gal", {})
@@ -277,6 +289,20 @@ class GameState:
                 self._dispatch_callback(self.on_movement_recalled, mid)
             self.movements.pop(mid, None)
             self._previous_movement_ids.discard(mid)
+
+    def _handle_sce(self, data: Any) -> None:
+        """Handle Server Client Exchange (Inventory Update)."""
+        # data might be a list directly: [["PTT", 123]]
+        # or a dict if wrapped?
+        items = data if isinstance(data, list) else []
+
+        if items and self.local_player:
+            for item in items:
+                if isinstance(item, list) and len(item) >= 2:
+                    key = str(item[0])
+                    val = int(item[1])
+                    self.local_player.inventory[key] = val
+            logger.debug(f"Updated {len(items)} inventory items from sce")
 
     def _parse_movement(
         self,

@@ -171,6 +171,9 @@ class Player(BaseModel):
     gold: int = 0  # C1 from gcu
     rubies: int = 0  # C2 from gcu
 
+    # Global Inventory (from sce)
+    inventory: Dict[str, int] = Field(default_factory=dict)
+
     # Alliance
     alliance: Optional[Alliance] = None
 
