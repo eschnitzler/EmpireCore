@@ -360,7 +360,7 @@ class Connection:
             zone = "EmpireEx_21"
 
         while self._running:
-            # Send keepalive every 60s to match pygge/GGE-BOT behavior
+            # Send keepalive every 60s
             # Server timeout is likely >60s, sending too often might be unnecessary
             for _ in range(60):
                 if not self._running:
