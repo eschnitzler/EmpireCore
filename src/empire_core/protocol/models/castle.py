@@ -104,6 +104,19 @@ class DetailedCastleInfo(CastleInfo):
     resources: ResourceAmount | None = Field(alias="R", default=None)
     population: int = Field(alias="P", default=0)
     max_population: int = Field(alias="MP", default=0)
+    raw_items: list[list[int]] = Field(alias="AC", default_factory=list)
+
+    @property
+    def items(self) -> dict[int, int]:
+        """
+        Get items/inventory as a dict {item_id: count}.
+        Parsed from raw 'AC' list.
+        """
+        result = {}
+        for item in self.raw_items:
+            if len(item) >= 2:
+                result[item[0]] = item[1]
+        return result
 
 
 class GetDetailedCastleResponse(BaseResponse):
@@ -128,12 +141,13 @@ class SelectCastleRequest(BaseRequest):
     Select/jump to a castle (makes it the active castle).
 
     Command: jca
-    Payload: {"CID": castle_id}
+    Payload: {"CID": castle_id, "KID": kingdom_id}
     """
 
     command = "jca"
 
     castle_id: int = Field(alias="CID")
+    kingdom_id: int = Field(alias="KID", default=0)
 
 
 class SelectCastleResponse(BaseResponse):

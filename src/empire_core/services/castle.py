@@ -110,22 +110,23 @@ class CastleService(BaseService):
     # Castle Selection
     # =========================================================================
 
-    def select(self, castle_id: int, timeout: float = 5.0) -> bool:
+    def select(self, castle_id: int, kingdom_id: int = 0, timeout: float = 5.0) -> bool:
         """
         Select/jump to a castle (makes it the active castle).
 
         Args:
             castle_id: The castle ID to select
+            kingdom_id: The kingdom ID (optional, defaults to 0)
             timeout: Timeout in seconds
 
         Returns:
             True if successful, False otherwise
 
         Example:
-            if client.castle.select(12345):
+            if client.castle.select(12345, kingdom_id=2):
                 print("Castle selected!")
         """
-        request = SelectCastleRequest(CID=castle_id)
+        request = SelectCastleRequest(CID=castle_id, KID=kingdom_id)
         response = self.send(request, wait=True, timeout=timeout)
 
         if isinstance(response, SelectCastleResponse):
