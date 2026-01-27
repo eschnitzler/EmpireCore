@@ -631,17 +631,24 @@ class EmpireClient:
             request = GetMapAreaRequest(KID=kingdom, AX1=x1, AY1=y1, AX2=x2, AY2=y2)
 
             # Send and wait for response
-            self.send(request, wait=False)
             try:
-                response = self.connection.wait_for("gaa", timeout=request_timeout)
-            except TimeoutError:
-                logger.warning(f"Chunk ({cx}, {cy}) timed out, retrying...")
-                # Retry once
                 self.send(request, wait=False)
+                response = self.connection.wait_for("gaa", timeout=request_timeout)
+            except (TimeoutError, RuntimeError) as e:
+                logger.warning(f"Chunk ({cx}, {cy}) request failed: {e}. Retrying...")
+
+                # Check connection before retry
+                if not self.connection.connected:
+                    logger.error("Connection lost during scan")
+                    return False
+
+                # Retry once
                 try:
+                    time.sleep(0.1)  # Wait a bit before retry
+                    self.send(request, wait=False)
                     response = self.connection.wait_for("gaa", timeout=request_timeout)
-                except TimeoutError:
-                    logger.error(f"Chunk ({cx}, {cy}) failed after retry")
+                except Exception as e2:
+                    logger.error(f"Chunk ({cx}, {cy}) failed after retry: {e2}")
                     return False
 
             if not isinstance(response.payload, dict):
@@ -684,6 +691,9 @@ class EmpireClient:
             if time.time() - start_time > timeout:
                 logger.warning(f"Kingdom scan timeout after {total_requests} requests")
                 break
+
+            # Add small delay to prevent rate limiting/disconnects
+            time.sleep(0.01)
 
             cx, cy = queue.pop(0)
 

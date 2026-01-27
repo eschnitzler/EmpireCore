@@ -360,8 +360,12 @@ class Connection:
             zone = "EmpireEx_21"
 
         while self._running:
-            # Send keepalive every 30s to avoid timeouts (server idle timeout is ~60s)
-            time.sleep(30)
+            # Send keepalive every 60s to match pygge/GGE-BOT behavior
+            # Server timeout is likely >60s, sending too often might be unnecessary
+            for _ in range(60):
+                if not self._running:
+                    break
+                time.sleep(1)
 
             if not self._running:
                 break
@@ -372,7 +376,10 @@ class Connection:
             except Exception as e:
                 if self._running:
                     logger.error(f"Keepalive failed: {e}")
-                break
+                    # Don't break immediately, retry on next cycle if still running
+                    # Only break if socket is explicitly closed
+                    if not self.connected:
+                        break
 
         logger.debug("Keepalive loop ended")
 
