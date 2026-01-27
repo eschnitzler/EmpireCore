@@ -173,7 +173,7 @@ from .chat import (
     ChatLogEntry,
     ChatMessageData,
 )
-from .inventory import ItemID, SCEItem
+from .inventory import SCEItem
 from .lords import GetLordsRequest, GetLordsResponse, Lord
 from .map import (
     FindNPCRequest,
@@ -368,6 +368,5 @@ __all__ = [
     "GetLordsRequest",
     "GetLordsResponse",
     "Lord",
-    "ItemID",
     "SCEItem",
 ]

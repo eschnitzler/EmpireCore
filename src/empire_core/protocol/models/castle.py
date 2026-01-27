@@ -104,19 +104,6 @@ class DetailedCastleInfo(CastleInfo):
     resources: ResourceAmount | None = Field(alias="R", default=None)
     population: int = Field(alias="P", default=0)
     max_population: int = Field(alias="MP", default=0)
-    raw_items: list[list[int]] = Field(alias="AC", default_factory=list)
-
-    @property
-    def items(self) -> dict[int, int]:
-        """
-        Get items/inventory as a dict {item_id: count}.
-        Parsed from raw 'AC' list.
-        """
-        result = {}
-        for item in self.raw_items:
-            if len(item) >= 2:
-                result[item[0]] = item[1]
-        return result
 
 
 class GetDetailedCastleResponse(BaseResponse):
