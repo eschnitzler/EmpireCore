@@ -218,41 +218,6 @@ class CastleService(BaseService):
         return None, None
 
     # =========================================================================
-    # Inventory Operations
-    # =========================================================================
-
-    def get_items(self, castle_id: int, timeout: float = 5.0) -> dict[int, int]:
-        """
-        Get inventory items for a castle.
-
-        Args:
-            castle_id: The castle ID
-            timeout: Timeout in seconds
-
-        Returns:
-            Dict mapping Item ID -> Count
-        """
-        details = self.get_details(castle_id, timeout=timeout)
-        if details:
-            return details.items
-        return {}
-
-    def search_items(self, castle_id: int, item_ids: list[int], timeout: float = 5.0) -> dict[int, int]:
-        """
-        Search for specific items in a castle's inventory.
-
-        Args:
-            castle_id: The castle ID
-            item_ids: List of item IDs to search for
-            timeout: Timeout in seconds
-
-        Returns:
-            Dict mapping Item ID -> Count (0 if not found)
-        """
-        inventory = self.get_items(castle_id, timeout=timeout)
-        return {iid: inventory.get(iid, 0) for iid in item_ids}
-
-    # =========================================================================
     # Support Operations
     # =========================================================================
 
