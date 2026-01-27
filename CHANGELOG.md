@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v0.19.2 (2026-01-27)
+
+### Bug Fixes
+
+- Network stability, map scanning retries, and protocol model updates
+  ([`32e7bff`](https://github.com/eschnitzler/EmpireCore/commit/32e7bff338e5a175c1255b44ca557ed5bf59a37a))
+
+### Chores
+
+- Remove references to other implementations
+  ([`225424f`](https://github.com/eschnitzler/EmpireCore/commit/225424fe26136a81a50f4f7e9b8d9fdb73d9d2d2))
+
+- Remove temporary documentation files
+  ([`0f04a18`](https://github.com/eschnitzler/EmpireCore/commit/0f04a187359deac0271901421ad2a0250869f9a1))
+
+
 ## v0.19.1 (2026-01-23)
 
 ### Bug Fixes
