@@ -161,7 +161,12 @@ class GetPlayerInfoResponse(BaseResponse):
         worlds = self.raw_castle_list.get("C", [])
 
         for world in worlds:
-            kingdom = Kingdom(world.get("KID", 0))
+            try:
+                kingdom = Kingdom(world.get("KID", 0))
+            except ValueError:
+                # Skip unknown kingdoms
+                continue
+
             locations = world.get("AI", [])
 
             for loc_wrapper in locations:

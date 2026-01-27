@@ -33,6 +33,7 @@ class Kingdom(IntEnum):
     ICE = 2  # Ice Kingdom - ice/frost units
     FIRE = 3  # Fire Kingdom - lava/fire units
     STORM = 4  # Storm Kingdom - storm/lightning units
+    BERIMOND = 10  # Berimond event kingdom
 
 
 class MapItemType(IntEnum):

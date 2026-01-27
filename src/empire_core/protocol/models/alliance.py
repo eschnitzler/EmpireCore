@@ -51,11 +51,17 @@ class MemberCastle(BasePayload):
     @classmethod
     def from_list(cls, data: list) -> "MemberCastle":
         """Parse from AP array entry."""
+        # Handle case where data is wrapped in another list (e.g. [[10, 123, ...]])
+        if len(data) > 0 and isinstance(data[0], list):
+            data = data[0]
+
         return cls(
             kingdom=data[0] if len(data) > 0 else 0,
             area_id=data[1] if len(data) > 1 else 0,
             x=data[2] if len(data) > 2 else 0,
             y=data[3] if len(data) > 3 else 0,
+            # Index 4 is type (1=Main, 4=Outpost)
+            # If data is short (length 4), type is missing -> default to 0
             castle_type=data[4] if len(data) > 4 else 0,
         )
 
@@ -601,7 +607,24 @@ class AllianceSearchResult(BasePayload):
     alliance_id: int = Field(alias="AID")
     name: str = Field(alias="N")
     member_count: int = Field(alias="MC", default=0)
-    # Add other fields as needed
+    might: int = Field(alias="MP", default=0)
+
+    @classmethod
+    def from_list(cls, data: list) -> "AllianceSearchResult":
+        """
+        Parse from highscore list entry.
+        Format: [Rank, ID, [AID, Name, Members, Might]]
+        """
+        if len(data) < 3 or not isinstance(data[2], list):
+            return cls(AID=0, N="Unknown")
+
+        info = data[2]
+        return cls(
+            AID=info[0] if len(info) > 0 else 0,
+            N=info[1] if len(info) > 1 else "Unknown",
+            MC=info[2] if len(info) > 2 else 0,
+            MP=info[3] if len(info) > 3 else 0,
+        )
 
 
 class SearchAllianceRequest(BaseRequest):
@@ -609,16 +632,18 @@ class SearchAllianceRequest(BaseRequest):
     Search for an alliance.
 
     Command: hgh
-    Payload: {"N": name_query}
+    Payload: {"LT": 11, "LID": 6, "SV": name_query}
     """
 
     command = "hgh"
 
-    name_query: str = Field(alias="N")
+    list_type: int = Field(alias="LT", default=11)  # 11 = Alliance Highscore
+    list_id: int = Field(alias="LID", default=6)  # 6 = Search?
+    search_value: str = Field(alias="SV")
 
     @classmethod
     def create(cls, query: str) -> "SearchAllianceRequest":
-        return cls(N=query)
+        return cls(SV=query)
 
 
 class SearchAllianceResponse(BaseResponse):
@@ -630,8 +655,13 @@ class SearchAllianceResponse(BaseResponse):
 
     command = "hgh"
 
-    results: list[AllianceSearchResult] = Field(alias="L", default_factory=list)
+    raw_results: list = Field(alias="L", default_factory=list)
     error_code: int = Field(alias="E", default=0)
+
+    @property
+    def results(self) -> list[AllianceSearchResult]:
+        """Parse raw search results."""
+        return [AllianceSearchResult.from_list(item) for item in self.raw_results]
 
 
 __all__ = [
