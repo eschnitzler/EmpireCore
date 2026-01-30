@@ -174,6 +174,11 @@ class Player(BaseModel):
     # Global Inventory (from sce)
     inventory: Dict[str, int] = Field(default_factory=dict)
 
+    # VIP
+    vip_points: int = 0  # VP
+    vip_level: int = 0  # VRL
+    vip_time_left: int = 0  # VRS (Seconds)
+
     # Alliance
     alliance: Optional[Alliance] = None
 
@@ -223,5 +228,5 @@ class Player(BaseModel):
 
     @property
     def is_premium(self) -> bool:
-        """Check if user has premium account."""
-        return self.PF > 0
+        """Check if user has active VIP time."""
+        return self.vip_time_left > 0
