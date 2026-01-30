@@ -126,6 +126,13 @@ class GameState:
                     self.local_player.inventory[key] = val
             logger.debug(f"Parsed {len(self.local_player.inventory)} inventory items")
 
+        # VIP
+        vip = data.get("vip", {})
+        if self.local_player and vip:
+            self.local_player.vip_points = vip.get("VP", 0)
+            self.local_player.vip_level = vip.get("VRL", 0)
+            self.local_player.vip_time_left = vip.get("VRS", 0)
+
         # Alliance
         gal = data.get("gal", {})
         if gal and self.local_player and gal.get("AID"):
