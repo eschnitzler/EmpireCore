@@ -20,7 +20,7 @@ from empire_core.config import (
 )
 from empire_core.exceptions import LoginCooldownError, LoginError, TimeoutError
 from empire_core.network.connection import Connection
-from empire_core.protocol.models import BaseRequest, BaseResponse, parse_response
+from empire_core.protocol.models import BaseRequest, BaseResponse, ErrorResponse, parse_response
 from empire_core.protocol.models.defense import (
     GetSupportDefenseRequest,
     GetSupportDefenseResponse,
@@ -277,8 +277,17 @@ class EmpireClient:
             command = request.get_command()
             try:
                 response_packet = self.connection.wait_for(command, timeout=timeout)
-                if response_packet and isinstance(response_packet.payload, dict):
+
+                if not response_packet:
+                    return None
+
+                if response_packet.error_code != 0:
+                    return ErrorResponse(E=response_packet.error_code)
+
+                if isinstance(response_packet.payload, dict):
                     return parse_response(command, response_packet.payload)
+
+                return None
             except Exception:
                 return None
 
