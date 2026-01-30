@@ -2,6 +2,36 @@
 
 <!-- version list -->
 
+## v0.20.0 (2026-01-30)
+
+### Bug Fixes
+
+- Include kingdom_id in castle selection to support outer kingdoms
+  ([`3c049b7`](https://github.com/eschnitzler/EmpireCore/commit/3c049b7a27ad59fd435087cde2e12cbe63b5ae41))
+
+- Propagate error_code from Packet to response models
+  ([`82c7e1b`](https://github.com/eschnitzler/EmpireCore/commit/82c7e1bf9a75ae8e6b909a3210cfe3e72ff87e2d))
+
+### Features
+
+- Add inventory service and parsing logic
+  ([`0d69142`](https://github.com/eschnitzler/EmpireCore/commit/0d69142f61bddbbc09f5eb5b97376eb7bf88ce2c))
+
+- Add VIP time tracking and fix is_premium to check active VIP
+  ([`ed8ee85`](https://github.com/eschnitzler/EmpireCore/commit/ed8ee854d972f1565bb7704f8681d554368c4f61))
+
+- Complete SCEItem enum with full inventory mapping
+  ([`f7b8b2f`](https://github.com/eschnitzler/EmpireCore/commit/f7b8b2fd78868192f024d300693b45abe7044bc2))
+
+- Implement global inventory (sce) tracking and enums
+  ([`f2aea73`](https://github.com/eschnitzler/EmpireCore/commit/f2aea73b3669fe56891f51515938d96c4ec5376f))
+
+### Refactoring
+
+- Remove dcl inventory parsing, rely on global sce state
+  ([`42a6aa4`](https://github.com/eschnitzler/EmpireCore/commit/42a6aa4ccb22ac5ea9bf944ae512dfc3859fc8cd))
+
+
 ## v0.19.2 (2026-01-27)
 
 ### Bug Fixes
