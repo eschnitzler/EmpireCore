@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.21.0 (2026-02-01)
+
+### Features
+
+- Add GGEError enum with all protocol error codes
+  ([`f5034cc`](https://github.com/eschnitzler/EmpireCore/commit/f5034cc9c4f71cf3ffde479299d306d93266160d))
+
+
 ## v0.20.0 (2026-01-30)
 
 ### Bug Fixes
