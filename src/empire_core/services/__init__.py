@@ -22,6 +22,7 @@ from .army import ArmyService
 from .base import BaseService, get_registered_services, register_service
 from .castle import CastleService
 from .lords import LordsService
+from .ranking import RankingService
 
 __all__ = [
     "BaseService",
@@ -32,4 +33,5 @@ __all__ = [
     "ArmyService",
     "CastleService",
     "LordsService",
+    "RankingService",
 ]
