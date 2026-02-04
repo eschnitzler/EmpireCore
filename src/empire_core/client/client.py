@@ -35,6 +35,8 @@ from empire_core.protocol.models.map import (
 from empire_core.protocol.models.player import (
     GetPlayerInfoRequest,
     GetPlayerInfoResponse,
+    SearchPlayerRequest,
+    SearchPlayerResponse,
 )
 from empire_core.protocol.packet import Packet
 from empire_core.services import get_registered_services
@@ -839,3 +841,15 @@ class EmpireClient:
                 self._handlers["gdi"].remove(capture_gdi)
 
         return collected
+
+    def search_player_by_name(
+        self,
+        player_name: str,
+        timeout: float = 5.0,
+    ) -> SearchPlayerResponse | None:
+        request = SearchPlayerRequest(PN=player_name)
+        response = self.send(request, wait=True, timeout=timeout)
+
+        if isinstance(response, SearchPlayerResponse):
+            return response
+        return None
