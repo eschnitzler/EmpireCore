@@ -3,9 +3,12 @@ Player protocol models.
 
 Commands:
 - gdi: Get detailed player info (including castle list with capture info)
+- wsp: World search player (search by name)
 """
 
 from __future__ import annotations
+
+from typing import Optional
 
 from pydantic import ConfigDict, Field
 
@@ -221,4 +224,41 @@ __all__ = [
     "LocationCapture",
     "LOCATION_TYPES",
     "get_location_type_name",
+    "SearchPlayerRequest",
+    "SearchPlayerResponse",
+    "SearchPlayerResult",
 ]
+
+
+# =============================================================================
+# WSP - World Search Player
+# =============================================================================
+
+
+class SearchPlayerRequest(BaseRequest):
+    command = "wsp"
+
+    player_name: str = Field(alias="PN")
+
+
+class SearchPlayerResult(BaseResponse):
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    player_id: int = Field(alias="OID", default=0)
+    name: str = Field(alias="N", default="")
+    level: int = Field(alias="L", default=0)
+    alliance_id: int = Field(alias="AID", default=0)
+
+
+class SearchPlayerResponse(BaseResponse):
+    command = "wsp"
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    raw_gaa: dict = Field(alias="gaa", default_factory=dict)
+
+    def get_player(self) -> Optional[SearchPlayerResult]:
+        owner_info = self.raw_gaa.get("OI", [])
+        if owner_info and len(owner_info) > 0:
+            return SearchPlayerResult.model_validate(owner_info[0])
+        return None
