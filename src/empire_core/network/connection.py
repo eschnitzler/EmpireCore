@@ -14,6 +14,7 @@ from typing import Callable, Dict, List, Optional
 import websocket
 
 from empire_core.exceptions import TimeoutError
+from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import Packet
 
 logger = logging.getLogger(__name__)
@@ -309,6 +310,10 @@ class Connection:
         Uses copy-on-read pattern to minimize lock hold time.
         """
         cmd_id = packet.command_id
+
+        if not packet.is_xml and packet.error_code != 0:
+            error_name = GGEError.from_code(packet.error_code).name
+            logger.error(f"Server error: {error_name} ({packet.error_code}) for command '{cmd_id}'")
 
         waiter = None
         callbacks = None
