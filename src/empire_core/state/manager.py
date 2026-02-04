@@ -328,6 +328,7 @@ class GameState:
 
             # Extract target coords
             if mov.target_area and isinstance(mov.target_area, list) and len(mov.target_area) >= 5:
+                mov.target_type = mov.target_area[0]
                 mov.target_x = mov.target_area[1]
                 mov.target_y = mov.target_area[2]
                 mov.target_area_id = mov.target_area[3]
