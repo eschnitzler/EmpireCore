@@ -176,25 +176,37 @@ class AllianceService(BaseService):
             for alliance in results:
                 print(f"{alliance.name} (ID: {alliance.alliance_id}, {alliance.member_count} members)")
         """
+        import logging
+
+        logger = logging.getLogger(__name__)
+
         request = SearchAllianceRequest.create(search_term)
+        logger.debug(f"Alliance search request: LT={request.list_type}, LID={request.list_id}, SV='{search_term}'")
         packet = request.to_packet(zone=self.zone)
         self.client.connection.send(packet)
 
         try:
             response_packet = self.client.connection.wait_for("hgh", timeout=timeout)
+            logger.debug(
+                f"Alliance search response: error_code={response_packet.error_code}, payload_type={type(response_packet.payload)}"
+            )
 
             # Check for error code (e.g., 114 = not found)
             if response_packet.error_code != 0:
+                logger.warning(f"Alliance search returned error code: {response_packet.error_code}")
                 return []
 
             if isinstance(response_packet.payload, dict):
-                from empire_core.protocol.models import parse_response
-
-                response = parse_response("hgh", response_packet.payload)
-                if isinstance(response, SearchAllianceResponse):
-                    return response.results
-        except Exception:
-            pass
+                # Directly instantiate SearchAllianceResponse instead of using parse_response()
+                # because multiple response classes use "hgh" command and parse_response()
+                # can only map one class per command
+                response = SearchAllianceResponse.model_validate(response_packet.payload)
+                logger.debug(f"Alliance search found {len(response.results)} results")
+                for r in response.results[:3]:
+                    logger.debug(f"  - {r.name} (ID: {r.alliance_id})")
+                return response.results
+        except Exception as e:
+            logger.error(f"Alliance search failed: {type(e).__name__}: {e}", exc_info=True)
 
         return []
 
