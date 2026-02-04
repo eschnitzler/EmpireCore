@@ -198,7 +198,19 @@ from .player import (
     GetPlayerInfoResponse,
     LocationCapture,
     PlayerOwnerInfo,
+    SearchPlayerRequest,
+    SearchPlayerResponse,
+    SearchPlayerResult,
     get_location_type_name,
+)
+from .ranking import (
+    GetHighscoreRequest,
+    GetHighscoreResponse,
+    GetRankingListRequest,
+    GetRankingListResponse,
+    RankingCategory,
+    RankingEntry,
+    RankingType,
 )
 
 __all__ = [
@@ -302,6 +314,9 @@ __all__ = [
     "LocationCapture",
     "LOCATION_TYPES",
     "get_location_type_name",
+    "SearchPlayerRequest",
+    "SearchPlayerResponse",
+    "SearchPlayerResult",
     # Attack
     "CreateAttackRequest",
     "CreateAttackResponse",
@@ -369,4 +384,12 @@ __all__ = [
     "GetLordsResponse",
     "Lord",
     "SCEItem",
+    # Ranking
+    "RankingType",
+    "RankingCategory",
+    "RankingEntry",
+    "GetHighscoreRequest",
+    "GetHighscoreResponse",
+    "GetRankingListRequest",
+    "GetRankingListResponse",
 ]
