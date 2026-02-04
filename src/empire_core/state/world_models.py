@@ -119,6 +119,7 @@ class Movement(BaseModel):
     target_y: int = Field(default=-1)
     source_x: int = Field(default=-1)
     source_y: int = Field(default=-1)
+    target_type: int = Field(default=-1)  # MapObjectType value from TA[0]
 
     # Units in movement (UnitID -> Count)
     units: Dict[int, int] = Field(default_factory=dict)
