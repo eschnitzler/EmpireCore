@@ -2,6 +2,31 @@
 
 <!-- version list -->
 
+## v0.22.0 (2026-02-08)
+
+### Bug Fixes
+
+- Handle target_type in movement parsing and update dependencies
+  ([`a496836`](https://github.com/eschnitzler/EmpireCore/commit/a496836a06c13a20ca870f83c95fe510042f11d0))
+
+- Improve network error logging and connection stability
+  ([`4e2c0b4`](https://github.com/eschnitzler/EmpireCore/commit/4e2c0b44e8ebe4605e5c57c829ccd7b5ddc2f53d))
+
+### Features
+
+- Add player search request and response models
+  ([`9f80313`](https://github.com/eschnitzler/EmpireCore/commit/9f80313c99340728caf3a8414ac210f2ea298b86))
+
+- Add ranking and highscore protocol models
+  ([`b987d11`](https://github.com/eschnitzler/EmpireCore/commit/b987d111f57a85321575dfebe11f8d4504b24a9f))
+
+- Implement player search in EmpireClient
+  ([`916e131`](https://github.com/eschnitzler/EmpireCore/commit/916e131ef3ace6b7eb100f0799d5b88da3ff1b96))
+
+- Implement ranking service
+  ([`a55eb99`](https://github.com/eschnitzler/EmpireCore/commit/a55eb992df81ef3337310e1261fdd6376269ccab))
+
+
 ## v0.21.0 (2026-02-01)
 
 ### Features
