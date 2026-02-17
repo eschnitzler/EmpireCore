@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.22.1 (2026-02-17)
+
+### Bug Fixes
+
+- Return timezone-aware UTC datetime from bird_end_time property
+  ([`1564b15`](https://github.com/eschnitzler/EmpireCore/commit/1564b15a8340f24ae6dc71f74dd986aff2073ffa))
+
+
 ## v0.22.0 (2026-02-08)
 
 ### Bug Fixes
