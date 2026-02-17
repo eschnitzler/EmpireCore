@@ -10,7 +10,7 @@ Commands:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from pydantic import ConfigDict, Field
 
@@ -192,7 +192,7 @@ class AllianceMember(BasePayload):
         Calculate when bird protection ends.
 
         Returns:
-            Datetime when bird expires, or None if no bird active.
+            Timezone-aware datetime (UTC) when bird expires, or None if no bird active.
 
         Note:
             This is calculated relative to when the data was fetched,
@@ -200,7 +200,7 @@ class AllianceMember(BasePayload):
         """
         if self.revenge_protection_seconds <= 0:
             return None
-        return datetime.now() + timedelta(seconds=self.revenge_protection_seconds)
+        return datetime.now(timezone.utc) + timedelta(seconds=self.revenge_protection_seconds)
 
 
 # =============================================================================
