@@ -64,13 +64,6 @@ class RankingEntry:
     """A single entry in a ranking list."""
 
     def __init__(self, raw: list) -> None:
-        """
-        Parse ranking entry.
-        Format varies by list type:
-        - Format A: [Rank, Score, [ID, Name, ...]] - Simple list
-        - Format B: [Rank, Score, ID, Name] - Flat format
-        - Format C: [Rank, Score, {ComplexDict}] - Full player/alliance data
-        """
         self.raw = raw
         self.rank: int = -1
         self.score: int = -1
@@ -80,39 +73,41 @@ class RankingEntry:
         self.alliance_name: str = ""
 
         try:
-            # Format C: [Rank, Score, {ComplexDict}] - Player/Alliance full data
-            if len(raw) >= 3 and isinstance(raw[2], dict):
-                self.rank = raw[0]
-                self.score = raw[1]
-                details_dict = raw[2]
-                self.entity_id = details_dict.get("OID", 0)  # Player ID
-                self.name = details_dict.get("N", "")  # Name
-                self.alliance_id = details_dict.get("AID", 0)  # Alliance ID
-                self.alliance_name = details_dict.get("AN", "")  # Alliance name
+            # Some list types prepend an extra value before [Rank, Score, details].
+            # Cargo (LT=13) uses offset=1: [cargoValue, Rank, Score, {details}].
+            # Detect by checking whether raw[3] is the complex field while raw[2] is not.
+            o = (
+                1
+                if (len(raw) >= 4 and isinstance(raw[3], (dict, list)) and not isinstance(raw[2], (dict, list)))
+                else 0
+            )
 
-            # Format A: [Rank, Score, [ID, Name, ...]]
-            elif len(raw) >= 3 and isinstance(raw[2], list):
-                self.rank = raw[0]
-                self.score = raw[1]
-                details_list = raw[2]
-                self.entity_id = details_list[0] if len(details_list) > 0 else 0
+            details = raw[o + 2] if len(raw) >= o + 3 else None
 
-                # Handle Name field (index 1) which can be string or list
-                if len(details_list) > 1:
-                    name_field = details_list[1]
+            if isinstance(details, dict):
+                self.rank = raw[o]
+                self.score = raw[o + 1]
+                self.entity_id = details.get("OID", 0)
+                self.name = details.get("N", "")
+                self.alliance_id = details.get("AID", 0)
+                self.alliance_name = details.get("AN", "")
+
+            elif isinstance(details, list):
+                self.rank = raw[o]
+                self.score = raw[o + 1]
+                self.entity_id = details[0] if len(details) > 0 else 0
+                if len(details) > 1:
+                    name_field = details[1]
                     if isinstance(name_field, list):
                         self.name = str(name_field[0]) if len(name_field) > 0 else ""
                     else:
                         self.name = str(name_field) if name_field is not None else ""
-                else:
-                    self.name = ""
 
-            # Format B: [Rank, Score, ID, Name] (Simpler lists)
-            elif len(raw) >= 4 and not isinstance(raw[2], list):
-                self.rank = raw[0]
-                self.score = raw[1]
-                self.entity_id = raw[2]
-                self.name = raw[3]
+            elif len(raw) >= o + 4:
+                self.rank = raw[o]
+                self.score = raw[o + 1]
+                self.entity_id = raw[o + 2]
+                self.name = str(raw[o + 3]) if raw[o + 3] is not None else ""
 
             else:
                 logger.warning(f"Unknown RankingEntry format: {raw}")
