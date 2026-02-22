@@ -409,6 +409,20 @@ class EmpireClient:
         return [m for m in self.state.movements.values() if m.is_outgoing]
 
     # ============================================================
+    # Event Info
+    # ============================================================
+
+    def get_active_event_ids(self) -> List[int]:
+        """
+        Get list of currently active event IDs.
+
+        Returns:
+            List of event IDs (EID) from sei packet.
+            Empty list if no events are active or not yet logged in.
+        """
+        return list(self.state.active_event_ids)  # Return copy, not reference
+
+    # ============================================================
     # Chat Subscription
     # ============================================================
 
