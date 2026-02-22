@@ -40,6 +40,9 @@ class GameState:
         # Armies (castle_id -> Army)
         self.armies: Dict[int, Army] = {}
 
+        # Active Events
+        self.active_event_ids: List[int] = []
+
         # Callbacks for specific events (optional)
         self.on_incoming_attack: Optional[Callable[[Movement], None]] = None
         self.on_movement_recalled: Optional[Callable[[int], None]] = None  # MID only
@@ -91,6 +94,8 @@ class GameState:
             self._handle_mrm(payload)
         elif cmd_id == "sce":
             self._handle_sce(payload)
+        elif cmd_id == "sei":
+            self._handle_sei(payload)
 
     def _handle_gbd(self, data: Dict[str, Any]) -> None:
         """Handle 'Get Big Data' packet - initial login data."""
@@ -172,6 +177,11 @@ class GameState:
         dcl = data.get("dcl", {})
         if dcl:
             self._handle_dcl(dcl)
+
+        # Events (SEI) - often inside GBD
+        sei = data.get("sei", {})
+        if sei:
+            self._handle_sei(sei)
 
     def _handle_gam(self, data: Dict[str, Any]) -> None:
         """Handle 'Get Army Movements' response."""
@@ -310,6 +320,21 @@ class GameState:
                     val = int(item[1])
                     self.local_player.inventory[key] = val
             logger.debug(f"Updated {len(items)} inventory items from sce")
+
+    def _handle_sei(self, data: Dict[str, Any]) -> None:
+        """Handle 'Send Event Information' packet."""
+        events = data.get("E", [])
+        if not isinstance(events, list):
+            return
+
+        active_ids: List[int] = []
+        for event in events:
+            if isinstance(event, dict):
+                eid = event.get("EID")
+                if isinstance(eid, int):
+                    active_ids.append(eid)
+
+        self.active_event_ids = active_ids
 
     def _parse_movement(
         self,
