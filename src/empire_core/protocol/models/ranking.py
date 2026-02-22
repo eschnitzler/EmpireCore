@@ -63,7 +63,7 @@ class RankingCategory:
 class RankingEntry:
     """A single entry in a ranking list."""
 
-    def __init__(self, raw: list) -> None:
+    def __init__(self, raw: list | dict) -> None:
         self.raw = raw
         self.rank: int = -1
         self.score: int = -1
@@ -73,6 +73,15 @@ class RankingEntry:
         self.alliance_name: str = ""
 
         try:
+            # llsp/llsw format: {"R": rank, "S": score, "P": name, "A": alliance, ...}
+            if isinstance(raw, dict):
+                self.rank = raw.get("R", -1)
+                self.score = raw.get("S", -1)
+                self.name = raw.get("P", "")
+                self.alliance_name = raw.get("A", "")
+                return
+
+            # hgh format: list-based entries
             # Some list types prepend an extra value before [Rank, Score, details].
             # Cargo (LT=13) uses offset=1: [cargoValue, Rank, Score, {details}].
             # Detect by checking whether raw[3] is the complex field while raw[2] is not.
