@@ -127,6 +127,19 @@ class RankingEntry:
     def __repr__(self) -> str:
         return f"RankingEntry(rank={self.rank}, name='{self.name}', score={self.score})"
 
+    @classmethod
+    def unranked(cls, name: str) -> "RankingEntry":
+        """Create a synthetic entry for a player with no ranking score."""
+        entry = cls.__new__(cls)
+        entry.raw = []
+        entry.rank = -1
+        entry.score = 0
+        entry.entity_id = 0
+        entry.name = name
+        entry.alliance_id = 0
+        entry.alliance_name = ""
+        return entry
+
 
 class GetHighscoreRequest(BaseRequest):
     """
