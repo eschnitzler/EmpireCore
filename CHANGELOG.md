@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.23.0 (2026-03-08)
+
+### Bug Fixes
+
+- Handle offset=1 entry format in RankingEntry parser
+  ([`3990cba`](https://github.com/eschnitzler/EmpireCore/commit/3990cba4b9b0b1381be342a2a24229646aec5b16))
+
+- Support dict format in RankingEntry for llsp/llsw responses
+  ([`d73ce87`](https://github.com/eschnitzler/EmpireCore/commit/d73ce876171dba9df4aced73f6e182aa62f62181))
+
+### Features
+
+- Add unranked classmethod to RankingEntry
+  ([`6ac4563`](https://github.com/eschnitzler/EmpireCore/commit/6ac4563b23b15a14d8031c9b651bcd3c0c097782))
+
+- Track active event IDs from sei packet and fix timezone-aware bird expiry
+  ([`2ce9ffd`](https://github.com/eschnitzler/EmpireCore/commit/2ce9ffd4137cf93c026a4ceacb842ca52c6184fb))
+
+
 ## v0.22.1 (2026-02-17)
 
 ### Bug Fixes
