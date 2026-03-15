@@ -21,6 +21,8 @@ from empire_core.config import (
 from empire_core.exceptions import LoginCooldownError, LoginError, TimeoutError
 from empire_core.network.connection import Connection
 from empire_core.protocol.models import BaseRequest, BaseResponse, ErrorResponse, parse_response
+from empire_core.protocol.models.alliance import GetAllianceInfoRequest, GetAllianceInfoResponse
+from empire_core.protocol.models.chat import AllianceChatLogResponse
 from empire_core.protocol.models.defense import (
     GetSupportDefenseRequest,
     GetSupportDefenseResponse,
@@ -342,7 +344,7 @@ class EmpireClient:
         packet = Packet.build_xt(self.config.default_zone, "acm", payload)
         self.connection.send(packet)
 
-    def get_player_info(self, player_id: int, wait: bool = True, timeout: float = 5.0) -> Optional[dict]:
+    def get_player_info(self, player_id: int, wait: bool = True, timeout: float = 5.0) -> GetPlayerInfoResponse | None:
         """
         Get info about a player.
 
@@ -352,22 +354,17 @@ class EmpireClient:
             timeout: Timeout in seconds
 
         Returns:
-            Player info dict or None
+            GetPlayerInfoResponse or None
         """
-        payload = {"PID": player_id}
-        packet = Packet.build_xt(self.config.default_zone, "gpi", payload)
-        self.connection.send(packet)
-
-        if wait:
-            try:
-                response = self.connection.wait_for("gpi", timeout=timeout)
-                return response.payload if isinstance(response.payload, dict) else None
-            except TimeoutError:
-                return None
-
+        request = GetPlayerInfoRequest(PID=player_id)
+        response = self.send(request, wait=wait, timeout=timeout)
+        if isinstance(response, GetPlayerInfoResponse):
+            return response
         return None
 
-    def get_alliance_info(self, alliance_id: int, wait: bool = True, timeout: float = 5.0) -> Optional[dict]:
+    def get_alliance_info(
+        self, alliance_id: int, wait: bool = True, timeout: float = 5.0
+    ) -> GetAllianceInfoResponse | None:
         """
         Get info about an alliance.
 
@@ -377,19 +374,12 @@ class EmpireClient:
             timeout: Timeout in seconds
 
         Returns:
-            Alliance info dict or None
+            GetAllianceInfoResponse or None
         """
-        payload = {"AID": alliance_id}
-        packet = Packet.build_xt(self.config.default_zone, "gia", payload)
-        self.connection.send(packet)
-
-        if wait:
-            try:
-                response = self.connection.wait_for("gia", timeout=timeout)
-                return response.payload if isinstance(response.payload, dict) else None
-            except TimeoutError:
-                return None
-
+        request = GetAllianceInfoRequest(AID=alliance_id)
+        response = self.send(request, wait=wait, timeout=timeout)
+        if isinstance(response, GetAllianceInfoResponse):
+            return response
         return None
 
     # ============================================================
@@ -426,7 +416,7 @@ class EmpireClient:
     # Chat Subscription
     # ============================================================
 
-    def get_alliance_chat(self, wait: bool = True, timeout: float = 5.0) -> Optional[dict]:
+    def get_alliance_chat(self, wait: bool = True, timeout: float = 5.0) -> AllianceChatLogResponse | None:
         """
         Get alliance chat history.
 
@@ -435,19 +425,14 @@ class EmpireClient:
             timeout: Timeout in seconds
 
         Returns:
-            Chat history dict or None
+            AllianceChatLogResponse or None
         """
-        # Alliance chat list command: acl
-        packet = Packet.build_xt(self.config.default_zone, "acl", {})
-        self.connection.send(packet)
+        from empire_core.protocol.models.chat import AllianceChatLogRequest
 
-        if wait:
-            try:
-                response = self.connection.wait_for("acl", timeout=timeout)
-                return response.payload if isinstance(response.payload, dict) else None
-            except TimeoutError:
-                return None
-
+        request = AllianceChatLogRequest()
+        response = self.send(request, wait=wait, timeout=timeout)
+        if isinstance(response, AllianceChatLogResponse):
+            return response
         return None
 
     def subscribe_alliance_chat(self, callback) -> None:
@@ -811,50 +796,51 @@ class EmpireClient:
         """
         Get detailed info for multiple players in parallel.
 
-        Sends all requests in a burst and collects responses.
+        Registers a handler first, then sends all requests in a burst,
+        and collects responses via a thread-safe queue.
 
         Args:
             player_ids: List of player IDs to fetch
-            timeout: Max time to wait for responses
+            timeout: Max time to wait for all responses
 
         Returns:
             Dict mapping player_id -> GetPlayerInfoResponse
         """
+        import queue
+
         if not player_ids:
             return {}
 
-        for pid in set(player_ids):
-            request = GetPlayerInfoRequest(PID=pid)
-            self.send(request, wait=False)
+        unique_ids = set(player_ids)
+        response_queue: queue.Queue[GetPlayerInfoResponse] = queue.Queue()
 
-        collected: dict[int, GetPlayerInfoResponse] = {}
-        start_time = time.time()
-        expected_count = len(set(player_ids))
-
-        captured_responses = []
-
-        def capture_gdi(response: BaseResponse):
+        def capture_gdi(response: BaseResponse) -> None:
             if isinstance(response, GetPlayerInfoResponse):
-                captured_responses.append(response)
+                response_queue.put(response)
 
+        # Register BEFORE sending to avoid dropping early responses
         self._register_handler("gdi", capture_gdi)
 
-        while time.time() - start_time < timeout:
-            for resp in captured_responses[:]:
-                if resp.player_id in player_ids:
-                    collected[resp.player_id] = resp
-                    captured_responses.remove(resp)
+        try:
+            for pid in unique_ids:
+                request = GetPlayerInfoRequest(PID=pid)
+                self.send(request, wait=False)
 
-            if len(collected) >= expected_count:
-                break
+            collected: dict[int, GetPlayerInfoResponse] = {}
+            deadline = time.time() + timeout
 
-            time.sleep(0.1)
+            while len(collected) < len(unique_ids) and time.time() < deadline:
+                try:
+                    resp = response_queue.get(timeout=min(0.5, deadline - time.time()))
+                    if resp.player_id in unique_ids:
+                        collected[resp.player_id] = resp
+                except queue.Empty:
+                    continue
 
-        if "gdi" in self._handlers:
-            if capture_gdi in self._handlers["gdi"]:
+            return collected
+        finally:
+            if "gdi" in self._handlers and capture_gdi in self._handlers["gdi"]:
                 self._handlers["gdi"].remove(capture_gdi)
-
-        return collected
 
     def search_player_by_name(
         self,
