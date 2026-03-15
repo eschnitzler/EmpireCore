@@ -2,7 +2,6 @@
 Helper functions for common game operations.
 """
 
-from typing import Dict, List, Optional
 
 from empire_core.state.models import Castle, Player
 from empire_core.state.world_models import Movement
@@ -18,7 +17,7 @@ class CastleHelper:
         return castle.resources.wood >= wood and castle.resources.stone >= stone and castle.resources.food >= food
 
     @staticmethod
-    def get_resource_overflow(castle: Castle) -> Dict[str, int]:
+    def get_resource_overflow(castle: Castle) -> dict[str, int]:
         """Get resources exceeding capacity."""
         overflow = {}
 
@@ -49,32 +48,32 @@ class MovementHelper:
     """Helper for movement operations."""
 
     @staticmethod
-    def get_incoming_attacks(movements: Dict[int, Movement]) -> List[Movement]:
+    def get_incoming_attacks(movements: dict[int, Movement]) -> list[Movement]:
         """Get all incoming attacks."""
         return [m for m in movements.values() if m.is_incoming and m.is_attack]
 
     @staticmethod
-    def get_outgoing_attacks(movements: Dict[int, Movement]) -> List[Movement]:
+    def get_outgoing_attacks(movements: dict[int, Movement]) -> list[Movement]:
         """Get all outgoing attacks."""
         return [m for m in movements.values() if m.is_outgoing and m.is_attack]
 
     @staticmethod
-    def get_returning_movements(movements: Dict[int, Movement]) -> List[Movement]:
+    def get_returning_movements(movements: dict[int, Movement]) -> list[Movement]:
         """Get all returning movements."""
         return [m for m in movements.values() if m.is_returning]
 
     @staticmethod
-    def get_movements_to_area(movements: Dict[int, Movement], area_id: int) -> List[Movement]:
+    def get_movements_to_area(movements: dict[int, Movement], area_id: int) -> list[Movement]:
         """Get all movements to specific area."""
         return [m for m in movements.values() if m.target_area_id == area_id]
 
     @staticmethod
-    def get_movements_from_area(movements: Dict[int, Movement], area_id: int) -> List[Movement]:
+    def get_movements_from_area(movements: dict[int, Movement], area_id: int) -> list[Movement]:
         """Get all movements from specific area."""
         return [m for m in movements.values() if m.source_area_id == area_id]
 
     @staticmethod
-    def get_movements_by_type(movements: Dict[int, Movement], movement_type: MovementType) -> List[Movement]:
+    def get_movements_by_type(movements: dict[int, Movement], movement_type: MovementType) -> list[Movement]:
         """Get all movements of a specific type."""
         return [m for m in movements.values() if m.T == movement_type]
 
@@ -89,7 +88,7 @@ class MovementHelper:
         return movement.last_updated + movement.time_remaining
 
     @staticmethod
-    def get_soonest_arrival(movements: Dict[int, Movement]) -> Optional[Movement]:
+    def get_soonest_arrival(movements: dict[int, Movement]) -> Movement | None:
         """Get the movement arriving soonest."""
         if not movements:
             return None
@@ -97,8 +96,8 @@ class MovementHelper:
 
     @staticmethod
     def get_soonest_incoming_attack(
-        movements: Dict[int, Movement],
-    ) -> Optional[Movement]:
+        movements: dict[int, Movement],
+    ) -> Movement | None:
         """Get the soonest incoming attack."""
         attacks = MovementHelper.get_incoming_attacks(movements)
         if not attacks:
@@ -106,26 +105,26 @@ class MovementHelper:
         return min(attacks, key=lambda m: m.time_remaining)
 
     @staticmethod
-    def sort_by_arrival(movements: List[Movement], ascending: bool = True) -> List[Movement]:
+    def sort_by_arrival(movements: list[Movement], ascending: bool = True) -> list[Movement]:
         """Sort movements by arrival time."""
         return sorted(movements, key=lambda m: m.time_remaining, reverse=not ascending)
 
     @staticmethod
-    def get_movements_arriving_within(movements: Dict[int, Movement], seconds: int) -> List[Movement]:
+    def get_movements_arriving_within(movements: dict[int, Movement], seconds: int) -> list[Movement]:
         """Get all movements arriving within specified seconds."""
         return [m for m in movements.values() if m.time_remaining <= seconds]
 
     @staticmethod
-    def get_total_units_in_movements(movements: List[Movement]) -> Dict[int, int]:
+    def get_total_units_in_movements(movements: list[Movement]) -> dict[int, int]:
         """Get total units across all movements."""
-        totals: Dict[int, int] = {}
+        totals: dict[int, int] = {}
         for m in movements:
             for unit_id, count in m.units.items():
                 totals[unit_id] = totals.get(unit_id, 0) + count
         return totals
 
     @staticmethod
-    def get_total_resources_in_movements(movements: List[Movement]) -> Dict[str, int]:
+    def get_total_resources_in_movements(movements: list[Movement]) -> dict[str, int]:
         """Get total resources across all movements (transports/returns)."""
         totals = {"wood": 0, "stone": 0, "food": 0}
         for m in movements:
@@ -148,7 +147,7 @@ class MovementHelper:
         )
 
     @staticmethod
-    def format_movements_table(movements: List[Movement]) -> str:
+    def format_movements_table(movements: list[Movement]) -> str:
         """Format a list of movements as a table."""
         if not movements:
             return "No movements."
@@ -166,15 +165,15 @@ class MovementHelper:
         return "\n".join(lines)
 
     @staticmethod
-    def is_attack_imminent(movements: Dict[int, Movement], threshold_seconds: int = 60) -> bool:
+    def is_attack_imminent(movements: dict[int, Movement], threshold_seconds: int = 60) -> bool:
         """Check if any attack is arriving within threshold."""
         attacks = MovementHelper.get_incoming_attacks(movements)
         return any(a.time_remaining <= threshold_seconds for a in attacks)
 
     @staticmethod
-    def count_movements_by_type(movements: Dict[int, Movement]) -> Dict[str, int]:
+    def count_movements_by_type(movements: dict[int, Movement]) -> dict[str, int]:
         """Count movements grouped by type."""
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         for m in movements.values():
             type_name = m.movement_type_name
             counts[type_name] = counts.get(type_name, 0) + 1
@@ -185,7 +184,7 @@ class ResourceHelper:
     """Helper for resource management."""
 
     @staticmethod
-    def calculate_production_until_full(castle: Castle) -> Dict[str, float]:
+    def calculate_production_until_full(castle: Castle) -> dict[str, float]:
         """Calculate hours until resources are full."""
         result = {}
 
@@ -230,7 +229,7 @@ class PlayerHelper:
     """Helper for player operations."""
 
     @staticmethod
-    def get_total_resources(player: Player) -> Dict[str, int]:
+    def get_total_resources(player: Player) -> dict[str, int]:
         """Get total resources across all castles."""
         totals = {"wood": 0, "stone": 0, "food": 0}
 

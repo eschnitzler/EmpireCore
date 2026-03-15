@@ -3,7 +3,6 @@ Ranking service for GGE.
 """
 
 import logging
-from typing import List, Optional
 
 from empire_core.protocol.models import (
     GetHighscoreRequest,
@@ -27,8 +26,8 @@ class RankingService(BaseService):
         self,
         list_type: int,
         search_value: str,
-        list_id: Optional[int] = None,
-    ) -> Optional[List[RankingEntry]]:
+        list_id: int | None = None,
+    ) -> list[RankingEntry] | None:
         """
         Search for a highscore entry (e.g. player rank).
 
@@ -63,8 +62,8 @@ class RankingService(BaseService):
         self,
         list_type: int,
         rank: int,
-        list_id: Optional[int] = None,
-    ) -> Optional[List[RankingEntry]]:
+        list_id: int | None = None,
+    ) -> list[RankingEntry] | None:
         """
         Get ranking list by position.
 

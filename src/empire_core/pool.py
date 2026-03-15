@@ -7,7 +7,6 @@ scanning, alerts).
 """
 
 import logging
-from typing import Optional
 
 from empire_core.accounts import Account, accounts
 from empire_core.client.client import EmpireClient
@@ -50,7 +49,7 @@ class AccountPool:
         """Get all configured accounts."""
         return accounts.get_all()
 
-    def get_available(self, tag: Optional[str] = None) -> list[Account]:
+    def get_available(self, tag: str | None = None) -> list[Account]:
         """
         Get list of available (not busy) accounts.
 
@@ -84,10 +83,10 @@ class AccountPool:
 
     def lease(
         self,
-        username: Optional[str] = None,
-        tag: Optional[str] = None,
+        username: str | None = None,
+        tag: str | None = None,
         login: bool = True,
-    ) -> Optional[EmpireClient]:
+    ) -> EmpireClient | None:
         """
         Lease an account from the pool.
 
@@ -193,7 +192,7 @@ class AccountPool:
             if client:
                 self.release(client, logout=logout)
 
-    def get_client(self, username: str) -> Optional[EmpireClient]:
+    def get_client(self, username: str) -> EmpireClient | None:
         """Get a leased client by username."""
         return self._clients.get(username)
 

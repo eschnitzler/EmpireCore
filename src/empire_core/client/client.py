@@ -1,3 +1,6 @@
+from __future__ import annotations
+from collections.abc import Callable
+
 """
 EmpireClient for EmpireCore.
 
@@ -5,12 +8,11 @@ Uses a threaded Connection class, designed to work well with Discord.py
 by not competing for the event loop.
 """
 
-from __future__ import annotations
 
 import json
 import logging
 import time
-from typing import TYPE_CHECKING, Callable, List, Optional, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from empire_core.config import (
     LOGIN_DEFAULTS,
@@ -68,17 +70,16 @@ class EmpireClient:
         client.close()
     """
 
-    if TYPE_CHECKING:
-        alliance: AllianceService
-        castle: CastleService
-        army: ArmyService
-        lords: LordsService
+    alliance: AllianceService
+    castle: CastleService
+    army: ArmyService
+    lords: LordsService
 
     def __init__(
         self,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        config: Optional[EmpireConfig] = None,
+        username: str | None = None,
+        password: str | None = None,
+        config: EmpireConfig | None = None,
     ):
         self.config = config or default_config
         self.username = username or self.config.username
@@ -301,7 +302,7 @@ class EmpireClient:
     # Game Commands
     # ============================================================
 
-    def get_movements(self, wait: bool = True, timeout: float = 5.0) -> List[Movement]:
+    def get_movements(self, wait: bool = True, timeout: float = 5.0) -> list[Movement]:
         """
         Request army movements from server.
 
@@ -386,15 +387,15 @@ class EmpireClient:
     # Movement Helpers
     # ============================================================
 
-    def get_incoming_attacks(self) -> List[Movement]:
+    def get_incoming_attacks(self) -> list[Movement]:
         """Get all incoming attack movements."""
         return [m for m in self.state.movements.values() if m.is_incoming and m.is_attack]
 
-    def get_incoming_movements(self) -> List[Movement]:
+    def get_incoming_movements(self) -> list[Movement]:
         """Get all incoming movements."""
         return [m for m in self.state.movements.values() if m.is_incoming]
 
-    def get_outgoing_movements(self) -> List[Movement]:
+    def get_outgoing_movements(self) -> list[Movement]:
         """Get all outgoing movements."""
         return [m for m in self.state.movements.values() if m.is_outgoing]
 
@@ -402,7 +403,7 @@ class EmpireClient:
     # Event Info
     # ============================================================
 
-    def get_active_event_ids(self) -> List[int]:
+    def get_active_event_ids(self) -> list[int]:
         """
         Get list of currently active event IDs.
 
@@ -569,193 +570,10 @@ class EmpireClient:
         timeout: float = 300.0,
         request_timeout: float = 5.0,
     ) -> list[MapAreaItem]:
-        """
-        Scan a kingdom map with dynamic boundary detection.
+        """Scan a kingdom map. See MapScanner.scan_kingdom."""
+        from empire_core.client.map_scanner import MapScanner
 
-        Uses BFS expansion from the bot's castle position, sending one request
-        at a time and waiting for each response before continuing. This ensures
-        no chunks are missed due to timeouts.
-
-        Args:
-            kingdom: Kingdom to scan (GREEN, SANDS, ICE, FIRE, STORM)
-            item_types: List of MapItemType values to collect.
-                       Defaults to [CASTLE] if None (finds all player castles).
-                       Pass empty list [] to collect ALL items.
-            timeout: Maximum total time for the entire scan
-            request_timeout: Timeout for each individual chunk request
-
-        Returns:
-            List of MapAreaItem objects matching the filter.
-            Each item has: item_type, x, y, owner_id, raw_data
-
-        Example:
-            # Scan for castles (default)
-            items = client.scan_kingdom(kingdom=Kingdom.GREEN)
-            for item in items:
-                print(f"Player {item.owner_id} at {item.x}:{item.y}")
-
-            # Scan for monuments and labs
-            items = client.scan_kingdom(
-                kingdom=Kingdom.GREEN,
-                item_types=[MapItemType.MONUMENT, MapItemType.LABORATORY]
-            )
-
-            # Scan for everything on the map
-            all_items = client.scan_kingdom(kingdom=Kingdom.GREEN, item_types=[])
-
-        Note:
-            Uses sequential request/response to ensure reliability.
-            BFS expansion detects map boundaries automatically.
-        """
-        import time
-
-        CHUNK_SIZE = 90  # Max allowed by GGE server
-        MAX_COORD = 20  # Max chunk coordinate (20 * 90 = 1800, well beyond any map)
-
-        # Get starting position from bot's castle
-        start_x, start_y = self._get_kingdom_start_position(kingdom)
-        start_cx, start_cy = start_x // CHUNK_SIZE, start_y // CHUNK_SIZE
-
-        # Default to castles (type 1 = player main castles)
-        if item_types is None:
-            item_types = [MapItemType.CASTLE]
-
-        # Empty list means collect everything
-        filter_types = set(item_types) if item_types else None
-
-        filter_desc = f"types={list(item_types)}" if item_types else "all types"
-        logger.debug(f"Scanning kingdom {kingdom.name} from chunk ({start_cx}, {start_cy}) for {filter_desc}...")
-
-        def chunk_bounds(cx: int, cy: int) -> tuple[int, int, int, int]:
-            """Convert chunk coords to world bounds."""
-            x1 = cx * CHUNK_SIZE
-            y1 = cy * CHUNK_SIZE
-            return (x1, y1, x1 + CHUNK_SIZE, y1 + CHUNK_SIZE)
-
-        def process_chunk(cx: int, cy: int) -> bool:
-            """
-            Request a single chunk and process the response.
-            Returns True if chunk had content, False if empty.
-            """
-            x1, y1, x2, y2 = chunk_bounds(cx, cy)
-            request = GetMapAreaRequest(KID=kingdom, AX1=x1, AY1=y1, AX2=x2, AY2=y2)
-
-            # Send and wait for response
-            try:
-                self.send(request, wait=False)
-                response = self.connection.wait_for("gaa", timeout=request_timeout)
-            except (TimeoutError, RuntimeError) as e:
-                logger.warning(f"Chunk ({cx}, {cy}) request failed: {e}. Retrying...")
-
-                # Check connection before retry
-                if not self.connection.connected:
-                    logger.error("Connection lost during scan")
-                    return False
-
-                # Retry once
-                try:
-                    time.sleep(0.1)  # Wait a bit before retry
-                    self.send(request, wait=False)
-                    response = self.connection.wait_for("gaa", timeout=request_timeout)
-                except Exception as e2:
-                    logger.error(f"Chunk ({cx}, {cy}) failed after retry: {e2}")
-                    return False
-
-            if not isinstance(response.payload, dict):
-                return False
-
-            ai_array = response.payload.get("AI", [])
-            has_content = len(ai_array) > 0
-
-            # Collect matching items
-            for raw_item in ai_array:
-                if isinstance(raw_item, list) and len(raw_item) >= 4:
-                    item = MapAreaItem.from_list(raw_item)
-
-                    # Apply filter (None = collect all)
-                    if filter_types is None or item.item_type in filter_types:
-                        # Skip unowned items (empty locations, unplaced flags, etc)
-                        if item.owner_id == -1:
-                            continue
-                        collected_items.append(item)
-
-            return has_content
-
-        # State tracking
-        collected_items: list[MapAreaItem] = []
-        visited: set[tuple[int, int]] = set()
-        chunk_has_content: dict[tuple[int, int], bool] = {}
-
-        # BFS queue - process one chunk at a time
-        queue: list[tuple[int, int]] = [(start_cx, start_cy)]
-        total_requests = 0
-        start_time = time.time()
-
-        # Track boundaries
-        min_x_found = start_cx
-        max_x_found = start_cx
-        min_y_found = start_cy
-        max_y_found = start_cy
-
-        while queue:
-            if time.time() - start_time > timeout:
-                logger.warning(f"Kingdom scan timeout after {total_requests} requests")
-                break
-
-            # Add small delay to prevent rate limiting/disconnects
-            time.sleep(0.01)
-
-            cx, cy = queue.pop(0)
-
-            # Skip if already visited or out of bounds
-            if (cx, cy) in visited:
-                continue
-            if cx < 0 or cy < 0 or cx > MAX_COORD or cy > MAX_COORD:
-                continue
-
-            visited.add((cx, cy))
-            total_requests += 1
-
-            # Process this chunk
-            has_content = process_chunk(cx, cy)
-            chunk_has_content[(cx, cy)] = has_content
-
-            # Update bounds tracking
-            if has_content:
-                min_x_found = min(min_x_found, cx)
-                max_x_found = max(max_x_found, cx)
-                min_y_found = min(min_y_found, cy)
-                max_y_found = max(max_y_found, cy)
-
-            # Add neighbors to queue (BFS expansion)
-            # Only expand if this chunk or adjacent chunks had content
-            # This prevents infinite expansion into empty areas
-            neighbors = [(cx - 1, cy), (cx + 1, cy), (cx, cy - 1), (cx, cy + 1)]
-            for nx, ny in neighbors:
-                if (nx, ny) not in visited:
-                    # Always explore if within 2 chunks of known content
-                    if min_x_found - 2 <= nx <= max_x_found + 2 and min_y_found - 2 <= ny <= max_y_found + 2:
-                        queue.append((nx, ny))
-                    # Or if this chunk had content, explore neighbors
-                    elif has_content:
-                        queue.append((nx, ny))
-
-            # Log progress periodically
-            if total_requests % 50 == 0:
-                elapsed = time.time() - start_time
-                logger.debug(
-                    f"Scan progress: {total_requests} chunks, {len(collected_items)} items, {elapsed:.1f}s elapsed"
-                )
-
-        elapsed = time.time() - start_time
-        logger.debug(
-            f"Kingdom {kingdom.name} scan complete. "
-            f"Scanned {total_requests} chunks in {elapsed:.1f}s, "
-            f"found {len(collected_items)} items. "
-            f"Map bounds: x=[{min_x_found * CHUNK_SIZE}-{(max_x_found + 1) * CHUNK_SIZE}] "
-            f"y=[{min_y_found * CHUNK_SIZE}-{(max_y_found + 1) * CHUNK_SIZE}]"
-        )
-        return collected_items
+        return MapScanner(self).scan_kingdom(kingdom, item_types, timeout, request_timeout)
 
     # ============================================================
     # Player Details (gdi - includes capture info)

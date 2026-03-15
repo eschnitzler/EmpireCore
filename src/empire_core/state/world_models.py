@@ -1,5 +1,5 @@
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -60,7 +60,7 @@ class Army(BaseModel):
     """Represents troops in a movement or castle."""
 
     model_config = ConfigDict(extra="ignore")
-    units: Dict[int, int] = Field(default_factory=dict)  # UnitID -> Count
+    units: dict[int, int] = Field(default_factory=dict)  # UnitID -> Count
 
 
 class MovementResources(BaseModel):
@@ -109,8 +109,8 @@ class Movement(BaseModel):
 
     # TA = Target Area (array with area details)
     # SA = Source Area (array with area details)
-    target_area: Optional[List[Any]] = Field(default=None, alias="TA")
-    source_area: Optional[List[Any]] = Field(default=None, alias="SA")
+    target_area: list[Any] | None = Field(default=None, alias="TA")
+    source_area: list[Any] | None = Field(default=None, alias="SA")
 
     # Extracted fields
     target_area_id: int = Field(default=-1)
@@ -122,7 +122,7 @@ class Movement(BaseModel):
     target_type: int = Field(default=-1)  # MapObjectType value from TA[0]
 
     # Units in movement (UnitID -> Count)
-    units: Dict[int, int] = Field(default_factory=dict)
+    units: dict[int, int] = Field(default_factory=dict)
 
     # Estimated army size (GS field when army not visible)
     estimated_size: int = Field(default=0)

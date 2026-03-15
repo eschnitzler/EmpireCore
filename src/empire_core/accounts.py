@@ -7,7 +7,7 @@ a robust interface for selecting accounts based on aliases or tags.
 import json
 import logging
 import os
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ValidationError
@@ -32,8 +32,8 @@ class Account(BaseModel):
     username: str
     password: str = Field(..., description="Plain text password")
     world: str = Field(default="EmpireEx_21", description="Game world/zone (e.g., EmpireEx_21)")
-    alias: Optional[str] = Field(None, description="Short name for this account (e.g., 'main', 'farmer1')")
-    tags: List[str] = Field(default_factory=list, description="Categorization tags (e.g., ['farmer', 'k1'])")
+    alias: str | None = Field(None, description="Short name for this account (e.g., 'main', 'farmer1')")
+    tags: list[str] = Field(default_factory=list, description="Categorization tags (e.g., ['farmer', 'k1'])")
     active: bool = Field(default=True, description="Whether this account should be used")
 
     def to_empire_config(self) -> EmpireConfig:
@@ -64,7 +64,7 @@ class AccountRegistry:
     """
 
     def __init__(self):
-        self._accounts: List[Account] = []
+        self._accounts: list[Account] = []
         self._loaded = False
 
     def load(self, file_path: str = "accounts.json"):
@@ -147,13 +147,13 @@ class AccountRegistry:
 
     # === Query Methods ===
 
-    def get_all(self) -> List[Account]:
+    def get_all(self) -> list[Account]:
         """Get all active accounts."""
         if not self._loaded:
             self.load()
         return self._accounts
 
-    def get_by_alias(self, alias: str) -> Optional[Account]:
+    def get_by_alias(self, alias: str) -> Account | None:
         """Find an account by its alias."""
         if not self._loaded:
             self.load()
@@ -162,7 +162,7 @@ class AccountRegistry:
                 return acc
         return None
 
-    def get_by_username(self, username: str) -> Optional[Account]:
+    def get_by_username(self, username: str) -> Account | None:
         """Find an account by username."""
         if not self._loaded:
             self.load()
@@ -171,13 +171,13 @@ class AccountRegistry:
                 return acc
         return None
 
-    def get_by_tag(self, tag: str) -> List[Account]:
+    def get_by_tag(self, tag: str) -> list[Account]:
         """Get all accounts with a specific tag."""
         if not self._loaded:
             self.load()
         return [acc for acc in self._accounts if acc.has_tag(tag)]
 
-    def get_default(self) -> Optional[Account]:
+    def get_default(self) -> Account | None:
         """Get the first available account (default)."""
         if not self._loaded:
             self.load()

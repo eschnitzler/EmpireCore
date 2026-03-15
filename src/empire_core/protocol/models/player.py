@@ -8,8 +8,6 @@ Commands:
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import ConfigDict, Field
 
 from .base import BaseRequest, BaseResponse
@@ -257,7 +255,7 @@ class SearchPlayerResponse(BaseResponse):
 
     raw_gaa: dict = Field(alias="gaa", default_factory=dict)
 
-    def get_player(self) -> Optional[SearchPlayerResult]:
+    def get_player(self) -> SearchPlayerResult | None:
         owner_info = self.raw_gaa.get("OI", [])
         if owner_info and len(owner_info) > 0:
             return SearchPlayerResult.model_validate(owner_info[0])

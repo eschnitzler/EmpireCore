@@ -4,7 +4,6 @@ Battle simulation engine.
 
 import logging
 from dataclasses import dataclass
-from typing import Dict
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +38,11 @@ class BattleResult:
     """Result of a battle simulation."""
 
     attacker_wins: bool
-    attacker_losses: Dict[int, int]
-    defender_losses: Dict[int, int]
-    attacker_survivors: Dict[int, int]
-    defender_survivors: Dict[int, int]
-    loot: Dict[str, int]
+    attacker_losses: dict[int, int]
+    defender_losses: dict[int, int]
+    attacker_survivors: dict[int, int]
+    defender_survivors: dict[int, int]
+    loot: dict[str, int]
     rounds: int
 
 
@@ -55,8 +54,8 @@ class BattleSimulator:
 
     def simulate(
         self,
-        attacker_army: Dict[int, int],
-        defender_army: Dict[int, int],
+        attacker_army: dict[int, int],
+        defender_army: dict[int, int],
         attacker_bonus: float = 0.0,
         defender_bonus: float = 0.0,
         defender_wall_level: int = 0,
@@ -123,7 +122,7 @@ class BattleSimulator:
             rounds=1,  # Simplified - single round
         )
 
-    def _calculate_power(self, army: Dict[int, int], bonus: float = 0.0) -> float:
+    def _calculate_power(self, army: dict[int, int], bonus: float = 0.0) -> float:
         """Calculate total army power."""
         total = 0.0
 
@@ -140,7 +139,7 @@ class BattleSimulator:
 
         return total
 
-    def _calculate_losses(self, army: Dict[int, int], loss_ratio: float) -> Dict[int, int]:
+    def _calculate_losses(self, army: dict[int, int], loss_ratio: float) -> dict[int, int]:
         """Calculate unit losses."""
         losses = {}
 
@@ -151,7 +150,7 @@ class BattleSimulator:
 
         return losses
 
-    def estimate_outcome(self, attacker_army: Dict[int, int], defender_army: Dict[int, int]) -> str:
+    def estimate_outcome(self, attacker_army: dict[int, int], defender_army: dict[int, int]) -> str:
         """Quick estimate of battle outcome."""
         att_power = self._calculate_power(attacker_army)
         def_power = self._calculate_power(defender_army)

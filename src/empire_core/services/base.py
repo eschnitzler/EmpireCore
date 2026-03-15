@@ -1,10 +1,10 @@
 """
 Base service class and registration decorator.
 """
-
 from __future__ import annotations
+from collections.abc import Callable
 
-from typing import TYPE_CHECKING, Callable, Type, TypeVar
+from typing import TYPE_CHECKING, Type, TypeVar
 
 from empire_core.protocol.models import BaseRequest, BaseResponse, parse_response
 

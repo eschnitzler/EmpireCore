@@ -3,7 +3,7 @@ Models for battle reports and events.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -15,15 +15,15 @@ class BattleParticipant(BaseModel):
 
     player_id: int
     player_name: str
-    alliance_id: Optional[int] = None
-    alliance_name: Optional[str] = None
+    alliance_id: int | None = None
+    alliance_name: str | None = None
 
     # Units before battle
-    units_before: Dict[int, int] = Field(default_factory=dict)
+    units_before: dict[int, int] = Field(default_factory=dict)
     # Units after battle
-    units_after: Dict[int, int] = Field(default_factory=dict)
+    units_after: dict[int, int] = Field(default_factory=dict)
     # Losses
-    losses: Dict[int, int] = Field(default_factory=dict)
+    losses: dict[int, int] = Field(default_factory=dict)
 
 
 class BattleReport(BaseModel):
@@ -37,17 +37,17 @@ class BattleReport(BaseModel):
     READ: bool = Field(default=False)  # Read status
 
     # Battle details
-    attacker: Optional[BattleParticipant] = None
-    defender: Optional[BattleParticipant] = None
+    attacker: BattleParticipant | None = None
+    defender: BattleParticipant | None = None
 
     # Results
-    winner: Optional[str] = None  # "attacker" or "defender"
-    loot: Dict[str, int] = Field(default_factory=dict)  # Resources looted
+    winner: str | None = None  # "attacker" or "defender"
+    loot: dict[str, int] = Field(default_factory=dict)  # Resources looted
 
     # Location
     target_x: int = 0
     target_y: int = 0
-    target_name: Optional[str] = None
+    target_name: str | None = None
 
     @property
     def report_id(self) -> int:
@@ -80,15 +80,15 @@ class EventReport(BaseModel):
     event_type: str
     timestamp: int
     message: str
-    data: Dict[str, Any] = Field(default_factory=dict)
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class ReportManager:
     """Manages reports and events."""
 
     def __init__(self):
-        self.battle_reports: Dict[int, BattleReport] = {}
-        self.event_reports: Dict[int, EventReport] = {}
+        self.battle_reports: dict[int, BattleReport] = {}
+        self.event_reports: dict[int, EventReport] = {}
         self.unread_count: int = 0
 
     def add_battle_report(self, report: BattleReport):
@@ -105,11 +105,11 @@ class ReportManager:
                 report.READ = True
                 self.unread_count = max(0, self.unread_count - 1)
 
-    def get_unread_reports(self) -> List[BattleReport]:
+    def get_unread_reports(self) -> list[BattleReport]:
         """Get all unread reports."""
         return [r for r in self.battle_reports.values() if not r.is_read]
 
-    def get_recent_reports(self, count: int = 10) -> List[BattleReport]:
+    def get_recent_reports(self, count: int = 10) -> list[BattleReport]:
         """Get most recent reports."""
         sorted_reports = sorted(self.battle_reports.values(), key=lambda r: r.timestamp, reverse=True)
         return sorted_reports[:count]

@@ -5,7 +5,7 @@ Asynchronous Database storage using SQLModel and aiosqlite with Write Queue.
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -22,7 +22,7 @@ class PlayerSnapshot(SQLModel, table=True):
 
     __tablename__ = "player_snapshots"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     player_id: int = Field(index=True)
     timestamp: int = Field(default_factory=lambda: int(datetime.now().timestamp()))
     level: int
@@ -41,11 +41,11 @@ class MapObjectRecord(SQLModel, table=True):
     y: int
     type: int
     level: int
-    name: Optional[str] = None
-    owner_id: Optional[int] = None
-    owner_name: Optional[str] = None
-    alliance_id: Optional[int] = None
-    alliance_name: Optional[str] = None
+    name: str | None = None
+    owner_id: int | None = None
+    owner_name: str | None = None
+    alliance_id: int | None = None
+    alliance_name: str | None = None
     last_updated: int = Field(default_factory=lambda: int(datetime.now().timestamp()))
 
 
@@ -74,7 +74,7 @@ class GameDatabase:
 
         # Write Queue
         self._write_queue: asyncio.Queue = asyncio.Queue()
-        self._writer_task: Optional[asyncio.Task] = None
+        self._writer_task: asyncio.Task | None = None
         self._running = False
 
     async def initialize(self):
@@ -160,7 +160,7 @@ class GameDatabase:
         )
         await self._write_queue.put(("player_snapshot", snapshot))
 
-    async def save_map_objects(self, objects: List[Any]):
+    async def save_map_objects(self, objects: list[Any]):
         """Queue map objects save."""
         if not objects:
             return
@@ -190,7 +190,7 @@ class GameDatabase:
 
     # === Read Operations (Direct) ===
 
-    async def get_scanned_chunks(self, kingdom_id: int) -> Set[Tuple[int, int]]:
+    async def get_scanned_chunks(self, kingdom_id: int) -> set[tuple[int, int]]:
         """Get all scanned chunks for a kingdom."""
         async with self.async_session_factory() as session:
             statement = select(ScannedChunkRecord).where(ScannedChunkRecord.kingdom_id == kingdom_id)
@@ -202,8 +202,8 @@ class GameDatabase:
         kingdom_id: int,
         min_level: int = 0,
         max_level: int = 999,
-        types: Optional[List[int]] = None,
-    ) -> List[MapObjectRecord]:
+        types: list[int] | None = None,
+    ) -> list[MapObjectRecord]:
         """Query world map from DB."""
         async with self.async_session_factory() as session:
             statement = select(MapObjectRecord).where(
@@ -225,7 +225,7 @@ class GameDatabase:
             results = await session.execute(statement)
             return len(results.scalars().all())
 
-    async def get_object_counts_by_type(self) -> Dict[int, int]:
+    async def get_object_counts_by_type(self) -> dict[int, int]:
         """Get counts of objects grouped by type."""
         from sqlalchemy import func
 

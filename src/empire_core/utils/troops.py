@@ -6,14 +6,13 @@ This filters to get only actual combat units.
 """
 
 import logging
-from typing import Optional, Set
 
 import requests
 
 logger = logging.getLogger(__name__)
 
 # Cached troop IDs
-_troop_ids: Optional[Set[int]] = None
+_troop_ids: set[int] | None = None
 
 
 def get_items_version() -> str:
@@ -32,7 +31,7 @@ def fetch_items_data(version: str) -> dict:
     return response.json()
 
 
-def get_troop_ids(force_refresh: bool = False) -> Set[int]:
+def get_troop_ids(force_refresh: bool = False) -> set[int]:
     """
     Get the set of valid troop unit IDs.
 
@@ -72,7 +71,7 @@ def get_troop_ids(force_refresh: bool = False) -> Set[int]:
         return set()
 
 
-def count_troops(units: dict[int, int], troop_ids: Optional[Set[int]] = None) -> int:
+def count_troops(units: dict[int, int], troop_ids: set[int] | None = None) -> int:
     """
     Count only actual troops in a unit dict, excluding equipment.
 

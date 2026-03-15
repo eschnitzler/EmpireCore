@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -39,7 +39,7 @@ class TroopActionType:
 
 
 # Default login payload values
-LOGIN_DEFAULTS: Dict[str, Any] = {
+LOGIN_DEFAULTS: dict[str, Any] = {
     "CONM": 1150008,
     "RTM": 24,
     "ID": 0,
@@ -79,8 +79,8 @@ class EmpireConfig(BaseModel):
     request_timeout: float = 5.0
 
     # User (Optional defaults)
-    username: Optional[str] = None
-    password: Optional[str] = None
+    username: str | None = None
+    password: str | None = None
 
 
 # Global default instance

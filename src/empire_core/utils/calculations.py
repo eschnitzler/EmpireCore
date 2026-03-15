@@ -3,7 +3,6 @@ Game calculation utilities.
 """
 
 import math
-from typing import Tuple
 
 
 def calculate_distance(x1: int, y1: int, x2: int, y2: int) -> float:
@@ -128,7 +127,7 @@ def format_time(seconds: int) -> str:
     return " ".join(parts)
 
 
-def calculate_coordinates_in_radius(center_x: int, center_y: int, radius: float) -> list[Tuple[int, int]]:
+def calculate_coordinates_in_radius(center_x: int, center_y: int, radius: float) -> list[tuple[int, int]]:
     """
     Get all coordinates within radius.
 

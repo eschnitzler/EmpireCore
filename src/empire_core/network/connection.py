@@ -8,8 +8,8 @@ Designed to work well with Discord.py by not competing for the event loop.
 import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
 
 import websocket
 
@@ -25,8 +25,8 @@ class ResponseWaiter:
     """A waiter for a specific command response."""
 
     event: threading.Event = field(default_factory=threading.Event)
-    result: Optional[Packet] = None
-    error: Optional[Exception] = None
+    result: Packet | None = None
+    error: Exception | None = None
 
 
 class Connection:
@@ -42,27 +42,27 @@ class Connection:
 
     def __init__(self, url: str):
         self.url = url
-        self.ws: Optional[websocket.WebSocket] = None
+        self.ws: websocket.WebSocket | None = None
 
         self._running = False
-        self._recv_thread: Optional[threading.Thread] = None
-        self._keepalive_thread: Optional[threading.Thread] = None
+        self._recv_thread: threading.Thread | None = None
+        self._keepalive_thread: threading.Thread | None = None
 
         # Request/response waiters: cmd_id -> ResponseWaiter
         # These are consumed when matched (one response per waiter)
-        self._waiters: Dict[str, List[ResponseWaiter]] = {}
+        self._waiters: dict[str, list[ResponseWaiter]] = {}
         self._waiters_lock = threading.Lock()
 
         # Pub/sub subscribers: cmd_id -> list of callbacks
         # These receive copies of all matching packets
-        self._subscribers: Dict[str, List[Callable[[Packet], None]]] = {}
+        self._subscribers: dict[str, list[Callable[[Packet], None]]] = {}
         self._subscribers_lock = threading.Lock()
 
         # Global packet handler (for state updates, etc.)
-        self.on_packet: Optional[Callable[[Packet], None]] = None
+        self.on_packet: Callable[[Packet], None] | None = None
 
         # Disconnect callback
-        self.on_disconnect: Optional[Callable[[], None]] = None
+        self.on_disconnect: Callable[[], None] | None = None
 
     @property
     def connected(self) -> bool:

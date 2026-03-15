@@ -5,7 +5,7 @@ Response awaiter for waiting on server responses to commands.
 import asyncio
 import logging
 import time
-from typing import Any, Dict
+from typing import Any
 
 from empire_core.exceptions import TimeoutError
 
@@ -30,7 +30,7 @@ class ResponseAwaiter:
     """
 
     def __init__(self):
-        self.pending: Dict[str, asyncio.Future] = {}
+        self.pending: dict[str, asyncio.Future] = {}
         self.sequence = 0
 
     def create_waiter(self, command_id: str) -> str:

@@ -2,7 +2,6 @@
 Models for units and armies.
 """
 
-from typing import Dict
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -26,7 +25,7 @@ class Army(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    units: Dict[int, int] = Field(default_factory=dict)  # {unit_id: count}
+    units: dict[int, int] = Field(default_factory=dict)  # {unit_id: count}
 
     def add_unit(self, unit_id: int, count: int):
         """Add units to army."""

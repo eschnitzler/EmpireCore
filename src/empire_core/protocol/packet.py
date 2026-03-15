@@ -1,7 +1,7 @@
 import json
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Union
+from typing import Any, Union
 
 
 @dataclass
@@ -14,13 +14,13 @@ class Packet:
     raw_data: str
     is_xml: bool
 
-    command_id: Optional[str] = None
+    command_id: str | None = None
     request_id: int = -1
     error_code: int = 0  # New field for XT status/error code
-    payload: Union[Dict[str, Any], ET.Element, None] = None
+    payload: Union[dict[str, Any], ET.Element, None] = None
 
     @staticmethod
-    def build_xt(zone: str, command: str, payload: Dict[str, Any], request_id: int = 1) -> str:
+    def build_xt(zone: str, command: str, payload: dict[str, Any], request_id: int = 1) -> str:
         """
         Build an XT (Extended) packet string.
 

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -56,7 +56,7 @@ class Building(BaseModel):
 
     # Building status (if available)
     upgrading: bool = False
-    upgrade_finish_time: Optional[int] = None
+    upgrade_finish_time: int | None = None
 
 
 class Alliance(BaseModel):
@@ -142,13 +142,13 @@ class Castle(BaseModel):
         return self.MC
 
     resources: Resources = Field(default_factory=Resources)
-    buildings: List[Building] = Field(default_factory=list)
-    units: Dict[int, int] = Field(default_factory=dict)
+    buildings: list[Building] = Field(default_factory=list)
+    units: dict[int, int] = Field(default_factory=dict)
 
-    raw_data: Dict[str, Any] = Field(default_factory=dict, exclude=True)
+    raw_data: dict[str, Any] = Field(default_factory=dict, exclude=True)
 
     @classmethod
-    def from_game_data(cls, data: Dict[str, Any]) -> "Castle":
+    def from_game_data(cls, data: dict[str, Any]) -> "Castle":
         # Mapping logic for 'gcl' (Global Castle List) / 'gbd' payload
         return cls(**data)
 
@@ -158,7 +158,7 @@ class Player(BaseModel):
 
     PID: int = Field(default=-1)
     PN: str = Field(default="Unknown")
-    AID: Optional[int] = Field(default=None)
+    AID: int | None = Field(default=None)
 
     # Levels
     LVL: int = Field(default=0)
@@ -172,7 +172,7 @@ class Player(BaseModel):
     rubies: int = 0  # C2 from gcu
 
     # Global Inventory (from sce)
-    inventory: Dict[str, int] = Field(default_factory=dict)
+    inventory: dict[str, int] = Field(default_factory=dict)
 
     # VIP
     vip_points: int = 0  # VP
@@ -180,7 +180,7 @@ class Player(BaseModel):
     vip_time_left: int = 0  # VRS (Seconds)
 
     # Alliance
-    alliance: Optional[Alliance] = None
+    alliance: Alliance | None = None
 
     # Premium/VIP
     PF: int = Field(default=0)  # Premium Flag
@@ -196,7 +196,7 @@ class Player(BaseModel):
         return self.PN
 
     @property
-    def alliance_id(self) -> Optional[int]:
+    def alliance_id(self) -> int | None:
         return self.AID
 
     @property
@@ -218,12 +218,12 @@ class Player(BaseModel):
             return (self.XPFCL / self.XPTNL) * 100
         return 0.0
 
-    castles: Dict[int, Castle] = Field(default_factory=dict)
+    castles: dict[int, Castle] = Field(default_factory=dict)
 
-    E: Optional[str] = Field(default=None)
+    E: str | None = Field(default=None)
 
     @property
-    def email(self) -> Optional[str]:
+    def email(self) -> str | None:
         return self.E
 
     @property

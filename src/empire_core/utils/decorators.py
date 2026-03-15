@@ -1,15 +1,16 @@
 import asyncio
 import functools
 import logging
-from typing import Callable, Optional, Tuple, Type
+from collections.abc import Callable
+from typing import Type
 
 
 def handle_errors(
-    logger: Optional[logging.Logger] = None,
-    log_msg: Optional[str] = None,
+    logger: logging.Logger | None = None,
+    log_msg: str | None = None,
     re_raise: bool = True,
-    cleanup_method: Optional[str] = None,
-    ignore: Optional[Tuple[Type[BaseException], ...]] = None,
+    cleanup_method: str | None = None,
+    ignore: tuple[Type[BaseException], ...] | None = None,
 ):
     """
     Decorator to centralize error handling, logging, and cleanup.

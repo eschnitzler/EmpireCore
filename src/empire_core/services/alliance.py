@@ -1,3 +1,10 @@
+
+from __future__ import annotations
+from collections.abc import Callable
+import logging
+
+logger = logging.getLogger(__name__)
+
 """
 Alliance service for EmpireCore.
 
@@ -7,9 +14,8 @@ Provides high-level APIs for:
 - Alliance help (help members, help all, request help)
 """
 
-from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from empire_core.protocol.models import (
     AllianceBookmark,
@@ -176,9 +182,6 @@ class AllianceService(BaseService):
             for alliance in results:
                 print(f"{alliance.name} (ID: {alliance.alliance_id}, {alliance.member_count} members)")
         """
-        import logging
-
-        logger = logging.getLogger(__name__)
 
         request = SearchAllianceRequest.create(search_term)
         logger.debug(f"Alliance search request: LT={request.list_type}, LID={request.list_id}, SV='{search_term}'")

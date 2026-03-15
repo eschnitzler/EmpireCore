@@ -11,7 +11,7 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any, ClassVar, List, Optional
+from typing import Any, ClassVar
 
 from pydantic import Field
 
@@ -151,7 +151,7 @@ class GetHighscoreRequest(BaseRequest):
     command: ClassVar[str] = GGECommand.HGH
 
     list_type: int = Field(alias="LT")
-    list_id: Optional[int] = Field(alias="LID", default=None)
+    list_id: int | None = Field(alias="LID", default=None)
     search_value: str = Field(alias="SV")
 
 
@@ -163,10 +163,10 @@ class GetHighscoreResponse(BaseResponse):
     command: ClassVar[str] = GGECommand.HGH
 
     # L: [[Rank, Score, [Details...]], ...]
-    raw_list: List[Any] = Field(alias="L", default_factory=list)
+    raw_list: list[Any] = Field(alias="L", default_factory=list)
 
     @property
-    def entries(self) -> List[RankingEntry]:
+    def entries(self) -> list[RankingEntry]:
         return [RankingEntry(item) for item in self.raw_list]
 
 
@@ -180,7 +180,7 @@ class GetRankingListRequest(BaseRequest):
     command: ClassVar[str] = "llsp"
 
     list_type: int = Field(alias="LT")
-    list_id: Optional[int] = Field(alias="LID", default=None)
+    list_id: int | None = Field(alias="LID", default=None)
     rank: int = Field(alias="R")  # Start rank?
 
 
@@ -192,9 +192,9 @@ class GetRankingListResponse(BaseResponse):
     command: ClassVar[str] = "llsp"
 
     # L: List of entries
-    raw_list: List[Any] = Field(alias="L", default_factory=list)
+    raw_list: list[Any] = Field(alias="L", default_factory=list)
     total: int = Field(alias="T", default=0)  # Total count?
 
     @property
-    def entries(self) -> List[RankingEntry]:
+    def entries(self) -> list[RankingEntry]:
         return [RankingEntry(item) for item in self.raw_list]
