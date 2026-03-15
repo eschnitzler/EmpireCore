@@ -4,8 +4,9 @@ GameState - Tracks game state from server packets.
 
 import logging
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any
 
 from empire_core.state.models import Alliance, Castle, Player
 from empire_core.state.unit_models import Army
@@ -26,30 +27,30 @@ class GameState:
     """
 
     def __init__(self):
-        self.local_player: Optional[Player] = None
-        self.players: Dict[int, Player] = {}
-        self.castles: Dict[int, Castle] = {}
+        self.local_player: Player | None = None
+        self.players: dict[int, Player] = {}
+        self.castles: dict[int, Castle] = {}
 
         # World State
-        self.map_objects: Dict[int, MapObject] = {}  # AreaID -> MapObject
-        self.movements: Dict[int, Movement] = {}  # MovementID -> Movement
+        self.map_objects: dict[int, MapObject] = {}  # AreaID -> MapObject
+        self.movements: dict[int, Movement] = {}  # MovementID -> Movement
 
         # Track movement IDs we've seen (for delta detection)
-        self._previous_movement_ids: Set[int] = set()
+        self._previous_movement_ids: set[int] = set()
 
         # Armies (castle_id -> Army)
-        self.armies: Dict[int, Army] = {}
+        self.armies: dict[int, Army] = {}
 
         # Active Events
-        self.active_event_ids: List[int] = []
+        self.active_event_ids: list[int] = []
 
-        # Callbacks for specific events (optional)
-        self.on_incoming_attack: Optional[Callable[[Movement], None]] = None
-        self.on_movement_recalled: Optional[Callable[[int], None]] = None  # MID only
-        self.on_movement_arrived: Optional[Callable[[int], None]] = None  # MID only
+        # Callbacks for specific events — support multiple listeners
+        self._incoming_attack_callbacks: list[Callable[[Movement], None]] = []
+        self._movement_recalled_callbacks: list[Callable[[int], None]] = []
+        self._movement_arrived_callbacks: list[Callable[[int], None]] = []
 
         # Track movements that arrived normally (vs recalled)
-        self._arrived_movement_ids: Set[int] = set()
+        self._arrived_movement_ids: set[int] = set()
 
         # Thread pool for dispatching callbacks (avoids blocking receive loop)
         self._callback_executor: ThreadPoolExecutor = ThreadPoolExecutor(
@@ -60,7 +61,7 @@ class GameState:
         """Shutdown the callback executor. Call on disconnect."""
         self._callback_executor.shutdown(wait=False)
 
-    def _dispatch_callback(self, callback: Callable, *args: Any, **kwargs: Any) -> None:
+    def _dispatch_callback(self, callback: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         """Dispatch a callback in the thread pool."""
 
         def wrapped():
@@ -71,126 +72,153 @@ class GameState:
 
         self._callback_executor.submit(wrapped)
 
-    def update_from_packet(self, cmd_id: str, payload: Dict[str, Any]) -> None:
-        """
-        Central update router - parses packet and updates state.
-        """
-        if cmd_id == "gbd":
-            self._handle_gbd(payload)
-        elif cmd_id == "lli":
-            # Login response contains the same data as gbd
-            self._handle_gbd(payload)
-        elif cmd_id == "gam":
-            self._handle_gam(payload)
-        elif cmd_id == "dcl":
-            self._handle_dcl(payload)
-        elif cmd_id == "mov":
-            self._handle_mov(payload)
-        elif cmd_id == "atv":
-            self._handle_atv(payload)
-        elif cmd_id == "ata":
-            self._handle_ata(payload)
-        elif cmd_id == "mrm":
-            self._handle_mrm(payload)
-        elif cmd_id == "sce":
-            self._handle_sce(payload)
-        elif cmd_id == "sei":
-            self._handle_sei(payload)
+    _DISPATCH: dict[str, str] = {
+        "gbd": "_handle_gbd",
+        "lli": "_handle_gbd",
+        "gam": "_handle_gam",
+        "dcl": "_handle_dcl",
+        "mov": "_handle_mov",
+        "atv": "_handle_movement_arrived",
+        "ata": "_handle_movement_arrived",
+        "mrm": "_handle_mrm",
+        "sce": "_handle_sce",
+        "sei": "_handle_sei",
+    }
 
-    def _handle_gbd(self, data: Dict[str, Any]) -> None:
-        """Handle 'Get Big Data' packet - initial login data."""
-        # Player Info
+    def update_from_packet(self, cmd_id: str, payload: dict[str, Any]) -> None:
+        """Central update router — parses packet and updates state."""
+        handler_name = self._DISPATCH.get(cmd_id)
+        if handler_name:
+            getattr(self, handler_name)(payload)
+
+    # ----------------------------------------------------------------
+    # Callback registration helpers
+    # ----------------------------------------------------------------
+
+    def on_incoming_attack(self, callback: Callable[[Movement], None]) -> None:  # type: ignore[misc]
+        """Register a callback for incoming attack movements."""
+        self._incoming_attack_callbacks.append(callback)
+
+    def remove_incoming_attack_callback(self, callback: Callable[[Movement], None]) -> None:
+        """Unregister an incoming attack callback."""
+        self._incoming_attack_callbacks.remove(callback)
+
+    def on_movement_recalled(self, callback: Callable[[int], None]) -> None:  # type: ignore[misc]
+        """Register a callback for recalled movements."""
+        self._movement_recalled_callbacks.append(callback)
+
+    def remove_movement_recalled_callback(self, callback: Callable[[int], None]) -> None:
+        """Unregister a movement recalled callback."""
+        self._movement_recalled_callbacks.remove(callback)
+
+    def on_movement_arrived(self, callback: Callable[[int], None]) -> None:  # type: ignore[misc]
+        """Register a callback for arrived movements."""
+        self._movement_arrived_callbacks.append(callback)
+
+    def remove_movement_arrived_callback(self, callback: Callable[[int], None]) -> None:
+        """Unregister a movement arrived callback."""
+        self._movement_arrived_callbacks.remove(callback)
+
+    # ----------------------------------------------------------------
+    # Packet handlers
+    # ----------------------------------------------------------------
+
+    def _handle_gbd(self, data: dict[str, Any]) -> None:
+        """Handle 'Get Big Data' packet — initial login data."""
+        self._parse_player_info(data)
+        self._parse_xp(data)
+        self._parse_currencies(data)
+        self._parse_inventory(data)
+        self._parse_vip(data)
+        self._parse_alliance_info(data)
+        self._parse_castles(data)
+        if dcl := data.get("dcl"):
+            self._handle_dcl(dcl)
+        if sei := data.get("sei"):
+            self._handle_sei(sei)
+
+    def _parse_player_info(self, data: dict[str, Any]) -> None:
+        """Parse player identity from gpi sub-packet."""
         gpi = data.get("gpi", {})
-        if gpi:
-            pid = gpi.get("PID")
-            if pid:
-                if pid not in self.players:
-                    self.players[pid] = Player(**gpi)
-                self.local_player = self.players[pid]
-                logger.debug(f"Local player: {self.local_player.name} (ID: {pid})")
+        if not gpi:
+            return
+        pid = gpi.get("PID")
+        if not pid:
+            return
+        if pid not in self.players:
+            self.players[pid] = Player(**gpi)
+        self.local_player = self.players[pid]
+        logger.debug(f"Local player: {self.local_player.name} (ID: {pid})")
 
-        # XP/Level
+    def _parse_xp(self, data: dict[str, Any]) -> None:
+        """Parse XP and level from gxp sub-packet."""
         gxp = data.get("gxp", {})
         if self.local_player and gxp:
             self.local_player.LVL = gxp.get("LVL", self.local_player.LVL)
             self.local_player.XP = gxp.get("XP", self.local_player.XP)
 
-        # Currencies
+    def _parse_currencies(self, data: dict[str, Any]) -> None:
+        """Parse gold and rubies from gcu sub-packet."""
         gcu = data.get("gcu", {})
         if self.local_player and gcu:
             self.local_player.gold = gcu.get("C1", 0)
             self.local_player.rubies = gcu.get("C2", 0)
 
-        # Inventory (SCE)
+    def _parse_inventory(self, data: dict[str, Any]) -> None:
+        """Parse inventory items from sce sub-packet."""
         sce = data.get("sce", [])
-        if sce and self.local_player:
-            for item in sce:
-                if isinstance(item, list) and len(item) >= 2:
-                    key = str(item[0])
-                    val = int(item[1])
-                    self.local_player.inventory[key] = val
-            logger.debug(f"Parsed {len(self.local_player.inventory)} inventory items")
+        if not (sce and self.local_player):
+            return
+        for item in sce:
+            if isinstance(item, list) and len(item) >= 2:
+                self.local_player.inventory[str(item[0])] = int(item[1])
+        logger.debug(f"Parsed {len(self.local_player.inventory)} inventory items")
 
-        # VIP
+    def _parse_vip(self, data: dict[str, Any]) -> None:
+        """Parse VIP status from vip sub-packet."""
         vip = data.get("vip", {})
         if self.local_player and vip:
             self.local_player.vip_points = vip.get("VP", 0)
             self.local_player.vip_level = vip.get("VRL", 0)
             self.local_player.vip_time_left = vip.get("VRS", 0)
 
-        # Alliance
+    def _parse_alliance_info(self, data: dict[str, Any]) -> None:
+        """Parse alliance membership from gal sub-packet."""
         gal = data.get("gal", {})
-        if gal and self.local_player and gal.get("AID"):
-            try:
-                self.local_player.alliance = Alliance(**gal)
-                self.local_player.AID = gal.get("AID")
-                logger.debug(f"Alliance: {self.local_player.alliance.name}")
-            except Exception as e:
-                logger.warning(f"Could not parse alliance: {e}")
+        if not (gal and self.local_player and gal.get("AID")):
+            return
+        try:
+            self.local_player.alliance = Alliance(**gal)
+            self.local_player.AID = gal.get("AID")
+            logger.debug(f"Alliance: {self.local_player.alliance.name}")
+        except Exception as e:
+            logger.warning(f"Could not parse alliance: {e}")
 
-        # Castles (GCL)
+    def _parse_castles(self, data: dict[str, Any]) -> None:
+        """Parse castle list from gcl sub-packet."""
         gcl = data.get("gcl", {})
-        if gcl and self.local_player:
-            kingdoms = gcl.get("C", [])
-            for k_data in kingdoms:
-                kid = k_data.get("KID", 0)
-                area_infos = k_data.get("AI", [])
-                for area_entry in area_infos:
-                    raw_ai = area_entry.get("AI")
-                    if isinstance(raw_ai, list) and len(raw_ai) > 10:
-                        # AI array format from lli: [type, x, y, area_id, owner_id, ...]
-                        # Index 10 contains the castle name
-                        x = raw_ai[1]
-                        y = raw_ai[2]
-                        area_id = raw_ai[3]
-                        owner_id = raw_ai[4]
-                        name = raw_ai[10]
+        if not (gcl and self.local_player):
+            return
+        for k_data in gcl.get("C", []):
+            kid = k_data.get("KID", 0)
+            for area_entry in k_data.get("AI", []):
+                raw_ai = area_entry.get("AI")
+                if isinstance(raw_ai, list) and len(raw_ai) > 10:
+                    x, y, area_id, owner_id, name = raw_ai[1], raw_ai[2], raw_ai[3], raw_ai[4], raw_ai[10]
+                    if owner_id == self.local_player.id:
+                        castle = Castle(OID=area_id, N=name, KID=kid, X=x, Y=y)
+                        self.castles[area_id] = castle
+                        self.local_player.castles[area_id] = castle
+        logger.debug(f"Parsed {len(self.local_player.castles)} castles")
 
-                        if owner_id == self.local_player.id:
-                            castle = Castle(OID=area_id, N=name, KID=kid, X=x, Y=y)
-                            self.castles[area_id] = castle
-                            self.local_player.castles[area_id] = castle
-
-            logger.debug(f"Parsed {len(self.local_player.castles)} castles")
-
-        # Detailed Castle List (DCL) - often inside GBD
-        dcl = data.get("dcl", {})
-        if dcl:
-            self._handle_dcl(dcl)
-
-        # Events (SEI) - often inside GBD
-        sei = data.get("sei", {})
-        if sei:
-            self._handle_sei(sei)
-
-    def _handle_gam(self, data: Dict[str, Any]) -> None:
+    def _handle_gam(self, data: dict[str, Any]) -> None:
         """Handle 'Get Army Movements' response."""
         movements_list = data.get("M", [])
         owners_list = data.get("O", [])  # Owner info array
-        current_ids: Set[int] = set()
+        current_ids: set[int] = set()
 
         # Build owner lookup: OID -> {name, alliance_name}
-        owner_info: Dict[int, Dict[str, str]] = {}
+        owner_info: dict[int, dict[str, str]] = {}
         for owner in owners_list:
             if isinstance(owner, dict):
                 oid = owner.get("OID")
@@ -223,12 +251,14 @@ class GameState:
                 mov.created_at = time.time()
 
                 # Trigger callback for attacks (server pushes gam for alliance attacks)
-                if mov.is_attack and self.on_incoming_attack:
-                    self._dispatch_callback(self.on_incoming_attack, mov)
+                if mov.is_attack:
+                    for cb in list(self._incoming_attack_callbacks):
+                        self._dispatch_callback(cb, mov)
             else:
-                # Dispatch callback for updates to existing attacks too (e.g., visibility change)
-                if mov.is_attack and self.on_incoming_attack:
-                    self._dispatch_callback(self.on_incoming_attack, mov)
+                # Dispatch callback for updates to existing attacks too
+                if mov.is_attack:
+                    for cb in list(self._incoming_attack_callbacks):
+                        self._dispatch_callback(cb, mov)
 
             self.movements[mid] = mov
 
@@ -236,7 +266,7 @@ class GameState:
         # packets so we can properly dispatch callbacks with full movement data
         self._previous_movement_ids = current_ids
 
-    def _handle_dcl(self, data: Dict[str, Any]) -> None:
+    def _handle_dcl(self, data: dict[str, Any]) -> None:
         """Handle 'Detailed Castle List' response."""
         kingdoms = data.get("C", [])
 
@@ -267,7 +297,7 @@ class GameState:
                                 count = u_data[1]
                                 castle.units[uid] = count
 
-    def _handle_mov(self, data: Dict[str, Any]) -> None:
+    def _handle_mov(self, data: dict[str, Any]) -> None:
         """Handle real-time movement update."""
         m_data = data.get("M", data)
 
@@ -278,32 +308,22 @@ class GameState:
         elif isinstance(m_data, dict):
             self._update_single_movement(m_data)
 
-    def _handle_atv(self, data: Dict[str, Any]) -> None:
-        """Handle movement arrival."""
+    def _handle_movement_arrived(self, data: dict[str, Any]) -> None:
+        """Handle movement or attack arrival (atv/ata share identical logic)."""
         mid = data.get("MID")
         if mid:
-            self._arrived_movement_ids.add(mid)  # Mark as arrived, not recalled
-            if self.on_movement_arrived:
-                self._dispatch_callback(self.on_movement_arrived, mid)
+            self._arrived_movement_ids.add(mid)
+            for cb in list(self._movement_arrived_callbacks):
+                self._dispatch_callback(cb, mid)
             self.movements.pop(mid, None)
             self._previous_movement_ids.discard(mid)
 
-    def _handle_ata(self, data: Dict[str, Any]) -> None:
-        """Handle attack arrival."""
-        mid = data.get("MID")
-        if mid:
-            self._arrived_movement_ids.add(mid)  # Mark as arrived, not recalled
-            if self.on_movement_arrived:
-                self._dispatch_callback(self.on_movement_arrived, mid)
-            self.movements.pop(mid, None)
-            self._previous_movement_ids.discard(mid)
-
-    def _handle_mrm(self, data: Dict[str, Any]) -> None:
+    def _handle_mrm(self, data: dict[str, Any]) -> None:
         """Handle movement recall (mrm = Move Recall Movement)."""
         mid = data.get("MID")
         if mid:
-            if self.on_movement_recalled:
-                self._dispatch_callback(self.on_movement_recalled, mid)
+            for cb in list(self._movement_recalled_callbacks):
+                self._dispatch_callback(cb, mid)
             self.movements.pop(mid, None)
             self._previous_movement_ids.discard(mid)
 
@@ -321,13 +341,13 @@ class GameState:
                     self.local_player.inventory[key] = val
             logger.debug(f"Updated {len(items)} inventory items from sce")
 
-    def _handle_sei(self, data: Dict[str, Any]) -> None:
+    def _handle_sei(self, data: dict[str, Any]) -> None:
         """Handle 'Send Event Information' packet."""
         events = data.get("E", [])
         if not isinstance(events, list):
             return
 
-        active_ids: List[int] = []
+        active_ids: list[int] = []
         for event in events:
             if isinstance(event, dict):
                 eid = event.get("EID")
@@ -338,10 +358,10 @@ class GameState:
 
     def _parse_movement(
         self,
-        m_data: Dict[str, Any],
-        m_wrapper: Optional[Dict[str, Any]] = None,
-        owner_info: Optional[Dict[int, Dict[str, str]]] = None,
-    ) -> Optional[Movement]:
+        m_data: dict[str, Any],
+        m_wrapper: dict[str, Any] | None = None,
+        owner_info: dict[int, dict[str, str]] | None = None,
+    ) -> Movement | None:
         """Parse a Movement from packet data."""
         mid = m_data.get("MID")
         if not mid:
@@ -425,7 +445,7 @@ class GameState:
             logger.debug(f"Failed to parse movement {mid}: {e}")
             return None
 
-    def _update_single_movement(self, m_data: Dict[str, Any]) -> None:
+    def _update_single_movement(self, m_data: dict[str, Any]) -> None:
         """Update a single movement from real-time packet."""
         mid = m_data.get("MID")
         if not mid:
@@ -443,8 +463,9 @@ class GameState:
 
             # Trigger callback for new incoming attacks
             # Dispatch in thread pool to avoid blocking receive loop
-            if mov.is_incoming and mov.is_attack and self.on_incoming_attack:
-                self._dispatch_callback(self.on_incoming_attack, mov)
+            if mov.is_incoming and mov.is_attack:
+                for cb in list(self._incoming_attack_callbacks):
+                    self._dispatch_callback(cb, mov)
         elif existing:
             # Preserve metadata from existing movement that real-time packets don't include
             mov.created_at = existing.created_at
@@ -462,22 +483,22 @@ class GameState:
     # Query Methods
     # ============================================================
 
-    def get_all_movements(self) -> List[Movement]:
+    def get_all_movements(self) -> list[Movement]:
         """Get all tracked movements."""
         return list(self.movements.values())
 
-    def get_incoming_movements(self) -> List[Movement]:
+    def get_incoming_movements(self) -> list[Movement]:
         """Get all incoming movements."""
         return [m for m in self.movements.values() if m.is_incoming]
 
-    def get_outgoing_movements(self) -> List[Movement]:
+    def get_outgoing_movements(self) -> list[Movement]:
         """Get all outgoing movements."""
         return [m for m in self.movements.values() if m.is_outgoing]
 
-    def get_incoming_attacks(self) -> List[Movement]:
+    def get_incoming_attacks(self) -> list[Movement]:
         """Get all incoming attack movements."""
         return [m for m in self.movements.values() if m.is_incoming and m.is_attack]
 
-    def get_movement_by_id(self, movement_id: int) -> Optional[Movement]:
+    def get_movement_by_id(self, movement_id: int) -> Movement | None:
         """Get a specific movement by ID."""
         return self.movements.get(movement_id)
