@@ -2,6 +2,26 @@
 
 <!-- version list -->
 
+## v0.23.1 (2026-03-15)
+
+### Chores
+
+- Delete _archive/ dead code directory
+  ([`2e250bf`](https://github.com/eschnitzler/EmpireCore/commit/2e250bf5f910fd33939a967df57432fe4cf24c53))
+
+### Refactoring
+
+- Extract scan_kingdom into MapScanner class (#1, #6, #10, #12)
+  ([`50c7db6`](https://github.com/eschnitzler/EmpireCore/commit/50c7db6d26cb691420bf70f6d271b4e567ce8bde))
+
+- State/manager.py — dispatch dict, split _handle_gbd, merge atv/ata, multi-listener callbacks (#2,
+  #3, #8, #9)
+  ([`dd6e920`](https://github.com/eschnitzler/EmpireCore/commit/dd6e920c3bc16a31d50ed9466b066377ae996b0e))
+
+- Typed returns, queue-based bulk fetch, remove duplicate encoding (#4, #5, #7)
+  ([`7a776ab`](https://github.com/eschnitzler/EmpireCore/commit/7a776abd6e332404d6592b4faaccc867919b4a29))
+
+
 ## v0.23.0 (2026-03-08)
 
 ### Bug Fixes
