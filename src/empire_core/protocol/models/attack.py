@@ -73,21 +73,31 @@ class SendSpyRequest(BaseRequest):
 
     Command: csm
     Payload: {
-        "CID": source_castle_id,
+        "SID": source_castle_id,
         "TX": target_x,
         "TY": target_y,
-        "TK": target_kingdom,
+        "KID": target_kingdom,
         "SC": spy_count,
+        "ST": spy_type,
+        "SE": precision,
+        "HBW": horses_type,
+        "PTT": pay_to_travel,
+        "SD": sd
     }
     """
 
     command = "csm"
 
-    castle_id: int = Field(alias="CID")
+    castle_id: int = Field(alias="SID")
     target_x: int = Field(alias="TX")
     target_y: int = Field(alias="TY")
-    target_kingdom: int = Field(alias="TK", default=0)
+    target_kingdom: int = Field(alias="KID", default=0)
     spy_count: int = Field(alias="SC", default=1)
+    spy_type: int = Field(alias="ST", default=0)
+    precision: int = Field(alias="SE", default=100)
+    horses_type: int = Field(alias="HBW", default=-1)
+    pay_to_travel: int = Field(alias="PTT", default=0)
+    sd: int = Field(alias="SD", default=0)
 
 
 class SendSpyResponse(BaseResponse):
@@ -101,6 +111,44 @@ class SendSpyResponse(BaseResponse):
 
     movement_id: int = Field(alias="MID", default=0)
     arrival_time: int = Field(alias="AT", default=0)
+    error_code: int = Field(alias="E", default=0)
+
+
+# =============================================================================
+# SSI - Spy Screen Info
+# =============================================================================
+
+
+class SpyScreenInfoRequest(BaseRequest):
+    """
+    Get spy screen info (guard count, available spies).
+
+    Command: ssi
+    Payload: {
+        "TX": target_x,
+        "TY": target_y,
+        "KID": target_kingdom
+    }
+    """
+
+    command = "ssi"
+
+    target_x: int = Field(alias="TX")
+    target_y: int = Field(alias="TY")
+    target_kingdom: int = Field(alias="KID", default=0)
+
+
+class SpyScreenInfoResponse(BaseResponse):
+    """
+    Response to spy screen info.
+
+    Command: ssi
+    """
+
+    command = "ssi"
+
+    available_spies: int = Field(alias="AS", default=0)
+    guard_count: int = Field(alias="GC", default=0)
     error_code: int = Field(alias="E", default=0)
 
 
@@ -216,6 +264,9 @@ __all__ = [
     # CSM - Send Spy
     "SendSpyRequest",
     "SendSpyResponse",
+    # SSI - Spy Screen Info
+    "SpyScreenInfoRequest",
+    "SpyScreenInfoResponse",
     # GAS - Get Presets
     "GetPresetsRequest",
     "GetPresetsResponse",

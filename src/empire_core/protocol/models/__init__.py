@@ -87,6 +87,8 @@ from .attack import (
     SkipAttackCooldownResponse,
     SkipDefenseCooldownRequest,
     SkipDefenseCooldownResponse,
+    SpyScreenInfoRequest,
+    SpyScreenInfoResponse,
 )
 from .auth import (
     CheckUsernameAvailableRequest,
@@ -191,6 +193,11 @@ from .map import (
     Movement,
     NPCLocation,
     TargetInfo,
+)
+from .messages import (
+    BattleSpyDataRequest,
+    BattleSpyDataResponse,
+    SystemNotificationEvent,
 )
 from .player import (
     LOCATION_TYPES,
@@ -322,6 +329,8 @@ __all__ = [
     "CreateAttackResponse",
     "SendSpyRequest",
     "SendSpyResponse",
+    "SpyScreenInfoRequest",
+    "SpyScreenInfoResponse",
     "GetPresetsRequest",
     "GetPresetsResponse",
     "AttackPreset",
@@ -329,6 +338,10 @@ __all__ = [
     "SkipAttackCooldownResponse",
     "SkipDefenseCooldownRequest",
     "SkipDefenseCooldownResponse",
+    # Messages
+    "SystemNotificationEvent",
+    "BattleSpyDataRequest",
+    "BattleSpyDataResponse",
     # Building
     "BuildRequest",
     "BuildResponse",

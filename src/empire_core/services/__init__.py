@@ -34,4 +34,5 @@ __all__ = [
     "CastleService",
     "LordsService",
     "RankingService",
+    "SpyService",
 ]
