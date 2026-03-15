@@ -1,10 +1,3 @@
-
-from __future__ import annotations
-from collections.abc import Callable
-import logging
-
-logger = logging.getLogger(__name__)
-
 """
 Alliance service for EmpireCore.
 
@@ -14,8 +7,10 @@ Provides high-level APIs for:
 - Alliance help (help members, help all, request help)
 """
 
+from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import logging
+from collections.abc import Callable
 
 from empire_core.protocol.models import (
     AllianceBookmark,
@@ -40,8 +35,7 @@ from empire_core.protocol.models import (
 
 from .base import BaseService, register_service
 
-if TYPE_CHECKING:
-    pass
+logger = logging.getLogger(__name__)
 
 
 @register_service("alliance")

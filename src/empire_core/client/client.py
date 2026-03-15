@@ -1,6 +1,3 @@
-from __future__ import annotations
-from collections.abc import Callable
-
 """
 EmpireClient for EmpireCore.
 
@@ -8,10 +5,12 @@ Uses a threaded Connection class, designed to work well with Discord.py
 by not competing for the event loop.
 """
 
+from __future__ import annotations
 
 import json
 import logging
 import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar
 
 from empire_core.config import (
