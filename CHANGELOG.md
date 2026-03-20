@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.24.0 (2026-03-20)
+
+### Bug Fixes
+
+- Remove TYPE_CHECKING from alliance.py
+  ([`50de2aa`](https://github.com/eschnitzler/EmpireCore/commit/50de2aa6b5495ed2924a3dee594429be7c9808f3))
+
+### Features
+
+- Add spy protocol models and service
+  ([`1d7aa19`](https://github.com/eschnitzler/EmpireCore/commit/1d7aa19dfdeb54240e69a03537037cec83a1d236))
+
+
 ## v0.23.1 (2026-03-15)
 
 ### Chores
