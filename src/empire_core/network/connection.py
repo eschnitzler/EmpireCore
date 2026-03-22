@@ -19,6 +19,9 @@ from empire_core.protocol.packet import Packet
 
 logger = logging.getLogger(__name__)
 
+# Commands that use XT field 4 for data instead of error codes
+NON_ERROR_COMMANDS = {"rlu", "core_pol"}
+
 
 @dataclass
 class ResponseWaiter:
@@ -311,7 +314,14 @@ class Connection:
         """
         cmd_id = packet.command_id
 
-        if not packet.is_xml and packet.error_code != 0:
+        # Log server errors (but exclude commands that use field 4 for data)
+        # lli 453 is login cooldown, handled as exception in client
+        if (
+            not packet.is_xml
+            and packet.error_code != 0
+            and cmd_id not in NON_ERROR_COMMANDS
+            and not (cmd_id == "lli" and packet.error_code == 453)
+        ):
             error_name = GGEError.from_code(packet.error_code).name
             logger.error(f"Server error: {error_name} ({packet.error_code}) for command '{cmd_id}'")
 
