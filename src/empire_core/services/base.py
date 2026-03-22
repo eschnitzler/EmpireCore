@@ -1,6 +1,7 @@
 """
 Base service class and registration decorator.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -80,6 +81,8 @@ class BaseService:
             try:
                 response_packet = self.client.connection.wait_for(command, timeout=timeout)
                 if response_packet and isinstance(response_packet.payload, dict):
+                    if response_packet.error_code != 0 and "E" not in response_packet.payload:
+                        response_packet.payload["E"] = response_packet.error_code
                     return parse_response(command, response_packet.payload)
             except Exception:
                 return None
