@@ -48,6 +48,7 @@ class MapItemType(IntEnum):
     EMPTY_CASTLE_SLOT = 2  # Unoccupied castle spawn point
     CAPITAL = 3  # Player capital
     OUTPOST = 4  # Player outpost
+    EXTERNAL_KINGDOM = 12  # Player castle in other kingdoms
     RUIN = 5  # Abandoned ruin
     ROBBER_BARON = 6  # Robber Baron castle
     KHAN_TENT = 7  # Khan's tent (event)
@@ -136,6 +137,7 @@ class MapAreaItem(BaseResponse):
             MapItemType.CASTLE,
             MapItemType.CAPITAL,
             MapItemType.OUTPOST,
+            MapItemType.EXTERNAL_KINGDOM,
             MapItemType.METRO,
         )
 
