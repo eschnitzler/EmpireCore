@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v0.24.2 (2026-03-22)
+
+### Bug Fixes
+
+- Include target info in bsd response
+  ([`d6840af`](https://github.com/eschnitzler/EmpireCore/commit/d6840afc41a99a835b54f9b05b3496b06502480e))
+
+- MapItemType.EXTERNAL_KINGDOM for other kingdoms main castles
+  ([`20c165c`](https://github.com/eschnitzler/EmpireCore/commit/20c165c7f539bfdff8deeac8dfaac8cd510645e9))
+
+
 ## v0.24.1 (2026-03-22)
 
 ### Bug Fixes
