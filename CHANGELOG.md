@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.24.1 (2026-03-22)
+
+### Bug Fixes
+
+- Exclude non-error commands from server error logging
+  ([`9682453`](https://github.com/eschnitzler/EmpireCore/commit/9682453eb14f6ddb0bfde7c5c8a7110d8bc321cf))
+
+
 ## v0.24.0 (2026-03-20)
 
 ### Bug Fixes
