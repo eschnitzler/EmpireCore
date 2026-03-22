@@ -113,7 +113,7 @@ class AllianceMember(BasePayload):
     avatar_points: int = Field(alias="AVP", default=0)
     title_prefix: int = Field(alias="PRE", default=0)
     title_suffix: int = Field(alias="SUF", default=-1)
-    global_rank: int = Field(alias="R", default=0)
+    is_in_ruins: bool = Field(alias="R", default=False)
     alliance_id: int = Field(alias="AID", default=0)
     alliance_name: str = Field(alias="AN", default="")
     special_ability: int = Field(alias="SA", default=0)
