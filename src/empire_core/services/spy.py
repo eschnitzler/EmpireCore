@@ -5,7 +5,7 @@ Spy service for high-level espionage operations.
 import time
 from typing import Any
 
-from ..protocol.models.attack import SendSpyRequest, SpyScreenInfoRequest, SpyScreenInfoResponse
+from ..protocol.models.attack import SendSpyRequest, SendSpyResponse, SpyScreenInfoRequest, SpyScreenInfoResponse
 from ..protocol.models.base import parse_response
 from ..protocol.models.messages import BattleSpyDataRequest, BattleSpyDataResponse, SystemNotificationEvent
 from .base import BaseService, register_service
@@ -80,14 +80,16 @@ class SpyService(BaseService):
             SD=0,
         )
 
-        # We need to send the packet manually so we can wait for SNE instead of CSM response
-        # Actually, we can just send it and then wait for SNE
-        packet = csm_req.to_packet(zone=self.zone)
-        self.client.connection.send(packet)
+        sne_waiter = self.client.connection.create_waiter("sne")
 
-        # 4. Wait for the SNE event to get the message ID
         try:
-            sne_packet = self.client.connection.wait_for("sne", timeout=10.0)
+            csm_resp = self.send(csm_req, wait=True)
+            if not isinstance(csm_resp, SendSpyResponse) or getattr(csm_resp, "error_code", 0) != 0:
+                error_code = getattr(csm_resp, "error_code", "timeout") if csm_resp else "timeout"
+                return {"status": "error", "reason": f"csm_failed_{error_code}"}
+
+            # 4. Wait for the SNE event to get the message ID
+            sne_packet = self.client.connection.wait_for_result("sne", sne_waiter, timeout=10.0)
             if not sne_packet or not isinstance(sne_packet.payload, dict):
                 return {"status": "error", "reason": "invalid_sne_format"}
 
@@ -103,7 +105,6 @@ class SpyService(BaseService):
             message_id = sne_event.messages[0][0]
 
             # Check if spy was caught: the "1+2+1" pattern from the legacy bot
-            # corresponds to message[1]==1, message[2]==2, message[3]==1 in the parsed list.
             first_msg = sne_event.messages[0]
             if len(first_msg) >= 4 and first_msg[1] == 1 and first_msg[2] == 2 and first_msg[3] == 1:
                 return {"status": "error", "reason": "spy_caught"}
@@ -112,16 +113,18 @@ class SpyService(BaseService):
             bsd_req = BattleSpyDataRequest(MID=message_id)
             bsd_resp = self.send(bsd_req, wait=True)
 
-            if not isinstance(bsd_resp, BattleSpyDataResponse) or bsd_resp.error_code != 0:
+            if not isinstance(bsd_resp, BattleSpyDataResponse) or getattr(bsd_resp, "error_code", 0) != 0:
                 return {"status": "error", "reason": f"bsd_failed_{getattr(bsd_resp, 'error_code', 'unknown')}"}
 
             return {
                 "status": "success",
                 "message_id": message_id,
                 "spy_data": bsd_resp.spy_data,
-                "battle_data": bsd_resp.battle_data,
-                "target": bsd_resp.target,
+                "battle_data": getattr(bsd_resp, "battle_data", None),
+                "target": getattr(bsd_resp, "target", None),
             }
 
         except Exception as e:
             return {"status": "error", "reason": f"sne_timeout_or_error_{str(e)}"}
+        finally:
+            self.client.connection.cancel_waiter("sne", sne_waiter)

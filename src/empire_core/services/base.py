@@ -64,28 +64,26 @@ class BaseService:
     def send(self, request: BaseRequest, wait: bool = False, timeout: float = 5.0) -> BaseResponse | None:
         """
         Send a request to the server.
-
-        Args:
-            request: The request model to send
-            wait: Whether to wait for a response
-            timeout: Timeout in seconds when waiting
-
-        Returns:
-            The parsed response if wait=True, otherwise None
         """
+        command = request.get_command()
+        waiter = None
+        if wait:
+            waiter = self.client.connection.create_waiter(command)
+
         packet = request.to_packet(zone=self.zone)
         self.client.connection.send(packet)
 
-        if wait:
-            command = request.get_command()
+        if wait and waiter:
             try:
-                response_packet = self.client.connection.wait_for(command, timeout=timeout)
+                response_packet = self.client.connection.wait_for_result(command, waiter, timeout=timeout)
                 if response_packet and isinstance(response_packet.payload, dict):
                     if response_packet.error_code != 0 and "E" not in response_packet.payload:
                         response_packet.payload["E"] = response_packet.error_code
                     return parse_response(command, response_packet.payload)
             except Exception:
                 return None
+            finally:
+                self.client.connection.cancel_waiter(command, waiter)
 
         return None
 

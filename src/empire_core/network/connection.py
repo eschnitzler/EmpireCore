@@ -176,35 +176,15 @@ class Connection:
         """Send raw bytes to the server."""
         self.send(data.decode("utf-8"))
 
-    def wait_for(
-        self,
-        cmd_id: str,
-        timeout: float = 5.0,
-    ) -> Packet:
-        """
-        Wait for a response with the given command ID.
-
-        This is a blocking call that waits for a matching packet.
-        The waiter is consumed when a match is found.
-
-        Args:
-            cmd_id: Command ID to wait for
-            timeout: Timeout in seconds
-
-        Returns:
-            The matching Packet
-
-        Raises:
-            TimeoutError: If no response within timeout
-            RuntimeError: If connection closed while waiting
-        """
+    def create_waiter(self, cmd_id: str) -> ResponseWaiter:
         waiter = ResponseWaiter()
-
         with self._waiters_lock:
             if cmd_id not in self._waiters:
                 self._waiters[cmd_id] = []
             self._waiters[cmd_id].append(waiter)
+        return waiter
 
+    def wait_for_result(self, cmd_id: str, waiter: ResponseWaiter, timeout: float = 5.0) -> Packet:
         try:
             if waiter.event.wait(timeout=timeout):
                 if waiter.error:
@@ -215,15 +195,28 @@ class Connection:
             else:
                 raise TimeoutError(f"Timeout waiting for '{cmd_id}'")
         finally:
-            # Clean up waiter
-            with self._waiters_lock:
-                if cmd_id in self._waiters:
-                    try:
-                        self._waiters[cmd_id].remove(waiter)
-                        if not self._waiters[cmd_id]:
-                            del self._waiters[cmd_id]
-                    except ValueError:
-                        pass
+            self.cancel_waiter(cmd_id, waiter)
+
+    def cancel_waiter(self, cmd_id: str, waiter: ResponseWaiter) -> None:
+        with self._waiters_lock:
+            if cmd_id in self._waiters:
+                try:
+                    self._waiters[cmd_id].remove(waiter)
+                    if not self._waiters[cmd_id]:
+                        del self._waiters[cmd_id]
+                except ValueError:
+                    pass
+
+    def wait_for(
+        self,
+        cmd_id: str,
+        timeout: float = 5.0,
+    ) -> Packet:
+        """
+        Wait for a response with the given command ID.
+        """
+        waiter = self.create_waiter(cmd_id)
+        return self.wait_for_result(cmd_id, waiter, timeout)
 
     def subscribe(self, cmd_id: str, callback: Callable[[Packet], None]) -> None:
         """
