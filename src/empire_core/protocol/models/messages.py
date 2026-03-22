@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from .base import BaseRequest, BaseResponse
 
@@ -51,6 +51,10 @@ class BattleSpyDataRequest(BaseRequest):
     message_id: int = Field(alias="MID")
 
 
+class SpyCastleInfo(BaseModel):
+    castle_name: str = Field(alias="N", default="")
+
+
 class BattleSpyDataResponse(BaseResponse):
     """
     Response containing battle or spy report data.
@@ -63,6 +67,7 @@ class BattleSpyDataResponse(BaseResponse):
     message_id: int = Field(alias="MID", default=0)
     battle_data: dict[str, Any] = Field(alias="B", default_factory=dict)
     spy_data: list[Any] = Field(alias="S", default_factory=list)
+    target: SpyCastleInfo | None = Field(alias="AI", default=None)
     error_code: int = Field(alias="E", default=0)
 
 
