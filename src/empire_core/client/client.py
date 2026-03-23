@@ -32,7 +32,6 @@ from empire_core.protocol.models.map import (
     GetMapAreaRequest,
     GetMapAreaResponse,
     Kingdom,
-    MapAreaItem,
     MapItemType,
 )
 from empire_core.protocol.models.player import (
@@ -568,7 +567,7 @@ class EmpireClient:
         item_types: list[MapItemType] | None = None,
         timeout: float = 300.0,
         request_timeout: float = 5.0,
-    ) -> list[MapAreaItem]:
+    ):
         """Scan a kingdom map. See MapScanner.scan_kingdom."""
         from empire_core.client.map_scanner import MapScanner
 
