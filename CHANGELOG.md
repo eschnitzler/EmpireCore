@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.25.0 (2026-03-23)
+
+### Bug Fixes
+
+- Pass XT packet error code to payload before parsing
+  ([`18acccc`](https://github.com/eschnitzler/EmpireCore/commit/18acccc7a983e55d54ef431cf5c1f1b0ee1e9e7a))
+
+- Race condition in wait_for dropping packets
+  ([`297ddb8`](https://github.com/eschnitzler/EmpireCore/commit/297ddb886d374936c460342e6722d741ce2a9040))
+
+- Rename global_rank to is_in_ruins for R flag in AllianceMember
+  ([`7777116`](https://github.com/eschnitzler/EmpireCore/commit/7777116e2ae84ba6245c01a181273f845fcab5b0))
+
+### Features
+
+- Upgrade map scanner to return player objects and fix property indices
+  ([`6a06bdf`](https://github.com/eschnitzler/EmpireCore/commit/6a06bdf986c526624efd9e4e174822db44028739))
+
+
 ## v0.24.2 (2026-03-22)
 
 ### Bug Fixes
