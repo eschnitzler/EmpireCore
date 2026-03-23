@@ -1,13 +1,18 @@
 import logging
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
-from empire_core.protocol.models.map import GetMapAreaRequest, Kingdom, MapAreaItem, MapItemType
+from empire_core.protocol.models.map import GetMapAreaRequest, Kingdom, MapAreaItem, MapItemType, MapObject
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
 
 logger = logging.getLogger(__name__)
+
+
+class ScanResult(NamedTuple):
+    items: list[MapAreaItem]
+    objects: dict[int, MapObject]
 
 
 class MapScanner:
@@ -32,6 +37,7 @@ class MapScanner:
         kingdom: Kingdom,
         filter_types: set[MapItemType] | None,
         collected_items: list[MapAreaItem],
+        collected_objects: dict[int, MapObject],
         request_timeout: float,
     ) -> bool:
         """
@@ -65,10 +71,24 @@ class MapScanner:
         if not isinstance(response.payload, dict):
             return False
 
+        if response.error_code == 337:
+            raise RuntimeError("ADDITIONAL_KINGDOM_NOT_UNLOCKED")
+
         ai_array = response.payload.get("AI", [])
+        oi_array = response.payload.get("OI", [])
         has_content = len(ai_array) > 0
 
         # Collect matching items
+        for raw_obj in oi_array:
+            if isinstance(raw_obj, dict):
+                try:
+                    obj = MapObject.model_validate(raw_obj)
+                    oid = obj.resolved_owner_id
+                    if oid:
+                        collected_objects[oid] = obj
+                except Exception:
+                    continue
+
         for raw_item in ai_array:
             if isinstance(raw_item, list) and len(raw_item) >= 4:
                 item = MapAreaItem.from_list(raw_item)
@@ -88,7 +108,7 @@ class MapScanner:
         item_types: list[MapItemType] | None = None,
         timeout: float = 300.0,
         request_timeout: float = 5.0,
-    ) -> list[MapAreaItem]:
+    ) -> ScanResult:
         """
         Scan a kingdom map with dynamic boundary detection.
         Uses BFS expansion from the bot's castle position.
@@ -109,6 +129,7 @@ class MapScanner:
 
         # State tracking
         collected_items: list[MapAreaItem] = []
+        collected_objects: dict[int, MapObject] = {}
         visited: set[tuple[int, int]] = set()
         chunk_has_content: dict[tuple[int, int], bool] = {}
 
@@ -143,7 +164,9 @@ class MapScanner:
             total_requests += 1
 
             # Process this chunk
-            has_content = self._process_chunk(cx, cy, kingdom, filter_types, collected_items, request_timeout)
+            has_content = self._process_chunk(
+                cx, cy, kingdom, filter_types, collected_items, collected_objects, request_timeout
+            )
             chunk_has_content[(cx, cy)] = has_content
 
             # Update bounds tracking
@@ -179,4 +202,4 @@ class MapScanner:
             f"Map bounds: x=[{min_x_found * self.CHUNK_SIZE}-{(max_x_found + 1) * self.CHUNK_SIZE}] "
             f"y=[{min_y_found * self.CHUNK_SIZE}-{(max_y_found + 1) * self.CHUNK_SIZE}]"
         )
-        return collected_items
+        return ScanResult(items=collected_items, objects=collected_objects)

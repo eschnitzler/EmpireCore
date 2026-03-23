@@ -316,7 +316,10 @@ class Connection:
             and not (cmd_id == "lli" and packet.error_code == 453)
         ):
             error_name = GGEError.from_code(packet.error_code).name
-            logger.error(f"Server error: {error_name} ({packet.error_code}) for command '{cmd_id}'")
+            if packet.error_code == 21:
+                logger.debug(f"Server error: {error_name} ({packet.error_code}) for command '{cmd_id}'")
+            else:
+                logger.error(f"Server error: {error_name} ({packet.error_code}) for command '{cmd_id}'")
 
         waiter = None
         callbacks = None

@@ -52,8 +52,9 @@ class MapItemType(IntEnum):
     RUIN = 5  # Abandoned ruin
     ROBBER_BARON = 6  # Robber Baron castle
     KHAN_TENT = 7  # Khan's tent (event)
-    METRO = 22  # Metropolis
-    MONUMENT = 26  # Alliance monument
+    METRO = 22
+    KINGS_TOWER = 23
+    MONUMENT = 26
     LABORATORY = 28  # Laboratory
 
 
@@ -115,11 +116,21 @@ class MapAreaItem(BaseResponse):
     @classmethod
     def from_list(cls, data: list) -> "MapAreaItem":
         """Parse from AI array entry."""
+        item_type = data[0] if len(data) > 0 else 0
+
+        if (
+            item_type in (MapItemType.CAPITAL, MapItemType.OUTPOST, MapItemType.METRO, MapItemType.KINGS_TOWER)
+            and len(data) > 4
+        ):
+            owner_id = data[4]
+        else:
+            owner_id = data[3] if len(data) > 3 else -1
+
         return cls(
-            item_type=data[0] if len(data) > 0 else 0,
+            item_type=item_type,
             x=data[1] if len(data) > 1 else 0,
             y=data[2] if len(data) > 2 else 0,
-            owner_id=data[3] if len(data) > 3 else -1,
+            owner_id=owner_id,
             raw_data=data,
         )
 
@@ -142,6 +153,18 @@ class MapAreaItem(BaseResponse):
         )
 
     @property
+    def capturer_id(self) -> int:
+        if self.item_type == MapItemType.OUTPOST:
+            return self.raw_data[15] if len(self.raw_data) > 15 else -1
+        elif self.item_type in (MapItemType.CAPITAL, MapItemType.METRO):
+            return self.raw_data[14] if len(self.raw_data) > 14 else -1
+        return -1
+
+    @property
+    def is_being_captured(self) -> bool:
+        return self.capturer_id != -1
+
+    @property
     def type_name(self) -> str:
         """Get human-readable type name."""
         try:
@@ -155,9 +178,9 @@ class MapObject(BaseResponse):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    x: int = Field(alias="X")
-    y: int = Field(alias="Y")
-    object_type: int = Field(alias="OT")  # Type of object
+    x: int = Field(alias="X", default=0)
+    y: int = Field(alias="Y", default=0)
+    object_type: int = Field(alias="OT", default=0)
     object_id: int = Field(alias="OID", default=0)
     owner_id: int | None = Field(alias="PID", default=None)
     owner_name: str | None = Field(alias="PN", default=None)
@@ -165,6 +188,18 @@ class MapObject(BaseResponse):
     alliance_name: str | None = Field(alias="AN", default=None)
     level: int = Field(alias="L", default=0)
     name: str | None = Field(alias="N", default=None)
+
+    @property
+    def resolved_owner_id(self) -> int:
+        if self.owner_id is not None:
+            return self.owner_id
+        return self.object_id
+
+    @property
+    def resolved_owner_name(self) -> str:
+        if self.owner_name:
+            return self.owner_name
+        return self.name or ""
 
     @property
     def position(self) -> Position:
