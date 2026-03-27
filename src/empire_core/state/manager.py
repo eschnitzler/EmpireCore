@@ -265,6 +265,7 @@ class GameState:
         # Don't remove movements here - wait for explicit arrival (atv/ata) or recall (mrm)
         # packets so we can properly dispatch callbacks with full movement data
         self._previous_movement_ids = current_ids
+        self._arrived_movement_ids.clear()
 
     def _handle_dcl(self, data: dict[str, Any]) -> None:
         """Handle 'Detailed Castle List' response."""
