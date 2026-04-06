@@ -142,7 +142,7 @@ class EmpireClient:
         """Handle disconnect."""
         self.is_logged_in = False
         self.state.shutdown()
-        logger.warning("Client disconnected")
+        logger.warning(f"Client {self.username} disconnected")
 
     def login(self) -> bool:
         """
@@ -232,7 +232,7 @@ class EmpireClient:
             try:
                 self.connection.wait_for("gbd", timeout=self.config.request_timeout)
             except TimeoutError:
-                logger.warning("gbd packet not received, player state may be incomplete")
+                logger.warning(f"gbd packet not received for {self.username}, player state may be incomplete")
 
             logger.debug(f"Logged in as {self.username}")
             self.is_logged_in = True
