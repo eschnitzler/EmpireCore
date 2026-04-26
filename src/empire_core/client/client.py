@@ -11,7 +11,7 @@ import json
 import logging
 import time
 from collections.abc import Callable
-from typing import TYPE_CHECKING, TypeVar
+from typing import TypeVar, cast
 
 from empire_core.config import (
     LOGIN_DEFAULTS,
@@ -21,7 +21,7 @@ from empire_core.config import (
 )
 from empire_core.exceptions import LoginCooldownError, LoginError, TimeoutError
 from empire_core.network.connection import Connection
-from empire_core.protocol.models import BaseRequest, BaseResponse, ErrorResponse, parse_response
+from empire_core.protocol.models import BaseRequest, BaseResponse, ErrorResponse, encode_chat_text, parse_response
 from empire_core.protocol.models.alliance import GetAllianceInfoRequest, GetAllianceInfoResponse
 from empire_core.protocol.models.chat import AllianceChatLogResponse
 from empire_core.protocol.models.defense import (
@@ -41,12 +41,18 @@ from empire_core.protocol.models.player import (
     SearchPlayerResponse,
 )
 from empire_core.protocol.packet import Packet
-from empire_core.services import get_registered_services
+from empire_core.services import (
+    AllianceService,
+    ArmyService,
+    BaseService,
+    CastleService,
+    LordsService,
+    RankingService,
+    SpyService,
+    get_registered_services,
+)
 from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
-
-if TYPE_CHECKING:
-    from empire_core.services import AllianceService, ArmyService, BaseService, CastleService, LordsService
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +78,8 @@ class EmpireClient:
     castle: CastleService
     army: ArmyService
     lords: LordsService
+    spy: SpyService
+    ranking: RankingService
 
     def __init__(
         self,
@@ -96,11 +104,18 @@ class EmpireClient:
         self.connection.on_disconnect = self._on_disconnect
 
         # Auto-attach registered services
-        self._services: dict[str, "BaseService"] = {}
+        self._services: dict[str, BaseService] = {}
         for name, service_cls in get_registered_services().items():
             service = service_cls(self)
             self._services[name] = service
             setattr(self, name, service)
+
+        self.alliance: AllianceService = cast(AllianceService, self._services["alliance"])
+        self.castle: CastleService = cast(CastleService, self._services["castle"])
+        self.army: ArmyService = cast(ArmyService, self._services["army"])
+        self.lords: LordsService = cast(LordsService, self._services["lords"])
+        self.spy: SpyService = cast(SpyService, self._services["spy"])
+        self.ranking: RankingService = cast(RankingService, self._services["ranking"])
 
     def _register_handler(self, command: str, handler: Callable[[BaseResponse], None]) -> None:
         """
@@ -134,7 +149,7 @@ class EmpireClient:
                     except Exception:
                         pass
 
-    def _update_state(self, cmd: str, payload: dict) -> None:
+    def _update_state(self, cmd: str, payload: dict[str, object]) -> None:
         """Sync state update from packet - delegates to GameState."""
         self.state.update_from_packet(cmd, payload)
 
@@ -329,17 +344,7 @@ class EmpireClient:
         Args:
             message: The message to send
         """
-        # Alliance chat command: acm (Alliance Chat Message)
-        # Payload format: {"M": "message text"}
-        # Note: Special chars need encoding: % -> &percnt;, " -> &quot;, etc.
-        encoded_message = (
-            message.replace("%", "&percnt;")
-            .replace('"', "&quot;")
-            .replace("'", "&145;")
-            .replace("\n", "<br />")
-            .replace("\\", "%5C")
-        )
-        payload = {"M": encoded_message}
+        payload = {"M": encode_chat_text(message)}
         packet = Packet.build_xt(self.config.default_zone, "acm", payload)
         self.connection.send(packet)
 
