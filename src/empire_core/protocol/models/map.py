@@ -375,13 +375,17 @@ class GetTargetInfoRequest(BaseRequest):
     Get detailed info about a specific map location/target.
 
     Command: adi
-    Payload: {"X": x, "Y": y, "KID": kingdom_id}
+    Payload: {"SX": source_x, "SY": source_y, "TX": target_x, "TY": target_y, "KID": kingdom_id}
+
+    SX/SY is the attacker's source position, TX/TY is the target position.
     """
 
     command = "adi"
 
-    x: int = Field(alias="X")
-    y: int = Field(alias="Y")
+    source_x: int = Field(alias="SX")
+    source_y: int = Field(alias="SY")
+    target_x: int = Field(alias="TX")
+    target_y: int = Field(alias="TY")
     kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
 
 
