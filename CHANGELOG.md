@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.25.2 (2026-04-26)
+
+### Bug Fixes
+
+- Correct GetTargetInfoRequest payload for adi command
+  ([#22](https://github.com/eschnitzler/EmpireCore/pull/22),
+  [`02f9b88`](https://github.com/eschnitzler/EmpireCore/commit/02f9b885ce8104709ac9a8d8f0e145017d9a5de3))
+
+
 ## v0.25.1 (2026-04-06)
 
 ### Bug Fixes
