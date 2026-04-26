@@ -2,6 +2,38 @@
 
 <!-- version list -->
 
+## v0.25.3 (2026-04-26)
+
+### Bug Fixes
+
+- Remove duplicate Army class from world_models
+  ([`6085bf7`](https://github.com/eschnitzler/EmpireCore/commit/6085bf70f9ab8ac89d9af8a7f85c265c5deea07d))
+
+### Chores
+
+- Delete stale TODO.md
+  ([`103c2b8`](https://github.com/eschnitzler/EmpireCore/commit/103c2b8ef78dbe80a06a1341e6d679cb032e5982))
+
+- Remove archive directories with dead code
+  ([`c6416f4`](https://github.com/eschnitzler/EmpireCore/commit/c6416f4b72c917cf009b065c48610be443a21e5e))
+
+### Documentation
+
+- Remove outdated pygge comparison files
+  ([`e9dd4dd`](https://github.com/eschnitzler/EmpireCore/commit/e9dd4dd92ecff8568952ee2b484e19b73138163b))
+
+### Refactoring
+
+- Improve EmpireClient type safety and fix alliance chat encoding
+  ([`c88957d`](https://github.com/eschnitzler/EmpireCore/commit/c88957d42f1b1a9f2e007076fbde0bdab95843f8))
+
+- Modernize typing imports to built-in syntax
+  ([`5c8d5cc`](https://github.com/eschnitzler/EmpireCore/commit/5c8d5cc8a6703e37039529e39faf4b2e6a2f3396))
+
+- Remove unnecessary TYPE_CHECKING guards in services
+  ([`6a98545`](https://github.com/eschnitzler/EmpireCore/commit/6a98545f9b1bc0e87d9f3bfea1be4354068f0f0b))
+
+
 ## v0.25.2 (2026-04-26)
 
 ### Bug Fixes
