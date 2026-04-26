@@ -56,13 +56,6 @@ class MapObject(BaseModel):
         return "Other"
 
 
-class Army(BaseModel):
-    """Represents troops in a movement or castle."""
-
-    model_config = ConfigDict(extra="ignore")
-    units: dict[int, int] = Field(default_factory=dict)  # UnitID -> Count
-
-
 class MovementResources(BaseModel):
     """Resources being transported in a movement."""
 
@@ -144,8 +137,8 @@ class Movement(BaseModel):
 
     # Commander raw data (from UM.L in movement wrapper)
     # These are exposed for consumers to calculate stats using dynamic effect IDs
-    commander_equipment: list = Field(default_factory=list)  # EQ array from UM.L
-    commander_effects: list = Field(default_factory=list)  # AE array from UM.L
+    commander_equipment: list[Any] = Field(default_factory=list)
+    commander_effects: list[Any] = Field(default_factory=list)
 
     @property
     def movement_id(self) -> int:
