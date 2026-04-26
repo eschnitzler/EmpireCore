@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import json
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from typing import Any, Union
+from typing import Any
 
 
 @dataclass
@@ -17,7 +19,7 @@ class Packet:
     command_id: str | None = None
     request_id: int = -1
     error_code: int = 0  # New field for XT status/error code
-    payload: Union[dict[str, Any], ET.Element, None] = None
+    payload: dict[str, Any] | ET.Element | None = None
 
     @staticmethod
     def build_xt(zone: str, command: str, payload: dict[str, Any], request_id: int = 1) -> str:

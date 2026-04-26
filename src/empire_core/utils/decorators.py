@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import asyncio
 import functools
 import logging
-from collections.abc import Callable
-from typing import Type
+from collections.abc import Awaitable, Callable
 
 
 def handle_errors(
@@ -10,7 +11,7 @@ def handle_errors(
     log_msg: str | None = None,
     re_raise: bool = True,
     cleanup_method: str | None = None,
-    ignore: tuple[Type[BaseException], ...] | None = None,
+    ignore: tuple[type[BaseException], ...] | None = None,
 ):
     """
     Decorator to centralize error handling, logging, and cleanup.
@@ -23,7 +24,7 @@ def handle_errors(
         ignore: Tuple of exception types to ignore (not log as error, just debug/pass).
     """
 
-    def decorator(func: Callable):
+    def decorator(func: Callable[..., Awaitable[object]]):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
             # Determine logger
