@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 from enum import IntEnum
-from typing import Any, ClassVar, Type, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -28,7 +28,7 @@ T = TypeVar("T")
 DEFAULT_ZONE = "EmpireEx_21"
 
 # Registry mapping command -> response model class
-_response_registry: dict[str, Type["BaseResponse"]] = {}
+_response_registry: dict[str, type["BaseResponse"]] = {}
 
 
 class GGECommand:
@@ -256,7 +256,7 @@ class BaseResponse(BasePayload):
             _response_registry[cls.command] = cls
 
 
-def get_response_model(command: str) -> Type[BaseResponse] | None:
+def get_response_model(command: str) -> type[BaseResponse] | None:
     """
     Get the response model class for a command.
 
