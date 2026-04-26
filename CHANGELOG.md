@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.25.1 (2026-04-06)
+
+### Bug Fixes
+
+- Include username in disconnect and login failure logs
+  ([#21](https://github.com/eschnitzler/EmpireCore/pull/21),
+  [`214aa34`](https://github.com/eschnitzler/EmpireCore/commit/214aa34b6cefc0538a454ec038e3a70328794a6d))
+
+### Performance Improvements
+
+- Clear arrived movement IDs on each gam update to prevent unbounded growth
+  ([#21](https://github.com/eschnitzler/EmpireCore/pull/21),
+  [`214aa34`](https://github.com/eschnitzler/EmpireCore/commit/214aa34b6cefc0538a454ec038e3a70328794a6d))
+
+
 ## v0.25.0 (2026-03-23)
 
 ### Bug Fixes
