@@ -7,14 +7,10 @@ Provides APIs for managing commanders/lords.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 from empire_core.protocol.models import GetLordsRequest, GetLordsResponse, Lord
 
 from .base import BaseService, register_service
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 

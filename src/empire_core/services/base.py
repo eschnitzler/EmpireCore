@@ -5,7 +5,7 @@ Base service class and registration decorator.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Type, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from empire_core.protocol.models import BaseRequest, BaseResponse, parse_response
 
@@ -13,12 +13,12 @@ if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
 
 # Registry of service classes
-_service_registry: dict[str, Type["BaseService"]] = {}
+_service_registry: dict[str, type["BaseService"]] = {}
 
 T = TypeVar("T", bound="BaseService")
 
 
-def register_service(name: str) -> Callable[[Type[T]], Type[T]]:
+def register_service(name: str) -> Callable[[type[T]], type[T]]:
     """
     Decorator to register a service class.
 
@@ -30,7 +30,7 @@ def register_service(name: str) -> Callable[[Type[T]], Type[T]]:
     The service will be accessible as client.alliance
     """
 
-    def decorator(cls: Type[T]) -> Type[T]:
+    def decorator(cls: type[T]) -> type[T]:
         _service_registry[name] = cls
         cls._service_name = name
         return cls
@@ -38,7 +38,7 @@ def register_service(name: str) -> Callable[[Type[T]], Type[T]]:
     return decorator
 
 
-def get_registered_services() -> dict[str, Type["BaseService"]]:
+def get_registered_services() -> dict[str, type["BaseService"]]:
     """Get all registered service classes."""
     return _service_registry.copy()
 
