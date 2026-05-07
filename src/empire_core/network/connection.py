@@ -6,6 +6,7 @@ Designed to work well with Discord.py by not competing for the event loop.
 """
 
 import logging
+import re
 import threading
 import time
 from collections.abc import Callable
@@ -14,7 +15,9 @@ from dataclasses import dataclass, field
 import websocket
 
 from empire_core.exceptions import TimeoutError
+from empire_core.network.rate_limiter import DualRateLimiter
 from empire_core.protocol.errors import GGEError
+from empire_core.protocol.models.base import DEFAULT_ZONE
 from empire_core.protocol.packet import Packet
 
 logger = logging.getLogger(__name__)
@@ -56,7 +59,6 @@ class Connection:
         # sharing one account) must not interleave frame writes.
         self._send_lock = threading.Lock()
 
-        from empire_core.network.rate_limiter import DualRateLimiter
         self._rate_limiter = DualRateLimiter(global_limit=15, command_limits={"gaa": 5})
 
         # Request/response waiters: cmd_id -> ResponseWaiter
@@ -177,7 +179,6 @@ class Connection:
             if len(parts) > 3:
                 command = parts[3]
         elif "<body action=" in data:
-            import re
             match = re.search(r"action=['\"]([^'\"]+)['\"]", data)
             if match:
                 command = match.group(1)
@@ -386,8 +387,6 @@ class Connection:
         logger.debug("Keepalive loop started")
 
         try:
-            from empire_core.protocol.models.base import DEFAULT_ZONE
-
             zone = DEFAULT_ZONE
         except ImportError:
             zone = "EmpireEx_21"
