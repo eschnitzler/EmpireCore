@@ -56,6 +56,9 @@ class Connection:
         # sharing one account) must not interleave frame writes.
         self._send_lock = threading.Lock()
 
+        from empire_core.network.rate_limiter import DualRateLimiter
+        self._rate_limiter = DualRateLimiter(global_limit=15, command_limits={"gaa": 5})
+
         # Request/response waiters: cmd_id -> ResponseWaiter
         # These are consumed when matched (one response per waiter)
         self._waiters: dict[str, list[ResponseWaiter]] = {}
@@ -168,6 +171,19 @@ class Connection:
         if data.endswith("\x00"):
             data = data[:-1]
 
+        command = "unknown"
+        if data.startswith("%xt%"):
+            parts = data.split("%")
+            if len(parts) > 3:
+                command = parts[3]
+        elif "<body action=" in data:
+            import re
+            match = re.search(r"action=['\"]([^'\"]+)['\"]", data)
+            if match:
+                command = match.group(1)
+
+        self._rate_limiter.acquire(command)
+
         with self._send_lock:
             try:
                 if self.ws is None:
@@ -209,7 +225,7 @@ class Connection:
                 try:
                     self._waiters[cmd_id].remove(waiter)
                     if not self._waiters[cmd_id]:
-                        del self._waiters[cmd_id]
+                        self._waiters.pop(cmd_id, None)
                 except ValueError:
                     pass
 
@@ -338,7 +354,7 @@ class Connection:
                 if waiters_list:
                     waiter = waiters_list.pop(0)
                     if not waiters_list:
-                        del self._waiters[cmd_id]
+                        self._waiters.pop(cmd_id, None)
 
             # Get subscriber callbacks (copy the list)
             with self._subscribers_lock:
