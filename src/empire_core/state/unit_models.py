@@ -2,7 +2,6 @@
 Models for units and armies.
 """
 
-
 from pydantic import BaseModel, ConfigDict, Field
 
 

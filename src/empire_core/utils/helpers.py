@@ -2,7 +2,6 @@
 Helper functions for common game operations.
 """
 
-
 from empire_core.state.models import Castle, Player
 from empire_core.state.world_models import Movement
 from empire_core.utils.enums import MovementType
