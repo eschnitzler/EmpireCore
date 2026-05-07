@@ -2,19 +2,6 @@
 
 <!-- version list -->
 
-## v0.25.6 (2026-05-07)
-
-### Bug Fixes
-
-- Prevent socket disconnects via dual-layer sliding window rate limiter
-  ([`6c4218e`](https://github.com/eschnitzler/EmpireCore/commit/6c4218e1537614c04befcb4d8314a79962404b20))
-
-### Chores
-
-- Remove inline imports and unused files
-  ([`efebab6`](https://github.com/eschnitzler/EmpireCore/commit/efebab645b9083390b415c65969a683bcb1a2b3f))
-
-
 ## v0.25.5 (2026-05-07)
 
 ### Bug Fixes
