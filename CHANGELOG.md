@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.25.4 (2026-05-07)
+
+### Bug Fixes
+
+- Serialize WebSocket sends with a threading.Lock
+  ([`3f22a8c`](https://github.com/eschnitzler/EmpireCore/commit/3f22a8c8e4b082371b8ee563b8edaa56ffd02272))
+
+
 ## v0.25.3 (2026-04-26)
 
 ### Bug Fixes
