@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.25.5 (2026-05-07)
+
+### Bug Fixes
+
+- Improve map scanner resilience and fix waiter race condition
+  ([`f843e77`](https://github.com/eschnitzler/EmpireCore/commit/f843e770fa8eeef7b649939c5e395a38e352a1bb))
+
+
 ## v0.25.4 (2026-05-07)
 
 ### Bug Fixes
