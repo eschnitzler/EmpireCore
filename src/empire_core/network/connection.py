@@ -51,11 +51,6 @@ class Connection:
         self._recv_thread: threading.Thread | None = None
         self._keepalive_thread: threading.Thread | None = None
 
-        # Serializes writes to the WebSocket — websocket-client's send() is not
-        # thread-safe, so concurrent callers (e.g. two asyncio.to_thread tasks
-        # sharing one account) must not interleave frame writes.
-        self._send_lock = threading.Lock()
-
         # Request/response waiters: cmd_id -> ResponseWaiter
         # These are consumed when matched (one response per waiter)
         self._waiters: dict[str, list[ResponseWaiter]] = {}
@@ -168,15 +163,14 @@ class Connection:
         if data.endswith("\x00"):
             data = data[:-1]
 
-        with self._send_lock:
-            try:
-                if self.ws is None:
-                    raise RuntimeError("Not connected")
-                self.ws.send(data)
-                logger.debug(f"Sent: {data[:100]}...")
-            except Exception as e:
-                logger.error(f"Send failed: {e}")
-                raise
+        try:
+            if self.ws is None:
+                raise RuntimeError("Not connected")
+            self.ws.send(data)
+            logger.debug(f"Sent: {data[:100]}...")
+        except Exception as e:
+            logger.error(f"Send failed: {e}")
+            raise
 
     def send_bytes(self, data: bytes) -> None:
         """Send raw bytes to the server."""
