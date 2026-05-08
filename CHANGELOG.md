@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.25.7 (2026-05-08)
+
+### Bug Fixes
+
+- Remove irrelevant tests
+  ([`700ad19`](https://github.com/eschnitzler/EmpireCore/commit/700ad19b0668b7674f6da1f06e42c53ad7adf0ad))
+
+
 ## v0.25.6 (2026-05-07)
 
 ### Bug Fixes
