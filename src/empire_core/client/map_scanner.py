@@ -47,8 +47,9 @@ class MapScanner:
         x1, y1, x2, y2 = self._chunk_bounds(cx, cy)
         request = GetMapAreaRequest(KID=kingdom, AX1=x1, AY1=y1, AX2=x2, AY2=y2)
 
-        # Send and wait for response
         waiter = self.client.connection.create_waiter("gaa")
+
+        # Send and wait for response
         try:
             self.client.send(request, wait=False)
             response = self.client.connection.wait_for_result("gaa", waiter, timeout=request_timeout)
@@ -64,16 +65,11 @@ class MapScanner:
             try:
                 time.sleep(0.1)  # Wait a bit before retry
                 waiter = self.client.connection.create_waiter("gaa")
-                try:
-                    self.client.send(request, wait=False)
-                    response = self.client.connection.wait_for_result("gaa", waiter, timeout=request_timeout)
-                finally:
-                    self.client.connection.cancel_waiter("gaa", waiter)
+                self.client.send(request, wait=False)
+                response = self.client.connection.wait_for_result("gaa", waiter, timeout=request_timeout)
             except Exception as e2:
                 logger.error(f"Chunk ({cx}, {cy}) failed after retry: {e2}")
                 return False
-        finally:
-            self.client.connection.cancel_waiter("gaa", waiter)
 
         if not isinstance(response.payload, dict):
             return False
@@ -160,6 +156,9 @@ class MapScanner:
             if time.time() - start_time > timeout:
                 logger.warning(f"Kingdom scan timeout after {total_requests} requests")
                 break
+
+            # Add small delay to prevent rate limiting/disconnects
+            time.sleep(0.01)
 
             cx, cy = queue.pop(0)
 
