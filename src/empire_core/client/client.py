@@ -11,7 +11,10 @@ import json
 import logging
 import time
 from collections.abc import Callable
-from typing import TypeVar, cast
+from typing import TYPE_CHECKING, TypeVar, cast
+
+if TYPE_CHECKING:
+    from empire_core.utils.events import GameEvent
 
 from empire_core.config import (
     LOGIN_DEFAULTS,
@@ -415,6 +418,38 @@ class EmpireClient:
             Empty list if no events are active or not yet logged in.
         """
         return list(self.state.active_event_ids)  # Return copy, not reference
+
+    def get_active_events(
+        self,
+        lang: str = "en",
+        force_refresh: bool = False,
+    ) -> "list[GameEvent]":
+        """
+        Get currently active events with human-readable names resolved from the GGS CDN.
+
+        Combines ``get_active_event_ids()`` with a CDN lookup to produce typed
+        ``GameEvent`` objects. CDN data is cached after the first call.
+
+        Args:
+            lang: Language code for display names (default: "en").
+            force_refresh: Force re-fetch of CDN data, bypassing the cache.
+
+        Returns:
+            List of GameEvent objects for currently active events.
+            Empty list if no events are active or CDN fetch fails.
+
+        Example:
+            events = client.get_active_events()
+            event_names = {e.internal_name for e in events}
+
+            if "Nomad" in event_names:
+                # handle nomad event ...
+                pass
+        """
+        from empire_core.utils.events import GameEvent, get_active_events
+
+        event_ids = self.get_active_event_ids()
+        return get_active_events(event_ids, lang=lang, force_refresh=force_refresh)
 
     # ============================================================
     # Chat Subscription

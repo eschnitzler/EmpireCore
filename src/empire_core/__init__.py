@@ -11,6 +11,7 @@ from empire_core.state.models import Alliance, Building, Castle, Player, Resourc
 from empire_core.state.unit_models import UNIT_IDS, Army, UnitStats
 from empire_core.state.world_models import MapObject, Movement, MovementResources
 from empire_core.utils.enums import KingdomType, MapObjectType, MovementType
+from empire_core.utils.events import GameEvent
 
 __version__ = version(__package__)
 
@@ -35,4 +36,5 @@ __all__ = [
     "KingdomType",
     # Constants
     "UNIT_IDS",
+    "GameEvent",
 ]
