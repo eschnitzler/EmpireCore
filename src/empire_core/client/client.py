@@ -446,7 +446,7 @@ class EmpireClient:
                 # handle nomad event ...
                 pass
         """
-        from empire_core.utils.events import GameEvent, get_active_events
+        from empire_core.utils.events import get_active_events
 
         event_ids = self.get_active_event_ids()
         return get_active_events(event_ids, lang=lang, force_refresh=force_refresh)

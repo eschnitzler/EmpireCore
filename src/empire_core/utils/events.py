@@ -163,11 +163,7 @@ def get_active_events(
             continue
 
         internal_name = str(raw.get("eventType") or "Unknown")
-        description = (
-            str(raw.get("comment1", "") or "").strip()
-            or str(raw.get("comment2", "") or "").strip()
-            or ""
-        )
+        description = str(raw.get("comment1", "") or "").strip() or str(raw.get("comment2", "") or "").strip() or ""
 
         title_key = f"event_title_{eid}"
         display_name = translations.get(title_key) or internal_name
