@@ -2,6 +2,32 @@
 
 <!-- version list -->
 
+## v0.26.0 (2026-05-26)
+
+### Bug Fixes
+
+- Apply ruff formatting and remove unused import in events integration
+  ([`87b0c08`](https://github.com/eschnitzler/EmpireCore/commit/87b0c088e7f2e747cadb9fc89e62072acbb9abea))
+
+### Features
+
+- Add GameEvent dataclass and get_active_events CDN resolver
+  ([`5fccf23`](https://github.com/eschnitzler/EmpireCore/commit/5fccf23827ed848909785b728c29e580aab80a32))
+
+- Add get_active_events to EmpireClient and export GameEvent
+  ([`bf8183f`](https://github.com/eschnitzler/EmpireCore/commit/bf8183f35433b3769b365082269f18e76c60dd2a))
+
+### Refactoring
+
+- Use direct import for GameEvent, drop TYPE_CHECKING guard
+  ([`d80b064`](https://github.com/eschnitzler/EmpireCore/commit/d80b064bb188c723c3829dd07aeb40faca439d3e))
+
+### Testing
+
+- Add smoke tests to fix CI test collection failure
+  ([`c439f01`](https://github.com/eschnitzler/EmpireCore/commit/c439f01d8e53afae95a274894e05e3c3982b0bcb))
+
+
 ## v0.25.7 (2026-05-08)
 
 ### Bug Fixes
