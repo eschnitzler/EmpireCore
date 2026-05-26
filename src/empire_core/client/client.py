@@ -11,10 +11,7 @@ import json
 import logging
 import time
 from collections.abc import Callable
-from typing import TYPE_CHECKING, TypeVar, cast
-
-if TYPE_CHECKING:
-    from empire_core.utils.events import GameEvent
+from typing import TypeVar, cast
 
 from empire_core.config import (
     LOGIN_DEFAULTS,
@@ -56,6 +53,8 @@ from empire_core.services import (
 )
 from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
+from empire_core.utils.events import GameEvent
+from empire_core.utils.events import get_active_events as _get_active_events
 
 logger = logging.getLogger(__name__)
 
@@ -423,7 +422,7 @@ class EmpireClient:
         self,
         lang: str = "en",
         force_refresh: bool = False,
-    ) -> "list[GameEvent]":
+    ) -> list[GameEvent]:
         """
         Get currently active events with human-readable names resolved from the GGS CDN.
 
@@ -446,10 +445,8 @@ class EmpireClient:
                 # handle nomad event ...
                 pass
         """
-        from empire_core.utils.events import get_active_events
-
         event_ids = self.get_active_event_ids()
-        return get_active_events(event_ids, lang=lang, force_refresh=force_refresh)
+        return _get_active_events(event_ids, lang=lang, force_refresh=force_refresh)
 
     # ============================================================
     # Chat Subscription
