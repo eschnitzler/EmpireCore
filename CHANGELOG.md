@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.27.0 (2026-05-29)
+
+### Chores
+
+- Update GitHub Actions to Node.js 24-compatible versions
+  ([`daf11af`](https://github.com/eschnitzler/EmpireCore/commit/daf11af438df10cb40942a79ae7bdfadb1625dc2))
+
+### Features
+
+- Expand gdi model with full O fields and typed castle parsing
+  ([`d8ecd75`](https://github.com/eschnitzler/EmpireCore/commit/d8ecd75553aea62ccf48e2a170badf395763052e))
+
+
 ## v0.26.0 (2026-05-26)
 
 ### Bug Fixes
