@@ -70,18 +70,28 @@ class Packet:
     @classmethod
     def _parse_xt(cls, data: str) -> "Packet":
         # Format: %xt%{Command}%{RequestId}%{Status}%{Payload}%
-        parts = data.split("%")
+        # Limit the split so '%' characters inside the payload (chat
+        # messages, player names, ...) don't truncate it.
+        parts = data.split("%", 5)
         if len(parts) < 5:
             return cls(raw_data=data, is_xml=False)
 
         cmd = parts[2]
-        req_id = int(parts[3]) if parts[3].isdigit() else -1
+        try:
+            req_id = int(parts[3])
+        except ValueError:
+            req_id = -1
 
         error_code = 0
-        if parts[4].isdigit() or (parts[4].startswith("-") and parts[4][1:].isdigit()):
+        try:
             error_code = int(parts[4])
+        except ValueError:
+            pass
 
         raw_payload = parts[5] if len(parts) > 5 else ""
+        # Strip the trailing packet delimiter
+        if raw_payload.endswith("%"):
+            raw_payload = raw_payload[:-1]
 
         # Optimization: Only parse JSON if it looks like JSON
         payload_data = {}

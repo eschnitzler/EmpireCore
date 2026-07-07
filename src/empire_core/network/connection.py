@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 import websocket
 
-from empire_core.exceptions import TimeoutError
+from empire_core.exceptions import ConnectionClosedError, EmpireTimeoutError, NetworkError
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import Packet
 
@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 
 # Commands that use XT field 4 for data instead of error codes
 NON_ERROR_COMMANDS = {"rlu", "core_pol"}
+
+# Recv poll interval; also the socket timeout, so sends blocking longer
+# than this raise. Keep small so _running is checked promptly on shutdown.
+SOCKET_POLL_TIMEOUT = 1.0
+
+KEEPALIVE_INTERVAL = 60.0
 
 
 @dataclass
@@ -43,11 +49,16 @@ class Connection:
     - Thread-safe operations
     """
 
-    def __init__(self, url: str):
+    def __init__(self, url: str, keepalive_zone: str | None = None):
         self.url = url
+        self.keepalive_zone = keepalive_zone
         self.ws: websocket.WebSocket | None = None
 
         self._running = False
+        self._closing = False
+        # Incremented on every connect; threads from a previous connection
+        # notice the mismatch and exit without touching the new session.
+        self._generation = 0
         self._recv_thread: threading.Thread | None = None
         self._keepalive_thread: threading.Thread | None = None
 
@@ -64,7 +75,7 @@ class Connection:
         # Global packet handler (for state updates, etc.)
         self.on_packet: Callable[[Packet], None] | None = None
 
-        # Disconnect callback
+        # Called only on unexpected connection loss, not on disconnect().
         self.on_disconnect: Callable[[], None] | None = None
 
     @property
@@ -85,24 +96,32 @@ class Connection:
 
         logger.debug(f"Connecting to {self.url}...")
 
-        self.ws = websocket.WebSocket()
-        self.ws.settimeout(timeout)
+        ws = websocket.WebSocket()
+        ws.settimeout(timeout)
 
         try:
-            self.ws.connect(self.url)
-            self._running = True
+            ws.connect(self.url)
+            # After the handshake, drop to the poll timeout used by the
+            # recv loop (and, unavoidably, by sends on the shared socket).
+            ws.settimeout(SOCKET_POLL_TIMEOUT)
 
-            # Start receive thread
+            self.ws = ws
+            self._running = True
+            self._closing = False
+            self._generation += 1
+            generation = self._generation
+
             self._recv_thread = threading.Thread(
                 target=self._recv_loop,
+                args=(ws, generation),
                 name="EmpireCore-Recv",
                 daemon=True,
             )
             self._recv_thread.start()
 
-            # Start keepalive thread
             self._keepalive_thread = threading.Thread(
                 target=self._keepalive_loop,
+                args=(generation,),
                 name="EmpireCore-Keepalive",
                 daemon=True,
             )
@@ -112,7 +131,11 @@ class Connection:
 
         except Exception as e:
             logger.error(f"Connection failed: {e}")
-            self._cleanup()
+            try:
+                ws.close()
+            except Exception:
+                pass
+            self.ws = None
             raise
 
     def disconnect(self) -> None:
@@ -121,6 +144,7 @@ class Connection:
             return
 
         logger.debug("Disconnecting...")
+        self._closing = True
         self._running = False
 
         # Cancel all waiters
@@ -129,10 +153,12 @@ class Connection:
         # Close websocket
         self._cleanup()
 
-        # Wait for threads to finish
-        if self._recv_thread and self._recv_thread.is_alive():
+        # Wait for threads to finish (unless called from one of them,
+        # e.g. from inside a subscriber callback on the recv thread)
+        current = threading.current_thread()
+        if self._recv_thread and self._recv_thread is not current and self._recv_thread.is_alive():
             self._recv_thread.join(timeout=2.0)
-        if self._keepalive_thread and self._keepalive_thread.is_alive():
+        if self._keepalive_thread and self._keepalive_thread is not current and self._keepalive_thread.is_alive():
             self._keepalive_thread.join(timeout=2.0)
 
         logger.debug("Disconnected")
@@ -154,27 +180,42 @@ class Connection:
             data: String data to send
 
         Raises:
-            RuntimeError: If not connected
+            NetworkError: If not connected or the send fails
         """
-        if not self.connected:
-            raise RuntimeError("Not connected")
-
         # Remove null terminator if present (we'll add it)
         if data.endswith("\x00"):
             data = data[:-1]
 
+        ws = self.ws
+        if ws is None or not self._running:
+            raise NetworkError("Not connected")
+
         try:
-            if self.ws is None:
-                raise RuntimeError("Not connected")
-            self.ws.send(data)
+            ws.send(data)
             logger.debug(f"Sent: {data[:100]}...")
         except Exception as e:
             logger.error(f"Send failed: {e}")
-            raise
+            raise NetworkError(f"Send failed: {e}") from e
 
-    def send_bytes(self, data: bytes) -> None:
-        """Send raw bytes to the server."""
-        self.send(data.decode("utf-8"))
+    def request(self, data: str, cmd_id: str, timeout: float = 5.0) -> Packet:
+        """
+        Send data and wait for the response to ``cmd_id``.
+
+        The waiter is registered *before* the data is sent, so a response
+        arriving immediately cannot be lost to a registration race.
+
+        Raises:
+            EmpireTimeoutError: No response within ``timeout``
+            ConnectionClosedError: Connection dropped while waiting
+            NetworkError: The send itself failed
+        """
+        waiter = self.create_waiter(cmd_id)
+        try:
+            self.send(data)
+        except Exception:
+            self.cancel_waiter(cmd_id, waiter)
+            raise
+        return self.wait_for_result(cmd_id, waiter, timeout=timeout)
 
     def create_waiter(self, cmd_id: str) -> ResponseWaiter:
         waiter = ResponseWaiter()
@@ -191,9 +232,9 @@ class Connection:
                     raise waiter.error
                 if waiter.result:
                     return waiter.result
-                raise RuntimeError("Waiter completed without result")
+                raise ConnectionClosedError("Waiter completed without result")
             else:
-                raise TimeoutError(f"Timeout waiting for '{cmd_id}'")
+                raise EmpireTimeoutError(f"Timeout waiting for '{cmd_id}'")
         finally:
             self.cancel_waiter(cmd_id, waiter)
 
@@ -214,6 +255,10 @@ class Connection:
     ) -> Packet:
         """
         Wait for a response with the given command ID.
+
+        Note: only use this for server-pushed packets. For request/response
+        round trips use :meth:`request`, which registers the waiter before
+        sending.
         """
         waiter = self.create_waiter(cmd_id)
         return self.wait_for_result(cmd_id, waiter, timeout)
@@ -245,20 +290,14 @@ class Connection:
                 except ValueError:
                     pass
 
-    def _recv_loop(self) -> None:
+    def _recv_loop(self, ws: websocket.WebSocket, generation: int) -> None:
         """Background thread that receives and routes messages."""
         logger.debug("Receive loop started")
 
-        while self._running:
+        while self._running and generation == self._generation:
             try:
-                if not self.ws:
-                    break
-
-                # Set a timeout so we can check _running periodically
-                self.ws.settimeout(1.0)
-
                 try:
-                    data = self.ws.recv()
+                    data = ws.recv()
                 except websocket.WebSocketTimeoutException:
                     continue  # Check _running and try again
 
@@ -275,18 +314,25 @@ class Connection:
                 self._route_packet(packet)
 
             except websocket.WebSocketConnectionClosedException:
-                logger.warning("Connection closed by server")
+                if not self._closing:
+                    logger.warning("Connection closed by server")
                 break
             except Exception as e:
-                if self._running:
+                if self._running and generation == self._generation:
                     logger.error(f"Error in receive loop: {e}")
                 break
 
-        # Connection lost
+        # If a newer connection took over, this thread must not touch
+        # shared state - the new session owns it now.
+        if generation != self._generation:
+            logger.debug("Receive loop superseded by newer connection")
+            return
+
+        was_closing = self._closing
         self._running = False
         self._cancel_all_waiters()
 
-        if self.on_disconnect:
+        if self.on_disconnect and not was_closing:
             try:
                 self.on_disconnect()
             except Exception as e:
@@ -349,43 +395,48 @@ class Connection:
             for callback in callbacks:
                 try:
                     callback(packet)
-                except Exception as e:
-                    logger.error(f"Subscriber error: {e}")
+                except Exception:
+                    logger.exception("Subscriber error")
 
         # Global handler
         if self.on_packet:
             try:
                 self.on_packet(packet)
-            except Exception as e:
-                logger.error(f"Packet handler error: {e}")
+            except Exception:
+                logger.exception("Packet handler error")
 
-    def _keepalive_loop(self) -> None:
+    def _keepalive_loop(self, generation: int) -> None:
         """Background thread that sends keepalive pings."""
         logger.debug("Keepalive loop started")
 
-        try:
-            from empire_core.protocol.models.base import DEFAULT_ZONE
+        zone = self.keepalive_zone
+        if zone is None:
+            try:
+                from empire_core.protocol.models.base import DEFAULT_ZONE
 
-            zone = DEFAULT_ZONE
-        except ImportError:
-            zone = "EmpireEx_21"
+                zone = DEFAULT_ZONE
+            except ImportError:
+                zone = "EmpireEx_21"
 
-        while self._running:
-            # Send keepalive every 60s
-            # Server timeout is likely >60s, sending too often might be unnecessary
-            for _ in range(60):
-                if not self._running:
+        def active() -> bool:
+            return self._running and generation == self._generation
+
+        while active():
+            # Send keepalive every KEEPALIVE_INTERVAL seconds, waking up
+            # once per second so shutdown is prompt.
+            for _ in range(int(KEEPALIVE_INTERVAL)):
+                if not active():
                     break
                 time.sleep(1)
 
-            if not self._running:
+            if not active():
                 break
 
             try:
                 self.send(f"%xt%{zone}%pin%1%<RoundHouseKick>%")
                 logger.debug("Sent keepalive ping")
             except Exception as e:
-                if self._running:
+                if active():
                     logger.error(f"Keepalive failed: {e}")
                     # Don't break immediately, retry on next cycle if still running
                     # Only break if socket is explicitly closed
@@ -399,6 +450,6 @@ class Connection:
         with self._waiters_lock:
             for waiters in self._waiters.values():
                 for waiter in waiters:
-                    waiter.error = RuntimeError("Connection closed")
+                    waiter.error = ConnectionClosedError("Connection closed")
                     waiter.event.set()
             self._waiters.clear()

@@ -1,19 +1,27 @@
+"""Typed exceptions for EmpireCore.
+
+Failure modes are kept distinct so callers can react to them individually:
+
+- ``EmpireTimeoutError``: the server did not answer in time.
+- ``ConnectionClosedError``: the connection dropped while waiting.
+- ``CommandError``: the server answered with a non-zero error code.
+"""
+
+
 class EmpireError(Exception):
     """Base class for all EmpireCore exceptions."""
-
-    pass
 
 
 class NetworkError(EmpireError):
     """Raised when a network operation fails."""
 
-    pass
+
+class ConnectionClosedError(NetworkError):
+    """Raised when the connection closes while an operation is in flight."""
 
 
 class LoginError(EmpireError):
     """Raised when the login sequence fails."""
-
-    pass
 
 
 class LoginCooldownError(LoginError):
@@ -27,16 +35,31 @@ class LoginCooldownError(LoginError):
 class PacketError(EmpireError):
     """Raised when packet parsing fails."""
 
-    pass
+
+class EmpireTimeoutError(EmpireError, TimeoutError):
+    """Raised when an operation times out.
+
+    Subclasses the builtin ``TimeoutError`` so ``except TimeoutError``
+    catches it too.
+    """
 
 
-class TimeoutError(EmpireError):
-    """Raised when an operation times out."""
+class CommandError(EmpireError):
+    """Raised when the server responds to a command with a non-zero error code."""
 
-    pass
+    def __init__(self, command: str, code: int):
+        self.command = command
+        self.code = code
+        super().__init__(f"Server error {self._error_name()} ({code}) for command '{command}'")
+
+    def _error_name(self) -> str:
+        try:
+            from empire_core.protocol.errors import GGEError
+
+            return GGEError.from_code(self.code).name
+        except Exception:
+            return "UNKNOWN"
 
 
 class ActionError(EmpireError):
     """Raised when a game action fails."""
-
-    pass
