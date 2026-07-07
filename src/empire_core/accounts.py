@@ -32,7 +32,7 @@ class Account(BaseModel):
     username: str
     password: str = Field(..., description="Plain text password")
     world: str = Field(default="EmpireEx_21", description="Game world/zone (e.g., EmpireEx_21)")
-    alias: str | None = Field(None, description="Short name for this account (e.g., 'main', 'farmer1')")
+    alias: str | None = Field(default=None, description="Short name for this account (e.g., 'main', 'farmer1')")
     tags: list[str] = Field(default_factory=list, description="Categorization tags (e.g., ['farmer', 'k1'])")
     active: bool = Field(default=True, description="Whether this account should be used")
 
