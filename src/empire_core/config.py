@@ -6,9 +6,6 @@ from pydantic import BaseModel
 # Constants
 # ============================================================
 
-# Map chunk size for gaa requests
-MAP_CHUNK_SIZE = 12
-
 
 # Server error codes
 class ServerError:
@@ -17,25 +14,6 @@ class ServerError:
     LOGIN_COOLDOWN = 453
     INVALID_CREDENTIALS = 401
     SESSION_EXPIRED = 440
-
-
-# Resource type IDs used in transport payloads
-class ResourceType:
-    """Resource type ID constants for protocol payloads."""
-
-    WOOD = "1"
-    STONE = "2"
-    FOOD = "3"
-
-
-# Troop action types
-class TroopActionType:
-    """Troop action type constants."""
-
-    ATTACK = 1
-    SUPPORT = 2
-    TRANSPORT = 3
-    SPY = 4
 
 
 # Default login payload values
