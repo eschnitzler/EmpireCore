@@ -3,12 +3,27 @@ Spy service for high-level espionage operations.
 """
 
 import time
+from dataclasses import dataclass
 from typing import Any
 
-from ..protocol.models.attack import SendSpyRequest, SendSpyResponse, SpyScreenInfoRequest, SpyScreenInfoResponse
+from empire_core.exceptions import CommandError, EmpireError
+
+from ..protocol.models.attack import SendSpyRequest, SpyScreenInfoRequest, SpyScreenInfoResponse
 from ..protocol.models.base import parse_response
 from ..protocol.models.messages import BattleSpyDataRequest, BattleSpyDataResponse, SystemNotificationEvent
 from .base import BaseService, register_service
+
+
+@dataclass
+class SpyResult:
+    """Outcome of an instant spy mission."""
+
+    success: bool
+    reason: str | None = None
+    message_id: int | None = None
+    spy_data: Any = None
+    battle_data: Any = None
+    target: Any = None
 
 
 @register_service("spy")
@@ -22,18 +37,22 @@ class SpyService(BaseService):
         target_y: int,
         target_kingdom: int = 0,
         risk_tolerance: int = 50,
-    ) -> dict[str, Any]:
+    ) -> SpyResult:
         """
         Execute an instant spy mission using feathers.
 
+        Blocks the calling thread for up to ~10s while polling for spy
+        availability — do not call this from a state callback.
+
         Args:
+            source_castle_id: Source castle ID
             target_x: Target X coordinate
             target_y: Target Y coordinate
             target_kingdom: Target kingdom ID (default 0 for Green)
             risk_tolerance: Maximum acceptable risk percentage (0-100)
 
         Returns:
-            Dictionary containing the spy report data, or error info.
+            SpyResult with the spy report data or a failure reason.
         """
         # 1. Get spy screen info, polling until spies are available (they may be returning)
         _SSI_POLL_ATTEMPTS = 5
@@ -47,10 +66,10 @@ class SpyService(BaseService):
 
         spies_to_send = 0
         for attempt in range(_SSI_POLL_ATTEMPTS):
-            ssi_resp = self.send(ssi_req, wait=True)
-
-            if not isinstance(ssi_resp, SpyScreenInfoResponse) or ssi_resp.error_code != 0:
-                return {"status": "error", "reason": f"ssi_failed_{getattr(ssi_resp, 'error_code', 'unknown')}"}
+            try:
+                ssi_resp = self.request(ssi_req, SpyScreenInfoResponse)
+            except EmpireError as e:
+                return SpyResult(success=False, reason=f"ssi_failed_{_error_tag(e)}")
 
             spies_to_send = ssi_resp.available_spies
             if spies_to_send > 0:
@@ -61,7 +80,7 @@ class SpyService(BaseService):
                 time.sleep(_SSI_POLL_DELAY)
 
         if spies_to_send <= 0:
-            return {"status": "error", "reason": "no_spies_available"}
+            return SpyResult(success=False, reason="no_spies_available")
 
         # 2. Calculate risk (simplified for now - just use max spies)
         # In a real implementation, we'd calculate exact spies needed for risk_tolerance
@@ -80,51 +99,62 @@ class SpyService(BaseService):
             SD=0,
         )
 
+        # Register the sne waiter before sending csm so the notification
+        # can't slip past between the two calls. Note: sne is a generic
+        # system-notification channel; an unrelated notification arriving
+        # in this window would be misattributed (no correlation id exists).
         sne_waiter = self.client.connection.create_waiter("sne")
 
         try:
-            csm_resp = self.send(csm_req, wait=True)
-            if not isinstance(csm_resp, SendSpyResponse) or getattr(csm_resp, "error_code", 0) != 0:
-                error_code = getattr(csm_resp, "error_code", "timeout") if csm_resp else "timeout"
-                return {"status": "error", "reason": f"csm_failed_{error_code}"}
+            try:
+                self.send(csm_req, wait=True)
+            except EmpireError as e:
+                return SpyResult(success=False, reason=f"csm_failed_{_error_tag(e)}")
 
             # 4. Wait for the SNE event to get the message ID
-            sne_packet = self.client.connection.wait_for_result("sne", sne_waiter, timeout=10.0)
-            if not sne_packet or not isinstance(sne_packet.payload, dict):
-                return {"status": "error", "reason": "invalid_sne_format"}
+            try:
+                sne_packet = self.client.connection.wait_for_result("sne", sne_waiter, timeout=10.0)
+            except EmpireError as e:
+                return SpyResult(success=False, reason=f"sne_timeout_or_error_{_error_tag(e)}")
+
+            if not isinstance(sne_packet.payload, dict):
+                return SpyResult(success=False, reason="invalid_sne_format")
 
             sne_event = parse_response("sne", sne_packet.payload)
 
             if not isinstance(sne_event, SystemNotificationEvent):
-                return {"status": "error", "reason": "invalid_sne_format"}
+                return SpyResult(success=False, reason="invalid_sne_format")
 
             # Extract MID from the first message
             if not sne_event.messages or not sne_event.messages[0]:
-                return {"status": "error", "reason": "invalid_sne_format"}
+                return SpyResult(success=False, reason="invalid_sne_format")
 
             message_id = sne_event.messages[0][0]
 
             # Check if spy was caught: the "1+2+1" pattern from the legacy bot
             first_msg = sne_event.messages[0]
             if len(first_msg) >= 4 and first_msg[1] == 1 and first_msg[2] == 2 and first_msg[3] == 1:
-                return {"status": "error", "reason": "spy_caught"}
+                return SpyResult(success=False, reason="spy_caught")
 
             # 5. Request the actual spy report data
-            bsd_req = BattleSpyDataRequest(MID=message_id)
-            bsd_resp = self.send(bsd_req, wait=True)
+            try:
+                bsd_resp = self.request(BattleSpyDataRequest(MID=message_id), BattleSpyDataResponse)
+            except EmpireError as e:
+                return SpyResult(success=False, reason=f"bsd_failed_{_error_tag(e)}")
 
-            if not isinstance(bsd_resp, BattleSpyDataResponse) or getattr(bsd_resp, "error_code", 0) != 0:
-                return {"status": "error", "reason": f"bsd_failed_{getattr(bsd_resp, 'error_code', 'unknown')}"}
-
-            return {
-                "status": "success",
-                "message_id": message_id,
-                "spy_data": bsd_resp.spy_data,
-                "battle_data": getattr(bsd_resp, "battle_data", None),
-                "target": getattr(bsd_resp, "target", None),
-            }
-
-        except Exception as e:
-            return {"status": "error", "reason": f"sne_timeout_or_error_{str(e)}"}
+            return SpyResult(
+                success=True,
+                message_id=message_id,
+                spy_data=bsd_resp.spy_data,
+                battle_data=getattr(bsd_resp, "battle_data", None),
+                target=getattr(bsd_resp, "target", None),
+            )
         finally:
             self.client.connection.cancel_waiter("sne", sne_waiter)
+
+
+def _error_tag(e: Exception) -> str:
+    """Short machine-readable tag for a failure reason."""
+    if isinstance(e, CommandError):
+        return str(e.code)
+    return type(e).__name__

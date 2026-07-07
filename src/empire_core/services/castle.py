@@ -5,6 +5,10 @@ Provides high-level APIs for:
 - Castle management (list, select, rename, relocate)
 - Resource information
 - Production rates
+
+Action methods return True when the server accepted the action and False
+when it rejected it with an error code; transport failures (timeout,
+disconnect) raise. Query methods raise on any failure.
 """
 
 from __future__ import annotations
@@ -22,10 +26,9 @@ from empire_core.protocol.models import (
     GetResourcesResponse,
     ProductionRates,
     RenameCastleRequest,
-    RenameCastleResponse,
     ResourceAmount,
     SelectCastleRequest,
-    SelectCastleResponse,
+    SendSupportRequest,
 )
 
 from .base import BaseService, register_service
@@ -62,49 +65,24 @@ class CastleService(BaseService):
         """
         Get list of all player's castles.
 
-        Args:
-            timeout: Timeout in seconds to wait for response
-
-        Returns:
-            List of CastleInfo objects
-
         Example:
             castles = client.castle.get_all()
             for c in castles:
                 print(f"{c.castle_name} (ID: {c.castle_id}) at ({c.x}, {c.y})")
         """
-        request = GetCastlesRequest()
-        response = self.send(request, wait=True, timeout=timeout)
-
-        if isinstance(response, GetCastlesResponse):
-            return response.castles
-
-        return []
+        return self.request(GetCastlesRequest(), GetCastlesResponse, timeout=timeout).castles
 
     def get_details(self, castle_id: int, timeout: float = 5.0) -> DetailedCastleInfo | None:
         """
         Get detailed information about a specific castle.
 
-        Args:
-            castle_id: The castle ID
-            timeout: Timeout in seconds
-
-        Returns:
-            DetailedCastleInfo with buildings, resources, etc., or None
-
         Example:
             details = client.castle.get_details(12345)
             if details:
                 print(f"Buildings: {len(details.buildings)}")
-                print(f"Population: {details.population}/{details.max_population}")
         """
         request = GetDetailedCastleRequest(CID=castle_id)
-        response = self.send(request, wait=True, timeout=timeout)
-
-        if isinstance(response, GetDetailedCastleResponse):
-            return response.castle
-
-        return None
+        return self.request(request, GetDetailedCastleResponse, timeout=timeout).castle
 
     # =========================================================================
     # Castle Selection
@@ -114,25 +92,11 @@ class CastleService(BaseService):
         """
         Select/jump to a castle (makes it the active castle).
 
-        Args:
-            castle_id: The castle ID to select
-            kingdom_id: The kingdom ID (optional, defaults to 0)
-            timeout: Timeout in seconds
-
-        Returns:
-            True if successful, False otherwise
-
         Example:
             if client.castle.select(12345, kingdom_id=2):
                 print("Castle selected!")
         """
-        request = SelectCastleRequest(CID=castle_id, KID=kingdom_id)
-        response = self.send(request, wait=True, timeout=timeout)
-
-        if isinstance(response, SelectCastleResponse):
-            return response.error_code == 0
-
-        return False
+        return self.execute(SelectCastleRequest(CID=castle_id, KID=kingdom_id), timeout=timeout)
 
     # =========================================================================
     # Castle Modification
@@ -142,25 +106,11 @@ class CastleService(BaseService):
         """
         Rename a castle.
 
-        Args:
-            castle_id: The castle ID
-            new_name: The new castle name
-            timeout: Timeout in seconds
-
-        Returns:
-            True if successful, False otherwise
-
         Example:
             if client.castle.rename(12345, "My Fortress"):
                 print("Castle renamed!")
         """
-        request = RenameCastleRequest(CID=castle_id, CN=new_name)
-        response = self.send(request, wait=True, timeout=timeout)
-
-        if isinstance(response, RenameCastleResponse):
-            return response.error_code == 0
-
-        return False
+        return self.execute(RenameCastleRequest(CID=castle_id, CN=new_name), timeout=timeout)
 
     # =========================================================================
     # Resource Operations
@@ -170,26 +120,12 @@ class CastleService(BaseService):
         """
         Get current resources for a castle.
 
-        Args:
-            castle_id: The castle ID
-            timeout: Timeout in seconds
-
-        Returns:
-            ResourceAmount with wood, stone, food, coins, or None
-
         Example:
             resources = client.castle.get_resources(12345)
             if resources:
                 print(f"Wood: {resources.wood}")
-                print(f"Stone: {resources.stone}")
         """
-        request = GetResourcesRequest(CID=castle_id)
-        response = self.send(request, wait=True, timeout=timeout)
-
-        if isinstance(response, GetResourcesResponse):
-            return response.resources
-
-        return None
+        return self.request(GetResourcesRequest(CID=castle_id), GetResourcesResponse, timeout=timeout).resources
 
     def get_production(
         self, castle_id: int, timeout: float = 5.0
@@ -197,26 +133,16 @@ class CastleService(BaseService):
         """
         Get production and consumption rates for a castle.
 
-        Args:
-            castle_id: The castle ID
-            timeout: Timeout in seconds
-
         Returns:
-            Tuple of (production_rates, consumption_rates), either may be None
+            Tuple of (production_rates, consumption_rates)
 
         Example:
             production, consumption = client.castle.get_production(12345)
             if production:
                 print(f"Wood/hr: {production.wood}")
-                print(f"Food/hr: {production.food}")
         """
-        request = GetProductionRequest(CID=castle_id)
-        response = self.send(request, wait=True, timeout=timeout)
-
-        if isinstance(response, GetProductionResponse):
-            return response.production, response.consumption
-
-        return None, None
+        response = self.request(GetProductionRequest(CID=castle_id), GetProductionResponse, timeout=timeout)
+        return response.production, response.consumption
 
     # =========================================================================
     # Support Operations
@@ -253,12 +179,7 @@ class CastleService(BaseService):
             slowdown: Movement slowdown modifier (0 = none, default: 0)
             lord_id: Lord/General ID (-14 = coordinates/no lord, default: -14)
             timeout: Timeout in seconds
-
-        Returns:
-            True if successful, False otherwise
         """
-        from empire_core.protocol.models import SendSupportRequest, SendSupportResponse
-
         request = SendSupportRequest(
             SID=source_castle_id,
             TX=target_x,
@@ -272,12 +193,7 @@ class CastleService(BaseService):
             SD=slowdown,
             LID=lord_id,
         )
-        response = self.send(request, wait=True, timeout=timeout)
-
-        if isinstance(response, SendSupportResponse):
-            return response.success
-
-        return False
+        return self.execute(request, timeout=timeout)
 
 
 __all__ = ["CastleService"]

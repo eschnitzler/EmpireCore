@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
+from empire_core.exceptions import CommandError
 from empire_core.protocol.models import (
     AllianceBookmark,
     AllianceChatLogRequest,
@@ -66,6 +67,7 @@ class AllianceService(BaseService):
         super().__init__(client)
         self._chat_callbacks: list[Callable[[AllianceChatMessageResponse], None]] = []
         self._members: dict[int, AllianceMember] = {}
+        self._members_alliance_id: int | None = None
 
         # Register internal handler for chat messages
         self.on_response("acm", self._handle_chat_message)
@@ -93,15 +95,11 @@ class AllianceService(BaseService):
             for member in members:
                 print(f"{member.name}: online={member.is_online}")
         """
-        request = GetAllianceInfoRequest(AID=alliance_id)
-        response = self.send(request, wait=True, timeout=timeout)
-
-        if isinstance(response, GetAllianceInfoResponse):
-            # Update cached members
-            self._members = {m.player_id: m for m in response.members}
-            return response.members
-
-        return []
+        response = self.request(GetAllianceInfoRequest(AID=alliance_id), GetAllianceInfoResponse, timeout=timeout)
+        # Update cached members and remember which alliance they belong to
+        self._members = {m.player_id: m for m in response.members}
+        self._members_alliance_id = alliance_id
+        return response.members
 
     def get_online_members(self, alliance_id: int, timeout: float = 5.0) -> list[AllianceMember]:
         """
@@ -140,7 +138,12 @@ class AllianceService(BaseService):
             member = client.alliance.get_member(12345, no_cache=True)  # Fresh data
         """
         if no_cache:
-            self.get_local_members()
+            # Refresh the alliance the cache actually belongs to, not
+            # unconditionally the local one
+            if self._members_alliance_id is not None:
+                self.get_members(self._members_alliance_id)
+            else:
+                self.get_local_members()
         return self._members.get(player_id)
 
     @property
@@ -175,37 +178,30 @@ class AllianceService(BaseService):
             results = client.alliance.search_alliances("HOPE")
             for alliance in results:
                 print(f"{alliance.name} (ID: {alliance.alliance_id}, {alliance.member_count} members)")
+
+        Note: 'hgh' is shared with the highscore command, so a concurrent
+        get_highscore() call can receive this response (and vice versa) —
+        the protocol offers no way to correlate them.
         """
-
         request = SearchAllianceRequest.create(search_term)
-        logger.debug(f"Alliance search request: LT={request.list_type}, LID={request.list_id}, SV='{search_term}'")
         packet = request.to_packet(zone=self.zone)
-        self.client.connection.send(packet)
 
-        try:
-            response_packet = self.client.connection.wait_for("hgh", timeout=timeout)
-            logger.debug(
-                f"Alliance search response: error_code={response_packet.error_code}, payload_type={type(response_packet.payload)}"
-            )
+        # connection.request registers the waiter before sending (race-free).
+        # SearchAllianceResponse is instantiated manually because the 'hgh'
+        # registry entry is owned by GetHighscoreResponse.
+        response_packet = self.client.connection.request(packet, "hgh", timeout=timeout)
 
-            # Check for error code (e.g., 114 = not found)
-            if response_packet.error_code != 0:
-                logger.warning(f"Alliance search returned error code: {response_packet.error_code}")
-                return []
+        # 114 = nothing found; a legitimate empty result
+        if response_packet.error_code == 114:
+            return []
+        if response_packet.error_code != 0:
+            raise CommandError("hgh", response_packet.error_code)
 
-            if isinstance(response_packet.payload, dict):
-                # Directly instantiate SearchAllianceResponse instead of using parse_response()
-                # because multiple response classes use "hgh" command and parse_response()
-                # can only map one class per command
-                response = SearchAllianceResponse.model_validate(response_packet.payload)
-                logger.debug(f"Alliance search found {len(response.results)} results")
-                for r in response.results[:3]:
-                    logger.debug(f"  - {r.name} (ID: {r.alliance_id})")
-                return response.results
-        except Exception as e:
-            logger.error(f"Alliance search failed: {type(e).__name__}: {e}", exc_info=True)
-
-        return []
+        if not isinstance(response_packet.payload, dict):
+            return []
+        response = SearchAllianceResponse.model_validate(response_packet.payload)
+        logger.debug(f"Alliance search found {len(response.results)} results")
+        return response.results
 
     # =========================================================================
     # Own Alliance Operations
@@ -237,7 +233,7 @@ class AllianceService(BaseService):
             List of AllianceMember objects, empty list if not in alliance
 
         Example:
-            members = client.alliance.get_my_members()
+            members = client.alliance.get_local_members()
             for member in members:
                 print(f"{member.name}: {'online' if member.is_online else 'offline'}")
         """
@@ -260,7 +256,7 @@ class AllianceService(BaseService):
             List of online AllianceMember objects, empty list if not in alliance
 
         Example:
-            online = client.alliance.get_my_online_members()
+            online = client.alliance.get_local_online_members()
             print(f"{len(online)} alliance members online")
         """
         alliance_id = self.local_alliance_id
@@ -301,13 +297,7 @@ class AllianceService(BaseService):
             for entry in history:
                 print(f"{entry.player_name}: {entry.decoded_text}")
         """
-        request = AllianceChatLogRequest()
-        response = self.send(request, wait=True, timeout=timeout)
-
-        if isinstance(response, AllianceChatLogResponse):
-            return response.chat_log
-
-        return []
+        return self.request(AllianceChatLogRequest(), AllianceChatLogResponse, timeout=timeout).chat_log
 
     def on_chat_message(self, callback: Callable[[AllianceChatMessageResponse], None]) -> None:
         """
@@ -334,13 +324,13 @@ class AllianceService(BaseService):
                 try:
                     callback(response)
                 except Exception:
-                    pass  # Silently ignore callback errors
+                    logger.exception("Chat message callback error")
 
     # =========================================================================
     # Help Operations
     # =========================================================================
 
-    def help_all(self) -> HelpAllResponse | None:
+    def help_all(self, timeout: float = 5.0) -> HelpAllResponse:
         """
         Help all alliance members who need help.
 
@@ -348,20 +338,13 @@ class AllianceService(BaseService):
         (heal, repair, recruit).
 
         Returns:
-            HelpAllResponse with helped_count, or None on failure
+            HelpAllResponse with helped_count
 
         Example:
             response = client.alliance.help_all()
-            if response:
-                print(f"Helped {response.helped_count} members")
+            print(f"Helped {response.helped_count} members")
         """
-        request = HelpAllRequest()
-        response = self.send(request, wait=True, timeout=5.0)
-
-        if isinstance(response, HelpAllResponse):
-            return response
-
-        return None
+        return self.request(HelpAllRequest(), HelpAllResponse, timeout=timeout)
 
     def help_member_heal(self, player_id: int, castle_id: int) -> None:
         """
@@ -441,13 +424,7 @@ class AllianceService(BaseService):
         Returns:
             List of AllianceBookmark objects
         """
-        request = GetAllianceBookmarksRequest()
-        response = self.send(request, wait=True, timeout=timeout)
-
-        if isinstance(response, GetAllianceBookmarksResponse):
-            return response.bookmarks
-
-        return []
+        return self.request(GetAllianceBookmarksRequest(), GetAllianceBookmarksResponse, timeout=timeout).bookmarks
 
 
 __all__ = ["AllianceService"]
