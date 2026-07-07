@@ -95,9 +95,7 @@ class TestScanChunks:
     def test_rescan_of_content_chunks_is_cheaper_than_discovery(self):
         content = {(5, 5), (5, 6), (6, 5)}
         discovery_fake = _FakeClient(content_chunks=content, start_chunk=(5, 5))
-        discovery = _make_scanner(discovery_fake).scan_kingdom(
-            kingdom=Kingdom.GREEN, item_types=[], chunk_delay=0
-        )
+        discovery = _make_scanner(discovery_fake).scan_kingdom(kingdom=Kingdom.GREEN, item_types=[], chunk_delay=0)
         discovery_requests = len(discovery_fake.connection.requests)
 
         rescan_fake = _FakeClient(content_chunks=content)
