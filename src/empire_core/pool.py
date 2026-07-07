@@ -10,7 +10,7 @@ import logging
 
 from empire_core.accounts import Account, accounts
 from empire_core.client.client import EmpireClient
-from empire_core.exceptions import LoginCooldownError
+from empire_core.exceptions import LoginCooldownError, LoginError
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ class AccountPool:
                 continue
             if not acc.active:
                 continue
-            if tag and (not acc.tags or tag not in acc.tags):
+            if tag and not acc.has_tag(tag):
                 continue
             available.append(acc)
 
@@ -124,13 +124,14 @@ class AccountPool:
 
             # Mark as busy
             self._busy.add(account.username)
+            client: EmpireClient | None = None
 
             try:
                 # Create client
                 client = account.get_client()
 
-                if login:
-                    client.login()
+                if login and not client.login():
+                    raise LoginError(f"Login returned False for {account.username}")
 
                 # Cache and return
                 self._clients[account.username] = client
@@ -140,23 +141,26 @@ class AccountPool:
             except LoginCooldownError as e:
                 logger.warning(f"AccountPool: {account.username} on cooldown ({e.cooldown}s), trying next...")
                 self._busy.discard(account.username)
-                try:
-                    client.close()
-                except Exception:
-                    pass
+                self._safe_close(client)
                 continue
 
             except Exception as e:
                 logger.error(f"AccountPool: Failed to lease {account.username}: {e}")
                 self._busy.discard(account.username)
-                try:
-                    client.close()
-                except Exception:
-                    pass
+                self._safe_close(client)
                 continue
 
         logger.error("AccountPool: All candidate accounts failed")
         return None
+
+    @staticmethod
+    def _safe_close(client: EmpireClient | None) -> None:
+        if client is None:
+            return
+        try:
+            client.close()
+        except Exception:
+            pass
 
     def release(self, client: EmpireClient, logout: bool = True) -> None:
         """
@@ -172,9 +176,10 @@ class AccountPool:
         username = client.username
 
         if logout:
+            # Always close: a client leased with login=False (or whose login
+            # failed) still holds an open websocket and receive thread.
             try:
-                if client.is_logged_in:
-                    client.close()
+                client.close()
             except Exception as e:
                 logger.error(f"AccountPool: Error closing {username}: {e}")
 

@@ -1,5 +1,9 @@
 """
 Asynchronous Database storage using SQLModel and aiosqlite with Write Queue.
+
+EXPERIMENTAL: not yet wired into the client; the API may change. There is
+no schema-migration story — changing a model against an existing .db file
+produces missing-column errors.
 """
 
 import asyncio
@@ -96,15 +100,19 @@ class GameDatabase:
 
     async def close(self):
         """Shutdown engine and writer."""
+        if self._writer_task and not self._writer_task.done():
+            # Drain the queue while the writer is still consuming. Setting
+            # _running=False first would let the writer exit with items
+            # still queued and this join() would hang forever.
+            await self._write_queue.join()
         self._running = False
         if self._writer_task:
-            # Wait for queue to drain
-            await self._write_queue.join()
             self._writer_task.cancel()
             try:
                 await self._writer_task
             except asyncio.CancelledError:
                 pass
+            self._writer_task = None
 
         await self.engine.dispose()
 
@@ -219,11 +227,12 @@ class GameDatabase:
 
     async def get_object_count(self) -> int:
         """Total discovered objects."""
+        from sqlalchemy import func
+
         async with self.async_session_factory() as session:
-            # Simple way to get count in SQLModel
-            statement = select(MapObjectRecord)
-            results = await session.execute(statement)
-            return len(results.scalars().all())
+            statement = select(func.count(col(MapObjectRecord.area_id)))
+            result = await session.execute(statement)
+            return result.scalar_one()
 
     async def get_object_counts_by_type(self) -> dict[int, int]:
         """Get counts of objects grouped by type."""

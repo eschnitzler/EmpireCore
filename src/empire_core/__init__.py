@@ -6,10 +6,19 @@ from importlib.metadata import version
 
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
+from empire_core.exceptions import (
+    CommandError,
+    ConnectionClosedError,
+    EmpireError,
+    EmpireTimeoutError,
+    LoginCooldownError,
+    LoginError,
+    NetworkError,
+    PacketError,
+)
 from empire_core.pool import AccountPool
 from empire_core.state.models import Alliance, Building, Castle, Player, Resources
-from empire_core.state.unit_models import UNIT_IDS, Army, UnitStats
-from empire_core.state.world_models import MapObject, Movement, MovementResources
+from empire_core.state.world_models import Movement, MovementResources
 from empire_core.utils.enums import KingdomType, MapObjectType, MovementType
 from empire_core.utils.events import GameEvent
 
@@ -19,6 +28,15 @@ __all__ = [
     "EmpireClient",
     "EmpireConfig",
     "AccountPool",
+    # Exceptions
+    "EmpireError",
+    "NetworkError",
+    "ConnectionClosedError",
+    "LoginError",
+    "LoginCooldownError",
+    "PacketError",
+    "EmpireTimeoutError",
+    "CommandError",
     # Models
     "Player",
     "Castle",
@@ -27,14 +45,9 @@ __all__ = [
     "Alliance",
     "Movement",
     "MovementResources",
-    "MapObject",
-    "Army",
-    "UnitStats",
     # Enums
     "MovementType",
     "MapObjectType",
     "KingdomType",
-    # Constants
-    "UNIT_IDS",
     "GameEvent",
 ]

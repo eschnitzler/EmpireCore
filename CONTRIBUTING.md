@@ -427,8 +427,8 @@ uv run python -c "from empire_core.services import get_registered_services; prin
 
 ## Guidelines
 
-1. **No logging in library code** - Libraries should not emit logs
+1. **Log to a named logger** - Use `logging.getLogger(__name__)`; never print. Never swallow an exception without at least logging it
 2. **Use type hints** - All public methods should have complete type hints
 3. **Document wire format** - Include the command code and payload format in docstrings
-4. **Handle errors gracefully** - Return `None` or empty lists rather than raising exceptions
+4. **Fail loudly and precisely** - Raise the typed exceptions from `empire_core.exceptions` (`CommandError`, `EmpireTimeoutError`, ...) instead of collapsing failures into `None`. Action methods may return `False` for server-rejected actions, but transport failures must raise
 5. **Use descriptive names** - Python names should be readable, aliases handle the wire format
