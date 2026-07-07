@@ -16,6 +16,10 @@ class ScanResult(NamedTuple):
     items: list[MapAreaItem]
     objects: dict[int, MapObject]
     failed_chunks: tuple[tuple[int, int], ...] = ()
+    # Chunks that responded successfully AND contained map items. Feed these
+    # back into scan_chunks() to re-scan a known region without paying for
+    # BFS discovery of the empty boundary again.
+    content_chunks: tuple[tuple[int, int], ...] = ()
 
 
 class _ChunkResult(NamedTuple):
@@ -156,6 +160,7 @@ class MapScanner:
         collected_objects: dict[int, MapObject] = {}
         visited: set[tuple[int, int]] = set()
         failed_chunks: list[tuple[int, int]] = []
+        content_chunks: list[tuple[int, int]] = []
 
         # BFS queue - process one chunk at a time
         queue: deque[tuple[int, int]] = deque([(start_cx, start_cy)])
@@ -197,6 +202,8 @@ class MapScanner:
                 if not self.client.connection.connected:
                     logger.error("Aborting scan: connection lost")
                     break
+            elif result.has_content:
+                content_chunks.append((cx, cy))
 
             # A failed chunk is treated as if it had content so BFS keeps
             # expanding past it instead of silently truncating the region.
@@ -240,4 +247,86 @@ class MapScanner:
             f"Map bounds: x=[{min_x_found * self.CHUNK_SIZE}-{(max_x_found + 1) * self.CHUNK_SIZE}] "
             f"y=[{min_y_found * self.CHUNK_SIZE}-{(max_y_found + 1) * self.CHUNK_SIZE}]"
         )
-        return ScanResult(items=collected_items, objects=collected_objects, failed_chunks=tuple(failed_chunks))
+        return ScanResult(
+            items=collected_items,
+            objects=collected_objects,
+            failed_chunks=tuple(failed_chunks),
+            content_chunks=tuple(content_chunks),
+        )
+
+    def scan_chunks(
+        self,
+        kingdom: Kingdom,
+        chunks: list[tuple[int, int]],
+        item_types: list[MapItemType] | None = None,
+        timeout: float = 300.0,
+        request_timeout: float = 5.0,
+        chunk_delay: float = 0.2,
+    ) -> ScanResult:
+        """
+        Scan an explicit list of chunks — no BFS discovery.
+
+        Use this to re-scan a known region cheaply: run scan_kingdom()
+        once to discover the map, then feed its ``content_chunks`` back
+        here on subsequent scans. Also useful for targeted scans (e.g.
+        only the chunks around known castle coordinates via
+        ``chunk_for_position``).
+
+        Chunks are deduplicated and out-of-range coordinates skipped.
+        Unscanned chunks left over when ``timeout`` hits are reported in
+        ``failed_chunks``.
+        """
+        if item_types is None:
+            item_types = [MapItemType.CASTLE]
+        filter_types = set(item_types) if item_types else None
+
+        collected_items: list[MapAreaItem] = []
+        collected_objects: dict[int, MapObject] = {}
+        failed_chunks: list[tuple[int, int]] = []
+        content_chunks: list[tuple[int, int]] = []
+
+        todo: list[tuple[int, int]] = []
+        seen: set[tuple[int, int]] = set()
+        for cx, cy in chunks:
+            if (cx, cy) in seen:
+                continue
+            seen.add((cx, cy))
+            if cx < 0 or cy < 0 or cx > self.MAX_COORD or cy > self.MAX_COORD:
+                continue
+            todo.append((cx, cy))
+
+        start_time = time.time()
+        for i, (cx, cy) in enumerate(todo):
+            if time.time() - start_time > timeout:
+                logger.warning(f"Chunk scan timeout after {i} of {len(todo)} chunks")
+                failed_chunks.extend(todo[i:])
+                break
+
+            # Pace requests to avoid rate limiting/disconnects
+            time.sleep(chunk_delay)
+
+            result = self._process_chunk(
+                cx, cy, kingdom, filter_types, collected_items, collected_objects, request_timeout
+            )
+
+            if not result.ok:
+                failed_chunks.append((cx, cy))
+                if not self.client.connection.connected:
+                    logger.error("Aborting scan: connection lost")
+                    failed_chunks.extend(todo[i + 1 :])
+                    break
+            elif result.has_content:
+                content_chunks.append((cx, cy))
+
+        if failed_chunks:
+            logger.warning(f"Chunk scan incomplete: {len(failed_chunks)} chunk(s) failed: {failed_chunks[:10]}")
+        return ScanResult(
+            items=collected_items,
+            objects=collected_objects,
+            failed_chunks=tuple(failed_chunks),
+            content_chunks=tuple(content_chunks),
+        )
+
+    def chunk_for_position(self, x: int, y: int) -> tuple[int, int]:
+        """Map world coordinates to the chunk that contains them."""
+        return (x // self.CHUNK_SIZE, y // self.CHUNK_SIZE)
