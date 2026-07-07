@@ -11,7 +11,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import Field, SQLModel, col, select
 
@@ -227,8 +227,6 @@ class GameDatabase:
 
     async def get_object_count(self) -> int:
         """Total discovered objects."""
-        from sqlalchemy import func
-
         async with self.async_session_factory() as session:
             statement = select(func.count(col(MapObjectRecord.area_id)))
             result = await session.execute(statement)
@@ -236,8 +234,6 @@ class GameDatabase:
 
     async def get_object_counts_by_type(self) -> dict[int, int]:
         """Get counts of objects grouped by type."""
-        from sqlalchemy import func
-
         async with self.async_session_factory() as session:
             statement = select(col(MapObjectRecord.type), func.count(col(MapObjectRecord.area_id))).group_by(
                 col(MapObjectRecord.type)

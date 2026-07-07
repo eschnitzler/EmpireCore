@@ -7,15 +7,12 @@ a robust interface for selecting accounts based on aliases or tags.
 import json
 import logging
 import os
-from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ValidationError
 
+from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
-
-if TYPE_CHECKING:
-    from empire_core.client.client import EmpireClient
 
 logger = logging.getLogger(__name__)
 
@@ -44,10 +41,8 @@ class Account(BaseModel):
         """Check if account has a specific tag (case-insensitive)."""
         return tag.lower() in [t.lower() for t in self.tags]
 
-    def get_client(self) -> "EmpireClient":
+    def get_client(self) -> EmpireClient:
         """Create and return an EmpireClient for this account."""
-        from empire_core.client.client import EmpireClient
-
         return EmpireClient(
             username=self.username,
             password=self.password,

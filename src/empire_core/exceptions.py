@@ -7,6 +7,8 @@ Failure modes are kept distinct so callers can react to them individually:
 - ``CommandError``: the server answered with a non-zero error code.
 """
 
+from empire_core.protocol.errors import GGEError
+
 
 class EmpireError(Exception):
     """Base class for all EmpireCore exceptions."""
@@ -50,15 +52,7 @@ class CommandError(EmpireError):
     def __init__(self, command: str, code: int):
         self.command = command
         self.code = code
-        super().__init__(f"Server error {self._error_name()} ({code}) for command '{command}'")
-
-    def _error_name(self) -> str:
-        try:
-            from empire_core.protocol.errors import GGEError
-
-            return GGEError.from_code(self.code).name
-        except Exception:
-            return "UNKNOWN"
+        super().__init__(f"Server error {GGEError.from_code(code).name} ({code}) for command '{command}'")
 
 
 class ActionError(EmpireError):
