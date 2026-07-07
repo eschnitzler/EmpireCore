@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from pydantic import ConfigDict, Field
 
-from .base import BaseRequest, BaseResponse, Position, ResourceAmount
+from .base import BasePayload, BaseRequest, BaseResponse, Position, ResourceAmount
 
 # =============================================================================
 # GCL - Get Castles List
@@ -33,15 +33,13 @@ class GetCastlesRequest(BaseRequest):
     command = "gcl"
 
 
-class CastleInfo(BaseResponse):
+class CastleInfo(BasePayload):
     """Basic castle information."""
 
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-    castle_id: int = Field(alias="CID")
-    castle_name: str = Field(alias="CN")
-    x: int = Field(alias="X")
-    y: int = Field(alias="Y")
+    castle_id: int = Field(alias="CID", default=0)
+    castle_name: str = Field(alias="CN", default="")
+    x: int = Field(alias="X", default=0)
+    y: int = Field(alias="Y", default=0)
     kingdom_id: int = Field(alias="KID", default=0)
     castle_type: int = Field(alias="CT", default=0)  # 0=main, 1=outpost, etc.
     level: int = Field(alias="L", default=1)
@@ -83,16 +81,14 @@ class GetDetailedCastleRequest(BaseRequest):
     castle_id: int = Field(alias="CID")
 
 
-class BuildingInfo(BaseResponse):
+class BuildingInfo(BasePayload):
     """Building information within a castle."""
 
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-    building_id: int = Field(alias="BID")
-    building_type: int = Field(alias="BT")
-    level: int = Field(alias="L")
-    x: int = Field(alias="X")
-    y: int = Field(alias="Y")
+    building_id: int = Field(alias="BID", default=0)
+    building_type: int = Field(alias="BT", default=0)
+    level: int = Field(alias="L", default=0)
+    x: int = Field(alias="X", default=0)
+    y: int = Field(alias="Y", default=0)
     status: int = Field(alias="S", default=0)  # 0=normal, 1=upgrading, 2=damaged
     health: int = Field(alias="H", default=100)
 
@@ -159,9 +155,6 @@ class SelectCastleResponse(BaseResponse):
 
     command = "jca"
 
-    success: bool = Field(default=True)
-    error_code: int = Field(alias="E", default=0)
-
 
 # =============================================================================
 # ARC - Rename Castle
@@ -190,9 +183,6 @@ class RenameCastleResponse(BaseResponse):
     """
 
     command = "arc"
-
-    success: bool = Field(default=True)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -224,9 +214,6 @@ class RelocateCastleResponse(BaseResponse):
     """
 
     command = "rst"
-
-    success: bool = Field(default=True)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================

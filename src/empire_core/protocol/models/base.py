@@ -66,12 +66,18 @@ class GGECommand:
     FNM = "fnm"  # Find NPC on map
     ADI = "adi"  # Get area/target detailed info
 
+    # Player
+    GDI = "gdi"  # Get detailed player info (castles, captures)
+    WSP = "wsp"  # Search player by name
+
     # Attack
     CRA = "cra"  # Create/send attack
     CSM = "csm"  # Send spy mission
+    SSI = "ssi"  # Spy screen info
     GAS = "gas"  # Get attack presets
     MSD = "msd"  # Skip attack cooldown (rubies)
     SDC = "sdc"  # Skip defense cooldown
+    CDS = "cds"  # Send support troops
 
     # Building
     EBU = "ebu"  # Build (erect building)
@@ -116,8 +122,13 @@ class GGECommand:
     # Events
     SEI = "sei"  # Get events info
     PEP = "pep"  # Get event points
-    HGH = "hgh"  # Get ranking/highscore
+    HGH = "hgh"  # Get ranking/highscore (also used by alliance search)
+    LLSP = "llsp"  # Get ranking list by position
     SEDE = "sede"  # Select event difficulty
+
+    # Messages / notifications
+    SNE = "sne"  # System notification event (push)
+    BSD = "bsd"  # Battle/spy report data
 
     # Gifts
     CLB = "clb"  # Collect daily login bonus
@@ -130,7 +141,7 @@ class GGECommand:
     CTR = "ctr"  # Tracking
 
     # Account
-    GPI = "gpi"  # Get player info
+    GPI = "gpi"  # Player-identity sub-packet inside gbd (not sent standalone; see GDI)
     VPM = "vpm"  # Register email
     GNCI = "gnci"  # Get name change info
     CPNE = "cpne"  # Change username
@@ -201,14 +212,6 @@ class BaseRequest(BasePayload):
 
     command: ClassVar[str]  # The command code (e.g., "acm", "lli")
 
-    def to_payload(self) -> dict[str, Any]:
-        """
-        Convert the model to a payload dict suitable for sending.
-
-        Uses field aliases and excludes None values.
-        """
-        return self.model_dump(by_alias=True, exclude_none=True)
-
     def to_packet(self, zone: str = DEFAULT_ZONE) -> str:
         """
         Build the full XT packet string ready to send.
@@ -243,16 +246,34 @@ class BaseResponse(BasePayload):
         response = AllianceChatMessageResponse.model_validate(payload)
 
     Each response class should define a `command` class variable to enable
-    automatic lookup via `get_response_model()`.
+    automatic lookup via `get_response_model()`. Commands must be unique;
+    a class that shares a command with another (and is parsed manually
+    instead) must opt out with ``class Foo(BaseResponse, register=False)``.
     """
 
     command: ClassVar[str]  # The command code this response handles
 
-    def __init_subclass__(cls, **kwargs: Any) -> None:
+    # Server error code from the payload. The packet-header error code is
+    # raised as CommandError before parsing, so this is usually 0.
+    error_code: int = Field(alias="E", default=0)
+
+    @property
+    def success(self) -> bool:
+        """Whether the server reported no error for this response."""
+        return self.error_code == 0
+
+    def __init_subclass__(cls, register: bool = True, **kwargs: Any) -> None:
         """Register response subclasses by their command."""
         super().__init_subclass__(**kwargs)
         # Only register if the class defines its own command
-        if "command" in cls.__dict__:
+        if register and "command" in cls.__dict__:
+            existing = _response_registry.get(cls.command)
+            if existing is not None and existing is not cls:
+                raise TypeError(
+                    f"Duplicate response registration for command '{cls.command}': "
+                    f"{existing.__module__}.{existing.__qualname__} vs {cls.__module__}.{cls.__qualname__}. "
+                    "Pass register=False on the class that is parsed manually."
+                )
             _response_registry[cls.command] = cls
 
 
@@ -284,13 +305,6 @@ def parse_response(command: str, payload: dict[str, Any]) -> BaseResponse | None
     if model_cls is None:
         return None
     return model_cls.model_validate(payload)
-
-
-class ErrorResponse(BaseResponse):
-    """Error response from the server."""
-
-    error_code: int = Field(alias="E", default=0)
-    error_message: str | None = Field(alias="EM", default=None)
 
 
 class Position(BaseModel):
@@ -348,8 +362,10 @@ def encode_chat_text(text: str) -> str:
     - backslash -> %5C
     """
     result = text
-    result = result.replace("\\", "%5C")
+    # '%' must be encoded before backslash, otherwise the '%' introduced
+    # by the '%5C' replacement would itself get re-encoded.
     result = result.replace("%", "&percnt;")
+    result = result.replace("\\", "%5C")
     result = result.replace('"', "&quot;")
     result = result.replace("'", "&145;")
     result = result.replace("\n", "<br />")
@@ -370,10 +386,12 @@ def decode_chat_text(text: str) -> str:
     result = text
     result = result.replace("<br />", "\n")
     result = result.replace("<br>", "\n")
+    # '%5C' must be decoded before '&percnt;' so a literal '%5C' typed by
+    # a user (encoded as '&percnt;5C') doesn't turn into a backslash.
+    result = result.replace("%5C", "\\")
     result = result.replace("&percnt;", "%")
     result = result.replace("&quot;", '"')
     result = result.replace("&145;", "'")
-    result = result.replace("%5C", "\\")
     return result
 
 
@@ -389,7 +407,6 @@ __all__ = [
     "BasePayload",
     "BaseRequest",
     "BaseResponse",
-    "ErrorResponse",
     # Common types
     "Position",
     "ResourceAmount",

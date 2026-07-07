@@ -54,7 +54,6 @@ class BuildResponse(BaseResponse):
 
     building_id: int = Field(alias="BID", default=0)
     completion_time: int = Field(alias="CT", default=0)  # Unix timestamp
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -87,7 +86,6 @@ class UpgradeBuildingResponse(BaseResponse):
 
     new_level: int = Field(alias="L", default=0)
     completion_time: int = Field(alias="CT", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -120,9 +118,6 @@ class MoveBuildingResponse(BaseResponse):
 
     command = "emo"
 
-    success: bool = Field(default=True)
-    error_code: int = Field(alias="E", default=0)
-
 
 # =============================================================================
 # SBD - Sell Building
@@ -153,7 +148,6 @@ class SellBuildingResponse(BaseResponse):
     command = "sbd"
 
     resources_gained: int = Field(alias="RG", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -184,9 +178,6 @@ class DestroyBuildingResponse(BaseResponse):
 
     command = "edo"
 
-    success: bool = Field(default=True)
-    error_code: int = Field(alias="E", default=0)
-
 
 # =============================================================================
 # FCO - Fast Complete (Skip Construction)
@@ -216,9 +207,7 @@ class FastCompleteResponse(BaseResponse):
 
     command = "fco"
 
-    success: bool = Field(default=True)
     rubies_spent: int = Field(alias="RS", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -251,7 +240,6 @@ class TimeSkipBuildingResponse(BaseResponse):
     command = "msb"
 
     new_completion_time: int = Field(alias="CT", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -284,7 +272,6 @@ class UpgradeWallResponse(BaseResponse):
 
     new_level: int = Field(alias="L", default=0)
     completion_time: int = Field(alias="CT", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -316,7 +303,6 @@ class RepairBuildingResponse(BaseResponse):
     command = "rbu"
 
     completion_time: int = Field(alias="CT", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -347,7 +333,6 @@ class RepairAllResponse(BaseResponse):
     command = "ira"
 
     buildings_repaired: int = Field(alias="BR", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -378,9 +363,7 @@ class BuyExtensionResponse(BaseResponse):
 
     command = "ebe"
 
-    success: bool = Field(default=True)
     rubies_spent: int = Field(alias="RS", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -410,9 +393,6 @@ class CollectExtensionGiftResponse(BaseResponse):
     """
 
     command = "etc"
-
-    success: bool = Field(default=True)
-    error_code: int = Field(alias="E", default=0)
 
 
 __all__ = [

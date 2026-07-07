@@ -8,9 +8,9 @@ Commands:
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
-from .base import BaseRequest, BaseResponse, decode_chat_text, encode_chat_text
+from .base import BasePayload, BaseRequest, BaseResponse, decode_chat_text, encode_chat_text
 
 # =============================================================================
 # ACM - Alliance Chat Message
@@ -37,14 +37,12 @@ class AllianceChatMessageRequest(BaseRequest):
         return cls(M=encode_chat_text(text))
 
 
-class ChatMessageData(BaseModel):
+class ChatMessageData(BasePayload):
     """
     The CM (Chat Message) data within an alliance chat response.
 
     Contains the actual message content and sender info.
     """
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     player_name: str = Field(alias="PN")
     message_text: str = Field(alias="MT")
@@ -70,27 +68,27 @@ class AllianceChatMessageResponse(BaseResponse):
 
     command = "acm"
 
-    chat_message: ChatMessageData = Field(alias="CM")
+    chat_message: ChatMessageData | None = Field(alias="CM", default=None)
 
     @property
     def player_name(self) -> str:
         """Get the sender's player name."""
-        return self.chat_message.player_name
+        return self.chat_message.player_name if self.chat_message else ""
 
     @property
     def message_text(self) -> str:
         """Get the raw message text (may contain encoded characters)."""
-        return self.chat_message.message_text
+        return self.chat_message.message_text if self.chat_message else ""
 
     @property
     def decoded_text(self) -> str:
         """Get the message text with special characters decoded."""
-        return self.chat_message.decoded_text
+        return self.chat_message.decoded_text if self.chat_message else ""
 
     @property
     def player_id(self) -> int:
         """Get the sender's player ID."""
-        return self.chat_message.player_id
+        return self.chat_message.player_id if self.chat_message else 0
 
 
 # =============================================================================
@@ -109,10 +107,8 @@ class AllianceChatLogRequest(BaseRequest):
     command = "acl"
 
 
-class ChatLogEntry(BaseModel):
+class ChatLogEntry(BasePayload):
     """A single entry in the chat log history."""
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     player_name: str = Field(alias="PN")
     message_text: str = Field(alias="MT")

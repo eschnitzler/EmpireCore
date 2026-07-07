@@ -11,9 +11,9 @@ Commands:
 
 from __future__ import annotations
 
-from pydantic import ConfigDict, Field
+from pydantic import Field
 
-from .base import BaseRequest, BaseResponse
+from .base import BasePayload, BaseRequest, BaseResponse
 
 # =============================================================================
 # LLI - Login
@@ -39,10 +39,8 @@ class LoginRequest(BaseRequest):
     app_id: str | None = Field(alias="AID", default=None)
 
 
-class PlayerData(BaseRequest):
+class PlayerData(BasePayload):
     """Player data returned after login."""
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     player_id: int = Field(alias="PID")
     player_name: str = Field(alias="PN")
@@ -66,7 +64,6 @@ class LoginResponse(BaseResponse):
 
     player: PlayerData | None = Field(alias="P", default=None)
     session_id: str | None = Field(alias="SID", default=None)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -99,8 +96,9 @@ class RegisterResponse(BaseResponse):
 
     command = "lre"
 
-    success: bool = Field(alias="S", default=False)
-    error_code: int = Field(alias="E", default=0)
+    # The old `success: bool = Field(alias="S")` field was removed: it shadowed the
+    # inherited `success` property. The server's "S" flag (if sent) remains readable
+    # via the extra="allow" attribute, and `success` now derives from error_code.
     error_message: str | None = Field(alias="EM", default=None)
 
 
@@ -161,7 +159,15 @@ class CheckUsernameExistsResponse(BaseResponse):
 
     command = "vln"
 
-    exists: bool = Field(alias="E", default=False)
+    @property
+    def exists(self) -> bool:
+        """
+        Whether the username exists.
+
+        The server signals existence via the "E" error code (e.g. 453), which now
+        maps to the inherited error_code field; this preserves the old truthiness.
+        """
+        return bool(self.error_code)
 
 
 # =============================================================================
@@ -192,8 +198,9 @@ class PasswordRecoveryResponse(BaseResponse):
 
     command = "lpp"
 
-    success: bool = Field(alias="S", default=False)
-    error_code: int = Field(alias="E", default=0)
+    # The old `success: bool = Field(alias="S")` field was removed: it shadowed the
+    # inherited `success` property. The server's "S" flag (if sent) remains readable
+    # via the extra="allow" attribute, and `success` now derives from error_code.
 
 
 __all__ = [

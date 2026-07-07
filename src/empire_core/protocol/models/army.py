@@ -17,9 +17,9 @@ Commands:
 
 from __future__ import annotations
 
-from pydantic import ConfigDict, Field
+from pydantic import Field
 
-from .base import BaseRequest, BaseResponse, UnitCount
+from .base import BasePayload, BaseRequest, BaseResponse, UnitCount
 
 # =============================================================================
 # BUP - Build Units / Produce
@@ -60,7 +60,6 @@ class ProduceUnitsResponse(BaseResponse):
 
     queue_id: int = Field(alias="QID", default=0)
     completion_time: int = Field(alias="CT", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -87,10 +86,8 @@ class GetProductionQueueRequest(BaseRequest):
     list_id: int = Field(alias="LID", default=0)
 
 
-class ProductionQueueItem(BaseResponse):
+class ProductionQueueItem(BasePayload):
     """An item in the production queue."""
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     queue_id: int = Field(alias="QID")
     unit_id: int = Field(alias="UID")
@@ -140,9 +137,7 @@ class DoubleProductionResponse(BaseResponse):
 
     command = "bou"
 
-    success: bool = Field(default=True)
     rubies_spent: int = Field(alias="RS", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -173,9 +168,6 @@ class CancelProductionResponse(BaseResponse):
     """
 
     command = "mcu"
-
-    success: bool = Field(default=True)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -238,9 +230,6 @@ class DeleteUnitsResponse(BaseResponse):
 
     command = "dup"
 
-    success: bool = Field(default=True)
-    error_code: int = Field(alias="E", default=0)
-
 
 # =============================================================================
 # HRU - Heal Units
@@ -273,7 +262,6 @@ class HealUnitsResponse(BaseResponse):
 
     queue_id: int = Field(alias="QID", default=0)
     completion_time: int = Field(alias="CT", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -304,9 +292,6 @@ class CancelHealResponse(BaseResponse):
 
     command = "hcs"
 
-    success: bool = Field(default=True)
-    error_code: int = Field(alias="E", default=0)
-
 
 # =============================================================================
 # HSS - Skip Heal (Rubies)
@@ -336,9 +321,7 @@ class SkipHealResponse(BaseResponse):
 
     command = "hss"
 
-    success: bool = Field(default=True)
     rubies_spent: int = Field(alias="RS", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -370,9 +353,6 @@ class DeleteWoundedResponse(BaseResponse):
 
     command = "hdu"
 
-    success: bool = Field(default=True)
-    error_code: int = Field(alias="E", default=0)
-
 
 # =============================================================================
 # HRA - Heal All
@@ -403,7 +383,6 @@ class HealAllResponse(BaseResponse):
 
     units_healed: int = Field(alias="UH", default=0)
     completion_time: int = Field(alias="CT", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -455,9 +434,6 @@ class SendSupportResponse(BaseResponse):
 
     command = "cds"
 
-    success: bool = Field(default=True)
-    error_code: int = Field(alias="E", default=0)
-
 
 __all__ = [
     # BUP - Produce Units
@@ -494,7 +470,7 @@ __all__ = [
     # HRA - Heal All
     "HealAllRequest",
     "HealAllResponse",
-    # SSP - Send Support
+    # CDS - Send Support
     "SendSupportRequest",
     "SendSupportResponse",
 ]

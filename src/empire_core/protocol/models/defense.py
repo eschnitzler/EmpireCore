@@ -10,9 +10,9 @@ Commands:
 
 from __future__ import annotations
 
-from pydantic import ConfigDict, Field
+from pydantic import Field
 
-from .base import BaseRequest, BaseResponse, UnitCount
+from .base import BasePayload, BaseRequest, BaseResponse, UnitCount
 
 # =============================================================================
 # DFC - Get Defense Configuration
@@ -32,10 +32,8 @@ class GetDefenseRequest(BaseRequest):
     castle_id: int = Field(alias="CID")
 
 
-class DefenseConfiguration(BaseResponse):
+class DefenseConfiguration(BasePayload):
     """Defense configuration for a location (keep, wall, moat)."""
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     units: list[UnitCount] = Field(alias="U", default_factory=list)
     tools: list[UnitCount] = Field(alias="T", default_factory=list)
@@ -89,9 +87,6 @@ class ChangeKeepDefenseResponse(BaseResponse):
 
     command = "dfk"
 
-    success: bool = Field(default=True)
-    error_code: int = Field(alias="E", default=0)
-
 
 # =============================================================================
 # DFW - Change Wall Defense
@@ -126,9 +121,6 @@ class ChangeWallDefenseResponse(BaseResponse):
 
     command = "dfw"
 
-    success: bool = Field(default=True)
-    error_code: int = Field(alias="E", default=0)
-
 
 # =============================================================================
 # DFM - Change Moat Defense
@@ -162,9 +154,6 @@ class ChangeMoatDefenseResponse(BaseResponse):
     """
 
     command = "dfm"
-
-    success: bool = Field(default=True)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================

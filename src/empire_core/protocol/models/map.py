@@ -14,7 +14,7 @@ from enum import IntEnum
 
 from pydantic import ConfigDict, Field
 
-from .base import BaseRequest, BaseResponse, PlayerInfo, Position
+from .base import BasePayload, BaseRequest, BaseResponse, PlayerInfo, Position
 
 # =============================================================================
 # Map Item Types
@@ -61,8 +61,6 @@ class MapItemType(IntEnum):
 # =============================================================================
 # GAA - Get Map Area
 # =============================================================================
-# GAA - Get Map Area
-# =============================================================================
 
 
 class GetMapAreaRequest(BaseRequest):
@@ -90,7 +88,7 @@ class GetMapAreaRequest(BaseRequest):
     y2: int = Field(alias="AY2")
 
 
-class MapAreaItem(BaseResponse):
+class MapAreaItem(BasePayload):
     """
     A raw map area item from the AI array.
 
@@ -104,8 +102,6 @@ class MapAreaItem(BaseResponse):
     - 22: Metropolis
     - 26: Monument
     """
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     item_type: int = 0
     x: int = 0
@@ -173,10 +169,8 @@ class MapAreaItem(BaseResponse):
             return f"UNKNOWN_{self.item_type}"
 
 
-class MapObject(BaseResponse):
+class MapObject(BasePayload):
     """An object on the map (castle, NPC, resource, etc.)."""
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     x: int = Field(alias="X", default=0)
     y: int = Field(alias="Y", default=0)
@@ -263,10 +257,8 @@ class GetMovementsRequest(BaseRequest):
     castle_id: int | None = Field(alias="CID", default=None)
 
 
-class Movement(BaseResponse):
+class Movement(BasePayload):
     """An active troop movement."""
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     movement_id: int = Field(alias="MID")
     movement_type: int = Field(alias="MT")  # 1=attack, 2=support, 3=spy, 4=trade, etc.
@@ -336,10 +328,8 @@ class FindNPCRequest(BaseRequest):
     kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
 
 
-class NPCLocation(BaseResponse):
+class NPCLocation(BasePayload):
     """An NPC location on the map."""
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     x: int = Field(alias="X")
     y: int = Field(alias="Y")
@@ -389,10 +379,8 @@ class GetTargetInfoRequest(BaseRequest):
     kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
 
 
-class TargetInfo(BaseResponse):
+class TargetInfo(BasePayload):
     """Detailed information about a target location."""
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     x: int = Field(alias="X")
     y: int = Field(alias="Y")
