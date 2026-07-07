@@ -6,8 +6,35 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    name: Test before release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Run tests
+        run: uv run pytest -v
+
+      - name: Verify clean install is importable
+        run: |
+          uv venv /tmp/clean-venv
+          uv pip install --python /tmp/clean-venv/bin/python .
+          /tmp/clean-venv/bin/python -c "import empire_core"
+
   release:
     name: Semantic Release
+    needs: test
     runs-on: ubuntu-latest
     concurrency: release
     permissions:
