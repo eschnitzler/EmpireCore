@@ -1,61 +1,77 @@
-# Event System
+# Events & Callbacks
 
-EmpireCore is fundamentally event-driven. This document outlines the events hierarchy and usage.
+EmpireCore is **not** an asyncio event-bus library. Reacting to the game is
+done through two synchronous, thread-based mechanisms:
 
-## Event Loop Integration
-All events are dispatched on the standard Python `asyncio` event loop. Handlers can be synchronous (`def`) or asynchronous (`async def`).
+1. **State callbacks** — high-level, semantic events derived from parsed state.
+2. **Connection subscriptions** — low-level, per-command packet feeds.
 
-## Event Hierarchy
+Both run on background threads, so a handler may make blocking calls (e.g.
+send a request and wait for its response) without stalling the receive loop.
 
-All events inherit from `EmpireEvent`.
+## 1. State Callbacks
 
-*   `EmpireEvent`
-    *   `ConnectionEvent`
-        *   `ConnectedEvent`
-        *   `DisconnectedEvent`
-    *   `GameEvent`
-        *   `LoginSuccessEvent`
-        *   `MapUpdateEvent`
-    *   `PlayerEvent`
-        *   `LevelUpEvent`
-        *   `ResourceUpdateEvent`
-    *   `CombatEvent`
-        *   `AttackIncomingEvent`
-        *   `AttackFinishedEvent`
-        *   `EspionageReportEvent`
+Registered on `client.state`. These are the events most bots want:
 
-## Subscription Model
-
-### Decorator Style (Preferred)
 ```python
-@client.event
-async def on_attack_incoming(event: AttackIncomingEvent):
-    pass
+def on_attack(movement):
+    print(f"Incoming attack {movement.MID} from {movement.source_player_name}")
+
+client.state.on_incoming_attack(on_attack)
+client.state.on_movement_arrived(lambda movement_id: ...)
+client.state.on_movement_recalled(lambda movement_id: ...)
 ```
 
-### Explicit Registration
-```python
-def my_handler(event):
-    pass
+* `on_incoming_attack` fires once per newly seen hostile attack (not on every
+  refresh, and not for your own outgoing attacks).
+* Callbacks are dispatched on a thread pool that is created lazily and survives
+  disconnect/reconnect, so registered handlers keep working after a re-login.
+* Unregister with `remove_incoming_attack_callback` /
+  `remove_movement_arrived_callback` / `remove_movement_recalled_callback`.
 
-client.add_listener(AttackIncomingEvent, my_handler)
+## 2. Connection Subscriptions
+
+For raw packet streams, subscribe by command id. Alliance chat has a
+convenience wrapper:
+
+```python
+# Convenience: alliance chat packets
+def on_chat_packet(packet):
+    ...
+client.subscribe_alliance_chat(on_chat_packet)
+client.unsubscribe_alliance_chat(on_chat_packet)
+
+# Or subscribe to any command directly
+client.connection.subscribe("acm", on_chat_packet)
 ```
 
-### One-time Listeners
-Useful for waiting for a specific response.
+Service-level typed callbacks are also available where a service parses the
+packet for you:
 
 ```python
-# Wait for the next map update
-event = await client.wait_for(MapUpdateEvent, timeout=10.0)
+def on_message(msg):   # AllianceChatMessageResponse
+    print(f"[{msg.player_name}] {msg.decoded_text}")
+client.alliance.on_chat_message(on_message)
 ```
 
-## Custom Events
+Unlike waiters (one-shot request/response), subscribers receive **every**
+matching packet and are never consumed.
 
-Users can define their own events if they build plugins or extensions on top of the library.
+## Disconnects
+
+`Connection.on_disconnect` fires on an *unexpected* connection loss (not on a
+clean `client.close()`), which you can use as a signal to re-login:
 
 ```python
-class BotStuckEvent(EmpireEvent):
-    pass
+client.connection.on_disconnect = lambda: print("dropped — reconnecting…")
+```
 
-client.dispatch(BotStuckEvent())
+## Request/Response (not an event)
+
+A one-off "wait for the reply to this command" is not modelled as an event —
+use the blocking request path, which returns the parsed response or raises a
+typed error:
+
+```python
+resp = client.request(GetPlayerInfoRequest(PID=123), GetPlayerInfoResponse)
 ```

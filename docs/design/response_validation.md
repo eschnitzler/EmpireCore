@@ -1,13 +1,30 @@
 # Response Validation Implementation Plan
 
-## Overview
-Currently, action commands send packets but don't wait for server confirmation.
-This document outlines adding response validation for actions.
+> **Status: implemented** (differently from the asyncio sketch below).
+> Response validation now works via **synchronous, thread-based waiters**, not
+> the `asyncio` `ResponseAwaiter` proposed here:
+>
+> * `Connection.request(data, cmd_id, timeout)` registers a waiter **before**
+>   sending, then blocks for the matching response (race-free).
+> * `EmpireClient.send(request, wait=True)` / `EmpireClient.request(...)` parse
+>   the response and **raise typed exceptions** on failure
+>   (`CommandError` for server error codes, `EmpireTimeoutError` on timeout,
+>   `ConnectionClosedError` on drop) instead of returning `None`.
+> * Services expose `request()` (typed response or raise) and `execute()`
+>   (`bool` for action success).
+>
+> The historical plan is kept below for context. See
+> [architecture.md](architecture.md) and [events.md](events.md) for the
+> shipped design.
 
-## Current Limitation
+## Overview
+Originally, action commands sent packets but didn't wait for server
+confirmation. This document outlined adding response validation for actions.
+
+## Original Limitation
 
 ```python
-await client.send_attack(...)  # Sends packet, returns immediately
+client.send_attack(...)  # Sends packet, returns immediately
 # No confirmation that attack was accepted!
 ```
 
