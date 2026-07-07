@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 
 logging.basicConfig(level=logging.WARNING)
@@ -8,7 +9,13 @@ def main():
     from empire_core.client.client import EmpireClient
     from empire_core.protocol.models.map import GetTargetInfoRequest, GetTargetInfoResponse, Kingdom
 
-    client = EmpireClient(username="Heimlina", password="abc123")
+    username = os.getenv("GGE_USERNAME")
+    password = os.getenv("GGE_PASSWORD")
+    if not username or not password:
+        print("Error: GGE_USERNAME and GGE_PASSWORD environment variables required")
+        return 1
+
+    client = EmpireClient(username=username, password=password)
 
     try:
         client.login()
