@@ -19,9 +19,15 @@ from empire_core.config import (
     ServerError,
     default_config,
 )
-from empire_core.exceptions import LoginCooldownError, LoginError, TimeoutError
+from empire_core.exceptions import (
+    CommandError,
+    EmpireTimeoutError,
+    LoginCooldownError,
+    LoginError,
+    PacketError,
+)
 from empire_core.network.connection import Connection
-from empire_core.protocol.models import BaseRequest, BaseResponse, ErrorResponse, encode_chat_text, parse_response
+from empire_core.protocol.models import BaseRequest, BaseResponse, encode_chat_text, parse_response
 from empire_core.protocol.models.alliance import GetAllianceInfoRequest, GetAllianceInfoResponse
 from empire_core.protocol.models.chat import AllianceChatLogResponse
 from empire_core.protocol.models.defense import (
@@ -93,7 +99,7 @@ class EmpireClient:
         self.username = username or self.config.username
         self.password = password or self.config.password
 
-        self.connection = Connection(self.config.game_url)
+        self.connection = Connection(self.config.game_url, keepalive_zone=self.config.default_zone)
         self.state = GameState()
         self.is_logged_in = False
 
@@ -149,17 +155,20 @@ class EmpireClient:
                     try:
                         handler(response)
                     except Exception:
-                        pass
+                        logger.exception(f"Handler error for command '{cmd}'")
 
     def _update_state(self, cmd: str, payload: dict[str, object]) -> None:
         """Sync state update from packet - delegates to GameState."""
         self.state.update_from_packet(cmd, payload)
 
     def _on_disconnect(self) -> None:
-        """Handle disconnect."""
+        """Handle unexpected connection loss.
+
+        State (including its callback executor) is intentionally left
+        running so registered callbacks keep working after a re-login.
+        """
         self.is_logged_in = False
-        self.state.shutdown()
-        logger.warning(f"Client {self.username} disconnected")
+        logger.warning(f"Client {self.username} disconnected unexpectedly")
 
     def login(self) -> bool:
         """
@@ -182,12 +191,10 @@ class EmpireClient:
 
         # 1. Version Check
         ver_packet = f"<msg t='sys'><body action='verChk' r='0'><ver v='{self.config.game_version}' /></body></msg>"
-        self.connection.send(ver_packet)
-
         try:
-            response = self.connection.wait_for("apiOK", timeout=self.config.request_timeout)
-        except TimeoutError:
-            raise TimeoutError("Version check timed out")
+            self.connection.request(ver_packet, "apiOK", timeout=self.config.request_timeout)
+        except EmpireTimeoutError:
+            raise EmpireTimeoutError("Version check timed out")
 
         conm_value = 1150008
 
@@ -199,29 +206,25 @@ class EmpireClient:
             f"<pword><![CDATA[{conm_value}%en%0]]></pword>"
             f"</login></body></msg>"
         )
-        self.connection.send(login_packet)
-
         try:
-            self.connection.wait_for("rlu", timeout=self.config.login_timeout)
-        except TimeoutError:
-            raise TimeoutError("Zone login timed out")
+            self.connection.request(login_packet, "rlu", timeout=self.config.login_timeout)
+        except EmpireTimeoutError:
+            raise EmpireTimeoutError("Zone login timed out")
 
         # 3. AutoJoin Room
         join_packet = "<msg t='sys'><body action='autoJoin' r='-1'></body></msg>"
-        self.connection.send(join_packet)
-
         try:
-            self.connection.wait_for("joinOK", timeout=self.config.request_timeout)
-        except TimeoutError:
-            pass
+            self.connection.request(join_packet, "joinOK", timeout=self.config.request_timeout)
+        except EmpireTimeoutError:
+            # The server does not always send joinOK; not fatal
+            logger.debug("No joinOK received, continuing login")
 
         roundtrip_packet = "<msg t='sys'><body action='roundTrip' r='1'></body></msg>"
-        self.connection.send(roundtrip_packet)
-
         try:
-            self.connection.wait_for("roundTripRes", timeout=self.config.request_timeout)
-        except TimeoutError:
-            pass
+            self.connection.request(roundtrip_packet, "roundTripRes", timeout=self.config.request_timeout)
+        except EmpireTimeoutError:
+            # roundTripRes is informational only; not fatal
+            logger.debug("No roundTripRes received, continuing login")
 
         # 5. XT Login (Real Auth)
         xt_payload = {
@@ -230,10 +233,15 @@ class EmpireClient:
             "PW": self.password,
         }
         xt_packet = f"%xt%{self.config.default_zone}%lli%1%{json.dumps(xt_payload)}%"
-        self.connection.send(xt_packet)
 
+        # Register the gbd waiter up front: it arrives right after a
+        # successful lli and would otherwise race the lli handling below.
+        gbd_waiter = self.connection.create_waiter("gbd")
         try:
-            lli_response = self.connection.wait_for("lli", timeout=self.config.login_timeout)
+            try:
+                lli_response = self.connection.request(xt_packet, "lli", timeout=self.config.login_timeout)
+            except EmpireTimeoutError:
+                raise EmpireTimeoutError("XT login timed out")
 
             if lli_response.error_code != 0:
                 if lli_response.error_code == ServerError.LOGIN_COOLDOWN:
@@ -245,18 +253,16 @@ class EmpireClient:
                 raise LoginError(f"Auth failed with code {lli_response.error_code}")
 
             # Wait for gbd (Get Big Data) which contains player info, castles, etc.
-            # This arrives shortly after lli success
             try:
-                self.connection.wait_for("gbd", timeout=self.config.request_timeout)
-            except TimeoutError:
+                self.connection.wait_for_result("gbd", gbd_waiter, timeout=self.config.request_timeout)
+            except EmpireTimeoutError:
                 logger.warning(f"gbd packet not received for {self.username}, player state may be incomplete")
 
             logger.debug(f"Logged in as {self.username}")
             self.is_logged_in = True
             return True
-
-        except TimeoutError:
-            raise TimeoutError("XT login timed out")
+        finally:
+            self.connection.cancel_waiter("gbd", gbd_waiter)
 
     def close(self) -> None:
         """Disconnect from the server."""
@@ -281,6 +287,12 @@ class EmpireClient:
         Returns:
             The parsed response if wait=True, otherwise None
 
+        Raises:
+            CommandError: The server answered with a non-zero error code
+            EmpireTimeoutError: No response within ``timeout``
+            ConnectionClosedError: Connection dropped while waiting
+            NetworkError: The send itself failed
+
         Example:
             from empire_core.protocol.models import AllianceChatMessageRequest
 
@@ -291,27 +303,40 @@ class EmpireClient:
             response = client.send(GetCastlesRequest(), wait=True)
         """
         packet = request.to_packet(zone=self.config.default_zone)
-        self.connection.send(packet)
 
-        if wait:
-            command = request.get_command()
-            try:
-                response_packet = self.connection.wait_for(command, timeout=timeout)
+        if not wait:
+            self.connection.send(packet)
+            return None
 
-                if not response_packet:
-                    return None
+        command = request.get_command()
+        response_packet = self.connection.request(packet, command, timeout=timeout)
 
-                if response_packet.error_code != 0:
-                    return ErrorResponse(E=response_packet.error_code)
+        if response_packet.error_code != 0:
+            raise CommandError(command, response_packet.error_code)
 
-                if isinstance(response_packet.payload, dict):
-                    return parse_response(command, response_packet.payload)
-
-                return None
-            except Exception:
-                return None
+        if isinstance(response_packet.payload, dict):
+            return parse_response(command, response_packet.payload)
 
         return None
+
+    def request(self, request: BaseRequest, response_type: type[T], timeout: float = 5.0) -> T:
+        """
+        Send a request and return its typed response.
+
+        Like ``send(request, wait=True)`` but verifies the parsed response
+        is of the expected type, so callers get a non-optional result.
+
+        Raises:
+            PacketError: The response could not be parsed as ``response_type``
+            CommandError / EmpireTimeoutError / ConnectionClosedError / NetworkError:
+                See :meth:`send`.
+        """
+        response = self.send(request, wait=True, timeout=timeout)
+        if not isinstance(response, response_type):
+            raise PacketError(
+                f"Expected {response_type.__name__} for '{request.get_command()}', got {type(response).__name__}"
+            )
+        return response
 
     # ============================================================
     # Game Commands
@@ -327,17 +352,18 @@ class EmpireClient:
 
         Returns:
             List of Movement objects
+
+        Raises:
+            EmpireTimeoutError: ``wait=True`` and no response within ``timeout``
         """
         packet = Packet.build_xt(self.config.default_zone, "gam", {})
-        self.connection.send(packet)
 
         if wait:
-            try:
-                self.connection.wait_for("gam", timeout=timeout)
-            except TimeoutError:
-                pass
+            self.connection.request(packet, "gam", timeout=timeout)
+        else:
+            self.connection.send(packet)
 
-        return list(self.state.movements.values())
+        return self.state.get_all_movements()
 
     def send_alliance_chat(self, message: str) -> None:
         """
@@ -350,43 +376,32 @@ class EmpireClient:
         packet = Packet.build_xt(self.config.default_zone, "acm", payload)
         self.connection.send(packet)
 
-    def get_player_info(self, player_id: int, wait: bool = True, timeout: float = 5.0) -> GetPlayerInfoResponse | None:
+    def get_player_info(self, player_id: int, timeout: float = 5.0) -> GetPlayerInfoResponse:
         """
-        Get info about a player.
+        Get detailed player information (gdi), including castle list with
+        capture info.
 
         Args:
             player_id: The player's ID
-            wait: If True, wait for response
             timeout: Timeout in seconds
 
-        Returns:
-            GetPlayerInfoResponse or None
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`send`
         """
-        request = GetPlayerInfoRequest(PID=player_id)
-        response = self.send(request, wait=wait, timeout=timeout)
-        if isinstance(response, GetPlayerInfoResponse):
-            return response
-        return None
+        return self.request(GetPlayerInfoRequest(PID=player_id), GetPlayerInfoResponse, timeout=timeout)
 
-    def get_alliance_info(
-        self, alliance_id: int, wait: bool = True, timeout: float = 5.0
-    ) -> GetAllianceInfoResponse | None:
+    def get_alliance_info(self, alliance_id: int, timeout: float = 5.0) -> GetAllianceInfoResponse:
         """
         Get info about an alliance.
 
         Args:
             alliance_id: The alliance ID
-            wait: If True, wait for response
             timeout: Timeout in seconds
 
-        Returns:
-            GetAllianceInfoResponse or None
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`send`
         """
-        request = GetAllianceInfoRequest(AID=alliance_id)
-        response = self.send(request, wait=wait, timeout=timeout)
-        if isinstance(response, GetAllianceInfoResponse):
-            return response
-        return None
+        return self.request(GetAllianceInfoRequest(AID=alliance_id), GetAllianceInfoResponse, timeout=timeout)
 
     # ============================================================
     # Movement Helpers
@@ -452,24 +467,19 @@ class EmpireClient:
     # Chat Subscription
     # ============================================================
 
-    def get_alliance_chat(self, wait: bool = True, timeout: float = 5.0) -> AllianceChatLogResponse | None:
+    def get_alliance_chat(self, timeout: float = 5.0) -> AllianceChatLogResponse:
         """
         Get alliance chat history.
 
         Args:
-            wait: If True, wait for response
             timeout: Timeout in seconds
 
-        Returns:
-            AllianceChatLogResponse or None
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`send`
         """
         from empire_core.protocol.models.chat import AllianceChatLogRequest
 
-        request = AllianceChatLogRequest()
-        response = self.send(request, wait=wait, timeout=timeout)
-        if isinstance(response, AllianceChatLogResponse):
-            return response
-        return None
+        return self.request(AllianceChatLogRequest(), AllianceChatLogResponse, timeout=timeout)
 
     def subscribe_alliance_chat(self, callback) -> None:
         """
@@ -497,9 +507,8 @@ class EmpireClient:
         target_y: int,
         source_x: int | None = None,
         source_y: int | None = None,
-        wait: bool = True,
         timeout: float = 5.0,
-    ) -> GetSupportDefenseResponse | None:
+    ) -> GetSupportDefenseResponse:
         """
         Get defense info for an alliance member's castle.
 
@@ -512,33 +521,27 @@ class EmpireClient:
             target_y: Target castle Y coordinate
             source_x: Source castle X coordinate (defaults to bot's main castle)
             source_y: Source castle Y coordinate (defaults to bot's main castle)
-            wait: If True, wait for response
             timeout: Timeout in seconds
 
         Returns:
-            GetSupportDefenseResponse with defense info, or None on failure.
+            GetSupportDefenseResponse with defense info.
             Use response.get_total_defenders() to get total troop count.
+
+        Raises:
+            ValueError: No source coordinates given and no own castle known
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`send`
         """
         # Default to bot's main castle as source
         if source_x is None or source_y is None:
-            if self.state.castles:
-                main_castle = list(self.state.castles.values())[0]
-                source_x = main_castle.x
-                source_y = main_castle.y
-                logger.debug(f"SDI: Using source castle at {source_x}:{source_y}")
-            else:
-                logger.warning("SDI: No castles available for source coordinates")
-                return None
+            main_castle = next(iter(self.state.castles.values()), None)
+            if main_castle is None:
+                raise ValueError("No source coordinates given and no own castles in state")
+            source_x = main_castle.x
+            source_y = main_castle.y
+            logger.debug(f"SDI: Using source castle at {source_x}:{source_y}")
 
-        logger.debug(f"SDI: Sending request TX={target_x}, TY={target_y}, SX={source_x}, SY={source_y}")
         request = GetSupportDefenseRequest(TX=target_x, TY=target_y, SX=source_x, SY=source_y)
-        logger.debug(f"SDI: Request packet = {request.to_packet(zone=self.config.default_zone)}")
-        response = self.send(request, wait=wait, timeout=timeout)
-        logger.debug(f"SDI: Response = {response}")
-
-        if isinstance(response, GetSupportDefenseResponse):
-            return response
-        return None
+        return self.request(request, GetSupportDefenseResponse, timeout=timeout)
 
     # ============================================================
     # Map Scanning
@@ -551,9 +554,8 @@ class EmpireClient:
         x2: int,
         y2: int,
         kingdom: Kingdom = Kingdom.GREEN,
-        wait: bool = True,
         timeout: float = 5.0,
-    ) -> GetMapAreaResponse | None:
+    ) -> GetMapAreaResponse:
         """
         Scan a specific area of the map.
 
@@ -563,18 +565,13 @@ class EmpireClient:
             x2: Right X coordinate
             y2: Bottom Y coordinate
             kingdom: Kingdom to scan (GREEN, SANDS, ICE, FIRE, STORM)
-            wait: If True, wait for response
             timeout: Timeout in seconds
 
-        Returns:
-            GetMapAreaResponse with map data, or None on failure.
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`send`
         """
         request = GetMapAreaRequest(KID=kingdom, AX1=x1, AY1=y1, AX2=x2, AY2=y2)
-        response = self.send(request, wait=wait, timeout=timeout)
-
-        if isinstance(response, GetMapAreaResponse):
-            return response
-        return None
+        return self.request(request, GetMapAreaResponse, timeout=timeout)
 
     def _get_kingdom_start_position(self, kingdom: Kingdom) -> tuple[int, int]:
         """
@@ -617,29 +614,10 @@ class EmpireClient:
     def get_player_details(
         self,
         player_id: int,
-        wait: bool = True,
         timeout: float = 5.0,
-    ) -> GetPlayerInfoResponse | None:
-        """
-        Get detailed player information including castle list with capture info.
-
-        This uses the 'gdi' command which provides more detail than 'gpi',
-        including which locations are being captured and by whom.
-
-        Args:
-            player_id: The player ID to look up
-            wait: If True, wait for response
-            timeout: Timeout in seconds
-
-        Returns:
-            GetPlayerInfoResponse with player details, or None on failure.
-        """
-        request = GetPlayerInfoRequest(PID=player_id)
-        response = self.send(request, wait=wait, timeout=timeout)
-
-        if isinstance(response, GetPlayerInfoResponse):
-            return response
-        return None
+    ) -> GetPlayerInfoResponse:
+        """Alias for :meth:`get_player_info` (both use the 'gdi' command)."""
+        return self.get_player_info(player_id, timeout=timeout)
 
     def get_player_details_bulk(
         self,
@@ -684,7 +662,7 @@ class EmpireClient:
 
             while len(collected) < len(unique_ids) and time.time() < deadline:
                 try:
-                    resp = response_queue.get(timeout=min(0.5, deadline - time.time()))
+                    resp = response_queue.get(timeout=max(0.05, min(0.5, deadline - time.time())))
                     if resp.player_id in unique_ids:
                         collected[resp.player_id] = resp
                 except queue.Empty:
@@ -699,10 +677,5 @@ class EmpireClient:
         self,
         player_name: str,
         timeout: float = 5.0,
-    ) -> SearchPlayerResponse | None:
-        request = SearchPlayerRequest(PN=player_name)
-        response = self.send(request, wait=True, timeout=timeout)
-
-        if isinstance(response, SearchPlayerResponse):
-            return response
-        return None
+    ) -> SearchPlayerResponse:
+        return self.request(SearchPlayerRequest(PN=player_name), SearchPlayerResponse, timeout=timeout)

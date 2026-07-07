@@ -1,7 +1,9 @@
 import logging
 import time
+from collections import deque
 from typing import TYPE_CHECKING, NamedTuple
 
+from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
 from empire_core.protocol.models.map import GetMapAreaRequest, Kingdom, MapAreaItem, MapItemType, MapObject
 
 if TYPE_CHECKING:
@@ -13,6 +15,12 @@ logger = logging.getLogger(__name__)
 class ScanResult(NamedTuple):
     items: list[MapAreaItem]
     objects: dict[int, MapObject]
+    failed_chunks: tuple[tuple[int, int], ...] = ()
+
+
+class _ChunkResult(NamedTuple):
+    ok: bool
+    has_content: bool
 
 
 class MapScanner:
@@ -25,10 +33,17 @@ class MapScanner:
         self.client = client
 
     def _chunk_bounds(self, cx: int, cy: int) -> tuple[int, int, int, int]:
-        """Convert chunk coords to world bounds."""
+        """Convert chunk coords to world bounds (inclusive)."""
         x1 = cx * self.CHUNK_SIZE
         y1 = cy * self.CHUNK_SIZE
-        return (x1, y1, x1 + self.CHUNK_SIZE, y1 + self.CHUNK_SIZE)
+        # Bounds are inclusive; ending at x1 + CHUNK_SIZE would re-fetch the
+        # first row/column of the next chunk and duplicate boundary items.
+        return (x1, y1, x1 + self.CHUNK_SIZE - 1, y1 + self.CHUNK_SIZE - 1)
+
+    def _request_chunk(self, request: GetMapAreaRequest, request_timeout: float):
+        """Send a chunk request and wait for the matching gaa response."""
+        packet = request.to_packet(zone=self.client.config.default_zone)
+        return self.client.connection.request(packet, "gaa", timeout=request_timeout)
 
     def _process_chunk(
         self,
@@ -39,40 +54,39 @@ class MapScanner:
         collected_items: list[MapAreaItem],
         collected_objects: dict[int, MapObject],
         request_timeout: float,
-    ) -> bool:
+    ) -> _ChunkResult:
         """
         Request a single chunk and process the response.
-        Returns True if chunk had content, False if empty.
+
+        Returns (ok, has_content). ``ok=False`` means the request failed
+        (as opposed to succeeding with an empty area).
         """
         x1, y1, x2, y2 = self._chunk_bounds(cx, cy)
         request = GetMapAreaRequest(KID=kingdom, AX1=x1, AY1=y1, AX2=x2, AY2=y2)
 
-        # Send and wait for response
         try:
-            self.client.send(request, wait=False)
-            response = self.client.connection.wait_for("gaa", timeout=request_timeout)
-        except (TimeoutError, RuntimeError) as e:
+            response = self._request_chunk(request, request_timeout)
+        except (EmpireTimeoutError, NetworkError) as e:
             logger.warning(f"Chunk ({cx}, {cy}) request failed: {e}. Retrying...")
 
             # Check connection before retry
             if not self.client.connection.connected:
                 logger.error("Connection lost during scan")
-                return False
+                return _ChunkResult(ok=False, has_content=False)
 
             # Retry once
             try:
                 time.sleep(0.1)  # Wait a bit before retry
-                self.client.send(request, wait=False)
-                response = self.client.connection.wait_for("gaa", timeout=request_timeout)
+                response = self._request_chunk(request, request_timeout)
             except Exception as e2:
                 logger.error(f"Chunk ({cx}, {cy}) failed after retry: {e2}")
-                return False
-
-        if not isinstance(response.payload, dict):
-            return False
+                return _ChunkResult(ok=False, has_content=False)
 
         if response.error_code == 337:
-            raise RuntimeError("ADDITIONAL_KINGDOM_NOT_UNLOCKED")
+            raise CommandError("gaa", 337)  # ADDITIONAL_KINGDOM_NOT_UNLOCKED
+
+        if not isinstance(response.payload, dict):
+            return _ChunkResult(ok=False, has_content=False)
 
         ai_array = response.payload.get("AI", [])
         oi_array = response.payload.get("OI", [])
@@ -100,7 +114,7 @@ class MapScanner:
                         continue
                     collected_items.append(item)
 
-        return has_content
+        return _ChunkResult(ok=True, has_content=has_content)
 
     def scan_kingdom(
         self,
@@ -112,6 +126,10 @@ class MapScanner:
         """
         Scan a kingdom map with dynamic boundary detection.
         Uses BFS expansion from the bot's castle position.
+
+        Chunks that fail even after a retry are reported in
+        ``ScanResult.failed_chunks`` so callers can tell a partial scan
+        from a complete one.
         """
         # Get starting position from bot's castle
         start_x, start_y = self.client._get_kingdom_start_position(kingdom)
@@ -131,10 +149,11 @@ class MapScanner:
         collected_items: list[MapAreaItem] = []
         collected_objects: dict[int, MapObject] = {}
         visited: set[tuple[int, int]] = set()
-        chunk_has_content: dict[tuple[int, int], bool] = {}
+        failed_chunks: list[tuple[int, int]] = []
 
         # BFS queue - process one chunk at a time
-        queue: list[tuple[int, int]] = [(start_cx, start_cy)]
+        queue: deque[tuple[int, int]] = deque([(start_cx, start_cy)])
+        enqueued: set[tuple[int, int]] = {(start_cx, start_cy)}
         total_requests = 0
         start_time = time.time()
 
@@ -152,9 +171,8 @@ class MapScanner:
             # Add small delay to prevent rate limiting/disconnects
             time.sleep(0.01)
 
-            cx, cy = queue.pop(0)
+            cx, cy = queue.popleft()
 
-            # Skip if already visited or out of bounds
             if (cx, cy) in visited:
                 continue
             if cx < 0 or cy < 0 or cx > self.MAX_COORD or cy > self.MAX_COORD:
@@ -164,10 +182,19 @@ class MapScanner:
             total_requests += 1
 
             # Process this chunk
-            has_content = self._process_chunk(
+            result = self._process_chunk(
                 cx, cy, kingdom, filter_types, collected_items, collected_objects, request_timeout
             )
-            chunk_has_content[(cx, cy)] = has_content
+
+            if not result.ok:
+                failed_chunks.append((cx, cy))
+                if not self.client.connection.connected:
+                    logger.error("Aborting scan: connection lost")
+                    break
+
+            # A failed chunk is treated as if it had content so BFS keeps
+            # expanding past it instead of silently truncating the region.
+            has_content = result.has_content or not result.ok
 
             # Update bounds tracking
             if has_content:
@@ -179,13 +206,16 @@ class MapScanner:
             # Add neighbors to queue (BFS expansion)
             neighbors = [(cx - 1, cy), (cx + 1, cy), (cx, cy - 1), (cx, cy + 1)]
             for nx, ny in neighbors:
-                if (nx, ny) not in visited:
-                    # Always explore if within 2 chunks of known content
-                    if min_x_found - 2 <= nx <= max_x_found + 2 and min_y_found - 2 <= ny <= max_y_found + 2:
-                        queue.append((nx, ny))
-                    # Or if this chunk had content, explore neighbors
-                    elif has_content:
-                        queue.append((nx, ny))
+                if (nx, ny) in enqueued or (nx, ny) in visited:
+                    continue
+                # Always explore if within 2 chunks of known content
+                if min_x_found - 2 <= nx <= max_x_found + 2 and min_y_found - 2 <= ny <= max_y_found + 2:
+                    queue.append((nx, ny))
+                    enqueued.add((nx, ny))
+                # Or if this chunk had content, explore neighbors
+                elif has_content:
+                    queue.append((nx, ny))
+                    enqueued.add((nx, ny))
 
             # Log progress periodically
             if total_requests % 50 == 0:
@@ -195,6 +225,8 @@ class MapScanner:
                 )
 
         elapsed = time.time() - start_time
+        if failed_chunks:
+            logger.warning(f"Kingdom scan incomplete: {len(failed_chunks)} chunk(s) failed: {failed_chunks[:10]}")
         logger.debug(
             f"Kingdom {kingdom.name} scan complete. "
             f"Scanned {total_requests} chunks in {elapsed:.1f}s, "
@@ -202,4 +234,4 @@ class MapScanner:
             f"Map bounds: x=[{min_x_found * self.CHUNK_SIZE}-{(max_x_found + 1) * self.CHUNK_SIZE}] "
             f"y=[{min_y_found * self.CHUNK_SIZE}-{(max_y_found + 1) * self.CHUNK_SIZE}]"
         )
-        return ScanResult(items=collected_items, objects=collected_objects)
+        return ScanResult(items=collected_items, objects=collected_objects, failed_chunks=tuple(failed_chunks))
