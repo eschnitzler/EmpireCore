@@ -31,7 +31,7 @@
 
 | Category | Description |
 |----------|-------------|
-| **Connection** | WebSocket with background threads, auto-reconnect, keepalive |
+| **Connection** | Synchronous WebSocket with a background receive thread and keepalive |
 | **Protocol Models** | Pydantic models for all GGE commands with type-safe request/response handling |
 | **Services** | High-level APIs for alliance, castle, and more - auto-attached to client |
 | **State Tracking** | Player, castles, resources, movements |
@@ -133,12 +133,39 @@ request = AllianceChatMessageRequest.create("Hello 100%!")
 packet = request.to_packet()
 # -> "%xt%EmpireEx_21%acm%1%{"M": "Hello 100&percnt;!"}%"
 
-# Send via client
+# Fire-and-forget (no response awaited)
 client.send(request)
 
-# Or wait for response
+# Or wait for and parse the response
 response = client.send(GetCastlesRequest(), wait=True)
 ```
+
+## Error Handling
+
+Calls that wait for a response raise typed exceptions on failure instead of
+returning `None` — so a timeout, a dropped connection, and a server-side
+rejection are distinguishable. All inherit from `EmpireError`.
+
+```python
+from empire_core.exceptions import CommandError, EmpireTimeoutError, ConnectionClosedError
+
+try:
+    castles = client.castle.get_all()
+except CommandError as e:
+    # Server answered with a non-zero error code
+    print(f"rejected: {e.command} code {e.code}")
+except EmpireTimeoutError:
+    # No response within the timeout
+    ...
+except ConnectionClosedError:
+    # Connection dropped while waiting
+    ...
+```
+
+`EmpireTimeoutError` also subclasses the builtin `TimeoutError`, so
+`except TimeoutError` works too. Action helpers (e.g. `client.castle.select()`)
+return `bool` — `False` means the server rejected the action, while transport
+failures still raise.
 
 ## Contributing
 

@@ -1,50 +1,81 @@
 # Architecture Overview
 
-EmpireCore is designed as a layered framework to ensure separation of concerns, scalability, and maintainability.
+EmpireCore is a layered library. Each layer has a single responsibility and
+depends only on the layers below it.
+
+> **Note:** The library is **synchronous and thread-based**, not asyncio. A
+> dedicated background thread receives packets so the library never competes
+> for a host event loop (e.g. Discord.py) — run blocking calls in a thread
+> pool if you need concurrency.
 
 ## High-Level Layers
 
 ```mermaid
 graph TD
-    User[User Code / Bot Logic] -->|Subscribe| Events[Event Bus]
-    User -->|Action| Client[EmpireClient]
-    
-    Client --> State[State Manager]
-    Client --> Network[Network Layer]
-    
-    Network -->|Raw Packets| SFS[SmartFoxServer Protocol]
-    SFS -->|Parsed Events| Events
-    SFS -->|Data Updates| State
-    
-    State -->|State Changes| Events
+    User[User Code / Bot Logic] -->|method calls| Client[EmpireClient]
+    User -->|register callbacks| State[GameState]
+
+    Client --> Services[Services]
+    Client --> State
+    Client --> Network[Connection]
+
+    Services --> Client
+    Network -->|raw packets| Protocol[Protocol Models]
+    Network -->|on_packet| State
+    Network -->|waiters / subscribers| Client
 ```
 
-### 1. The Network Layer (`empire_core.network`)
-*   **Responsibility**: Handles the raw TCP/WebSocket connection to Goodgame Studios servers.
-*   **Components**:
-    *   `ConnectionManager`: Manages the socket, reconnections, and SSL contexts.
-    *   `PacketSerializer`: Converts Python objects to SFS `%xt%` strings.
-    *   `PacketDeserializer`: Parses incoming XML/SFS strings into Python dictionaries/objects.
-*   **Performance**: Uses `asyncio` streams to prevent I/O blocking.
+### 1. Network Layer (`empire_core.network`)
+* **Responsibility**: the raw WebSocket connection and packet routing.
+* **Components**:
+    * `Connection`: wraps a `websocket-client` socket. Runs two daemon
+      threads — a receive loop and a keepalive loop — tagged with a
+      *generation token* so a thread from a previous connection can never
+      touch a newer one's state.
+    * Routing has three mechanisms:
+        * **Waiters** — one-shot request/response. `Connection.request()`
+          registers a waiter *before* sending, then blocks for the matching
+          command (race-free).
+        * **Subscribers** — pub/sub; every matching packet is broadcast to
+          all subscribers (e.g. alliance chat).
+        * **Global handler** (`on_packet`) — feeds every packet to state.
+* **Packets** (`empire_core.protocol.packet.Packet`): parses both the XML
+  handshake frames and the `%xt%` extension frames.
 
-### 2. The Protocol Layer (`empire_core.protocol`)
-*   **Responsibility**: Defines the grammar of the game communication.
-*   **Components**:
-    *   `CommandDef`: Definitions of known commands (e.g., `lli`, `gam`, `get_account_infos`).
-    *   `HandshakeHandler`: Manages the complex login sequence (Policy file -> Version check -> Login -> Zone join).
+### 2. Protocol Layer (`empire_core.protocol`)
+* **Responsibility**: the typed grammar of the game protocol.
+* **Components**:
+    * `BasePayload` / `BaseRequest` / `BaseResponse`: Pydantic v2 models.
+      Requests serialize to `%xt%` packets via `to_packet()`; responses parse
+      from server payloads.
+    * **Registry**: `BaseResponse.__init_subclass__` auto-registers each
+      response class by its `command`. Duplicate registration raises;
+      `parse_response(command, payload)` dispatches to the right model.
+    * `GGECommand`: string constants for known command codes.
+    * `errors.GGEError`: enum of server error codes.
 
-### 3. The State Layer (`empire_core.state`)
-*   **Responsibility**: Maintains a "source of truth" for the current game state.
-*   **Components**:
-    *   `World`: The root object containing the map, players, and alliances.
-    *   `EntityManager`: Tracks objects by ID to ensure strict object identity (e.g., `player_a` in the memory is the same instance everywhere).
-*   **Behavior**: 
-    *   Passive: Updated strictly by incoming network packets.
-    *   Reactive: Emits signals when properties change (e.g., `castle.resource_update`).
+### 3. State Layer (`empire_core.state`)
+* **Responsibility**: an in-memory snapshot of the current game state.
+* **Components**:
+    * `GameState`: holds the local player, players, castles, and movements as
+      plain dicts, guarded by a lock (it is written by the receive thread and
+      read from user threads).
+    * Updated **passively** — `update_from_packet()` routes each tracked
+      command (`gbd`, `gam`, `dcl`, `mov`, `atv`/`ata`, `mrm`, `sce`, `sei`)
+      to a handler that merges the data.
+    * Emits **callbacks** for attacks, arrivals, and recalls, dispatched on a
+      thread pool so a callback may itself make blocking calls.
+* See [state_management.md](state_management.md) and [events.md](events.md).
 
-### 4. The Public API (`empire_core.client`)
-*   **Responsibility**: The user-facing entry point.
-*   **Components**:
-    *   `EmpireClient`: The main class users instantiate.
-    *   Exposes high-level methods: `attack()`, `send_resources()`, `get_messages()`.
-    *   Exposes the decorator-based event system.
+### 4. Public API (`empire_core.client`, `empire_core.services`)
+* **Responsibility**: the user-facing entry point.
+* **Components**:
+    * `EmpireClient`: the class users instantiate. Runs the login handshake,
+      owns the `Connection` and `GameState`, and exposes `send()` / `request()`.
+    * **Services** (`client.alliance`, `client.castle`, `client.army`, …):
+      high-level, domain-specific APIs, auto-attached at construction. They
+      build on `BaseService.request()` (typed response or raise) and
+      `execute()` (bool for action success).
+    * **Errors**: waiting calls raise typed exceptions from
+      `empire_core.exceptions` (`CommandError`, `EmpireTimeoutError`,
+      `ConnectionClosedError`, …) rather than returning `None`.

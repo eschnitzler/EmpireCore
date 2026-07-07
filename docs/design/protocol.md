@@ -9,9 +9,12 @@ The connection follows a strict sequence:
 1.  **Policy Request**: The client requests `cross-domain-policy`.
 2.  **Version Check (`verChk`)**: Client sends XML to verify client version.
     *   Format: `<msg t='sys'><body action='verChk' r='0'><ver v='166' /></body></msg>`
-3.  **Login (`login`)**: Client sends hashed credentials.
-    *   Format: `<msg t='sys'><body action='login' r='0'><login z='EmpireEx_21'><nick><![CDATA[]]></nick><pword><![CDATA[{HASHED_PW}]]></pword></login></body></msg>`
+3.  **Zone Login (`login`)**: Client joins the zone with an empty nick and a
+    connection token (not the real credentials).
+    *   Format: `<msg t='sys'><body action='login' r='0'><login z='EmpireEx_21'><nick><![CDATA[]]></nick><pword><![CDATA[{CONM}%en%0]]></pword></login></body></msg>`
 4.  **Room Join (`autoJoin`)**: Client requests to join the default server room.
+5.  **Account Login (`lli`)**: The real authentication — an `%xt%` packet whose
+    JSON payload carries the username (`NOM`) and password (`PW`).
 
 ## 2. Command Format (Extension Requests)
 
