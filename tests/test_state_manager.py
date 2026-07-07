@@ -2,6 +2,7 @@
 
 import threading
 import time
+from collections.abc import Generator
 
 import pytest
 
@@ -39,7 +40,7 @@ def wait_for(predicate, timeout: float = 2.0) -> bool:
 
 
 @pytest.fixture
-def state() -> GameState:
+def state() -> Generator[GameState, None, None]:
     gs = GameState()
     yield gs
     gs.shutdown()
@@ -47,7 +48,7 @@ def state() -> GameState:
 
 class TestAttackCallbacks:
     def test_new_attack_fires_callback_once(self, state):
-        fired = []
+        fired: list[Movement] = []
         state.on_incoming_attack(fired.append)
 
         state.update_from_packet("gam", gam_payload(100))
@@ -62,7 +63,7 @@ class TestAttackCallbacks:
     def test_own_outgoing_attack_does_not_fire(self, state):
         # Establish the local player
         state.update_from_packet("gbd", {"gpi": {"PID": 999, "PN": "me"}})
-        fired = []
+        fired: list[Movement] = []
         state.on_incoming_attack(fired.append)
 
         # Movement owned by the local player (OID=999) => own attack
@@ -71,7 +72,7 @@ class TestAttackCallbacks:
         assert fired == []
 
     def test_non_attack_movement_does_not_fire(self, state):
-        fired = []
+        fired: list[Movement] = []
         state.on_incoming_attack(fired.append)
         state.update_from_packet("gam", gam_payload(102, movement_type=2))  # 2 = TRANSPORT
         time.sleep(0.2)
@@ -79,7 +80,7 @@ class TestAttackCallbacks:
 
     def test_callbacks_survive_multiple_dispatch_cycles(self, state):
         # Executor is created lazily and must keep working after shutdown+reuse
-        fired = []
+        fired: list[Movement] = []
         state.on_incoming_attack(fired.append)
         state.update_from_packet("gam", gam_payload(103))
         assert wait_for(lambda: len(fired) == 1)
@@ -108,7 +109,7 @@ class TestMovementLifecycle:
         assert updated.source_player_name == "Attacker"
 
     def test_arrival_removes_movement(self, state):
-        arrived = []
+        arrived: list[int] = []
         state.on_movement_arrived(arrived.append)
         state.update_from_packet("gam", gam_payload(201))
         assert state.get_movement_by_id(201) is not None
@@ -118,7 +119,7 @@ class TestMovementLifecycle:
         assert wait_for(lambda: arrived == [201])
 
     def test_recall_removes_movement(self, state):
-        recalled = []
+        recalled: list[int] = []
         state.on_movement_recalled(recalled.append)
         state.update_from_packet("gam", gam_payload(202))
         state.update_from_packet("mrm", {"MID": 202})

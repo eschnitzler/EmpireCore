@@ -69,21 +69,21 @@ class TestWaiters:
 
 class TestSubscribers:
     def test_subscribers_receive_all_packets(self, conn):
-        received = []
+        received: list[Packet] = []
         conn.subscribe("acm", received.append)
         conn._route_packet(make_packet("acm"))
         conn._route_packet(make_packet("acm"))
         assert len(received) == 2
 
     def test_unsubscribe(self, conn):
-        received = []
+        received: list[Packet] = []
         conn.subscribe("acm", received.append)
         conn.unsubscribe("acm", received.append)
         conn._route_packet(make_packet("acm"))
         assert received == []
 
     def test_subscriber_exception_does_not_break_routing(self, conn):
-        received = []
+        received: list[Packet] = []
 
         def bad(_packet):
             raise RuntimeError("boom")
@@ -94,7 +94,7 @@ class TestSubscribers:
         assert len(received) == 1
 
     def test_global_handler_called(self, conn):
-        seen = []
+        seen: list[Packet] = []
         conn.on_packet = seen.append
         conn._route_packet(make_packet("xyz"))
         assert len(seen) == 1
