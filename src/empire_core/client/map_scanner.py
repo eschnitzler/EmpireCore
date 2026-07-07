@@ -122,6 +122,7 @@ class MapScanner:
         item_types: list[MapItemType] | None = None,
         timeout: float = 300.0,
         request_timeout: float = 5.0,
+        chunk_delay: float = 0.2,
     ) -> ScanResult:
         """
         Scan a kingdom map with dynamic boundary detection.
@@ -130,6 +131,11 @@ class MapScanner:
         Chunks that fail even after a retry are reported in
         ``ScanResult.failed_chunks`` so callers can tell a partial scan
         from a complete one.
+
+        ``chunk_delay`` paces the ``gaa`` requests. A full-kingdom scan
+        issues hundreds of requests back-to-back; sustained multi-minute
+        request floods make the server drop the connection, so don't set
+        this much lower unless you know the server tolerates it.
         """
         # Get starting position from bot's castle
         start_x, start_y = self.client._get_kingdom_start_position(kingdom)
@@ -168,8 +174,8 @@ class MapScanner:
                 logger.warning(f"Kingdom scan timeout after {total_requests} requests")
                 break
 
-            # Add small delay to prevent rate limiting/disconnects
-            time.sleep(0.01)
+            # Pace requests to avoid rate limiting/disconnects
+            time.sleep(chunk_delay)
 
             cx, cy = queue.popleft()
 

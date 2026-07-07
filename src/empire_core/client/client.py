@@ -601,9 +601,10 @@ class EmpireClient:
         item_types: list[MapItemType] | None = None,
         timeout: float = 300.0,
         request_timeout: float = 5.0,
+        chunk_delay: float = 0.2,
     ):
         """Scan a kingdom map. See MapScanner.scan_kingdom."""
-        return MapScanner(self).scan_kingdom(kingdom, item_types, timeout, request_timeout)
+        return MapScanner(self).scan_kingdom(kingdom, item_types, timeout, request_timeout, chunk_delay)
 
     # ============================================================
     # Player Details (gdi - includes capture info)
