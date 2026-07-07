@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import json
 import logging
+import queue
 import time
 from collections.abc import Callable
 from typing import TypeVar, cast
 
+from empire_core.client.map_scanner import MapScanner
 from empire_core.config import (
     LOGIN_DEFAULTS,
     EmpireConfig,
@@ -29,7 +31,7 @@ from empire_core.exceptions import (
 from empire_core.network.connection import Connection
 from empire_core.protocol.models import BaseRequest, BaseResponse, encode_chat_text, parse_response
 from empire_core.protocol.models.alliance import GetAllianceInfoRequest, GetAllianceInfoResponse
-from empire_core.protocol.models.chat import AllianceChatLogResponse
+from empire_core.protocol.models.chat import AllianceChatLogRequest, AllianceChatLogResponse
 from empire_core.protocol.models.defense import (
     GetSupportDefenseRequest,
     GetSupportDefenseResponse,
@@ -477,8 +479,6 @@ class EmpireClient:
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`send`
         """
-        from empire_core.protocol.models.chat import AllianceChatLogRequest
-
         return self.request(AllianceChatLogRequest(), AllianceChatLogResponse, timeout=timeout)
 
     def subscribe_alliance_chat(self, callback) -> None:
@@ -603,8 +603,6 @@ class EmpireClient:
         request_timeout: float = 5.0,
     ):
         """Scan a kingdom map. See MapScanner.scan_kingdom."""
-        from empire_core.client.map_scanner import MapScanner
-
         return MapScanner(self).scan_kingdom(kingdom, item_types, timeout, request_timeout)
 
     # ============================================================
@@ -637,8 +635,6 @@ class EmpireClient:
         Returns:
             Dict mapping player_id -> GetPlayerInfoResponse
         """
-        import queue
-
         if not player_ids:
             return {}
 

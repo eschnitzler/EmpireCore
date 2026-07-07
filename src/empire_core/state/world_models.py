@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from empire_core.utils.enums import MovementType
+from empire_core.utils.troops import count_troops
 
 
 class MovementResources(BaseModel):
@@ -201,8 +202,6 @@ class Movement(BaseModel):
         (blocking HTTP, cached afterwards). If the fetch fails, all units
         are counted and the fetch is retried after a cooldown.
         """
-        from empire_core.utils.troops import count_troops
-
         return count_troops(self.units)
 
     def has_arrived(self) -> bool:

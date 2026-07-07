@@ -22,6 +22,11 @@ logger = logging.getLogger(__name__)
 # Commands that use XT field 4 for data instead of error codes
 NON_ERROR_COMMANDS = {"rlu", "core_pol"}
 
+# Fallback zone for keepalive pings when the client doesn't inject one.
+# The client always passes keepalive_zone, so this only applies to a bare
+# Connection; kept here so the network layer needn't import the protocol layer.
+DEFAULT_KEEPALIVE_ZONE = "EmpireEx_21"
+
 # Recv poll interval; also the socket timeout, so sends blocking longer
 # than this raise. Keep small so _running is checked promptly on shutdown.
 SOCKET_POLL_TIMEOUT = 1.0
@@ -409,14 +414,7 @@ class Connection:
         """Background thread that sends keepalive pings."""
         logger.debug("Keepalive loop started")
 
-        zone = self.keepalive_zone
-        if zone is None:
-            try:
-                from empire_core.protocol.models.base import DEFAULT_ZONE
-
-                zone = DEFAULT_ZONE
-            except ImportError:
-                zone = "EmpireEx_21"
+        zone = self.keepalive_zone or DEFAULT_KEEPALIVE_ZONE
 
         def active() -> bool:
             return self._running and generation == self._generation
