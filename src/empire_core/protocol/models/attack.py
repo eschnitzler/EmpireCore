@@ -11,9 +11,9 @@ Commands:
 
 from __future__ import annotations
 
-from pydantic import ConfigDict, Field
+from pydantic import Field
 
-from .base import BaseRequest, BaseResponse, UnitCount
+from .base import BasePayload, BaseRequest, BaseResponse, UnitCount
 
 # =============================================================================
 # CRA - Create Attack
@@ -58,7 +58,6 @@ class CreateAttackResponse(BaseResponse):
 
     movement_id: int = Field(alias="MID", default=0)
     arrival_time: int = Field(alias="AT", default=0)  # Unix timestamp
-    error_code: int = Field(alias="E", default=0)
     error_message: str | None = Field(alias="EM", default=None)
 
 
@@ -111,7 +110,6 @@ class SendSpyResponse(BaseResponse):
 
     movement_id: int = Field(alias="MID", default=0)
     arrival_time: int = Field(alias="AT", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -149,7 +147,6 @@ class SpyScreenInfoResponse(BaseResponse):
 
     available_spies: int = Field(alias="AS", default=0)
     guard_count: int = Field(alias="GC", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -170,10 +167,8 @@ class GetPresetsRequest(BaseRequest):
     castle_id: int | None = Field(alias="CID", default=None)
 
 
-class AttackPreset(BaseResponse):
+class AttackPreset(BasePayload):
     """A saved attack preset."""
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     preset_id: int = Field(alias="PID")
     name: str = Field(alias="N")
@@ -220,9 +215,7 @@ class SkipAttackCooldownResponse(BaseResponse):
 
     command = "msd"
 
-    success: bool = Field(default=True)
     rubies_spent: int = Field(alias="RS", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -252,9 +245,7 @@ class SkipDefenseCooldownResponse(BaseResponse):
 
     command = "sdc"
 
-    success: bool = Field(default=True)
     rubies_spent: int = Field(alias="RS", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 __all__ = [

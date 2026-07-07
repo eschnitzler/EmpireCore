@@ -59,4 +59,3 @@ class GetLordsResponse(BaseResponse):
     command = "gli"
 
     lords: list[Lord] = Field(alias="C", default_factory=list)
-    error_code: int = Field(alias="E", default=0)

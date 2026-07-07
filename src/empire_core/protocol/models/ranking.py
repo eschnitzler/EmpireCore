@@ -11,6 +11,7 @@ Commands:
 from __future__ import annotations
 
 import logging
+from enum import IntEnum
 from typing import Any, ClassVar
 
 from pydantic import Field
@@ -20,7 +21,7 @@ from .base import BaseRequest, BaseResponse, GGECommand
 logger = logging.getLogger(__name__)
 
 
-class RankingType:
+class RankingType(IntEnum):
     """
     Known LT (List Type) values.
     Corresponds to Event IDs or Metric IDs.
@@ -49,7 +50,7 @@ class RankingType:
     OUTER_REALMS = 63  # 601 in some contexts?
 
 
-class RankingCategory:
+class RankingCategory(IntEnum):
     """
     Common LID (List ID) values.
     Corresponds to level brackets or sub-categories.
@@ -121,7 +122,7 @@ class RankingEntry:
             else:
                 logger.warning(f"Unknown RankingEntry format: {raw}")
 
-        except Exception as e:
+        except (IndexError, ValueError, TypeError) as e:
             logger.error(f"Failed to parse RankingEntry: {raw} - Error: {e}")
 
     def __repr__(self) -> str:

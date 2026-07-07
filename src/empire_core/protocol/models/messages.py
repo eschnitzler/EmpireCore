@@ -68,7 +68,6 @@ class BattleSpyDataResponse(BaseResponse):
     battle_data: dict[str, Any] = Field(alias="B", default_factory=dict)
     spy_data: list[Any] = Field(alias="S", default_factory=list)
     target: SpyCastleInfo | None = Field(alias="AI", default=None)
-    error_code: int = Field(alias="E", default=0)
 
 
 __all__ = [

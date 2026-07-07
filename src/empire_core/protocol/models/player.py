@@ -8,12 +8,13 @@ Commands:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 from pydantic import ConfigDict, Field
 
 from .base import BasePayload, BaseRequest, BaseResponse
 from .map import Kingdom
+from .profile import PlayerProfileBase
 
 # =============================================================================
 # Location Types
@@ -44,14 +45,12 @@ def get_location_type_name(type_id: int) -> str:
 # =============================================================================
 
 
-class LocationCapture(BaseResponse):
+class LocationCapture(BasePayload):
     """
     Information about a location being captured.
 
     Extracted from the gdi response's gcl.C[].AI[] arrays.
     """
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     location_id: int = 0
     location_type: int = 0
@@ -154,109 +153,17 @@ class PlayerCastle(BasePayload):
 # =============================================================================
 
 
-class PlayerOwnerInfo(BaseResponse):
+class PlayerOwnerInfo(PlayerProfileBase):
     """
     Owner info from the gdi response's O object.
 
-    Field mapping (confirmed from packet examples):
-    - OID: Player ID
-    - N: Player name
-    - AID: Alliance ID
-    - AN: Alliance name
-    - L: Level
-    - LL: Legendary level
-    - H: Honor (or unknown metric)
-    - AVP: Avatar points
-    - CF: Castle count (main castles)
-    - HF: Total castles including outposts
-    - MP: Might/power points
-    - PRE: Title prefix ID
-    - SUF: Title suffix ID
-    - TOPX: Global ranking (-1 if unranked)
-    - DUM: Dummy/inactive account flag
-    - AR: Alliance rank
-    - SA: Special ability/status
-    - VF: VIP flag
-    - PF: Premium flag
-    - RRD: Resource request date
-    - TI: Title index
-    - RPT: Revenge protection time remaining (seconds) — bird
-    - AP: Castle positions [[kingdom, area_id, x, y, castle_type], ...]
-    - VP: Village positions (usually empty)
-    - E: Emblem configuration
+    Common profile fields (OID/N/L/LL/H/AR/CF/HF/MP/DUM/AVP/PRE/SUF/TOPX/
+    SA/VF/PF/RRD/TI/RPT/AID/AN/AP/VP) are inherited from PlayerProfileBase.
     """
 
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-    player_id: int = Field(alias="OID", default=0)
-    name: str = Field(alias="N", default="")
-    alliance_id: int = Field(alias="AID", default=0)
-    alliance_name: str = Field(alias="AN", default="")
-    level: int = Field(alias="L", default=0)
-    legendary_level: int = Field(alias="LL", default=0)
-    h_field: int = Field(alias="H", default=0)
-    avatar_points: int = Field(alias="AVP", default=0)
-    castle_count: int = Field(alias="CF", default=0)
-    total_castles: int = Field(alias="HF", default=0)
-    might: int = Field(alias="MP", default=0)
-    title_prefix: int = Field(alias="PRE", default=0)
-    title_suffix: int = Field(alias="SUF", default=-1)
-    top_ranking: int = Field(alias="TOPX", default=-1)
-    is_dummy: bool = Field(alias="DUM", default=False)
-    alliance_rank: int = Field(alias="AR", default=0)
-    special_ability: int = Field(alias="SA", default=0)
-    vip_flag: int = Field(alias="VF", default=0)
-    premium_flag: int = Field(alias="PF", default=0)
-    resource_request_date: int = Field(alias="RRD", default=0)
-    title_index: int = Field(alias="TI", default=-1)
-    revenge_protection_seconds: int = Field(alias="RPT", default=0)
-    castle_positions: list = Field(alias="AP", default_factory=list)
-    village_positions: list = Field(alias="VP", default_factory=list)
-
-    # Emblem — imported inline to avoid circular import at module level
+    # Emblem configuration — kept as a raw dict here (AllianceMember maps the
+    # same "E" alias to a typed MemberEmblem)
     emblem: dict | None = Field(alias="E", default=None)
-
-    @property
-    def honor(self) -> int:
-        """Get player's honor (H field)."""
-        return self.h_field
-
-    @property
-    def castles(self) -> list:
-        """Parse AP castle positions. Returns list of MemberCastle objects."""
-        from .alliance import MemberCastle
-
-        return [MemberCastle.from_list(pos) for pos in self.castle_positions]
-
-    @property
-    def has_bird(self) -> bool:
-        """Check if player has revenge protection (bird) active."""
-        return self.revenge_protection_seconds > 0
-
-    @property
-    def bird_end_time(self) -> datetime | None:
-        """
-        Calculate when bird protection ends.
-
-        Returns:
-            Timezone-aware datetime (UTC) when bird expires, or None if no bird.
-
-        Note:
-            Calculated relative to when gdi data was fetched — use promptly.
-        """
-        if self.revenge_protection_seconds <= 0:
-            return None
-        return datetime.now(timezone.utc) + timedelta(seconds=self.revenge_protection_seconds)
-
-    @property
-    def is_leader(self) -> bool:
-        """Check if player is alliance leader (AR=8)."""
-        return self.alliance_rank == 8
-
-    @property
-    def is_officer(self) -> bool:
-        """Check if player is an officer (AR > 0 and < 8)."""
-        return 0 < self.alliance_rank < 8
 
 
 # =============================================================================
@@ -401,20 +308,6 @@ class GetPlayerInfoResponse(BaseResponse):
         return {cap.location_id: cap.capturer_id for cap in self.get_location_captures()}
 
 
-__all__ = [
-    "GetPlayerInfoRequest",
-    "GetPlayerInfoResponse",
-    "PlayerOwnerInfo",
-    "PlayerCastle",
-    "LocationCapture",
-    "LOCATION_TYPES",
-    "get_location_type_name",
-    "SearchPlayerRequest",
-    "SearchPlayerResponse",
-    "SearchPlayerResult",
-]
-
-
 # =============================================================================
 # WSP - World Search Player
 # =============================================================================
@@ -426,9 +319,7 @@ class SearchPlayerRequest(BaseRequest):
     player_name: str = Field(alias="PN")
 
 
-class SearchPlayerResult(BaseResponse):
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
+class SearchPlayerResult(BasePayload):
     player_id: int = Field(alias="OID", default=0)
     name: str = Field(alias="N", default="")
     level: int = Field(alias="L", default=0)
@@ -447,3 +338,17 @@ class SearchPlayerResponse(BaseResponse):
         if owner_info and len(owner_info) > 0:
             return SearchPlayerResult.model_validate(owner_info[0])
         return None
+
+
+__all__ = [
+    "GetPlayerInfoRequest",
+    "GetPlayerInfoResponse",
+    "PlayerOwnerInfo",
+    "PlayerCastle",
+    "LocationCapture",
+    "LOCATION_TYPES",
+    "get_location_type_name",
+    "SearchPlayerRequest",
+    "SearchPlayerResponse",
+    "SearchPlayerResult",
+]

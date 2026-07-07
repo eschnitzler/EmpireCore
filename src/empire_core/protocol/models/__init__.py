@@ -108,7 +108,6 @@ from .base import (
     BasePayload,
     BaseRequest,
     BaseResponse,
-    ErrorResponse,
     GGECommand,
     HelpType,
     PlayerInfo,
@@ -175,6 +174,19 @@ from .chat import (
     ChatLogEntry,
     ChatMessageData,
 )
+from .defense import (
+    ChangeKeepDefenseRequest,
+    ChangeKeepDefenseResponse,
+    ChangeMoatDefenseRequest,
+    ChangeMoatDefenseResponse,
+    ChangeWallDefenseRequest,
+    ChangeWallDefenseResponse,
+    DefenseConfiguration,
+    GetDefenseRequest,
+    GetDefenseResponse,
+    GetSupportDefenseRequest,
+    GetSupportDefenseResponse,
+)
 from .inventory import SCEItem
 from .lords import GetLordsRequest, GetLordsResponse, Lord
 from .map import (
@@ -229,7 +241,6 @@ __all__ = [
     "BasePayload",
     "BaseRequest",
     "BaseResponse",
-    "ErrorResponse",
     "Position",
     "ResourceAmount",
     "UnitCount",
@@ -342,6 +353,18 @@ __all__ = [
     "SystemNotificationEvent",
     "BattleSpyDataRequest",
     "BattleSpyDataResponse",
+    # Defense
+    "GetDefenseRequest",
+    "GetDefenseResponse",
+    "DefenseConfiguration",
+    "ChangeKeepDefenseRequest",
+    "ChangeKeepDefenseResponse",
+    "ChangeWallDefenseRequest",
+    "ChangeWallDefenseResponse",
+    "ChangeMoatDefenseRequest",
+    "ChangeMoatDefenseResponse",
+    "GetSupportDefenseRequest",
+    "GetSupportDefenseResponse",
     # Building
     "BuildRequest",
     "BuildResponse",

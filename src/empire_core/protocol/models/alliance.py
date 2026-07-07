@@ -10,11 +10,10 @@ Commands:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-
 from pydantic import ConfigDict, Field
 
 from .base import BasePayload, BaseRequest, BaseResponse, HelpType
+from .profile import PlayerProfileBase
 
 # =============================================================================
 # Alliance Member Model
@@ -66,70 +65,26 @@ class MemberCastle(BasePayload):
         )
 
 
-class AllianceMember(BasePayload):
+class AllianceMember(PlayerProfileBase):
     """
     Alliance member information from ain response.
 
-    Server field mapping:
-    - OID: Player/Object ID
-    - N: Player Name
-    - L: Level
-    - LL: Legendary Level
-    - H: Unknown metric (NOT online status - possibly honor or other stat)
-    - AR: Alliance Rank (0=member, 8=leader, etc.)
-    - CF: Castle count (main castles)
-    - HF: Total castles including outposts
-    - MP: Might/Power points
-    - E: Emblem configuration
-    - DUM: Is dummy/inactive account
-    - AVP: Avatar points
-    - PRE: Title prefix
-    - SUF: Title suffix
-    - R: Global rank
-    - AID: Alliance ID
-    - AN: Alliance Name
-    - AP: Castle positions [[kingdom, area_id, x, y, type], ...]
-    - SA: Special ability/status
-    - VF: VIP flag
-    - PF: Premium flag
+    Common profile fields (OID/N/L/LL/H/AR/CF/HF/MP/DUM/AVP/PRE/SUF/TOPX/
+    SA/VF/PF/RRD/TI/RPT/AID/AN/AP/VP) are inherited from PlayerProfileBase.
 
     Note: Activity status comes from the AMI array in AllianceInfo, not the H field.
     The AMI array format is: [player_id, field1, field2, field3, activity_tier, ...]
     Activity tiers: 0=online, 1=<12hrs, 2=<48hrs, 3=<7days, 4=7+days offline.
     """
 
-    player_id: int = Field(alias="OID", default=0)
     name: str = Field(alias="N", default="Unknown")
-    level: int = Field(alias="L", default=0)
-    legendary_level: int = Field(alias="LL", default=0)
-    h_field: int = Field(alias="H", default=0)  # Unknown metric, NOT online status
-    alliance_rank: int = Field(alias="AR", default=0)
-    castle_count: int = Field(alias="CF", default=0)
-    total_castles: int = Field(alias="HF", default=0)
-    might: int = Field(alias="MP", default=0)
 
-    # Additional fields
-    is_dummy: bool = Field(alias="DUM", default=False)
-    avatar_points: int = Field(alias="AVP", default=0)
-    title_prefix: int = Field(alias="PRE", default=0)
-    title_suffix: int = Field(alias="SUF", default=-1)
+    # The meaning of "R" is unverified: an earlier docstring called it "Global rank",
+    # while the field name says ruins. Kept as-is to preserve current behavior.
     is_in_ruins: bool = Field(alias="R", default=False)
-    alliance_id: int = Field(alias="AID", default=0)
-    alliance_name: str = Field(alias="AN", default="")
-    special_ability: int = Field(alias="SA", default=0)
-    vip_flag: int = Field(alias="VF", default=0)
-    premium_flag: int = Field(alias="PF", default=0)
-    top_ranking: int = Field(alias="TOPX", default=-1)
-    revenge_protection_seconds: int = Field(alias="RPT", default=0)
-    resource_request_date: int = Field(alias="RRD", default=0)
-    title_index: int = Field(alias="TI", default=-1)
 
-    # Emblem
+    # Emblem (typed here; PlayerOwnerInfo maps the same "E" alias to a plain dict)
     emblem: MemberEmblem | None = Field(alias="E", default=None)
-
-    # Castle positions (raw - can be parsed with MemberCastle.from_list)
-    castle_positions: list = Field(alias="AP", default_factory=list)
-    village_positions: list = Field(alias="VP", default_factory=list)
 
     # Activity tier (populated from AMI array, not from server directly)
     # None means unknown, 0-4 are the activity tiers from the server
@@ -160,47 +115,6 @@ class AllianceMember(BasePayload):
         Returns False if offline or unknown.
         """
         return self._activity_tier == 0
-
-    @property
-    def honor(self) -> int:
-        """Get member's honor points (H field)."""
-        return self.h_field
-
-    @property
-    def castles(self) -> list[MemberCastle]:
-        """Parse castle positions into MemberCastle objects."""
-        return [MemberCastle.from_list(pos) for pos in self.castle_positions]
-
-    @property
-    def is_leader(self) -> bool:
-        """Check if member is alliance leader (AR=8)."""
-        return self.alliance_rank == 8
-
-    @property
-    def is_officer(self) -> bool:
-        """Check if member is an officer (AR > 0 and < 8)."""
-        return 0 < self.alliance_rank < 8
-
-    @property
-    def has_bird(self) -> bool:
-        """Check if member has revenge protection (bird) active."""
-        return self.revenge_protection_seconds > 0
-
-    @property
-    def bird_end_time(self) -> datetime | None:
-        """
-        Calculate when bird protection ends.
-
-        Returns:
-            Timezone-aware datetime (UTC) when bird expires, or None if no bird active.
-
-        Note:
-            This is calculated relative to when the data was fetched,
-            so it should be used soon after fetching alliance info.
-        """
-        if self.revenge_protection_seconds <= 0:
-            return None
-        return datetime.now(timezone.utc) + timedelta(seconds=self.revenge_protection_seconds)
 
 
 # =============================================================================
@@ -377,18 +291,17 @@ class GetAllianceInfoResponse(BaseResponse):
 
     command = "ain"
 
-    alliance: AllianceInfo = Field(alias="A")
-    error_code: int = Field(alias="E", default=0)
+    alliance: AllianceInfo | None = Field(alias="A", default=None)
 
     @property
     def members(self) -> list[AllianceMember]:
         """Convenience accessor for alliance members."""
-        return self.alliance.members
+        return self.alliance.members if self.alliance else []
 
     @property
     def online_members(self) -> list[AllianceMember]:
         """Get list of currently online members."""
-        return self.alliance.online_members
+        return self.alliance.online_members if self.alliance else []
 
 
 # =============================================================================
@@ -440,9 +353,6 @@ class HelpMemberResponse(BaseResponse):
 
     command = "ahc"
 
-    success: bool = Field(default=True)
-    error_code: int = Field(alias="E", default=0)
-
 
 # =============================================================================
 # AHA - Help All
@@ -472,7 +382,6 @@ class HelpAllResponse(BaseResponse):
     command = "aha"
 
     helped_count: int = Field(alias="HC", default=0)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -524,9 +433,6 @@ class AskHelpResponse(BaseResponse):
 
     command = "ahr"
 
-    success: bool = Field(default=True)
-    error_code: int = Field(alias="E", default=0)
-
 
 # =============================================================================
 # Alliance Help Notification (received when someone asks for help)
@@ -542,10 +448,10 @@ class HelpRequestNotification(BaseResponse):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    player_id: int = Field(alias="PID")
-    player_name: str = Field(alias="PN")
-    castle_id: int = Field(alias="CID")
-    help_type: int = Field(alias="HT")
+    player_id: int = Field(alias="PID", default=0)
+    player_name: str = Field(alias="PN", default="")
+    castle_id: int = Field(alias="CID", default=0)
+    help_type: int = Field(alias="HT", default=0)
     building_id: int | None = Field(alias="BID", default=None)
 
 
@@ -593,7 +499,6 @@ class GetAllianceBookmarksResponse(BaseResponse):
     command = "gbl"
 
     bookmarks: list[AllianceBookmark] = Field(alias="ABL", default_factory=list)
-    error_code: int = Field(alias="E", default=0)
 
 
 # =============================================================================
@@ -646,17 +551,19 @@ class SearchAllianceRequest(BaseRequest):
         return cls(SV=query)
 
 
-class SearchAllianceResponse(BaseResponse):
+class SearchAllianceResponse(BaseResponse, register=False):
     """
     Response to alliance search.
 
-    Command: hgh
+    Command: hgh — shared with GetHighscoreResponse, which owns the registry
+    entry; this model is instantiated manually by AllianceService.
+
+    Not registered: see class docstring.
     """
 
     command = "hgh"
 
     raw_results: list = Field(alias="L", default_factory=list)
-    error_code: int = Field(alias="E", default=0)
 
     @property
     def results(self) -> list[AllianceSearchResult]:
