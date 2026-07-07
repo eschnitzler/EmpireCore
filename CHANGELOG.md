@@ -2,6 +2,61 @@
 
 <!-- version list -->
 
+## v0.28.0 (2026-07-07)
+
+### Bug Fixes
+
+- Harden protocol model registry and parsing robustness
+  ([`cb5f64c`](https://github.com/eschnitzler/EmpireCore/commit/cb5f64c2b998d0f5502397d548ed9c8b6bb4a3da))
+
+- Remove committed credentials, declare requests dep, gate releases on tests
+  ([`924f8a2`](https://github.com/eschnitzler/EmpireCore/commit/924f8a234594744fdbc40e0906c7f15effe4a63f))
+
+- Satisfy mypy in test files and Account.alias default
+  ([`d22947b`](https://github.com/eschnitzler/EmpireCore/commit/d22947b57e2f9ab8cf2e251df764feb69499487e))
+
+- State manager thread-safety and movement lifecycle
+  ([`d968681`](https://github.com/eschnitzler/EmpireCore/commit/d968681d7b692fc2dd077741e76d353f0b81132d))
+
+- Typed error propagation and race-free request/response correlation
+  ([`0c1440a`](https://github.com/eschnitzler/EmpireCore/commit/0c1440a5197c1e218df86ec577b1610568710094))
+
+### Code Style
+
+- Apply ruff-format to map scanner tests
+  ([`2aa01bb`](https://github.com/eschnitzler/EmpireCore/commit/2aa01bb04331473a5737dcaf1a26c1c5969423a5))
+
+### Documentation
+
+- Align README and design docs with the shipped implementation
+  ([`db96fb9`](https://github.com/eschnitzler/EmpireCore/commit/db96fb9675ab0385c841e7a03765f5be78b71e18))
+
+- Document map scanning, chunk pacing, and cheap re-scans in README
+  ([`01b3b88`](https://github.com/eschnitzler/EmpireCore/commit/01b3b885bbaacd51b50b79a812374926dccf6d0a))
+
+### Features
+
+- Add scan_chunks + content_chunks for cheap targeted re-scans
+  ([`a490634`](https://github.com/eschnitzler/EmpireCore/commit/a490634d4fd22c2002d18874623bed5f19b2a71e))
+
+- Pace kingdom-scan requests with a configurable chunk_delay
+  ([`449ed1d`](https://github.com/eschnitzler/EmpireCore/commit/449ed1da06be92367902d5219c48b04a50b12023))
+
+### Refactoring
+
+- Collapse service boilerplate onto typed request/execute helpers
+  ([`898d193`](https://github.com/eschnitzler/EmpireCore/commit/898d193710992751d21e382482cb3abce1be9418))
+
+- Drop unused config constants
+  ([`df12625`](https://github.com/eschnitzler/EmpireCore/commit/df12625687a6e7ce05d35d26db1cf8011cebb878))
+
+- Hoist unnecessary inline imports to module scope
+  ([`e22c0e1`](https://github.com/eschnitzler/EmpireCore/commit/e22c0e1bbe1fdfc858ff42ef1526a17dbe1d9024))
+
+- Prune dead modules, fix pool/accounts lifecycle, add test suite
+  ([`843d835`](https://github.com/eschnitzler/EmpireCore/commit/843d8354915ed804423a6568ba9eb9c7984dd9ca))
+
+
 ## v0.27.0 (2026-05-29)
 
 ### Chores
