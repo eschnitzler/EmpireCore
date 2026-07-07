@@ -117,6 +117,43 @@ resources = client.castle.get_resources(castle_id=12345)
 print(f"Wood: {resources.wood}, Stone: {resources.stone}")
 ```
 
+## Map Scanning
+
+Scan a kingdom for castles, outposts, capitals, etc. A full scan uses BFS
+discovery from your castle's position and can take a few minutes:
+
+```python
+from empire_core.protocol.models.map import Kingdom, MapItemType
+
+result = client.scan_kingdom(Kingdom.GREEN, item_types=[MapItemType.CASTLE])
+print(f"{len(result.items)} items, {len(result.failed_chunks)} failed chunks")
+```
+
+`chunk_delay` (default `0.2`s) paces the requests — the server drops
+connections that sustain a high request rate, so don't lower it for
+long-running scans unless you know the server tolerates it.
+
+**Re-scanning cheaply**: `result.content_chunks` lists the chunks that
+contained items. Feed it back into `scan_chunks()` to re-scan a known
+region without paying for BFS discovery of the empty boundary again
+(roughly a third fewer requests). Run a full `scan_kingdom()` periodically
+to pick up content that appeared in previously-empty chunks:
+
+```python
+# Discovery scan (expensive, occasionally)
+discovery = client.scan_kingdom(Kingdom.GREEN, item_types=[MapItemType.CASTLE])
+
+# Targeted re-scans (cheap, frequently)
+fresh = client.scan_chunks(
+    Kingdom.GREEN, list(discovery.content_chunks), item_types=[MapItemType.CASTLE]
+)
+```
+
+For very frequent scans, split `content_chunks` across multiple logged-in
+accounts (e.g. interleaved slices `chunks[i::n]`) and run the
+`scan_chunks()` calls concurrently — per-account request rate is what the
+server rate-limits.
+
 ## Protocol Models
 
 For lower-level access, use protocol models directly:
