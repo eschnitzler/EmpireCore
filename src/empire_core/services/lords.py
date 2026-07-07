@@ -32,21 +32,8 @@ class LordsService(BaseService):
 
         Returns:
             List of Lord objects
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError on failure
         """
-        try:
-            request = GetLordsRequest()
-            response = self.send(request, wait=True, timeout=timeout)
-
-            if isinstance(response, GetLordsResponse):
-                return response.lords
-
-            # If response is None, it means timeout or error
-            if response is None:
-                logger.debug("GetLordsRequest returned None (timeout or error)")
-                return []
-
-            logger.warning(f"Unexpected response type for get_lords: {type(response)}")
-            return []
-        except Exception as e:
-            logger.error(f"Error fetching lords: {e}")
-            return []
+        return self.request(GetLordsRequest(), GetLordsResponse, timeout=timeout).lords
