@@ -3,43 +3,43 @@ GameState - Tracks game state from server packets.
 """
 
 import logging
+import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from empire_core.state.models import Alliance, Castle, Player
-from empire_core.state.unit_models import Army
-from empire_core.state.world_models import MapObject, Movement, MovementResources
+from empire_core.state.world_models import Movement, MovementResources
 
 logger = logging.getLogger(__name__)
+
+# Movements whose estimated arrival is this many seconds in the past are
+# considered stale and pruned (their atv/ata packet was probably missed).
+STALE_MOVEMENT_GRACE = 300.0
 
 
 class GameState:
     """
     Manages game state parsed from server packets.
 
-    This is a simplified sync version - no async, no event emission.
-    State is updated directly and can be queried at any time.
+    State is mutated by the network receive thread and read from user
+    threads, so all mutation and snapshot reads are guarded by a lock.
 
-    Callbacks are dispatched in a thread pool to avoid blocking the receive loop.
-    This allows callbacks to make blocking calls (like waiting for responses).
+    Callbacks are dispatched in a thread pool to avoid blocking the receive
+    loop. This allows callbacks to make blocking calls (like waiting for
+    responses).
     """
 
     def __init__(self):
+        self._lock = threading.RLock()
+
         self.local_player: Player | None = None
         self.players: dict[int, Player] = {}
         self.castles: dict[int, Castle] = {}
 
         # World State
-        self.map_objects: dict[int, MapObject] = {}  # AreaID -> MapObject
         self.movements: dict[int, Movement] = {}  # MovementID -> Movement
-
-        # Track movement IDs we've seen (for delta detection)
-        self._previous_movement_ids: set[int] = set()
-
-        # Armies (castle_id -> Army)
-        self.armies: dict[int, Army] = {}
 
         # Active Events
         self.active_event_ids: list[int] = []
@@ -49,17 +49,17 @@ class GameState:
         self._movement_recalled_callbacks: list[Callable[[int], None]] = []
         self._movement_arrived_callbacks: list[Callable[[int], None]] = []
 
-        # Track movements that arrived normally (vs recalled)
-        self._arrived_movement_ids: set[int] = set()
-
-        # Thread pool for dispatching callbacks (avoids blocking receive loop)
-        self._callback_executor: ThreadPoolExecutor = ThreadPoolExecutor(
-            max_workers=4, thread_name_prefix="gge_callback"
-        )
+        # Thread pool for dispatching callbacks (avoids blocking receive loop).
+        # Created lazily so it survives disconnect/reconnect cycles.
+        self._callback_executor: ThreadPoolExecutor | None = None
+        self._executor_lock = threading.Lock()
 
     def shutdown(self) -> None:
-        """Shutdown the callback executor. Call on disconnect."""
-        self._callback_executor.shutdown(wait=False)
+        """Shutdown the callback executor. Call when done with the client."""
+        with self._executor_lock:
+            if self._callback_executor is not None:
+                self._callback_executor.shutdown(wait=False)
+                self._callback_executor = None
 
     def _dispatch_callback(self, callback: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         """Dispatch a callback in the thread pool."""
@@ -67,10 +67,18 @@ class GameState:
         def wrapped():
             try:
                 callback(*args, **kwargs)
-            except Exception as e:
-                logger.error(f"Callback error: {e}")
+            except Exception:
+                logger.exception("Callback error")
 
-        self._callback_executor.submit(wrapped)
+        with self._executor_lock:
+            if self._callback_executor is None:
+                self._callback_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="gge_callback")
+            executor = self._callback_executor
+        try:
+            executor.submit(wrapped)
+        except RuntimeError:
+            # Executor shut down concurrently; drop the callback but say so.
+            logger.warning("Callback dropped: executor is shut down")
 
     _DISPATCH: dict[str, str] = {
         "gbd": "_handle_gbd",
@@ -89,14 +97,20 @@ class GameState:
         """Central update router — parses packet and updates state."""
         handler_name = self._DISPATCH.get(cmd_id)
         if handler_name:
-            getattr(self, handler_name)(payload)
+            with self._lock:
+                getattr(self, handler_name)(payload)
 
     # ----------------------------------------------------------------
     # Callback registration helpers
     # ----------------------------------------------------------------
 
     def on_incoming_attack(self, callback: Callable[[Movement], None]) -> None:  # type: ignore[misc]
-        """Register a callback for incoming attack movements."""
+        """Register a callback for new hostile attack movements.
+
+        Fires once per newly seen attack that is not the local player's own
+        outgoing attack (i.e. attacks on you or on alliance members the
+        server pushes gam updates for).
+        """
         self._incoming_attack_callbacks.append(callback)
 
     def remove_incoming_attack_callback(self, callback: Callable[[Movement], None]) -> None:
@@ -143,10 +157,17 @@ class GameState:
         if not gpi:
             return
         pid = gpi.get("PID")
-        if not pid:
+        if pid is None:
             return
-        if pid not in self.players:
+        existing = self.players.get(pid)
+        if existing is None:
             self.players[pid] = Player(**gpi)
+        else:
+            # Merge fresh data into the existing object so references held
+            # by user code see the update (identity-map behavior).
+            fresh = Player(**gpi)
+            for field_name in fresh.model_fields_set & set(Player.model_fields):
+                setattr(existing, field_name, getattr(fresh, field_name))
         self.local_player = self.players[pid]
         logger.debug(f"Local player: {self.local_player.name} (ID: {pid})")
 
@@ -171,7 +192,10 @@ class GameState:
             return
         for item in sce:
             if isinstance(item, list) and len(item) >= 2:
-                self.local_player.inventory[str(item[0])] = int(item[1])
+                try:
+                    self.local_player.inventory[str(item[0])] = int(item[1])
+                except (ValueError, TypeError):
+                    logger.debug(f"Skipping malformed inventory entry: {item!r}")
         logger.debug(f"Parsed {len(self.local_player.inventory)} inventory items")
 
     def _parse_vip(self, data: dict[str, Any]) -> None:
@@ -199,6 +223,7 @@ class GameState:
         gcl = data.get("gcl", {})
         if not (gcl and self.local_player):
             return
+        seen_ids: set[int] = set()
         for k_data in gcl.get("C", []):
             kid = k_data.get("KID", 0)
             for area_entry in k_data.get("AI", []):
@@ -206,23 +231,38 @@ class GameState:
                 if isinstance(raw_ai, list) and len(raw_ai) > 10:
                     x, y, area_id, owner_id, name = raw_ai[1], raw_ai[2], raw_ai[3], raw_ai[4], raw_ai[10]
                     if owner_id == self.local_player.id:
-                        castle = Castle(OID=area_id, N=name, KID=kid, X=x, Y=y)
-                        self.castles[area_id] = castle
-                        self.local_player.castles[area_id] = castle
+                        seen_ids.add(area_id)
+                        existing = self.castles.get(area_id)
+                        if existing is not None:
+                            existing.N = name
+                            existing.KID = kid
+                            existing.X = x
+                            existing.Y = y
+                            self.local_player.castles[area_id] = existing
+                        else:
+                            castle = Castle(OID=area_id, N=name, KID=kid, X=x, Y=y)
+                            self.castles[area_id] = castle
+                            self.local_player.castles[area_id] = castle
+        # Drop castles no longer owned (lost/traded since the last update)
+        if seen_ids:
+            for stale_id in set(self.castles) - seen_ids:
+                self.castles.pop(stale_id, None)
+                self.local_player.castles.pop(stale_id, None)
         logger.debug(f"Parsed {len(self.local_player.castles)} castles")
 
     def _handle_gam(self, data: dict[str, Any]) -> None:
         """Handle 'Get Army Movements' response."""
+        self._prune_stale_movements()
+
         movements_list = data.get("M", [])
         owners_list = data.get("O", [])  # Owner info array
-        current_ids: set[int] = set()
 
         # Build owner lookup: OID -> {name, alliance_name}
         owner_info: dict[int, dict[str, str]] = {}
         for owner in owners_list:
             if isinstance(owner, dict):
                 oid = owner.get("OID")
-                if oid:
+                if oid is not None:
                     owner_info[oid] = {
                         "name": owner.get("N", ""),
                         "alliance_name": owner.get("AN", ""),
@@ -237,35 +277,53 @@ class GameState:
                 continue
 
             mid = m_data.get("MID")
-            if not mid:
+            if mid is None:
                 continue
 
-            current_ids.add(mid)
             mov = self._parse_movement(m_data, m_wrapper, owner_info)
             if not mov:
                 continue
 
-            is_new = mid not in self._previous_movement_ids
+            self._store_movement(mov)
 
-            if is_new:
-                mov.created_at = time.time()
+        # Don't remove movements here - wait for explicit arrival (atv/ata) or
+        # recall (mrm) packets so we can properly dispatch callbacks with full
+        # movement data. Missed arrivals are handled by _prune_stale_movements.
 
-                # Trigger callback for attacks (server pushes gam for alliance attacks)
-                if mov.is_attack:
-                    for cb in list(self._incoming_attack_callbacks):
-                        self._dispatch_callback(cb, mov)
-            else:
-                # Dispatch callback for updates to existing attacks too
-                if mov.is_attack:
-                    for cb in list(self._incoming_attack_callbacks):
-                        self._dispatch_callback(cb, mov)
+    def _store_movement(self, mov: Movement) -> None:
+        """Insert or merge a parsed movement; fire callbacks for new attacks."""
+        mid = mov.MID
+        existing = self.movements.get(mid)
 
-            self.movements[mid] = mov
+        if existing is None:
+            mov.created_at = time.time()
+            # Alert on new hostile attacks. The server also pushes gam for
+            # attacks on alliance members; exclude only our own outgoing
+            # attacks so those alliance alerts still fire.
+            own_attack = self.local_player is not None and mov.OID == self.local_player.PID
+            if mov.is_attack and not own_attack:
+                for cb in list(self._incoming_attack_callbacks):
+                    self._dispatch_callback(cb, mov)
+        else:
+            # Preserve metadata that later packets may not include
+            mov.created_at = existing.created_at
+            mov.source_player_name = mov.source_player_name or existing.source_player_name
+            mov.source_alliance_name = mov.source_alliance_name or existing.source_alliance_name
+            mov.target_player_name = mov.target_player_name or existing.target_player_name
+            mov.target_alliance_name = mov.target_alliance_name or existing.target_alliance_name
+            if not mov.units and existing.units:
+                mov.units = existing.units
 
-        # Don't remove movements here - wait for explicit arrival (atv/ata) or recall (mrm)
-        # packets so we can properly dispatch callbacks with full movement data
-        self._previous_movement_ids = current_ids
-        self._arrived_movement_ids.clear()
+        self.movements[mid] = mov
+
+    def _prune_stale_movements(self) -> None:
+        """Drop movements whose arrival packet was evidently missed."""
+        now = time.time()
+        stale = [mid for mid, m in self.movements.items() if now > m.estimated_arrival + STALE_MOVEMENT_GRACE]
+        for mid in stale:
+            del self.movements[mid]
+        if stale:
+            logger.debug(f"Pruned {len(stale)} stale movements: {stale}")
 
     def _handle_dcl(self, data: dict[str, Any]) -> None:
         """Handle 'Detailed Castle List' response."""
@@ -278,9 +336,11 @@ class GameState:
                     continue
 
                 aid = castle_data.get("AID")
-                if aid and aid in self.castles:
-                    castle = self.castles[aid]
+                if aid is None or aid not in self.castles:
+                    continue
+                castle = self.castles[aid]
 
+                try:
                     # Update resources
                     res = castle.resources
                     res.wood = int(castle_data.get("W", res.wood))
@@ -297,6 +357,9 @@ class GameState:
                                 uid = u_data[0]
                                 count = u_data[1]
                                 castle.units[uid] = count
+                except (ValueError, TypeError) as e:
+                    # One malformed castle entry must not abort the rest
+                    logger.debug(f"Skipping malformed dcl entry for castle {aid}: {e}")
 
     def _handle_mov(self, data: dict[str, Any]) -> None:
         """Handle real-time movement update."""
@@ -312,21 +375,18 @@ class GameState:
     def _handle_movement_arrived(self, data: dict[str, Any]) -> None:
         """Handle movement or attack arrival (atv/ata share identical logic)."""
         mid = data.get("MID")
-        if mid:
-            self._arrived_movement_ids.add(mid)
+        if mid is not None:
             for cb in list(self._movement_arrived_callbacks):
                 self._dispatch_callback(cb, mid)
             self.movements.pop(mid, None)
-            self._previous_movement_ids.discard(mid)
 
     def _handle_mrm(self, data: dict[str, Any]) -> None:
         """Handle movement recall (mrm = Move Recall Movement)."""
         mid = data.get("MID")
-        if mid:
+        if mid is not None:
             for cb in list(self._movement_recalled_callbacks):
                 self._dispatch_callback(cb, mid)
             self.movements.pop(mid, None)
-            self._previous_movement_ids.discard(mid)
 
     def _handle_sce(self, data: Any) -> None:
         """Handle Server Client Exchange (Inventory Update)."""
@@ -337,9 +397,10 @@ class GameState:
         if items and self.local_player:
             for item in items:
                 if isinstance(item, list) and len(item) >= 2:
-                    key = str(item[0])
-                    val = int(item[1])
-                    self.local_player.inventory[key] = val
+                    try:
+                        self.local_player.inventory[str(item[0])] = int(item[1])
+                    except (ValueError, TypeError):
+                        logger.debug(f"Skipping malformed sce entry: {item!r}")
             logger.debug(f"Updated {len(items)} inventory items from sce")
 
     def _handle_sei(self, data: dict[str, Any]) -> None:
@@ -365,7 +426,7 @@ class GameState:
     ) -> Movement | None:
         """Parse a Movement from packet data."""
         mid = m_data.get("MID")
-        if not mid:
+        if mid is None:
             return None
 
         try:
@@ -448,37 +509,10 @@ class GameState:
 
     def _update_single_movement(self, m_data: dict[str, Any]) -> None:
         """Update a single movement from real-time packet."""
-        mid = m_data.get("MID")
-        if not mid:
-            return
-
-        existing = self.movements.get(mid)
         mov = self._parse_movement(m_data)
         if not mov:
             return
-
-        is_new = existing is None
-        if is_new:
-            mov.created_at = time.time()
-            self._previous_movement_ids.add(mid)
-
-            # Trigger callback for new incoming attacks
-            # Dispatch in thread pool to avoid blocking receive loop
-            if mov.is_incoming and mov.is_attack:
-                for cb in list(self._incoming_attack_callbacks):
-                    self._dispatch_callback(cb, mov)
-        elif existing:
-            # Preserve metadata from existing movement that real-time packets don't include
-            mov.created_at = existing.created_at
-            mov.source_player_name = existing.source_player_name or mov.source_player_name
-            mov.source_alliance_name = existing.source_alliance_name or mov.source_alliance_name
-            mov.target_player_name = existing.target_player_name or mov.target_player_name
-            mov.target_alliance_name = existing.target_alliance_name or mov.target_alliance_name
-            # Preserve units if the update doesn't have them
-            if not mov.units and existing.units:
-                mov.units = existing.units
-
-        self.movements[mid] = mov
+        self._store_movement(mov)
 
     # ============================================================
     # Query Methods
@@ -486,20 +520,30 @@ class GameState:
 
     def get_all_movements(self) -> list[Movement]:
         """Get all tracked movements."""
-        return list(self.movements.values())
+        with self._lock:
+            return list(self.movements.values())
 
     def get_incoming_movements(self) -> list[Movement]:
         """Get all incoming movements."""
-        return [m for m in self.movements.values() if m.is_incoming]
+        with self._lock:
+            return [m for m in self.movements.values() if m.is_incoming]
 
     def get_outgoing_movements(self) -> list[Movement]:
         """Get all outgoing movements."""
-        return [m for m in self.movements.values() if m.is_outgoing]
+        with self._lock:
+            return [m for m in self.movements.values() if m.is_outgoing]
 
     def get_incoming_attacks(self) -> list[Movement]:
         """Get all incoming attack movements."""
-        return [m for m in self.movements.values() if m.is_incoming and m.is_attack]
+        with self._lock:
+            return [m for m in self.movements.values() if m.is_incoming and m.is_attack]
 
     def get_movement_by_id(self, movement_id: int) -> Movement | None:
         """Get a specific movement by ID."""
-        return self.movements.get(movement_id)
+        with self._lock:
+            return self.movements.get(movement_id)
+
+    def get_castles(self) -> list[Castle]:
+        """Get a snapshot of the player's castles."""
+        with self._lock:
+            return list(self.castles.values())

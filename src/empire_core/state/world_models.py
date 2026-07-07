@@ -76,7 +76,10 @@ class MovementResources(BaseModel):
     @property
     def total(self) -> int:
         """Total resources in transport."""
-        return self.wood + self.stone + self.food + self.iron + self.glass + self.ash
+        return (
+            self.wood + self.stone + self.food + self.iron + self.glass + self.ash
+            + self.honey + self.mead + self.beef
+        )
 
     @property
     def is_empty(self) -> bool:
@@ -174,7 +177,12 @@ class Movement(BaseModel):
 
     @property
     def time_remaining(self) -> int:
-        return max(0, self.TT - self.PT)
+        """Seconds until arrival, advancing with wall-clock time.
+
+        Extrapolated from the last packet snapshot (TT - PT at
+        ``last_updated``), so it keeps counting down between updates.
+        """
+        return max(0, int(round(self.estimated_arrival - time.time())))
 
     @property
     def progress_percent(self) -> float:
@@ -185,7 +193,7 @@ class Movement(BaseModel):
     @property
     def estimated_arrival(self) -> float:
         """Estimated arrival timestamp (Unix time)."""
-        return self.last_updated + self.time_remaining
+        return self.last_updated + max(0, self.TT - self.PT)
 
     @property
     def is_incoming(self) -> bool:
@@ -238,7 +246,12 @@ class Movement(BaseModel):
 
     @property
     def troop_count(self) -> int:
-        """Count of actual troops only (excludes equipment/tools)."""
+        """Count of actual troops only (excludes equipment/tools).
+
+        Note: the first access fetches troop metadata from the GGE CDN
+        (blocking HTTP, cached afterwards). If the fetch fails, all units
+        are counted and the fetch is retried after a cooldown.
+        """
         from empire_core.utils.troops import count_troops
 
         return count_troops(self.units)

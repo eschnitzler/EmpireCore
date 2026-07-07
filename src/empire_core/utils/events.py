@@ -34,7 +34,7 @@ _LANG_DATA_URL = "https://langserv.public.ggs-ep.com/12@{version}/{lang}/*"
 
 # Module-level caches
 _cached_events_index: dict[int, dict[str, Any]] | None = None  # event_id -> raw event dict
-_cached_translations: dict[str, str] | None = None
+_cached_translations: dict[str, dict[str, str]] = {}  # lang -> translations
 
 
 @dataclass
@@ -101,14 +101,13 @@ def _get_translations(lang: str = "en", force_refresh: bool = False) -> dict[str
     Returns:
         Dict mapping translation keys to localized strings.
     """
-    global _cached_translations
-
-    if _cached_translations is not None and not force_refresh:
-        return _cached_translations
+    cached = _cached_translations.get(lang)
+    if cached is not None and not force_refresh:
+        return cached
 
     try:
         translations = _fetch_translations(lang=lang)
-        _cached_translations = translations
+        _cached_translations[lang] = translations
         logger.info(f"Loaded {len(translations)} '{lang}' translations from GGS CDN")
         return translations
     except Exception as e:
