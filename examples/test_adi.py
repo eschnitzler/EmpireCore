@@ -25,7 +25,7 @@ def main():
             return 1
 
         # Get source position from bot's main castle
-        castles = list(client.state.castles.values())
+        castles = client.state.get_castles()
         if not castles:
             print("FAIL: No castles found in state")
             return 1

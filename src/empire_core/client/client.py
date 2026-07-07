@@ -533,7 +533,7 @@ class EmpireClient:
         """
         # Default to bot's main castle as source
         if source_x is None or source_y is None:
-            main_castle = next(iter(self.state.castles.values()), None)
+            main_castle = next(iter(self.state.get_castles()), None)
             if main_castle is None:
                 raise ValueError("No source coordinates given and no own castles in state")
             source_x = main_castle.x
@@ -586,9 +586,9 @@ class EmpireClient:
         Returns:
             (x, y) tuple for the starting position
         """
-        if self.state and self.state.castles:
+        if self.state:
             # Find a castle in the target kingdom
-            for castle in self.state.castles.values():
+            for castle in self.state.get_castles():
                 if castle.KID == kingdom.value:
                     return (castle.X, castle.Y)
 

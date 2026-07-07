@@ -6,6 +6,8 @@ This filters to get only actual combat units.
 """
 
 import logging
+import threading
+import time
 
 import requests
 
@@ -13,6 +15,11 @@ logger = logging.getLogger(__name__)
 
 # Cached troop IDs
 _troop_ids: set[int] | None = None
+_fetch_lock = threading.Lock()
+# After a failed fetch, don't retry the CDN for this many seconds. Without
+# this, every Movement.troop_count access re-issues blocking HTTP requests.
+_FAILURE_RETRY_INTERVAL = 300.0
+_last_failure_at: float = 0.0
 
 
 def get_items_version() -> str:
@@ -43,32 +50,38 @@ def get_troop_ids(force_refresh: bool = False) -> set[int]:
     Returns:
         Set of wodID values for valid troops
     """
-    global _troop_ids
+    global _troop_ids, _last_failure_at
 
-    if _troop_ids is not None and not force_refresh:
-        return _troop_ids
+    with _fetch_lock:
+        if _troop_ids is not None and not force_refresh:
+            return _troop_ids
 
-    try:
-        version = get_items_version()
-        items_data = fetch_items_data(version)
+        # Back off after a failure so repeated callers don't hammer the CDN
+        if not force_refresh and time.time() - _last_failure_at < _FAILURE_RETRY_INTERVAL:
+            return set()
 
-        units = items_data.get("units", [])
-        # Filter units without slotTypes (those are actual troops)
-        troop_ids = set()
-        for unit in units:
-            if not unit.get("slotTypes"):
-                wod_id = unit.get("wodID")
-                if wod_id:
-                    troop_ids.add(wod_id)
+        try:
+            version = get_items_version()
+            items_data = fetch_items_data(version)
 
-        _troop_ids = troop_ids
-        logger.info(f"Loaded {len(troop_ids)} troop IDs from GGE CDN (v{version})")
-        return troop_ids
+            units = items_data.get("units", [])
+            # Filter units without slotTypes (those are actual troops)
+            troop_ids = set()
+            for unit in units:
+                if not unit.get("slotTypes"):
+                    wod_id = unit.get("wodID")
+                    if wod_id:
+                        troop_ids.add(wod_id)
 
-    except Exception as e:
-        logger.error(f"Failed to fetch troop metadata: {e}")
-        # Return empty set on failure - will count all units
-        return set()
+            _troop_ids = troop_ids
+            logger.info(f"Loaded {len(troop_ids)} troop IDs from GGE CDN (v{version})")
+            return troop_ids
+
+        except Exception as e:
+            _last_failure_at = time.time()
+            logger.error(f"Failed to fetch troop metadata: {e}")
+            # Return empty set on failure - will count all units
+            return set()
 
 
 def count_troops(units: dict[int, int], troop_ids: set[int] | None = None) -> int:
