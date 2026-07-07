@@ -70,26 +70,31 @@ class AccountRegistry:
     def load(self, file_path: str = "accounts.json"):
         """
         Load accounts from all sources.
-        Prioritizes environment variables, then file.
+        Prioritizes environment variables, then file: an account whose
+        username appears in both sources keeps the env definition.
         """
         self._accounts = []
 
-        # 1. Load from JSON file
-        self._load_from_file(file_path)
-
-        # 2. Load from Environment Variables (EMPIRE_ACCOUNTS_JSON or specific vars)
+        # 1. Load from Environment Variables
         self._load_from_env()
+
+        # 2. Load from JSON file (skipping usernames already defined via env)
+        self._load_from_file(file_path)
 
         self._loaded = True
         logger.debug(f"AccountRegistry loaded {len(self._accounts)} active accounts.")
 
+    def _add_account(self, account: Account) -> None:
+        """Add an account unless its username is already registered."""
+        if any(acc.username.lower() == account.username.lower() for acc in self._accounts):
+            logger.debug(f"Skipping duplicate account definition for '{account.username}'")
+            return
+        self._accounts.append(account)
+
     def _load_from_file(self, path_str: str):
-        """Internal: Load from JSON file."""
-        # Resolve path similarly to the old loader
+        """Internal: Load from JSON file (as given, or relative to cwd)."""
         paths_to_check = [
             path_str,
-            os.path.join("..", path_str),
-            os.path.join("..", "..", path_str),
             os.path.join(os.getcwd(), path_str),
         ]
 
@@ -115,7 +120,7 @@ class AccountRegistry:
                 try:
                     account = Account(**entry)
                     if account.active:
-                        self._accounts.append(account)
+                        self._add_account(account)
                 except ValidationError as e:
                     logger.error(f"Skipping invalid account entry in {target_path}: {e}")
 
@@ -125,25 +130,46 @@ class AccountRegistry:
     def _load_from_env(self):
         """
         Internal: Load from environment variables.
-        Format: EMPIRE_ACCOUNT_<ALIAS>=<USERNAME>,<PASSWORD>,<WORLD>
+
+        Two formats are supported per EMPIRE_ACCOUNT_<ALIAS> variable:
+        - JSON object: {"username": "u", "password": "p", "world": "EmpireEx_21"}
+          (use this if the password contains commas)
+        - CSV: <USERNAME>,<PASSWORD>,<WORLD>
         """
         for key, value in os.environ.items():
-            if key.startswith("EMPIRE_ACCOUNT_"):
-                # Simple parsing: ALIAS=USER,PASS,WORLD
-                # Example: EMPIRE_ACCOUNT_MAIN=myuser,mypass,EmpireEx_21
-                alias = key.replace("EMPIRE_ACCOUNT_", "").lower()
-                parts = value.split(",")
+            if not key.startswith("EMPIRE_ACCOUNT_"):
+                continue
+            alias = key.replace("EMPIRE_ACCOUNT_", "").lower()
+            value = value.strip()
 
-                if len(parts) >= 2:
-                    username = parts[0].strip()
-                    password = parts[1].strip()
-                    world = parts[2].strip() if len(parts) > 2 else "EmpireEx_21"
+            if value.startswith("{"):
+                try:
+                    entry = json.loads(value)
+                    entry.setdefault("alias", alias)
+                    entry.setdefault("tags", ["env"])
+                    self._add_account(Account(**entry))
+                except (json.JSONDecodeError, ValidationError) as e:
+                    logger.error(f"Invalid JSON account in ${key}: {e}")
+                continue
 
-                    # Create account
-                    acc = Account(
-                        username=username, password=password, world=world, alias=alias, tags=["env"], active=True
-                    )
-                    self._accounts.append(acc)
+            # CSV fallback: USER,PASS[,WORLD]
+            parts = value.split(",")
+            if len(parts) < 2:
+                logger.error(f"Invalid account format in ${key} (expected USER,PASS[,WORLD] or JSON)")
+                continue
+            if len(parts) > 3:
+                logger.warning(
+                    f"${key} has more than 3 comma-separated fields; if the password "
+                    "contains commas, use the JSON object format instead"
+                )
+
+            username = parts[0].strip()
+            password = parts[1].strip()
+            world = parts[2].strip() if len(parts) > 2 else "EmpireEx_21"
+
+            self._add_account(
+                Account(username=username, password=password, world=world, alias=alias, tags=["env"], active=True)
+            )
 
     # === Query Methods ===
 

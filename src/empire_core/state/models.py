@@ -3,11 +3,6 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-class Coordinate(BaseModel):
-    x: int
-    y: int
-
-
 class Resources(BaseModel):
     """Resources in a castle."""
 
@@ -38,14 +33,6 @@ class Resources(BaseModel):
     beef: int = 0  # MRBEEF
     glass: int = 0  # MRG
     ash: int = 0  # MRA
-
-
-class Troop(BaseModel):
-    """Represents a troop type definition or a specific troop count."""
-
-    # This might be too generic. Renaming to Unit
-    unit_id: int
-    count: int = 0
 
 
 class Building(BaseModel):

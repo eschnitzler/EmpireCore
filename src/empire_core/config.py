@@ -47,6 +47,8 @@ LOGIN_DEFAULTS: dict[str, Any] = {
     "LT": None,
     "LANG": "en",
     "DID": "0",
+    # Static install/tracking id captured from a browser session; every
+    # library user presents this same fingerprint to the server.
     "AID": "1745592024940879420",
     "KID": "",
     "REF": "https://empire.goodgamestudios.com",

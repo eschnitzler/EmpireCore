@@ -3,57 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from empire_core.utils.enums import MapObjectType, MovementType
-
-
-class MapObject(BaseModel):
-    """Represents an object on the world map (Castle, Resource, NPC)."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    area_id: int = Field(default=-1, alias="AID")
-    owner_id: int = Field(default=-1, alias="OID")
-    type: MapObjectType = Field(default=MapObjectType.UNKNOWN, alias="T")
-    level: int = Field(default=0, alias="L")
-
-    # Location - sometimes embedded or passed separately
-    x: int = Field(default=0, alias="X")
-    y: int = Field(default=0, alias="Y")
-    kingdom_id: int = Field(default=0, alias="KID")
-
-    # Metadata
-    name: str = Field(default="")
-    owner_name: str = Field(default="")
-    alliance_id: int = Field(default=-1)
-    alliance_name: str = Field(default="")
-
-    @property
-    def is_player(self) -> bool:
-        return self.type.is_player
-
-    @property
-    def is_npc(self) -> bool:
-        return self.type.is_npc
-
-    @property
-    def is_event(self) -> bool:
-        return self.type.is_event
-
-    @property
-    def is_resource(self) -> bool:
-        return self.type.is_resource
-
-    @property
-    def category(self) -> str:
-        if self.is_player:
-            return "Player"
-        if self.is_npc:
-            return "NPC"
-        if self.is_event:
-            return "Event"
-        if self.is_resource:
-            return "Resource"
-        return "Other"
+from empire_core.utils.enums import MovementType
 
 
 class MovementResources(BaseModel):
@@ -77,8 +27,7 @@ class MovementResources(BaseModel):
     def total(self) -> int:
         """Total resources in transport."""
         return (
-            self.wood + self.stone + self.food + self.iron + self.glass + self.ash
-            + self.honey + self.mead + self.beef
+            self.wood + self.stone + self.food + self.iron + self.glass + self.ash + self.honey + self.mead + self.beef
         )
 
     @property

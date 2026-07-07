@@ -3,7 +3,7 @@ Test script for the EmpireClient.
 
 Usage:
     cd ~/EmpireCore
-    uv run python examples/test_sync_client.py
+    uv run python examples/test_client.py
 """
 
 import logging
