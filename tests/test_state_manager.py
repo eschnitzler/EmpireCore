@@ -6,7 +6,9 @@ from collections.abc import Generator
 
 import pytest
 
+from empire_core.client.client import EmpireClient
 from empire_core.state.manager import GameState
+from empire_core.state.models import Castle
 from empire_core.state.world_models import Movement
 
 
@@ -190,6 +192,29 @@ class TestPlayerParsing:
         assert "BAD" not in inv
 
 
+class TestCastleUpdatesAreAtomic:
+    """get_castles() hands out live Castle objects, so dcl must swap, not mutate."""
+
+    def test_dcl_swaps_unit_dict_instead_of_clearing_in_place(self, state):
+        state.castles[42] = Castle(OID=42, units={7: 100})
+        reader_view = state.get_castles()[0].units
+
+        state.update_from_packet("dcl", {"C": [{"AI": [{"AID": 42, "AC": [[8, 5]]}]}]})
+
+        assert reader_view == {7: 100}, "receive thread mutated a dict a reader already holds"
+        assert state.get_castles()[0].units == {8: 5}
+
+    def test_dcl_replaces_resources_instead_of_writing_field_by_field(self, state):
+        state.castles[42] = Castle(OID=42)
+        res_before = state.get_castles()[0].resources
+
+        state.update_from_packet("dcl", {"C": [{"AI": [{"AID": 42, "W": 10, "S": 20, "F": 30}]}]})
+
+        assert (res_before.wood, res_before.stone, res_before.food) == (0, 0, 0), "torn read possible"
+        now = state.get_castles()[0].resources
+        assert (now.wood, now.stone, now.food) == (10, 20, 30)
+
+
 class TestThreadSafety:
     def test_concurrent_updates_and_reads(self, state):
         stop = threading.Event()
@@ -209,6 +234,42 @@ class TestThreadSafety:
                 try:
                     state.get_all_movements()
                     state.get_incoming_attacks()
+                except Exception as e:  # pragma: no cover
+                    errors.append(e)
+
+        threads = [threading.Thread(target=writer), threading.Thread(target=reader), threading.Thread(target=reader)]
+        for t in threads:
+            t.start()
+        time.sleep(0.5)
+        stop.set()
+        for t in threads:
+            t.join()
+        assert errors == []
+
+    def test_client_movement_helpers_are_lock_protected(self, state):
+        """The client facade must read movements through GameState's locked accessors."""
+        client = EmpireClient.__new__(EmpireClient)  # the helpers only touch self.state
+        client.state = state
+        stop = threading.Event()
+        errors = []
+
+        def writer():
+            i = 0
+            while not stop.is_set():
+                i += 1
+                # Ever-increasing MIDs: each update inserts a new key, so the dict
+                # genuinely changes size while readers iterate it.
+                try:
+                    state.update_from_packet("gam", gam_payload(1000 + i))
+                except Exception as e:  # pragma: no cover
+                    errors.append(e)
+
+        def reader():
+            while not stop.is_set():
+                try:
+                    client.get_incoming_attacks()
+                    client.get_incoming_movements()
+                    client.get_outgoing_movements()
                 except Exception as e:  # pragma: no cover
                     errors.append(e)
 

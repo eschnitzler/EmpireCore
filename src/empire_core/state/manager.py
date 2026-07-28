@@ -341,22 +341,28 @@ class GameState:
                 castle = self.castles[aid]
 
                 try:
-                    # Update resources
+                    # Build replacements first, then swap them in. get_castles()
+                    # hands out live Castle objects, so editing them in place is
+                    # visible to readers mid-update (torn resources, or
+                    # dictionary-changed-size while iterating units).
                     res = castle.resources
-                    res.wood = int(castle_data.get("W", res.wood))
-                    res.stone = int(castle_data.get("S", res.stone))
-                    res.food = int(castle_data.get("F", res.food))
+                    castle.resources = res.model_copy(
+                        update={
+                            "wood": int(castle_data.get("W", res.wood)),
+                            "stone": int(castle_data.get("S", res.stone)),
+                            "food": int(castle_data.get("F", res.food)),
+                        }
+                    )
 
                     # Update units from AC array
                     # AC: [[unit_id, count], ...]
                     ac = castle_data.get("AC", [])
                     if ac:
-                        castle.units.clear()
+                        new_units: dict[int, int] = {}
                         for u_data in ac:
                             if isinstance(u_data, list) and len(u_data) >= 2:
-                                uid = u_data[0]
-                                count = u_data[1]
-                                castle.units[uid] = count
+                                new_units[u_data[0]] = u_data[1]
+                        castle.units = new_units
                 except (ValueError, TypeError) as e:
                     # One malformed castle entry must not abort the rest
                     logger.debug(f"Skipping malformed dcl entry for castle {aid}: {e}")
