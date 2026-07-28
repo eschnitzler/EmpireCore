@@ -44,6 +44,20 @@ class TestWaiters:
         assert conn.wait_for_result("gaa", first, timeout=0.1).payload == {"n": 1}
         assert conn.wait_for_result("gaa", second, timeout=0.1).payload == {"n": 2}
 
+    def test_state_handler_runs_before_waiter_is_woken(self, conn):
+        # on_packet is what feeds GameState. If the waiter is completed first, a
+        # caller doing request(...) then reading state can miss the very response
+        # it waited for.
+        waiter = conn.create_waiter("gam")
+        waiter_already_set = []
+
+        def on_packet(_packet):
+            waiter_already_set.append(waiter.event.is_set())
+
+        conn.on_packet = on_packet
+        conn._route_packet(make_packet("gam"))
+        assert waiter_already_set == [False]
+
     def test_timeout_raises_library_timeout(self, conn):
         waiter = conn.create_waiter("gam")
         with pytest.raises(EmpireTimeoutError):
