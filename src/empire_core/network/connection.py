@@ -391,7 +391,16 @@ class Connection:
                 if subs:
                     callbacks = list(subs)
 
-        # Now dispatch outside of locks
+        # Now dispatch outside of locks.
+        # The global handler feeds GameState, so it runs before the waiter is woken:
+        # otherwise a caller doing request(...) and then reading state can return
+        # before the response it waited for has been applied.
+        if self.on_packet:
+            try:
+                self.on_packet(packet)
+            except Exception:
+                logger.exception("Packet handler error")
+
         if waiter:
             waiter.result = packet
             waiter.event.set()
@@ -402,13 +411,6 @@ class Connection:
                     callback(packet)
                 except Exception:
                     logger.exception("Subscriber error")
-
-        # Global handler
-        if self.on_packet:
-            try:
-                self.on_packet(packet)
-            except Exception:
-                logger.exception("Packet handler error")
 
     def _keepalive_loop(self, generation: int) -> None:
         """Background thread that sends keepalive pings."""
