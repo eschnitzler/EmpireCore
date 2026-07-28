@@ -411,15 +411,15 @@ class EmpireClient:
 
     def get_incoming_attacks(self) -> list[Movement]:
         """Get all incoming attack movements."""
-        return [m for m in self.state.movements.values() if m.is_incoming and m.is_attack]
+        return self.state.get_incoming_attacks()
 
     def get_incoming_movements(self) -> list[Movement]:
         """Get all incoming movements."""
-        return [m for m in self.state.movements.values() if m.is_incoming]
+        return self.state.get_incoming_movements()
 
     def get_outgoing_movements(self) -> list[Movement]:
         """Get all outgoing movements."""
-        return [m for m in self.state.movements.values() if m.is_outgoing]
+        return self.state.get_outgoing_movements()
 
     # ============================================================
     # Event Info
