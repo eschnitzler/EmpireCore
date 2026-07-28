@@ -1,6 +1,7 @@
 """Tests for account loading and the account pool."""
 
 import json
+import logging
 
 import pytest
 
@@ -63,6 +64,27 @@ class TestAccountRegistryEnv:
         registry.load(file_path=str(accounts_file))
         assert registry.get_by_username("on") is not None
         assert registry.get_by_username("off") is None
+
+    def test_malformed_file_entry_does_not_log_password(self, tmp_path, caplog):
+        accounts_file = tmp_path / "accounts.json"
+        # Misspelled 'username': pydantic reports the missing field and, by default,
+        # embeds the whole offending entry — password included — in its message.
+        accounts_file.write_text(json.dumps([{"usrname": "bob", "password": "SuperSecret123"}]))
+        registry = AccountRegistry()
+        with caplog.at_level(logging.ERROR):
+            registry.load(file_path=str(accounts_file))
+        assert registry.get_by_username("bob") is None
+        assert "SuperSecret123" not in caplog.text
+
+    def test_malformed_env_json_does_not_log_password(self, monkeypatch, caplog):
+        # Short entry on purpose: pydantic middle-truncates long input_value reprs,
+        # which would hide the leak for incidental reasons rather than because it is fixed.
+        monkeypatch.setenv("EMPIRE_ACCOUNT_B", '{"password": "SecretPW"}')
+        registry = AccountRegistry()
+        with caplog.at_level(logging.ERROR):
+            registry.load(file_path="nonexistent.json")
+        assert registry.get_by_alias("b") is None
+        assert "SecretPW" not in caplog.text
 
 
 class FakeClient:

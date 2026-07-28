@@ -20,6 +20,20 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
+def _describe_validation_error(e: ValidationError) -> str:
+    """
+    Summarize a ValidationError as field locations and messages only.
+
+    str(ValidationError) embeds the offending input, so interpolating it into a log
+    record writes account passwords to the log at ERROR level.
+    """
+    parts = []
+    for err in e.errors(include_url=False, include_input=False):
+        loc = ".".join(str(p) for p in err["loc"]) or "<root>"
+        parts.append(f"{loc}: {err['msg']}")
+    return "; ".join(parts) or "unknown validation error"
+
+
 class Account(BaseModel):
     """
     Represents a single game account configuration.
@@ -117,7 +131,7 @@ class AccountRegistry:
                     if account.active:
                         self._add_account(account)
                 except ValidationError as e:
-                    logger.error(f"Skipping invalid account entry in {target_path}: {e}")
+                    logger.error(f"Skipping invalid account entry in {target_path}: {_describe_validation_error(e)}")
 
         except Exception as e:
             logger.error(f"Error reading '{target_path}': {e}")
@@ -143,8 +157,10 @@ class AccountRegistry:
                     entry.setdefault("alias", alias)
                     entry.setdefault("tags", ["env"])
                     self._add_account(Account(**entry))
-                except (json.JSONDecodeError, ValidationError) as e:
-                    logger.error(f"Invalid JSON account in ${key}: {e}")
+                except ValidationError as e:
+                    logger.error(f"Invalid account in ${key}: {_describe_validation_error(e)}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"Invalid JSON in ${key}: {e.msg} at position {e.pos}")
                 continue
 
             # CSV fallback: USER,PASS[,WORLD]
