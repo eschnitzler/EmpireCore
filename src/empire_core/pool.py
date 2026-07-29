@@ -8,7 +8,7 @@ scanning, alerts).
 
 import logging
 
-from empire_core.accounts import Account, accounts
+from empire_core.accounts import Account, AccountRegistry, accounts
 from empire_core.client.client import EmpireClient
 from empire_core.exceptions import LoginCooldownError, LoginError
 
@@ -25,6 +25,11 @@ class AccountPool:
     Usage:
         pool = AccountPool()
 
+        # Or with an explicit account set, instead of the process-wide default
+        registry = AccountRegistry()
+        registry.load(file_path="farmers.json")
+        pool = AccountPool(registry=registry)
+
         # Lease any available account
         client = pool.lease()
 
@@ -39,15 +44,29 @@ class AccountPool:
         wrap calls with appropriate locking.
     """
 
-    def __init__(self):
+    def __init__(self, registry: AccountRegistry | None = None):
+        """
+        Args:
+            registry: Account source for this pool. Defaults to the module-level
+                ``empire_core.accounts.accounts`` singleton, which lazily loads
+                credentials from the environment and the working directory.
+        """
+        self._registry = registry
         self._busy: set[str] = set()  # Usernames currently in use
         self._clients: dict[str, EmpireClient] = {}  # Active clients by username
         self._last_leased_index = -1  # For round-robin cycling
 
     @property
+    def registry(self) -> AccountRegistry:
+        """The account source in use (the global singleton unless one was injected)."""
+        # Resolved per call rather than captured in __init__ so that replacing the
+        # module-level singleton keeps working for pools built before the swap.
+        return self._registry if self._registry is not None else accounts
+
+    @property
     def all_accounts(self) -> list[Account]:
         """Get all configured accounts."""
-        return accounts.get_all()
+        return self.registry.get_all()
 
     def get_available(self, tag: str | None = None) -> list[Account]:
         """
@@ -99,7 +118,14 @@ class AccountPool:
             login: Whether to login the client (default True).
 
         Returns:
-            Connected EmpireClient, or None if no accounts available.
+            Connected EmpireClient, or None if there were no candidate accounts
+            to try (none configured, all busy, or none matching username/tag).
+
+        Raises:
+            LoginError: Every candidate was tried and every one failed. The last
+                failure is attached as ``__cause__``, so credential problems,
+                cooldowns and outright bugs stay distinguishable instead of
+                collapsing into a None that means 'nothing configured'.
         """
         # Build candidate list
         if username:
@@ -114,6 +140,7 @@ class AccountPool:
             return None
 
         # Try each candidate until one succeeds
+        last_error: Exception | None = None
         for account in candidates:
             # Update round-robin index
             all_accs = self.all_accounts
@@ -140,18 +167,25 @@ class AccountPool:
 
             except LoginCooldownError as e:
                 logger.warning(f"AccountPool: {account.username} on cooldown ({e.cooldown}s), trying next...")
+                last_error = e
                 self._busy.discard(account.username)
                 self._safe_close(client)
                 continue
 
             except Exception as e:
                 logger.error(f"AccountPool: Failed to lease {account.username}: {e}")
+                last_error = e
                 self._busy.discard(account.username)
                 self._safe_close(client)
                 continue
 
+        # Candidates existed but none could be leased. Raising (rather than
+        # returning None) keeps this distinct from 'no accounts available', and
+        # the chained cause preserves the real reason.
         logger.error("AccountPool: All candidate accounts failed")
-        return None
+        raise LoginError(
+            f"All {len(candidates)} candidate account(s) failed to lease (user={username}, tag={tag})"
+        ) from last_error
 
     @staticmethod
     def _safe_close(client: EmpireClient | None) -> None:

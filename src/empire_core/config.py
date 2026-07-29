@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # ============================================================
 # Constants
@@ -60,7 +60,9 @@ class EmpireConfig(BaseModel):
 
     # User (Optional defaults)
     username: str | None = None
-    password: str | None = None
+    # repr=False: keeps the secret out of repr()/str(), which reach logs and the
+    # traceback locals captured by error reporters.
+    password: str | None = Field(default=None, repr=False)
 
 
 # Global default instance
