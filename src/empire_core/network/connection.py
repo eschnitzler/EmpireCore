@@ -6,6 +6,7 @@ Designed to work well with Discord.py by not competing for the event loop.
 """
 
 import logging
+import re
 import threading
 import time
 from collections.abc import Callable
@@ -22,6 +23,58 @@ logger = logging.getLogger(__name__)
 # Commands that use XT field 4 for data instead of error codes
 NON_ERROR_COMMANDS = {"rlu", "core_pol"}
 
+# Commands whose payload carries credentials (login, registration, social
+# login). Their bodies are never logged - only the command id and frame size.
+AUTH_COMMANDS = frozenset({"lli", "core_reg", "scp"})
+
+# Longest frame prefix we are willing to log, kept as defence in depth on top
+# of the redaction above.
+LOG_FRAME_CHARS = 100
+
+# Credential shapes to mask in frames whose command we do not recognise.
+_SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    # XT/JSON payloads: {"PW": "hunter2"}
+    (
+        re.compile(r'("(?:PW|PWD|PASS|PASSWORD|TOKEN|SECRET|AUTH)"\s*:\s*)"[^"]*"', re.IGNORECASE),
+        r'\1"<redacted>"',
+    ),
+    # SmartFox XML handshake: <pword><![CDATA[...]]></pword>
+    (re.compile(r"(<pword>).*?(</pword>)", re.IGNORECASE | re.DOTALL), r"\1<redacted>\2"),
+)
+
+_XML_ACTION_RE = re.compile(r"""action=['"]([^'"]+)['"]""")
+
+
+def _frame_command(frame: str) -> str | None:
+    """Best-effort command id of an outbound frame, for logging decisions."""
+    if frame.startswith("%xt%"):
+        # %xt%<zone>%<command>%<request id>%<payload>%
+        parts = frame.split("%")
+        return parts[3] if len(parts) > 4 else None
+    match = _XML_ACTION_RE.search(frame)
+    return match.group(1) if match else None
+
+
+def _summarise_frame(frame: str) -> str:
+    """Render an outbound frame in a form that is safe to log.
+
+    Auth frames carry the plaintext password, so their body is dropped
+    entirely; everything else is scrubbed for known credential keys and
+    truncated. Truncation alone is not protection: which fields land inside
+    the first ``LOG_FRAME_CHARS`` characters depends on payload key order.
+    """
+    command = _frame_command(frame)
+    if command and command.lower() in AUTH_COMMANDS:
+        return f"<{command} auth frame redacted, {len(frame)} chars>"
+
+    safe = frame
+    for pattern, replacement in _SECRET_PATTERNS:
+        safe = pattern.sub(replacement, safe)
+    if len(safe) > LOG_FRAME_CHARS:
+        safe = safe[:LOG_FRAME_CHARS] + "..."
+    return safe
+
+
 # Fallback zone for keepalive pings when the client doesn't inject one.
 # The client always passes keepalive_zone, so this only applies to a bare
 # Connection; kept here so the network layer needn't import the protocol layer.
@@ -32,6 +85,10 @@ DEFAULT_KEEPALIVE_ZONE = "EmpireEx_21"
 SOCKET_POLL_TIMEOUT = 1.0
 
 KEEPALIVE_INTERVAL = 60.0
+
+# How long disconnect() waits for each background thread before reporting it
+# as leaked (a subscriber callback can block the receive thread indefinitely).
+THREAD_JOIN_TIMEOUT = 2.0
 
 
 @dataclass
@@ -50,8 +107,12 @@ class Connection:
     Features:
     - Request/response pattern via waiters (consumed on match)
     - Pub/sub pattern via subscribers (broadcast to all)
+    - Disconnect notification via :meth:`add_disconnect_listener`
     - Automatic keepalive thread
-    - Thread-safe operations
+    - Thread-safe operations: :meth:`connect` and :meth:`disconnect` are
+      serialised against each other and against the receive thread's shutdown
+      by an internal lifecycle lock, so concurrent calls cannot leak a socket
+      or let a dying session tear down its successor.
 
     Correlation constraint (important):
         Responses are matched to waiters by *command id only*, FIFO - there is
@@ -84,6 +145,13 @@ class Connection:
         self._recv_thread: threading.Thread | None = None
         self._keepalive_thread: threading.Thread | None = None
 
+        # Guards every lifecycle transition (ws swap, _running/_closing,
+        # generation bump, thread starts) so connect(), disconnect() and the
+        # receive thread's epilogue cannot interleave. Never held while a user
+        # callback runs or while joining a thread: a disconnect listener that
+        # reconnects must not deadlock.
+        self._lifecycle_lock = threading.RLock()
+
         # Request/response waiters: cmd_id -> ResponseWaiter
         # These are consumed when matched (one response per waiter)
         self._waiters: dict[str, list[ResponseWaiter]] = {}
@@ -98,16 +166,33 @@ class Connection:
         self.on_packet: Callable[[Packet], None] | None = None
 
         # Called only on unexpected connection loss, not on disconnect().
+        # Single slot, kept for backwards compatibility (EmpireClient uses it
+        # for its own bookkeeping); additional observers should register via
+        # add_disconnect_listener instead of overwriting this.
         self.on_disconnect: Callable[[], None] | None = None
+
+        self._disconnect_listeners: list[Callable[[], None]] = []
+        self._disconnect_lock = threading.Lock()
 
     @property
     def connected(self) -> bool:
         """Check if connection is active."""
-        return self.ws is not None and self.ws.connected and self._running
+        # Snapshot the socket: a concurrent disconnect() can null self.ws
+        # between two reads, and callers use this property from inside except
+        # handlers (keepalive loop) where an AttributeError would kill the
+        # thread outright.
+        ws = self.ws
+        return ws is not None and ws.connected and self._running
 
     def connect(self, timeout: float = 10.0) -> None:
         """
         Connect to the WebSocket server.
+
+        Holds the lifecycle lock for the whole handshake, so a concurrent
+        ``connect()`` waits and then returns early instead of opening a second
+        socket that would be leaked when ``self.ws`` is overwritten. A
+        concurrent ``disconnect()`` likewise waits, and then tears down the
+        session this call established.
 
         Args:
             timeout: Connection timeout in seconds
@@ -116,79 +201,101 @@ class Connection:
             NetworkError: The handshake failed (the underlying
                 websocket/socket error is chained as ``__cause__``)
         """
-        if self.connected:
-            logger.warning("Already connected")
-            return
+        with self._lifecycle_lock:
+            if self.connected:
+                logger.warning("Already connected")
+                return
 
-        logger.debug(f"Connecting to {self.url}...")
+            logger.debug(f"Connecting to {self.url}...")
 
-        ws = websocket.WebSocket()
-        ws.settimeout(timeout)
+            ws = websocket.WebSocket()
+            ws.settimeout(timeout)
 
-        try:
-            ws.connect(self.url)
-            # After the handshake, drop to the poll timeout used by the
-            # recv loop (and, unavoidably, by sends on the shared socket).
-            ws.settimeout(SOCKET_POLL_TIMEOUT)
-
-            self.ws = ws
-            self._running = True
-            self._closing = False
-            self._generation += 1
-            generation = self._generation
-
-            self._recv_thread = threading.Thread(
-                target=self._recv_loop,
-                args=(ws, generation),
-                name="EmpireCore-Recv",
-                daemon=True,
-            )
-            self._recv_thread.start()
-
-            self._keepalive_thread = threading.Thread(
-                target=self._keepalive_loop,
-                args=(generation,),
-                name="EmpireCore-Keepalive",
-                daemon=True,
-            )
-            self._keepalive_thread.start()
-
-            logger.debug("Connected successfully")
-
-        except Exception as e:
-            logger.error(f"Connection failed: {e}")
             try:
-                ws.close()
-            except Exception:
-                pass
-            self.ws = None
-            # Never let raw websocket-client/socket errors escape the public
-            # API: callers guarding with `except EmpireError` (or NetworkError,
-            # as send() already raises) must catch connect failures too.
-            raise NetworkError(f"Connection to {self.url} failed: {e}") from e
+                ws.connect(self.url)
+                # After the handshake, drop to the poll timeout used by the
+                # recv loop (and, unavoidably, by sends on the shared socket).
+                ws.settimeout(SOCKET_POLL_TIMEOUT)
+
+                # A socket left behind by a session that died without a
+                # disconnect() would be leaked (along with its server-side
+                # session) the moment self.ws is replaced below.
+                self._cleanup()
+
+                self.ws = ws
+                self._running = True
+                self._closing = False
+                self._generation += 1
+                generation = self._generation
+
+                self._recv_thread = threading.Thread(
+                    target=self._recv_loop,
+                    args=(ws, generation),
+                    name="EmpireCore-Recv",
+                    daemon=True,
+                )
+                self._recv_thread.start()
+
+                self._keepalive_thread = threading.Thread(
+                    target=self._keepalive_loop,
+                    args=(generation,),
+                    name="EmpireCore-Keepalive",
+                    daemon=True,
+                )
+                self._keepalive_thread.start()
+
+                logger.debug("Connected successfully")
+
+            except Exception as e:
+                logger.error(f"Connection failed: {e}")
+                try:
+                    ws.close()
+                except Exception:
+                    pass
+                if self.ws is ws:
+                    self.ws = None
+                # Never let raw websocket-client/socket errors escape the
+                # public API: callers guarding with `except EmpireError` (or
+                # NetworkError, as send() already raises) must catch connect
+                # failures too.
+                raise NetworkError(f"Connection to {self.url} failed: {e}") from e
 
     def disconnect(self) -> None:
-        """Disconnect from the server and cleanup resources."""
-        if not self._running:
-            return
+        """Disconnect from the server and cleanup resources.
 
-        logger.debug("Disconnecting...")
-        self._closing = True
-        self._running = False
+        Safe to call repeatedly, and safe to call from a subscriber callback on
+        the receive thread (that thread is then not joined).
+        """
+        with self._lifecycle_lock:
+            if not self._running and self.ws is None:
+                return
 
-        # Cancel all waiters
-        self._cancel_all_waiters()
+            logger.debug("Disconnecting...")
+            self._closing = True
+            self._running = False
 
-        # Close websocket
-        self._cleanup()
+            # Cancel all waiters
+            self._cancel_all_waiters()
 
-        # Wait for threads to finish (unless called from one of them,
-        # e.g. from inside a subscriber callback on the recv thread)
+            # Close websocket
+            self._cleanup()
+
+            threads = (self._recv_thread, self._keepalive_thread)
+
+        # Join outside the lock: the receive thread's epilogue needs the lock
+        # to shut down, so holding it here would deadlock the join.
         current = threading.current_thread()
-        if self._recv_thread and self._recv_thread is not current and self._recv_thread.is_alive():
-            self._recv_thread.join(timeout=2.0)
-        if self._keepalive_thread and self._keepalive_thread is not current and self._keepalive_thread.is_alive():
-            self._keepalive_thread.join(timeout=2.0)
+        for thread in threads:
+            if thread is None or thread is current or not thread.is_alive():
+                continue
+            thread.join(timeout=THREAD_JOIN_TIMEOUT)
+            if thread.is_alive():
+                # Generation guards make this safe (the thread can no longer
+                # touch a new session), but a leak should still be visible.
+                logger.warning(
+                    f"Thread {thread.name} still alive {THREAD_JOIN_TIMEOUT}s after disconnect "
+                    "(blocked in a callback?); it is leaked but can no longer affect this connection"
+                )
 
         logger.debug("Disconnected")
 
@@ -221,10 +328,14 @@ class Connection:
 
         try:
             ws.send(data)
-            logger.debug(f"Sent: {data[:100]}...")
         except Exception as e:
             logger.error(f"Send failed: {e}")
             raise NetworkError(f"Send failed: {e}") from e
+
+        # Logged after the send so nothing here can be mistaken for a send
+        # failure. Frames carry credentials; see _summarise_frame.
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("Sent: %s", _summarise_frame(data))
 
     def request(self, data: str, cmd_id: str, timeout: float = 5.0) -> Packet:
         """
@@ -312,6 +423,49 @@ class Connection:
                 self._subscribers[cmd_id] = []
             self._subscribers[cmd_id].append(callback)
 
+    def add_disconnect_listener(self, callback: Callable[[], None]) -> None:
+        """
+        Register a callback fired on *unexpected* connection loss.
+
+        Additive, unlike the single-slot :attr:`on_disconnect` attribute that
+        :class:`~empire_core.client.client.EmpireClient` claims for its own
+        bookkeeping: several consumers can observe disconnects without
+        clobbering each other or patching the client's wiring. Registering the
+        same callback twice is a no-op.
+
+        Not called by :meth:`disconnect` - only when the session drops on its
+        own. Callbacks run on the receive thread, outside every internal lock,
+        so a listener may call :meth:`connect` to reconnect.
+        """
+        with self._disconnect_lock:
+            if callback not in self._disconnect_listeners:
+                self._disconnect_listeners.append(callback)
+
+    def remove_disconnect_listener(self, callback: Callable[[], None]) -> None:
+        """Remove a listener added with :meth:`add_disconnect_listener`.
+
+        No-op if the callback is not registered.
+        """
+        with self._disconnect_lock:
+            try:
+                self._disconnect_listeners.remove(callback)
+            except ValueError:
+                pass
+
+    def _notify_disconnect(self) -> None:
+        """Fire the legacy attribute and every registered listener."""
+        callbacks: list[Callable[[], None]] = []
+        if self.on_disconnect is not None:
+            callbacks.append(self.on_disconnect)
+        with self._disconnect_lock:
+            callbacks.extend(self._disconnect_listeners)
+
+        for callback in callbacks:
+            try:
+                callback()
+            except Exception:
+                logger.exception("Error in disconnect callback")
+
     def unsubscribe(self, cmd_id: str, callback: Callable[[Packet], None]) -> None:
         """Remove a subscriber."""
         with self._subscribers_lock:
@@ -363,21 +517,22 @@ class Connection:
                 logger.exception("Dropping frame that could not be parsed or routed")
                 continue
 
-        # If a newer connection took over, this thread must not touch
-        # shared state - the new session owns it now.
-        if generation != self._generation:
-            logger.debug("Receive loop superseded by newer connection")
-            return
+        # If a newer connection took over, this thread must not touch shared
+        # state - the new session owns it now. The check happens under the
+        # lifecycle lock so a connect() cannot slip in between the check and
+        # the mutations below and have its fresh session torn down here.
+        with self._lifecycle_lock:
+            if generation != self._generation:
+                logger.debug("Receive loop superseded by newer connection")
+                return
 
-        was_closing = self._closing
-        self._running = False
-        self._cancel_all_waiters()
+            notify = not self._closing
+            self._running = False
+            self._cancel_all_waiters()
 
-        if self.on_disconnect and not was_closing:
-            try:
-                self.on_disconnect()
-            except Exception as e:
-                logger.error(f"Error in disconnect callback: {e}")
+        # Callbacks run outside the lock: they commonly reconnect.
+        if notify:
+            self._notify_disconnect()
 
         logger.debug("Receive loop ended")
 
