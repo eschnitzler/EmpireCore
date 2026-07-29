@@ -69,14 +69,28 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
-          output=$(uv run semantic-release version 2>&1) || true
-          echo "$output"
-          if echo "$output" | grep -q "No release will be made"; then
-            echo "released=false" >> $GITHUB_OUTPUT
-          elif [ -d "dist" ] && [ "$(ls -A dist)" ]; then
-            echo "released=true" >> $GITHUB_OUTPUT
+          # Branch on the exit code, never on log text: --strict makes
+          # "no release to make" exit 2, so any other non-zero exit is a real
+          # failure (auth, changelog write, build) and must fail the job.
+          # Grepping output instead let those failures report released=false --
+          # or, if they happened after `uv build`, leave dist/ populated and let
+          # the PyPI publish proceed against inconsistent tag state.
+          status=0
+          uv run semantic-release --strict version || status=$?
+
+          if [ "$status" -eq 0 ]; then
+            if [ ! -d dist ] || [ -z "$(ls -A dist)" ]; then
+              echo "::error::semantic-release reported a release but dist/ is empty"
+              exit 1
+            fi
+            echo "Release created."
+            echo "released=true" >> "$GITHUB_OUTPUT"
+          elif [ "$status" -eq 2 ]; then
+            echo "No release to make for this commit range."
+            echo "released=false" >> "$GITHUB_OUTPUT"
           else
-            echo "released=false" >> $GITHUB_OUTPUT
+            echo "::error::semantic-release failed with exit code $status"
+            exit "$status"
           fi
 
       - name: Upload dist artifacts
