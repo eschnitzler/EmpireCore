@@ -14,6 +14,16 @@ logger = logging.getLogger(__name__)
 # `error_code != 0` check as if the response were valid.
 MALFORMED_STATUS_CODE = -1000
 
+# Largest inbound frame we are willing to look at. A full-kingdom `gaa` chunk
+# is a few hundred KB, so this is orders of magnitude of headroom; the point is
+# that a misbehaving (or hostile) server cannot stall the single receive thread
+# inside json.loads, blocking every request() waiter until timeout.
+MAX_FRAME_SIZE = 16 * 1024 * 1024
+
+# XML is only used for the handshake phase (verChk, cross-domain-policy), all
+# of which is well under a kilobyte.
+MAX_XML_SIZE = 1024 * 1024
+
 
 @dataclass
 class Packet:
@@ -28,7 +38,10 @@ class Packet:
     command_id: str | None = None
     request_id: int = -1
     error_code: int = 0  # New field for XT status/error code
-    payload: dict[str, Any] | ET.Element | None = None
+    # list: some XT commands answer with a bare JSON array, which _parse_xt
+    # deliberately keeps as a list rather than wrapping it -- so consumers must
+    # not assume `.get()` is available after a None-check.
+    payload: dict[str, Any] | list[Any] | ET.Element | None = None
 
     @staticmethod
     def build_xt(zone: str, command: str, payload: dict[str, Any], request_id: int = 1) -> str:
@@ -55,6 +68,11 @@ class Packet:
         frame it cannot make sense of must degrade to a raw wrapper rather
         than raise and tear down the whole connection.
 
+        A frame carrying several null-delimited packets is *not* split here --
+        only the trailing terminator is stripped, so a batched frame parses as
+        one packet whose payload is the concatenation. Use
+        :meth:`iter_from_bytes` when the caller can handle several packets.
+
         Args:
             data: Raw frame bytes (may be truncated, padded or non-UTF-8)
 
@@ -62,6 +80,12 @@ class Packet:
             A Packet. Unparseable input yields a raw wrapper whose
             ``command_id`` is None and whose ``payload`` is None.
         """
+        if len(data) > MAX_FRAME_SIZE:
+            # Drop it without decoding or JSON-parsing: this runs on the single
+            # receive thread, so time and memory spent here stall every waiter.
+            logger.warning(f"Dropping inbound frame: {len(data)} bytes is too large (limit {MAX_FRAME_SIZE})")
+            return cls(raw_data="", is_xml=False)
+
         # errors="replace": one bad byte in a chat message or player name must
         # not kill the connection.
         decoded = data.decode("utf-8", errors="replace").rstrip("\x00")
@@ -79,7 +103,52 @@ class Packet:
         return cls(raw_data=decoded, is_xml=False)
 
     @classmethod
+    def iter_from_bytes(cls, data: bytes) -> list["Packet"]:
+        """
+        Split a frame into its packets and parse each one.
+
+        SmartFoxServer's wire protocol is null-delimited, and a single
+        WebSocket frame may carry more than one packet. :meth:`from_bytes`
+        assumes exactly one, so a batched frame corrupts the first packet
+        (the rest of the frame is swallowed into its payload) and silently
+        drops the others. This is the total, batch-aware alternative.
+
+        Whether the live game server actually batches is unconfirmed; this
+        helper is additive, and the receive loop still calls
+        :meth:`from_bytes`. To find out, log any received frame where
+        ``data.rstrip(b"\\x00").find(b"\\x00") != -1``.
+
+        Args:
+            data: Raw frame bytes, one or more null-terminated packets
+
+        Returns:
+            One Packet per non-empty segment, in wire order. Empty and
+            null-padding frames yield an empty list.
+        """
+        if len(data) > MAX_FRAME_SIZE:
+            logger.warning(f"Dropping inbound frame: {len(data)} bytes is too large (limit {MAX_FRAME_SIZE})")
+            return []
+
+        return [cls.from_bytes(segment) for segment in data.split(b"\x00") if segment]
+
+    @classmethod
     def _parse_xml(cls, data: str) -> "Packet":
+        if len(data) > MAX_XML_SIZE:
+            # XML only carries the handshake, so anything this big is either
+            # broken or an attempt to make the parser chew on it.
+            logger.warning(f"Refusing to parse XML frame of {len(data)} chars (limit {MAX_XML_SIZE})")
+            return cls(raw_data=data, is_xml=True)
+
+        # stdlib ElementTree expands internal entity definitions, so a
+        # billion-laughs / quadratic-blowup document would hang or OOM the
+        # receive thread. The handshake XML has no DTD, so refusing one costs
+        # nothing. (defusedxml would be the other option, but the client
+        # deliberately ships with no XML dependency.)
+        lowered = data.lower()
+        if "<!doctype" in lowered or "<!entity" in lowered:
+            logger.warning("Refusing to parse XML frame containing a DOCTYPE/ENTITY declaration")
+            return cls(raw_data=data, is_xml=True)
+
         try:
             root = ET.fromstring(data)
             # Structure: <msg t='sys'><body action='verChk' ...>
@@ -125,7 +194,7 @@ class Packet:
             raw_payload = raw_payload[:-1]
 
         # Optimization: Only parse JSON if it looks like JSON
-        payload_data = {}
+        payload_data: dict[str, Any] | list[Any] = {}
         if raw_payload.startswith("{") or raw_payload.startswith("["):
             try:
                 payload_data = json.loads(raw_payload)
