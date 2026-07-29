@@ -16,8 +16,6 @@ dependencies = [
     "pydantic>=2.5",
     "python-dotenv>=1.0",
     "requests>=2.31",
-    "sqlmodel>=0.0.14",
-    "aiosqlite>=0.19.0",
     "websocket-client>=1.9.0",
 ]
 
@@ -29,7 +27,14 @@ Repository = "https://github.com/eschnitzler/EmpireCore"
 # empire = "empire_core.cli:app"
 
 [project.optional-dependencies]
+# Experimental empire_core.storage package only; not needed by the client.
+storage = [
+    "sqlmodel>=0.0.14",
+    "aiosqlite>=0.19.0",
+]
 dev = [
+    # Dev environments type-check and lint empire_core.storage too.
+    "empire-core[storage]",
     "pytest>=7.0",
     "pytest-asyncio>=0.23",
     "ruff>=0.1.0",
@@ -49,7 +54,13 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B"] # Pycodestyle, Pyflakes, Isort, Bugbear
-ignore = ["B904", "E501", "E701", "F841", "B007"]
+# E701/F841/B007 were removed: they suppressed nothing in this tree.
+# Still ignored, and both should go once the offending code is fixed:
+#   B904 - 3 real lost-exception-chains in src/empire_core/client/client.py
+#   E501 - 1 long line in src/empire_core/state/world_models.py; ignoring E501
+#          while line-length = 120 is set makes that setting inert for linting
+#          (ruff format still honours it).
+ignore = ["B904", "E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "examples/*" = ["E402"]

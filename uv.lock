@@ -204,16 +204,15 @@ name = "empire-core"
 version = "0.28.0"
 source = { editable = "." }
 dependencies = [
-    { name = "aiosqlite" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "requests" },
-    { name = "sqlmodel" },
     { name = "websocket-client" },
 ]
 
 [package.optional-dependencies]
 dev = [
+    { name = "aiosqlite" },
     { name = "mypy" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -221,12 +220,18 @@ dev = [
     { name = "python-semantic-release" },
     { name = "ruff" },
     { name = "sqlalchemy", extra = ["mypy"] },
+    { name = "sqlmodel" },
     { name = "types-requests" },
+]
+storage = [
+    { name = "aiosqlite" },
+    { name = "sqlmodel" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "aiosqlite", specifier = ">=0.19.0" },
+    { name = "aiosqlite", marker = "extra == 'storage'", specifier = ">=0.19.0" },
+    { name = "empire-core", extras = ["storage"], marker = "extra == 'dev'" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.5.0" },
     { name = "pydantic", specifier = ">=2.5" },
@@ -237,11 +242,11 @@ requires-dist = [
     { name = "requests", specifier = ">=2.31" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "sqlalchemy", extras = ["mypy"], marker = "extra == 'dev'" },
-    { name = "sqlmodel", specifier = ">=0.0.14" },
+    { name = "sqlmodel", marker = "extra == 'storage'", specifier = ">=0.0.14" },
     { name = "types-requests", marker = "extra == 'dev'" },
     { name = "websocket-client", specifier = ">=1.9.0" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["storage", "dev"]
 
 [[package]]
 name = "exceptiongroup"
