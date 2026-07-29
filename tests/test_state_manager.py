@@ -1,14 +1,16 @@
 """Tests for GameState movement lifecycle and callbacks."""
 
+import logging
 import threading
 import time
 from collections.abc import Generator
+from unittest.mock import patch
 
 import pytest
 
 from empire_core.client.client import EmpireClient
 from empire_core.state.manager import GameState
-from empire_core.state.models import Castle
+from empire_core.state.models import Castle, Player
 from empire_core.state.world_models import Movement
 
 
@@ -29,6 +31,23 @@ def gam_payload(mid: int, movement_type: int = 1, oid: int = 999, tid: int = 1, 
     return {
         "M": [{"M": m_data}],
         "O": [{"OID": oid, "N": "Attacker", "AN": "EvilAlliance"}],
+    }
+
+
+def mov_payload(mid: int, movement_type: int = 1, oid: int = 999, tt: int = 600, direction: int = 0) -> dict:
+    """A pushed single-movement packet (no owner info, no gam refresh)."""
+    return {"M": {"MID": mid, "T": movement_type, "PT": 0, "TT": tt, "D": direction, "OID": oid, "TID": 1}}
+
+
+def gcl_payload(castles: list[tuple[int, str]], owner_id: int = 7, kingdom: int = 0) -> dict:
+    """Build a gcl castle section listing `castles` as owned by `owner_id`."""
+    return {
+        "C": [
+            {
+                "KID": kingdom,
+                "AI": [{"AI": [0, 10, 20, area_id, owner_id, 0, 0, 0, 0, 0, name]} for area_id, name in castles],
+            }
+        ]
     }
 
 
@@ -213,6 +232,240 @@ class TestCastleUpdatesAreAtomic:
         assert (res_before.wood, res_before.stone, res_before.food) == (0, 0, 0), "torn read possible"
         now = state.get_castles()[0].resources
         assert (now.wood, now.stone, now.food) == (10, 20, 30)
+
+
+class TestStaleMovementPruning:
+    """Arrival packets get missed (socket errors, disconnect windows), so every
+    mutation and query path must prune — not just the gam handler."""
+
+    @staticmethod
+    def _make_stale(state: GameState, mid: int) -> None:
+        # Arrival was due long before the STALE_MOVEMENT_GRACE window
+        state.movements[mid].last_updated = time.time() - 10_000
+
+    def test_pruned_on_pushed_mov_packet(self, state):
+        state.update_from_packet("mov", mov_payload(300, tt=1))
+        self._make_stale(state, 300)
+
+        state.update_from_packet("mov", mov_payload(301))
+        assert 300 not in state.movements
+        assert 301 in state.movements
+
+    def test_pruned_on_query_without_any_gam(self, state):
+        # A consumer driven purely by push callbacks never calls gam
+        state.update_from_packet("mov", mov_payload(302, tt=1))
+        self._make_stale(state, 302)
+
+        assert state.get_incoming_attacks() == []
+        assert state.get_all_movements() == []
+        assert state.get_incoming_movements() == []
+        assert state.get_outgoing_movements() == []
+        assert state.get_movement_by_id(302) is None
+        assert state.movements == {}, "movements dict grows without bound"
+
+    def test_refreshed_movement_is_not_resurrected_as_new(self, state):
+        fired: list[Movement] = []
+        state.on_incoming_attack(fired.append)
+        state.update_from_packet("mov", mov_payload(304, tt=1))
+        assert wait_for(lambda: len(fired) == 1)
+        self._make_stale(state, 304)
+
+        # The server pushes a fresh update for the same movement (it was
+        # overdue, not gone). Pruning must not drop it just before the update
+        # is stored, or the consumer gets a duplicate attack alert.
+        state.update_from_packet("mov", mov_payload(304, tt=900))
+
+        time.sleep(0.15)
+        assert len(fired) == 1, "stale-then-refreshed movement re-alerted as new"
+        assert 304 in state.movements
+
+    def test_grace_period_still_honoured(self, state):
+        # Just arrived: inside the 300s grace window, must be kept so the
+        # atv/ata handler can still fire arrival callbacks.
+        state.update_from_packet("mov", mov_payload(303, tt=1))
+        state.movements[303].last_updated = time.time() - 10
+
+        assert state.get_movement_by_id(303) is not None
+        assert len(state.get_all_movements()) == 1
+
+
+class TestMovementParseFailures:
+    """Schema drift must not silently swallow every incoming attack."""
+
+    BAD = {"M": {"MID": "not-an-int", "T": 1}}
+
+    def test_parse_failure_is_visible_at_default_level(self, state, caplog):
+        with caplog.at_level(logging.DEBUG, logger="empire_core.state.manager"):
+            state.update_from_packet("mov", self.BAD)
+
+        warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert len(warnings) == 1, "movement parse failure invisible at INFO"
+        assert warnings[0].exc_info is not None, "no traceback: schema drift undiagnosable"
+        assert state.movements == {}
+
+    def test_repeated_failures_do_not_flood(self, state, caplog):
+        with caplog.at_level(logging.DEBUG, logger="empire_core.state.manager"):
+            for _ in range(25):
+                state.update_from_packet("mov", self.BAD)
+
+        warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert len(warnings) == 1, f"log flooded with {len(warnings)} warnings"
+
+
+class TestLocalPlayerSnapshots:
+    """local_player/inventory are read by user threads while the receive
+    thread updates them, so there must be a locked snapshot path."""
+
+    def test_get_local_player_returns_detached_copy(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7, "PN": "me"}})
+        snapshot = state.get_local_player()
+
+        assert snapshot is not None and snapshot.PN == "me"
+        assert snapshot is not state.local_player
+        snapshot.PN = "tampered"
+        assert state.local_player.PN == "me"
+
+    def test_get_local_player_is_none_before_login(self, state):
+        assert state.get_local_player() is None
+
+    def test_snapshot_containers_are_detached(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": [["A", 1]], "gcl": gcl_payload([(1, "Main")])})
+        snapshot = state.get_local_player()
+
+        state.update_from_packet("sce", [["B", 2]])
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(2, "Second")])})
+
+        assert snapshot.inventory == {"A": 1}, "snapshot inventory mutated by receive thread"
+        assert list(snapshot.castles) == [1], "snapshot castles mutated by receive thread"
+
+    def test_get_inventory_returns_copy(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": [["A", 1]]})
+        inventory = state.get_inventory()
+
+        assert inventory == {"A": 1}
+        inventory["A"] = 999
+        assert state.get_inventory() == {"A": 1}
+
+    def test_get_inventory_is_empty_before_login(self, state):
+        assert state.get_inventory() == {}
+
+    def test_sce_swaps_inventory_instead_of_mutating_in_place(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": [["A", 1]]})
+        reader_view = state.local_player.inventory  # what an unlocked reader holds
+
+        state.update_from_packet("sce", [["B", 2]])
+
+        assert reader_view == {"A": 1}, "receive thread mutated a dict a reader already holds"
+        assert state.get_inventory() == {"A": 1, "B": 2}
+
+    def test_gcl_swaps_player_castles_instead_of_mutating_in_place(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
+        reader_view = state.local_player.castles
+
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main"), (2, "Outpost")])})
+
+        assert list(reader_view) == [1], "receive thread mutated a dict a reader already holds"
+        assert sorted(state.local_player.castles) == [1, 2]
+
+    def test_relogin_merge_has_no_observable_intermediate_state(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7, "PN": "old", "LVL": 10, "XP": 100}})
+        player = state.local_player
+        watched = ("PN", "LVL", "XP")
+        before = {"PN": "old", "LVL": 10, "XP": 100}
+        after = {"PN": "new", "LVL": 11, "XP": 200}
+
+        observed: list[dict] = []
+        real_setattr = Player.__setattr__
+
+        def spy(self, name, value):
+            real_setattr(self, name, value)
+            if self is player:
+                observed.append({field: getattr(self, field) for field in watched})
+
+        with patch.object(Player, "__setattr__", spy):
+            state.update_from_packet("gbd", {"gpi": {"PID": 7, "PN": "new", "LVL": 11, "XP": 200}})
+
+        assert {field: getattr(player, field) for field in watched} == after
+        assert all(seen in (before, after) for seen in observed), f"half-merged player observable: {observed}"
+
+    def test_players_dict_holds_only_the_local_player(self, state):
+        # Documented contract: `players` is not a map of every player seen
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}})
+        state.update_from_packet("gam", gam_payload(500, oid=999))
+        assert list(state.players) == [7]
+
+
+class TestPartialSubPacketsPreserveState:
+    """A sub-packet that omits a key must not reset that value to 0."""
+
+    def test_partial_gcu_preserves_other_currency(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcu": {"C1": 100, "C2": 5}})
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcu": {"C1": 200}})
+
+        player = state.get_local_player()
+        assert (player.gold, player.rubies) == (200, 5)
+
+    def test_partial_vip_preserves_other_fields(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "vip": {"VP": 10, "VRL": 2, "VRS": 3600}})
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "vip": {"VRS": 1800}})
+
+        player = state.get_local_player()
+        assert (player.vip_points, player.vip_level, player.vip_time_left) == (10, 2, 1800)
+
+
+class TestAllianceMembership:
+    def test_alliance_parsed(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})
+        player = state.get_local_player()
+        assert player.alliance is not None and player.alliance.name == "Clan"
+        assert player.AID == 5
+
+    @pytest.mark.parametrize("gal", [{}, None, {"AID": 0}, {"N": "", "SA": 0}])
+    def test_leaving_alliance_clears_it(self, state, gal):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})
+        # Fresh login after leaving/being kicked: the gal section says "none"
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": gal})
+
+        player = state.get_local_player()
+        assert player.alliance is None, "stale alliance kept forever after leaving"
+        assert player.AID is None
+
+    def test_packet_without_alliance_section_keeps_alliance(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})
+        # No gal key at all: this packet carries no alliance information
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}})
+
+        assert state.get_local_player().alliance is not None
+
+
+class TestCastleStaleDrop:
+    def test_lost_castle_is_dropped(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main"), (2, "Outpost")])})
+        assert sorted(c.id for c in state.get_castles()) == [1, 2]
+
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
+        assert [c.id for c in state.get_castles()] == [1]
+
+    def test_castle_section_listing_zero_owned_castles_drops_all(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
+
+        # Castle section present, but nothing owned any more (lost last castle)
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": {"C": []}})
+
+        assert state.get_castles() == [], "stale castles never removed"
+        assert state.get_local_player().castles == {}
+
+    def test_castle_section_listing_only_foreign_castles_drops_all(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(9, "Enemy")], owner_id=1234)})
+        assert state.get_castles() == []
+
+    @pytest.mark.parametrize("gcl", [{}, None, {"X": 1}])
+    def test_packet_without_castle_section_keeps_castles(self, state, gcl):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl})
+
+        assert [c.id for c in state.get_castles()] == [1]
 
 
 class TestThreadSafety:

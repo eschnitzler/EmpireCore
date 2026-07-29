@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 # considered stale and pruned (their atv/ata packet was probably missed).
 STALE_MOVEMENT_GRACE = 300.0
 
+# A drifted movement schema would fail on every packet, so the warning is
+# rate-limited to one per this interval; the rest go to debug.
+MOVEMENT_PARSE_WARN_INTERVAL = 60.0
+
 
 class GameState:
     """
@@ -25,6 +29,13 @@ class GameState:
 
     State is mutated by the network receive thread and read from user
     threads, so all mutation and snapshot reads are guarded by a lock.
+
+    The public attributes stay readable directly, but callers that read
+    several fields at once (or iterate a container) should use the snapshot
+    accessors — ``get_local_player()``, ``get_inventory()``, ``get_castles()``,
+    ``get_all_movements()`` — which copy under the lock. Mutation paths swap
+    containers instead of editing them in place, so an unlocked reader that
+    already holds one never sees it change underneath.
 
     Callbacks are dispatched in a thread pool to avoid blocking the receive
     loop. This allows callbacks to make blocking calls (like waiting for
@@ -35,7 +46,14 @@ class GameState:
         self._lock = threading.RLock()
 
         self.local_player: Player | None = None
+
+        # player id -> Player. Despite the type, this only ever holds the
+        # local player: nothing in the library records other players here.
+        # Kept because it is part of the public surface — do not iterate it
+        # expecting opponents or alliance members. Use the alliance service
+        # (ain) or the lords/profile services for other players.
         self.players: dict[int, Player] = {}
+
         self.castles: dict[int, Castle] = {}
 
         # World State
@@ -53,6 +71,10 @@ class GameState:
         # Created lazily so it survives disconnect/reconnect cycles.
         self._callback_executor: ThreadPoolExecutor | None = None
         self._executor_lock = threading.Lock()
+
+        # Rate-limit state for movement parse failure warnings
+        self._movement_parse_warn_at = 0.0
+        self._movement_parse_failures = 0
 
     def shutdown(self) -> None:
         """Shutdown the callback executor. Call when done with the client."""
@@ -165,11 +187,28 @@ class GameState:
         else:
             # Merge fresh data into the existing object so references held
             # by user code see the update (identity-map behavior).
-            fresh = Player(**gpi)
-            for field_name in fresh.model_fields_set & set(Player.model_fields):
-                setattr(existing, field_name, getattr(fresh, field_name))
+            self._merge_player(existing, Player(**gpi))
         self.local_player = self.players[pid]
         logger.debug(f"Local player: {self.local_player.name} (ID: {pid})")
+
+    @staticmethod
+    def _merge_player(existing: Player, fresh: Player) -> None:
+        """Apply the fields `fresh` explicitly set onto `existing`, atomically.
+
+        `local_player` is handed out to user code and read without the lock,
+        so a field-by-field merge would let a reader observe a half-merged
+        player (new name, old level). The complete field mapping is built
+        first and swapped in with a single store — the same mechanism
+        pydantic's own `model_construct` uses — which keeps the identity-map
+        behavior (references held by user code stay live) while never
+        exposing an intermediate state.
+        """
+        updated = fresh.model_fields_set & set(Player.model_fields)
+        merged = dict(existing.__dict__)
+        for field_name in updated:
+            merged[field_name] = getattr(fresh, field_name)
+        object.__setattr__(existing, "__dict__", merged)
+        existing.__pydantic_fields_set__.update(updated)
 
     def _parse_xp(self, data: dict[str, Any]) -> None:
         """Parse XP and level from gxp sub-packet."""
@@ -179,81 +218,143 @@ class GameState:
             self.local_player.XP = gxp.get("XP", self.local_player.XP)
 
     def _parse_currencies(self, data: dict[str, Any]) -> None:
-        """Parse gold and rubies from gcu sub-packet."""
+        """Parse gold and rubies from gcu sub-packet.
+
+        A gcu that omits a key is a partial update, not "you now have 0" —
+        previous values are preserved, as _parse_xp does.
+        """
         gcu = data.get("gcu", {})
         if self.local_player and gcu:
-            self.local_player.gold = gcu.get("C1", 0)
-            self.local_player.rubies = gcu.get("C2", 0)
+            self.local_player.gold = gcu.get("C1", self.local_player.gold)
+            self.local_player.rubies = gcu.get("C2", self.local_player.rubies)
 
     def _parse_inventory(self, data: dict[str, Any]) -> None:
         """Parse inventory items from sce sub-packet."""
         sce = data.get("sce", [])
         if not (sce and self.local_player):
             return
-        for item in sce:
+        total = self._apply_inventory_items(sce)
+        logger.debug(f"Parsed {total} inventory items")
+
+    def _apply_inventory_items(self, items: Any) -> int:
+        """Merge ``[[item_id, count], ...]`` entries into the inventory.
+
+        The dict is rebuilt and swapped rather than updated in place: user
+        threads read ``local_player.inventory`` without the lock, and
+        iterating a dict the receive thread is writing raises
+        "dictionary changed size during iteration".
+
+        Returns:
+            The number of items in the inventory afterwards.
+        """
+        player = self.local_player
+        if player is None or not isinstance(items, list):
+            return 0
+        updated = dict(player.inventory)
+        for item in items:
             if isinstance(item, list) and len(item) >= 2:
                 try:
-                    self.local_player.inventory[str(item[0])] = int(item[1])
+                    updated[str(item[0])] = int(item[1])
                 except (ValueError, TypeError):
                     logger.debug(f"Skipping malformed inventory entry: {item!r}")
-        logger.debug(f"Parsed {len(self.local_player.inventory)} inventory items")
+        player.inventory = updated
+        return len(updated)
 
     def _parse_vip(self, data: dict[str, Any]) -> None:
-        """Parse VIP status from vip sub-packet."""
+        """Parse VIP status from vip sub-packet.
+
+        Missing keys keep their previous values (see _parse_currencies).
+        """
         vip = data.get("vip", {})
         if self.local_player and vip:
-            self.local_player.vip_points = vip.get("VP", 0)
-            self.local_player.vip_level = vip.get("VRL", 0)
-            self.local_player.vip_time_left = vip.get("VRS", 0)
+            self.local_player.vip_points = vip.get("VP", self.local_player.vip_points)
+            self.local_player.vip_level = vip.get("VRL", self.local_player.vip_level)
+            self.local_player.vip_time_left = vip.get("VRS", self.local_player.vip_time_left)
 
     def _parse_alliance_info(self, data: dict[str, Any]) -> None:
-        """Parse alliance membership from gal sub-packet."""
-        gal = data.get("gal", {})
-        if not (gal and self.local_player and gal.get("AID")):
+        """Parse alliance membership from gal sub-packet.
+
+        Two cases are deliberately distinguished:
+
+        * no "gal" key at all — this packet carries no alliance information,
+          so existing state is left alone;
+        * "gal" present without a usable AID — the server is telling us the
+          player is in no alliance, so a stale alliance (left, kicked,
+          disbanded) is cleared.
+        """
+        if self.local_player is None or "gal" not in data:
             return
+
+        raw_gal = data.get("gal")
+        # A null or non-dict gal section carries no alliance -> treat as empty
+        gal: dict[str, Any] = raw_gal if isinstance(raw_gal, dict) else {}
+        try:
+            aid = int(gal["AID"]) if gal.get("AID") is not None else 0
+        except (TypeError, ValueError):
+            aid = 0
+
+        if aid <= 0:
+            if self.local_player.alliance is not None:
+                logger.debug("Alliance cleared: gal section reports no alliance")
+            self.local_player.alliance = None
+            self.local_player.AID = None
+            return
+
         try:
             self.local_player.alliance = Alliance(**gal)
-            self.local_player.AID = gal.get("AID")
+            self.local_player.AID = aid
             logger.debug(f"Alliance: {self.local_player.alliance.name}")
         except Exception as e:
             logger.warning(f"Could not parse alliance: {e}")
 
     def _parse_castles(self, data: dict[str, Any]) -> None:
-        """Parse castle list from gcl sub-packet."""
-        gcl = data.get("gcl", {})
-        if not (gcl and self.local_player):
+        """Parse castle list from gcl sub-packet.
+
+        A gcl carrying a castle section ("C") is authoritative: castles it
+        does not list are no longer owned, even when it lists none at all
+        (the player just lost their last castle). A gcl without that section
+        says nothing about ownership and leaves the castle list alone.
+        """
+        gcl = data.get("gcl")
+        if not isinstance(gcl, dict) or self.local_player is None:
             return
-        seen_ids: set[int] = set()
-        for k_data in gcl.get("C", []):
+        kingdoms = gcl.get("C")
+        if not isinstance(kingdoms, list):
+            return
+
+        owned: dict[int, Castle] = {}
+        for k_data in kingdoms:
+            if not isinstance(k_data, dict):
+                continue
             kid = k_data.get("KID", 0)
             for area_entry in k_data.get("AI", []):
+                if not isinstance(area_entry, dict):
+                    continue
                 raw_ai = area_entry.get("AI")
                 if isinstance(raw_ai, list) and len(raw_ai) > 10:
                     x, y, area_id, owner_id, name = raw_ai[1], raw_ai[2], raw_ai[3], raw_ai[4], raw_ai[10]
                     if owner_id == self.local_player.id:
-                        seen_ids.add(area_id)
                         existing = self.castles.get(area_id)
                         if existing is not None:
                             existing.N = name
                             existing.KID = kid
                             existing.X = x
                             existing.Y = y
-                            self.local_player.castles[area_id] = existing
+                            owned[area_id] = existing
                         else:
                             castle = Castle(OID=area_id, N=name, KID=kid, X=x, Y=y)
                             self.castles[area_id] = castle
-                            self.local_player.castles[area_id] = castle
+                            owned[area_id] = castle
+
         # Drop castles no longer owned (lost/traded since the last update)
-        if seen_ids:
-            for stale_id in set(self.castles) - seen_ids:
-                self.castles.pop(stale_id, None)
-                self.local_player.castles.pop(stale_id, None)
-        logger.debug(f"Parsed {len(self.local_player.castles)} castles")
+        for stale_id in set(self.castles) - set(owned):
+            self.castles.pop(stale_id, None)
+        # Swap, don't mutate: user threads hold local_player.castles unlocked
+        self.local_player.castles = owned
+        logger.debug(f"Parsed {len(owned)} castles")
 
     def _handle_gam(self, data: dict[str, Any]) -> None:
         """Handle 'Get Army Movements' response."""
-        self._prune_stale_movements()
-
         movements_list = data.get("M", [])
         owners_list = data.get("O", [])  # Owner info array
 
@@ -286,9 +387,13 @@ class GameState:
 
             self._store_movement(mov)
 
-        # Don't remove movements here - wait for explicit arrival (atv/ata) or
-        # recall (mrm) packets so we can properly dispatch callbacks with full
-        # movement data. Missed arrivals are handled by _prune_stale_movements.
+        # Don't remove movements absent from this packet - wait for explicit
+        # arrival (atv/ata) or recall (mrm) packets so we can properly dispatch
+        # callbacks with full movement data. Missed arrivals are handled by
+        # _prune_stale_movements, which runs *after* storing so a movement this
+        # packet refreshed is never dropped and re-created (which would re-fire
+        # the incoming-attack callback for an attack already alerted on).
+        self._prune_stale_movements()
 
     def _store_movement(self, mov: Movement) -> None:
         """Insert or merge a parsed movement; fire callbacks for new attacks."""
@@ -316,10 +421,23 @@ class GameState:
 
         self.movements[mid] = mov
 
+    @staticmethod
+    def _is_stale(mov: Movement, now: float | None = None) -> bool:
+        """True if the movement's arrival packet was evidently missed."""
+        if now is None:
+            now = time.time()
+        return now > mov.estimated_arrival + STALE_MOVEMENT_GRACE
+
     def _prune_stale_movements(self) -> None:
-        """Drop movements whose arrival packet was evidently missed."""
+        """Drop movements whose arrival packet was evidently missed.
+
+        Runs on every path that inserts movements (gam, pushed mov) and on the
+        list queries, because a consumer driven by push callbacks may never
+        call gam and would otherwise keep seeing attacks that already landed.
+        Cost is O(len(movements)) — the same order as the queries themselves.
+        """
         now = time.time()
-        stale = [mid for mid, m in self.movements.items() if now > m.estimated_arrival + STALE_MOVEMENT_GRACE]
+        stale = [mid for mid, m in self.movements.items() if self._is_stale(m, now)]
         for mid in stale:
             del self.movements[mid]
         if stale:
@@ -378,6 +496,11 @@ class GameState:
         elif isinstance(m_data, dict):
             self._update_single_movement(m_data)
 
+        # Pushed movements are an insertion path of their own, so prune here
+        # too: a consumer driven by push callbacks may never call gam. After
+        # storing, so this packet's own movements survive (see _handle_gam).
+        self._prune_stale_movements()
+
     def _handle_movement_arrived(self, data: dict[str, Any]) -> None:
         """Handle movement or attack arrival (atv/ata share identical logic)."""
         mid = data.get("MID")
@@ -401,12 +524,7 @@ class GameState:
         items = data if isinstance(data, list) else []
 
         if items and self.local_player:
-            for item in items:
-                if isinstance(item, list) and len(item) >= 2:
-                    try:
-                        self.local_player.inventory[str(item[0])] = int(item[1])
-                    except (ValueError, TypeError):
-                        logger.debug(f"Skipping malformed sce entry: {item!r}")
+            self._apply_inventory_items(items)
             logger.debug(f"Updated {len(items)} inventory items from sce")
 
     def _handle_sei(self, data: dict[str, Any]) -> None:
@@ -509,9 +627,30 @@ class GameState:
                     mov.target_alliance_name = owner_info[defender_id].get("alliance_name", "")
 
             return mov
-        except Exception as e:
-            logger.debug(f"Failed to parse movement {mid}: {e}")
+        except Exception:
+            self._log_movement_parse_failure(mid)
             return None
+
+    def _log_movement_parse_failure(self, mid: Any) -> None:
+        """Report a dropped movement loudly, but at most once a minute.
+
+        Movements — including the incoming attacks this library exists to
+        alert on — disappear silently when the schema drifts, so the failure
+        must be visible at the default level with a traceback. Schema drift
+        fails on every packet, so the warning is rate-limited and the
+        suppressed count is reported with the next one.
+        """
+        self._movement_parse_failures += 1
+        now = time.time()
+        if now < self._movement_parse_warn_at:
+            logger.debug(f"Failed to parse movement {mid} (warning rate-limited)")
+            return
+
+        suppressed = self._movement_parse_failures - 1
+        self._movement_parse_failures = 0
+        self._movement_parse_warn_at = now + MOVEMENT_PARSE_WARN_INTERVAL
+        extra = f" ({suppressed} further failures suppressed)" if suppressed else ""
+        logger.exception(f"Failed to parse movement {mid} — it is being dropped, incoming attacks may be missed{extra}")
 
     def _update_single_movement(self, m_data: dict[str, Any]) -> None:
         """Update a single movement from real-time packet."""
@@ -525,31 +664,78 @@ class GameState:
     # ============================================================
 
     def get_all_movements(self) -> list[Movement]:
-        """Get all tracked movements."""
+        """Get all tracked movements (stale ones pruned first)."""
         with self._lock:
+            self._prune_stale_movements()
             return list(self.movements.values())
 
     def get_incoming_movements(self) -> list[Movement]:
         """Get all incoming movements."""
         with self._lock:
+            self._prune_stale_movements()
             return [m for m in self.movements.values() if m.is_incoming]
 
     def get_outgoing_movements(self) -> list[Movement]:
         """Get all outgoing movements."""
         with self._lock:
+            self._prune_stale_movements()
             return [m for m in self.movements.values() if m.is_outgoing]
 
     def get_incoming_attacks(self) -> list[Movement]:
-        """Get all incoming attack movements."""
+        """Get all incoming attack movements.
+
+        Attacks whose arrival packet was missed are pruned, so this never
+        reports an attack that landed more than STALE_MOVEMENT_GRACE ago.
+        """
         with self._lock:
+            self._prune_stale_movements()
             return [m for m in self.movements.values() if m.is_incoming and m.is_attack]
 
     def get_movement_by_id(self, movement_id: int) -> Movement | None:
         """Get a specific movement by ID."""
         with self._lock:
-            return self.movements.get(movement_id)
+            mov = self.movements.get(movement_id)
+            if mov is None:
+                return None
+            # O(1) staleness check: don't turn a point lookup into a full scan
+            if self._is_stale(mov):
+                del self.movements[movement_id]
+                return None
+            return mov
 
     def get_castles(self) -> list[Castle]:
         """Get a snapshot of the player's castles."""
         with self._lock:
             return list(self.castles.values())
+
+    def get_local_player(self) -> Player | None:
+        """Get a snapshot of the local player, or None before login.
+
+        Returns a copy taken under the lock, with detached ``inventory`` and
+        ``castles`` containers, so several fields can be read consistently
+        while the receive thread is updating state. ``state.local_player``
+        remains available for direct access but is a live object.
+
+        The Castle objects inside the snapshot are the live ones, as with
+        ``get_castles()``.
+        """
+        with self._lock:
+            player = self.local_player
+            if player is None:
+                return None
+            return player.model_copy(
+                update={
+                    "inventory": dict(player.inventory),
+                    "castles": dict(player.castles),
+                }
+            )
+
+    def get_inventory(self) -> dict[str, int]:
+        """Get a snapshot of the global inventory (item id -> count).
+
+        Empty before login, or if no sce packet has arrived yet.
+        """
+        with self._lock:
+            if self.local_player is None:
+                return {}
+            return dict(self.local_player.inventory)
