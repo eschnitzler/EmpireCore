@@ -10,9 +10,30 @@ Commands:
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import Field
 
 from .base import BasePayload, BaseRequest, BaseResponse, UnitCount
+
+
+def _as_int(value: Any) -> int | None:
+    """Coerce a wire value to int, or None when it is not numeric.
+
+    The server sometimes sends counts as strings, and these accessors are the
+    documented way to read a castle's defence, so a drifted type must not raise.
+    """
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        pass
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
 
 # =============================================================================
 # DFC - Get Defense Configuration
@@ -235,7 +256,9 @@ class GetSupportDefenseResponse(BaseResponse):
                 for unit_pair in position:
                     if isinstance(unit_pair, list) and len(unit_pair) >= 2:
                         # unit_pair is [unit_id, count]
-                        total += unit_pair[1]
+                        count = _as_int(unit_pair[1])
+                        if count is not None:
+                            total += count
         return total
 
     def get_max_defense(self) -> int:
@@ -263,7 +286,9 @@ class GetSupportDefenseResponse(BaseResponse):
             if isinstance(position, list):
                 for unit_pair in position:
                     if isinstance(unit_pair, list) and len(unit_pair) >= 2:
-                        unit_id, count = unit_pair[0], unit_pair[1]
+                        unit_id, count = _as_int(unit_pair[0]), _as_int(unit_pair[1])
+                        if unit_id is None or count is None:
+                            continue
                         units[unit_id] = units.get(unit_id, 0) + count
             result.append(units)
         return result
