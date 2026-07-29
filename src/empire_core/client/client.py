@@ -10,14 +10,16 @@ from __future__ import annotations
 import json
 import logging
 import queue
+import threading
 import time
+import warnings
 from collections.abc import Callable
 from types import TracebackType
 from typing import Any, TypeVar, cast
 
 from pydantic import ValidationError
 
-from empire_core.client.map_scanner import MapScanner
+from empire_core.client.map_scanner import MapScanner, ScanResult
 from empire_core.config import (
     LOGIN_DEFAULTS,
     EmpireConfig,
@@ -114,8 +116,13 @@ class EmpireClient:
         self.is_logged_in = False
 
         # Command -> handlers mapping for efficient dispatch
-        # Only commands with handlers will be parsed
+        # Only commands with handlers will be parsed.
+        # Written from caller threads (services, get_player_details_bulk) and
+        # read by the receive thread, so every access goes through the lock -
+        # CPython's per-op atomicity is not a guarantee to build on and does
+        # not hold on free-threaded builds.
         self._handlers: dict[str, list[Callable[[BaseResponse], None]]] = {}
+        self._handlers_lock = threading.Lock()
 
         # Wire up packet handler for state updates
         self.connection.on_packet = self._on_packet
@@ -142,9 +149,23 @@ class EmpireClient:
         Called by services to register interest in specific responses.
         Only commands with handlers will be parsed and dispatched.
         """
-        if command not in self._handlers:
-            self._handlers[command] = []
-        self._handlers[command].append(handler)
+        with self._handlers_lock:
+            if command not in self._handlers:
+                self._handlers[command] = []
+            self._handlers[command].append(handler)
+
+    def _unregister_handler(self, command: str, handler: Callable[[BaseResponse], None]) -> None:
+        """Remove a previously registered handler; unknown handlers are ignored."""
+        with self._handlers_lock:
+            handlers = self._handlers.get(command)
+            if not handlers:
+                return
+            try:
+                handlers.remove(handler)
+            except ValueError:
+                return
+            if not handlers:
+                del self._handlers[command]
 
     def _on_packet(self, packet: Packet) -> None:
         """Handle incoming packets for state updates and service dispatch."""
@@ -160,8 +181,11 @@ class EmpireClient:
         # Update internal state (always runs for state-tracked commands)
         self._update_state(cmd, payload)
 
-        # Only parse and dispatch if handlers are registered
-        handlers = self._handlers.get(cmd)
+        # Only parse and dispatch if handlers are registered. The snapshot is
+        # taken under the lock so a concurrent (un)register can neither be
+        # observed half-applied nor mutate the list being iterated below.
+        with self._handlers_lock:
+            handlers = list(self._handlers.get(cmd, ()))
         if not handlers:
             return
 
@@ -178,8 +202,7 @@ class EmpireClient:
             return
 
         if response:
-            # Copy list to avoid issues if handlers are added during iteration
-            for handler in list(handlers):
+            for handler in handlers:
                 try:
                     handler(response)
                 except Exception:
@@ -219,17 +242,20 @@ class EmpireClient:
             callers that already assert on it.
 
         Raises:
-            ValueError: Username or password missing
             NetworkError: The WebSocket connection could not be established
             EmpireTimeoutError: A required login step timed out
             LoginCooldownError: The server is rate-limiting this account
-            LoginError: The server rejected the credentials
+            LoginError: Username or password missing, or the server rejected
+                the credentials
+
+        Every failure mode is an ``EmpireError`` subclass, so
+        ``except EmpireError`` catches all of them.
 
         On any of these, the connection and its background threads are closed
         before the error propagates, so a failed login leaks nothing.
         """
         if not self.username or not self.password:
-            raise ValueError("Username and password are required")
+            raise LoginError("Username and password are required")
 
         logger.debug(f"Logging in as {self.username}...")
 
@@ -256,7 +282,9 @@ class EmpireClient:
         except EmpireTimeoutError as e:
             raise EmpireTimeoutError("Version check timed out") from e
 
-        conm_value = 1150008
+        # Same client-version fingerprint the XT login sends below: a second
+        # hardcoded copy would silently drift on the next game-client bump.
+        conm_value = LOGIN_DEFAULTS["CONM"]
 
         # 2. Zone Login (XML)
         login_packet = (
@@ -581,20 +609,42 @@ class EmpireClient:
         """
         return self.request(AllianceChatLogRequest(), AllianceChatLogResponse, timeout=timeout)
 
-    def subscribe_alliance_chat(self, callback) -> None:
+    def _warn_raw_chat_subscription(self, method: str) -> None:
+        warnings.warn(
+            f"EmpireClient.{method}() delivers raw wire packets and is deprecated; "
+            "use client.alliance.on_chat_message(), which delivers a typed "
+            "AllianceChatMessageResponse with .player_name/.decoded_text.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+
+    def subscribe_alliance_chat(self, callback: Callable[[Packet], None]) -> None:
         """
-        Subscribe to alliance chat messages.
+        Subscribe to alliance chat messages as raw packets.
+
+        .. deprecated::
+            Use :meth:`AllianceService.on_chat_message`
+            (``client.alliance.on_chat_message``) instead. It delivers a typed
+            ``AllianceChatMessageResponse`` with ``player_name`` and
+            ``decoded_text``, so consumers never touch protocol keys or
+            reimplement the chat-text decoder.
 
         Args:
             callback: Function to call with each chat packet.
                       Packet payload will have format:
                       {"CM": {"PN": "player_name", "MT": "message_text", ...}}
         """
+        self._warn_raw_chat_subscription("subscribe_alliance_chat")
         # Alliance chat messages come via 'acm' command (not 'aci')
         self.connection.subscribe("acm", callback)
 
-    def unsubscribe_alliance_chat(self, callback) -> None:
-        """Unsubscribe from alliance chat."""
+    def unsubscribe_alliance_chat(self, callback: Callable[[Packet], None]) -> None:
+        """Unsubscribe from raw alliance chat packets.
+
+        .. deprecated::
+            See :meth:`subscribe_alliance_chat`.
+        """
+        self._warn_raw_chat_subscription("unsubscribe_alliance_chat")
         self.connection.unsubscribe("acm", callback)
 
     # ============================================================
@@ -703,7 +753,7 @@ class EmpireClient:
         request_timeout: float = 5.0,
         chunk_delay: float = 0.2,
         include_unowned_types: set[MapItemType] | None = None,
-    ):
+    ) -> ScanResult:
         """Scan a kingdom map. See MapScanner.scan_kingdom."""
         return MapScanner(self).scan_kingdom(
             kingdom,
@@ -722,7 +772,7 @@ class EmpireClient:
         timeout: float = 300.0,
         request_timeout: float = 5.0,
         chunk_delay: float = 0.2,
-    ):
+    ) -> ScanResult:
         """Scan an explicit chunk list (no BFS). See MapScanner.scan_chunks."""
         return MapScanner(self).scan_chunks(kingdom, chunks, item_types, timeout, request_timeout, chunk_delay)
 
@@ -742,16 +792,24 @@ class EmpireClient:
         self,
         player_ids: list[int],
         timeout: float = 10.0,
+        send_delay: float = 0.05,
     ) -> dict[int, GetPlayerInfoResponse]:
         """
         Get detailed info for multiple players in parallel.
 
-        Registers a handler first, then sends all requests in a burst,
-        and collects responses via a thread-safe queue.
+        Registers a handler first, then sends all requests (paced by
+        ``send_delay``), and collects responses via a thread-safe queue.
 
         Args:
             player_ids: List of player IDs to fetch
-            timeout: Max time to wait for all responses
+            timeout: Max time to wait for all responses. The pacing sleeps are
+                not charged against it - the clock starts once all requests
+                are out.
+            send_delay: Seconds to wait between consecutive 'gdi' sends. The
+                server drops connections that sustain high request rates (the
+                same reason MapScanner paces its chunks), and a large id list
+                would otherwise go out as one burst on a connection other
+                callers share. Set to 0 to send without pacing.
 
         Returns:
             Dict mapping player_id -> GetPlayerInfoResponse
@@ -770,7 +828,9 @@ class EmpireClient:
         self._register_handler("gdi", capture_gdi)
 
         try:
-            for pid in unique_ids:
+            for index, pid in enumerate(unique_ids):
+                if index and send_delay > 0:
+                    time.sleep(send_delay)
                 request = GetPlayerInfoRequest(PID=pid)
                 self.send(request, wait=False)
 
@@ -787,8 +847,7 @@ class EmpireClient:
 
             return collected
         finally:
-            if "gdi" in self._handlers and capture_gdi in self._handlers["gdi"]:
-                self._handlers["gdi"].remove(capture_gdi)
+            self._unregister_handler("gdi", capture_gdi)
 
     def search_player_by_name(
         self,

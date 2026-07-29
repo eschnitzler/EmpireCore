@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, NamedTuple
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models.map import GetMapAreaRequest, Kingdom, MapAreaItem, MapItemType, MapObject
+from empire_core.protocol.packet import Packet
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
@@ -45,7 +46,7 @@ class MapScanner:
         # first row/column of the next chunk and duplicate boundary items.
         return (x1, y1, x1 + self.CHUNK_SIZE - 1, y1 + self.CHUNK_SIZE - 1)
 
-    def _request_chunk(self, request: GetMapAreaRequest, request_timeout: float):
+    def _request_chunk(self, request: GetMapAreaRequest, request_timeout: float) -> Packet:
         """Send a chunk request and wait for the matching gaa response."""
         packet = request.to_packet(zone=self.client.config.default_zone)
         return self.client.connection.request(packet, "gaa", timeout=request_timeout)
