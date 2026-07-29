@@ -4,6 +4,7 @@ from collections import deque
 from typing import TYPE_CHECKING, NamedTuple
 
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
+from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models.map import GetMapAreaRequest, Kingdom, MapAreaItem, MapItemType, MapObject
 
 if TYPE_CHECKING:
@@ -49,6 +50,25 @@ class MapScanner:
         packet = request.to_packet(zone=self.client.config.default_zone)
         return self.client.connection.request(packet, "gaa", timeout=request_timeout)
 
+    def _unscanned_chunks(self, queue: deque[tuple[int, int]], visited: set[tuple[int, int]]) -> list[tuple[int, int]]:
+        """
+        Chunks still queued for a scan that was cut short.
+
+        Reported in ``failed_chunks`` so an aborted scan is never mistaken
+        for a complete one. Entries the loop would have skipped anyway
+        (already visited, duplicated, out of range) are left out.
+        """
+        remaining: list[tuple[int, int]] = []
+        seen: set[tuple[int, int]] = set()
+        for cx, cy in queue:
+            if (cx, cy) in visited or (cx, cy) in seen:
+                continue
+            if cx < 0 or cy < 0 or cx > self.MAX_COORD or cy > self.MAX_COORD:
+                continue
+            seen.add((cx, cy))
+            remaining.append((cx, cy))
+        return remaining
+
     def _process_chunk(
         self,
         cx: int,
@@ -83,12 +103,21 @@ class MapScanner:
             try:
                 time.sleep(0.1)  # Wait a bit before retry
                 response = self._request_chunk(request, request_timeout)
-            except Exception as e2:
+            except (EmpireTimeoutError, NetworkError) as e2:
                 logger.error(f"Chunk ({cx}, {cy}) failed after retry: {e2}")
                 return _ChunkResult(ok=False, has_content=False)
 
         if response.error_code == 337:
             raise CommandError("gaa", 337)  # ADDITIONAL_KINGDOM_NOT_UNLOCKED
+
+        if response.error_code:
+            # Any other non-zero code (cooldown, rate limiting, map not
+            # available, ...) still parses into a dict payload with no AI
+            # array, so without this check the chunk would be mistaken for a
+            # legitimately empty area and quietly dropped from the scan.
+            error_name = GGEError.from_code(response.error_code).name
+            logger.warning(f"Chunk ({cx}, {cy}) failed with server error {error_name} ({response.error_code})")
+            return _ChunkResult(ok=False, has_content=False)
 
         if not isinstance(response.payload, dict):
             return _ChunkResult(ok=False, has_content=False)
@@ -97,22 +126,31 @@ class MapScanner:
         oi_array = response.payload.get("OI", [])
         has_content = len(ai_array) > 0
 
-        # Collect matching items
+        # Collect matching items. One malformed entry must not cost us the
+        # whole chunk (or, in scan_kingdom, every chunk collected so far), so
+        # parse defensively -- and log what was dropped, since silently
+        # skipping entries would hide a server-side schema change behind
+        # quietly incomplete scans.
         for raw_obj in oi_array:
             if isinstance(raw_obj, dict):
                 try:
                     obj = MapObject.model_validate(raw_obj)
-                    oid = obj.resolved_owner_id
-                    if oid:
-                        collected_objects[oid] = obj
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Chunk ({cx}, {cy}): skipping invalid map object {raw_obj!r}: {e}")
                     continue
+                oid = obj.resolved_owner_id
+                if oid:
+                    collected_objects[oid] = obj
 
         for raw_item in ai_array:
             if isinstance(raw_item, list) and len(raw_item) >= 4:
-                item = MapAreaItem.from_list(raw_item)
+                try:
+                    item = MapAreaItem.from_list(raw_item)
+                except Exception as e:
+                    logger.debug(f"Chunk ({cx}, {cy}): skipping invalid map item {raw_item!r}: {e}")
+                    continue
 
-                # Apply filter (None = collect all)
+                # filter_types is None only when the caller disabled filtering
                 if filter_types is None or item.item_type in filter_types:
                     # Skip unowned items unless their type is explicitly included
                     if item.owner_id == -1 and (
@@ -136,9 +174,24 @@ class MapScanner:
         Scan a kingdom map with dynamic boundary detection.
         Uses BFS expansion from the bot's castle position.
 
+        ``item_types`` selects which map items are collected, and its two
+        empty-ish values mean opposite things — the sentinel is inverted,
+        so read this carefully:
+
+        - ``None`` (the default) is the *most* restrictive: it collects
+          player main castles only (``MapItemType.CASTLE``).
+        - ``[]`` (empty list) is the *least* restrictive: it disables
+          filtering and collects every item type.
+        - a non-empty list collects exactly those types.
+
+        In every case items with ``owner_id == -1`` (empty slots, unplaced
+        flags) are skipped.
+
         Chunks that fail even after a retry are reported in
         ``ScanResult.failed_chunks`` so callers can tell a partial scan
-        from a complete one.
+        from a complete one. The same applies to chunks left unscanned
+        when the overall ``timeout`` expires or the connection drops: an
+        empty ``failed_chunks`` means the scan really did finish.
 
         ``chunk_delay`` paces the ``gaa`` requests. A full-kingdom scan
         issues hundreds of requests back-to-back; sustained multi-minute
@@ -149,11 +202,11 @@ class MapScanner:
         start_x, start_y = self.client._get_kingdom_start_position(kingdom)
         start_cx, start_cy = start_x // self.CHUNK_SIZE, start_y // self.CHUNK_SIZE
 
-        # Default to castles (type 1 = player main castles)
+        # None means castles only (type 1 = player main castles)
         if item_types is None:
             item_types = [MapItemType.CASTLE]
 
-        # Empty list means collect everything
+        # An empty list, by contrast, means no filtering at all
         filter_types = set(item_types) if item_types else None
 
         filter_desc = f"types={list(item_types)}" if item_types else "all types"
@@ -181,6 +234,7 @@ class MapScanner:
         while queue:
             if time.time() - start_time > timeout:
                 logger.warning(f"Kingdom scan timeout after {total_requests} requests")
+                failed_chunks.extend(self._unscanned_chunks(queue, visited))
                 break
 
             # Pace requests to avoid rate limiting/disconnects
@@ -212,6 +266,7 @@ class MapScanner:
                 failed_chunks.append((cx, cy))
                 if not self.client.connection.connected:
                     logger.error("Aborting scan: connection lost")
+                    failed_chunks.extend(self._unscanned_chunks(queue, visited))
                     break
             elif result.has_content:
                 content_chunks.append((cx, cy))
@@ -283,10 +338,16 @@ class MapScanner:
         only the chunks around known castle coordinates via
         ``chunk_for_position``).
 
+        ``item_types`` behaves exactly as in scan_kingdom(), inverted
+        sentinel included: ``None`` (the default) collects player main
+        castles only, ``[]`` disables filtering and collects every type,
+        and a non-empty list collects exactly those types.
+
         Chunks are deduplicated and out-of-range coordinates skipped.
         Unscanned chunks left over when ``timeout`` hits are reported in
         ``failed_chunks``.
         """
+        # None means castles only; an empty list means no filtering at all.
         if item_types is None:
             item_types = [MapItemType.CASTLE]
         filter_types = set(item_types) if item_types else None
