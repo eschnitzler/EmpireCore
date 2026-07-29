@@ -801,15 +801,6 @@ class TestDriftedPayloadsMustNotCrashAccessors:
         response = GetPlayerInfoResponse.model_validate({"gcl": {"C": [{"KID": 0, "AI": "junk"}]}})
         assert response.get_castles() == []
 
-    @pytest.mark.xfail(
-        raises=AttributeError,
-        reason=(
-            "BUG: GetPlayerInfoResponse.get_castles() calls world.get('KID') without "
-            "checking that the gcl.C element is a dict, so a drifted entry raises a raw "
-            "AttributeError out of a consumer-facing accessor instead of being skipped "
-            "(the same failure mode already fixed for the AMI array)."
-        ),
-    )
     def test_drifted_kingdom_entry_is_skipped_rather_than_crashing(self):
         response = GetPlayerInfoResponse.model_validate(
             {
@@ -823,24 +814,10 @@ class TestDriftedPayloadsMustNotCrashAccessors:
         )
         assert [c.name for c in response.get_castles()] == ["Keep"]
 
-    @pytest.mark.xfail(
-        raises=TypeError,
-        reason=(
-            "BUG: GetSupportDefenseResponse.get_total_defenders() shape-checks each "
-            "[unit_id, count] pair but not the count's type, so a count sent as a string "
-            "raises a raw TypeError from the accessor the client documents "
-            "(get_castle_defense -> get_total_defenders). get_units_by_position() has the "
-            "same hole."
-        ),
-    )
     def test_string_unit_count_does_not_crash_the_defence_total(self):
         response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[487, 100]], [[488, "20"]]]})
         assert response.get_total_defenders() >= 100
 
-    @pytest.mark.xfail(
-        raises=TypeError,
-        reason="BUG: same missing count-type guard in get_units_by_position() (see above).",
-    )
     def test_string_unit_count_does_not_crash_the_per_position_grouping(self):
         response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[488, "20"]]]})
         assert response.get_units_by_position() == [{488: 20}]

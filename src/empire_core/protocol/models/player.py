@@ -257,6 +257,10 @@ class GetPlayerInfoResponse(BaseResponse):
         worlds = self.raw_castle_list.get("C", [])
 
         for world in worlds:
+            if not isinstance(world, dict):
+                # Drifted kingdom entry: skip it rather than raising out of a
+                # consumer-facing accessor.
+                continue
             kingdom = world.get("KID", 0)
             locations = world.get("AI", [])
 
