@@ -2,6 +2,7 @@
 GameState - Tracks game state from server packets.
 """
 
+import inspect
 import logging
 import threading
 import time
@@ -22,6 +23,19 @@ STALE_MOVEMENT_GRACE = 300.0
 # rate-limited to one per this interval; the rest go to debug.
 MOVEMENT_PARSE_WARN_INTERVAL = 60.0
 
+# Arrival/recall listeners may take just the movement id (the original
+# signature) or the id plus the Movement that was removed from state. Which
+# one is called is decided per callback from its signature, so existing
+# ``Callable[[int], None]`` handlers keep working unchanged.
+MovementEventCallback = Callable[[int], Any] | Callable[[int, Movement | None], Any]
+
+# gbd/lli sub-packets whose freshness is tracked separately from the packet
+# that carried them (gold only ever arrives inside a gbd, for instance).
+_TRACKED_SECTIONS = ("gpi", "gxp", "gcu", "vip", "gal", "gcl", "sce", "dcl", "sei")
+
+# Sub-packets that carry local-player fields (used for get_player_last_updated)
+_PLAYER_SECTIONS = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "sce"})
+
 
 class GameState:
     """
@@ -40,6 +54,31 @@ class GameState:
     Callbacks are dispatched in a thread pool to avoid blocking the receive
     loop. This allows callbacks to make blocking calls (like waiting for
     responses).
+
+    Freshness
+    ---------
+    Nothing here polls the server: every field is as old as the last packet
+    that carried it, and some packets arrive only once per session. Cached
+    values are therefore *not* automatically current:
+
+    ===================================  ==========================  ===================================
+    State                                Refreshed by                Force a refresh with
+    ===================================  ==========================  ===================================
+    castle name/coords, castle list      ``gcl`` (inside gbd/lli)     re-login
+    castle resources/units/details       ``dcl``                      ``client.castle.get_details(id)``
+    player identity/level/XP             ``gpi``/``gxp``              re-login
+    player gold/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      re-login
+    global inventory                     ``sce`` (pushed)             --
+    movements                            ``gam``, pushed ``mov``      ``client.get_movements()``
+    ===================================  ==========================  ===================================
+
+    In practice a castle's ``resources`` often reflects login time and nothing
+    else, so use the freshness accessors before trusting them:
+    :meth:`get_castle_last_updated` / :meth:`get_castle_age`,
+    :meth:`get_player_last_updated`, and :meth:`get_last_packet_time` /
+    :meth:`get_packet_times` for per-packet timestamps. All timestamps are
+    wall-clock (``time.time()``) seconds, and ``None`` means "never seen",
+    which is different from "seen and empty".
     """
 
     def __init__(self):
@@ -62,10 +101,12 @@ class GameState:
         # Active Events
         self.active_event_ids: list[int] = []
 
-        # Callbacks for specific events — support multiple listeners
+        # Callbacks for specific events — support multiple listeners.
+        # Arrival/recall listeners are stored with a flag saying whether they
+        # also take the Movement (see _accepts_movement).
         self._incoming_attack_callbacks: list[Callable[[Movement], None]] = []
-        self._movement_recalled_callbacks: list[Callable[[int], None]] = []
-        self._movement_arrived_callbacks: list[Callable[[int], None]] = []
+        self._movement_recalled_callbacks: list[tuple[MovementEventCallback, bool]] = []
+        self._movement_arrived_callbacks: list[tuple[MovementEventCallback, bool]] = []
 
         # Thread pool for dispatching callbacks (avoids blocking receive loop).
         # Created lazily so it survives disconnect/reconnect cycles.
@@ -75,6 +116,11 @@ class GameState:
         # Rate-limit state for movement parse failure warnings
         self._movement_parse_warn_at = 0.0
         self._movement_parse_failures = 0
+
+        # Freshness bookkeeping (see the class docstring). Wall-clock seconds.
+        self._packet_times: dict[str, float] = {}
+        self._castle_details_at: dict[int, float] = {}
+        self._player_updated_at: float | None = None
 
     def shutdown(self) -> None:
         """Shutdown the callback executor. Call when done with the client."""
@@ -120,6 +166,7 @@ class GameState:
         handler_name = self._DISPATCH.get(cmd_id)
         if handler_name:
             with self._lock:
+                self._packet_times[cmd_id] = time.time()
                 getattr(self, handler_name)(payload)
 
     # ----------------------------------------------------------------
@@ -139,21 +186,86 @@ class GameState:
         """Unregister an incoming attack callback."""
         self._incoming_attack_callbacks.remove(callback)
 
-    def on_movement_recalled(self, callback: Callable[[int], None]) -> None:  # type: ignore[misc]
-        """Register a callback for recalled movements."""
-        self._movement_recalled_callbacks.append(callback)
+    def on_movement_recalled(self, callback: MovementEventCallback) -> None:  # type: ignore[misc]
+        """Register a callback for recalled movements.
 
-    def remove_movement_recalled_callback(self, callback: Callable[[int], None]) -> None:
+        Accepts either signature (see :meth:`on_movement_arrived`)::
+
+            def on_recalled(movement_id: int) -> None: ...
+            def on_recalled(movement_id: int, movement: Movement | None) -> None: ...
+        """
+        self._movement_recalled_callbacks.append((callback, self._accepts_movement(callback)))
+
+    def remove_movement_recalled_callback(self, callback: MovementEventCallback) -> None:
         """Unregister a movement recalled callback."""
-        self._movement_recalled_callbacks.remove(callback)
+        self._remove_listener(self._movement_recalled_callbacks, callback)
 
-    def on_movement_arrived(self, callback: Callable[[int], None]) -> None:  # type: ignore[misc]
-        """Register a callback for arrived movements."""
-        self._movement_arrived_callbacks.append(callback)
+    def on_movement_arrived(self, callback: MovementEventCallback) -> None:  # type: ignore[misc]
+        """Register a callback for arrived movements.
 
-    def remove_movement_arrived_callback(self, callback: Callable[[int], None]) -> None:
+        Two signatures are supported, picked per callback from its own
+        parameter list::
+
+            def on_arrived(movement_id: int) -> None: ...
+            def on_arrived(movement_id: int, movement: Movement | None) -> None: ...
+
+        Prefer the second form: the movement is removed from state before
+        callbacks run (it has arrived — it is no longer in flight), so
+        ``get_movement_by_id(movement_id)`` returns ``None`` by then and the
+        id alone says nothing about what arrived. ``movement`` is ``None``
+        only when the arrival packet refers to a movement this state never
+        tracked (e.g. it arrived during a disconnect window).
+        """
+        self._movement_arrived_callbacks.append((callback, self._accepts_movement(callback)))
+
+    def remove_movement_arrived_callback(self, callback: MovementEventCallback) -> None:
         """Unregister a movement arrived callback."""
-        self._movement_arrived_callbacks.remove(callback)
+        self._remove_listener(self._movement_arrived_callbacks, callback)
+
+    @staticmethod
+    def _accepts_movement(callback: Callable[..., Any]) -> bool:
+        """True if ``callback`` takes the Movement as a second positional arg.
+
+        Decided once, at registration. Callables whose signature cannot be
+        inspected (some builtins/C functions) are treated as id-only, which is
+        the historical behaviour.
+        """
+        try:
+            parameters = inspect.signature(callback).parameters.values()
+        except (TypeError, ValueError):
+            return False
+        positional = 0
+        for param in parameters:
+            if param.kind is inspect.Parameter.VAR_POSITIONAL:
+                return True
+            if param.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD):
+                positional += 1
+        return positional >= 2
+
+    @staticmethod
+    def _remove_listener(
+        listeners: list[tuple[MovementEventCallback, bool]],
+        callback: MovementEventCallback,
+    ) -> None:
+        """Remove the first registration of ``callback`` (``list.remove`` semantics)."""
+        for index, (registered, _) in enumerate(listeners):
+            if registered == callback:
+                del listeners[index]
+                return
+        raise ValueError(f"callback {callback!r} is not registered")
+
+    def _dispatch_movement_event(
+        self,
+        listeners: list[tuple[MovementEventCallback, bool]],
+        mid: int,
+        mov: Movement | None,
+    ) -> None:
+        """Fire arrival/recall listeners, passing the Movement to those that want it."""
+        for callback, wants_movement in list(listeners):
+            if wants_movement:
+                self._dispatch_callback(callback, mid, mov)
+            else:
+                self._dispatch_callback(callback, mid)
 
     # ----------------------------------------------------------------
     # Packet handlers
@@ -172,6 +284,22 @@ class GameState:
             self._handle_dcl(dcl)
         if sei := data.get("sei"):
             self._handle_sei(sei)
+        self._stamp_sections(data)
+
+    def _stamp_sections(self, data: dict[str, Any]) -> None:
+        """Record when each sub-packet of a gbd/lli payload was applied.
+
+        A section present but null still counts as applied: "gal": None means
+        "you are in no alliance", which is information, not absence of it.
+        Sections carrying local-player fields also refresh the player stamp,
+        but only once there is a player to attach it to.
+        """
+        now = time.time()
+        for section in _TRACKED_SECTIONS:
+            if section in data:
+                self._packet_times[section] = now
+                if section in _PLAYER_SECTIONS and self.local_player is not None:
+                    self._player_updated_at = now
 
     def _parse_player_info(self, data: dict[str, Any]) -> None:
         """Parse player identity from gpi sub-packet."""
@@ -349,6 +477,8 @@ class GameState:
         # Drop castles no longer owned (lost/traded since the last update)
         for stale_id in set(self.castles) - set(owned):
             self.castles.pop(stale_id, None)
+            # A re-acquired castle must not inherit the old freshness stamp
+            self._castle_details_at.pop(stale_id, None)
         # Swap, don't mutate: user threads hold local_player.castles unlocked
         self.local_player.castles = owned
         logger.debug(f"Parsed {len(owned)} castles")
@@ -481,6 +611,9 @@ class GameState:
                             if isinstance(u_data, list) and len(u_data) >= 2:
                                 new_units[u_data[0]] = u_data[1]
                         castle.units = new_units
+
+                    # Only now is this castle's detail data actually fresh
+                    self._castle_details_at[aid] = time.time()
                 except (ValueError, TypeError) as e:
                     # One malformed castle entry must not abort the rest
                     logger.debug(f"Skipping malformed dcl entry for castle {aid}: {e}")
@@ -502,20 +635,29 @@ class GameState:
         self._prune_stale_movements()
 
     def _handle_movement_arrived(self, data: dict[str, Any]) -> None:
-        """Handle movement or attack arrival (atv/ata share identical logic)."""
+        """Handle movement or attack arrival (atv/ata share identical logic).
+
+        The movement is removed from state first and handed to the callbacks,
+        which otherwise could not tell what arrived: dispatch is asynchronous,
+        so a lookup by id inside the callback always misses.
+        """
         mid = data.get("MID")
-        if mid is not None:
-            for cb in list(self._movement_arrived_callbacks):
-                self._dispatch_callback(cb, mid)
-            self.movements.pop(mid, None)
+        if mid is None:
+            return
+        mov = self.movements.pop(mid, None)
+        self._dispatch_movement_event(self._movement_arrived_callbacks, mid, mov)
 
     def _handle_mrm(self, data: dict[str, Any]) -> None:
-        """Handle movement recall (mrm = Move Recall Movement)."""
+        """Handle movement recall (mrm = Move Recall Movement).
+
+        As with arrivals, the recalled Movement is passed to callbacks that
+        take it — it is gone from state by the time they run.
+        """
         mid = data.get("MID")
-        if mid is not None:
-            for cb in list(self._movement_recalled_callbacks):
-                self._dispatch_callback(cb, mid)
-            self.movements.pop(mid, None)
+        if mid is None:
+            return
+        mov = self.movements.pop(mid, None)
+        self._dispatch_movement_event(self._movement_recalled_callbacks, mid, mov)
 
     def _handle_sce(self, data: Any) -> None:
         """Handle Server Client Exchange (Inventory Update)."""
@@ -525,6 +667,7 @@ class GameState:
 
         if items and self.local_player:
             self._apply_inventory_items(items)
+            self._player_updated_at = time.time()
             logger.debug(f"Updated {len(items)} inventory items from sce")
 
     def _handle_sei(self, data: dict[str, Any]) -> None:
@@ -704,7 +847,14 @@ class GameState:
             return mov
 
     def get_castles(self) -> list[Castle]:
-        """Get a snapshot of the player's castles."""
+        """Get a snapshot of the player's castles.
+
+        The list itself is current, but each castle's ``resources``, ``units``
+        and other dcl-only detail fields are as old as the last dcl packet for
+        that castle — frequently the one from login, and all-zero when no dcl
+        ever arrived. Check :meth:`get_castle_last_updated` /
+        :meth:`get_castle_age` before treating them as live.
+        """
         with self._lock:
             return list(self.castles.values())
 
@@ -733,9 +883,65 @@ class GameState:
     def get_inventory(self) -> dict[str, int]:
         """Get a snapshot of the global inventory (item id -> count).
 
-        Empty before login, or if no sce packet has arrived yet.
+        Empty before login, or if no sce packet has arrived yet — use
+        ``get_last_packet_time("sce")`` to tell those apart from "empty".
         """
         with self._lock:
             if self.local_player is None:
                 return {}
             return dict(self.local_player.inventory)
+
+    # ============================================================
+    # Freshness (see the "Freshness" section of the class docstring)
+    # ============================================================
+
+    def get_castle_last_updated(self, castle_id: int) -> float | None:
+        """When this castle's detail data (resources, units) was last refreshed.
+
+        Returns a wall-clock ``time.time()`` timestamp, or ``None`` if no dcl
+        packet ever refreshed this castle — in which case ``resources`` and
+        ``units`` are defaults, not measurements. Refresh with
+        ``client.castle.get_details(castle_id)``.
+        """
+        with self._lock:
+            return self._castle_details_at.get(castle_id)
+
+    def get_castle_age(self, castle_id: int) -> float | None:
+        """Seconds since this castle's detail data was refreshed, or ``None``.
+
+        ``None`` means never refreshed (see :meth:`get_castle_last_updated`),
+        so treat it as infinitely stale rather than as zero.
+        """
+        with self._lock:
+            stamp = self._castle_details_at.get(castle_id)
+        if stamp is None:
+            return None
+        return max(0.0, time.time() - stamp)
+
+    def get_player_last_updated(self) -> float | None:
+        """When any local-player field was last refreshed, or ``None``.
+
+        Most player fields (gold, rubies, VIP, level, alliance) only ever
+        arrive inside a gbd/lli, i.e. at login; only the inventory is pushed
+        during a session (sce). A stamp far in the past means the numbers are
+        from login, not that they were re-confirmed.
+        """
+        with self._lock:
+            return self._player_updated_at
+
+    def get_last_packet_time(self, cmd_id: str) -> float | None:
+        """When a packet (or gbd sub-packet) of this kind was last applied.
+
+        Accepts the wire ids this manager tracks — "gbd", "lli", "gam", "dcl",
+        "mov", "atv", "ata", "mrm", "sce", "sei" — and the gbd sub-packet keys
+        "gpi", "gxp", "gcu", "vip", "gal", "gcl", which carry data that never
+        arrives on its own. ``None`` means none was ever seen; packets this
+        manager ignores are never recorded.
+        """
+        with self._lock:
+            return self._packet_times.get(cmd_id)
+
+    def get_packet_times(self) -> dict[str, float]:
+        """Snapshot of every tracked packet/sub-packet timestamp."""
+        with self._lock:
+            return dict(self._packet_times)
