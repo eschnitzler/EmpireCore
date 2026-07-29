@@ -22,10 +22,6 @@ dependencies = [
 [project.urls]
 Repository = "https://github.com/eschnitzler/EmpireCore"
 
-# CLI temporarily disabled during sync refactor
-# [project.scripts]
-# empire = "empire_core.cli:app"
-
 [project.optional-dependencies]
 # Experimental empire_core.storage package only; not needed by the client.
 storage = [
@@ -36,7 +32,6 @@ dev = [
     # Dev environments type-check and lint empire_core.storage too.
     "empire-core[storage]",
     "pytest>=7.0",
-    "pytest-asyncio>=0.23",
     "ruff>=0.1.0",
     "mypy>=1.8",
     "pre-commit>=3.5.0",
@@ -54,20 +49,19 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B"] # Pycodestyle, Pyflakes, Isort, Bugbear
-# E701/F841/B007 were removed: they suppressed nothing in this tree.
-# Still ignored, and both should go once the offending code is fixed:
-#   B904 - 3 real lost-exception-chains in src/empire_core/client/client.py
-#   E501 - 1 long line in src/empire_core/state/world_models.py; ignoring E501
-#          while line-length = 120 is set makes that setting inert for linting
-#          (ruff format still honours it).
-ignore = ["B904", "E501"]
+# Nothing is ignored globally. Every entry that used to live here (E701, F841,
+# B007, E402) suppressed zero violations, and the two that did suppress
+# something have been fixed instead: B904 (client.py login() now chains with
+# `from e`) and E501 (see the scoped exception below, which keeps line-length =
+# 120 enforced for the rest of the tree instead of inert everywhere).
 
 [tool.ruff.lint.per-file-ignores]
-"examples/*" = ["E402"]
-"tests/*" = ["E402"]
+# TODO: one 169-char f-string in Movement.__repr__ (world_models.py:286) that
+# `ruff format` cannot split. Wrap it and delete this entry - it is the only
+# reason E501 is not simply on everywhere.
+"src/empire_core/state/world_models.py" = ["E501"]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 pythonpath = ["src"]
 testpaths = ["tests"]
 python_files = "test_*.py"
@@ -79,7 +73,8 @@ check_untyped_defs = true
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
-branch = "master"
+# No `branch` key: that is python-semantic-release v7 syntax, silently ignored
+# by v9+. The default branch group already matches master.
 build_command = "uv build"
 commit_message = "chore(release): {version}"
 tag_format = "v{version}"

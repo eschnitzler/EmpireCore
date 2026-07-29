@@ -7,12 +7,26 @@ scanning, alerts).
 """
 
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 from empire_core.accounts import Account, AccountRegistry, accounts
 from empire_core.client.client import EmpireClient
-from empire_core.exceptions import LoginCooldownError, LoginError
+from empire_core.exceptions import EmpireError, LoginCooldownError, LoginError
+
+__all__ = ["AccountPool", "PoolExhaustedError"]
 
 logger = logging.getLogger(__name__)
+
+
+class PoolExhaustedError(EmpireError):
+    """Raised when the pool has no candidate account to hand out.
+
+    Distinct from :class:`~empire_core.exceptions.LoginError`: nothing was tried
+    and nothing failed, there was simply nothing free (none configured, all
+    busy, all inactive, or none matching the requested username/tag). Callers
+    should back off and retry rather than treat it as a credential problem.
+    """
 
 
 class AccountPool:
@@ -30,14 +44,16 @@ class AccountPool:
         registry.load(file_path="farmers.json")
         pool = AccountPool(registry=registry)
 
-        # Lease any available account
+        # Scoped lease: released even if the body raises (preferred)
+        with pool.leased(tag="tracking") as client:
+            ...
+
+        # Manual lease/release, for callers that cannot use a with-block
         client = pool.lease()
-
-        # Lease account with specific tag
-        client = pool.lease(tag="tracking")
-
-        # When done
-        pool.release(client)
+        try:
+            ...
+        finally:
+            pool.release(client)
 
     Thread Safety:
         This class is NOT thread-safe. If using from multiple threads,
@@ -127,10 +143,20 @@ class AccountPool:
                 cooldowns and outright bugs stay distinguishable instead of
                 collapsing into a None that means 'nothing configured'.
         """
-        # Build candidate list
+        # Build candidate list.
+        # The username branch applies the same filters as get_available() and
+        # folds case the way AccountRegistry.get_by_username and has_tag do -
+        # asking for an account by name must not be a way to bypass the active
+        # flag or the tag filter.
         if username:
+            wanted = username.lower()
             candidates = [
-                acc for acc in self.all_accounts if acc.username == username and acc.username not in self._busy
+                acc
+                for acc in self.all_accounts
+                if acc.username.lower() == wanted
+                and acc.username not in self._busy
+                and acc.active
+                and (not tag or acc.has_tag(tag))
             ]
         else:
             candidates = self.get_available(tag)
@@ -157,8 +183,12 @@ class AccountPool:
                 # Create client
                 client = account.get_client()
 
-                if login and not client.login():
-                    raise LoginError(f"Login returned False for {account.username}")
+                if login:
+                    # login() reports failure by raising and always returns True,
+                    # as its own docstring says. `if not client.login()` was dead
+                    # code, and a trap: it would reject every successful lease the
+                    # day that vestigial bool return becomes None.
+                    client.login()
 
                 # Cache and return
                 self._clients[account.username] = client
@@ -186,6 +216,46 @@ class AccountPool:
         raise LoginError(
             f"All {len(candidates)} candidate account(s) failed to lease (user={username}, tag={tag})"
         ) from last_error
+
+    @contextmanager
+    def leased(
+        self,
+        username: str | None = None,
+        tag: str | None = None,
+        login: bool = True,
+    ) -> Iterator[EmpireClient]:
+        """
+        Lease an account for the duration of a ``with`` block.
+
+        Preferred over :meth:`lease`/:meth:`release`: the release happens in a
+        ``finally``, so a caller exception cannot leak the busy slot and the live
+        client. The pool has no lease timeout or reaper, so a leaked slot means
+        the account is unavailable until the process restarts.
+
+        Usage::
+
+            with pool.leased(tag="scanner") as client:
+                client.scan_kingdom(Kingdom.GREEN)
+
+        Args:
+            username: Specific username to lease (optional).
+            tag: Tag to filter accounts (optional).
+            login: Whether to login the client (default True).
+
+        Yields:
+            The leased, connected client.
+
+        Raises:
+            PoolExhaustedError: No candidate account was available to try.
+            LoginError: Every candidate was tried and every one failed.
+        """
+        client = self.lease(username=username, tag=tag, login=login)
+        if client is None:
+            raise PoolExhaustedError(f"No account available to lease (user={username}, tag={tag})")
+        try:
+            yield client
+        finally:
+            self.release(client)
 
     @staticmethod
     def _safe_close(client: EmpireClient | None) -> None:
