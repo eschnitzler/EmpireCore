@@ -7,6 +7,7 @@ a robust interface for selecting accounts based on aliases or tags.
 import json
 import logging
 import os
+import stat
 import threading
 
 from pydantic import BaseModel, Field, ValidationError
@@ -32,6 +33,28 @@ def _load_env_file() -> None:
         return
     load_dotenv(path)
     logger.debug(f"Loaded environment variables from '{path}'.")
+
+
+def _warn_on_loose_permissions(path: str) -> None:
+    """Warn if a plaintext credential file is readable or writable beyond its owner.
+
+    POSIX only; on other platforms the mode bits do not carry this meaning and
+    the check is skipped. This only warns - the file is still read, because
+    refusing to start is a worse failure mode than a loud log line.
+    """
+    if os.name != "posix":
+        return
+    try:
+        mode = stat.S_IMODE(os.stat(path).st_mode)
+    except OSError as e:  # pragma: no cover - raced deletion / unreadable parent
+        logger.debug(f"Could not stat '{path}' to check permissions: {e}")
+        return
+    if mode & 0o077:
+        logger.warning(
+            f"Credential file '{path}' has mode {oct(mode)}: it stores passwords in "
+            f"plain text and is accessible to other users. Restrict it with "
+            f"`chmod 600 {path}`."
+        )
 
 
 def _describe_validation_error(e: ValidationError) -> str:
@@ -156,23 +179,18 @@ class AccountRegistry:
         """Internal: Load from JSON file (as given, or relative to cwd).
 
         Security: this file stores passwords in plain text. Keep it out of version
-        control and restrict it to its owner (``chmod 600 accounts.json``). The
-        permissions are not checked or enforced here.
+        control and restrict it to its owner (``chmod 600 accounts.json``). Loose
+        permissions are warned about, not rejected: the file is still read.
         """
-        paths_to_check = [
-            path_str,
-            os.path.join(os.getcwd(), path_str),
-        ]
+        # A relative path_str already resolves against the cwd, so there is
+        # nothing to probe for beyond this one candidate.
+        target_path = path_str
 
-        target_path = None
-        for p in paths_to_check:
-            if os.path.exists(p):
-                target_path = p
-                break
-
-        if not target_path:
+        if not os.path.exists(target_path):
             logger.debug(f"Account file '{path_str}' not found. Skipping file load.")
             return
+
+        _warn_on_loose_permissions(target_path)
 
         try:
             with open(target_path, "r") as f:

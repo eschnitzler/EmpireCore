@@ -1,18 +1,21 @@
-"""Tests for account loading and the account pool."""
+"""Tests for account loading, login configuration, and the account pool."""
 
 import json
 import logging
 import os
+import stat
 import threading
 import time
 
 import pytest
+from pydantic import ValidationError
 
 import empire_core.pool as pool_module
 from empire_core.accounts import Account, AccountRegistry
-from empire_core.config import EmpireConfig
+from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, ServerError, default_config, generate_aid, resolve_aid
 from empire_core.exceptions import LoginCooldownError, LoginError
-from empire_core.pool import AccountPool
+from empire_core.pool import AccountPool, PoolExhaustedError
+from empire_core.protocol.errors import GGEError
 
 
 @pytest.fixture
@@ -126,6 +129,150 @@ class TestCredentialFileDocs:
         doc = obj.__doc__ or ""
         assert "plain text" in doc.lower(), f"{obj.__name__} docstring omits the plaintext warning"
         assert "chmod 600" in doc, f"{obj.__name__} docstring omits the permission guidance"
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX permission bits")
+class TestCredentialFilePermissions:
+    """A plaintext credential file readable beyond its owner must be flagged."""
+
+    @staticmethod
+    def _write(tmp_path, mode: int):
+        path = tmp_path / "accounts.json"
+        path.write_text(json.dumps([{"username": "permuser", "password": "SuperSecret123"}]))
+        path.chmod(mode)
+        return path
+
+    @pytest.mark.parametrize("mode", [0o644, 0o640, 0o604, 0o777])
+    def test_loose_permissions_warn(self, tmp_path, caplog, mode):
+        path = self._write(tmp_path, mode)
+        registry = AccountRegistry()
+        with caplog.at_level(logging.WARNING):
+            registry.load(file_path=str(path))
+
+        # The accounts still load - this is a warning, not a hard failure.
+        assert registry.get_by_username("permuser") is not None
+        assert "chmod 600" in caplog.text
+        assert str(path) in caplog.text
+        # Never echo the secret while complaining about the file holding it.
+        assert "SuperSecret123" not in caplog.text
+
+    @pytest.mark.parametrize("mode", [0o600, 0o400])
+    def test_owner_only_permissions_are_silent(self, tmp_path, caplog, mode):
+        path = self._write(tmp_path, mode)
+        registry = AccountRegistry()
+        with caplog.at_level(logging.WARNING):
+            registry.load(file_path=str(path))
+
+        assert registry.get_by_username("permuser") is not None
+        assert "chmod 600" not in caplog.text
+
+    def test_warning_reports_the_actual_mode(self, tmp_path, caplog):
+        path = self._write(tmp_path, 0o644)
+        registry = AccountRegistry()
+        with caplog.at_level(logging.WARNING):
+            registry.load(file_path=str(path))
+        mode = stat.S_IMODE(os.stat(path).st_mode)
+        assert oct(mode) in caplog.text
+
+
+class TestDefaultConfigIsNotSharedMutableState:
+    """``EmpireClient(config=None)`` aliases the one module-level ``default_config``.
+
+    Sharing is only safe because that instance cannot be mutated: otherwise a
+    single ``client.config.default_zone = ...`` would silently repoint the zone,
+    timeouts and credentials of every other default-constructed client in the
+    process.
+    """
+
+    def test_default_config_is_an_empire_config(self):
+        assert isinstance(default_config, EmpireConfig)
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("default_zone", "EmpireEx_99"),
+            ("game_url", "wss://example.invalid/"),
+            ("request_timeout", 999.0),
+            ("username", "hijacked"),
+            ("password", "hijacked"),
+        ],
+    )
+    def test_shared_default_rejects_mutation(self, field, value):
+        original = getattr(default_config, field)
+        with pytest.raises(ValidationError):
+            setattr(default_config, field, value)
+        assert getattr(default_config, field) == original
+
+    def test_user_constructed_config_stays_mutable(self):
+        # Consumers (dreambot's birder service) build a fresh EmpireConfig() and
+        # assign credentials onto it. Freezing the whole class would break them,
+        # so only the shared default instance is frozen.
+        cfg = EmpireConfig()
+        cfg.username = "bob"
+        cfg.password = "s3cret"
+        cfg.default_zone = "EmpireEx_1"
+        assert (cfg.username, cfg.password, cfg.default_zone) == ("bob", "s3cret", "EmpireEx_1")
+
+    def test_derived_copy_of_the_default_is_usable(self):
+        # The documented way to start from the defaults and change something.
+        cfg = EmpireConfig(**default_config.model_dump())
+        cfg.default_zone = "EmpireEx_1"
+        assert cfg.default_zone == "EmpireEx_1"
+        assert default_config.default_zone != "EmpireEx_1"
+
+
+class TestServerErrorCodeTable:
+    """``config.ServerError`` used to be a second, contradictory error-code table."""
+
+    def test_login_cooldown_matches_the_authoritative_table(self):
+        assert ServerError.LOGIN_COOLDOWN == GGEError.LOGIN_COOLDOWN
+
+    @pytest.mark.parametrize("name", ["INVALID_CREDENTIALS", "SESSION_EXPIRED"])
+    def test_codes_that_contradict_ggeerror_are_gone(self, name):
+        # 401 was both ServerError.INVALID_CREDENTIALS and GGEError.REWARD_ID_NOT_FOUND;
+        # 440 was both SESSION_EXPIRED and C2_CONFIRMATION_REQUIRED. Keeping a second
+        # name for the same number guarantees one of the two readings is a lie.
+        assert not hasattr(ServerError, name)
+
+    def test_unresolved_conflicts_are_documented(self):
+        doc = ServerError.__doc__ or ""
+        assert "401" in doc and "440" in doc, "the unresolved code conflicts must stay written down"
+
+
+class TestLoginFingerprint:
+    """LOGIN_DEFAULTS['AID'] is a device/install id sent to the game server."""
+
+    LEAKED_LITERAL = "1745592024940879420"
+
+    def test_no_shared_hardcoded_install_id(self):
+        # Shipping one literal makes every user of the published library present
+        # an identical fingerprint - trivially correlatable and mass-bannable.
+        assert LOGIN_DEFAULTS["AID"] != self.LEAKED_LITERAL
+
+    def test_default_aid_looks_like_a_browser_aid(self):
+        aid = LOGIN_DEFAULTS["AID"]
+        assert isinstance(aid, str)
+        assert aid.isdigit()
+        assert len(aid) == len(self.LEAKED_LITERAL)
+
+    def test_generated_ids_differ(self):
+        assert len({generate_aid() for _ in range(5)}) > 1
+
+    def test_env_var_pins_the_id_for_a_stable_fingerprint(self, monkeypatch):
+        monkeypatch.setenv("EMPIRE_AID", "1234567890123456789")
+        assert resolve_aid() == "1234567890123456789"
+
+    def test_blank_env_var_falls_back_to_a_generated_id(self, monkeypatch):
+        monkeypatch.setenv("EMPIRE_AID", "   ")
+        aid = resolve_aid()
+        assert aid.isdigit() and aid != self.LEAKED_LITERAL
+
+    def test_process_id_is_exposed_so_it_can_be_persisted(self):
+        # Resolved once at import, and readable, so a consumer can store it and
+        # pin it back via EMPIRE_AID on the next run.
+        from empire_core.config import AID
+
+        assert LOGIN_DEFAULTS["AID"] == AID
 
 
 class SlowRegistry(AccountRegistry):
@@ -345,9 +492,109 @@ class TestAccountPool:
         assert exc_info.value.__cause__.cooldown == 42
         assert pool.busy_count == 0
 
-    def test_login_returning_false_raises(self, fake_accounts, monkeypatch):
-        monkeypatch.setattr(Account, "get_client", lambda self: FakeClient(self.username, login_ok=False))
-        pool = AccountPool()
+    def test_lease_accepts_a_login_that_returns_nothing(self, monkeypatch):
+        """login() reports failure by raising; its return value carries no information.
+
+        The pool used to treat a falsy return as failure. EmpireClient.login()
+        has no False path, so that guard was dead - and actively a trap: the
+        recommended change to ``login() -> None`` would have turned every
+        successful lease into a spurious LoginError.
+        """
+
+        class QuietLoginClient(FakeClient):
+            def login(self) -> None:  # type: ignore[override]
+                self.is_logged_in = True
+                return None
+
+        monkeypatch.setattr(Account, "get_client", lambda self: QuietLoginClient(self.username))
+        pool = AccountPool(registry=FakeRegistry([Account(username="alpha", password="p")]))
+        client = pool.lease()
+        assert client is not None
+        assert client.is_logged_in
+        assert pool.busy_count == 1
+
+    def test_lease_failure_is_reported_by_the_raised_exception(self, monkeypatch):
+        # The surviving contract: a client whose login() raises is not leased.
+        class RaisingLoginClient(FakeClient):
+            def login(self) -> bool:
+                raise LoginError("bad credentials")
+
+        monkeypatch.setattr(Account, "get_client", lambda self: RaisingLoginClient(self.username))
+        pool = AccountPool(registry=FakeRegistry([Account(username="alpha", password="p")]))
         with pytest.raises(LoginError):
             pool.lease()
         assert pool.busy_count == 0
+
+
+class TestLeaseByUsernameMatchesRegistrySemantics:
+    """The username branch built its own candidate list and skipped every filter."""
+
+    @pytest.fixture(autouse=True)
+    def _fake_clients(self, monkeypatch):
+        monkeypatch.setattr(Account, "get_client", lambda self: FakeClient(self.username))
+
+    def test_username_match_is_case_insensitive(self):
+        # AccountRegistry.get_by_username and Account.has_tag both fold case.
+        pool = AccountPool(registry=FakeRegistry([Account(username="alpha", password="p")]))
+        client = pool.lease(username="ALPHA")
+        assert client is not None
+        assert client.username == "alpha"
+
+    def test_inactive_account_is_not_leasable_by_name(self):
+        pool = AccountPool(registry=FakeRegistry([Account(username="dormant", password="p", active=False)]))
+        assert pool.lease(username="dormant") is None
+        assert pool.busy_count == 0
+
+    def test_tag_filter_applies_to_the_username_branch(self):
+        pool = AccountPool(registry=FakeRegistry([Account(username="alpha", password="p", tags=["Farmer"])]))
+        assert pool.lease(username="alpha", tag="scanner") is None
+        client = pool.lease(username="alpha", tag="FARMER")
+        assert client is not None
+
+
+class TestLeasedContextManager:
+    """Without scoping, a caller exception between lease() and release() leaks
+    the busy slot and a live connected client for the lifetime of the process."""
+
+    def test_releases_on_normal_exit(self, fake_accounts):
+        _, clients = fake_accounts
+        pool = AccountPool()
+        with pool.leased() as client:
+            leased = client.username
+            assert pool.busy_count == 1
+        assert pool.busy_count == 0
+        assert clients[leased].closed
+
+    def test_releases_when_the_caller_raises(self, fake_accounts):
+        _, clients = fake_accounts
+        pool = AccountPool()
+        leased = None
+        with pytest.raises(RuntimeError, match="caller blew up"):
+            with pool.leased() as client:
+                leased = client.username
+                raise RuntimeError("caller blew up")
+
+        assert leased is not None
+        assert pool.busy_count == 0, "the busy slot leaked - the account is unusable until restart"
+        assert clients[leased].closed, "the websocket and receive thread leaked"
+
+    def test_account_becomes_leasable_again_after_a_failure(self, fake_accounts):
+        pool = AccountPool()
+        with pytest.raises(RuntimeError):
+            with pool.leased(username="alpha"):
+                raise RuntimeError("boom")
+        again = pool.leased(username="alpha")
+        with again as client:
+            assert client.username == "alpha"
+
+    def test_no_available_account_raises_instead_of_yielding_none(self, fake_accounts):
+        pool = AccountPool()
+        with pytest.raises(PoolExhaustedError):
+            with pool.leased(tag="nonexistent-tag"):
+                pass
+        assert pool.busy_count == 0
+
+    def test_pool_exhausted_is_an_empire_error(self):
+        from empire_core.exceptions import EmpireError
+
+        assert issubclass(PoolExhaustedError, EmpireError)

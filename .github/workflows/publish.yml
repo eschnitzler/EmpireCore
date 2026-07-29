@@ -26,11 +26,26 @@ jobs:
       - name: Run tests
         run: uv run pytest -v
 
-      - name: Verify clean install is importable
+      - name: Verify clean install is importable and ships its typing marker
         run: |
           uv venv /tmp/clean-venv
           uv pip install --python /tmp/clean-venv/bin/python .
           /tmp/clean-venv/bin/python -c "import empire_core"
+          # PEP 561: without py.typed in the *installed* package, consumers'
+          # type checkers ignore every annotation and the "fully typed" claim in
+          # the description is false. tests/ can only see the source tree, so
+          # assert it on the built artifact too.
+          /tmp/clean-venv/bin/python - <<'PY'
+          import pathlib
+          import sys
+
+          import empire_core
+
+          marker = pathlib.Path(empire_core.__file__).with_name("py.typed")
+          if not marker.is_file():
+              sys.exit(f"::error::py.typed missing from the installed package at {marker}")
+          print(f"py.typed present: {marker}")
+          PY
 
   release:
     name: Semantic Release
