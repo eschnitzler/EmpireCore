@@ -52,6 +52,23 @@ class Connection:
     - Pub/sub pattern via subscribers (broadcast to all)
     - Automatic keepalive thread
     - Thread-safe operations
+
+    Correlation constraint (important):
+        Responses are matched to waiters by *command id only*, FIFO - there is
+        no payload-level matching. Two consequences follow:
+
+        1. Two threads issuing the same command concurrently can receive each
+           other's responses (the oldest waiter takes the first packet with
+           that command id).
+        2. An unsolicited server push (chat, movement update, ...) satisfies a
+           pending waiter for the same command id, and is then consumed:
+           subscribers still see it, but the request gets the push instead of
+           its own answer.
+
+        So serialise same-command requests per connection, and prefer
+        :meth:`subscribe` over :meth:`request` for command ids the server also
+        pushes on its own. See ``TestCorrelationIsFifo`` in
+        ``tests/test_connection.py``, which pins this behaviour.
     """
 
     def __init__(self, url: str, keepalive_zone: str | None = None):
@@ -94,6 +111,10 @@ class Connection:
 
         Args:
             timeout: Connection timeout in seconds
+
+        Raises:
+            NetworkError: The handshake failed (the underlying
+                websocket/socket error is chained as ``__cause__``)
         """
         if self.connected:
             logger.warning("Already connected")
@@ -141,7 +162,10 @@ class Connection:
             except Exception:
                 pass
             self.ws = None
-            raise
+            # Never let raw websocket-client/socket errors escape the public
+            # API: callers guarding with `except EmpireError` (or NetworkError,
+            # as send() already raises) must catch connect failures too.
+            raise NetworkError(f"Connection to {self.url} failed: {e}") from e
 
     def disconnect(self) -> None:
         """Disconnect from the server and cleanup resources."""
@@ -208,6 +232,10 @@ class Connection:
 
         The waiter is registered *before* the data is sent, so a response
         arriving immediately cannot be lost to a registration race.
+
+        Correlation is by ``cmd_id`` only, FIFO: concurrent requests for the
+        same command id can be answered out of order, and a server push with
+        that command id satisfies this call. See the class docstring.
 
         Raises:
             EmpireTimeoutError: No response within ``timeout``
@@ -300,32 +328,40 @@ class Connection:
         logger.debug("Receive loop started")
 
         while self._running and generation == self._generation:
+            # Only socket-level failures are fatal to this loop; everything
+            # about handling a single frame is contained below.
             try:
-                try:
-                    data = ws.recv()
-                except websocket.WebSocketTimeoutException:
-                    continue  # Check _running and try again
-
-                if not data:
-                    continue
-
-                # Parse packet
-                if isinstance(data, bytes):
-                    packet = Packet.from_bytes(data)
-                else:
-                    packet = Packet.from_bytes(data.encode("utf-8"))
-
-                # Route the packet
-                self._route_packet(packet)
-
+                data = ws.recv()
+            except websocket.WebSocketTimeoutException:
+                continue  # Check _running and try again
             except websocket.WebSocketConnectionClosedException:
                 if not self._closing:
                     logger.warning("Connection closed by server")
                 break
-            except Exception as e:
+            except (OSError, websocket.WebSocketException):
                 if self._running and generation == self._generation:
-                    logger.error(f"Error in receive loop: {e}")
+                    logger.exception("Receive loop stopped by socket error")
                 break
+            except Exception:
+                # Nothing else is expected out of recv(); still fatal, but log
+                # it with the traceback so the cause is diagnosable.
+                if self._running and generation == self._generation:
+                    logger.exception("Unexpected error in receive loop")
+                break
+
+            if not data:
+                continue
+
+            # A single bad frame must not cost us the connection: parsing can
+            # reject e.g. all-null or non-UTF-8 frames, and tearing the session
+            # down forces a re-login that the game server rate-limits. Drop the
+            # frame, keep the socket.
+            try:
+                raw = data if isinstance(data, bytes) else data.encode("utf-8")
+                self._route_packet(Packet.from_bytes(raw))
+            except Exception:
+                logger.exception("Dropping frame that could not be parsed or routed")
+                continue
 
         # If a newer connection took over, this thread must not touch
         # shared state - the new session owns it now.
