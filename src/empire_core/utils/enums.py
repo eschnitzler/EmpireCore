@@ -1,7 +1,59 @@
+"""Game enumerations.
+
+One enum per server ID space, and the enum lives next to the packets that
+describe it:
+
+- kingdom IDs: :class:`empire_core.protocol.models.map.Kingdom` (re-exported
+  here as ``KingdomType`` for backwards compatibility),
+- map-scan item types (the ``AI`` array of a ``gaa`` response):
+  :class:`empire_core.protocol.models.map.MapItemType`,
+- movement area types (``TA``/``SA`` arrays of a ``gam``/``mrm`` movement):
+  :class:`MapObjectType` below.
+"""
+
 from enum import IntEnum
+
+from empire_core.protocol.models.map import Kingdom
+
+# ``KingdomType`` used to be a second, shorter copy of the kingdom ID table (it
+# was missing BERIMOND = 10). It is now an alias of the authoritative enum, so
+# ``KingdomType`` and ``Kingdom`` are the same object and compare equal
+# everywhere. Deprecated: new code should use ``Kingdom`` (exported from
+# ``empire_core``); the alias is kept because it is part of the published API.
+KingdomType = Kingdom
 
 
 class MapObjectType(IntEnum):
+    """Object types found in a movement's target/source area array.
+
+    This is the type stored in :attr:`Movement.target_type
+    <empire_core.state.world_models.Movement.target_type>` (``TA[0]``), i.e. the
+    thing an army is marching at.
+
+    .. warning::
+
+       ``MapObjectType`` and
+       :class:`empire_core.protocol.models.map.MapItemType` (the ``AI`` array of
+       a map scan) overlap and agree on 0, 1, 3, 4, 22, 23, 26 and 28, which
+       suggests one shared server ID space -- but they contradict each other on
+       three IDs:
+
+       ==== ============================ ==============================
+       ID   ``MapObjectType``            ``MapItemType``
+       ==== ============================ ==============================
+       2    ``DUNGEON``                  ``EMPTY_CASTLE_SLOT``
+       7    ``TREASURE_DUNGEON``         ``KHAN_TENT``
+       12   ``KINGDOM_CASTLE``           ``EXTERNAL_KINGDOM``
+       ==== ============================ ==============================
+
+       At least one of the two tables is wrong for the overlapping IDs, and
+       neither has been verified against live packets. Until it is, both are
+       kept as-is: use ``MapObjectType`` only for movement areas and
+       ``MapItemType`` only for map-scan items, and do not mix them in a
+       comparison. TODO: confirm 2/7/12 against captured ``gaa``/``gam``
+       payloads and collapse the tables into one.
+    """
+
     EMPTY = 0
     CASTLE = 1
     DUNGEON = 2
@@ -84,14 +136,6 @@ class MapObjectType(IntEnum):
             MapObjectType.ISLE_RESOURCE,
             MapObjectType.FACTION_VILLAGE,
         )
-
-
-class KingdomType(IntEnum):
-    GREEN = 0
-    SANDS = 1
-    ICE = 2
-    FIRE = 3
-    STORM = 4
 
 
 class MovementType(IntEnum):

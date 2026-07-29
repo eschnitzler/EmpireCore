@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from empire_core.utils.enums import MovementType
+from empire_core.utils.enums import MapObjectType, MovementType
 from empire_core.utils.troops import count_troops
 
 
@@ -38,7 +38,29 @@ class MovementResources(BaseModel):
 
 
 class Movement(BaseModel):
-    """Represents a movement (Attack, Support, Transport, etc.)."""
+    """A live army movement (Attack, Support, Transport, ...) tracked in state.
+
+    This is the movement type the client returns from
+    :meth:`~empire_core.client.client.EmpireClient.get_movements` and passes to
+    ``on_incoming_attack`` callbacks, and the one exported as
+    ``empire_core.Movement``.
+
+    .. warning::
+
+       There is a second, unrelated class also named ``Movement`` in
+       ``empire_core.protocol.models.map`` (re-exported from
+       ``empire_core.protocol.models``). That one is the raw ``gam`` protocol
+       payload model with different fields (``movement_id``/``movement_type``
+       from ``MID``/``MT`` aliases, ``source_x``, ``arrival_time``, ...) and it
+       is *not* interchangeable with this class: attribute access such as
+       ``.MID``, ``.T`` or ``.time_remaining`` fails on it. Import ``Movement``
+       from ``empire_core`` (this class) unless you are parsing packets by hand.
+
+    Naming: the fields are the raw GGE wire keys (``MID``, ``T``, ``PT``, ...)
+    because packet payloads are fed in unchanged; every one of them also has a
+    snake_case read-only property (``movement_id``, ``movement_type``,
+    ``progress_time``, ...), which is what public code should use.
+    """
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
@@ -110,6 +132,20 @@ class Movement(BaseModel):
             return MovementType.UNKNOWN
 
     @property
+    def target_type_enum(self) -> MapObjectType:
+        """The target area's object type, or ``UNKNOWN`` for unmapped IDs.
+
+        ``target_type`` comes from ``TA[0]``, so it is interpreted with
+        :class:`~empire_core.utils.enums.MapObjectType` -- *not* with
+        ``MapItemType``, which describes map-scan items and disagrees on some
+        IDs (see the warning on ``MapObjectType``).
+        """
+        try:
+            return MapObjectType(self.target_type)
+        except ValueError:
+            return MapObjectType.UNKNOWN
+
+    @property
     def movement_type_name(self) -> str:
         """Get the name of the movement type."""
         try:
@@ -124,6 +160,27 @@ class Movement(BaseModel):
     @property
     def total_time(self) -> int:
         return self.TT
+
+    @property
+    def direction(self) -> int:
+        """Raw direction flag: 0 = incoming, 1 = outgoing."""
+        return self.D
+
+    @property
+    def target_id(self) -> int:
+        return self.TID
+
+    @property
+    def kingdom_id(self) -> int:
+        return self.KID
+
+    @property
+    def source_id(self) -> int:
+        return self.SID
+
+    @property
+    def owner_id(self) -> int:
+        return self.OID
 
     @property
     def time_remaining(self) -> int:

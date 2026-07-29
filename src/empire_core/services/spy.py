@@ -3,27 +3,47 @@ Spy service for high-level espionage operations.
 """
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from empire_core.exceptions import CommandError, EmpireError
 
 from ..protocol.models.attack import SendSpyRequest, SpyScreenInfoRequest, SpyScreenInfoResponse
 from ..protocol.models.base import parse_response
-from ..protocol.models.messages import BattleSpyDataRequest, BattleSpyDataResponse, SystemNotificationEvent
+from ..protocol.models.messages import (
+    BattleSpyDataRequest,
+    BattleSpyDataResponse,
+    SpyCastleInfo,
+    SystemNotificationEvent,
+)
 from .base import BaseService, register_service
 
 
 @dataclass
 class SpyResult:
-    """Outcome of an instant spy mission."""
+    """Outcome of an instant spy mission.
+
+    The payload fields mirror :class:`~empire_core.protocol.models.messages.BattleSpyDataResponse`
+    and default to empty containers on failure, so callers can read them without
+    a ``None`` check.
+
+    Attributes:
+        success: whether a spy report was retrieved.
+        reason: machine-readable failure tag when ``success`` is False.
+        message_id: id of the report message the server created.
+        spy_data: the raw ``S`` array of the report -- one entry per defending
+            position, each a nested array of ``[unit_id, count]`` pairs. Still
+            untyped by the protocol layer, so it is exposed as-is.
+        battle_data: the raw ``B`` mapping (present for battle reports).
+        target: the spied castle, or ``None`` if the server sent no ``AI`` block.
+    """
 
     success: bool
     reason: str | None = None
     message_id: int | None = None
-    spy_data: Any = None
-    battle_data: Any = None
-    target: Any = None
+    spy_data: list[Any] = field(default_factory=list)
+    battle_data: dict[str, Any] = field(default_factory=dict)
+    target: SpyCastleInfo | None = None
 
 
 @register_service("spy")
@@ -146,8 +166,8 @@ class SpyService(BaseService):
                 success=True,
                 message_id=message_id,
                 spy_data=bsd_resp.spy_data,
-                battle_data=getattr(bsd_resp, "battle_data", None),
-                target=getattr(bsd_resp, "target", None),
+                battle_data=bsd_resp.battle_data,
+                target=bsd_resp.target,
             )
         finally:
             self.client.connection.cancel_waiter("sne", sne_waiter)

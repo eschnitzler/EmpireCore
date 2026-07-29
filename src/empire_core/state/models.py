@@ -82,6 +82,18 @@ class Alliance(BaseModel):
 
 
 class Castle(BaseModel):
+    """A castle, outpost or metropolis owned by the logged-in player.
+
+    Note on naming: the fields are still the raw GGE wire keys (``OID``, ``N``,
+    ``KID``, ...) because packets are fed in unchanged, but every one of them has
+    a snake_case read-only property (``id``, ``name``, ``kingdom_id``, ...).
+    Public code should use the snake_case names: the wire keys are protocol
+    detail and may become aliases in a future release.
+
+    Not to be confused with :class:`empire_core.protocol.models.castle.CastleInfo`,
+    which is the parsed *protocol* model for another player's castle.
+    """
+
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     OID: int = Field(default=-1)  # Object ID / Area ID (AID)
@@ -125,8 +137,28 @@ class Castle(BaseModel):
         return self.P
 
     @property
+    def next_day_population(self) -> int:
+        return self.NDP
+
+    @property
     def max_castellans(self) -> int:
         return self.MC
+
+    @property
+    def has_barracks(self) -> bool:
+        return bool(self.B)
+
+    @property
+    def has_workshop(self) -> bool:
+        return bool(self.WS)
+
+    @property
+    def has_dwelling(self) -> bool:
+        return bool(self.DW)
+
+    @property
+    def has_harbour(self) -> bool:
+        return bool(self.H)
 
     resources: Resources = Field(default_factory=Resources)
     buildings: list[Building] = Field(default_factory=list)
@@ -141,6 +173,13 @@ class Castle(BaseModel):
 
 
 class Player(BaseModel):
+    """The logged-in player, as tracked by :class:`~empire_core.state.manager.StateManager`.
+
+    As with :class:`Castle`, the raw GGE wire keys (``PID``, ``PN``, ``LVL``,
+    ...) are the storage fields and each has a snake_case read-only property
+    (``id``, ``name``, ``level``, ...). Prefer the snake_case names.
+    """
+
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     PID: int = Field(default=-1)
@@ -197,6 +236,22 @@ class Player(BaseModel):
     @property
     def legendary_level(self) -> int:
         return self.LL
+
+    @property
+    def xp_for_current_level(self) -> int:
+        return self.XPFCL
+
+    @property
+    def xp_to_next_level(self) -> int:
+        return self.XPTNL
+
+    @property
+    def premium_flag(self) -> int:
+        return self.PF
+
+    @property
+    def vip_flag(self) -> int:
+        return self.VF
 
     @property
     def xp_progress(self) -> float:
