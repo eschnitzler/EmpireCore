@@ -47,13 +47,30 @@ class EmpireTimeoutError(EmpireError, TimeoutError):
 
 
 class CommandError(EmpireError):
-    """Raised when the server responds to a command with a non-zero error code."""
+    """Raised when the server responds to a command with a non-zero error code.
+
+    Attributes:
+        command: the command that failed (e.g. ``"gaa"``).
+        code: the raw numeric status code sent by the server.
+        error: the matching :class:`~empire_core.protocol.errors.GGEError`
+            member, or ``None`` when the server sent a code this library does
+            not know yet. Branch on it instead of on magic numbers::
+
+                except CommandError as e:
+                    if e.error is GGEError.NOT_ENOUGH_RESOURCES:
+                        ...
+
+            ``GGEError.from_code()`` deliberately is not used here: it collapses
+            unrecognised codes to ``GENERAL_ERROR``, which would mislabel new
+            server codes as a generic failure.
+    """
 
     def __init__(self, command: str, code: int):
         self.command = command
         self.code = code
-        super().__init__(f"Server error {GGEError.from_code(code).name} ({code}) for command '{command}'")
-
-
-class ActionError(EmpireError):
-    """Raised when a game action fails."""
+        try:
+            self.error: GGEError | None = GGEError(code)
+        except ValueError:
+            self.error = None
+        name = self.error.name if self.error is not None else "UNKNOWN_ERROR"
+        super().__init__(f"Server error {name} ({code}) for command '{command}'")
