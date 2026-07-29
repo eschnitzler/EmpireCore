@@ -10,10 +10,14 @@ Commands:
 
 from __future__ import annotations
 
+import logging
+
 from pydantic import ConfigDict, Field
 
 from .base import BasePayload, BaseRequest, BaseResponse, HelpType
 from .profile import PlayerProfileBase
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Alliance Member Model
@@ -242,17 +246,39 @@ class AllianceInfo(BasePayload):
         - 2: Offline < 48 hours
         - 3: Offline < 7 days
         - 4: Offline 7+ days
+
+        Every entry is shape-checked: ``member_info`` is a bare ``list``, so
+        element shape is unvalidated, and this positional array has drifted
+        format before. Raising here is not an option — pydantic does not wrap
+        model_post_init exceptions in ValidationError, so it would escape
+        model_validate un-wrapped and crash callers that correctly catch
+        ValidationError. Malformed entries are skipped and reported instead.
         """
         if not self.member_info:
             return
 
         # Build lookup: player_id -> activity tier
         activity_lookup: dict[int, int] = {}
+        skipped = 0
         for ami_entry in self.member_info:
-            if len(ami_entry) >= 5:
-                player_id = ami_entry[0]
-                activity_tier = ami_entry[4]
-                activity_lookup[player_id] = activity_tier
+            if not isinstance(ami_entry, (list, tuple)) or len(ami_entry) < 5:
+                skipped += 1
+                continue
+            try:
+                player_id = int(ami_entry[0])
+                activity_tier = int(ami_entry[4])
+            except (TypeError, ValueError):
+                skipped += 1
+                continue
+            activity_lookup[player_id] = activity_tier
+
+        if skipped:
+            # One line per response, not per entry, so a fully drifted AMI
+            # array can't flood the log.
+            logger.warning(
+                f"Skipped {skipped}/{len(self.member_info)} malformed AMI entries for "
+                f"alliance {self.alliance_id}; member activity status may be incomplete"
+            )
 
         # Set activity tier on each member
         for member in self.members:

@@ -1,9 +1,18 @@
 from __future__ import annotations
 
 import json
+import logging
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+# error_code used when an XT frame's status field is not an integer.
+# Real status codes are >= -1 (see GGEError), so this sentinel can never be
+# confused with a success (0) — a garbled status must not pass client.send()'s
+# `error_code != 0` check as if the response were valid.
+MALFORMED_STATUS_CODE = -1000
 
 
 @dataclass
@@ -39,9 +48,27 @@ class Packet:
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "Packet":
-        decoded = data.decode("utf-8").rstrip("\x00")
+        """
+        Parse a frame received from the server.
+
+        Total by design: the receive loop has no per-packet recovery, so a
+        frame it cannot make sense of must degrade to a raw wrapper rather
+        than raise and tear down the whole connection.
+
+        Args:
+            data: Raw frame bytes (may be truncated, padded or non-UTF-8)
+
+        Returns:
+            A Packet. Unparseable input yields a raw wrapper whose
+            ``command_id`` is None and whose ``payload`` is None.
+        """
+        # errors="replace": one bad byte in a chat message or player name must
+        # not kill the connection.
+        decoded = data.decode("utf-8", errors="replace").rstrip("\x00")
         if not decoded:
-            raise ValueError("Empty packet")
+            # Empty or null-only padding frames. The receive loop's
+            # `if not data: continue` does not catch b"\x00".
+            return cls(raw_data="", is_xml=False)
 
         if decoded.startswith("<"):
             return cls._parse_xml(decoded)
@@ -64,7 +91,8 @@ class Packet:
                 cmd = root.tag
 
             return cls(raw_data=data, is_xml=True, command_id=cmd, payload=root)
-        except ET.ParseError:
+        except (ET.ParseError, ValueError):
+            # ValueError: embedded null bytes and similar illegal XML content
             return cls(raw_data=data, is_xml=True)
 
     @classmethod
@@ -82,11 +110,14 @@ class Packet:
         except ValueError:
             req_id = -1
 
-        error_code = 0
         try:
             error_code = int(parts[4])
         except ValueError:
-            pass
+            # A status field we can't read must not look like success. Some
+            # frames (rlu, core_pol) carry data in this field by design — see
+            # NON_ERROR_COMMANDS in the network layer — so this stays quiet.
+            logger.debug(f"Non-integer XT status {parts[4]!r} for command {cmd!r}")
+            error_code = MALFORMED_STATUS_CODE
 
         raw_payload = parts[5] if len(parts) > 5 else ""
         # Strip the trailing packet delimiter
@@ -98,7 +129,9 @@ class Packet:
         if raw_payload.startswith("{") or raw_payload.startswith("["):
             try:
                 payload_data = json.loads(raw_payload)
-            except json.JSONDecodeError:
+            except (ValueError, RecursionError):
+                # ValueError covers JSONDecodeError; RecursionError guards
+                # against pathologically nested payloads.
                 payload_data = {"raw": raw_payload}
         else:
             payload_data = {"raw": raw_payload}

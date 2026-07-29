@@ -1,9 +1,12 @@
 """Tests for the protocol model registry and base behaviors."""
 
+import logging
+
 import pytest
-from pydantic import Field
+from pydantic import Field, ValidationError
 
 from empire_core.protocol.models import parse_response
+from empire_core.protocol.models.alliance import AllianceInfo
 from empire_core.protocol.models.base import (
     BaseResponse,
     decode_chat_text,
@@ -68,6 +71,63 @@ class TestBaseResponse:
 
         response = AliasedResponse(CID=5)
         assert response.to_payload()["CID"] == 5
+
+
+class TestAllianceInfoMemberInfo:
+    """AMI is an unvalidated positional server array that has drifted format before.
+
+    model_post_init exceptions are NOT wrapped by pydantic, so anything raised
+    here escapes model_validate un-wrapped and defeats `except ValidationError`.
+    """
+
+    @pytest.mark.parametrize(
+        "ami",
+        [
+            [5],  # entry is a bare int -> len() fails
+            [None],  # entry is None
+            [[1, 2]],  # entry too short
+            [[[1, 2], 0, 0, 0, 3]],  # unhashable player id
+            [{"OID": 1, "AT": 3}],  # drifted to dicts
+            "not-a-list",  # whole field drifted
+        ],
+    )
+    def test_malformed_ami_does_not_raise(self, ami):
+        try:
+            info = AllianceInfo.model_validate({"AID": 1, "AMI": ami})
+        except ValidationError:
+            # Rejecting the field outright is acceptable; crashing is not.
+            return
+        assert info.alliance_id == 1
+
+    def test_malformed_ami_entry_is_logged(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.alliance"):
+            AllianceInfo.model_validate({"AID": 1, "AMI": [5]})
+        assert [r for r in caplog.records if r.levelno >= logging.WARNING], "malformed AMI logged nothing"
+
+    def test_valid_ami_still_populates_activity_tier(self):
+        info = AllianceInfo.model_validate(
+            {
+                "AID": 1,
+                "M": [{"OID": 7, "N": "online_guy"}, {"OID": 8, "N": "afk_guy"}],
+                "AMI": [[7, 0, 0, 0, 0], [8, 0, 0, 0, 4]],
+            }
+        )
+        by_name = {m.name: m for m in info.members}
+        assert by_name["online_guy"].activity_tier == 0
+        assert by_name["online_guy"].is_online
+        assert by_name["afk_guy"].activity_tier == 4
+        assert not by_name["afk_guy"].is_online
+        assert info.online_count == 1
+
+    def test_good_entries_survive_a_bad_neighbour(self):
+        info = AllianceInfo.model_validate(
+            {
+                "AID": 1,
+                "M": [{"OID": 7, "N": "good"}],
+                "AMI": [5, [7, 0, 0, 0, 2]],
+            }
+        )
+        assert info.members[0].activity_tier == 2
 
 
 class TestChatEncoding:
