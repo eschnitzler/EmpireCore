@@ -4,6 +4,11 @@ Asynchronous Database storage using SQLModel and aiosqlite with Write Queue.
 EXPERIMENTAL: not yet wired into the client; the API may change. There is
 no schema-migration story — changing a model against an existing .db file
 produces missing-column errors.
+
+Writes go through a bounded queue drained by a single writer task. Queueing
+raises ``RuntimeError`` before ``initialize()`` and after ``close()``, and a
+batch that still fails to commit after a retry is dropped, logged at ERROR and
+counted in ``GameDatabase.failed_write_count``.
 """
 
 import asyncio
@@ -16,6 +21,17 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import Field, SQLModel, col, select
 
 logger = logging.getLogger(__name__)
+
+# Operations pulled into a single transaction by the writer loop.
+_MAX_BATCH_SIZE = 51
+# A failed commit is retried once before the batch is dropped, so a transient
+# "database is locked" does not lose up to _MAX_BATCH_SIZE operations.
+_COMMIT_ATTEMPTS = 2
+_COMMIT_RETRY_DELAY = 0.5
+# Default bound on the write queue. Producers await put() once it is reached,
+# which applies backpressure instead of growing without limit when the writer
+# stalls or keeps failing.
+DEFAULT_QUEUE_MAXSIZE = 10_000
 
 
 # === Models / Tables ===
@@ -70,16 +86,21 @@ class ScannedChunkRecord(SQLModel, table=True):
 class GameDatabase:
     """Async database manager with serialized write queue."""
 
-    def __init__(self, db_path: str = "empire_data.db"):
+    def __init__(self, db_path: str = "empire_data.db", queue_maxsize: int = DEFAULT_QUEUE_MAXSIZE):
         self.db_url = f"sqlite+aiosqlite:///{db_path}"
         # Set timeout to 30s
         self.engine = create_async_engine(self.db_url, echo=False, connect_args={"timeout": 30})
         self.async_session_factory = async_sessionmaker(self.engine, expire_on_commit=False)
 
-        # Write Queue
-        self._write_queue: asyncio.Queue = asyncio.Queue()
+        # Bounded write queue: put() blocks once queue_maxsize items are
+        # pending rather than accumulating unwritten data indefinitely.
+        self._write_queue: asyncio.Queue = asyncio.Queue(maxsize=queue_maxsize)
         self._writer_task: asyncio.Task | None = None
         self._running = False
+
+        # Visible accounting for writes the writer had to give up on.
+        self.failed_write_count = 0
+        self.last_write_error: Exception | None = None
 
     async def initialize(self):
         """Create tables and start writer loop."""
@@ -124,31 +145,18 @@ class GameDatabase:
                 operation = await self._write_queue.get()
                 batch = [operation]
 
-                # Try to grab more if available (up to 50)
+                # Try to grab more if available
                 try:
-                    for _ in range(50):
+                    for _ in range(_MAX_BATCH_SIZE - 1):
                         batch.append(self._write_queue.get_nowait())
                 except asyncio.QueueEmpty:
                     pass
 
-                async with self.async_session_factory() as session:
-                    try:
-                        for op_type, data in batch:
-                            if op_type == "player_snapshot":
-                                session.add(data)
-                            elif op_type == "map_objects":
-                                for obj in data:
-                                    await session.merge(obj)
-                            elif op_type == "scanned_chunk":
-                                await session.merge(data)
-
-                        await session.commit()
-                    except Exception as e:
-                        logger.error(f"Database write error: {e}")
-                        await session.rollback()
-                    finally:
-                        for _ in batch:
-                            self._write_queue.task_done()
+                try:
+                    await self._flush_batch(batch)
+                finally:
+                    for _ in batch:
+                        self._write_queue.task_done()
 
             except asyncio.CancelledError:
                 break
@@ -156,7 +164,63 @@ class GameDatabase:
                 logger.error(f"Critical error in writer loop: {e}")
                 await asyncio.sleep(1)
 
+    async def _commit_batch(self, batch: list[tuple[str, Any]]):
+        """Apply one batch in a single transaction. Raises if the commit fails."""
+        async with self.async_session_factory() as session:
+            try:
+                for op_type, data in batch:
+                    if op_type == "player_snapshot":
+                        session.add(data)
+                    elif op_type == "map_objects":
+                        for obj in data:
+                            await session.merge(obj)
+                    elif op_type == "scanned_chunk":
+                        await session.merge(data)
+
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+
+    async def _flush_batch(self, batch: list[tuple[str, Any]]):
+        """Commit a batch, retrying once, and account for it if it is dropped.
+
+        A dropped batch is reported at ERROR level and counted in
+        ``failed_write_count`` (with the exception in ``last_write_error``) so
+        losing queued writes is visible rather than a single log line.
+        """
+        for attempt in range(1, _COMMIT_ATTEMPTS + 1):
+            try:
+                await self._commit_batch(batch)
+                return
+            except Exception as e:
+                self.last_write_error = e
+                if attempt < _COMMIT_ATTEMPTS:
+                    logger.warning(f"Database write failed (attempt {attempt}/{_COMMIT_ATTEMPTS}), retrying: {e}")
+                    await asyncio.sleep(_COMMIT_RETRY_DELAY)
+                    continue
+
+                self.failed_write_count += len(batch)
+                logger.error(
+                    f"Dropping {len(batch)} queued write operation(s) after {_COMMIT_ATTEMPTS} failed attempts "
+                    f"({self.failed_write_count} dropped in total): {e}"
+                )
+
     # === Write Operations (Queued) ===
+
+    async def _enqueue(self, operation: tuple[str, Any]):
+        """Queue one write operation, blocking while the queue is full.
+
+        Raises:
+            RuntimeError: The writer is not running, so anything queued would
+                never be written. Call ``initialize()`` first and stop writing
+                after ``close()``.
+        """
+        if not self._running:
+            raise RuntimeError(
+                "GameDatabase is not accepting writes: call initialize() before writing and do not write after close()."
+            )
+        await self._write_queue.put(operation)
 
     async def save_player_snapshot(self, player: Any):
         """Queue player snapshot save."""
@@ -166,7 +230,7 @@ class GameDatabase:
             gold=player.gold,
             rubies=player.rubies,
         )
-        await self._write_queue.put(("player_snapshot", snapshot))
+        await self._enqueue(("player_snapshot", snapshot))
 
     async def save_map_objects(self, objects: list[Any]):
         """Queue map objects save."""
@@ -189,12 +253,12 @@ class GameDatabase:
             )
             for obj in objects
         ]
-        await self._write_queue.put(("map_objects", records))
+        await self._enqueue(("map_objects", records))
 
     async def mark_chunk_scanned(self, kingdom_id: int, chunk_x: int, chunk_y: int):
         """Queue chunk scanned mark."""
         record = ScannedChunkRecord(kingdom_id=kingdom_id, chunk_x=chunk_x, chunk_y=chunk_y)
-        await self._write_queue.put(("scanned_chunk", record))
+        await self._enqueue(("scanned_chunk", record))
 
     # === Read Operations (Direct) ===
 
