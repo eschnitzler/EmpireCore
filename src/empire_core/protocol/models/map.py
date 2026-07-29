@@ -44,7 +44,7 @@ class MapItemType(IntEnum):
     """
 
     EMPTY = 0
-    CASTLE = 1  # Player main castle (also moving destination when relocating)
+    CASTLE = 1  # Player main castle (while relocating, x/y is its in-transit position)
     EMPTY_CASTLE_SLOT = 2  # Unoccupied castle spawn point
     CAPITAL = 3  # Player capital
     OUTPOST = 4  # Player outpost
@@ -88,15 +88,28 @@ class GetMapAreaRequest(BaseRequest):
     y2: int = Field(alias="AY2")
 
 
+# Indices into a gaa type-1 (CASTLE) raw entry. The live server sends 20
+# fields per castle (reverse-engineered):
+#   [type, x, y, castle_id, player_id, lvl, lvl, lvl, ?, ?, name,
+#    0, 0, -1, -1, -1, 0, alliance_id, [], relocating_flag]
+# Note the id at field 3 is the *castle* id, which is what ``owner_id``
+# exposes for type-1 entries; the player id lives at field 4.
+_PLAYER_ID_FIELD = 4
+_RELOCATING_FIELD = 19  # 1 while the castle is in transit, 0 when settled
+
+
 class MapAreaItem(BasePayload):
     """
     A raw map area item from the AI array.
 
-    AI array format: [[type, x, y, owner_id, ...], ...]
+    AI array format: [[type, x, y, location_id, player_id, ...], ...]
+
+    Field 3 is the location (castle/outpost) id for type-1 entries and the
+    player id for the capital-like types -- see ``owner_id`` and ``player_id``.
 
     Common types (see MapItemType enum):
-    - 1: Moving castle flag (owner_id = player moving there)
-    - 2: Castle
+    - 1: Player main castle (``is_relocating`` tells you if it is in transit)
+    - 2: Empty castle slot
     - 3: Capital
     - 4: Outpost
     - 22: Metropolis
@@ -131,11 +144,43 @@ class MapAreaItem(BasePayload):
         )
 
     @property
+    def player_id(self) -> int:
+        """Id of the player who owns this location, or -1 if not reported.
+
+        This is raw field 4. It differs from ``owner_id``, which for type-1
+        (CASTLE) entries carries the *castle* id from field 3 -- keyed by that,
+        a castle cannot be matched against ``AllianceMember.player_id``.
+        """
+        if len(self.raw_data) <= _PLAYER_ID_FIELD:
+            return -1
+        value = self.raw_data[_PLAYER_ID_FIELD]
+        return value if isinstance(value, int) and not isinstance(value, bool) else -1
+
+    @property
+    def is_relocating(self) -> bool:
+        """True while this castle is in transit to a new position.
+
+        Raw field 19 is a per-castle relocation flag: 0 for a settled castle,
+        1 while it is moving. Only type-1 (CASTLE) entries carry it; anything
+        shorter than 20 fields predates the current server format and reports
+        no relocation state at all.
+
+        While relocating, ``(x, y)`` is the in-transit position the server
+        reports for the castle.
+        """
+        if self.item_type != MapItemType.CASTLE or len(self.raw_data) <= _RELOCATING_FIELD:
+            return False
+        return bool(self.raw_data[_RELOCATING_FIELD])
+
+    @property
     def is_moving_flag(self) -> bool:
-        """Check if this is a castle that is being relocated (moving)."""
-        # A type-1 castle with owner represents either a stationary castle or one in transit
-        # To detect "moving", you need to track state changes or check movement endpoints
-        return self.item_type == MapItemType.CASTLE and self.owner_id != -1
+        """Deprecated alias for :attr:`is_relocating`.
+
+        Kept for callers written against the old name. It used to return True
+        for *every* owned type-1 entry, which made it useless for detecting
+        relocations; it now means what its name says.
+        """
+        return self.is_relocating
 
     @property
     def is_castle(self) -> bool:
@@ -206,10 +251,10 @@ class GetMapAreaResponse(BaseResponse):
     Response containing map area data.
 
     Command: gaa
-    Response format: {"KID": 0, "AI": [[type, x, y, owner_id, ...], ...], ...}
+    Response format: {"KID": 0, "AI": [[type, x, y, location_id, player_id, ...], ...], ...}
 
-    The AI array contains raw map items. Use get_moving_flags() to extract
-    castle moving destinations.
+    The AI array contains raw map items. Use get_moving_flags() to extract the
+    castles that are currently in transit.
     """
 
     command = "gaa"
@@ -227,15 +272,19 @@ class GetMapAreaResponse(BaseResponse):
 
     def get_moving_flags(self) -> dict[int, tuple[int, int]]:
         """
-        Extract moving castle flags from the response.
+        Extract the castles in this area that are currently relocating.
+
+        Only type-1 entries whose relocation flag (raw field 19) is set count;
+        settled castles are ignored. Entries are keyed by the player id (raw
+        field 4) so callers can match them against ``AllianceMember.player_id``.
 
         Returns:
-            Dict mapping player_id -> (destination_x, destination_y)
+            Dict mapping player_id -> (x, y) in-transit position
         """
-        result = {}
+        result: dict[int, tuple[int, int]] = {}
         for item in self.items:
-            if item.is_moving_flag:
-                result[item.owner_id] = (item.x, item.y)
+            if item.is_relocating and item.player_id > 0:
+                result[item.player_id] = (item.x, item.y)
         return result
 
 
