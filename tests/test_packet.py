@@ -116,3 +116,113 @@ class TestXMLParsing:
         packet = Packet.from_bytes(b"<msg t='sys'><body")
         assert packet.is_xml
         assert packet.command_id is None
+
+
+class TestTruncatedFrames:
+    """A frame cut short must never come out looking like a valid response."""
+
+    def test_frame_without_a_status_field_is_a_raw_wrapper(self):
+        # Fewer than 5 '%'-separated parts: there is no command to trust.
+        packet = Packet.from_bytes(b"%xt%gam%")
+        assert packet.command_id is None
+        assert packet.payload is None
+        assert packet.error_code == 0  # the field default, not a parsed status
+
+    def test_frame_cut_off_after_the_request_id_has_no_success_status(self):
+        # This one *does* reach the command, so the status is what protects the
+        # caller: client.send() only raises on error_code != 0.
+        packet = Packet.from_bytes(b"%xt%gam%1%")
+        assert packet.command_id == "gam"
+        assert packet.request_id == 1
+        assert packet.error_code == MALFORMED_STATUS_CODE
+        assert packet.payload == {"raw": ""}
+
+    def test_non_numeric_request_id_falls_back_without_losing_the_command(self):
+        packet = Packet.from_bytes(b"%xt%gam%abc%0%{}%")
+        assert packet.command_id == "gam"
+        assert packet.request_id == -1
+        # The status is still readable, so this is a usable response.
+        assert packet.error_code == 0
+
+    def test_float_status_is_not_silently_truncated(self):
+        packet = Packet.from_bytes(b"%xt%gam%1%1.5%{}%")
+        assert packet.error_code == MALFORMED_STATUS_CODE
+
+    def test_empty_command_id_is_falsy(self):
+        # Consumers gate on `if not packet.command_id`, so an empty command must
+        # not be routed as if it named something.
+        packet = Packet.from_bytes(b"%xt%%1%0%{}%")
+        assert not packet.command_id
+
+    def test_junk_frame_keeps_its_bytes_for_diagnosis(self):
+        packet = Packet.from_bytes(b"just some junk")
+        assert packet.command_id is None
+        assert packet.payload is None
+        assert packet.raw_data == "just some junk"
+
+
+class TestPayloadShapes:
+    """``payload`` is a union; each branch is reachable from real traffic."""
+
+    def test_object_payload_is_a_dict(self):
+        assert Packet.from_bytes(b'%xt%gam%1%0%{"M": []}%').payload == {"M": []}
+
+    def test_array_payload_stays_a_list(self):
+        # 'sce' inventory pushes arrive like this, so consumers must not assume
+        # .get() is available after a None-check.
+        payload = Packet.from_bytes(b'%xt%sce%1%0%[["PTT", 123]]%').payload
+        assert isinstance(payload, list)
+        assert payload == [["PTT", 123]]
+
+    def test_empty_payload_field_becomes_an_empty_raw_wrapper(self):
+        assert Packet.from_bytes(b"%xt%gam%1%0%%").payload == {"raw": ""}
+
+    def test_bare_scalar_payload_is_wrapped_not_parsed(self):
+        # Only '{' / '[' payloads go through json.loads; a bare number is kept
+        # verbatim rather than silently becoming an int payload.
+        assert Packet.from_bytes(b"%xt%gam%1%0%123%").payload == {"raw": "123"}
+
+    def test_broken_json_object_is_wrapped(self):
+        assert Packet.from_bytes(b"%xt%gam%1%0%{unclosed%").payload == {"raw": "{unclosed"}
+
+
+class TestBatchedFrameHandling:
+    """from_bytes is a single-packet parser by contract."""
+
+    def test_from_bytes_swallows_a_second_packet_into_the_payload(self):
+        # Pinned deliberately: iter_from_bytes is the batch-aware entry point,
+        # and the receive loop still calls from_bytes. If this ever changes,
+        # every caller of from_bytes needs revisiting.
+        frame = b'%xt%gam%1%0%{"M": []}%\x00%xt%acm%1%0%{"A": 1}%\x00'
+        packet = Packet.from_bytes(frame)
+        assert packet.command_id == "gam"
+        assert isinstance(packet.payload, dict)
+        assert "acm" in packet.payload["raw"]
+
+    def test_trailing_null_padding_does_not_affect_a_single_packet(self):
+        packet = Packet.from_bytes(b'%xt%gam%1%0%{"M": []}%\x00\x00\x00')
+        assert packet.command_id == "gam"
+        assert packet.payload == {"M": []}
+
+
+class TestRoundTrip:
+    def test_to_bytes_appends_the_wire_terminator(self):
+        packet = Packet.from_bytes(b'%xt%gam%1%0%{"M": []}%')
+        assert packet.to_bytes() == b'%xt%gam%1%0%{"M": []}%\x00'
+
+    def test_reparsing_to_bytes_yields_the_same_packet(self):
+        original = Packet.from_bytes(b'%xt%acm%1%0%{"CM": {"MT": "100% off"}}%')
+        assert Packet.from_bytes(original.to_bytes()) == original
+
+    def test_a_built_request_must_not_be_read_back_as_a_response(self):
+        # The two layouts differ: a request carries the zone where a response
+        # carries the command, so from_bytes reads a request's zone as the
+        # command and its request id as the status. from_bytes is for inbound
+        # frames only - this pins why.
+        raw = Packet.build_xt("EmpireEx_21", "acm", {"M": "100&percnt; off"}, request_id=1)
+        packet = Packet.from_bytes(raw.encode())
+        assert packet.command_id == "EmpireEx_21"
+        assert packet.error_code == 1
+        # The payload does survive the misread, which is what makes the
+        # confusion easy to miss.
+        assert packet.payload == {"M": "100&percnt; off"}
