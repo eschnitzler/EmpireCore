@@ -12,7 +12,10 @@ import logging
 import queue
 import time
 from collections.abc import Callable
-from typing import TypeVar, cast
+from types import TracebackType
+from typing import Any, TypeVar, cast
+
+from pydantic import ValidationError
 
 from empire_core.client.map_scanner import MapScanner
 from empire_core.config import (
@@ -82,6 +85,11 @@ class EmpireClient:
         client.login()
         movements = client.get_movements()
         client.close()
+
+        # Or, cleaning up automatically:
+        with EmpireClient(username="user", password="pass") as client:
+            client.login()
+            movements = client.get_movements()
     """
 
     alliance: AllianceService
@@ -141,27 +149,49 @@ class EmpireClient:
     def _on_packet(self, packet: Packet) -> None:
         """Handle incoming packets for state updates and service dispatch."""
         cmd = packet.command_id
-        if not cmd or not isinstance(packet.payload, dict):
+        # Most payloads are JSON objects, but some server pushes are JSON
+        # arrays (e.g. 'sce' inventory updates, which arrive as
+        # ``[["PTT", 123]]``). Both have to reach GameState; XML packets
+        # (ET.Element) and empty payloads have nothing to apply.
+        payload: object = packet.payload
+        if not cmd or not isinstance(payload, (dict, list)):
             return
 
         # Update internal state (always runs for state-tracked commands)
-        self._update_state(cmd, packet.payload)
+        self._update_state(cmd, payload)
 
         # Only parse and dispatch if handlers are registered
         handlers = self._handlers.get(cmd)
-        if handlers:
-            response = parse_response(cmd, packet.payload)
-            if response:
-                # Copy list to avoid issues if handlers are added during iteration
-                for handler in list(handlers):
-                    try:
-                        handler(response)
-                    except Exception:
-                        logger.exception(f"Handler error for command '{cmd}'")
+        if not handlers:
+            return
 
-    def _update_state(self, cmd: str, payload: dict[str, object]) -> None:
-        """Sync state update from packet - delegates to GameState."""
-        self.state.update_from_packet(cmd, payload)
+        if not isinstance(payload, dict):
+            # Response models are all keyed objects, so an array payload has
+            # no model to parse into - GameState is its only consumer.
+            logger.debug(f"No response model for array payload of '{cmd}'; state updated only")
+            return
+
+        try:
+            response = parse_response(cmd, payload)
+        except ValidationError:
+            logger.exception(f"Could not parse '{cmd}' payload for handler dispatch")
+            return
+
+        if response:
+            # Copy list to avoid issues if handlers are added during iteration
+            for handler in list(handlers):
+                try:
+                    handler(response)
+                except Exception:
+                    logger.exception(f"Handler error for command '{cmd}'")
+
+    def _update_state(self, cmd: str, payload: dict[str, Any] | list[Any]) -> None:
+        """Sync state update from packet - delegates to GameState.
+
+        Array payloads are forwarded unchanged; GameState's per-command
+        handlers decide which shapes they accept.
+        """
+        self.state.update_from_packet(cmd, cast(dict[str, Any], payload))
 
     def _on_disconnect(self) -> None:
         """Handle unexpected connection loss.
@@ -181,22 +211,50 @@ class EmpireClient:
         4. AutoJoin Room (XML)
         5. XT Version Check
         6. XT Login (Auth)
+
+        Returns:
+            Always ``True``. Every failure path raises, so ``if not
+            client.login():`` is dead code - check for exceptions instead.
+            The ``bool`` return is kept only for backwards compatibility with
+            callers that already assert on it.
+
+        Raises:
+            ValueError: Username or password missing
+            NetworkError: The WebSocket connection could not be established
+            EmpireTimeoutError: A required login step timed out
+            LoginCooldownError: The server is rate-limiting this account
+            LoginError: The server rejected the credentials
+
+        On any of these, the connection and its background threads are closed
+        before the error propagates, so a failed login leaks nothing.
         """
         if not self.username or not self.password:
             raise ValueError("Username and password are required")
 
         logger.debug(f"Logging in as {self.username}...")
 
-        # Connect if not already connected
-        if not self.connection.connected:
-            self.connection.connect(timeout=self.config.connection_timeout)
+        try:
+            # Connect if not already connected
+            if not self.connection.connected:
+                self.connection.connect(timeout=self.config.connection_timeout)
 
+            return self._login_sequence()
+        except Exception:
+            # The documented cleanup call (close()) never runs on the raising
+            # path, so without this a failed login leaves an open socket plus
+            # a receive and a keepalive thread pinging an unauthenticated
+            # session forever.
+            self._close_after_failed_login()
+            raise
+
+    def _login_sequence(self) -> bool:
+        """Run the handshake/auth exchange on an already-connected socket."""
         # 1. Version Check
         ver_packet = f"<msg t='sys'><body action='verChk' r='0'><ver v='{self.config.game_version}' /></body></msg>"
         try:
             self.connection.request(ver_packet, "apiOK", timeout=self.config.request_timeout)
-        except EmpireTimeoutError:
-            raise EmpireTimeoutError("Version check timed out")
+        except EmpireTimeoutError as e:
+            raise EmpireTimeoutError("Version check timed out") from e
 
         conm_value = 1150008
 
@@ -210,8 +268,8 @@ class EmpireClient:
         )
         try:
             self.connection.request(login_packet, "rlu", timeout=self.config.login_timeout)
-        except EmpireTimeoutError:
-            raise EmpireTimeoutError("Zone login timed out")
+        except EmpireTimeoutError as e:
+            raise EmpireTimeoutError("Zone login timed out") from e
 
         # 3. AutoJoin Room
         join_packet = "<msg t='sys'><body action='autoJoin' r='-1'></body></msg>"
@@ -242,8 +300,8 @@ class EmpireClient:
         try:
             try:
                 lli_response = self.connection.request(xt_packet, "lli", timeout=self.config.login_timeout)
-            except EmpireTimeoutError:
-                raise EmpireTimeoutError("XT login timed out")
+            except EmpireTimeoutError as e:
+                raise EmpireTimeoutError("XT login timed out") from e
 
             if lli_response.error_code != 0:
                 if lli_response.error_code == ServerError.LOGIN_COOLDOWN:
@@ -266,11 +324,40 @@ class EmpireClient:
         finally:
             self.connection.cancel_waiter("gbd", gbd_waiter)
 
+    def _close_after_failed_login(self) -> None:
+        """Best-effort cleanup that must never mask the original failure."""
+        try:
+            self.close()
+        except Exception:
+            logger.exception("Cleanup after failed login raised")
+
     def close(self) -> None:
-        """Disconnect from the server."""
+        """Disconnect from the server and release background resources.
+
+        Safe to call more than once, and safe to call after a failed login.
+        """
         self.is_logged_in = False
-        self.state.shutdown()
+        # Disconnect first: shutting the state executor down while packets can
+        # still arrive lets a late callback lazily recreate it, leaking a
+        # thread pool nobody owns any more.
         self.connection.disconnect()
+        self.state.shutdown()
+
+    def __enter__(self) -> EmpireClient:
+        """Enter a context that closes the client on exit.
+
+        Does not log in - call :meth:`login` inside the block, so its failure
+        modes stay visible to the caller.
+        """
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.close()
 
     def send(
         self,
@@ -291,6 +378,7 @@ class EmpireClient:
 
         Raises:
             CommandError: The server answered with a non-zero error code
+            PacketError: The response payload did not match the response model
             EmpireTimeoutError: No response within ``timeout``
             ConnectionClosedError: Connection dropped while waiting
             NetworkError: The send itself failed
@@ -317,7 +405,12 @@ class EmpireClient:
             raise CommandError(command, response_packet.error_code)
 
         if isinstance(response_packet.payload, dict):
-            return parse_response(command, response_packet.payload)
+            try:
+                return parse_response(command, response_packet.payload)
+            except ValidationError as e:
+                # Server field-type drift must surface as a library error, not
+                # as a raw pydantic exception leaking through the public API.
+                raise PacketError(f"Could not parse '{command}' response: {e}") from e
 
         return None
 
@@ -353,15 +446,22 @@ class EmpireClient:
             timeout: Timeout in seconds when waiting
 
         Returns:
-            List of Movement objects
+            List of Movement objects, read from state after the response has
+            been applied. With ``wait=False`` this is whatever state holds
+            right now, which is not yet the answer to this request.
 
         Raises:
+            CommandError: ``wait=True`` and the server rejected 'gam'
             EmpireTimeoutError: ``wait=True`` and no response within ``timeout``
         """
         packet = Packet.build_xt(self.config.default_zone, "gam", {})
 
         if wait:
-            self.connection.request(packet, "gam", timeout=timeout)
+            response = self.connection.request(packet, "gam", timeout=timeout)
+            # Without this, a rejected request returns the previous (possibly
+            # empty) movement list, indistinguishable from "no movements".
+            if response.error_code != 0:
+                raise CommandError("gam", response.error_code)
         else:
             self.connection.send(packet)
 
