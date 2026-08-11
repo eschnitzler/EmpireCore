@@ -12,7 +12,9 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
-from empire_core.exceptions import CommandError
+from pydantic import ValidationError
+
+from empire_core.exceptions import CommandError, PacketError
 from empire_core.protocol.models import (
     AllianceBookmark,
     AllianceChatLogRequest,
@@ -199,9 +201,29 @@ class AllianceService(BaseService):
 
         if not isinstance(response_packet.payload, dict):
             return []
-        response = SearchAllianceResponse.model_validate(response_packet.payload)
-        logger.debug(f"Alliance search found {len(response.results)} results")
-        return response.results
+        try:
+            response = SearchAllianceResponse.model_validate(response_packet.payload)
+        except ValidationError as e:
+            # PacketError is the documented parse-failure type of request();
+            # a raw pydantic error must not leak out of the service layer.
+            raise PacketError(f"Could not parse 'hgh' response: {e}") from e
+
+        # Entries are parsed one by one so a single drifted entry costs only
+        # itself, not the whole result. (SearchAllianceResponse.results parses
+        # eagerly and would abort on the first bad entry.)
+        results: list[AllianceSearchResult] = []
+        skipped = 0
+        for entry in response.raw_results:
+            try:
+                results.append(AllianceSearchResult.from_list(entry))
+            except (ValidationError, TypeError):
+                skipped += 1
+        if skipped:
+            logger.warning(
+                f"Skipped {skipped}/{len(response.raw_results)} malformed alliance search entries for {search_term!r}"
+            )
+        logger.debug(f"Alliance search found {len(results)} results")
+        return results
 
     # =========================================================================
     # Own Alliance Operations
@@ -316,6 +338,17 @@ class AllianceService(BaseService):
             client.alliance.on_chat_message(on_message)
         """
         self._chat_callbacks.append(callback)
+
+    def remove_chat_message_callback(self, callback: Callable[[AllianceChatMessageResponse], None]) -> None:
+        """Remove a callback registered with :meth:`on_chat_message`.
+
+        No-op if the callback is not registered, so reconnect re-wiring can
+        detach unconditionally.
+        """
+        try:
+            self._chat_callbacks.remove(callback)
+        except ValueError:
+            pass
 
     def _handle_chat_message(self, response) -> None:
         """Internal handler for chat message responses."""

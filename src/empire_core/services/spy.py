@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from pydantic import ValidationError
+
 from empire_core.exceptions import CommandError, EmpireError
 
 from ..protocol.models.attack import SendSpyRequest, SpyScreenInfoRequest, SpyScreenInfoResponse
@@ -140,7 +142,12 @@ class SpyService(BaseService):
             if not isinstance(sne_packet.payload, dict):
                 return SpyResult(success=False, reason="invalid_sne_format")
 
-            sne_event = parse_response("sne", sne_packet.payload)
+            try:
+                sne_event = parse_response("sne", sne_packet.payload)
+            except ValidationError:
+                # A drifted sne payload is a failed mission, not a crash out
+                # of the service layer.
+                return SpyResult(success=False, reason="invalid_sne_format")
 
             if not isinstance(sne_event, SystemNotificationEvent):
                 return SpyResult(success=False, reason="invalid_sne_format")
