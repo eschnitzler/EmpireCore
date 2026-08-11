@@ -7,8 +7,10 @@ protocol layer parses bytes we do not control, so each case is written as
 
 import xml.etree.ElementTree as ET
 
+import pytest
 from pydantic import ValidationError
 
+from empire_core.network.connection import _summarise_frame
 from empire_core.protocol.models.alliance import AllianceInfo
 from empire_core.protocol.models.map import GetMapAreaResponse, MapAreaItem, MapItemType
 from empire_core.protocol.packet import (
@@ -110,11 +112,13 @@ class TestMovingFlags:
         assert settled.is_relocating is False
         assert moving.is_relocating is True
 
-    def test_is_moving_flag_matches_is_relocating(self):
+    def test_is_moving_flag_matches_is_relocating_and_warns(self):
         settled = MapAreaItem.from_list(_castle_entry(1, 2, relocating=0))
         moving = MapAreaItem.from_list(_castle_entry(1, 2, relocating=1))
-        assert settled.is_moving_flag is False
-        assert moving.is_moving_flag is True
+        with pytest.warns(DeprecationWarning, match="is_relocating"):
+            assert settled.is_moving_flag is False
+        with pytest.warns(DeprecationWarning, match="is_relocating"):
+            assert moving.is_moving_flag is True
 
     def test_short_entry_has_no_relocation_data(self):
         item = MapAreaItem.from_list([MapItemType.CASTLE, 5, 6, 900])
@@ -315,3 +319,23 @@ class TestXMLHardening:
     def test_cross_domain_policy_still_parses(self):
         packet = Packet.from_bytes(b"<cross-domain-policy></cross-domain-policy>")
         assert packet.command_id == "cross-domain-policy"
+
+
+class TestFrameRedactionEscapedQuotes:
+    """Finding: a JSON-escaped quote inside a credential value must not stop
+    the mask early and leak the tail of the secret."""
+
+    def test_escaped_quote_does_not_leak_the_password_tail(self):
+        summary = _summarise_frame('%xt%z%unk%1%{"PW": "hun\\"ter2secret"}%')
+        assert "ter2secret" not in summary
+        assert '"<redacted>"' in summary
+
+    def test_escaped_backslash_before_the_closing_quote(self):
+        summary = _summarise_frame('%xt%z%unk%1%{"PW": "hunter2\\\\"}%')
+        assert "hunter2" not in summary
+        assert '"<redacted>"' in summary
+
+    def test_plain_password_is_still_masked(self):
+        summary = _summarise_frame('%xt%z%unk%1%{"PW": "hunter2", "NM": "user"}%')
+        assert "hunter2" not in summary
+        assert '"NM": "user"' in summary

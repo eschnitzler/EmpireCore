@@ -33,9 +33,11 @@ LOG_FRAME_CHARS = 100
 
 # Credential shapes to mask in frames whose command we do not recognise.
 _SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    # XT/JSON payloads: {"PW": "hunter2"}
+    # XT/JSON payloads: {"PW": "hunter2"}. The value pattern must consume
+    # escaped characters (\" and \\): with a plain [^"]* a password containing
+    # a double-quote would leak its tail after the json.dumps-escaped \".
     (
-        re.compile(r'("(?:PW|PWD|PASS|PASSWORD|TOKEN|SECRET|AUTH)"\s*:\s*)"[^"]*"', re.IGNORECASE),
+        re.compile(r'("(?:PW|PWD|PASS|PASSWORD|TOKEN|SECRET|AUTH)"\s*:\s*)"(?:\\.|[^"\\])*"', re.IGNORECASE),
         r'\1"<redacted>"',
     ),
     # SmartFox XML handshake: <pword><![CDATA[...]]></pword>
