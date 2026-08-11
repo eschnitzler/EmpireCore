@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.30.1 (2026-08-11)
+
+### Bug Fixes
+
+- **scanner**: Stop reporting normal short map entries as schema drift
+  ([`2523fae`](https://github.com/eschnitzler/EmpireCore/commit/2523fae83561e890951d7a16eddf520b2c0d7494))
+
+
 ## v0.30.0 (2026-08-11)
 
 ### Bug Fixes
