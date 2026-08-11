@@ -260,6 +260,59 @@ class TestMalformedResponses:
         assert result.objects == {}
         assert "skipping invalid map object" in caplog.text
 
+    def test_reshaped_ai_entries_warn_instead_of_silent_empty_scan(self, caplog):
+        # If GGE reshapes AI entries (list -> dict), every chunk returns
+        # ok=True with zero items and failed_chunks=() — that must not look
+        # like a successful empty scan with nothing above debug level.
+        fake = _FakeClient(
+            content_chunks=set(),
+            payloads={(1, 1): {"AI": [{"unexpected": "shape"}, {"also": "wrong"}], "OI": []}},
+        )
+        with caplog.at_level(logging.INFO, logger="empire_core.client.map_scanner"):
+            result = _make_scanner(fake).scan_chunks(
+                kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0
+            )
+
+        assert result.items == []
+        assert result.failed_chunks == ()
+        warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert len(warnings) == 1, "schema drift hidden behind a 'successful' empty scan"
+        message = warnings[0].getMessage()
+        assert "(1, 1)" in message
+        assert "2/2" in message, f"skipped/total counts missing: {message}"
+        assert "unexpected" in message, f"sample entry missing: {message}"
+
+    def test_skipped_map_objects_counted_in_drift_warning(self, caplog):
+        fake = _FakeClient(
+            content_chunks=set(),
+            payloads={(1, 1): {"AI": [], "OI": [{"OID": 7, "X": "not-a-number"}, "junk"]}},
+        )
+        with caplog.at_level(logging.WARNING, logger="empire_core.client.map_scanner"):
+            _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
+
+        warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert len(warnings) == 1
+        assert "2/2" in warnings[0].getMessage()
+
+    def test_drift_warning_truncates_the_sample_entry(self, caplog):
+        fake = _FakeClient(
+            content_chunks=set(),
+            payloads={(1, 1): {"AI": [{"blob": "x" * 5000}], "OI": []}},
+        )
+        with caplog.at_level(logging.WARNING, logger="empire_core.client.map_scanner"):
+            _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
+
+        warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert len(warnings) == 1
+        assert len(warnings[0].getMessage()) < 600, "sample entry not truncated"
+
+    def test_clean_chunk_emits_no_drift_warning(self, caplog):
+        fake = _FakeClient(content_chunks={(1, 1)})
+        with caplog.at_level(logging.WARNING, logger="empire_core.client.map_scanner"):
+            _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
+
+        assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
+
 
 class TestChunkRetry:
     def test_transport_error_recovers_on_retry(self):
