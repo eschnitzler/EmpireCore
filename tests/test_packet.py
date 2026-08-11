@@ -1,7 +1,11 @@
 """Tests for SmartFox packet parsing and building."""
 
 import json
+import logging
 
+import pytest
+
+from empire_core.protocol import packet as packet_module
 from empire_core.protocol.packet import MALFORMED_STATUS_CODE, Packet
 
 
@@ -203,6 +207,79 @@ class TestBatchedFrameHandling:
         packet = Packet.from_bytes(b'%xt%gam%1%0%{"M": []}%\x00\x00\x00')
         assert packet.command_id == "gam"
         assert packet.payload == {"M": []}
+
+
+class TestDegradedFrameWarnings:
+    """A frame degrading to command_id=None matches no waiter or subscriber
+    and is dropped silently end-to-end, so the degradation itself must be
+    visible: one rate-limited warning, with credentials masked."""
+
+    @pytest.fixture(autouse=True)
+    def reset_rate_limit(self, monkeypatch):
+        monkeypatch.setattr(packet_module, "_degraded_frame_count", 0)
+        monkeypatch.setattr(packet_module, "_degraded_frame_warn_at", 0.0)
+
+    @staticmethod
+    def _warnings(caplog):
+        return [r for r in caplog.records if r.levelno == logging.WARNING and "raw wrapper" in r.getMessage()]
+
+    def test_junk_prefix_is_warned_with_the_frame_prefix(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.packet"):
+            packet = Packet.from_bytes(b"garbage frame")
+        assert packet.command_id is None
+        warnings = self._warnings(caplog)
+        assert len(warnings) == 1
+        assert "garbage frame" in warnings[0].getMessage()
+
+    def test_xml_parse_failure_is_warned(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.packet"):
+            packet = Packet.from_bytes(b"<msg t='sys'><unclosed")
+        assert packet.command_id is None
+        assert len(self._warnings(caplog)) == 1
+
+    def test_truncated_xt_frame_is_warned(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.packet"):
+            packet = Packet.from_bytes(b"%xt%x%")
+        assert packet.command_id is None
+        assert len(self._warnings(caplog)) == 1
+
+    def test_empty_and_null_only_frames_are_not_warned(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.packet"):
+            Packet.from_bytes(b"")
+            Packet.from_bytes(b"\x00\x00")
+        assert self._warnings(caplog) == []
+
+    def test_credentials_are_masked_in_the_logged_prefix(self, caplog):
+        # The password contains a JSON-escaped quote; the mask must consume
+        # it rather than stop there and leak the tail.
+        frame = b'junk {"PW": "hun\\"ter2secret"} trailing'
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.packet"):
+            Packet.from_bytes(frame)
+        assert "ter2secret" not in caplog.text
+        assert "<redacted>" in caplog.text
+
+    def test_logged_prefix_is_truncated(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.packet"):
+            Packet.from_bytes(b"junk " + b"A" * 500)
+        assert "A" * 200 not in self._warnings(caplog)[0].getMessage()
+
+    def test_warning_is_rate_limited_and_reports_the_suppressed_count(self, caplog):
+        with caplog.at_level(logging.DEBUG, logger="empire_core.protocol.packet"):
+            Packet.from_bytes(b"junk one")
+            Packet.from_bytes(b"junk two")  # inside the window: debug only
+            assert len(self._warnings(caplog)) == 1
+
+            packet_module._degraded_frame_warn_at = 0.0  # window elapses
+            Packet.from_bytes(b"junk three")
+        warnings = self._warnings(caplog)
+        assert len(warnings) == 2
+        assert "1 further" in warnings[-1].getMessage()
+
+    def test_malformed_xt_json_payload_is_logged_at_debug(self, caplog):
+        with caplog.at_level(logging.DEBUG, logger="empire_core.protocol.packet"):
+            packet = Packet.from_bytes(b"%xt%gam%1%0%{broken%")
+        assert packet.payload == {"raw": "{broken"}
+        assert any(r.levelno == logging.DEBUG and "gam" in r.getMessage() for r in caplog.records)
 
 
 class TestRoundTrip:

@@ -10,11 +10,14 @@ Commands:
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from pydantic import Field
 
 from .base import BasePayload, BaseRequest, BaseResponse, UnitCount
+
+logger = logging.getLogger(__name__)
 
 
 def _as_int(value: Any) -> int | None:
@@ -251,14 +254,28 @@ class GetSupportDefenseResponse(BaseResponse):
             Total count of all units across all defense positions.
         """
         total = 0
+        skipped = 0
         for position in self.defense_positions:
-            if isinstance(position, list):
-                for unit_pair in position:
-                    if isinstance(unit_pair, list) and len(unit_pair) >= 2:
-                        # unit_pair is [unit_id, count]
-                        count = _as_int(unit_pair[1])
-                        if count is not None:
-                            total += count
+            if not isinstance(position, list):
+                skipped += 1
+                continue
+            for unit_pair in position:
+                if not (isinstance(unit_pair, list) and len(unit_pair) >= 2):
+                    skipped += 1
+                    continue
+                # unit_pair is [unit_id, count]
+                count = _as_int(unit_pair[1])
+                if count is None:
+                    skipped += 1
+                    continue
+                total += count
+        if skipped:
+            # One line per response, not per entry, so a fully drifted S
+            # array can't flood the log.
+            logger.warning(
+                f"Skipped {skipped} malformed defence entries for castle {self.castle_id}; "
+                "the defender total may be incomplete"
+            )
         return total
 
     def get_max_defense(self) -> int:
@@ -281,16 +298,27 @@ class GetSupportDefenseResponse(BaseResponse):
             List of 6 dicts, each mapping unit_id -> count for that position.
         """
         result = []
+        skipped = 0
         for position in self.defense_positions:
             units: dict[int, int] = {}
             if isinstance(position, list):
                 for unit_pair in position:
-                    if isinstance(unit_pair, list) and len(unit_pair) >= 2:
-                        unit_id, count = _as_int(unit_pair[0]), _as_int(unit_pair[1])
-                        if unit_id is None or count is None:
-                            continue
-                        units[unit_id] = units.get(unit_id, 0) + count
+                    if not (isinstance(unit_pair, list) and len(unit_pair) >= 2):
+                        skipped += 1
+                        continue
+                    unit_id, count = _as_int(unit_pair[0]), _as_int(unit_pair[1])
+                    if unit_id is None or count is None:
+                        skipped += 1
+                        continue
+                    units[unit_id] = units.get(unit_id, 0) + count
+            else:
+                skipped += 1
             result.append(units)
+        if skipped:
+            logger.warning(
+                f"Skipped {skipped} malformed defence entries for castle {self.castle_id}; "
+                "the per-position unit counts may be incomplete"
+            )
         return result
 
 

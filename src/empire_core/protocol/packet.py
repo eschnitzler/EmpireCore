@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Any
@@ -23,6 +25,58 @@ MAX_FRAME_SIZE = 16 * 1024 * 1024
 # XML is only used for the handshake phase (verChk, cross-domain-policy), all
 # of which is well under a kilobyte.
 MAX_XML_SIZE = 1024 * 1024
+
+# A frame that degrades to a raw wrapper (command_id=None) matches no waiter
+# or subscriber, so it is dropped silently end-to-end - the degradation itself
+# must be visible. Schema drift can degrade every frame, so the warning is
+# rate-limited and the suppressed count reported with the next one (same
+# pattern as GameState._log_movement_parse_failure).
+DEGRADED_FRAME_WARN_INTERVAL = 60.0
+
+_degraded_frame_count = 0
+_degraded_frame_warn_at = 0.0
+
+# Credential shapes to mask before any part of a frame is logged - packet.py
+# must never log raw credentials. Mirrors _SECRET_PATTERNS in
+# network/connection.py (which cannot be imported here: the network layer
+# already imports the protocol layer).
+_SECRET_JSON_RE = re.compile(
+    r'("(?:PW|PWD|PASS|PASSWORD|TOKEN|SECRET|AUTH)"\s*:\s*)"(?:\\.|[^"\\])*"',
+    re.IGNORECASE,
+)
+_SECRET_XML_RE = re.compile(r"(<pword>).*?(</pword>)", re.IGNORECASE | re.DOTALL)
+
+# Longest frame prefix we are willing to log, as defence in depth on top of
+# the redaction above.
+_LOG_PREFIX_CHARS = 80
+
+
+def _redacted_prefix(frame: str) -> str:
+    """A short, credential-masked prefix of ``frame`` that is safe to log."""
+    safe = _SECRET_JSON_RE.sub(r'\1"<redacted>"', frame)
+    safe = _SECRET_XML_RE.sub(r"\1<redacted>\2", safe)
+    if len(safe) > _LOG_PREFIX_CHARS:
+        safe = safe[:_LOG_PREFIX_CHARS] + "..."
+    return safe
+
+
+def _warn_degraded_frame(reason: str, frame: str) -> None:
+    """Report a non-empty frame degrading to a raw wrapper, rate-limited."""
+    global _degraded_frame_count, _degraded_frame_warn_at
+    _degraded_frame_count += 1
+    now = time.time()
+    if now < _degraded_frame_warn_at:
+        logger.debug(f"Frame degraded to raw wrapper ({reason}; warning rate-limited): {_redacted_prefix(frame)}")
+        return
+
+    suppressed = _degraded_frame_count - 1
+    _degraded_frame_count = 0
+    _degraded_frame_warn_at = now + DEGRADED_FRAME_WARN_INTERVAL
+    extra = f" ({suppressed} further degraded frames suppressed)" if suppressed else ""
+    logger.warning(
+        f"Frame degraded to raw wrapper ({reason}) - it matches no waiter or subscriber "
+        f"and will be dropped{extra}: {_redacted_prefix(frame)}"
+    )
 
 
 @dataclass
@@ -100,6 +154,7 @@ class Packet:
             return cls._parse_xt(decoded)
 
         # Unknown or junk, return raw wrapper
+        _warn_degraded_frame("unrecognised prefix", decoded)
         return cls(raw_data=decoded, is_xml=False)
 
     @classmethod
@@ -162,6 +217,7 @@ class Packet:
             return cls(raw_data=data, is_xml=True, command_id=cmd, payload=root)
         except (ET.ParseError, ValueError):
             # ValueError: embedded null bytes and similar illegal XML content
+            _warn_degraded_frame("XML parse failure", data)
             return cls(raw_data=data, is_xml=True)
 
     @classmethod
@@ -171,6 +227,7 @@ class Packet:
         # messages, player names, ...) don't truncate it.
         parts = data.split("%", 5)
         if len(parts) < 5:
+            _warn_degraded_frame("truncated XT frame", data)
             return cls(raw_data=data, is_xml=False)
 
         cmd = parts[2]
@@ -201,6 +258,7 @@ class Packet:
             except (ValueError, RecursionError):
                 # ValueError covers JSONDecodeError; RecursionError guards
                 # against pathologically nested payloads.
+                logger.debug(f"Unparseable JSON payload for command {cmd!r}, kept raw: {_redacted_prefix(raw_payload)}")
                 payload_data = {"raw": raw_payload}
         else:
             payload_data = {"raw": raw_payload}

@@ -10,11 +10,15 @@ Commands:
 
 from __future__ import annotations
 
+import logging
+import warnings
 from enum import IntEnum
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, ValidationError
 
 from .base import BasePayload, BaseRequest, BaseResponse, PlayerInfo, Position
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Map Item Types
@@ -180,6 +184,11 @@ class MapAreaItem(BasePayload):
         for *every* owned type-1 entry, which made it useless for detecting
         relocations; it now means what its name says.
         """
+        warnings.warn(
+            "MapAreaItem.is_moving_flag is deprecated; use is_relocating instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self.is_relocating
 
     @property
@@ -267,8 +276,29 @@ class GetMapAreaResponse(BaseResponse):
 
     @property
     def items(self) -> list[MapAreaItem]:
-        """Parse raw AI array into MapAreaItem objects."""
-        return [MapAreaItem.from_list(item) for item in self.raw_items if isinstance(item, list) and len(item) >= 4]
+        """Parse raw AI array into MapAreaItem objects.
+
+        The raw AI rows are validated lazily, so a drifted row surfaces here
+        rather than at parse time. Accessors must not leak raw pydantic errors
+        after parse time, so such rows are skipped and counted instead.
+        """
+        items: list[MapAreaItem] = []
+        skipped = 0
+        for row in self.raw_items:
+            if not (isinstance(row, list) and len(row) >= 4):
+                continue
+            try:
+                items.append(MapAreaItem.from_list(row))
+            except ValidationError:
+                skipped += 1
+        if skipped:
+            # One line per response, not per row, so a fully drifted AI array
+            # can't flood the log.
+            logger.warning(
+                f"Skipped {skipped}/{len(self.raw_items)} unparseable AI rows in map area "
+                f"response for kingdom {self.kingdom}"
+            )
+        return items
 
     def get_moving_flags(self) -> dict[int, tuple[int, int]]:
         """

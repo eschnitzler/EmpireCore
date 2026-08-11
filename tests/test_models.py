@@ -775,13 +775,25 @@ class TestMalformedNestedResponsePayloads:
         assert response.members == []
         assert response.online_members == []
 
-    def test_drifted_map_row_breaks_only_the_item_accessor(self):
+    def test_drifted_map_row_is_skipped_and_counted_by_the_item_accessor(self, caplog):
         # The payload itself parses; the raw AI rows are validated lazily, so a
-        # drifted row surfaces when .items / .get_moving_flags() is read.
+        # drifted row surfaces when .items / .get_moving_flags() is read. Per
+        # TestDriftedPayloadsMustNotCrashAccessors, it must be skipped and
+        # logged there, never raised.
         response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [["?", "?", "?", "?"]]})
         assert response.kingdom == Kingdom.GREEN
-        with pytest.raises(ValidationError):
-            response.get_moving_flags()
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.map"):
+            assert response.items == []
+            assert response.get_moving_flags() == {}
+        assert "Skipped 1/1" in caplog.text
+
+    def test_map_rows_survive_a_drifted_neighbour(self, caplog):
+        good_row = [1, 640, 655, 900, 4242]
+        response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [["?", "?", "?", "?"], good_row]})
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.map"):
+            items = response.items
+        assert [(i.x, i.y) for i in items] == [(640, 655)]
+        assert "Skipped 1/2" in caplog.text
 
 
 class TestDriftedPayloadsMustNotCrashAccessors:
@@ -801,7 +813,7 @@ class TestDriftedPayloadsMustNotCrashAccessors:
         response = GetPlayerInfoResponse.model_validate({"gcl": {"C": [{"KID": 0, "AI": "junk"}]}})
         assert response.get_castles() == []
 
-    def test_drifted_kingdom_entry_is_skipped_rather_than_crashing(self):
+    def test_drifted_kingdom_entry_is_skipped_rather_than_crashing(self, caplog):
         response = GetPlayerInfoResponse.model_validate(
             {
                 "gcl": {
@@ -812,7 +824,10 @@ class TestDriftedPayloadsMustNotCrashAccessors:
                 }
             }
         )
-        assert [c.name for c in response.get_castles()] == ["Keep"]
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.player"):
+            assert [c.name for c in response.get_castles()] == ["Keep"]
+        # Skipped silently is a hole too: the drop must be visible, once.
+        assert "Skipped 1/2" in caplog.text
 
     def test_string_unit_count_does_not_crash_the_defence_total(self):
         response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[487, 100]], [[488, "20"]]]})
@@ -825,3 +840,28 @@ class TestDriftedPayloadsMustNotCrashAccessors:
     def test_defence_rows_of_the_wrong_shape_are_already_skipped(self):
         response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[487]], ["junk"], [[487, 5]]]})
         assert response.get_total_defenders() == 5
+
+    def test_skipped_defence_pairs_are_logged_once_per_call(self, caplog):
+        response = GetSupportDefenseResponse.model_validate(
+            {"SCID": 7, "S": [[[487, "x"], [488, None], [489, 5]], ["junk"]]}
+        )
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.defense"):
+            assert response.get_total_defenders() == 5
+        records = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(records) == 1
+        assert "Skipped 3" in records[0].getMessage()
+
+    def test_skipped_pairs_in_the_per_position_grouping_are_logged(self, caplog):
+        response = GetSupportDefenseResponse.model_validate({"SCID": 7, "S": [[[487, "x"], [488, 20]]]})
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.defense"):
+            assert response.get_units_by_position() == [{488: 20}]
+        records = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(records) == 1
+        assert "Skipped 1" in records[0].getMessage()
+
+    def test_clean_defence_payloads_log_nothing(self, caplog):
+        response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[487, 100]]]})
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.defense"):
+            assert response.get_total_defenders() == 100
+            assert response.get_units_by_position() == [{487: 100}]
+        assert not [r for r in caplog.records if r.levelno == logging.WARNING]

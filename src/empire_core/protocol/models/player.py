@@ -8,6 +8,7 @@ Commands:
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 
 from pydantic import ConfigDict, Field
@@ -15,6 +16,8 @@ from pydantic import ConfigDict, Field
 from .base import BasePayload, BaseRequest, BaseResponse
 from .map import Kingdom
 from .profile import PlayerProfileBase
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Location Types
@@ -255,11 +258,13 @@ class GetPlayerInfoResponse(BaseResponse):
         """
         castles = []
         worlds = self.raw_castle_list.get("C", [])
+        skipped = 0
 
         for world in worlds:
             if not isinstance(world, dict):
                 # Drifted kingdom entry: skip it rather than raising out of a
                 # consumer-facing accessor.
+                skipped += 1
                 continue
             kingdom = world.get("KID", 0)
             locations = world.get("AI", [])
@@ -273,6 +278,13 @@ class GetPlayerInfoResponse(BaseResponse):
                     location = location[0]
                 castles.append(PlayerCastle.from_list(location, kingdom=kingdom))
 
+        if skipped:
+            # One line per response, not per entry, so a fully drifted gcl
+            # block can't flood the log.
+            logger.warning(
+                f"Skipped {skipped}/{len(worlds)} malformed gcl kingdom entries for "
+                f"player {self.player_id}; the castle list may be incomplete"
+            )
         return castles
 
     def get_location_captures(self) -> list[LocationCapture]:
