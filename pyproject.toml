@@ -75,7 +75,15 @@ check_untyped_defs = true
 version_toml = ["pyproject.toml:project.version"]
 # No `branch` key: that is python-semantic-release v7 syntax, silently ignored
 # by v9+. The default branch group already matches master.
-build_command = "uv build"
+# `uv lock` re-stamps the project's own version in uv.lock, which version_toml
+# does not touch: without it the lock keeps the previous version and
+# `uv lock --check` / `uv sync --locked` fail on a fresh clone. It runs before
+# semantic-release stages its changes, and only `assets` paths are committed
+# alongside the bump, so both halves are required. A plain `uv lock` does not
+# upgrade already-locked dependencies, so this cannot smuggle unrelated bumps
+# into a release commit.
+build_command = "uv lock && uv build"
+assets = ["uv.lock"]
 commit_message = "chore(release): {version}"
 tag_format = "v{version}"
 major_on_zero = false

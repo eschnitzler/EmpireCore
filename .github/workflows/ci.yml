@@ -20,8 +20,15 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
+      # Plain `uv sync`/`uv run` rewrite uv.lock in place when it is stale, so a
+      # drifted lock heals locally and is only ever caught by a --locked/--check
+      # consumer. Every CI install is therefore locked, and this check names the
+      # problem directly instead of surfacing it as an install failure.
+      - name: Check the lockfile is in sync with pyproject
+        run: uv lock --check
+
       - name: Install dependencies
-        run: uv sync --extra dev
+        run: uv sync --extra dev --locked
 
       - name: Run pre-commit
         uses: pre-commit/action@v3.0.1
@@ -44,7 +51,7 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --extra dev
+        run: uv sync --extra dev --locked
 
       - name: Run tests
-        run: uv run pytest -v
+        run: uv run --locked pytest -v
