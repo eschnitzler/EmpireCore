@@ -730,7 +730,9 @@ class TestRankingEntryDriftedLayouts:
 
     def test_a_layout_that_raises_internally_is_logged_as_an_error(self, caplog):
         with caplog.at_level(logging.ERROR, logger="empire_core.protocol.models.ranking"):
-            entry = RankingEntry(None)
+            # Deliberately not a list/dict: the point of the test is that an
+            # unparseable layout degrades to rank -1 rather than raising.
+            entry = RankingEntry(None)  # type: ignore[arg-type]
         assert entry.rank == -1
         assert "Failed to parse RankingEntry" in caplog.text
 
