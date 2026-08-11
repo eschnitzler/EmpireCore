@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.29.0 (2026-08-11)
+
+### Features
+
+- Add include_unowned option to scan_kingdom
+  ([`15cdb2e`](https://github.com/eschnitzler/EmpireCore/commit/15cdb2ed0feebabac39079d5f3f5cf37656b84f9))
+
+
 ## v0.28.0 (2026-07-07)
 
 ### Bug Fixes
