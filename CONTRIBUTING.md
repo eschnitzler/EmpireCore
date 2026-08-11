@@ -91,11 +91,16 @@ class YourResponse(BaseResponse):
     command = "xyz"  # Auto-registers in response registry
     
     result: str = Field(alias="R")
-    success: bool = Field(alias="S", default=True)
+    finished: bool = Field(alias="S", default=True)
 ```
 
 **Key points:**
-- Setting `command = "xyz"` auto-registers the response model
+- Setting `command = "xyz"` auto-registers the response model — registering a
+  command twice raises at class-definition time, so pick one that is not
+  already in the registry
+- Never name a field `success`: `BaseResponse.success` is a property derived
+  from the packet's status code, and a same-named field is silently shadowed
+  (pydantic warns, and your field becomes unreachable)
 - Use `parse_response("xyz", payload)` to parse responses
 
 ### Step 4: Export Models
@@ -131,13 +136,13 @@ from .base import BaseRequest, BaseResponse, Position
 
 class GetBookmarksRequest(BaseRequest):
     """
-    Get player's map bookmarks.
+    Get player's map bookmarks (illustrative command id 'zzb' — 'gbl' itself is already registered by the library).
     
-    Command: gbl
+    Command: zzb
     Payload: {} (empty)
     """
     
-    command = "gbl"
+    command = "zzb"
 
 
 class Bookmark(BaseResponse):
@@ -160,11 +165,11 @@ class GetBookmarksResponse(BaseResponse):
     """
     Response containing player's bookmarks.
     
-    Command: gbl
+    Command: zzb
     Payload: {"BL": [bookmark, ...]}
     """
     
-    command = "gbl"
+    command = "zzb"
     
     bookmarks: list[Bookmark] = Field(alias="BL", default_factory=list)
 

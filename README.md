@@ -51,8 +51,14 @@ For development:
 ```bash
 git clone https://github.com/eschnitzler/EmpireCore.git
 cd EmpireCore
-uv sync
+uv sync --extra dev
 ```
+
+(`dev` is an extra, not a default group — a plain `uv sync` removes pytest,
+ruff and mypy from the environment.)
+
+The experimental `empire_core.storage` package needs the `storage` extra
+(`pip install empire-core[storage]`); the core client does not depend on it.
 
 ## Quick Start
 
@@ -105,16 +111,18 @@ client.alliance.on_chat_message(on_message)
 # Get all castles
 castles = client.castle.get_all()
 
-# Get detailed info
+# Get detailed info (None when the response omits the castle)
 details = client.castle.get_details(castle_id=12345)
-print(f"Buildings: {len(details.buildings)}")
+if details:
+    print(f"Buildings: {len(details.buildings)}")
 
 # Select a castle
 client.castle.select(castle_id=12345)
 
-# Get resources
+# Get resources (None when unavailable)
 resources = client.castle.get_resources(castle_id=12345)
-print(f"Wood: {resources.wood}, Stone: {resources.stone}")
+if resources:
+    print(f"Wood: {resources.wood}, Stone: {resources.stone}")
 ```
 
 ## Map Scanning
@@ -123,7 +131,7 @@ Scan a kingdom for castles, outposts, capitals, etc. A full scan uses BFS
 discovery from your castle's position and can take a few minutes:
 
 ```python
-from empire_core.protocol.models.map import Kingdom, MapItemType
+from empire_core import Kingdom, MapItemType
 
 result = client.scan_kingdom(Kingdom.GREEN, item_types=[MapItemType.CASTLE])
 print(f"{len(result.items)} items, {len(result.failed_chunks)} failed chunks")
@@ -184,7 +192,7 @@ returning `None` — so a timeout, a dropped connection, and a server-side
 rejection are distinguishable. All inherit from `EmpireError`.
 
 ```python
-from empire_core.exceptions import CommandError, EmpireTimeoutError, ConnectionClosedError
+from empire_core import CommandError, EmpireTimeoutError, ConnectionClosedError
 
 try:
     castles = client.castle.get_all()

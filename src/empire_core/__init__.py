@@ -26,7 +26,7 @@ from empire_core.exceptions import (
     NetworkError,
     PacketError,
 )
-from empire_core.pool import AccountPool
+from empire_core.pool import AccountPool, PoolExhaustedError
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models.alliance import AllianceInfo, AllianceMember
 from empire_core.protocol.models.castle import CastleInfo
@@ -40,6 +40,7 @@ from empire_core.state.models import Alliance, Building, Castle, Player, Resourc
 from empire_core.state.world_models import Movement, MovementResources
 from empire_core.utils.enums import KingdomType, MapObjectType, MovementType
 from empire_core.utils.events import GameEvent
+from empire_core.utils.troops import get_troop_ids, troop_data_available
 
 try:
     __version__ = version(__package__ or "empire-core")
@@ -64,6 +65,7 @@ __all__ = [
     "EmpireTimeoutError",
     "CommandError",
     "GGEError",
+    "PoolExhaustedError",
     # State models (live game state for the logged-in account)
     "Player",
     "Castle",
@@ -95,4 +97,6 @@ __all__ = [
     # Helpers
     "decode_chat_text",
     "encode_chat_text",
+    "troop_data_available",
+    "get_troop_ids",
 ]
