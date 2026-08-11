@@ -546,6 +546,25 @@ class TestAllianceSearch:
         results = client.alliance.search_alliances("HOPE")
         assert [r.name for r in results] == ["Unknown", "Unknown"]
 
+    def test_unparseable_payload_raises_packet_error_not_validation_error(self):
+        # 'L' of the wrong type fails model_validate; the documented parse
+        # failure type of the request contract is PacketError.
+        client = make_client({"hgh": xt_packet("hgh", {"L": "junk"})})
+        with pytest.raises(PacketError):
+            client.alliance.search_alliances("HOPE")
+
+    def test_wrong_typed_entry_is_skipped_not_fatal(self, caplog):
+        # Well-shaped but wrong-typed: a non-numeric AID raises ValidationError
+        # inside from_list; only that entry may be lost.
+        payload = {"L": [[1, 2, ["x", "y"]], self.GOLDEN_HGH["L"][0], 5]}
+        client = make_client({"hgh": xt_packet("hgh", payload)})
+
+        with caplog.at_level(logging.WARNING, logger="empire_core.services.alliance"):
+            results = client.alliance.search_alliances("HOPE")
+
+        assert [r.name for r in results] == ["Knights of HOPE"]
+        assert "Skipped 2/3" in caplog.text
+
 
 class TestAllianceChat:
     def test_send_chat_encodes_special_characters(self):
@@ -604,6 +623,20 @@ class TestAllianceChat:
     def test_chat_handler_is_registered_at_construction(self):
         client = make_client()
         assert client._handlers.get("acm")
+
+    def test_removed_callback_no_longer_receives_messages(self):
+        client = make_client()
+        seen: list[AllianceChatMessageResponse] = []
+        client.alliance.on_chat_message(seen.append)
+
+        client.alliance.remove_chat_message_callback(seen.append)
+        client._on_packet(xt_packet("acm", {"CM": {"PN": "LeaderGuy", "MT": "hi", "PID": 7001}}))
+
+        assert seen == []
+
+    def test_removing_an_unregistered_callback_is_a_no_op(self):
+        client = make_client()
+        client.alliance.remove_chat_message_callback(lambda r: None)
 
 
 class TestAllianceHelp:
@@ -1030,6 +1063,8 @@ class TestSpyFailurePaths:
             {},  # no MSG at all
             {"MSG": []},  # empty batch
             {"MSG": [[]]},  # empty first message
+            {"MSG": "junk"},  # ValidationError inside parse_response
+            {"MSG": [123]},  # entries of the wrong type
         ],
     )
     def test_unusable_sne_payloads_are_rejected(self, no_sleep, sne_payload):
