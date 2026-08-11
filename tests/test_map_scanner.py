@@ -282,6 +282,44 @@ class TestMalformedResponses:
         assert "2/2" in message, f"skipped/total counts missing: {message}"
         assert "unexpected" in message, f"sample entry missing: {message}"
 
+    def test_short_entries_are_not_reported_as_drift(self, caplog):
+        # The live AI array is mostly short entries like [31, 0, 996] — items
+        # with no owner field, skipped by design since long before any of this.
+        # Counting them as drift buries the real signal: a production scan
+        # logged over a thousand "schema drift?" warnings per chunk for a
+        # payload that was entirely normal.
+        fake = _FakeClient(
+            content_chunks=set(),
+            payloads={
+                (1, 1): {
+                    "AI": [[31, 0, 996], [31, 91, 900], [1, 100, 200, 4242]],
+                    "OI": [],
+                }
+            },
+        )
+        with caplog.at_level(logging.DEBUG, logger="empire_core.client.map_scanner"):
+            result = _make_scanner(fake).scan_chunks(
+                kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0
+            )
+
+        assert len(result.items) == 1, "the parseable entry must still be collected"
+        warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert warnings == [], f"short entries reported as drift: {[w.getMessage() for w in warnings]}"
+
+    def test_unparseable_long_entries_still_warn(self, caplog):
+        # A full-width entry that fails to parse is the real drift signal and
+        # must survive the fix above.
+        fake = _FakeClient(
+            content_chunks=set(),
+            payloads={(1, 1): {"AI": [["x", "y", "z", "w"], [31, 0, 996]], "OI": []}},
+        )
+        with caplog.at_level(logging.WARNING, logger="empire_core.client.map_scanner"):
+            _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
+
+        warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert len(warnings) == 1
+        assert "1/2" in warnings[0].getMessage(), warnings[0].getMessage()
+
     def test_skipped_map_objects_counted_in_drift_warning(self, caplog):
         fake = _FakeClient(
             content_chunks=set(),
