@@ -14,6 +14,12 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _truncated_repr(value: object, limit: int = 200) -> str:
+    """repr() capped at ``limit`` characters, for log-safe payload samples."""
+    text = repr(value)
+    return text if len(text) <= limit else text[:limit] + "...(truncated)"
+
+
 class ScanResult(NamedTuple):
     items: list[MapAreaItem]
     objects: dict[int, MapObject]
@@ -129,36 +135,65 @@ class MapScanner:
 
         # Collect matching items. One malformed entry must not cost us the
         # whole chunk (or, in scan_kingdom, every chunk collected so far), so
-        # parse defensively -- and log what was dropped, since silently
-        # skipping entries would hide a server-side schema change behind
-        # quietly incomplete scans.
+        # parse defensively -- but count and report what was dropped: if the
+        # server reshapes these entries, every chunk would otherwise come
+        # back ok=True with zero items, and the schema drift would hide
+        # behind a "successful" empty scan. Per-entry detail stays at debug;
+        # each chunk with skips gets one warning with counts and a sample.
+        skipped_objects = 0
+        skipped_items = 0
+        sample: object = None
+
         for raw_obj in oi_array:
-            if isinstance(raw_obj, dict):
-                try:
-                    obj = MapObject.model_validate(raw_obj)
-                except Exception as e:
-                    logger.debug(f"Chunk ({cx}, {cy}): skipping invalid map object {raw_obj!r}: {e}")
-                    continue
-                oid = obj.resolved_owner_id
-                if oid:
-                    collected_objects[oid] = obj
+            if not isinstance(raw_obj, dict):
+                skipped_objects += 1
+                sample = raw_obj if sample is None else sample
+                logger.debug(f"Chunk ({cx}, {cy}): skipping malformed map object {raw_obj!r}")
+                continue
+            try:
+                obj = MapObject.model_validate(raw_obj)
+            except Exception as e:
+                skipped_objects += 1
+                sample = raw_obj if sample is None else sample
+                logger.debug(f"Chunk ({cx}, {cy}): skipping invalid map object {raw_obj!r}: {e}")
+                continue
+            oid = obj.resolved_owner_id
+            if oid:
+                collected_objects[oid] = obj
 
         for raw_item in ai_array:
-            if isinstance(raw_item, list) and len(raw_item) >= 4:
-                try:
-                    item = MapAreaItem.from_list(raw_item)
-                except Exception as e:
-                    logger.debug(f"Chunk ({cx}, {cy}): skipping invalid map item {raw_item!r}: {e}")
-                    continue
+            if not (isinstance(raw_item, list) and len(raw_item) >= 4):
+                skipped_items += 1
+                sample = raw_item if sample is None else sample
+                logger.debug(f"Chunk ({cx}, {cy}): skipping malformed map item {raw_item!r}")
+                continue
+            try:
+                item = MapAreaItem.from_list(raw_item)
+            except Exception as e:
+                skipped_items += 1
+                sample = raw_item if sample is None else sample
+                logger.debug(f"Chunk ({cx}, {cy}): skipping invalid map item {raw_item!r}: {e}")
+                continue
 
-                # filter_types is None only when the caller disabled filtering
-                if filter_types is None or item.item_type in filter_types:
-                    # Skip unowned items unless their type is explicitly included
-                    if item.owner_id == -1 and (
-                        include_unowned_types is None or item.item_type not in include_unowned_types
-                    ):
-                        continue
-                    collected_items.append(item)
+            # filter_types is None only when the caller disabled filtering
+            if filter_types is None or item.item_type in filter_types:
+                # Skip unowned items unless their type is explicitly included
+                if item.owner_id == -1 and (
+                    include_unowned_types is None or item.item_type not in include_unowned_types
+                ):
+                    continue
+                collected_items.append(item)
+
+        if skipped_items or skipped_objects:
+            parts = []
+            if skipped_items:
+                parts.append(f"{skipped_items}/{len(ai_array)} map items")
+            if skipped_objects:
+                parts.append(f"{skipped_objects}/{len(oi_array)} map objects")
+            logger.warning(
+                f"Chunk ({cx}, {cy}): skipped {' and '.join(parts)} that did not parse "
+                f"(server schema drift?); sample: {_truncated_repr(sample)}"
+            )
 
         return _ChunkResult(ok=True, has_content=has_content)
 
