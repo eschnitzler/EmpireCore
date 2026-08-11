@@ -6,6 +6,7 @@ protocol layer parses bytes we do not control, so each case is written as
 """
 
 import xml.etree.ElementTree as ET
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -25,8 +26,11 @@ def _castle_entry(
     x: int,
     y: int,
     castle_id: int = 900,
-    player_id: int = 4242,
-    relocating: int = 0,
+    # Deliberately untyped: several tests pass values the server would never
+    # send (a string player id, a missing flag) to pin how drifted entries are
+    # handled, so this helper has to be able to build malformed entries too.
+    player_id: Any = 4242,
+    relocating: Any = 0,
 ) -> list:
     """A 20-field gaa type-1 (CASTLE) entry as the live server sends it.
 

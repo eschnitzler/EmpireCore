@@ -375,9 +375,18 @@ class FakeClient:
         self.is_logged_in = False
 
 
-class FakeRegistry:
+class FakeRegistry(AccountRegistry):
+    """A registry with a fixed account list and no file or environment sources.
+
+    Subclasses the real registry rather than duck-typing it so the injection
+    point stays type-checked: if AccountPool ever needs more of the registry
+    API, that shows up here instead of only at runtime.
+    """
+
     def __init__(self, accounts: list[Account]):
+        super().__init__()
         self._accounts = accounts
+        self._loaded = True
 
     def get_all(self) -> list[Account]:
         return self._accounts
