@@ -89,9 +89,10 @@ that is absent says nothing at all and leaves existing state alone:
 
 On relogin, existing `Player`/`Castle` objects are updated in place (identity
 preserved) rather than replaced, so references held by user code stay live. The
-`Player` field merge is applied as a **single atomic swap** of the field
-mapping, so a reader can never observe a half-merged player (the new name
-against the old level).
+`Player` and `Castle` field merges are applied as a **single atomic swap** of
+the field mapping, so a reader can never observe a half-merged player (the new
+name against the old level) or a castle mid-relocation (the new X against the
+old Y).
 
 The *containers* work the other way round — they are rebuilt and swapped, not
 mutated. Each update replaces `local_player.inventory` and
@@ -131,11 +132,23 @@ State changes that matter for automation are surfaced as callbacks, not
 per-property observers. Register them on `client.state`:
 
 ```python
-def alert(movement):
+def alert(movement):                      # incoming attacks receive the Movement
     print(f"Incoming attack {movement.MID} from {movement.source_player_name}")
 
-client.state.on_incoming_attack(alert)   # also: on_movement_arrived, on_movement_recalled
+def arrived(movement_id, movement):       # arrival/recall: id + Movement (or None)
+    print(f"Movement {movement_id} arrived: {movement}")
+
+client.state.on_incoming_attack(alert)
+client.state.on_movement_arrived(arrived)   # likewise on_movement_recalled
 ```
+
+The signatures differ per event. `on_incoming_attack` callbacks take the
+`Movement`. `on_movement_arrived` / `on_movement_recalled` callbacks take
+either just the movement id (`def cb(movement_id): ...`) or the id plus the
+`Movement` that was removed from state — prefer the two-argument form: the
+movement is already gone from state when the callback runs, so the id alone
+cannot be resolved (`movement` is `None` only for movements this state never
+tracked, e.g. arrivals during a disconnect window).
 
 `on_incoming_attack` fires **once** per newly seen hostile attack (not on every
 `gam` refresh, and not for the local player's own outgoing attacks). Callbacks
@@ -148,3 +161,7 @@ request more data) without stalling the receive loop. See
 `empire_core.storage.database` provides an experimental async SQLite store for
 persisting discovered map objects and player snapshots across restarts. It is
 not yet wired into the client.
+
+Its dependencies (`sqlmodel`, `aiosqlite`) are not installed by default:
+importing `empire_core.storage` without the `storage` extra
+(`pip install empire-core[storage]`) raises an ImportError explaining this.
