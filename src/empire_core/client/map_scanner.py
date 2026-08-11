@@ -58,6 +58,7 @@ class MapScanner:
         collected_items: list[MapAreaItem],
         collected_objects: dict[int, MapObject],
         request_timeout: float,
+        include_unowned_types: set[MapItemType] | None = None,
     ) -> _ChunkResult:
         """
         Request a single chunk and process the response.
@@ -113,8 +114,10 @@ class MapScanner:
 
                 # Apply filter (None = collect all)
                 if filter_types is None or item.item_type in filter_types:
-                    # Skip unowned items (empty locations, unplaced flags, etc)
-                    if item.owner_id == -1:
+                    # Skip unowned items unless their type is explicitly included
+                    if item.owner_id == -1 and (
+                        include_unowned_types is None or item.item_type not in include_unowned_types
+                    ):
                         continue
                     collected_items.append(item)
 
@@ -127,6 +130,7 @@ class MapScanner:
         timeout: float = 300.0,
         request_timeout: float = 5.0,
         chunk_delay: float = 0.2,
+        include_unowned_types: set[MapItemType] | None = None,
     ) -> ScanResult:
         """
         Scan a kingdom map with dynamic boundary detection.
@@ -194,7 +198,14 @@ class MapScanner:
 
             # Process this chunk
             result = self._process_chunk(
-                cx, cy, kingdom, filter_types, collected_items, collected_objects, request_timeout
+                cx,
+                cy,
+                kingdom,
+                filter_types,
+                collected_items,
+                collected_objects,
+                request_timeout,
+                include_unowned_types=include_unowned_types,
             )
 
             if not result.ok:
