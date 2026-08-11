@@ -162,7 +162,14 @@ class MapScanner:
                 collected_objects[oid] = obj
 
         for raw_item in ai_array:
-            if not (isinstance(raw_item, list) and len(raw_item) >= 4):
+            # Short entries are normal, not drift: most of a live AI array is
+            # entries like [31, 0, 996] carrying no owner field, and they have
+            # always been skipped here. Counting them as suspected drift buried
+            # the real signal under a thousand warnings per chunk.
+            if isinstance(raw_item, list) and len(raw_item) < 4:
+                logger.debug(f"Chunk ({cx}, {cy}): skipping short map item {raw_item!r}")
+                continue
+            if not isinstance(raw_item, list):
                 skipped_items += 1
                 sample = raw_item if sample is None else sample
                 logger.debug(f"Chunk ({cx}, {cy}): skipping malformed map item {raw_item!r}")
