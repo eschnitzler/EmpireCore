@@ -602,9 +602,17 @@ class EmpireClient:
         timeout: float = 300.0,
         request_timeout: float = 5.0,
         chunk_delay: float = 0.2,
+        include_unowned_types: set[MapItemType] | None = None,
     ):
         """Scan a kingdom map. See MapScanner.scan_kingdom."""
-        return MapScanner(self).scan_kingdom(kingdom, item_types, timeout, request_timeout, chunk_delay)
+        return MapScanner(self).scan_kingdom(
+            kingdom,
+            item_types,
+            timeout,
+            request_timeout,
+            chunk_delay,
+            include_unowned_types=include_unowned_types,
+        )
 
     def scan_chunks(
         self,
