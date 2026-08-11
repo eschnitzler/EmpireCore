@@ -1,6 +1,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/pydantic-v2-purple.svg" alt="Pydantic v2">
+  <img src="https://img.shields.io/badge/typed-py.typed-brightgreen.svg" alt="PEP 561 typed">
   <img src="https://img.shields.io/badge/tool-uv-orange.svg" alt="UV">
   <img src="https://img.shields.io/badge/status-WIP-red.svg" alt="Work in Progress">
 </p>
@@ -8,126 +9,167 @@
 <h1 align="center">EmpireCore</h1>
 
 <p align="center">
-  <strong>Fully typed Python library for Goodgame Empire</strong>
+  <strong>A fully typed Python client for Goodgame Empire</strong>
 </p>
 
 <p align="center">
-  <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#services">Services</a> •
+  <a href="#game-state">Game State</a> •
+  <a href="#map-scanning">Map Scanning</a> •
+  <a href="#error-handling">Errors</a> •
   <a href="#contributing">Contributing</a>
 </p>
 
 ---
 
-> **Warning: Work in Progress**
-> 
-> This library is under active development. APIs may change, and some features are incomplete or untested.
+> [!WARNING]
+> **Work in progress.** This is a `0.x` library: every **minor** release may
+> break API, and breaking changes are called out in
+> [CHANGELOG.md](CHANGELOG.md). Pin a minor line (`empire-core>=0.30,<0.31`).
 
 ---
 
-## Features
+## What you get
 
-| Category | Description |
-|----------|-------------|
-| **Connection** | Synchronous WebSocket with a background receive thread and keepalive |
-| **Protocol Models** | Pydantic models for all GGE commands with type-safe request/response handling |
-| **Services** | High-level APIs for alliance, castle, and more - auto-attached to client |
-| **State Tracking** | Player, castles, resources, movements |
+| | |
+|---|---|
+| **Typed end to end** | Pydantic v2 models for every command, and a `py.typed` marker so your type checker actually sees them |
+| **Honest failures** | Typed exceptions from a single `EmpireError` base — no leaked pydantic or socket errors, and no empty list that secretly means "the request failed" |
+| **Thread-safe state** | A background thread applies server pushes while your code reads consistent snapshots |
+| **High-level services** | `client.alliance`, `client.castle`, `client.army`, `client.lords`, `client.ranking`, `client.spy` |
+| **Map scanning** | BFS kingdom discovery with cheap, targeted re-scans |
+| **Multi-account** | A pool that leases one logged-in client per account |
 
 ## Installation
 
 ```bash
-# Using uv (recommended)
-uv add empire-core
-
-# Or with pip
-pip install empire-core
+uv add empire-core        # or: pip install empire-core
 ```
 
-For development:
+The experimental persistence layer needs an extra:
+
+```bash
+pip install "empire-core[storage]"
+```
+
+<details>
+<summary><strong>Developing on the library itself</strong></summary>
 
 ```bash
 git clone https://github.com/eschnitzler/EmpireCore.git
 cd EmpireCore
-uv sync --extra dev
+uv sync --extra dev     # `dev` is an extra, not a default group:
+                        # a plain `uv sync` leaves you without pytest/ruff/mypy
+uv run pytest
 ```
 
-(`dev` is an extra, not a default group — a plain `uv sync` removes pytest,
-ruff and mypy from the environment.)
-
-The experimental `empire_core.storage` package needs the `storage` extra
-(`pip install empire-core[storage]`); the core client does not depend on it.
+</details>
 
 ## Quick Start
 
 ```python
 from empire_core import EmpireClient
 
-client = EmpireClient(username="your_user", password="your_pass")
-client.login()
+# The context manager disconnects and shuts the state worker down on any exit.
+with EmpireClient(username="your_user", password="your_pass") as client:
+    client.login()
 
-# Services are auto-attached to the client
-client.alliance.send_chat("Hello alliance!")
-client.alliance.help_all()
+    client.alliance.send_chat("Hello alliance!")
 
-castles = client.castle.get_all()
-for c in castles:
-    print(f"{c.castle_name} at ({c.x}, {c.y})")
-
-client.close()
+    for castle in client.castle.get_all():
+        print(f"{castle.castle_name} at ({castle.x}, {castle.y})")
 ```
+
+Without the `with` block, call `client.close()` yourself — skipping it leaks the
+receive thread and the state executor for the life of the process.
 
 ## Services
 
-Services provide high-level APIs and are automatically attached to the client.
+Services are attached to the client automatically; there is nothing to wire up.
 
-### AllianceService (`client.alliance`)
+### `client.alliance`
 
 ```python
-# Send chat message
 client.alliance.send_chat("Hello!")
+client.alliance.help_all()
 
-# Get chat history
-history = client.alliance.get_chat_log()
-for entry in history:
+for entry in client.alliance.get_chat_log():
     print(f"{entry.player_name}: {entry.decoded_text}")
 
-# Help all members
-response = client.alliance.help_all()
-print(f"Helped {response.helped_count} members")
-
-# Subscribe to incoming messages
-def on_message(msg):
-    print(f"[{msg.player_name}] {msg.decoded_text}")
-
-client.alliance.on_chat_message(on_message)
+# Typed push subscription (detach again with remove_chat_message_callback)
+client.alliance.on_chat_message(lambda msg: print(msg.decoded_text))
 ```
 
-### CastleService (`client.castle`)
+### `client.castle`
 
 ```python
-# Get all castles
 castles = client.castle.get_all()
 
-# Get detailed info (None when the response omits the castle)
 details = client.castle.get_details(castle_id=12345)
-if details:
+if details:                       # None when the response omits the castle
     print(f"Buildings: {len(details.buildings)}")
 
-# Select a castle
-client.castle.select(castle_id=12345)
-
-# Get resources (None when unavailable)
 resources = client.castle.get_resources(castle_id=12345)
 if resources:
     print(f"Wood: {resources.wood}, Stone: {resources.stone}")
 ```
 
+Also available: `client.army`, `client.lords`, `client.ranking` and
+`client.spy`.
+
+## Game State
+
+A background thread applies server pushes to `client.state` while your code
+reads it. Read through the accessors rather than touching the containers: each
+one takes the state lock and returns a snapshot, so nothing changes underneath
+you mid-iteration.
+
+```python
+player = client.state.get_local_player()      # None until login completes
+castles = client.state.get_castles()
+attacks = client.state.get_incoming_attacks()
+inventory = client.state.get_inventory()
+```
+
+### Knowing whether state is fresh
+
+Not every field is refreshed by every packet. Castle resources and units are
+often populated once at login and never again unless you ask — so state can be
+stale without being wrong. Check before trusting it:
+
+```python
+if client.state.get_castle_last_updated(castle_id) is None:
+    # Never refreshed: resources and units are defaults, not measurements.
+    client.castle.get_details(castle_id)
+```
+
+### Reacting to movements
+
+```python
+def on_attack(movement):
+    print(f"{movement.troop_count} troops from {movement.source_player_name}, "
+          f"{movement.time_remaining}s out")
+
+def on_arrived(movement_id, movement):
+    print(f"{movement_id} arrived: {movement}")
+
+client.state.on_incoming_attack(on_attack)
+client.state.on_movement_arrived(on_arrived)
+```
+
+Arrival and recall callbacks also accept a single-argument `(movement_id)`
+form, but the movement is removed from state before they run, so the id alone
+can no longer be resolved — prefer the two-argument form above.
+
+> [!TIP]
+> [`docs/design/state_management.md`](docs/design/state_management.md) documents
+> the object-identity and freshness rules in full.
+
 ## Map Scanning
 
-Scan a kingdom for castles, outposts, capitals, etc. A full scan uses BFS
+Scan a kingdom for castles, outposts and capitals. A full scan uses BFS
 discovery from your castle's position and can take a few minutes:
 
 ```python
@@ -141,97 +183,132 @@ print(f"{len(result.items)} items, {len(result.failed_chunks)} failed chunks")
 connections that sustain a high request rate, so don't lower it for
 long-running scans unless you know the server tolerates it.
 
-**Re-scanning cheaply**: `result.content_chunks` lists the chunks that
-contained items. Feed it back into `scan_chunks()` to re-scan a known
-region without paying for BFS discovery of the empty boundary again
-(roughly a third fewer requests). Run a full `scan_kingdom()` periodically
-to pick up content that appeared in previously-empty chunks:
+> [!IMPORTANT]
+> Always check `failed_chunks`. A partial scan is not an empty kingdom, and
+> only this field tells them apart.
+
+**Re-scanning cheaply.** `result.content_chunks` lists the chunks that held
+items. Feed it back into `scan_chunks()` to re-scan a known region without
+paying for BFS discovery again (roughly a third fewer requests), and run a full
+`scan_kingdom()` periodically to pick up content in previously-empty chunks:
 
 ```python
-# Discovery scan (expensive, occasionally)
 discovery = client.scan_kingdom(Kingdom.GREEN, item_types=[MapItemType.CASTLE])
 
-# Targeted re-scans (cheap, frequently)
 fresh = client.scan_chunks(
     Kingdom.GREEN, list(discovery.content_chunks), item_types=[MapItemType.CASTLE]
 )
 ```
 
-For very frequent scans, split `content_chunks` across multiple logged-in
-accounts (e.g. interleaved slices `chunks[i::n]`) and run the
-`scan_chunks()` calls concurrently — per-account request rate is what the
-server rate-limits.
+For very frequent scans, split `content_chunks` across several logged-in
+accounts (interleaved slices `chunks[i::n]`) and run the `scan_chunks()` calls
+concurrently — per-account request rate is what the server limits.
+
+## Multiple Accounts
+
+`AccountPool` hands out one logged-in client per account and refuses to lease
+the same account twice. Prefer `leased()`: it releases the account and closes
+the client even if your code raises.
+
+```python
+from empire_core import AccountPool, PoolExhaustedError
+
+pool = AccountPool()
+try:
+    with pool.leased(tag="scanning") as client:
+        result = client.scan_kingdom()
+except PoolExhaustedError:
+    ...   # no candidate account was free
+```
+
+Accounts come from `accounts.json` plus every `EMPIRE_ACCOUNT_*` environment
+variable. A `.env` file is read only if you opt in with
+`accounts.load(load_env_file=True)` — importing the library never mutates your
+environment. See [`examples/account_pool.py`](examples/account_pool.py).
+
+> [!CAUTION]
+> `accounts.json` holds passwords in plain text. Keep it out of version control
+> and `chmod 600` it; the library warns when it is group- or world-readable.
 
 ## Protocol Models
 
-For lower-level access, use protocol models directly:
+For lower-level access, use the protocol models directly:
 
 ```python
 from empire_core.protocol.models import (
     AllianceChatMessageRequest,
     GetCastlesRequest,
-    parse_response,
 )
 
-# Build a request
 request = AllianceChatMessageRequest.create("Hello 100%!")
 packet = request.to_packet()
 # -> "%xt%EmpireEx_21%acm%1%{"M": "Hello 100&percnt;!"}%"
 
-# Fire-and-forget (no response awaited)
-client.send(request)
-
-# Or wait for and parse the response
-response = client.send(GetCastlesRequest(), wait=True)
+client.send(request)                        # fire and forget
+response = client.send(GetCastlesRequest(), wait=True)   # or await the reply
 ```
 
 ## Error Handling
 
-Calls that wait for a response raise typed exceptions on failure instead of
-returning `None` — so a timeout, a dropped connection, and a server-side
-rejection are distinguishable. All inherit from `EmpireError`.
+Calls that wait for a response raise typed exceptions instead of returning
+`None`, so a timeout, a dropped connection and a server-side rejection are
+distinguishable. All inherit from `EmpireError`.
 
 ```python
-from empire_core import CommandError, EmpireTimeoutError, ConnectionClosedError
+from empire_core import CommandError, ConnectionClosedError, EmpireTimeoutError
 
 try:
     castles = client.castle.get_all()
 except CommandError as e:
-    # Server answered with a non-zero error code
-    print(f"rejected: {e.command} code {e.code}")
+    print(f"rejected: {e.command} code {e.code}")   # non-zero server error code
 except EmpireTimeoutError:
-    # No response within the timeout
-    ...
+    ...                                             # no response in time
 except ConnectionClosedError:
-    # Connection dropped while waiting
-    ...
+    ...                                             # dropped while waiting
 ```
 
-`EmpireTimeoutError` also subclasses the builtin `TimeoutError`, so
-`except TimeoutError` works too. Action helpers (e.g. `client.castle.select()`)
-return `bool` — `False` means the server rejected the action, while transport
-failures still raise.
+`EmpireTimeoutError` also subclasses the builtin `TimeoutError`. Action helpers
+(e.g. `client.castle.select()`) return `bool` — `False` means the server
+rejected the action, while transport failures still raise.
+
+Two more you will meet: **`NetworkError`** from `connect()` and the CDN-backed
+helpers, and **`PacketError`** when a response cannot be parsed. Catching
+`EmpireError` covers every one of them — the library does not leak
+`pydantic.ValidationError` or raw socket exceptions past its own API.
+
+An empty collection therefore always means "nothing there", never "the lookup
+failed": `get_active_events()` and `get_troop_ids()` raise on a CDN outage
+rather than return empty. Where an exact answer depends on data that may be
+missing, ask first:
+
+```python
+from empire_core import troop_data_available
+
+if not troop_data_available():
+    ...   # troop counts would include equipment; treat them as approximate
+```
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for:
-
-- Adding new protocol commands
-- Creating new services
-- Protocol model conventions
-- Testing guidelines
+See [CONTRIBUTING.md](CONTRIBUTING.md) for adding protocol commands and
+services, model conventions, and testing guidelines.
 
 ## Architecture
 
 ```
 empire_core/
-├── client/          # EmpireClient - main entry point
+├── client/          # EmpireClient — main entry point, map scanner
+├── network/         # WebSocket connection, receive loop, redaction
 ├── protocol/
-│   └── models/      # Pydantic models for GGE commands
-├── services/        # High-level service APIs
-├── state/           # Game state models
-└── network/         # WebSocket connection
+│   ├── models/      # Pydantic request/response models per command
+│   └── packet.py    # Low-level frame parsing
+├── services/        # High-level APIs attached to the client
+├── state/           # Thread-safe game state and world models
+├── storage/         # Experimental persistence (optional extra)
+└── utils/           # Enums, CDN-backed event and troop data
 ```
+
+Design notes live in [`docs/design/`](docs/design/).
 
 ---
 
