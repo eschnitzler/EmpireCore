@@ -120,3 +120,48 @@ def test_storage_imports_when_extra_is_present() -> None:
     from empire_core.storage.database import GameDatabase
 
     assert GameDatabase is not None
+
+
+REPO_ROOT = SRC_DIR.parent
+
+
+def _load_toml(path: Path) -> dict:
+    tomllib = pytest.importorskip("tomllib", reason="requires Python 3.11+")
+    return tomllib.loads(path.read_text())
+
+
+@pytest.mark.skipif(not (REPO_ROOT / "uv.lock").is_file(), reason="not running from a source checkout")
+def test_lockfile_records_the_current_project_version() -> None:
+    """uv.lock's entry for this project must match pyproject's version.
+
+    semantic-release bumps only ``pyproject.toml:project.version``, so unless the
+    release also refreshes the lock, uv.lock keeps the *previous* version and
+    ``uv lock --check`` / ``uv sync --locked`` fail on a fresh clone. Master drifted
+    two releases behind this way before it was caught.
+    """
+    project = _load_toml(REPO_ROOT / "pyproject.toml")["project"]
+    lock = _load_toml(REPO_ROOT / "uv.lock")
+
+    locked = [pkg for pkg in lock["package"] if pkg["name"] == project["name"]]
+    assert locked, f"{project['name']} has no entry in uv.lock"
+    assert locked[0]["version"] == project["version"], (
+        f"uv.lock records {project['name']} {locked[0]['version']} but pyproject says "
+        f"{project['version']} — run `uv lock`"
+    )
+
+
+@pytest.mark.skipif(not (REPO_ROOT / "pyproject.toml").is_file(), reason="not running from a source checkout")
+def test_release_refreshes_and_commits_the_lockfile() -> None:
+    """The release must re-lock and carry uv.lock, or the drift above returns.
+
+    build_command runs before semantic-release stages its changes, and only paths
+    listed in ``assets`` are added alongside the version bump.
+    """
+    config = _load_toml(REPO_ROOT / "pyproject.toml")["tool"]["semantic_release"]
+
+    assert "uv lock" in config["build_command"], (
+        "build_command must re-lock after the version bump, otherwise uv.lock keeps the previous version"
+    )
+    assert "uv.lock" in config.get("assets", []), (
+        "uv.lock must be in semantic_release assets, otherwise the refreshed lock is never committed with the release"
+    )
