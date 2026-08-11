@@ -579,8 +579,12 @@ class EmpireClient:
             force_refresh: Force re-fetch of CDN data, bypassing the cache.
 
         Returns:
-            List of GameEvent objects for currently active events.
-            Empty list if no events are active or CDN fetch fails.
+            List of GameEvent objects for currently active events. An empty
+            list always means "no events are active" — CDN failures raise.
+
+        Raises:
+            NetworkError: The CDN fetch failed and no cached data exists, so
+                the answer is unknown rather than empty.
 
         Example:
             events = client.get_active_events()

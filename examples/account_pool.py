@@ -8,7 +8,9 @@ manual lease/release pair only does if you write the ``try/finally`` yourself.
 Accounts come from an AccountRegistry. Either point one at a file explicitly, as
 below, or let the pool fall back to the process-wide default registry, which
 reads ``accounts.json`` from the working directory plus every
-``EMPIRE_ACCOUNT_*`` environment variable.
+``EMPIRE_ACCOUNT_*`` environment variable. A ``.env`` file is NOT read unless
+you opt in with ``registry.load(load_env_file=True)`` — importing empire_core
+no longer mutates the process environment as a side effect.
 
 ``accounts.json`` holds passwords in plain text: keep it out of version control
 and ``chmod 600`` it.
@@ -19,9 +21,8 @@ and ``chmod 600`` it.
 import logging
 import sys
 
-from empire_core import AccountPool, EmpireError, LoginError
+from empire_core import AccountPool, EmpireError, LoginError, PoolExhaustedError
 from empire_core.accounts import AccountRegistry
-from empire_core.pool import PoolExhaustedError
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logging.getLogger("websocket").setLevel(logging.WARNING)
