@@ -172,6 +172,12 @@ class GameState:
     # ----------------------------------------------------------------
     # Callback registration helpers
     # ----------------------------------------------------------------
+    # Registration and removal happen on user threads while the receive
+    # thread iterates the listener lists, so every access goes through
+    # self._lock — CPython's per-op atomicity is not a guarantee to build
+    # on and does not hold on free-threaded builds. The dispatch paths
+    # iterate a snapshot taken under the lock; the callbacks themselves run
+    # on the thread pool, outside it.
 
     def on_incoming_attack(self, callback: Callable[[Movement], None]) -> None:  # type: ignore[misc]
         """Register a callback for new hostile attack movements.
@@ -180,11 +186,13 @@ class GameState:
         outgoing attack (i.e. attacks on you or on alliance members the
         server pushes gam updates for).
         """
-        self._incoming_attack_callbacks.append(callback)
+        with self._lock:
+            self._incoming_attack_callbacks.append(callback)
 
     def remove_incoming_attack_callback(self, callback: Callable[[Movement], None]) -> None:
         """Unregister an incoming attack callback."""
-        self._incoming_attack_callbacks.remove(callback)
+        with self._lock:
+            self._incoming_attack_callbacks.remove(callback)
 
     def on_movement_recalled(self, callback: MovementEventCallback) -> None:  # type: ignore[misc]
         """Register a callback for recalled movements.
@@ -194,11 +202,14 @@ class GameState:
             def on_recalled(movement_id: int) -> None: ...
             def on_recalled(movement_id: int, movement: Movement | None) -> None: ...
         """
-        self._movement_recalled_callbacks.append((callback, self._accepts_movement(callback)))
+        entry = (callback, self._accepts_movement(callback))
+        with self._lock:
+            self._movement_recalled_callbacks.append(entry)
 
     def remove_movement_recalled_callback(self, callback: MovementEventCallback) -> None:
         """Unregister a movement recalled callback."""
-        self._remove_listener(self._movement_recalled_callbacks, callback)
+        with self._lock:
+            self._remove_listener(self._movement_recalled_callbacks, callback)
 
     def on_movement_arrived(self, callback: MovementEventCallback) -> None:  # type: ignore[misc]
         """Register a callback for arrived movements.
@@ -216,11 +227,14 @@ class GameState:
         only when the arrival packet refers to a movement this state never
         tracked (e.g. it arrived during a disconnect window).
         """
-        self._movement_arrived_callbacks.append((callback, self._accepts_movement(callback)))
+        entry = (callback, self._accepts_movement(callback))
+        with self._lock:
+            self._movement_arrived_callbacks.append(entry)
 
     def remove_movement_arrived_callback(self, callback: MovementEventCallback) -> None:
         """Unregister a movement arrived callback."""
-        self._remove_listener(self._movement_arrived_callbacks, callback)
+        with self._lock:
+            self._remove_listener(self._movement_arrived_callbacks, callback)
 
     @staticmethod
     def _accepts_movement(callback: Callable[..., Any]) -> bool:
@@ -261,7 +275,9 @@ class GameState:
         mov: Movement | None,
     ) -> None:
         """Fire arrival/recall listeners, passing the Movement to those that want it."""
-        for callback, wants_movement in list(listeners):
+        with self._lock:
+            snapshot = list(listeners)
+        for callback, wants_movement in snapshot:
             if wants_movement:
                 self._dispatch_callback(callback, mid, mov)
             else:
@@ -273,11 +289,8 @@ class GameState:
 
     def _handle_gbd(self, data: dict[str, Any]) -> None:
         """Handle 'Get Big Data' packet — initial login data."""
-        self._parse_player_info(data)
-        self._parse_xp(data)
-        self._parse_currencies(data)
+        self._parse_player_sections(data)
         self._parse_inventory(data)
-        self._parse_vip(data)
         self._parse_alliance_info(data)
         self._parse_castles(data)
         if dcl := data.get("dcl"):
@@ -301,60 +314,84 @@ class GameState:
                 if section in _PLAYER_SECTIONS and self.local_player is not None:
                     self._player_updated_at = now
 
-    def _parse_player_info(self, data: dict[str, Any]) -> None:
-        """Parse player identity from gpi sub-packet."""
-        gpi = data.get("gpi", {})
-        if not gpi:
-            return
-        pid = gpi.get("PID")
-        if pid is None:
-            return
-        existing = self.players.get(pid)
-        if existing is None:
-            self.players[pid] = Player(**gpi)
-        else:
-            # Merge fresh data into the existing object so references held
-            # by user code see the update (identity-map behavior).
-            self._merge_player(existing, Player(**gpi))
-        self.local_player = self.players[pid]
-        logger.debug(f"Local player: {self.local_player.name} (ID: {pid})")
-
-    @staticmethod
-    def _merge_player(existing: Player, fresh: Player) -> None:
-        """Apply the fields `fresh` explicitly set onto `existing`, atomically.
+    def _parse_player_sections(self, data: dict[str, Any]) -> None:
+        """Parse the gpi/gxp/gcu/vip sub-packets as ONE atomic player update.
 
         `local_player` is handed out to user code and read without the lock,
         so a field-by-field merge would let a reader observe a half-merged
-        player (new name, old level). The complete field mapping is built
-        first and swapped in with a single store — the same mechanism
-        pydantic's own `model_construct` uses — which keeps the identity-map
-        behavior (references held by user code stay live) while never
-        exposing an intermediate state.
+        player. A re-login gbd spreads its fields across sections (identity
+        in gpi, level/XP in gxp, currency in gcu, VIP in vip), so merging
+        gpi atomically but editing the other sections' fields one at a time
+        would still expose "new name, old level". The complete field mapping
+        is therefore built across *all* sections first and swapped in with a
+        single store (see :meth:`_swap_model_fields`), which keeps the
+        identity-map behavior — references held by user code stay live —
+        while never exposing an intermediate state.
+
+        gxp, gcu and vip are partial updates: a key they omit keeps its
+        previous value (this packet's gpi value if it carried one, else the
+        existing state) rather than resetting to zero.
         """
-        updated = fresh.model_fields_set & set(Player.model_fields)
-        merged = dict(existing.__dict__)
-        for field_name in updated:
-            merged[field_name] = getattr(fresh, field_name)
-        object.__setattr__(existing, "__dict__", merged)
-        existing.__pydantic_fields_set__.update(updated)
+        fresh: Player | None = None
+        pid = None
+        player = self.local_player
+        gpi = data.get("gpi", {})
+        if gpi:
+            pid = gpi.get("PID")
+            if pid is not None:
+                player = self.players.get(pid)
+                if player is None:
+                    player = Player(**gpi)
+                else:
+                    fresh = Player(**gpi)
+        if player is None:
+            return
 
-    def _parse_xp(self, data: dict[str, Any]) -> None:
-        """Parse XP and level from gxp sub-packet."""
-        gxp = data.get("gxp", {})
-        if self.local_player and gxp:
-            self.local_player.LVL = gxp.get("LVL", self.local_player.LVL)
-            self.local_player.XP = gxp.get("XP", self.local_player.XP)
+        merged = dict(player.__dict__)
+        updated: set[str] = set()
 
-    def _parse_currencies(self, data: dict[str, Any]) -> None:
-        """Parse gold and rubies from gcu sub-packet.
+        if fresh is not None:
+            gpi_fields = fresh.model_fields_set & set(Player.model_fields)
+            for field_name in gpi_fields:
+                merged[field_name] = getattr(fresh, field_name)
+            updated |= gpi_fields
 
-        A gcu that omits a key is a partial update, not "you now have 0" —
-        previous values are preserved, as _parse_xp does.
+        if gxp := data.get("gxp", {}):
+            merged["LVL"] = gxp.get("LVL", merged["LVL"])
+            merged["XP"] = gxp.get("XP", merged["XP"])
+            updated |= {"LVL", "XP"}
+
+        if gcu := data.get("gcu", {}):
+            merged["gold"] = gcu.get("C1", merged["gold"])
+            merged["rubies"] = gcu.get("C2", merged["rubies"])
+            updated |= {"gold", "rubies"}
+
+        if vip := data.get("vip", {}):
+            merged["vip_points"] = vip.get("VP", merged["vip_points"])
+            merged["vip_level"] = vip.get("VRL", merged["vip_level"])
+            merged["vip_time_left"] = vip.get("VRS", merged["vip_time_left"])
+            updated |= {"vip_points", "vip_level", "vip_time_left"}
+
+        if updated:
+            self._swap_model_fields(player, merged, updated)
+
+        if pid is not None:
+            self.players[pid] = player
+            self.local_player = player
+            logger.debug(f"Local player: {player.name} (ID: {pid})")
+
+    @staticmethod
+    def _swap_model_fields(model: Player | Castle, merged: dict[str, Any], updated: set[str]) -> None:
+        """Swap a live pydantic model's complete field dict with one store.
+
+        Player and Castle objects are handed out to user code and read
+        without the lock, so their fields are never edited one at a time.
+        ``merged`` must be the complete new ``__dict__``, built beforehand;
+        the single store is the same mechanism pydantic's own
+        `model_construct` uses, so no intermediate state is ever observable.
         """
-        gcu = data.get("gcu", {})
-        if self.local_player and gcu:
-            self.local_player.gold = gcu.get("C1", self.local_player.gold)
-            self.local_player.rubies = gcu.get("C2", self.local_player.rubies)
+        object.__setattr__(model, "__dict__", merged)
+        model.__pydantic_fields_set__.update(updated)
 
     def _parse_inventory(self, data: dict[str, Any]) -> None:
         """Parse inventory items from sce sub-packet."""
@@ -387,17 +424,6 @@ class GameState:
                     logger.debug(f"Skipping malformed inventory entry: {item!r}")
         player.inventory = updated
         return len(updated)
-
-    def _parse_vip(self, data: dict[str, Any]) -> None:
-        """Parse VIP status from vip sub-packet.
-
-        Missing keys keep their previous values (see _parse_currencies).
-        """
-        vip = data.get("vip", {})
-        if self.local_player and vip:
-            self.local_player.vip_points = vip.get("VP", self.local_player.vip_points)
-            self.local_player.vip_level = vip.get("VRL", self.local_player.vip_level)
-            self.local_player.vip_time_left = vip.get("VRS", self.local_player.vip_time_left)
 
     def _parse_alliance_info(self, data: dict[str, Any]) -> None:
         """Parse alliance membership from gal sub-packet.
@@ -441,7 +467,10 @@ class GameState:
         A gcl carrying a castle section ("C") is authoritative: castles it
         does not list are no longer owned, even when it lists none at all
         (the player just lost their last castle). A gcl without that section
-        says nothing about ownership and leaves the castle list alone.
+        says nothing about ownership and leaves the castle list alone. One
+        exception: a section whose entries were *all* skipped as malformed is
+        a payload we could not read, not evidence of ownership loss — it is
+        reported at WARNING and the existing castle list is kept.
         """
         gcl = data.get("gcl")
         if not isinstance(gcl, dict) or self.local_player is None:
@@ -451,36 +480,58 @@ class GameState:
             return
 
         owned: dict[int, Castle] = {}
+        entries = 0
+        skipped = 0
         for k_data in kingdoms:
             if not isinstance(k_data, dict):
+                entries += 1
+                skipped += 1
+                logger.debug(f"Skipping malformed gcl kingdom entry: {k_data!r}")
                 continue
             kid = k_data.get("KID", 0)
             for area_entry in k_data.get("AI", []):
+                entries += 1
                 if not isinstance(area_entry, dict):
+                    skipped += 1
+                    logger.debug(f"Skipping malformed gcl area entry: {area_entry!r}")
                     continue
                 raw_ai = area_entry.get("AI")
-                if isinstance(raw_ai, list) and len(raw_ai) > 10:
-                    x, y, area_id, owner_id, name = raw_ai[1], raw_ai[2], raw_ai[3], raw_ai[4], raw_ai[10]
-                    if owner_id == self.local_player.id:
-                        existing = self.castles.get(area_id)
-                        if existing is not None:
-                            existing.N = name
-                            existing.KID = kid
-                            existing.X = x
-                            existing.Y = y
-                            owned[area_id] = existing
-                        else:
-                            castle = Castle(OID=area_id, N=name, KID=kid, X=x, Y=y)
-                            self.castles[area_id] = castle
-                            owned[area_id] = castle
+                if not (isinstance(raw_ai, list) and len(raw_ai) > 10):
+                    skipped += 1
+                    logger.debug(f"Skipping malformed gcl area entry: {area_entry!r}")
+                    continue
+                x, y, area_id, owner_id, name = raw_ai[1], raw_ai[2], raw_ai[3], raw_ai[4], raw_ai[10]
+                if owner_id != self.local_player.id:
+                    continue
+                existing = self.castles.get(area_id)
+                if existing is not None:
+                    # Identity preserved for user-held references, but the
+                    # fields land in one swap (see _swap_model_fields):
+                    # written one at a time, a castle mid-relocation would
+                    # be observably at (new_x, old_y).
+                    merged = dict(existing.__dict__)
+                    merged.update({"N": name, "KID": kid, "X": x, "Y": y})
+                    self._swap_model_fields(existing, merged, {"N", "KID", "X", "Y"})
+                    owned[area_id] = existing
+                else:
+                    owned[area_id] = Castle(OID=area_id, N=name, KID=kid, X=x, Y=y)
+
+        if skipped and skipped == entries:
+            logger.warning(
+                f"gcl castle section unreadable: skipped {skipped}/{entries} malformed entries "
+                f"(server schema drift?); keeping the existing castle list"
+            )
+            return
 
         # Drop castles no longer owned (lost/traded since the last update)
         for stale_id in set(self.castles) - set(owned):
-            self.castles.pop(stale_id, None)
             # A re-acquired castle must not inherit the old freshness stamp
             self._castle_details_at.pop(stale_id, None)
-        # Swap, don't mutate: user threads hold local_player.castles unlocked
-        self.local_player.castles = owned
+        # Swap, don't mutate: user threads hold state.castles and
+        # local_player.castles unlocked, and a reader holding the old dict
+        # must keep seeing a consistent snapshot.
+        self.castles = owned
+        self.local_player.castles = dict(owned)
         logger.debug(f"Parsed {len(owned)} castles")
 
     def _handle_gam(self, data: dict[str, Any]) -> None:
@@ -537,7 +588,9 @@ class GameState:
             # attacks so those alliance alerts still fire.
             own_attack = self.local_player is not None and mov.OID == self.local_player.PID
             if mov.is_attack and not own_attack:
-                for cb in list(self._incoming_attack_callbacks):
+                with self._lock:
+                    attack_callbacks = list(self._incoming_attack_callbacks)
+                for cb in attack_callbacks:
                     self._dispatch_callback(cb, mov)
         else:
             # Preserve metadata that later packets may not include

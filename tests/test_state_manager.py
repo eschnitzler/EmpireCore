@@ -39,13 +39,13 @@ def mov_payload(mid: int, movement_type: int = 1, oid: int = 999, tt: int = 600,
     return {"M": {"MID": mid, "T": movement_type, "PT": 0, "TT": tt, "D": direction, "OID": oid, "TID": 1}}
 
 
-def gcl_payload(castles: list[tuple[int, str]], owner_id: int = 7, kingdom: int = 0) -> dict:
+def gcl_payload(castles: list[tuple[int, str]], owner_id: int = 7, kingdom: int = 0, x: int = 10, y: int = 20) -> dict:
     """Build a gcl castle section listing `castles` as owned by `owner_id`."""
     return {
         "C": [
             {
                 "KID": kingdom,
-                "AI": [{"AI": [0, 10, 20, area_id, owner_id, 0, 0, 0, 0, 0, name]} for area_id, name in castles],
+                "AI": [{"AI": [0, x, y, area_id, owner_id, 0, 0, 0, 0, 0, name]} for area_id, name in castles],
             }
         ]
     }
@@ -233,6 +233,42 @@ class TestCastleUpdatesAreAtomic:
         now = state.get_castles()[0].resources
         assert (now.wood, now.stone, now.food) == (10, 20, 30)
 
+    def test_gcl_swaps_castles_dict_instead_of_mutating_in_place(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main"), (2, "Outpost")])})
+        reader_view = state.castles
+
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
+
+        assert sorted(reader_view) == [1, 2], "receive thread mutated a dict a reader already holds"
+        assert sorted(state.castles) == [1]
+
+    def test_gcl_preserves_identity_of_surviving_castles(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
+        castle = state.castles[1]
+
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Renamed"), (2, "New")])})
+
+        assert state.castles[1] is castle, "user-held castle reference went stale"
+        assert castle.N == "Renamed"
+
+    def test_gcl_relocation_has_no_observable_intermediate_coords(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")], x=10, y=20)})
+        castle = state.castles[1]
+
+        observed: list[tuple[int, int]] = []
+        real_setattr = Castle.__setattr__
+
+        def spy(self, name, value):
+            real_setattr(self, name, value)
+            if self is castle:
+                observed.append((self.X, self.Y))
+
+        with patch.object(Castle, "__setattr__", spy):
+            state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")], x=30, y=40)})
+
+        assert (castle.X, castle.Y) == (30, 40)
+        assert all(seen in ((10, 20), (30, 40)) for seen in observed), f"castle observable mid-relocation: {observed}"
+
 
 class TestStaleMovementPruning:
     """Arrival packets get missed (socket errors, disconnect windows), so every
@@ -311,6 +347,54 @@ class TestMovementParseFailures:
         warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
         assert len(warnings) == 1, f"log flooded with {len(warnings)} warnings"
 
+    def test_next_warning_after_window_reports_suppressed_count(self, state, caplog):
+        with caplog.at_level(logging.DEBUG, logger="empire_core.state.manager"):
+            for _ in range(5):
+                state.update_from_packet("mov", self.BAD)
+            # The rate-limit window expires; the next failure must warn again
+            # and account for the four failures suppressed in between.
+            with patch("empire_core.state.manager.time.time", return_value=time.time() + 61):
+                state.update_from_packet("mov", self.BAD)
+
+        warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert len(warnings) == 2, "window expiry did not re-enable the warning"
+        assert "4 further failures suppressed" in warnings[1].getMessage()
+
+
+class TestCallbackRegistrationLocking:
+    """Registration/removal run on user threads while the receive thread
+    iterates the listener lists, so they must synchronize on the state lock —
+    CPython's per-op atomicity is not a guarantee to build on."""
+
+    @pytest.mark.parametrize(
+        ("register", "remove"),
+        [
+            ("on_incoming_attack", "remove_incoming_attack_callback"),
+            ("on_movement_arrived", "remove_movement_arrived_callback"),
+            ("on_movement_recalled", "remove_movement_recalled_callback"),
+        ],
+    )
+    def test_register_and_remove_wait_for_the_state_lock(self, state, register, remove):
+        def callback(*args):
+            pass
+
+        done = threading.Event()
+
+        def worker():
+            getattr(state, register)(callback)
+            getattr(state, remove)(callback)
+            done.set()
+
+        thread = threading.Thread(target=worker, daemon=True)
+        state._lock.acquire()
+        try:
+            thread.start()
+            assert not done.wait(0.2), f"{register}/{remove} mutated the listener list without the lock"
+        finally:
+            state._lock.release()
+        assert done.wait(2.0)
+        thread.join()
+
 
 class TestLocalPlayerSnapshots:
     """local_player/inventory are read by user threads while the receive
@@ -368,11 +452,17 @@ class TestLocalPlayerSnapshots:
         assert sorted(state.local_player.castles) == [1, 2]
 
     def test_relogin_merge_has_no_observable_intermediate_state(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7, "PN": "old", "LVL": 10, "XP": 100}})
+        # Identity in gpi, level/XP in gxp, currency in gcu — the sections a
+        # real re-login gbd spreads these fields across. They must land in
+        # ONE atomic swap: gpi alone being atomic still lets a reader see
+        # "new name, old level" while gxp/gcu are applied field by field.
+        state.update_from_packet(
+            "gbd", {"gpi": {"PID": 7, "PN": "old"}, "gxp": {"LVL": 10, "XP": 100}, "gcu": {"C1": 50}}
+        )
         player = state.local_player
-        watched = ("PN", "LVL", "XP")
-        before = {"PN": "old", "LVL": 10, "XP": 100}
-        after = {"PN": "new", "LVL": 11, "XP": 200}
+        watched = ("PN", "LVL", "XP", "gold")
+        before = {"PN": "old", "LVL": 10, "XP": 100, "gold": 50}
+        after = {"PN": "new", "LVL": 11, "XP": 200, "gold": 60}
 
         observed: list[dict] = []
         real_setattr = Player.__setattr__
@@ -383,7 +473,9 @@ class TestLocalPlayerSnapshots:
                 observed.append({field: getattr(self, field) for field in watched})
 
         with patch.object(Player, "__setattr__", spy):
-            state.update_from_packet("gbd", {"gpi": {"PID": 7, "PN": "new", "LVL": 11, "XP": 200}})
+            state.update_from_packet(
+                "gbd", {"gpi": {"PID": 7, "PN": "new"}, "gxp": {"LVL": 11, "XP": 200}, "gcu": {"C1": 60}}
+            )
 
         assert {field: getattr(player, field) for field in watched} == after
         assert all(seen in (before, after) for seen in observed), f"half-merged player observable: {observed}"
@@ -459,6 +551,21 @@ class TestCastleStaleDrop:
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(9, "Enemy")], owner_id=1234)})
         assert state.get_castles() == []
+
+    def test_all_malformed_castle_section_does_not_wipe_castles(self, state, caplog):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
+
+        # Every entry fails the shape checks: a payload we could not read is
+        # not evidence of ownership loss, so the wipe must not be applied.
+        drifted = {"C": [{"KID": 0, "AI": [{"AI": {"X": 1}}, {"AI": [0, 1]}, "garbage"]}]}
+        with caplog.at_level(logging.DEBUG, logger="empire_core.state.manager"):
+            state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": drifted})
+
+        assert [c.id for c in state.get_castles()] == [1], "unreadable gcl destroyed castle state"
+        assert list(state.get_local_player().castles) == [1]
+        warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert len(warnings) == 1, "schema drift wiped state with only a debug log"
+        assert "3/3" in warnings[0].getMessage(), "skip count missing from the warning"
 
     @pytest.mark.parametrize("gcl", [{}, None, {"X": 1}])
     def test_packet_without_castle_section_keeps_castles(self, state, gcl):
