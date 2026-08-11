@@ -2,6 +2,106 @@
 
 <!-- version list -->
 
+## v0.30.0 (2026-08-11)
+
+### Bug Fixes
+
+- **accounts**: Stop logging plaintext passwords for invalid entries
+  ([`7909709`](https://github.com/eschnitzler/EmpireCore/commit/79097099bac6cf6384c49fa650b6a9038582a61c))
+
+- **accounts,pool**: Credential hygiene and honest failure reporting
+  ([`4746562`](https://github.com/eschnitzler/EmpireCore/commit/47465629ea9705c6c82219b7a9e1832fd76c2973))
+
+- **client**: Guard handler registry, type the scan API, pace bulk requests
+  ([`b028fee`](https://github.com/eschnitzler/EmpireCore/commit/b028fee3ccb7e4c674893a760936f18929a017c5))
+
+- **config,pool**: Per-install id, immutable default config, scoped leases
+  ([`a6ae59f`](https://github.com/eschnitzler/EmpireCore/commit/a6ae59fef072aae1aa94cbc89824fc3690cca67c))
+
+- **connection**: Apply state updates before waking request waiters
+  ([`5e52a4e`](https://github.com/eschnitzler/EmpireCore/commit/5e52a4e687b660c828669e4259b0dbc83718e977))
+
+- **connection**: Redact credentials from frame logs and serialize lifecycle
+  ([`fdcac48`](https://github.com/eschnitzler/EmpireCore/commit/fdcac48fda36b60b2949c91251bd4c1f888e2f9f))
+
+- **connection,client**: Survive malformed frames and report typed errors
+  ([`c2d1e95`](https://github.com/eschnitzler/EmpireCore/commit/c2d1e957ff94200e63d88b80f6f80564e806014e))
+
+- **protocol**: Correct moving-flag parsing and bound hostile frames
+  ([`a6b2c19`](https://github.com/eschnitzler/EmpireCore/commit/a6b2c198e5e9cce6f9c763eccefc0edc01781a9d))
+
+- **protocol**: Log every degradation path and stop accessors raising raw pydantic
+  ([`4b93996`](https://github.com/eschnitzler/EmpireCore/commit/4b939960770e939766a25cb0a63645231ae025b1))
+
+- **protocol**: Make packet parsing total and guard alliance arrays
+  ([`bbe3ec3`](https://github.com/eschnitzler/EmpireCore/commit/bbe3ec3b5fde5189ca02ad6f2794f254e24a7cde))
+
+- **protocol**: Stop drifted payloads crashing documented accessors
+  ([`51b08ec`](https://github.com/eschnitzler/EmpireCore/commit/51b08ecfa5179ce03387ba1606b2145e6b80e38b))
+
+- **release**: Keep uv.lock in step with the released version
+  ([`80f7e2c`](https://github.com/eschnitzler/EmpireCore/commit/80f7e2cecb99c0c7c9b529857ac4834f6e20b6c7))
+
+- **scanner**: Report server errors and abandoned chunks as failures
+  ([`1f92e45`](https://github.com/eschnitzler/EmpireCore/commit/1f92e45b2ffdd3de943be6dfe129e60b900caad5))
+
+- **scanner**: Surface dropped map entries instead of debug-logging them
+  ([`005c7e0`](https://github.com/eschnitzler/EmpireCore/commit/005c7e0b5a65ebf9c6334296f236758ed1d6f4e6))
+
+- **services**: Typed errors for drifted payloads and a chat unsubscribe
+  ([`47fc2f3`](https://github.com/eschnitzler/EmpireCore/commit/47fc2f33d9c4bc4bf0742d096270bfb359edd55d))
+
+- **state**: Atomic player and castle merges, locked callback registration
+  ([`f8e4989`](https://github.com/eschnitzler/EmpireCore/commit/f8e4989f6ebad8a29126ba707e26d3f5bfe0ecff))
+
+- **state**: Locked player snapshots and honest movement lifecycle
+  ([`dded0a5`](https://github.com/eschnitzler/EmpireCore/commit/dded0a58697bfcfafe57702f8c6fa7a239e0a3ad))
+
+- **state**: Thread-safe movement reads and atomic castle updates
+  ([`f6487a0`](https://github.com/eschnitzler/EmpireCore/commit/f6487a05686a87c54de139a4901c376a3ba52e0b))
+
+- **utils**: Stop reporting CDN failures as empty results
+  ([`51f512a`](https://github.com/eschnitzler/EmpireCore/commit/51f512a574339ad31c54e85812431c27e2c69f0b))
+
+### Chores
+
+- Refresh uv.lock after the version bump
+  ([`cb7c67c`](https://github.com/eschnitzler/EmpireCore/commit/cb7c67c9fa85d61b15bd96064196b2311e744c2a))
+
+### Documentation
+
+- **contributing**: Stop teaching the failure modes this review had to fix
+  ([`00fad2e`](https://github.com/eschnitzler/EmpireCore/commit/00fad2ed1c4c19eaac08da3e9f698b0642e320d3))
+
+- **readme**: Document the state, pool and error APIs, and tidy the rest
+  ([`269143d`](https://github.com/eschnitzler/EmpireCore/commit/269143df3608ecbcff1f723dfe6272e3cf3b9914))
+
+- **state**: Document the snapshot accessors and freshness rules
+  ([`6826cde`](https://github.com/eschnitzler/EmpireCore/commit/6826cde48e437fb3feab67fcb872992cd9f16d23))
+
+### Features
+
+- **api**: Export the pool and troop helpers, fix the docs that trap users
+  ([`82c8a23`](https://github.com/eschnitzler/EmpireCore/commit/82c8a2394e7297aeb66e04fbb0289ecc27dc18fa))
+
+- **api**: Re-export the de-facto public surface from the package root
+  ([`c1d76f5`](https://github.com/eschnitzler/EmpireCore/commit/c1d76f5e9a65195db96e642ebf9f4a163e23c5c5))
+
+- **packaging**: Ship py.typed and make storage deps optional
+  ([`0afae77`](https://github.com/eschnitzler/EmpireCore/commit/0afae7724ddf395f821237292e2baf18353eb7db))
+
+- **state**: Pass movements to arrival callbacks and expose freshness
+  ([`41b2c68`](https://github.com/eschnitzler/EmpireCore/commit/41b2c685dddaaf7a3072c9d314657cec1670b65c))
+
+### Testing
+
+- Cover the services layer, login handshake and drifted payloads
+  ([`ad10342`](https://github.com/eschnitzler/EmpireCore/commit/ad103420e072b49ed52d51bbb0f4e5ed72abb756))
+
+- Keep the type checker happy about deliberately malformed fixtures
+  ([`5b7c618`](https://github.com/eschnitzler/EmpireCore/commit/5b7c618f2e9576804122b581936c7b3ece26b577))
+
+
 ## v0.29.0 (2026-08-11)
 
 ### Features
