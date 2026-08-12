@@ -776,9 +776,18 @@ class EmpireClient:
         timeout: float = 300.0,
         request_timeout: float = 5.0,
         chunk_delay: float = 0.2,
+        include_unowned_types: set[MapItemType] | None = None,
     ) -> ScanResult:
         """Scan an explicit chunk list (no BFS). See MapScanner.scan_chunks."""
-        return MapScanner(self).scan_chunks(kingdom, chunks, item_types, timeout, request_timeout, chunk_delay)
+        return MapScanner(self).scan_chunks(
+            kingdom,
+            chunks,
+            item_types,
+            timeout,
+            request_timeout,
+            chunk_delay,
+            include_unowned_types=include_unowned_types,
+        )
 
     # ============================================================
     # Player Details (gdi - includes capture info)
