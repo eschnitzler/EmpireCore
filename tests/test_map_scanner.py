@@ -184,6 +184,20 @@ class TestScanChunks:
         )
         assert len(included.items) == 1, "include_unowned_types was not passed through"
 
+    def test_client_facade_signatures_match_the_scanner(self):
+        """EmpireClient.scan_chunks/scan_kingdom delegate to MapScanner; a
+        parameter added to the scanner but not the facade is invisible to
+        every consumer and TypeErrors at the real call site — which is
+        exactly how include_unowned_types shipped broken in 0.30.2."""
+        import inspect
+
+        from empire_core.client.client import EmpireClient
+
+        for name in ("scan_chunks", "scan_kingdom"):
+            scanner_params = list(inspect.signature(getattr(MapScanner, name)).parameters)
+            facade_params = list(inspect.signature(getattr(EmpireClient, name)).parameters)
+            assert facade_params == scanner_params, f"{name}: facade {facade_params} != scanner {scanner_params}"
+
     def test_chunk_for_position(self):
         scanner = MapScanner.__new__(MapScanner)
         assert scanner.chunk_for_position(0, 0) == (0, 0)
