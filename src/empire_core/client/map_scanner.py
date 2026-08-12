@@ -371,6 +371,7 @@ class MapScanner:
         timeout: float = 300.0,
         request_timeout: float = 5.0,
         chunk_delay: float = 0.2,
+        include_unowned_types: set[MapItemType] | None = None,
     ) -> ScanResult:
         """
         Scan an explicit list of chunks — no BFS discovery.
@@ -385,6 +386,8 @@ class MapScanner:
         sentinel included: ``None`` (the default) collects player main
         castles only, ``[]`` disables filtering and collects every type,
         and a non-empty list collects exactly those types.
+        ``include_unowned_types`` also matches scan_kingdom(): types listed
+        there are collected even when unowned (owner -1).
 
         Chunks are deduplicated and out-of-range coordinates skipped.
         Unscanned chunks left over when ``timeout`` hits are reported in
@@ -421,7 +424,14 @@ class MapScanner:
             time.sleep(chunk_delay)
 
             result = self._process_chunk(
-                cx, cy, kingdom, filter_types, collected_items, collected_objects, request_timeout
+                cx,
+                cy,
+                kingdom,
+                filter_types,
+                collected_items,
+                collected_objects,
+                request_timeout,
+                include_unowned_types=include_unowned_types,
             )
 
             if not result.ok:
