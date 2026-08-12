@@ -158,6 +158,32 @@ class TestScanChunks:
         assert len(rescan_fake.connection.requests) < discovery_requests
         assert len(rescan.items) == len(discovery.items)
 
+    def test_include_unowned_types_reaches_the_chunk_parser(self):
+        """scan_kingdom grew include_unowned_types in 0.29.0; scan_chunks must
+        honour it too — the consumer's cached re-scans go through scan_chunks,
+        and dropping the flag there silently loses every unowned item (e.g.
+        Kings Towers) between discoveries."""
+        unowned = [1, 5, 5, -1]  # owner -1: skipped unless explicitly included
+        fake = _FakeClient(
+            content_chunks=set(),
+            payloads={(1, 1): {"AI": [unowned], "OI": []}},
+        )
+        scanner = _make_scanner(fake)
+
+        excluded = scanner.scan_chunks(
+            kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[MapItemType.CASTLE], chunk_delay=0
+        )
+        assert excluded.items == [], "unowned items must stay excluded by default"
+
+        included = scanner.scan_chunks(
+            kingdom=Kingdom.GREEN,
+            chunks=[(1, 1)],
+            item_types=[MapItemType.CASTLE],
+            chunk_delay=0,
+            include_unowned_types={MapItemType.CASTLE},
+        )
+        assert len(included.items) == 1, "include_unowned_types was not passed through"
+
     def test_chunk_for_position(self):
         scanner = MapScanner.__new__(MapScanner)
         assert scanner.chunk_for_position(0, 0) == (0, 0)
