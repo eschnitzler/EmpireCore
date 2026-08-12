@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.30.2 (2026-08-12)
+
+### Bug Fixes
+
+- **scanner**: Pass include_unowned_types through scan_chunks
+  ([`1ded741`](https://github.com/eschnitzler/EmpireCore/commit/1ded74111fc41188b6a9a2d1e2037f699c856c43))
+
+
 ## v0.30.1 (2026-08-11)
 
 ### Bug Fixes
