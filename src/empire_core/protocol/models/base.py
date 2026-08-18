@@ -212,6 +212,11 @@ class BaseRequest(BasePayload):
 
     command: ClassVar[str]  # The command code (e.g., "acm", "lli")
 
+    # Set only where the server answers under a different command than the one
+    # sent (a castle jump goes out as 'jca' and comes back as 'jaa'). Waiting on
+    # the request command there times out on every call.
+    response_command: ClassVar[str | None] = None
+
     def to_packet(self, zone: str = DEFAULT_ZONE) -> str:
         """
         Build the full XT packet string ready to send.
@@ -234,6 +239,11 @@ class BaseRequest(BasePayload):
     def get_command(cls) -> str:
         """Get the command code for this request type."""
         return cls.command
+
+    @classmethod
+    def get_response_command(cls) -> str:
+        """The command the server's answer to this request arrives under."""
+        return cls.response_command or cls.command
 
 
 class BaseResponse(BasePayload):

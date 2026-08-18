@@ -136,11 +136,12 @@ class SelectCastleRequest(BaseRequest):
     """
     Select/jump to a castle (makes it the active castle).
 
-    Command: jca
+    Command: jca (acknowledged by the server as 'jaa')
     Payload: {"CID": castle_id, "KID": kingdom_id}
     """
 
     command = "jca"
+    response_command = "jaa"
 
     castle_id: int = Field(alias="CID")
     kingdom_id: int = Field(alias="KID", default=0)
@@ -150,10 +151,10 @@ class SelectCastleResponse(BaseResponse):
     """
     Response to castle selection.
 
-    Command: jca
+    Command: jaa
     """
 
-    command = "jca"
+    command = "jaa"
 
 
 # =============================================================================

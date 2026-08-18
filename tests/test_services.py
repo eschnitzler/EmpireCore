@@ -301,15 +301,15 @@ class TestExecuteSemantics:
     rejected action."""
 
     def test_accepted_action_returns_true(self):
-        client = make_client({"jca": xt_packet("jca")})
+        client = make_client({"jaa": xt_packet("jaa")})
         assert client.castle.select(12345) is True
 
     def test_rejected_action_returns_false(self):
-        client = make_client({"jca": xt_packet("jca", error_code=21)})
+        client = make_client({"jaa": xt_packet("jaa", error_code=21)})
         assert client.castle.select(12345) is False
 
     def test_rejection_is_logged_with_the_command(self, caplog):
-        client = make_client({"jca": xt_packet("jca", error_code=21)})
+        client = make_client({"jaa": xt_packet("jaa", error_code=21)})
         with caplog.at_level(logging.WARNING, logger="empire_core.services.base"):
             client.castle.select(12345)
         assert "jca" in caplog.text
@@ -323,14 +323,14 @@ class TestExecuteSemantics:
         ],
     )
     def test_transport_failure_still_raises(self, failure):
-        client = make_client({"jca": failure})
+        client = make_client({"jaa": failure})
         with pytest.raises(type(failure)):
             client.castle.select(12345)
 
     def test_malformed_status_is_not_treated_as_acceptance(self):
         # A garbled status field parses to the MALFORMED_STATUS_CODE sentinel,
         # which must read as a rejection rather than a success.
-        client = make_client({"jca": Packet.from_bytes(b"%xt%jca%1%notanumber%{}%")})
+        client = make_client({"jaa": Packet.from_bytes(b"%xt%jaa%1%notanumber%{}%")})
         assert client.castle.select(12345) is False
 
 
@@ -760,7 +760,28 @@ class TestCastleActions:
 
         assert client.castle.select(12345, kingdom_id=2) is True
 
-        assert conn(client).request_payloads == [("jca", {"CID": 12345, "KID": 2})]
+        assert conn(client).request_payloads == [("jaa", {"CID": 12345, "KID": 2})]
+
+    def test_select_waits_for_the_jaa_acknowledgement(self):
+        # The server answers a castle jump with 'jaa', never with 'jca'.
+        # Waiting on the request command times out on every single call.
+        client = make_client({"jaa": xt_packet("jaa")})
+
+        assert client.castle.select(12345) is True
+        assert conn(client).requested == ["jaa"]
+
+    def test_select_reports_a_rejected_jump(self):
+        client = make_client({"jaa": xt_packet("jaa", error_code=21)})
+
+        assert client.castle.select(12345) is False
+
+    def test_select_rejection_is_logged_against_the_request_command(self, caplog):
+        client = make_client({"jaa": xt_packet("jaa", error_code=21)})
+
+        with caplog.at_level(logging.WARNING, logger="empire_core.services.base"):
+            client.castle.select(12345)
+
+        assert "jca" in caplog.text
 
     def test_rename_sends_the_new_name(self):
         client = make_client()

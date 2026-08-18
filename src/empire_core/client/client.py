@@ -427,18 +427,20 @@ class EmpireClient:
             return None
 
         command = request.get_command()
-        response_packet = self.connection.request(packet, command, timeout=timeout)
+        response_command = request.get_response_command()
+        response_packet = self.connection.request(packet, response_command, timeout=timeout)
 
         if response_packet.error_code != 0:
+            # Reported under the command sent, which is what the caller asked for.
             raise CommandError(command, response_packet.error_code)
 
         if isinstance(response_packet.payload, dict):
             try:
-                return parse_response(command, response_packet.payload)
+                return parse_response(response_command, response_packet.payload)
             except ValidationError as e:
                 # Server field-type drift must surface as a library error, not
                 # as a raw pydantic exception leaking through the public API.
-                raise PacketError(f"Could not parse '{command}' response: {e}") from e
+                raise PacketError(f"Could not parse '{response_command}' response: {e}") from e
 
         return None
 
