@@ -19,6 +19,7 @@ from ..protocol.models.messages import (
     SystemNotificationEvent,
 )
 from .base import BaseService, register_service
+from .spy_army import SpyArmy
 from .spy_risk import MAX_ACCURACY, MAX_RISK_SPY, plan_mission
 
 # Outcome codes from MessageConst in the game client. A spy log is a loss when
@@ -63,6 +64,9 @@ class SpyResult:
         spy_data: the raw ``S`` array of the report -- one entry per defending
             position, each a nested array of ``[unit_id, count]`` pairs. Still
             untyped by the protocol layer, so it is exposed as-is.
+        army: the same block split by position (left/middle/right flanks, keep,
+            stronghold, support, reserve). None when the report carried nothing
+            usable.
         battle_data: the raw ``B`` mapping (present for battle reports).
         target: the spied castle, or ``None`` if the server sent no ``AI`` block.
     """
@@ -73,6 +77,7 @@ class SpyResult:
     spy_data: list[Any] = field(default_factory=list)
     battle_data: dict[str, Any] = field(default_factory=dict)
     target: SpyCastleInfo | None = None
+    army: SpyArmy | None = None
 
 
 @register_service("spy")
@@ -233,6 +238,7 @@ class SpyService(BaseService):
 
             return SpyResult(
                 success=True,
+                army=SpyArmy.from_spy_data(bsd_resp.spy_data),
                 message_id=message_id,
                 spy_data=bsd_resp.spy_data,
                 battle_data=bsd_resp.battle_data,
