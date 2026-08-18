@@ -1166,8 +1166,16 @@ class TestSpiedCastleDetail:
                 "MID": 9001,
                 "S": [[[487, 100]]],
                 "AI": {
-                    "N": "Requiem", "X": 700, "Y": 710, "K": 1, "AT": 12,
-                    "KL": 5, "WL": 4, "GL": 3, "TL": 2, "ML": 1,
+                    "N": "Requiem",
+                    "X": 700,
+                    "Y": 710,
+                    "K": 1,
+                    "AT": 12,
+                    "KL": 5,
+                    "WL": 4,
+                    "GL": 3,
+                    "TL": 2,
+                    "ML": 1,
                 },
             },
         )
