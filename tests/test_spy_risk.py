@@ -12,7 +12,7 @@ from empire_core.services.spy_risk import (
     MAX_RISK_SPY,
     MIN_ACCURACY,
     MIN_RISK_SPY_PLAYER,
-    spies_for_risk,
+    plan_mission,
     spy_risk,
 )
 
@@ -52,22 +52,39 @@ class TestSpyRiskMatchesTheClient:
         assert risks == sorted(risks, reverse=True)
 
 
-class TestSpiesForRisk:
-    def test_picks_the_cheapest_count_meeting_the_budget(self):
-        assert spies_for_risk(guards=0, accuracy=100, max_risk=5, available=46) == 6
+class TestPlanMission:
+    """Missions run at the best risk the pool allows, for the fewest spies."""
 
-    def test_a_loose_budget_costs_fewer_spies(self):
-        assert spies_for_risk(guards=0, accuracy=100, max_risk=34, available=46) == 1
+    def test_unguarded_castle_reaches_the_floor_without_draining_the_pool(self):
+        plan = plan_mission(guards=0, available=46)
 
-    def test_returns_none_when_the_budget_is_unreachable(self):
-        # 5% is the floor for a player castle, so 4% cannot be bought at any count.
-        assert spies_for_risk(guards=0, accuracy=100, max_risk=4, available=46) is None
+        assert plan is not None
+        assert (plan.spies, plan.risk) == (6, MIN_RISK_SPY_PLAYER)
 
-    def test_never_exceeds_what_is_available(self):
-        chosen = spies_for_risk(guards=0, accuracy=100, max_risk=5, available=3)
-        assert chosen is None, "claimed a risk budget it could not afford"
+    def test_extra_spies_are_left_for_other_targets(self):
+        # 46 spies and 6 spies buy exactly the same 5%.
+        assert plan_mission(guards=0, available=46).spies == plan_mission(guards=0, available=6).spies
 
-    def test_a_guarded_target_needs_more_spies(self):
-        assert spies_for_risk(guards=60, accuracy=100, max_risk=20, available=200) > spies_for_risk(
-            guards=0, accuracy=100, max_risk=20, available=200
-        )
+    def test_a_guarded_target_costs_more_but_still_not_everything(self):
+        plan = plan_mission(guards=60, available=46)
+
+        assert plan is not None
+        assert plan.risk == 7, "not the best risk this pool can reach"
+        assert plan.spies < 46, "drained the pool for no reduction in risk"
+
+    def test_a_thin_pool_settles_for_the_best_it_can_do(self):
+        plan = plan_mission(guards=0, available=3)
+
+        assert plan is not None
+        assert (plan.spies, plan.risk) == (3, 22)
+
+    def test_a_target_over_the_ceiling_is_skipped(self):
+        # The best 3 spies can do against an unguarded castle is 22%.
+        assert plan_mission(guards=0, available=3, max_risk=10) is None
+
+    def test_the_ceiling_does_not_make_missions_riskier(self):
+        # A loose ceiling must not buy a cheaper, riskier mission.
+        assert plan_mission(guards=0, available=46, max_risk=90).risk == MIN_RISK_SPY_PLAYER
+
+    def test_an_empty_pool_has_no_plan(self):
+        assert plan_mission(guards=0, available=0) is None

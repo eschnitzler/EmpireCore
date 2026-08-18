@@ -19,11 +19,7 @@ from ..protocol.models.messages import (
     SystemNotificationEvent,
 )
 from .base import BaseService, register_service
-from .spy_risk import (
-    MAX_ACCURACY,
-    MIN_RISK_SPY_PLAYER,
-    spies_for_risk,
-)
+from .spy_risk import MAX_ACCURACY, MAX_RISK_SPY, plan_mission
 
 
 @dataclass
@@ -77,10 +73,10 @@ class SpyService(BaseService):
             target_x: Target X coordinate
             target_y: Target Y coordinate
             target_kingdom: Target kingdom ID (default 0 for Green)
-            risk_tolerance: Highest acceptable chance of being caught, as a
-                percentage. None targets the lowest risk the game allows, which
-                is 5% against a player's castle. Fewer spies always means more
-                risk, so a looser budget buys a cheaper mission.
+            risk_tolerance: Ceiling on the chance of being caught, as a
+                percentage. Missions always run at the lowest risk the spy pool
+                allows; this only decides whether to send at all, so a target
+                that stays above it is skipped rather than spied badly.
             accuracy: Spy accuracy (50-100). Lower values need fewer spies for
                 the same risk but return a less complete report.
 
@@ -97,15 +93,10 @@ class SpyService(BaseService):
             KID=target_kingdom,
         )
 
-        # A castle jump is only ever aimed at another player here, so the
-        # dungeon floor never applies.
-        risk_floor = MIN_RISK_SPY_PLAYER
-        max_risk = risk_tolerance if risk_tolerance is not None else risk_floor
-        if max_risk < risk_floor:
-            return SpyResult(success=False, reason="risk_budget_unreachable")
+        max_risk = risk_tolerance if risk_tolerance is not None else MAX_RISK_SPY
 
         available = 0
-        spies_to_send: int | None = None
+        plan = None
         for attempt in range(_SSI_POLL_ATTEMPTS):
             try:
                 ssi_resp = self.request(ssi_req, SpyScreenInfoResponse)
@@ -114,26 +105,28 @@ class SpyService(BaseService):
 
             available = ssi_resp.available_spies
             if available > 0:
-                spies_to_send = spies_for_risk(
+                plan = plan_mission(
                     guards=ssi_resp.guard_count,
+                    available=available,
                     accuracy=accuracy,
                     max_risk=max_risk,
-                    available=available,
                 )
-                if spies_to_send is not None:
+                if plan is not None:
                     break
 
-            # Spies still walking home — wait for enough of them to cover the
-            # risk budget (unless this was the last attempt).
+            # Spies still walking home. A fuller pool lowers the achievable
+            # risk, so waiting can bring an over-budget target into range.
             if attempt < _SSI_POLL_ATTEMPTS - 1:
                 time.sleep(_SSI_POLL_DELAY)
 
         if available <= 0:
             return SpyResult(success=False, reason="no_spies_available")
 
-        if spies_to_send is None:
-            # The pool is non-empty but too small to reach the requested risk.
-            return SpyResult(success=False, reason="not_enough_spies_for_risk")
+        if plan is None:
+            # Even the whole pool leaves this target above the risk ceiling.
+            return SpyResult(success=False, reason="risk_over_budget")
+
+        spies_to_send = plan.spies
 
         # 2. Calculate risk (simplified for now - just use max spies)
         # In a real implementation, we'd calculate exact spies needed for risk_tolerance

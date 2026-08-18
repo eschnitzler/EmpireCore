@@ -1017,12 +1017,12 @@ class TestSpySuccessPath:
         assert payloads["csm"]["SID"] == 12345
         assert payloads["bsd"] == {"MID": 9001}
 
-    def test_a_risk_budget_buys_a_cheaper_mission(self, no_sleep):
+    def test_a_loose_ceiling_does_not_buy_a_riskier_mission(self, no_sleep):
         client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 46, "GC": 0})))
 
-        client.spy.execute_instant_spy(12345, 700, 710, risk_tolerance=34)
+        client.spy.execute_instant_spy(12345, 700, 710, risk_tolerance=90)
 
-        assert dict(conn(client).request_payloads)["csm"]["SC"] == 1
+        assert dict(conn(client).request_payloads)["csm"]["SC"] == 6
 
     def test_a_guarded_target_costs_more_spies(self, no_sleep):
         client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 200, "GC": 60})))
@@ -1031,23 +1031,24 @@ class TestSpySuccessPath:
 
         assert dict(conn(client).request_payloads)["csm"]["SC"] > 6
 
-    def test_an_unreachable_risk_budget_is_reported(self, no_sleep):
-        # 5% is the floor against a player castle; 1% cannot be bought.
-        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 46, "GC": 0})))
+    def test_a_target_over_the_risk_ceiling_is_not_spied(self, no_sleep):
+        # Two spies against an unguarded castle is the best this pool can do,
+        # and that sits well above a 10% ceiling.
+        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 2, "GC": 0})))
 
-        result = client.spy.execute_instant_spy(12345, 700, 710, risk_tolerance=1)
+        result = client.spy.execute_instant_spy(12345, 700, 710, risk_tolerance=10)
 
         assert result.success is False
-        assert result.reason == "risk_budget_unreachable"
-        assert "csm" not in dict(conn(client).request_payloads), "sent a mission over budget"
+        assert result.reason == "risk_over_budget"
+        assert "csm" not in dict(conn(client).request_payloads), "sent a mission over the ceiling"
 
-    def test_a_pool_too_small_for_the_budget_is_transient(self, no_sleep):
+    def test_a_thin_pool_still_spies_when_no_ceiling_is_set(self, no_sleep):
         client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 2, "GC": 0})))
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
-        assert result.success is False
-        assert result.reason == "not_enough_spies_for_risk"
+        assert result.success is True
+        assert dict(conn(client).request_payloads)["csm"]["SC"] == 2
 
     def test_sne_waiter_is_created_before_the_spy_is_sent(self, no_sleep):
         # sne arrives right after csm; registering the waiter afterwards races

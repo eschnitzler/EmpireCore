@@ -17,6 +17,7 @@ MIN_RISK_SPY_DUNGEON otherwise: spying a player is never risk-free.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 MAX_GUARD = 180
 MAX_SPY = 15
@@ -60,26 +61,46 @@ def spy_risk(
     return math.floor((direct + ratio) / 2 + 0.5)
 
 
-def spies_for_risk(
+@dataclass(frozen=True)
+class SpyPlan:
+    """How a mission should be sent: the fewest spies at the best risk going."""
+
+    spies: int
+    risk: int
+
+
+def plan_mission(
     guards: int,
-    accuracy: int,
-    max_risk: int,
     available: int,
+    accuracy: int = MAX_ACCURACY,
+    max_risk: int = MAX_RISK_SPY,
     *,
     player_target: bool = True,
     dungeon: bool = False,
-) -> int | None:
-    """Fewest spies whose risk stays within *max_risk*, or None if unreachable.
+) -> SpyPlan | None:
+    """Cheapest way to run this mission at the lowest risk the pool allows.
 
-    Risk falls monotonically as spies rise, so the first count that fits is the
-    cheapest one. None means no affordable count reaches the budget — either the
-    pool is too small or the budget is under the floor for this target.
+    Risk falls monotonically with spies, so the best risk on offer is the one at
+    the full pool — but several counts usually tie at that risk, and the
+    smallest of them leaves the rest of the pool for other targets. Sending 46
+    spies where 6 reach the same 5% buys nothing and strands 40.
+
+    ``max_risk`` only decides whether to send at all: None is returned when even
+    the whole pool cannot bring the risk down to it, which is a target to skip
+    rather than a mission to run badly.
     """
+    if available < 1:
+        return None
+
+    best_risk = spy_risk(available, guards, accuracy, player_target=player_target, dungeon=dungeon)
+    if best_risk > max_risk:
+        return None
+
     for spies in range(1, available + 1):
         risk = spy_risk(spies, guards, accuracy, player_target=player_target, dungeon=dungeon)
-        if risk <= max_risk:
-            return spies
-    return None
+        if risk <= best_risk:
+            return SpyPlan(spies=spies, risk=risk)
+    return SpyPlan(spies=available, risk=best_risk)
 
 
 __all__ = [
@@ -88,6 +109,7 @@ __all__ = [
     "MIN_ACCURACY",
     "MIN_RISK_SPY_DUNGEON",
     "MIN_RISK_SPY_PLAYER",
-    "spies_for_risk",
+    "SpyPlan",
+    "plan_mission",
     "spy_risk",
 ]
