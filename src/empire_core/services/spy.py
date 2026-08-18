@@ -19,6 +19,11 @@ from ..protocol.models.messages import (
     SystemNotificationEvent,
 )
 from .base import BaseService, register_service
+from .spy_risk import (
+    MAX_ACCURACY,
+    MIN_RISK_SPY_PLAYER,
+    spies_for_risk,
+)
 
 
 @dataclass
@@ -58,7 +63,8 @@ class SpyService(BaseService):
         target_x: int,
         target_y: int,
         target_kingdom: int = 0,
-        risk_tolerance: int = 50,
+        risk_tolerance: int | None = None,
+        accuracy: int = MAX_ACCURACY,
     ) -> SpyResult:
         """
         Execute an instant spy mission using feathers.
@@ -71,7 +77,12 @@ class SpyService(BaseService):
             target_x: Target X coordinate
             target_y: Target Y coordinate
             target_kingdom: Target kingdom ID (default 0 for Green)
-            risk_tolerance: Maximum acceptable risk percentage (0-100)
+            risk_tolerance: Highest acceptable chance of being caught, as a
+                percentage. None targets the lowest risk the game allows, which
+                is 5% against a player's castle. Fewer spies always means more
+                risk, so a looser budget buys a cheaper mission.
+            accuracy: Spy accuracy (50-100). Lower values need fewer spies for
+                the same risk but return a less complete report.
 
         Returns:
             SpyResult with the spy report data or a failure reason.
@@ -86,23 +97,43 @@ class SpyService(BaseService):
             KID=target_kingdom,
         )
 
-        spies_to_send = 0
+        # A castle jump is only ever aimed at another player here, so the
+        # dungeon floor never applies.
+        risk_floor = MIN_RISK_SPY_PLAYER
+        max_risk = risk_tolerance if risk_tolerance is not None else risk_floor
+        if max_risk < risk_floor:
+            return SpyResult(success=False, reason="risk_budget_unreachable")
+
+        available = 0
+        spies_to_send: int | None = None
         for attempt in range(_SSI_POLL_ATTEMPTS):
             try:
                 ssi_resp = self.request(ssi_req, SpyScreenInfoResponse)
             except EmpireError as e:
                 return SpyResult(success=False, reason=f"ssi_failed_{_error_tag(e)}")
 
-            spies_to_send = ssi_resp.available_spies
-            if spies_to_send > 0:
-                break
+            available = ssi_resp.available_spies
+            if available > 0:
+                spies_to_send = spies_for_risk(
+                    guards=ssi_resp.guard_count,
+                    accuracy=accuracy,
+                    max_risk=max_risk,
+                    available=available,
+                )
+                if spies_to_send is not None:
+                    break
 
-            # Spies not yet returned — wait and retry (unless this was the last attempt)
+            # Spies still walking home — wait for enough of them to cover the
+            # risk budget (unless this was the last attempt).
             if attempt < _SSI_POLL_ATTEMPTS - 1:
                 time.sleep(_SSI_POLL_DELAY)
 
-        if spies_to_send <= 0:
+        if available <= 0:
             return SpyResult(success=False, reason="no_spies_available")
+
+        if spies_to_send is None:
+            # The pool is non-empty but too small to reach the requested risk.
+            return SpyResult(success=False, reason="not_enough_spies_for_risk")
 
         # 2. Calculate risk (simplified for now - just use max spies)
         # In a real implementation, we'd calculate exact spies needed for risk_tolerance
@@ -115,7 +146,7 @@ class SpyService(BaseService):
             KID=target_kingdom,
             SC=spies_to_send,
             ST=0,
-            SE=100,
+            SE=accuracy,
             HBW=-1,
             PTT=1,  # Use feathers
             SD=0,

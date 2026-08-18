@@ -978,7 +978,7 @@ def spy_script(
     bsd: Any = None,
 ) -> dict[str, Any]:
     return {
-        "ssi": ssi if ssi is not None else xt_packet("ssi", {"AS": 3, "GC": 0}),
+        "ssi": ssi if ssi is not None else xt_packet("ssi", {"AS": 46, "GC": 0}),
         "csm": csm if csm is not None else xt_packet("csm", {"MID": 1}),
         "sne": sne if sne is not None else xt_packet("sne", {"MSG": [[9001, 1, 1, 0]]}),
         "bsd": bsd
@@ -1001,17 +1001,53 @@ class TestSpySuccessPath:
         assert result.target is not None
         assert result.target.castle_name == "Enemy Keep"
 
-    def test_all_available_spies_are_sent_with_feathers(self, no_sleep):
-        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 7})))
+    def test_only_the_spies_the_risk_budget_needs_are_sent(self, no_sleep):
+        # Sending the whole pool bought nothing: 6 spies already reach the 5%
+        # floor against an unguarded castle, and draining the pool made the next
+        # mission wait for spies to walk home.
+        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 46, "GC": 0})))
 
         client.spy.execute_instant_spy(12345, 700, 710, target_kingdom=2)
 
         payloads = dict(conn(client).request_payloads)
         assert payloads["ssi"] == {"TX": 700, "TY": 710, "KID": 2}
-        assert payloads["csm"]["SC"] == 7
+        assert payloads["csm"]["SC"] == 6
+        assert payloads["csm"]["SE"] == 100
         assert payloads["csm"]["PTT"] == 1
         assert payloads["csm"]["SID"] == 12345
         assert payloads["bsd"] == {"MID": 9001}
+
+    def test_a_risk_budget_buys_a_cheaper_mission(self, no_sleep):
+        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 46, "GC": 0})))
+
+        client.spy.execute_instant_spy(12345, 700, 710, risk_tolerance=34)
+
+        assert dict(conn(client).request_payloads)["csm"]["SC"] == 1
+
+    def test_a_guarded_target_costs_more_spies(self, no_sleep):
+        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 200, "GC": 60})))
+
+        client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert dict(conn(client).request_payloads)["csm"]["SC"] > 6
+
+    def test_an_unreachable_risk_budget_is_reported(self, no_sleep):
+        # 5% is the floor against a player castle; 1% cannot be bought.
+        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 46, "GC": 0})))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, risk_tolerance=1)
+
+        assert result.success is False
+        assert result.reason == "risk_budget_unreachable"
+        assert "csm" not in dict(conn(client).request_payloads), "sent a mission over budget"
+
+    def test_a_pool_too_small_for_the_budget_is_transient(self, no_sleep):
+        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 2, "GC": 0})))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert result.success is False
+        assert result.reason == "not_enough_spies_for_risk"
 
     def test_sne_waiter_is_created_before_the_spy_is_sent(self, no_sleep):
         # sne arrives right after csm; registering the waiter afterwards races
@@ -1042,7 +1078,7 @@ class TestSpyFailurePaths:
         assert "csm" not in conn(client).requested
 
     def test_spies_returning_are_picked_up_on_a_later_poll(self, no_sleep):
-        script = spy_script(ssi=[xt_packet("ssi", {"AS": 0}), xt_packet("ssi", {"AS": 2})])
+        script = spy_script(ssi=[xt_packet("ssi", {"AS": 0}), xt_packet("ssi", {"AS": 8})])
         client = make_client(script)
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
