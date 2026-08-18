@@ -15,6 +15,7 @@ from ..protocol.models.base import parse_response
 from ..protocol.models.messages import (
     BattleSpyDataRequest,
     BattleSpyDataResponse,
+    ForwardSpyLogRequest,
     SpyCastleInfo,
     SystemNotificationEvent,
 )
@@ -83,6 +84,16 @@ class SpyResult:
 @register_service("spy")
 class SpyService(BaseService):
     """Service for managing spy operations."""
+
+    def forward_report(self, message_id: int, player_ids: list[int]) -> bool:
+        """Share a spy report with other players in game.
+
+        Returns False when the server rejects it — a report can age out of the
+        mailbox, and the recipients may no longer be reachable.
+        """
+        if not player_ids:
+            return False
+        return self.execute(ForwardSpyLogRequest(PID=list(player_ids), MID=message_id))
 
     def execute_instant_spy(
         self,

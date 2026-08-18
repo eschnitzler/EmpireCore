@@ -1076,6 +1076,32 @@ class TestSpySuccessPath:
         assert conn(client).waiters_cancelled == ["sne"]
 
 
+class TestForwardingASpyReport:
+    """Forwarding sends the report's message id to chosen players.
+
+    C2SForwardSpyLogVO(playerIDs, messageID) in the client, so the payload is
+    the recipient list plus the id of the report being shared.
+    """
+
+    def test_the_report_and_recipients_are_sent(self):
+        client = make_client()
+
+        assert client.spy.forward_report(9001, [111, 222]) is True
+
+        assert dict(conn(client).request_payloads)["mfs"] == {"PID": [111, 222], "MID": 9001}
+
+    def test_a_rejected_forward_reports_failure(self):
+        client = make_client({"mfs": xt_packet("mfs", error_code=21)})
+
+        assert client.spy.forward_report(9001, [111]) is False
+
+    def test_forwarding_to_nobody_sends_nothing(self):
+        client = make_client()
+
+        assert client.spy.forward_report(9001, []) is False
+        assert "mfs" not in conn(client).requested
+
+
 class TestSpyNotificationDecoding:
     """sne carries the mission outcome in a '+'-delimited params string.
 

@@ -51,6 +51,20 @@ class BattleSpyDataRequest(BaseRequest):
     message_id: int = Field(alias="MID")
 
 
+class ForwardSpyLogRequest(BaseRequest):
+    """
+    Forward a spy report to other players.
+
+    Command: mfs
+    Payload: {"PID": [player_id, ...], "MID": message_id}
+    """
+
+    command = "mfs"
+
+    player_ids: list[int] = Field(alias="PID")
+    message_id: int = Field(alias="MID")
+
+
 class SpyCastleInfo(BaseModel):
     """The spied castle, from the report's ``AI`` block.
 
@@ -90,6 +104,7 @@ class BattleSpyDataResponse(BaseResponse):
 
 
 __all__ = [
+    "ForwardSpyLogRequest",
     "SystemNotificationEvent",
     "BattleSpyDataRequest",
     "BattleSpyDataResponse",
