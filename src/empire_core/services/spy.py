@@ -21,6 +21,32 @@ from ..protocol.models.messages import (
 from .base import BaseService, register_service
 from .spy_risk import MAX_ACCURACY, MAX_RISK_SPY, plan_mission
 
+# Outcome codes from MessageConst in the game client. A spy log is a loss when
+# the attacker failed or the defender succeeded (AMessageSpyVO.isFailedSpyLog).
+_SUBTYPE_ATTACKER_SUCCESS = 0
+_SUBTYPE_DEFENDER_SUCCESS = 1
+_SUBTYPE_ATTACKER_FAILED = 2
+_LOST_SPY_RESULTS = frozenset({_SUBTYPE_DEFENDER_SUCCESS, _SUBTYPE_ATTACKER_FAILED})
+
+
+def _parse_spy_notification(message: list[Any]) -> int | None:
+    """The mission's result code from an ``sne`` message, or None if unreadable.
+
+    The params field is ``subtypeSpy+subtypeResult+areaType#kingdomID+ownerID+
+    areaName``; only the result matters here. Returning None rather than
+    assuming success keeps an unrecognised shape from publishing a report the
+    mission may never have earned.
+    """
+    if len(message) < 3 or not isinstance(message[2], str):
+        return None
+    fields = message[2].split("+")
+    if len(fields) < 2:
+        return None
+    try:
+        return int(fields[1])
+    except ValueError:
+        return None
+
 
 @dataclass
 class SpyResult:
@@ -180,11 +206,13 @@ class SpyService(BaseService):
             if not sne_event.messages or not sne_event.messages[0]:
                 return SpyResult(success=False, reason="invalid_sne_format")
 
-            message_id = sne_event.messages[0][0]
-
-            # Check if spy was caught: the "1+2+1" pattern from the legacy bot
             first_msg = sne_event.messages[0]
-            if len(first_msg) >= 4 and first_msg[1] == 1 and first_msg[2] == 2 and first_msg[3] == 1:
+            message_id = first_msg[0]
+
+            outcome = _parse_spy_notification(first_msg)
+            if outcome is None:
+                return SpyResult(success=False, reason="invalid_sne_format")
+            if outcome in _LOST_SPY_RESULTS:
                 return SpyResult(success=False, reason="spy_caught")
 
             # 5. Request the actual spy report data
@@ -192,6 +220,16 @@ class SpyService(BaseService):
                 bsd_resp = self.request(BattleSpyDataRequest(MID=message_id), BattleSpyDataResponse)
             except EmpireError as e:
                 return SpyResult(success=False, reason=f"bsd_failed_{_error_tag(e)}")
+
+            if not bsd_resp.spy_data:
+                # A report with no army block was never read: the castle is not
+                # empty, the mission just brought nothing back.
+                return SpyResult(success=False, reason="no_spy_data")
+
+            report_target = bsd_resp.target
+            if report_target is not None and report_target.x >= 0 and report_target.y >= 0:
+                if (report_target.x, report_target.y) != (target_x, target_y):
+                    return SpyResult(success=False, reason="report_target_mismatch")
 
             return SpyResult(
                 success=True,

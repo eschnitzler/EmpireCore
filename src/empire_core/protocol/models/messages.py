@@ -52,7 +52,17 @@ class BattleSpyDataRequest(BaseRequest):
 
 
 class SpyCastleInfo(BaseModel):
+    """The spied castle, from the report's ``AI`` block.
+
+    The coordinates are the only way to tell whose report this is: ``sne``
+    carries no correlation id, so a mission has to check that the report it
+    fetched describes the castle it asked about.
+    """
+
     castle_name: str = Field(alias="N", default="")
+    x: int = Field(alias="X", default=-1)
+    y: int = Field(alias="Y", default=-1)
+    kingdom: int = Field(alias="K", default=-1)
 
 
 class BattleSpyDataResponse(BaseResponse):

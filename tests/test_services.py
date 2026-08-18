@@ -980,10 +980,20 @@ def spy_script(
     return {
         "ssi": ssi if ssi is not None else xt_packet("ssi", {"AS": 46, "GC": 0}),
         "csm": csm if csm is not None else xt_packet("csm", {"MID": 1}),
-        "sne": sne if sne is not None else xt_packet("sne", {"MSG": [[9001, 1, 1, 0]]}),
+        "sne": sne
+        if sne is not None
+        else xt_packet("sne", {"MSG": [[9001, 3, "1+0+4#0+16324240+Enemy Keep", "", -1, 0, 0, 0, 0]]}),
         "bsd": bsd
         if bsd is not None
-        else xt_packet("bsd", {"MID": 9001, "S": [[[487, 100]]], "B": {"K": 1}, "AI": {"N": "Enemy Keep"}}),
+        else xt_packet(
+            "bsd",
+            {
+                "MID": 9001,
+                "S": [[[487, 100]]],
+                "B": {"K": 1},
+                "AI": {"N": "Enemy Keep", "X": 700, "Y": 710, "K": 0},
+            },
+        ),
     }
 
 
@@ -1066,6 +1076,96 @@ class TestSpySuccessPath:
         assert conn(client).waiters_cancelled == ["sne"]
 
 
+class TestSpyNotificationDecoding:
+    """sne carries the mission outcome in a '+'-delimited params string.
+
+    Format, from AMessageSpyVO and MessageConst in the client bundle:
+        subtypeSpy+subtypeResult+areaType#kingdomID+ownerID+areaName
+    with ATTACKER_SUCCESS=0, DEFENDER_SUCCESS=1, ATTACKER_FAILED=2.
+
+    The old check read first_msg[1]/[2]/[3] as ints and compared a string to 2,
+    so it could never fire: every caught mission was recorded as a success, and
+    its empty report was published as a castle with no troops.
+    """
+
+    def _sne(self, params: str) -> Any:
+        return xt_packet("sne", {"MSG": [[9001, 3, params, "", -1, 0, 0, 0, 0]]})
+
+    def test_a_caught_mission_is_reported_as_caught(self, no_sleep):
+        client = make_client(
+            spy_script(sne=self._sne("1+2+12#3+16324240+Inheritor"), bsd=xt_packet("bsd", {"MID": 9001}))
+        )
+
+        result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert result.success is False
+        assert result.reason == "spy_caught"
+
+    def test_a_successful_defence_for_the_target_is_also_a_loss(self, no_sleep):
+        client = make_client(spy_script(sne=self._sne("1+1+12#3+16324240+Inheritor")))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert result.success is False
+        assert result.reason == "spy_caught"
+
+    def test_a_successful_mission_still_reads_as_success(self, no_sleep):
+        client = make_client(spy_script(sne=self._sne("1+0+4#0+16324240+Sanghelios")))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert result.success is True
+
+    def test_an_undecodable_params_string_is_not_a_success(self, no_sleep):
+        client = make_client(spy_script(sne=self._sne("garbage")))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert result.success is False
+        assert result.reason == "invalid_sne_format"
+
+
+class TestSpyReportIsCheckedAgainstTheTarget:
+    """sne has no correlation id, so an unrelated notification arriving in the
+    window would hand us another castle's report to publish as this target's."""
+
+    def test_a_report_for_another_castle_is_rejected(self, no_sleep):
+        bsd = xt_packet(
+            "bsd",
+            {"MID": 9001, "S": [[[487, 100]]], "AI": {"N": "Elsewhere", "X": 111, "Y": 222, "K": 0}},
+        )
+        client = make_client(spy_script(bsd=bsd))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert result.success is False
+        assert result.reason == "report_target_mismatch"
+
+    def test_the_requested_castle_is_accepted(self, no_sleep):
+        bsd = xt_packet(
+            "bsd",
+            {"MID": 9001, "S": [[[487, 100]]], "AI": {"N": "Keep", "X": 700, "Y": 710, "K": 0}},
+        )
+        client = make_client(spy_script(bsd=bsd))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert result.success is True
+        assert result.target is not None
+        assert (result.target.x, result.target.y) == (700, 710)
+
+    def test_a_report_with_no_army_block_is_not_an_empty_castle(self, no_sleep):
+        # The caught mission's report had no S and no B at all. Reporting that
+        # as zero troops publishes a castle nobody actually read.
+        bsd = xt_packet("bsd", {"MID": 9001, "AI": {"N": "Keep", "X": 700, "Y": 710, "K": 0}})
+        client = make_client(spy_script(bsd=bsd))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert result.success is False
+        assert result.reason == "no_spy_data"
+
+
 class TestSpyFailurePaths:
     def test_no_spies_available_after_polling(self, no_sleep):
         client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 0})))
@@ -1139,8 +1239,10 @@ class TestSpyFailurePaths:
         assert result.reason == "invalid_sne_format"
 
     def test_caught_spy_is_reported_as_such(self, no_sleep):
-        # The server marks a caught spy with the 1/2/1 tail.
-        client = make_client(spy_script(sne=xt_packet("sne", {"MSG": [[9001, 1, 2, 1]]})))
+        # subtypeResult 2 is ATTACKER_FAILED: the mission was caught.
+        client = make_client(
+            spy_script(sne=xt_packet("sne", {"MSG": [[9001, 3, "1+2+12#3+16324240+Enemy Keep", "", -1, 0, 0, 0, 0]]}))
+        )
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
