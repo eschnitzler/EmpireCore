@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v0.31.0 (2026-08-18)
+
+### Bug Fixes
+
+- **network**: Drop a session the server has stopped answering
+  ([`8d8cce1`](https://github.com/eschnitzler/EmpireCore/commit/8d8cce1e5724d918de898f5998ba0f00a5b49e8b))
+
+- **protocol**: Wait for jaa when selecting a castle
+  ([`3d563d3`](https://github.com/eschnitzler/EmpireCore/commit/3d563d37c226fbd5505dea47d715ba3c4b1655f3))
+
+- **spy**: Read the mission outcome instead of assuming it succeeded
+  ([`2a9df22`](https://github.com/eschnitzler/EmpireCore/commit/2a9df2209837fb797bf745a59ad30af0df32fcfd))
+
+### Features
+
+- **spy**: Size a mission from the game's own risk formula
+  ([`26528c9`](https://github.com/eschnitzler/EmpireCore/commit/26528c9ae53af1ad89bfeb745b2c92f206ab3b95))
+
+### Refactoring
+
+- **spy**: Treat max risk as a send gate, not a target
+  ([`e10cbd3`](https://github.com/eschnitzler/EmpireCore/commit/e10cbd384ca68ed976ad3ef3d3b98e32eb1118af))
+
+
 ## v0.30.3 (2026-08-12)
 
 ### Bug Fixes
