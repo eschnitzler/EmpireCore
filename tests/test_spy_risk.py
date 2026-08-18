@@ -63,7 +63,11 @@ class TestPlanMission:
 
     def test_extra_spies_are_left_for_other_targets(self):
         # 46 spies and 6 spies buy exactly the same 5%.
-        assert plan_mission(guards=0, available=46).spies == plan_mission(guards=0, available=6).spies
+        full_pool = plan_mission(guards=0, available=46)
+        just_enough = plan_mission(guards=0, available=6)
+
+        assert full_pool is not None and just_enough is not None
+        assert full_pool.spies == just_enough.spies
 
     def test_a_guarded_target_costs_more_but_still_not_everything(self):
         plan = plan_mission(guards=60, available=46)
@@ -84,7 +88,10 @@ class TestPlanMission:
 
     def test_the_ceiling_does_not_make_missions_riskier(self):
         # A loose ceiling must not buy a cheaper, riskier mission.
-        assert plan_mission(guards=0, available=46, max_risk=90).risk == MIN_RISK_SPY_PLAYER
+        plan = plan_mission(guards=0, available=46, max_risk=90)
+
+        assert plan is not None
+        assert plan.risk == MIN_RISK_SPY_PLAYER
 
     def test_an_empty_pool_has_no_plan(self):
         assert plan_mission(guards=0, available=0) is None
