@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.32.0 (2026-08-18)
+
+### Features
+
+- **spy**: Forward a spy report to other players
+  ([`d3ef597`](https://github.com/eschnitzler/EmpireCore/commit/d3ef5977b6d030ba812b431d9709c7210f28a864))
+
+- **spy**: Parse the spied castle's fortifications
+  ([`c81be4c`](https://github.com/eschnitzler/EmpireCore/commit/c81be4cec5fb24a8ee5598fd88fc3b0b4e2ffae8))
+
+- **spy**: Split a spy report's army by the position it holds
+  ([`0532dfb`](https://github.com/eschnitzler/EmpireCore/commit/0532dfbdab4fde9aee9be3746b08cec5b6ab3549))
+
+### Testing
+
+- **spy**: Narrow SpyPlan before reading it
+  ([`7431b5e`](https://github.com/eschnitzler/EmpireCore/commit/7431b5e1529e65a482f5f32105cb35926194af6c))
+
+
 ## v0.31.0 (2026-08-18)
 
 ### Bug Fixes
