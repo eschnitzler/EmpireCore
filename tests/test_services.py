@@ -1125,6 +1125,48 @@ class TestSpyNotificationDecoding:
         assert result.reason == "invalid_sne_format"
 
 
+class TestSpiedCastleDetail:
+    """The report's AI block carries the castle's fortifications.
+
+    parseAreaInfoBattleLog in the client reads keep, wall, gate, tower and moat
+    levels from it — the inputs any assessment of the castle needs, and the
+    numbers a spy goes to look at in the first place.
+    """
+
+    def test_fortification_levels_are_parsed(self, no_sleep):
+        bsd = xt_packet(
+            "bsd",
+            {
+                "MID": 9001,
+                "S": [[[487, 100]]],
+                "AI": {
+                    "N": "Requiem", "X": 700, "Y": 710, "K": 1, "AT": 12,
+                    "KL": 5, "WL": 4, "GL": 3, "TL": 2, "ML": 1,
+                },
+            },
+        )
+        client = make_client(spy_script(bsd=bsd))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert result.target is not None
+        assert result.target.keep_level == 5
+        assert result.target.wall_level == 4
+        assert result.target.gate_level == 3
+        assert result.target.tower_level == 2
+        assert result.target.moat_level == 1
+        assert result.target.area_type == 12
+
+    def test_a_report_without_fortifications_still_parses(self, no_sleep):
+        client = make_client(spy_script())
+
+        result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert result.success is True
+        assert result.target is not None
+        assert result.target.keep_level == -1
+
+
 class TestSpyReportIsCheckedAgainstTheTarget:
     """sne has no correlation id, so an unrelated notification arriving in the
     window would hand us another castle's report to publish as this target's."""

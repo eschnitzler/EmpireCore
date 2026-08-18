@@ -63,6 +63,15 @@ class SpyCastleInfo(BaseModel):
     x: int = Field(alias="X", default=-1)
     y: int = Field(alias="Y", default=-1)
     kingdom: int = Field(alias="K", default=-1)
+    area_type: int = Field(alias="AT", default=-1)
+
+    # Fortifications, read by parseAreaInfoBattleLog in the client. -1 marks a
+    # level the report did not carry, which is not the same as level 0.
+    keep_level: int = Field(alias="KL", default=-1)
+    wall_level: int = Field(alias="WL", default=-1)
+    gate_level: int = Field(alias="GL", default=-1)
+    tower_level: int = Field(alias="TL", default=-1)
+    moat_level: int = Field(alias="ML", default=-1)
 
 
 class BattleSpyDataResponse(BaseResponse):
