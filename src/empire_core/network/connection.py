@@ -88,6 +88,11 @@ SOCKET_POLL_TIMEOUT = 1.0
 
 KEEPALIVE_INTERVAL = 60.0
 
+# A live session always yields inbound traffic — game events, or at minimum the
+# server's answer to our keepalive. Silence for this long means the session died
+# server-side with the socket still open, which no socket-level check can see.
+SESSION_IDLE_TIMEOUT = KEEPALIVE_INTERVAL * 3
+
 # How long disconnect() waits for each background thread before reporting it
 # as leaked (a subscriber callback can block the receive thread indefinitely).
 THREAD_JOIN_TIMEOUT = 2.0
@@ -146,6 +151,7 @@ class Connection:
         self._generation = 0
         self._recv_thread: threading.Thread | None = None
         self._keepalive_thread: threading.Thread | None = None
+        self._last_recv_at = 0.0
 
         # Guards every lifecycle transition (ws swap, _running/_closing,
         # generation bump, thread starts) so connect(), disconnect() and the
@@ -227,6 +233,7 @@ class Connection:
                 self.ws = ws
                 self._running = True
                 self._closing = False
+                self._last_recv_at = time.monotonic()
                 self._generation += 1
                 generation = self._generation
 
@@ -508,6 +515,8 @@ class Connection:
             if not data:
                 continue
 
+            self._last_recv_at = time.monotonic()
+
             # A single bad frame must not cost us the connection: parsing can
             # reject e.g. all-null or non-UTF-8 frames, and tearing the session
             # down forces a re-login that the game server rate-limits. Drop the
@@ -636,7 +645,34 @@ class Connection:
                     if not self.connected:
                         break
 
+            if active():
+                self._check_session_liveness()
+
         logger.debug("Keepalive loop ended")
+
+    def _check_session_liveness(self) -> None:
+        """Tear down a session the server has stopped answering.
+
+        Closing the socket is all this does: the receive loop then fails out of
+        ``recv()`` and runs its normal epilogue, so waiter cancellation and
+        disconnect notification keep to a single code path.
+        """
+        with self._lifecycle_lock:
+            if not self._running or self._closing:
+                return
+            idle_for = time.monotonic() - self._last_recv_at
+            if idle_for <= SESSION_IDLE_TIMEOUT:
+                return
+            ws = self.ws
+            logger.warning(
+                f"No traffic for {idle_for:.0f}s (limit {SESSION_IDLE_TIMEOUT:.0f}s); treating session as dead"
+            )
+
+        if ws is not None:
+            try:
+                ws.close()
+            except Exception:
+                logger.debug("Closing a dead session's socket failed", exc_info=True)
 
     def _cancel_all_waiters(self) -> None:
         """Cancel all pending waiters."""

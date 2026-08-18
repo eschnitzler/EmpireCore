@@ -7,7 +7,7 @@ import pytest
 import websocket
 
 from empire_core.exceptions import ConnectionClosedError, EmpireTimeoutError, NetworkError
-from empire_core.network.connection import Connection
+from empire_core.network.connection import SESSION_IDLE_TIMEOUT, Connection
 from empire_core.protocol.packet import Packet
 
 
@@ -672,3 +672,42 @@ class TestThreadSafety:
         result = conn.wait_for_result("gam", waiter, timeout=1.0)
         t.join()
         assert result.command_id == "gam"
+
+
+class TestSessionLiveness:
+    """A session can go stale server-side while the socket stays open."""
+
+    def test_silent_session_is_closed(self, live_conn):
+        ws = RecordingSocket()
+        live_conn.ws = ws
+        live_conn._last_recv_at = time.monotonic() - (SESSION_IDLE_TIMEOUT + 1)
+
+        live_conn._check_session_liveness()
+
+        assert ws.closed, "stale session left open; reconnect can never fire"
+
+    def test_recent_traffic_keeps_session(self, live_conn):
+        ws = RecordingSocket()
+        live_conn.ws = ws
+        live_conn._last_recv_at = time.monotonic()
+
+        live_conn._check_session_liveness()
+
+        assert not ws.closed
+
+    def test_superseded_generation_is_left_alone(self, live_conn):
+        ws = RecordingSocket()
+        live_conn.ws = ws
+        live_conn._last_recv_at = time.monotonic() - (SESSION_IDLE_TIMEOUT + 1)
+        live_conn._running = False
+
+        live_conn._check_session_liveness()
+
+        assert not ws.closed
+
+    def test_received_frame_stamps_liveness(self, live_conn):
+        live_conn._last_recv_at = time.monotonic() - 999
+
+        live_conn._recv_loop(FakeSocket([make_frame("gam")]), 1)
+
+        assert time.monotonic() - live_conn._last_recv_at < 5
