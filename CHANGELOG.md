@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.32.1 (2026-08-19)
+
+### Bug Fixes
+
+- **spy**: Trade accuracy for risk instead of refusing the mission
+  ([`ac7b892`](https://github.com/eschnitzler/EmpireCore/commit/ac7b89265352657cce68bb49af0e47a01c452a97))
+
+### Code Style
+
+- **tests**: Apply ruff format to the spy report fixtures
+  ([`c732d1d`](https://github.com/eschnitzler/EmpireCore/commit/c732d1d7a1f95e53316d4e09b38fe2f58fecfc29))
+
+
 ## v0.32.0 (2026-08-18)
 
 ### Features
