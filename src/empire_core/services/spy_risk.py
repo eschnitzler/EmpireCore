@@ -63,10 +63,11 @@ def spy_risk(
 
 @dataclass(frozen=True)
 class SpyPlan:
-    """How a mission should be sent: the fewest spies at the best risk going."""
+    """How a mission should be sent: spies, the risk it buys, and at what detail."""
 
     spies: int
     risk: int
+    accuracy: int = MAX_ACCURACY
 
 
 def plan_mission(
@@ -78,29 +79,31 @@ def plan_mission(
     player_target: bool = True,
     dungeon: bool = False,
 ) -> SpyPlan | None:
-    """Cheapest way to run this mission at the lowest risk the pool allows.
+    """Cheapest way to run this mission inside the risk ceiling.
 
-    Risk falls monotonically with spies, so the best risk on offer is the one at
-    the full pool — but several counts usually tie at that risk, and the
-    smallest of them leaves the rest of the pool for other targets. Sending 46
-    spies where 6 reach the same 5% buys nothing and strands 40.
+    Accuracy is a lever, not a constant. Risk falls as accuracy falls, so the
+    client's own dialog walks accuracy down until the risk fits rather than
+    refusing the mission — a guarded castle that sits at 7% with a full pool at
+    accuracy 100 reaches the 5% floor at a lower accuracy. The most detailed
+    report that fits is chosen, then the fewest spies that achieve it, leaving
+    the rest of the pool for other targets.
 
-    ``max_risk`` only decides whether to send at all: None is returned when even
-    the whole pool cannot bring the risk down to it, which is a target to skip
-    rather than a mission to run badly.
+    None means even the least accurate mission with every spy available stays
+    above the ceiling: a target to skip rather than spy badly.
     """
     if available < 1:
         return None
 
-    best_risk = spy_risk(available, guards, accuracy, player_target=player_target, dungeon=dungeon)
-    if best_risk > max_risk:
-        return None
-
-    for spies in range(1, available + 1):
-        risk = spy_risk(spies, guards, accuracy, player_target=player_target, dungeon=dungeon)
-        if risk <= best_risk:
-            return SpyPlan(spies=spies, risk=risk)
-    return SpyPlan(spies=available, risk=best_risk)
+    for candidate in range(min(accuracy, MAX_ACCURACY), MIN_ACCURACY - 1, -1):
+        best_risk = spy_risk(available, guards, candidate, player_target=player_target, dungeon=dungeon)
+        if best_risk > max_risk:
+            continue
+        for spies in range(1, available + 1):
+            risk = spy_risk(spies, guards, candidate, player_target=player_target, dungeon=dungeon)
+            if risk <= best_risk:
+                return SpyPlan(spies=spies, risk=risk, accuracy=candidate)
+        return SpyPlan(spies=available, risk=best_risk, accuracy=candidate)
+    return None
 
 
 __all__ = [

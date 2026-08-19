@@ -1042,9 +1042,9 @@ class TestSpySuccessPath:
         assert dict(conn(client).request_payloads)["csm"]["SC"] > 6
 
     def test_a_target_over_the_risk_ceiling_is_not_spied(self, no_sleep):
-        # Two spies against an unguarded castle is the best this pool can do,
-        # and that sits well above a 10% ceiling.
-        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 2, "GC": 0})))
+        # One spy against a fully guarded castle stays over a 10% ceiling at
+        # every accuracy the game allows, so there is no mission to send.
+        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 1, "GC": 180})))
 
         result = client.spy.execute_instant_spy(12345, 700, 710, risk_tolerance=10)
 
@@ -1417,3 +1417,16 @@ class TestRequestBuilding:
         response = GetAllianceInfoResponse.model_validate({})
         assert response.members == []
         assert response.online_members == []
+
+
+class TestAccuracyIsTradedForRisk:
+    """A guarded castle is spied at lower detail rather than not at all."""
+
+    def test_the_planned_accuracy_is_what_gets_sent(self, no_sleep):
+        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 46, "GC": 60})))
+
+        client.spy.execute_instant_spy(12345, 700, 710, risk_tolerance=5)
+
+        sent = dict(conn(client).request_payloads)["csm"]
+        assert sent["SE"] < 100, "sent full accuracy the risk ceiling could not afford"
+        assert sent["SC"] > 0

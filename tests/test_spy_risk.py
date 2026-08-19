@@ -83,8 +83,9 @@ class TestPlanMission:
         assert (plan.spies, plan.risk) == (3, 22)
 
     def test_a_target_over_the_ceiling_is_skipped(self):
-        # The best 3 spies can do against an unguarded castle is 22%.
-        assert plan_mission(guards=0, available=3, max_risk=10) is None
+        # A single spy against a fully guarded castle stays above the ceiling at
+        # every accuracy the game allows, so there is no mission to send.
+        assert plan_mission(guards=180, available=1, max_risk=10) is None
 
     def test_the_ceiling_does_not_make_missions_riskier(self):
         # A loose ceiling must not buy a cheaper, riskier mission.
@@ -92,6 +93,38 @@ class TestPlanMission:
 
         assert plan is not None
         assert plan.risk == MIN_RISK_SPY_PLAYER
+
+    def test_accuracy_is_traded_down_to_meet_the_ceiling(self):
+        """The game lowers accuracy rather than refusing the mission.
+
+        A guarded castle sits at 7% with 46 spies at full accuracy, which a 5%
+        ceiling rejects — but the same spies at lower accuracy reach 5%, which
+        is the risk the game's own dialog shows.
+        """
+        plan = plan_mission(guards=60, available=46, max_risk=MIN_RISK_SPY_PLAYER)
+
+        assert plan is not None, "refused a mission the game would allow"
+        assert plan.risk <= MIN_RISK_SPY_PLAYER
+        assert plan.accuracy < MAX_ACCURACY, "accuracy was never traded down"
+
+    def test_full_accuracy_is_kept_when_it_already_fits(self):
+        plan = plan_mission(guards=0, available=46, max_risk=MIN_RISK_SPY_PLAYER)
+
+        assert plan is not None
+        assert plan.accuracy == MAX_ACCURACY, "gave up report detail for nothing"
+
+    def test_accuracy_never_drops_below_the_games_minimum(self):
+        # Nothing can spy a fully guarded castle with two spies at 5%.
+        plan = plan_mission(guards=180, available=2, max_risk=MIN_RISK_SPY_PLAYER)
+
+        assert plan is None
+
+    def test_the_most_accurate_report_within_budget_is_chosen(self):
+        loose = plan_mission(guards=60, available=46, max_risk=40)
+        tight = plan_mission(guards=60, available=46, max_risk=MIN_RISK_SPY_PLAYER)
+
+        assert loose is not None and tight is not None
+        assert loose.accuracy >= tight.accuracy, "a looser ceiling bought less detail"
 
     def test_an_empty_pool_has_no_plan(self):
         assert plan_mission(guards=0, available=0) is None

@@ -169,6 +169,8 @@ class SpyService(BaseService):
             return SpyResult(success=False, reason="risk_over_budget")
 
         spies_to_send = plan.spies
+        # The plan may have traded detail for risk; send what it settled on.
+        accuracy = plan.accuracy
 
         # 2. Calculate risk (simplified for now - just use max spies)
         # In a real implementation, we'd calculate exact spies needed for risk_tolerance
