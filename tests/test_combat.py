@@ -12,7 +12,7 @@ from empire_core.combat import (
     npc_camp_defence,
     pick_soldier_stack,
 )
-from empire_core.gamedata import GameData
+from empire_core.gamedata import GameData, UnitStats
 
 # Live rows: 211 is a ranged MeadRanger, 601 a melee unit, 646 a defence tool.
 PAYLOAD = {
@@ -85,12 +85,13 @@ class TestAttackerEffects:
         assert effects.soldier_stack_attack_value(game.get_unit(601), 1, 1) == 200
         assert effects.soldier_stack_attack_value(game.get_unit(211), 1, 1) == 270
 
-    def test_a_tool_has_no_stack_attack_value(self):
-        # Tools are not units and carry no role.
-        effects = AttackerFlankEffects()
-        tool_as_unit = data().get_unit(646)
+    def test_a_roleless_unit_has_no_stack_value(self):
+        # Tools are not units at all, and a unit with no role matches neither
+        # bonus, so it can never be picked as a stack.
+        assert data().get_unit(646) is None
 
-        assert tool_as_unit is None
+        roleless = UnitStats.model_validate({"wodID": 1, "meleeAttack": "500"})
+        assert AttackerFlankEffects().soldier_stack_attack_value(roleless, 10, 10) == 0
 
     def test_no_capacity_means_no_value(self):
         effects = AttackerFlankEffects()
