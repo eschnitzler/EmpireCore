@@ -4,7 +4,8 @@
 > The real commands the client sends differ from the `att`/`tra`/`bui`
 > sketches here. Verified, implemented commands live in the protocol models
 > and services, e.g. attacks use `cra` (see
-> [deep_dive_findings.md](deep_dive_findings.md) for its real payload),
+> [game_bundle_analysis.md](game_bundle_analysis.md) for its real payload,
+> implemented in `client.attack.send_attack`),
 > support uses `cds` (`client.castle.send_support`), and building/army actions
 > go through `client.army` / `client.castle`. Treat this file as a historical
 > planning note, not a spec.

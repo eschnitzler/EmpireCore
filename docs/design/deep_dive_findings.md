@@ -18,17 +18,17 @@ The repository reveals the detailed structure of the `cra` packet used for sendi
   "SX": 1122, "SY": 229,       // Source X, Y
   "TX": 1115, "TY": 226,       // Target X, Y
   "KID": 0,                    // Kingdom ID
-  "LID": 29,                   // Location ID (Target Castle ID)
-  "WT": 0,                     // World Type
-  "HBW": 1007,                 // (Unknown - likely "Has Barricade/Wall" or similar flag)
+  "LID": 29,                   // Commander ID leading the attack (0 = none)
+  "WT": 0,                     // Wait time
+  "HBW": 1007,                 // Horse type WOD ID (-1 when feathers are used)
   "BPC": 0,                    // (Unknown)
   "ATT": 0,                    // Attack Type (0 = Normal, maybe others for capture/pillage)
-  "AV": 0,                     // (Unknown)
-  "LP": 1,                     // (Unknown - Loot Priority?)
+  "AV": 0,                     // Share battle view
+  "LP": 1,                     // Loot priority resource
   "FC": 0,                     // Fast Cast / Feather (Speed up)
-  "PTT": 0,                    // (Unknown)
-  "SD": 0,                     // Scheduled Date (Time of arrival?)
-  "ICA": 0,                    // (Unknown)
+  "PTT": 0,                    // Feathers (speed boost)
+  "SD": 0,                     // Slowdown offset in seconds
+  "ICA": 0,                    // Collector attack flag
   "CD": 99,                    // Cooldown/Check digit? (Hardcoded 99 in `khan.py`)
   "A": [                       // Army Waves (Array of Objects)
     {
@@ -41,11 +41,14 @@ The repository reveals the detailed structure of the `cra` packet used for sendi
     },
     // ... Additional waves
   ],
-  "BKS": [],                   // (Unknown - possibly "Back Support" or hero?)
-  "AST": [-1, -1, -1],         // (Unknown - Attack Strategy/Tactics?)
-  "RW": [[215, 2000], ...]     // (Unknown - Rewards/Loot capacity check?)
+  "BKS": [],                   // Collector booster
+  "AST": [-1, -1, -1],         // Support tool WOD IDs
+  "RW": [[215, 2000], ...]     // Yard (courtyard) wave
 }
 ```
+
+Field meanings above were verified against `C2SCreateArmyAttackMovementVO` in the
+live client bundle; see [game_bundle_analysis.md](game_bundle_analysis.md).
 
 **Key Findings:**
 *   **Waves:** The `A` field is a list, supporting multiple waves.
