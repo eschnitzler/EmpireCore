@@ -6,9 +6,13 @@ from empire_core.combat import (
     FillOptions,
     Flank,
     Inventory,
+    WaveCapacity,
     defender_flank_effects,
     fill_flank_with_soldiers,
     fill_wave,
+    fill_waves,
+    max_attackers,
+    max_wave_count,
     npc_camp_defence,
     pick_soldier_stack,
 )
@@ -222,6 +226,21 @@ def solver_data() -> GameData:
     return GameData.parse("test", SOLVER_PAYLOAD)
 
 
+def _capacity(units_per_flank: int, slots: int) -> WaveCapacity:
+    """A hand-built capacity, so fill tests stay independent of the level maths."""
+    return WaveCapacity(
+        level=0,
+        flank_soldiers=units_per_flank,
+        middle_soldiers=units_per_flank,
+        flank_tools=0,
+        middle_tools=0,
+        flank_unit_slots=slots,
+        middle_unit_slots=slots,
+        flank_tool_slots=0,
+        middle_tool_slots=0,
+    )
+
+
 class TestInventory:
     def test_deduct_caps_at_stock_and_removes_empty_kinds(self):
         inv = Inventory({601: 5})
@@ -336,7 +355,7 @@ class TestFillWave:
         game = solver_data()
         inv = Inventory({601: 30})
 
-        wave = fill_wave(inv, game, flank_capacity=10, flank_slots=1)
+        wave = fill_wave(inv, game, _capacity(10, 1))
 
         assert wave.is_complete()
         payload = wave.model_dump(by_alias=True)
@@ -350,7 +369,7 @@ class TestFillWave:
         game = solver_data()
         inv = Inventory({601: 15})
 
-        wave = fill_wave(inv, game, flank_capacity=10, flank_slots=1)
+        wave = fill_wave(inv, game, _capacity(10, 1))
 
         payload = wave.model_dump(by_alias=True)
         assert payload["L"]["U"] == [[601, 10]]
@@ -364,8 +383,7 @@ class TestFillWave:
         wave = fill_wave(
             inv,
             game,
-            flank_capacity=10,
-            flank_slots=1,
+            _capacity(10, 1),
             options=FillOptions(fill_left=False, fill_right=False),
         )
 
@@ -375,7 +393,7 @@ class TestFillWave:
         assert payload["R"]["U"] == []
 
     def test_an_unfillable_wave_is_incomplete_not_an_error(self):
-        wave = fill_wave(Inventory({}), solver_data(), flank_capacity=10, flank_slots=2)
+        wave = fill_wave(Inventory({}), solver_data(), _capacity(10, 2))
 
         assert not wave.is_complete()
         assert wave.unit_count() == 0
@@ -387,8 +405,7 @@ class TestFillWave:
         wave = fill_wave(
             inv,
             game,
-            flank_capacity=10,
-            flank_slots=1,
+            _capacity(10, 1),
             defence={
                 Flank.LEFT: DefenderFlankEffects(melee_units_melee_strength=1000),
                 Flank.RIGHT: DefenderFlankEffects(range_units_range_strength=1000),
@@ -398,3 +415,112 @@ class TestFillWave:
         payload = wave.model_dump(by_alias=True)
         assert payload["L"]["U"][0][0] == 211  # melee-heavy defence -> ranged attack
         assert payload["R"]["U"][0][0] == 601  # ranged-heavy defence -> melee attack
+
+
+# =============================================================================
+# Wave capacity
+# =============================================================================
+
+
+class TestWaveCapacity:
+    def test_flanks_and_middle_add_up_to_the_wave_total(self):
+        # The middle takes what the two flanks leave, so the three must sum to
+        # getMaxAttackers exactly at every level.
+        for level in (1, 5, 12, 13, 26, 36, 50, 68, 69, 70, 100):
+            capacity = WaveCapacity.for_level(level)
+            assert capacity.total_soldiers() == max_attackers(level), f"level {level}"
+
+    def test_attacker_count_caps_at_level_69(self):
+        assert max_attackers(69) == 260
+        assert max_attackers(70) == 320
+        assert max_attackers(200) == 320
+
+    def test_low_level_capacity_follows_the_linear_rule(self):
+        # 5*level + 8, capped at 260.
+        assert max_attackers(5) == 33
+        assert max_attackers(12) == 68
+
+    def test_level_70_matches_the_client(self):
+        capacity = WaveCapacity.for_level(70)
+
+        assert (capacity.flank_soldiers, capacity.middle_soldiers) == (64, 192)
+        assert (capacity.flank_tools, capacity.middle_tools) == (40, 50)
+        assert (capacity.flank_unit_slots, capacity.middle_unit_slots) == (2, 6)
+        assert (capacity.flank_tool_slots, capacity.middle_tool_slots) == (2, 3)
+
+    def test_slots_unlock_with_level(self):
+        # Unit slots: flank [0, 13], middle [0, 0, 13, 13, 26, 26].
+        assert WaveCapacity.for_level(12).flank_unit_slots == 1
+        assert WaveCapacity.for_level(13).flank_unit_slots == 2
+        assert WaveCapacity.for_level(12).middle_unit_slots == 2
+        assert WaveCapacity.for_level(26).middle_unit_slots == 6
+        # Tool slots: flank [0, 37], middle [0, 11, 37].
+        assert WaveCapacity.for_level(36).flank_tool_slots == 1
+        assert WaveCapacity.for_level(37).flank_tool_slots == 2
+        assert WaveCapacity.for_level(10).middle_tool_slots == 1
+
+    def test_soldier_bonus_grows_the_flanks(self):
+        plain = WaveCapacity.for_level(70)
+        boosted = WaveCapacity.for_level(70, soldier_bonus_percent=10)
+
+        assert boosted.flank_soldiers > plain.flank_soldiers
+        assert boosted.total_soldiers() > plain.total_soldiers()
+
+    def test_wave_count_unlocks_and_conquest_adds_two(self):
+        assert max_wave_count(12) == 1
+        assert max_wave_count(13) == 2
+        assert max_wave_count(26) == 3
+        assert max_wave_count(51) == 4
+        assert max_wave_count(70, conquer=True) == 6
+        assert max_wave_count(70, bonus=1) == 5
+
+    def test_per_flank_lookups(self):
+        capacity = WaveCapacity.for_level(70)
+
+        assert capacity.soldier_capacity(Flank.MIDDLE) == 192
+        assert capacity.soldier_capacity(Flank.LEFT) == 64
+        assert capacity.soldier_capacity(Flank.RIGHT) == 64
+        assert capacity.tool_slot_type(Flank.MIDDLE) == 1
+        assert capacity.tool_slot_type(Flank.LEFT) == 2
+
+
+class TestFillWaves:
+    def test_waves_are_sized_and_counted_from_the_level(self):
+        game = solver_data()
+        # Level 13: 73 attackers, so 15 per flank and 43 in the middle.
+        inventory = Inventory({601: 10_000})
+
+        waves = fill_waves(inventory, game, level=13)
+
+        assert len(waves) == 2
+        first = waves[0].model_dump(by_alias=True)
+        assert first["L"]["U"] == [[601, 15]]
+        assert first["M"]["U"] == [[601, 43]]
+        assert waves[0].unit_count() == max_attackers(13)
+
+    def test_filling_stops_when_the_pool_runs_dry(self):
+        game = solver_data()
+        # Enough for the first wave and a little of the second.
+        waves = fill_waves(Inventory({601: 80}), game, level=13)
+
+        assert len(waves) == 2
+        assert waves[0].unit_count() == 73
+        assert waves[1].unit_count() == 7
+
+    def test_no_units_means_no_waves(self):
+        assert fill_waves(Inventory({}), solver_data(), level=70) == []
+
+    def test_conquest_attacks_get_more_waves(self):
+        game = solver_data()
+        pool = {601: 10_000}
+
+        normal = fill_waves(Inventory(pool), game, level=70)
+        conquest = fill_waves(Inventory(pool), game, level=70, conquer=True)
+
+        assert len(normal) == 4
+        assert len(conquest) == 6
+
+    def test_a_level_70_wave_maxes_out(self):
+        waves = fill_waves(Inventory({601: 10_000}), solver_data(), level=70)
+
+        assert waves[0].unit_count() == 320

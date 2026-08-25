@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict
 from empire_core.gamedata import GameData
 from empire_core.protocol.models import AttackWave, WaveFlank
 
+from .capacity import WaveCapacity, max_wave_count
 from .effects import AttackerFlankEffects, DefenderFlankEffects, Flank
 
 logger = logging.getLogger(__name__)
@@ -223,9 +224,8 @@ def fill_flank_with_soldiers(
 def fill_wave(
     inventory: Inventory,
     game_data: GameData,
+    capacity: WaveCapacity,
     *,
-    flank_capacity: int,
-    flank_slots: int,
     attacker: AttackerFlankEffects | None = None,
     defence: Mapping[Flank, DefenderFlankEffects] | None = None,
     options: FillOptions | None = None,
@@ -241,8 +241,7 @@ def fill_wave(
     Args:
         inventory: Pool to draw from; placed stacks are deducted
         game_data: Loaded unit stats
-        flank_capacity: Troop capacity per flank
-        flank_slots: Unlocked unit slots per flank
+        capacity: The wave's size, from :meth:`WaveCapacity.for_level`
         attacker: Attacker multipliers
         defence: Defender strength per flank, if known
         options: Which flanks to fill and which units to allow
@@ -263,8 +262,8 @@ def fill_wave(
             filled[flank] = []
             continue
         stacks = fill_flank_with_soldiers(
-            flank_capacity,
-            flank_slots,
+            capacity.soldier_capacity(flank),
+            capacity.unit_slots(flank),
             inventory,
             game_data,
             attacker=attacker,
@@ -280,10 +279,69 @@ def fill_wave(
     )
 
 
+def fill_waves(
+    inventory: Inventory,
+    game_data: GameData,
+    *,
+    level: int,
+    conquer: bool = False,
+    wave_bonus: int = 0,
+    soldier_bonus_percent: float = 0.0,
+    tool_bonus: float = 0.0,
+    attacker: AttackerFlankEffects | None = None,
+    defence: Mapping[Flank, DefenderFlankEffects] | None = None,
+    options: FillOptions | None = None,
+) -> list[AttackWave]:
+    """
+    Fill every wave the attack may carry, front to back.
+
+    Sizes itself: how many waves, how many units each flank holds and how many
+    slots are unlocked all follow from the effective level, the way the client
+    derives them. Waves that come out empty are dropped, so the result is ready
+    for ``send_attack``.
+
+    Args:
+        inventory: Pool to draw from; shared across every wave
+        game_data: Loaded unit stats
+        level: Effective level - the attacker's own, or the target's minimum
+            defence level when that is higher
+        conquer: A conquest attack carries extra waves
+        wave_bonus: Extra waves from the ADDITIONAL_WAVE legend skill
+        soldier_bonus_percent: Percentage bonus to units per flank
+        tool_bonus: Extra flank tool capacity
+        attacker: Attacker multipliers
+        defence: Defender strength per flank, if known
+        options: Which flanks to fill and which units to allow
+
+    Returns:
+        One :class:`AttackWave` per filled wave, in send order
+    """
+    capacity = WaveCapacity.for_level(
+        level,
+        soldier_bonus_percent=soldier_bonus_percent,
+        tool_bonus=tool_bonus,
+    )
+    waves: list[AttackWave] = []
+    for _index in range(max_wave_count(level, conquer=conquer, bonus=wave_bonus)):
+        wave = fill_wave(
+            inventory,
+            game_data,
+            capacity,
+            attacker=attacker,
+            defence=defence,
+            options=options,
+        )
+        if not wave.is_complete():
+            break
+        waves.append(wave)
+    return waves
+
+
 __all__ = [
     "FillOptions",
     "Inventory",
     "fill_flank_with_soldiers",
     "fill_wave",
+    "fill_waves",
     "pick_soldier_stack",
 ]
