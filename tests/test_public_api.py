@@ -109,10 +109,9 @@ def test_top_level_movement_is_the_state_model_consumers_use() -> None:
 # ---------------------------------------------------------------------------
 
 # MapObjectType (movement target areas) and MapItemType (map-scan AI array)
-# overlap heavily but disagree on these three IDs. Neither has been verified
-# against live packets, so both are kept; this pins the known divergence so a
-# future change to either table has to be deliberate.
-_KNOWN_MAP_TYPE_CONFLICTS = {2, 7, 12}
+# both mirror the client's WorldConst.AREA_TYPE_* constants, so they must not
+# disagree on any shared ID. They used to contradict each other on 2, 7 and 12.
+_KNOWN_MAP_TYPE_CONFLICTS: set[int] = set()
 
 
 def test_kingdom_type_is_an_alias_of_the_authoritative_kingdom_enum() -> None:
@@ -138,14 +137,40 @@ def test_map_type_enums_only_disagree_on_the_documented_values() -> None:
     assert conflicts == _KNOWN_MAP_TYPE_CONFLICTS
 
 
-def test_map_object_type_documents_its_id_space_and_the_conflicts() -> None:
-    """The duplicate table must say what it describes and where it disagrees."""
+def test_map_object_type_documents_its_id_space() -> None:
+    """The duplicate table must say what it describes and point at the other."""
     from empire_core.utils.enums import MapObjectType
 
     doc = MapObjectType.__doc__ or ""
     assert "MapItemType" in doc, "MapObjectType must point at the parallel enum"
-    for value in sorted(_KNOWN_MAP_TYPE_CONFLICTS):
-        assert str(value) in doc, f"conflicting ID {value} is not documented"
+
+
+def test_npc_camps_resolve_through_map_item_type() -> None:
+    """A robber baron camp is AREA_TYPE_DUNGEON (2) in the client's own table."""
+    from empire_core.protocol.models.map import MapItemType
+
+    assert MapItemType.ROBBER_BARON is MapItemType.DUNGEON
+    assert MapItemType.DUNGEON == 2
+    assert MapItemType(7) is MapItemType.TREASURE_DUNGEON
+    assert MapItemType(12) is MapItemType.KINGDOM_CASTLE
+
+
+def test_khan_camp_resolves_under_its_event_type() -> None:
+    """The nomad khan camp is ALLIANCE_NOMAD_CAMP (35), not a type of its own."""
+    from empire_core.protocol.models.map import MapItemType
+
+    assert MapItemType.KHAN_TENT is MapItemType.ALLIANCE_NOMAD_CAMP
+    assert MapItemType.KHAN_CAMP is MapItemType.ALLIANCE_NOMAD_CAMP
+    assert MapItemType.ALLIANCE_NOMAD_CAMP == 35
+
+
+def test_ruins_are_castles_not_a_map_item_type() -> None:
+    """A ruin is a CASTLE entry flagged isRuin; the client has no ruin type."""
+    from empire_core.protocol.models.map import MapItemType
+
+    assert not hasattr(MapItemType, "RUIN")
+    doc = MapItemType.__doc__ or ""
+    assert "ruin" in doc.lower(), "the enum must say where ruins actually appear"
 
 
 # ---------------------------------------------------------------------------
