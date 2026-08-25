@@ -17,6 +17,9 @@ from pydantic import BaseModel, ConfigDict, Field
 FIGHT_TYPE_OFFENSIVE = 0
 FIGHT_TYPE_DEFENSIVE = 1
 
+# effecttypes sortCategory 7 is economy; combat filter strategies exclude it.
+ECONOMY_SORT_CATEGORY = 7
+
 
 def parse_stacks(value: str | None) -> list[tuple[int, int]]:
     """
@@ -162,12 +165,43 @@ class ToolStats(_Row):
 
 
 class EffectDef(_Row):
-    """An effect, e.g. ``relicOffensiveMeleeBonus``."""
+    """
+    An effect, e.g. ``relicOffensiveMeleeBonus``.
+
+    An effect names *which* bonus an item grants; the effect type says what it
+    modifies, and the cap says what it stacks with.
+    """
 
     effect_id: int = Field(alias="effectID")
     name: str = ""
     effect_type_id: int = Field(alias="effectTypeID", default=0)
     cap_id: int | None = Field(alias="capID", default=None)
+    raw_area_type_ids: str = Field(alias="areaTypeID", default="")
+    is_pvp_fight: bool = Field(alias="isPvPFight", default=False)
+    is_pve_fight: bool = Field(alias="isPvEFight", default=False)
+
+    @property
+    def area_type_ids(self) -> tuple[int, ...]:
+        """Area types this effect applies to; empty means every area."""
+        return parse_ids(self.raw_area_type_ids)
+
+    def applies_to_area(self, area_type: int | None) -> bool:
+        """Whether the effect counts against a target of this area type."""
+        allowed = self.area_type_ids
+        if not allowed or area_type is None:
+            return True
+        return area_type in allowed
+
+    def applies_to_fight(self, *, player_target: bool | None) -> bool:
+        """
+        Whether the effect counts in this kind of fight.
+
+        Some effects are flagged for player fights only and some for NPC fights
+        only; an unflagged effect counts in both.
+        """
+        if player_target is None or not (self.is_pvp_fight or self.is_pve_fight):
+            return True
+        return self.is_pvp_fight if player_target else self.is_pve_fight
 
 
 class EffectTypeDef(_Row):
@@ -175,13 +209,49 @@ class EffectTypeDef(_Row):
 
     effect_type_id: int = Field(alias="effectTypeID")
     name: str = ""
+    sort_category: int | None = Field(alias="sortCategory", default=None)
+    combat_type: int | None = Field(alias="combatType", default=None)
+
+    @property
+    def is_economy(self) -> bool:
+        """
+        Economy effects, which every combat filter strategy drops.
+
+        Category 7 in the client's own grouping.
+        """
+        return self.sort_category == ECONOMY_SORT_CATEGORY
 
 
 class EffectCapDef(_Row):
-    """The ceiling a group of effects stacks up to."""
+    """
+    The ceiling a group of effects stacks up to.
+
+    A row without ``maxTotalBonus`` - cap 99 among them - is uncapped, which is
+    why the field is optional rather than defaulting to zero.
+    """
 
     cap_id: int = Field(alias="capID")
-    max_total_bonus: float = Field(alias="maxTotalBonus", default=0)
+    max_total_bonus: float | None = Field(alias="maxTotalBonus", default=None)
+
+    @property
+    def is_uncapped(self) -> bool:
+        return self.max_total_bonus is None
+
+
+class RelicEffectDef(_Row):
+    """
+    A relic effect, which is a *different id space* from a plain effect.
+
+    A relic item's bonus ids index this table, not ``effects``: id 4 is
+    ``perceptionBonus`` as a plain effect but ``gateReduction`` as a relic
+    effect. Resolving in the wrong space yields a plausible, wrong answer.
+    """
+
+    relic_effect_id: int = Field(alias="id")
+    effect_id: int = Field(alias="effectID", default=0)
+    minimum_value: float = Field(alias="minimumValue", default=0)
+    maximum_value: float = Field(alias="maximumValue", default=0)
+    relic_effect_type: str = Field(alias="relicEffectType", default="")
 
 
 class EquipmentEffectDef(_Row):
@@ -361,6 +431,7 @@ class NpcCampDefence(_Row):
 
 
 __all__ = [
+    "ECONOMY_SORT_CATEGORY",
     "FIGHT_TYPE_DEFENSIVE",
     "FIGHT_TYPE_OFFENSIVE",
     "AttackSlotDef",
@@ -374,6 +445,7 @@ __all__ = [
     "HorseStats",
     "LegendSkillDef",
     "NpcCampDefence",
+    "RelicEffectDef",
     "ToolCategoryDef",
     "ToolStats",
     "UnitStats",

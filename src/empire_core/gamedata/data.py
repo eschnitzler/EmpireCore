@@ -33,6 +33,7 @@ from .models import (
     HorseStats,
     LegendSkillDef,
     NpcCampDefence,
+    RelicEffectDef,
     ToolCategoryDef,
     ToolStats,
     UnitStats,
@@ -108,6 +109,7 @@ class GameData(BaseModel):
     effect_types: dict[int, EffectTypeDef] = Field(default_factory=dict)
     effect_caps: dict[int, EffectCapDef] = Field(default_factory=dict)
     equipment_effects: dict[int, EquipmentEffectDef] = Field(default_factory=dict)
+    relic_effects: dict[int, RelicEffectDef] = Field(default_factory=dict)
     legend_skills: dict[int, LegendSkillDef] = Field(default_factory=dict)
     attack_slots: dict[int, AttackSlotDef] = Field(default_factory=dict)
     tool_categories: dict[int, ToolCategoryDef] = Field(default_factory=dict)
@@ -145,6 +147,18 @@ class GameData(BaseModel):
     def get_default_lord(self, lord_id: int) -> DefaultLordDef | None:
         """A default lord, i.e. one of the negative ``LID`` sentinels."""
         return self.default_lords.get(lord_id)
+
+    def resolve_relic_effect(self, relic_effect_id: int) -> EffectDef | None:
+        """
+        The plain effect a relic bonus id points at.
+
+        Relic bonuses index the relic effect table, which then names a normal
+        effect; the two id spaces overlap and disagree.
+        """
+        relic = self.relic_effects.get(relic_effect_id)
+        if relic is None:
+            return None
+        return self.effects.get(relic.effect_id)
 
     def effect_type_name(self, effect_id: int) -> str:
         """Resolve an effect ID to its effect type's name."""
@@ -202,6 +216,7 @@ class GameData(BaseModel):
             equipment_effects={
                 r.equipment_effect_id: r for r in _rows(items_data.get("equipment_effects"), EquipmentEffectDef)
             },
+            relic_effects={r.relic_effect_id: r for r in _rows(items_data.get("relicEffects"), RelicEffectDef)},
             legend_skills={r.skill_id: r for r in _rows(items_data.get("legendskills"), LegendSkillDef)},
             attack_slots={r.slot_id: r for r in _rows(items_data.get("attackSetupSlots"), AttackSlotDef)},
             tool_categories={r.tool_category_id: r for r in _rows(items_data.get("toolCategories"), ToolCategoryDef)},
