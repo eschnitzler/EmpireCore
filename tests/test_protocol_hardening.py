@@ -169,6 +169,41 @@ class TestMovingFlags:
         assert response.get_moving_flags() == {}
 
 
+class TestNpcCampRows:
+    """A type-2 row is a camp, not an owned location."""
+
+    # Captured live: [type, x, y, seconds_since_espionage, victory_count,
+    #                 cooldown, kingdom]
+    CAMP = [2, 630, 243, -1, 297, -17639997, 0]
+
+    def test_camp_fields_are_exposed(self):
+        item = MapAreaItem.from_list(self.CAMP)
+
+        assert item.item_type == MapItemType.DUNGEON
+        assert (item.x, item.y) == (630, 243)
+        assert item.victory_count == 297
+        assert item.seconds_since_espionage == -1
+        assert item.attack_cooldown_seconds == -17639997
+        assert item.camp_kingdom_id == 0
+
+    def test_a_camp_has_no_owner(self):
+        # Field 3 is the espionage age; reading it as an owner id was wrong.
+        assert MapAreaItem.from_list(self.CAMP).owner_id == -1
+
+    def test_camp_fields_are_none_for_other_types(self):
+        castle = MapAreaItem.from_list([1, 5, 6, 900, 4242])
+
+        assert castle.victory_count is None
+        assert castle.seconds_since_espionage is None
+        assert castle.attack_cooldown_seconds is None
+
+    def test_short_camp_row_reports_what_it_has(self):
+        item = MapAreaItem.from_list([2, 10, 11])
+
+        assert item.victory_count is None
+        assert (item.x, item.y) == (10, 11)
+
+
 class TestRuinFlag:
     """A ruin is an owner-record flag, not a map item type."""
 

@@ -427,6 +427,16 @@ class TestItemTypeFiltering:
         result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=None, chunk_delay=0)
         assert result.items == []
 
+    def test_camps_survive_the_unowned_filter(self):
+        # A live camp row carries an espionage age of -1 where an owned
+        # location carries an id, so the unowned filter must not drop it.
+        live_camp = {"AI": [[int(MapItemType.ROBBER_BARON), 95, 95, -1, 297, -100, 0]], "OI": []}
+        fake = _FakeClient(content_chunks=set(), payloads={(1, 1): live_camp})
+
+        result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
+
+        assert [i.victory_count for i in result.items] == [297]
+
     def test_empty_list_means_no_filtering(self):
         fake = _FakeClient(content_chunks=set(), payloads={(1, 1): self.ROBBER_BARON_AI})
         result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)

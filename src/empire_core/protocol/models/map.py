@@ -141,6 +141,14 @@ class GetMapAreaRequest(BaseRequest):
 _PLAYER_ID_FIELD = 4
 _RELOCATING_FIELD = 19  # 1 while the castle is in transit, 0 when settled
 
+# Indices into a gaa type-2 (DUNGEON) raw entry, from the client's
+# DungeonMapobjectVO.parseAreaInfo:
+#   [type, x, y, seconds_since_espionage, victory_count, cooldown_seconds, kingdom]
+_DUNGEON_ESPIONAGE_FIELD = 3
+_DUNGEON_VICTORY_FIELD = 4
+_DUNGEON_COOLDOWN_FIELD = 5
+_DUNGEON_KINGDOM_FIELD = 6
+
 
 class MapAreaItem(BasePayload):
     """
@@ -150,6 +158,9 @@ class MapAreaItem(BasePayload):
 
     Field 3 is the location (castle/outpost) id for type-1 entries and the
     player id for the capital-like types -- see ``owner_id`` and ``player_id``.
+    An NPC camp (type 2) has no owner at all: its field 3 is how long ago it was
+    spied, so ``owner_id`` stays -1 and the camp's own fields are exposed by
+    ``victory_count`` and the properties beside it.
 
     Common types (see MapItemType enum):
     - 1: Player main castle (``is_relocating`` tells you if it is in transit)
@@ -176,6 +187,9 @@ class MapAreaItem(BasePayload):
             and len(data) > 4
         ):
             owner_id = data[4]
+        elif item_type == MapItemType.DUNGEON:
+            # No owner: field 3 is the espionage age, not an id.
+            owner_id = -1
         else:
             owner_id = data[3] if len(data) > 3 else -1
 
@@ -186,6 +200,41 @@ class MapAreaItem(BasePayload):
             owner_id=owner_id,
             raw_data=data,
         )
+
+    def _dungeon_field(self, index: int) -> int | None:
+        """An NPC camp field, or None when this is not a camp row."""
+        if self.item_type != MapItemType.DUNGEON or len(self.raw_data) <= index:
+            return None
+        value = self.raw_data[index]
+        if isinstance(value, bool) or not isinstance(value, int):
+            return None
+        return value
+
+    @property
+    def victory_count(self) -> int | None:
+        """
+        How many times an NPC camp has been beaten, or None for other types.
+
+        This is what selects the camp's defenders: pass it to
+        ``GameData.dungeon_defence`` or
+        ``empire_core.combat.npc_camp_defence``.
+        """
+        return self._dungeon_field(_DUNGEON_VICTORY_FIELD)
+
+    @property
+    def seconds_since_espionage(self) -> int | None:
+        """How long ago an NPC camp was spied; -1 when it never was."""
+        return self._dungeon_field(_DUNGEON_ESPIONAGE_FIELD)
+
+    @property
+    def attack_cooldown_seconds(self) -> int | None:
+        """An NPC camp's remaining attack cooldown; negative once it expired."""
+        return self._dungeon_field(_DUNGEON_COOLDOWN_FIELD)
+
+    @property
+    def camp_kingdom_id(self) -> int | None:
+        """The kingdom an NPC camp sits in, as the camp row reports it."""
+        return self._dungeon_field(_DUNGEON_KINGDOM_FIELD)
 
     @property
     def player_id(self) -> int:

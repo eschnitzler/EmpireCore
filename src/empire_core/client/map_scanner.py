@@ -13,6 +13,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Types with no owner by design: their field 3 is not an id, so the
+# "unowned means empty slot" filter must not apply to them.
+_OWNERLESS_TYPES = frozenset({MapItemType.DUNGEON})
+
 
 def _truncated_repr(value: object, limit: int = 200) -> str:
     """repr() capped at ``limit`` characters, for log-safe payload samples."""
@@ -184,9 +188,14 @@ class MapScanner:
 
             # filter_types is None only when the caller disabled filtering
             if filter_types is None or item.item_type in filter_types:
-                # Skip unowned items unless their type is explicitly included
-                if item.owner_id == -1 and (
-                    include_unowned_types is None or item.item_type not in include_unowned_types
+                # Skip unowned items unless their type is explicitly included.
+                # Types that never have an owner are not "unowned" in that
+                # sense: an NPC camp reports an espionage age where an owned
+                # location reports an id, so this filter would drop every camp.
+                if (
+                    item.owner_id == -1
+                    and item.item_type not in _OWNERLESS_TYPES
+                    and (include_unowned_types is None or item.item_type not in include_unowned_types)
                 ):
                     continue
                 collected_items.append(item)
@@ -228,7 +237,8 @@ class MapScanner:
         - a non-empty list collects exactly those types.
 
         In every case items with ``owner_id == -1`` (empty slots, unplaced
-        flags) are skipped.
+        flags) are skipped, except types that never have an owner: an NPC
+        camp is always collected when its type passes the filter.
 
         Chunks that fail even after a retry are reported in
         ``ScanResult.failed_chunks`` so callers can tell a partial scan
