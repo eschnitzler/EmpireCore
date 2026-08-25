@@ -35,6 +35,15 @@ PAYLOAD = {
         {"effectID": "150", "name": "atkCastlesOnly", "effectTypeID": "36", "capID": "99", "areaTypeID": "1,3"},
         {"effectID": "151", "name": "atkPvEOnly", "effectTypeID": "36", "capID": "99", "isPvEFight": "1"},
         {"effectID": "152", "name": "atkPvPOnly", "effectTypeID": "36", "capID": "99", "isPvPFight": "1"},
+        {"effectID": "160", "name": "atkOneSpace", "effectTypeID": "36", "capID": "99", "spaceIDs": "10"},
+        {
+            "effectID": "161",
+            "name": "atkWarOnly",
+            "effectTypeID": "36",
+            "capID": "99",
+            "playerRelation": "allianceInWar",
+        },
+        {"effectID": "162", "name": "atkOneBoss", "effectTypeID": "36", "capID": "99", "raidBossID": "7"},
     ],
     "relicEffects": [
         # Same ids as the plain effects above, deliberately pointing elsewhere:
@@ -134,6 +143,43 @@ class TestScoping:
 
     def test_unscoped_effect_counts_everywhere(self):
         assert resolver().accumulate([Bonus(effect_id=100, value=5)], 36, area_type=99) == 5
+
+    def test_space_scoped_effect(self):
+        bonuses = [Bonus(effect_id=160, value=10)]
+
+        assert resolver().accumulate(bonuses, 36, space_id=10) == 10
+        assert resolver().accumulate(bonuses, 36, space_id=0) == 0.0
+        # Unknown space keeps it rather than guessing.
+        assert resolver().accumulate(bonuses, 36) == 10
+
+    def test_player_relation_scoped_effect(self):
+        bonuses = [Bonus(effect_id=161, value=10)]
+
+        assert resolver().accumulate(bonuses, 36, relation="allianceInWar") == 10
+        assert resolver().accumulate(bonuses, 36, relation="sameAlliance") == 0.0
+        assert resolver().accumulate(bonuses, 36) == 10
+
+    def test_raid_boss_scoped_effect(self):
+        bonuses = [Bonus(effect_id=162, value=10)]
+
+        assert resolver().accumulate(bonuses, 36, raid_boss_id=7) == 10
+        assert resolver().accumulate(bonuses, 36, raid_boss_id=8) == 0.0
+
+    def test_an_unconditioned_effect_survives_every_filter(self):
+        bonuses = [Bonus(effect_id=100, value=10)]
+
+        assert (
+            resolver().accumulate(
+                bonuses,
+                36,
+                area_type=2,
+                player_target=False,
+                space_id=3,
+                relation="samePlayer",
+                raid_boss_id=1,
+            )
+            == 10
+        )
 
     def test_pve_and_pvp_flags(self):
         pve = [Bonus(effect_id=151, value=10)]

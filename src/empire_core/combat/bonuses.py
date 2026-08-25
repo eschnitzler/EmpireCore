@@ -140,6 +140,9 @@ class EffectResolver:
         *,
         area_type: int | None = None,
         player_target: bool | None = None,
+        space_id: int | None = None,
+        relation: str | None = None,
+        raid_boss_id: int | None = None,
         include_economy: bool = False,
         ignore_cap: bool = False,
     ) -> float:
@@ -153,6 +156,10 @@ class EffectResolver:
                 dropped, and None keeps all of them
             player_target: True for a fight against a player, False for an NPC;
                 None keeps effects flagged for either
+            space_id: The castle space, for effects limited to one
+            relation: Relationship to the target - ``sameAlliance``,
+                ``allianceInWar`` or ``samePlayer``
+            raid_boss_id: The raid boss being fought, for boss-scoped effects
             include_economy: Keep economy effects, which combat normally drops
             ignore_cap: Skip capping entirely
 
@@ -167,6 +174,12 @@ class EffectResolver:
             if not effect.applies_to_area(area_type):
                 continue
             if not effect.applies_to_fight(player_target=player_target):
+                continue
+            if not effect.applies_to_space(space_id):
+                continue
+            if not effect.applies_to_relation(relation):
+                continue
+            if not effect.applies_to_raid_boss(raid_boss_id):
                 continue
             if not include_economy:
                 effect_type_def = self.game_data.effect_types.get(effect.effect_type_id)

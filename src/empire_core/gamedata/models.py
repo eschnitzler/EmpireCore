@@ -179,6 +179,9 @@ class EffectDef(_Row):
     raw_area_type_ids: str = Field(alias="areaTypeID", default="")
     is_pvp_fight: bool = Field(alias="isPvPFight", default=False)
     is_pve_fight: bool = Field(alias="isPvEFight", default=False)
+    raw_space_ids: str = Field(alias="spaceIDs", default="")
+    player_relation: str = Field(alias="playerRelation", default="")
+    raid_boss_id: int | None = Field(alias="raidBossID", default=None)
 
     @property
     def area_type_ids(self) -> tuple[int, ...]:
@@ -191,6 +194,36 @@ class EffectDef(_Row):
         if not allowed or area_type is None:
             return True
         return area_type in allowed
+
+    @property
+    def space_ids(self) -> tuple[int, ...]:
+        """Castle spaces this effect is limited to; empty means every space."""
+        return parse_ids(self.raw_space_ids)
+
+    def applies_to_space(self, space_id: int | None) -> bool:
+        """Whether the effect counts in this castle space."""
+        allowed = self.space_ids
+        if not allowed or space_id is None:
+            return True
+        return space_id in allowed
+
+    def applies_to_relation(self, relation: str | None) -> bool:
+        """
+        Whether the effect counts given the relationship to the target.
+
+        Values seen: ``sameAlliance``, ``allianceInWar``, ``samePlayer``. An
+        unconditioned effect always counts; passing None leaves conditioned
+        ones in, since the relationship is unknown rather than absent.
+        """
+        if not self.player_relation or relation is None:
+            return True
+        return self.player_relation == relation
+
+    def applies_to_raid_boss(self, raid_boss_id: int | None) -> bool:
+        """Whether the effect counts against this raid boss."""
+        if self.raid_boss_id is None or raid_boss_id is None:
+            return True
+        return self.raid_boss_id == raid_boss_id
 
     def applies_to_fight(self, *, player_target: bool | None) -> bool:
         """
