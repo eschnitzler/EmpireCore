@@ -4,8 +4,15 @@ from empire_core.combat import (
     Bonus,
     CombatEffectType,
     EffectResolver,
+    alliance_buff_bonuses,
     commander_bonuses,
+    construction_item_bonuses,
+    general_skill_bonuses,
+    global_effect_bonuses,
+    legend_skill_value,
     parse_bonus_entries,
+    parse_effect_spec,
+    sceat_skill_bonuses,
 )
 from empire_core.gamedata import GameData
 from empire_core.protocol.models import Commander
@@ -278,3 +285,89 @@ class TestCommanderBonuses:
     def test_malformed_equipment_is_skipped(self):
         commander = Commander.model_validate({"ID": 1, "EQ": [[1, 2], "junk", [1, 2, 3, 4, 5, "not a list"]]})
         assert commander_bonuses(commander) == []
+
+
+# =============================================================================
+# Non-equipment bonus sources
+# =============================================================================
+
+SOURCE_PAYLOAD = dict(
+    PAYLOAD,
+    constructionItems=[
+        # The real shape: the flank unit limit item grants +2% per level, so
+        # level 15 is the +30% a player sees on the flanks.
+        {"constructionItemID": "440", "name": "attackUnitAmountFlank", "level": "15", "effects": "120&30"},
+        {"constructionItemID": "1", "name": "barracksCost", "level": "1", "effects": "140&5"},
+    ],
+    alliancebuffs=[{"allianceBuffID": "7", "allianceBuffSeriesID": "3", "level": "4", "effects": "100&12"}],
+    globalEffects=[{"globalEffectID": "5", "name": "attackBoost", "effects": "100&13,110&4"}],
+    sceatSkills=[{"skillID": "41", "level": "1", "effects": "100&6"}],
+    generalSkills=[{"skillID": "10110201", "generalID": "101", "name": "Aspect", "effects": "110&9"}],
+    legendskills=[
+        {"skillID": "1", "level": "1", "effectType": "gateReduction", "totalEffectValue": "3"},
+        {"skillID": "2", "level": "2", "effectType": "gateReduction", "totalEffectValue": "7"},
+        {"skillID": "9", "level": "1", "effectType": "wallReduction", "totalEffectValue": "5"},
+    ],
+)
+
+
+def source_data() -> GameData:
+    return GameData.parse("test", SOURCE_PAYLOAD)
+
+
+class TestEffectSpec:
+    def test_single_and_multiple(self):
+        assert parse_effect_spec("66&30") == [Bonus(effect_id=66, value=30)]
+        assert parse_effect_spec("100&13,110&4") == [
+            Bonus(effect_id=100, value=13),
+            Bonus(effect_id=110, value=4),
+        ]
+
+    def test_junk_is_skipped(self):
+        assert parse_effect_spec("66&30,broken,&,7&") == [Bonus(effect_id=66, value=30)]
+        assert parse_effect_spec(None) == []
+
+
+class TestSources:
+    def test_construction_items(self):
+        game = source_data()
+
+        bonuses = construction_item_bonuses(game, [440])
+
+        assert bonuses == [Bonus(effect_id=120, value=30)]
+        # Resolves as a flank unit limit, which is what the item is named for.
+        assert EffectResolver(game).flank_unit_bonus(bonuses) == 30
+
+    def test_unknown_ids_are_ignored(self):
+        assert construction_item_bonuses(source_data(), [999999]) == []
+
+    def test_alliance_global_sceat_and_general_sources(self):
+        game = source_data()
+
+        assert alliance_buff_bonuses(game, [7]) == [Bonus(effect_id=100, value=12)]
+        assert global_effect_bonuses(game, [5]) == [
+            Bonus(effect_id=100, value=13),
+            Bonus(effect_id=110, value=4),
+        ]
+        assert sceat_skill_bonuses(game, [41]) == [Bonus(effect_id=100, value=6)]
+        assert general_skill_bonuses(game, [10110201]) == [Bonus(effect_id=110, value=9)]
+
+    def test_sources_combine_into_one_total(self):
+        game = source_data()
+        r = EffectResolver(game)
+        bonuses = [
+            *alliance_buff_bonuses(game, [7]),
+            *global_effect_bonuses(game, [5]),
+            *sceat_skill_bonuses(game, [41]),
+        ]
+
+        # Effect 100 is an attack bonus in cap 10, which tops out at 50.
+        assert r.accumulate(bonuses, CombatEffectType.ATTACK_BONUS) == 12 + 13 + 6
+
+    def test_legend_skills_sum_by_effect_type_name(self):
+        game = source_data()
+
+        assert legend_skill_value(game, [1, 2], "gateReduction") == 10
+        assert legend_skill_value(game, [1, 9], "wallReduction") == 5
+        assert legend_skill_value(game, [1], "moatReduction") == 0
+        assert legend_skill_value(game, [999], "gateReduction") == 0

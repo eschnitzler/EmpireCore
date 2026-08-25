@@ -2,7 +2,9 @@
 
 from .data import CAMP_TABLES, RAW_TABLES, GameData, default_cache_dir
 from .models import (
+    AllianceBuffDef,
     AttackSlotDef,
+    ConstructionItemDef,
     DefaultLordDef,
     DungeonDefence,
     EffectCapDef,
@@ -10,10 +12,13 @@ from .models import (
     EffectTypeDef,
     EquipmentEffectDef,
     GeneralDef,
+    GeneralSkillDef,
+    GlobalEffectDef,
     HorseStats,
     LegendSkillDef,
     NpcCampDefence,
     RelicEffectDef,
+    SceatSkillDef,
     ToolCategoryDef,
     ToolStats,
     UnitStats,
@@ -22,7 +27,12 @@ from .models import (
 )
 
 __all__ = [
+    "AllianceBuffDef",
     "AttackSlotDef",
+    "ConstructionItemDef",
+    "GeneralSkillDef",
+    "GlobalEffectDef",
+    "SceatSkillDef",
     "CAMP_TABLES",
     "DefaultLordDef",
     "DungeonDefence",

@@ -271,6 +271,74 @@ class EffectCapDef(_Row):
         return self.max_total_bonus is None
 
 
+class EffectSpecRow(_Row):
+    """
+    Base for tables whose bonuses are an ``effectID&value`` string.
+
+    Construction items, alliance buffs, global effects, sceat skills and
+    buildings all encode their bonuses this way, comma separated.
+    """
+
+    raw_effects: str = Field(alias="effects", default="")
+
+
+class ConstructionItemDef(EffectSpecRow):
+    """
+    A construction item - the decorations placed on castle buildings.
+
+    Their bonuses are real combat bonuses: the flank unit limit item grants
+    +2% per level, so a level 15 one is the +30% a player sees on the flanks.
+    """
+
+    construction_item_id: int = Field(alias="constructionItemID")
+    name: str = ""
+    group_id: int = Field(alias="constructionItemGroupID", default=0)
+    level: int = 0
+    rareness_id: int = Field(alias="rarenessID", default=0)
+    slot_type_id: int = Field(alias="slotTypeID", default=0)
+    effect_group_id: int = Field(alias="constructionItemEffectGroupID", default=0)
+
+
+class AllianceBuffDef(EffectSpecRow):
+    """One level of an alliance buff."""
+
+    alliance_buff_id: int = Field(alias="allianceBuffID")
+    series_id: int = Field(alias="allianceBuffSeriesID", default=0)
+    level: int = 0
+    max_level: int = Field(alias="maxLevel", default=0)
+
+
+class GlobalEffectDef(EffectSpecRow):
+    """A global (event) effect, active for everyone while its event runs."""
+
+    global_effect_id: int = Field(alias="globalEffectID")
+    name: str = ""
+    boost_value: float = Field(alias="boostValue", default=0)
+    min_level: int = Field(alias="minLevel", default=0)
+    max_level: int = Field(alias="maxLevel", default=0)
+
+
+class SceatSkillDef(EffectSpecRow):
+    """One level of a sceat skill, from the Hall of Legends trees."""
+
+    skill_id: int = Field(alias="skillID")
+    skill_group_id: int = Field(alias="skillGroupID", default=0)
+    level: int = 0
+    skill_tree_id: int = Field(alias="skillTreeID", default=0)
+    tier: int = 0
+
+
+class GeneralSkillDef(EffectSpecRow):
+    """One level of a general's skill."""
+
+    skill_id: int = Field(alias="skillID")
+    general_id: int = Field(alias="generalID", default=0)
+    name: str = ""
+    skill_group_id: int = Field(alias="skillGroupID", default=0)
+    level: int = 0
+    tier: int = 0
+
+
 class RelicEffectDef(_Row):
     """
     A relic effect, which is a *different id space* from a plain effect.
@@ -477,8 +545,14 @@ __all__ = [
     "GeneralDef",
     "HorseStats",
     "LegendSkillDef",
+    "AllianceBuffDef",
+    "ConstructionItemDef",
+    "EffectSpecRow",
+    "GeneralSkillDef",
+    "GlobalEffectDef",
     "NpcCampDefence",
     "RelicEffectDef",
+    "SceatSkillDef",
     "ToolCategoryDef",
     "ToolStats",
     "UnitStats",

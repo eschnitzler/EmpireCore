@@ -22,7 +22,9 @@ from empire_core.exceptions import NetworkError
 from empire_core.utils.troops import fetch_items_data, get_items_version
 
 from .models import (
+    AllianceBuffDef,
     AttackSlotDef,
+    ConstructionItemDef,
     DefaultLordDef,
     DungeonDefence,
     EffectCapDef,
@@ -30,10 +32,13 @@ from .models import (
     EffectTypeDef,
     EquipmentEffectDef,
     GeneralDef,
+    GeneralSkillDef,
+    GlobalEffectDef,
     HorseStats,
     LegendSkillDef,
     NpcCampDefence,
     RelicEffectDef,
+    SceatSkillDef,
     ToolCategoryDef,
     ToolStats,
     UnitStats,
@@ -54,7 +59,6 @@ CAMP_TABLES = (
 # Kept verbatim: needed later, but their encodings are not established yet, so
 # modelling them now would be guesswork.
 RAW_TABLES = (
-    "generalSkills",
     "bossdungeons",
     "specialcamps",
     "eventAutoScalingCamps",
@@ -110,6 +114,11 @@ class GameData(BaseModel):
     effect_caps: dict[int, EffectCapDef] = Field(default_factory=dict)
     equipment_effects: dict[int, EquipmentEffectDef] = Field(default_factory=dict)
     relic_effects: dict[int, RelicEffectDef] = Field(default_factory=dict)
+    construction_items: dict[int, ConstructionItemDef] = Field(default_factory=dict)
+    alliance_buffs: dict[int, AllianceBuffDef] = Field(default_factory=dict)
+    global_effects: dict[int, GlobalEffectDef] = Field(default_factory=dict)
+    sceat_skills: dict[int, SceatSkillDef] = Field(default_factory=dict)
+    general_skills: dict[int, GeneralSkillDef] = Field(default_factory=dict)
     legend_skills: dict[int, LegendSkillDef] = Field(default_factory=dict)
     attack_slots: dict[int, AttackSlotDef] = Field(default_factory=dict)
     tool_categories: dict[int, ToolCategoryDef] = Field(default_factory=dict)
@@ -217,6 +226,13 @@ class GameData(BaseModel):
                 r.equipment_effect_id: r for r in _rows(items_data.get("equipment_effects"), EquipmentEffectDef)
             },
             relic_effects={r.relic_effect_id: r for r in _rows(items_data.get("relicEffects"), RelicEffectDef)},
+            construction_items={
+                r.construction_item_id: r for r in _rows(items_data.get("constructionItems"), ConstructionItemDef)
+            },
+            alliance_buffs={r.alliance_buff_id: r for r in _rows(items_data.get("alliancebuffs"), AllianceBuffDef)},
+            global_effects={r.global_effect_id: r for r in _rows(items_data.get("globalEffects"), GlobalEffectDef)},
+            sceat_skills={r.skill_id: r for r in _rows(items_data.get("sceatSkills"), SceatSkillDef)},
+            general_skills={r.skill_id: r for r in _rows(items_data.get("generalSkills"), GeneralSkillDef)},
             legend_skills={r.skill_id: r for r in _rows(items_data.get("legendskills"), LegendSkillDef)},
             attack_slots={r.slot_id: r for r in _rows(items_data.get("attackSetupSlots"), AttackSlotDef)},
             tool_categories={r.tool_category_id: r for r in _rows(items_data.get("toolCategories"), ToolCategoryDef)},

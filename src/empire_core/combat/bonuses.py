@@ -294,6 +294,84 @@ _EQUIPMENT_TYPE_RELIC = 3
 _EQUIPMENT_BONI_FIELD = 5
 
 
+def parse_effect_spec(spec: str | None) -> list[Bonus]:
+    """
+    Parse the ``effectID&value`` encoding, comma separated.
+
+    Construction items, alliance buffs, global effects, sceat skills, general
+    skills and buildings all describe their bonuses this way.
+    """
+    bonuses: list[Bonus] = []
+    for part in str(spec or "").split(","):
+        part = part.strip()
+        if "&" not in part:
+            continue
+        raw_id, _, raw_value = part.partition("&")
+        try:
+            bonuses.append(Bonus(effect_id=int(raw_id.strip()), value=float(raw_value.strip())))
+        except ValueError:
+            logger.debug(f"Skipping unparseable effect spec segment {part!r}")
+    return bonuses
+
+
+def _spec_bonuses(rows: Iterable) -> list[Bonus]:
+    return [bonus for row in rows if row is not None for bonus in parse_effect_spec(row.raw_effects)]
+
+
+def construction_item_bonuses(game_data: GameData, item_ids: Iterable[int]) -> list[Bonus]:
+    """
+    Bonuses from the construction items placed on a castle's buildings.
+
+    These are the decorations players call look items, and they carry real
+    combat bonuses - the flank unit limit item is where a +30% flank bonus
+    comes from.
+    """
+    return _spec_bonuses(game_data.construction_items.get(item_id) for item_id in item_ids)
+
+
+def alliance_buff_bonuses(game_data: GameData, buff_ids: Iterable[int]) -> list[Bonus]:
+    """Bonuses from the alliance's researched buffs, at their current levels."""
+    return _spec_bonuses(game_data.alliance_buffs.get(buff_id) for buff_id in buff_ids)
+
+
+def global_effect_bonuses(game_data: GameData, global_effect_ids: Iterable[int]) -> list[Bonus]:
+    """Bonuses from the global event effects currently running."""
+    return _spec_bonuses(game_data.global_effects.get(effect_id) for effect_id in global_effect_ids)
+
+
+def sceat_skill_bonuses(game_data: GameData, skill_ids: Iterable[int]) -> list[Bonus]:
+    """Bonuses from unlocked sceat skills (the Hall of Legends trees)."""
+    return _spec_bonuses(game_data.sceat_skills.get(skill_id) for skill_id in skill_ids)
+
+
+def general_skill_bonuses(game_data: GameData, skill_ids: Iterable[int]) -> list[Bonus]:
+    """Bonuses from the skills unlocked on the general leading the attack."""
+    return _spec_bonuses(game_data.general_skills.get(skill_id) for skill_id in skill_ids)
+
+
+def legend_skill_value(game_data: GameData, skill_ids: Iterable[int], effect_type: str) -> float:
+    """
+    Total value of one legend skill effect type.
+
+    Legend skills sit outside the effect and cap pipeline: they name an effect
+    type directly and the client sums their values as plain numbers, so they are
+    returned as a number rather than as bonuses.
+
+    Args:
+        game_data: Loaded tables
+        skill_ids: The player's unlocked legend skill ids
+        effect_type: The effect type name, e.g. ``gateReduction``
+
+    Returns:
+        The summed value, 0.0 when none match
+    """
+    return sum(
+        skill.total_effect_value
+        for skill_id in skill_ids
+        if (skill := game_data.legend_skills.get(skill_id)) is not None and skill.effect_type == effect_type
+    )
+
+
 def commander_bonuses(commander: Commander) -> list[Bonus]:
     """
     Every bonus a commander grants, resolved into the right id space.
@@ -328,6 +406,13 @@ __all__ = [
     "Bonus",
     "CombatEffectType",
     "EffectResolver",
+    "alliance_buff_bonuses",
     "commander_bonuses",
+    "construction_item_bonuses",
+    "general_skill_bonuses",
+    "global_effect_bonuses",
+    "legend_skill_value",
     "parse_bonus_entries",
+    "parse_effect_spec",
+    "sceat_skill_bonuses",
 ]

@@ -285,10 +285,17 @@ class TestCombatTables:
         assert camps[0].defence_unit_ids == (743, 744)
         assert camps[0].defence_tool_ids == (730, 731)
 
-    def test_unmodelled_tables_are_kept_raw(self):
+    def test_general_skills_are_modelled_now(self):
         data = GameData.parse("783.01", FULL_PAYLOAD)
 
-        assert data.raw("generalSkills")[0]["effects"] == "400&10201"
+        assert data.general_skills[10110201].raw_effects == "400&10201"
+
+    def test_unmodelled_tables_are_kept_raw(self):
+        payload = dict(FULL_PAYLOAD, bossdungeons=[{"kID": "2", "countVictories": "-1"}])
+
+        data = GameData.parse("783.01", payload)
+
+        assert data.raw("bossdungeons")[0]["kID"] == "2"
         assert data.raw("nothing_here") == []
 
     def test_noise_tables_are_not_stored(self):
