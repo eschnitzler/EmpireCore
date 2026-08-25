@@ -58,13 +58,25 @@ class ArmyService(BaseService):
 
     def get_units(self, castle_id: int, timeout: float = 5.0) -> list[UnitCount]:
         """
-        Get units inventory for a castle.
+        Get the available unit inventory for a castle.
+
+        Covers soldiers and tools. Units in production, in the stronghold or in
+        the hospital are reported separately - use get_units_response() for
+        those.
 
         Returns:
-            List of UnitCount objects (both soldiers and tools)
+            List of UnitCount objects
         """
-        response = self.request(GetUnitsRequest(CID=castle_id), GetUnitsResponse, timeout=timeout)
-        return response.units + response.tools
+        return self.get_units_response(castle_id, timeout=timeout).get_inventory()
+
+    def get_units_response(self, castle_id: int, timeout: float = 5.0) -> GetUnitsResponse:
+        """
+        Get every unit inventory a castle reports.
+
+        Returns:
+            The full gui response: available, in production, stronghold, hospital
+        """
+        return self.request(GetUnitsRequest(CID=castle_id), GetUnitsResponse, timeout=timeout)
 
     def delete_units(self, castle_id: int, unit_id: int, count: int, timeout: float = 5.0) -> bool:
         """Delete units from inventory."""

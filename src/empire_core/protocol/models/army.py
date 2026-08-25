@@ -190,15 +190,48 @@ class GetUnitsRequest(BaseRequest):
 
 class GetUnitsResponse(BaseResponse):
     """
-    Response containing units inventory.
+    Response containing the castle's unit inventories.
 
     Command: gui
+    Payload: {
+        "I": [[wod_id, count], ...],    # available units and tools
+        "TU": [[wod_id, count], ...],   # currently in production
+        "SHI": [[wod_id, count], ...],  # stored in the stronghold
+        "HI": [[wod_id, count], ...],   # wounded, in the hospital
+    }
+
+    The U and T fields are kept because older captures show them, but a live
+    server sends the four wod/amount arrays above instead.
     """
 
     command = "gui"
 
+    inventory: list[list[int]] = Field(alias="I", default_factory=list)
+    in_production: list[list[int]] = Field(alias="TU", default_factory=list)
+    stronghold: list[list[int]] = Field(alias="SHI", default_factory=list)
+    hospital: list[list[int]] = Field(alias="HI", default_factory=list)
     units: list[UnitCount] = Field(alias="U", default_factory=list)
     tools: list[UnitCount] = Field(alias="T", default_factory=list)
+
+    @staticmethod
+    def _as_counts(entries: list[list[int]]) -> list[UnitCount]:
+        return [UnitCount(UID=entry[0], C=entry[1]) for entry in entries if len(entry) >= 2 and entry[1]]
+
+    def get_inventory(self) -> list[UnitCount]:
+        """Available units and tools, whichever shape the server used."""
+        return self._as_counts(self.inventory) or (self.units + self.tools)
+
+    def get_in_production(self) -> list[UnitCount]:
+        """Units currently being recruited."""
+        return self._as_counts(self.in_production)
+
+    def get_stronghold(self) -> list[UnitCount]:
+        """Units stored in the stronghold."""
+        return self._as_counts(self.stronghold)
+
+    def get_hospital(self) -> list[UnitCount]:
+        """Wounded units in the hospital."""
+        return self._as_counts(self.hospital)
 
 
 # =============================================================================

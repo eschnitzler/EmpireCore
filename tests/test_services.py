@@ -828,6 +828,29 @@ class TestCastleActions:
 
 
 class TestArmyService:
+    def test_get_units_reads_the_live_inventory_array(self):
+        # A live gui response carries the inventory as [[wod_id, count], ...]
+        # under I, with U and T empty.
+        payload = {
+            "U": [],
+            "T": [],
+            "I": [[107, 86058], [178, 38712], [242, 0]],
+            "TU": [[105, 12]],
+            "SHI": [[646, 500]],
+            "HI": [[627, 7]],
+        }
+        client = make_client({"gui": xt_packet("gui", payload)})
+
+        response = client.army.get_units_response(12345)
+
+        assert [(u.unit_id, u.count) for u in response.get_inventory()] == [
+            (107, 86058),
+            (178, 38712),
+        ]
+        assert [(u.unit_id, u.count) for u in response.get_in_production()] == [(105, 12)]
+        assert [(u.unit_id, u.count) for u in response.get_stronghold()] == [(646, 500)]
+        assert [(u.unit_id, u.count) for u in response.get_hospital()] == [(627, 7)]
+
     def test_get_units_merges_units_and_tools(self):
         payload = {"U": [{"UID": 487, "C": 100}, {"UID": 488, "C": 20}], "T": [{"UID": 301, "C": 5}]}
         client = make_client({"gui": xt_packet("gui", payload)})
