@@ -166,7 +166,7 @@ class GGECommand:
     RMB = "rmb"  # Ruin message
     GFC = "gfc"  # Get friends/contacts
     SEM = "sem"  # Send email/message
-    GLI = "gli"  # Get lords info
+    GLI = "gli"  # Get commander info
     GCS = "gcs"  # Get tavern offerings
     SCT = "sct"  # Make offering
     SIN = "sin"  # Building inventory

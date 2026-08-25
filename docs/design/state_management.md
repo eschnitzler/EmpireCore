@@ -21,7 +21,7 @@ It is created and owned by `EmpireClient` as `client.state`.
 
 Despite its type, `players` only ever holds the **local player** — nothing in
 the library records other players there. Don't iterate it expecting opponents
-or alliance members; use the alliance service (`ain`) or the lords/profile
+or alliance members; use the alliance service (`ain`) or the commander/profile
 services for those. The inventory lives on the player itself
 (`local_player.inventory`, item id -> count), not on `GameState`.
 

@@ -214,9 +214,9 @@ class GetSupportDefenseResponse(BaseResponse):
     The response contains:
     - SCID: Castle ID queried
     - S: List of 6 defense positions, each containing [[unit_id, count], ...] pairs
-    - B: Commander/Lord info
+    - B: Castellan info
     - gui: Unit inventory
-    - gli: Lords info
+    - gli: Commander info
     - UYL: Total yard limit (max troops in courtyard)
     - AUYL: Available yard limit
     - UWL: Wall limit
@@ -232,14 +232,14 @@ class GetSupportDefenseResponse(BaseResponse):
     # e.g. [[[487, 5174], [488, 20]], [[487, 347]], ...]
     defense_positions: list = Field(alias="S", default_factory=list)
 
-    # Commander/Lord info (optional, not always present)
-    commander_info: dict | None = Field(alias="B", default=None)
+    # Castellan info (optional, not always present)
+    castellan_info: dict | None = Field(alias="B", default=None)
 
     # Unit inventory info
     unit_inventory: dict | None = Field(alias="gui", default=None)
 
-    # Lords info
-    lords_info: dict | None = Field(alias="gli", default=None)
+    # Commander info
+    commanders_info: dict | None = Field(alias="gli", default=None)
 
     # Capacity limits
     yard_limit: int = Field(alias="UYL", default=0)  # Total yard/courtyard limit

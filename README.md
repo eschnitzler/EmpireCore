@@ -38,7 +38,7 @@
 | **Typed end to end** | Pydantic v2 models for every command, and a `py.typed` marker so your type checker actually sees them |
 | **Honest failures** | Typed exceptions from a single `EmpireError` base — no leaked pydantic or socket errors, and no empty list that secretly means "the request failed" |
 | **Thread-safe state** | A background thread applies server pushes while your code reads consistent snapshots |
-| **High-level services** | `client.alliance`, `client.castle`, `client.army`, `client.lords`, `client.ranking`, `client.spy` |
+| **High-level services** | `client.alliance`, `client.castle`, `client.army`, `client.commanders`, `client.ranking`, `client.spy` |
 | **Map scanning** | BFS kingdom discovery with cheap, targeted re-scans |
 | **Multi-account** | A pool that leases one logged-in client per account |
 
@@ -116,7 +116,7 @@ if resources:
     print(f"Wood: {resources.wood}, Stone: {resources.stone}")
 ```
 
-Also available: `client.army`, `client.lords`, `client.ranking` and
+Also available: `client.army`, `client.commanders`, `client.ranking` and
 `client.spy`.
 
 ## Game State

@@ -59,7 +59,7 @@ from empire_core.services import (
     ArmyService,
     BaseService,
     CastleService,
-    LordsService,
+    CommandersService,
     RankingService,
     SpyService,
     get_registered_services,
@@ -97,7 +97,7 @@ class EmpireClient:
     alliance: AllianceService
     castle: CastleService
     army: ArmyService
-    lords: LordsService
+    commanders: CommandersService
     spy: SpyService
     ranking: RankingService
 
@@ -138,7 +138,7 @@ class EmpireClient:
         self.alliance: AllianceService = cast(AllianceService, self._services["alliance"])
         self.castle: CastleService = cast(CastleService, self._services["castle"])
         self.army: ArmyService = cast(ArmyService, self._services["army"])
-        self.lords: LordsService = cast(LordsService, self._services["lords"])
+        self.commanders: CommandersService = cast(CommandersService, self._services["commanders"])
         self.spy: SpyService = cast(SpyService, self._services["spy"])
         self.ranking: RankingService = cast(RankingService, self._services["ranking"])
 
