@@ -35,17 +35,19 @@ from empire_core.network.connection import ResponseWaiter
 from empire_core.protocol.models import (
     AllianceChatMessageResponse,
     AllianceMember,
+    EquipmentSlot,
     GetAllianceInfoRequest,
     GetAllianceInfoResponse,
     HelpType,
     SelectCastleRequest,
+    WearerType,
 )
 from empire_core.protocol.packet import Packet
 from empire_core.services import (
     AllianceService,
     ArmyService,
     CastleService,
-    LordsService,
+    CommandersService,
     RankingService,
     SpyService,
     get_registered_services,
@@ -264,14 +266,14 @@ GOLDEN_DCL: dict[str, Any] = {
 class TestServiceRegistration:
     def test_every_documented_service_is_registered(self):
         registered = get_registered_services()
-        assert set(registered) >= {"alliance", "castle", "army", "lords", "spy", "ranking"}
+        assert set(registered) >= {"alliance", "castle", "army", "commanders", "spy", "ranking"}
 
     def test_services_attach_to_the_client_by_name(self):
         client = make_client()
         assert isinstance(client.alliance, AllianceService)
         assert isinstance(client.castle, CastleService)
         assert isinstance(client.army, ArmyService)
-        assert isinstance(client.lords, LordsService)
+        assert isinstance(client.commanders, CommandersService)
         assert isinstance(client.spy, SpyService)
         assert isinstance(client.ranking, RankingService)
 
@@ -343,11 +345,11 @@ class TestRequestSemantics:
         assert exc_info.value.code == 21
 
     def test_unparseable_payload_raises_packet_error(self):
-        # 'gli' requires an ID per lord; a drifted entry must surface as a
+        # 'gli' requires an ID per commander; a drifted entry must surface as a
         # library error, not a raw pydantic ValidationError.
         client = make_client({"gli": xt_packet("gli", {"C": [{"N": "no id here"}]})})
         with pytest.raises(PacketError) as exc_info:
-            client.lords.get_lords()
+            client.commanders.get_commanders()
         assert "gli" in str(exc_info.value)
 
     def test_array_payload_raises_packet_error_not_none(self):
@@ -889,28 +891,95 @@ class TestArmyService:
 
 
 # =============================================================================
-# LordsService
+# CommandersService
 # =============================================================================
 
 
-class TestLordsService:
-    def test_lords_parse(self):
+class TestCommandersService:
+    def test_commanders_parse(self):
         payload = {"C": [{"ID": -14, "N": ""}, {"ID": 91, "N": "Bloodwing"}]}
         client = make_client({"gli": xt_packet("gli", payload)})
 
-        lords = client.lords.get_lords()
+        commanders = client.commanders.get_commanders()
 
-        assert [(lord.lord_id, lord.name) for lord in lords] == [(-14, ""), (91, "Bloodwing")]
+        assert [(c.commander_id, c.name) for c in commanders] == [(-14, ""), (91, "Bloodwing")]
         assert conn(client).request_payloads == [("gli", {})]
 
-    def test_empty_lord_list(self):
+    def test_empty_commander_list(self):
         client = make_client({"gli": xt_packet("gli", {})})
-        assert client.lords.get_lords() == []
+        assert client.commanders.get_commanders() == []
 
     def test_error_raises(self):
         client = make_client({"gli": xt_packet("gli", error_code=21)})
         with pytest.raises(CommandError):
-            client.lords.get_lords()
+            client.commanders.get_commanders()
+
+    def test_combat_record_parsed(self):
+        payload = {"C": [{"ID": 91, "N": "Bloodwing", "W": 42, "D": 7, "SPR": 3}]}
+        client = make_client({"gli": xt_packet("gli", payload)})
+
+        commander = client.commanders.get_commanders()[0]
+
+        assert (commander.wins, commander.defeats, commander.win_spree) == (42, 7, 3)
+
+    def test_effects_parsed(self):
+        payload = {"C": [{"ID": 91, "E": [[12, [5]]], "AE": [[34, [10]]]}]}
+        client = make_client({"gli": xt_packet("gli", payload)})
+
+        commander = client.commanders.get_commanders()[0]
+
+        assert commander.effects == [[12, [5]]]
+        assert commander.area_effects == [[34, [10]]]
+
+    def test_equipment_parsed(self):
+        # EQ entry: [id, slot, wearer, rareID, graphic, bonuses, uniqueID,
+        #            setID, enchantLevel, durationSecs, gemID, equipmentTypeID]
+        entry = [880, 2, 2, 4, "sword", [[12, [5]]], 5501, 17, 3, 0, -1, 1]
+        client = make_client({"gli": xt_packet("gli", {"C": [{"ID": 91, "EQ": [entry]}]})})
+
+        item = client.commanders.get_commanders()[0].equipment()[0]
+
+        assert item.equipment_id == 880
+        assert item.slot == EquipmentSlot.WEAPON
+        assert item.wearer_type == WearerType.COMMANDER
+        assert item.rarity_id == 4
+        assert item.bonuses == [[12, [5]]]
+        assert item.unique_id == 5501
+        assert item.set_id == 17
+        assert item.enchantment_level == 3
+        assert item.gem_id == -1
+        assert item.equipment_type == 1
+        assert item.is_permanent
+
+    def test_equipment_short_entry_does_not_raise(self):
+        client = make_client({"gli": xt_packet("gli", {"C": [{"ID": 91, "EQ": [[880, 2, 2]]}]})})
+
+        item = client.commanders.get_commanders()[0].equipment()[0]
+
+        assert (item.equipment_id, item.slot) == (880, EquipmentSlot.WEAPON)
+        assert item.equipment_type == 0
+        assert item.is_permanent
+
+    def test_temporary_equipment(self):
+        entry = [880, 2, 2, 4, "sword", [], 5501, 17, 0, 3600, -1, 0]
+        client = make_client({"gli": xt_packet("gli", {"C": [{"ID": 91, "EQ": [entry]}]})})
+
+        item = client.commanders.get_commanders()[0].equipment()[0]
+
+        assert item.duration_seconds == 3600
+        assert not item.is_permanent
+
+    def test_castellans_parse(self):
+        payload = {"B": [{"ID": 1005, "N": "Warden"}], "C": [{"ID": 91}]}
+        client = make_client({"gli": xt_packet("gli", payload)})
+
+        castellans = client.commanders.get_castellans()
+
+        assert [(c.commander_id, c.name) for c in castellans] == [(1005, "Warden")]
+
+    def test_castellans_absent(self):
+        client = make_client({"gli": xt_packet("gli", {"C": [{"ID": 91}]})})
+        assert client.commanders.get_castellans() == []
 
 
 # =============================================================================
@@ -1380,7 +1449,7 @@ class TestOnResponse:
     def test_unparseable_push_does_not_reach_the_handler(self, caplog):
         client = make_client()
         seen: list[object] = []
-        client.lords.on_response("gli", seen.append)
+        client.commanders.on_response("gli", seen.append)
 
         with caplog.at_level(logging.ERROR, logger="empire_core.client.client"):
             client._on_packet(xt_packet("gli", {"C": [{"N": "no id"}]}))

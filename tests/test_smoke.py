@@ -14,7 +14,7 @@ from empire_core.services import (
     AllianceService,
     ArmyService,
     CastleService,
-    LordsService,
+    CommandersService,
     RankingService,
     SpyService,
     get_registered_services,
@@ -24,7 +24,7 @@ SERVICE_TYPES = {
     "alliance": AllianceService,
     "castle": CastleService,
     "army": ArmyService,
-    "lords": LordsService,
+    "commanders": CommandersService,
     "spy": SpyService,
     "ranking": RankingService,
 }

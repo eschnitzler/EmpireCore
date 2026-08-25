@@ -31,6 +31,12 @@ from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models.alliance import AllianceInfo, AllianceMember
 from empire_core.protocol.models.castle import CastleInfo
 from empire_core.protocol.models.chat import decode_chat_text, encode_chat_text
+from empire_core.protocol.models.commanders import (
+    Castellan,
+    Commander,
+    Equipment,
+    EquipmentSlot,
+)
 from empire_core.protocol.models.map import Kingdom, MapAreaItem, MapItemType, MapObject
 from empire_core.protocol.models.messages import SpyCastleInfo
 from empire_core.protocol.models.ranking import RankingEntry
@@ -83,12 +89,16 @@ __all__ = [
     "MapAreaItem",
     "MapObject",
     "SpyCastleInfo",
+    "Commander",
+    "Castellan",
+    "Equipment",
     # Services / results
     "ScanResult",
     "SpyService",
     "SpyResult",
     # Enums
     "Kingdom",
+    "EquipmentSlot",
     "MapItemType",
     "MovementType",
     "MapObjectType",

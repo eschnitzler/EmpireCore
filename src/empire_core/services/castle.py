@@ -160,7 +160,7 @@ class CastleService(BaseService):
         horses_type: int = -1,
         feathers: int = 1,
         slowdown: int = 0,
-        lord_id: int = -14,
+        commander_id: int = -14,
         timeout: float = 5.0,
     ) -> bool:
         """
@@ -177,7 +177,7 @@ class CastleService(BaseService):
             horses_type: Type of horses for speed bonus (-1 = none, default: -1)
             feathers: Use feathers for speed boost (1 = use, 0 = don't, default: 1)
             slowdown: Movement slowdown modifier (0 = none, default: 0)
-            lord_id: Lord/General ID (-14 = coordinates/no lord, default: -14)
+            commander_id: Commander ID (-14 = coordinates/no commander, default: -14)
             timeout: Timeout in seconds
         """
         request = SendSupportRequest(
@@ -191,7 +191,7 @@ class CastleService(BaseService):
             HBW=horses_type,
             PTT=feathers,
             SD=slowdown,
-            LID=lord_id,
+            LID=commander_id,
         )
         return self.execute(request, timeout=timeout)
 

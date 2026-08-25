@@ -174,6 +174,16 @@ from .chat import (
     ChatLogEntry,
     ChatMessageData,
 )
+from .commanders import (
+    Castellan,
+    Commander,
+    Equipment,
+    EquipmentSlot,
+    EquipmentType,
+    GetCommandersRequest,
+    GetCommandersResponse,
+    WearerType,
+)
 from .defense import (
     ChangeKeepDefenseRequest,
     ChangeKeepDefenseResponse,
@@ -188,7 +198,6 @@ from .defense import (
     GetSupportDefenseResponse,
 )
 from .inventory import SCEItem
-from .lords import GetLordsRequest, GetLordsResponse, Lord
 from .map import (
     FindNPCRequest,
     FindNPCResponse,
@@ -416,9 +425,14 @@ __all__ = [
     "HealAllResponse",
     "SendSupportRequest",
     "SendSupportResponse",
-    "GetLordsRequest",
-    "GetLordsResponse",
-    "Lord",
+    "GetCommandersRequest",
+    "GetCommandersResponse",
+    "Castellan",
+    "Commander",
+    "Equipment",
+    "EquipmentSlot",
+    "EquipmentType",
+    "WearerType",
     "SCEItem",
     # Ranking
     "RankingType",

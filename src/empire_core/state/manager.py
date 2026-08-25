@@ -90,7 +90,7 @@ class GameState:
         # local player: nothing in the library records other players here.
         # Kept because it is part of the public surface — do not iterate it
         # expecting opponents or alliance members. Use the alliance service
-        # (ain) or the lords/profile services for other players.
+        # (ain) or the commander/profile services for other players.
         self.players: dict[int, Player] = {}
 
         self.castles: dict[int, Castle] = {}
@@ -800,13 +800,13 @@ class GameState:
                         F=gs_data.get("F", 0),
                     )
 
-                # Extract commander data from UM.L (Lord/commander info)
+                # Extract commander data from UM.L
                 um_data = m_wrapper.get("UM", {})
                 if isinstance(um_data, dict):
-                    lord_data = um_data.get("L", {})
-                    if isinstance(lord_data, dict):
-                        mov.commander_equipment = lord_data.get("EQ", [])
-                        mov.commander_effects = lord_data.get("AE", [])
+                    commander_data = um_data.get("L", {})
+                    if isinstance(commander_data, dict):
+                        mov.commander_equipment = commander_data.get("EQ", [])
+                        mov.commander_effects = commander_data.get("AE", [])
 
             # Extract owner names and alliances from owner_info
             if owner_info:
