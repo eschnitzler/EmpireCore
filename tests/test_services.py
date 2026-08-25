@@ -38,6 +38,7 @@ from empire_core.protocol.models import (
     AttackType,
     AttackWave,
     EquipmentSlot,
+    EquipmentType,
     GetAllianceInfoRequest,
     GetAllianceInfoResponse,
     HelpType,
@@ -1035,7 +1036,7 @@ class TestCommandersService:
     def test_equipment_parsed(self):
         # EQ entry: [id, slot, wearer, rareID, graphic, bonuses, uniqueID,
         #            setID, enchantLevel, durationSecs, gemID, equipmentTypeID]
-        entry = [880, 2, 2, 4, "sword", [[12, [5]]], 5501, 17, 3, 0, -1, 1]
+        entry = [880, 2, 2, 4, 3, [[12, [5]]], 5501, 17, 3, 0, -1, 1]
         client = make_client({"gli": xt_packet("gli", {"C": [{"ID": 91, "EQ": [entry]}]})})
 
         item = client.commanders.get_commanders()[0].equipment()[0]
@@ -1044,6 +1045,7 @@ class TestCommandersService:
         assert item.slot == EquipmentSlot.WEAPON
         assert item.wearer_type == WearerType.COMMANDER
         assert item.rarity_id == 4
+        assert item.graphic == 3
         assert item.bonuses == [[12, [5]]]
         assert item.unique_id == 5501
         assert item.set_id == 17
@@ -1061,8 +1063,26 @@ class TestCommandersService:
         assert item.equipment_type == 0
         assert item.is_permanent
 
+    def test_live_equipment_entry(self):
+        # Captured from a live gli response: the graphic slot is an int and a
+        # permanent item reports -1 seconds, not 0.
+        entry = [6515210043, 6, 2, 10, 0, [[242, [25.0]]], 802, 22, 0, -1, -1, 1]
+        client = make_client({"gli": xt_packet("gli", {"C": [{"ID": 91, "EQ": [entry]}]})})
+
+        item = client.commanders.get_commanders()[0].equipment()[0]
+
+        assert item.equipment_id == 6515210043
+        assert item.slot == EquipmentSlot.HERO
+        assert item.wearer_type == WearerType.COMMANDER
+        assert item.bonuses == [[242, [25.0]]]
+        assert item.set_id == 22
+        assert item.duration_seconds == -1
+        assert item.is_permanent
+        assert not item.has_gem
+        assert item.equipment_type == EquipmentType.UNIQUE
+
     def test_temporary_equipment(self):
-        entry = [880, 2, 2, 4, "sword", [], 5501, 17, 0, 3600, -1, 0]
+        entry = [880, 2, 2, 4, 3, [], 5501, 17, 0, 3600, -1, 0]
         client = make_client({"gli": xt_packet("gli", {"C": [{"ID": 91, "EQ": [entry]}]})})
 
         item = client.commanders.get_commanders()[0].equipment()[0]
