@@ -166,3 +166,39 @@ the loader parameters, not hardcoded in any bundle.
    argument actually is.
 4. **Resolve key constants** — `CommKeys.FOO` values live in `ggs.dll.js`
    (`grep -o 'FOO="[^"]*"' ggs.dll.js`).
+
+## 7. Map object types
+
+`WorldConst.AREA_TYPE_*` gives the values; the client's area-type-to-map-object
+registration confirms what each one is:
+
+| ID | Constant | Map object |
+|---|---|---|
+| 1 | `CASTLE` | `CastleMapobjectVO` |
+| 2 | `DUNGEON` | `DungeonMapobjectVO` - the robber baron camp |
+| 3 | `CAPITAL` | `CapitalMapobjectVO` |
+| 4 | `OUTPOST` | `OutpostMapobjectVO` |
+| 7 | `TREASURE_DUNGEON` | `TreasureDungeonMapObjectVO` |
+| 11 | `BOSS_DUNGEON` | `BossdungeonMapobjectVO` |
+| 12 | `KINGDOM_CASTLE` | `KingdomCastleMapobjectVO` |
+| 27 | `NOMAD_CAMP` | `NomadCampMapObjectVO` |
+| 31 | `DYNAMIC` | `PlaceholderMapobjectVO` |
+| 35 | `ALLIANCE_NOMAD_CAMP` | `NomadKhanCampMapObjectVO` - the khan camp |
+
+Two things are not area types:
+
+- **Ruins.** No ruin map object is registered. `WorldMapOwnerInfoVO` sets
+  `isRuin` from `1 == parseInt(e.R)`, so the flag lives on the owner record: a
+  map scan reports it as `R` on the entries of its `OI` list. Confirmed live -
+  a sweep of 24 areas of the green kingdom returned 25 ruin-flagged owners out
+  of 347 records. Those records carry no coordinates (`X` and `Y` are 0), and
+  the `AI` castle rows in the same response were not observed to reference
+  their owner IDs, so a ruin cannot be placed on the map from a scan alone.
+- **Khan camps.** They appear during the nomad event as
+  `ALLIANCE_NOMAD_CAMP` (35), not under a type of their own.
+
+Extract the full table with:
+
+```bash
+grep -oE 'AREA_TYPE_[A-Z_]+\s*=\s*-?[0-9]+' ggs.dll.js | sort -u
+```
