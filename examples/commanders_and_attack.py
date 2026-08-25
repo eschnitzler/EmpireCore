@@ -58,11 +58,15 @@ def main() -> int:
         castellans = client.commanders.get_castellans()
         print(f"{len(castellans)} castellan(s)")
 
+        # The list also holds the "no commander" placeholder, which cannot lead.
+        leaders = [c for c in commanders if c.commander_id > 0]
+
         castles = client.castle.get_all()
-        if not castles or not commanders:
+        if not castles or not leaders:
             print("Need at least one castle and one commander.", file=sys.stderr)
             return 1
         source = castles[0]
+        leader = leaders[0]
 
         units = client.army.get_units(castle_id=source.castle_id)
         if not units:
@@ -77,7 +81,7 @@ def main() -> int:
 
         print(
             f"\nAttack from {source.castle_name!r} ({source.x}, {source.y}) "
-            f"to ({target_x}, {target_y}) led by commander {commanders[0].commander_id}:"
+            f"to ({target_x}, {target_y}) led by commander {leader.commander_id}:"
         )
         print(f"  {waves[0].model_dump(by_alias=True)}")
 
@@ -92,7 +96,7 @@ def main() -> int:
             target_y=target_y,
             waves=waves,
             kingdom_id=source.kingdom_id,
-            commander_id=commanders[0].commander_id,
+            commander_id=leader.commander_id,
         )
         # send_attack returns False when the server rejects the attack by rule
         # (no troops, target out of range, commander already in a movement).

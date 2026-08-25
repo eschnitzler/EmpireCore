@@ -5,6 +5,7 @@ protocol layer parses bytes we do not control, so each case is written as
 "hostile or drifted input must not crash, mislead, or silently vanish".
 """
 
+import logging
 import xml.etree.ElementTree as ET
 from typing import Any
 
@@ -13,6 +14,8 @@ from pydantic import ValidationError
 
 from empire_core.network.connection import _summarise_frame
 from empire_core.protocol.models.alliance import AllianceInfo
+from empire_core.protocol.models.attack import AttackWave, CreateAttackResponse, WaveFlank
+from empire_core.protocol.models.commanders import GetCommandersResponse
 from empire_core.protocol.models.map import GetMapAreaResponse, MapAreaItem, MapItemType
 from empire_core.protocol.packet import (
     MALFORMED_STATUS_CODE,
@@ -343,3 +346,29 @@ class TestFrameRedactionEscapedQuotes:
         summary = _summarise_frame('%xt%z%unk%1%{"PW": "hunter2", "NM": "user"}%')
         assert "hunter2" not in summary
         assert '"NM": "user"' in summary
+
+
+class TestDriftedEquipmentEntries:
+    """A drifted EQ entry must be skipped, not raised through the accessor."""
+
+    def test_unparseable_entries_are_skipped_and_logged(self, caplog):
+        response = GetCommandersResponse.model_validate(
+            {"C": [{"ID": 91, "EQ": [{"nested": 1}, 5, [880, "not-a-slot"], [880, 2, 2]]}]}
+        )
+
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.commanders"):
+            items = response.commanders[0].equipment()
+
+        assert [(i.equipment_id, i.slot) for i in items] == [(880, 2)]
+        assert "3/4" in caplog.text
+
+    def test_a_flank_entry_that_is_not_a_pair_counts_as_no_units(self):
+        # A padded or truncated slot must not raise out of the wave check.
+        assert AttackWave(L=WaveFlank(U=[[487]])).unit_count() == 0
+        assert AttackWave(L=WaveFlank(U=[[487, 5, 1], [488, 2]])).unit_count() == 7
+        assert AttackWave(L=WaveFlank(U=[[-1, 0]])).is_complete() is False
+
+    def test_a_movement_without_a_usable_id_reports_none(self):
+        assert CreateAttackResponse.model_validate({"AAM": {"M": []}}).movement_id is None
+        assert CreateAttackResponse.model_validate({"AAM": {"M": {"MID": "x"}}}).movement_id is None
+        assert CreateAttackResponse.model_validate({"AAM": {"M": {"MID": "7"}}}).movement_id == 7
