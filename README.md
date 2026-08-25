@@ -150,6 +150,11 @@ client.attack.send_attack(
 )
 ```
 
+`commander_id` is required: every id `get_commanders()` returns leads an
+attack, `0` included, so there is no value that means "no commander". The
+server echoes the chosen one back, so `CreateAttackResponse.leader` says which
+commander it actually flew with.
+
 Waves without units are dropped before sending, as the game client does, and
 passing `feathers=True` forces the horse field to -1 exactly as the client
 does. See [`examples/commanders_and_attack.py`](examples/commanders_and_attack.py)

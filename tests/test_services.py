@@ -870,15 +870,22 @@ class TestAttackService:
         assert payload["CD"] == 99
         assert payload["ATT"] == AttackType.ATTACK
 
-    def test_no_commander_defaults_to_zero(self):
+    def test_commander_must_be_chosen_explicitly(self):
+        # Every id gli reports leads an attack, 0 included, so there is no safe
+        # value to default to.
         client = make_client()
-        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])])
+        with pytest.raises(TypeError):
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])])  # type: ignore[call-arg]
+
+    def test_commander_is_sent_as_lid(self):
+        client = make_client()
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 0)
         assert conn(client).request_payloads[0][1]["LID"] == 0
 
     def test_empty_waves_are_dropped_like_the_client_does(self):
         client = make_client()
 
-        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]]), wave(tools=[[301, 5]]), wave()])
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]]), wave(tools=[[301, 5]]), wave()], 3)
 
         # A wave carrying only tools has no units, so the client never sends it.
         assert conn(client).request_payloads[0][1]["A"] == [
@@ -889,14 +896,14 @@ class TestAttackService:
         client = make_client()
 
         with pytest.raises(ValueError, match="no units"):
-            client.attack.send_attack(500, 510, 700, 710, [wave()])
+            client.attack.send_attack(500, 510, 700, 710, [wave()], 3)
 
         assert conn(client).requested == []
 
     def test_feathers_force_the_horse_field_to_minus_one(self):
         client = make_client()
 
-        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], horses_type=2, feathers=True)
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3, horses_type=2, feathers=True)
 
         payload = conn(client).request_payloads[0][1]
         assert (payload["PTT"], payload["HBW"]) == (1, -1)
@@ -904,7 +911,7 @@ class TestAttackService:
     def test_horses_survive_without_feathers(self):
         client = make_client()
 
-        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], horses_type=2, feathers=False)
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3, horses_type=2, feathers=False)
 
         payload = conn(client).request_payloads[0][1]
         assert (payload["PTT"], payload["HBW"]) == (0, 2)
@@ -918,6 +925,7 @@ class TestAttackService:
             700,
             710,
             [wave(units=[[487, 1]])],
+            3,
             attack_type=AttackType.CONQUER,
         )
 
@@ -953,7 +961,7 @@ class TestAttackService:
 
     def test_rejected_attack_is_false(self):
         client = make_client({"cra": xt_packet("cra", error_code=21)})
-        assert client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])]) is False
+        assert client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3) is False
 
 
 # =============================================================================

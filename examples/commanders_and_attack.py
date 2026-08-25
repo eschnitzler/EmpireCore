@@ -58,8 +58,9 @@ def main() -> int:
         castellans = client.commanders.get_castellans()
         print(f"{len(castellans)} castellan(s)")
 
-        # The list also holds the "no commander" placeholder, which cannot lead.
-        leaders = [c for c in commanders if c.commander_id > 0]
+        # Commander 0 is the free starting one and leads attacks like any other;
+        # only a negative id is a sentinel rather than a commander.
+        leaders = [c for c in commanders if c.commander_id >= 0]
 
         castles = client.castle.get_all()
         if not castles or not leaders:

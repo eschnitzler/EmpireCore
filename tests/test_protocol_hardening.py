@@ -407,3 +407,39 @@ class TestDriftedEquipmentEntries:
         assert CreateAttackResponse.model_validate({"AAM": {"M": []}}).movement_id is None
         assert CreateAttackResponse.model_validate({"AAM": {"M": {"MID": "x"}}}).movement_id is None
         assert CreateAttackResponse.model_validate({"AAM": {"M": {"MID": "7"}}}).movement_id == 7
+
+    def test_leader_comes_back_under_um(self):
+        # Captured from an accepted live cra: LID=0 selected commander 0, and the
+        # server echoed that commander, equipment included, under AAM.UM.L.
+        response = CreateAttackResponse.model_validate(
+            {
+                "AAM": {
+                    "M": {"MID": 58246863},
+                    "UM": {
+                        "PWD": 0,
+                        "TWD": 0,
+                        "L": {
+                            "ID": 0,
+                            "WID": 2,
+                            "N": "",
+                            "W": 1,
+                            "D": 0,
+                            "SPR": 1,
+                            "EQ": [[6515211113, 6, 2, 10, 0, [[242, [25.0]]], 802, 22, 0, -1, -1, 1]],
+                            "AE": [],
+                        },
+                    },
+                    "FA": {"L": [[10, 1]], "M": [], "R": [], "RW": []},
+                }
+            }
+        )
+
+        leader = response.leader
+        assert leader is not None
+        assert (leader.commander_id, leader.wins, leader.win_spree) == (0, 1, 1)
+        assert leader.equipment()[0].slot == 6
+
+    def test_leader_is_none_when_the_server_sends_no_commander(self):
+        assert CreateAttackResponse.model_validate({"AAM": {"M": {}}}).leader is None
+        assert CreateAttackResponse.model_validate({"AAM": {"UM": {"L": []}}}).leader is None
+        assert CreateAttackResponse.model_validate({"AAM": {"UM": {"L": {"N": "no id"}}}}).leader is None

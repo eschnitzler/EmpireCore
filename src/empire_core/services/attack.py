@@ -14,8 +14,6 @@ from .base import BaseService, register_service
 
 logger = logging.getLogger(__name__)
 
-NO_COMMANDER = 0
-
 
 @register_service("attack")
 class AttackService(BaseService):
@@ -32,8 +30,8 @@ class AttackService(BaseService):
         target_x: int,
         target_y: int,
         waves: list[AttackWave],
+        commander_id: int,
         kingdom_id: int = 0,
-        commander_id: int = NO_COMMANDER,
         attack_type: int = AttackType.ATTACK,
         wait_time: int = 0,
         horses_type: int = -1,
@@ -53,6 +51,17 @@ class AttackService(BaseService):
         Waves without units are dropped, matching the game client. Setting
         ``feathers`` forces the horse field to -1, again as the client does.
 
+        ``commander_id`` has no default on purpose. Every id the ``gli`` ``C``
+        list reports is a real commander, ``0`` included -- it is the free
+        starting one, and a live send with ``LID=0`` comes back with that
+        commander under ``AAM.UM.L``. The server validates the id before it
+        looks at the army: an id outside the list is ``INVALID_LORD_ID`` (219),
+        and a castellan already posted to a castle is ``LORD_IS_USED`` (256).
+        ``-14`` (the no-commander sentinel of ``cds``) also passes validation
+        here, but no accepted ``-14`` send has been captured, and players report
+        it can cost rubies depending on VIP level, so it is not used as a
+        default.
+
         Args:
             source_x: Source absolute X coordinate
             source_y: Source absolute Y coordinate
@@ -60,7 +69,7 @@ class AttackService(BaseService):
             target_y: Target absolute Y coordinate
             waves: Attack waves, front to back
             kingdom_id: Source kingdom ID (0=Green, 1=Sand, 2=Ice, 3=Fire)
-            commander_id: Commander to lead the attack (0 = none)
+            commander_id: Commander to lead the attack, from client.commanders
             attack_type: See AttackType (default: a normal attack)
             wait_time: Wait time before the troops return
             horses_type: Horse type for the speed bonus (-1 = none)
