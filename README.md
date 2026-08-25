@@ -116,10 +116,24 @@ if resources:
     print(f"Wood: {resources.wood}, Stone: {resources.stone}")
 ```
 
-Also available: `client.army`, `client.commanders`, `client.ranking` and
-`client.spy`.
+Also available: `client.army`, `client.ranking` and `client.spy`.
 
-### Attacking
+### `client.commanders`
+
+```python
+for commander in client.commanders.get_commanders():
+    print(commander.commander_id, commander.name, commander.wins, commander.defeats)
+    for item in commander.equipment():
+        print("  ", item.equipment_id, item.slot, item.enchantment_level, item.is_permanent)
+
+# The defensive counterparts come back from the same command.
+castellans = client.commanders.get_castellans()
+```
+
+The server calls both kinds "lords" (command `gli`, field `LID`); the game UI
+calls them commanders and castellans, and so does this library.
+
+### `client.attack`
 
 > Experimental: the `cra` payload is built from the game client's own command
 > definition but has not yet been confirmed against a live server.
@@ -139,7 +153,10 @@ client.attack.send_attack(
 )
 ```
 
-Waves without units are dropped before sending, as the game client does.
+Waves without units are dropped before sending, as the game client does, and
+passing `feathers=True` forces the horse field to -1 exactly as the client
+does. See [`examples/commanders_and_attack.py`](examples/commanders_and_attack.py)
+for a runnable version that dry-runs by default.
 
 ## Game State
 
