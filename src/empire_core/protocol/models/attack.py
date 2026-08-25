@@ -11,11 +11,15 @@ Commands:
 
 from __future__ import annotations
 
+import logging
 from enum import IntEnum
 
-from pydantic import Field
+from pydantic import Field, ValidationError
 
 from .base import BasePayload, BaseRequest, BaseResponse, UnitCount
+from .commanders import Commander
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # CRA - Create Attack
@@ -133,15 +137,35 @@ class CreateAttackResponse(BaseResponse):
     Response to attack creation.
 
     Command: cra
-    Payload: {"AAM": {"M": {movement}, "UM": {...}}}
+    Payload::
 
-    The accepted attack comes back as the movement itself under AAM.M, which
-    also carries the leading commander's equipment and effects.
+        {"AAM": {
+            "M":  {movement},                  # the created movement
+            "UM": {"L": {gli entry}, ...},     # the commander leading it
+            "FA": {"L": [[unit_id, count]], "M": [...], "R": [...], "RW": []},
+            "AST": [...], "ATT": 0, "ASCT": 0, "FC": 0,
+        }}
+
+    ``UM.L`` is the same shape as a ``gli`` entry, equipment included, so it is
+    what confirms which commander ``LID`` selected. ``FA`` is the army the
+    server actually accepted, after it dropped empty flanks.
     """
 
     command = "cra"
 
     attack_movement: dict | None = Field(alias="AAM", default=None)
+
+    @property
+    def leader(self) -> Commander | None:
+        """The commander leading the attack, as the server echoed it back."""
+        raw = ((self.attack_movement or {}).get("UM") or {}).get("L")
+        if not isinstance(raw, dict):
+            return None
+        try:
+            return Commander.model_validate(raw)
+        except ValidationError:
+            logger.warning("Could not parse the commander echoed back by cra")
+            return None
 
     @property
     def movement_id(self) -> int | None:
