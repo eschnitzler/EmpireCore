@@ -13,6 +13,7 @@ from empire_core import EmpireClient
 from empire_core.services import (
     AllianceService,
     ArmyService,
+    AttackService,
     CastleService,
     CommandersService,
     RankingService,
@@ -24,6 +25,7 @@ SERVICE_TYPES = {
     "alliance": AllianceService,
     "castle": CastleService,
     "army": ArmyService,
+    "attack": AttackService,
     "commanders": CommandersService,
     "spy": SpyService,
     "ranking": RankingService,

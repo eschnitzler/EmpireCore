@@ -29,6 +29,7 @@ from empire_core.exceptions import (
 from empire_core.pool import AccountPool, PoolExhaustedError
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models.alliance import AllianceInfo, AllianceMember
+from empire_core.protocol.models.attack import AttackType, AttackWave, WaveFlank
 from empire_core.protocol.models.castle import CastleInfo
 from empire_core.protocol.models.chat import decode_chat_text, encode_chat_text
 from empire_core.protocol.models.commanders import (
@@ -92,12 +93,15 @@ __all__ = [
     "Commander",
     "Castellan",
     "Equipment",
+    "AttackWave",
+    "WaveFlank",
     # Services / results
     "ScanResult",
     "SpyService",
     "SpyResult",
     # Enums
     "Kingdom",
+    "AttackType",
     "EquipmentSlot",
     "MapItemType",
     "MovementType",

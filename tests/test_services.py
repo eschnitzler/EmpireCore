@@ -35,11 +35,14 @@ from empire_core.network.connection import ResponseWaiter
 from empire_core.protocol.models import (
     AllianceChatMessageResponse,
     AllianceMember,
+    AttackType,
+    AttackWave,
     EquipmentSlot,
     GetAllianceInfoRequest,
     GetAllianceInfoResponse,
     HelpType,
     SelectCastleRequest,
+    WaveFlank,
     WearerType,
 )
 from empire_core.protocol.packet import Packet
@@ -822,6 +825,104 @@ class TestCastleActions:
             client.castle.send_support(12345, 700, 710, [[487, 1]], wait_time=13)
 
         assert conn(client).requested == []
+
+
+# =============================================================================
+# AttackService
+# =============================================================================
+
+
+def wave(units=None, tools=None, middle_units=None):
+    return AttackWave(
+        L=WaveFlank(U=units or [], T=tools or []),
+        M=WaveFlank(U=middle_units or []),
+        R=WaveFlank(),
+    )
+
+
+class TestAttackService:
+    def test_send_attack_builds_the_client_payload(self):
+        client = make_client()
+
+        sent = client.attack.send_attack(
+            source_x=500,
+            source_y=510,
+            target_x=700,
+            target_y=710,
+            waves=[wave(units=[[487, 100]], tools=[[301, 5]])],
+            kingdom_id=2,
+            commander_id=91,
+        )
+
+        assert sent is True
+        command, payload = conn(client).request_payloads[0]
+        assert command == "cra"
+        assert (payload["SX"], payload["SY"]) == (500, 510)
+        assert (payload["TX"], payload["TY"]) == (700, 710)
+        assert payload["KID"] == 2
+        assert payload["LID"] == 91
+        assert payload["A"] == [
+            {"L": {"T": [[301, 5]], "U": [[487, 100]]}, "M": {"T": [], "U": []}, "R": {"T": [], "U": []}}
+        ]
+        assert payload["CD"] == 99
+        assert payload["ATT"] == AttackType.ATTACK
+
+    def test_no_commander_defaults_to_zero(self):
+        client = make_client()
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])])
+        assert conn(client).request_payloads[0][1]["LID"] == 0
+
+    def test_empty_waves_are_dropped_like_the_client_does(self):
+        client = make_client()
+
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]]), wave(tools=[[301, 5]]), wave()])
+
+        # A wave carrying only tools has no units, so the client never sends it.
+        assert conn(client).request_payloads[0][1]["A"] == [
+            {"L": {"T": [], "U": [[487, 1]]}, "M": {"T": [], "U": []}, "R": {"T": [], "U": []}}
+        ]
+
+    def test_attack_without_any_units_is_rejected_before_sending(self):
+        client = make_client()
+
+        with pytest.raises(ValueError, match="no units"):
+            client.attack.send_attack(500, 510, 700, 710, [wave()])
+
+        assert conn(client).requested == []
+
+    def test_feathers_force_the_horse_field_to_minus_one(self):
+        client = make_client()
+
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], horses_type=2, feathers=True)
+
+        payload = conn(client).request_payloads[0][1]
+        assert (payload["PTT"], payload["HBW"]) == (1, -1)
+
+    def test_horses_survive_without_feathers(self):
+        client = make_client()
+
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], horses_type=2, feathers=False)
+
+        payload = conn(client).request_payloads[0][1]
+        assert (payload["PTT"], payload["HBW"]) == (0, 2)
+
+    def test_conquer_attack_type(self):
+        client = make_client()
+
+        client.attack.send_attack(
+            500,
+            510,
+            700,
+            710,
+            [wave(units=[[487, 1]])],
+            attack_type=AttackType.CONQUER,
+        )
+
+        assert conn(client).request_payloads[0][1]["ATT"] == 7
+
+    def test_rejected_attack_is_false(self):
+        client = make_client({"cra": xt_packet("cra", error_code=21)})
+        assert client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])]) is False
 
 
 # =============================================================================

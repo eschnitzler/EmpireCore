@@ -11,6 +11,8 @@ Commands:
 
 from __future__ import annotations
 
+from enum import IntEnum
+
 from pydantic import Field
 
 from .base import BasePayload, BaseRequest, BaseResponse, UnitCount
@@ -20,31 +22,108 @@ from .base import BasePayload, BaseRequest, BaseResponse, UnitCount
 # =============================================================================
 
 
+class AttackType(IntEnum):
+    """Values for the ATT field (CombatConst.ATTACK_TYPE_*)."""
+
+    ATTACK = 0
+    OUTPOST_CONQUER = 1
+    VILLAGE_CONQUER = 2
+    CAPITAL_CONQUER = 3
+    METROPOL_CONQUER = 5
+    KINGS_TOWER_CONQUER = 6
+    CONQUER = 7
+    MONUMENT_CONQUER = 8
+    LABORATORY_CONQUER = 9
+
+
+class WaveFlank(BasePayload):
+    """
+    One flank of an attack wave.
+
+    Payload: {"T": [[tool_id, count], ...], "U": [[unit_id, count], ...]}
+    """
+
+    tools: list[list[int]] = Field(alias="T", default_factory=list)
+    units: list[list[int]] = Field(alias="U", default_factory=list)
+
+
+class AttackWave(BasePayload):
+    """
+    A single attack wave: left, middle and right flank.
+
+    Payload: {"L": flank, "M": flank, "R": flank}
+    """
+
+    left: WaveFlank = Field(alias="L", default_factory=WaveFlank)
+    middle: WaveFlank = Field(alias="M", default_factory=WaveFlank)
+    right: WaveFlank = Field(alias="R", default_factory=WaveFlank)
+
+    def unit_count(self) -> int:
+        """Total number of units across all three flanks."""
+        return sum(count for flank in (self.left, self.middle, self.right) for _unit_id, count in flank.units)
+
+    def is_complete(self) -> bool:
+        """
+        Whether the client would send this wave.
+
+        The game drops any wave without units, tools included.
+        """
+        return self.unit_count() > 0
+
+
 class CreateAttackRequest(BaseRequest):
     """
     Send an attack to a target.
 
     Command: cra
     Payload: {
-        "CID": source_castle_id,
-        "TX": target_x,
-        "TY": target_y,
-        "TK": target_kingdom,
-        "U": [{"UID": unit_id, "C": count}, ...],
-        "T": [{"TID": tool_id, "C": count}, ...],  # optional
-        "AT": attack_type,  # 1=attack, 2=support, etc.
+        "SX": source_x, "SY": source_y,      # absolute map coordinates
+        "TX": target_x, "TY": target_y,
+        "A": [wave, ...],                    # see AttackWave
+        "KID": kingdom_id,
+        "LID": commander_id (0 = none),
+        "WT": wait_time,
+        "HBW": horses_type (-1 when PTT is set),
+        "BPC": boost_with_coins,
+        "ATT": attack_type (see AttackType),
+        "AV": share_battle_view,
+        "LP": loot_priority resource id,
+        "FC": fast_cast,
+        "PTT": feathers,
+        "SD": slowdown offset in seconds,
+        "ICA": collector_attack,
+        "BKS": [collector_booster, ...],
+        "AST": [support_tool_wod_id, ...],
+        "CD": 99,                            # hardcoded by the client
+        "RW": [[unit_id, count], ...],       # yard wave
+        "ASCT": auto_skip_cooldown_type
     }
     """
 
     command = "cra"
 
-    castle_id: int = Field(alias="CID")
+    source_x: int = Field(alias="SX")
+    source_y: int = Field(alias="SY")
     target_x: int = Field(alias="TX")
     target_y: int = Field(alias="TY")
-    target_kingdom: int = Field(alias="TK", default=0)
-    units: list[UnitCount] = Field(alias="U", default_factory=list)
-    tools: list[UnitCount] = Field(alias="T", default_factory=list)
-    attack_type: int = Field(alias="AT", default=1)  # 1=attack
+    waves: list[AttackWave] = Field(alias="A", default_factory=list)
+    kingdom_id: int = Field(alias="KID", default=0)
+    commander_id: int = Field(alias="LID", default=0)
+    wait_time: int = Field(alias="WT", default=0)
+    horses_type: int = Field(alias="HBW", default=-1)
+    boost_with_coins: int = Field(alias="BPC", default=0)
+    attack_type: int = Field(alias="ATT", default=AttackType.ATTACK)
+    share_battle_view: int = Field(alias="AV", default=0)
+    loot_priority: int = Field(alias="LP", default=0)
+    fast_cast: int = Field(alias="FC", default=0)
+    feathers: int = Field(alias="PTT", default=0)
+    slowdown: int = Field(alias="SD", default=0)
+    collector_attack: int = Field(alias="ICA", default=0)
+    collector_booster: list = Field(alias="BKS", default_factory=list)
+    support_tools: list[int] = Field(alias="AST", default_factory=list)
+    countdown: int = Field(alias="CD", default=99)
+    yard_wave: list[list[int]] = Field(alias="RW", default_factory=list)
+    auto_skip_cooldown: int = Field(alias="ASCT", default=0)
 
 
 class CreateAttackResponse(BaseResponse):
@@ -52,13 +131,12 @@ class CreateAttackResponse(BaseResponse):
     Response to attack creation.
 
     Command: cra
+
+    The server acknowledges the command; the resulting movement arrives
+    separately as a movement push (gam/um).
     """
 
     command = "cra"
-
-    movement_id: int = Field(alias="MID", default=0)
-    arrival_time: int = Field(alias="AT", default=0)  # Unix timestamp
-    error_message: str | None = Field(alias="EM", default=None)
 
 
 # =============================================================================

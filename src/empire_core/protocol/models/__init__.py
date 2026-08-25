@@ -77,6 +77,8 @@ from .army import (
 )
 from .attack import (
     AttackPreset,
+    AttackType,
+    AttackWave,
     CreateAttackRequest,
     CreateAttackResponse,
     GetPresetsRequest,
@@ -89,6 +91,7 @@ from .attack import (
     SkipDefenseCooldownResponse,
     SpyScreenInfoRequest,
     SpyScreenInfoResponse,
+    WaveFlank,
 )
 from .auth import (
     CheckUsernameAvailableRequest,
@@ -345,6 +348,9 @@ __all__ = [
     "SearchPlayerResponse",
     "SearchPlayerResult",
     # Attack
+    "AttackType",
+    "AttackWave",
+    "WaveFlank",
     "CreateAttackRequest",
     "CreateAttackResponse",
     "SendSpyRequest",
