@@ -37,6 +37,8 @@ from empire_core.protocol.models import (
     AllianceMember,
     AttackType,
     AttackWave,
+    CreateAttackRequest,
+    CreateAttackResponse,
     EquipmentSlot,
     EquipmentType,
     GetAllianceInfoRequest,
@@ -920,6 +922,34 @@ class TestAttackService:
         )
 
         assert conn(client).request_payloads[0][1]["ATT"] == 7
+
+    def test_accepted_attack_reports_the_movement(self):
+        # Shape captured from a live cra response.
+        payload = {"AAM": {"M": {"MID": 57520011, "TT": 132, "TA": [2, 630, 243, -1, 297, -17640552, 0]}}}
+        client = make_client({"cra": xt_packet("cra", payload)})
+
+        response = client.request(
+            CreateAttackRequest(
+                SX=629,
+                SY=242,
+                TX=630,
+                TY=243,
+                KID=0,
+                LID=1,
+                A=[wave(units=[[211, 5]])],
+            ),
+            CreateAttackResponse,
+        )
+
+        assert response.movement_id == 57520011
+
+    def test_response_without_a_movement_has_no_id(self):
+        client = make_client({"cra": xt_packet("cra", {})})
+        response = client.request(
+            CreateAttackRequest(SX=1, SY=1, TX=2, TY=2, A=[wave(units=[[211, 1]])]),
+            CreateAttackResponse,
+        )
+        assert response.movement_id is None
 
     def test_rejected_attack_is_false(self):
         client = make_client({"cra": xt_packet("cra", error_code=21)})

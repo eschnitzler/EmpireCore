@@ -109,6 +109,12 @@ toolsSupportWodIds, yardWaveSlotList, autoSkipCooldownType)`
 `C2SCreateArmyAttackMovementAdvisorVO` extends this with advisor fields when the
 player has advisor attacks left.
 
+Verified against a live server: an accepted `cra` answers with the created
+movement under `AAM.M` (`MID`, travel time, source and target areas), and the
+movement carries the leading commander's equipment and effects. An army built
+only from tools or event boosts is rejected with `MOVEMENT_HAS_NO_UNITS (100)`,
+so the wave's `U` slots must reference actual barracks units.
+
 ### The `A` army payload
 
 `CastleAttackArmyVO.getArmyData()` returns one entry per wave, skipping any wave

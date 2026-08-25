@@ -131,12 +131,22 @@ class CreateAttackResponse(BaseResponse):
     Response to attack creation.
 
     Command: cra
+    Payload: {"AAM": {"M": {movement}, "UM": {...}}}
 
-    The server acknowledges the command; the resulting movement arrives
-    separately as a movement push (gam/um).
+    The accepted attack comes back as the movement itself under AAM.M, which
+    also carries the leading commander's equipment and effects.
     """
 
     command = "cra"
+
+    attack_movement: dict | None = Field(alias="AAM", default=None)
+
+    @property
+    def movement_id(self) -> int | None:
+        """The created movement's ID, or None when the server sent no movement."""
+        movement = (self.attack_movement or {}).get("M") or {}
+        movement_id = movement.get("MID")
+        return int(movement_id) if movement_id is not None else None
 
 
 # =============================================================================

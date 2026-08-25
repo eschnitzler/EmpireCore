@@ -50,9 +50,6 @@ class AttackService(BaseService):
         """
         Send an attack from a castle to a target position.
 
-        Experimental: the payload matches the game client's own cra command
-        field for field, but has not yet been confirmed against a live server.
-
         Waves without units are dropped, matching the game client. Setting
         ``feathers`` forces the horse field to -1, again as the client does.
 
