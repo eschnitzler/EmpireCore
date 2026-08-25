@@ -57,7 +57,7 @@ class Equipment(BasePayload):
     slot: int = 0
     wearer_type: int = WearerType.ALL
     rarity_id: int = 0
-    graphic: str = ""
+    graphic: int = 0
     bonuses: list = Field(default_factory=list)
     unique_id: int = 0
     set_id: int = 0
@@ -68,7 +68,7 @@ class Equipment(BasePayload):
 
     @property
     def is_permanent(self) -> bool:
-        """True when the item does not expire."""
+        """True when the item does not expire (the server sends -1)."""
         return self.duration_seconds < 1
 
     @property
@@ -85,7 +85,7 @@ class Equipment(BasePayload):
             slot=data[1] if size > 1 else 0,
             wearer_type=data[2] if size > 2 else WearerType.ALL,
             rarity_id=data[3] if size > 3 else 0,
-            graphic=data[4] if size > 4 else "",
+            graphic=data[4] if size > 4 else 0,
             bonuses=data[5] if size > 5 else [],
             unique_id=data[6] if size > 6 else 0,
             set_id=data[7] if size > 7 else 0,
