@@ -147,8 +147,9 @@ class ScriptedConnection:
 
 
 class StubPlayer:
-    def __init__(self, alliance_id: int = 0):
+    def __init__(self, alliance_id: int = 0, level: int = 0):
         self.alliance_id = alliance_id
+        self.level = level
 
 
 class StubState:
@@ -161,6 +162,9 @@ class StubState:
     def update_from_packet(self, cmd_id: str, payload: object) -> None:
         self.updates.append((cmd_id, payload))
 
+    def get_local_player(self) -> StubPlayer | None:
+        return self.local_player
+
 
 def make_client(script: dict[str, Any] | None = None, state: StubState | None = None) -> EmpireClient:
     """Build a client with every registered service attached, but no socket."""
@@ -170,6 +174,7 @@ def make_client(script: dict[str, Any] | None = None, state: StubState | None = 
     client.password = "secret"
     client.connection = ScriptedConnection(script)  # type: ignore[assignment]
     client.state = state or StubState()  # type: ignore[assignment]
+    client.game_data = None
     client.is_logged_in = True
     client._handlers = {}
     client._handlers_lock = threading.Lock()
@@ -958,6 +963,47 @@ class TestAttackService:
             CreateAttackResponse,
         )
         assert response.movement_id is None
+
+    def test_fill_waves_needs_game_data(self):
+        from empire_core.exceptions import GameDataNotLoadedError
+
+        client = make_client()
+
+        with pytest.raises(GameDataNotLoadedError):
+            client.attack.fill_waves(12345)
+
+    def test_fill_waves_sizes_itself_from_the_player_level(self):
+        from empire_core.gamedata import GameData
+
+        payload = {
+            "units": [{"wodID": 601, "name": "Barracks", "type": "Swordsman", "role": "melee", "meleeAttack": "100"}]
+        }
+        inventory = {"I": [[601, 10_000], [107, 50]], "U": [], "T": []}
+        client = make_client({"gui": xt_packet("gui", inventory)})
+        client.game_data = GameData.parse("test", payload)
+        # Level 13 unlocks a second wave and 73 attackers per wave.
+        client.state.local_player = StubPlayer(level=13)
+
+        waves = client.attack.fill_waves(12345)
+
+        assert len(waves) == 2
+        assert waves[0].unit_count() == 73
+        # 107 is a boost item in the inventory and must not be sent as an army.
+        assert all(
+            wod_id == 601
+            for wave in waves
+            for flank in wave.model_dump(by_alias=True).values()
+            for wod_id, _count in flank["U"]
+        )
+
+    def test_fill_waves_without_a_level_is_an_error_not_a_guess(self):
+        from empire_core.gamedata import GameData
+
+        client = make_client({"gui": xt_packet("gui", {"I": [[601, 10]]})})
+        client.game_data = GameData.parse("test", {"units": []})
+
+        with pytest.raises(ValueError, match="level"):
+            client.attack.fill_waves(12345)
 
     def test_rejected_attack_is_false(self):
         client = make_client({"cra": xt_packet("cra", error_code=21)})

@@ -160,6 +160,29 @@ passing `feathers=True` forces the horse field to -1 exactly as the client
 does. See [`examples/commanders_and_attack.py`](examples/commanders_and_attack.py)
 for a runnable version that dry-runs by default.
 
+### Filling waves
+
+```python
+client.load_game_data()          # explicit: the items payload is a large download
+
+waves = client.attack.fill_waves(castle_id, camp_victories=camp.victory_count)
+client.attack.send_attack(
+    source_x=castle.x, source_y=castle.y,
+    target_x=camp.x, target_y=camp.y,
+    waves=waves, commander_id=commander.commander_id,
+)
+```
+
+Sizes itself from the attacker's level the way the game's auto-fill does: how
+many waves, each flank's capacity and its unlocked slots. Each slot takes the
+stack that best counters whichever of the target's defences is proportionally
+weaker, and an NPC camp's defence is read from the game data rather than spied.
+
+Only units are placed for now - the game's button also fills tool slots, and
+attacker bonuses from commander equipment and legend skills are not applied
+yet, so waves are exact for an unbuffed attack and conservative for a buffed
+one.
+
 ## Game State
 
 A background thread applies server pushes to `client.state` while your code

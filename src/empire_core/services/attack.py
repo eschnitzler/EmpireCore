@@ -8,6 +8,16 @@ from __future__ import annotations
 
 import logging
 
+from empire_core.combat import (
+    AttackerFlankEffects,
+    DefenderFlankEffects,
+    FillOptions,
+    Flank,
+    Inventory,
+    npc_camp_defence,
+)
+from empire_core.combat import fill_waves as solve_waves
+from empire_core.exceptions import GameDataNotLoadedError
 from empire_core.protocol.models import AttackType, AttackWave, CreateAttackRequest
 
 from .base import BaseService, register_service
@@ -115,3 +125,84 @@ class AttackService(BaseService):
             BKS=collector_booster or [],
         )
         return self.execute(request, timeout=timeout)
+
+    def fill_waves(
+        self,
+        castle_id: int,
+        *,
+        level: int | None = None,
+        camp_victories: int | None = None,
+        camp_kingdom_id: int = 0,
+        defence: dict[Flank, DefenderFlankEffects] | None = None,
+        attacker: AttackerFlankEffects | None = None,
+        conquer: bool = False,
+        wave_bonus: int = 0,
+        soldier_bonus_percent: float = 0.0,
+        tool_bonus: float = 0.0,
+        options: FillOptions | None = None,
+        timeout: float = 5.0,
+    ) -> list[AttackWave]:
+        """
+        Build the waves for an attack from a castle's inventory.
+
+        Sizes itself the way the game's auto-fill does: the number of waves,
+        each flank's capacity and its unlocked slots all follow from the
+        attacker's level, and each slot takes the stack that best counters
+        whichever of the target's defences is proportionally weaker.
+
+        Only units are placed. The game's button also fills tool slots, which
+        needs the tool effect tables resolved, so waves from here carry no
+        siege tools yet.
+
+        Args:
+            castle_id: Castle whose troops to draw from
+            level: Effective level; taken from the logged-in player when
+                omitted, and raised to the target's minimum defence level by
+                the caller where that is higher
+            camp_victories: An NPC camp's victory count, to derive its defence
+                from the game data - see ``MapAreaItem.victory_count``
+            camp_kingdom_id: Kingdom the camp sits in
+            defence: Explicit per-flank defence, overriding ``camp_victories``
+            attacker: Attacker multipliers, unbuffed when omitted
+            conquer: A conquest attack carries extra waves
+            wave_bonus: Extra waves from the ADDITIONAL_WAVE legend skill
+            soldier_bonus_percent: Percentage bonus to units per flank
+            tool_bonus: Extra flank tool capacity
+            options: Which flanks to fill and which units to allow
+            timeout: Timeout for the inventory request
+
+        Returns:
+            One wave per filled wave, ready to pass to :meth:`send_attack`
+
+        Raises:
+            GameDataNotLoadedError: ``client.load_game_data()`` has not been called
+            ValueError: No level was given and none is known for the player
+        """
+        game_data = self.client.game_data
+        if game_data is None:
+            raise GameDataNotLoadedError("Wave filling needs the items payload: call client.load_game_data() first")
+
+        if level is None:
+            player = self.client.state.get_local_player()
+            level = player.level if player else 0
+            if not level:
+                raise ValueError("No player level is known yet; pass level= explicitly")
+
+        if defence is None and camp_victories is not None:
+            defence = npc_camp_defence(game_data, camp_victories, camp_kingdom_id)
+
+        units = self.client.army.get_units(castle_id=castle_id, timeout=timeout)
+        pool = {u.unit_id: u.count for u in units if game_data.is_unit(u.unit_id)}
+
+        return solve_waves(
+            Inventory(pool),
+            game_data,
+            level=level,
+            conquer=conquer,
+            wave_bonus=wave_bonus,
+            soldier_bonus_percent=soldier_bonus_percent,
+            tool_bonus=tool_bonus,
+            attacker=attacker,
+            defence=defence,
+            options=options,
+        )
