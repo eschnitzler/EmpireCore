@@ -59,8 +59,10 @@ class AttackWave(BasePayload):
     right: WaveFlank = Field(alias="R", default_factory=WaveFlank)
 
     def unit_count(self) -> int:
-        """Total number of units across all three flanks."""
-        return sum(count for flank in (self.left, self.middle, self.right) for _unit_id, count in flank.units)
+        """Total units across all three flanks; non-pair entries count as zero."""
+        return sum(
+            entry[1] for flank in (self.left, self.middle, self.right) for entry in flank.units if len(entry) >= 2
+        )
 
     def is_complete(self) -> bool:
         """
@@ -144,9 +146,13 @@ class CreateAttackResponse(BaseResponse):
     @property
     def movement_id(self) -> int | None:
         """The created movement's ID, or None when the server sent no movement."""
-        movement = (self.attack_movement or {}).get("M") or {}
-        movement_id = movement.get("MID")
-        return int(movement_id) if movement_id is not None else None
+        movement = (self.attack_movement or {}).get("M")
+        if not isinstance(movement, dict):
+            return None
+        try:
+            return int(movement["MID"])
+        except (KeyError, TypeError, ValueError):
+            return None
 
 
 # =============================================================================

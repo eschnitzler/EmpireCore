@@ -7,11 +7,14 @@ Commands:
 
 from __future__ import annotations
 
+import logging
 from enum import IntEnum
 
-from pydantic import Field
+from pydantic import Field, ValidationError
 
 from .base import BasePayload, BaseRequest, BaseResponse
+
+logger = logging.getLogger(__name__)
 
 NO_GEM_ID = -1
 
@@ -114,8 +117,20 @@ class LeaderBase(BasePayload):
     raw_equipment: list = Field(alias="EQ", default_factory=list)
 
     def equipment(self) -> list[Equipment]:
-        """Parse the EQ entries into Equipment objects."""
-        return [Equipment.from_list(entry) for entry in self.raw_equipment]
+        """Parse the EQ entries into Equipment objects, skipping drifted ones."""
+        items: list[Equipment] = []
+        for entry in self.raw_equipment:
+            if not isinstance(entry, (list, tuple)):
+                continue
+            try:
+                items.append(Equipment.from_list(list(entry)))
+            except ValidationError:
+                continue
+        if skipped := len(self.raw_equipment) - len(items):
+            logger.warning(
+                f"Skipped {skipped}/{len(self.raw_equipment)} unparseable EQ entries for commander {self.commander_id}"
+            )
+        return items
 
 
 class Commander(LeaderBase):
