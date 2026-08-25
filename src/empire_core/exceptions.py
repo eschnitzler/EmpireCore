@@ -5,6 +5,7 @@ Failure modes are kept distinct so callers can react to them individually:
 - ``EmpireTimeoutError``: the server did not answer in time.
 - ``ConnectionClosedError``: the connection dropped while waiting.
 - ``CommandError``: the server answered with a non-zero error code.
+- ``GameDataNotLoadedError``: an API needed the items payload; load it first.
 """
 
 from empire_core.protocol.errors import GGEError
@@ -43,6 +44,15 @@ class EmpireTimeoutError(EmpireError, TimeoutError):
 
     Subclasses the builtin ``TimeoutError`` so ``except TimeoutError``
     catches it too.
+    """
+
+
+class GameDataNotLoadedError(EmpireError):
+    """
+    Raised when an API needs the static game data and it has not been loaded.
+
+    Call :meth:`EmpireClient.load_game_data` first: it is explicit because the
+    items payload is a large download.
     """
 
 

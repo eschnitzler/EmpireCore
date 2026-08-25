@@ -21,11 +21,13 @@ from empire_core.exceptions import (
     ConnectionClosedError,
     EmpireError,
     EmpireTimeoutError,
+    GameDataNotLoadedError,
     LoginCooldownError,
     LoginError,
     NetworkError,
     PacketError,
 )
+from empire_core.gamedata import GameData, ToolStats, UnitStats
 from empire_core.pool import AccountPool, PoolExhaustedError
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models.alliance import AllianceInfo, AllianceMember
@@ -71,6 +73,7 @@ __all__ = [
     "PacketError",
     "EmpireTimeoutError",
     "CommandError",
+    "GameDataNotLoadedError",
     "GGEError",
     "PoolExhaustedError",
     # State models (live game state for the logged-in account)
@@ -97,6 +100,9 @@ __all__ = [
     "WaveFlank",
     # Services / results
     "ScanResult",
+    "GameData",
+    "UnitStats",
+    "ToolStats",
     "SpyService",
     "SpyResult",
     # Enums
