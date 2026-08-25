@@ -1,9 +1,11 @@
 """List your commanders and send an attack led by one of them.
 
-The attack itself is EXPERIMENTAL: the ``cra`` payload is built field for field
-from the game client's own command definition, but it has not been confirmed
-against a live server yet. The script prints the attack it would send and only
-sends it when you pass ``--send``, so you can inspect the payload first.
+The script prints the attack it would send and only sends it when you pass
+``--send``, so you can inspect the payload before any troops leave.
+
+Pick a real barracks unit for the wave: an inventory also holds tools and
+event boosts, and an army built from those is rejected with
+MOVEMENT_HAS_NO_UNITS.
 
 Coordinates are absolute map positions, not castle IDs. Unit and tool IDs are
 the game's WOD IDs, the same ones ``client.army.get_units()`` returns.

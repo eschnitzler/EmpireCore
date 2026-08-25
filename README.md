@@ -135,9 +135,6 @@ calls them commanders and castellans, and so does this library.
 
 ### `client.attack`
 
-> Experimental: the `cra` payload is built from the game client's own command
-> definition but has not yet been confirmed against a live server.
-
 ```python
 from empire_core import AttackWave, WaveFlank
 
