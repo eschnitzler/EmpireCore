@@ -459,12 +459,22 @@ class TestWaveCapacity:
         assert WaveCapacity.for_level(37).flank_tool_slots == 2
         assert WaveCapacity.for_level(10).middle_tool_slots == 1
 
-    def test_soldier_bonus_grows_the_flanks(self):
-        plain = WaveCapacity.for_level(70)
-        boosted = WaveCapacity.for_level(70, soldier_bonus_percent=10)
+    def test_flank_and_front_bonuses_are_independent(self):
+        # The client resizes the sides and the middle from two different
+        # effects, so one must not move the other.
+        flank_only = WaveCapacity.for_level(70, flank_bonus_percent=50)
+        front_only = WaveCapacity.for_level(70, front_bonus_percent=50)
 
-        assert boosted.flank_soldiers > plain.flank_soldiers
-        assert boosted.total_soldiers() > plain.total_soldiers()
+        assert (flank_only.flank_soldiers, flank_only.middle_soldiers) == (96, 192)
+        assert (front_only.flank_soldiers, front_only.middle_soldiers) == (64, 288)
+
+    def test_matches_the_attack_dialog_with_commander_bonuses(self):
+        # Captured from the game's own attack dialog at level 70 with a
+        # commander selected: 96 per side flank, 205 in the middle.
+        capacity = WaveCapacity.for_level(70, flank_bonus_percent=50, front_bonus_percent=6.5)
+
+        assert (capacity.flank_soldiers, capacity.middle_soldiers) == (96, 205)
+        assert capacity.total_soldiers() == 397
 
     def test_wave_count_unlocks_and_conquest_adds_two(self):
         assert max_wave_count(12) == 1

@@ -178,10 +178,23 @@ many waves, each flank's capacity and its unlocked slots. Each slot takes the
 stack that best counters whichever of the target's defences is proportionally
 weaker, and an NPC camp's defence is read from the game data rather than spied.
 
-Only units are placed for now - the game's button also fills tool slots, and
-attacker bonuses from commander equipment and legend skills are not applied
-yet, so waves are exact for an unbuffed attack and conservative for a buffed
-one.
+Flank capacity depends on the selected commander: the game applies a "units on
+the flank" bonus to the two sides and a separate "units on the front" bonus to
+the middle. Pass them to match the attack dialog exactly - at level 70 with
++50% flank and +6.5% front, that is 96/205/96 per wave rather than the unbuffed
+64/192/64:
+
+```python
+waves = client.attack.fill_waves(
+    castle_id, camp_victories=camp.victory_count,
+    flank_bonus_percent=50, front_bonus_percent=6.5,
+)
+```
+
+Reading those bonuses off the commander's equipment is not implemented yet, so
+they are arguments for now. Only units are placed - the game's button also
+fills every tool slot - and attacker attack-strength bonuses are not applied,
+so a wave is exact for an unbuffed attack and conservative for a buffed one.
 
 ## Game State
 

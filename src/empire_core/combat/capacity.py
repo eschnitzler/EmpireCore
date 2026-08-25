@@ -40,7 +40,12 @@ def max_attackers(level: int) -> int:
 
 
 def flank_soldier_capacity(level: int, bonus_percent: float = 0.0) -> int:
-    """Units one side flank holds (``getAmountSoldiersFlank``)."""
+    """
+    Units one side flank holds (``getAmountSoldiersFlank``).
+
+    ``bonus_percent`` is the client's "units on the flank" bonus, which comes
+    from the selected commander's equipment for the target's area type.
+    """
     return int(math.ceil(0.2 * max_attackers(level) * (1 + bonus_percent / 100)))
 
 
@@ -49,7 +54,9 @@ def middle_soldier_capacity(level: int, bonus_percent: float = 0.0) -> int:
     Units the middle holds (``getAmountSoldiersMiddle``).
 
     The middle takes whatever the two side flanks leave, so their unbonused
-    size is what is subtracted.
+    size is what is subtracted. ``bonus_percent`` is the client's "units on the
+    front" bonus, which is a different effect from the flank bonus - the two
+    scale the middle and the sides independently.
     """
     without_bonus = int(math.ceil(0.2 * max_attackers(level)))
     return int(math.ceil((max_attackers(level) - 2 * without_bonus) * (1 + bonus_percent / 100)))
@@ -131,23 +138,32 @@ class WaveCapacity(BaseModel):
         cls,
         level: int,
         *,
-        soldier_bonus_percent: float = 0.0,
+        flank_bonus_percent: float = 0.0,
+        front_bonus_percent: float = 0.0,
         tool_bonus: float = 0.0,
     ) -> "WaveCapacity":
         """
-        Derive a wave's capacity from the effective level.
+        Derive a wave's capacity from the effective level and the unit bonuses.
+
+        The client resizes the flank containers after building a wave, using two
+        separate effects: a "units on the flank" bonus for the two sides and a
+        "units on the front" bonus for the middle, both read from the selected
+        commander's equipment for the target's area type. Pass them to get the
+        numbers the attack dialog shows; with both at zero these are the
+        unbuffed base capacities.
 
         Args:
             level: The attacker's level, or the target's minimum defence level
                 when that is higher - the client uses ``max`` of the two
-            soldier_bonus_percent: Percentage bonus to units per flank
+            flank_bonus_percent: Percentage bonus to units on each side flank
+            front_bonus_percent: Percentage bonus to units in the middle
             tool_bonus: Extra flank tool capacity, e.g. from the
                 ADDITIONAL_ATTACK_TOOL_AMOUNT_FLANK legend skill
         """
         return cls(
             level=level,
-            flank_soldiers=flank_soldier_capacity(level, soldier_bonus_percent),
-            middle_soldiers=middle_soldier_capacity(level, soldier_bonus_percent),
+            flank_soldiers=flank_soldier_capacity(level, flank_bonus_percent),
+            middle_soldiers=middle_soldier_capacity(level, front_bonus_percent),
             flank_tools=flank_tool_capacity(level, tool_bonus),
             middle_tools=middle_tool_capacity(level),
             flank_unit_slots=unlocked_slots(UNIT_SLOT_LEVELS_FLANK, level),

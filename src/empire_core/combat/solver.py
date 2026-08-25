@@ -286,7 +286,8 @@ def fill_waves(
     level: int,
     conquer: bool = False,
     wave_bonus: int = 0,
-    soldier_bonus_percent: float = 0.0,
+    flank_bonus_percent: float = 0.0,
+    front_bonus_percent: float = 0.0,
     tool_bonus: float = 0.0,
     attacker: AttackerFlankEffects | None = None,
     defence: Mapping[Flank, DefenderFlankEffects] | None = None,
@@ -307,7 +308,8 @@ def fill_waves(
             defence level when that is higher
         conquer: A conquest attack carries extra waves
         wave_bonus: Extra waves from the ADDITIONAL_WAVE legend skill
-        soldier_bonus_percent: Percentage bonus to units per flank
+        flank_bonus_percent: Percentage bonus to units on each side flank
+        front_bonus_percent: Percentage bonus to units in the middle
         tool_bonus: Extra flank tool capacity
         attacker: Attacker multipliers
         defence: Defender strength per flank, if known
@@ -318,7 +320,8 @@ def fill_waves(
     """
     capacity = WaveCapacity.for_level(
         level,
-        soldier_bonus_percent=soldier_bonus_percent,
+        flank_bonus_percent=flank_bonus_percent,
+        front_bonus_percent=front_bonus_percent,
         tool_bonus=tool_bonus,
     )
     waves: list[AttackWave] = []

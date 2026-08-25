@@ -137,7 +137,8 @@ class AttackService(BaseService):
         attacker: AttackerFlankEffects | None = None,
         conquer: bool = False,
         wave_bonus: int = 0,
-        soldier_bonus_percent: float = 0.0,
+        flank_bonus_percent: float = 0.0,
+        front_bonus_percent: float = 0.0,
         tool_bonus: float = 0.0,
         options: FillOptions | None = None,
         timeout: float = 5.0,
@@ -166,7 +167,10 @@ class AttackService(BaseService):
             attacker: Attacker multipliers, unbuffed when omitted
             conquer: A conquest attack carries extra waves
             wave_bonus: Extra waves from the ADDITIONAL_WAVE legend skill
-            soldier_bonus_percent: Percentage bonus to units per flank
+            flank_bonus_percent: Percentage bonus to units on each side flank,
+                from the selected commander's equipment; the attack dialog's
+                own numbers only match once this is supplied
+            front_bonus_percent: Percentage bonus to units in the middle
             tool_bonus: Extra flank tool capacity
             options: Which flanks to fill and which units to allow
             timeout: Timeout for the inventory request
@@ -200,7 +204,8 @@ class AttackService(BaseService):
             level=level,
             conquer=conquer,
             wave_bonus=wave_bonus,
-            soldier_bonus_percent=soldier_bonus_percent,
+            flank_bonus_percent=flank_bonus_percent,
+            front_bonus_percent=front_bonus_percent,
             tool_bonus=tool_bonus,
             attacker=attacker,
             defence=defence,
