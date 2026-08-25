@@ -30,28 +30,10 @@ class MapObjectType(IntEnum):
     <empire_core.state.world_models.Movement.target_type>` (``TA[0]``), i.e. the
     thing an army is marching at.
 
-    .. warning::
-
-       ``MapObjectType`` and
-       :class:`empire_core.protocol.models.map.MapItemType` (the ``AI`` array of
-       a map scan) overlap and agree on 0, 1, 3, 4, 22, 23, 26 and 28, which
-       suggests one shared server ID space -- but they contradict each other on
-       three IDs:
-
-       ==== ============================ ==============================
-       ID   ``MapObjectType``            ``MapItemType``
-       ==== ============================ ==============================
-       2    ``DUNGEON``                  ``EMPTY_CASTLE_SLOT``
-       7    ``TREASURE_DUNGEON``         ``KHAN_TENT``
-       12   ``KINGDOM_CASTLE``           ``EXTERNAL_KINGDOM``
-       ==== ============================ ==============================
-
-       At least one of the two tables is wrong for the overlapping IDs, and
-       neither has been verified against live packets. Until it is, both are
-       kept as-is: use ``MapObjectType`` only for movement areas and
-       ``MapItemType`` only for map-scan items, and do not mix them in a
-       comparison. TODO: confirm 2/7/12 against captured ``gaa``/``gam``
-       payloads and collapse the tables into one.
+    Both this and :class:`empire_core.protocol.models.map.MapItemType` (the
+    ``AI`` array of a map scan) mirror the client's ``WorldConst.AREA_TYPE_*``
+    constants, so the two tables now agree wherever they overlap. Prefer
+    ``MapItemType``: it covers the full table.
     """
 
     EMPTY = 0

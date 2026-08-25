@@ -42,24 +42,64 @@ class Kingdom(IntEnum):
 
 class MapItemType(IntEnum):
     """
-    Known map item types from the AI array.
+    Map object types from the AI array.
 
-    These are the object types returned in map scan responses.
+    These mirror the game client's own ``WorldConst.AREA_TYPE_*`` constants,
+    cross-checked against the client's area-type-to-map-object registration.
+
+    Two things that are not separate types:
+
+    - A ruin is not an item type: the client registers no ruin map object, and
+      the flag lives on the owner record instead (``R`` in a scan's OI list,
+      exposed as :attr:`MapObject.is_ruin`).
+    - The nomad khan camp, which appears while the nomad event runs, is
+      ``ALLIANCE_NOMAD_CAMP`` (``NomadKhanCampMapObjectVO``).
     """
 
     EMPTY = 0
     CASTLE = 1  # Player main castle (while relocating, x/y is its in-transit position)
-    EMPTY_CASTLE_SLOT = 2  # Unoccupied castle spawn point
+    DUNGEON = 2  # NPC camp - what players call a robber baron castle
+    ROBBER_BARON = 2  # Alias of DUNGEON
     CAPITAL = 3  # Player capital
     OUTPOST = 4  # Player outpost
-    EXTERNAL_KINGDOM = 12  # Player castle in other kingdoms
-    RUIN = 5  # Abandoned ruin
-    ROBBER_BARON = 6  # Robber Baron castle
-    KHAN_TENT = 7  # Khan's tent (event)
+    TREASURE_DUNGEON = 7
+    TREASURE_CAMP = 8
+    SHADOW_AREA = 9
+    VILLAGE = 10
+    BOSS_DUNGEON = 11
+    KINGDOM_CASTLE = 12  # Player castle in another kingdom
+    EXTERNAL_KINGDOM = 12  # Alias of KINGDOM_CASTLE
+    EVENT_DUNGEON = 13
+    NO_LANDMARK = 14
+    FACTION_CAMP = 15
+    FACTION_VILLAGE = 16
+    FACTION_TOWER = 17
+    FACTION_CAPITAL = 18
+    PLAGUE_AREA = 19
+    TROOP_HOSTEL = 20
+    ALIEN_CAMP = 21
     METRO = 22
     KINGS_TOWER = 23
+    ISLE_RESOURCE = 24
+    ISLE_DUNGEON = 25
     MONUMENT = 26
-    LABORATORY = 28  # Laboratory
+    NOMAD_CAMP = 27
+    LABORATORY = 28
+    SAMURAI_CAMP = 29
+    FACTION_INVASION_CAMP = 30
+    DYNAMIC = 31  # Dynamically placed event object
+    SAMURAI_ALIEN_CAMP = 33
+    RED_ALIEN_CAMP = 34
+    ALLIANCE_NOMAD_CAMP = 35  # Nomad khan camp
+    KHAN_CAMP = 35  # Alias of ALLIANCE_NOMAD_CAMP
+    KHAN_TENT = 35  # Alias of ALLIANCE_NOMAD_CAMP
+    DAIMYO_CASTLE = 37
+    DAIMYO_TOWNSHIP = 38
+    ABG_RESOURCE_TOWER = 40
+    ABG_TOWER = 41
+    WOLF_KING = 42
+    ARE_PORTAL = 43
+    NO_OUTPOST = 99
 
 
 # =============================================================================
@@ -113,7 +153,7 @@ class MapAreaItem(BasePayload):
 
     Common types (see MapItemType enum):
     - 1: Player main castle (``is_relocating`` tells you if it is in transit)
-    - 2: Empty castle slot
+    - 2: NPC camp (robber baron)
     - 3: Capital
     - 4: Outpost
     - 22: Metropolis
@@ -224,7 +264,14 @@ class MapAreaItem(BasePayload):
 
 
 class MapObject(BasePayload):
-    """An object on the map (castle, NPC, resource, etc.)."""
+    """
+    An owner record from a map scan's OI list.
+
+    These describe the players who own objects in the scanned area. They carry
+    no coordinates - X and Y are 0 - so a record cannot be placed on the map
+    from a scan alone: the AI rows in the same response were not observed to
+    reference these owner IDs.
+    """
 
     x: int = Field(alias="X", default=0)
     y: int = Field(alias="Y", default=0)
@@ -236,6 +283,7 @@ class MapObject(BasePayload):
     alliance_name: str | None = Field(alias="AN", default=None)
     level: int = Field(alias="L", default=0)
     name: str | None = Field(alias="N", default=None)
+    is_ruin: bool = Field(alias="R", default=False)
 
     @property
     def resolved_owner_id(self) -> int:
@@ -273,6 +321,14 @@ class GetMapAreaResponse(BaseResponse):
     kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
     raw_items: list = Field(alias="AI", default_factory=list)
     objects: list[MapObject] = Field(alias="OI", default_factory=list)
+
+    def get_ruins(self) -> list[MapObject]:
+        """
+        Owner records flagged as ruins.
+
+        These have no coordinates; see :class:`MapObject`.
+        """
+        return [obj for obj in self.objects if obj.is_ruin]
 
     @property
     def items(self) -> list[MapAreaItem]:
