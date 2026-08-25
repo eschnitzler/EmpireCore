@@ -491,13 +491,20 @@ class TestWaveCapacity:
         assert (flank_only.flank_soldiers, flank_only.middle_soldiers) == (96, 192)
         assert (front_only.flank_soldiers, front_only.middle_soldiers) == (64, 288)
 
-    def test_matches_the_attack_dialog_with_commander_bonuses(self):
-        # Captured from the game's own attack dialog at level 70 with a
-        # commander selected: 96 per side flank, 205 in the middle.
-        capacity = WaveCapacity.for_level(70, flank_bonus_percent=50, front_bonus_percent=6.5)
+    def test_matches_the_attack_dialog(self):
+        # Captured from the game at level 70, with a general granting +60% on
+        # the flanks and +6.5% on the front: the dialog shows 96 / 205 / 96.
+        capacity = WaveCapacity.for_level(70, flank_bonus_percent=60, front_bonus_percent=6.5)
 
         assert (capacity.flank_soldiers, capacity.middle_soldiers) == (96, 205)
         assert capacity.total_soldiers() == 397
+
+    def test_a_unit_limit_bonus_is_clamped(self):
+        # +60% and +50% produce the same flank, which is how the observed
+        # ceiling was found; the effect tables call both effects uncapped.
+        assert WaveCapacity.for_level(70, flank_bonus_percent=60).flank_soldiers == 96
+        assert WaveCapacity.for_level(70, flank_bonus_percent=50).flank_soldiers == 96
+        assert WaveCapacity.for_level(70, flank_bonus_percent=40).flank_soldiers == 90
 
     def test_wave_count_unlocks_and_conquest_adds_two(self):
         assert max_wave_count(12) == 1

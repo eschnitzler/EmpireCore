@@ -11,9 +11,11 @@ import logging
 from empire_core.combat import (
     AttackerFlankEffects,
     DefenderFlankEffects,
+    EffectResolver,
     FillOptions,
     Flank,
     Inventory,
+    general_skill_bonuses,
     npc_camp_defence,
 )
 from empire_core.combat import fill_waves as solve_waves
@@ -133,10 +135,13 @@ class AttackService(BaseService):
         level: int | None = None,
         camp_victories: int | None = None,
         camp_kingdom_id: int = 0,
+        area_type: int | None = None,
+        player_target: bool | None = None,
         defence: dict[Flank, DefenderFlankEffects] | None = None,
         attacker: AttackerFlankEffects | None = None,
         conquer: bool = False,
         wave_bonus: int = 0,
+        general_skill_ids: list[int] | None = None,
         flank_bonus_percent: float = 0.0,
         front_bonus_percent: float = 0.0,
         tool_bonus: float = 0.0,
@@ -163,14 +168,20 @@ class AttackService(BaseService):
             camp_victories: An NPC camp's victory count, to derive its defence
                 from the game data - see ``MapAreaItem.victory_count``
             camp_kingdom_id: Kingdom the camp sits in
+            area_type: The target's area type, which scopes the general's
+                effects; NPC camps are area type 2
+            player_target: True when attacking a player, False for an NPC
             defence: Explicit per-flank defence, overriding ``camp_victories``
             attacker: Attacker multipliers, unbuffed when omitted
             conquer: A conquest attack carries extra waves
             wave_bonus: Extra waves from the ADDITIONAL_WAVE legend skill
-            flank_bonus_percent: Percentage bonus to units on each side flank,
-                from the selected commander's equipment; the attack dialog's
-                own numbers only match once this is supplied
-            front_bonus_percent: Percentage bonus to units in the middle
+            general_skill_ids: Unlocked skill ids of the general leading the
+                attack, from ``gie``. These are what size a wave: the attack
+                dialog's capacities follow the general's unit-limit skills, not
+                the commander's equipment
+            flank_bonus_percent: Extra flank bonus, added to whatever the
+                general contributes
+            front_bonus_percent: Extra middle bonus, added the same way
             tool_bonus: Extra flank tool capacity
             options: Which flanks to fill and which units to allow
             timeout: Timeout for the inventory request
@@ -194,6 +205,12 @@ class AttackService(BaseService):
 
         if defence is None and camp_victories is not None:
             defence = npc_camp_defence(game_data, camp_victories, camp_kingdom_id)
+
+        if general_skill_ids:
+            general = general_skill_bonuses(game_data, general_skill_ids)
+            resolver = EffectResolver(game_data)
+            flank_bonus_percent += resolver.flank_unit_bonus(general, area_type=area_type, player_target=player_target)
+            front_bonus_percent += resolver.front_unit_bonus(general, area_type=area_type, player_target=player_target)
 
         units = self.client.army.get_units(castle_id=castle_id, timeout=timeout)
         pool = {u.unit_id: u.count for u in units if game_data.is_unit(u.unit_id)}

@@ -27,6 +27,14 @@ UNIT_SLOT_LEVELS_MIDDLE = (0, 0, 13, 13, 26, 26)
 TOOL_SLOT_LEVELS_FLANK = (0, 37)
 TOOL_SLOT_LEVELS_MIDDLE = (0, 11, 37)
 
+# Observed ceiling on a unit-limit bonus. A general granting +60% on the flanks
+# produces the same capacity as +50%: at level 70 the attack dialog shows 96 per
+# flank, which is ceil(64 * 1.5), not the 103 that +60% would give. The effect
+# tables say otherwise - both unit-limit effects sit in cap 99, which is
+# uncapped - so this ceiling is taken from observed behaviour and its source in
+# the client has not been found.
+UNIT_LIMIT_BONUS_CAP = 50.0
+
 # The slot type a tool must fit to go in these slots (ClientConstCombat).
 TOOL_SLOT_TYPE_MIDDLE = 1
 TOOL_SLOT_TYPE_FLANK = 2
@@ -155,15 +163,17 @@ class WaveCapacity(BaseModel):
         Args:
             level: The attacker's level, or the target's minimum defence level
                 when that is higher - the client uses ``max`` of the two
-            flank_bonus_percent: Percentage bonus to units on each side flank
-            front_bonus_percent: Percentage bonus to units in the middle
+            flank_bonus_percent: Percentage bonus to units on each side flank,
+                clamped to UNIT_LIMIT_BONUS_CAP
+            front_bonus_percent: Percentage bonus to units in the middle,
+                clamped the same way
             tool_bonus: Extra flank tool capacity, e.g. from the
                 ADDITIONAL_ATTACK_TOOL_AMOUNT_FLANK legend skill
         """
         return cls(
             level=level,
-            flank_soldiers=flank_soldier_capacity(level, flank_bonus_percent),
-            middle_soldiers=middle_soldier_capacity(level, front_bonus_percent),
+            flank_soldiers=flank_soldier_capacity(level, min(flank_bonus_percent, UNIT_LIMIT_BONUS_CAP)),
+            middle_soldiers=middle_soldier_capacity(level, min(front_bonus_percent, UNIT_LIMIT_BONUS_CAP)),
             flank_tools=flank_tool_capacity(level, tool_bonus),
             middle_tools=middle_tool_capacity(level),
             flank_unit_slots=unlocked_slots(UNIT_SLOT_LEVELS_FLANK, level),
@@ -205,6 +215,7 @@ __all__ = [
     "TOOL_SLOT_TYPE_MIDDLE",
     "UNIT_SLOT_LEVELS_FLANK",
     "UNIT_SLOT_LEVELS_MIDDLE",
+    "UNIT_LIMIT_BONUS_CAP",
     "WAVE_UNLOCK_LEVELS",
     "WaveCapacity",
     "flank_soldier_capacity",
