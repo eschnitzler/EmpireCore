@@ -177,7 +177,8 @@ class CastleService(BaseService):
             horses_type: Type of horses for speed bonus (-1 = none, default: -1)
             feathers: Use feathers for speed boost (1 = use, 0 = don't, default: 1)
             slowdown: Movement slowdown modifier (0 = none, default: 0)
-            commander_id: Commander ID (-14 = coordinates/no commander, default: -14)
+            commander_id: Commander ID (-14 = the game's default premium
+                commander entry, default: -14)
             timeout: Timeout in seconds
         """
         request = SendSupportRequest(

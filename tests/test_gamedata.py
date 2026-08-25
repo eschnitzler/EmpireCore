@@ -5,7 +5,7 @@ import json
 import pytest
 
 from empire_core.exceptions import NetworkError
-from empire_core.gamedata import GameData, ToolStats, UnitStats
+from empire_core.gamedata import GameData, ToolStats, UnitStats, parse_ids, parse_stacks
 
 # Entries captured from the live items payload (values arrive as strings).
 MEAD_RANGER = {
@@ -96,13 +96,13 @@ class TestLoading:
     def test_load_writes_and_reuses_the_cache(self, tmp_path, monkeypatch):
         fetches = []
 
-        monkeypatch.setattr("empire_core.gamedata.get_items_version", lambda: "783.01")
+        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: "783.01")
 
         def fake_fetch(version):
             fetches.append(version)
             return PAYLOAD
 
-        monkeypatch.setattr("empire_core.gamedata.fetch_items_data", fake_fetch)
+        monkeypatch.setattr("empire_core.gamedata.data.fetch_items_data", fake_fetch)
 
         first = GameData.load(cache_dir=tmp_path)
         second = GameData.load(cache_dir=tmp_path)
@@ -113,9 +113,9 @@ class TestLoading:
 
     def test_refresh_bypasses_the_cache(self, tmp_path, monkeypatch):
         fetches = []
-        monkeypatch.setattr("empire_core.gamedata.get_items_version", lambda: "783.01")
+        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: "783.01")
         monkeypatch.setattr(
-            "empire_core.gamedata.fetch_items_data",
+            "empire_core.gamedata.data.fetch_items_data",
             lambda version: (fetches.append(version), PAYLOAD)[1],
         )
 
@@ -127,9 +127,9 @@ class TestLoading:
     def test_new_version_invalidates_the_cache(self, tmp_path, monkeypatch):
         versions = iter(["783.01", "784.00"])
         fetches = []
-        monkeypatch.setattr("empire_core.gamedata.get_items_version", lambda: next(versions))
+        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: next(versions))
         monkeypatch.setattr(
-            "empire_core.gamedata.fetch_items_data",
+            "empire_core.gamedata.data.fetch_items_data",
             lambda version: (fetches.append(version), PAYLOAD)[1],
         )
 
@@ -140,15 +140,15 @@ class TestLoading:
         assert data.version == "784.00"
 
     def test_corrupt_cache_is_ignored(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("empire_core.gamedata.get_items_version", lambda: "783.01")
-        monkeypatch.setattr("empire_core.gamedata.fetch_items_data", lambda version: PAYLOAD)
+        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: "783.01")
+        monkeypatch.setattr("empire_core.gamedata.data.fetch_items_data", lambda version: PAYLOAD)
         (tmp_path / "items_v783.01.trimmed.json").write_text("{not json")
 
         assert GameData.load(cache_dir=tmp_path).get_unit(211) is not None
 
     def test_unwritable_cache_still_loads(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("empire_core.gamedata.get_items_version", lambda: "783.01")
-        monkeypatch.setattr("empire_core.gamedata.fetch_items_data", lambda version: PAYLOAD)
+        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: "783.01")
+        monkeypatch.setattr("empire_core.gamedata.data.fetch_items_data", lambda version: PAYLOAD)
         blocker = tmp_path / "blocked"
         blocker.write_text("i am a file, not a directory")
 
@@ -158,30 +158,32 @@ class TestLoading:
         def boom():
             raise OSError("dns is having a day")
 
-        monkeypatch.setattr("empire_core.gamedata.get_items_version", boom)
+        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", boom)
 
         with pytest.raises(NetworkError):
             GameData.load(cache_dir=tmp_path)
 
     def test_items_failure_raises_network_error(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("empire_core.gamedata.get_items_version", lambda: "783.01")
+        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: "783.01")
 
         def boom(version):
             raise OSError("connection reset")
 
-        monkeypatch.setattr("empire_core.gamedata.fetch_items_data", boom)
+        monkeypatch.setattr("empire_core.gamedata.data.fetch_items_data", boom)
 
         with pytest.raises(NetworkError):
             GameData.load(cache_dir=tmp_path)
 
     def test_cache_file_holds_only_the_trimmed_tables(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("empire_core.gamedata.get_items_version", lambda: "783.01")
-        monkeypatch.setattr("empire_core.gamedata.fetch_items_data", lambda version: PAYLOAD)
+        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: "783.01")
+        monkeypatch.setattr("empire_core.gamedata.data.fetch_items_data", lambda version: PAYLOAD)
 
         GameData.load(cache_dir=tmp_path)
 
         cached = json.loads((tmp_path / "items_v783.01.trimmed.json").read_text())
-        assert sorted(cached) == ["tools", "units", "version"]
+        # Trimmed: the combat tables only, never the whole payload.
+        assert "version" in cached and "units" in cached and "tools" in cached
+        assert "rewards" not in cached and "quests" not in cached
 
 
 class TestModels:
@@ -203,3 +205,92 @@ class TestModels:
     def test_tool_without_slot_types_has_none(self):
         tool = ToolStats.model_validate({"wodID": 1})
         assert tool.slot_types == ()
+
+
+# Rows captured from the live payload.
+EFFECT = {"effectID": "2101", "name": "relicOffensiveMeleeBonus", "effectTypeID": "23", "capID": "1001"}
+EFFECT_TYPE = {"effectTypeID": "23", "name": "offensiveMeleeBonus"}
+HORSE = {"wodID": 1001, "name": "Horse", "comment2": "Horse", "type": "1", "unitBoost": "6"}
+DEFAULT_LORD = {"lordID": "-12", "type": "Treasuremap", "wearerID": "2"}
+DUNGEON = {"countVictories": "-6", "kID": "0", "lordID": "-21", "unitsM": "604+3#606+3#652+45"}
+NOMAD_CAMP = {
+    "countVictory": "1",
+    "defStrength": "150",
+    "defenceUnits": "743,744",
+    "defenceTools": "730,731",
+    "wallBonus": "0",
+    "gateBonus": "0",
+    "lordID": "-21",
+    "guards": "5",
+}
+FULL_PAYLOAD = {
+    "units": [MEAD_RANGER, PREMIUM_STAKES, NOMAD_BOOST],
+    "effects": [EFFECT],
+    "effecttypes": [EFFECT_TYPE],
+    "horses": [HORSE],
+    "lords": [DEFAULT_LORD],
+    "dungeons": [DUNGEON],
+    "nomadCamps": [NOMAD_CAMP],
+    "generalSkills": [{"skillID": "10110201", "effects": "400&10201"}],
+    "rewards": [{"noise": "should not be stored"}],
+}
+
+
+class TestEncodings:
+    def test_parse_stacks(self):
+        assert parse_stacks("604+3#606+3#652+45") == [(604, 3), (606, 3), (652, 45)]
+
+    def test_parse_stacks_tolerates_junk(self):
+        assert parse_stacks("604+3##bad#606+2") == [(604, 3), (606, 2)]
+        assert parse_stacks(None) == []
+
+    def test_parse_ids(self):
+        assert parse_ids("743,744") == (743, 744)
+        assert parse_ids("") == ()
+
+
+class TestCombatTables:
+    def test_effects_resolve_to_their_type_name(self):
+        data = GameData.parse("783.01", FULL_PAYLOAD)
+        assert data.effect_type_name(2101) == "offensiveMeleeBonus"
+        assert data.effect_type_name(999999) == ""
+
+    def test_horses_are_indexed_by_hbw_value(self):
+        horse = GameData.parse("783.01", FULL_PAYLOAD).get_horse(1001)
+        assert horse is not None
+        assert horse.unit_boost == 6
+
+    def test_default_lords_explain_the_lid_sentinels(self):
+        lord = GameData.parse("783.01", FULL_PAYLOAD).get_default_lord(-12)
+        assert lord is not None
+        assert lord.lord_type == "Treasuremap"
+
+    def test_dungeon_defence_is_looked_up_by_victories(self):
+        data = GameData.parse("783.01", FULL_PAYLOAD)
+
+        row = data.dungeon_defence(-6, kingdom_id=0)
+
+        assert row is not None
+        assert row.units_middle == [(604, 3), (606, 3), (652, 45)]
+        assert row.units_left == []
+        assert row.total_units() == 51
+        assert data.dungeon_defence(-6, kingdom_id=2) is None
+
+    def test_camp_tables_share_one_shape(self):
+        data = GameData.parse("783.01", FULL_PAYLOAD)
+
+        camps = data.camps["nomadCamps"]
+
+        assert [c.def_strength for c in camps] == [150]
+        assert camps[0].defence_unit_ids == (743, 744)
+        assert camps[0].defence_tool_ids == (730, 731)
+
+    def test_unmodelled_tables_are_kept_raw(self):
+        data = GameData.parse("783.01", FULL_PAYLOAD)
+
+        assert data.raw("generalSkills")[0]["effects"] == "400&10201"
+        assert data.raw("nothing_here") == []
+
+    def test_noise_tables_are_not_stored(self):
+        data = GameData.parse("783.01", FULL_PAYLOAD)
+        assert "rewards" not in data.raw_tables

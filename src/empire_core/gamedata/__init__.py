@@ -1,0 +1,44 @@
+"""Static game data: unit and tool stats, effects, and NPC camp defences."""
+
+from .data import CAMP_TABLES, RAW_TABLES, GameData, default_cache_dir
+from .models import (
+    AttackSlotDef,
+    DefaultLordDef,
+    DungeonDefence,
+    EffectCapDef,
+    EffectDef,
+    EffectTypeDef,
+    EquipmentEffectDef,
+    GeneralDef,
+    HorseStats,
+    LegendSkillDef,
+    NpcCampDefence,
+    ToolCategoryDef,
+    ToolStats,
+    UnitStats,
+    parse_ids,
+    parse_stacks,
+)
+
+__all__ = [
+    "AttackSlotDef",
+    "CAMP_TABLES",
+    "DefaultLordDef",
+    "DungeonDefence",
+    "EffectCapDef",
+    "EffectDef",
+    "EffectTypeDef",
+    "EquipmentEffectDef",
+    "GameData",
+    "GeneralDef",
+    "HorseStats",
+    "LegendSkillDef",
+    "NpcCampDefence",
+    "RAW_TABLES",
+    "ToolCategoryDef",
+    "ToolStats",
+    "UnitStats",
+    "default_cache_dir",
+    "parse_ids",
+    "parse_stacks",
+]

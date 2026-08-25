@@ -1,0 +1,364 @@
+"""
+Typed rows from the GGE items payload.
+
+Values arrive as strings, so every numeric field relies on pydantic coercion.
+Tables whose meaning is not yet established are kept raw by
+:class:`~empire_core.gamedata.data.GameData` instead of being modelled here on
+a guess.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+def parse_stacks(value: str | None) -> list[tuple[int, int]]:
+    """
+    Parse the ``wodID+count#wodID+count`` encoding used for camp defences.
+
+    Unparseable segments are skipped rather than failing the row.
+    """
+    stacks: list[tuple[int, int]] = []
+    for part in str(value or "").split("#"):
+        part = part.strip()
+        if not part:
+            continue
+        wod_id, _, count = part.partition("+")
+        try:
+            stacks.append((int(wod_id), int(count or 0)))
+        except ValueError:
+            continue
+    return stacks
+
+
+def parse_ids(value: str | None) -> tuple[int, ...]:
+    """Parse a comma-separated ID list."""
+    ids = []
+    for part in str(value or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            ids.append(int(part))
+        except ValueError:
+            continue
+    return tuple(ids)
+
+
+class _Row(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+
+class UnitStats(_Row):
+    """
+    A combat unit.
+
+    Units are the entries without ``slotTypes``; everything else is a tool.
+    """
+
+    wod_id: int = Field(alias="wodID")
+    source: str = Field(alias="name", default="")
+    unit_type: str = Field(alias="type", default="")
+    role: str = ""
+    level: int = 0
+    speed: int = 0
+    melee_attack: int = Field(alias="meleeAttack", default=0)
+    range_attack: int = Field(alias="rangeAttack", default=0)
+    melee_defence: int = Field(alias="meleeDefence", default=0)
+    range_defence: int = Field(alias="rangeDefence", default=0)
+    loot_value: float = Field(alias="lootValue", default=0)
+    might_value: float = Field(alias="mightValue", default=0)
+    mead_supply: int = Field(alias="meadSupply", default=0)
+    beef_supply: int = Field(alias="beefSupply", default=0)
+    food_supply: int = Field(alias="foodSupply", default=0)
+    healing_cost_c1: int = Field(alias="healingCostC1", default=0)
+    healing_cost_c2: int = Field(alias="healingCostC2", default=0)
+    hybrid: bool = False
+    fight_type: int = Field(alias="fightType", default=0)
+
+    @property
+    def is_melee(self) -> bool:
+        return self.role == "melee"
+
+    @property
+    def is_ranged(self) -> bool:
+        return self.role == "ranged"
+
+    @property
+    def is_allround(self) -> bool:
+        """A hybrid unit, which the client treats as fitting either flank."""
+        return self.hybrid
+
+    @property
+    def attack_value(self) -> int:
+        """Raw offence, before any commander or equipment effects."""
+        return max(self.melee_attack, self.range_attack)
+
+    @property
+    def is_offensive(self) -> bool:
+        return self.attack_value > 0
+
+
+class ToolStats(_Row):
+    """
+    A siege or defence tool.
+
+    ``effects`` is kept raw; resolve it through
+    :attr:`~empire_core.gamedata.data.GameData.effects`.
+    """
+
+    wod_id: int = Field(alias="wodID")
+    source: str = Field(alias="name", default="")
+    tool_type: str = Field(alias="type", default="")
+    category: str = Field(alias="typ", default="")
+    raw_slot_types: str = Field(alias="slotTypes", default="")
+    tool_category: str = Field(alias="toolCategory", default="")
+    speed: int = 0
+    amount_per_wave: int = Field(alias="amountPerWave", default=0)
+    # 0/absent, 1 and 2 all occur; the client distinguishes them, so keep the value.
+    delete_after_battle: int = Field(alias="deleteToolAfterBattle", default=0)
+    can_attack_npc: bool = Field(alias="canBeUsedToAttackNPC", default=False)
+    fight_type: int = Field(alias="fightType", default=0)
+    effects: Any = None
+
+    @property
+    def slot_types(self) -> tuple[int, ...]:
+        """Attack-screen slot types this tool fits."""
+        return parse_ids(self.raw_slot_types)
+
+    @property
+    def is_attack_tool(self) -> bool:
+        return self.category == "Attack"
+
+    @property
+    def is_defence_tool(self) -> bool:
+        return self.category == "Defence"
+
+    @property
+    def is_consumed_in_battle(self) -> bool:
+        return self.delete_after_battle > 0
+
+    def fits_slot(self, slot_type: int) -> bool:
+        """Whether this tool may go in the given slot type."""
+        return slot_type in self.slot_types
+
+
+class EffectDef(_Row):
+    """An effect, e.g. ``relicOffensiveMeleeBonus``."""
+
+    effect_id: int = Field(alias="effectID")
+    name: str = ""
+    effect_type_id: int = Field(alias="effectTypeID", default=0)
+    cap_id: int | None = Field(alias="capID", default=None)
+
+
+class EffectTypeDef(_Row):
+    """An effect type, e.g. ``fameDefenseBonus``."""
+
+    effect_type_id: int = Field(alias="effectTypeID")
+    name: str = ""
+
+
+class EffectCapDef(_Row):
+    """The ceiling a group of effects stacks up to."""
+
+    cap_id: int = Field(alias="capID")
+    max_total_bonus: float = Field(alias="maxTotalBonus", default=0)
+
+
+class EquipmentEffectDef(_Row):
+    """A bonus an equipment item can roll."""
+
+    equipment_effect_id: int = Field(alias="equipmentEffectID")
+    effect_id: int = Field(alias="effectID", default=0)
+    bonus: float = 0
+    wearer_id: int = Field(alias="wearerID", default=0)
+    raw_item_group_ids: str = Field(alias="itemGroupID", default="")
+
+    @property
+    def item_group_ids(self) -> tuple[int, ...]:
+        return parse_ids(self.raw_item_group_ids)
+
+
+class LegendSkillDef(_Row):
+    """One level of a legend skill, e.g. ``gateReduction``."""
+
+    skill_id: int = Field(alias="skillID")
+    level: int = 0
+    tier: int = 0
+    skill_tree_id: int = Field(alias="skillTreeID", default=0)
+    skill_group_id: int = Field(alias="skillGroupID", default=0)
+    effect_type: str = Field(alias="effectType", default="")
+    total_effect_value: float = Field(alias="totalEffectValue", default=0)
+    total_cost_skill_points: int = Field(alias="totalCostSkillPoints", default=0)
+
+
+class AttackSlotDef(_Row):
+    """An attack-screen slot and what unlocking it costs."""
+
+    slot_id: int = Field(alias="slotID")
+    cost_c2: int = Field(alias="costC2", default=0)
+
+
+class ToolCategoryDef(_Row):
+    """A tool category, e.g. ``basic``."""
+
+    tool_category_id: int = Field(alias="toolCategoryID")
+    name: str = ""
+
+
+class HorseStats(_Row):
+    """A travel booster - the value behind the ``HBW`` field on movements."""
+
+    wod_id: int = Field(alias="wodID")
+    source: str = Field(alias="name", default="")
+    label: str = Field(alias="comment2", default="")
+    horse_type: str = Field(alias="type", default="")
+    unit_boost: float = Field(alias="unitBoost", default=0)
+    market_boost: float = Field(alias="marketBoost", default=0)
+    spy_boost: float = Field(alias="spyBoost", default=0)
+
+
+class DefaultLordDef(_Row):
+    """
+    A default lord.
+
+    These are the negative ``LID`` sentinels: -14 for "no commander" on a
+    support movement, -21 for the NPC that holds a camp, and so on.
+    """
+
+    lord_id: int = Field(alias="lordID")
+    lord_type: str = Field(alias="type", default="")
+    wearer_id: int = Field(alias="wearerID", default=0)
+
+
+class GeneralDef(_Row):
+    """A general, the hero assigned to a commander."""
+
+    general_id: int = Field(alias="generalID")
+    name: str = Field(alias="generalName", default="")
+    raw_attack_slots: str = Field(alias="attackSlots", default="")
+    raw_defense_slots: str = Field(alias="defenseSlots", default="")
+    rarity_id: int = Field(alias="generalRarityID", default=0)
+    max_level: int = Field(alias="maxLevel", default=0)
+    max_star_level: int = Field(alias="maxStarLevel", default=0)
+
+    @property
+    def attack_slots(self) -> tuple[int, ...]:
+        return parse_ids(self.raw_attack_slots)
+
+    @property
+    def defense_slots(self) -> tuple[int, ...]:
+        return parse_ids(self.raw_defense_slots)
+
+
+class DungeonDefence(_Row):
+    """
+    What defends an NPC camp at a given victory count.
+
+    The per-flank fields use the ``wodID+count#wodID+count`` encoding; read them
+    through the parsed properties.
+    """
+
+    count_victories: int = Field(alias="countVictories", default=0)
+    kingdom_id: int = Field(alias="kID", default=0)
+    lord_id: int = Field(alias="lordID", default=0)
+    skip_costs: int = Field(alias="skipCosts", default=0)
+    raw_units_left: str = Field(alias="unitsL", default="")
+    raw_units_middle: str = Field(alias="unitsM", default="")
+    raw_units_right: str = Field(alias="unitsR", default="")
+    raw_units_keep: str = Field(alias="unitsK", default="")
+    raw_tools_left: str = Field(alias="toolL", default="")
+    raw_tools_middle: str = Field(alias="toolM", default="")
+    raw_tools_right: str = Field(alias="toolR", default="")
+
+    @property
+    def units_left(self) -> list[tuple[int, int]]:
+        return parse_stacks(self.raw_units_left)
+
+    @property
+    def units_middle(self) -> list[tuple[int, int]]:
+        return parse_stacks(self.raw_units_middle)
+
+    @property
+    def units_right(self) -> list[tuple[int, int]]:
+        return parse_stacks(self.raw_units_right)
+
+    @property
+    def units_keep(self) -> list[tuple[int, int]]:
+        return parse_stacks(self.raw_units_keep)
+
+    @property
+    def tools_left(self) -> list[tuple[int, int]]:
+        return parse_stacks(self.raw_tools_left)
+
+    @property
+    def tools_middle(self) -> list[tuple[int, int]]:
+        return parse_stacks(self.raw_tools_middle)
+
+    @property
+    def tools_right(self) -> list[tuple[int, int]]:
+        return parse_stacks(self.raw_tools_right)
+
+    def total_units(self) -> int:
+        """Defending units across every flank and the keep."""
+        return sum(
+            count
+            for stacks in (
+                self.units_left,
+                self.units_middle,
+                self.units_right,
+                self.units_keep,
+            )
+            for _wod_id, count in stacks
+        )
+
+
+class NpcCampDefence(_Row):
+    """
+    An event camp's defence, shared shape across the camp tables.
+
+    Covers the nomad, samurai, faction invasion and alliance invasion camps.
+    """
+
+    count_victory: int = Field(alias="countVictory", default=0)
+    def_strength: int = Field(alias="defStrength", default=0)
+    raw_defence_units: str = Field(alias="defenceUnits", default="")
+    raw_defence_tools: str = Field(alias="defenceTools", default="")
+    wall_bonus: float = Field(alias="wallBonus", default=0)
+    gate_bonus: float = Field(alias="gateBonus", default=0)
+    lord_id: int = Field(alias="lordID", default=0)
+    guards: int = 0
+    unit_wall_count: int = Field(alias="unitWallCount", default=0)
+    cool_down: int = Field(alias="coolDown", default=0)
+    dungeon_level: int = Field(alias="dungeonlevel", default=0)
+
+    @property
+    def defence_unit_ids(self) -> tuple[int, ...]:
+        return parse_ids(self.raw_defence_units)
+
+    @property
+    def defence_tool_ids(self) -> tuple[int, ...]:
+        return parse_ids(self.raw_defence_tools)
+
+
+__all__ = [
+    "AttackSlotDef",
+    "DefaultLordDef",
+    "DungeonDefence",
+    "EffectCapDef",
+    "EffectDef",
+    "EffectTypeDef",
+    "EquipmentEffectDef",
+    "GeneralDef",
+    "HorseStats",
+    "LegendSkillDef",
+    "NpcCampDefence",
+    "ToolCategoryDef",
+    "ToolStats",
+    "UnitStats",
+    "parse_ids",
+    "parse_stacks",
+]
