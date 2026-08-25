@@ -2,6 +2,53 @@
 
 <!-- version list -->
 
+## v0.33.0 (2026-08-25)
+
+### Bug Fixes
+
+- **army**: Read the unit inventory the shape a live server sends
+  ([`8839447`](https://github.com/eschnitzler/EmpireCore/commit/883944750f78909859adea994d07218b30e71150))
+
+- **attack**: Require a commander instead of defaulting LID to 0
+  ([`748b277`](https://github.com/eschnitzler/EmpireCore/commit/748b277ec111159057c661307ef75ca31eb9bb44))
+
+- **commanders**: Parse the equipment graphic field as an int
+  ([`116d373`](https://github.com/eschnitzler/EmpireCore/commit/116d373e2f3cc989cc2ebf2356a13c56cb8e4c7e))
+
+- **commanders,attack**: Stop accessors raising on drifted payloads
+  ([`45bc153`](https://github.com/eschnitzler/EmpireCore/commit/45bc153ecd80e199e40bfad001dc74af1ebf56e7))
+
+- **map**: Correct the map item type table and report the ruin flag
+  ([`c3993eb`](https://github.com/eschnitzler/EmpireCore/commit/c3993eb903e39f036dbbb1b53b7faff7e0856d49))
+
+### Documentation
+
+- **protocol**: Re-extract the client bundle and correct the cra fields
+  ([`0fc26df`](https://github.com/eschnitzler/EmpireCore/commit/0fc26df7564fb0b0d771dbea73261ea0b2e6a1ab))
+
+- **protocol**: Record the client's map object types
+  ([`3ad804d`](https://github.com/eschnitzler/EmpireCore/commit/3ad804d0b02d19d06d11b5f39d0867047051db30))
+
+- **readme**: Document the commander and attack APIs with an example
+  ([`59bd5bb`](https://github.com/eschnitzler/EmpireCore/commit/59bd5bbb0d8d37b8380e4b5136ba8ecbc6d9154e))
+
+### Features
+
+- **attack**: Confirm cra against a live server and parse its response
+  ([`86a3a57`](https://github.com/eschnitzler/EmpireCore/commit/86a3a572eb4e4b3e09cd8217d16a507dd4e35af4))
+
+- **attack**: Send attacks with waves and a chosen commander
+  ([`00bad10`](https://github.com/eschnitzler/EmpireCore/commit/00bad104d6326b97449845f97f6a1660f1cc9215))
+
+- **commanders**: Rename lords to commanders and parse the full entry
+  ([`97f41fa`](https://github.com/eschnitzler/EmpireCore/commit/97f41fade9b3b9769dc2b7d2165e151a231fc455))
+
+### Breaking Changes
+
+- **attack**: AttackService.send_attack now takes commander_id as a required argument, positioned
+  after waves, and empire_core.services.attack.NO_COMMANDER is removed.
+
+
 ## v0.32.1 (2026-08-19)
 
 ### Bug Fixes
