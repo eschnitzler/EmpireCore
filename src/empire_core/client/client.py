@@ -57,6 +57,7 @@ from empire_core.protocol.packet import Packet
 from empire_core.services import (
     AllianceService,
     ArmyService,
+    AttackService,
     BaseService,
     CastleService,
     CommandersService,
@@ -97,6 +98,7 @@ class EmpireClient:
     alliance: AllianceService
     castle: CastleService
     army: ArmyService
+    attack: AttackService
     commanders: CommandersService
     spy: SpyService
     ranking: RankingService
@@ -138,6 +140,7 @@ class EmpireClient:
         self.alliance: AllianceService = cast(AllianceService, self._services["alliance"])
         self.castle: CastleService = cast(CastleService, self._services["castle"])
         self.army: ArmyService = cast(ArmyService, self._services["army"])
+        self.attack: AttackService = cast(AttackService, self._services["attack"])
         self.commanders: CommandersService = cast(CommandersService, self._services["commanders"])
         self.spy: SpyService = cast(SpyService, self._services["spy"])
         self.ranking: RankingService = cast(RankingService, self._services["ranking"])

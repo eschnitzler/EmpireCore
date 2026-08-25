@@ -38,7 +38,7 @@
 | **Typed end to end** | Pydantic v2 models for every command, and a `py.typed` marker so your type checker actually sees them |
 | **Honest failures** | Typed exceptions from a single `EmpireError` base — no leaked pydantic or socket errors, and no empty list that secretly means "the request failed" |
 | **Thread-safe state** | A background thread applies server pushes while your code reads consistent snapshots |
-| **High-level services** | `client.alliance`, `client.castle`, `client.army`, `client.commanders`, `client.ranking`, `client.spy` |
+| **High-level services** | `client.alliance`, `client.attack`, `client.castle`, `client.army`, `client.commanders`, `client.ranking`, `client.spy` |
 | **Map scanning** | BFS kingdom discovery with cheap, targeted re-scans |
 | **Multi-account** | A pool that leases one logged-in client per account |
 
@@ -118,6 +118,28 @@ if resources:
 
 Also available: `client.army`, `client.commanders`, `client.ranking` and
 `client.spy`.
+
+### Attacking
+
+> Experimental: the `cra` payload is built from the game client's own command
+> definition but has not yet been confirmed against a live server.
+
+```python
+from empire_core import AttackWave, WaveFlank
+
+commanders = client.commanders.get_commanders()
+
+client.attack.send_attack(
+    source_x=500,
+    source_y=510,
+    target_x=700,
+    target_y=710,
+    waves=[AttackWave(L=WaveFlank(U=[[487, 100]], T=[[301, 5]]))],
+    commander_id=commanders[0].commander_id,
+)
+```
+
+Waves without units are dropped before sending, as the game client does.
 
 ## Game State
 
