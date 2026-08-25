@@ -188,6 +188,18 @@ class TestValueObjects:
 
 SOLVER_PAYLOAD = {
     "units": [
+        # A defensive unit with a real attack value: fightType decides, not the
+        # attack number, so this must never be picked.
+        {
+            "wodID": 604,
+            "name": "Barracks",
+            "type": "Halberd",
+            "role": "melee",
+            "meleeAttack": "17",
+            "meleeDefence": "135",
+            "rangeDefence": "50",
+            "fightType": "1",
+        },
         # Melee: 100 attack. Ranged: 270 attack. A ruby-healed and a mead unit
         # for the filters, and a pure defender that must never be picked.
         {
@@ -293,6 +305,17 @@ class TestPickSoldierStack:
     def test_pure_defenders_are_never_picked(self):
         pick = pick_soldier_stack(10, Inventory({800: 100}), solver_data())
         assert pick is None
+
+    def test_defensive_units_are_not_candidates_even_with_attack_value(self):
+        # 604 is a halberdier: attack 17, but fightType 1. A large stack of it
+        # would outscore a real attacker if the flag were ignored.
+        game = solver_data()
+
+        assert not game.get_unit(604).is_offensive
+        assert pick_soldier_stack(1000, Inventory({604: 5000}), game) is None
+
+        pick = pick_soldier_stack(1000, Inventory({604: 5000, 601: 50}), game)
+        assert pick == (601, 50)
 
     def test_ruby_filter_excludes_the_expensive_unit(self):
         game = solver_data()

@@ -19,8 +19,8 @@ Extracted from `ClientConstSF`.
 | Auth | `C2S_LOGIN` | `lli` | Login |
 | Auth | `C2S_VERSION_CHECK` | `vck` | Pre-login version check |
 | Attack | `C2S_CREATE_ARMY_ATTACK_MOVEMENT` | `cra` | Send attack |
-| Attack | `C2S_GET_ATTACK_INFO` | `gai` | Attack pre-calculation |
-| Attack | `C2S_GET_ATTACK_CASTLE_INFOS` | `aci` | Target defense info |
+| Attack | `C2S_GET_ATTACK_INFO` | `gai` | Attack counter, not a pre-calculation - see combat_effects.md |
+| Attack | `C2S_GET_ATTACK_CASTLE_INFOS` | `aci` | The real attack pre-calculation: target area, defender composition, wall/gate/moat bonuses |
 | Commanders | `C2S_GET_LORDS_INFO` | `gli` | Commander + baron list |
 | Commanders | `C2S_RENAME_LORD_EVENT` | `arl` | Rename a commander |
 | Generals | `C2S_GET_GENERALS_INFO` | `gie` | General list |
@@ -166,6 +166,9 @@ the loader parameters, not hardcoded in any bundle.
    argument actually is.
 4. **Resolve key constants** — `CommKeys.FOO` values live in `ggs.dll.js`
    (`grep -o 'FOO="[^"]*"' ggs.dll.js`).
+
+See [combat_effects.md](combat_effects.md) for the full effect and bonus
+catalogue behind an attack.
 
 ## 7. Map object types
 

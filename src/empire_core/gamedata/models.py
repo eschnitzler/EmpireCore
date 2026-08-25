@@ -13,6 +13,10 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# ITEMS units column "fightType": 0 = offensive, 1 = defensive.
+FIGHT_TYPE_OFFENSIVE = 0
+FIGHT_TYPE_DEFENSIVE = 1
+
 
 def parse_stacks(value: str | None) -> list[tuple[int, int]]:
     """
@@ -93,12 +97,24 @@ class UnitStats(_Row):
 
     @property
     def attack_value(self) -> int:
-        """Raw offence, before any commander or equipment effects."""
+        """
+        Raw offence, before any commander or equipment effects.
+
+        The client adds a global-event bonus on top of this
+        (EFFECT_TYPE_ATTACK_BONUS_UNIT), which is not modelled yet.
+        """
         return max(self.melee_attack, self.range_attack)
 
     @property
     def is_offensive(self) -> bool:
-        return self.attack_value > 0
+        """
+        Whether the game treats this unit as an attacker.
+
+        This is the ``fightType`` column, not "has an attack value": a defensive
+        unit such as a halberdier carries a small attack value but is never an
+        auto-fill candidate.
+        """
+        return self.fight_type == FIGHT_TYPE_OFFENSIVE
 
 
 class ToolStats(_Row):
@@ -345,6 +361,8 @@ class NpcCampDefence(_Row):
 
 
 __all__ = [
+    "FIGHT_TYPE_DEFENSIVE",
+    "FIGHT_TYPE_OFFENSIVE",
     "AttackSlotDef",
     "DefaultLordDef",
     "DungeonDefence",
