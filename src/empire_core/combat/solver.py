@@ -4,7 +4,7 @@ The soldier half of the client's wave auto-fill.
 Ported from ``AFillFlankStrategy.fillFlankWithSoldiers`` and
 ``StrongestDefenceCounterRatioConsideredFlankStrategy.pickSoldierStack``: pick
 the unit whose stack best counters whichever of the defender's melee or ranged
-defence is the weaker share, place it, repeat until the flank is full.
+defense is the weaker share, place it, repeat until the flank is full.
 
 Tools are not placed yet, so a wave built here carries units only.
 """
@@ -117,7 +117,7 @@ def pick_soldier_stack(
     Choose one stack for a flank slot and take it out of the inventory.
 
     The choice weighs the best melee stack against the best ranged stack by the
-    defender's opposite defence share, so the attack lands where the defence is
+    defender's opposite defense share, so the attack lands where the defense is
     thinner. With no defender information both shares are 1.0 and the stronger
     stack simply wins.
 
@@ -140,11 +140,11 @@ def pick_soldier_stack(
     if free_items <= 0:
         return None
 
-    melee_defence = defender.melee_defence_value(0.0, attacker.defender_range_reduction) if defender else 0.0
-    range_defence = defender.range_defence_value(attacker.defender_range_reduction, 0.0) if defender else 0.0
-    total = melee_defence + range_defence
-    melee_share = melee_defence / total if total > 0 else 1.0
-    range_share = range_defence / total if total > 0 else 1.0
+    melee_defense = defender.melee_defense_value(0.0, attacker.defender_range_reduction) if defender else 0.0
+    range_defense = defender.range_defense_value(attacker.defender_range_reduction, 0.0) if defender else 0.0
+    total = melee_defense + range_defense
+    melee_share = melee_defense / total if total > 0 else 1.0
+    range_share = range_defense / total if total > 0 else 1.0
 
     best_melee = best_ranged = 0
     best_melee_id = best_ranged_id = 0
@@ -173,7 +173,7 @@ def pick_soldier_stack(
     elif best_ranged == 0:
         chosen = best_melee_id
     else:
-        # Counter the defence that is proportionally weaker.
+        # Counter the defense that is proportionally weaker.
         chosen = best_melee_id if best_melee * range_share >= best_ranged * melee_share else best_ranged_id
 
     taken = inventory.deduct(chosen, free_items)
@@ -239,7 +239,7 @@ def fill_wave(
     capacity: WaveCapacity,
     *,
     attacker: AttackerFlankEffects | None = None,
-    defence: Mapping[Flank, DefenderFlankEffects] | None = None,
+    defense: Mapping[Flank, DefenderFlankEffects] | None = None,
     options: FillOptions | None = None,
     unit_attack_bonuses: Mapping[int, float] | None = None,
     strategies: Sequence | None = None,
@@ -252,7 +252,7 @@ def fill_wave(
 
     Follows the client's order: each flank takes tools first, then soldiers,
     then ``check_flank`` returns the tools if no unit ended up on that flank.
-    Tools come first because a placed tool changes the defence the soldiers are
+    Tools come first because a placed tool changes the defense the soldiers are
     then picked against.
 
     Args:
@@ -260,7 +260,7 @@ def fill_wave(
         game_data: Loaded unit and tool stats
         capacity: The wave's size, from :meth:`WaveCapacity.for_level`
         attacker: Attacker multipliers
-        defence: Defender strength per flank, if known
+        defense: Defender strength per flank, if known
         options: Which flanks to fill and which units to allow
         unit_attack_bonuses: Per-unit attack buffs from active global effects
         strategies: The tool strategy pool; the client's five when omitted.
@@ -290,7 +290,7 @@ def fill_wave(
         if not should_fill:
             continue
 
-        defender = (defence or {}).get(flank)
+        defender = (defense or {}).get(flank)
         # A fresh pool per flank: a strategy that retires on one flank is
         # available again on the next.
         pool = default_tool_strategies() if strategies is None else list(strategies)
@@ -385,7 +385,7 @@ def fill_waves(
     front_bonus_percent: float = 0.0,
     tool_bonus: float = 0.0,
     attacker: AttackerFlankEffects | None = None,
-    defence: Mapping[Flank, DefenderFlankEffects] | None = None,
+    defense: Mapping[Flank, DefenderFlankEffects] | None = None,
     options: FillOptions | None = None,
     unit_attack_bonuses: Mapping[int, float] | None = None,
     area_type: int | None = None,
@@ -412,7 +412,7 @@ def fill_waves(
         front_bonus_percent: Percentage bonus to units in the middle
         tool_bonus: Extra flank tool capacity
         attacker: Attacker multipliers
-        defence: Defender strength per flank, if known
+        defense: Defender strength per flank, if known
         options: Which flanks to fill and which units to allow
         unit_attack_bonuses: Per-unit attack buffs from active global effects
         area_type: The target's area type, which scopes a tool's effects
@@ -440,7 +440,7 @@ def fill_waves(
             game_data,
             capacity,
             attacker=attacker,
-            defence=defence,
+            defense=defense,
             options=options,
             unit_attack_bonuses=unit_attack_bonuses,
             area_type=area_type,

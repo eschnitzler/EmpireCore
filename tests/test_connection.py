@@ -177,7 +177,7 @@ class TestWaiters:
         with pytest.raises(ConnectionClosedError):
             conn.wait_for_result("gam", waiter, timeout=0.1)
 
-    def test_cancelled_waiter_not_reused(self, conn):
+    def test_canceled_waiter_not_reused(self, conn):
         waiter = conn.create_waiter("gam")
         conn.cancel_waiter("gam", waiter)
         packet = make_packet("gam")
@@ -221,7 +221,7 @@ class TestSubscribers:
 class TestCorrelationIsFifo:
     """Pinning tests for the documented FIFO-by-command-id correlation.
 
-    Correlation has no payload-level matching, so these behaviours are
+    Correlation has no payload-level matching, so these behaviors are
     surprising but intentional for now. If a future change adds real
     correlation, these tests should fail and be updated deliberately.
     """
@@ -297,7 +297,7 @@ class TestRecvLoopResilience:
         assert waiter.result.command_id == "gam"
 
     def test_socket_error_still_ends_the_loop(self, live_conn):
-        # Socket-level failures are fatal: waiters are cancelled and
+        # Socket-level failures are fatal: waiters are canceled and
         # on_disconnect fires so the client can re-login.
         disconnects: list[bool] = []
         live_conn.on_disconnect = lambda: disconnects.append(True)
@@ -418,8 +418,8 @@ class TestSendRedaction:
 
         assert "topsecret" not in logged_text(caplog)
 
-    def test_credential_keys_masked_in_unrecognised_frames(self, sending_conn, caplog):
-        # Defence in depth: a credential-bearing command we do not know about.
+    def test_credential_keys_masked_in_unrecognized_frames(self, sending_conn, caplog):
+        # Defense in depth: a credential-bearing command we do not know about.
         frame = '%xt%EmpireEx_21%newauth%1%{"PW": "topsecret"}%'
         with caplog.at_level("DEBUG", logger="empire_core.network.connection"):
             sending_conn.send(frame)
@@ -443,7 +443,7 @@ class TestSendRedaction:
         def boom(_frame):
             raise ValueError("bad pattern")
 
-        monkeypatch.setattr("empire_core.network.connection._summarise_frame", boom)
+        monkeypatch.setattr("empire_core.network.connection._summarize_frame", boom)
         with caplog.at_level("DEBUG", logger="empire_core.network.connection"), pytest.raises(ValueError):
             sending_conn.send("%xt%EmpireEx_21%gdi%1%{}%")
 
@@ -456,7 +456,7 @@ class TestSendRedaction:
 
         logged = logged_text(caplog)
         assert "gdi" in logged
-        assert len(logged) < 200  # truncation kept as defence in depth
+        assert len(logged) < 200  # truncation kept as defense in depth
 
 
 class TestLifecycleExclusion:
@@ -522,7 +522,7 @@ class TestLifecycleExclusion:
         connector.join(timeout=5)
         disconnector.join(timeout=5)
 
-        # disconnect() must serialise behind connect() instead of returning
+        # disconnect() must serialize behind connect() instead of returning
         # early (it saw _running False) and leaving a live session nobody
         # asked for.
         assert conn.connected is False
@@ -547,7 +547,7 @@ class TestLifecycleExclusion:
 
         loop.join(timeout=5)
         assert conn._running is True, "stale epilogue tore down the new session"
-        assert waiter.error is None, "stale epilogue cancelled the new session's waiters"
+        assert waiter.error is None, "stale epilogue canceled the new session's waiters"
 
     def test_stuck_recv_thread_is_reported(self, conn, monkeypatch, caplog):
         monkeypatch.setattr("empire_core.network.connection.THREAD_JOIN_TIMEOUT", 0.05)

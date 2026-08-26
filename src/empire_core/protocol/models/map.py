@@ -223,8 +223,8 @@ class MapAreaItem(BasePayload):
         How many times an NPC camp has been beaten, or None for other types.
 
         This is what selects the camp's defenders: pass it to
-        ``GameData.dungeon_defence`` or
-        ``empire_core.combat.npc_camp_defence``.
+        ``GameData.dungeon_defense`` or
+        ``empire_core.combat.npc_camp_defense``.
         """
         return self._dungeon_field(_DUNGEON_VICTORY_FIELD)
 

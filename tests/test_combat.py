@@ -11,7 +11,7 @@ from empire_core.combat import (
     WaveCapacity,
     boost_to_modifier,
     defender_flank_effects,
-    event_camp_defence,
+    event_camp_defense,
     fill_flank_with_soldiers,
     fill_wave,
     fill_waves,
@@ -20,7 +20,7 @@ from empire_core.combat import (
     max_attackers,
     max_wave_count,
     minimum_owner_level,
-    npc_camp_defence,
+    npc_camp_defense,
     pick_soldier_stack,
     wave_level,
     wave_limit_violations,
@@ -30,7 +30,7 @@ from empire_core.gamedata import GameData, UnitStats
 from empire_core.protocol.models import AttackWave, WaveFlank
 from empire_core.protocol.models.map import MapItemType
 
-# Live rows: 211 is a ranged MeadRanger, 601 a melee unit, 646 a defence tool.
+# Live rows: 211 is a ranged MeadRanger, 601 a melee unit, 646 a defense tool.
 PAYLOAD = {
     "units": [
         {
@@ -115,31 +115,31 @@ class TestAttackerEffects:
 
 
 class TestDefenderAggregation:
-    def test_defenders_credit_both_defences_to_their_own_role(self):
+    def test_defenders_credit_both_defenses_to_their_own_role(self):
         effects = defender_flank_effects([(601, 10), (211, 5)], data())
 
-        # 601 is melee: 60 melee / 20 range defence, ten of them.
+        # 601 is melee: 60 melee / 20 range defense, ten of them.
         assert effects.melee_units_melee_strength == 600
         assert effects.melee_units_range_strength == 200
-        # 211 is ranged: 25 melee / 42 range defence, five of them.
+        # 211 is ranged: 25 melee / 42 range defense, five of them.
         assert effects.range_units_melee_strength == 125
         assert effects.range_units_range_strength == 210
 
-    def test_defence_values_combine_both_groups(self):
+    def test_defense_values_combine_both_groups(self):
         effects = defender_flank_effects([(601, 10), (211, 5)], data())
 
-        assert effects.melee_defence_value() == 600 + 125
-        assert effects.range_defence_value() == 210 + 200
+        assert effects.melee_defense_value() == 600 + 125
+        assert effects.range_defense_value() == 210 + 200
 
     def test_reductions_are_subtracted_from_the_matching_bonus(self):
         effects = defender_flank_effects([(601, 10)], data())
 
         # melee_units_melee_strength * (1.0 - 0.25)
-        assert effects.melee_defence_value(melee_reduction=0.25) == 450
+        assert effects.melee_defense_value(melee_reduction=0.25) == 450
 
     def test_bonuses_multiply(self):
         effects = defender_flank_effects([(601, 10)], data(), melee_bonus=1.5)
-        assert effects.melee_defence_value() == 900
+        assert effects.melee_defense_value() == 900
 
     def test_tools_among_the_stacks_are_not_counted_as_units(self):
         effects = defender_flank_effects([(646, 2)], data())
@@ -169,7 +169,7 @@ class TestDefenderAggregation:
     def test_unknown_ids_are_reported_not_guessed(self, caplog):
         import logging
 
-        with caplog.at_level(logging.WARNING, logger="empire_core.combat.defence"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.combat.defense"):
             effects = defender_flank_effects([(999999, 5)], data())
 
         assert effects.is_empty()
@@ -199,26 +199,26 @@ class TestEventCampDefence:
         return GameData.parse("test", self.PAYLOAD)
 
     def test_wall_and_gate_are_read_as_fractions(self):
-        effects = event_camp_defence(self.data(), "nomadCamps", 48)
+        effects = event_camp_defense(self.data(), "nomadCamps", 48)
 
         assert effects is not None
         middle = effects[Flank.MIDDLE]
         assert (middle.wall_bonus, middle.gate_bonus) == (0.3, 0.3)
 
     def test_every_flank_is_defended(self):
-        effects = event_camp_defence(self.data(), "nomadCamps", 48)
+        effects = event_camp_defense(self.data(), "nomadCamps", 48)
 
         # These tables list one defending force rather than a per-flank split.
         assert all(not e.is_empty() for e in effects.values())
 
     def test_unknown_camp_or_table(self):
-        assert event_camp_defence(self.data(), "nomadCamps", 999) is None
-        assert event_camp_defence(self.data(), "notATable", 48) is None
+        assert event_camp_defense(self.data(), "nomadCamps", 999) is None
+        assert event_camp_defense(self.data(), "notATable", 48) is None
 
 
 class TestNpcCampDefence:
-    def test_camp_defence_is_read_per_flank(self):
-        effects = npc_camp_defence(data(), victories=-6, kingdom_id=0)
+    def test_camp_defense_is_read_per_flank(self):
+        effects = npc_camp_defense(data(), victories=-6, kingdom_id=0)
 
         assert effects is not None
         middle = effects[Flank.MIDDLE]
@@ -230,22 +230,22 @@ class TestNpcCampDefence:
         assert effects[Flank.YARD].is_empty()
 
     def test_unknown_camp_returns_none(self):
-        assert npc_camp_defence(data(), victories=-6, kingdom_id=2) is None
-        assert npc_camp_defence(data(), victories=99) is None
+        assert npc_camp_defense(data(), victories=-6, kingdom_id=2) is None
+        assert npc_camp_defense(data(), victories=99) is None
 
     def test_defending_tools_are_not_folded_in_yet(self):
         # toolM is "646+2"; its fortification is not resolvable yet, so the
         # bonuses stay at zero rather than being guessed.
-        effects = npc_camp_defence(data(), victories=-6)
+        effects = npc_camp_defense(data(), victories=-6)
 
         assert effects[Flank.MIDDLE].moat_bonus == 0.0
 
 
 class TestValueObjects:
-    def test_an_empty_defence_has_no_value(self):
+    def test_an_empty_defense_has_no_value(self):
         effects = DefenderFlankEffects()
-        assert effects.melee_defence_value() == 0
-        assert effects.range_defence_value() == 0
+        assert effects.melee_defense_value() == 0
+        assert effects.range_defense_value() == 0
         assert effects.is_empty()
 
     def test_flank_constants_match_the_client(self):
@@ -355,16 +355,16 @@ class TestPickSoldierStack:
         assert pick == (211, 10)
         assert inv.available(211) == 90
 
-    def test_melee_is_chosen_against_a_ranged_heavy_defence(self):
+    def test_melee_is_chosen_against_a_ranged_heavy_defense(self):
         game = solver_data()
-        # A defence made only of ranged-defence strength: melee attack counters.
+        # A defense made only of ranged-defense strength: melee attack counters.
         defender = DefenderFlankEffects(range_units_range_strength=1000)
 
         pick = pick_soldier_stack(10, Inventory({601: 100, 211: 100}), game, defender=defender)
 
         assert pick[0] == 601
 
-    def test_ranged_is_chosen_against_a_melee_heavy_defence(self):
+    def test_ranged_is_chosen_against_a_melee_heavy_defense(self):
         game = solver_data()
         defender = DefenderFlankEffects(melee_units_melee_strength=1000)
 
@@ -491,7 +491,7 @@ class TestFillWave:
         assert not wave.is_complete()
         assert wave.unit_count() == 0
 
-    def test_per_flank_defence_steers_each_flank(self):
+    def test_per_flank_defense_steers_each_flank(self):
         game = solver_data()
         inv = Inventory({601: 100, 211: 100})
 
@@ -499,15 +499,15 @@ class TestFillWave:
             inv,
             game,
             _capacity(10, 1),
-            defence={
+            defense={
                 Flank.LEFT: DefenderFlankEffects(melee_units_melee_strength=1000),
                 Flank.RIGHT: DefenderFlankEffects(range_units_range_strength=1000),
             },
         )
 
         payload = wave.model_dump(by_alias=True)
-        assert payload["L"]["U"][0][0] == 211  # melee-heavy defence -> ranged attack
-        assert payload["R"]["U"][0][0] == 601  # ranged-heavy defence -> melee attack
+        assert payload["L"]["U"][0][0] == 211  # melee-heavy defense -> ranged attack
+        assert payload["R"]["U"][0][0] == 601  # ranged-heavy defense -> melee attack
 
 
 # =============================================================================
@@ -742,12 +742,12 @@ class TestWaveWithTools:
     def test_tools_are_placed_alongside_units(self):
         game = self.data()
         inv = Inventory({601: 100, 611: 100})
-        defence = {
+        defense = {
             f: DefenderFlankEffects(gate_bonus=0.30, melee_units_melee_strength=50)
             for f in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT)
         }
 
-        wave = fill_wave(inv, game, self.capacity(), defence=defence)
+        wave = fill_wave(inv, game, self.capacity(), defense=defense)
 
         payload = wave.model_dump(by_alias=True)
         assert payload["L"]["T"] == [[611, 3]]  # 30 gate / 10 per ram
@@ -757,9 +757,9 @@ class TestWaveWithTools:
         game = self.data()
         # Rams but no soldiers: the tools must come back rather than be sent.
         inv = Inventory({611: 100})
-        defence = {Flank.LEFT: DefenderFlankEffects(gate_bonus=0.30)}
+        defense = {Flank.LEFT: DefenderFlankEffects(gate_bonus=0.30)}
 
-        wave = fill_wave(inv, game, self.capacity(), defence=defence)
+        wave = fill_wave(inv, game, self.capacity(), defense=defense)
 
         payload = wave.model_dump(by_alias=True)
         assert payload["L"]["T"] == []
@@ -768,9 +768,9 @@ class TestWaveWithTools:
     def test_a_unit_only_wave_is_still_available(self):
         game = self.data()
         inv = Inventory({601: 100, 611: 100})
-        defence = {Flank.LEFT: DefenderFlankEffects(gate_bonus=0.30)}
+        defense = {Flank.LEFT: DefenderFlankEffects(gate_bonus=0.30)}
 
-        wave = fill_wave(inv, game, self.capacity(), defence=defence, strategies=[])
+        wave = fill_wave(inv, game, self.capacity(), defense=defense, strategies=[])
 
         assert wave.model_dump(by_alias=True)["L"]["T"] == []
         assert inv.available(611) == 100
@@ -955,32 +955,32 @@ class TestCastellanDefence:
         assert castellan_fortification(resolver, bonuses, area_type=1) == pytest.approx((2.8, 2.8, 1.8))
 
     def test_a_flank_multiplier_is_capped(self):
-        from empire_core.combat import castellan_defence_multiplier
+        from empire_core.combat import castellan_defense_multiplier
 
         resolver, bonuses = self.parts()
 
         # 3 x 120% of melee unit strength is capped at 324%, plus the 5%
-        # all-flank defence bonus. The panel reads "+360% (max: 324%)".
-        assert castellan_defence_multiplier(
+        # all-flank defense bonus. The panel reads "+360% (max: 324%)".
+        assert castellan_defense_multiplier(
             resolver, bonuses, flank=Flank.LEFT, melee=True, area_type=1
         ) == pytest.approx(3.29)
 
     def test_the_middle_also_takes_the_courtyard_boost(self):
-        from empire_core.combat import castellan_defence_multiplier
+        from empire_core.combat import castellan_defense_multiplier
 
         resolver, bonuses = self.parts()
 
         # 3 x 110% capped at 298%, added on the middle flank - which is where
         # the client adds it, not on the courtyard.
-        assert castellan_defence_multiplier(
+        assert castellan_defense_multiplier(
             resolver, bonuses, flank=Flank.MIDDLE, melee=True, area_type=1
         ) == pytest.approx(6.27)
 
     def test_the_courtyard_does_not_take_its_own_boost(self):
-        from empire_core.combat import castellan_defence_multiplier
+        from empire_core.combat import castellan_defense_multiplier
 
         resolver, bonuses = self.parts()
 
-        assert castellan_defence_multiplier(
+        assert castellan_defense_multiplier(
             resolver, bonuses, flank=Flank.YARD, melee=True, area_type=1
         ) == pytest.approx(3.29)

@@ -267,7 +267,7 @@ class GetAttackInfoResponse(BaseResponse):
 
         Only present while espionage on the target is still fresh; without it
         the defending army is unknown and only the target's fortification can be
-        modelled. The block is positional, so a shifted section would silently
+        modeled. The block is positional, so a shifted section would silently
         move defenders between flanks - see :class:`SpyArmy`.
         """
         from empire_core.services.spy_army import SpyArmy

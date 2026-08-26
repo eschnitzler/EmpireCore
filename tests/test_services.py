@@ -101,7 +101,7 @@ class ScriptedConnection:
         self.requested: list[str] = []
         self.request_payloads: list[tuple[str, dict[str, Any]]] = []
         self.waiters_created: list[str] = []
-        self.waiters_cancelled: list[str] = []
+        self.waiters_canceled: list[str] = []
         self.waited_for: list[str] = []
         self.events: list[str] = []
         self.on_packet = None
@@ -130,7 +130,7 @@ class ScriptedConnection:
         return ResponseWaiter()
 
     def cancel_waiter(self, cmd_id: str, waiter: ResponseWaiter) -> None:
-        self.waiters_cancelled.append(cmd_id)
+        self.waiters_canceled.append(cmd_id)
         self.events.append(f"cancel_waiter:{cmd_id}")
 
     def wait_for_result(self, cmd_id: str, waiter: ResponseWaiter, timeout: float = 5.0) -> Packet:
@@ -1025,7 +1025,7 @@ class TestAttackService:
         waves = client.attack.fill_waves(
             12345,
             level=13,
-            defence={f: DefenderFlankEffects(gate_bonus=0.30) for f in Flank},
+            defense={f: DefenderFlankEffects(gate_bonus=0.30) for f in Flank},
         )
 
         assert waves[0].model_dump(by_alias=True)["M"]["T"] == [[611, 1]]
@@ -1472,10 +1472,10 @@ class TestSpySuccessPath:
         events = conn(client).events
         assert events.index("create_waiter:sne") < events.index("request:csm")
 
-    def test_waiter_is_cancelled_on_success(self, no_sleep):
+    def test_waiter_is_canceled_on_success(self, no_sleep):
         client = make_client(spy_script())
         client.spy.execute_instant_spy(12345, 700, 710)
-        assert conn(client).waiters_cancelled == ["sne"]
+        assert conn(client).waiters_canceled == ["sne"]
 
 
 class TestForwardingASpyReport:
@@ -1529,7 +1529,7 @@ class TestSpyNotificationDecoding:
         assert result.success is False
         assert result.reason == "spy_caught"
 
-    def test_a_successful_defence_for_the_target_is_also_a_loss(self, no_sleep):
+    def test_a_successful_defense_for_the_target_is_also_a_loss(self, no_sleep):
         client = make_client(spy_script(sne=self._sne("1+1+12#3+16324240+Inheritor")))
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
@@ -1755,12 +1755,12 @@ class TestSpyFailurePaths:
             spy_script(bsd=xt_packet("bsd", error_code=21)),
         ],
     )
-    def test_waiter_is_always_cancelled(self, no_sleep, script):
+    def test_waiter_is_always_canceled(self, no_sleep, script):
         client = make_client(script)
 
         client.spy.execute_instant_spy(12345, 700, 710)
 
-        assert conn(client).waiters_cancelled == ["sne"]
+        assert conn(client).waiters_canceled == ["sne"]
 
 
 # =============================================================================
@@ -1992,8 +1992,8 @@ class TestFillAttack:
         assert "aci" in sent
         assert result.waves
 
-    def test_the_castellan_reaches_the_defence(self):
-        # It was accepted as a parameter and dropped on the way to the defence,
+    def test_the_castellan_reaches_the_defense(self):
+        # It was accepted as a parameter and dropped on the way to the defense,
         # so the target's fortification came out far too low.
         from empire_core.gamedata import GameData
         from empire_core.protocol.models import Commander

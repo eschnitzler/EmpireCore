@@ -58,7 +58,7 @@ def random_game(rng: random.Random) -> tuple[GameData, dict[int, int]]:
     return GameData.parse("test", {"units": units + tools}), pool
 
 
-def random_defence(rng: random.Random) -> dict[Flank, DefenderFlankEffects]:
+def random_defense(rng: random.Random) -> dict[Flank, DefenderFlankEffects]:
     return {
         flank: DefenderFlankEffects(
             wall_bonus=rng.uniform(0, 2),
@@ -87,7 +87,7 @@ class TestSolverInvariants:
             level=level,
             attacker_level=attacker_level,
             attacker=AttackerFlankEffects(melee_bonus=rng.uniform(1, 3), range_bonus=rng.uniform(1, 3)),
-            defence=random_defence(rng),
+            defense=random_defense(rng),
             area_type=rng.choice([None, 1, 2]),
             target_is_player=rng.random() < 0.5,
         )

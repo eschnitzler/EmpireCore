@@ -63,7 +63,7 @@ class TestParsing:
         unit = GameData.parse("783.01", PAYLOAD).get_unit(211)
 
         assert unit is not None
-        assert (unit.range_attack, unit.melee_defence, unit.range_defence) == (270, 25, 42)
+        assert (unit.range_attack, unit.melee_defense, unit.range_defense) == (270, 25, 42)
         assert unit.level == 6
         assert unit.mead_supply == 2
         assert unit.is_ranged and not unit.is_melee
@@ -77,7 +77,7 @@ class TestParsing:
         assert tool.slot_types == (4, 9)
         assert tool.fits_slot(9)
         assert not tool.fits_slot(1)
-        assert tool.is_defence_tool
+        assert tool.is_defense_tool
 
     def test_malformed_entry_does_not_lose_the_table(self):
         payload = {"units": [MEAD_RANGER, {"wodID": 5, "role": ["not", "a", "string"]}, {"junk": 1}]}
@@ -265,16 +265,16 @@ class TestCombatTables:
         assert lord is not None
         assert lord.lord_type == "Treasuremap"
 
-    def test_dungeon_defence_is_looked_up_by_victories(self):
+    def test_dungeon_defense_is_looked_up_by_victories(self):
         data = GameData.parse("783.01", FULL_PAYLOAD)
 
-        row = data.dungeon_defence(-6, kingdom_id=0)
+        row = data.dungeon_defense(-6, kingdom_id=0)
 
         assert row is not None
         assert row.units_middle == [(604, 3), (606, 3), (652, 45)]
         assert row.units_left == []
         assert row.total_units() == 51
-        assert data.dungeon_defence(-6, kingdom_id=2) is None
+        assert data.dungeon_defense(-6, kingdom_id=2) is None
 
     def test_camp_tables_share_one_shape(self):
         data = GameData.parse("783.01", FULL_PAYLOAD)
@@ -282,15 +282,15 @@ class TestCombatTables:
         camps = data.camps["nomadCamps"]
 
         assert [c.def_strength for c in camps] == [150]
-        assert camps[0].defence_unit_ids == (743, 744)
-        assert camps[0].defence_tool_ids == (730, 731)
+        assert camps[0].defense_unit_ids == (743, 744)
+        assert camps[0].defense_tool_ids == (730, 731)
 
-    def test_general_skills_are_modelled_now(self):
+    def test_general_skills_are_modeled_now(self):
         data = GameData.parse("783.01", FULL_PAYLOAD)
 
         assert data.general_skills[10110201].raw_effects == "400&10201"
 
-    def test_unmodelled_tables_are_kept_raw(self):
+    def test_unmodeled_tables_are_kept_raw(self):
         payload = dict(FULL_PAYLOAD, bossdungeons=[{"kID": "2", "countVictories": "-1"}])
 
         data = GameData.parse("783.01", payload)

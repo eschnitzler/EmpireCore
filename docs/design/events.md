@@ -68,7 +68,7 @@ client.connection.on_disconnect = lambda: print("dropped — reconnecting…")
 
 ## Request/Response (not an event)
 
-A one-off "wait for the reply to this command" is not modelled as an event —
+A one-off "wait for the reply to this command" is not modeled as an event —
 use the blocking request path, which returns the parsed response or raises a
 typed error:
 

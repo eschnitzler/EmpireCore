@@ -24,7 +24,7 @@ def _as_int(value: Any) -> int | None:
     """Coerce a wire value to int, or None when it is not numeric.
 
     The server sometimes sends counts as strings, and these accessors are the
-    documented way to read a castle's defence, so a drifted type must not raise.
+    documented way to read a castle's defense, so a drifted type must not raise.
     """
     if isinstance(value, bool):
         return None
@@ -273,7 +273,7 @@ class GetSupportDefenseResponse(BaseResponse):
             # One line per response, not per entry, so a fully drifted S
             # array can't flood the log.
             logger.warning(
-                f"Skipped {skipped} malformed defence entries for castle {self.castle_id}; "
+                f"Skipped {skipped} malformed defense entries for castle {self.castle_id}; "
                 "the defender total may be incomplete"
             )
         return total
@@ -316,7 +316,7 @@ class GetSupportDefenseResponse(BaseResponse):
             result.append(units)
         if skipped:
             logger.warning(
-                f"Skipped {skipped} malformed defence entries for castle {self.castle_id}; "
+                f"Skipped {skipped} malformed defense entries for castle {self.castle_id}; "
                 "the per-position unit counts may be incomplete"
             )
         return result

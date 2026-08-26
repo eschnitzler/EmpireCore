@@ -31,16 +31,16 @@ from .capacity import (
     wave_level,
     yard_capacity,
 )
-from .defence import (
+from .defense import (
     camp_fortification_levels,
     camp_level,
-    castellan_defence_multiplier,
+    castellan_defense_multiplier,
     castellan_fortification,
     defender_flank_effects,
-    event_camp_defence,
+    event_camp_defense,
     fortification_bonuses,
-    npc_camp_defence,
-    spied_castle_defence,
+    npc_camp_defense,
+    spied_castle_defense,
 )
 from .effects import AttackerFlankEffects, DefenderFlankEffects, Flank
 from .solver import (
@@ -85,12 +85,12 @@ __all__ = [
     "commander_bonuses",
     "construction_item_bonuses",
     "camp_fortification_levels",
-    "castellan_defence_multiplier",
+    "castellan_defense_multiplier",
     "castellan_fortification",
     "camp_level",
     "defender_flank_effects",
     "fortification_bonuses",
-    "event_camp_defence",
+    "event_camp_defense",
     "general_skill_bonuses",
     "global_effect_bonuses",
     "global_unit_attack_bonuses",
@@ -117,8 +117,8 @@ __all__ = [
     "wave_level",
     "middle_soldier_capacity",
     "middle_tool_capacity",
-    "npc_camp_defence",
-    "spied_castle_defence",
+    "npc_camp_defense",
+    "spied_castle_defense",
     "YARD_SLOTS",
     "yard_capacity",
     "parse_bonus_entries",

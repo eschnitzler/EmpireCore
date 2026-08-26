@@ -290,7 +290,7 @@ GOLDEN_GDI = {
 
 GOLDEN_SDI = {
     "SCID": 12345,
-    # Six defence positions, each a list of [unit_id, count] pairs.
+    # Six defense positions, each a list of [unit_id, count] pairs.
     "S": [[[487, 5174], [488, 20]], [[487, 347]], [], [[301, 10]], [], []],
     "B": {"LID": -14},
     "gui": {"U": []},
@@ -459,7 +459,7 @@ class TestGoldenSupportDefense:
         assert (response.yard_limit, response.available_yard_limit, response.wall_limit) == (12000, 3000, 5000)
         assert response.get_max_defense() == 12000
 
-    def test_empty_defence_is_zero_not_an_error(self):
+    def test_empty_defense_is_zero_not_an_error(self):
         response = GetSupportDefenseResponse.model_validate({"SCID": 1})
         assert response.get_total_defenders() == 0
         assert response.get_units_by_position() == []
@@ -644,7 +644,7 @@ class TestPositionalArrayParsers:
         assert MapAreaItem.from_list([MapItemType.CASTLE, 1, 2, 900, 4242]).owner_id == 900
         assert MapAreaItem.from_list([MapItemType.CAPITAL, 1, 2, 900, 4242]).owner_id == 4242
 
-    def test_map_area_item_unknown_type_name_is_labelled(self):
+    def test_map_area_item_unknown_type_name_is_labeled(self):
         assert MapAreaItem.from_list([9999, 1, 2, 3]).type_name == "UNKNOWN_9999"
 
     @pytest.mark.parametrize("data", [["?", "?", "?", "?"], [1, [2], 3, 4], [1, None, 2, 3]])
@@ -768,7 +768,7 @@ class TestMalformedNestedResponsePayloads:
         with pytest.raises(ValidationError):
             GetDetailedCastleResponse.model_validate({"C": {"CID": 1, "AC": [[201, "x"]]}})
 
-    def test_drifted_defence_array_is_a_validation_error(self):
+    def test_drifted_defense_array_is_a_validation_error(self):
         with pytest.raises(ValidationError):
             GetSupportDefenseResponse.model_validate({"SCID": 1, "S": "nope"})
 
@@ -831,7 +831,7 @@ class TestDriftedPayloadsMustNotCrashAccessors:
         # Skipped silently is a hole too: the drop must be visible, once.
         assert "Skipped 1/2" in caplog.text
 
-    def test_string_unit_count_does_not_crash_the_defence_total(self):
+    def test_string_unit_count_does_not_crash_the_defense_total(self):
         response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[487, 100]], [[488, "20"]]]})
         assert response.get_total_defenders() >= 100
 
@@ -839,11 +839,11 @@ class TestDriftedPayloadsMustNotCrashAccessors:
         response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[488, "20"]]]})
         assert response.get_units_by_position() == [{488: 20}]
 
-    def test_defence_rows_of_the_wrong_shape_are_already_skipped(self):
+    def test_defense_rows_of_the_wrong_shape_are_already_skipped(self):
         response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[487]], ["junk"], [[487, 5]]]})
         assert response.get_total_defenders() == 5
 
-    def test_skipped_defence_pairs_are_logged_once_per_call(self, caplog):
+    def test_skipped_defense_pairs_are_logged_once_per_call(self, caplog):
         response = GetSupportDefenseResponse.model_validate(
             {"SCID": 7, "S": [[[487, "x"], [488, None], [489, 5]], ["junk"]]}
         )
@@ -861,7 +861,7 @@ class TestDriftedPayloadsMustNotCrashAccessors:
         assert len(records) == 1
         assert "Skipped 1" in records[0].getMessage()
 
-    def test_clean_defence_payloads_log_nothing(self, caplog):
+    def test_clean_defense_payloads_log_nothing(self, caplog):
         response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[487, 100]]]})
         with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.defense"):
             assert response.get_total_defenders() == 100

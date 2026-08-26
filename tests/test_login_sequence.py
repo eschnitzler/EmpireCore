@@ -70,7 +70,7 @@ class ScriptedConnection:
         self.request_data: dict[str, str] = {}
         self.waited_for: list[str] = []
         self.waiters_created: list[str] = []
-        self.waiters_cancelled: list[str] = []
+        self.waiters_canceled: list[str] = []
         self.connect_timeouts: list[float] = []
         self.events: list[str] = []
         self.on_packet = None
@@ -106,7 +106,7 @@ class ScriptedConnection:
         return ResponseWaiter()
 
     def cancel_waiter(self, cmd_id: str, waiter: ResponseWaiter) -> None:
-        self.waiters_cancelled.append(cmd_id)
+        self.waiters_canceled.append(cmd_id)
         self.events.append(f"cancel_waiter:{cmd_id}")
 
     def wait_for_result(self, cmd_id: str, waiter: ResponseWaiter, timeout: float = 5.0) -> Packet:
@@ -290,13 +290,13 @@ class TestGbdWaiterRace:
 
         assert conn.events.index("request:lli") < conn.events.index("wait_for_result:gbd")
 
-    def test_waiter_is_cancelled_on_success(self):
+    def test_waiter_is_canceled_on_success(self):
         conn = ScriptedConnection()
         client = make_client(conn)
 
         client.login()
 
-        assert conn.waiters_cancelled == ["gbd"]
+        assert conn.waiters_canceled == ["gbd"]
 
     @pytest.mark.parametrize(
         "lli_result",
@@ -306,7 +306,7 @@ class TestGbdWaiterRace:
             EmpireTimeoutError("no lli"),
         ],
     )
-    def test_waiter_is_cancelled_when_auth_fails(self, lli_result):
+    def test_waiter_is_canceled_when_auth_fails(self, lli_result):
         # An abandoned waiter stays registered on the connection forever and
         # will swallow a later gbd push.
         conn = ScriptedConnection({"lli": lli_result})
@@ -315,15 +315,15 @@ class TestGbdWaiterRace:
         with pytest.raises(EmpireError):
             client.login()
 
-        assert conn.waiters_cancelled == ["gbd"]
+        assert conn.waiters_canceled == ["gbd"]
 
-    def test_waiter_is_cancelled_when_gbd_never_arrives(self):
+    def test_waiter_is_canceled_when_gbd_never_arrives(self):
         conn = ScriptedConnection({"gbd": EmpireTimeoutError("no gbd")})
         client = make_client(conn)
 
         client.login()
 
-        assert conn.waiters_cancelled == ["gbd"]
+        assert conn.waiters_canceled == ["gbd"]
 
 
 # =============================================================================
@@ -380,7 +380,7 @@ class TestFatalSteps:
             ("lli", "XT login timed out"),
         ],
     )
-    def test_required_step_timeouts_are_labelled_and_fatal(self, step, message):
+    def test_required_step_timeouts_are_labeled_and_fatal(self, step, message):
         conn = ScriptedConnection({step: EmpireTimeoutError("silence")})
         client = make_client(conn)
 

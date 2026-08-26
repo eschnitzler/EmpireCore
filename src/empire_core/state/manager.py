@@ -242,7 +242,7 @@ class GameState:
 
         Decided once, at registration. Callables whose signature cannot be
         inspected (some builtins/C functions) are treated as id-only, which is
-        the historical behaviour.
+        the historical behavior.
         """
         try:
             parameters = inspect.signature(callback).parameters.values()

@@ -1,6 +1,6 @@
 """Tests for the public API surface of ``empire_core``.
 
-These guard the *boundary* of the library rather than any single behaviour:
+These guard the *boundary* of the library rather than any single behavior:
 
 - what ``empire_core.__all__`` promises and where those objects really live,
 - that the enums describing a given server ID space are not silently forked,

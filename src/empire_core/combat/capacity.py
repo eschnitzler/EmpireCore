@@ -2,7 +2,7 @@
 How big a wave may be, ported from the client's ``CombatConst``.
 
 A wave's capacity is a function of one effective level: the attacker's own
-level, or the target's minimum defence level when that is higher. The client
+level, or the target's minimum defense level when that is higher. The client
 derives every number below from it, so a caller does not have to guess how many
 troops a flank holds.
 """
