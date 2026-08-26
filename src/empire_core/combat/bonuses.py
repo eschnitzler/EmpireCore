@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
-from empire_core.gamedata import EffectDef, GameData, parse_stacks
+from empire_core.gamedata import EffectDef, GameData, GlobalEffectDef, parse_stacks
 from empire_core.protocol.models import Commander
 
 if TYPE_CHECKING:
@@ -412,7 +412,12 @@ def legend_skill_value(game_data: GameData, skill_ids: Iterable[int], effect_typ
     )
 
 
-def global_unit_attack_bonuses(game_data: GameData, global_effect_ids: Iterable[int]) -> dict[int, float]:
+def global_unit_attack_bonuses(
+    game_data: GameData,
+    global_effects: Iterable[int | Sequence[int]],
+    *,
+    player_level: int | None = None,
+) -> dict[int, float]:
     """
     Per-unit attack bonuses from the global effects currently running.
 
@@ -424,18 +429,31 @@ def global_unit_attack_bonuses(game_data: GameData, global_effect_ids: Iterable[
     through this path.
 
     The rows encode a per-unit map, ``273&<wod_id>+<strength>#<wod_id>+<strength>``.
+    The strengths in the table are only a fallback: ``bie`` may carry a strength
+    of its own per effect, and ``setEffectStrength`` writes that one value onto
+    every unit in the map.
 
     Args:
         game_data: Loaded tables
-        global_effect_ids: Which global effects are active, from ``bie``
+        global_effects: Which global effects are active, from ``bie`` - either
+            plain ids, or the ``[id, seconds_left, strength]`` rows themselves,
+            where a strength above -1 replaces the table's
+        player_level: The attacker's level, which some effects are bracketed to;
+            without it the brackets are ignored
 
     Returns:
         ``{wod_id: bonus}``, empty when no listed effect is active
     """
     bonuses: dict[int, float] = {}
-    for effect_id in global_effect_ids:
+    for entry in global_effects:
+        if isinstance(entry, int):
+            effect_id, override = entry, -1
+        else:
+            effect_id, override = int(entry[0]), int(entry[2]) if len(entry) > 2 else -1
         row = game_data.global_effects.get(effect_id)
         if row is None:
+            continue
+        if player_level is not None and not _within_level_bracket(row, player_level):
             continue
         for part in str(row.raw_effects or "").split(","):
             spec_id, _, value = part.strip().partition("&")
@@ -445,8 +463,14 @@ def global_unit_attack_bonuses(game_data: GameData, global_effect_ids: Iterable[
             if effect is None or effect.effect_type_id != ATTACK_BONUS_UNIT_TYPE:
                 continue
             for wod_id, strength in parse_stacks(value):
-                bonuses[wod_id] = bonuses.get(wod_id, 0.0) + strength
+                bonuses[wod_id] = bonuses.get(wod_id, 0.0) + (override if override > -1 else strength)
     return bonuses
+
+
+def _within_level_bracket(row: GlobalEffectDef, level: int) -> bool:
+    """``GlobalEffectVO.canBeUsed``. A ceiling of zero is an absent column, not a bar."""
+    ceiling = int(row.max_level)
+    return level >= int(row.min_level) and (ceiling <= 0 or level <= ceiling)
 
 
 def commander_bonuses(commander: Commander) -> list[Bonus]:

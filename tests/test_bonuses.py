@@ -452,6 +452,13 @@ class TestGlobalUnitAttackBonus:
             {"globalEffectID": "5", "name": "attackBoostSpeermanBowman", "effects": "273&602+13#608+13"},
             {"globalEffectID": "9", "name": "attackBoostElite", "effects": "273&9+60#10+60"},
             {"globalEffectID": "1", "name": "CooldownReduction", "effects": "100&50"},
+            {
+                "globalEffectID": "11",
+                "name": "attackBoostLowLevels",
+                "effects": "273&602+13",
+                "minLevel": 10,
+                "maxLevel": "30",
+            },
         ],
     )
 
@@ -475,6 +482,28 @@ class TestGlobalUnitAttackBonus:
         bonuses = global_unit_attack_bonuses(self.data(), [5, 9])
 
         assert bonuses == {602: 13.0, 608: 13.0, 9: 60.0, 10: 60.0}
+
+    def test_a_live_strength_replaces_the_tables(self):
+        # bie sends [id, seconds_left, strength]; one scalar lands on every unit
+        # in the map.
+        bonuses = global_unit_attack_bonuses(self.data(), [[5, 3600, 25]])
+
+        assert bonuses == {602: 25.0, 608: 25.0}
+
+    def test_a_strength_of_minus_one_leaves_the_table_alone(self):
+        assert global_unit_attack_bonuses(self.data(), [[5, 3600, -1]]) == {602: 13.0, 608: 13.0}
+
+    def test_an_effect_is_skipped_outside_its_level_bracket(self):
+        game = self.data()
+
+        assert global_unit_attack_bonuses(game, [11], player_level=20) == {602: 13.0}
+        assert global_unit_attack_bonuses(game, [11], player_level=70) == {}
+        assert global_unit_attack_bonuses(game, [11], player_level=5) == {}
+        # No level to check against, so the bracket is not applied.
+        assert global_unit_attack_bonuses(game, [11]) == {602: 13.0}
+
+    def test_an_absent_ceiling_is_not_a_bar(self):
+        assert global_unit_attack_bonuses(self.data(), [5], player_level=70) == {602: 13.0, 608: 13.0}
 
     def test_the_buff_is_added_before_the_multiplier(self):
         # The client adds the flat buff to the raw attack, then multiplies.

@@ -196,7 +196,7 @@ class AttackService(BaseService):
         wave_bonus: int = 0,
         general_skill_ids: list[int] | None = None,
         legend_skill_ids: list[int] | None = None,
-        global_effect_ids: list[int] | None = None,
+        global_effect_ids: list[int] | list[list[int]] | None = None,
         target_is_player: bool = False,
         flank_bonus_percent: float = 0.0,
         front_bonus_percent: float = 0.0,
@@ -240,7 +240,9 @@ class AttackService(BaseService):
                 extra waves come from
             target_is_player: True when the target belongs to a player, which
                 a legendary fight requires
-            global_effect_ids: Global effects currently running, from ``bie``.
+            global_effect_ids: Global effects currently running, from ``bie``;
+                either ids or the raw ``[id, seconds_left, strength]`` rows,
+                which carry the live strength.
                 These are the only thing that buffs a unit's attack value
             flank_bonus_percent: Extra flank bonus, added to whatever the
                 general contributes
@@ -288,7 +290,11 @@ class AttackService(BaseService):
             front_bonus_percent += legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFront")
             wave_bonus += int(legend_skill_value(game_data, legend_skill_ids, "additionalWave"))
 
-        unit_attack_bonuses = global_unit_attack_bonuses(game_data, global_effect_ids) if global_effect_ids else None
+        unit_attack_bonuses = (
+            global_unit_attack_bonuses(game_data, global_effect_ids, player_level=attacker_level)
+            if global_effect_ids
+            else None
+        )
 
         units = self.client.army.get_units(castle_id=castle_id, timeout=timeout)
         # Tools belong in the pool too: the flanks place them. Boost items are
@@ -328,7 +334,7 @@ class AttackService(BaseService):
         commander: Commander | None = None,
         general_skill_ids: list[int] | None = None,
         legend_skill_ids: list[int] | None = None,
-        global_effect_ids: list[int] | None = None,
+        global_effect_ids: list[int] | list[list[int]] | None = None,
         yard_bonus: float = 0.0,
         yard_boost: float = 0.0,
         options: FillOptions | None = None,
