@@ -45,6 +45,36 @@ class AttackerFlankEffects(BaseModel):
     wall_reduction: float = 0.0
     moat_reduction: float = 0.0
 
+    def apply_tool(self, tool, count: int) -> "AttackerFlankEffects":
+        """
+        Fold a placed tool's contribution into these effects.
+
+        ``AttackerFlankEffectVO.updateEffectsWithNewTool``: each tool adds its
+        fortification and defence reductions times the number placed, which is
+        why the client places tools before soldiers - the soldiers are then
+        picked against a defence the tools have already dented.
+
+        The tool's own ``effects`` may add range or melee defence maluses on top
+        of its columns; those are not resolved yet, so a tool carrying only
+        those contributes nothing here.
+
+        Args:
+            tool: The tool that was placed
+            count: How many of it
+
+        Returns:
+            A new effects object; the original is unchanged
+        """
+        return self.model_copy(
+            update={
+                "wall_reduction": self.wall_reduction + tool.wall_bonus * count,
+                "gate_reduction": self.gate_reduction + tool.gate_bonus * count,
+                "moat_reduction": self.moat_reduction + tool.moat_bonus * count,
+                "defender_range_reduction": (self.defender_range_reduction + tool.def_range_bonus * count),
+                "defender_melee_reduction": (self.defender_melee_reduction + tool.def_melee_bonus * count),
+            }
+        )
+
     def soldier_stack_attack_value(
         self,
         unit: UnitStats,

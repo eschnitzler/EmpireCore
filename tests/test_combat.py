@@ -715,7 +715,7 @@ class TestWaveWithTools:
         game = self.data()
         inv = Inventory({601: 100, 611: 100})
         defence = {
-            f: DefenderFlankEffects(gate_bonus=30, melee_units_melee_strength=50)
+            f: DefenderFlankEffects(gate_bonus=0.30, melee_units_melee_strength=50)
             for f in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT)
         }
 
@@ -729,7 +729,7 @@ class TestWaveWithTools:
         game = self.data()
         # Rams but no soldiers: the tools must come back rather than be sent.
         inv = Inventory({611: 100})
-        defence = {Flank.LEFT: DefenderFlankEffects(gate_bonus=30)}
+        defence = {Flank.LEFT: DefenderFlankEffects(gate_bonus=0.30)}
 
         wave = fill_wave(inv, game, self.capacity(), defence=defence)
 
@@ -740,7 +740,7 @@ class TestWaveWithTools:
     def test_a_unit_only_wave_is_still_available(self):
         game = self.data()
         inv = Inventory({601: 100, 611: 100})
-        defence = {Flank.LEFT: DefenderFlankEffects(gate_bonus=30)}
+        defence = {Flank.LEFT: DefenderFlankEffects(gate_bonus=0.30)}
 
         wave = fill_wave(inv, game, self.capacity(), defence=defence, strategies=[])
 

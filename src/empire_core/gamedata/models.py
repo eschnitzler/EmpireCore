@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ITEMS units column "fightType": 0 = offensive, 1 = defensive.
 FIGHT_TYPE_OFFENSIVE = 0
@@ -142,8 +142,10 @@ class ToolStats(_Row):
     fight_type: int = Field(alias="fightType", default=0)
     effects: Any = None
 
-    # What the tool reduces or adds, straight from the items columns. A siege
-    # ram carries gateBonus, a ladder wallBonus, and so on.
+    # What the tool reduces or adds. The items columns are percentages and the
+    # client scales them by 0.01 when it parses a tool, so these are fractions:
+    # a ram whose column reads 10 has a gate bonus of 0.10, which is what the
+    # defence values it is compared against are expressed in.
     wall_bonus: float = Field(alias="wallBonus", default=0)
     gate_bonus: float = Field(alias="gateBonus", default=0)
     moat_bonus: float = Field(alias="moatBonus", default=0)
@@ -151,6 +153,21 @@ class ToolStats(_Row):
     def_melee_bonus: float = Field(alias="defMeleeBonus", default=0)
     off_range_bonus: float = Field(alias="offRangeBonus", default=0)
     off_melee_bonus: float = Field(alias="offMeleeBonus", default=0)
+
+    @field_validator(
+        "wall_bonus",
+        "gate_bonus",
+        "moat_bonus",
+        "def_range_bonus",
+        "def_melee_bonus",
+        "off_range_bonus",
+        "off_melee_bonus",
+        mode="after",
+    )
+    @classmethod
+    def _as_fraction(cls, value: float) -> float:
+        """Percent column to fraction, as ``ToolUnitVO.parseXmlNode`` does."""
+        return value * 0.01
 
     @property
     def slot_types(self) -> tuple[int, ...]:

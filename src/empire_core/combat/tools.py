@@ -182,8 +182,14 @@ def fill_flank_with_tools(
 
     Returns:
         ``(wod_id, count)`` per filled slot
+
+    Note:
+        The attacker effects passed in are not mutated; the updated copy is used
+        internally for later picks. Callers that need the post-tool effects for
+        soldier filling should rebuild them, or accept that the client's own
+        soldier pass sees them.
     """
-    attacker = attacker or AttackerFlankEffects()
+    effects = attacker or AttackerFlankEffects()
     pool = list(strategies)
     placed: dict[int, int] = {}
     free = capacity
@@ -197,7 +203,7 @@ def fill_flank_with_tools(
                 inventory,
                 game_data,
                 free_items=free,
-                attacker=attacker,
+                attacker=effects,
                 defender=defender,
             )
             if candidate is not None and candidate[0].fits_slot(slot_type):
@@ -212,6 +218,8 @@ def fill_flank_with_tools(
             break
         placed[tool.wod_id] = placed.get(tool.wod_id, 0) + taken
         free -= taken
+        # Each placed tool dents the defence the next pick is measured against.
+        effects = effects.apply_tool(tool, taken)
 
     return list(placed.items())
 

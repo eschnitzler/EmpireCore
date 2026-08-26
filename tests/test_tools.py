@@ -1,5 +1,7 @@
 """Tool placement mechanics: slot matching, the strategy pool, and checkFlank."""
 
+import pytest
+
 from empire_core.combat import (
     AttackerFlankEffects,
     DefenderFlankEffects,
@@ -176,6 +178,7 @@ def by_name(name):
 
 
 def defender(**kwargs) -> DefenderFlankEffects:
+    """Defender effects. Bonuses are fractions, as the tool columns are."""
     return DefenderFlankEffects(**kwargs)
 
 
@@ -214,13 +217,14 @@ class TestReduceDefenceBonusStrategy:
 
     def test_the_tool_that_cancels_in_fewest_units_wins(self):
         game = strategy_data()
-        # 40 of gate protection: 4 elite rams at 20 beats 4... 2 elite rams.
+        # 40% gate protection: the elite ram cancels it in 2, the plain one
+        # would need 4, so the elite wins.
         picked = by_name("gate")(
             Inventory({611: 100, 648: 100}),
             game,
             free_items=40,
             attacker=AttackerFlankEffects(),
-            defender=defender(gate_bonus=40),
+            defender=defender(gate_bonus=0.40),
         )
         assert picked is not None
         tool, count = picked
@@ -234,20 +238,20 @@ class TestReduceDefenceBonusStrategy:
             game,
             free_items=40,
             attacker=AttackerFlankEffects(),
-            defender=defender(moat_bonus=80),
+            defender=defender(moat_bonus=0.80),
         )
         assert picked is None
 
     def test_when_nothing_cancels_it_takes_the_biggest_dent(self):
         game = strategy_data()
-        # 500 of gate protection, only 3 rams available: cannot cancel, so the
+        # 500% gate protection with only 3 rams: nothing cancels it, so the
         # strategy falls back to whatever removes most.
         picked = by_name("gate")(
             Inventory({611: 3, 648: 3}),
             game,
             free_items=40,
             attacker=AttackerFlankEffects(),
-            defender=defender(gate_bonus=500),
+            defender=defender(gate_bonus=5.0),
         )
         tool, count = picked
         assert tool.wod_id == 648
@@ -255,14 +259,14 @@ class TestReduceDefenceBonusStrategy:
 
     def test_amount_per_wave_caps_a_tool(self):
         game = strategy_data()
-        # The big ram would cancel 500 in 10, but only 2 fit in a wave, so it
-        # can only dent it - 2 x 50 = 100, beating 3 elite rams at 20.
+        # The big ram would cancel 500% in 10, but only 2 fit per wave, so it
+        # can only dent it - 2 x 0.50 beats 3 x 0.20 from the elite rams.
         picked = by_name("gate")(
             Inventory({700: 100, 648: 3}),
             game,
             free_items=40,
             attacker=AttackerFlankEffects(),
-            defender=defender(gate_bonus=500),
+            defender=defender(gate_bonus=5.0),
         )
         tool, count = picked
         assert (tool.wod_id, count) == (700, 2)
@@ -298,6 +302,47 @@ class TestReduceDefenceBonusStrategy:
             inv,
             game,
             default_tool_strategies(),
-            defender=defender(wall_bonus=30, gate_bonus=30),
+            defender=defender(wall_bonus=0.30, gate_bonus=0.30),
         )
         assert placed[0][0] == 301
+
+
+class TestToolFeedback:
+    """Each placed tool dents the defence the next pick is measured against."""
+
+    def test_a_tool_reduces_what_the_next_one_must_cancel(self):
+        game = strategy_data()
+        effects = AttackerFlankEffects()
+        ram = game.get_tool(611)  # gate bonus 0.10
+
+        updated = effects.apply_tool(ram, 3)
+
+        assert updated.gate_reduction == pytest.approx(0.30)
+        # The original is untouched.
+        assert effects.gate_reduction == 0.0
+
+    def test_defence_reductions_accumulate_per_unit_placed(self):
+        game = strategy_data()
+        stakes = game.get_tool(646)  # a defensive tool, moat 0.80
+
+        updated = AttackerFlankEffects().apply_tool(stakes, 2)
+
+        assert updated.moat_reduction == pytest.approx(1.60)
+
+    def test_filling_stops_once_the_defence_is_cancelled(self):
+        game = strategy_data()
+        inv = Inventory({611: 100})
+        # 0.30 of gate protection and three slots: the first slot cancels it,
+        # so the rest stay empty rather than wasting rams.
+        placed = fill_flank_with_tools(
+            40,
+            3,
+            1,
+            inv,
+            game,
+            default_tool_strategies(),
+            defender=DefenderFlankEffects(gate_bonus=0.30),
+        )
+
+        assert placed == [(611, 3)]
+        assert inv.available(611) == 97
