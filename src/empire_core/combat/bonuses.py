@@ -15,11 +15,15 @@ import logging
 import math
 from collections.abc import Iterable, Sequence
 from enum import IntEnum
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
 from empire_core.gamedata import EffectDef, GameData
 from empire_core.protocol.models import Commander
+
+if TYPE_CHECKING:
+    from .effects import AttackerFlankEffects
 
 logger = logging.getLogger(__name__)
 
@@ -402,8 +406,46 @@ def commander_bonuses(commander: Commander) -> list[Bonus]:
     return bonuses
 
 
+def attacker_flank_effects(
+    resolver: "EffectResolver",
+    bonuses: Iterable[Bonus],
+    *,
+    area_type: int | None = None,
+    player_target: bool | None = None,
+) -> "AttackerFlankEffects":
+    """
+    Build a flank's attacker multipliers from resolved bonuses.
+
+    Mirrors ``FightScreenHelper.getAttackerFlankEffectVO`` for the lord's own
+    contribution: the melee and ranged multipliers, and the wall, gate and moat
+    reductions. Tools placed in the flank add to these as they are placed, and
+    are not included here.
+
+    Args:
+        resolver: Resolver over the loaded game data
+        bonuses: The commander's bonuses, and any other source
+        area_type: The target's area type, for scoping
+        player_target: True when attacking a player
+
+    Returns:
+        The flank's attacker effects
+    """
+    from .effects import AttackerFlankEffects
+
+    bonuses = list(bonuses)
+    wall, gate, moat = resolver.fortification_reductions(bonuses, area_type=area_type, player_target=player_target)
+    return AttackerFlankEffects(
+        melee_bonus=resolver.attack_multiplier(bonuses, melee=True, area_type=area_type, player_target=player_target),
+        range_bonus=resolver.attack_multiplier(bonuses, melee=False, area_type=area_type, player_target=player_target),
+        wall_reduction=wall,
+        gate_reduction=gate,
+        moat_reduction=moat,
+    )
+
+
 __all__ = [
     "Bonus",
+    "attacker_flank_effects",
     "CombatEffectType",
     "EffectResolver",
     "alliance_buff_bonuses",

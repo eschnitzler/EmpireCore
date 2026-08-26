@@ -15,6 +15,8 @@ from empire_core.combat import (
     FillOptions,
     Flank,
     Inventory,
+    attacker_flank_effects,
+    commander_bonuses,
     general_skill_bonuses,
     legend_skill_value,
     npc_camp_defence,
@@ -22,7 +24,7 @@ from empire_core.combat import (
 from empire_core.combat import fill_waves as solve_waves
 from empire_core.combat.capacity import is_legendary_fight
 from empire_core.exceptions import GameDataNotLoadedError
-from empire_core.protocol.models import AttackType, AttackWave, CreateAttackRequest
+from empire_core.protocol.models import AttackType, AttackWave, Commander, CreateAttackRequest
 
 from .base import BaseService, register_service
 
@@ -141,6 +143,7 @@ class AttackService(BaseService):
         player_target: bool | None = None,
         defence: dict[Flank, DefenderFlankEffects] | None = None,
         attacker: AttackerFlankEffects | None = None,
+        commander: Commander | None = None,
         conquer: bool = False,
         wave_bonus: int = 0,
         general_skill_ids: list[int] | None = None,
@@ -174,7 +177,10 @@ class AttackService(BaseService):
                 effects; NPC camps are area type 2
             player_target: True when attacking a player, False for an NPC
             defence: Explicit per-flank defence, overriding ``camp_victories``
-            attacker: Attacker multipliers, unbuffed when omitted
+            attacker: Attacker multipliers; built from ``commander`` when
+                omitted, and unbuffed if neither is given
+            commander: The commander leading the attack, whose equipment and
+                effects supply the attack multipliers used to score units
             conquer: A conquest attack carries extra waves
             wave_bonus: Extra waves from the ADDITIONAL_WAVE legend skill
             general_skill_ids: Unlocked skill ids of the general leading the
@@ -216,6 +222,14 @@ class AttackService(BaseService):
             resolver = EffectResolver(game_data)
             flank_bonus_percent += resolver.flank_unit_bonus(general, area_type=area_type, player_target=player_target)
             front_bonus_percent += resolver.front_unit_bonus(general, area_type=area_type, player_target=player_target)
+
+        if attacker is None and commander is not None:
+            attacker = attacker_flank_effects(
+                EffectResolver(game_data),
+                commander_bonuses(commander),
+                area_type=area_type,
+                player_target=player_target,
+            )
 
         legendary = is_legendary_fight(attacker_level, level, target_is_player=target_is_player)
         if legendary and legend_skill_ids:

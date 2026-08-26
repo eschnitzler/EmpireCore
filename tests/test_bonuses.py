@@ -1,10 +1,12 @@
 """Effect resolution: parsing, area and fight scoping, and the cap semantics."""
 
 from empire_core.combat import (
+    AttackerFlankEffects,
     Bonus,
     CombatEffectType,
     EffectResolver,
     alliance_buff_bonuses,
+    attacker_flank_effects,
     commander_bonuses,
     construction_item_bonuses,
     general_skill_bonuses,
@@ -371,3 +373,64 @@ class TestSources:
         assert legend_skill_value(game, [1, 9], "wallReduction") == 5
         assert legend_skill_value(game, [1], "moatReduction") == 0
         assert legend_skill_value(game, [999], "gateReduction") == 0
+
+
+class TestAttackerFlankEffects:
+    def test_built_from_a_commander_s_bonuses(self):
+        game = source_data()
+        r = EffectResolver(game)
+        # attackBonus 10 + meleeBonus 5 + offensiveMeleeBonus 20 = +35% melee,
+        # attackBonus alone for ranged, plus a wall reduction.
+        bonuses = [
+            Bonus(effect_id=100, value=10),
+            Bonus(effect_id=110, value=5),
+            Bonus(effect_id=111, value=20),
+            Bonus(effect_id=130, value=25),
+        ]
+
+        effects = attacker_flank_effects(r, bonuses)
+
+        assert effects.melee_bonus == 1.35
+        assert effects.range_bonus == 1.10
+        assert effects.wall_reduction == 0.25
+        assert (effects.gate_reduction, effects.moat_reduction) == (0.0, 0.0)
+
+    def test_no_bonuses_is_an_unbuffed_attack(self):
+        effects = attacker_flank_effects(EffectResolver(source_data()), [])
+
+        assert effects.melee_bonus == 1.0
+        assert effects.range_bonus == 1.0
+
+    def test_scoping_is_passed_through(self):
+        game = source_data()
+        r = EffectResolver(game)
+        # Effect 150 is scoped to area types 1 and 3.
+        bonuses = [Bonus(effect_id=150, value=30)]
+
+        assert attacker_flank_effects(r, bonuses, area_type=1).melee_bonus == 1.30
+        assert attacker_flank_effects(r, bonuses, area_type=2).melee_bonus == 1.0
+
+    def test_a_buffed_attacker_changes_which_unit_wins(self):
+        # The whole point of wiring this in: multipliers decide the pick.
+        from empire_core.combat import Inventory, pick_soldier_stack
+        from empire_core.gamedata import GameData
+
+        units = GameData.parse(
+            "test",
+            {
+                "units": [
+                    {"wodID": 1, "role": "melee", "meleeAttack": "100", "fightType": "0"},
+                    {"wodID": 2, "role": "ranged", "rangeAttack": "120", "fightType": "0"},
+                ]
+            },
+        )
+        unbuffed = pick_soldier_stack(10, Inventory({1: 100, 2: 100}), units)
+        melee_buffed = pick_soldier_stack(
+            10,
+            Inventory({1: 100, 2: 100}),
+            units,
+            attacker=AttackerFlankEffects(melee_bonus=2.0),
+        )
+
+        assert unbuffed[0] == 2
+        assert melee_buffed[0] == 1
