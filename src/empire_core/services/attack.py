@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import cast
 
 from empire_core.combat import (
     AttackerFlankEffects,
@@ -239,6 +240,7 @@ class AttackService(BaseService):
         level: int | None = None,
         camp_victories: int | None = None,
         camp_kingdom_id: int = 0,
+        space_id: int | None = None,
         area_type: int | None = None,
         landmark_min_level: int = 0,
         area_bonuses: list[Bonus] | None = None,
@@ -278,6 +280,8 @@ class AttackService(BaseService):
             camp_victories: An NPC camp's victory count, to derive its defense
                 from the game data - see ``MapAreaItem.victory_count``
             camp_kingdom_id: Kingdom the camp sits in
+            space_id: Kingdom the target sits in, which some tools are limited
+                to; the camp's kingdom when not given
             landmark_min_level: A capital's or metropolis's own defense level,
                 which the client reads from its landmark at runtime
             area_bonuses: Effects that apply to this attack from outside the
@@ -368,6 +372,7 @@ class AttackService(BaseService):
             flank_bonus_percent += legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFlank")
             front_bonus_percent += legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFront")
             wave_bonus += int(legend_skill_value(game_data, legend_skill_ids, "additionalWave"))
+            tool_bonus += legend_skill_value(game_data, legend_skill_ids, "additionalAttackToolAmountFlank")
 
         unit_attack_bonuses = (
             global_unit_attack_bonuses(game_data, global_effect_ids, player_level=attacker_level)
@@ -393,7 +398,7 @@ class AttackService(BaseService):
             options=options,
             unit_attack_bonuses=unit_attack_bonuses,
             area_type=area_type,
-            space_id=camp_kingdom_id,
+            space_id=camp_kingdom_id if space_id is None else space_id,
             target_is_player=target_is_player,
         )
 
@@ -533,8 +538,15 @@ class AttackService(BaseService):
     def _owner_level(self, target: "_Target", owner_id: int, timeout: float) -> int | None:
         """The level of whoever owns a tile, from a one-tile scan."""
         try:
+            # Not every kingdom id the game uses is in the enum - event
+            # kingdoms go well past it - and the request only needs the number.
             area = self.client.scan_map_area(
-                target.x, target.y, target.x, target.y, kingdom=Kingdom(target.kingdom_id or 0), timeout=timeout
+                target.x,
+                target.y,
+                target.x,
+                target.y,
+                kingdom=cast(Kingdom, target.kingdom_id or 0),
+                timeout=timeout,
             )
         except (EmpireError, ValueError) as e:
             logger.debug(f"Could not read the owner level at {target.x}:{target.y}: {e}")
@@ -578,6 +590,8 @@ class AttackService(BaseService):
         legend_skill_ids: list[int] | None = None,
         sceat_skill_ids: list[int] | None = None,
         global_effect_ids: list[int] | list[list[int]] | None = None,
+        conquer: bool = False,
+        tool_bonus: float = 0.0,
         yard_bonus: float = 0.0,
         yard_boost: float = 0.0,
         options: FillOptions | None = None,
@@ -640,6 +654,8 @@ class AttackService(BaseService):
             sceat_skill_ids: The player's Hall of Legends skills, read with
                 ``skl`` alongside the legend skills when left out
             global_effect_ids: Global effects currently running
+            conquer: A conquest attack carries two extra waves
+            tool_bonus: Extra flank tool capacity on top of the legend skill
             yard_bonus: Absolute courtyard capacity bonus, effect type 179
             yard_boost: Courtyard capacity boost, effect type 180
             options: Which flanks to fill and which units to allow
@@ -706,6 +722,10 @@ class AttackService(BaseService):
             castle_id,
             level=target.level,
             landmark_min_level=landmark_min_level,
+            camp_kingdom_id=target.camp_kingdom_id,
+            space_id=target.kingdom_id,
+            conquer=conquer,
+            tool_bonus=tool_bonus,
             area_bonuses=target.area_bonuses,
             inventory=pool,
             defense=defense,

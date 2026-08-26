@@ -3,12 +3,14 @@
 import pytest
 
 from empire_core.combat import (
-    MELEE_DEFENCE_MALUS_TYPE,
-    RANGE_DEFENCE_MALUS_TYPE,
+    MELEE_DEFENSE_MALUS_TYPE,
+    RANGE_DEFENSE_MALUS_TYPE,
     AttackerFlankEffects,
     DefenderFlankEffects,
+    Flank,
     Inventory,
     TargetContext,
+    WaveCapacity,
     can_use_tool_on_target,
     check_flank,
     conditioned_effect_bonus,
@@ -49,7 +51,7 @@ class TestToolFill:
     def test_a_tool_that_fits_is_placed(self):
         inv = Inventory({301: 100})
 
-        placed = fill_flank_with_tools(40, 2, 2, inv, data(), [strategy_for(301)])
+        placed = fill_flank_with_tools(40, 2, 2, inv, data(), [strategy_for(301)]).placed
 
         assert placed == [(301, 40)]
         assert inv.available(301) == 60
@@ -59,7 +61,7 @@ class TestToolFill:
         # next one supplies a ladder.
         inv = Inventory({646: 10, 301: 10})
 
-        placed = fill_flank_with_tools(40, 2, 2, inv, data(), [strategy_for(301), strategy_for(646)])
+        placed = fill_flank_with_tools(40, 2, 2, inv, data(), [strategy_for(301), strategy_for(646)]).placed
 
         assert placed == [(301, 10)]
         assert inv.available(646) == 10
@@ -67,26 +69,26 @@ class TestToolFill:
     def test_an_empty_pool_stops_filling(self):
         inv = Inventory({301: 100})
 
-        assert fill_flank_with_tools(40, 2, 2, inv, data(), []) == []
+        assert fill_flank_with_tools(40, 2, 2, inv, data(), []).placed == []
         assert inv.available(301) == 100
 
     def test_the_same_tool_merges_rather_than_taking_two_slots(self):
         inv = Inventory({301: 100})
 
-        placed = fill_flank_with_tools(40, 2, 2, inv, data(), [strategy_for(301, 301)])
+        placed = fill_flank_with_tools(40, 2, 2, inv, data(), [strategy_for(301, 301)]).placed
 
         assert placed == [(301, 40)]
 
     def test_capacity_bounds_the_total(self):
         inv = Inventory({301: 5, 302: 100})
 
-        placed = fill_flank_with_tools(40, 3, 1, inv, data(), [strategy_for(302), strategy_for(301)])
+        placed = fill_flank_with_tools(40, 3, 1, inv, data(), [strategy_for(302), strategy_for(301)]).placed
 
         assert sum(count for _wod, count in placed) <= 40
 
     def test_no_slots_places_nothing(self):
         inv = Inventory({301: 10})
-        assert fill_flank_with_tools(40, 0, 2, inv, data(), [strategy_for(301)]) == []
+        assert fill_flank_with_tools(40, 0, 2, inv, data(), [strategy_for(301)]).placed == []
         assert inv.available(301) == 10
 
 
@@ -308,7 +310,7 @@ class TestReduceDefenceBonusStrategy:
             game,
             default_tool_strategies(),
             defender=defender(wall_bonus=0.30, gate_bonus=0.30),
-        )
+        ).placed
         assert placed[0][0] == 301
 
 
@@ -347,7 +349,7 @@ class TestToolFeedback:
             game,
             default_tool_strategies(),
             defender=DefenderFlankEffects(gate_bonus=0.30),
-        )
+        ).placed
 
         assert placed == [(611, 3)]
         assert inv.available(611) == 97
@@ -384,7 +386,7 @@ class TestFortificationAlreadyBeaten:
             default_tool_strategies(),
             attacker=AttackerFlankEffects(wall_reduction=2.0, gate_reduction=2.0, moat_reduction=2.0),
             defender=DefenderFlankEffects(wall_bonus=0.70, gate_bonus=0.70, melee_units_melee_strength=100),
-        )
+        ).placed
 
         # 611 only carries a gate bonus, and gate is already beaten, so nothing
         # in this inventory is worth placing.
@@ -420,7 +422,7 @@ class TestConditionedEffectBonus:
         tool = game.get_tool(811)
 
         assert tool.def_range_bonus == 0.0
-        assert conditioned_effect_bonus(game, tool, RANGE_DEFENCE_MALUS_TYPE) == 2.5
+        assert conditioned_effect_bonus(game, tool, RANGE_DEFENSE_MALUS_TYPE) == 2.5
 
     def test_placing_it_dents_the_defense_for_the_next_pick(self):
         game = self.data()
@@ -428,7 +430,7 @@ class TestConditionedEffectBonus:
         strategies = [by_name("range")]
         defense = DefenderFlankEffects(range_bonus=5.0, range_units_range_strength=100)
 
-        placed = fill_flank_with_tools(40, 2, 2, inv, game, strategies, defender=defense)
+        placed = fill_flank_with_tools(40, 2, 2, inv, game, strategies, defender=defense).placed
 
         # 5.0 of range bonus at 2.5 a tool: two tools, and no third slot filled.
         assert placed == [(811, 2)]
@@ -451,7 +453,7 @@ class TestConditionedEffectBonus:
 
     def test_effects_of_another_type_do_not_count(self):
         game = self.data()
-        assert conditioned_effect_bonus(game, game.get_tool(811), MELEE_DEFENCE_MALUS_TYPE) == 0.0
+        assert conditioned_effect_bonus(game, game.get_tool(811), MELEE_DEFENSE_MALUS_TYPE) == 0.0
 
 
 class TestCanUseToolOnTarget:
@@ -593,12 +595,113 @@ class TestPerWaveBudget:
 
         left = fill_flank_with_tools(
             40, 2, 2, Inventory({267: 100}), game, [by_name("wall")], defender=defense, used_per_type=used
-        )
+        ).placed
         right = fill_flank_with_tools(
             40, 2, 2, Inventory({268: 100}), game, [by_name("wall")], defender=defense, used_per_type=used
-        )
+        ).placed
 
         assert left == [(267, 3)]
         assert used["SceatAttWall"] == 3
         # The other tier shares the budget, and the wave has spent all of it.
         assert right == []
+
+
+class TestSoldiersSeeThePlacedTools:
+    """
+    ``fillWave`` hands one attacker VO to both passes and the tool pass mutates
+    it, so the soldiers are scored against the defense the tools just dented.
+    The VO is rebuilt per wave, so nothing carries between waves.
+    """
+
+    PAYLOAD = {
+        "units": [
+            {"wodID": 601, "name": "Barracks", "role": "melee", "meleeAttack": "100", "fightType": "0"},
+            {"wodID": 602, "name": "Barracks", "role": "ranged", "rangeAttack": "100", "fightType": "0"},
+            # A tool that cancels the defender's ranged strength outright.
+            {
+                "wodID": 310,
+                "name": "Workshop",
+                "type": "Screen",
+                "typ": "Attack",
+                "slotTypes": "1,2,9",
+                "defRangeBonus": "100",
+                "fightType": "1",
+            },
+        ]
+    }
+
+    def test_the_tool_pass_hands_its_effects_on(self):
+        game = GameData.parse("test", self.PAYLOAD)
+        defense = DefenderFlankEffects(
+            range_bonus=1.0,
+            range_units_melee_strength=5000,
+            range_units_range_strength=100,
+        )
+        strategies = [by_name("range")]
+
+        result = fill_flank_with_tools(40, 2, 2, Inventory({310: 100}), game, strategies, defender=defense)
+
+        assert result.placed
+        # The reduction the placed tools represent comes back for the soldiers.
+        assert result.effects.defender_range_reduction > 0
+
+    def test_the_units_chosen_follow_the_dented_defense(self):
+        from empire_core.combat import fill_wave
+
+        game = GameData.parse("test", self.PAYLOAD)
+        capacity = WaveCapacity.for_level(70)
+        defense = {
+            flank: DefenderFlankEffects(
+                range_bonus=1.0,
+                range_units_melee_strength=5000,
+                range_units_range_strength=100,
+            )
+            for flank in Flank
+        }
+        inventory = Inventory({310: 100, 601: 10_000, 602: 10_000})
+
+        wave = fill_wave(inventory, game, capacity, defense=defense)
+
+        # With the ranged defenders' own ranged strength cancelled by the tool,
+        # the melee attack is the one that lands.
+        assert wave.model_dump(by_alias=True)["L"]["U"][0][0] == 601
+
+
+class TestCheckFlankRefundsTheBudget:
+    """A flank cleared for want of units gives its per-wave allowance back."""
+
+    PAYLOAD = {
+        "units": [
+            {
+                "wodID": 320,
+                "name": "Workshop",
+                "type": "Ram",
+                "typ": "Attack",
+                "slotTypes": "1,2,9",
+                "wallBonus": "10",
+                "amountPerWave": "5",
+            }
+        ]
+    }
+
+    def test_the_budget_is_credited_back(self):
+        game = GameData.parse("test", self.PAYLOAD)
+        inv = Inventory({320: 100})
+        used = {"Ram": 5}
+        tools = [(320, 5)]
+
+        stands = check_flank(tools, [], inv, game_data=game, used_per_type=used)
+
+        assert stands is False
+        assert tools == []
+        assert inv.available(320) == 105
+        assert used["Ram"] == 0
+
+    def test_a_standing_flank_keeps_both(self):
+        game = GameData.parse("test", self.PAYLOAD)
+        inv = Inventory({320: 100})
+        used = {"Ram": 5}
+
+        assert check_flank([(320, 5)], [(601, 10)], inv, game_data=game, used_per_type=used) is True
+        assert used["Ram"] == 5
+        assert inv.available(320) == 100

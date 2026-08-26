@@ -273,10 +273,13 @@ def fill_wave(
         An :class:`AttackWave` ready for ``send_attack``
     """
     options = options or FillOptions()
+    # The client fills left, then right, then middle. The order is visible in
+    # the output because the flanks share one inventory and one per-wave tool
+    # budget.
     wanted = {
         Flank.LEFT: options.fill_left,
-        Flank.MIDDLE: options.fill_middle,
         Flank.RIGHT: options.fill_right,
+        Flank.MIDDLE: options.fill_middle,
     }
 
     units: dict[Flank, list[list[int]]] = {}
@@ -294,7 +297,7 @@ def fill_wave(
         # A fresh pool per flank: a strategy that retires on one flank is
         # available again on the next.
         pool = default_tool_strategies() if strategies is None else list(strategies)
-        placed_tools = fill_flank_with_tools(
+        tools_placed = fill_flank_with_tools(
             capacity.tool_capacity(flank),
             capacity.tool_slots(flank),
             capacity.tool_slot_type(flank),
@@ -306,17 +309,20 @@ def fill_wave(
             target=TargetContext(area_type, space_id, target_is_player),
             used_per_type=used_per_type,
         )
+        placed_tools = tools_placed.placed
         placed_units = fill_flank_with_soldiers(
             capacity.soldier_capacity(flank),
             capacity.unit_slots(flank),
             inventory,
             game_data,
-            attacker=attacker,
+            # The tools just placed have dented this flank's defense, and the
+            # client scores its soldiers against the dented values.
+            attacker=tools_placed.effects,
             defender=defender,
             options=options,
             unit_attack_bonuses=unit_attack_bonuses,
         )
-        check_flank(placed_tools, placed_units, inventory)
+        check_flank(placed_tools, placed_units, inventory, game_data=game_data, used_per_type=used_per_type)
 
         units[flank] = [[wod_id, count] for wod_id, count in placed_units]
         tools[flank] = [[wod_id, count] for wod_id, count in placed_tools]

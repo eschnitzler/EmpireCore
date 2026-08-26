@@ -1992,6 +1992,95 @@ class TestFillAttack:
         assert "aci" in sent
         assert result.waves
 
+    def test_a_conquest_attack_carries_its_extra_waves(self):
+        client = self.build([[601, 100_000]])
+
+        plain = client.attack.fill_attack(12345, target_level=70, target_is_player=True)
+        conquest = client.attack.fill_attack(12345, target_level=70, target_is_player=True, conquer=True)
+
+        assert len(conquest.waves) == len(plain.waves) + 2
+
+    def test_the_legend_tool_skill_widens_the_tool_capacity(self):
+        # additionalAttackToolAmountFlank, which applies only in a legendary
+        # fight, was resolved and then never used.
+        from empire_core.gamedata import GameData
+
+        payload = dict(
+            self.UNITS,
+            units=[
+                *self.UNITS["units"],
+                {
+                    "wodID": 614,
+                    "name": "Workshop",
+                    "type": "Ladder",
+                    "typ": "Attack",
+                    "slotTypes": "1,2,9",
+                    "wallBonus": "1",
+                    "fightType": "1",
+                },
+            ],
+            legendskills=[
+                # Live shape: the value lives in totalEffectValue.
+                {
+                    "skillID": "900",
+                    "effectType": "additionalAttackToolAmountFlank",
+                    "totalEffectValue": "30",
+                    "level": "1",
+                    "tier": "5",
+                }
+            ],
+        )
+        from empire_core.combat import DefenderFlankEffects, Flank
+
+        client = self.build([[601, 100_000], [614, 100_000]])
+        client.game_data = GameData.parse("test", payload)
+        # A wall the ladders cannot fully cancel, so the flank fills to capacity.
+        defense = {flank: DefenderFlankEffects(wall_bonus=99.0) for flank in Flank}
+
+        plain = client.attack.fill_waves(12345, level=70, target_is_player=True, defense=defense)
+        skilled = client.attack.fill_waves(
+            12345, level=70, target_is_player=True, defense=defense, legend_skill_ids=[900]
+        )
+
+        placed = lambda waves: sum(c for _, c in waves[0].model_dump(by_alias=True)["L"]["T"])  # noqa: E731
+        assert placed(skilled) > placed(plain)
+
+    def test_the_targets_kingdom_reaches_the_tool_gate(self):
+        # A tool limited to Berimond (kingdom 10) may be carried there and
+        # nowhere else.
+        from empire_core.gamedata import GameData
+
+        payload = dict(
+            self.UNITS,
+            units=[
+                *self.UNITS["units"],
+                {
+                    "wodID": 613,
+                    "name": "Workshop",
+                    "type": "Ladder",
+                    "typ": "Attack",
+                    "slotTypes": "1,2,9",
+                    "wallBonus": "20",
+                    "allowedToAttack": "10+1",
+                    "fightType": "1",
+                },
+            ],
+        )
+        row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+
+        def fill(kingdom_id):
+            client = self.build([[601, 100_000], [613, 500]])
+            client.game_data = GameData.parse("test", payload)
+            conn(client).script["aci"] = xt_packet("aci", {"gaa": {"AI": row}, "AE": [], "B": {}})
+            conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": [{"OID": 900, "PID": 4242, "L": 13}]})
+            result = client.attack.fill_attack(
+                12345, target_x=700, target_y=710, kingdom_id=kingdom_id, target_is_player=True
+            )
+            return [wod for wod, _ in result.waves[0].model_dump(by_alias=True)["M"]["T"]]
+
+        assert 613 in fill(10)
+        assert 613 not in fill(0)
+
     def test_the_castellan_reaches_the_defense(self):
         # It was accepted as a parameter and dropped on the way to the defense,
         # so the target's fortification came out far too low.

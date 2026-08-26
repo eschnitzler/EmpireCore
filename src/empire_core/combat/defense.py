@@ -418,6 +418,7 @@ def _camp_flanks(row: NpcCampDefence, game_data: GameData) -> dict[Flank, Defend
         flank: defender_flank_effects(
             stacks,
             game_data,
+            flank=flank,
             wall_bonus=row.wall_bonus / 100,
             gate_bonus=row.gate_bonus / 100,
         )
