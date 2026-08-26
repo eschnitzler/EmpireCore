@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
@@ -59,6 +59,7 @@ class ToolStrategy(Protocol):
         attacker: AttackerFlankEffects,
         defender: DefenderFlankEffects | None,
         target: TargetContext | None = None,
+        used_per_type: Mapping[str, int] | None = None,
     ) -> tuple[ToolStats, int] | None: ...
 
 
@@ -123,8 +124,10 @@ class ReduceDefenceBonusStrategy:
         attacker: AttackerFlankEffects,
         defender: DefenderFlankEffects | None,
         target: TargetContext | None = None,
+        used_per_type: Mapping[str, int] | None = None,
     ) -> tuple[ToolStats, int] | None:
         target = target or TargetContext()
+        used_per_type = used_per_type or {}
         if defender is None:
             return None
         # The range and melee strategies stand down when the defender has no
@@ -140,7 +143,10 @@ class ReduceDefenceBonusStrategy:
         best_partial: tuple[ToolStats, int] | None = None
         best_partial_value = 0.0
 
-        for wod_id, available in inventory.counts.items():
+        # The client walks its inventory in insertion order and gives a tie to
+        # whichever tool it meets first; that order is not reproducible here, so
+        # settle it by wod id.
+        for wod_id, available in sorted(inventory.counts.items()):
             tool = game_data.get_tool(wod_id)
             if tool is None or not tool.is_attack_tool or available <= 0:
                 continue
@@ -152,7 +158,7 @@ class ReduceDefenceBonusStrategy:
             if bonus <= 0:
                 continue
             needed = math.ceil(remaining / bonus)
-            limit = tool.amount_per_wave if tool.amount_per_wave > 0 else free_items
+            limit = _per_wave_allowance(tool, used_per_type, free_items)
             placeable = int(min(available, free_items, limit))
             if placeable <= 0:
                 continue
@@ -165,6 +171,21 @@ class ReduceDefenceBonusStrategy:
                     best_partial, best_partial_value = (tool, placeable), value
 
         return best_exact or best_partial
+
+
+def _per_wave_allowance(tool: ToolStats, used_per_type: Mapping[str, int], free_items: int) -> int:
+    """
+    How many more of this tool the wave may take.
+
+    The budget is keyed by the ITEMS ``type`` string, so every upgrade level of
+    one tool shares it, and it spans all three flanks of the wave.
+
+    A tool with no per-wave column is bounded only by the flank's free capacity.
+    """
+    limit = tool.per_wave_limit
+    if limit > 0:
+        return limit - used_per_type.get(tool.tool_type, 0)
+    return free_items
 
 
 def can_use_tool_on_target(tool: ToolStats, target: TargetContext) -> bool:
@@ -243,6 +264,7 @@ def fill_flank_with_tools(
     attacker: AttackerFlankEffects | None = None,
     defender: DefenderFlankEffects | None = None,
     target: TargetContext | None = None,
+    used_per_type: dict[str, int] | None = None,
 ) -> list[tuple[int, int]]:
     """
     Fill one flank's tool slots.
@@ -264,6 +286,8 @@ def fill_flank_with_tools(
         defender: The defender's strength on this flank
         target: Where the attack is going, which scopes a tool's effects and
             decides whether it may be carried at all
+        used_per_type: The wave's per-tool-type budget so far, shared across its
+            three flanks and updated in place
 
     Returns:
         ``(wod_id, count)`` per filled slot
@@ -276,6 +300,8 @@ def fill_flank_with_tools(
     """
     effects = attacker or AttackerFlankEffects()
     area_type = (target or TargetContext()).area_type
+    if used_per_type is None:
+        used_per_type = {}
     pool = list(strategies)
     placed: dict[int, int] = {}
     free = capacity
@@ -292,6 +318,7 @@ def fill_flank_with_tools(
                 attacker=effects,
                 defender=defender,
                 target=target,
+                used_per_type=used_per_type,
             )
             if candidate is not None and candidate[0].fits_slot(slot_type):
                 chosen = candidate
@@ -304,6 +331,7 @@ def fill_flank_with_tools(
         if not taken:
             break
         placed[tool.wod_id] = placed.get(tool.wod_id, 0) + taken
+        used_per_type[tool.tool_type] = used_per_type.get(tool.tool_type, 0) + taken
         free -= taken
         # Each placed tool dents the defence the next pick is measured against,
         # including any malus it carries as an effect rather than a column -

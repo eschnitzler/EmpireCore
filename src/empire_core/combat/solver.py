@@ -277,6 +277,9 @@ def fill_wave(
 
     units: dict[Flank, list[list[int]]] = {}
     tools: dict[Flank, list[list[int]]] = {}
+    # One per-tool-type budget for the whole wave, as getSumOfToolsByTool reads
+    # all three containers.
+    used_per_type: dict[str, int] = {}
     for flank, should_fill in wanted.items():
         units[flank] = []
         tools[flank] = []
@@ -297,6 +300,7 @@ def fill_wave(
             attacker=attacker,
             defender=defender,
             target=TargetContext(area_type, space_id, target_is_player),
+            used_per_type=used_per_type,
         )
         placed_units = fill_flank_with_soldiers(
             capacity.soldier_capacity(flank),

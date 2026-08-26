@@ -217,6 +217,16 @@ class ToolStats(_Row):
                 continue
         return tuple(pairs)
 
+    @property
+    def per_wave_limit(self) -> int:
+        """
+        How many of this tool one wave may carry; 0 or less means no limit.
+
+        ``ToolUnitVO.amountPerWave``: an offence support tool - one that fits
+        slot type 10 - is always limited to one, whatever the column says.
+        """
+        return 1 if 10 in self.slot_types else self.amount_per_wave
+
     def is_allowed_by_attack_target(self, space_id: int | None, area_type: int | None) -> bool:
         """``BasicUnitVO.isAllowedByAttackTarget``: no list means allowed anywhere."""
         allowed = self.allowed_targets

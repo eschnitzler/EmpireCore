@@ -242,9 +242,12 @@ integer percents scaled by `.01` at parse time).
 **Usable count `I`**:
 
 ```
-D = (y.amountPerWave > 0) and (y.amountPerWave - waveVO.getSumOfToolsByTool(y)) or container.freeItems
+D = (y.amountPerWave - waveVO.getSumOfToolsByTool(y)) if y.amountPerWave > 0 else container.freeItems
 I = int(min(y.inventoryAmount, container.freeItems, D))
 ```
+
+  It is a ternary, not `&&`/`||`: a budget that is exactly spent gives `D == 0`
+  and the tool becomes unusable, rather than falling back to `freeItems`.
 
 - `ToolUnitVO.amountPerWave` getter is `return this.isOffenseSupportTool ? 1 :
   this._amountPerWave`, and `_amountPerWave` defaults to `-1` (unlimited).

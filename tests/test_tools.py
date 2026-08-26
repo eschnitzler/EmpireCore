@@ -35,7 +35,7 @@ def strategy_for(*wod_ids):
     """A strategy that offers each id in turn, taking whatever fits."""
     remaining = list(wod_ids)
 
-    def pick(inventory, game_data, *, free_items, attacker, defender, target=None):
+    def pick(inventory, game_data, *, free_items, attacker, defender, **_kwargs):
         while remaining:
             tool = game_data.get_tool(remaining.pop(0))
             if tool is not None and inventory.available(tool.wod_id):
@@ -521,3 +521,84 @@ class TestCanUseToolOnTarget:
 
         assert wall(Inventory({401: 100}), game, target=TargetContext(is_player=True), **args) is not None
         assert wall(Inventory({401: 100}), game, target=TargetContext(is_player=False), **args) is None
+
+
+class TestPerWaveBudget:
+    """``getSumOfToolsByTool`` keys on the type string and spans all three flanks."""
+
+    PAYLOAD = {
+        "units": [
+            # Two upgrade levels of one tool: one type string, one budget.
+            {
+                "wodID": 267,
+                "name": "Workshop",
+                "type": "SceatAttWall",
+                "typ": "Attack",
+                "slotTypes": "1,2,9",
+                "wallBonus": "10",
+                "amountPerWave": "3",
+            },
+            {
+                "wodID": 268,
+                "name": "Workshop",
+                "type": "SceatAttWall",
+                "typ": "Attack",
+                "slotTypes": "1,2,9",
+                "wallBonus": "10",
+                "amountPerWave": "3",
+            },
+            # Slot type 10 is an offence support tool: always one per wave.
+            {
+                "wodID": 401,
+                "name": "Workshop",
+                "type": "SceatSupp",
+                "typ": "Attack",
+                "slotTypes": "2,10",
+                "wallBonus": "10",
+                "amountPerWave": "9",
+            },
+        ]
+    }
+
+    def game(self) -> GameData:
+        return GameData.parse("test", self.PAYLOAD)
+
+    def test_a_support_tool_is_capped_at_one_whatever_the_column_says(self):
+        tool = self.game().get_tool(401)
+        assert tool is not None
+        assert tool.amount_per_wave == 9
+        assert tool.per_wave_limit == 1
+
+    def test_the_budget_is_shared_across_upgrade_levels(self):
+        game = self.game()
+        wall = by_name("wall")
+        used = {"SceatAttWall": 2}
+
+        picked = wall(
+            Inventory({267: 100}),
+            game,
+            free_items=40,
+            attacker=AttackerFlankEffects(),
+            defender=DefenderFlankEffects(wall_bonus=5.0),
+            used_per_type=used,
+        )
+
+        # 3 allowed, 2 already placed as the other tier: one left.
+        assert picked == (game.get_tool(267), 1)
+
+    def test_placing_on_one_flank_spends_the_next_flank_s_budget(self):
+        game = self.game()
+        used: dict[str, int] = {}
+        defence = DefenderFlankEffects(wall_bonus=5.0)
+
+        left = fill_flank_with_tools(
+            40, 2, 2, Inventory({267: 100}), game, [by_name("wall")], defender=defence, used_per_type=used
+        )
+        right = fill_flank_with_tools(
+            40, 2, 2, Inventory({268: 100}), game, [by_name("wall")], defender=defence, used_per_type=used
+        )
+
+        assert left == [(267, 3)]
+        assert used["SceatAttWall"] == 3
+        # The other tier shares the budget, and the wave has spent all of it.
+        assert right == []
