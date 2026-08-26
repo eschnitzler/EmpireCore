@@ -1494,11 +1494,20 @@ ITEMS value. Change the input to the `GE` triples.
   display number as it is in the client. This is the practically important open
   question; the client answer is unambiguous, but it says nothing about the
   server.
-- The exact wire encoding of `e[2]` for a map-valued relic bonus — a flat
-  `[wodId, strength, …]` array or a `"k+v#k+v"` string. The client accepts both
-  via `.toString()`; only a capture distinguishes them. This blocks writing the
-  relic-map parser confidently. No such capture exists in the repo.
-- Whether the server sends per-key relic strengths at all.
+- **Resolved.** `LordVO.parseRawEffects` reads each entry as
+  `[effectID, valueArray, sourceTag]` and passes `n[1]` straight to
+  `BonusVO.parseFromValueArray`, so `e[2]` is the **source tag**, not the value.
+  The value is `n[1]`, an array, and `EffectValueMap.parseFromValueArray`
+  accepts it either flat (`[wodId, value, wodId, value]`, stepping by 2) or as
+  nested pairs. Both `EffectValueMap.strength` and `EffectValueWodID.strength`
+  then return the first key's **value** — index 1 of the flat form. Ported at
+  `combat/bonuses.py`, `Bonus.strength`.
+- Which wodIds a relic keyed effect covers. The `relicEffects` rows carry an
+  `effectValueKeys` column (e.g. row 20001, effect 22001, keys
+  `672,664,686,687,75,76`), but `ClientConstItems.EFFECT_VALUE_KEYS` is defined
+  and **never read** in either bundle, so the client does not expand it: the map
+  arrives already built from the server. A scalar value with no keys is
+  therefore also a legitimate shape, and the port handles both.
 - Whether the buffed getters' use of the **currently viewed** area rather than the
   target's is intentional. Harmless with today's data (effect 273 is
   unrestricted); the port must pick a convention regardless.
@@ -1522,4 +1531,4 @@ rebuilt per flank (`combat/solver.py:285`).
 | `gamedata/models.py:141` | `can_attack_npc` defaults to `False`; the client's default is **true** (`1 == parseInt(..., "1")`) |
 | `combat/solver.py:324` | `fill_yard_wave` defaults `slots=1` (should be 8) and returns a compacted list (`RW` is always 8 pairs, `[-1, 0]` for empties) |
 | `combat/bonuses.py:415` | `global_unit_attack_bonuses` takes effect ids, so it cannot apply the `GE` `strengthOverride`; take the triples |
-| `combat/bonuses.py:87` | `parse_bonus_entries` collapses a map-valued relic bonus to its first wodId (via `_first_number`, line 74) |
+| ~~`combat/bonuses.py:87`~~ | Fixed: `Bonus` keeps the array it was sent and `Bonus.strength` reads index 1 for the nine keyed effect types |
