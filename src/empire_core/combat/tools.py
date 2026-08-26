@@ -293,6 +293,13 @@ def fill_flank_with_tools(
         ``(wod_id, count)`` per filled slot
 
     Note:
+        One deliberate divergence. The client deducts a stack inside the pick,
+        before it knows whether the tool fits the slot, and drops it on the floor
+        when it does not - the tools are gone from the inventory and never
+        placed. This deducts only what it places. The loss is reachable on a side
+        flank through the range strategy, so a wave built here can carry tools a
+        wave built in the client would have lost.
+
         The attacker effects passed in are not mutated; the updated copy is used
         internally for later picks. Callers that need the post-tool effects for
         soldier filling should rebuild them, or accept that the client's own
