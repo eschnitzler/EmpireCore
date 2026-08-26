@@ -101,7 +101,8 @@ class AttackerFlankEffects(BaseModel):
 
         Mirrors ``AttackerFlankEffectVO.getSoldierStackAttackValue``: the unit's
         attack times the matching bonus, truncated, times however many of it
-        actually fit.
+        actually fit. Which of the two attack columns is read follows the unit's
+        role, not which column happens to be filled in.
 
         Args:
             unit: The unit being considered
@@ -115,12 +116,22 @@ class AttackerFlankEffects(BaseModel):
         """
         buff = int(attack_bonus)
         if unit.is_melee:
-            per_unit = int((unit.melee_attack + buff) * self.melee_bonus)
+            per_unit = int(_buffed(unit.melee_attack, buff) * self.melee_bonus)
         elif unit.is_ranged:
-            per_unit = int((unit.range_attack + buff) * self.range_bonus)
+            per_unit = int(_buffed(unit.range_attack, buff) * self.range_bonus)
         else:
             return 0
         return per_unit * max(0, min(free_items, available))
+
+
+def _buffed(attack: float, bonus: int) -> float:
+    """
+    ``SoldierUnitVO.buffedMeleeAttack``, and its ranged twin.
+
+    A unit with nothing in the column it is being read on stays at zero: the
+    guard is on the raw column, so the buff never lifts a unit off the floor.
+    """
+    return attack + bonus if attack > 0 else 0.0
 
 
 class DefenderFlankEffects(BaseModel):

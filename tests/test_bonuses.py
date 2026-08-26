@@ -518,6 +518,15 @@ class TestGlobalUnitAttackBonus:
         assert plain == 2000
         assert buffed == (100 + 13) * 2 * 10
 
+    def test_the_buff_never_lifts_a_unit_off_the_floor(self):
+        # buffedMeleeAttack guards on the raw column: a melee unit with no melee
+        # attack is worth nothing, buffed or not.
+        from empire_core.gamedata import UnitStats
+
+        unit = UnitStats.model_validate({"wodID": 602, "role": "melee", "meleeAttack": "0"})
+
+        assert AttackerFlankEffects().soldier_stack_attack_value(unit, 10, 10, attack_bonus=13) == 0
+
     def test_a_commander_carrying_the_same_effect_type_does_not_buff_units(self):
         # Verified in the client: buffedMeleeAttack reads only the active
         # global-effect event, so a lord-side type 148 bonus does nothing here.
