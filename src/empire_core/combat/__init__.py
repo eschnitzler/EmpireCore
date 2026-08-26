@@ -27,6 +27,8 @@ from .capacity import (
     max_wave_count,
     middle_soldier_capacity,
     middle_tool_capacity,
+    minimum_owner_level,
+    wave_level,
     yard_capacity,
 )
 from .defence import (
@@ -48,6 +50,7 @@ from .solver import (
     fill_waves,
     fill_yard_wave,
     pick_soldier_stack,
+    wave_limit_violations,
 )
 from .tools import (
     MELEE_DEFENCE_MALUS_TYPE,
@@ -106,6 +109,8 @@ __all__ = [
     "flank_tool_capacity",
     "max_attackers",
     "max_wave_count",
+    "minimum_owner_level",
+    "wave_level",
     "middle_soldier_capacity",
     "middle_tool_capacity",
     "npc_camp_defence",
@@ -116,4 +121,5 @@ __all__ = [
     "parse_effect_spec",
     "sceat_skill_bonuses",
     "pick_soldier_stack",
+    "wave_limit_violations",
 ]

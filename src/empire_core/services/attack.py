@@ -16,6 +16,7 @@ from empire_core.combat import (
     FillOptions,
     Flank,
     Inventory,
+    WaveCapacity,
     attacker_flank_effects,
     camp_level,
     commander_bonuses,
@@ -24,8 +25,11 @@ from empire_core.combat import (
     general_skill_bonuses,
     global_unit_attack_bonuses,
     legend_skill_value,
+    minimum_owner_level,
     npc_camp_defence,
     spied_castle_defence,
+    wave_level,
+    wave_limit_violations,
     yard_capacity,
 )
 from empire_core.combat import fill_waves as solve_waves
@@ -73,6 +77,8 @@ class AttackService(BaseService):
         loot_priority: int = 0,
         slowdown: int = 0,
         yard_wave: list[list[int]] | None = None,
+        capacity: WaveCapacity | None = None,
+        yard_capacity: int | None = None,
         support_tools: list[int] | None = None,
         collector_booster: list | None = None,
         timeout: float = 5.0,
@@ -111,6 +117,9 @@ class AttackService(BaseService):
             loot_priority: Resource ID to prioritise when looting
             slowdown: Slowdown offset in seconds
             yard_wave: Courtyard wave as [unit_id, count] pairs
+            capacity: The capacities these waves were sized against. Given one,
+                an overfull army is refused here rather than by the server
+            yard_capacity: The courtyard's capacity, checked the same way
             support_tools: Support tool WOD IDs
             collector_booster: Collector event booster entries
             timeout: Timeout in seconds
@@ -119,12 +128,19 @@ class AttackService(BaseService):
             True when the server accepted the attack, False when it rejected it
 
         Raises:
-            ValueError: No wave carries any units
+            ValueError: No wave carries any units, or a container is overfull
             EmpireTimeoutError / ConnectionClosedError / NetworkError: transport failures
         """
         filled_waves = [w for w in waves if w.is_complete()]
         if not filled_waves:
             raise ValueError("Attack has no units in any wave")
+
+        if capacity is not None:
+            # The client refuses to send an overfull army and shows a dialog
+            # instead; without this the server rejects it with no explanation.
+            problems = wave_limit_violations(filled_waves, capacity, yard=yard_wave, yard_capacity=yard_capacity)
+            if problems:
+                raise ValueError("Attack exceeds what a wave may carry: " + "; ".join(problems))
 
         request = CreateAttackRequest(
             SX=source_x,
@@ -190,6 +206,7 @@ class AttackService(BaseService):
         camp_victories: int | None = None,
         camp_kingdom_id: int = 0,
         area_type: int | None = None,
+        landmark_min_level: int = 0,
         player_target: bool | None = None,
         defence: dict[Flank, DefenderFlankEffects] | None = None,
         attacker: AttackerFlankEffects | None = None,
@@ -224,6 +241,8 @@ class AttackService(BaseService):
             camp_victories: An NPC camp's victory count, to derive its defence
                 from the game data - see ``MapAreaItem.victory_count``
             camp_kingdom_id: Kingdom the camp sits in
+            landmark_min_level: A capital's or metropolis's own defence level,
+                which the client reads from its landmark at runtime
             area_type: The target's area type, which scopes the general's
                 effects; NPC camps are area type 2
             player_target: True when attacking a player, False for an NPC
@@ -268,6 +287,9 @@ class AttackService(BaseService):
         attacker_level = player.level if player else 0
         if level is None:
             raise ValueError("A wave is sized by the level of whoever owns the target; pass level=")
+        # Some targets defend at a level of their own: a monument is built for
+        # level 70 however low its owner is.
+        level = wave_level(level, area_type, landmark_min_level=landmark_min_level)
 
         if defence is None and camp_victories is not None:
             defence = npc_camp_defence(game_data, camp_victories, camp_kingdom_id)
@@ -345,6 +367,8 @@ class AttackService(BaseService):
         camp_kingdom_id: int = 0,
         target_row: list | None = None,
         area_type: int | None = None,
+        landmark_min_level: int = 0,
+        under_conquer_control: bool = False,
         spy_army: SpyArmy | None = None,
         commander: Commander | None = None,
         general_skill_ids: list[int] | None = None,
@@ -374,6 +398,10 @@ class AttackService(BaseService):
             camp_kingdom_id: Kingdom the camp sits in
             target_row: The target's raw map row, for a castle's structures.
                 Its first field is the area type, so passing the row is enough
+            landmark_min_level: A capital's or metropolis's own defence level
+            under_conquer_control: True when the target is held under conquer
+                control, which sizes the courtyard from the area's own defence
+                level rather than its current owner's
             spy_army: A spied castle's defenders per flank, from
                 ``get_attack_info(...).spy_army()``. Without it a castle target
                 is modelled as fortification alone, with no defending army
@@ -435,6 +463,7 @@ class AttackService(BaseService):
         waves = self.fill_waves(
             castle_id,
             level=target_level,
+            landmark_min_level=landmark_min_level,
             defence=defence,
             commander=commander,
             general_skill_ids=general_skill_ids,
@@ -449,6 +478,13 @@ class AttackService(BaseService):
 
         player = self.client.state.get_local_player()
         attacker_level = player.level if player else 0
+        # getMaxUnitsInReinforcementWave reads the area's own defence level when
+        # the target is under conquer control, and its owner's otherwise.
+        yard_level = (
+            minimum_owner_level(target_level, area_type, landmark_min_level=landmark_min_level)
+            if under_conquer_control
+            else target_level
+        )
         remaining = self.client.army.get_units(castle_id=castle_id, timeout=timeout)
         pool = {u.unit_id: u.count for u in remaining if game_data.is_unit(u.unit_id)}
         for wave in waves:
@@ -460,7 +496,7 @@ class AttackService(BaseService):
         yard = fill_yard_wave(
             Inventory(pool),
             game_data,
-            yard_capacity(attacker_level, target_level, bonus=yard_bonus, boost=yard_boost),
+            yard_capacity(attacker_level, yard_level, bonus=yard_bonus, boost=yard_boost),
             defender=(defence or {}).get(Flank.YARD),
             options=options,
             # The courtyard runs the same pick as a flank, so a buffed unit is

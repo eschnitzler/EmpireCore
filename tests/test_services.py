@@ -1901,6 +1901,40 @@ class TestFillAttack:
         payload = result.waves[0].model_dump(by_alias=True)
         assert payload["M"]["T"] == [[611, 1]]
 
+    def test_a_monument_is_sized_for_its_own_level(self):
+        from empire_core.protocol.models.map import MapItemType
+
+        client = self.build([[601, 100_000]])
+
+        low = client.attack.fill_attack(12345, target_level=12, area_type=MapItemType.CASTLE)
+        landmark = client.attack.fill_attack(12345, target_level=12, area_type=MapItemType.MONUMENT)
+
+        assert landmark.waves[0].unit_count() > low.waves[0].unit_count()
+
+    def test_a_conquered_target_sizes_the_courtyard_from_the_area(self):
+        from empire_core.protocol.models.map import MapItemType
+
+        client = self.build([[601, 1_000_000]])
+
+        owner = client.attack.fill_attack(12345, target_level=12, area_type=MapItemType.KINGS_TOWER)
+        conquered = client.attack.fill_attack(
+            12345, target_level=12, area_type=MapItemType.KINGS_TOWER, under_conquer_control=True
+        )
+
+        placed = lambda a: sum(p[1] for p in a.yard if p[0] != -1)  # noqa: E731
+        # The tower defends at 70 whoever holds it, so its courtyard is larger.
+        assert placed(conquered) > placed(owner)
+
+    def test_an_overfull_army_is_refused_before_sending(self):
+        from empire_core.combat import WaveCapacity
+
+        client = self.build([[601, 100_000]])
+        capacity = WaveCapacity.for_level(70)
+        too_big = wave(units=[[601, capacity.flank_soldiers + 50]])
+
+        with pytest.raises(ValueError, match="exceeds what a wave may carry"):
+            client.attack.send_attack(500, 510, 700, 710, [too_big], 0, capacity=capacity)
+
     def test_a_buffed_unit_wins_the_courtyard_too(self):
         # 601 hits harder on paper; a global effect makes 602 the better pick,
         # and the courtyard runs the same pick as a flank.

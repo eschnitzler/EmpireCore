@@ -13,6 +13,8 @@ import math
 
 from pydantic import BaseModel, ConfigDict
 
+from empire_core.protocol.models.map import MapItemType
+
 from .effects import Flank
 
 # Attackers per wave stops growing past level 69.
@@ -110,6 +112,73 @@ def boost_to_modifier(boost: float) -> float:
     scales by 1/100, flooring at zero.
     """
     return max((100 + boost) * 0.01, 0.0)
+
+
+# A wave is sized by the higher of the target owner's level and a floor the
+# area type sets: ``CastleAttackWaveVO`` opens with ``e = int(max(e, t))`` and
+# ``addAdditionalWave`` picks ``t`` from the area type. A king's tower, monument
+# and laboratory take OutpostConst's 70; a capital and a metropolis read their
+# landmark's own minDefenseLevel, which is not in the items payload, so those
+# two have to be supplied.
+AREA_TYPE_LEVEL_FLOORS: dict[int, int] = {
+    int(MapItemType.KINGS_TOWER): 70,
+    int(MapItemType.MONUMENT): 70,
+    int(MapItemType.LABORATORY): 70,
+}
+
+LANDMARK_FLOOR_AREA_TYPES = frozenset({int(MapItemType.CAPITAL), int(MapItemType.METRO)})
+
+
+def minimum_owner_level(
+    target_level: int,
+    area_type: int | None = None,
+    *,
+    landmark_min_level: int = 0,
+) -> int:
+    """
+    The level a target defends at, whoever owns it.
+
+    ``AInteractiveMapobjectVO.minimumOwnerLevel`` returns the owner's own level,
+    and the landmark subclasses override it with a fixed one: a king's tower,
+    monument and laboratory answer 70, a capital and a metropolis their
+    landmark's ``minDefenseLevel``.
+
+    Args:
+        target_level: The target owner's level
+        area_type: The target's area type
+        landmark_min_level: The landmark's ``minDefenseLevel``, for a capital or
+            a metropolis; those two read it at runtime and it is not in the
+            items payload
+
+    Returns:
+        The level the area type defends at
+    """
+    if area_type is None:
+        return int(target_level)
+    if area_type in LANDMARK_FLOOR_AREA_TYPES:
+        return int(landmark_min_level)
+    return int(AREA_TYPE_LEVEL_FLOORS.get(area_type, target_level))
+
+
+def wave_level(
+    target_level: int,
+    area_type: int | None = None,
+    *,
+    landmark_min_level: int = 0,
+) -> int:
+    """
+    The level a wave is actually sized by.
+
+    Some targets defend at a floor of their own however low their owner's level
+    is: attack a level 12 player's monument and the wave is built for level 70.
+
+    Returns:
+        The higher of the owner's level and the area type's own level
+    """
+    return max(
+        int(target_level),
+        minimum_owner_level(target_level, area_type, landmark_min_level=landmark_min_level),
+    )
 
 
 YARD_SLOTS = 8
@@ -271,8 +340,12 @@ __all__ = [
     "TOOL_SLOT_TYPE_MIDDLE",
     "UNIT_SLOT_LEVELS_FLANK",
     "UNIT_SLOT_LEVELS_MIDDLE",
+    "AREA_TYPE_LEVEL_FLOORS",
+    "LANDMARK_FLOOR_AREA_TYPES",
     "WAVE_UNLOCK_LEVELS",
     "YARD_SLOTS",
+    "minimum_owner_level",
+    "wave_level",
     "boost_to_modifier",
     "is_legendary_fight",
     "WaveCapacity",

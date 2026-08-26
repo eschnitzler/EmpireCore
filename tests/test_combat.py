@@ -19,11 +19,16 @@ from empire_core.combat import (
     is_legendary_fight,
     max_attackers,
     max_wave_count,
+    minimum_owner_level,
     npc_camp_defence,
     pick_soldier_stack,
+    wave_level,
+    wave_limit_violations,
     yard_capacity,
 )
 from empire_core.gamedata import GameData, UnitStats
+from empire_core.protocol.models import AttackWave, WaveFlank
+from empire_core.protocol.models.map import MapItemType
 
 # Live rows: 211 is a ranged MeadRanger, 601 a melee unit, 646 a defence tool.
 PAYLOAD = {
@@ -811,3 +816,64 @@ class TestWhichLevelDrivesWhat:
 
     def test_the_courtyard_grows_with_both(self):
         assert yard_capacity(70, 13) != yard_capacity(13, 70)
+
+
+class TestAreaTypeLevelFloor:
+    """``CastleAttackWaveVO`` opens with ``e = int(max(e, t))``."""
+
+    def test_a_landmark_defends_at_its_own_level(self):
+        # A level 12 owner's monument is still built for level 70.
+        assert wave_level(12, MapItemType.MONUMENT) == 70
+        assert wave_level(12, MapItemType.KINGS_TOWER) == 70
+        assert wave_level(12, MapItemType.LABORATORY) == 70
+
+    def test_an_ordinary_target_keeps_its_owners_level(self):
+        for area_type in (MapItemType.CASTLE, MapItemType.OUTPOST, MapItemType.DUNGEON):
+            assert wave_level(12, area_type) == 12
+        assert wave_level(12, None) == 12
+
+    def test_the_floor_never_lowers_the_level(self):
+        assert wave_level(70, MapItemType.MONUMENT) == 70
+        assert wave_level(80, MapItemType.MONUMENT) == 80
+
+    def test_a_capital_reads_its_landmark(self):
+        # The client takes this from the landmark at runtime, so it is supplied.
+        assert wave_level(12, MapItemType.CAPITAL, landmark_min_level=55) == 55
+        assert minimum_owner_level(12, MapItemType.CAPITAL, landmark_min_level=55) == 55
+        # Without it there is no floor to apply.
+        assert wave_level(12, MapItemType.CAPITAL) == 12
+
+    def test_the_floor_changes_what_a_flank_holds(self):
+        assert WaveCapacity.for_level(wave_level(12, MapItemType.MONUMENT)).flank_soldiers > (
+            WaveCapacity.for_level(12).flank_soldiers
+        )
+
+
+class TestWaveLimitViolations:
+    def test_a_legal_attack_reports_nothing(self):
+        capacity = WaveCapacity.for_level(70)
+        wave = AttackWave(L=WaveFlank(U=[[601, capacity.flank_soldiers]]))
+
+        assert wave_limit_violations([wave], capacity) == []
+
+    def test_an_overfull_flank_is_named(self):
+        capacity = WaveCapacity.for_level(70)
+        wave = AttackWave(L=WaveFlank(U=[[601, capacity.flank_soldiers + 1]]))
+
+        problems = wave_limit_violations([wave], capacity)
+
+        assert len(problems) == 1
+        assert "wave 0 L" in problems[0]
+
+    def test_an_overfull_courtyard_is_named(self):
+        capacity = WaveCapacity.for_level(70)
+        yard = [[601, 5000]] + [[-1, 0]] * 7
+
+        problems = wave_limit_violations([], capacity, yard=yard, yard_capacity=4489)
+
+        assert problems == ["courtyard: 5000 units, limit 4489"]
+
+    def test_empty_courtyard_slots_do_not_count(self):
+        capacity = WaveCapacity.for_level(70)
+
+        assert wave_limit_violations([], capacity, yard=[[-1, 0]] * 8, yard_capacity=0) == []

@@ -453,6 +453,49 @@ def fill_waves(
     return waves
 
 
+def wave_limit_violations(
+    waves: Sequence[AttackWave],
+    capacity: WaveCapacity,
+    *,
+    yard: Sequence[Sequence[int]] | None = None,
+    yard_capacity: int | None = None,
+) -> list[str]:
+    """
+    Which of an attack's containers hold more than they may.
+
+    The client refuses to send at all when any wave's unit container or the
+    courtyard is over capacity - ``exceedsUnitLimit()`` and ``exceedsLimit()``,
+    both of which are ``freeItems < 0``. It shows a blocking dialog instead. A
+    hand-built army can trip this; the solver cannot.
+
+    Args:
+        waves: The waves about to be sent
+        capacity: The capacities those waves were sized against
+        yard: The courtyard wave, if one is being sent
+        yard_capacity: Its capacity, from :func:`yard_capacity`
+
+    Returns:
+        One readable line per overfull container, empty when the attack is legal
+    """
+    problems = []
+    for index, wave in enumerate(waves):
+        payload = wave.model_dump(by_alias=True)
+        for name, flank in (("L", Flank.LEFT), ("M", Flank.MIDDLE), ("R", Flank.RIGHT)):
+            units = sum(count for _wod_id, count in payload[name]["U"])
+            allowed = capacity.soldier_capacity(flank)
+            if units > allowed:
+                problems.append(f"wave {index} {name}: {units} units, limit {allowed}")
+            tools = sum(count for _wod_id, count in payload[name]["T"])
+            allowed = capacity.tool_capacity(flank)
+            if tools > allowed:
+                problems.append(f"wave {index} {name}: {tools} tools, limit {allowed}")
+    if yard is not None and yard_capacity is not None:
+        placed = sum(pair[1] for pair in yard if len(pair) > 1 and pair[0] != -1)
+        if placed > yard_capacity:
+            problems.append(f"courtyard: {placed} units, limit {yard_capacity}")
+    return problems
+
+
 class FilledAttack(BaseModel):
     """
     A complete attack: its waves and its courtyard wave.
@@ -479,4 +522,5 @@ __all__ = [
     "fill_waves",
     "fill_yard_wave",
     "pick_soldier_stack",
+    "wave_limit_violations",
 ]
