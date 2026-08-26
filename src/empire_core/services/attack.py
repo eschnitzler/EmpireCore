@@ -270,15 +270,27 @@ class AttackService(BaseService):
         if defence is None and camp_victories is not None:
             defence = npc_camp_defence(game_data, camp_victories, camp_kingdom_id)
 
+        resolver = EffectResolver(game_data)
+        # getUnitsOnTheFlankBonusForAreaType accumulates over the commander's
+        # own equipment - relics and gems included - and its assigned general,
+        # then adds the legend skill separately. Each part is truncated on its
+        # own, which is why they are not summed first.
+        if commander is not None:
+            own = commander_bonuses(commander)
+            flank_bonus_percent += int(resolver.flank_unit_bonus(own, area_type=area_type, player_target=player_target))
+            front_bonus_percent += int(resolver.front_unit_bonus(own, area_type=area_type, player_target=player_target))
         if general_skill_ids:
             general = general_skill_bonuses(game_data, general_skill_ids)
-            resolver = EffectResolver(game_data)
-            flank_bonus_percent += resolver.flank_unit_bonus(general, area_type=area_type, player_target=player_target)
-            front_bonus_percent += resolver.front_unit_bonus(general, area_type=area_type, player_target=player_target)
+            flank_bonus_percent += int(
+                resolver.flank_unit_bonus(general, area_type=area_type, player_target=player_target)
+            )
+            front_bonus_percent += int(
+                resolver.front_unit_bonus(general, area_type=area_type, player_target=player_target)
+            )
 
         if attacker is None and commander is not None:
             attacker = attacker_flank_effects(
-                EffectResolver(game_data),
+                resolver,
                 commander_bonuses(commander),
                 area_type=area_type,
                 player_target=player_target,

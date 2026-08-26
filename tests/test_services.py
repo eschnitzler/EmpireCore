@@ -1028,6 +1028,32 @@ class TestAttackService:
 
         assert waves[0].model_dump(by_alias=True)["M"]["T"] == [[611, 1]]
 
+    def test_a_commanders_own_equipment_widens_the_flanks(self):
+        from empire_core.gamedata import GameData
+        from empire_core.protocol.models import Commander
+
+        payload = {
+            "units": [{"wodID": 601, "name": "Barracks", "role": "melee", "meleeAttack": "100", "fightType": "0"}],
+            "effecttypes": [{"effectTypeID": "28", "name": "attackUnitAmountFlank"}],
+            "effects": [{"effectID": "500", "name": "flankUnits", "effectTypeID": "28", "capID": "99"}],
+        }
+        client = make_client({"gui": xt_packet("gui", {"I": [[601, 100_000]]})})
+        client.game_data = GameData.parse("test", payload)
+        client.state.local_player = StubPlayer(level=70)
+        # An equipped item worth +30% units on each side flank.
+        commander = Commander.model_validate(
+            {"ID": 7, "EQ": [[1, 1, 2, 5, -1, [[500, 86, [30.0]]], -1, -1, 0, -1, -1, 1]]}
+        )
+
+        plain = client.attack.fill_waves(12345, level=13)
+        widened = client.attack.fill_waves(12345, level=13, commander=commander)
+
+        left = plain[0].model_dump(by_alias=True)["L"]["U"][0][1]
+        wider = widened[0].model_dump(by_alias=True)["L"]["U"][0][1]
+        assert wider > left
+        # 20% of 73 attackers, then +30%: ceil(14.6 * 1.3).
+        assert (left, wider) == (15, 19)
+
     def test_fill_waves_sizes_itself_from_the_target_level(self):
         from empire_core.gamedata import GameData
 
