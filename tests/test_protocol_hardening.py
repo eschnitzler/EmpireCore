@@ -169,6 +169,25 @@ class TestMovingFlags:
         assert response.get_moving_flags() == {}
 
 
+class TestErrorCodeKeyCollision:
+    """The payload key "E" is not reserved for the error code."""
+
+    def test_a_crest_under_e_does_not_break_parsing(self):
+        # A live aci response carries the player's crest under "E".
+        from empire_core.protocol.models import GetMapAreaResponse
+
+        response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [], "E": {"BGT": 0, "BGC1": 1644825, "IS": 1}})
+
+        assert response.error_code == 0
+        assert response.success
+
+    def test_a_real_error_code_still_parses(self):
+        from empire_core.protocol.models import GetMapAreaResponse
+
+        assert GetMapAreaResponse.model_validate({"KID": 0, "E": 21}).error_code == 21
+        assert not GetMapAreaResponse.model_validate({"KID": 0, "E": 21}).success
+
+
 class TestNpcCampRows:
     """A type-2 row is a camp, not an owned location."""
 
