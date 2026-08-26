@@ -100,19 +100,6 @@ class Bonus(BaseModel):
         return self.value
 
 
-def _first_number(candidate: object) -> float | None:
-    if isinstance(candidate, bool):
-        return None
-    if isinstance(candidate, (int, float)):
-        return float(candidate)
-    if isinstance(candidate, Sequence) and not isinstance(candidate, (str, bytes)):
-        for item in candidate:
-            number = _first_number(item)
-            if number is not None:
-                return number
-    return None
-
-
 def _numbers(candidate: object) -> list[float]:
     """Every number in a value array, flattened, in the order sent."""
     if isinstance(candidate, bool):
@@ -122,6 +109,11 @@ def _numbers(candidate: object) -> list[float]:
     if isinstance(candidate, Sequence) and not isinstance(candidate, (str, bytes)):
         return [number for item in candidate for number in _numbers(item)]
     return []
+
+
+def _first_number(candidate: object) -> float | None:
+    """The first number in a value, however deeply it is nested."""
+    return next(iter(_numbers(candidate)), None)
 
 
 def parse_bonus_entries(entries: Iterable, *, via_relic: bool = False) -> list[Bonus]:
@@ -378,32 +370,38 @@ def parse_effect_spec(spec: str | None) -> list[Bonus]:
     Construction items, alliance buffs, global effects, sceat skills, general
     skills and buildings all describe their bonuses this way.
     """
-    bonuses: list[Bonus] = []
+    bonuses = []
     for part in str(spec or "").split(","):
         part = part.strip()
         if "&" not in part:
             continue
-        raw_id, _, raw_value = part.partition("&")
-        raw_value = raw_value.strip()
-        try:
-            effect_id = int(raw_id.strip())
-        except ValueError:
+        bonus = _parse_spec_segment(part)
+        if bonus is None:
             logger.debug(f"Skipping unparseable effect spec segment {part!r}")
             continue
-        if "+" in raw_value or "#" in raw_value:
-            # A keyed effect: "<wod_id>+<value>#<wod_id>+<value>".
-            pairs = parse_stacks(raw_value)
-            if not pairs:
-                logger.debug(f"Skipping unparseable effect spec segment {part!r}")
-                continue
-            flat = tuple(float(number) for pair in pairs for number in pair)
-            bonuses.append(Bonus(effect_id=effect_id, value=flat[0], raw_values=flat))
-            continue
-        try:
-            bonuses.append(Bonus(effect_id=effect_id, value=float(raw_value)))
-        except ValueError:
-            logger.debug(f"Skipping unparseable effect spec segment {part!r}")
+        bonuses.append(bonus)
     return bonuses
+
+
+def _parse_spec_segment(part: str) -> Bonus | None:
+    """One ``effectID&value`` segment, or None when it does not read as one."""
+    raw_id, _, raw_value = part.partition("&")
+    raw_value = raw_value.strip()
+    try:
+        effect_id = int(raw_id.strip())
+    except ValueError:
+        return None
+    if "+" in raw_value or "#" in raw_value:
+        # A keyed effect: "<wod_id>+<value>#<wod_id>+<value>".
+        pairs = parse_stacks(raw_value)
+        if not pairs:
+            return None
+        flat = tuple(float(number) for pair in pairs for number in pair)
+        return Bonus(effect_id=effect_id, value=flat[0], raw_values=flat)
+    try:
+        return Bonus(effect_id=effect_id, value=float(raw_value))
+    except ValueError:
+        return None
 
 
 def _spec_bonuses(rows: Iterable) -> list[Bonus]:

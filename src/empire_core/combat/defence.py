@@ -277,8 +277,7 @@ def spied_castle_defence(
     number of siege tools on the left than on the right, and a uniform
     fortification cannot reproduce it.
 
-    The keep's stacks become the courtyard flank. Support troops are added to
-    every flank, the courtyard included, as the client concatenates them.
+    The keep's stacks become the courtyard flank.
 
     Args:
         game_data: Loaded stats
@@ -296,14 +295,24 @@ def spied_castle_defence(
     Returns:
         Effects per flank
     """
+    resolver = EffectResolver(game_data)
     castellan_bonuses = commander_bonuses(castellan) if castellan is not None else []
     if castellan_bonuses:
-        resolver = EffectResolver(game_data)
-        extra_wall, extra_gate, extra_moat = castellan_fortification(resolver, castellan_bonuses, area_type=area_type)
-        wall_bonus += extra_wall
-        gate_bonus += extra_gate
-        moat_bonus += extra_moat
+        wall, gate, moat = castellan_fortification(resolver, castellan_bonuses, area_type=area_type)
+        wall_bonus += wall
+        gate_bonus += gate
+        moat_bonus += moat
 
+    def multiplier(flank: Flank, *, melee: bool) -> float:
+        base = melee_bonus if melee else range_bonus
+        if not castellan_bonuses:
+            return base
+        return base + castellan_defence_multiplier(
+            resolver, castellan_bonuses, flank=flank, melee=melee, area_type=area_type
+        )
+
+    # Support troops hold every flank, the courtyard included, as the client
+    # concatenates them onto each.
     support = [(stack.wod_id, stack.count) for stack in spy_army.support]
     per_flank = {
         Flank.LEFT: spy_army.left,
@@ -311,31 +320,19 @@ def spied_castle_defence(
         Flank.RIGHT: spy_army.right,
         Flank.YARD: spy_army.keep,
     }
-
-    def multipliers(flank: Flank) -> tuple[float, float]:
-        if not castellan_bonuses:
-            return melee_bonus, range_bonus
-        return (
-            melee_bonus
-            + castellan_defence_multiplier(resolver, castellan_bonuses, flank=flank, melee=True, area_type=area_type),
-            range_bonus
-            + castellan_defence_multiplier(resolver, castellan_bonuses, flank=flank, melee=False, area_type=area_type),
-        )
-
-    result = {}
-    for flank, stacks in per_flank.items():
-        melee, ranged = multipliers(flank)
-        result[flank] = defender_flank_effects(
+    return {
+        flank: defender_flank_effects(
             [(stack.wod_id, stack.count) for stack in stacks] + support,
             game_data,
             flank=flank,
             wall_bonus=wall_bonus,
             gate_bonus=gate_bonus,
             moat_bonus=moat_bonus,
-            melee_bonus=melee,
-            range_bonus=ranged,
+            melee_bonus=multiplier(flank, melee=True),
+            range_bonus=multiplier(flank, melee=False),
         )
-    return result
+        for flank, stacks in per_flank.items()
+    }
 
 
 def npc_camp_defence(
