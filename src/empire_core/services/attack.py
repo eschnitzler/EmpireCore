@@ -12,15 +12,19 @@ from empire_core.combat import (
     AttackerFlankEffects,
     DefenderFlankEffects,
     EffectResolver,
+    FilledAttack,
     FillOptions,
     Flank,
     Inventory,
     attacker_flank_effects,
     commander_bonuses,
+    fill_yard_wave,
+    fortification_bonuses,
     general_skill_bonuses,
     global_unit_attack_bonuses,
     legend_skill_value,
     npc_camp_defence,
+    yard_capacity,
 )
 from empire_core.combat import fill_waves as solve_waves
 from empire_core.combat.capacity import is_legendary_fight
@@ -33,6 +37,7 @@ from empire_core.protocol.models import (
     GetAttackInfoRequest,
     GetAttackInfoResponse,
 )
+from empire_core.protocol.models.map import MapAreaItem
 
 from .base import BaseService, register_service
 
@@ -285,7 +290,10 @@ class AttackService(BaseService):
         unit_attack_bonuses = global_unit_attack_bonuses(game_data, global_effect_ids) if global_effect_ids else None
 
         units = self.client.army.get_units(castle_id=castle_id, timeout=timeout)
-        pool = {u.unit_id: u.count for u in units if game_data.is_unit(u.unit_id)}
+        # Tools belong in the pool too: the flanks place them. Boost items are
+        # tools by their slot types but no strategy picks them, and the soldier
+        # pass ignores anything that is not a unit.
+        pool = {u.unit_id: u.count for u in units if game_data.is_unit(u.unit_id) or game_data.is_tool(u.unit_id)}
 
         return solve_waves(
             Inventory(pool),
@@ -302,3 +310,106 @@ class AttackService(BaseService):
             options=options,
             unit_attack_bonuses=unit_attack_bonuses,
         )
+
+    def fill_attack(
+        self,
+        castle_id: int,
+        *,
+        target_level: int,
+        target_is_player: bool = False,
+        camp_victories: int | None = None,
+        camp_kingdom_id: int = 0,
+        target_row: list | None = None,
+        area_type: int | None = None,
+        commander: Commander | None = None,
+        general_skill_ids: list[int] | None = None,
+        legend_skill_ids: list[int] | None = None,
+        global_effect_ids: list[int] | None = None,
+        yard_bonus: float = 0.0,
+        yard_boost: float = 0.0,
+        options: FillOptions | None = None,
+        timeout: float = 5.0,
+    ) -> FilledAttack:
+        """
+        Build a complete attack: every wave, plus the courtyard wave.
+
+        Works out what it can rather than asking for it. A camp's defenders and
+        its walls come from its victory count; a castle's fortification comes
+        from the structure levels in its map row. The commander supplies the
+        attack multipliers and the fortification reductions, its general sizes
+        the flanks, and legend skills apply when the fight is legendary.
+
+        Args:
+            castle_id: Castle whose troops to draw from
+            target_level: The target owner's level, which sizes each flank
+            target_is_player: True for a player's castle or outpost
+            camp_victories: An NPC camp's victory count
+            camp_kingdom_id: Kingdom the camp sits in
+            target_row: The target's raw map row, for a castle's structures
+            area_type: The target's area type, for scoping effects
+            commander: The commander leading the attack
+            general_skill_ids: Its general's unlocked skills
+            legend_skill_ids: The player's legend skills
+            global_effect_ids: Global effects currently running
+            yard_bonus: Absolute courtyard capacity bonus, effect type 179
+            yard_boost: Courtyard capacity boost, effect type 180
+            options: Which flanks to fill and which units to allow
+            timeout: Timeout for the inventory request
+
+        Returns:
+            The waves and the courtyard wave, ready for :meth:`send_attack`
+        """
+        game_data = self.client.game_data
+        if game_data is None:
+            raise GameDataNotLoadedError("Wave filling needs the items payload: call client.load_game_data() first")
+
+        defence: dict[Flank, DefenderFlankEffects] | None = None
+        if camp_victories is not None:
+            defence = npc_camp_defence(game_data, camp_victories, camp_kingdom_id)
+        elif target_row is not None:
+            item = MapAreaItem.from_list(target_row)
+            wall, gate, moat = fortification_bonuses(
+                game_data,
+                wall_level=item.wall_level,
+                gate_level=item.gate_level,
+                moat_level=item.moat_level,
+            )
+            # Without a spy report the defending army is unknown, so only the
+            # target's fortification is modelled.
+            defence = {
+                flank: DefenderFlankEffects(wall_bonus=wall, gate_bonus=gate, moat_bonus=moat) for flank in Flank
+            }
+
+        waves = self.fill_waves(
+            castle_id,
+            level=target_level,
+            defence=defence,
+            commander=commander,
+            general_skill_ids=general_skill_ids,
+            legend_skill_ids=legend_skill_ids,
+            global_effect_ids=global_effect_ids,
+            target_is_player=target_is_player,
+            area_type=area_type,
+            player_target=target_is_player,
+            options=options,
+            timeout=timeout,
+        )
+
+        player = self.client.state.get_local_player()
+        attacker_level = player.level if player else 0
+        remaining = self.client.army.get_units(castle_id=castle_id, timeout=timeout)
+        pool = {u.unit_id: u.count for u in remaining if game_data.is_unit(u.unit_id)}
+        for wave in waves:
+            payload = wave.model_dump(by_alias=True)
+            for flank in ("L", "M", "R"):
+                for wod_id, count in payload[flank]["U"]:
+                    pool[wod_id] = max(0, pool.get(wod_id, 0) - count)
+
+        yard = fill_yard_wave(
+            Inventory(pool),
+            game_data,
+            yard_capacity(attacker_level, target_level, bonus=yard_bonus, boost=yard_boost),
+            defender=(defence or {}).get(Flank.YARD),
+            options=options,
+        )
+        return FilledAttack(waves=waves, yard=yard)

@@ -38,6 +38,7 @@ from .defence import (
 )
 from .effects import AttackerFlankEffects, DefenderFlankEffects, Flank
 from .solver import (
+    FilledAttack,
     FillOptions,
     Inventory,
     fill_flank_with_soldiers,
@@ -61,6 +62,7 @@ __all__ = [
     "EffectResolver",
     "DefenderFlankEffects",
     "FillOptions",
+    "FilledAttack",
     "Flank",
     "Inventory",
     "WaveCapacity",

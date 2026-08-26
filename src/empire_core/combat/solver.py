@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable, Mapping, Sequence
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from empire_core.gamedata import GameData
 from empire_core.protocol.models import AttackWave, WaveFlank
@@ -425,8 +425,26 @@ def fill_waves(
     return waves
 
 
+class FilledAttack(BaseModel):
+    """
+    A complete attack: its waves and its courtyard wave.
+
+    ``waves`` goes in the ``A`` field of a ``cra`` and ``yard`` in ``RW``.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    waves: list[AttackWave] = Field(default_factory=list)
+    yard: list[list[int]] = Field(default_factory=list)
+
+    def unit_count(self) -> int:
+        """Units committed across every wave and the courtyard."""
+        return sum(wave.unit_count() for wave in self.waves) + sum(count for _wod_id, count in self.yard)
+
+
 __all__ = [
     "FillOptions",
+    "FilledAttack",
     "Inventory",
     "fill_flank_with_soldiers",
     "fill_wave",

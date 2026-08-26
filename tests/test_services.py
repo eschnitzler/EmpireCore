@@ -972,6 +972,46 @@ class TestAttackService:
         with pytest.raises(GameDataNotLoadedError):
             client.attack.fill_waves(12345)
 
+    def test_tools_are_drawn_from_the_same_inventory(self):
+        # Tools live in the same gui inventory as units; filtering them out of
+        # the pool made every wave tool-less regardless of the strategies.
+        from empire_core.gamedata import GameData
+
+        payload = {
+            "units": [
+                {
+                    "wodID": 601,
+                    "name": "Barracks",
+                    "type": "Sword",
+                    "role": "melee",
+                    "meleeAttack": "100",
+                    "fightType": "0",
+                },
+                {
+                    "wodID": 611,
+                    "name": "Workshop",
+                    "type": "Ram",
+                    "typ": "Attack",
+                    "slotTypes": "1,2,9",
+                    "gateBonus": "30",
+                    "fightType": "1",
+                },
+            ]
+        }
+        client = make_client({"gui": xt_packet("gui", {"I": [[601, 5000], [611, 500]]})})
+        client.game_data = GameData.parse("test", payload)
+        client.state.local_player = StubPlayer(level=70)
+
+        from empire_core.combat import DefenderFlankEffects, Flank
+
+        waves = client.attack.fill_waves(
+            12345,
+            level=13,
+            defence={f: DefenderFlankEffects(gate_bonus=0.30) for f in Flank},
+        )
+
+        assert waves[0].model_dump(by_alias=True)["M"]["T"] == [[611, 1]]
+
     def test_fill_waves_sizes_itself_from_the_target_level(self):
         from empire_core.gamedata import GameData
 
@@ -1748,6 +1788,81 @@ class TestAccuracyIsTradedForRisk:
         sent = dict(conn(client).request_payloads)["csm"]
         assert sent["SE"] < 100, "sent full accuracy the risk ceiling could not afford"
         assert sent["SC"] > 0
+
+
+class TestFillAttack:
+    """One call producing a complete attack."""
+
+    UNITS = {
+        "units": [
+            {
+                "wodID": 601,
+                "name": "Barracks",
+                "type": "Sword",
+                "role": "melee",
+                "meleeAttack": "100",
+                "fightType": "0",
+            },
+            {
+                "wodID": 611,
+                "name": "Workshop",
+                "type": "Ram",
+                "typ": "Attack",
+                "slotTypes": "1,2,9",
+                "gateBonus": "30",
+                "fightType": "1",
+            },
+        ],
+        "buildings": [
+            {"wodID": 501, "comment2": "Castlewall", "level": "1", "wallBonus": "30"},
+            {"wodID": 450, "comment2": "Gate", "level": "1", "gateBonus": "30"},
+        ],
+    }
+
+    def build(self, inventory):
+        from empire_core.gamedata import GameData
+        from empire_core.state.models import Player  # noqa: F401
+
+        client = make_client({"gui": xt_packet("gui", {"I": inventory})})
+        client.game_data = GameData.parse("test", self.UNITS)
+        client.state.local_player = StubPlayer(level=70)
+        return client
+
+    def test_waves_and_a_courtyard_wave(self):
+        client = self.build([[601, 100_000]])
+
+        result = client.attack.fill_attack(12345, target_level=13)
+
+        assert result.waves
+        assert result.yard
+        # The courtyard is sized separately from the flanks.
+        assert result.unit_count() > sum(w.unit_count() for w in result.waves)
+
+    def test_the_courtyard_draws_from_what_the_waves_left(self):
+        # Only enough for the waves: the courtyard gets the remainder.
+        client = self.build([[601, 100]])
+
+        result = client.attack.fill_attack(12345, target_level=13)
+
+        committed = result.unit_count()
+        assert committed <= 100
+
+    def test_a_castle_row_supplies_fortification(self):
+        client = self.build([[601, 100_000], [611, 500]])
+        row = [1, 5, 6, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+
+        result = client.attack.fill_attack(12345, target_level=13, target_is_player=True, target_row=row)
+
+        # Wall and gate protection of 30% each, and a ram that cancels 30%.
+        payload = result.waves[0].model_dump(by_alias=True)
+        assert payload["M"]["T"] == [[611, 1]]
+
+    def test_no_game_data_is_an_error(self):
+        from empire_core.exceptions import GameDataNotLoadedError
+
+        client = make_client()
+        with pytest.raises(GameDataNotLoadedError):
+            client.attack.fill_attack(12345, target_level=13)
 
 
 class TestAttackInfo:
