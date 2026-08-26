@@ -13,7 +13,7 @@ import logging
 import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, NamedTuple, Protocol
 
 from empire_core.gamedata import GameData, ToolStats
 
@@ -41,6 +41,22 @@ class TargetContext:
     is_player: bool = True
 
 
+class FilledTools(NamedTuple):
+    """
+    What a flank's tool pass produced.
+
+    ``effects`` is the attacker's side of the flank *after* the tools were
+    placed. The client passes one ``AttackerFlankEffectVO`` per flank into both
+    passes of ``fillWave`` and ``updateEffectsWithNewTool`` mutates it, so the
+    soldier pass that follows scores units against the dented defense. The VO is
+    rebuilt for each wave (``autoFillWave`` calls ``getAttackerEffectVO`` afresh),
+    so nothing carries from one wave to the next.
+    """
+
+    placed: list[tuple[int, int]]
+    effects: AttackerFlankEffects
+
+
 class ToolStrategy(Protocol):
     """
     Chooses one tool for a slot, or None when it has nothing to offer.
@@ -65,8 +81,8 @@ class ToolStrategy(Protocol):
 
 # Effect types a tool can carry that weaken a defender directly, rather than
 # through one of its own columns.
-MELEE_DEFENCE_MALUS_TYPE = 215
-RANGE_DEFENCE_MALUS_TYPE = 217
+MELEE_DEFENSE_MALUS_TYPE = 215
+RANGE_DEFENSE_MALUS_TYPE = 217
 
 
 def conditioned_effect_bonus(
@@ -231,14 +247,14 @@ def default_tool_strategies() -> list[ReduceDefenceBonusStrategy]:
             lambda tool: tool.def_range_bonus,
             lambda a, d: d.range_bonus - a.defender_range_reduction,
             requires=lambda d: d.has_range_defenders,
-            malus_effect_type=RANGE_DEFENCE_MALUS_TYPE,
+            malus_effect_type=RANGE_DEFENSE_MALUS_TYPE,
         ),
         ReduceDefenceBonusStrategy(
             "melee",
             lambda tool: tool.def_melee_bonus,
             lambda a, d: d.melee_bonus - a.defender_melee_reduction,
             requires=lambda d: d.has_melee_defenders,
-            malus_effect_type=MELEE_DEFENCE_MALUS_TYPE,
+            malus_effect_type=MELEE_DEFENSE_MALUS_TYPE,
         ),
         ReduceDefenceBonusStrategy(
             "gate",
@@ -265,7 +281,7 @@ def fill_flank_with_tools(
     defender: DefenderFlankEffects | None = None,
     target: TargetContext | None = None,
     used_per_type: dict[str, int] | None = None,
-) -> list[tuple[int, int]]:
+) -> FilledTools:
     """
     Fill one flank's tool slots.
 
@@ -290,7 +306,8 @@ def fill_flank_with_tools(
             three flanks and updated in place
 
     Returns:
-        ``(wod_id, count)`` per filled slot
+        The ``(wod_id, count)`` placed per filled slot, and the attacker effects
+        the soldier pass should then use
 
     Note:
         One deliberate divergence. The client deducts a stack inside the pick,
@@ -300,10 +317,8 @@ def fill_flank_with_tools(
         flank through the range strategy, so a wave built here can carry tools a
         wave built in the client would have lost.
 
-        The attacker effects passed in are not mutated; the updated copy is used
-        internally for later picks. Callers that need the post-tool effects for
-        soldier filling should rebuild them, or accept that the client's own
-        soldier pass sees them.
+        The effects passed in are not mutated; the updated ones come back in
+        :attr:`FilledTools.effects`.
     """
     effects = attacker or AttackerFlankEffects()
     area_type = (target or TargetContext()).area_type
@@ -346,17 +361,20 @@ def fill_flank_with_tools(
         effects = effects.apply_tool(
             tool,
             taken,
-            range_malus=conditioned_effect_bonus(game_data, tool, RANGE_DEFENCE_MALUS_TYPE, area_type),
-            melee_malus=conditioned_effect_bonus(game_data, tool, MELEE_DEFENCE_MALUS_TYPE, area_type),
+            range_malus=conditioned_effect_bonus(game_data, tool, RANGE_DEFENSE_MALUS_TYPE, area_type),
+            melee_malus=conditioned_effect_bonus(game_data, tool, MELEE_DEFENSE_MALUS_TYPE, area_type),
         )
 
-    return list(placed.items())
+    return FilledTools(list(placed.items()), effects)
 
 
 def check_flank(
     tools: list[tuple[int, int]],
     units: list[tuple[int, int]],
     inventory: "Inventory",
+    *,
+    game_data: GameData | None = None,
+    used_per_type: dict[str, int] | None = None,
 ) -> bool:
     """
     Drop a flank's tools when it has no units to use them.
@@ -364,10 +382,16 @@ def check_flank(
     ``AFillFlankStrategy.checkFlank``: tools without units are returned to the
     inventory rather than sent, since they would be spent for nothing.
 
+    The per-wave budget is given back too. The client reads it live off the
+    wave's containers (``getSumOfToolsByTool``), so emptying one flank frees that
+    allowance for the flanks filled after it.
+
     Args:
         tools: The flank's placed tools
         units: The flank's placed units
         inventory: Pool the tools return to
+        game_data: Loaded tool stats, needed to credit the budget back
+        used_per_type: The wave's per-tool-type budget, updated in place
 
     Returns:
         True when the flank stands, False when its tools were taken back
@@ -376,15 +400,21 @@ def check_flank(
         return True
     for wod_id, count in tools:
         inventory.counts[wod_id] = inventory.counts.get(wod_id, 0) + count
+        if game_data is None or used_per_type is None:
+            continue
+        tool = game_data.get_tool(wod_id)
+        if tool is not None and tool.tool_type in used_per_type:
+            used_per_type[tool.tool_type] = max(0, used_per_type[tool.tool_type] - count)
     tools.clear()
     return False
 
 
 __all__ = [
-    "MELEE_DEFENCE_MALUS_TYPE",
-    "RANGE_DEFENCE_MALUS_TYPE",
+    "MELEE_DEFENSE_MALUS_TYPE",
+    "RANGE_DEFENSE_MALUS_TYPE",
     "ReduceDefenceBonusStrategy",
     "can_use_tool_on_target",
+    "FilledTools",
     "TargetContext",
     "conditioned_effect_bonus",
     "ToolStrategy",

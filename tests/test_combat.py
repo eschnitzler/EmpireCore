@@ -205,6 +205,18 @@ class TestEventCampDefence:
         middle = effects[Flank.MIDDLE]
         assert (middle.wall_bonus, middle.gate_bonus) == (0.3, 0.3)
 
+    def test_only_the_middle_keeps_the_gate(self):
+        # Same rule as every other per-flank builder: getDefenceBonuses zeroes
+        # the gate everywhere but the middle.
+        effects = event_camp_defense(self.data(), "nomadCamps", 48)
+
+        assert effects is not None
+        assert effects[Flank.MIDDLE].gate_bonus == 0.3
+        for flank in (Flank.LEFT, Flank.RIGHT, Flank.YARD):
+            assert effects[flank].gate_bonus == 0.0
+            # Only the gate is flank-specific.
+            assert effects[flank].wall_bonus == 0.3
+
     def test_every_flank_is_defended(self):
         effects = event_camp_defense(self.data(), "nomadCamps", 48)
 
@@ -458,7 +470,9 @@ class TestFillWave:
         assert payload["L"]["T"] == []
         assert inv.available(601) == 0
 
-    def test_inventory_is_shared_across_flanks(self):
+    def test_inventory_is_shared_across_flanks_in_the_clients_order(self):
+        # fillWave fills left, then right, then middle, and the flanks share one
+        # inventory - so a pool that runs out shows the order.
         game = solver_data()
         inv = Inventory({601: 15})
 
@@ -466,8 +480,8 @@ class TestFillWave:
 
         payload = wave.model_dump(by_alias=True)
         assert payload["L"]["U"] == [[601, 10]]
-        assert payload["M"]["U"] == [[601, 5]]
-        assert payload["R"]["U"] == []
+        assert payload["R"]["U"] == [[601, 5]]
+        assert payload["M"]["U"] == []
 
     def test_disabled_flanks_stay_empty(self):
         game = solver_data()

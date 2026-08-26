@@ -55,8 +55,8 @@ from .solver import (
     wave_limit_violations,
 )
 from .tools import (
-    MELEE_DEFENCE_MALUS_TYPE,
-    RANGE_DEFENCE_MALUS_TYPE,
+    MELEE_DEFENSE_MALUS_TYPE,
+    RANGE_DEFENSE_MALUS_TYPE,
     ReduceDefenceBonusStrategy,
     TargetContext,
     ToolStrategy,
@@ -95,8 +95,8 @@ __all__ = [
     "global_effect_bonuses",
     "global_unit_attack_bonuses",
     "legend_skill_value",
-    "MELEE_DEFENCE_MALUS_TYPE",
-    "RANGE_DEFENCE_MALUS_TYPE",
+    "MELEE_DEFENSE_MALUS_TYPE",
+    "RANGE_DEFENSE_MALUS_TYPE",
     "ReduceDefenceBonusStrategy",
     "conditioned_effect_bonus",
     "TargetContext",
