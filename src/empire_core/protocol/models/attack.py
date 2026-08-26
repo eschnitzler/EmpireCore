@@ -21,6 +21,7 @@ from .base import BasePayload, BaseRequest, BaseResponse, UnitCount
 from .commanders import Commander
 
 if TYPE_CHECKING:
+    from empire_core.combat import Bonus
     from empire_core.services.spy_army import SpyArmy
 
 logger = logging.getLogger(__name__)
@@ -247,6 +248,18 @@ class GetAttackInfoResponse(BaseResponse):
     raw_map_area: dict = Field(alias="gaa", default_factory=dict)
     raw_inventory: dict = Field(alias="gui", default_factory=dict)
     raw_commanders: dict = Field(alias="gli", default_factory=dict)
+
+    def attacker_bonuses(self) -> list["Bonus"]:
+        """
+        The area effects that apply to this attack, already scoped by the server.
+
+        These are not the commander's - they are the kingdom-wide and event
+        effects the attack picks up on top of it, and they include the flank and
+        front unit-amount bonuses that decide how many troops a wave holds.
+        """
+        from empire_core.combat import parse_bonus_entries
+
+        return parse_bonus_entries(self.raw_attacker_effects)
 
     def spy_army(self) -> "SpyArmy | None":
         """

@@ -10,6 +10,7 @@ import logging
 
 from empire_core.combat import (
     AttackerFlankEffects,
+    Bonus,
     DefenderFlankEffects,
     EffectResolver,
     FilledAttack,
@@ -34,7 +35,7 @@ from empire_core.combat import (
 )
 from empire_core.combat import fill_waves as solve_waves
 from empire_core.combat.capacity import is_legendary_fight
-from empire_core.exceptions import GameDataNotLoadedError
+from empire_core.exceptions import EmpireError, GameDataNotLoadedError
 from empire_core.protocol.models import (
     AttackType,
     AttackWave,
@@ -207,6 +208,7 @@ class AttackService(BaseService):
         camp_kingdom_id: int = 0,
         area_type: int | None = None,
         landmark_min_level: int = 0,
+        area_bonuses: list[Bonus] | None = None,
         player_target: bool | None = None,
         defence: dict[Flank, DefenderFlankEffects] | None = None,
         attacker: AttackerFlankEffects | None = None,
@@ -243,6 +245,9 @@ class AttackService(BaseService):
             camp_kingdom_id: Kingdom the camp sits in
             landmark_min_level: A capital's or metropolis's own defence level,
                 which the client reads from its landmark at runtime
+            area_bonuses: Effects that apply to this attack from outside the
+                commander, from ``get_attack_info(...).attacker_bonuses()``.
+                They carry the flank and front unit-amount bonuses
             area_type: The target's area type, which scopes the general's
                 effects; NPC camps are area type 2
             player_target: True when attacking a player, False for an NPC
@@ -303,6 +308,13 @@ class AttackService(BaseService):
             own = commander_bonuses(commander)
             flank_bonus_percent += int(resolver.flank_unit_bonus(own, area_type=area_type, player_target=player_target))
             front_bonus_percent += int(resolver.front_unit_bonus(own, area_type=area_type, player_target=player_target))
+        if area_bonuses:
+            flank_bonus_percent += int(
+                resolver.flank_unit_bonus(area_bonuses, area_type=area_type, player_target=player_target)
+            )
+            front_bonus_percent += int(
+                resolver.front_unit_bonus(area_bonuses, area_type=area_type, player_target=player_target)
+            )
         if general_skill_ids:
             general = general_skill_bonuses(game_data, general_skill_ids)
             flank_bonus_percent += int(
@@ -369,6 +381,7 @@ class AttackService(BaseService):
         area_type: int | None = None,
         landmark_min_level: int = 0,
         under_conquer_control: bool = False,
+        area_bonuses: list[Bonus] | None = None,
         spy_army: SpyArmy | None = None,
         defending_castellan: Commander | None = None,
         commander: Commander | None = None,
@@ -400,6 +413,8 @@ class AttackService(BaseService):
             target_row: The target's raw map row, for a castle's structures.
                 Its first field is the area type, so passing the row is enough
             landmark_min_level: A capital's or metropolis's own defence level
+            area_bonuses: Effects on this attack from outside the commander,
+                from ``get_attack_info(...).attacker_bonuses()``
             under_conquer_control: True when the target is held under conquer
                 control, which sizes the courtyard from the area's own defence
                 level rather than its current owner's
@@ -413,8 +428,10 @@ class AttackService(BaseService):
                 which tools may be carried; taken from ``target_row`` when not
                 given
             commander: The commander leading the attack
-            general_skill_ids: Its general's unlocked skills
-            legend_skill_ids: The player's legend skills
+            general_skill_ids: Its general's unlocked skills. Left out, they
+                are read with ``gie`` for the general this commander carries
+            legend_skill_ids: The player's legend skills. Left out, they are
+                read with ``skl``
             global_effect_ids: Global effects currently running
             yard_bonus: Absolute courtyard capacity bonus, effect type 179
             yard_boost: Courtyard capacity boost, effect type 180
@@ -464,10 +481,23 @@ class AttackService(BaseService):
                     for flank in Flank
                 }
 
+        general_id = commander.general_id if commander is not None else None
+        if general_skill_ids is None and general_id is not None and general_id >= 0:
+            try:
+                general_skill_ids = self.client.skills.get_generals(timeout=timeout).skill_ids(general_id)
+            except EmpireError as e:
+                logger.debug(f"Could not read the general's skills, sizing without them: {e}")
+        if legend_skill_ids is None:
+            try:
+                legend_skill_ids = self.client.skills.get_skills(timeout=timeout).legend_skill_ids
+            except EmpireError as e:
+                logger.debug(f"Could not read the legend skills, sizing without them: {e}")
+
         waves = self.fill_waves(
             castle_id,
             level=target_level,
             landmark_min_level=landmark_min_level,
+            area_bonuses=area_bonuses,
             defence=defence,
             commander=commander,
             general_skill_ids=general_skill_ids,

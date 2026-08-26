@@ -1901,6 +1901,54 @@ class TestFillAttack:
         payload = result.waves[0].model_dump(by_alias=True)
         assert payload["M"]["T"] == [[611, 1]]
 
+    def test_the_area_bonuses_widen_the_flanks(self):
+        # aci's AE carries attackUnitAmountFlank; the live capture has +30%.
+        from empire_core.combat import parse_bonus_entries
+        from empire_core.gamedata import GameData
+
+        payload = {
+            "units": [{"wodID": 601, "name": "Barracks", "role": "melee", "meleeAttack": "100", "fightType": "0"}],
+            "effecttypes": [{"effectTypeID": "28", "name": "attackUnitAmountFlank"}],
+            "effects": [{"effectID": "66", "name": "attackUnitAmountFlank", "effectTypeID": "28", "capID": "99"}],
+        }
+        client = self.build([[601, 100_000]])
+        client.game_data = GameData.parse("test", payload)
+        area = parse_bonus_entries([[66, [30.0], "CI"]])
+
+        plain = client.attack.fill_waves(12345, level=70)
+        widened = client.attack.fill_waves(12345, level=70, area_bonuses=area)
+
+        left = plain[0].model_dump(by_alias=True)["L"]["U"][0][1]
+        wider = widened[0].model_dump(by_alias=True)["L"]["U"][0][1]
+        # 20% of 320 attackers is 64, then +30%.
+        assert (left, wider) == (64, 84)
+
+    def test_the_skills_are_read_when_not_given(self):
+        from empire_core.protocol.models import Commander
+
+        client = self.build([[601, 100_000]])
+        conn(client).script["gie"] = xt_packet("gie", {"G": [{"GID": 7, "SIDS": [1, 2]}]})
+        conn(client).script["skl"] = xt_packet("skl", {"SID": [3], "SIDS": [], "SP": 10})
+        commander = Commander.model_validate({"ID": 1, "GID": 7})
+
+        client.attack.fill_attack(12345, target_level=13, commander=commander)
+
+        sent = [command for command, _ in conn(client).request_payloads]
+        assert "gie" in sent and "skl" in sent
+
+    def test_given_skills_are_not_re_read(self):
+        from empire_core.protocol.models import Commander
+
+        client = self.build([[601, 100_000]])
+        commander = Commander.model_validate({"ID": 1, "GID": 7})
+
+        client.attack.fill_attack(
+            12345, target_level=13, commander=commander, general_skill_ids=[], legend_skill_ids=[]
+        )
+
+        sent = [command for command, _ in conn(client).request_payloads]
+        assert "gie" not in sent and "skl" not in sent
+
     def test_a_monument_is_sized_for_its_own_level(self):
         from empire_core.protocol.models.map import MapItemType
 
