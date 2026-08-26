@@ -48,9 +48,12 @@ from .solver import (
     pick_soldier_stack,
 )
 from .tools import (
+    MELEE_DEFENCE_MALUS_TYPE,
+    RANGE_DEFENCE_MALUS_TYPE,
     ReduceDefenceBonusStrategy,
     ToolStrategy,
     check_flank,
+    conditioned_effect_bonus,
     default_tool_strategies,
     fill_flank_with_tools,
 )
@@ -81,7 +84,10 @@ __all__ = [
     "global_effect_bonuses",
     "global_unit_attack_bonuses",
     "legend_skill_value",
+    "MELEE_DEFENCE_MALUS_TYPE",
+    "RANGE_DEFENCE_MALUS_TYPE",
     "ReduceDefenceBonusStrategy",
+    "conditioned_effect_bonus",
     "ToolStrategy",
     "default_tool_strategies",
     "check_flank",

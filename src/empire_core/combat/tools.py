@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Protocol
 
 from empire_core.gamedata import GameData, ToolStats
 
+from .bonuses import parse_effect_spec
 from .effects import AttackerFlankEffects, DefenderFlankEffects
 
 if TYPE_CHECKING:
@@ -42,7 +43,39 @@ class ToolStrategy(Protocol):
         free_items: int,
         attacker: AttackerFlankEffects,
         defender: DefenderFlankEffects | None,
+        area_type: int | None = None,
     ) -> tuple[ToolStats, int] | None: ...
+
+
+# Effect types a tool can carry that weaken a defender directly, rather than
+# through one of its own columns.
+MELEE_DEFENCE_MALUS_TYPE = 215
+RANGE_DEFENCE_MALUS_TYPE = 217
+
+
+def conditioned_effect_bonus(
+    game_data: GameData,
+    tool: ToolStats,
+    effect_type: int,
+    area_type: int | None = None,
+) -> float:
+    """
+    A tool's contribution from its effects rather than its columns.
+
+    ``AReduceDefenseBonusStrategy.getConditionedEffectBonus``: sum a hundredth
+    of each matching effect's strength, keeping only effects that apply to the
+    target's area. Six tools today carry a defence malus this way and no column
+    at all, so without this they look useless to the strategies.
+    """
+    total = 0.0
+    for bonus in parse_effect_spec(tool.effects if isinstance(tool.effects, str) else ""):
+        effect = game_data.effects.get(bonus.effect_id)
+        if effect is None or effect.effect_type_id != effect_type:
+            continue
+        if not effect.applies_to_area(area_type):
+            continue
+        total += 0.01 * bonus.value
+    return total
 
 
 @dataclass
@@ -64,6 +97,7 @@ class ReduceDefenceBonusStrategy:
     tool_bonus: Callable[[ToolStats], float]
     defender_bonus: Callable[[AttackerFlankEffects, DefenderFlankEffects], float]
     requires: Callable[[DefenderFlankEffects], bool] | None = None
+    malus_effect_type: int | None = None
 
     def __call__(
         self,
@@ -73,6 +107,7 @@ class ReduceDefenceBonusStrategy:
         free_items: int,
         attacker: AttackerFlankEffects,
         defender: DefenderFlankEffects | None,
+        area_type: int | None = None,
     ) -> tuple[ToolStats, int] | None:
         if defender is None:
             return None
@@ -94,6 +129,8 @@ class ReduceDefenceBonusStrategy:
             if tool is None or not tool.is_attack_tool or available <= 0:
                 continue
             bonus = self.tool_bonus(tool)
+            if self.malus_effect_type is not None:
+                bonus += conditioned_effect_bonus(game_data, tool, self.malus_effect_type, area_type)
             if bonus <= 0:
                 continue
             needed = math.ceil(remaining / bonus)
@@ -130,12 +167,14 @@ def default_tool_strategies() -> list[ReduceDefenceBonusStrategy]:
             lambda tool: tool.def_range_bonus,
             lambda a, d: d.range_bonus - a.defender_range_reduction,
             requires=lambda d: d.has_range_defenders,
+            malus_effect_type=RANGE_DEFENCE_MALUS_TYPE,
         ),
         ReduceDefenceBonusStrategy(
             "melee",
             lambda tool: tool.def_melee_bonus,
             lambda a, d: d.melee_bonus - a.defender_melee_reduction,
             requires=lambda d: d.has_melee_defenders,
+            malus_effect_type=MELEE_DEFENCE_MALUS_TYPE,
         ),
         ReduceDefenceBonusStrategy(
             "gate",
@@ -160,6 +199,7 @@ def fill_flank_with_tools(
     *,
     attacker: AttackerFlankEffects | None = None,
     defender: DefenderFlankEffects | None = None,
+    area_type: int | None = None,
 ) -> list[tuple[int, int]]:
     """
     Fill one flank's tool slots.
@@ -179,6 +219,7 @@ def fill_flank_with_tools(
         strategies: The strategy pool, tried from the end
         attacker: Attacker multipliers, which each placed tool feeds
         defender: The defender's strength on this flank
+        area_type: The target's area type, which scopes a tool's effects
 
     Returns:
         ``(wod_id, count)`` per filled slot
@@ -205,6 +246,7 @@ def fill_flank_with_tools(
                 free_items=free,
                 attacker=effects,
                 defender=defender,
+                area_type=area_type,
             )
             if candidate is not None and candidate[0].fits_slot(slot_type):
                 chosen = candidate
@@ -252,7 +294,10 @@ def check_flank(
 
 
 __all__ = [
+    "MELEE_DEFENCE_MALUS_TYPE",
+    "RANGE_DEFENCE_MALUS_TYPE",
     "ReduceDefenceBonusStrategy",
+    "conditioned_effect_bonus",
     "ToolStrategy",
     "check_flank",
     "default_tool_strategies",

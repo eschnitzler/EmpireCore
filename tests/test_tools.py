@@ -3,10 +3,13 @@
 import pytest
 
 from empire_core.combat import (
+    MELEE_DEFENCE_MALUS_TYPE,
+    RANGE_DEFENCE_MALUS_TYPE,
     AttackerFlankEffects,
     DefenderFlankEffects,
     Inventory,
     check_flank,
+    conditioned_effect_bonus,
     default_tool_strategies,
     fill_flank_with_tools,
 )
@@ -30,7 +33,7 @@ def strategy_for(*wod_ids):
     """A strategy that offers each id in turn, taking whatever fits."""
     remaining = list(wod_ids)
 
-    def pick(inventory, game_data, *, free_items, attacker, defender):
+    def pick(inventory, game_data, *, free_items, attacker, defender, area_type=None):
         while remaining:
             tool = game_data.get_tool(remaining.pop(0))
             if tool is not None and inventory.available(tool.wod_id):
@@ -385,3 +388,54 @@ class TestFortificationAlreadyBeaten:
         # in this inventory is worth placing.
         assert placed == []
         assert inv.available(611) == 500
+
+
+class TestConditionedEffectBonus:
+    """Some tools weaken a defender through their effects, not their columns."""
+
+    PAYLOAD = {
+        "units": [
+            # A live shape: a weakening tool with no defence columns at all.
+            {
+                "wodID": 811,
+                "name": "Workshop",
+                "type": "DragonWeakeningRanged",
+                "typ": "Attack",
+                "slotTypes": "1,2,9",
+                "effects": "491&250",
+                "fightType": "1",
+            },
+        ],
+        "effecttypes": [{"effectTypeID": "217", "name": "rangeDefenseMalus"}],
+        "effects": [{"effectID": "491", "name": "rangeMalus", "effectTypeID": "217", "capID": "99"}],
+    }
+
+    def data(self):
+        return GameData.parse("test", self.PAYLOAD)
+
+    def test_a_tool_with_no_columns_still_counts(self):
+        game = self.data()
+        tool = game.get_tool(811)
+
+        assert tool.def_range_bonus == 0.0
+        assert conditioned_effect_bonus(game, tool, RANGE_DEFENCE_MALUS_TYPE) == 2.5
+
+    def test_the_range_strategy_now_sees_it(self):
+        game = self.data()
+
+        picked = by_name("range")(
+            Inventory({811: 100}),
+            game,
+            free_items=20,
+            attacker=AttackerFlankEffects(),
+            defender=DefenderFlankEffects(range_bonus=1.0, range_units_range_strength=100),
+        )
+
+        assert picked is not None
+        tool, count = picked
+        # 2.5 per tool against a 1.0 defence: one is enough.
+        assert (tool.wod_id, count) == (811, 1)
+
+    def test_effects_of_another_type_do_not_count(self):
+        game = self.data()
+        assert conditioned_effect_bonus(game, game.get_tool(811), MELEE_DEFENCE_MALUS_TYPE) == 0.0

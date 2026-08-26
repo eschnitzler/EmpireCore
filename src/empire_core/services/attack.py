@@ -310,6 +310,7 @@ class AttackService(BaseService):
             defence=defence,
             options=options,
             unit_attack_bonuses=unit_attack_bonuses,
+            area_type=area_type,
         )
 
     def fill_attack(

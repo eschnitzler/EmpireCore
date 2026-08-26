@@ -239,6 +239,7 @@ def fill_wave(
     options: FillOptions | None = None,
     unit_attack_bonuses: Mapping[int, float] | None = None,
     strategies: Sequence | None = None,
+    area_type: int | None = None,
 ) -> AttackWave:
     """
     Build one wave, flank by flank.
@@ -258,6 +259,7 @@ def fill_wave(
         unit_attack_bonuses: Per-unit attack buffs from active global effects
         strategies: The tool strategy pool; the client's five when omitted.
             Pass an empty list for a unit-only wave.
+        area_type: The target's area type, which scopes a tool's effects
 
     Returns:
         An :class:`AttackWave` ready for ``send_attack``
@@ -290,6 +292,7 @@ def fill_wave(
             pool,
             attacker=attacker,
             defender=defender,
+            area_type=area_type,
         )
         placed_units = fill_flank_with_soldiers(
             capacity.soldier_capacity(flank),
@@ -370,6 +373,7 @@ def fill_waves(
     defence: Mapping[Flank, DefenderFlankEffects] | None = None,
     options: FillOptions | None = None,
     unit_attack_bonuses: Mapping[int, float] | None = None,
+    area_type: int | None = None,
 ) -> list[AttackWave]:
     """
     Fill every wave the attack may carry, front to back.
@@ -418,6 +422,7 @@ def fill_waves(
             defence=defence,
             options=options,
             unit_attack_bonuses=unit_attack_bonuses,
+            area_type=area_type,
         )
         if not wave.is_complete():
             break
