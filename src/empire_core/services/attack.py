@@ -419,8 +419,9 @@ class AttackService(BaseService):
         """
         castles = getattr(self.client.state, "get_castles", list)() or []
         source = next((c for c in castles if getattr(c, "OID", None) == castle_id), None)
+        source_kingdom = source.KID if source is not None else 0
         if kingdom_id is None:
-            kingdom_id = source.KID if source is not None else 0
+            kingdom_id = source_kingdom
         if source_x is None:
             source_x = source.X if source is not None else 0
         if source_y is None:
@@ -459,9 +460,16 @@ class AttackService(BaseService):
                 camp_kingdom_id = camp_kingdom_id or (item.camp_kingdom_id or 0)
             elif target_level is None:
                 # A player's level is not in the row; it sits in the owner
-                # records a scan returns beside it.
+                # records a scan returns beside it. Scanning moves the client
+                # off the attacking castle, so put it back - the inventory read
+                # that follows is castle-scoped and fails otherwise.
                 target_level = self._owner_level(target_x, target_y, kingdom_id, item.owner_id, timeout)
                 target_is_player = target_is_player or target_level is not None
+                if target_level is not None:
+                    try:
+                        self.client.castle.select(castle_id, kingdom_id=source_kingdom, timeout=timeout)
+                    except EmpireError as e:
+                        logger.debug(f"Could not return to castle {castle_id} after scanning: {e}")
 
         return (
             target_row,
