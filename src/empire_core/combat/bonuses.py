@@ -31,6 +31,12 @@ logger = logging.getLogger(__name__)
 # Effect type 148: a per-unit attack bonus, keyed by wod id.
 ATTACK_BONUS_UNIT_TYPE = 148
 
+# Effect types whose value is a wod-id-keyed map rather than a single number:
+# the client builds them with EffectValueMap or EffectValueWodID, and their wire
+# form is a flat ``[wod_id, value, wod_id, value, ...]`` array. Their strength is
+# the value of the first key, never the key itself.
+KEYED_EFFECT_TYPES = frozenset({70, 71, 72, 148, 149, 150, 154, 188, 1026})
+
 
 class CombatEffectType(IntEnum):
     """
@@ -69,6 +75,21 @@ class Bonus(BaseModel):
     effect_id: int
     value: float
     via_relic: bool = False
+    raw_values: tuple[float, ...] = ()
+    """The value array as sent, for the effect types that carry a keyed map."""
+
+    def strength(self, effect_type_id: int | None) -> float:
+        """
+        What this bonus is worth for an effect of this type.
+
+        A keyed effect's array is ``[wod_id, value, ...]``, so its first number
+        is an id. ``EffectValueMap.strength`` returns the first *value* and
+        ``EffectValueWodID.strength`` the value of the first key - the same
+        number - so both read index 1.
+        """
+        if effect_type_id in KEYED_EFFECT_TYPES and len(self.raw_values) > 1:
+            return self.raw_values[1]
+        return self.value
 
 
 def _first_number(candidate: object) -> float | None:
@@ -82,6 +103,17 @@ def _first_number(candidate: object) -> float | None:
             if number is not None:
                 return number
     return None
+
+
+def _numbers(candidate: object) -> list[float]:
+    """Every number in a value array, flattened, in the order sent."""
+    if isinstance(candidate, bool):
+        return []
+    if isinstance(candidate, (int, float)):
+        return [float(candidate)]
+    if isinstance(candidate, Sequence) and not isinstance(candidate, (str, bytes)):
+        return [number for item in candidate for number in _numbers(item)]
+    return []
 
 
 def parse_bonus_entries(entries: Iterable, *, via_relic: bool = False) -> list[Bonus]:
@@ -112,19 +144,16 @@ def parse_bonus_entries(entries: Iterable, *, via_relic: bool = False) -> list[B
         if effect_id is None:
             skipped += 1
             continue
-        nested = next(
-            (
-                _first_number(part)
-                for part in entry[1:]
-                if isinstance(part, Sequence) and not isinstance(part, (str, bytes))
-            ),
+        array = next(
+            (part for part in entry[1:] if isinstance(part, Sequence) and not isinstance(part, (str, bytes))),
             None,
         )
-        value = nested if nested is not None else _first_number(entry[1])
+        raw_values = tuple(_numbers(array)) if array is not None else ()
+        value = raw_values[0] if raw_values else _first_number(entry[1])
         if value is None:
             skipped += 1
             continue
-        bonuses.append(Bonus(effect_id=int(effect_id), value=value, via_relic=via_relic))
+        bonuses.append(Bonus(effect_id=int(effect_id), value=value, via_relic=via_relic, raw_values=raw_values))
     if skipped:
         logger.debug(f"Skipped {skipped} unparseable bonus entries")
     return bonuses
@@ -195,7 +224,7 @@ class EffectResolver:
                 effect_type_def = self.game_data.effect_types.get(effect.effect_type_id)
                 if effect_type_def is not None and effect_type_def.is_economy:
                     continue
-            running = buckets.get(effect.cap_id, 0.0) + bonus.value
+            running = buckets.get(effect.cap_id, 0.0) + bonus.strength(effect.effect_type_id)
             ceiling = math.inf if ignore_cap else self._ceiling(effect.cap_id)
             buckets[effect.cap_id] = min(running, ceiling)
         return sum(buckets.values())
@@ -347,8 +376,23 @@ def parse_effect_spec(spec: str | None) -> list[Bonus]:
         if "&" not in part:
             continue
         raw_id, _, raw_value = part.partition("&")
+        raw_value = raw_value.strip()
         try:
-            bonuses.append(Bonus(effect_id=int(raw_id.strip()), value=float(raw_value.strip())))
+            effect_id = int(raw_id.strip())
+        except ValueError:
+            logger.debug(f"Skipping unparseable effect spec segment {part!r}")
+            continue
+        if "+" in raw_value or "#" in raw_value:
+            # A keyed effect: "<wod_id>+<value>#<wod_id>+<value>".
+            pairs = parse_stacks(raw_value)
+            if not pairs:
+                logger.debug(f"Skipping unparseable effect spec segment {part!r}")
+                continue
+            flat = tuple(float(number) for pair in pairs for number in pair)
+            bonuses.append(Bonus(effect_id=effect_id, value=flat[0], raw_values=flat))
+            continue
+        try:
+            bonuses.append(Bonus(effect_id=effect_id, value=float(raw_value)))
         except ValueError:
             logger.debug(f"Skipping unparseable effect spec segment {part!r}")
     return bonuses

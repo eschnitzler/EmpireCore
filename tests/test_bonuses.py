@@ -83,11 +83,11 @@ class TestParsing:
 
     def test_commander_effect_shape(self):
         # Live gli shape: [effect_id, [value], source_tag]
-        assert parse_bonus_entries([[111, [40.0], "AB"]]) == [Bonus(effect_id=111, value=40.0)]
+        assert parse_bonus_entries([[111, [40.0], "AB"]]) == [Bonus(effect_id=111, value=40.0, raw_values=(40.0,))]
 
     def test_equipment_bonus_shape(self):
         # Live EQ shape: [effect_id, strength_id, [value]]
-        assert parse_bonus_entries([[4, 86, [116.3]]]) == [Bonus(effect_id=4, value=116.3)]
+        assert parse_bonus_entries([[4, 86, [116.3]]]) == [Bonus(effect_id=4, value=116.3, raw_values=(116.3,))]
 
     def test_junk_entries_are_skipped(self):
         parsed = parse_bonus_entries([[100, 5], "nope", [], [999], [None, [1]], 42])
@@ -264,9 +264,9 @@ class TestCommanderBonuses:
 
         bonuses = commander_bonuses(commander)
 
-        assert Bonus(effect_id=110, value=40.0) in bonuses
-        assert Bonus(effect_id=120, value=50.0) in bonuses
-        assert Bonus(effect_id=100, value=10.0, via_relic=False) in bonuses
+        assert Bonus(effect_id=110, value=40.0, raw_values=(40.0,)) in bonuses
+        assert Bonus(effect_id=120, value=50.0, raw_values=(50.0,)) in bonuses
+        assert Bonus(effect_id=100, value=10.0, via_relic=False, raw_values=(10.0,)) in bonuses
 
     def test_relic_equipment_bonuses_are_tagged(self):
         # equipmentTypeID 3 = relic.
@@ -276,7 +276,7 @@ class TestCommanderBonuses:
 
         bonuses = commander_bonuses(commander)
 
-        assert bonuses == [Bonus(effect_id=100, value=13.7, via_relic=True)]
+        assert bonuses == [Bonus(effect_id=100, value=13.7, via_relic=True, raw_values=(13.7,))]
         # Resolved in the relic space, this is a flank unit bonus, not an
         # attack bonus.
         assert resolver().flank_unit_bonus(bonuses) == 13.7
@@ -535,3 +535,44 @@ class TestGlobalUnitAttackBonus:
 
         assert commander_side == 195  # it resolves...
         assert global_unit_attack_bonuses(game, []) == {}  # ...but never reaches a unit
+
+
+class TestKeyedEffectValues:
+    """A wod-id-keyed effect sends [wod_id, value]; the id is not the strength."""
+
+    PAYLOAD = dict(
+        PAYLOAD,
+        effecttypes=[*PAYLOAD["effecttypes"], {"effectTypeID": "148", "name": "attackBonusUnit"}],
+        effects=[
+            *PAYLOAD["effects"],
+            # A live relic row: despite the name it sits in the plain table.
+            {
+                "effectID": "22001",
+                "name": "relicAttackBonusUnitKingsguardAttacker",
+                "effectTypeID": "148",
+                "capID": "99",
+            },
+        ],
+    )
+
+    def game(self):
+        return GameData.parse("test", self.PAYLOAD)
+
+    def test_the_strength_is_the_value_not_the_wod_id(self):
+        # [wod_id 602, 13%] - a naive read makes this a 602% bonus.
+        bonus = parse_bonus_entries([[22001, 86, [602, 13]]])[0]
+
+        assert bonus.raw_values == (602.0, 13.0)
+        assert bonus.strength(148) == 13.0
+        assert EffectResolver(self.game()).accumulate([bonus], 148) == 13.0
+
+    def test_an_unkeyed_effect_still_reads_its_first_number(self):
+        bonus = parse_bonus_entries([[100, 86, [40.0]]])[0]
+
+        assert bonus.strength(36) == 40.0
+
+    def test_a_keyed_spec_string_is_parsed_as_pairs(self):
+        bonus = parse_effect_spec("22001&602+13#608+13")[0]
+
+        assert bonus.raw_values == (602.0, 13.0, 608.0, 13.0)
+        assert bonus.strength(148) == 13.0
