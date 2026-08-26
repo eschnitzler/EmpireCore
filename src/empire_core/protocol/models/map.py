@@ -144,6 +144,13 @@ _RELOCATING_FIELD = 19  # 1 while the castle is in transit, 0 when settled
 # Indices into a gaa type-2 (DUNGEON) raw entry, from the client's
 # DungeonMapobjectVO.parseAreaInfo:
 #   [type, x, y, seconds_since_espionage, victory_count, cooldown_seconds, kingdom]
+# Indices into an owned-location row, from InteractiveMapobjectVO.parseAreaInfo.
+_KEEP_LEVEL_FIELD = 5
+_WALL_LEVEL_FIELD = 6
+_GATE_LEVEL_FIELD = 7
+_TOWER_LEVEL_FIELD = 8
+_MOAT_LEVEL_FIELD = 9
+
 _DUNGEON_ESPIONAGE_FIELD = 3
 _DUNGEON_VICTORY_FIELD = 4
 _DUNGEON_COOLDOWN_FIELD = 5
@@ -235,6 +242,40 @@ class MapAreaItem(BasePayload):
     def camp_kingdom_id(self) -> int | None:
         """The kingdom an NPC camp sits in, as the camp row reports it."""
         return self._dungeon_field(_DUNGEON_KINGDOM_FIELD)
+
+    def _level_field(self, index: int, minimum: int = 0) -> int:
+        """A structure level from an owned-location row."""
+        if self.item_type == MapItemType.DUNGEON or len(self.raw_data) <= index:
+            return 0
+        value = self.raw_data[index]
+        if isinstance(value, bool) or not isinstance(value, int):
+            return 0
+        return max(value, minimum)
+
+    @property
+    def keep_level(self) -> int:
+        """The defender's keep level; the client floors this at 1."""
+        return self._level_field(_KEEP_LEVEL_FIELD, minimum=1)
+
+    @property
+    def wall_level(self) -> int:
+        """The defender's wall level, which decides its wall protection."""
+        return self._level_field(_WALL_LEVEL_FIELD, minimum=1)
+
+    @property
+    def gate_level(self) -> int:
+        """The defender's gate level."""
+        return self._level_field(_GATE_LEVEL_FIELD, minimum=1)
+
+    @property
+    def tower_level(self) -> int:
+        """The defender's tower level."""
+        return self._level_field(_TOWER_LEVEL_FIELD)
+
+    @property
+    def moat_level(self) -> int:
+        """The defender's moat level, 0 when it has none."""
+        return self._level_field(_MOAT_LEVEL_FIELD)
 
     @property
     def player_id(self) -> int:

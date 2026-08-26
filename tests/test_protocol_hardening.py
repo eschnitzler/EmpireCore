@@ -169,6 +169,44 @@ class TestMovingFlags:
         assert response.get_moving_flags() == {}
 
 
+class TestDefenderStructureLevels:
+    """An owned location's row carries the structures that defend it."""
+
+    # Captured live: keep 6, wall 5, gate 5, tower 5, moat 2.
+    SKAAR = [1, 629, 235, 14733404, 15156637, 6, 5, 5, 5, 2, "skaar"]
+    # A level 13 castle: far smaller walls, no moat at all.
+    SMALL = [1, 632, 243, 16654596, 17743260, 2, 2, 2, 1, 0, "Chateau Heimlin"]
+
+    def test_structure_levels_are_read(self):
+        item = MapAreaItem.from_list(self.SKAAR)
+
+        assert item.keep_level == 6
+        assert item.wall_level == 5
+        assert item.gate_level == 5
+        assert item.tower_level == 5
+        assert item.moat_level == 2
+
+    def test_a_smaller_castle_has_smaller_structures(self):
+        item = MapAreaItem.from_list(self.SMALL)
+
+        assert (item.wall_level, item.gate_level) == (2, 2)
+        assert item.moat_level == 0
+
+    def test_keep_wall_and_gate_are_floored_at_one(self):
+        # The client applies Math.max(level, 1) to these three.
+        item = MapAreaItem.from_list([1, 1, 1, 900, 4242, 0, 0, 0, 0, 0, "x"])
+
+        assert (item.keep_level, item.wall_level, item.gate_level) == (1, 1, 1)
+        assert (item.tower_level, item.moat_level) == (0, 0)
+
+    def test_a_camp_has_no_structures_in_its_row(self):
+        # A camp row means something else at those indices entirely.
+        camp = MapAreaItem.from_list([2, 630, 243, -1, 297, -17639997, 0])
+
+        assert camp.wall_level == 0
+        assert camp.gate_level == 0
+
+
 class TestErrorCodeKeyCollision:
     """The payload key "E" is not reserved for the error code."""
 
