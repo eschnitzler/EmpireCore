@@ -16,9 +16,11 @@ from empire_core.combat import (
     Flank,
     Inventory,
     general_skill_bonuses,
+    legend_skill_value,
     npc_camp_defence,
 )
 from empire_core.combat import fill_waves as solve_waves
+from empire_core.combat.capacity import is_legendary_fight
 from empire_core.exceptions import GameDataNotLoadedError
 from empire_core.protocol.models import AttackType, AttackWave, CreateAttackRequest
 
@@ -142,6 +144,8 @@ class AttackService(BaseService):
         conquer: bool = False,
         wave_bonus: int = 0,
         general_skill_ids: list[int] | None = None,
+        legend_skill_ids: list[int] | None = None,
+        target_is_player: bool = False,
         flank_bonus_percent: float = 0.0,
         front_bonus_percent: float = 0.0,
         tool_bonus: float = 0.0,
@@ -162,9 +166,7 @@ class AttackService(BaseService):
 
         Args:
             castle_id: Castle whose troops to draw from
-            level: Effective level; taken from the logged-in player when
-                omitted, and raised to the target's minimum defence level by
-                the caller where that is higher
+            level: The *target owner's* level, which is what sizes a wave
             camp_victories: An NPC camp's victory count, to derive its defence
                 from the game data - see ``MapAreaItem.victory_count``
             camp_kingdom_id: Kingdom the camp sits in
@@ -176,9 +178,13 @@ class AttackService(BaseService):
             conquer: A conquest attack carries extra waves
             wave_bonus: Extra waves from the ADDITIONAL_WAVE legend skill
             general_skill_ids: Unlocked skill ids of the general leading the
-                attack, from ``gie``. These are what size a wave: the attack
-                dialog's capacities follow the general's unit-limit skills, not
-                the commander's equipment
+                attack, from ``gie``; its unit-limit skills size the wave
+            legend_skill_ids: The player's unlocked legend skills, from
+                ``skl``. They only contribute in a legendary fight - a capped
+                attacker against a capped player - which is also where the two
+                extra waves come from
+            target_is_player: True when the target belongs to a player, which
+                a legendary fight requires
             flank_bonus_percent: Extra flank bonus, added to whatever the
                 general contributes
             front_bonus_percent: Extra middle bonus, added the same way
@@ -197,11 +203,10 @@ class AttackService(BaseService):
         if game_data is None:
             raise GameDataNotLoadedError("Wave filling needs the items payload: call client.load_game_data() first")
 
+        player = self.client.state.get_local_player()
+        attacker_level = player.level if player else 0
         if level is None:
-            player = self.client.state.get_local_player()
-            level = player.level if player else 0
-            if not level:
-                raise ValueError("No player level is known yet; pass level= explicitly")
+            raise ValueError("A wave is sized by the level of whoever owns the target; pass level=")
 
         if defence is None and camp_victories is not None:
             defence = npc_camp_defence(game_data, camp_victories, camp_kingdom_id)
@@ -212,6 +217,12 @@ class AttackService(BaseService):
             flank_bonus_percent += resolver.flank_unit_bonus(general, area_type=area_type, player_target=player_target)
             front_bonus_percent += resolver.front_unit_bonus(general, area_type=area_type, player_target=player_target)
 
+        legendary = is_legendary_fight(attacker_level, level, target_is_player=target_is_player)
+        if legendary and legend_skill_ids:
+            flank_bonus_percent += legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFlank")
+            front_bonus_percent += legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFront")
+            wave_bonus += int(legend_skill_value(game_data, legend_skill_ids, "additionalWave"))
+
         units = self.client.army.get_units(castle_id=castle_id, timeout=timeout)
         pool = {u.unit_id: u.count for u in units if game_data.is_unit(u.unit_id)}
 
@@ -219,6 +230,7 @@ class AttackService(BaseService):
             Inventory(pool),
             game_data,
             level=level,
+            attacker_level=attacker_level,
             conquer=conquer,
             wave_bonus=wave_bonus,
             flank_bonus_percent=flank_bonus_percent,

@@ -972,7 +972,7 @@ class TestAttackService:
         with pytest.raises(GameDataNotLoadedError):
             client.attack.fill_waves(12345)
 
-    def test_fill_waves_sizes_itself_from_the_player_level(self):
+    def test_fill_waves_sizes_itself_from_the_target_level(self):
         from empire_core.gamedata import GameData
 
         payload = {
@@ -982,11 +982,13 @@ class TestAttackService:
         client = make_client({"gui": xt_packet("gui", inventory)})
         client.game_data = GameData.parse("test", payload)
         # Level 13 unlocks a second wave and 73 attackers per wave.
-        client.state.local_player = StubPlayer(level=13)
+        client.state.local_player = StubPlayer(level=70)
 
-        waves = client.attack.fill_waves(12345)
+        # A level 13 target: 73 attackers per wave, and the attacker's own
+        # level decides that there are four waves.
+        waves = client.attack.fill_waves(12345, level=13)
 
-        assert len(waves) == 2
+        assert len(waves) == 4
         assert waves[0].unit_count() == 73
         # 107 is a boost item in the inventory and must not be sent as an army.
         assert all(
@@ -996,11 +998,14 @@ class TestAttackService:
             for wod_id, _count in flank["U"]
         )
 
-    def test_fill_waves_without_a_level_is_an_error_not_a_guess(self):
+    def test_fill_waves_without_a_target_level_is_an_error_not_a_guess(self):
+        # The attacker's own level would be the wrong answer, so there is no
+        # default to fall back on.
         from empire_core.gamedata import GameData
 
         client = make_client({"gui": xt_packet("gui", {"I": [[601, 10]]})})
         client.game_data = GameData.parse("test", {"units": []})
+        client.state.local_player = StubPlayer(level=70)
 
         with pytest.raises(ValueError, match="level"):
             client.attack.fill_waves(12345)

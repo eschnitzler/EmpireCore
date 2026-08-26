@@ -11,6 +11,7 @@ from empire_core.combat import (
     fill_flank_with_soldiers,
     fill_wave,
     fill_waves,
+    is_legendary_fight,
     max_attackers,
     max_wave_count,
     npc_camp_defence,
@@ -499,21 +500,45 @@ class TestWaveCapacity:
         assert (flank_only.flank_soldiers, flank_only.middle_soldiers) == (96, 192)
         assert (front_only.flank_soldiers, front_only.middle_soldiers) == (64, 288)
 
-    def test_matches_the_attack_dialog(self):
-        # Captured from the game against a level 70 target, with a general
-        # granting +60% on the flanks and +6.5% on the front: 96 / 205 / 96.
-        # The level here is the target owner's, not the attacker's.
-        capacity = WaveCapacity.for_level(70, flank_bonus_percent=60, front_bonus_percent=6.5)
+    def test_matches_the_attack_dialog_across_targets(self):
+        """Five targets captured from one level 70 attacker.
 
-        assert (capacity.flank_soldiers, capacity.middle_soldiers) == (96, 205)
-        assert capacity.total_soldiers() == 397
+        Flank capacity matches exactly. The middle is within one unit on three
+        of them because the game's effects panel rounds its percentages to one
+        decimal, and the bonuses here are read off that panel.
+        """
+        castle = (57.8 + 60, 67.4 + 6.5)  # equipment + general
+        camp = (46 + 60, 41 + 6.5)  # fewer effects apply to a camp
+        legend = (30, 25)  # only in a legendary fight
 
-    def test_a_unit_limit_bonus_is_clamped(self):
-        # +60% and +50% produce the same flank, which is how the observed
-        # ceiling was found; the effect tables call both effects uncapped.
-        assert WaveCapacity.for_level(70, flank_bonus_percent=60).flank_soldiers == 96
-        assert WaveCapacity.for_level(70, flank_bonus_percent=50).flank_soldiers == 96
-        assert WaveCapacity.for_level(70, flank_bonus_percent=40).flank_soldiers == 90
+        samples = [
+            # target level, bonuses, legendary, expected flank, expected middle
+            (13, castle, False, 32, 75),
+            (28, castle, False, 65, 154),
+            (70, castle, True, 159, 382),
+            (1, camp, False, 6, 11),
+            (45, camp, False, 96, 206),
+        ]
+        for level, (flank_bonus, front_bonus), legendary, want_flank, want_middle in samples:
+            capacity = WaveCapacity.for_level(
+                level,
+                flank_bonus_percent=flank_bonus + (legend[0] if legendary else 0),
+                front_bonus_percent=front_bonus + (legend[1] if legendary else 0),
+            )
+            assert capacity.flank_soldiers == want_flank, f"flank at level {level}"
+            assert capacity.middle_soldiers == want_middle, f"middle at level {level}"
+
+    def test_a_legendary_fight_needs_two_capped_players(self):
+        assert is_legendary_fight(70, 70, target_is_player=True)
+        assert not is_legendary_fight(70, 70, target_is_player=False)
+        assert not is_legendary_fight(70, 45, target_is_player=True)
+        assert not is_legendary_fight(60, 70, target_is_player=True)
+
+    def test_bonuses_are_not_clamped(self):
+        # An earlier version clamped these at 50%, which reproduced one target
+        # and broke every other. Nothing in the tables caps them.
+        assert WaveCapacity.for_level(70, flank_bonus_percent=60).flank_soldiers == 103
+        assert WaveCapacity.for_level(70, flank_bonus_percent=117.8).flank_soldiers == 140
 
     def test_wave_count_unlocks_and_conquest_adds_two(self):
         assert max_wave_count(12) == 1

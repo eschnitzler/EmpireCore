@@ -284,6 +284,7 @@ def fill_waves(
     game_data: GameData,
     *,
     level: int,
+    attacker_level: int | None = None,
     conquer: bool = False,
     wave_bonus: int = 0,
     flank_bonus_percent: float = 0.0,
@@ -296,16 +297,17 @@ def fill_waves(
     """
     Fill every wave the attack may carry, front to back.
 
-    Sizes itself: how many waves, how many units each flank holds and how many
-    slots are unlocked all follow from the effective level, the way the client
-    derives them. Waves that come out empty are dropped, so the result is ready
+    Sizes itself the way the client does: each flank's capacity and slots follow
+    the level of whoever owns the target, while the number of waves follows the
+    attacker's own level. Waves that come out empty are dropped, so the result is ready
     for ``send_attack``.
 
     Args:
         inventory: Pool to draw from; shared across every wave
         game_data: Loaded unit stats
-        level: Effective level - the attacker's own, or the target's minimum
-            defence level when that is higher
+        level: The target owner's level, which sizes each flank
+        attacker_level: The attacker's own level, which decides how many waves
+            an attack carries; defaults to the target's level
         conquer: A conquest attack carries extra waves
         wave_bonus: Extra waves from the ADDITIONAL_WAVE legend skill
         flank_bonus_percent: Percentage bonus to units on each side flank
@@ -325,7 +327,12 @@ def fill_waves(
         tool_bonus=tool_bonus,
     )
     waves: list[AttackWave] = []
-    for _index in range(max_wave_count(level, conquer=conquer, bonus=wave_bonus)):
+    wave_count = max_wave_count(
+        attacker_level if attacker_level is not None else level,
+        conquer=conquer,
+        bonus=wave_bonus,
+    )
+    for _index in range(wave_count):
         wave = fill_wave(
             inventory,
             game_data,
