@@ -1,6 +1,13 @@
 """Tool placement mechanics: slot matching, the strategy pool, and checkFlank."""
 
-from empire_core.combat import Inventory, check_flank, fill_flank_with_tools
+from empire_core.combat import (
+    AttackerFlankEffects,
+    DefenderFlankEffects,
+    Inventory,
+    check_flank,
+    default_tool_strategies,
+    fill_flank_with_tools,
+)
 from empire_core.gamedata import GameData
 
 # slotTypes 2 = flank tool slot, 1 = middle. 646 fits neither (4,9).
@@ -18,14 +25,14 @@ def data() -> GameData:
 
 
 def strategy_for(*wod_ids):
-    """A strategy that offers each id in turn, then nothing."""
+    """A strategy that offers each id in turn, taking whatever fits."""
     remaining = list(wod_ids)
 
     def pick(inventory, game_data, *, free_items, attacker, defender):
         while remaining:
             tool = game_data.get_tool(remaining.pop(0))
             if tool is not None and inventory.available(tool.wod_id):
-                return tool
+                return tool, free_items
         return None
 
     return pick
@@ -99,3 +106,198 @@ class TestCheckFlank:
 
         assert check_flank(tools, [(601, 0)], inv) is False
         assert inv.available(301) == 10
+
+
+# =============================================================================
+# The five strategies
+# =============================================================================
+
+STRATEGY_PAYLOAD = {
+    "units": [
+        # Rams cancel gate protection; a bigger one cancels it in fewer units.
+        {
+            "wodID": 611,
+            "name": "Workshop",
+            "type": "Ram",
+            "typ": "Attack",
+            "slotTypes": "1,9",
+            "gateBonus": "10",
+            "fightType": "1",
+        },
+        {
+            "wodID": 648,
+            "name": "Workshop",
+            "type": "Eliteram",
+            "typ": "Attack",
+            "slotTypes": "1,9",
+            "gateBonus": "20",
+            "fightType": "1",
+        },
+        # A ladder for walls, and a defensive tool that must never be picked.
+        {
+            "wodID": 301,
+            "name": "Workshop",
+            "type": "Ladder",
+            "typ": "Attack",
+            "slotTypes": "1,9",
+            "wallBonus": "15",
+            "fightType": "1",
+        },
+        {
+            "wodID": 646,
+            "name": "Dworkshop",
+            "type": "Stakes",
+            "typ": "Defence",
+            "slotTypes": "1,9",
+            "moatBonus": "80",
+            "fightType": "1",
+        },
+        # Limited to two per wave.
+        {
+            "wodID": 700,
+            "name": "Workshop",
+            "type": "Bigram",
+            "typ": "Attack",
+            "slotTypes": "1,9",
+            "gateBonus": "50",
+            "amountPerWave": "2",
+            "fightType": "1",
+        },
+    ]
+}
+
+
+def strategy_data() -> GameData:
+    return GameData.parse("test", STRATEGY_PAYLOAD)
+
+
+def by_name(name):
+    return next(s for s in default_tool_strategies() if s.name == name)
+
+
+def defender(**kwargs) -> DefenderFlankEffects:
+    return DefenderFlankEffects(**kwargs)
+
+
+class TestReduceDefenceBonusStrategy:
+    def test_pool_order_matches_the_client(self):
+        # Pushed moat, range, melee, gate, wall and popped from the end.
+        assert [s.name for s in default_tool_strategies()] == [
+            "moat",
+            "range",
+            "melee",
+            "gate",
+            "wall",
+        ]
+
+    def test_nothing_to_cancel_means_no_tool(self):
+        game = strategy_data()
+        picked = by_name("gate")(
+            Inventory({611: 100}),
+            game,
+            free_items=40,
+            attacker=AttackerFlankEffects(),
+            defender=defender(gate_bonus=0.0),
+        )
+        assert picked is None
+
+    def test_already_out_reduced_defence_needs_no_tool(self):
+        game = strategy_data()
+        picked = by_name("gate")(
+            Inventory({611: 100}),
+            game,
+            free_items=40,
+            attacker=AttackerFlankEffects(gate_reduction=0.5),
+            defender=defender(gate_bonus=0.4),
+        )
+        assert picked is None
+
+    def test_the_tool_that_cancels_in_fewest_units_wins(self):
+        game = strategy_data()
+        # 40 of gate protection: 4 elite rams at 20 beats 4... 2 elite rams.
+        picked = by_name("gate")(
+            Inventory({611: 100, 648: 100}),
+            game,
+            free_items=40,
+            attacker=AttackerFlankEffects(),
+            defender=defender(gate_bonus=40),
+        )
+        assert picked is not None
+        tool, count = picked
+        assert tool.wod_id == 648
+        assert count == 2
+
+    def test_defensive_tools_are_never_picked(self):
+        game = strategy_data()
+        picked = by_name("moat")(
+            Inventory({646: 100}),
+            game,
+            free_items=40,
+            attacker=AttackerFlankEffects(),
+            defender=defender(moat_bonus=80),
+        )
+        assert picked is None
+
+    def test_when_nothing_cancels_it_takes_the_biggest_dent(self):
+        game = strategy_data()
+        # 500 of gate protection, only 3 rams available: cannot cancel, so the
+        # strategy falls back to whatever removes most.
+        picked = by_name("gate")(
+            Inventory({611: 3, 648: 3}),
+            game,
+            free_items=40,
+            attacker=AttackerFlankEffects(),
+            defender=defender(gate_bonus=500),
+        )
+        tool, count = picked
+        assert tool.wod_id == 648
+        assert count == 3
+
+    def test_amount_per_wave_caps_a_tool(self):
+        game = strategy_data()
+        # The big ram would cancel 500 in 10, but only 2 fit in a wave, so it
+        # can only dent it - 2 x 50 = 100, beating 3 elite rams at 20.
+        picked = by_name("gate")(
+            Inventory({700: 100, 648: 3}),
+            game,
+            free_items=40,
+            attacker=AttackerFlankEffects(),
+            defender=defender(gate_bonus=500),
+        )
+        tool, count = picked
+        assert (tool.wod_id, count) == (700, 2)
+
+    def test_range_and_melee_stand_down_without_such_defenders(self):
+        game = strategy_data()
+        inv = Inventory({611: 100})
+
+        no_defenders = defender(range_bonus=1.0, melee_bonus=1.0)
+        assert (
+            by_name("range")(inv, game, free_items=40, attacker=AttackerFlankEffects(), defender=no_defenders) is None
+        )
+        assert (
+            by_name("melee")(inv, game, free_items=40, attacker=AttackerFlankEffects(), defender=no_defenders) is None
+        )
+
+    def test_no_defender_information_means_no_tool(self):
+        game = strategy_data()
+        assert (
+            by_name("wall")(Inventory({301: 10}), game, free_items=40, attacker=AttackerFlankEffects(), defender=None)
+            is None
+        )
+
+    def test_fill_uses_the_pool_end_first(self):
+        game = strategy_data()
+        inv = Inventory({301: 100, 611: 100})
+        # Wall is last in the pool so it is tried first; a wall defence is
+        # present, so a ladder lands rather than a ram.
+        placed = fill_flank_with_tools(
+            40,
+            2,
+            1,
+            inv,
+            game,
+            default_tool_strategies(),
+            defender=defender(wall_bonus=30, gate_bonus=30),
+        )
+        assert placed[0][0] == 301

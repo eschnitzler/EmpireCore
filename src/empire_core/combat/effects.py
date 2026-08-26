@@ -38,6 +38,9 @@ class AttackerFlankEffects(BaseModel):
     melee_bonus: float = 1.0
     range_bonus: float = 1.0
     defender_range_reduction: float = 0.0
+    # The client never populates this on the auto-fill path, so it stays 0
+    # unless a caller sets it.
+    defender_melee_reduction: float = 0.0
     gate_reduction: float = 0.0
     wall_reduction: float = 0.0
     moat_reduction: float = 0.0
@@ -108,6 +111,16 @@ class DefenderFlankEffects(BaseModel):
         return self.range_units_range_strength * (self.range_bonus - range_reduction) + (
             self.melee_units_range_strength * (self.melee_bonus - melee_reduction)
         )
+
+    @property
+    def has_melee_defenders(self) -> bool:
+        """Whether any melee-role defender holds this flank."""
+        return bool(self.melee_units_melee_strength or self.melee_units_range_strength)
+
+    @property
+    def has_range_defenders(self) -> bool:
+        """Whether any ranged-role defender holds this flank."""
+        return bool(self.range_units_melee_strength or self.range_units_range_strength)
 
     def is_empty(self) -> bool:
         """Whether anything defends this flank at all."""

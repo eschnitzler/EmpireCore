@@ -142,6 +142,16 @@ class ToolStats(_Row):
     fight_type: int = Field(alias="fightType", default=0)
     effects: Any = None
 
+    # What the tool reduces or adds, straight from the items columns. A siege
+    # ram carries gateBonus, a ladder wallBonus, and so on.
+    wall_bonus: float = Field(alias="wallBonus", default=0)
+    gate_bonus: float = Field(alias="gateBonus", default=0)
+    moat_bonus: float = Field(alias="moatBonus", default=0)
+    def_range_bonus: float = Field(alias="defRangeBonus", default=0)
+    def_melee_bonus: float = Field(alias="defMeleeBonus", default=0)
+    off_range_bonus: float = Field(alias="offRangeBonus", default=0)
+    off_melee_bonus: float = Field(alias="offMeleeBonus", default=0)
+
     @property
     def slot_types(self) -> tuple[int, ...]:
         """Attack-screen slot types this tool fits."""

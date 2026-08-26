@@ -10,6 +10,9 @@ substitute would produce waves that look right and are not what the game builds.
 from __future__ import annotations
 
 import logging
+import math
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Protocol
 
 from empire_core.gamedata import GameData, ToolStats
@@ -37,7 +40,112 @@ class ToolStrategy(Protocol):
         free_items: int,
         attacker: AttackerFlankEffects,
         defender: DefenderFlankEffects | None,
-    ) -> ToolStats | None: ...
+    ) -> tuple[ToolStats, int] | None: ...
+
+
+@dataclass
+class ReduceDefenceBonusStrategy:
+    """
+    Picks the tool that best cancels one of the defender's bonuses.
+
+    Ported from ``AReduceDefenseBonusStrategy.pickToolByStrategy``. Given how
+    much of a defence remains after the attacker's own reduction, it prefers the
+    tool that cancels it outright with the *fewest* units; failing that, the one
+    that removes the most in the units that fit. A defence already at or below
+    zero needs no tool, and the strategy retires.
+
+    The client builds five of these, one per defender bonus; see
+    :func:`default_tool_strategies`.
+    """
+
+    name: str
+    tool_bonus: Callable[[ToolStats], float]
+    defender_bonus: Callable[[AttackerFlankEffects, DefenderFlankEffects], float]
+    requires: Callable[[DefenderFlankEffects], bool] | None = None
+
+    def __call__(
+        self,
+        inventory: Inventory,
+        game_data: GameData,
+        *,
+        free_items: int,
+        attacker: AttackerFlankEffects,
+        defender: DefenderFlankEffects | None,
+    ) -> tuple[ToolStats, int] | None:
+        if defender is None:
+            return None
+        # The range and melee strategies stand down when the defender has no
+        # defender of that kind at all.
+        if self.requires is not None and not self.requires(defender):
+            return None
+
+        remaining = self.defender_bonus(attacker, defender)
+        if remaining <= 0:
+            return None
+
+        best_exact: tuple[ToolStats, int] | None = None
+        best_partial: tuple[ToolStats, int] | None = None
+        best_partial_value = 0.0
+
+        for wod_id, available in inventory.counts.items():
+            tool = game_data.get_tool(wod_id)
+            if tool is None or not tool.is_attack_tool or available <= 0:
+                continue
+            bonus = self.tool_bonus(tool)
+            if bonus <= 0:
+                continue
+            needed = math.ceil(remaining / bonus)
+            limit = tool.amount_per_wave if tool.amount_per_wave > 0 else free_items
+            placeable = int(min(available, free_items, limit))
+            if placeable <= 0:
+                continue
+            if needed <= placeable:
+                if best_exact is None or needed < best_exact[1]:
+                    best_exact = (tool, needed)
+            else:
+                value = bonus * placeable
+                if value > best_partial_value:
+                    best_partial, best_partial_value = (tool, placeable), value
+
+        return best_exact or best_partial
+
+
+def default_tool_strategies() -> list[ReduceDefenceBonusStrategy]:
+    """
+    The client's five strategies, in pool order.
+
+    ``fillToolStrategyPool`` pushes moat, range, melee, gate then wall, and pops
+    from the end - so wall is tried first and moat last.
+    """
+    return [
+        ReduceDefenceBonusStrategy(
+            "moat",
+            lambda tool: tool.moat_bonus,
+            lambda a, d: d.moat_bonus - a.moat_reduction,
+        ),
+        ReduceDefenceBonusStrategy(
+            "range",
+            lambda tool: tool.def_range_bonus,
+            lambda a, d: d.range_bonus - a.defender_range_reduction,
+            requires=lambda d: d.has_range_defenders,
+        ),
+        ReduceDefenceBonusStrategy(
+            "melee",
+            lambda tool: tool.def_melee_bonus,
+            lambda a, d: d.melee_bonus - a.defender_melee_reduction,
+            requires=lambda d: d.has_melee_defenders,
+        ),
+        ReduceDefenceBonusStrategy(
+            "gate",
+            lambda tool: tool.gate_bonus,
+            lambda a, d: d.gate_bonus - a.gate_reduction,
+        ),
+        ReduceDefenceBonusStrategy(
+            "wall",
+            lambda tool: tool.wall_bonus,
+            lambda a, d: d.wall_bonus - a.wall_reduction,
+        ),
+    ]
 
 
 def fill_flank_with_tools(
@@ -81,7 +189,7 @@ def fill_flank_with_tools(
     for _slot in range(max(0, slots)):
         if free <= 0 or not pool:
             break
-        chosen: ToolStats | None = None
+        chosen: tuple[ToolStats, int] | None = None
         while pool and chosen is None:
             candidate = pool[-1](
                 inventory,
@@ -90,16 +198,17 @@ def fill_flank_with_tools(
                 attacker=attacker,
                 defender=defender,
             )
-            if candidate is not None and candidate.fits_slot(slot_type):
+            if candidate is not None and candidate[0].fits_slot(slot_type):
                 chosen = candidate
             else:
                 pool.pop()
         if chosen is None:
             break
-        taken = inventory.deduct(chosen.wod_id, free)
+        tool, wanted = chosen
+        taken = inventory.deduct(tool.wod_id, min(wanted, free))
         if not taken:
             break
-        placed[chosen.wod_id] = placed.get(chosen.wod_id, 0) + taken
+        placed[tool.wod_id] = placed.get(tool.wod_id, 0) + taken
         free -= taken
 
     return list(placed.items())
@@ -132,4 +241,10 @@ def check_flank(
     return False
 
 
-__all__ = ["ToolStrategy", "check_flank", "fill_flank_with_tools"]
+__all__ = [
+    "ReduceDefenceBonusStrategy",
+    "ToolStrategy",
+    "check_flank",
+    "default_tool_strategies",
+    "fill_flank_with_tools",
+]
