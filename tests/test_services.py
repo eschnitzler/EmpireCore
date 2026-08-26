@@ -1928,3 +1928,36 @@ class TestAttackInfo:
         assert command == "aci"
         assert (payload["TX"], payload["TY"]) == (632, 243)
         assert (payload["SX"], payload["SY"]) == (629, 242)
+
+
+class TestFillAttackLevelDerivation:
+    def test_a_camp_level_follows_from_its_victories(self):
+        from empire_core.combat import camp_level
+        from empire_core.gamedata import GameData
+
+        client = make_client({"gui": xt_packet("gui", {"I": [[601, 10_000]]})})
+        client.game_data = GameData.parse(
+            "test",
+            {
+                "units": [
+                    {"wodID": 601, "name": "B", "type": "S", "role": "melee", "meleeAttack": "100", "fightType": "0"}
+                ]
+            },
+        )
+        client.state.local_player = StubPlayer(level=70)
+
+        # 299 victories in the green kingdom is a level 45 camp.
+        assert camp_level(299, 0) == 45
+        result = client.attack.fill_attack(12345, camp_victories=299, camp_kingdom_id=0)
+
+        # Level 45 gives 47 units per flank before bonuses.
+        assert result.waves[0].model_dump(by_alias=True)["L"]["U"] == [[601, 47]]
+
+    def test_neither_level_nor_victories_is_an_error(self):
+        from empire_core.gamedata import GameData
+
+        client = make_client()
+        client.game_data = GameData.parse("test", {"units": []})
+
+        with pytest.raises(ValueError, match="target_level"):
+            client.attack.fill_attack(12345)

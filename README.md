@@ -165,38 +165,41 @@ for a runnable version that dry-runs by default.
 ```python
 client.load_game_data()          # explicit: the items payload is a large download
 
-waves = client.attack.fill_waves(castle_id, camp_victories=camp.victory_count)
+commander = client.commanders.get_commanders()[1]
+attack = client.attack.fill_attack(
+    castle_id,
+    camp_victories=camp.victory_count,   # a camp's level follows from this
+    camp_kingdom_id=camp.camp_kingdom_id,
+    commander=commander,
+    general_skill_ids=general_skills,    # from gie; these size the flanks
+)
+
 client.attack.send_attack(
     source_x=castle.x, source_y=castle.y,
     target_x=camp.x, target_y=camp.y,
-    waves=waves, commander_id=commander.commander_id,
+    waves=attack.waves, yard_wave=attack.yard,
+    commander_id=commander.commander_id,
 )
 ```
 
-Sizes itself from the attacker's level the way the game's auto-fill does: how
-many waves, each flank's capacity and its unlocked slots. Each slot takes the
-stack that best counters whichever of the target's defences is proportionally
-weaker, and an NPC camp's defence is read from the game data rather than spied.
+Each wave is sized the way the game sizes it, which is by the *target owner's*
+level rather than the attacker's: a level 13 castle holds far fewer troops than
+a level 70 one, whatever the attacker's level. On top of that come the general's
+unit-limit skills, and legend skills when both sides are at the level cap.
 
-Flank capacity depends on the selected commander: the game applies a "units on
-the flank" bonus to the two sides and a separate "units on the front" bonus to
-the middle. Pass them to match the attack dialog exactly - at level 70 with
-+50% flank and +6.5% front, that is 96/205/96 per wave rather than the unbuffed
-64/192/64:
+Each flank takes tools first and then units, because a placed tool reduces the
+defence the units are then chosen against. Units are picked to counter whichever
+of the target's defences is proportionally weaker; tools are picked to cancel
+the target's wall, gate, moat and defender bonuses in as few units as possible,
+and are skipped entirely where the commander's own reductions already erase
+them. A flank that ends up with tools but no units gives the tools back.
 
-```python
-waves = client.attack.fill_waves(
-    castle_id, camp_victories=camp.victory_count,
-    flank_bonus_percent=50, front_bonus_percent=6.5,
-)
-```
+An NPC camp needs no espionage: its defenders come from the game data, and its
+walls from the level its victory count implies. For a player's castle, pass
+``target_row`` from a map scan and its fortification is read from the structure
+levels in it.
 
-Reading those bonuses off the commander's equipment is not implemented yet, so
-they are arguments for now. Only units are placed - the game's button also
-fills every tool slot - and attacker attack-strength bonuses are not applied,
-so a wave is exact for an unbuffed attack and conservative for a buffed one.
-
-## Game State
+## Game State## Game State
 
 A background thread applies server pushes to `client.state` while your code
 reads it. Read through the accessors rather than touching the containers: each

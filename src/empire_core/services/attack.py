@@ -17,6 +17,7 @@ from empire_core.combat import (
     Flank,
     Inventory,
     attacker_flank_effects,
+    camp_level,
     commander_bonuses,
     fill_yard_wave,
     fortification_bonuses,
@@ -315,7 +316,7 @@ class AttackService(BaseService):
         self,
         castle_id: int,
         *,
-        target_level: int,
+        target_level: int | None = None,
         target_is_player: bool = False,
         camp_victories: int | None = None,
         camp_kingdom_id: int = 0,
@@ -341,7 +342,9 @@ class AttackService(BaseService):
 
         Args:
             castle_id: Castle whose troops to draw from
-            target_level: The target owner's level, which sizes each flank
+            target_level: The target owner's level, which sizes each flank.
+                Derived from ``camp_victories`` when attacking a camp, since a
+                camp's level follows from how often it has been beaten
             target_is_player: True for a player's castle or outpost
             camp_victories: An NPC camp's victory count
             camp_kingdom_id: Kingdom the camp sits in
@@ -362,6 +365,11 @@ class AttackService(BaseService):
         game_data = self.client.game_data
         if game_data is None:
             raise GameDataNotLoadedError("Wave filling needs the items payload: call client.load_game_data() first")
+
+        if target_level is None:
+            if camp_victories is None:
+                raise ValueError("Pass target_level, or camp_victories to derive it from")
+            target_level = camp_level(camp_victories, camp_kingdom_id)
 
         defence: dict[Flank, DefenderFlankEffects] | None = None
         if camp_victories is not None:
