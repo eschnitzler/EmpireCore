@@ -18,6 +18,7 @@ from .bonuses import (
 )
 from .capacity import (
     WaveCapacity,
+    boost_to_modifier,
     flank_soldier_capacity,
     flank_tool_capacity,
     is_legendary_fight,
@@ -25,6 +26,7 @@ from .capacity import (
     max_wave_count,
     middle_soldier_capacity,
     middle_tool_capacity,
+    yard_capacity,
 )
 from .defence import defender_flank_effects, event_camp_defence, npc_camp_defence
 from .effects import AttackerFlankEffects, DefenderFlankEffects, Flank
@@ -48,6 +50,7 @@ __all__ = [
     "Flank",
     "Inventory",
     "WaveCapacity",
+    "boost_to_modifier",
     "is_legendary_fight",
     "alliance_buff_bonuses",
     "attacker_flank_effects",
@@ -72,6 +75,7 @@ __all__ = [
     "middle_soldier_capacity",
     "middle_tool_capacity",
     "npc_camp_defence",
+    "yard_capacity",
     "parse_bonus_entries",
     "parse_effect_spec",
     "sceat_skill_bonuses",

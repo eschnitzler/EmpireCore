@@ -7,6 +7,7 @@ from empire_core.combat import (
     Flank,
     Inventory,
     WaveCapacity,
+    boost_to_modifier,
     defender_flank_effects,
     event_camp_defence,
     fill_flank_with_soldiers,
@@ -17,6 +18,7 @@ from empire_core.combat import (
     max_wave_count,
     npc_camp_defence,
     pick_soldier_stack,
+    yard_capacity,
 )
 from empire_core.gamedata import GameData, UnitStats
 
@@ -636,3 +638,38 @@ class TestFillWaves:
         waves = fill_waves(Inventory({601: 10_000}), solver_data(), level=70)
 
         assert waves[0].unit_count() == 320
+
+
+class TestYardCapacity:
+    """The courtyard / final-assault wave."""
+
+    def test_matches_four_captured_dialogs(self):
+        # One account, attacker level 70, four targets. The implied bonus is
+        # identical across all four, which is what confirms the formula.
+        for target_level, expected in ((1, 3109), (13, 3349), (45, 3989), (70, 4489)):
+            assert yard_capacity(70, target_level, bonus=2872) == expected
+
+    def test_it_grows_with_both_levels(self):
+        # Unlike a flank, the attacker's own level counts here too.
+        assert yard_capacity(70, 10) > yard_capacity(10, 10)
+        assert yard_capacity(70, 70) > yard_capacity(70, 10)
+
+    def test_the_bonus_is_absolute_not_a_percentage(self):
+        plain = yard_capacity(70, 13)
+        assert yard_capacity(70, 13, bonus=100) == plain + 100
+
+    def test_the_boost_is_a_multiplier_applied_last(self):
+        import math
+
+        plain = yard_capacity(70, 13, bonus=2872)
+        # The client rounds once, at the end, so doubling the *rounded* result
+        # is not the same answer: 3349.33 x 2 rounds to 6699, not 6698.
+        unrounded = 20 * math.sqrt(70) + 50 + 20 * 13 + 2872
+
+        assert boost_to_modifier(0) == 1.0
+        assert yard_capacity(70, 13, bonus=2872, boost=0) == plain
+        assert yard_capacity(70, 13, bonus=2872, boost=100) == round(unrounded * 2.0)
+
+    def test_a_negative_boost_cannot_go_below_zero(self):
+        assert boost_to_modifier(-500) == 0.0
+        assert yard_capacity(70, 13, bonus=2872, boost=-500) == 0

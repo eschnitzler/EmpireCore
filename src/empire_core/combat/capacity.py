@@ -102,6 +102,48 @@ def middle_tool_capacity(level: int) -> int:
     return 50
 
 
+def boost_to_modifier(boost: float) -> float:
+    """
+    Turn a "boost" effect into a multiplier (``EffectConst.boostToModifier``).
+
+    A boost of 0 is a multiplier of 1.0; the client adds it to a base of 100 and
+    scales by 1/100, flooring at zero.
+    """
+    return max((100 + boost) * 0.01, 0.0)
+
+
+def yard_capacity(
+    attacker_level: int,
+    target_level: int,
+    *,
+    bonus: float = 0.0,
+    boost: float = 0.0,
+) -> int:
+    """
+    Units the courtyard - the final assault - wave holds.
+
+    ``CombatConst.getMaxUnitsInReinforcementWave``: unlike a flank, this one
+    grows with *both* levels, and the additions are absolute units rather than
+    percentages.
+
+    Verified against four captured dialogs from one account, which give an
+    identical implied bonus of 2872 at target levels 1, 13, 45 and 70:
+    3109, 3349, 3989 and 4489.
+
+    Args:
+        attacker_level: The attacker's own level
+        target_level: The target owner's level, or the minimum owner level when
+            the target is under conquer control
+        bonus: Absolute unit bonus, effect type 179
+        boost: Percentage boost, effect type 180, applied as a multiplier last
+
+    Returns:
+        The courtyard wave's capacity
+    """
+    base = 20 * math.sqrt(max(0, attacker_level)) + 50 + 20 * target_level + int(bonus)
+    return int(round(base * boost_to_modifier(boost)))
+
+
 def unlocked_slots(unlock_levels: tuple[int, ...], level: int) -> int:
     """How many of a flank's slots exist at this level."""
     return sum(1 for unlock_level in unlock_levels if level >= unlock_level)
@@ -225,6 +267,7 @@ __all__ = [
     "UNIT_SLOT_LEVELS_FLANK",
     "UNIT_SLOT_LEVELS_MIDDLE",
     "WAVE_UNLOCK_LEVELS",
+    "boost_to_modifier",
     "is_legendary_fight",
     "WaveCapacity",
     "flank_soldier_capacity",
@@ -234,4 +277,5 @@ __all__ = [
     "middle_soldier_capacity",
     "middle_tool_capacity",
     "unlocked_slots",
+    "yard_capacity",
 ]

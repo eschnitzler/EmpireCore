@@ -49,6 +49,8 @@ class CombatEffectType(IntEnum):
     OFFENSIVE_RANGE_BONUS = 24
     ATTACK_UNIT_AMOUNT_FLANK = 28
     ATTACK_UNIT_AMOUNT_FRONT = 34
+    REINFORCEMENT_BONUS = 179
+    REINFORCEMENT_BOOST = 180
     ATTACK_BONUS = 36
 
 
@@ -267,6 +269,36 @@ class EffectResolver:
         return self.accumulate(
             bonuses,
             CombatEffectType.ATTACK_UNIT_AMOUNT_FRONT,
+            area_type=area_type,
+            player_target=player_target,
+        )
+
+    def yard_capacity_bonus(
+        self,
+        bonuses: Iterable[Bonus],
+        *,
+        area_type: int | None = None,
+        player_target: bool | None = None,
+    ) -> float:
+        """Absolute unit bonus to the courtyard wave."""
+        return self.accumulate(
+            bonuses,
+            CombatEffectType.REINFORCEMENT_BONUS,
+            area_type=area_type,
+            player_target=player_target,
+        )
+
+    def yard_capacity_boost(
+        self,
+        bonuses: Iterable[Bonus],
+        *,
+        area_type: int | None = None,
+        player_target: bool | None = None,
+    ) -> float:
+        """Percentage boost to the courtyard wave, applied as a multiplier."""
+        return self.accumulate(
+            bonuses,
+            CombatEffectType.REINFORCEMENT_BOOST,
             area_type=area_type,
             player_target=player_target,
         )
