@@ -429,6 +429,9 @@ def global_unit_attack_bonuses(
     through this path.
 
     The rows encode a per-unit map, ``273&<wod_id>+<strength>#<wod_id>+<strength>``.
+    No condition is applied: the client resolves an unset area or kingdom to the
+    castle the player happens to be looking at, and the one effect row this path
+    can reach restricts neither, so there is nothing to check.
     The strengths in the table are only a fallback: ``bie`` may carry a strength
     of its own per effect, and ``setEffectStrength`` writes that one value onto
     every unit in the map.
