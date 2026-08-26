@@ -10,6 +10,7 @@ version, so the download happens once per game patch.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -48,6 +49,38 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 CACHE_FILENAME_TEMPLATE = "items_v{version}.trimmed.json"
+
+
+def _schema_fingerprint() -> str:
+    """
+    A short hash of every field the cache stores.
+
+    The cache holds parsed models keyed by field name, so a model that gains a
+    column reads back the old file with that column at its default - silently,
+    and wrongly. Fingerprinting the field names means any such change
+    invalidates the cache instead.
+    """
+    models = (
+        UnitStats,
+        ToolStats,
+        EffectDef,
+        EffectTypeDef,
+        EffectCapDef,
+        EquipmentEffectDef,
+        RelicEffectDef,
+        FortificationDef,
+        ConstructionItemDef,
+        AllianceBuffDef,
+        GlobalEffectDef,
+        SceatSkillDef,
+        GeneralSkillDef,
+        NpcCampDefence,
+        DungeonDefence,
+        ToolCategoryDef,
+    )
+    names = ";".join(f"{model.__name__}:{','.join(sorted(model.model_fields))}" for model in models)
+    return hashlib.sha256(names.encode()).hexdigest()[:12]
+
 
 # Camp tables that share the NpcCampDefence shape.
 CAMP_TABLES = (
@@ -108,6 +141,9 @@ class GameData(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     version: str
+    schema_fingerprint: str = ""
+    """Hash of the table fields, so a cache from older tables is not reused."""
+
     units: dict[int, UnitStats] = Field(default_factory=dict)
     tools: dict[int, ToolStats] = Field(default_factory=dict)
     effects: dict[int, EffectDef] = Field(default_factory=dict)
@@ -219,6 +255,7 @@ class GameData(BaseModel):
 
         return cls(
             version=version,
+            schema_fingerprint=_schema_fingerprint(),
             units=units,
             tools=tools,
             effects={r.effect_id: r for r in _rows(items_data.get("effects"), EffectDef)},
@@ -311,6 +348,9 @@ class GameData(BaseModel):
             logger.warning(f"Ignoring unreadable game data cache {cache_file}: {e}")
             return None
         if data.version != version:
+            return None
+        if data.schema_fingerprint != _schema_fingerprint():
+            logger.info(f"Game data cache {cache_file} predates the current tables; re-parsing")
             return None
         logger.debug(f"Loaded game data v{version} from {cache_file}")
         return data

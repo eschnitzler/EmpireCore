@@ -329,3 +329,48 @@ class TestToolScalingRoundTrip:
 
         assert first.get_tool(611).gate_bonus == 0.10
         assert second.get_tool(611).gate_bonus == 0.10
+
+
+class TestCacheSchemaFingerprint:
+    """A cache written against older tables must not be reused."""
+
+    def test_a_parse_stamps_the_current_fingerprint(self):
+        from empire_core.gamedata.data import _schema_fingerprint
+
+        data = GameData.parse("1.0", {"units": []})
+
+        assert data.schema_fingerprint == _schema_fingerprint()
+
+    def test_a_stale_cache_is_ignored(self, tmp_path):
+        data = GameData.parse("1.0", {"units": [{"wodID": 1, "name": "Barracks", "role": "melee"}]})
+        cache = tmp_path / "items_v1.0.trimmed.json"
+        cache.write_text(data.model_dump_json())
+
+        assert GameData._read_cache(cache, "1.0") is not None
+
+        # A cache from a model that had fewer columns.
+        stale = data.model_dump()
+        stale["schema_fingerprint"] = "0" * 12
+        cache.write_text(json.dumps(stale))
+
+        assert GameData._read_cache(cache, "1.0") is None
+
+    def test_a_cache_without_a_fingerprint_is_ignored(self, tmp_path):
+        # Every cache written before this existed.
+        data = GameData.parse("1.0", {"units": []})
+        payload = data.model_dump()
+        payload.pop("schema_fingerprint")
+        cache = tmp_path / "items_v1.0.trimmed.json"
+        cache.write_text(json.dumps(payload))
+
+        assert GameData._read_cache(cache, "1.0") is None
+
+    def test_the_fingerprint_covers_the_tool_columns(self):
+        # The columns that caused this: a cache predating them read them as
+        # their defaults and quietly widened the tool pool.
+        from empire_core.gamedata.data import _schema_fingerprint
+
+        assert "raw_allowed_to_attack" in ToolStats.model_fields
+        assert "can_attack_npc" in ToolStats.model_fields
+        before = _schema_fingerprint()
+        assert len(before) == 12
