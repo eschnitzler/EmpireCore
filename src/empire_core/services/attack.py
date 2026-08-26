@@ -28,6 +28,7 @@ from empire_core.combat import (
     legend_skill_value,
     minimum_owner_level,
     npc_camp_defence,
+    sceat_skill_bonuses,
     spied_castle_defence,
     wave_level,
     wave_limit_violations,
@@ -217,6 +218,7 @@ class AttackService(BaseService):
         wave_bonus: int = 0,
         general_skill_ids: list[int] | None = None,
         legend_skill_ids: list[int] | None = None,
+        sceat_skill_ids: list[int] | None = None,
         global_effect_ids: list[int] | list[list[int]] | None = None,
         target_is_player: bool = False,
         flank_bonus_percent: float = 0.0,
@@ -323,6 +325,15 @@ class AttackService(BaseService):
             front_bonus_percent += int(
                 resolver.front_unit_bonus(general, area_type=area_type, player_target=player_target)
             )
+        if sceat_skill_ids:
+            # Hall of Legends skills, which apply whatever the target is.
+            sceat = sceat_skill_bonuses(game_data, sceat_skill_ids)
+            flank_bonus_percent += int(
+                resolver.flank_unit_bonus(sceat, area_type=area_type, player_target=player_target)
+            )
+            front_bonus_percent += int(
+                resolver.front_unit_bonus(sceat, area_type=area_type, player_target=player_target)
+            )
 
         if attacker is None and commander is not None:
             attacker = attacker_flank_effects(
@@ -387,6 +398,7 @@ class AttackService(BaseService):
         commander: Commander | None = None,
         general_skill_ids: list[int] | None = None,
         legend_skill_ids: list[int] | None = None,
+        sceat_skill_ids: list[int] | None = None,
         global_effect_ids: list[int] | list[list[int]] | None = None,
         yard_bonus: float = 0.0,
         yard_boost: float = 0.0,
@@ -432,6 +444,8 @@ class AttackService(BaseService):
                 are read with ``gie`` for the general this commander carries
             legend_skill_ids: The player's legend skills. Left out, they are
                 read with ``skl``
+            sceat_skill_ids: The player's Hall of Legends skills, read with
+                ``skl`` alongside the legend skills when left out
             global_effect_ids: Global effects currently running
             yard_bonus: Absolute courtyard capacity bonus, effect type 179
             yard_boost: Courtyard capacity boost, effect type 180
@@ -487,11 +501,15 @@ class AttackService(BaseService):
                 general_skill_ids = self.client.skills.get_generals(timeout=timeout).skill_ids(general_id)
             except EmpireError as e:
                 logger.debug(f"Could not read the general's skills, sizing without them: {e}")
-        if legend_skill_ids is None:
+        if legend_skill_ids is None or sceat_skill_ids is None:
             try:
-                legend_skill_ids = self.client.skills.get_skills(timeout=timeout).legend_skill_ids
+                own = self.client.skills.get_skills(timeout=timeout)
+                if legend_skill_ids is None:
+                    legend_skill_ids = own.legend_skill_ids
+                if sceat_skill_ids is None:
+                    sceat_skill_ids = own.sceat_skill_ids
             except EmpireError as e:
-                logger.debug(f"Could not read the legend skills, sizing without them: {e}")
+                logger.debug(f"Could not read the player's skills, sizing without them: {e}")
 
         waves = self.fill_waves(
             castle_id,
@@ -502,6 +520,7 @@ class AttackService(BaseService):
             commander=commander,
             general_skill_ids=general_skill_ids,
             legend_skill_ids=legend_skill_ids,
+            sceat_skill_ids=sceat_skill_ids,
             global_effect_ids=global_effect_ids,
             target_is_player=target_is_player,
             area_type=area_type,

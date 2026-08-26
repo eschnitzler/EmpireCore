@@ -8,7 +8,17 @@ class TestGenerals:
 
     LIVE = {
         "G": [
-            {"GID": 101, "XP": 2520, "ST": 2, "SIDS": [10317, 10311, 10314], "GASAIDS": [1], "W": 40, "D": 3},
+            # GASAIDS arrives as [slot, ability] pairs; a live payload rejected
+            # a list[int] model outright.
+            {
+                "GID": 101,
+                "XP": 2520,
+                "ST": 2,
+                "SIDS": [10317, 10311, 10314],
+                "GASAIDS": [[101031, 10073], [101033, 10303], [101032, 10263]],
+                "W": 40,
+                "D": 3,
+            },
             {"GID": 102, "XP": 3360, "ST": 6, "SIDS": [], "W": 2, "D": 0},
         ]
     }
@@ -18,6 +28,11 @@ class TestGenerals:
 
         assert [g.general_id for g in response.generals] == [101, 102]
         assert response.skill_ids(101) == [10317, 10311, 10314]
+
+    def test_the_selected_abilities_are_pairs(self):
+        general = GetGeneralsResponse.model_validate(self.LIVE).generals[0]
+
+        assert general.ability_ids == [10073, 10303, 10263]
 
     def test_a_general_with_nothing_unlocked(self):
         assert GetGeneralsResponse.model_validate(self.LIVE).skill_ids(102) == []

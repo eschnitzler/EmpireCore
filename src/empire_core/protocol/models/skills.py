@@ -40,10 +40,22 @@ class General(BasePayload):
     experience: int = Field(alias="XP", default=0)
     star_level: int = Field(alias="ST", default=0)
     skill_ids: list[int] = Field(alias="SIDS", default_factory=list)
-    ability_ids: list[int] = Field(alias="GASAIDS", default_factory=list)
+    # Selected abilities arrive as [slot_id, ability_id] pairs, not bare ids.
+    raw_abilities: list = Field(alias="GASAIDS", default_factory=list)
     fixed_level: int = Field(alias="L", default=-1)
     wins: int = Field(alias="W", default=0)
     defeats: int = Field(alias="D", default=0)
+
+    @property
+    def ability_ids(self) -> list[int]:
+        """The abilities this general has selected, one id per filled slot."""
+        ids = []
+        for entry in self.raw_abilities:
+            if isinstance(entry, (list, tuple)) and len(entry) > 1:
+                ids.append(int(entry[1]))
+            elif isinstance(entry, int):
+                ids.append(entry)
+        return ids
 
 
 class GetGeneralsResponse(BaseResponse):

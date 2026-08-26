@@ -1923,6 +1923,17 @@ class TestFillAttack:
         # 20% of 320 attackers is 64, then +30%.
         assert (left, wider) == (64, 84)
 
+    def test_one_skl_read_covers_both_skill_lists(self):
+        from empire_core.protocol.models import Commander
+
+        client = self.build([[601, 100_000]])
+        conn(client).script["skl"] = xt_packet("skl", {"SID": [3], "SIDS": [90], "SP": 10})
+
+        client.attack.fill_attack(12345, target_level=13, commander=Commander.model_validate({"ID": 1}))
+
+        sent = [command for command, _ in conn(client).request_payloads]
+        assert sent.count("skl") == 1
+
     def test_the_skills_are_read_when_not_given(self):
         from empire_core.protocol.models import Commander
 
@@ -1943,7 +1954,12 @@ class TestFillAttack:
         commander = Commander.model_validate({"ID": 1, "GID": 7})
 
         client.attack.fill_attack(
-            12345, target_level=13, commander=commander, general_skill_ids=[], legend_skill_ids=[]
+            12345,
+            target_level=13,
+            commander=commander,
+            general_skill_ids=[],
+            legend_skill_ids=[],
+            sceat_skill_ids=[],
         )
 
         sent = [command for command, _ in conn(client).request_payloads]
