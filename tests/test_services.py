@@ -1748,3 +1748,68 @@ class TestAccuracyIsTradedForRisk:
         sent = dict(conn(client).request_payloads)["csm"]
         assert sent["SE"] < 100, "sent full accuracy the risk ceiling could not afford"
         assert sent["SC"] > 0
+
+
+class TestAttackInfo:
+    """The aci pre-calculation, shaped as the live server sends it."""
+
+    PAYLOAD = {
+        "SCID": 6277054,
+        "TX": 632,
+        "TY": 243,
+        "KID": 0,
+        "E": {"BGT": 0, "BGC1": 1644825, "IS": 1},
+        "HAWL": 0,
+        "AE": [[111, [40.0], "AB"], [66, [30.0], "CI"], [426, [10.0], "GE"]],
+        "gaa": {"KID": 0, "AI": [1, 632, 243, 16654596, 17743260, 2, 2, 2, 1, 0, "Château Heimlin"]},
+        "gui": {"I": [[211, 5323], [601, 100], [107, 0]]},
+        "gli": {"C": [{"ID": 1, "GID": 101}], "B": [{"ID": 0}]},
+    }
+
+    def test_parses_the_live_shape(self):
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate(self.PAYLOAD)
+
+        assert info.source_castle_id == 6277054
+        assert (info.target_x, info.target_y) == (632, 243)
+        # The crest under "E" must not read as an error code.
+        assert info.error_code == 0
+
+    def test_target_row_and_inventory(self):
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate(self.PAYLOAD)
+
+        assert info.target_row()[:3] == [1, 632, 243]
+        # Zero counts are dropped, as everywhere else.
+        assert info.inventory() == {211: 5323, 601: 100}
+
+    def test_scoped_attacker_effects_resolve(self):
+        from empire_core.combat import parse_bonus_entries
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate(self.PAYLOAD)
+
+        bonuses = parse_bonus_entries(info.raw_attacker_effects)
+
+        # The construction item's flank bonus arrives tagged CI.
+        assert any(b.effect_id == 66 and b.value == 30.0 for b in bonuses)
+
+    def test_empty_payload_is_not_an_error(self):
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate({})
+
+        assert info.target_row() == []
+        assert info.inventory() == {}
+
+    def test_service_sends_the_documented_payload(self):
+        client = make_client()
+
+        client.attack.get_attack_info(632, 243, 629, 242, kingdom_id=0)
+
+        command, payload = conn(client).request_payloads[0]
+        assert command == "aci"
+        assert (payload["TX"], payload["TY"]) == (632, 243)
+        assert (payload["SX"], payload["SY"]) == (629, 242)

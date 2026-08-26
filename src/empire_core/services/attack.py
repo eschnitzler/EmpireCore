@@ -24,7 +24,14 @@ from empire_core.combat import (
 from empire_core.combat import fill_waves as solve_waves
 from empire_core.combat.capacity import is_legendary_fight
 from empire_core.exceptions import GameDataNotLoadedError
-from empire_core.protocol.models import AttackType, AttackWave, Commander, CreateAttackRequest
+from empire_core.protocol.models import (
+    AttackType,
+    AttackWave,
+    Commander,
+    CreateAttackRequest,
+    GetAttackInfoRequest,
+    GetAttackInfoResponse,
+)
 
 from .base import BaseService, register_service
 
@@ -131,6 +138,40 @@ class AttackService(BaseService):
             BKS=collector_booster or [],
         )
         return self.execute(request, timeout=timeout)
+
+    def get_attack_info(
+        self,
+        target_x: int,
+        target_y: int,
+        source_x: int,
+        source_y: int,
+        kingdom_id: int = 0,
+        timeout: float = 10.0,
+    ) -> GetAttackInfoResponse:
+        """
+        Get the attack pre-calculation for a castle target.
+
+        This is what the game's own attack dialog asks for: the target's map
+        row, the attacker's inventory and commanders, and the attacker's
+        effects already scoped to this target.
+
+        A camp answers a different command, ``adi``; see
+        ``GetTargetInfoRequest``.
+
+        Args:
+            target_x: Target X coordinate
+            target_y: Target Y coordinate
+            source_x: Attacking castle's X coordinate
+            source_y: Attacking castle's Y coordinate
+            kingdom_id: Kingdom both sit in
+            timeout: Timeout in seconds
+
+        Raises:
+            CommandError: The server rejected the request, e.g. INVALID_AREA
+                for a target that is not a castle
+        """
+        request = GetAttackInfoRequest(TX=target_x, TY=target_y, SX=source_x, SY=source_y, KID=kingdom_id)
+        return self.request(request, GetAttackInfoResponse, timeout=timeout)
 
     def fill_waves(
         self,

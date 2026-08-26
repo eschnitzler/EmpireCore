@@ -180,6 +180,78 @@ class CreateAttackResponse(BaseResponse):
 
 
 # =============================================================================
+# ACI - Attack Pre-calculation
+# =============================================================================
+
+
+class GetAttackInfoRequest(BaseRequest):
+    """
+    Ask for the attack pre-calculation against a castle.
+
+    Command: aci
+    Payload: {"TX": target_x, "TY": target_y, "SX": source_x, "SY": source_y, "KID": kingdom_id}
+
+    Camps answer a different command: see ``GetTargetInfoRequest`` (adi).
+    """
+
+    command = "aci"
+
+    target_x: int = Field(alias="TX")
+    target_y: int = Field(alias="TY")
+    source_x: int = Field(alias="SX")
+    source_y: int = Field(alias="SY")
+    kingdom_id: int = Field(alias="KID", default=0)
+
+
+class GetAttackInfoResponse(BaseResponse):
+    """
+    Everything the attack dialog needs for one target.
+
+    Command: aci
+    Payload::
+
+        {"SCID": source_castle_id, "TX": .., "TY": .., "KID": ..,
+         "AE": [[effect_id, [value], source_tag], ...],   # attacker effects,
+                                                          # already scoped to
+                                                          # this target
+         "gaa": {"AI": [target map row]},
+         "gui": {"I": [[wod_id, count], ...]},            # attacker inventory
+         "gli": {"C": [...], "B": [...]},                 # commanders/castellans
+         "HAWL": ..}
+
+    ``AE`` is the useful part: the server has already dropped the effects that
+    do not apply to this target, so the same commander answers differently for
+    a camp and for a player's castle.
+    """
+
+    command = "aci"
+
+    source_castle_id: int = Field(alias="SCID", default=0)
+    target_x: int = Field(alias="TX", default=0)
+    target_y: int = Field(alias="TY", default=0)
+    kingdom_id: int = Field(alias="KID", default=0)
+    raw_attacker_effects: list = Field(alias="AE", default_factory=list)
+    raw_map_area: dict = Field(alias="gaa", default_factory=dict)
+    raw_inventory: dict = Field(alias="gui", default_factory=dict)
+    raw_commanders: dict = Field(alias="gli", default_factory=dict)
+
+    def target_row(self) -> list:
+        """The target's raw map row, or an empty list."""
+        row = self.raw_map_area.get("AI")
+        if isinstance(row, list) and row and isinstance(row[0], list):
+            # A map-area response nests its rows; the pre-calculation sends one.
+            return row[0]
+        return row if isinstance(row, list) else []
+
+    def inventory(self) -> dict[int, int]:
+        """The attacker's units and tools as ``{wod_id: count}``."""
+        entries = self.raw_inventory.get("I")
+        if not isinstance(entries, list):
+            return {}
+        return {entry[0]: entry[1] for entry in entries if isinstance(entry, list) and len(entry) >= 2 and entry[1]}
+
+
+# =============================================================================
 # CSM - Send Spy Mission
 # =============================================================================
 
