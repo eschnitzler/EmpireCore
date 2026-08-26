@@ -211,6 +211,7 @@ class AttackService(BaseService):
         area_type: int | None = None,
         landmark_min_level: int = 0,
         area_bonuses: list[Bonus] | None = None,
+        inventory: Inventory | None = None,
         player_target: bool | None = None,
         defence: dict[Flank, DefenderFlankEffects] | None = None,
         attacker: AttackerFlankEffects | None = None,
@@ -251,6 +252,9 @@ class AttackService(BaseService):
             area_bonuses: Effects that apply to this attack from outside the
                 commander, from ``get_attack_info(...).attacker_bonuses()``.
                 They carry the flank and front unit-amount bonuses
+            inventory: Troops to draw from, read from the castle when not given.
+                The waves deduct what they take, so a caller filling more than
+                one thing from one pool passes the same object each time
             area_type: The target's area type, which scopes the general's
                 effects; NPC camps are area type 2
             player_target: True when attacking a player, False for an NPC
@@ -356,14 +360,11 @@ class AttackService(BaseService):
             else None
         )
 
-        units = self.client.army.get_units(castle_id=castle_id, timeout=timeout)
-        # Tools belong in the pool too: the flanks place them. Boost items are
-        # tools by their slot types but no strategy picks them, and the soldier
-        # pass ignores anything that is not a unit.
-        pool = {u.unit_id: u.count for u in units if game_data.is_unit(u.unit_id) or game_data.is_tool(u.unit_id)}
+        if inventory is None:
+            inventory = self.read_inventory(castle_id, timeout=timeout)
 
         return solve_waves(
-            Inventory(pool),
+            inventory,
             game_data,
             level=level,
             attacker_level=attacker_level,
@@ -379,6 +380,29 @@ class AttackService(BaseService):
             area_type=area_type,
             space_id=camp_kingdom_id,
             target_is_player=target_is_player,
+        )
+
+    def read_inventory(self, castle_id: int, *, timeout: float = 5.0) -> Inventory:
+        """
+        What a castle can send, as a pool the fill methods draw from.
+
+        Tools belong in it as well as units: the flanks place them. Boost items
+        are tools by their slot types but no strategy picks them, and the
+        soldier pass ignores anything that is not a unit.
+
+        Args:
+            castle_id: Castle whose troops to read
+            timeout: Timeout in seconds
+
+        Returns:
+            An :class:`Inventory` the fill methods deduct from as they place
+        """
+        game_data = self.client.game_data
+        if game_data is None:
+            raise GameDataNotLoadedError("Reading an inventory needs the items payload: call load_game_data() first")
+        units = self.client.army.get_units(castle_id=castle_id, timeout=timeout)
+        return Inventory(
+            {u.unit_id: u.count for u in units if game_data.is_unit(u.unit_id) or game_data.is_tool(u.unit_id)}
         )
 
     def _read_target(
@@ -690,11 +714,15 @@ class AttackService(BaseService):
             except EmpireError as e:
                 logger.debug(f"Could not read the player's skills, sizing without them: {e}")
 
+        # One inventory read for both passes: the waves deduct what they take,
+        # so the courtyard draws from what they left.
+        pool = self.read_inventory(castle_id, timeout=timeout)
         waves = self.fill_waves(
             castle_id,
             level=target_level,
             landmark_min_level=landmark_min_level,
             area_bonuses=area_bonuses,
+            inventory=pool,
             defence=defence,
             commander=commander,
             general_skill_ids=general_skill_ids,
@@ -717,16 +745,8 @@ class AttackService(BaseService):
             if under_conquer_control
             else target_level
         )
-        remaining = self.client.army.get_units(castle_id=castle_id, timeout=timeout)
-        pool = {u.unit_id: u.count for u in remaining if game_data.is_unit(u.unit_id)}
-        for wave in waves:
-            payload = wave.model_dump(by_alias=True)
-            for flank in ("L", "M", "R"):
-                for wod_id, count in payload[flank]["U"]:
-                    pool[wod_id] = max(0, pool.get(wod_id, 0) - count)
-
         yard = fill_yard_wave(
-            Inventory(pool),
+            pool,
             game_data,
             yard_capacity(attacker_level, yard_level, bonus=yard_bonus, boost=yard_boost),
             defender=(defence or {}).get(Flank.YARD),

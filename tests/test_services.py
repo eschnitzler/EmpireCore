@@ -1992,6 +1992,33 @@ class TestFillAttack:
         assert "aci" in sent
         assert result.waves
 
+    def test_the_inventory_is_read_once(self):
+        client = self.build([[601, 100_000]])
+
+        client.attack.fill_attack(12345, target_level=13)
+
+        sent = [command for command, _ in conn(client).request_payloads]
+        assert sent.count("gui") == 1
+
+    def test_the_courtyard_cannot_re_spend_the_waves_troops(self):
+        # One pool for both passes: what the waves take is already gone.
+        client = self.build([[601, 300]])
+
+        result = client.attack.fill_attack(12345, target_level=13)
+
+        assert result.unit_count() <= 300
+
+    def test_a_given_inventory_is_used_instead_of_reading_one(self):
+        from empire_core.combat import Inventory
+
+        client = self.build([[601, 100_000]])
+
+        waves = client.attack.fill_waves(12345, level=13, inventory=Inventory({601: 40}))
+
+        sent = [command for command, _ in conn(client).request_payloads]
+        assert "gui" not in sent
+        assert sum(w.unit_count() for w in waves) == 40
+
     def test_the_attacking_castle_is_reselected_after_a_scan(self):
         # Scanning moves the client off the castle, and the inventory read that
         # follows is castle-scoped.
