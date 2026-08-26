@@ -1992,6 +1992,51 @@ class TestFillAttack:
         assert "aci" in sent
         assert result.waves
 
+    def test_the_castellan_reaches_the_defence(self):
+        # It was accepted as a parameter and dropped on the way to the defence,
+        # so the target's fortification came out far too low.
+        from empire_core.gamedata import GameData
+        from empire_core.protocol.models import Commander
+
+        payload = dict(
+            self.UNITS,
+            units=[
+                *self.UNITS["units"],
+                # A ladder, so a better-defended wall costs more tools.
+                {
+                    "wodID": 612,
+                    "name": "Workshop",
+                    "type": "Ladder",
+                    "typ": "Attack",
+                    "slotTypes": "1,2,9",
+                    "wallBonus": "20",
+                    "fightType": "1",
+                },
+            ],
+            effecttypes=[{"effectTypeID": "6", "name": "wallBonus"}],
+            effects=[{"effectID": "515", "name": "newDefenseWallBonusPVP", "effectTypeID": "6", "capID": "99"}],
+        )
+        client = self.build([[601, 100_000], [611, 500], [612, 500]])
+        client.game_data = GameData.parse("test", payload)
+        row = [1, 5, 6, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+        army = SpyArmy.from_spy_data([[[601, 10]], [], [], [], [], [], []])
+        # A castellan worth +200% wall protection.
+        castellan = Commander.model_validate({"ID": 1, "E": [[515, [200.0], "EQ"]], "EQ": [], "AE": []})
+
+        plain = client.attack.fill_attack(12345, target_level=13, target_is_player=True, target_row=row, spy_army=army)
+        held = client.attack.fill_attack(
+            12345,
+            target_level=13,
+            target_is_player=True,
+            target_row=row,
+            spy_army=army,
+            defending_castellan=castellan,
+        )
+
+        # A better-defended wall needs more siege tools.
+        placed = lambda a: sum(c for _, c in a.waves[0].model_dump(by_alias=True)["M"]["T"])  # noqa: E731
+        assert placed(held) > placed(plain)
+
     def test_the_inventory_is_read_once(self):
         client = self.build([[601, 100_000]])
 
