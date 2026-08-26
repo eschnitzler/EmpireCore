@@ -875,6 +875,22 @@ class TestAttackService:
         assert payload["CD"] == 99
         assert payload["ATT"] == AttackType.ATTACK
 
+    def test_the_courtyard_wave_rides_in_rw(self):
+        client = make_client()
+        yard = [[487, 300], [601, 200]] + [[-1, 0]] * 6
+
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 0, yard_wave=yard)
+
+        # Every slot goes out, empty ones included.
+        assert conn(client).request_payloads[0][1]["RW"] == yard
+
+    def test_no_courtyard_wave_sends_an_empty_rw(self):
+        client = make_client()
+
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 0)
+
+        assert conn(client).request_payloads[0][1]["RW"] == []
+
     def test_commander_must_be_chosen_explicitly(self):
         # Every id gli reports leads an attack, 0 included, so there is no safe
         # value to default to.
