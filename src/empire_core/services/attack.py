@@ -18,6 +18,7 @@ from empire_core.combat import (
     attacker_flank_effects,
     commander_bonuses,
     general_skill_bonuses,
+    global_unit_attack_bonuses,
     legend_skill_value,
     npc_camp_defence,
 )
@@ -189,6 +190,7 @@ class AttackService(BaseService):
         wave_bonus: int = 0,
         general_skill_ids: list[int] | None = None,
         legend_skill_ids: list[int] | None = None,
+        global_effect_ids: list[int] | None = None,
         target_is_player: bool = False,
         flank_bonus_percent: float = 0.0,
         front_bonus_percent: float = 0.0,
@@ -232,6 +234,8 @@ class AttackService(BaseService):
                 extra waves come from
             target_is_player: True when the target belongs to a player, which
                 a legendary fight requires
+            global_effect_ids: Global effects currently running, from ``bie``.
+                These are the only thing that buffs a unit's attack value
             flank_bonus_percent: Extra flank bonus, added to whatever the
                 general contributes
             front_bonus_percent: Extra middle bonus, added the same way
@@ -278,6 +282,8 @@ class AttackService(BaseService):
             front_bonus_percent += legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFront")
             wave_bonus += int(legend_skill_value(game_data, legend_skill_ids, "additionalWave"))
 
+        unit_attack_bonuses = global_unit_attack_bonuses(game_data, global_effect_ids) if global_effect_ids else None
+
         units = self.client.army.get_units(castle_id=castle_id, timeout=timeout)
         pool = {u.unit_id: u.count for u in units if game_data.is_unit(u.unit_id)}
 
@@ -294,4 +300,5 @@ class AttackService(BaseService):
             attacker=attacker,
             defence=defence,
             options=options,
+            unit_attack_bonuses=unit_attack_bonuses,
         )

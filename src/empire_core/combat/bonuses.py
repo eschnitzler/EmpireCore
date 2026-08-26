@@ -19,13 +19,17 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
-from empire_core.gamedata import EffectDef, GameData
+from empire_core.gamedata import EffectDef, GameData, parse_stacks
 from empire_core.protocol.models import Commander
 
 if TYPE_CHECKING:
     from .effects import AttackerFlankEffects
 
 logger = logging.getLogger(__name__)
+
+
+# Effect type 148: a per-unit attack bonus, keyed by wod id.
+ATTACK_BONUS_UNIT_TYPE = 148
 
 
 class CombatEffectType(IntEnum):
@@ -376,6 +380,43 @@ def legend_skill_value(game_data: GameData, skill_ids: Iterable[int], effect_typ
     )
 
 
+def global_unit_attack_bonuses(game_data: GameData, global_effect_ids: Iterable[int]) -> dict[int, float]:
+    """
+    Per-unit attack bonuses from the global effects currently running.
+
+    This is the only thing that buffs a unit's attack value. The client reads it
+    in ``SoldierUnitVO.buffedMeleeAttack`` as
+    ``rawAttack + int(globalEffectData.getBonusByEffectType(ATTACK_BONUS_UNIT,
+    -1, -1, wodId))``, and that getter looks only at the active global-effect
+    event: a commander carrying the same effect type does **not** buff units
+    through this path.
+
+    The rows encode a per-unit map, ``273&<wod_id>+<strength>#<wod_id>+<strength>``.
+
+    Args:
+        game_data: Loaded tables
+        global_effect_ids: Which global effects are active, from ``bie``
+
+    Returns:
+        ``{wod_id: bonus}``, empty when no listed effect is active
+    """
+    bonuses: dict[int, float] = {}
+    for effect_id in global_effect_ids:
+        row = game_data.global_effects.get(effect_id)
+        if row is None:
+            continue
+        for part in str(row.raw_effects or "").split(","):
+            spec_id, _, value = part.strip().partition("&")
+            if not value:
+                continue
+            effect = game_data.effects.get(int(spec_id)) if spec_id.strip().isdigit() else None
+            if effect is None or effect.effect_type_id != ATTACK_BONUS_UNIT_TYPE:
+                continue
+            for wod_id, strength in parse_stacks(value):
+                bonuses[wod_id] = bonuses.get(wod_id, 0.0) + strength
+    return bonuses
+
+
 def commander_bonuses(commander: Commander) -> list[Bonus]:
     """
     Every bonus a commander grants, resolved into the right id space.
@@ -453,6 +494,7 @@ __all__ = [
     "construction_item_bonuses",
     "general_skill_bonuses",
     "global_effect_bonuses",
+    "global_unit_attack_bonuses",
     "legend_skill_value",
     "parse_bonus_entries",
     "parse_effect_spec",

@@ -11,6 +11,7 @@ from empire_core.combat import (
     construction_item_bonuses,
     general_skill_bonuses,
     global_effect_bonuses,
+    global_unit_attack_bonuses,
     legend_skill_value,
     parse_bonus_entries,
     parse_effect_spec,
@@ -434,3 +435,65 @@ class TestAttackerFlankEffects:
 
         assert unbuffed[0] == 2
         assert melee_buffed[0] == 1
+
+
+class TestGlobalUnitAttackBonus:
+    """The only thing that buffs a unit's attack value."""
+
+    PAYLOAD = dict(
+        PAYLOAD,
+        effecttypes=[*PAYLOAD["effecttypes"], {"effectTypeID": "148", "name": "attackBonusUnit"}],
+        effects=[
+            *PAYLOAD["effects"],
+            {"effectID": "273", "name": "attackBonusUnit", "effectTypeID": "148", "capID": "99"},
+        ],
+        # Live shape: a per-unit map, not a single value.
+        globalEffects=[
+            {"globalEffectID": "5", "name": "attackBoostSpeermanBowman", "effects": "273&602+13#608+13"},
+            {"globalEffectID": "9", "name": "attackBoostElite", "effects": "273&9+60#10+60"},
+            {"globalEffectID": "1", "name": "CooldownReduction", "effects": "100&50"},
+        ],
+    )
+
+    def data(self):
+        return GameData.parse("test", self.PAYLOAD)
+
+    def test_per_unit_map_is_parsed(self):
+        bonuses = global_unit_attack_bonuses(self.data(), [5])
+
+        assert bonuses == {602: 13.0, 608: 13.0}
+
+    def test_only_active_effects_count(self):
+        assert global_unit_attack_bonuses(self.data(), []) == {}
+        assert global_unit_attack_bonuses(self.data(), [999]) == {}
+
+    def test_effects_of_other_types_are_ignored(self):
+        # Effect 100 is an attack bonus, not a per-unit one.
+        assert global_unit_attack_bonuses(self.data(), [1]) == {}
+
+    def test_several_active_effects_combine(self):
+        bonuses = global_unit_attack_bonuses(self.data(), [5, 9])
+
+        assert bonuses == {602: 13.0, 608: 13.0, 9: 60.0, 10: 60.0}
+
+    def test_the_buff_is_added_before_the_multiplier(self):
+        # The client adds the flat buff to the raw attack, then multiplies.
+        from empire_core.gamedata import UnitStats
+
+        unit = UnitStats.model_validate({"wodID": 602, "role": "melee", "meleeAttack": "100"})
+        effects = AttackerFlankEffects(melee_bonus=2.0)
+
+        plain = effects.soldier_stack_attack_value(unit, 10, 10)
+        buffed = effects.soldier_stack_attack_value(unit, 10, 10, attack_bonus=13)
+
+        assert plain == 2000
+        assert buffed == (100 + 13) * 2 * 10
+
+    def test_a_commander_carrying_the_same_effect_type_does_not_buff_units(self):
+        # Verified in the client: buffedMeleeAttack reads only the active
+        # global-effect event, so a lord-side type 148 bonus does nothing here.
+        game = self.data()
+        commander_side = EffectResolver(game).accumulate([Bonus(effect_id=273, value=195)], 148)
+
+        assert commander_side == 195  # it resolves...
+        assert global_unit_attack_bonuses(game, []) == {}  # ...but never reaches a unit

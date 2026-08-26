@@ -42,7 +42,13 @@ class AttackerFlankEffects(BaseModel):
     wall_reduction: float = 0.0
     moat_reduction: float = 0.0
 
-    def soldier_stack_attack_value(self, unit: UnitStats, free_items: int, available: int) -> int:
+    def soldier_stack_attack_value(
+        self,
+        unit: UnitStats,
+        free_items: int,
+        available: int,
+        attack_bonus: float = 0.0,
+    ) -> int:
         """
         What a stack of this unit is worth on this flank.
 
@@ -54,14 +60,17 @@ class AttackerFlankEffects(BaseModel):
             unit: The unit being considered
             free_items: Remaining troop capacity of the flank
             available: How many of the unit the player owns
+            attack_bonus: A flat addition to this unit's attack from an active
+                global effect, added before the multiplier as the client does
 
         Returns:
             The stack's attack value, 0 for a unit with no matching role
         """
+        buff = int(attack_bonus)
         if unit.is_melee:
-            per_unit = int(unit.melee_attack * self.melee_bonus)
+            per_unit = int((unit.melee_attack + buff) * self.melee_bonus)
         elif unit.is_ranged:
-            per_unit = int(unit.range_attack * self.range_bonus)
+            per_unit = int((unit.range_attack + buff) * self.range_bonus)
         else:
             return 0
         return per_unit * max(0, min(free_items, available))

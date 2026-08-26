@@ -110,6 +110,7 @@ def pick_soldier_stack(
     attacker: AttackerFlankEffects | None = None,
     defender: DefenderFlankEffects | None = None,
     options: FillOptions | None = None,
+    unit_attack_bonuses: Mapping[int, float] | None = None,
 ) -> tuple[int, int] | None:
     """
     Choose one stack for a flank slot and take it out of the inventory.
@@ -126,6 +127,8 @@ def pick_soldier_stack(
         attacker: Attacker multipliers (unbuffed when omitted)
         defender: The defender's strength on this flank, if known
         options: Unit filters
+        unit_attack_bonuses: Per-unit attack bonuses from active global
+            effects, from ``global_unit_attack_bonuses``
 
     Returns:
         ``(wod_id, count)`` placed, or None when nothing is eligible
@@ -149,7 +152,9 @@ def pick_soldier_stack(
         unit = game_data.get_unit(wod_id)
         if unit is None or not _is_eligible(unit, options):
             continue
-        value = attacker.soldier_stack_attack_value(unit, free_items, available)
+        value = attacker.soldier_stack_attack_value(
+            unit, free_items, available, (unit_attack_bonuses or {}).get(wod_id, 0.0)
+        )
         if unit.is_melee and options.use_melee:
             if value > best_melee:
                 best_melee, best_melee_id = value, wod_id
@@ -182,6 +187,7 @@ def fill_flank_with_soldiers(
     attacker: AttackerFlankEffects | None = None,
     defender: DefenderFlankEffects | None = None,
     options: FillOptions | None = None,
+    unit_attack_bonuses: Mapping[int, float] | None = None,
 ) -> list[tuple[int, int]]:
     """
     Fill one flank's unit slots.
@@ -213,6 +219,7 @@ def fill_flank_with_soldiers(
             attacker=attacker,
             defender=defender,
             options=options,
+            unit_attack_bonuses=unit_attack_bonuses,
         )
         if stack is None:
             break
@@ -229,6 +236,7 @@ def fill_wave(
     attacker: AttackerFlankEffects | None = None,
     defence: Mapping[Flank, DefenderFlankEffects] | None = None,
     options: FillOptions | None = None,
+    unit_attack_bonuses: Mapping[int, float] | None = None,
 ) -> AttackWave:
     """
     Build one wave's units, flank by flank.
@@ -269,6 +277,7 @@ def fill_wave(
             attacker=attacker,
             defender=(defence or {}).get(flank),
             options=options,
+            unit_attack_bonuses=unit_attack_bonuses,
         )
         filled[flank] = [[wod_id, count] for wod_id, count in stacks]
 
@@ -293,6 +302,7 @@ def fill_waves(
     attacker: AttackerFlankEffects | None = None,
     defence: Mapping[Flank, DefenderFlankEffects] | None = None,
     options: FillOptions | None = None,
+    unit_attack_bonuses: Mapping[int, float] | None = None,
 ) -> list[AttackWave]:
     """
     Fill every wave the attack may carry, front to back.
@@ -340,6 +350,7 @@ def fill_waves(
             attacker=attacker,
             defence=defence,
             options=options,
+            unit_attack_bonuses=unit_attack_bonuses,
         )
         if not wave.is_complete():
             break
