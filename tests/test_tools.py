@@ -346,3 +346,42 @@ class TestToolFeedback:
 
         assert placed == [(611, 3)]
         assert inv.available(611) == 97
+
+
+class TestFortificationAlreadyBeaten:
+    """A defence the attacker already out-reduces needs no tool."""
+
+    def test_strategies_retire_when_reductions_exceed_the_defence(self):
+        game = strategy_data()
+        # A commander with -116% wall protection against a camp with 70%: the
+        # wall is already gone, so no ladder is worth a slot.
+        picked = by_name("wall")(
+            Inventory({301: 500}),
+            game,
+            free_items=20,
+            attacker=AttackerFlankEffects(wall_reduction=1.161),
+            defender=DefenderFlankEffects(wall_bonus=0.70),
+        )
+
+        assert picked is None
+
+    def test_the_pool_falls_through_to_the_next_defence(self):
+        game = strategy_data()
+        inv = Inventory({611: 500})
+        # Gate is out-reduced but the defenders themselves are not, so filling
+        # moves past the fortification strategies rather than stopping.
+        placed = fill_flank_with_tools(
+            20,
+            2,
+            1,
+            inv,
+            game,
+            default_tool_strategies(),
+            attacker=AttackerFlankEffects(wall_reduction=2.0, gate_reduction=2.0, moat_reduction=2.0),
+            defender=DefenderFlankEffects(wall_bonus=0.70, gate_bonus=0.70, melee_units_melee_strength=100),
+        )
+
+        # 611 only carries a gate bonus, and gate is already beaten, so nothing
+        # in this inventory is worth placing.
+        assert placed == []
+        assert inv.available(611) == 500
