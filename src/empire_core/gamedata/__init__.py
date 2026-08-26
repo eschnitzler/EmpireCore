@@ -1,4 +1,4 @@
-"""Static game data: unit and tool stats, effects, and NPC camp defences."""
+"""Static game data: unit and tool stats, effects, and NPC camp defenses."""
 
 from .data import CAMP_TABLES, RAW_TABLES, GameData, default_cache_dir
 from .models import (

@@ -69,7 +69,7 @@ def fortification_bonuses(
     Wall, gate and moat protection as fractions, from building levels.
 
     Each level indexes the matching building, whose items column is a
-    percentage; the client divides by 100 before using it as a defence.
+    percentage; the client divides by 100 before using it as a defense.
 
     Args:
         game_data: Loaded tables
@@ -112,7 +112,7 @@ def defender_flank_effects(
     Aggregate a flank's defenders into strength values.
 
     Mirrors ``FightScreenHelper.getDefendingUnitStrength``: each defender adds
-    both its melee and its ranged defence, credited to the melee or ranged
+    both its melee and its ranged defense, credited to the melee or ranged
     group according to its own role. Tools among the stacks add their wall,
     gate and moat bonuses, as the client's ``getDefenceBonuses`` does.
 
@@ -122,7 +122,7 @@ def defender_flank_effects(
 
     Args:
         stacks: ``(wod_id, count)`` pairs defending this flank
-        game_data: Loaded stats, for the defenders' defence values
+        game_data: Loaded stats, for the defenders' defense values
         flank: Which flank these defenders hold; without it the gate is left
             alone
         melee_bonus: Defender melee multiplier (1.0 = unbuffed)
@@ -154,11 +154,11 @@ def defender_flank_effects(
             moat_bonus += tool.moat_bonus
             continue
         if unit.is_melee:
-            melee_melee += unit.melee_defence * count
-            melee_range += unit.range_defence * count
+            melee_melee += unit.melee_defense * count
+            melee_range += unit.range_defense * count
         elif unit.is_ranged:
-            range_melee += unit.melee_defence * count
-            range_range += unit.range_defence * count
+            range_melee += unit.melee_defense * count
+            range_range += unit.range_defense * count
 
     if unknown:
         logger.warning(f"{unknown} defending stack(s) matched no known unit or tool")
@@ -185,13 +185,13 @@ def defender_flank_effects(
 DEFENDER_WALL_BONUS_TYPE = 6
 DEFENDER_GATE_BONUS_TYPE = 7
 DEFENDER_MOAT_BONUS_TYPE = 8
-DEFENCE_BONUS_TYPE = 31
-DEFENCE_BOOST_YARD_TYPE = 32
-DEFENCE_BOOST_FRONT_TYPE = 49
-DEFENCE_BOOST_FLANK_TYPE = 50
+DEFENSE_BONUS_TYPE = 31
+DEFENSE_BOOST_YARD_TYPE = 32
+DEFENSE_BOOST_FRONT_TYPE = 49
+DEFENSE_BOOST_FLANK_TYPE = 50
 
 
-def castellan_defence_multiplier(
+def castellan_defense_multiplier(
     resolver: EffectResolver,
     bonuses: Sequence[Bonus],
     *,
@@ -203,7 +203,7 @@ def castellan_defence_multiplier(
     How much a defending castellan multiplies its own defenders by.
 
     ``CastleEffectsHelper.getFullDefenseBonusForLordByFlankAndAreaType``: the
-    all-flank defence bonus, plus the melee or ranged one, plus whichever
+    all-flank defense bonus, plus the melee or ranged one, plus whichever
     position-specific boost applies. The result is a percentage the caller adds
     to 1.0.
 
@@ -223,18 +223,18 @@ def castellan_defence_multiplier(
     Returns:
         The percentage to add to 1.0
     """
-    total = resolver.accumulate(bonuses, DEFENCE_BONUS_TYPE, area_type=area_type)
+    total = resolver.accumulate(bonuses, DEFENSE_BONUS_TYPE, area_type=area_type)
     total += resolver.accumulate(
         bonuses,
         CombatEffectType.MELEE_BONUS if melee else CombatEffectType.RANGE_BONUS,
         area_type=area_type,
     )
     if flank is Flank.MIDDLE:
-        total += resolver.accumulate(bonuses, DEFENCE_BOOST_FRONT_TYPE, area_type=area_type)
+        total += resolver.accumulate(bonuses, DEFENSE_BOOST_FRONT_TYPE, area_type=area_type)
         # The client adds the courtyard boost here, on the middle flank.
-        total += resolver.accumulate(bonuses, DEFENCE_BOOST_YARD_TYPE, area_type=area_type)
+        total += resolver.accumulate(bonuses, DEFENSE_BOOST_YARD_TYPE, area_type=area_type)
     elif flank in (Flank.LEFT, Flank.RIGHT):
-        total += resolver.accumulate(bonuses, DEFENCE_BOOST_FLANK_TYPE, area_type=area_type)
+        total += resolver.accumulate(bonuses, DEFENSE_BOOST_FLANK_TYPE, area_type=area_type)
     return total / 100
 
 
@@ -256,7 +256,7 @@ def castellan_fortification(
     )
 
 
-def spied_castle_defence(
+def spied_castle_defense(
     game_data: GameData,
     spy_army: "SpyArmy",
     *,
@@ -307,7 +307,7 @@ def spied_castle_defence(
         base = melee_bonus if melee else range_bonus
         if not castellan_bonuses:
             return base
-        return base + castellan_defence_multiplier(
+        return base + castellan_defense_multiplier(
             resolver, castellan_bonuses, flank=flank, melee=melee, area_type=area_type
         )
 
@@ -335,7 +335,7 @@ def spied_castle_defence(
     }
 
 
-def npc_camp_defence(
+def npc_camp_defense(
     game_data: GameData,
     victories: int,
     kingdom_id: int = 0,
@@ -344,7 +344,7 @@ def npc_camp_defence(
     What defends an NPC camp, per flank, without asking the server.
 
     The items payload lists a camp's defenders by victory count, so a robber
-    baron camp's defence can be computed offline instead of spying it.
+    baron camp's defense can be computed offline instead of spying it.
 
     Args:
         game_data: Loaded stats
@@ -356,7 +356,7 @@ def npc_camp_defence(
         camp's own wall and gate protection is included, derived from the level
         its victory count implies.
     """
-    row = game_data.dungeon_defence(victories, kingdom_id)
+    row = game_data.dungeon_defense(victories, kingdom_id)
     if row is None:
         return None
 
@@ -379,7 +379,7 @@ def npc_camp_defence(
     }
 
 
-def event_camp_defence(
+def event_camp_defense(
     game_data: GameData,
     table: str,
     victories: int,
@@ -389,7 +389,7 @@ def event_camp_defence(
 
     Nomad, samurai, faction invasion and alliance invasion camps are described
     differently from robber baron camps: instead of a per-flank composition they
-    give a defence strength, a unit and tool list, and wall and gate bonuses.
+    give a defense strength, a unit and tool list, and wall and gate bonuses.
     The same units defend every flank, so the composition is split evenly and
     the fortification applied to each.
 
@@ -413,7 +413,7 @@ def event_camp_defence(
 
 
 def _camp_flanks(row: NpcCampDefence, game_data: GameData) -> dict[Flank, DefenderFlankEffects]:
-    stacks = [(wod_id, 1) for wod_id in row.defence_unit_ids]
+    stacks = [(wod_id, 1) for wod_id in row.defense_unit_ids]
     return {
         flank: defender_flank_effects(
             stacks,
@@ -429,10 +429,10 @@ __all__ = [
     "camp_fortification_levels",
     "camp_level",
     "defender_flank_effects",
-    "event_camp_defence",
+    "event_camp_defense",
     "fortification_bonuses",
-    "castellan_defence_multiplier",
+    "castellan_defense_multiplier",
     "castellan_fortification",
-    "npc_camp_defence",
-    "spied_castle_defence",
+    "npc_camp_defense",
+    "spied_castle_defense",
 ]

@@ -71,7 +71,7 @@ class CommandError(EmpireError):
                         ...
 
             ``GGEError.from_code()`` deliberately is not used here: it collapses
-            unrecognised codes to ``GENERAL_ERROR``, which would mislabel new
+            unrecognized codes to ``GENERAL_ERROR``, which would mislabel new
             server codes as a generic failure.
     """
 

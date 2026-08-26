@@ -3,7 +3,7 @@
 **Purpose:** everything that can change the outcome — or the composition — of an
 attack in Goodgame Empire, catalogued for the attack auto-fill port.
 
-**Sources.** Three artefacts, all from the live client release:
+**Sources.** Three artifacts, all from the live client release:
 
 | Short name | File | What it is |
 |---|---|---|
@@ -358,7 +358,7 @@ effect 273, format `"273&<wodId>+<strength>#<wodId>+<strength>"`:
 
 There is **no** `buffedMeleeDefence` / `buffedRangeDefence`. Grepping
 `buffed[A-Za-z]*` in the bundle yields only `buffedMeleeAttack` (×11),
-`buffedRangeAttack` (×11) and `buffedBonus` (×4). Defence uses the raw
+`buffedRangeAttack` (×11) and `buffedBonus` (×4). Defense uses the raw
 `meleeDefence` / `rangeDefence` columns.
 
 ### 1.8 The stack score auto-fill actually ranks
@@ -420,7 +420,7 @@ chosen = (bestMeleeScore * m >= bestRangeScore * _) ? bestMeleeWodId : bestRange
 Two things to carry over exactly: only `defenderRangeReduction` is ever passed
 (`defenderMeleeReduction` is never read here, even though tool placement has
 been accumulating it), and the scores are **cross-weighted** — the melee
-candidate is weighted by the *range* defence share and vice versa. Candidate
+candidate is weighted by the *range* defense share and vice versa. Candidate
 scans use strict `>`, so ties go to whichever unit the inventory iteration
 reaches first.
 
@@ -960,7 +960,7 @@ with their all being `capID` 99.
 | `capID` 99 | ITEMS `effectCaps` row 99 has **no `maxTotalBonus` key** | uncapped |
 | `EquipmentBonusVO.overridesBonusCap` | short-circuits `maxValueStrength` to `Number.MAX_VALUE` | that bonus escapes every cap |
 | `ignoreCap = true` | `getTotalEffectValue` second parameter; `EffectsHandlerVO` / `SimpleEffectSource` `ignoreCap` | no clamp applied |
-| Missing `maxTotalBonus` | `EffectCapVO.parseXml`: `int(e.maxTotalBonus) \|\| Number.MAX_VALUE` | uncapped — **and an explicit `maxTotalBonus="0"` would also become uncapped.** No shipped row has 0, so this is a latent-behaviour note, not an observed case. |
+| Missing `maxTotalBonus` | `EffectCapVO.parseXml`: `int(e.maxTotalBonus) \|\| Number.MAX_VALUE` | uncapped — **and an explicit `maxTotalBonus="0"` would also become uncapped.** No shipped row has 0, so this is a latent-behavior note, not an observed case. |
 | `GemBonusVO.triggerChance` | proc-chance gems are kept as separate, unmerged entries | not merged into a bucket |
 | Legend skills | `getTotalValueOfLegendSkillEffect` returns a plain int | outside the pipeline entirely |
 
@@ -986,10 +986,10 @@ is chosen by `LordEffectHelper.getFilterStrategyAttackOrDefence` /
 |---|---|
 | `FULL_ACTIVE` | nothing (UI listing) |
 | `FULL_PASSIVE` | nothing; `isGroupActive` always false (greyed display) |
-| `ATTACK` | stationing/support travel effects, yard-defence boost, and category 7 |
+| `ATTACK` | stationing/support travel effects, yard-defense boost, and category 7 |
 | `ATTACK_PVE` | same list as `ATTACK`, but flips the PvP/PvE flag rule |
-| `DEFENCE_PVE` | only the PvP wall-unit-slot effect, and category 7 |
-| `DEFENCE_PVP` | no explicit type exclusions; category 7 |
+| `DEFENSE_PVE` | only the PvP wall-unit-slot effect, and category 7 |
+| `DEFENSE_PVP` | no explicit type exclusions; category 7 |
 | `STATION` | support and PvP travel effects |
 | `SUPPORT` | stationing and PvP travel/return effects |
 
@@ -1237,8 +1237,8 @@ two forms.
 | `wallBonus` | `.wallBonus` | attacker wall **reduction** / defender wall protection |
 | `gateBonus` | `.gateBonus` | attacker gate reduction / defender gate protection |
 | `moatBonus` | `.moatBonus` | attacker moat reduction / defender moat protection |
-| `defMeleeBonus` | `.defMeleeBonus` | defender melee defence |
-| `defRangeBonus` | `.defRangeBonus` | defender ranged defence |
+| `defMeleeBonus` | `.defMeleeBonus` | defender melee defense |
+| `defRangeBonus` | `.defRangeBonus` | defender ranged defense |
 | `offMeleeBonus` | `.offMeleeBonus` | attacker melee multiplier |
 | `offRangeBonus` | `.offRangeBonus` | attacker range multiplier |
 
@@ -1442,7 +1442,7 @@ if slot and slot.isFree() and slot.isUnlocked() and inventory.getToolCount() > 0
         this._toolStrategyPool.pop()                                // wrong slot type -> pop the STRATEGY
 ```
 
-Two behaviours worth stating: a picked tool that does not fit the current slot
+Two behaviors worth stating: a picked tool that does not fit the current slot
 type pops the **strategy**, not the slot; and a tool already present in the flank
 merges into its existing slot rather than consuming a new one.
 
@@ -1536,7 +1536,7 @@ getRangeDefenceValue(e, t) = _rangeDefenceUnitsRangeStrength * (_defenderRangeBo
                            + _meleeDefenceUnitsRangeStrength * (_defenderMeleeBonus - t)
 ```
 
-### 6.2 Unit strengths and defence multipliers
+### 6.2 Unit strengths and defense multipliers
 
 `FightScreenHelper.getDefendingUnitStrength(attackInfo, flank)` (@2323634),
 verbatim structure. Units come from
@@ -1585,7 +1585,7 @@ if flank == FLANK_MIDDLE:               o += equip(EFFECT_TYPE_DEFENSE_BOOST_YAR
 return o / 100
 ```
 
-Two oddities, **reported as found, not rationalised**: type 32 (yard defence
+Two oddities, **reported as found, not rationalised**: type 32 (yard defense
 boost) is applied on `FLANK_MIDDLE` rather than `FLANK_YARD`, and it reads
 `.rawValues[0]` instead of `.strength` unlike every other term in the function.
 
@@ -1631,7 +1631,7 @@ Base values come from the map-object VO:
 | NomadCamp, SamuraiCamp, AlienInvasion, AllianceInvasionCamp, Daimyo, Wolfking | **from the server comm array**, not client tables |
 
 `AttackDialogHelper.calculateToolsInfo` subtracts the attacker's reductions from
-these at the level cap, and gates the lord's defence flanks differently from
+these at the level cap, and gates the lord's defense flanks differently from
 `FightScreenHelper`. Which matches the server is **not established** (§0).
 
 Alliance-tower fights override wall/gate/moat via
@@ -1639,10 +1639,10 @@ Alliance-tower fights override wall/gate/moat via
 
 ### 6.4 NPC camp and dungeon tables
 
-None of these carry effect ids — they are **scalar defence columns**. Verified
+None of these carry effect ids — they are **scalar defense columns**. Verified
 column presence across all rows (not first-row sampling):
 
-| ITEMS table | rows | Defence columns present |
+| ITEMS table | rows | Defense columns present |
 |---|---|---|
 | `nomadCamps` | 90 | `wallBonus`, `gateBonus`, `defStrength`, `defenceUnits`, `defenceTools`, `dungeonPToolStacks`, `dungeonNPToolStacks`, `lordID`, `guards`, `unitWallCount` — **no `moatBonus`** |
 | `samuraiCamps` | 90 | identical set — no `moatBonus` |
@@ -1650,8 +1650,8 @@ column presence across all rows (not first-row sampling):
 | `allianceInvasionCamps` | 26 | identical set + `generatedRagePerDefense` (16) — no `moatBonus` |
 | `allianceBattleGroundDungeons` | 40 | identical set — no `moatBonus` |
 | `dungeons` | 1769 | `lordID` (1555), `unitsL/M/R` (~1500 each), `unitsK` (991), `toolL/M/R` (~1400 each) — **no wall/gate/moat columns** |
-| `specialcamps` | 91 | `defStrength`, `dungeonPTools`, `randomizedDefence` on **1 row only**; the other 90 carry no defence data |
-| `bossdungeons` | 3 | only `attackStrength` — **no defence, wall/gate/moat or composition data at all** |
+| `specialcamps` | 91 | `defStrength`, `dungeonPTools`, `randomizedDefence` on **1 row only**; the other 90 carry no defense data |
+| `bossdungeons` | 3 | only `attackStrength` — **no defense, wall/gate/moat or composition data at all** |
 | `eventAutoScalings` | 44 | `wallReductionBoost`, `gateReductionBoost`, `moatReductionBoost`, `guardsReductionBoost`, `npcDefenseScoreMultiplier`, `defaultDefenseUnits`, `default{Wall,Gate,Moat,Range,Melee}DefenseTools`, `default{Attack…}Tools`, `wavesPerTool`, `minDefStrength`, `toolPlayerLevel` |
 | `eventAutoScalingCamps` | 1078 | `maxTroopCapacityDefense`, `randomFactorDefense`, `normal/premiumDiffDefStrengthBoostMin/Max{Defense,Attack}`, `lordID`, `unitCapacity`, `flank/frontToolsPerWave(Min/Max)` — **no `wallBonus`/`gateBonus`** |
 | `tmapnodes` | 499 | `wallBonus` (290), `gateBonus` (290), `defStrength`/`defenceUnits`/`defenceTools`/`unitWallCount`/`randomizedDefence` (176) |
@@ -1720,8 +1720,8 @@ Companions: `allianceTowerEffectsActivations` (6 rows:
 `allianceTowerEffectsActivationID`, `remainingTime` 21600/18000/…, `cost`
 5000/10000/…) sets activation duration and price;
 `allianceBattleGroundSettings.allianceTowerEffectIDs` (3 of 15 rows) selects
-which are live per preset, alongside `defenceTowerLossMalus`,
-`defenceTowerLossMalusMax`, `malusCurrencyID`; `allianceTowers` (5 rows) carries
+which are live per preset, alongside `defenseTowerLossMalus`,
+`defenseTowerLossMalusMax`, `malusCurrencyID`; `allianceTowers` (5 rows) carries
 `areaSpecificEffects` → type 181.
 
 `ABGAllianceTowerEffectVO.currentBonusVO` is built as a `RawLordEffectBonusVO`
@@ -1740,7 +1740,7 @@ data (`buildings.areaSpecificEffects`, `allianceTowers`, `constructionItems`,
 
 Same status for 47 `DefenseSupportUnits` and 51 `AttackSupportUnits`: their only
 references are the two classifiers, `RelicEquipmentUpgradeInfoComponent.getValueTextVO`
-(a tooltip) and the gem colour table.
+(a tooltip) and the gem color table.
 
 Also read only by classification switches or text composers, never by a combat
 formula: 11 `npcDefenseBonus`, 82 `moraleBoost`, 78 `auxiliaryCapacityBoost`,
@@ -1840,9 +1840,9 @@ Stated plainly; none of these are resolved by the three files.
    `inventoryAmount`-vs-`getAmount()` stacking, and the same
    ATTACK_BONUS-to-both-melee-and-range doubling for tools.
 5. Whether `EffectValueMap.strength` returning the **first** map value (rather
-   than the requested `wodId`'s) matches server behaviour. Unobservable today.
+   than the requested `wodId`'s) matches server behavior. Unobservable today.
 
-**Unresolved client behaviour**
+**Unresolved client behavior**
 
 6. Deterministic ordering inside a mixed-sign cap bucket (§4.5).
 7. Whether any code path constructs a plain `BonusVO` with `capID` −1, which
@@ -1884,7 +1884,7 @@ Stated plainly; none of these are resolved by the three files.
 19. Where the eight items-only effect types (55, 57, 87, 153, 155, 157, 158, 188)
     are handled. Only their **absence** from the client enum was verified;
     calling them server-side is **(inferred)**.
-20. The source of a boss dungeon's defence. `bossdungeons` carries none (§6.4).
+20. The source of a boss dungeon's defense. `bossdungeons` carries none (§6.4).
 21. The server's moat source for `nomadCamps` / `samuraiCamps` /
     `factioninvasioncamps` / `allianceInvasionCamps` /
     `allianceBattleGroundDungeons` — all have `wallBonus` and `gateBonus` but no
@@ -1895,7 +1895,7 @@ Stated plainly; none of these are resolved by the three files.
     server-side derivation from `eventAutoScalingLordEffects`
     `difficultyScalingWallBonus`/`GateBonus` `minValue..maxValue` is
     **(inferred)**.
-23. Most `specialcamps` rows (90 of 91) carry no defence data at all.
+23. Most `specialcamps` rows (90 of 91) carry no defense data at all.
 24. The `dungeons` composition string format is **(inferred)** — no client
     parser exists (§6.4).
 25. `raidBossStages`' VO declares `_attackerStageEffects` with no matching ITEMS

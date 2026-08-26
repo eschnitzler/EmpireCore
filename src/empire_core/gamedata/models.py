@@ -3,7 +3,7 @@ Typed rows from the GGE items payload.
 
 Values arrive as strings, so every numeric field relies on pydantic coercion.
 Tables whose meaning is not yet established are kept raw by
-:class:`~empire_core.gamedata.data.GameData` instead of being modelled here on
+:class:`~empire_core.gamedata.data.GameData` instead of being modeled here on
 a guess.
 """
 
@@ -23,7 +23,7 @@ ECONOMY_SORT_CATEGORY = 7
 
 def parse_stacks(value: str | None) -> list[tuple[int, int]]:
     """
-    Parse the ``wodID+count#wodID+count`` encoding used for camp defences.
+    Parse the ``wodID+count#wodID+count`` encoding used for camp defenses.
 
     Unparseable segments are skipped rather than failing the row.
     """
@@ -73,8 +73,8 @@ class UnitStats(_Row):
     speed: int = 0
     melee_attack: int = Field(alias="meleeAttack", default=0)
     range_attack: int = Field(alias="rangeAttack", default=0)
-    melee_defence: int = Field(alias="meleeDefence", default=0)
-    range_defence: int = Field(alias="rangeDefence", default=0)
+    melee_defense: int = Field(alias="meleeDefence", default=0)
+    range_defense: int = Field(alias="rangeDefence", default=0)
     loot_value: float = Field(alias="lootValue", default=0)
     might_value: float = Field(alias="mightValue", default=0)
     mead_supply: int = Field(alias="meadSupply", default=0)
@@ -104,7 +104,7 @@ class UnitStats(_Row):
         Raw offence, before any commander or equipment effects.
 
         The client adds a global-event bonus on top of this
-        (EFFECT_TYPE_ATTACK_BONUS_UNIT), which is not modelled yet.
+        (EFFECT_TYPE_ATTACK_BONUS_UNIT), which is not modeled yet.
         """
         return max(self.melee_attack, self.range_attack)
 
@@ -122,7 +122,7 @@ class UnitStats(_Row):
 
 class ToolStats(_Row):
     """
-    A siege or defence tool.
+    A siege or defense tool.
 
     ``effects`` is kept raw; resolve it through
     :attr:`~empire_core.gamedata.data.GameData.effects`.
@@ -242,7 +242,7 @@ class ToolStats(_Row):
         return self.category == "Attack"
 
     @property
-    def is_defence_tool(self) -> bool:
+    def is_defense_tool(self) -> bool:
         return self.category == "Defence"
 
     @property
@@ -611,15 +611,15 @@ class DungeonDefence(_Row):
 
 class NpcCampDefence(_Row):
     """
-    An event camp's defence, shared shape across the camp tables.
+    An event camp's defense, shared shape across the camp tables.
 
     Covers the nomad, samurai, faction invasion and alliance invasion camps.
     """
 
     count_victory: int = Field(alias="countVictory", default=0)
     def_strength: int = Field(alias="defStrength", default=0)
-    raw_defence_units: str = Field(alias="defenceUnits", default="")
-    raw_defence_tools: str = Field(alias="defenceTools", default="")
+    raw_defense_units: str = Field(alias="defenceUnits", default="")
+    raw_defense_tools: str = Field(alias="defenceTools", default="")
     wall_bonus: float = Field(alias="wallBonus", default=0)
     gate_bonus: float = Field(alias="gateBonus", default=0)
     lord_id: int = Field(alias="lordID", default=0)
@@ -629,12 +629,12 @@ class NpcCampDefence(_Row):
     dungeon_level: int = Field(alias="dungeonlevel", default=0)
 
     @property
-    def defence_unit_ids(self) -> tuple[int, ...]:
-        return parse_ids(self.raw_defence_units)
+    def defense_unit_ids(self) -> tuple[int, ...]:
+        return parse_ids(self.raw_defense_units)
 
     @property
-    def defence_tool_ids(self) -> tuple[int, ...]:
-        return parse_ids(self.raw_defence_tools)
+    def defense_tool_ids(self) -> tuple[int, ...]:
+        return parse_ids(self.raw_defense_tools)
 
 
 __all__ = [

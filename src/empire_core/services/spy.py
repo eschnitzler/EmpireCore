@@ -36,7 +36,7 @@ def _parse_spy_notification(message: list[Any]) -> int | None:
 
     The params field is ``subtypeSpy+subtypeResult+areaType#kingdomID+ownerID+
     areaName``; only the result matters here. Returning None rather than
-    assuming success keeps an unrecognised shape from publishing a report the
+    assuming success keeps an unrecognized shape from publishing a report the
     mission may never have earned.
     """
     if len(message) < 3 or not isinstance(message[2], str):

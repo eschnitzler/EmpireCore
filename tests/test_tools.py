@@ -209,7 +209,7 @@ class TestReduceDefenceBonusStrategy:
         )
         assert picked is None
 
-    def test_already_out_reduced_defence_needs_no_tool(self):
+    def test_already_out_reduced_defense_needs_no_tool(self):
         game = strategy_data()
         picked = by_name("gate")(
             Inventory({611: 100}),
@@ -298,7 +298,7 @@ class TestReduceDefenceBonusStrategy:
     def test_fill_uses_the_pool_end_first(self):
         game = strategy_data()
         inv = Inventory({301: 100, 611: 100})
-        # Wall is last in the pool so it is tried first; a wall defence is
+        # Wall is last in the pool so it is tried first; a wall defense is
         # present, so a ladder lands rather than a ram.
         placed = fill_flank_with_tools(
             40,
@@ -313,7 +313,7 @@ class TestReduceDefenceBonusStrategy:
 
 
 class TestToolFeedback:
-    """Each placed tool dents the defence the next pick is measured against."""
+    """Each placed tool dents the defense the next pick is measured against."""
 
     def test_a_tool_reduces_what_the_next_one_must_cancel(self):
         game = strategy_data()
@@ -326,7 +326,7 @@ class TestToolFeedback:
         # The original is untouched.
         assert effects.gate_reduction == 0.0
 
-    def test_defence_reductions_accumulate_per_unit_placed(self):
+    def test_defense_reductions_accumulate_per_unit_placed(self):
         game = strategy_data()
         stakes = game.get_tool(646)  # a defensive tool, moat 0.80
 
@@ -334,7 +334,7 @@ class TestToolFeedback:
 
         assert updated.moat_reduction == pytest.approx(1.60)
 
-    def test_filling_stops_once_the_defence_is_cancelled(self):
+    def test_filling_stops_once_the_defense_is_canceled(self):
         game = strategy_data()
         inv = Inventory({611: 100})
         # 0.30 of gate protection and three slots: the first slot cancels it,
@@ -354,9 +354,9 @@ class TestToolFeedback:
 
 
 class TestFortificationAlreadyBeaten:
-    """A defence the attacker already out-reduces needs no tool."""
+    """A defense the attacker already out-reduces needs no tool."""
 
-    def test_strategies_retire_when_reductions_exceed_the_defence(self):
+    def test_strategies_retire_when_reductions_exceed_the_defense(self):
         game = strategy_data()
         # A commander with -116% wall protection against a camp with 70%: the
         # wall is already gone, so no ladder is worth a slot.
@@ -370,7 +370,7 @@ class TestFortificationAlreadyBeaten:
 
         assert picked is None
 
-    def test_the_pool_falls_through_to_the_next_defence(self):
+    def test_the_pool_falls_through_to_the_next_defense(self):
         game = strategy_data()
         inv = Inventory({611: 500})
         # Gate is out-reduced but the defenders themselves are not, so filling
@@ -397,7 +397,7 @@ class TestConditionedEffectBonus:
 
     PAYLOAD = {
         "units": [
-            # A live shape: a weakening tool with no defence columns at all.
+            # A live shape: a weakening tool with no defense columns at all.
             {
                 "wodID": 811,
                 "name": "Workshop",
@@ -422,13 +422,13 @@ class TestConditionedEffectBonus:
         assert tool.def_range_bonus == 0.0
         assert conditioned_effect_bonus(game, tool, RANGE_DEFENCE_MALUS_TYPE) == 2.5
 
-    def test_placing_it_dents_the_defence_for_the_next_pick(self):
+    def test_placing_it_dents_the_defense_for_the_next_pick(self):
         game = self.data()
         inv = Inventory({811: 100})
         strategies = [by_name("range")]
-        defence = DefenderFlankEffects(range_bonus=5.0, range_units_range_strength=100)
+        defense = DefenderFlankEffects(range_bonus=5.0, range_units_range_strength=100)
 
-        placed = fill_flank_with_tools(40, 2, 2, inv, game, strategies, defender=defence)
+        placed = fill_flank_with_tools(40, 2, 2, inv, game, strategies, defender=defense)
 
         # 5.0 of range bonus at 2.5 a tool: two tools, and no third slot filled.
         assert placed == [(811, 2)]
@@ -446,7 +446,7 @@ class TestConditionedEffectBonus:
 
         assert picked is not None
         tool, count = picked
-        # 2.5 per tool against a 1.0 defence: one is enough.
+        # 2.5 per tool against a 1.0 defense: one is enough.
         assert (tool.wod_id, count) == (811, 1)
 
     def test_effects_of_another_type_do_not_count(self):
@@ -589,13 +589,13 @@ class TestPerWaveBudget:
     def test_placing_on_one_flank_spends_the_next_flank_s_budget(self):
         game = self.game()
         used: dict[str, int] = {}
-        defence = DefenderFlankEffects(wall_bonus=5.0)
+        defense = DefenderFlankEffects(wall_bonus=5.0)
 
         left = fill_flank_with_tools(
-            40, 2, 2, Inventory({267: 100}), game, [by_name("wall")], defender=defence, used_per_type=used
+            40, 2, 2, Inventory({267: 100}), game, [by_name("wall")], defender=defense, used_per_type=used
         )
         right = fill_flank_with_tools(
-            40, 2, 2, Inventory({268: 100}), game, [by_name("wall")], defender=defence, used_per_type=used
+            40, 2, 2, Inventory({268: 100}), game, [by_name("wall")], defender=defense, used_per_type=used
         )
 
         assert left == [(267, 3)]

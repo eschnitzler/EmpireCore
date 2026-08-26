@@ -80,9 +80,9 @@ class TestTotals:
         assert parsed(_army()).total() == 860
 
     def test_sections_are_addressable_for_display(self):
-        labelled = [(name, sum(stack.count for stack in stacks)) for name, stacks in parsed(_army()).sections()]
+        labeled = [(name, sum(stack.count for stack in stacks)) for name, stacks in parsed(_army()).sections()]
 
-        assert labelled == [
+        assert labeled == [
             ("left", 150),
             ("middle", 200),
             ("right", 75),

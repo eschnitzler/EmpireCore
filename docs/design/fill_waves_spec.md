@@ -8,7 +8,7 @@ port still lacks, in Python, without opening the client again.
 2. The yard / final-assault wave — its capacity and the `RW` payload field.
 3. Buffed unit attack values — effect type 148.
 
-**Sources**, same three artefacts as `docs/design/combat_effects.md`:
+**Sources**, same three artifacts as `docs/design/combat_effects.md`:
 
 | Short name | File | What it is |
 |---|---|---|
@@ -85,7 +85,7 @@ hasMeleeDefenders = _meleeDefenceUnitsMeleeStrength != 0 || _meleeDefenceUnitsRa
 hasRangeDefenders = _rangeDefenceUnitsMeleeStrength != 0 || _rangeDefenceUnitsRangeStrength != 0
 ```
 
-already modelled as `DefenderFlankEffects.has_melee_defenders` /
+already modeled as `DefenderFlankEffects.has_melee_defenders` /
 `.has_range_defenders`.
 
 **The melee and range strategies are live in this ITEMS snapshot.** No
@@ -228,7 +228,7 @@ Data facts a port needs:
 ### 1.6 Required count, usable count, and selection
 
 **Required count `b`** — how many of this tool cancel the whole remaining
-defence:
+defense:
 
 ```
 b = Math.ceil(p / getRelevantToolBonus(y) * 100 / 100)
@@ -347,7 +347,7 @@ inner call reorders them.
 `inv.getToolCount()` is the total tool **count** (sum of `inventoryAmount`), not
 a count of distinct tools.
 
-Four behaviours a port must reproduce deliberately:
+Four behaviors a port must reproduce deliberately:
 
 **(a) Pop, not skip — an already-deducted stack is discarded.** When the pick
 returns a real tool whose `slotTypes` do not contain this slot's `slotType`,
@@ -612,7 +612,7 @@ map/simple split from the bundle. The complete `EffectValueMap` set is
 
 Wire shape. Tools reach `cra` as the `T` list of each flank object inside `A`:
 `{"L": {"T": [[wodId, amount], ...], "U": [...]}, "M": ..., "R": ...}`, one pair
-per **slot**. Because the model is per slot, the merge behaviour in §1.7(b)
+per **slot**. Because the model is per slot, the merge behavior in §1.7(b)
 changes the emitted bytes: a merged pick produces one pair with a larger amount
 and leaves the triggering slot empty, not two pairs.
 
@@ -833,21 +833,21 @@ stacks together can never exceed `maxItems`.
 ```python
 def pick_soldier_stack(container, attacker_fx, defender_fx, inv, options):
     attacker_fx = attacker_fx or AttackerFlankEffects()          # (1,1,0,0,0,0)
-    g = defender_fx.melee_defence_value(0, attacker_fx.defender_range_reduction) if defender_fx else 0
-    C = defender_fx.range_defence_value(attacker_fx.defender_range_reduction, 0) if defender_fx else 0
+    g = defender_fx.melee_defense_value(0, attacker_fx.defender_range_reduction) if defender_fx else 0
+    C = defender_fx.range_defense_value(attacker_fx.defender_range_reduction, 0) if defender_fx else 0
     melee_share, range_share = 1, 1
     if g + C > 0:
         melee_share = g / (g + C)
         range_share = C / (g + C)
     ...
-    # ties go to melee; melee is weighted by the RANGE-defence share
+    # ties go to melee; melee is weighted by the RANGE-defense share
     chosen = melee_wod if best_melee * range_share >= best_range * melee_share else range_wod
     return inv.deductUnit(chosen, container.freeItems)
 ```
 
 The cross-weighting is deliberate and easy to invert: the melee candidate is
-weighted by `m` (the **range**-defence share) and the range candidate by `_`
-(the **melee**-defence share). Candidate scans use strict `>`, so equal scores
+weighted by `m` (the **range**-defense share) and the range candidate by `_`
+(the **melee**-defense share). Candidate scans use strict `>`, so equal scores
 keep whichever unit the inventory reached first.
 
 Per-unit score, with yard multipliers of 1.0
@@ -873,7 +873,7 @@ Spy-report sections are **positional, not named**.
 `CastleSpyArmyInfoVO.parseArmyInfo` (BUNDLE @3639368) shifts one array in fixed
 order: `[0]` left, `[1]` middle, `[2]` right, `[3]` keep, `[4]` stronghold,
 `[5]` support, `[6]` reserve (optional). Index 4 is easy to miss. Already
-modelled correctly at `services/spy_army.py:21`.
+modeled correctly at `services/spy_army.py:21`.
 
 `getDefenceBonuses` is computed for the yard (it falls through to `default`) but
 the yard fill never reads wall/gate/moat, because no tools are placed. Note the
@@ -1041,7 +1041,7 @@ Other cases:
 6. **Cross-group 179.** capID-99 sum 2400 plus capID-11413 sum 3500 → 2400 +
    min(3500, 3000) = 5400; the cross-group sum is uncapped.
 7. **Yard tie goes to melee.** Equal melee and range stack scores with equal
-   defence shares → the melee wodId is chosen (`>=`).
+   defense shares → the melee wodId is chosen (`>=`).
 8. **Eight slots at every level.** `yard_slots(level)` is 8 for level 1 and for
    level 70.
 
@@ -1104,7 +1104,7 @@ This is a **per-unit** flat additive on one unit's stat line, independent of
 stack size and of every flank/wave multiplier.
 
 `_meleeAttack` and `_rangeAttack` are ITEMS `units.meleeAttack` /
-`.rangeAttack`; already modelled as `UnitStats.melee_attack` / `.range_attack`.
+`.rangeAttack`; already modeled as `UnitStats.melee_attack` / `.range_attack`.
 
 ### 3.2 The feeder
 
@@ -1177,7 +1177,7 @@ uncapped.
 
 `GlobalEffectVO.prototype.parseXml` (BUNDLE @15675298) splits on `&`, resolves
 the row, builds a `BonusVO`, and — when the value class is `EffectValueMap` —
-normalises the `#`/`+` form to a flat comma list and re-parses. That re-parse is
+normalizes the `#`/`+` form to a flat comma list and re-parses. That re-parse is
 redundant belt-and-braces: `EffectValueMap.parseFromValueString` already handles
 `#`.
 
@@ -1369,24 +1369,24 @@ A relic bonus arrives as the triple `[relicEffectId, power, value]`
 quality, **not** strength. Entry points: `RelicEquipmentVO.parseEquipFromArray`
 reads index `[5]`, `RelicGemVO.parseServerObject` reads `[4]`.
 
-### 3.7 Defence has no equivalent
+### 3.7 Defense has no equivalent
 
 Three facts, all confirmed:
 
 1. `getDefence{Melee,Range}Value` read the **raw** ITEMS columns `meleeDefence` /
    `rangeDefence` directly. There is no `buffedMeleeDefence` symbol anywhere in
    the bundle.
-2. There is **no map-valued defence effect type**. The complete `EffectValueMap`
-   set is `{148, 149, 150, 154, 188}`; every defence-side type
+2. There is **no map-valued defense effect type**. The complete `EffectValueMap`
+   set is `{148, 149, 150, 154, 188}`; every defense-side type
    (175/176/177/181-184/215-218) uses a scalar value class. There is no
-   `defenceBonusUnit` analogue to build a per-unit defence buff from, on either
+   `defenseBonusUnit` analogue to build a per-unit defense buff from, on either
    path.
 3. `isAttackEffect` classifies 148/149/150/154 as attack effects; the
    `isDefenceEffect` list contains none of them. UI classification only, but it
    confirms the intent.
 
 **Client inconsistency, verify before mirroring.** The range branch composes the
-equipment bonus and the alliance defence boost **multiplicatively**,
+equipment bonus and the alliance defense boost **multiplicatively**,
 `(1+o)*(1+a)`, while the melee branch composes them **additively**, `(o+a)` with
 `o` already pre-incremented. These are not the same function. Looks like a
 genuine client bug; a port must pick one and document it. `int()` is applied per
@@ -1413,7 +1413,7 @@ Then, per path:
 the lord 148, `C = 1 + (equip 36 + 23|24 + 33/53/54)/100`, and
 `m = (legend 4|7 + 43 + 15)/100`. Display only.
 
-**C. Defence** — raw columns, no buff step exists at all.
+**C. Defense** — raw columns, no buff step exists at all.
 
 Cap ordering is a no-op for 148: `EffectValueMap.add` never reads `maxValues`,
 and every 148 `effects` row is capID 99. The ordering that **does** matter is

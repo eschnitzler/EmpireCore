@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from empire_core.network.connection import _summarise_frame
+from empire_core.network.connection import _summarize_frame
 from empire_core.protocol.models.alliance import AllianceInfo
 from empire_core.protocol.models.attack import AttackWave, CreateAttackResponse, WaveFlank
 from empire_core.protocol.models.commanders import GetCommandersResponse
@@ -460,17 +460,17 @@ class TestFrameRedactionEscapedQuotes:
     the mask early and leak the tail of the secret."""
 
     def test_escaped_quote_does_not_leak_the_password_tail(self):
-        summary = _summarise_frame('%xt%z%unk%1%{"PW": "hun\\"ter2secret"}%')
+        summary = _summarize_frame('%xt%z%unk%1%{"PW": "hun\\"ter2secret"}%')
         assert "ter2secret" not in summary
         assert '"<redacted>"' in summary
 
     def test_escaped_backslash_before_the_closing_quote(self):
-        summary = _summarise_frame('%xt%z%unk%1%{"PW": "hunter2\\\\"}%')
+        summary = _summarize_frame('%xt%z%unk%1%{"PW": "hunter2\\\\"}%')
         assert "hunter2" not in summary
         assert '"<redacted>"' in summary
 
     def test_plain_password_is_still_masked(self):
-        summary = _summarise_frame('%xt%z%unk%1%{"PW": "hunter2", "NM": "user"}%')
+        summary = _summarize_frame('%xt%z%unk%1%{"PW": "hunter2", "NM": "user"}%')
         assert "hunter2" not in summary
         assert '"NM": "user"' in summary
 

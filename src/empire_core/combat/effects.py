@@ -3,7 +3,7 @@ Flank effect values, ported from the game client's combat maths.
 
 The client feeds an attacker-side and a defender-side effect object into its
 auto-fill strategy. Both are plain value holders: the interesting part is how
-their inputs are aggregated, which lives in :mod:`empire_core.combat.defence`.
+their inputs are aggregated, which lives in :mod:`empire_core.combat.defense`.
 """
 
 from __future__ import annotations
@@ -57,11 +57,11 @@ class AttackerFlankEffects(BaseModel):
         Fold a placed tool's contribution into these effects.
 
         ``AttackerFlankEffectVO.updateEffectsWithNewTool``: each tool adds its
-        fortification and defence reductions times the number placed, which is
+        fortification and defense reductions times the number placed, which is
         why the client places tools before soldiers - the soldiers are then
-        picked against a defence the tools have already dented.
+        picked against a defense the tools have already dented.
 
-        A tool's own ``effects`` may add range or melee defence maluses on top of
+        A tool's own ``effects`` may add range or melee defense maluses on top of
         its columns. Resolving those needs the game data and the target's area
         type, which this layer does not have, so the caller resolves them and
         passes them in - the same terms the strategy scored the tool on.
@@ -69,8 +69,8 @@ class AttackerFlankEffects(BaseModel):
         Args:
             tool: The tool that was placed
             count: How many of it
-            range_malus: Range-defence malus from the tool's effects, type 217
-            melee_malus: Melee-defence malus from the tool's effects, type 215
+            range_malus: Range-defense malus from the tool's effects, type 217
+            melee_malus: Melee-defense malus from the tool's effects, type 215
 
         Returns:
             A new effects object; the original is unchanged
@@ -155,14 +155,14 @@ class DefenderFlankEffects(BaseModel):
     gate_bonus: float = 0.0
     moat_bonus: float = 0.0
 
-    def melee_defence_value(self, melee_reduction: float = 0.0, range_reduction: float = 0.0) -> float:
-        """Defence against a melee attack (``getMeleeDefenceValue``)."""
+    def melee_defense_value(self, melee_reduction: float = 0.0, range_reduction: float = 0.0) -> float:
+        """Defense against a melee attack (``getMeleeDefenceValue``)."""
         return self.melee_units_melee_strength * (self.melee_bonus - melee_reduction) + (
             self.range_units_melee_strength * (self.range_bonus - range_reduction)
         )
 
-    def range_defence_value(self, range_reduction: float = 0.0, melee_reduction: float = 0.0) -> float:
-        """Defence against a ranged attack (``getRangeDefenceValue``)."""
+    def range_defense_value(self, range_reduction: float = 0.0, melee_reduction: float = 0.0) -> float:
+        """Defense against a ranged attack (``getRangeDefenceValue``)."""
         return self.range_units_range_strength * (self.range_bonus - range_reduction) + (
             self.melee_units_range_strength * (self.melee_bonus - melee_reduction)
         )

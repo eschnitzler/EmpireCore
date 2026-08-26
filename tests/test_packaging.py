@@ -1,6 +1,6 @@
 """Packaging and import-hygiene tests.
 
-These guard properties of the *distribution* rather than runtime behaviour:
+These guard properties of the *distribution* rather than runtime behavior:
 the PEP 561 typing marker, the optional ``storage`` extra, and the fact that
 importing the package has no side effects on the caller's environment.
 """

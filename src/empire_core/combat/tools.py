@@ -80,7 +80,7 @@ def conditioned_effect_bonus(
 
     ``AReduceDefenseBonusStrategy.getConditionedEffectBonus``: sum a hundredth
     of each matching effect's strength, keeping only effects that apply to the
-    target's area. Six tools today carry a defence malus this way and no column
+    target's area. Six tools today carry a defense malus this way and no column
     at all, so without this they look useless to the strategies.
     """
     total = 0.0
@@ -100,9 +100,9 @@ class ReduceDefenceBonusStrategy:
     Picks the tool that best cancels one of the defender's bonuses.
 
     Ported from ``AReduceDefenseBonusStrategy.pickToolByStrategy``. Given how
-    much of a defence remains after the attacker's own reduction, it prefers the
+    much of a defense remains after the attacker's own reduction, it prefers the
     tool that cancels it outright with the *fewest* units; failing that, the one
-    that removes the most in the units that fit. A defence already at or below
+    that removes the most in the units that fit. A defense already at or below
     zero needs no tool, and the strategy retires.
 
     The client builds five of these, one per defender bonus; see
@@ -340,7 +340,7 @@ def fill_flank_with_tools(
         placed[tool.wod_id] = placed.get(tool.wod_id, 0) + taken
         used_per_type[tool.tool_type] = used_per_type.get(tool.tool_type, 0) + taken
         free -= taken
-        # Each placed tool dents the defence the next pick is measured against,
+        # Each placed tool dents the defense the next pick is measured against,
         # including any malus it carries as an effect rather than a column -
         # without that term the loop could re-pick the same tool forever.
         effects = effects.apply_tool(

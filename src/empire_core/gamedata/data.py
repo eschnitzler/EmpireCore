@@ -91,7 +91,7 @@ CAMP_TABLES = (
 )
 
 # Kept verbatim: needed later, but their encodings are not established yet, so
-# modelling them now would be guesswork.
+# modeling them now would be guesswork.
 RAW_TABLES = (
     "bossdungeons",
     "specialcamps",
@@ -215,15 +215,15 @@ class GameData(BaseModel):
         effect_type = self.effect_types.get(effect.effect_type_id)
         return effect_type.name if effect_type else ""
 
-    def dungeon_defence(self, victories: int, kingdom_id: int = 0) -> DungeonDefence | None:
-        """The camp defence for a victory count in a kingdom."""
+    def dungeon_defense(self, victories: int, kingdom_id: int = 0) -> DungeonDefence | None:
+        """The camp defense for a victory count in a kingdom."""
         for row in self.dungeons:
             if row.count_victories == victories and row.kingdom_id == kingdom_id:
                 return row
         return None
 
     def raw(self, table: str) -> list:
-        """An unmodelled table, exactly as the payload had it."""
+        """An unmodeled table, exactly as the payload had it."""
         return self.raw_tables.get(table, [])
 
     # ------------------------------------------------------------------
@@ -333,7 +333,7 @@ class GameData(BaseModel):
         data._write_cache(cache_file)
         logger.info(
             f"Loaded {len(data.units)} units, {len(data.tools)} tools and "
-            f"{len(data.dungeons)} camp defences (v{version})"
+            f"{len(data.dungeons)} camp defenses (v{version})"
         )
         return data
 

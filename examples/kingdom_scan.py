@@ -23,7 +23,7 @@ KINGDOM = Kingdom.GREEN
 ITEM_TYPES = [MapItemType.CASTLE]
 
 
-def summarise(label: str, result: ScanResult) -> None:
+def summarize(label: str, result: ScanResult) -> None:
     print(
         f"{label}: {len(result.items)} items, {len(result.objects)} objects, "
         f"{len(result.content_chunks)} chunks with content, "
@@ -49,14 +49,14 @@ def main() -> int:
         # sustain a high request rate, so leave the default alone unless you
         # have measured what this account tolerates.
         discovery = client.scan_kingdom(KINGDOM, item_types=ITEM_TYPES)
-        summarise("discovery scan", discovery)
+        summarize("discovery scan", discovery)
 
         if not discovery.content_chunks:
             print("Nothing found; skipping the targeted re-scan.")
             return 0
 
         fresh = client.scan_chunks(KINGDOM, list(discovery.content_chunks), item_types=ITEM_TYPES)
-        summarise("targeted re-scan", fresh)
+        summarize("targeted re-scan", fresh)
 
         for item in fresh.items[:10]:
             print(f"  {item}")

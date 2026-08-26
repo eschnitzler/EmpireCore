@@ -195,8 +195,8 @@ come the commander's own equipment, its general's unit-limit skills, the Hall of
 Legends skills, and the legend skills when both sides are at the level cap.
 
 Each flank takes tools first and then units, because a placed tool reduces the
-defence the units are then chosen against. Units are picked to counter whichever
-of the target's defences is proportionally weaker; tools are picked to cancel
+defense the units are then chosen against. Units are picked to counter whichever
+of the target's defenses is proportionally weaker; tools are picked to cancel
 the target's wall, gate, moat and defender bonuses in as few units as possible,
 and are skipped entirely where the commander's own reductions already erase
 them. A flank that ends up with tools but no units gives the tools back.

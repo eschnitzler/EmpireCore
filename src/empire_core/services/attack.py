@@ -28,9 +28,9 @@ from empire_core.combat import (
     global_unit_attack_bonuses,
     legend_skill_value,
     minimum_owner_level,
-    npc_camp_defence,
+    npc_camp_defense,
     sceat_skill_bonuses,
-    spied_castle_defence,
+    spied_castle_defense,
     wave_level,
     wave_limit_violations,
     yard_capacity,
@@ -244,7 +244,7 @@ class AttackService(BaseService):
         area_bonuses: list[Bonus] | None = None,
         inventory: Inventory | None = None,
         player_target: bool | None = None,
-        defence: dict[Flank, DefenderFlankEffects] | None = None,
+        defense: dict[Flank, DefenderFlankEffects] | None = None,
         attacker: AttackerFlankEffects | None = None,
         commander: Commander | None = None,
         conquer: bool = False,
@@ -266,7 +266,7 @@ class AttackService(BaseService):
         Sizes itself the way the game's auto-fill does: the number of waves,
         each flank's capacity and its unlocked slots all follow from the
         attacker's level, and each slot takes the stack that best counters
-        whichever of the target's defences is proportionally weaker.
+        whichever of the target's defenses is proportionally weaker.
 
         Only units are placed. The game's button also fills tool slots, which
         needs the tool effect tables resolved, so waves from here carry no
@@ -275,10 +275,10 @@ class AttackService(BaseService):
         Args:
             castle_id: Castle whose troops to draw from
             level: The *target owner's* level, which is what sizes a wave
-            camp_victories: An NPC camp's victory count, to derive its defence
+            camp_victories: An NPC camp's victory count, to derive its defense
                 from the game data - see ``MapAreaItem.victory_count``
             camp_kingdom_id: Kingdom the camp sits in
-            landmark_min_level: A capital's or metropolis's own defence level,
+            landmark_min_level: A capital's or metropolis's own defense level,
                 which the client reads from its landmark at runtime
             area_bonuses: Effects that apply to this attack from outside the
                 commander, from ``get_attack_info(...).attacker_bonuses()``.
@@ -289,7 +289,7 @@ class AttackService(BaseService):
             area_type: The target's area type, which scopes the general's
                 effects; NPC camps are area type 2
             player_target: True when attacking a player, False for an NPC
-            defence: Explicit per-flank defence, overriding ``camp_victories``
+            defense: Explicit per-flank defense, overriding ``camp_victories``
             attacker: Attacker multipliers; built from ``commander`` when
                 omitted, and unbuffed if neither is given
             commander: The commander leading the attack, whose equipment and
@@ -334,8 +334,8 @@ class AttackService(BaseService):
         # level 70 however low its owner is.
         level = wave_level(level, area_type, landmark_min_level=landmark_min_level)
 
-        if defence is None and camp_victories is not None:
-            defence = npc_camp_defence(game_data, camp_victories, camp_kingdom_id)
+        if defense is None and camp_victories is not None:
+            defense = npc_camp_defense(game_data, camp_victories, camp_kingdom_id)
 
         resolver = EffectResolver(game_data)
         commander_own = commander_bonuses(commander) if commander is not None else []
@@ -389,7 +389,7 @@ class AttackService(BaseService):
             front_bonus_percent=front_bonus_percent,
             tool_bonus=tool_bonus,
             attacker=attacker,
-            defence=defence,
+            defense=defense,
             options=options,
             unit_attack_bonuses=unit_attack_bonuses,
             area_type=area_type,
@@ -464,7 +464,7 @@ class AttackService(BaseService):
                 except EmpireError as e:
                     logger.debug(f"Could not return to castle {castle_id} after scanning: {e}")
 
-    def _target_defence(self, game_data: GameData, target: "_Target") -> dict[Flank, DefenderFlankEffects] | None:
+    def _target_defense(self, game_data: GameData, target: "_Target") -> dict[Flank, DefenderFlankEffects] | None:
         """
         What defends the target, per flank.
 
@@ -474,7 +474,7 @@ class AttackService(BaseService):
         stacks, so a defending tool raises only the flank it stands on.
         """
         if target.camp_victories is not None:
-            return npc_camp_defence(game_data, target.camp_victories, target.camp_kingdom_id)
+            return npc_camp_defense(game_data, target.camp_victories, target.camp_kingdom_id)
         if target.row is None:
             return None
 
@@ -486,7 +486,7 @@ class AttackService(BaseService):
             moat_level=item.moat_level,
         )
         if target.spy_army is not None:
-            return spied_castle_defence(
+            return spied_castle_defense(
                 game_data,
                 target.spy_army,
                 wall_bonus=wall,
@@ -496,7 +496,7 @@ class AttackService(BaseService):
                 area_type=target.area_type,
             )
         # Without a spy report the defending army is unknown, so only the
-        # target's fortification is modelled. Only the middle flank meets the
+        # target's fortification is modeled. Only the middle flank meets the
         # gate.
         return {
             flank: DefenderFlankEffects(
@@ -617,15 +617,15 @@ class AttackService(BaseService):
             camp_kingdom_id: Kingdom the camp sits in
             target_row: The target's raw map row, for a castle's structures.
                 Its first field is the area type, so passing the row is enough
-            landmark_min_level: A capital's or metropolis's own defence level
+            landmark_min_level: A capital's or metropolis's own defense level
             area_bonuses: Effects on this attack from outside the commander,
                 from ``get_attack_info(...).attacker_bonuses()``
             under_conquer_control: True when the target is held under conquer
-                control, which sizes the courtyard from the area's own defence
+                control, which sizes the courtyard from the area's own defense
                 level rather than its current owner's
             spy_army: A spied castle's defenders per flank, from
                 ``get_attack_info(...).spy_army()``. Without it a castle target
-                is modelled as fortification alone, with no defending army
+                is modeled as fortification alone, with no defending army
             defending_castellan: The castellan holding the target, from
                 ``aci``'s ``B`` block. Its equipment raises the fortification
                 and multiplies the defenders, differently per flank
@@ -681,7 +681,7 @@ class AttackService(BaseService):
         if target.row is not None and target.area_type is None:
             target.area_type = MapAreaItem.from_list(target.row).item_type
 
-        defence = self._target_defence(game_data, target)
+        defense = self._target_defense(game_data, target)
 
         general_id = commander.general_id if commander is not None else None
         if general_skill_ids is None and general_id is not None and general_id >= 0:
@@ -708,7 +708,7 @@ class AttackService(BaseService):
             landmark_min_level=landmark_min_level,
             area_bonuses=target.area_bonuses,
             inventory=pool,
-            defence=defence,
+            defense=defense,
             commander=commander,
             general_skill_ids=general_skill_ids,
             legend_skill_ids=legend_skill_ids,
@@ -723,7 +723,7 @@ class AttackService(BaseService):
 
         player = self.client.state.get_local_player()
         attacker_level = player.level if player else 0
-        # getMaxUnitsInReinforcementWave reads the area's own defence level when
+        # getMaxUnitsInReinforcementWave reads the area's own defense level when
         # the target is under conquer control, and its owner's otherwise.
         yard_level = (
             minimum_owner_level(target.level, target.area_type, landmark_min_level=landmark_min_level)
@@ -734,7 +734,7 @@ class AttackService(BaseService):
             pool,
             game_data,
             yard_capacity(attacker_level, yard_level, bonus=yard_bonus, boost=yard_boost),
-            defender=(defence or {}).get(Flank.YARD),
+            defender=(defense or {}).get(Flank.YARD),
             options=options,
             # The courtyard runs the same pick as a flank, so a buffed unit is
             # worth as much here as it is out front.

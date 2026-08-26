@@ -1,7 +1,7 @@
 """Tests for EmpireClient error surfacing and lifecycle (no real socket).
 
 The client is built with ``EmpireClient.__new__`` and hand-wired stubs: the
-behaviours under test only touch ``config``, ``connection``, ``state`` and
+behaviors under test only touch ``config``, ``connection``, ``state`` and
 ``_handlers``.
 """
 
@@ -510,7 +510,7 @@ class TestBulkPlayerDetailsPacing:
         # Paced between sends only - no leading or trailing sleep.
         assert sleeps == [0.05, 0.05]
 
-    def test_zero_delay_keeps_the_old_burst_behaviour(self, monkeypatch):
+    def test_zero_delay_keeps_the_old_burst_behavior(self, monkeypatch):
         sleeps: list[float] = []
         monkeypatch.setattr(client_module.time, "sleep", sleeps.append)
         client = make_client()
