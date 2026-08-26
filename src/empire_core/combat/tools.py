@@ -11,14 +11,16 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from empire_core.gamedata import GameData, ToolStats
 
 from .effects import AttackerFlankEffects, DefenderFlankEffects
-from .solver import Inventory
+
+if TYPE_CHECKING:
+    from .solver import Inventory
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,7 @@ class ToolStrategy(Protocol):
 
     def __call__(
         self,
-        inventory: Inventory,
+        inventory: "Inventory",
         game_data: GameData,
         *,
         free_items: int,
@@ -65,7 +67,7 @@ class ReduceDefenceBonusStrategy:
 
     def __call__(
         self,
-        inventory: Inventory,
+        inventory: "Inventory",
         game_data: GameData,
         *,
         free_items: int,
@@ -152,9 +154,9 @@ def fill_flank_with_tools(
     capacity: int,
     slots: int,
     slot_type: int,
-    inventory: Inventory,
+    inventory: "Inventory",
     game_data: GameData,
-    strategies: list[ToolStrategy],
+    strategies: Sequence[ToolStrategy],
     *,
     attacker: AttackerFlankEffects | None = None,
     defender: DefenderFlankEffects | None = None,
@@ -217,7 +219,7 @@ def fill_flank_with_tools(
 def check_flank(
     tools: list[tuple[int, int]],
     units: list[tuple[int, int]],
-    inventory: Inventory,
+    inventory: "Inventory",
 ) -> bool:
     """
     Drop a flank's tools when it has no units to use them.

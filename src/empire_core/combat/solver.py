@@ -12,7 +12,7 @@ Tools are not placed yet, so a wave built here carries units only.
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 
 from pydantic import BaseModel, ConfigDict
 
@@ -21,6 +21,7 @@ from empire_core.protocol.models import AttackWave, WaveFlank
 
 from .capacity import WaveCapacity, max_wave_count
 from .effects import AttackerFlankEffects, DefenderFlankEffects, Flank
+from .tools import check_flank, default_tool_strategies, fill_flank_with_tools
 
 logger = logging.getLogger(__name__)
 
@@ -237,22 +238,26 @@ def fill_wave(
     defence: Mapping[Flank, DefenderFlankEffects] | None = None,
     options: FillOptions | None = None,
     unit_attack_bonuses: Mapping[int, float] | None = None,
+    strategies: Sequence | None = None,
 ) -> AttackWave:
     """
-    Build one wave's units, flank by flank.
+    Build one wave, flank by flank.
 
-    Tools are not placed: the returned wave's tool slots are empty, so it is a
-    unit-only wave. Pass the defence from
-    :func:`~empire_core.combat.defence.npc_camp_defence` (or build it from a spy
-    report) to get counter-aware picks.
+    Follows the client's order: each flank takes tools first, then soldiers,
+    then ``check_flank`` returns the tools if no unit ended up on that flank.
+    Tools come first because a placed tool changes the defence the soldiers are
+    then picked against.
 
     Args:
         inventory: Pool to draw from; placed stacks are deducted
-        game_data: Loaded unit stats
+        game_data: Loaded unit and tool stats
         capacity: The wave's size, from :meth:`WaveCapacity.for_level`
         attacker: Attacker multipliers
         defence: Defender strength per flank, if known
         options: Which flanks to fill and which units to allow
+        unit_attack_bonuses: Per-unit attack buffs from active global effects
+        strategies: The tool strategy pool; the client's five when omitted.
+            Pass an empty list for a unit-only wave.
 
     Returns:
         An :class:`AttackWave` ready for ``send_attack``
@@ -264,28 +269,90 @@ def fill_wave(
         Flank.RIGHT: options.fill_right,
     }
 
-    filled: dict[Flank, list[list[int]]] = {}
+    units: dict[Flank, list[list[int]]] = {}
+    tools: dict[Flank, list[list[int]]] = {}
     for flank, should_fill in wanted.items():
+        units[flank] = []
+        tools[flank] = []
         if not should_fill:
-            filled[flank] = []
             continue
-        stacks = fill_flank_with_soldiers(
+
+        defender = (defence or {}).get(flank)
+        # A fresh pool per flank: a strategy that retires on one flank is
+        # available again on the next.
+        pool = default_tool_strategies() if strategies is None else list(strategies)
+        placed_tools = fill_flank_with_tools(
+            capacity.tool_capacity(flank),
+            capacity.tool_slots(flank),
+            capacity.tool_slot_type(flank),
+            inventory,
+            game_data,
+            pool,
+            attacker=attacker,
+            defender=defender,
+        )
+        placed_units = fill_flank_with_soldiers(
             capacity.soldier_capacity(flank),
             capacity.unit_slots(flank),
             inventory,
             game_data,
             attacker=attacker,
-            defender=(defence or {}).get(flank),
+            defender=defender,
             options=options,
             unit_attack_bonuses=unit_attack_bonuses,
         )
-        filled[flank] = [[wod_id, count] for wod_id, count in stacks]
+        check_flank(placed_tools, placed_units, inventory)
+
+        units[flank] = [[wod_id, count] for wod_id, count in placed_units]
+        tools[flank] = [[wod_id, count] for wod_id, count in placed_tools]
 
     return AttackWave(
-        L=WaveFlank(U=filled[Flank.LEFT]),
-        M=WaveFlank(U=filled[Flank.MIDDLE]),
-        R=WaveFlank(U=filled[Flank.RIGHT]),
+        L=WaveFlank(U=units[Flank.LEFT], T=tools[Flank.LEFT]),
+        M=WaveFlank(U=units[Flank.MIDDLE], T=tools[Flank.MIDDLE]),
+        R=WaveFlank(U=units[Flank.RIGHT], T=tools[Flank.RIGHT]),
     )
+
+
+def fill_yard_wave(
+    inventory: Inventory,
+    game_data: GameData,
+    capacity: int,
+    *,
+    slots: int = 1,
+    defender: DefenderFlankEffects | None = None,
+    options: FillOptions | None = None,
+    unit_attack_bonuses: Mapping[int, float] | None = None,
+) -> list[list[int]]:
+    """
+    Fill the courtyard wave, which goes out in ``cra``'s RW field.
+
+    ``AFillWaveStrategy.fillYardContainer`` fills it with soldiers only - no
+    tools - and passes no attacker effects, so units are scored on their raw
+    values against the yard's own defenders.
+
+    Args:
+        inventory: Pool to draw from
+        game_data: Loaded unit stats
+        capacity: The yard's capacity, from :func:`yard_capacity`
+        slots: How many unit slots the yard offers
+        defender: The yard's defenders, if known
+        options: Unit filters
+        unit_attack_bonuses: Per-unit attack buffs from active global effects
+
+    Returns:
+        ``[[wod_id, count], ...]`` for the RW field
+    """
+    stacks = fill_flank_with_soldiers(
+        capacity,
+        slots,
+        inventory,
+        game_data,
+        attacker=None,
+        defender=defender,
+        options=options,
+        unit_attack_bonuses=unit_attack_bonuses,
+    )
+    return [[wod_id, count] for wod_id, count in stacks]
 
 
 def fill_waves(
@@ -364,5 +431,6 @@ __all__ = [
     "fill_flank_with_soldiers",
     "fill_wave",
     "fill_waves",
+    "fill_yard_wave",
     "pick_soldier_stack",
 ]

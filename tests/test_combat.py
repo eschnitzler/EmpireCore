@@ -13,6 +13,7 @@ from empire_core.combat import (
     fill_flank_with_soldiers,
     fill_wave,
     fill_waves,
+    fill_yard_wave,
     is_legendary_fight,
     max_attackers,
     max_wave_count,
@@ -673,3 +674,90 @@ class TestYardCapacity:
     def test_a_negative_boost_cannot_go_below_zero(self):
         assert boost_to_modifier(-500) == 0.0
         assert yard_capacity(70, 13, bonus=2872, boost=-500) == 0
+
+
+class TestWaveWithTools:
+    """A wave now carries tools, and the client's ordering is observable."""
+
+    PAYLOAD = dict(
+        SOLVER_PAYLOAD,
+        units=[
+            *SOLVER_PAYLOAD["units"],
+            {
+                "wodID": 611,
+                "name": "Workshop",
+                "type": "Ram",
+                "typ": "Attack",
+                "slotTypes": "1,2,9",
+                "gateBonus": "10",
+                "fightType": "1",
+            },
+        ],
+    )
+
+    def data(self):
+        return GameData.parse("test", self.PAYLOAD)
+
+    def capacity(self):
+        return WaveCapacity(
+            level=70,
+            flank_soldiers=10,
+            middle_soldiers=10,
+            flank_tools=5,
+            middle_tools=5,
+            flank_unit_slots=1,
+            middle_unit_slots=1,
+            flank_tool_slots=1,
+            middle_tool_slots=1,
+        )
+
+    def test_tools_are_placed_alongside_units(self):
+        game = self.data()
+        inv = Inventory({601: 100, 611: 100})
+        defence = {
+            f: DefenderFlankEffects(gate_bonus=30, melee_units_melee_strength=50)
+            for f in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT)
+        }
+
+        wave = fill_wave(inv, game, self.capacity(), defence=defence)
+
+        payload = wave.model_dump(by_alias=True)
+        assert payload["L"]["T"] == [[611, 3]]  # 30 gate / 10 per ram
+        assert payload["L"]["U"] == [[601, 10]]
+
+    def test_tools_are_returned_when_a_flank_gets_no_units(self):
+        game = self.data()
+        # Rams but no soldiers: the tools must come back rather than be sent.
+        inv = Inventory({611: 100})
+        defence = {Flank.LEFT: DefenderFlankEffects(gate_bonus=30)}
+
+        wave = fill_wave(inv, game, self.capacity(), defence=defence)
+
+        payload = wave.model_dump(by_alias=True)
+        assert payload["L"]["T"] == []
+        assert inv.available(611) == 100
+
+    def test_a_unit_only_wave_is_still_available(self):
+        game = self.data()
+        inv = Inventory({601: 100, 611: 100})
+        defence = {Flank.LEFT: DefenderFlankEffects(gate_bonus=30)}
+
+        wave = fill_wave(inv, game, self.capacity(), defence=defence, strategies=[])
+
+        assert wave.model_dump(by_alias=True)["L"]["T"] == []
+        assert inv.available(611) == 100
+
+
+class TestYardWave:
+    def test_units_only_and_capped_by_capacity(self):
+        game = GameData.parse("test", SOLVER_PAYLOAD)
+        inv = Inventory({601: 10_000})
+
+        yard = fill_yard_wave(inv, game, 3349)
+
+        assert yard == [[601, 3349]]
+        assert inv.available(601) == 10_000 - 3349
+
+    def test_an_empty_pool_yields_nothing(self):
+        game = GameData.parse("test", SOLVER_PAYLOAD)
+        assert fill_yard_wave(Inventory({}), game, 3349) == []

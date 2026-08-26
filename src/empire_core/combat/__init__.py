@@ -36,6 +36,7 @@ from .solver import (
     fill_flank_with_soldiers,
     fill_wave,
     fill_waves,
+    fill_yard_wave,
     pick_soldier_stack,
 )
 from .tools import (
@@ -76,6 +77,7 @@ __all__ = [
     "fill_flank_with_tools",
     "fill_wave",
     "fill_waves",
+    "fill_yard_wave",
     "flank_soldier_capacity",
     "flank_tool_capacity",
     "max_attackers",
