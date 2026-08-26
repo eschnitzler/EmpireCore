@@ -440,5 +440,12 @@ class AttackService(BaseService):
             yard_capacity(attacker_level, target_level, bonus=yard_bonus, boost=yard_boost),
             defender=(defence or {}).get(Flank.YARD),
             options=options,
+            # The courtyard runs the same pick as a flank, so a buffed unit is
+            # worth as much here as it is out front.
+            unit_attack_bonuses=(
+                global_unit_attack_bonuses(game_data, global_effect_ids, player_level=attacker_level)
+                if global_effect_ids
+                else None
+            ),
         )
         return FilledAttack(waves=waves, yard=yard)

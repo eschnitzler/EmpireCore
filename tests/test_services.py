@@ -1875,6 +1875,29 @@ class TestFillAttack:
         payload = result.waves[0].model_dump(by_alias=True)
         assert payload["M"]["T"] == [[611, 1]]
 
+    def test_a_buffed_unit_wins_the_courtyard_too(self):
+        # 601 hits harder on paper; a global effect makes 602 the better pick,
+        # and the courtyard runs the same pick as a flank.
+        from empire_core.gamedata import GameData
+
+        payload = {
+            "units": [
+                {"wodID": 601, "name": "Barracks", "role": "melee", "meleeAttack": "100", "fightType": "0"},
+                {"wodID": 602, "name": "Barracks", "role": "melee", "meleeAttack": "90", "fightType": "0"},
+            ],
+            "effecttypes": [{"effectTypeID": "148", "name": "attackBonusUnit"}],
+            "effects": [{"effectID": "273", "name": "attackBonusUnit", "effectTypeID": "148", "capID": "99"}],
+            "globalEffects": [{"globalEffectID": "5", "name": "boost602", "effects": "273&602+50"}],
+        }
+        client = self.build([[601, 100_000], [602, 100_000]])
+        client.game_data = GameData.parse("test", payload)
+
+        plain = client.attack.fill_attack(12345, target_level=13)
+        buffed = client.attack.fill_attack(12345, target_level=13, global_effect_ids=[5])
+
+        assert plain.yard[0][0] == 601
+        assert buffed.yard[0][0] == 602
+
     def test_the_row_supplies_the_area_type_a_tool_is_gated_on(self):
         # The ram may only be carried against an area type 2. A castle row is
         # type 1, so it must not appear.
