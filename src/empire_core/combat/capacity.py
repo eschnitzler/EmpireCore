@@ -112,6 +112,10 @@ def boost_to_modifier(boost: float) -> float:
     return max((100 + boost) * 0.01, 0.0)
 
 
+YARD_SLOTS = 8
+"""Slots the courtyard wave offers. All eight are open from level 0."""
+
+
 def yard_capacity(
     attacker_level: int,
     target_level: int,
@@ -141,7 +145,8 @@ def yard_capacity(
         The courtyard wave's capacity
     """
     base = 20 * math.sqrt(max(0, attacker_level)) + 50 + 20 * target_level + int(bonus)
-    return int(round(base * boost_to_modifier(boost)))
+    # JS Math.round is half-up; Python's round() goes to even.
+    return math.floor(base * boost_to_modifier(boost) + 0.5)
 
 
 def unlocked_slots(unlock_levels: tuple[int, ...], level: int) -> int:
@@ -267,6 +272,7 @@ __all__ = [
     "UNIT_SLOT_LEVELS_FLANK",
     "UNIT_SLOT_LEVELS_MIDDLE",
     "WAVE_UNLOCK_LEVELS",
+    "YARD_SLOTS",
     "boost_to_modifier",
     "is_legendary_fight",
     "WaveCapacity",

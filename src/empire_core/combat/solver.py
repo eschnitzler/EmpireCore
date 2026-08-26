@@ -19,9 +19,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from empire_core.gamedata import GameData
 from empire_core.protocol.models import AttackWave, WaveFlank
 
-from .capacity import WaveCapacity, max_wave_count
+from .capacity import YARD_SLOTS, WaveCapacity, max_wave_count
 from .effects import AttackerFlankEffects, DefenderFlankEffects, Flank
-from .tools import check_flank, default_tool_strategies, fill_flank_with_tools
+from .tools import TargetContext, check_flank, default_tool_strategies, fill_flank_with_tools
 
 logger = logging.getLogger(__name__)
 
@@ -240,6 +240,8 @@ def fill_wave(
     unit_attack_bonuses: Mapping[int, float] | None = None,
     strategies: Sequence | None = None,
     area_type: int | None = None,
+    space_id: int | None = None,
+    target_is_player: bool = True,
 ) -> AttackWave:
     """
     Build one wave, flank by flank.
@@ -260,6 +262,8 @@ def fill_wave(
         strategies: The tool strategy pool; the client's five when omitted.
             Pass an empty list for a unit-only wave.
         area_type: The target's area type, which scopes a tool's effects
+        space_id: The kingdom the target sits in, which some tools are limited to
+        target_is_player: Whether the target belongs to another player
 
     Returns:
         An :class:`AttackWave` ready for ``send_attack``
@@ -292,7 +296,7 @@ def fill_wave(
             pool,
             attacker=attacker,
             defender=defender,
-            area_type=area_type,
+            target=TargetContext(area_type, space_id, target_is_player),
         )
         placed_units = fill_flank_with_soldiers(
             capacity.soldier_capacity(flank),
@@ -321,7 +325,7 @@ def fill_yard_wave(
     game_data: GameData,
     capacity: int,
     *,
-    slots: int = 1,
+    slots: int = YARD_SLOTS,
     defender: DefenderFlankEffects | None = None,
     options: FillOptions | None = None,
     unit_attack_bonuses: Mapping[int, float] | None = None,
@@ -337,13 +341,15 @@ def fill_yard_wave(
         inventory: Pool to draw from
         game_data: Loaded unit stats
         capacity: The yard's capacity, from :func:`yard_capacity`
-        slots: How many unit slots the yard offers
+        slots: How many unit slots the yard offers; all eight are open from
+            level 0
         defender: The yard's defenders, if known
         options: Unit filters
         unit_attack_bonuses: Per-unit attack buffs from active global effects
 
     Returns:
-        ``[[wod_id, count], ...]`` for the RW field
+        One ``[wod_id, count]`` pair per slot, in slot order, for the RW field.
+        The client sends every slot, so an empty one goes out as ``[-1, 0]``.
     """
     stacks = fill_flank_with_soldiers(
         capacity,
@@ -355,7 +361,8 @@ def fill_yard_wave(
         options=options,
         unit_attack_bonuses=unit_attack_bonuses,
     )
-    return [[wod_id, count] for wod_id, count in stacks]
+    filled = [[wod_id, count] for wod_id, count in stacks]
+    return filled + [[-1, 0]] * (slots - len(filled))
 
 
 def fill_waves(
@@ -374,6 +381,8 @@ def fill_waves(
     options: FillOptions | None = None,
     unit_attack_bonuses: Mapping[int, float] | None = None,
     area_type: int | None = None,
+    space_id: int | None = None,
+    target_is_player: bool = True,
 ) -> list[AttackWave]:
     """
     Fill every wave the attack may carry, front to back.
@@ -397,6 +406,10 @@ def fill_waves(
         attacker: Attacker multipliers
         defence: Defender strength per flank, if known
         options: Which flanks to fill and which units to allow
+        unit_attack_bonuses: Per-unit attack buffs from active global effects
+        area_type: The target's area type, which scopes a tool's effects
+        space_id: The kingdom the target sits in, which some tools are limited to
+        target_is_player: Whether the target belongs to another player
 
     Returns:
         One :class:`AttackWave` per filled wave, in send order
@@ -423,6 +436,8 @@ def fill_waves(
             options=options,
             unit_attack_bonuses=unit_attack_bonuses,
             area_type=area_type,
+            space_id=space_id,
+            target_is_player=target_is_player,
         )
         if not wave.is_complete():
             break

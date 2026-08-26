@@ -311,6 +311,8 @@ class AttackService(BaseService):
             options=options,
             unit_attack_bonuses=unit_attack_bonuses,
             area_type=area_type,
+            space_id=camp_kingdom_id,
+            target_is_player=target_is_player,
         )
 
     def fill_attack(

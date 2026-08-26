@@ -8,12 +8,14 @@ from empire_core.combat import (
     AttackerFlankEffects,
     DefenderFlankEffects,
     Inventory,
+    TargetContext,
+    can_use_tool_on_target,
     check_flank,
     conditioned_effect_bonus,
     default_tool_strategies,
     fill_flank_with_tools,
 )
-from empire_core.gamedata import GameData
+from empire_core.gamedata import GameData, ToolStats
 
 # slotTypes 2 = flank tool slot, 1 = middle. 646 fits neither (4,9).
 PAYLOAD = {
@@ -33,7 +35,7 @@ def strategy_for(*wod_ids):
     """A strategy that offers each id in turn, taking whatever fits."""
     remaining = list(wod_ids)
 
-    def pick(inventory, game_data, *, free_items, attacker, defender, area_type=None):
+    def pick(inventory, game_data, *, free_items, attacker, defender, target=None):
         while remaining:
             tool = game_data.get_tool(remaining.pop(0))
             if tool is not None and inventory.available(tool.wod_id):
@@ -439,3 +441,72 @@ class TestConditionedEffectBonus:
     def test_effects_of_another_type_do_not_count(self):
         game = self.data()
         assert conditioned_effect_bonus(game, game.get_tool(811), MELEE_DEFENCE_MALUS_TYPE) == 0.0
+
+
+class TestCanUseToolOnTarget:
+    """``AttackHelper.canUseToolForAttackOnTarget``, whose two flags both default open."""
+
+    GATED = {
+        "units": [
+            {
+                "wodID": 401,
+                "name": "Workshop",
+                "typ": "Attack",
+                "slotTypes": "2",
+                "canBeUsedToAttackNPC": "0",
+            },
+            {"wodID": 402, "name": "Workshop", "typ": "Attack", "slotTypes": "2", "allowedToAttack": "0+43#1+29"},
+            {"wodID": 403, "name": "Workshop", "typ": "Attack", "slotTypes": "2"},
+        ]
+    }
+
+    def game(self) -> GameData:
+        return GameData.parse("test", self.GATED)
+
+    def tool(self, wod_id: int) -> ToolStats:
+        tool = self.game().get_tool(wod_id)
+        assert tool is not None
+        return tool
+
+    def test_a_tool_that_says_nothing_goes_anywhere(self):
+        plain = self.tool(403)
+        assert plain.can_attack_npc
+        assert plain.allowed_targets == ()
+        assert can_use_tool_on_target(plain, TargetContext(area_type=43, space_id=0, is_player=False))
+
+    def test_an_npc_opt_out_only_bars_npc_targets(self):
+        gated = self.tool(401)
+        assert not can_use_tool_on_target(gated, TargetContext(is_player=False))
+        assert can_use_tool_on_target(gated, TargetContext(is_player=True))
+
+    def test_an_allowed_list_bars_everything_it_does_not_name(self):
+        listed = self.tool(402)
+        assert listed.allowed_targets == ((0, 43), (1, 29))
+        assert can_use_tool_on_target(listed, TargetContext(area_type=43, space_id=0))
+        assert can_use_tool_on_target(listed, TargetContext(area_type=29, space_id=1))
+        assert not can_use_tool_on_target(listed, TargetContext(area_type=29, space_id=0))
+        assert not can_use_tool_on_target(listed, TargetContext(area_type=43, space_id=1))
+
+    def test_a_barred_tool_is_never_picked(self):
+        payload = {
+            "units": [
+                {
+                    "wodID": 401,
+                    "name": "Workshop",
+                    "typ": "Attack",
+                    "slotTypes": "1,9",
+                    "wallBonus": "15",
+                    "canBeUsedToAttackNPC": "0",
+                }
+            ]
+        }
+        game = GameData.parse("test", payload)
+        wall = by_name("wall")
+        args = {
+            "free_items": 40,
+            "attacker": AttackerFlankEffects(),
+            "defender": DefenderFlankEffects(wall_bonus=0.3),
+        }
+
+        assert wall(Inventory({401: 100}), game, target=TargetContext(is_player=True), **args) is not None
+        assert wall(Inventory({401: 100}), game, target=TargetContext(is_player=False), **args) is None

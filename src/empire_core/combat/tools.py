@@ -26,6 +26,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class TargetContext:
+    """
+    What a strategy needs to know about the target to judge a tool.
+
+    The client passes the defender's area and space id down into
+    ``pickToolByStrategy``; both defaults here are permissive, matching a tool
+    that names no restriction.
+    """
+
+    area_type: int | None = None
+    space_id: int | None = None
+    is_player: bool = True
+
+
 class ToolStrategy(Protocol):
     """
     Chooses one tool for a slot, or None when it has nothing to offer.
@@ -43,7 +58,7 @@ class ToolStrategy(Protocol):
         free_items: int,
         attacker: AttackerFlankEffects,
         defender: DefenderFlankEffects | None,
-        area_type: int | None = None,
+        target: TargetContext | None = None,
     ) -> tuple[ToolStats, int] | None: ...
 
 
@@ -107,8 +122,9 @@ class ReduceDefenceBonusStrategy:
         free_items: int,
         attacker: AttackerFlankEffects,
         defender: DefenderFlankEffects | None,
-        area_type: int | None = None,
+        target: TargetContext | None = None,
     ) -> tuple[ToolStats, int] | None:
+        target = target or TargetContext()
         if defender is None:
             return None
         # The range and melee strategies stand down when the defender has no
@@ -128,9 +144,11 @@ class ReduceDefenceBonusStrategy:
             tool = game_data.get_tool(wod_id)
             if tool is None or not tool.is_attack_tool or available <= 0:
                 continue
+            if not can_use_tool_on_target(tool, target):
+                continue
             bonus = self.tool_bonus(tool)
             if self.malus_effect_type is not None:
-                bonus += conditioned_effect_bonus(game_data, tool, self.malus_effect_type, area_type)
+                bonus += conditioned_effect_bonus(game_data, tool, self.malus_effect_type, target.area_type)
             if bonus <= 0:
                 continue
             needed = math.ceil(remaining / bonus)
@@ -147,6 +165,31 @@ class ReduceDefenceBonusStrategy:
                     best_partial, best_partial_value = (tool, placeable), value
 
         return best_exact or best_partial
+
+
+def can_use_tool_on_target(tool: ToolStats, target: TargetContext) -> bool:
+    """
+    Whether this tool may be carried against this target at all.
+
+    ``AttackHelper.canUseToolForAttackOnTarget``: a tool flagged
+    ``canBeUsedToAttackNPC="0"`` is only allowed against another player, and
+    ``allowedToAttack`` restricts a tool to named kingdoms and area types. Both
+    default to permissive, so a tool that says nothing is usable everywhere.
+
+    The client's third branch, an event tool with no inventory left, cannot be
+    reached from the fill path - it needs an amount of zero, which the pick
+    already skips.
+
+    Args:
+        tool: The tool being considered
+        target: Where the attack is going
+
+    Returns:
+        True when the tool may be used
+    """
+    if not (tool.can_attack_npc or target.is_player):
+        return False
+    return tool.is_allowed_by_attack_target(target.space_id, target.area_type)
 
 
 def default_tool_strategies() -> list[ReduceDefenceBonusStrategy]:
@@ -199,7 +242,7 @@ def fill_flank_with_tools(
     *,
     attacker: AttackerFlankEffects | None = None,
     defender: DefenderFlankEffects | None = None,
-    area_type: int | None = None,
+    target: TargetContext | None = None,
 ) -> list[tuple[int, int]]:
     """
     Fill one flank's tool slots.
@@ -219,7 +262,8 @@ def fill_flank_with_tools(
         strategies: The strategy pool, tried from the end
         attacker: Attacker multipliers, which each placed tool feeds
         defender: The defender's strength on this flank
-        area_type: The target's area type, which scopes a tool's effects
+        target: Where the attack is going, which scopes a tool's effects and
+            decides whether it may be carried at all
 
     Returns:
         ``(wod_id, count)`` per filled slot
@@ -246,7 +290,7 @@ def fill_flank_with_tools(
                 free_items=free,
                 attacker=effects,
                 defender=defender,
-                area_type=area_type,
+                target=target,
             )
             if candidate is not None and candidate[0].fits_slot(slot_type):
                 chosen = candidate
@@ -297,6 +341,8 @@ __all__ = [
     "MELEE_DEFENCE_MALUS_TYPE",
     "RANGE_DEFENCE_MALUS_TYPE",
     "ReduceDefenceBonusStrategy",
+    "can_use_tool_on_target",
+    "TargetContext",
     "conditioned_effect_bonus",
     "ToolStrategy",
     "check_flank",

@@ -133,12 +133,15 @@ class ToolStats(_Row):
     tool_type: str = Field(alias="type", default="")
     category: str = Field(alias="typ", default="")
     raw_slot_types: str = Field(alias="slotTypes", default="")
+    raw_allowed_to_attack: str = Field(alias="allowedToAttack", default="")
     tool_category: str = Field(alias="toolCategory", default="")
     speed: int = 0
-    amount_per_wave: int = Field(alias="amountPerWave", default=0)
+    # The client reads both of these with a default, and both defaults are
+    # permissive: -1 is "no per-wave limit", 1 is "usable against an NPC".
+    amount_per_wave: int = Field(alias="amountPerWave", default=-1)
     # 0/absent, 1 and 2 all occur; the client distinguishes them, so keep the value.
     delete_after_battle: int = Field(alias="deleteToolAfterBattle", default=0)
-    can_attack_npc: bool = Field(alias="canBeUsedToAttackNPC", default=False)
+    can_attack_npc: bool = Field(alias="canBeUsedToAttackNPC", default=True)
     fight_type: int = Field(alias="fightType", default=0)
     effects: Any = None
 
@@ -193,6 +196,36 @@ class ToolStats(_Row):
     def slot_types(self) -> tuple[int, ...]:
         """Attack-screen slot types this tool fits."""
         return parse_ids(self.raw_slot_types)
+
+    @property
+    def allowed_targets(self) -> tuple[tuple[int, int], ...]:
+        """
+        ``(space_id, area_type)`` pairs this tool may attack.
+
+        ``BasicUnitVO.parseSpaceIdAreaTypeValues`` reads
+        ``"space+areaType#space+areaType"``. An empty list means no restriction,
+        and ``-1`` in either position means "any".
+        """
+        pairs = []
+        for entry in self.raw_allowed_to_attack.split("#"):
+            if not entry:
+                continue
+            space, _, area = entry.partition("+")
+            try:
+                pairs.append((int(space), int(area)))
+            except ValueError:
+                continue
+        return tuple(pairs)
+
+    def is_allowed_by_attack_target(self, space_id: int | None, area_type: int | None) -> bool:
+        """``BasicUnitVO.isAllowedByAttackTarget``: no list means allowed anywhere."""
+        allowed = self.allowed_targets
+        if not allowed:
+            return True
+        return any(
+            (space_id is None or space in (space_id, -1)) and (area == -1 or area_type is None or area == area_type)
+            for space, area in allowed
+        )
 
     @property
     def is_attack_tool(self) -> bool:

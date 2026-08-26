@@ -755,12 +755,18 @@ class TestYardWave:
 
         yard = fill_yard_wave(inv, game, 3349)
 
-        assert yard == [[601, 3349]]
+        assert yard == [[601, 3349]] + [[-1, 0]] * 7
         assert inv.available(601) == 10_000 - 3349
 
-    def test_an_empty_pool_yields_nothing(self):
+    def test_every_slot_goes_out_even_when_empty(self):
         game = GameData.parse("test", SOLVER_PAYLOAD)
-        assert fill_yard_wave(Inventory({}), game, 3349) == []
+        assert fill_yard_wave(Inventory({}), game, 3349) == [[-1, 0]] * 8
+
+
+class TestYardRounding:
+    def test_a_half_unit_rounds_up_not_to_even(self):
+        # base 50, boost 1 -> 50.5. JS Math.round gives 51; Python's round gives 50.
+        assert yard_capacity(0, 0, boost=1) == 51
 
 
 class TestWhichLevelDrivesWhat:
