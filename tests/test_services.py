@@ -1850,7 +1850,9 @@ class TestFillAttack:
         result = client.attack.fill_attack(12345, target_level=13)
 
         assert result.waves
-        assert result.yard
+        # Eight slots always go out; at least one of them holds something.
+        assert len(result.yard) == 8
+        assert [pair for pair in result.yard if pair[0] != -1]
         # The courtyard is sized separately from the flanks.
         assert result.unit_count() > sum(w.unit_count() for w in result.waves)
 

@@ -90,7 +90,7 @@ def conditioned_effect_bonus(
             continue
         if not effect.applies_to_area(area_type):
             continue
-        total += 0.01 * bonus.value
+        total += 0.01 * bonus.strength(effect.effect_type_id)
     return total
 
 
