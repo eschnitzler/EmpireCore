@@ -275,6 +275,7 @@ def fill_flank_with_tools(
         soldier pass sees them.
     """
     effects = attacker or AttackerFlankEffects()
+    area_type = (target or TargetContext()).area_type
     pool = list(strategies)
     placed: dict[int, int] = {}
     free = capacity
@@ -304,8 +305,15 @@ def fill_flank_with_tools(
             break
         placed[tool.wod_id] = placed.get(tool.wod_id, 0) + taken
         free -= taken
-        # Each placed tool dents the defence the next pick is measured against.
-        effects = effects.apply_tool(tool, taken)
+        # Each placed tool dents the defence the next pick is measured against,
+        # including any malus it carries as an effect rather than a column -
+        # without that term the loop could re-pick the same tool forever.
+        effects = effects.apply_tool(
+            tool,
+            taken,
+            range_malus=conditioned_effect_bonus(game_data, tool, RANGE_DEFENCE_MALUS_TYPE, area_type),
+            melee_malus=conditioned_effect_bonus(game_data, tool, MELEE_DEFENCE_MALUS_TYPE, area_type),
+        )
 
     return list(placed.items())
 

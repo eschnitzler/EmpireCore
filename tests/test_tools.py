@@ -422,6 +422,17 @@ class TestConditionedEffectBonus:
         assert tool.def_range_bonus == 0.0
         assert conditioned_effect_bonus(game, tool, RANGE_DEFENCE_MALUS_TYPE) == 2.5
 
+    def test_placing_it_dents_the_defence_for_the_next_pick(self):
+        game = self.data()
+        inv = Inventory({811: 100})
+        strategies = [by_name("range")]
+        defence = DefenderFlankEffects(range_bonus=5.0, range_units_range_strength=100)
+
+        placed = fill_flank_with_tools(40, 2, 2, inv, game, strategies, defender=defence)
+
+        # 5.0 of range bonus at 2.5 a tool: two tools, and no third slot filled.
+        assert placed == [(811, 2)]
+
     def test_the_range_strategy_now_sees_it(self):
         game = self.data()
 

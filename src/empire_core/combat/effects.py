@@ -45,7 +45,14 @@ class AttackerFlankEffects(BaseModel):
     wall_reduction: float = 0.0
     moat_reduction: float = 0.0
 
-    def apply_tool(self, tool, count: int) -> "AttackerFlankEffects":
+    def apply_tool(
+        self,
+        tool,
+        count: int,
+        *,
+        range_malus: float = 0.0,
+        melee_malus: float = 0.0,
+    ) -> "AttackerFlankEffects":
         """
         Fold a placed tool's contribution into these effects.
 
@@ -54,13 +61,16 @@ class AttackerFlankEffects(BaseModel):
         why the client places tools before soldiers - the soldiers are then
         picked against a defence the tools have already dented.
 
-        The tool's own ``effects`` may add range or melee defence maluses on top
-        of its columns; those are not resolved yet, so a tool carrying only
-        those contributes nothing here.
+        A tool's own ``effects`` may add range or melee defence maluses on top of
+        its columns. Resolving those needs the game data and the target's area
+        type, which this layer does not have, so the caller resolves them and
+        passes them in - the same terms the strategy scored the tool on.
 
         Args:
             tool: The tool that was placed
             count: How many of it
+            range_malus: Range-defence malus from the tool's effects, type 217
+            melee_malus: Melee-defence malus from the tool's effects, type 215
 
         Returns:
             A new effects object; the original is unchanged
@@ -70,8 +80,12 @@ class AttackerFlankEffects(BaseModel):
                 "wall_reduction": self.wall_reduction + tool.wall_bonus * count,
                 "gate_reduction": self.gate_reduction + tool.gate_bonus * count,
                 "moat_reduction": self.moat_reduction + tool.moat_bonus * count,
-                "defender_range_reduction": (self.defender_range_reduction + tool.def_range_bonus * count),
-                "defender_melee_reduction": (self.defender_melee_reduction + tool.def_melee_bonus * count),
+                "defender_range_reduction": (
+                    self.defender_range_reduction + (tool.def_range_bonus + range_malus) * count
+                ),
+                "defender_melee_reduction": (
+                    self.defender_melee_reduction + (tool.def_melee_bonus + melee_malus) * count
+                ),
             }
         )
 
