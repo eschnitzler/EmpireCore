@@ -45,8 +45,9 @@ from empire_core.protocol.models import (
     GetAttackInfoRequest,
     GetAttackInfoResponse,
 )
-from empire_core.protocol.models.map import MapAreaItem
+from empire_core.protocol.models.map import MapAreaItem, MapItemType
 from empire_core.services.spy_army import SpyArmy
+from empire_core.utils.enums import Kingdom
 
 from .base import BaseService, register_service
 
@@ -380,10 +381,132 @@ class AttackService(BaseService):
             target_is_player=target_is_player,
         )
 
+    def _read_target(
+        self,
+        castle_id: int,
+        target_x: int,
+        target_y: int,
+        *,
+        kingdom_id: int | None,
+        source_x: int | None,
+        source_y: int | None,
+        target_row: list | None,
+        area_type: int | None,
+        spy_army: SpyArmy | None,
+        defending_castellan: Commander | None,
+        area_bonuses: list[Bonus] | None,
+        camp_victories: int | None,
+        camp_kingdom_id: int,
+        target_level: int | None,
+        target_is_player: bool,
+        timeout: float,
+    ) -> tuple[
+        list | None,
+        int | None,
+        SpyArmy | None,
+        Commander | None,
+        list[Bonus] | None,
+        int | None,
+        int,
+        int | None,
+        bool,
+    ]:
+        """
+        Read what the server knows about a target, filling only the gaps.
+
+        Anything the caller passed is kept: each request is made only when
+        something it would answer is still missing.
+        """
+        castles = getattr(self.client.state, "get_castles", list)() or []
+        source = next((c for c in castles if getattr(c, "OID", None) == castle_id), None)
+        if kingdom_id is None:
+            kingdom_id = source.KID if source is not None else 0
+        if source_x is None:
+            source_x = source.X if source is not None else 0
+        if source_y is None:
+            source_y = source.Y if source is not None else 0
+
+        wants_precalc = any(value is None for value in (target_row, spy_army, defending_castellan, area_bonuses))
+        if wants_precalc:
+            try:
+                info = self.get_attack_info(
+                    target_x=target_x,
+                    target_y=target_y,
+                    source_x=source_x,
+                    source_y=source_y,
+                    kingdom_id=kingdom_id,
+                    timeout=timeout,
+                )
+            except EmpireError as e:
+                logger.debug(f"Could not read the attack pre-calculation for {target_x}:{target_y}: {e}")
+            else:
+                target_row = target_row if target_row is not None else info.target_row()
+                spy_army = spy_army if spy_army is not None else info.spy_army()
+                if defending_castellan is None:
+                    defending_castellan = info.defending_castellan()
+                if area_bonuses is None:
+                    area_bonuses = info.attacker_bonuses()
+
+        item = MapAreaItem.from_list(target_row) if target_row else None
+        if item is not None:
+            if area_type is None:
+                area_type = item.item_type
+            if item.item_type == MapItemType.DUNGEON:
+                # A camp's level follows from how often it has been beaten, and
+                # the row carries the count.
+                if camp_victories is None:
+                    camp_victories = item.victory_count
+                camp_kingdom_id = camp_kingdom_id or (item.camp_kingdom_id or 0)
+            elif target_level is None:
+                # A player's level is not in the row; it sits in the owner
+                # records a scan returns beside it.
+                target_level = self._owner_level(target_x, target_y, kingdom_id, item.owner_id, timeout)
+                target_is_player = target_is_player or target_level is not None
+
+        return (
+            target_row,
+            area_type,
+            spy_army,
+            defending_castellan,
+            area_bonuses,
+            camp_victories,
+            camp_kingdom_id,
+            target_level,
+            target_is_player,
+        )
+
+    def _owner_level(self, target_x: int, target_y: int, kingdom_id: int, owner_id: int, timeout: float) -> int | None:
+        """The level of whoever owns a tile, from a one-tile scan."""
+        try:
+            area = self.client.scan_map_area(
+                target_x, target_y, target_x, target_y, kingdom=Kingdom(kingdom_id), timeout=timeout
+            )
+        except (EmpireError, ValueError) as e:
+            logger.debug(f"Could not read the owner level at {target_x}:{target_y}: {e}")
+            return None
+        # A castle row's field 3 is the location id, which is the owner record's
+        # object id; the capital-like types put the player id there instead. Try
+        # both, then settle for the only record a one-tile scan returned.
+        owner = next(
+            (o for o in area.objects if owner_id in (o.object_id, o.owner_id) and o.level),
+            None,
+        )
+        if owner is None and len(area.objects) == 1 and area.objects[0].level:
+            owner = area.objects[0]
+        if owner is None:
+            logger.debug(f"No owner level came back for {target_x}:{target_y}")
+            return None
+        return owner.level
+
     def fill_attack(
         self,
         castle_id: int,
         *,
+        target_x: int | None = None,
+        target_y: int | None = None,
+        kingdom_id: int | None = None,
+        source_x: int | None = None,
+        source_y: int | None = None,
         target_level: int | None = None,
         target_is_player: bool = False,
         camp_victories: int | None = None,
@@ -408,17 +531,32 @@ class AttackService(BaseService):
         """
         Build a complete attack: every wave, plus the courtyard wave.
 
-        Works out what it can rather than asking for it. A camp's defenders and
-        its walls come from its victory count; a castle's fortification comes
-        from the structure levels in its map row. The commander supplies the
-        attack multipliers and the fortification reductions, its general sizes
-        the flanks, and legend skills apply when the fight is legendary.
+        Give it a target and it reads the rest itself.
+
+        With ``target_x``/``target_y`` it asks the server for the attack
+        pre-calculation and takes what that carries: the target's map row and so
+        its area type and structures, the spied defenders per flank, the
+        defending castellan, and the area effects that widen the flanks. A
+        camp's victory count comes out of the same row, and a player's level
+        from the owner records beside it. The general's skills and the player's
+        own are read with ``gie`` and ``skl``.
+
+        Every one of those can be passed instead, which skips the request that
+        would have found it. Pass no coordinates and nothing is read: then
+        ``target_level`` or ``camp_victories`` is required, as before.
 
         Args:
             castle_id: Castle whose troops to draw from
+            target_x: Target's map x, which lets this method read the rest
+            target_y: Target's map y
+            kingdom_id: Kingdom the target sits in; the source castle's when not
+                given
+            source_x: Attacking castle's x, needed for the pre-calculation;
+                looked up from the castle list when not given
+            source_y: Attacking castle's y
             target_level: The target owner's level, which sizes each flank.
-                Derived from ``camp_victories`` when attacking a camp, since a
-                camp's level follows from how often it has been beaten
+                Read from the map when coordinates are given, or derived from
+                ``camp_victories`` for a camp
             target_is_player: True for a player's castle or outpost
             camp_victories: An NPC camp's victory count
             camp_kingdom_id: Kingdom the camp sits in
@@ -459,9 +597,42 @@ class AttackService(BaseService):
         if game_data is None:
             raise GameDataNotLoadedError("Wave filling needs the items payload: call client.load_game_data() first")
 
+        if target_x is not None and target_y is not None:
+            (
+                target_row,
+                area_type,
+                spy_army,
+                defending_castellan,
+                area_bonuses,
+                camp_victories,
+                camp_kingdom_id,
+                target_level,
+                target_is_player,
+            ) = self._read_target(
+                castle_id,
+                target_x,
+                target_y,
+                kingdom_id=kingdom_id,
+                source_x=source_x,
+                source_y=source_y,
+                target_row=target_row,
+                area_type=area_type,
+                spy_army=spy_army,
+                defending_castellan=defending_castellan,
+                area_bonuses=area_bonuses,
+                camp_victories=camp_victories,
+                camp_kingdom_id=camp_kingdom_id,
+                target_level=target_level,
+                target_is_player=target_is_player,
+                timeout=timeout,
+            )
+
         if target_level is None:
             if camp_victories is None:
-                raise ValueError("Pass target_level, or camp_victories to derive it from")
+                raise ValueError(
+                    "Pass target_x and target_y to read the target, or target_level, "
+                    "or camp_victories to derive the level from"
+                )
             target_level = camp_level(camp_victories, camp_kingdom_id)
 
         if target_row is not None and area_type is None:

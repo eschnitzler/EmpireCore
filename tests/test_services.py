@@ -37,6 +37,7 @@ from empire_core.protocol.models import (
     AllianceMember,
     AttackType,
     AttackWave,
+    Commander,
     CreateAttackRequest,
     CreateAttackResponse,
     EquipmentSlot,
@@ -59,6 +60,7 @@ from empire_core.services import (
     get_registered_services,
 )
 from empire_core.services import spy as spy_module
+from empire_core.services.spy_army import SpyArmy
 
 # =============================================================================
 # Harness
@@ -1964,6 +1966,64 @@ class TestFillAttack:
 
         sent = [command for command, _ in conn(client).request_payloads]
         assert "gie" not in sent and "skl" not in sent
+
+    def test_coordinates_are_enough(self):
+        # Nothing about the target is passed: the pre-calculation and a one-tile
+        # scan supply the row, the spied defenders, the castellan, the area
+        # effects and the owner's level.
+        client = self.build([[601, 100_000]])
+        row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+        conn(client).script["aci"] = xt_packet(
+            "aci",
+            {
+                "gaa": {"AI": row},
+                "S": [[[601, 50]], [], [], [], [], [], []],
+                "AE": [],
+                "B": {},
+            },
+        )
+        conn(client).script["gaa"] = xt_packet(
+            "gaa", {"AI": [row], "OI": [{"OID": 900, "PID": 4242, "PN": "dweller", "L": 46}]}
+        )
+
+        result = client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+        sent = [command for command, _ in conn(client).request_payloads]
+        assert "aci" in sent
+        assert result.waves
+
+    def test_a_camp_victory_count_comes_from_the_row(self):
+        client = self.build([[601, 100_000]])
+        # Type 2 is a camp; field 3 is the espionage age and field 6 the count.
+        camp_row = [2, 700, 710, -1, 0, -1, -299]
+        conn(client).script["aci"] = xt_packet("aci", {"gaa": {"AI": camp_row}, "AE": [], "B": {}})
+
+        result = client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+        # A camp needs no scan for a level: the count implies it.
+        assert "gaa" not in [command for command, _ in conn(client).request_payloads]
+        assert result.waves
+
+    def test_what_is_passed_is_not_re_read(self):
+        client = self.build([[601, 100_000]])
+        row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+
+        client.attack.fill_attack(
+            12345,
+            target_x=700,
+            target_y=710,
+            target_level=13,
+            target_row=row,
+            spy_army=SpyArmy.from_spy_data([[], [], [], [], [], [], []]),
+            defending_castellan=Commander.model_validate({"ID": 1}),
+            area_bonuses=[],
+            general_skill_ids=[],
+            legend_skill_ids=[],
+            sceat_skill_ids=[],
+        )
+
+        sent = [command for command, _ in conn(client).request_payloads]
+        assert "aci" not in sent and "gaa" not in sent
 
     def test_a_monument_is_sized_for_its_own_level(self):
         from empire_core.protocol.models.map import MapItemType
