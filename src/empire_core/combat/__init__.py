@@ -35,6 +35,7 @@ from .solver import (
     fill_waves,
     pick_soldier_stack,
 )
+from .tools import ToolStrategy, check_flank, fill_flank_with_tools
 
 __all__ = [
     "AttackerFlankEffects",
@@ -56,7 +57,10 @@ __all__ = [
     "general_skill_bonuses",
     "global_effect_bonuses",
     "legend_skill_value",
+    "ToolStrategy",
+    "check_flank",
     "fill_flank_with_soldiers",
+    "fill_flank_with_tools",
     "fill_wave",
     "fill_waves",
     "flank_soldier_capacity",
