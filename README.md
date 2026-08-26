@@ -197,9 +197,22 @@ them. A flank that ends up with tools but no units gives the tools back.
 An NPC camp needs no espionage: its defenders come from the game data, and its
 walls from the level its victory count implies. For a player's castle, pass
 ``target_row`` from a map scan and its fortification is read from the structure
-levels in it.
+levels in it, along with the area type - which decides which tools may be
+carried at all, since many are limited to particular kingdoms and area types.
 
-## Game State## Game State
+See [`examples/fill_waves.py`](examples/fill_waves.py) for the whole path: scan
+the tile, work out what the target is, fill it and send.
+
+Alongside the waves comes the courtyard wave, the final assault that rides in
+the same request. It holds units only, is sized from both levels rather than the
+target's alone, and is filled against the defenders of the keep.
+
+If a global effect is buffing unit attack values, pass what ``bie`` reported as
+``global_effect_ids`` and the buffed values are used to choose units. Pass the
+raw rows rather than bare ids where you have them: the event carries the live
+strength, and the game data holds only a fallback.
+
+## Game State
 
 A background thread applies server pushes to `client.state` while your code
 reads it. Read through the accessors rather than touching the containers: each
