@@ -190,6 +190,11 @@ so a boost of 0 yields the multiplier 1.0. (`EffectConst.BASE_BOOST_PERCENTAGE =
 governs siege-tool capacity" is correct; the quantity is a level step function
 plus one legend skill.
 
+The level here is the **target owner's**, like the flanks: the wave army is
+built with `_army.init(this.targetOwnerLevel, ...)` and each wave added with
+`addAdditionalWave(this.targetOwnerLevel, ...)`. Only the wave *count* uses the
+attacker's own level, via `getMaxWaveCountWithBonus(userData.userLevel, ...)`.
+
 `CastleAttackWaveVO`'s constructor (BUNDLE ~@11520700):
 
 ```

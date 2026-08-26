@@ -761,3 +761,24 @@ class TestYardWave:
     def test_an_empty_pool_yields_nothing(self):
         game = GameData.parse("test", SOLVER_PAYLOAD)
         assert fill_yard_wave(Inventory({}), game, 3349) == []
+
+
+class TestWhichLevelDrivesWhat:
+    """Two different levels, and mixing them up changes every number."""
+
+    def test_flanks_tools_and_slots_follow_the_target(self):
+        small = WaveCapacity.for_level(13)
+        large = WaveCapacity.for_level(70)
+
+        assert small.flank_soldiers < large.flank_soldiers
+        assert small.flank_tools < large.flank_tools
+        assert small.middle_unit_slots < large.middle_unit_slots
+
+    def test_wave_count_follows_the_attacker(self):
+        # A level 70 attacker gets four waves whether the target is level 1 or
+        # level 70; the target only decides how big each one is.
+        assert max_wave_count(70) == 4
+        assert max_wave_count(13) == 2
+
+    def test_the_courtyard_grows_with_both(self):
+        assert yard_capacity(70, 13) != yard_capacity(13, 70)
