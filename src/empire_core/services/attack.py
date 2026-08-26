@@ -357,8 +357,11 @@ class AttackService(BaseService):
             target_is_player: True for a player's castle or outpost
             camp_victories: An NPC camp's victory count
             camp_kingdom_id: Kingdom the camp sits in
-            target_row: The target's raw map row, for a castle's structures
-            area_type: The target's area type, for scoping effects
+            target_row: The target's raw map row, for a castle's structures.
+                Its first field is the area type, so passing the row is enough
+            area_type: The target's area type, which scopes effects and decides
+                which tools may be carried; taken from ``target_row`` when not
+                given
             commander: The commander leading the attack
             general_skill_ids: Its general's unlocked skills
             legend_skill_ids: The player's legend skills
@@ -379,6 +382,9 @@ class AttackService(BaseService):
             if camp_victories is None:
                 raise ValueError("Pass target_level, or camp_victories to derive it from")
             target_level = camp_level(camp_victories, camp_kingdom_id)
+
+        if target_row is not None and area_type is None:
+            area_type = MapAreaItem.from_list(target_row).item_type
 
         defence: dict[Flank, DefenderFlankEffects] | None = None
         if camp_victories is not None:

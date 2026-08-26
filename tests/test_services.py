@@ -1857,6 +1857,26 @@ class TestFillAttack:
         payload = result.waves[0].model_dump(by_alias=True)
         assert payload["M"]["T"] == [[611, 1]]
 
+    def test_the_row_supplies_the_area_type_a_tool_is_gated_on(self):
+        # The ram may only be carried against an area type 2. A castle row is
+        # type 1, so it must not appear.
+        client = self.build([[601, 100_000], [611, 500]])
+        client.game_data.get_tool(611).raw_allowed_to_attack = "0+2"
+        row = [1, 5, 6, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+
+        result = client.attack.fill_attack(12345, target_level=13, target_is_player=True, target_row=row)
+
+        assert result.waves[0].model_dump(by_alias=True)["M"]["T"] == []
+
+    def test_the_same_tool_is_carried_when_the_row_matches(self):
+        client = self.build([[601, 100_000], [611, 500]])
+        client.game_data.get_tool(611).raw_allowed_to_attack = "0+1"
+        row = [1, 5, 6, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+
+        result = client.attack.fill_attack(12345, target_level=13, target_is_player=True, target_row=row)
+
+        assert result.waves[0].model_dump(by_alias=True)["M"]["T"] == [[611, 1]]
+
     def test_no_game_data_is_an_error(self):
         from empire_core.exceptions import GameDataNotLoadedError
 
