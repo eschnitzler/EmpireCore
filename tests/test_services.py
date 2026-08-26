@@ -1123,6 +1123,22 @@ class TestCommandersService:
         with pytest.raises(CommandError):
             client.commanders.get_commanders()
 
+    def test_assigned_general_is_parsed(self):
+        # A commander's gli entry names the general assigned to it; that
+        # general's skills are what size an attack's waves.
+        payload = {"C": [{"ID": 1, "N": "The Blackthorn", "GID": 101, "ST": 4, "L": 50}]}
+        client = make_client({"gli": xt_packet("gli", payload)})
+
+        commander = client.commanders.get_commanders()[0]
+
+        assert commander.general_id == 101
+        assert commander.star_level == 4
+        assert commander.level == 50
+
+    def test_commander_without_a_general(self):
+        client = make_client({"gli": xt_packet("gli", {"C": [{"ID": 1}]})})
+        assert client.commanders.get_commanders()[0].general_id is None
+
     def test_combat_record_parsed(self):
         payload = {"C": [{"ID": 91, "N": "Bloodwing", "W": 42, "D": 7, "SPR": 3}]}
         client = make_client({"gli": xt_packet("gli", payload)})

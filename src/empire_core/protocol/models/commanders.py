@@ -115,6 +115,9 @@ class LeaderBase(BasePayload):
     effects: list = Field(alias="E", default_factory=list)
     area_effects: list = Field(alias="AE", default_factory=list)
     raw_equipment: list = Field(alias="EQ", default_factory=list)
+    general_id: int | None = Field(alias="GID", default=None)
+    star_level: int = Field(alias="ST", default=0)
+    level: int = Field(alias="L", default=0)
 
     def equipment(self) -> list[Equipment]:
         """Parse the EQ entries into Equipment objects, skipping drifted ones."""
