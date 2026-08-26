@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 
-from empire_core.gamedata import GameData
+from empire_core.gamedata import GameData, NpcCampDefence
 
 from .effects import DefenderFlankEffects, Flank
 
@@ -122,4 +122,50 @@ def npc_camp_defence(
     return {flank: defender_flank_effects(units, game_data) for flank, units in per_flank.items()}
 
 
-__all__ = ["defender_flank_effects", "npc_camp_defence"]
+def event_camp_defence(
+    game_data: GameData,
+    table: str,
+    victories: int,
+) -> dict[Flank, DefenderFlankEffects] | None:
+    """
+    What defends an event camp, per flank.
+
+    Nomad, samurai, faction invasion and alliance invasion camps are described
+    differently from robber baron camps: instead of a per-flank composition they
+    give a defence strength, a unit and tool list, and wall and gate bonuses.
+    The same units defend every flank, so the composition is split evenly and
+    the fortification applied to each.
+
+    Args:
+        game_data: Loaded tables
+        table: One of ``empire_core.gamedata.CAMP_TABLES``
+        victories: The camp's victory count
+
+    Returns:
+        Effects per flank, or None when no such camp is listed. Unit counts are
+        not given by these tables, so the strengths reflect one of each listed
+        unit; treat the wall and gate bonuses as the reliable part.
+    """
+    row = next(
+        (camp for camp in game_data.camps.get(table, []) if camp.count_victory == victories),
+        None,
+    )
+    if row is None:
+        return None
+    return _camp_flanks(row, game_data)
+
+
+def _camp_flanks(row: NpcCampDefence, game_data: GameData) -> dict[Flank, DefenderFlankEffects]:
+    stacks = [(wod_id, 1) for wod_id in row.defence_unit_ids]
+    return {
+        flank: defender_flank_effects(
+            stacks,
+            game_data,
+            wall_bonus=row.wall_bonus / 100,
+            gate_bonus=row.gate_bonus / 100,
+        )
+        for flank in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT, Flank.YARD)
+    }
+
+
+__all__ = ["defender_flank_effects", "event_camp_defence", "npc_camp_defence"]

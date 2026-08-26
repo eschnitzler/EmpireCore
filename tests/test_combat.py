@@ -8,6 +8,7 @@ from empire_core.combat import (
     Inventory,
     WaveCapacity,
     defender_flank_effects,
+    event_camp_defence,
     fill_flank_with_soldiers,
     fill_wave,
     fill_waves,
@@ -145,6 +146,43 @@ class TestDefenderAggregation:
 
     def test_zero_and_negative_counts_are_ignored(self):
         assert defender_flank_effects([(601, 0), (211, -3)], data()).is_empty()
+
+
+class TestEventCampDefence:
+    PAYLOAD = dict(
+        PAYLOAD,
+        nomadCamps=[
+            {
+                "countVictory": "48",
+                "defStrength": "8800",
+                "defenceUnits": "601,211",
+                "defenceTools": "646",
+                "wallBonus": "30",
+                "gateBonus": "30",
+                "lordID": "-21",
+            }
+        ],
+    )
+
+    def data(self):
+        return GameData.parse("test", self.PAYLOAD)
+
+    def test_wall_and_gate_are_read_as_fractions(self):
+        effects = event_camp_defence(self.data(), "nomadCamps", 48)
+
+        assert effects is not None
+        middle = effects[Flank.MIDDLE]
+        assert (middle.wall_bonus, middle.gate_bonus) == (0.3, 0.3)
+
+    def test_every_flank_is_defended(self):
+        effects = event_camp_defence(self.data(), "nomadCamps", 48)
+
+        # These tables list one defending force rather than a per-flank split.
+        assert all(not e.is_empty() for e in effects.values())
+
+    def test_unknown_camp_or_table(self):
+        assert event_camp_defence(self.data(), "nomadCamps", 999) is None
+        assert event_camp_defence(self.data(), "notATable", 48) is None
 
 
 class TestNpcCampDefence:
