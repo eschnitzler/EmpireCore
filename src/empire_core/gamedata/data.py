@@ -31,6 +31,7 @@ from .models import (
     EffectDef,
     EffectTypeDef,
     EquipmentEffectDef,
+    FortificationDef,
     GeneralDef,
     GeneralSkillDef,
     GlobalEffectDef,
@@ -114,6 +115,7 @@ class GameData(BaseModel):
     effect_caps: dict[int, EffectCapDef] = Field(default_factory=dict)
     equipment_effects: dict[int, EquipmentEffectDef] = Field(default_factory=dict)
     relic_effects: dict[int, RelicEffectDef] = Field(default_factory=dict)
+    fortifications: dict[int, FortificationDef] = Field(default_factory=dict)
     construction_items: dict[int, ConstructionItemDef] = Field(default_factory=dict)
     alliance_buffs: dict[int, AllianceBuffDef] = Field(default_factory=dict)
     global_effects: dict[int, GlobalEffectDef] = Field(default_factory=dict)
@@ -226,6 +228,18 @@ class GameData(BaseModel):
                 r.equipment_effect_id: r for r in _rows(items_data.get("equipment_effects"), EquipmentEffectDef)
             },
             relic_effects={r.relic_effect_id: r for r in _rows(items_data.get("relicEffects"), RelicEffectDef)},
+            fortifications={
+                row.wod_id: row
+                for row in _rows(
+                    [
+                        entry
+                        for entry in (items_data.get("buildings") or [])
+                        if isinstance(entry, dict)
+                        and any(entry.get(key) for key in ("wallBonus", "gateBonus", "moatBonus"))
+                    ],
+                    FortificationDef,
+                )
+            },
             construction_items={
                 r.construction_item_id: r for r in _rows(items_data.get("constructionItems"), ConstructionItemDef)
             },

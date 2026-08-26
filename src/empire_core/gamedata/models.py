@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 # ITEMS units column "fightType": 0 = offensive, 1 = defensive.
 FIGHT_TYPE_OFFENSIVE = 0
@@ -142,32 +142,52 @@ class ToolStats(_Row):
     fight_type: int = Field(alias="fightType", default=0)
     effects: Any = None
 
-    # What the tool reduces or adds. The items columns are percentages and the
-    # client scales them by 0.01 when it parses a tool, so these are fractions:
-    # a ram whose column reads 10 has a gate bonus of 0.10, which is what the
-    # defence values it is compared against are expressed in.
-    wall_bonus: float = Field(alias="wallBonus", default=0)
-    gate_bonus: float = Field(alias="gateBonus", default=0)
-    moat_bonus: float = Field(alias="moatBonus", default=0)
-    def_range_bonus: float = Field(alias="defRangeBonus", default=0)
-    def_melee_bonus: float = Field(alias="defMeleeBonus", default=0)
-    off_range_bonus: float = Field(alias="offRangeBonus", default=0)
-    off_melee_bonus: float = Field(alias="offMeleeBonus", default=0)
+    # The raw items columns, which are percentages. The client scales them by
+    # 0.01 when it parses a tool, so the fractions are exposed as properties
+    # below: scaling in a validator instead would re-scale on every cache
+    # round-trip, since the cache stores what validation produced.
+    raw_wall_bonus: float = Field(alias="wallBonus", default=0)
+    raw_gate_bonus: float = Field(alias="gateBonus", default=0)
+    raw_moat_bonus: float = Field(alias="moatBonus", default=0)
+    raw_def_range_bonus: float = Field(alias="defRangeBonus", default=0)
+    raw_def_melee_bonus: float = Field(alias="defMeleeBonus", default=0)
+    raw_off_range_bonus: float = Field(alias="offRangeBonus", default=0)
+    raw_off_melee_bonus: float = Field(alias="offMeleeBonus", default=0)
 
-    @field_validator(
-        "wall_bonus",
-        "gate_bonus",
-        "moat_bonus",
-        "def_range_bonus",
-        "def_melee_bonus",
-        "off_range_bonus",
-        "off_melee_bonus",
-        mode="after",
-    )
-    @classmethod
-    def _as_fraction(cls, value: float) -> float:
-        """Percent column to fraction, as ``ToolUnitVO.parseXmlNode`` does."""
-        return value * 0.01
+    @property
+    def wall_bonus(self) -> float:
+        """Wall protection this tool cancels, as a fraction."""
+        return self.raw_wall_bonus * 0.01
+
+    @property
+    def gate_bonus(self) -> float:
+        """Gate protection this tool cancels, as a fraction."""
+        return self.raw_gate_bonus * 0.01
+
+    @property
+    def moat_bonus(self) -> float:
+        """Moat protection this tool cancels, as a fraction."""
+        return self.raw_moat_bonus * 0.01
+
+    @property
+    def def_range_bonus(self) -> float:
+        """Defender ranged strength this tool cancels, as a fraction."""
+        return self.raw_def_range_bonus * 0.01
+
+    @property
+    def def_melee_bonus(self) -> float:
+        """Defender melee strength this tool cancels, as a fraction."""
+        return self.raw_def_melee_bonus * 0.01
+
+    @property
+    def off_range_bonus(self) -> float:
+        """Ranged attack this tool adds, as a fraction."""
+        return self.raw_off_range_bonus * 0.01
+
+    @property
+    def off_melee_bonus(self) -> float:
+        """Melee attack this tool adds, as a fraction."""
+        return self.raw_off_melee_bonus * 0.01
 
     @property
     def slot_types(self) -> tuple[int, ...]:
@@ -364,6 +384,22 @@ class GeneralSkillDef(EffectSpecRow):
     skill_group_id: int = Field(alias="skillGroupID", default=0)
     level: int = 0
     tier: int = 0
+
+
+class FortificationDef(_Row):
+    """
+    A wall, gate or moat building and the protection it gives.
+
+    The bonuses are the items columns, i.e. percentages: a level 3 castle wall
+    reads 70 and protects by 0.70 once scaled.
+    """
+
+    wod_id: int = Field(alias="wodID")
+    label: str = Field(alias="comment2", default="")
+    level: int = 0
+    wall_bonus: float = Field(alias="wallBonus", default=0)
+    gate_bonus: float = Field(alias="gateBonus", default=0)
+    moat_bonus: float = Field(alias="moatBonus", default=0)
 
 
 class RelicEffectDef(_Row):
@@ -575,6 +611,7 @@ __all__ = [
     "AllianceBuffDef",
     "ConstructionItemDef",
     "EffectSpecRow",
+    "FortificationDef",
     "GeneralSkillDef",
     "GlobalEffectDef",
     "NpcCampDefence",

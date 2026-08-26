@@ -17,6 +17,77 @@ from .effects import DefenderFlankEffects, Flank
 
 logger = logging.getLogger(__name__)
 
+# ClientConstCastle wall, gate and moat buildings, indexed by level - 1.
+WALL_WOD_IDS = (501, 502, 503, 504, 505, 2542, 1984, 2543, 3182)
+GATE_WOD_IDS = (450, 451, 452, 453, 469, 2544, 1985, 2545, 3183)
+MOAT_WOD_IDS = (455, 830, 1987, 2546, 456, 831, 1988, 2547)
+
+# DungeonConst: a camp's level follows from how often it has been beaten, and
+# its walls from that level.
+CAMP_LEVEL_FACTOR = 1.9
+CAMP_LEVEL_POWER = 0.555
+CAMP_KINGDOM_OFFSETS = {0: 1, 2: 20, 1: 35, 3: 45}
+
+
+def camp_level(victories: int, kingdom_id: int = 0) -> int:
+    """
+    A camp's level, from its victory count (``DungeonConst.getLevel``).
+
+    Args:
+        victories: The camp's victory count, from ``MapAreaItem.victory_count``
+        kingdom_id: Kingdom the camp sits in, which shifts the result
+    """
+    offset = CAMP_KINGDOM_OFFSETS.get(kingdom_id, 0)
+    return int(CAMP_LEVEL_FACTOR * abs(victories) ** CAMP_LEVEL_POWER) + offset
+
+
+def camp_fortification_levels(level: int) -> tuple[int, int]:
+    """
+    A camp's wall and gate levels (``DungeonConst.getWallUpgradeByLevel``).
+
+    Returns:
+        ``(wall_level, gate_level)``; camps have no moat.
+    """
+    upgrade = 1 if level < 11 else (2 if level < 24 else 3)
+    return upgrade, upgrade
+
+
+def fortification_bonuses(
+    game_data: GameData,
+    *,
+    wall_level: int = 0,
+    gate_level: int = 0,
+    moat_level: int = 0,
+) -> tuple[float, float, float]:
+    """
+    Wall, gate and moat protection as fractions, from building levels.
+
+    Each level indexes the matching building, whose items column is a
+    percentage; the client divides by 100 before using it as a defence.
+
+    Args:
+        game_data: Loaded tables
+        wall_level: The defender's wall level, 0 for none
+        gate_level: The defender's gate level
+        moat_level: The defender's moat level
+
+    Returns:
+        ``(wall, gate, moat)`` as fractions
+    """
+
+    def bonus(ids: tuple[int, ...], level: int, attribute: str) -> float:
+        if level <= 0 or level > len(ids):
+            return 0.0
+        row = game_data.fortifications.get(ids[level - 1])
+        return (getattr(row, attribute) / 100) if row else 0.0
+
+    return (
+        bonus(WALL_WOD_IDS, wall_level, "wall_bonus"),
+        bonus(GATE_WOD_IDS, gate_level, "gate_bonus"),
+        bonus(MOAT_WOD_IDS, moat_level, "moat_bonus"),
+    )
+
+
 Stacks = Iterable[tuple[int, int]]
 
 
@@ -103,23 +174,31 @@ def npc_camp_defence(
         kingdom_id: Kingdom the camp sits in
 
     Returns:
-        Effects per flank, or None when the payload lists no such camp. Wall,
-        gate and moat bonuses are left at zero; see the note in the body.
+        Effects per flank, or None when the payload lists no such camp. The
+        camp's own wall and gate protection is included, derived from the level
+        its victory count implies.
     """
     row = game_data.dungeon_defence(victories, kingdom_id)
     if row is None:
         return None
 
-    # Defending tools (row.tools_*) are not folded in yet: their wall, gate and
-    # moat contributions live in the tool's unresolved effects block, so the
-    # returned bonuses cover units only.
+    level = camp_level(victories, kingdom_id)
+    wall_level, gate_level = camp_fortification_levels(level)
+    wall, gate, moat = fortification_bonuses(game_data, wall_level=wall_level, gate_level=gate_level)
+
+    # Defending tools (row.tools_*) are not folded in: their contributions live
+    # in the tool's unresolved effects block, so the fortification here is the
+    # camp's own walls.
     per_flank = {
         Flank.LEFT: row.units_left,
         Flank.MIDDLE: row.units_middle,
         Flank.RIGHT: row.units_right,
         Flank.YARD: row.units_keep,
     }
-    return {flank: defender_flank_effects(units, game_data) for flank, units in per_flank.items()}
+    return {
+        flank: defender_flank_effects(units, game_data, wall_bonus=wall, gate_bonus=gate, moat_bonus=moat)
+        for flank, units in per_flank.items()
+    }
 
 
 def event_camp_defence(
@@ -168,4 +247,11 @@ def _camp_flanks(row: NpcCampDefence, game_data: GameData) -> dict[Flank, Defend
     }
 
 
-__all__ = ["defender_flank_effects", "event_camp_defence", "npc_camp_defence"]
+__all__ = [
+    "camp_fortification_levels",
+    "camp_level",
+    "defender_flank_effects",
+    "event_camp_defence",
+    "fortification_bonuses",
+    "npc_camp_defence",
+]

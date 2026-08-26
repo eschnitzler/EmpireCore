@@ -28,7 +28,14 @@ from .capacity import (
     middle_tool_capacity,
     yard_capacity,
 )
-from .defence import defender_flank_effects, event_camp_defence, npc_camp_defence
+from .defence import (
+    camp_fortification_levels,
+    camp_level,
+    defender_flank_effects,
+    event_camp_defence,
+    fortification_bonuses,
+    npc_camp_defence,
+)
 from .effects import AttackerFlankEffects, DefenderFlankEffects, Flank
 from .solver import (
     FillOptions,
@@ -63,7 +70,10 @@ __all__ = [
     "attacker_flank_effects",
     "commander_bonuses",
     "construction_item_bonuses",
+    "camp_fortification_levels",
+    "camp_level",
     "defender_flank_effects",
+    "fortification_bonuses",
     "event_camp_defence",
     "general_skill_bonuses",
     "global_effect_bonuses",

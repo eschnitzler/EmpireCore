@@ -301,3 +301,31 @@ class TestCombatTables:
     def test_noise_tables_are_not_stored(self):
         data = GameData.parse("783.01", FULL_PAYLOAD)
         assert "rewards" not in data.raw_tables
+
+
+class TestToolScalingRoundTrip:
+    """Scaled values must survive the disk cache unchanged."""
+
+    PAYLOAD = {
+        "units": [
+            {"wodID": 611, "name": "Workshop", "type": "Ram", "typ": "Attack", "slotTypes": "1,9", "gateBonus": "10"}
+        ]
+    }
+
+    def test_a_percent_column_reads_as_a_fraction(self):
+        tool = GameData.parse("test", self.PAYLOAD).get_tool(611)
+
+        assert tool.raw_gate_bonus == 10
+        assert tool.gate_bonus == 0.10
+
+    def test_caching_does_not_rescale(self, tmp_path, monkeypatch):
+        # Scaling inside a validator would divide by 100 again on every load,
+        # because the cache stores whatever validation produced.
+        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: "1.0")
+        monkeypatch.setattr("empire_core.gamedata.data.fetch_items_data", lambda version: self.PAYLOAD)
+
+        first = GameData.load(cache_dir=tmp_path)
+        second = GameData.load(cache_dir=tmp_path)
+
+        assert first.get_tool(611).gate_bonus == 0.10
+        assert second.get_tool(611).gate_bonus == 0.10
