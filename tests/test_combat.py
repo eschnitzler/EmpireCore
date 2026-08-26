@@ -1,5 +1,7 @@
 """Flank effect maths, ported from the client's combat helpers."""
 
+import pytest
+
 from empire_core.combat import (
     AttackerFlankEffects,
     DefenderFlankEffects,
@@ -137,6 +139,27 @@ class TestDefenderAggregation:
     def test_tools_among_the_stacks_are_not_counted_as_units(self):
         effects = defender_flank_effects([(646, 2)], data())
         assert effects.is_empty()
+
+    def test_a_defending_tool_raises_the_fortification(self):
+        # 646 is a moat tool worth 80%. The client adds a defending tool's
+        # bonus once per stack, whatever the stack holds, so two of them are
+        # still one 80%.
+        effects = defender_flank_effects([(646, 2)], data(), moat_bonus=0.5)
+
+        assert effects.moat_bonus == pytest.approx(1.3)
+
+    def test_only_the_middle_meets_the_gate(self):
+        stacks = [(601, 10)]
+        kwargs = {"wall_bonus": 0.3, "gate_bonus": 0.3, "moat_bonus": 0.3}
+
+        middle = defender_flank_effects(stacks, data(), flank=Flank.MIDDLE, **kwargs)
+        left = defender_flank_effects(stacks, data(), flank=Flank.LEFT, **kwargs)
+
+        assert middle.gate_bonus == 0.3
+        assert left.gate_bonus == 0.0
+        # Only the gate is flank-specific.
+        assert left.wall_bonus == 0.3
+        assert left.moat_bonus == 0.3
 
     def test_unknown_ids_are_reported_not_guessed(self, caplog):
         import logging

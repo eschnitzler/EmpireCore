@@ -149,7 +149,10 @@ def pick_soldier_stack(
     best_melee = best_ranged = 0
     best_melee_id = best_ranged_id = 0
 
-    for wod_id, available in inventory.counts.items():
+    # Scanned in wod-id order: the comparisons are strict, so a tie goes to
+    # whichever unit comes first, and the client's own inventory order is not
+    # reproducible here.
+    for wod_id, available in sorted(inventory.counts.items()):
         unit = game_data.get_unit(wod_id)
         if unit is None or not _is_eligible(unit, options):
             continue
@@ -204,6 +207,7 @@ def fill_flank_with_soldiers(
         attacker: Attacker multipliers
         defender: The defender's strength on this flank, if known
         options: Unit filters
+        unit_attack_bonuses: Per-unit attack buffs from active global effects
 
     Returns:
         ``(wod_id, count)`` per filled slot

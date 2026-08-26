@@ -95,6 +95,7 @@ def defender_flank_effects(
     stacks: Stacks,
     game_data: GameData,
     *,
+    flank: Flank | None = None,
     melee_bonus: float = 1.0,
     range_bonus: float = 1.0,
     wall_bonus: float = 0.0,
@@ -109,9 +110,15 @@ def defender_flank_effects(
     group according to its own role. Tools among the stacks add their wall,
     gate and moat bonuses, as the client's ``getDefenceBonuses`` does.
 
+    Say which flank this is and the gate is dropped everywhere but the middle,
+    which is what ``getDefenceBonuses`` returns - only the middle meets the gate,
+    so gate tools are wasted anywhere else.
+
     Args:
         stacks: ``(wod_id, count)`` pairs defending this flank
         game_data: Loaded stats, for the defenders' defence values
+        flank: Which flank these defenders hold; without it the gate is left
+            alone
         melee_bonus: Defender melee multiplier (1.0 = unbuffed)
         range_bonus: Defender ranged multiplier
         wall_bonus: Base wall bonus as a fraction
@@ -129,10 +136,16 @@ def defender_flank_effects(
             continue
         unit = game_data.get_unit(wod_id)
         if unit is None:
-            # A tool defending the flank contributes fortification, not units.
+            # A tool defending the flank raises its fortification instead of
+            # standing in the line. The client adds the bonus once per stack and
+            # ignores how many the stack holds.
             tool = game_data.get_tool(wod_id)
             if tool is None:
                 unknown += 1
+                continue
+            wall_bonus += tool.wall_bonus
+            gate_bonus += tool.gate_bonus
+            moat_bonus += tool.moat_bonus
             continue
         if unit.is_melee:
             melee_melee += unit.melee_defence * count
@@ -143,6 +156,9 @@ def defender_flank_effects(
 
     if unknown:
         logger.warning(f"{unknown} defending stack(s) matched no known unit or tool")
+
+    if flank is not None and flank is not Flank.MIDDLE:
+        gate_bonus = 0.0
 
     return DefenderFlankEffects(
         melee_units_melee_strength=melee_melee,
@@ -196,7 +212,7 @@ def npc_camp_defence(
         Flank.YARD: row.units_keep,
     }
     return {
-        flank: defender_flank_effects(units, game_data, wall_bonus=wall, gate_bonus=gate, moat_bonus=moat)
+        flank: defender_flank_effects(units, game_data, flank=flank, wall_bonus=wall, gate_bonus=gate, moat_bonus=moat)
         for flank, units in per_flank.items()
     }
 

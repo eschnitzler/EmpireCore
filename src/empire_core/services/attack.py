@@ -399,8 +399,14 @@ class AttackService(BaseService):
             )
             # Without a spy report the defending army is unknown, so only the
             # target's fortification is modelled.
+            # Only the middle flank meets the gate.
             defence = {
-                flank: DefenderFlankEffects(wall_bonus=wall, gate_bonus=gate, moat_bonus=moat) for flank in Flank
+                flank: DefenderFlankEffects(
+                    wall_bonus=wall,
+                    gate_bonus=gate if flank is Flank.MIDDLE else 0.0,
+                    moat_bonus=moat,
+                )
+                for flank in Flank
             }
 
         waves = self.fill_waves(
