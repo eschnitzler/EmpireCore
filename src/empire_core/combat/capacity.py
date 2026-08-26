@@ -161,8 +161,9 @@ class WaveCapacity(BaseModel):
         unbuffed base capacities.
 
         Args:
-            level: The attacker's level, or the target's minimum defence level
-                when that is higher - the client uses ``max`` of the two
+            level: The *target owner's* level. The client sizes a wave from
+                ``attackInfoVO.targetOwnerLevel``, so a small defender caps the
+                wave however strong the attacker is
             flank_bonus_percent: Percentage bonus to units on each side flank,
                 clamped to UNIT_LIMIT_BONUS_CAP
             front_bonus_percent: Percentage bonus to units in the middle,

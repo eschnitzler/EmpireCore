@@ -446,6 +446,14 @@ class TestFillWave:
 
 
 class TestWaveCapacity:
+    def test_capacity_follows_the_target_not_the_attacker(self):
+        # Live samples, all made by the same level 70 attacker: a wave against
+        # a level 13 castle holds far less than one against a level 70 castle.
+        assert WaveCapacity.for_level(13).flank_soldiers == 15
+        assert WaveCapacity.for_level(28).flank_soldiers == 30
+        assert WaveCapacity.for_level(70).flank_soldiers == 64
+        assert WaveCapacity.for_level(1).flank_soldiers == 3
+
     def test_flanks_and_middle_add_up_to_the_wave_total(self):
         # The middle takes what the two flanks leave, so the three must sum to
         # getMaxAttackers exactly at every level.
@@ -492,8 +500,9 @@ class TestWaveCapacity:
         assert (front_only.flank_soldiers, front_only.middle_soldiers) == (64, 288)
 
     def test_matches_the_attack_dialog(self):
-        # Captured from the game at level 70, with a general granting +60% on
-        # the flanks and +6.5% on the front: the dialog shows 96 / 205 / 96.
+        # Captured from the game against a level 70 target, with a general
+        # granting +60% on the flanks and +6.5% on the front: 96 / 205 / 96.
+        # The level here is the target owner's, not the attacker's.
         capacity = WaveCapacity.for_level(70, flank_bonus_percent=60, front_bonus_percent=6.5)
 
         assert (capacity.flank_soldiers, capacity.middle_soldiers) == (96, 205)
