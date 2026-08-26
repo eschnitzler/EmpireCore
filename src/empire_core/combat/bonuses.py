@@ -31,11 +31,19 @@ logger = logging.getLogger(__name__)
 # Effect type 148: a per-unit attack bonus, keyed by wod id.
 ATTACK_BONUS_UNIT_TYPE = 148
 
-# Effect types whose value is a wod-id-keyed map rather than a single number:
-# the client builds them with EffectValueMap or EffectValueWodID, and their wire
-# form is a flat ``[wod_id, value, wod_id, value, ...]`` array. Their strength is
-# the value of the first key, never the key itself.
-KEYED_EFFECT_TYPES = frozenset({70, 71, 72, 148, 149, 150, 154, 188, 1026})
+# Effect types whose value is a wod-id-keyed map rather than a single number.
+# Their wire form is a flat ``[wod_id, value, wod_id, value, ...]`` array and
+# their strength is the value of the first key, never the key itself.
+#
+#   EffectValueMap              148, 149, 150, 154, 188
+#   EffectValueWodID            70, 71, 72, 1026
+#   EffectValueUnitSpeedBoost   102          extends EffectValueWodID
+#   EffectValueSpawnReserveUnit 208, 213     keyed the same way
+#
+# EffectValueIdList (57, 79, 90, 116, 169, 170, 178, 193) is deliberately
+# absent: its strength getter returns ``idList[0]``, so its first number really
+# is the value.
+KEYED_EFFECT_TYPES = frozenset({70, 71, 72, 102, 148, 149, 150, 154, 188, 208, 213, 1026})
 
 
 class CombatEffectType(IntEnum):

@@ -566,6 +566,30 @@ class TestKeyedEffectValues:
         assert bonus.strength(148) == 13.0
         assert EffectResolver(self.game()).accumulate([bonus], 148) == 13.0
 
+    def test_a_live_keyed_entry_from_the_wire(self):
+        # Straight out of an aci capture: effect 97 unitSpeedBoost, type 102,
+        # four units at 6/6/5/5. The first number is a wod id.
+        payload = dict(
+            self.PAYLOAD,
+            effecttypes=[*self.PAYLOAD["effecttypes"], {"effectTypeID": "102", "name": "unitSpeedBoost"}],
+            effects=[
+                *self.PAYLOAD["effects"],
+                {"effectID": "97", "name": "unitSpeedBoost", "effectTypeID": "102", "capID": "99"},
+            ],
+        )
+        game = GameData.parse("test", payload)
+        bonus = parse_bonus_entries([[97, [628, 6.0, 630, 6.0, 631, 5.0, 636, 5.0], "RH"]])[0]
+
+        assert bonus.strength(102) == 6.0
+        assert EffectResolver(game).accumulate([bonus], 102) == 6.0
+
+    def test_an_id_list_effect_keeps_its_first_number(self):
+        # EffectValueIdList's strength getter returns idList[0], so for these
+        # types the first number really is the value.
+        bonus = parse_bonus_entries([[90, [12.0, 34.0]]])[0]
+
+        assert bonus.strength(90) == 12.0
+
     def test_an_unkeyed_effect_still_reads_its_first_number(self):
         bonus = parse_bonus_entries([[100, 86, [40.0]]])[0]
 

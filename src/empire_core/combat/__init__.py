@@ -36,6 +36,7 @@ from .defence import (
     event_camp_defence,
     fortification_bonuses,
     npc_camp_defence,
+    spied_castle_defence,
 )
 from .effects import AttackerFlankEffects, DefenderFlankEffects, Flank
 from .solver import (
@@ -108,6 +109,7 @@ __all__ = [
     "middle_soldier_capacity",
     "middle_tool_capacity",
     "npc_camp_defence",
+    "spied_castle_defence",
     "YARD_SLOTS",
     "yard_capacity",
     "parse_bonus_entries",

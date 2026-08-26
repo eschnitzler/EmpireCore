@@ -25,6 +25,7 @@ from empire_core.combat import (
     global_unit_attack_bonuses,
     legend_skill_value,
     npc_camp_defence,
+    spied_castle_defence,
     yard_capacity,
 )
 from empire_core.combat import fill_waves as solve_waves
@@ -39,6 +40,7 @@ from empire_core.protocol.models import (
     GetAttackInfoResponse,
 )
 from empire_core.protocol.models.map import MapAreaItem
+from empire_core.services.spy_army import SpyArmy
 
 from .base import BaseService, register_service
 
@@ -343,6 +345,7 @@ class AttackService(BaseService):
         camp_kingdom_id: int = 0,
         target_row: list | None = None,
         area_type: int | None = None,
+        spy_army: SpyArmy | None = None,
         commander: Commander | None = None,
         general_skill_ids: list[int] | None = None,
         legend_skill_ids: list[int] | None = None,
@@ -371,6 +374,9 @@ class AttackService(BaseService):
             camp_kingdom_id: Kingdom the camp sits in
             target_row: The target's raw map row, for a castle's structures.
                 Its first field is the area type, so passing the row is enough
+            spy_army: A spied castle's defenders per flank, from
+                ``get_attack_info(...).spy_army()``. Without it a castle target
+                is modelled as fortification alone, with no defending army
             area_type: The target's area type, which scopes effects and decides
                 which tools may be carried; taken from ``target_row`` when not
                 given
@@ -409,17 +415,22 @@ class AttackService(BaseService):
                 gate_level=item.gate_level,
                 moat_level=item.moat_level,
             )
-            # Without a spy report the defending army is unknown, so only the
-            # target's fortification is modelled.
-            # Only the middle flank meets the gate.
-            defence = {
-                flank: DefenderFlankEffects(
-                    wall_bonus=wall,
-                    gate_bonus=gate if flank is Flank.MIDDLE else 0.0,
-                    moat_bonus=moat,
-                )
-                for flank in Flank
-            }
+            if spy_army is not None:
+                # Each flank's own stacks, so a defending tool raises only the
+                # fortification of the flank it stands on.
+                defence = spied_castle_defence(game_data, spy_army, wall_bonus=wall, gate_bonus=gate, moat_bonus=moat)
+            else:
+                # Without a spy report the defending army is unknown, so only
+                # the target's fortification is modelled. Only the middle flank
+                # meets the gate.
+                defence = {
+                    flank: DefenderFlankEffects(
+                        wall_bonus=wall,
+                        gate_bonus=gate if flank is Flank.MIDDLE else 0.0,
+                        moat_bonus=moat,
+                    )
+                    for flank in Flank
+                }
 
         waves = self.fill_waves(
             castle_id,

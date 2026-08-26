@@ -13,11 +13,15 @@ from __future__ import annotations
 
 import logging
 from enum import IntEnum
+from typing import TYPE_CHECKING
 
 from pydantic import Field, ValidationError
 
 from .base import BasePayload, BaseRequest, BaseResponse, UnitCount
 from .commanders import Commander
+
+if TYPE_CHECKING:
+    from empire_core.services.spy_army import SpyArmy
 
 logger = logging.getLogger(__name__)
 
@@ -214,6 +218,11 @@ class GetAttackInfoResponse(BaseResponse):
          "AE": [[effect_id, [value], source_tag], ...],   # attacker effects,
                                                           # already scoped to
                                                           # this target
+         "S": [left, middle, right, keep, stronghold, support, reserve],
+                                                          # spied defenders, by
+                                                          # position
+         "AS": defending_castellan_id,
+         "B": {defending castellan entry},
          "gaa": {"AI": [target map row]},
          "gui": {"I": [[wod_id, count], ...]},            # attacker inventory
          "gli": {"C": [...], "B": [...]},                 # commanders/castellans
@@ -221,7 +230,8 @@ class GetAttackInfoResponse(BaseResponse):
 
     ``AE`` is the useful part: the server has already dropped the effects that
     do not apply to this target, so the same commander answers differently for
-    a camp and for a player's castle.
+    a camp and for a player's castle. ``S`` is the second: the spied defenders,
+    per flank, which is the only way to know what each flank actually holds.
     """
 
     command = "aci"
@@ -231,9 +241,25 @@ class GetAttackInfoResponse(BaseResponse):
     target_y: int = Field(alias="TY", default=0)
     kingdom_id: int = Field(alias="KID", default=0)
     raw_attacker_effects: list = Field(alias="AE", default_factory=list)
+    raw_spy_army: list = Field(alias="S", default_factory=list)
+    defending_castellan_id: int = Field(alias="AS", default=-1)
+    raw_defending_castellan: dict = Field(alias="B", default_factory=dict)
     raw_map_area: dict = Field(alias="gaa", default_factory=dict)
     raw_inventory: dict = Field(alias="gui", default_factory=dict)
     raw_commanders: dict = Field(alias="gli", default_factory=dict)
+
+    def spy_army(self) -> "SpyArmy | None":
+        """
+        The spied defenders, split by the position they hold.
+
+        Only present while espionage on the target is still fresh; without it
+        the defending army is unknown and only the target's fortification can be
+        modelled. The block is positional, so a shifted section would silently
+        move defenders between flanks - see :class:`SpyArmy`.
+        """
+        from empire_core.services.spy_army import SpyArmy
+
+        return SpyArmy.from_spy_data(self.raw_spy_army)
 
     def target_row(self) -> list:
         """The target's raw map row, or an empty list."""

@@ -10,10 +10,14 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 from empire_core.gamedata import GameData, NpcCampDefence
 
 from .effects import DefenderFlankEffects, Flank
+
+if TYPE_CHECKING:
+    from empire_core.services.spy_army import SpyArmy
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +177,62 @@ def defender_flank_effects(
     )
 
 
+def spied_castle_defence(
+    game_data: GameData,
+    spy_army: "SpyArmy",
+    *,
+    wall_bonus: float = 0.0,
+    gate_bonus: float = 0.0,
+    moat_bonus: float = 0.0,
+    melee_bonus: float = 1.0,
+    range_bonus: float = 1.0,
+) -> dict[Flank, DefenderFlankEffects]:
+    """
+    What defends a spied castle, per flank.
+
+    ``getDefenceBonuses`` builds one of these per flank from that flank's own
+    stacks, so the flanks differ: a defending tool raises the fortification of
+    the flank it sits on and no other. That is why the game asks for a different
+    number of siege tools on the left than on the right, and a uniform
+    fortification cannot reproduce it.
+
+    The keep's stacks become the courtyard flank. Support troops are added to
+    every flank, the courtyard included, as the client concatenates them.
+
+    Args:
+        game_data: Loaded stats
+        spy_army: The report's positional army, from ``aci``'s ``S`` block
+        wall_bonus: The castle's own wall protection, as a fraction
+        gate_bonus: Its gate protection; only the middle flank keeps it
+        moat_bonus: Its moat protection
+        melee_bonus: Defender melee multiplier
+        range_bonus: Defender ranged multiplier
+
+    Returns:
+        Effects per flank
+    """
+    support = [(stack.wod_id, stack.count) for stack in spy_army.support]
+    per_flank = {
+        Flank.LEFT: spy_army.left,
+        Flank.MIDDLE: spy_army.middle,
+        Flank.RIGHT: spy_army.right,
+        Flank.YARD: spy_army.keep,
+    }
+    return {
+        flank: defender_flank_effects(
+            [(stack.wod_id, stack.count) for stack in stacks] + support,
+            game_data,
+            flank=flank,
+            wall_bonus=wall_bonus,
+            gate_bonus=gate_bonus,
+            moat_bonus=moat_bonus,
+            melee_bonus=melee_bonus,
+            range_bonus=range_bonus,
+        )
+        for flank, stacks in per_flank.items()
+    }
+
+
 def npc_camp_defence(
     game_data: GameData,
     victories: int,
@@ -270,4 +330,5 @@ __all__ = [
     "event_camp_defence",
     "fortification_bonuses",
     "npc_camp_defence",
+    "spied_castle_defence",
 ]
