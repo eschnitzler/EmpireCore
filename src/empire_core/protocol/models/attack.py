@@ -261,6 +261,21 @@ class GetAttackInfoResponse(BaseResponse):
 
         return SpyArmy.from_spy_data(self.raw_spy_army)
 
+    def defending_castellan(self) -> Commander | None:
+        """
+        The castellan holding the target, if the payload names one.
+
+        The ``B`` block is a commander entry like any other, so its equipment
+        and effects parse the same way - they just defend rather than attack.
+        """
+        if not self.raw_defending_castellan:
+            return None
+        try:
+            return Commander.model_validate(self.raw_defending_castellan)
+        except ValidationError:
+            logger.warning("Could not parse the defending castellan from an attack pre-calculation")
+            return None
+
     def target_row(self) -> list:
         """The target's raw map row, or an empty list."""
         row = self.raw_map_area.get("AI")

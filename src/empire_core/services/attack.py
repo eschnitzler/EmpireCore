@@ -370,6 +370,7 @@ class AttackService(BaseService):
         landmark_min_level: int = 0,
         under_conquer_control: bool = False,
         spy_army: SpyArmy | None = None,
+        defending_castellan: Commander | None = None,
         commander: Commander | None = None,
         general_skill_ids: list[int] | None = None,
         legend_skill_ids: list[int] | None = None,
@@ -405,6 +406,9 @@ class AttackService(BaseService):
             spy_army: A spied castle's defenders per flank, from
                 ``get_attack_info(...).spy_army()``. Without it a castle target
                 is modelled as fortification alone, with no defending army
+            defending_castellan: The castellan holding the target, from
+                ``aci``'s ``B`` block. Its equipment raises the fortification
+                and multiplies the defenders, differently per flank
             area_type: The target's area type, which scopes effects and decides
                 which tools may be carried; taken from ``target_row`` when not
                 given

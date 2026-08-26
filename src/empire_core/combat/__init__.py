@@ -34,6 +34,8 @@ from .capacity import (
 from .defence import (
     camp_fortification_levels,
     camp_level,
+    castellan_defence_multiplier,
+    castellan_fortification,
     defender_flank_effects,
     event_camp_defence,
     fortification_bonuses,
@@ -83,6 +85,8 @@ __all__ = [
     "commander_bonuses",
     "construction_item_bonuses",
     "camp_fortification_levels",
+    "castellan_defence_multiplier",
+    "castellan_fortification",
     "camp_level",
     "defender_flank_effects",
     "fortification_bonuses",

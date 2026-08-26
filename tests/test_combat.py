@@ -877,3 +877,110 @@ class TestWaveLimitViolations:
         capacity = WaveCapacity.for_level(70)
 
         assert wave_limit_violations([], capacity, yard=[[-1, 0]] * 8, yard_capacity=0) == []
+
+
+class TestCastellanDefence:
+    """The defending castellan, from a live aci capture and its effects panel."""
+
+    PAYLOAD = {
+        "effecttypes": [
+            {"effectTypeID": "6", "name": "wallBonus"},
+            {"effectTypeID": "7", "name": "gateBonus"},
+            {"effectTypeID": "8", "name": "moatBonus"},
+            {"effectTypeID": "9", "name": "meleeBonus"},
+            {"effectTypeID": "10", "name": "rangeBonus"},
+            {"effectTypeID": "31", "name": "defenseBonus"},
+            {"effectTypeID": "32", "name": "defenseBoostYard"},
+        ],
+        "effects": [
+            {"effectID": "515", "name": "newDefenseWallBonusPVP", "effectTypeID": "6", "capID": "2100"},
+            {"effectID": "524", "name": "newDefenseGateBonusPVP", "effectTypeID": "7", "capID": "2105"},
+            {"effectID": "529", "name": "newDefenseMoatBonusPVP", "effectTypeID": "8", "capID": "2110"},
+            {"effectID": "518", "name": "newDefenseMeleeBonusPVP", "effectTypeID": "9", "capID": "2103"},
+            {"effectID": "527", "name": "newDefenseRangeBonusPVP", "effectTypeID": "10", "capID": "2108"},
+            {"effectID": "533", "name": "newDefenseBonusPVP", "effectTypeID": "31", "capID": "2113"},
+            {"effectID": "532", "name": "newDefenseBoostYardPVP", "effectTypeID": "32", "capID": "2112"},
+        ],
+        "effectCaps": [
+            {"capID": "2100", "maxTotalBonus": "420"},
+            {"capID": "2103", "maxTotalBonus": "324"},
+            {"capID": "2105", "maxTotalBonus": "420"},
+            {"capID": "2108", "maxTotalBonus": "324"},
+            {"capID": "2110", "maxTotalBonus": "270"},
+            {"capID": "2112", "maxTotalBonus": "298"},
+            {"capID": "2113", "maxTotalBonus": "38"},
+        ],
+    }
+
+    # Three items each granting wall/gate/moat, and three each granting
+    # melee/range/courtyard. Verbatim from the capture's B block.
+    CASTELLAN = {
+        "ID": 1,
+        "WID": 1,
+        "EQ": [],
+        "AE": [],
+        "E": [
+            [515, [140.0], "EQ"],
+            [524, [140.0], "EQ"],
+            [529, [90.0], "EQ"],
+            [515, [140.0], "EQ"],
+            [524, [140.0], "EQ"],
+            [529, [90.0], "EQ"],
+            [533, [5.0], "EQ"],
+            [518, [120.0], "EQ"],
+            [527, [120.0], "EQ"],
+            [532, [110.0], "EQ"],
+            [518, [120.0], "EQ"],
+            [527, [120.0], "EQ"],
+            [532, [110.0], "EQ"],
+            [518, [120.0], "EQ"],
+            [527, [120.0], "EQ"],
+            [532, [110.0], "EQ"],
+        ],
+    }
+
+    def parts(self):
+        from empire_core.combat import EffectResolver, commander_bonuses
+        from empire_core.protocol.models import Commander
+
+        game = GameData.parse("test", self.PAYLOAD)
+        return EffectResolver(game), commander_bonuses(Commander.model_validate(self.CASTELLAN))
+
+    def test_the_fortification_matches_the_effects_panel(self):
+        from empire_core.combat import castellan_fortification
+
+        resolver, bonuses = self.parts()
+
+        # The panel reads +280% wall, +280% gate, +180% moat.
+        assert castellan_fortification(resolver, bonuses, area_type=1) == pytest.approx((2.8, 2.8, 1.8))
+
+    def test_a_flank_multiplier_is_capped(self):
+        from empire_core.combat import castellan_defence_multiplier
+
+        resolver, bonuses = self.parts()
+
+        # 3 x 120% of melee unit strength is capped at 324%, plus the 5%
+        # all-flank defence bonus. The panel reads "+360% (max: 324%)".
+        assert castellan_defence_multiplier(
+            resolver, bonuses, flank=Flank.LEFT, melee=True, area_type=1
+        ) == pytest.approx(3.29)
+
+    def test_the_middle_also_takes_the_courtyard_boost(self):
+        from empire_core.combat import castellan_defence_multiplier
+
+        resolver, bonuses = self.parts()
+
+        # 3 x 110% capped at 298%, added on the middle flank - which is where
+        # the client adds it, not on the courtyard.
+        assert castellan_defence_multiplier(
+            resolver, bonuses, flank=Flank.MIDDLE, melee=True, area_type=1
+        ) == pytest.approx(6.27)
+
+    def test_the_courtyard_does_not_take_its_own_boost(self):
+        from empire_core.combat import castellan_defence_multiplier
+
+        resolver, bonuses = self.parts()
+
+        assert castellan_defence_multiplier(
+            resolver, bonuses, flank=Flank.YARD, melee=True, area_type=1
+        ) == pytest.approx(3.29)
