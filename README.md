@@ -168,24 +168,31 @@ client.load_game_data()          # explicit: the items payload is a large downlo
 commander = client.commanders.get_commanders()[1]
 attack = client.attack.fill_attack(
     castle_id,
-    camp_victories=camp.victory_count,   # a camp's level follows from this
-    camp_kingdom_id=camp.camp_kingdom_id,
+    target_x=624, target_y=247,  # a target is all it needs
     commander=commander,
-    general_skill_ids=general_skills,    # from gie; these size the flanks
 )
 
 client.attack.send_attack(
     source_x=castle.x, source_y=castle.y,
-    target_x=camp.x, target_y=camp.y,
+    target_x=624, target_y=247,
     waves=attack.waves, yard_wave=attack.yard,
     commander_id=commander.commander_id,
 )
 ```
 
+Coordinates are enough. From them it reads the target's area type and
+structures, the defenders each flank holds and the castellan holding it, the
+area effects that widen your flanks, your general's skills and your own legend
+and Hall of Legends skills. A camp's level comes from the victory count in its
+map row; a player's from the owner records beside it. Every one of those can be
+passed instead, and passing one skips the request that would have found it.
+
 Each wave is sized the way the game sizes it, which is by the *target owner's*
 level rather than the attacker's: a level 13 castle holds far fewer troops than
-a level 70 one, whatever the attacker's level. On top of that come the general's
-unit-limit skills, and legend skills when both sides are at the level cap.
+a level 70 one, whatever the attacker's level. Some targets defend at a level of
+their own - a monument is built for level 70 however low its owner is. On top
+come the commander's own equipment, its general's unit-limit skills, the Hall of
+Legends skills, and the legend skills when both sides are at the level cap.
 
 Each flank takes tools first and then units, because a placed tool reduces the
 defence the units are then chosen against. Units are picked to counter whichever
@@ -194,23 +201,16 @@ the target's wall, gate, moat and defender bonuses in as few units as possible,
 and are skipped entirely where the commander's own reductions already erase
 them. A flank that ends up with tools but no units gives the tools back.
 
-An NPC camp needs no espionage: its defenders come from the game data, and its
-walls from the level its victory count implies. For a player's castle, pass
-``target_row`` from a map scan and its fortification is read from the structure
-levels in it, along with the area type - which decides which tools may be
-carried at all, since many are limited to particular kingdoms and area types.
+Fortification is per flank, not per castle: a defending tool raises only the
+flank it stands on, and only the middle flank meets the gate at all. Tools are
+also filtered by the target - many may only be carried against particular
+kingdoms and area types, or not against camps.
 
-See [`examples/fill_waves.py`](examples/fill_waves.py) for the whole path: scan
-the tile, work out what the target is, fill it and send.
+See [`examples/fill_waves.py`](examples/fill_waves.py) for the whole path.
 
 Alongside the waves comes the courtyard wave, the final assault that rides in
 the same request. It holds units only, is sized from both levels rather than the
 target's alone, and is filled against the defenders of the keep.
-
-If a global effect is buffing unit attack values, pass what ``bie`` reported as
-``global_effect_ids`` and the buffed values are used to choose units. Pass the
-raw rows rather than bare ids where you have them: the event carries the live
-strength, and the game data holds only a fallback.
 
 ## Game State
 
