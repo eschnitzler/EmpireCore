@@ -30,6 +30,26 @@ from empire_core.gamedata import GameData, UnitStats
 from empire_core.protocol.models import AttackWave, WaveFlank
 from empire_core.protocol.models.map import MapItemType
 
+
+def unit_of(game: GameData, wod_id: int) -> UnitStats:
+    """The unit, insisting it is there - a missing row is a failure, not a None."""
+    unit = game.get_unit(wod_id)
+    assert unit is not None, f"no unit {wod_id} in the parsed data"
+    return unit
+
+
+def flanks_of(effects: dict[Flank, DefenderFlankEffects] | None) -> dict[Flank, DefenderFlankEffects]:
+    """The per-flank effects, insisting the camp was found."""
+    assert effects is not None, "no camp matched"
+    return effects
+
+
+def stack_of(pick: tuple[int, int] | None) -> tuple[int, int]:
+    """The chosen stack, insisting one was chosen."""
+    assert pick is not None, "no stack was picked"
+    return pick
+
+
 # Live rows: 211 is a ranged MeadRanger, 601 a melee unit, 646 a defense tool.
 PAYLOAD = {
     "units": [
@@ -80,7 +100,7 @@ def data() -> GameData:
 class TestAttackerEffects:
     def test_stack_value_scales_with_capacity(self):
         effects = AttackerFlankEffects()
-        unit = data().get_unit(211)
+        unit = unit_of(data(), 211)
 
         # Capacity binds: 10 of a 270-attack unit.
         assert effects.soldier_stack_attack_value(unit, free_items=10, available=500) == 2700
@@ -90,7 +110,7 @@ class TestAttackerEffects:
     def test_bonus_is_applied_per_unit_and_truncated(self):
         # int() per unit, as the client does, not on the stack total.
         effects = AttackerFlankEffects(range_bonus=1.005)
-        unit = data().get_unit(211)
+        unit = unit_of(data(), 211)
 
         assert effects.soldier_stack_attack_value(unit, 10, 10) == 2710
 
@@ -98,8 +118,8 @@ class TestAttackerEffects:
         effects = AttackerFlankEffects(melee_bonus=2.0, range_bonus=1.0)
         game = data()
 
-        assert effects.soldier_stack_attack_value(game.get_unit(601), 1, 1) == 200
-        assert effects.soldier_stack_attack_value(game.get_unit(211), 1, 1) == 270
+        assert effects.soldier_stack_attack_value(unit_of(game, 601), 1, 1) == 200
+        assert effects.soldier_stack_attack_value(unit_of(game, 211), 1, 1) == 270
 
     def test_a_roleless_unit_has_no_stack_value(self):
         # Tools are not units at all, and a unit with no role matches neither
@@ -111,7 +131,7 @@ class TestAttackerEffects:
 
     def test_no_capacity_means_no_value(self):
         effects = AttackerFlankEffects()
-        assert effects.soldier_stack_attack_value(data().get_unit(211), 0, 100) == 0
+        assert effects.soldier_stack_attack_value(unit_of(data(), 211), 0, 100) == 0
 
 
 class TestDefenderAggregation:
@@ -221,7 +241,7 @@ class TestEventCampDefence:
         effects = event_camp_defense(self.data(), "nomadCamps", 48)
 
         # These tables list one defending force rather than a per-flank split.
-        assert all(not e.is_empty() for e in effects.values())
+        assert all(not e.is_empty() for e in flanks_of(effects).values())
 
     def test_unknown_camp_or_table(self):
         assert event_camp_defense(self.data(), "nomadCamps", 999) is None
@@ -250,7 +270,7 @@ class TestNpcCampDefence:
         # bonuses stay at zero rather than being guessed.
         effects = npc_camp_defense(data(), victories=-6)
 
-        assert effects[Flank.MIDDLE].moat_bonus == 0.0
+        assert flanks_of(effects)[Flank.MIDDLE].moat_bonus == 0.0
 
 
 class TestValueObjects:
@@ -374,7 +394,7 @@ class TestPickSoldierStack:
 
         pick = pick_soldier_stack(10, Inventory({601: 100, 211: 100}), game, defender=defender)
 
-        assert pick[0] == 601
+        assert stack_of(pick)[0] == 601
 
     def test_ranged_is_chosen_against_a_melee_heavy_defense(self):
         game = solver_data()
@@ -382,7 +402,7 @@ class TestPickSoldierStack:
 
         pick = pick_soldier_stack(10, Inventory({601: 100, 211: 100}), game, defender=defender)
 
-        assert pick[0] == 211
+        assert stack_of(pick)[0] == 211
 
     def test_pure_defenders_are_never_picked(self):
         pick = pick_soldier_stack(10, Inventory({800: 100}), solver_data())
@@ -393,7 +413,7 @@ class TestPickSoldierStack:
         # would outscore a real attacker if the flag were ignored.
         game = solver_data()
 
-        assert not game.get_unit(604).is_offensive
+        assert not unit_of(game, 604).is_offensive
         assert pick_soldier_stack(1000, Inventory({604: 5000}), game) is None
 
         pick = pick_soldier_stack(1000, Inventory({604: 5000, 601: 50}), game)
@@ -406,19 +426,19 @@ class TestPickSoldierStack:
         allowed = pick_soldier_stack(10, Inventory(inv.counts), game)
         blocked = pick_soldier_stack(10, Inventory(inv.counts), game, options=FillOptions(allow_c2_cost=False))
 
-        assert allowed[0] == 700
-        assert blocked[0] == 601
+        assert stack_of(allowed)[0] == 700
+        assert stack_of(blocked)[0] == 601
 
     def test_mead_filter_excludes_the_mead_unit(self):
         game = solver_data()
         pick = pick_soldier_stack(10, Inventory({211: 100, 601: 100}), game, options=FillOptions(allow_mead=False))
-        assert pick[0] == 601
+        assert stack_of(pick)[0] == 601
 
     def test_role_filters_restrict_the_pool(self):
         game = solver_data()
 
         melee_only = pick_soldier_stack(10, Inventory({601: 50, 211: 50}), game, options=FillOptions(use_ranged=False))
-        assert melee_only[0] == 601
+        assert stack_of(melee_only)[0] == 601
 
         assert pick_soldier_stack(10, Inventory({211: 50}), game, options=FillOptions(use_ranged=False)) is None
 

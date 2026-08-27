@@ -95,7 +95,8 @@ class TestParsing:
 
     def test_empty_input(self):
         assert parse_bonus_entries([]) == []
-        assert parse_bonus_entries(None) == []
+        # A missing block is normal; the parser takes it.
+        assert parse_bonus_entries(None) == []  # type: ignore[arg-type]
 
 
 class TestAccumulation:
@@ -237,8 +238,11 @@ class TestIdSpaces:
         relic = Bonus(effect_id=100, value=10, via_relic=True)
         r = resolver()
 
-        assert r.effect_for(plain).effect_type_id == CombatEffectType.ATTACK_BONUS
-        assert r.effect_for(relic).effect_type_id == CombatEffectType.ATTACK_UNIT_AMOUNT_FLANK
+        plain_effect, relic_effect = r.effect_for(plain), r.effect_for(relic)
+
+        assert plain_effect is not None and relic_effect is not None
+        assert plain_effect.effect_type_id == CombatEffectType.ATTACK_BONUS
+        assert relic_effect.effect_type_id == CombatEffectType.ATTACK_UNIT_AMOUNT_FLANK
 
     def test_a_relic_bonus_is_not_counted_in_the_plain_space(self):
         relic = [Bonus(effect_id=100, value=10, via_relic=True)]
@@ -433,8 +437,8 @@ class TestAttackerFlankEffects:
             attacker=AttackerFlankEffects(melee_bonus=2.0),
         )
 
-        assert unbuffed[0] == 2
-        assert melee_buffed[0] == 1
+        assert (unbuffed or (0, 0))[0] == 2
+        assert (melee_buffed or (0, 0))[0] == 1
 
 
 class TestGlobalUnitAttackBonus:

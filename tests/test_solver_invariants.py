@@ -129,14 +129,14 @@ class TestSolverInvariants:
         for seed in SEEDS:
             game, _, _, waves, _ = self.run(seed)
 
-            bounded = {}
+            limits_by_type: dict[str, list[int]] = {}
             for tool in game.tools.values():
-                if not tool.is_attack_tool:
-                    continue
-                limits = bounded.setdefault(tool.tool_type, [])
-                limits.append(tool.per_wave_limit)
+                if tool.is_attack_tool:
+                    limits_by_type.setdefault(tool.tool_type, []).append(tool.per_wave_limit)
             bounded = {
-                tool_type: max(limits) for tool_type, limits in bounded.items() if all(limit > 0 for limit in limits)
+                tool_type: max(limits)
+                for tool_type, limits in limits_by_type.items()
+                if all(limit > 0 for limit in limits)
             }
 
             for index, wave in enumerate(waves):

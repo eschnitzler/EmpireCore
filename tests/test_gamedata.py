@@ -7,6 +7,31 @@ import pytest
 from empire_core.exceptions import NetworkError
 from empire_core.gamedata import GameData, ToolStats, UnitStats, parse_ids, parse_stacks
 
+
+def _recording_fetch(fetches: list[str]):
+    """A fetch_items_data stand-in that notes which versions were asked for."""
+
+    def fetch(version: str) -> dict:
+        fetches.append(version)
+        return PAYLOAD
+
+    return fetch
+
+
+def unit_of(data: GameData, wod_id: int) -> UnitStats:
+    """The unit, insisting it is there - a missing row is a failure, not a None."""
+    unit = data.get_unit(wod_id)
+    assert unit is not None, f"no unit {wod_id} in the parsed data"
+    return unit
+
+
+def tool_of(data: GameData, wod_id: int) -> ToolStats:
+    """The tool, insisting it is there."""
+    tool = data.get_tool(wod_id)
+    assert tool is not None, f"no tool {wod_id} in the parsed data"
+    return tool
+
+
 # Entries captured from the live items payload (values arrive as strings).
 MEAD_RANGER = {
     "wodID": 211,
@@ -94,7 +119,7 @@ class TestParsing:
 
 class TestLoading:
     def test_load_writes_and_reuses_the_cache(self, tmp_path, monkeypatch):
-        fetches = []
+        fetches: list[str] = []
 
         monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: "783.01")
 
@@ -109,14 +134,14 @@ class TestLoading:
 
         assert fetches == ["783.01"], "the second load must come from the cache"
         assert first.units.keys() == second.units.keys()
-        assert second.get_unit(211).range_attack == 270
+        assert unit_of(second, 211).range_attack == 270
 
     def test_refresh_bypasses_the_cache(self, tmp_path, monkeypatch):
-        fetches = []
+        fetches: list[str] = []
         monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: "783.01")
         monkeypatch.setattr(
             "empire_core.gamedata.data.fetch_items_data",
-            lambda version: (fetches.append(version), PAYLOAD)[1],
+            _recording_fetch(fetches),
         )
 
         GameData.load(cache_dir=tmp_path)
@@ -126,11 +151,11 @@ class TestLoading:
 
     def test_new_version_invalidates_the_cache(self, tmp_path, monkeypatch):
         versions = iter(["783.01", "784.00"])
-        fetches = []
+        fetches: list[str] = []
         monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: next(versions))
         monkeypatch.setattr(
             "empire_core.gamedata.data.fetch_items_data",
-            lambda version: (fetches.append(version), PAYLOAD)[1],
+            _recording_fetch(fetches),
         )
 
         GameData.load(cache_dir=tmp_path)
@@ -313,7 +338,7 @@ class TestToolScalingRoundTrip:
     }
 
     def test_a_percent_column_reads_as_a_fraction(self):
-        tool = GameData.parse("test", self.PAYLOAD).get_tool(611)
+        tool = tool_of(GameData.parse("test", self.PAYLOAD), 611)
 
         assert tool.raw_gate_bonus == 10
         assert tool.gate_bonus == 0.10
@@ -327,8 +352,8 @@ class TestToolScalingRoundTrip:
         first = GameData.load(cache_dir=tmp_path)
         second = GameData.load(cache_dir=tmp_path)
 
-        assert first.get_tool(611).gate_bonus == 0.10
-        assert second.get_tool(611).gate_bonus == 0.10
+        assert tool_of(first, 611).gate_bonus == 0.10
+        assert tool_of(second, 611).gate_bonus == 0.10
 
 
 class TestCacheSchemaFingerprint:

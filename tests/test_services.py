@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
@@ -61,6 +61,7 @@ from empire_core.services import (
 )
 from empire_core.services import spy as spy_module
 from empire_core.services.spy_army import SpyArmy
+from empire_core.state.models import Player
 
 # =============================================================================
 # Harness
@@ -152,6 +153,16 @@ class StubPlayer:
     def __init__(self, alliance_id: int = 0, level: int = 0):
         self.alliance_id = alliance_id
         self.level = level
+
+
+def stub_player(alliance_id: int = 0, level: int = 0) -> Player:
+    """
+    A stand-in for the real player record.
+
+    Only the attributes the services read are set, so it is cast rather than
+    constructed - a full Player needs a payload no test here cares about.
+    """
+    return cast(Player, StubPlayer(alliance_id=alliance_id, level=level))
 
 
 class StubState:
@@ -1018,7 +1029,7 @@ class TestAttackService:
         }
         client = make_client({"gui": xt_packet("gui", {"I": [[601, 5000], [611, 500]]})})
         client.game_data = GameData.parse("test", payload)
-        client.state.local_player = StubPlayer(level=70)
+        client.state.local_player = stub_player(level=70)
 
         from empire_core.combat import DefenderFlankEffects, Flank
 
@@ -1041,7 +1052,7 @@ class TestAttackService:
         }
         client = make_client({"gui": xt_packet("gui", {"I": [[601, 100_000]]})})
         client.game_data = GameData.parse("test", payload)
-        client.state.local_player = StubPlayer(level=70)
+        client.state.local_player = stub_player(level=70)
         # An equipped item worth +30% units on each side flank.
         commander = Commander.model_validate(
             {"ID": 7, "EQ": [[1, 1, 2, 5, -1, [[500, 86, [30.0]]], -1, -1, 0, -1, -1, 1]]}
@@ -1066,7 +1077,7 @@ class TestAttackService:
         client = make_client({"gui": xt_packet("gui", inventory)})
         client.game_data = GameData.parse("test", payload)
         # Level 13 unlocks a second wave and 73 attackers per wave.
-        client.state.local_player = StubPlayer(level=70)
+        client.state.local_player = stub_player(level=70)
 
         # A level 13 target: 73 attackers per wave, and the attacker's own
         # level decides that there are four waves.
@@ -1089,7 +1100,7 @@ class TestAttackService:
 
         client = make_client({"gui": xt_packet("gui", {"I": [[601, 10]]})})
         client.game_data = GameData.parse("test", {"units": []})
-        client.state.local_player = StubPlayer(level=70)
+        client.state.local_player = stub_player(level=70)
 
         with pytest.raises(ValueError, match="level"):
             client.attack.fill_waves(12345)
@@ -1869,7 +1880,7 @@ class TestFillAttack:
 
         client = make_client({"gui": xt_packet("gui", {"I": inventory})})
         client.game_data = GameData.parse("test", self.UNITS)
-        client.state.local_player = StubPlayer(level=70)
+        client.state.local_player = stub_player(level=70)
         return client
 
     def test_waves_and_a_courtyard_wave(self):
@@ -2367,7 +2378,7 @@ class TestFillAttackLevelDerivation:
                 ]
             },
         )
-        client.state.local_player = StubPlayer(level=70)
+        client.state.local_player = stub_player(level=70)
 
         # 299 victories in the green kingdom is a level 45 camp.
         assert camp_level(299, 0) == 45
