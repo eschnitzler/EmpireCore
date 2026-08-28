@@ -637,9 +637,46 @@ class NpcCampDefence(_Row):
         return parse_ids(self.raw_defense_tools)
 
 
+class EventCampDef(_Row):
+    """
+    One rank of a daimyo castle or township.
+
+    A map row names the rank rather than the level, so the level, and the
+    fortification that comes with it, are looked up here.
+    """
+
+    camp_id: int = Field(alias="id", default=0)
+    rank: int = 0
+    level: int = 0
+    wall_bonus: float = Field(alias="wallBonus", default=0)
+    gate_bonus: float = Field(alias="gateBonus", default=0)
+    moat_bonus: float = Field(alias="moatBonus", default=0)
+    guards: int = 0
+    unit_wall_count: int = Field(alias="unitWallCount", default=0)
+
+
+class LeagueBracketDef(_Row):
+    """
+    The level band an event sorts a player into.
+
+    An invasion camp's base level is the band's lower victory count, so this is
+    what says how hard the samurai camps are for a player of a given level.
+    """
+
+    league_id: int = Field(alias="leaguetypeID", default=0)
+    event_id: int = Field(alias="eventID", default=-1)
+    sub_type: int = Field(alias="subType", default=0)
+    min_level: int = Field(alias="minLevel", default=0)
+    max_level: int = Field(alias="maxLevel", default=0)
+    victory_min: int = Field(alias="countVictoryMin", default=0)
+    victory_max: int = Field(alias="countVictoryMax", default=0)
+
+
 __all__ = [
     "ECONOMY_SORT_CATEGORY",
+    "EventCampDef",
     "FIGHT_TYPE_DEFENSIVE",
+    "LeagueBracketDef",
     "FIGHT_TYPE_OFFENSIVE",
     "AttackSlotDef",
     "DefaultLordDef",

@@ -16,6 +16,7 @@ from empire_core.combat import (
     fill_wave,
     fill_waves,
     fill_yard_wave,
+    invasion_camp_level,
     is_legendary_fight,
     max_attackers,
     max_wave_count,
@@ -28,7 +29,7 @@ from empire_core.combat import (
 )
 from empire_core.gamedata import GameData, UnitStats
 from empire_core.protocol.models import AttackWave, WaveFlank
-from empire_core.protocol.models.map import MapItemType
+from empire_core.protocol.models.map import MapAreaItem, MapItemType
 
 
 def unit_of(game: GameData, wod_id: int) -> UnitStats:
@@ -1018,3 +1019,62 @@ class TestCastellanDefence:
         assert castellan_defense_multiplier(
             resolver, bonuses, flank=Flank.YARD, melee=True, area_type=1
         ) == pytest.approx(3.29)
+
+
+class TestInvasionCampLevel:
+    """
+    An invasion event camp's level, which its map row does not carry.
+
+    The rows are live captures; the tables are trimmed to the ranks they name.
+    """
+
+    PAYLOAD = {
+        "daimyoCastles": [{"id": "1", "rank": "1", "level": "81", "wallBonus": "110", "gateBonus": "110"}],
+        "daimyoTownships": [
+            {"id": "25", "rank": "3", "level": "110"},
+            {"id": "26", "rank": "4", "level": "116"},
+        ],
+        "leaguetypes": [
+            {"leaguetypeID": "1", "eventID": "80", "minLevel": 10, "maxLevel": "69", "countVictoryMin": "16"},
+            {"leaguetypeID": "2", "eventID": "80", "minLevel": 70, "maxLevel": "369", "countVictoryMin": "81"},
+            {"leaguetypeID": "1", "eventID": "72", "minLevel": 10, "maxLevel": "69", "countVictoryMin": "61"},
+        ],
+        "eventAutoScalingCamps": [{"eventAutoScalingCampID": "3", "camplevel": "70"}],
+    }
+
+    @pytest.fixture
+    def data(self) -> GameData:
+        return GameData.parse("test", self.PAYLOAD)
+
+    def level(self, data: GameData, row: list, player_level: int) -> int | None:
+        return invasion_camp_level(data, MapAreaItem.from_list(row), player_level)
+
+    def test_a_samurai_camp_starts_where_the_players_league_starts(self, data):
+        row = [29, 624, 240, -1, 0, -1787922790, 0, -651, -1, 110, 110, 0]
+
+        assert self.level(data, row, 70) == 81
+        assert self.level(data, row, 45) == 16
+
+    def test_every_defeat_raises_a_samurai_camp(self, data):
+        row = [29, 624, 240, -1, 4, 0, 0, 0, -1, 110, 110, 0]
+
+        assert self.level(data, row, 70) == 85
+
+    def test_a_daimyo_rank_is_looked_up_not_counted_off(self, data):
+        # Rank 26 is level 116, not 25 levels past rank 1: the level jumps at a
+        # rank boundary.
+        assert self.level(data, [38, 619, 250, -1, 26, 0, 0, 0, -1, 100, 100, 0], 70) == 116
+        assert self.level(data, [38, 619, 250, -1, 25, 0, 0, 0, -1, 100, 100, 0], 70) == 110
+        assert self.level(data, [37, 624, 242, -1, 1, 0, 0, 15, -1, 110, 110, 0], 70) == 81
+
+    def test_a_chosen_difficulty_overrides_the_rank(self, data):
+        assert self.level(data, [37, 624, 242, -1, 1, 0, 0, 15, 3, 110, 110, 0], 70) == 70
+
+    def test_a_rank_the_tables_do_not_describe_has_no_level(self, data):
+        assert self.level(data, [38, 619, 250, -1, 99, 0, 0, 0, -1, 100, 100, 0], 70) is None
+        # A player too low for any samurai band gets no level either.
+        assert self.level(data, [29, 624, 240, -1, 0, 0, 0, 0, -1, 110, 110, 0], 5) is None
+
+    def test_other_area_types_are_not_invasion_camps(self, data):
+        assert self.level(data, [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "castle"], 70) is None
+        assert self.level(data, [2, 625, 244, -1, 0, -1, 0], 70) is None
