@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from empire_core.network.connection import _summarise_frame
+from empire_core.network.connection import _summarize_frame
 from empire_core.protocol.models.alliance import AllianceInfo
 from empire_core.protocol.models.attack import AttackWave, CreateAttackResponse, WaveFlank
 from empire_core.protocol.models.commanders import GetCommandersResponse
@@ -167,6 +167,98 @@ class TestMovingFlags:
             {"KID": 0, "AI": [_castle_entry(i, i, castle_id=900 + i, player_id=1000 + i) for i in range(5)]}
         )
         assert response.get_moving_flags() == {}
+
+
+class TestDefenderStructureLevels:
+    """An owned location's row carries the structures that defend it."""
+
+    # Captured live: keep 6, wall 5, gate 5, tower 5, moat 2.
+    SKAAR = [1, 629, 235, 14733404, 15156637, 6, 5, 5, 5, 2, "skaar"]
+    # A level 13 castle: far smaller walls, no moat at all.
+    SMALL = [1, 632, 243, 16654596, 17743260, 2, 2, 2, 1, 0, "Chateau Heimlin"]
+
+    def test_structure_levels_are_read(self):
+        item = MapAreaItem.from_list(self.SKAAR)
+
+        assert item.keep_level == 6
+        assert item.wall_level == 5
+        assert item.gate_level == 5
+        assert item.tower_level == 5
+        assert item.moat_level == 2
+
+    def test_a_smaller_castle_has_smaller_structures(self):
+        item = MapAreaItem.from_list(self.SMALL)
+
+        assert (item.wall_level, item.gate_level) == (2, 2)
+        assert item.moat_level == 0
+
+    def test_keep_wall_and_gate_are_floored_at_one(self):
+        # The client applies Math.max(level, 1) to these three.
+        item = MapAreaItem.from_list([1, 1, 1, 900, 4242, 0, 0, 0, 0, 0, "x"])
+
+        assert (item.keep_level, item.wall_level, item.gate_level) == (1, 1, 1)
+        assert (item.tower_level, item.moat_level) == (0, 0)
+
+    def test_a_camp_has_no_structures_in_its_row(self):
+        # A camp row means something else at those indices entirely.
+        camp = MapAreaItem.from_list([2, 630, 243, -1, 297, -17639997, 0])
+
+        assert camp.wall_level == 0
+        assert camp.gate_level == 0
+
+
+class TestErrorCodeKeyCollision:
+    """The payload key "E" is not reserved for the error code."""
+
+    def test_a_crest_under_e_does_not_break_parsing(self):
+        # A live aci response carries the player's crest under "E".
+        from empire_core.protocol.models import GetMapAreaResponse
+
+        response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [], "E": {"BGT": 0, "BGC1": 1644825, "IS": 1}})
+
+        assert response.error_code == 0
+        assert response.success
+
+    def test_a_real_error_code_still_parses(self):
+        from empire_core.protocol.models import GetMapAreaResponse
+
+        assert GetMapAreaResponse.model_validate({"KID": 0, "E": 21}).error_code == 21
+        assert not GetMapAreaResponse.model_validate({"KID": 0, "E": 21}).success
+
+
+class TestNpcCampRows:
+    """A type-2 row is a camp, not an owned location."""
+
+    # Captured live: [type, x, y, seconds_since_espionage, victory_count,
+    #                 cooldown, kingdom]
+    CAMP = [2, 630, 243, -1, 297, -17639997, 0]
+
+    def test_camp_fields_are_exposed(self):
+        item = MapAreaItem.from_list(self.CAMP)
+
+        assert item.item_type == MapItemType.DUNGEON
+        assert (item.x, item.y) == (630, 243)
+        assert item.victory_count == 297
+        assert item.seconds_since_espionage == -1
+        assert item.attack_cooldown_seconds == -17639997
+        assert item.camp_kingdom_id == 0
+
+    def test_a_camp_has_no_owner(self):
+        # Field 3 is the espionage age; reading it as an owner id was wrong.
+        assert MapAreaItem.from_list(self.CAMP).owner_id == -1
+
+    def test_camp_fields_are_none_for_other_types(self):
+        castle = MapAreaItem.from_list([1, 5, 6, 900, 4242])
+
+        assert castle.victory_count is None
+        assert castle.seconds_since_espionage is None
+        assert castle.attack_cooldown_seconds is None
+
+    def test_short_camp_row_reports_what_it_has(self):
+        item = MapAreaItem.from_list([2, 10, 11])
+
+        assert item.victory_count is None
+        assert (item.x, item.y) == (10, 11)
 
 
 class TestRuinFlag:
@@ -368,17 +460,17 @@ class TestFrameRedactionEscapedQuotes:
     the mask early and leak the tail of the secret."""
 
     def test_escaped_quote_does_not_leak_the_password_tail(self):
-        summary = _summarise_frame('%xt%z%unk%1%{"PW": "hun\\"ter2secret"}%')
+        summary = _summarize_frame('%xt%z%unk%1%{"PW": "hun\\"ter2secret"}%')
         assert "ter2secret" not in summary
         assert '"<redacted>"' in summary
 
     def test_escaped_backslash_before_the_closing_quote(self):
-        summary = _summarise_frame('%xt%z%unk%1%{"PW": "hunter2\\\\"}%')
+        summary = _summarize_frame('%xt%z%unk%1%{"PW": "hunter2\\\\"}%')
         assert "hunter2" not in summary
         assert '"<redacted>"' in summary
 
     def test_plain_password_is_still_masked(self):
-        summary = _summarise_frame('%xt%z%unk%1%{"PW": "hunter2", "NM": "user"}%')
+        summary = _summarize_frame('%xt%z%unk%1%{"PW": "hunter2", "NM": "user"}%')
         assert "hunter2" not in summary
         assert '"NM": "user"' in summary
 

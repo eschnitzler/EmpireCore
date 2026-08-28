@@ -19,7 +19,7 @@ import json
 from enum import IntEnum
 from typing import Any, ClassVar, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # Type variable for generic response payloads
 T = TypeVar("T")
@@ -265,7 +265,18 @@ class BaseResponse(BasePayload):
 
     # Server error code from the payload. The packet-header error code is
     # raised as CommandError before parsing, so this is usually 0.
+    #
+    # "E" is not reserved: an aci response uses it for the player's crest, and
+    # a response whose payload happens to use the key for something else must
+    # still parse, so anything that is not an integer is treated as no error.
     error_code: int = Field(alias="E", default=0)
+
+    @field_validator("error_code", mode="before")
+    @classmethod
+    def _ignore_non_numeric_error_codes(cls, value: Any) -> Any:
+        if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+            return 0
+        return value
 
     @property
     def success(self) -> bool:

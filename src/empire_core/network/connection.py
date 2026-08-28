@@ -27,11 +27,11 @@ NON_ERROR_COMMANDS = {"rlu", "core_pol"}
 # login). Their bodies are never logged - only the command id and frame size.
 AUTH_COMMANDS = frozenset({"lli", "core_reg", "scp"})
 
-# Longest frame prefix we are willing to log, kept as defence in depth on top
+# Longest frame prefix we are willing to log, kept as defense in depth on top
 # of the redaction above.
 LOG_FRAME_CHARS = 100
 
-# Credential shapes to mask in frames whose command we do not recognise.
+# Credential shapes to mask in frames whose command we do not recognize.
 _SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     # XT/JSON payloads: {"PW": "hunter2"}. The value pattern must consume
     # escaped characters (\" and \\): with a plain [^"]* a password containing
@@ -57,7 +57,7 @@ def _frame_command(frame: str) -> str | None:
     return match.group(1) if match else None
 
 
-def _summarise_frame(frame: str) -> str:
+def _summarize_frame(frame: str) -> str:
     """Render an outbound frame in a form that is safe to log.
 
     Auth frames carry the plaintext password, so their body is dropped
@@ -117,7 +117,7 @@ class Connection:
     - Disconnect notification via :meth:`add_disconnect_listener`
     - Automatic keepalive thread
     - Thread-safe operations: :meth:`connect` and :meth:`disconnect` are
-      serialised against each other and against the receive thread's shutdown
+      serialized against each other and against the receive thread's shutdown
       by an internal lifecycle lock, so concurrent calls cannot leak a socket
       or let a dying session tear down its successor.
 
@@ -133,10 +133,10 @@ class Connection:
            subscribers still see it, but the request gets the push instead of
            its own answer.
 
-        So serialise same-command requests per connection, and prefer
+        So serialize same-command requests per connection, and prefer
         :meth:`subscribe` over :meth:`request` for command ids the server also
         pushes on its own. See ``TestCorrelationIsFifo`` in
-        ``tests/test_connection.py``, which pins this behaviour.
+        ``tests/test_connection.py``, which pins this behavior.
     """
 
     def __init__(self, url: str, keepalive_zone: str | None = None):
@@ -342,9 +342,9 @@ class Connection:
             raise NetworkError(f"Send failed: {e}") from e
 
         # Logged after the send so nothing here can be mistaken for a send
-        # failure. Frames carry credentials; see _summarise_frame.
+        # failure. Frames carry credentials; see _summarize_frame.
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("Sent: %s", _summarise_frame(data))
+            logger.debug("Sent: %s", _summarize_frame(data))
 
     def request(self, data: str, cmd_id: str, timeout: float = 5.0) -> Packet:
         """

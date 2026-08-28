@@ -14,6 +14,7 @@ import threading
 import time
 import warnings
 from collections.abc import Callable
+from pathlib import Path
 from types import TracebackType
 from typing import Any, TypeVar, cast
 
@@ -33,6 +34,7 @@ from empire_core.exceptions import (
     LoginError,
     PacketError,
 )
+from empire_core.gamedata import GameData
 from empire_core.network.connection import Connection
 from empire_core.protocol.models import BaseRequest, BaseResponse, encode_chat_text, parse_response
 from empire_core.protocol.models.alliance import GetAllianceInfoRequest, GetAllianceInfoResponse
@@ -62,6 +64,7 @@ from empire_core.services import (
     CastleService,
     CommandersService,
     RankingService,
+    SkillsService,
     SpyService,
     get_registered_services,
 )
@@ -100,6 +103,7 @@ class EmpireClient:
     army: ArmyService
     attack: AttackService
     commanders: CommandersService
+    skills: SkillsService
     spy: SpyService
     ranking: RankingService
 
@@ -115,6 +119,7 @@ class EmpireClient:
 
         self.connection = Connection(self.config.game_url, keepalive_zone=self.config.default_zone)
         self.state = GameState()
+        self.game_data: GameData | None = None
         self.is_logged_in = False
 
         # Command -> handlers mapping for efficient dispatch
@@ -142,6 +147,7 @@ class EmpireClient:
         self.army: ArmyService = cast(ArmyService, self._services["army"])
         self.attack: AttackService = cast(AttackService, self._services["attack"])
         self.commanders: CommandersService = cast(CommandersService, self._services["commanders"])
+        self.skills: SkillsService = cast(SkillsService, self._services["skills"])
         self.spy: SpyService = cast(SpyService, self._services["spy"])
         self.ranking: RankingService = cast(RankingService, self._services["ranking"])
 
@@ -389,6 +395,27 @@ class EmpireClient:
         traceback: TracebackType | None,
     ) -> None:
         self.close()
+
+    def load_game_data(self, *, refresh: bool = False, cache_dir: str | Path | None = None) -> GameData:
+        """
+        Load the static game data (unit and tool stats) and attach it.
+
+        Explicit by design: the items payload is a large download, so no other
+        API fetches it behind your back. Cached on disk per game version, so
+        this is cheap after the first call.
+
+        Args:
+            refresh: Ignore any cached copy and re-download
+            cache_dir: Where to keep trimmed data (default: XDG cache dir)
+
+        Returns:
+            The loaded data, also available as ``client.game_data``
+
+        Raises:
+            NetworkError: The CDN could not be reached
+        """
+        self.game_data = GameData.load(refresh=refresh, cache_dir=cache_dir)
+        return self.game_data
 
     def send(
         self,

@@ -46,7 +46,7 @@ _SECRET_JSON_RE = re.compile(
 )
 _SECRET_XML_RE = re.compile(r"(<pword>).*?(</pword>)", re.IGNORECASE | re.DOTALL)
 
-# Longest frame prefix we are willing to log, as defence in depth on top of
+# Longest frame prefix we are willing to log, as defense in depth on top of
 # the redaction above.
 _LOG_PREFIX_CHARS = 80
 
@@ -154,7 +154,7 @@ class Packet:
             return cls._parse_xt(decoded)
 
         # Unknown or junk, return raw wrapper
-        _warn_degraded_frame("unrecognised prefix", decoded)
+        _warn_degraded_frame("unrecognized prefix", decoded)
         return cls(raw_data=decoded, is_xml=False)
 
     @classmethod

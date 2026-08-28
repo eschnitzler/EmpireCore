@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
-from typing import Any
+from typing import Any, ClassVar, cast
 
 import pytest
 from pydantic import ValidationError
@@ -37,6 +37,7 @@ from empire_core.protocol.models import (
     AllianceMember,
     AttackType,
     AttackWave,
+    Commander,
     CreateAttackRequest,
     CreateAttackResponse,
     EquipmentSlot,
@@ -59,6 +60,8 @@ from empire_core.services import (
     get_registered_services,
 )
 from empire_core.services import spy as spy_module
+from empire_core.services.spy_army import SpyArmy
+from empire_core.state.models import Player
 
 # =============================================================================
 # Harness
@@ -99,7 +102,7 @@ class ScriptedConnection:
         self.requested: list[str] = []
         self.request_payloads: list[tuple[str, dict[str, Any]]] = []
         self.waiters_created: list[str] = []
-        self.waiters_cancelled: list[str] = []
+        self.waiters_canceled: list[str] = []
         self.waited_for: list[str] = []
         self.events: list[str] = []
         self.on_packet = None
@@ -128,7 +131,7 @@ class ScriptedConnection:
         return ResponseWaiter()
 
     def cancel_waiter(self, cmd_id: str, waiter: ResponseWaiter) -> None:
-        self.waiters_cancelled.append(cmd_id)
+        self.waiters_canceled.append(cmd_id)
         self.events.append(f"cancel_waiter:{cmd_id}")
 
     def wait_for_result(self, cmd_id: str, waiter: ResponseWaiter, timeout: float = 5.0) -> Packet:
@@ -147,8 +150,19 @@ class ScriptedConnection:
 
 
 class StubPlayer:
-    def __init__(self, alliance_id: int = 0):
+    def __init__(self, alliance_id: int = 0, level: int = 0):
         self.alliance_id = alliance_id
+        self.level = level
+
+
+def stub_player(alliance_id: int = 0, level: int = 0) -> Player:
+    """
+    A stand-in for the real player record.
+
+    Only the attributes the services read are set, so it is cast rather than
+    constructed - a full Player needs a payload no test here cares about.
+    """
+    return cast(Player, StubPlayer(alliance_id=alliance_id, level=level))
 
 
 class StubState:
@@ -161,6 +175,9 @@ class StubState:
     def update_from_packet(self, cmd_id: str, payload: object) -> None:
         self.updates.append((cmd_id, payload))
 
+    def get_local_player(self) -> StubPlayer | None:
+        return self.local_player
+
 
 def make_client(script: dict[str, Any] | None = None, state: StubState | None = None) -> EmpireClient:
     """Build a client with every registered service attached, but no socket."""
@@ -170,6 +187,7 @@ def make_client(script: dict[str, Any] | None = None, state: StubState | None = 
     client.password = "secret"
     client.connection = ScriptedConnection(script)  # type: ignore[assignment]
     client.state = state or StubState()  # type: ignore[assignment]
+    client.game_data = None
     client.is_logged_in = True
     client._handlers = {}
     client._handlers_lock = threading.Lock()
@@ -870,6 +888,22 @@ class TestAttackService:
         assert payload["CD"] == 99
         assert payload["ATT"] == AttackType.ATTACK
 
+    def test_the_courtyard_wave_rides_in_rw(self):
+        client = make_client()
+        yard = [[487, 300], [601, 200]] + [[-1, 0]] * 6
+
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 0, yard_wave=yard)
+
+        # Every slot goes out, empty ones included.
+        assert conn(client).request_payloads[0][1]["RW"] == yard
+
+    def test_no_courtyard_wave_sends_an_empty_rw(self):
+        client = make_client()
+
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 0)
+
+        assert conn(client).request_payloads[0][1]["RW"] == []
+
     def test_commander_must_be_chosen_explicitly(self):
         # Every id gli reports leads an attack, 0 included, so there is no safe
         # value to default to.
@@ -958,6 +992,118 @@ class TestAttackService:
             CreateAttackResponse,
         )
         assert response.movement_id is None
+
+    def test_fill_waves_needs_game_data(self):
+        from empire_core.exceptions import GameDataNotLoadedError
+
+        client = make_client()
+
+        with pytest.raises(GameDataNotLoadedError):
+            client.attack.fill_waves(12345)
+
+    def test_tools_are_drawn_from_the_same_inventory(self):
+        # Tools live in the same gui inventory as units; filtering them out of
+        # the pool made every wave tool-less regardless of the strategies.
+        from empire_core.gamedata import GameData
+
+        payload = {
+            "units": [
+                {
+                    "wodID": 601,
+                    "name": "Barracks",
+                    "type": "Sword",
+                    "role": "melee",
+                    "meleeAttack": "100",
+                    "fightType": "0",
+                },
+                {
+                    "wodID": 611,
+                    "name": "Workshop",
+                    "type": "Ram",
+                    "typ": "Attack",
+                    "slotTypes": "1,2,9",
+                    "gateBonus": "30",
+                    "fightType": "1",
+                },
+            ]
+        }
+        client = make_client({"gui": xt_packet("gui", {"I": [[601, 5000], [611, 500]]})})
+        client.game_data = GameData.parse("test", payload)
+        client.state.local_player = stub_player(level=70)
+
+        from empire_core.combat import DefenderFlankEffects, Flank
+
+        waves = client.attack.fill_waves(
+            12345,
+            level=13,
+            defense={f: DefenderFlankEffects(gate_bonus=0.30) for f in Flank},
+        )
+
+        assert waves[0].model_dump(by_alias=True)["M"]["T"] == [[611, 1]]
+
+    def test_a_commanders_own_equipment_widens_the_flanks(self):
+        from empire_core.gamedata import GameData
+        from empire_core.protocol.models import Commander
+
+        payload = {
+            "units": [{"wodID": 601, "name": "Barracks", "role": "melee", "meleeAttack": "100", "fightType": "0"}],
+            "effecttypes": [{"effectTypeID": "28", "name": "attackUnitAmountFlank"}],
+            "effects": [{"effectID": "500", "name": "flankUnits", "effectTypeID": "28", "capID": "99"}],
+        }
+        client = make_client({"gui": xt_packet("gui", {"I": [[601, 100_000]]})})
+        client.game_data = GameData.parse("test", payload)
+        client.state.local_player = stub_player(level=70)
+        # An equipped item worth +30% units on each side flank.
+        commander = Commander.model_validate(
+            {"ID": 7, "EQ": [[1, 1, 2, 5, -1, [[500, 86, [30.0]]], -1, -1, 0, -1, -1, 1]]}
+        )
+
+        plain = client.attack.fill_waves(12345, level=13)
+        widened = client.attack.fill_waves(12345, level=13, commander=commander)
+
+        left = plain[0].model_dump(by_alias=True)["L"]["U"][0][1]
+        wider = widened[0].model_dump(by_alias=True)["L"]["U"][0][1]
+        assert wider > left
+        # 20% of 73 attackers, then +30%: ceil(14.6 * 1.3).
+        assert (left, wider) == (15, 19)
+
+    def test_fill_waves_sizes_itself_from_the_target_level(self):
+        from empire_core.gamedata import GameData
+
+        payload = {
+            "units": [{"wodID": 601, "name": "Barracks", "type": "Swordsman", "role": "melee", "meleeAttack": "100"}]
+        }
+        inventory = {"I": [[601, 10_000], [107, 50]], "U": [], "T": []}
+        client = make_client({"gui": xt_packet("gui", inventory)})
+        client.game_data = GameData.parse("test", payload)
+        # Level 13 unlocks a second wave and 73 attackers per wave.
+        client.state.local_player = stub_player(level=70)
+
+        # A level 13 target: 73 attackers per wave, and the attacker's own
+        # level decides that there are four waves.
+        waves = client.attack.fill_waves(12345, level=13)
+
+        assert len(waves) == 4
+        assert waves[0].unit_count() == 73
+        # 107 is a boost item in the inventory and must not be sent as an army.
+        assert all(
+            wod_id == 601
+            for wave in waves
+            for flank in wave.model_dump(by_alias=True).values()
+            for wod_id, _count in flank["U"]
+        )
+
+    def test_fill_waves_without_a_target_level_is_an_error_not_a_guess(self):
+        # The attacker's own level would be the wrong answer, so there is no
+        # default to fall back on.
+        from empire_core.gamedata import GameData
+
+        client = make_client({"gui": xt_packet("gui", {"I": [[601, 10]]})})
+        client.game_data = GameData.parse("test", {"units": []})
+        client.state.local_player = stub_player(level=70)
+
+        with pytest.raises(ValueError, match="level"):
+            client.attack.fill_waves(12345)
 
     def test_rejected_attack_is_false(self):
         client = make_client({"cra": xt_packet("cra", error_code=21)})
@@ -1076,6 +1222,22 @@ class TestCommandersService:
         client = make_client({"gli": xt_packet("gli", error_code=21)})
         with pytest.raises(CommandError):
             client.commanders.get_commanders()
+
+    def test_assigned_general_is_parsed(self):
+        # A commander's gli entry names the general assigned to it; that
+        # general's skills are what size an attack's waves.
+        payload = {"C": [{"ID": 1, "N": "The Blackthorn", "GID": 101, "ST": 4, "L": 50}]}
+        client = make_client({"gli": xt_packet("gli", payload)})
+
+        commander = client.commanders.get_commanders()[0]
+
+        assert commander.general_id == 101
+        assert commander.star_level == 4
+        assert commander.level == 50
+
+    def test_commander_without_a_general(self):
+        client = make_client({"gli": xt_packet("gli", {"C": [{"ID": 1}]})})
+        assert client.commanders.get_commanders()[0].general_id is None
 
     def test_combat_record_parsed(self):
         payload = {"C": [{"ID": 91, "N": "Bloodwing", "W": 42, "D": 7, "SPR": 3}]}
@@ -1321,10 +1483,10 @@ class TestSpySuccessPath:
         events = conn(client).events
         assert events.index("create_waiter:sne") < events.index("request:csm")
 
-    def test_waiter_is_cancelled_on_success(self, no_sleep):
+    def test_waiter_is_canceled_on_success(self, no_sleep):
         client = make_client(spy_script())
         client.spy.execute_instant_spy(12345, 700, 710)
-        assert conn(client).waiters_cancelled == ["sne"]
+        assert conn(client).waiters_canceled == ["sne"]
 
 
 class TestForwardingASpyReport:
@@ -1378,7 +1540,7 @@ class TestSpyNotificationDecoding:
         assert result.success is False
         assert result.reason == "spy_caught"
 
-    def test_a_successful_defence_for_the_target_is_also_a_loss(self, no_sleep):
+    def test_a_successful_defense_for_the_target_is_also_a_loss(self, no_sleep):
         client = make_client(spy_script(sne=self._sne("1+1+12#3+16324240+Inheritor")))
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
@@ -1604,12 +1766,12 @@ class TestSpyFailurePaths:
             spy_script(bsd=xt_packet("bsd", error_code=21)),
         ],
     )
-    def test_waiter_is_always_cancelled(self, no_sleep, script):
+    def test_waiter_is_always_canceled(self, no_sleep, script):
         client = make_client(script)
 
         client.spy.execute_instant_spy(12345, 700, 710)
 
-        assert conn(client).waiters_cancelled == ["sne"]
+        assert conn(client).waiters_canceled == ["sne"]
 
 
 # =============================================================================
@@ -1681,3 +1843,664 @@ class TestAccuracyIsTradedForRisk:
         sent = dict(conn(client).request_payloads)["csm"]
         assert sent["SE"] < 100, "sent full accuracy the risk ceiling could not afford"
         assert sent["SC"] > 0
+
+
+class TestFillAttack:
+    """One call producing a complete attack."""
+
+    UNITS: ClassVar[dict[str, list]] = {
+        "units": [
+            {
+                "wodID": 601,
+                "name": "Barracks",
+                "type": "Sword",
+                "role": "melee",
+                "meleeAttack": "100",
+                "fightType": "0",
+            },
+            {
+                "wodID": 611,
+                "name": "Workshop",
+                "type": "Ram",
+                "typ": "Attack",
+                "slotTypes": "1,2,9",
+                "gateBonus": "30",
+                "fightType": "1",
+            },
+        ],
+        "buildings": [
+            {"wodID": 501, "comment2": "Castlewall", "level": "1", "wallBonus": "30"},
+            {"wodID": 450, "comment2": "Gate", "level": "1", "gateBonus": "30"},
+        ],
+        # A daimyo rank jumps at a rank boundary, so the level is looked up and
+        # never counted off from the first row.
+        "daimyoCastles": [{"id": "1", "rank": "1", "level": "81", "wallBonus": "110", "gateBonus": "110"}],
+        "daimyoTownships": [
+            {"id": "25", "rank": "3", "level": "110", "wallBonus": "100", "gateBonus": "100"},
+            {"id": "26", "rank": "4", "level": "116", "wallBonus": "100", "gateBonus": "100"},
+        ],
+        "leaguetypes": [
+            {"leaguetypeID": "1", "eventID": "80", "minLevel": 10, "maxLevel": "69", "countVictoryMin": "16"},
+            {"leaguetypeID": "2", "eventID": "80", "minLevel": 70, "maxLevel": "369", "countVictoryMin": "81"},
+        ],
+        "eventAutoScalingCamps": [{"eventAutoScalingCampID": "3", "camplevel": "70"}],
+    }
+
+    def build(self, inventory):
+        from empire_core.gamedata import GameData
+        from empire_core.state.models import Player  # noqa: F401
+
+        client = make_client({"gui": xt_packet("gui", {"I": inventory})})
+        client.game_data = GameData.parse("test", self.UNITS)
+        client.state.local_player = stub_player(level=70)
+        return client
+
+    def test_waves_and_a_courtyard_wave(self):
+        client = self.build([[601, 100_000]])
+
+        result = client.attack.fill_attack(12345, target_level=13)
+
+        assert result.waves
+        # Eight slots always go out; at least one of them holds something.
+        assert len(result.yard) == 8
+        assert [pair for pair in result.yard if pair[0] != -1]
+        # The courtyard is sized separately from the flanks.
+        assert result.unit_count() > sum(w.unit_count() for w in result.waves)
+
+    def test_the_courtyard_draws_from_what_the_waves_left(self):
+        # Only enough for the waves: the courtyard gets the remainder.
+        client = self.build([[601, 100]])
+
+        result = client.attack.fill_attack(12345, target_level=13)
+
+        committed = result.unit_count()
+        assert committed <= 100
+
+    def test_a_castle_row_supplies_fortification(self):
+        client = self.build([[601, 100_000], [611, 500]])
+        row = [1, 5, 6, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+
+        result = client.attack.fill_attack(12345, target_level=13, target_is_player=True, target_row=row)
+
+        # Wall and gate protection of 30% each, and a ram that cancels 30%.
+        payload = result.waves[0].model_dump(by_alias=True)
+        assert payload["M"]["T"] == [[611, 1]]
+
+    def test_the_area_bonuses_widen_the_flanks(self):
+        # aci's AE carries attackUnitAmountFlank; the live capture has +30%.
+        from empire_core.combat import parse_bonus_entries
+        from empire_core.gamedata import GameData
+
+        payload = {
+            "units": [{"wodID": 601, "name": "Barracks", "role": "melee", "meleeAttack": "100", "fightType": "0"}],
+            "effecttypes": [{"effectTypeID": "28", "name": "attackUnitAmountFlank"}],
+            "effects": [{"effectID": "66", "name": "attackUnitAmountFlank", "effectTypeID": "28", "capID": "99"}],
+        }
+        client = self.build([[601, 100_000]])
+        client.game_data = GameData.parse("test", payload)
+        area = parse_bonus_entries([[66, [30.0], "CI"]])
+
+        plain = client.attack.fill_waves(12345, level=70)
+        widened = client.attack.fill_waves(12345, level=70, area_bonuses=area)
+
+        left = plain[0].model_dump(by_alias=True)["L"]["U"][0][1]
+        wider = widened[0].model_dump(by_alias=True)["L"]["U"][0][1]
+        # 20% of 320 attackers is 64, then +30%.
+        assert (left, wider) == (64, 84)
+
+    def test_one_skl_read_covers_both_skill_lists(self):
+        from empire_core.protocol.models import Commander
+
+        client = self.build([[601, 100_000]])
+        conn(client).script["skl"] = xt_packet("skl", {"SID": [3], "SIDS": [90], "SP": 10})
+
+        client.attack.fill_attack(12345, target_level=13, commander=Commander.model_validate({"ID": 1}))
+
+        sent = [command for command, _ in conn(client).request_payloads]
+        assert sent.count("skl") == 1
+
+    def test_the_skills_are_read_when_not_given(self):
+        from empire_core.protocol.models import Commander
+
+        client = self.build([[601, 100_000]])
+        conn(client).script["gie"] = xt_packet("gie", {"G": [{"GID": 7, "SIDS": [1, 2]}]})
+        conn(client).script["skl"] = xt_packet("skl", {"SID": [3], "SIDS": [], "SP": 10})
+        commander = Commander.model_validate({"ID": 1, "GID": 7})
+
+        client.attack.fill_attack(12345, target_level=13, commander=commander)
+
+        sent = [command for command, _ in conn(client).request_payloads]
+        assert "gie" in sent and "skl" in sent
+
+    def test_given_skills_are_not_re_read(self):
+        from empire_core.protocol.models import Commander
+
+        client = self.build([[601, 100_000]])
+        commander = Commander.model_validate({"ID": 1, "GID": 7})
+
+        client.attack.fill_attack(
+            12345,
+            target_level=13,
+            commander=commander,
+            general_skill_ids=[],
+            legend_skill_ids=[],
+            sceat_skill_ids=[],
+        )
+
+        sent = [command for command, _ in conn(client).request_payloads]
+        assert "gie" not in sent and "skl" not in sent
+
+    def test_coordinates_are_enough(self):
+        # Nothing about the target is passed: the pre-calculation and a one-tile
+        # scan supply the row, the spied defenders, the castellan, the area
+        # effects and the owner's level.
+        client = self.build([[601, 100_000]])
+        row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+        conn(client).script["aci"] = xt_packet(
+            "aci",
+            {
+                "gaa": {"AI": row},
+                "S": [[[601, 50]], [], [], [], [], [], []],
+                "AE": [],
+                "B": {},
+            },
+        )
+        conn(client).script["gaa"] = xt_packet(
+            "gaa", {"AI": [row], "OI": [{"OID": 900, "PID": 4242, "PN": "dweller", "L": 46}]}
+        )
+
+        result = client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+        sent = [command for command, _ in conn(client).request_payloads]
+        assert "aci" in sent
+        assert result.waves
+
+    def test_a_conquest_attack_carries_its_extra_waves(self):
+        client = self.build([[601, 100_000]])
+
+        plain = client.attack.fill_attack(12345, target_level=70, target_is_player=True)
+        conquest = client.attack.fill_attack(12345, target_level=70, target_is_player=True, conquer=True)
+
+        assert len(conquest.waves) == len(plain.waves) + 2
+
+    def test_the_legend_tool_skill_widens_the_tool_capacity(self):
+        # additionalAttackToolAmountFlank, which applies only in a legendary
+        # fight, was resolved and then never used.
+        from empire_core.gamedata import GameData
+
+        payload = dict(
+            self.UNITS,
+            units=[
+                *self.UNITS["units"],
+                {
+                    "wodID": 614,
+                    "name": "Workshop",
+                    "type": "Ladder",
+                    "typ": "Attack",
+                    "slotTypes": "1,2,9",
+                    "wallBonus": "1",
+                    "fightType": "1",
+                },
+            ],
+            legendskills=[
+                # Live shape: the value lives in totalEffectValue.
+                {
+                    "skillID": "900",
+                    "effectType": "additionalAttackToolAmountFlank",
+                    "totalEffectValue": "30",
+                    "level": "1",
+                    "tier": "5",
+                }
+            ],
+        )
+        from empire_core.combat import DefenderFlankEffects, Flank
+
+        client = self.build([[601, 100_000], [614, 100_000]])
+        client.game_data = GameData.parse("test", payload)
+        # A wall the ladders cannot fully cancel, so the flank fills to capacity.
+        defense = {flank: DefenderFlankEffects(wall_bonus=99.0) for flank in Flank}
+
+        plain = client.attack.fill_waves(12345, level=70, target_is_player=True, defense=defense)
+        skilled = client.attack.fill_waves(
+            12345, level=70, target_is_player=True, defense=defense, legend_skill_ids=[900]
+        )
+
+        placed = lambda waves: sum(c for _, c in waves[0].model_dump(by_alias=True)["L"]["T"])  # noqa: E731
+        assert placed(skilled) > placed(plain)
+
+    def test_the_targets_kingdom_reaches_the_tool_gate(self):
+        # A tool limited to Berimond (kingdom 10) may be carried there and
+        # nowhere else.
+        from empire_core.gamedata import GameData
+
+        payload = dict(
+            self.UNITS,
+            units=[
+                *self.UNITS["units"],
+                {
+                    "wodID": 613,
+                    "name": "Workshop",
+                    "type": "Ladder",
+                    "typ": "Attack",
+                    "slotTypes": "1,2,9",
+                    "wallBonus": "20",
+                    "allowedToAttack": "10+1",
+                    "fightType": "1",
+                },
+            ],
+        )
+        row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+
+        def fill(kingdom_id):
+            client = self.build([[601, 100_000], [613, 500]])
+            client.game_data = GameData.parse("test", payload)
+            conn(client).script["aci"] = xt_packet("aci", {"gaa": {"AI": row}, "AE": [], "B": {}})
+            conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": [{"OID": 900, "PID": 4242, "L": 13}]})
+            result = client.attack.fill_attack(
+                12345, target_x=700, target_y=710, kingdom_id=kingdom_id, target_is_player=True
+            )
+            return [wod for wod, _ in result.waves[0].model_dump(by_alias=True)["M"]["T"]]
+
+        assert 613 in fill(10)
+        assert 613 not in fill(0)
+
+    def test_the_castellan_reaches_the_defense(self):
+        # It was accepted as a parameter and dropped on the way to the defense,
+        # so the target's fortification came out far too low.
+        from empire_core.gamedata import GameData
+        from empire_core.protocol.models import Commander
+
+        payload = dict(
+            self.UNITS,
+            units=[
+                *self.UNITS["units"],
+                # A ladder, so a better-defended wall costs more tools.
+                {
+                    "wodID": 612,
+                    "name": "Workshop",
+                    "type": "Ladder",
+                    "typ": "Attack",
+                    "slotTypes": "1,2,9",
+                    "wallBonus": "20",
+                    "fightType": "1",
+                },
+            ],
+            effecttypes=[{"effectTypeID": "6", "name": "wallBonus"}],
+            effects=[{"effectID": "515", "name": "newDefenseWallBonusPVP", "effectTypeID": "6", "capID": "99"}],
+        )
+        client = self.build([[601, 100_000], [611, 500], [612, 500]])
+        client.game_data = GameData.parse("test", payload)
+        row = [1, 5, 6, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+        army = SpyArmy.from_spy_data([[[601, 10]], [], [], [], [], [], []])
+        # A castellan worth +200% wall protection.
+        castellan = Commander.model_validate({"ID": 1, "E": [[515, [200.0], "EQ"]], "EQ": [], "AE": []})
+
+        plain = client.attack.fill_attack(12345, target_level=13, target_is_player=True, target_row=row, spy_army=army)
+        held = client.attack.fill_attack(
+            12345,
+            target_level=13,
+            target_is_player=True,
+            target_row=row,
+            spy_army=army,
+            defending_castellan=castellan,
+        )
+
+        # A better-defended wall needs more siege tools.
+        placed = lambda a: sum(c for _, c in a.waves[0].model_dump(by_alias=True)["M"]["T"])  # noqa: E731
+        assert placed(held) > placed(plain)
+
+    def test_the_inventory_is_read_once(self):
+        client = self.build([[601, 100_000]])
+
+        client.attack.fill_attack(12345, target_level=13)
+
+        sent = [command for command, _ in conn(client).request_payloads]
+        assert sent.count("gui") == 1
+
+    def test_the_courtyard_cannot_re_spend_the_waves_troops(self):
+        # One pool for both passes: what the waves take is already gone.
+        client = self.build([[601, 300]])
+
+        result = client.attack.fill_attack(12345, target_level=13)
+
+        assert result.unit_count() <= 300
+
+    def test_a_given_inventory_is_used_instead_of_reading_one(self):
+        from empire_core.combat import Inventory
+
+        client = self.build([[601, 100_000]])
+
+        waves = client.attack.fill_waves(12345, level=13, inventory=Inventory({601: 40}))
+
+        sent = [command for command, _ in conn(client).request_payloads]
+        assert "gui" not in sent
+        assert sum(w.unit_count() for w in waves) == 40
+
+    def test_the_attacking_castle_is_reselected_after_a_scan(self):
+        # Scanning moves the client off the castle, and the inventory read that
+        # follows is castle-scoped.
+        client = self.build([[601, 100_000]])
+        row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+        conn(client).script["aci"] = xt_packet("aci", {"gaa": {"AI": row}, "AE": [], "B": {}})
+        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": [{"OID": 900, "PID": 4242, "L": 46}]})
+
+        client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+        # The select is acknowledged as jaa, which is what the client waits on.
+        order = [e for e in conn(client).events if any(c in e for c in ("gaa", "jaa", "gui"))]
+        scanned = next(i for i, e in enumerate(order) if "gaa" in e)
+        reselected = next(i for i, e in enumerate(order) if "jaa" in e)
+        inventory = next(i for i, e in enumerate(order) if "gui" in e)
+        assert scanned < reselected < inventory
+
+    def test_a_camp_victory_count_comes_from_the_row(self):
+        client = self.build([[601, 100_000]])
+        # Type 2 is a camp; field 3 is the espionage age and field 6 the count.
+        camp_row = [2, 700, 710, -1, 0, -1, -299]
+        conn(client).script["aci"] = xt_packet("aci", {"gaa": {"AI": camp_row}, "AE": [], "B": {}})
+
+        result = client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+        # A camp needs no scan for a level: the count implies it.
+        assert "gaa" not in [command for command, _ in conn(client).request_payloads]
+        assert result.waves
+
+    def test_a_refused_precalculation_falls_back_to_the_map(self):
+        # The server refuses the pre-calculation for a camp and for anything it
+        # will not let this player hit, but the map still describes the tile.
+        client = self.build([[601, 100_000]])
+        camp_row = [2, 700, 710, -1, 0, -1, -299]
+        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [camp_row], "OI": []})
+
+        result = client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+        assert result.waves
+        # The scan is castle-scoped work too, so the fill returns home first.
+        order = [e for e in conn(client).events if any(c in e for c in ("gaa", "jaa", "gui"))]
+        scanned = next(i for i, e in enumerate(order) if "gaa" in e)
+        reselected = next(i for i, e in enumerate(order) if "jaa" in e)
+        inventory = next(i for i, e in enumerate(order) if "gui" in e)
+        assert scanned < reselected < inventory
+
+    def test_a_samurai_camp_starts_at_the_players_own_league(self):
+        # The row carries no level: it starts where the player's league band
+        # starts and climbs with every defeat the camp has taken.
+        client = self.build([[601, 100_000]])
+        row = [29, 700, 710, -1, 4, 0, 0, 0, -1, 110, 110, 0]
+        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": []})
+
+        result = client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+        # Level 70 sits in the second band, which starts at 81, plus 4 defeats.
+        # Which level exactly is pinned in test_combat; here it is that the
+        # target fills at all, where it used to have no level to fill for.
+        assert result.waves
+
+    def test_a_daimyo_rank_carries_its_level(self):
+        client = self.build([[601, 100_000]])
+        # Field 4 is the rank, not a victory count: rank 1 is level 81.
+        row = [37, 700, 710, -1, 1, 0, 0, 0, -1, 110, 110, 0]
+        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": []})
+
+        result = client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+        assert result.waves
+
+    def test_a_scaled_camp_takes_the_difficulty_level(self):
+        client = self.build([[601, 100_000]])
+        # Field 8 names a difficulty scaling camp, which overrides the rank.
+        row = [37, 700, 710, -1, 1, 0, 0, 0, 3, 110, 110, 0]
+        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": []})
+
+        result = client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+        assert result.waves
+
+    def test_an_invasion_camp_reports_protection_as_a_percentage(self):
+        # Fields 9 to 11 are bonuses already, not building levels: read as
+        # levels they would be looked up in the fortification table and lost.
+        from empire_core.protocol.models.map import MapAreaItem
+
+        item = MapAreaItem.from_list([37, 700, 710, -1, 1, 0, 0, 15, -1, 110, 110, 0])
+
+        assert item.is_invasion_camp
+        assert (item.base_wall_bonus, item.base_gate_bonus, item.base_moat_bonus) == (110.0, 110.0, 0.0)
+        assert MapAreaItem.from_list([1, 700, 710, 900, 4242, 1, 1, 1, 0, 0]).base_wall_bonus is None
+
+    def test_an_unknown_camp_rank_says_which_rank(self):
+        client = self.build([[601, 100_000]])
+        # Rank 99 is a daimyo castle the trimmed tables do not describe.
+        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["gaa"] = xt_packet(
+            "gaa", {"AI": [[37, 700, 710, -1, 99, 0, 0, 0, -1, 110, 110, 0]], "OI": []}
+        )
+
+        with pytest.raises(ValueError, match="no camp 99 for area type 37"):
+            client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+    def test_a_tile_the_map_does_not_describe_says_so(self):
+        client = self.build([[601, 100_000]])
+        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [], "OI": []})
+
+        with pytest.raises(ValueError, match="the map has no row for it"):
+            client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+    def test_a_target_with_no_level_anywhere_says_so(self):
+        client = self.build([[601, 100_000]])
+        # An alien camp: not an invasion camp this knows, and no owner record
+        # carries a level for it either.
+        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["gaa"] = xt_packet(
+            "gaa", {"AI": [[21, 700, 710, -1, 0, -1, 0, 0, -1, 110, 110, 0]], "OI": []}
+        )
+
+        with pytest.raises(ValueError, match="no owner level"):
+            client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+    def test_what_is_passed_is_not_re_read(self):
+        client = self.build([[601, 100_000]])
+        row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+
+        client.attack.fill_attack(
+            12345,
+            target_x=700,
+            target_y=710,
+            target_level=13,
+            target_row=row,
+            spy_army=SpyArmy.from_spy_data([[], [], [], [], [], [], []]),
+            defending_castellan=Commander.model_validate({"ID": 1}),
+            area_bonuses=[],
+            general_skill_ids=[],
+            legend_skill_ids=[],
+            sceat_skill_ids=[],
+        )
+
+        sent = [command for command, _ in conn(client).request_payloads]
+        assert "aci" not in sent and "gaa" not in sent
+
+    def test_a_monument_is_sized_for_its_own_level(self):
+        from empire_core.protocol.models.map import MapItemType
+
+        client = self.build([[601, 100_000]])
+
+        low = client.attack.fill_attack(12345, target_level=12, area_type=MapItemType.CASTLE)
+        landmark = client.attack.fill_attack(12345, target_level=12, area_type=MapItemType.MONUMENT)
+
+        assert landmark.waves[0].unit_count() > low.waves[0].unit_count()
+
+    def test_a_conquered_target_sizes_the_courtyard_from_the_area(self):
+        from empire_core.protocol.models.map import MapItemType
+
+        client = self.build([[601, 1_000_000]])
+
+        owner = client.attack.fill_attack(12345, target_level=12, area_type=MapItemType.KINGS_TOWER)
+        conquered = client.attack.fill_attack(
+            12345, target_level=12, area_type=MapItemType.KINGS_TOWER, under_conquer_control=True
+        )
+
+        placed = lambda a: sum(p[1] for p in a.yard if p[0] != -1)  # noqa: E731
+        # The tower defends at 70 whoever holds it, so its courtyard is larger.
+        assert placed(conquered) > placed(owner)
+
+    def test_an_overfull_army_is_refused_before_sending(self):
+        from empire_core.combat import WaveCapacity
+
+        client = self.build([[601, 100_000]])
+        capacity = WaveCapacity.for_level(70)
+        too_big = wave(units=[[601, capacity.flank_soldiers + 50]])
+
+        with pytest.raises(ValueError, match="exceeds what a wave may carry"):
+            client.attack.send_attack(500, 510, 700, 710, [too_big], 0, capacity=capacity)
+
+    def test_a_buffed_unit_wins_the_courtyard_too(self):
+        # 601 hits harder on paper; a global effect makes 602 the better pick,
+        # and the courtyard runs the same pick as a flank.
+        from empire_core.gamedata import GameData
+
+        payload = {
+            "units": [
+                {"wodID": 601, "name": "Barracks", "role": "melee", "meleeAttack": "100", "fightType": "0"},
+                {"wodID": 602, "name": "Barracks", "role": "melee", "meleeAttack": "90", "fightType": "0"},
+            ],
+            "effecttypes": [{"effectTypeID": "148", "name": "attackBonusUnit"}],
+            "effects": [{"effectID": "273", "name": "attackBonusUnit", "effectTypeID": "148", "capID": "99"}],
+            "globalEffects": [{"globalEffectID": "5", "name": "boost602", "effects": "273&602+50"}],
+        }
+        client = self.build([[601, 100_000], [602, 100_000]])
+        client.game_data = GameData.parse("test", payload)
+
+        plain = client.attack.fill_attack(12345, target_level=13)
+        buffed = client.attack.fill_attack(12345, target_level=13, global_effect_ids=[5])
+
+        assert plain.yard[0][0] == 601
+        assert buffed.yard[0][0] == 602
+
+    def test_the_row_supplies_the_area_type_a_tool_is_gated_on(self):
+        # The ram may only be carried against an area type 2. A castle row is
+        # type 1, so it must not appear.
+        client = self.build([[601, 100_000], [611, 500]])
+        client.game_data.get_tool(611).raw_allowed_to_attack = "0+2"
+        row = [1, 5, 6, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+
+        result = client.attack.fill_attack(12345, target_level=13, target_is_player=True, target_row=row)
+
+        assert result.waves[0].model_dump(by_alias=True)["M"]["T"] == []
+
+    def test_the_same_tool_is_carried_when_the_row_matches(self):
+        client = self.build([[601, 100_000], [611, 500]])
+        client.game_data.get_tool(611).raw_allowed_to_attack = "0+1"
+        row = [1, 5, 6, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+
+        result = client.attack.fill_attack(12345, target_level=13, target_is_player=True, target_row=row)
+
+        assert result.waves[0].model_dump(by_alias=True)["M"]["T"] == [[611, 1]]
+
+    def test_no_game_data_is_an_error(self):
+        from empire_core.exceptions import GameDataNotLoadedError
+
+        client = make_client()
+        with pytest.raises(GameDataNotLoadedError):
+            client.attack.fill_attack(12345, target_level=13)
+
+
+class TestAttackInfo:
+    """The aci pre-calculation, shaped as the live server sends it."""
+
+    PAYLOAD = {
+        "SCID": 6277054,
+        "TX": 632,
+        "TY": 243,
+        "KID": 0,
+        "E": {"BGT": 0, "BGC1": 1644825, "IS": 1},
+        "HAWL": 0,
+        "AE": [[111, [40.0], "AB"], [66, [30.0], "CI"], [426, [10.0], "GE"]],
+        "gaa": {"KID": 0, "AI": [1, 632, 243, 16654596, 17743260, 2, 2, 2, 1, 0, "Château Heimlin"]},
+        "gui": {"I": [[211, 5323], [601, 100], [107, 0]]},
+        "gli": {"C": [{"ID": 1, "GID": 101}], "B": [{"ID": 0}]},
+    }
+
+    def test_parses_the_live_shape(self):
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate(self.PAYLOAD)
+
+        assert info.source_castle_id == 6277054
+        assert (info.target_x, info.target_y) == (632, 243)
+        # The crest under "E" must not read as an error code.
+        assert info.error_code == 0
+
+    def test_target_row_and_inventory(self):
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate(self.PAYLOAD)
+
+        assert info.target_row()[:3] == [1, 632, 243]
+        # Zero counts are dropped, as everywhere else.
+        assert info.inventory() == {211: 5323, 601: 100}
+
+    def test_scoped_attacker_effects_resolve(self):
+        from empire_core.combat import parse_bonus_entries
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate(self.PAYLOAD)
+
+        bonuses = parse_bonus_entries(info.raw_attacker_effects)
+
+        # The construction item's flank bonus arrives tagged CI.
+        assert any(b.effect_id == 66 and b.value == 30.0 for b in bonuses)
+
+    def test_empty_payload_is_not_an_error(self):
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate({})
+
+        assert info.target_row() == []
+        assert info.inventory() == {}
+
+    def test_service_sends_the_documented_payload(self):
+        client = make_client()
+
+        client.attack.get_attack_info(632, 243, 629, 242, kingdom_id=0)
+
+        command, payload = conn(client).request_payloads[0]
+        assert command == "aci"
+        assert (payload["TX"], payload["TY"]) == (632, 243)
+        assert (payload["SX"], payload["SY"]) == (629, 242)
+
+
+class TestFillAttackLevelDerivation:
+    def test_a_camp_level_follows_from_its_victories(self):
+        from empire_core.combat import camp_level
+        from empire_core.gamedata import GameData
+
+        client = make_client({"gui": xt_packet("gui", {"I": [[601, 10_000]]})})
+        client.game_data = GameData.parse(
+            "test",
+            {
+                "units": [
+                    {"wodID": 601, "name": "B", "type": "S", "role": "melee", "meleeAttack": "100", "fightType": "0"}
+                ]
+            },
+        )
+        client.state.local_player = stub_player(level=70)
+
+        # 299 victories in the green kingdom is a level 45 camp.
+        assert camp_level(299, 0) == 45
+        result = client.attack.fill_attack(12345, camp_victories=299, camp_kingdom_id=0)
+
+        # Level 45 gives 47 units per flank before bonuses.
+        assert result.waves[0].model_dump(by_alias=True)["L"]["U"] == [[601, 47]]
+
+    def test_neither_level_nor_victories_is_an_error(self):
+        from empire_core.gamedata import GameData
+
+        client = make_client()
+        client.game_data = GameData.parse("test", {"units": []})
+
+        with pytest.raises(ValueError, match="target_level"):
+            client.attack.fill_attack(12345)

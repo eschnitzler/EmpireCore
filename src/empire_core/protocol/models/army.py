@@ -433,7 +433,7 @@ class SendSupportRequest(BaseRequest):
         "TX": target_x,
         "TY": target_y,
         "KID": kingdom_id (0=Green, 2=Ice, 1=Sand, 3=Fire),
-        "LID": commander_id (-14 for coordinates/no commander),
+        "LID": commander_id (-14 = the default premium commander entry),
         "WT": wait_time (station duration in hours, 0-12),
         "HBW": horses_type (-1 for default/none),
         "BPC": boost_with_coins (1 = use coins for faster travel, 0 = normal speed),

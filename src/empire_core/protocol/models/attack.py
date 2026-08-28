@@ -13,11 +13,16 @@ from __future__ import annotations
 
 import logging
 from enum import IntEnum
+from typing import TYPE_CHECKING
 
 from pydantic import Field, ValidationError
 
 from .base import BasePayload, BaseRequest, BaseResponse, UnitCount
 from .commanders import Commander
+
+if TYPE_CHECKING:
+    from empire_core.combat import Bonus
+    from empire_core.services.spy_army import SpyArmy
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +182,127 @@ class CreateAttackResponse(BaseResponse):
             return int(movement["MID"])
         except (KeyError, TypeError, ValueError):
             return None
+
+
+# =============================================================================
+# ACI - Attack Pre-calculation
+# =============================================================================
+
+
+class GetAttackInfoRequest(BaseRequest):
+    """
+    Ask for the attack pre-calculation against a castle.
+
+    Command: aci
+    Payload: {"TX": target_x, "TY": target_y, "SX": source_x, "SY": source_y, "KID": kingdom_id}
+
+    Camps answer a different command: see ``GetTargetInfoRequest`` (adi).
+    """
+
+    command = "aci"
+
+    target_x: int = Field(alias="TX")
+    target_y: int = Field(alias="TY")
+    source_x: int = Field(alias="SX")
+    source_y: int = Field(alias="SY")
+    kingdom_id: int = Field(alias="KID", default=0)
+
+
+class GetAttackInfoResponse(BaseResponse):
+    """
+    Everything the attack dialog needs for one target.
+
+    Command: aci
+    Payload::
+
+        {"SCID": source_castle_id, "TX": .., "TY": .., "KID": ..,
+         "AE": [[effect_id, [value], source_tag], ...],   # attacker effects,
+                                                          # already scoped to
+                                                          # this target
+         "S": [left, middle, right, keep, stronghold, support, reserve],
+                                                          # spied defenders, by
+                                                          # position
+         "AS": defending_castellan_id,
+         "B": {defending castellan entry},
+         "gaa": {"AI": [target map row]},
+         "gui": {"I": [[wod_id, count], ...]},            # attacker inventory
+         "gli": {"C": [...], "B": [...]},                 # commanders/castellans
+         "HAWL": ..}
+
+    ``AE`` is the useful part: the server has already dropped the effects that
+    do not apply to this target, so the same commander answers differently for
+    a camp and for a player's castle. ``S`` is the second: the spied defenders,
+    per flank, which is the only way to know what each flank actually holds.
+    """
+
+    command = "aci"
+
+    source_castle_id: int = Field(alias="SCID", default=0)
+    target_x: int = Field(alias="TX", default=0)
+    target_y: int = Field(alias="TY", default=0)
+    kingdom_id: int = Field(alias="KID", default=0)
+    raw_attacker_effects: list = Field(alias="AE", default_factory=list)
+    raw_spy_army: list = Field(alias="S", default_factory=list)
+    defending_castellan_id: int = Field(alias="AS", default=-1)
+    raw_defending_castellan: dict = Field(alias="B", default_factory=dict)
+    raw_map_area: dict = Field(alias="gaa", default_factory=dict)
+    raw_inventory: dict = Field(alias="gui", default_factory=dict)
+    raw_commanders: dict = Field(alias="gli", default_factory=dict)
+
+    def attacker_bonuses(self) -> list["Bonus"]:
+        """
+        The area effects that apply to this attack, already scoped by the server.
+
+        These are not the commander's - they are the kingdom-wide and event
+        effects the attack picks up on top of it, and they include the flank and
+        front unit-amount bonuses that decide how many troops a wave holds.
+        """
+        from empire_core.combat import parse_bonus_entries
+
+        return parse_bonus_entries(self.raw_attacker_effects)
+
+    def spy_army(self) -> "SpyArmy | None":
+        """
+        The spied defenders, split by the position they hold.
+
+        Only present while espionage on the target is still fresh; without it
+        the defending army is unknown and only the target's fortification can be
+        modeled. The block is positional, so a shifted section would silently
+        move defenders between flanks - see :class:`SpyArmy`.
+        """
+        from empire_core.services.spy_army import SpyArmy
+
+        return SpyArmy.from_spy_data(self.raw_spy_army)
+
+    def defending_castellan(self) -> Commander | None:
+        """
+        The castellan holding the target, if the payload names one.
+
+        The ``B`` block is a commander entry like any other, so its equipment
+        and effects parse the same way - they just defend rather than attack.
+        """
+        if not self.raw_defending_castellan:
+            return None
+        try:
+            return Commander.model_validate(self.raw_defending_castellan)
+        except ValidationError:
+            logger.warning("Could not parse the defending castellan from an attack pre-calculation")
+            return None
+
+    def target_row(self) -> list:
+        """The target's raw map row, or an empty list."""
+        row = self.raw_map_area.get("AI")
+        if isinstance(row, list) and row and isinstance(row[0], list):
+            # A map-area response nests its rows; the pre-calculation sends one.
+            return row[0]
+        return row if isinstance(row, list) else []
+
+    def inventory(self) -> dict[int, int]:
+        """The attacker's units and tools as ``{wod_id: count}``."""
+        entries = self.raw_inventory.get("I")
+        if not isinstance(entries, list):
+            return {}
+        return {entry[0]: entry[1] for entry in entries if isinstance(entry, list) and len(entry) >= 2 and entry[1]}
 
 
 # =============================================================================

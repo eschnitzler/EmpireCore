@@ -160,6 +160,58 @@ passing `feathers=True` forces the horse field to -1 exactly as the client
 does. See [`examples/commanders_and_attack.py`](examples/commanders_and_attack.py)
 for a runnable version that dry-runs by default.
 
+### Filling waves
+
+```python
+client.load_game_data()          # explicit: the items payload is a large download
+
+commander = client.commanders.get_commanders()[1]
+attack = client.attack.fill_attack(
+    castle_id,
+    target_x=624, target_y=247,  # a target is all it needs
+    commander=commander,
+)
+
+client.attack.send_attack(
+    source_x=castle.x, source_y=castle.y,
+    target_x=624, target_y=247,
+    waves=attack.waves, yard_wave=attack.yard,
+    commander_id=commander.commander_id,
+)
+```
+
+Coordinates are enough. From them it reads the target's area type and
+structures, the defenders each flank holds and the castellan holding it, the
+area effects that widen your flanks, your general's skills and your own legend
+and Hall of Legends skills. A camp's level comes from the victory count in its
+map row; a player's from the owner records beside it. Every one of those can be
+passed instead, and passing one skips the request that would have found it.
+
+Each wave is sized the way the game sizes it, which is by the *target owner's*
+level rather than the attacker's: a level 13 castle holds far fewer troops than
+a level 70 one, whatever the attacker's level. Some targets defend at a level of
+their own - a monument is built for level 70 however low its owner is. On top
+come the commander's own equipment, its general's unit-limit skills, the Hall of
+Legends skills, and the legend skills when both sides are at the level cap.
+
+Each flank takes tools first and then units, because a placed tool reduces the
+defense the units are then chosen against. Units are picked to counter whichever
+of the target's defenses is proportionally weaker; tools are picked to cancel
+the target's wall, gate, moat and defender bonuses in as few units as possible,
+and are skipped entirely where the commander's own reductions already erase
+them. A flank that ends up with tools but no units gives the tools back.
+
+Fortification is per flank, not per castle: a defending tool raises only the
+flank it stands on, and only the middle flank meets the gate at all. Tools are
+also filtered by the target - many may only be carried against particular
+kingdoms and area types, or not against camps.
+
+See [`examples/fill_waves.py`](examples/fill_waves.py) for the whole path.
+
+Alongside the waves comes the courtyard wave, the final assault that rides in
+the same request. It holds units only, is sized from both levels rather than the
+target's alone, and is filled against the defenders of the keep.
+
 ## Game State
 
 A background thread applies server pushes to `client.state` while your code

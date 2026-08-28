@@ -81,6 +81,8 @@ from .attack import (
     AttackWave,
     CreateAttackRequest,
     CreateAttackResponse,
+    GetAttackInfoRequest,
+    GetAttackInfoResponse,
     GetPresetsRequest,
     GetPresetsResponse,
     SendSpyRequest,
@@ -243,6 +245,13 @@ from .ranking import (
     RankingEntry,
     RankingType,
 )
+from .skills import (
+    General,
+    GetGeneralsRequest,
+    GetGeneralsResponse,
+    GetSkillsRequest,
+    GetSkillsResponse,
+)
 
 __all__ = [
     # Base
@@ -350,7 +359,11 @@ __all__ = [
     # Attack
     "AttackType",
     "AttackWave",
+    "GetAttackInfoRequest",
+    "GetAttackInfoResponse",
     "WaveFlank",
+    "GetAttackInfoRequest",
+    "GetAttackInfoResponse",
     "CreateAttackRequest",
     "CreateAttackResponse",
     "SendSpyRequest",
@@ -431,7 +444,12 @@ __all__ = [
     "HealAllResponse",
     "SendSupportRequest",
     "SendSupportResponse",
+    "General",
     "GetCommandersRequest",
+    "GetGeneralsRequest",
+    "GetGeneralsResponse",
+    "GetSkillsRequest",
+    "GetSkillsResponse",
     "GetCommandersResponse",
     "Castellan",
     "Commander",

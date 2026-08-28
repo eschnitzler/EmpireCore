@@ -141,6 +141,38 @@ class GetMapAreaRequest(BaseRequest):
 _PLAYER_ID_FIELD = 4
 _RELOCATING_FIELD = 19  # 1 while the castle is in transit, 0 when settled
 
+# Indices into a gaa type-2 (DUNGEON) raw entry, from the client's
+# DungeonMapobjectVO.parseAreaInfo:
+#   [type, x, y, seconds_since_espionage, victory_count, cooldown_seconds, kingdom]
+# Indices into an owned-location row, from InteractiveMapobjectVO.parseAreaInfo.
+_KEEP_LEVEL_FIELD = 5
+_WALL_LEVEL_FIELD = 6
+_GATE_LEVEL_FIELD = 7
+_TOWER_LEVEL_FIELD = 8
+_MOAT_LEVEL_FIELD = 9
+
+_DUNGEON_ESPIONAGE_FIELD = 3
+_DUNGEON_VICTORY_FIELD = 4
+_DUNGEON_COOLDOWN_FIELD = 5
+_DUNGEON_KINGDOM_FIELD = 6
+
+# An invasion event's camps share one row shape, which is not the castle one:
+# field 4 names the camp, and fields 9 to 11 are fortification percentages
+# rather than building levels.
+_INVASION_CAMP_FIELD = 4
+_INVASION_SCALING_FIELD = 8
+_INVASION_WALL_BONUS_FIELD = 9
+_INVASION_GATE_BONUS_FIELD = 10
+_INVASION_MOAT_BONUS_FIELD = 11
+
+INVASION_AREA_TYPES = frozenset(
+    {
+        MapItemType.SAMURAI_CAMP,
+        MapItemType.DAIMYO_CASTLE,
+        MapItemType.DAIMYO_TOWNSHIP,
+    }
+)
+
 
 class MapAreaItem(BasePayload):
     """
@@ -150,6 +182,9 @@ class MapAreaItem(BasePayload):
 
     Field 3 is the location (castle/outpost) id for type-1 entries and the
     player id for the capital-like types -- see ``owner_id`` and ``player_id``.
+    An NPC camp (type 2) has no owner at all: its field 3 is how long ago it was
+    spied, so ``owner_id`` stays -1 and the camp's own fields are exposed by
+    ``victory_count`` and the properties beside it.
 
     Common types (see MapItemType enum):
     - 1: Player main castle (``is_relocating`` tells you if it is in transit)
@@ -176,6 +211,9 @@ class MapAreaItem(BasePayload):
             and len(data) > 4
         ):
             owner_id = data[4]
+        elif item_type == MapItemType.DUNGEON:
+            # No owner: field 3 is the espionage age, not an id.
+            owner_id = -1
         else:
             owner_id = data[3] if len(data) > 3 else -1
 
@@ -186,6 +224,128 @@ class MapAreaItem(BasePayload):
             owner_id=owner_id,
             raw_data=data,
         )
+
+    def _dungeon_field(self, index: int) -> int | None:
+        """An NPC camp field, or None when this is not a camp row."""
+        if self.item_type != MapItemType.DUNGEON or len(self.raw_data) <= index:
+            return None
+        value = self.raw_data[index]
+        if isinstance(value, bool) or not isinstance(value, int):
+            return None
+        return value
+
+    @property
+    def victory_count(self) -> int | None:
+        """
+        How many times an NPC camp has been beaten, or None for other types.
+
+        This is what selects the camp's defenders: pass it to
+        ``GameData.dungeon_defense`` or
+        ``empire_core.combat.npc_camp_defense``.
+        """
+        return self._dungeon_field(_DUNGEON_VICTORY_FIELD)
+
+    @property
+    def seconds_since_espionage(self) -> int | None:
+        """How long ago an NPC camp was spied; -1 when it never was."""
+        return self._dungeon_field(_DUNGEON_ESPIONAGE_FIELD)
+
+    @property
+    def attack_cooldown_seconds(self) -> int | None:
+        """An NPC camp's remaining attack cooldown; negative once it expired."""
+        return self._dungeon_field(_DUNGEON_COOLDOWN_FIELD)
+
+    @property
+    def camp_kingdom_id(self) -> int | None:
+        """The kingdom an NPC camp sits in, as the camp row reports it."""
+        return self._dungeon_field(_DUNGEON_KINGDOM_FIELD)
+
+    def _level_field(self, index: int, minimum: int = 0) -> int:
+        """A structure level from an owned-location row."""
+        if self.item_type == MapItemType.DUNGEON or len(self.raw_data) <= index:
+            return 0
+        value = self.raw_data[index]
+        if isinstance(value, bool) or not isinstance(value, int):
+            return 0
+        return max(value, minimum)
+
+    @property
+    def keep_level(self) -> int:
+        """The defender's keep level; the client floors this at 1."""
+        return self._level_field(_KEEP_LEVEL_FIELD, minimum=1)
+
+    @property
+    def wall_level(self) -> int:
+        """The defender's wall level, which decides its wall protection."""
+        return self._level_field(_WALL_LEVEL_FIELD, minimum=1)
+
+    @property
+    def gate_level(self) -> int:
+        """The defender's gate level."""
+        return self._level_field(_GATE_LEVEL_FIELD, minimum=1)
+
+    @property
+    def tower_level(self) -> int:
+        """The defender's tower level."""
+        return self._level_field(_TOWER_LEVEL_FIELD)
+
+    @property
+    def moat_level(self) -> int:
+        """The defender's moat level, 0 when it has none."""
+        return self._level_field(_MOAT_LEVEL_FIELD)
+
+    def _invasion_field(self, index: int) -> int | None:
+        """A field of an invasion event camp's row, or None for other types."""
+        if self.item_type not in INVASION_AREA_TYPES or len(self.raw_data) <= index:
+            return None
+        value = self.raw_data[index]
+        if isinstance(value, bool) or not isinstance(value, int):
+            return None
+        return value
+
+    @property
+    def is_invasion_camp(self) -> bool:
+        """Whether this row is an invasion event camp rather than a castle or an NPC camp."""
+        return self.item_type in INVASION_AREA_TYPES
+
+    @property
+    def invasion_camp_field(self) -> int | None:
+        """
+        Field 4 of an invasion camp's row.
+
+        The area type says what it means: a samurai camp counts its own defeats
+        here, while a daimyo castle or township names its rank in the matching
+        items table.
+        """
+        return self._invasion_field(_INVASION_CAMP_FIELD)
+
+    @property
+    def scaling_camp_id(self) -> int | None:
+        """
+        The difficulty-scaling camp this row points at, or -1 when unscaled.
+
+        Set when the player picked a difficulty for the event, and it then
+        decides the camp's level on its own.
+        """
+        return self._invasion_field(_INVASION_SCALING_FIELD)
+
+    @property
+    def base_wall_bonus(self) -> float | None:
+        """An invasion camp's wall protection, already a percentage."""
+        value = self._invasion_field(_INVASION_WALL_BONUS_FIELD)
+        return None if value is None else float(value)
+
+    @property
+    def base_gate_bonus(self) -> float | None:
+        """An invasion camp's gate protection, already a percentage."""
+        value = self._invasion_field(_INVASION_GATE_BONUS_FIELD)
+        return None if value is None else float(value)
+
+    @property
+    def base_moat_bonus(self) -> float | None:
+        """An invasion camp's moat protection, already a percentage."""
+        value = self._invasion_field(_INVASION_MOAT_BONUS_FIELD)
+        return None if value is None else float(value)
 
     @property
     def player_id(self) -> int:
