@@ -2240,8 +2240,8 @@ class TestFillAttack:
 
     def test_a_daimyo_rank_carries_its_level(self):
         client = self.build([[601, 100_000]])
-        # Field 4 is the rank, not a victory count: rank 26 is level 116.
-        row = [38, 700, 710, -1, 26, 0, 0, 0, -1, 100, 100, 0]
+        # Field 4 is the rank, not a victory count: rank 1 is level 81.
+        row = [37, 700, 710, -1, 1, 0, 0, 0, -1, 110, 110, 0]
         conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
         conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": []})
 
@@ -2273,13 +2273,13 @@ class TestFillAttack:
 
     def test_an_unknown_camp_rank_says_which_rank(self):
         client = self.build([[601, 100_000]])
-        # Rank 99 is an invasion camp the trimmed tables do not describe.
+        # Rank 99 is a daimyo castle the trimmed tables do not describe.
         conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
         conn(client).script["gaa"] = xt_packet(
-            "gaa", {"AI": [[38, 700, 710, -1, 99, 0, 0, 0, -1, 100, 100, 0]], "OI": []}
+            "gaa", {"AI": [[37, 700, 710, -1, 99, 0, 0, 0, -1, 110, 110, 0]], "OI": []}
         )
 
-        with pytest.raises(ValueError, match="no camp 99 for area type 38"):
+        with pytest.raises(ValueError, match="no camp 99 for area type 37"):
             client.attack.fill_attack(12345, target_x=700, target_y=710)
 
     def test_a_tile_the_map_does_not_describe_says_so(self):

@@ -51,42 +51,50 @@ def camp_level(victories: int, kingdom_id: int = 0) -> int:
 # The samurai invasion, whose league bands set how hard its camps start.
 SAMURAI_INVASION_EVENT_ID = 80
 
-# Which items table names a rank for each daimyo area type.
-DAIMYO_RANK_TABLES = {
-    MapItemType.DAIMYO_CASTLE: "daimyoCastles",
-    MapItemType.DAIMYO_TOWNSHIP: "daimyoTownships",
-}
+# The rank table a daimyo castle's map row indexes.
+DAIMYO_CASTLE_TABLE = "daimyoCastles"
 
 
 def invasion_camp_level(game_data: GameData, item: MapAreaItem, player_level: int) -> int | None:
     """
-    An invasion event camp's level, which is not in its map row.
+    The level an invasion event target is fought at, which its row does not carry.
 
-    A samurai camp starts where the player's own league band starts and climbs
-    with every defeat it has taken; a daimyo castle or township names a rank
-    instead, and the rank carries the level. A row that names a difficulty
-    scaling camp overrides both.
+    The three types do not share a rule, because only two of them are camps:
+
+    - A samurai camp is one. It starts where the attacking player's league band
+      starts and climbs by one for every defeat it has taken.
+    - A daimyo castle is one too, but names a rank instead of a defeat count,
+      and the rank carries the level.
+    - A daimyo township is not. The game counts the attacking player as its
+      owner, so it is fought at that player's own level and its rank says
+      nothing about it.
+
+    A row that names a difficulty scaling camp overrides the level of the two
+    that are camps, which is how a chosen difficulty raises them for one player.
 
     Args:
         game_data: Loaded items payload
-        item: The camp's map row
-        player_level: The attacking player's level, which picks the league band
+        item: The target's map row
+        player_level: The attacking player's level
 
     Returns:
-        The camp's level, or None when it is not an invasion camp or the tables
-        do not describe it
+        The level to size the wave at, or None when this is not one of the
+        three or the tables do not describe it
     """
     if not item.is_invasion_camp:
         return None
+
+    # Not a camp: the township's owner is whoever is attacking it.
+    if item.item_type == MapItemType.DAIMYO_TOWNSHIP:
+        return player_level
 
     scaled = game_data.scaling_camp_level(item.scaling_camp_id or -1)
     if scaled is not None:
         return scaled
 
     field = item.invasion_camp_field or 0
-    table = DAIMYO_RANK_TABLES.get(MapItemType(item.item_type)) if item.item_type in DAIMYO_RANK_TABLES else None
-    if table is not None:
-        rank = game_data.get_event_camp(table, field)
+    if item.item_type == MapItemType.DAIMYO_CASTLE:
+        rank = game_data.get_event_camp(DAIMYO_CASTLE_TABLE, field)
         return rank.level if rank is not None else None
 
     base = game_data.event_base_camp_level(SAMURAI_INVASION_EVENT_ID, player_level)

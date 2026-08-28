@@ -1029,7 +1029,10 @@ class TestInvasionCampLevel:
     """
 
     PAYLOAD = {
-        "daimyoCastles": [{"id": "1", "rank": "1", "level": "81", "wallBonus": "110", "gateBonus": "110"}],
+        "daimyoCastles": [
+            {"id": "1", "rank": "1", "level": "81", "wallBonus": "110", "gateBonus": "110"},
+            {"id": "3", "rank": "1", "level": "83", "wallBonus": "110", "gateBonus": "110"},
+        ],
         "daimyoTownships": [
             {"id": "25", "rank": "3", "level": "110"},
             {"id": "26", "rank": "4", "level": "116"},
@@ -1060,18 +1063,27 @@ class TestInvasionCampLevel:
 
         assert self.level(data, row, 70) == 85
 
-    def test_a_daimyo_rank_is_looked_up_not_counted_off(self, data):
-        # Rank 26 is level 116, not 25 levels past rank 1: the level jumps at a
-        # rank boundary.
-        assert self.level(data, [38, 619, 250, -1, 26, 0, 0, 0, -1, 100, 100, 0], 70) == 116
-        assert self.level(data, [38, 619, 250, -1, 25, 0, 0, 0, -1, 100, 100, 0], 70) == 110
+    def test_a_daimyo_castle_rank_is_looked_up_not_counted_off(self, data):
+        # Rank 3 is level 83, not two levels past rank 1 by arithmetic: the
+        # level jumps at a rank boundary.
         assert self.level(data, [37, 624, 242, -1, 1, 0, 0, 15, -1, 110, 110, 0], 70) == 81
+        assert self.level(data, [37, 624, 242, -1, 3, 0, 0, 15, -1, 110, 110, 0], 70) == 83
+
+    def test_a_township_is_fought_at_the_attackers_own_level(self, data):
+        # The game counts whoever attacks a township as its owner, so its rank
+        # says nothing about the level it is fought at.
+        row = [38, 619, 250, -1, 26, 0, 0, 0, -1, 100, 100, 0]
+
+        assert self.level(data, row, 70) == 70
+        assert self.level(data, row, 45) == 45
+        # Not rank 26's own level, which the table does carry.
+        assert data.get_event_camp("daimyoTownships", 26) is not None
 
     def test_a_chosen_difficulty_overrides_the_rank(self, data):
         assert self.level(data, [37, 624, 242, -1, 1, 0, 0, 15, 3, 110, 110, 0], 70) == 70
 
     def test_a_rank_the_tables_do_not_describe_has_no_level(self, data):
-        assert self.level(data, [38, 619, 250, -1, 99, 0, 0, 0, -1, 100, 100, 0], 70) is None
+        assert self.level(data, [37, 624, 242, -1, 99, 0, 0, 0, -1, 110, 110, 0], 70) is None
         # A player too low for any samurai band gets no level either.
         assert self.level(data, [29, 624, 240, -1, 0, 0, 0, 0, -1, 110, 110, 0], 5) is None
 
