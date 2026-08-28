@@ -156,6 +156,23 @@ _DUNGEON_VICTORY_FIELD = 4
 _DUNGEON_COOLDOWN_FIELD = 5
 _DUNGEON_KINGDOM_FIELD = 6
 
+# An invasion event's camps share one row shape, which is not the castle one:
+# field 4 names the camp, and fields 9 to 11 are fortification percentages
+# rather than building levels.
+_INVASION_CAMP_FIELD = 4
+_INVASION_SCALING_FIELD = 8
+_INVASION_WALL_BONUS_FIELD = 9
+_INVASION_GATE_BONUS_FIELD = 10
+_INVASION_MOAT_BONUS_FIELD = 11
+
+INVASION_AREA_TYPES = frozenset(
+    {
+        MapItemType.SAMURAI_CAMP,
+        MapItemType.DAIMYO_CASTLE,
+        MapItemType.DAIMYO_TOWNSHIP,
+    }
+)
+
 
 class MapAreaItem(BasePayload):
     """
@@ -276,6 +293,59 @@ class MapAreaItem(BasePayload):
     def moat_level(self) -> int:
         """The defender's moat level, 0 when it has none."""
         return self._level_field(_MOAT_LEVEL_FIELD)
+
+    def _invasion_field(self, index: int) -> int | None:
+        """A field of an invasion event camp's row, or None for other types."""
+        if self.item_type not in INVASION_AREA_TYPES or len(self.raw_data) <= index:
+            return None
+        value = self.raw_data[index]
+        if isinstance(value, bool) or not isinstance(value, int):
+            return None
+        return value
+
+    @property
+    def is_invasion_camp(self) -> bool:
+        """Whether this row is an invasion event camp rather than a castle or an NPC camp."""
+        return self.item_type in INVASION_AREA_TYPES
+
+    @property
+    def invasion_camp_field(self) -> int | None:
+        """
+        Field 4 of an invasion camp's row.
+
+        The area type says what it means: a samurai camp counts its own defeats
+        here, while a daimyo castle or township names its rank in the matching
+        items table.
+        """
+        return self._invasion_field(_INVASION_CAMP_FIELD)
+
+    @property
+    def scaling_camp_id(self) -> int | None:
+        """
+        The difficulty-scaling camp this row points at, or -1 when unscaled.
+
+        Set when the player picked a difficulty for the event, and it then
+        decides the camp's level on its own.
+        """
+        return self._invasion_field(_INVASION_SCALING_FIELD)
+
+    @property
+    def base_wall_bonus(self) -> float | None:
+        """An invasion camp's wall protection, already a percentage."""
+        value = self._invasion_field(_INVASION_WALL_BONUS_FIELD)
+        return None if value is None else float(value)
+
+    @property
+    def base_gate_bonus(self) -> float | None:
+        """An invasion camp's gate protection, already a percentage."""
+        value = self._invasion_field(_INVASION_GATE_BONUS_FIELD)
+        return None if value is None else float(value)
+
+    @property
+    def base_moat_bonus(self) -> float | None:
+        """An invasion camp's moat protection, already a percentage."""
+        value = self._invasion_field(_INVASION_MOAT_BONUS_FIELD)
+        return None if value is None else float(value)
 
     @property
     def player_id(self) -> int:

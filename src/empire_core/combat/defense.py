@@ -13,6 +13,7 @@ from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 from empire_core.gamedata import GameData, NpcCampDefence
+from empire_core.protocol.models.map import MapAreaItem, MapItemType
 
 from .bonuses import Bonus, CombatEffectType, EffectResolver, commander_bonuses
 from .effects import DefenderFlankEffects, Flank
@@ -45,6 +46,51 @@ def camp_level(victories: int, kingdom_id: int = 0) -> int:
     """
     offset = CAMP_KINGDOM_OFFSETS.get(kingdom_id, 0)
     return int(CAMP_LEVEL_FACTOR * abs(victories) ** CAMP_LEVEL_POWER) + offset
+
+
+# The samurai invasion, whose league bands set how hard its camps start.
+SAMURAI_INVASION_EVENT_ID = 80
+
+# Which items table names a rank for each daimyo area type.
+DAIMYO_RANK_TABLES = {
+    MapItemType.DAIMYO_CASTLE: "daimyoCastles",
+    MapItemType.DAIMYO_TOWNSHIP: "daimyoTownships",
+}
+
+
+def invasion_camp_level(game_data: GameData, item: MapAreaItem, player_level: int) -> int | None:
+    """
+    An invasion event camp's level, which is not in its map row.
+
+    A samurai camp starts where the player's own league band starts and climbs
+    with every defeat it has taken; a daimyo castle or township names a rank
+    instead, and the rank carries the level. A row that names a difficulty
+    scaling camp overrides both.
+
+    Args:
+        game_data: Loaded items payload
+        item: The camp's map row
+        player_level: The attacking player's level, which picks the league band
+
+    Returns:
+        The camp's level, or None when it is not an invasion camp or the tables
+        do not describe it
+    """
+    if not item.is_invasion_camp:
+        return None
+
+    scaled = game_data.scaling_camp_level(item.scaling_camp_id or -1)
+    if scaled is not None:
+        return scaled
+
+    field = item.invasion_camp_field or 0
+    table = DAIMYO_RANK_TABLES.get(MapItemType(item.item_type)) if item.item_type in DAIMYO_RANK_TABLES else None
+    if table is not None:
+        rank = game_data.get_event_camp(table, field)
+        return rank.level if rank is not None else None
+
+    base = game_data.event_base_camp_level(SAMURAI_INVASION_EVENT_ID, player_level)
+    return None if base is None else base + field
 
 
 def camp_fortification_levels(level: int) -> tuple[int, int]:
@@ -429,6 +475,7 @@ def _camp_flanks(row: NpcCampDefence, game_data: GameData) -> dict[Flank, Defend
 __all__ = [
     "camp_fortification_levels",
     "camp_level",
+    "invasion_camp_level",
     "defender_flank_effects",
     "event_camp_defense",
     "fortification_bonuses",

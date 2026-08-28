@@ -32,11 +32,13 @@ from .models import (
     EffectDef,
     EffectTypeDef,
     EquipmentEffectDef,
+    EventCampDef,
     FortificationDef,
     GeneralDef,
     GeneralSkillDef,
     GlobalEffectDef,
     HorseStats,
+    LeagueBracketDef,
     LegendSkillDef,
     NpcCampDefence,
     RelicEffectDef,
@@ -77,6 +79,8 @@ def _schema_fingerprint() -> str:
         NpcCampDefence,
         DungeonDefence,
         ToolCategoryDef,
+        EventCampDef,
+        LeagueBracketDef,
     )
     names = ";".join(f"{model.__name__}:{','.join(sorted(model.model_fields))}" for model in models)
     return hashlib.sha256(names.encode()).hexdigest()[:12]
@@ -88,6 +92,12 @@ CAMP_TABLES = (
     "samuraiCamps",
     "factioninvasioncamps",
     "allianceInvasionCamps",
+)
+
+# Rank tables that share the EventCampDef shape.
+EVENT_CAMP_TABLES = (
+    "daimyoCastles",
+    "daimyoTownships",
 )
 
 # Kept verbatim: needed later, but their encodings are not established yet, so
@@ -165,6 +175,8 @@ class GameData(BaseModel):
     generals: dict[int, GeneralDef] = Field(default_factory=dict)
     dungeons: list[DungeonDefence] = Field(default_factory=list)
     camps: dict[str, list[NpcCampDefence]] = Field(default_factory=dict)
+    event_camps: dict[str, dict[int, EventCampDef]] = Field(default_factory=dict)
+    league_brackets: list[LeagueBracketDef] = Field(default_factory=list)
     raw_tables: dict[str, list] = Field(default_factory=dict)
 
     # ------------------------------------------------------------------
@@ -194,6 +206,46 @@ class GameData(BaseModel):
     def get_default_lord(self, lord_id: int) -> DefaultLordDef | None:
         """A default lord, i.e. one of the negative ``LID`` sentinels."""
         return self.default_lords.get(lord_id)
+
+    def get_event_camp(self, table: str, camp_id: int) -> EventCampDef | None:
+        """One rank of a daimyo castle (``daimyoCastles``) or township (``daimyoTownships``)."""
+        return self.event_camps.get(table, {}).get(camp_id)
+
+    def scaling_camp_level(self, scaling_camp_id: int) -> int | None:
+        """
+        The level an event's difficulty scaling gives a camp.
+
+        A map row that names a scaling camp overrides every other level source,
+        which is how a chosen difficulty raises a camp for one player only.
+        """
+        if scaling_camp_id <= 0:
+            return None
+        for row in self.raw_tables.get("eventAutoScalingCamps", []):
+            if not isinstance(row, dict):
+                continue
+            try:
+                if int(row.get("eventAutoScalingCampID", -1)) == scaling_camp_id:
+                    return int(row["camplevel"])
+            except (TypeError, ValueError, KeyError):
+                continue
+        return None
+
+    def event_base_camp_level(self, event_id: int, player_level: int, *, sub_type: int = 0) -> int | None:
+        """
+        Where an invasion event's camps start for a player of this level.
+
+        Each event sorts players into level bands and gives every band its own
+        victory range; a camp's base level is the bottom of that range, which is
+        why the same camp is harder for a higher-level player.
+        """
+        for bracket in self.league_brackets:
+            if (
+                bracket.event_id == event_id
+                and bracket.sub_type == sub_type
+                and bracket.min_level <= player_level <= bracket.max_level
+            ):
+                return bracket.victory_min
+        return None
 
     def resolve_relic_effect(self, relic_effect_id: int) -> EffectDef | None:
         """
@@ -294,6 +346,12 @@ class GameData(BaseModel):
             camps={
                 table: _rows(items_data.get(table), NpcCampDefence) for table in CAMP_TABLES if items_data.get(table)
             },
+            event_camps={
+                table: {r.camp_id: r for r in _rows(items_data.get(table), EventCampDef)}
+                for table in EVENT_CAMP_TABLES
+                if items_data.get(table)
+            },
+            league_brackets=_rows(items_data.get("leaguetypes"), LeagueBracketDef),
             raw_tables={table: items_data[table] for table in RAW_TABLES if isinstance(items_data.get(table), list)},
         )
 

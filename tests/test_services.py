@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 import pytest
 from pydantic import ValidationError
@@ -1848,7 +1848,7 @@ class TestAccuracyIsTradedForRisk:
 class TestFillAttack:
     """One call producing a complete attack."""
 
-    UNITS = {
+    UNITS: ClassVar[dict[str, list]] = {
         "units": [
             {
                 "wodID": 601,
@@ -1872,6 +1872,18 @@ class TestFillAttack:
             {"wodID": 501, "comment2": "Castlewall", "level": "1", "wallBonus": "30"},
             {"wodID": 450, "comment2": "Gate", "level": "1", "gateBonus": "30"},
         ],
+        # A daimyo rank jumps at a rank boundary, so the level is looked up and
+        # never counted off from the first row.
+        "daimyoCastles": [{"id": "1", "rank": "1", "level": "81", "wallBonus": "110", "gateBonus": "110"}],
+        "daimyoTownships": [
+            {"id": "25", "rank": "3", "level": "110", "wallBonus": "100", "gateBonus": "100"},
+            {"id": "26", "rank": "4", "level": "116", "wallBonus": "100", "gateBonus": "100"},
+        ],
+        "leaguetypes": [
+            {"leaguetypeID": "1", "eventID": "80", "minLevel": 10, "maxLevel": "69", "countVictoryMin": "16"},
+            {"leaguetypeID": "2", "eventID": "80", "minLevel": 70, "maxLevel": "369", "countVictoryMin": "81"},
+        ],
+        "eventAutoScalingCamps": [{"eventAutoScalingCampID": "3", "camplevel": "70"}],
     }
 
     def build(self, inventory):
@@ -2211,12 +2223,61 @@ class TestFillAttack:
         inventory = next(i for i, e in enumerate(order) if "gui" in e)
         assert scanned < reselected < inventory
 
+    def test_a_samurai_camp_starts_at_the_players_own_league(self):
+        # The row carries no level: it starts where the player's league band
+        # starts and climbs with every defeat the camp has taken.
+        client = self.build([[601, 100_000]])
+        row = [29, 700, 710, -1, 4, 0, 0, 0, -1, 110, 110, 0]
+        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": []})
+
+        result = client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+        # Level 70 sits in the second band, which starts at 81, plus 4 defeats.
+        # Which level exactly is pinned in test_combat; here it is that the
+        # target fills at all, where it used to have no level to fill for.
+        assert result.waves
+
+    def test_a_daimyo_rank_carries_its_level(self):
+        client = self.build([[601, 100_000]])
+        # Field 4 is the rank, not a victory count: rank 26 is level 116.
+        row = [38, 700, 710, -1, 26, 0, 0, 0, -1, 100, 100, 0]
+        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": []})
+
+        result = client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+        assert result.waves
+
+    def test_a_scaled_camp_takes_the_difficulty_level(self):
+        client = self.build([[601, 100_000]])
+        # Field 8 names a difficulty scaling camp, which overrides the rank.
+        row = [37, 700, 710, -1, 1, 0, 0, 0, 3, 110, 110, 0]
+        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": []})
+
+        result = client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+        assert result.waves
+
+    def test_an_invasion_camp_reports_protection_as_a_percentage(self):
+        # Fields 9 to 11 are bonuses already, not building levels: read as
+        # levels they would be looked up in the fortification table and lost.
+        from empire_core.protocol.models.map import MapAreaItem
+
+        item = MapAreaItem.from_list([37, 700, 710, -1, 1, 0, 0, 15, -1, 110, 110, 0])
+
+        assert item.is_invasion_camp
+        assert (item.base_wall_bonus, item.base_gate_bonus, item.base_moat_bonus) == (110.0, 110.0, 0.0)
+        assert MapAreaItem.from_list([1, 700, 710, 900, 4242, 1, 1, 1, 0, 0]).base_wall_bonus is None
+
     def test_a_target_with_no_level_anywhere_says_so(self):
         client = self.build([[601, 100_000]])
-        # An event area type: no owner record carries a level for it.
+        # An alien camp: not an invasion camp this knows, and no owner record
+        # carries a level for it either.
         conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
         conn(client).script["gaa"] = xt_packet(
-            "gaa", {"AI": [[29, 700, 710, -1, 0, -1, 0, 0, -1, 110, 110, 0]], "OI": []}
+            "gaa", {"AI": [[21, 700, 710, -1, 0, -1, 0, 0, -1, 110, 110, 0]], "OI": []}
         )
 
         with pytest.raises(ValueError, match="no owner level"):

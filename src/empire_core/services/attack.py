@@ -27,6 +27,7 @@ from empire_core.combat import (
     fortification_bonuses,
     general_skill_bonuses,
     global_unit_attack_bonuses,
+    invasion_camp_level,
     legend_skill_value,
     minimum_owner_level,
     npc_camp_defense,
@@ -469,6 +470,10 @@ class AttackService(BaseService):
             if target.camp_victories is None:
                 target.camp_victories = item.victory_count
             target.camp_kingdom_id = target.camp_kingdom_id or (item.camp_kingdom_id or 0)
+        elif item.is_invasion_camp:
+            if target.level is None and self.client.game_data is not None:
+                player = self.client.state.get_local_player()
+                target.level = invasion_camp_level(self.client.game_data, item, player.level if player else 0)
         elif target.level is None:
             # A player's level is not in the row; it sits in the owner records a
             # scan returns beside it.
@@ -519,12 +524,19 @@ class AttackService(BaseService):
             return None
 
         item = MapAreaItem.from_list(target.row)
-        wall, gate, moat = fortification_bonuses(
-            game_data,
-            wall_level=item.wall_level,
-            gate_level=item.gate_level,
-            moat_level=item.moat_level,
-        )
+        if item.is_invasion_camp:
+            # An invasion camp's row reports its protection as a percentage
+            # already, so there is no building level to convert.
+            wall = item.base_wall_bonus or 0.0
+            gate = item.base_gate_bonus or 0.0
+            moat = item.base_moat_bonus or 0.0
+        else:
+            wall, gate, moat = fortification_bonuses(
+                game_data,
+                wall_level=item.wall_level,
+                gate_level=item.gate_level,
+                moat_level=item.moat_level,
+            )
         if target.spy_army is not None:
             return spied_castle_defense(
                 game_data,

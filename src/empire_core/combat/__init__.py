@@ -39,6 +39,7 @@ from .defense import (
     defender_flank_effects,
     event_camp_defense,
     fortification_bonuses,
+    invasion_camp_level,
     npc_camp_defense,
     spied_castle_defense,
 )
@@ -88,6 +89,7 @@ __all__ = [
     "castellan_defense_multiplier",
     "castellan_fortification",
     "camp_level",
+    "invasion_camp_level",
     "defender_flank_effects",
     "fortification_bonuses",
     "event_camp_defense",
