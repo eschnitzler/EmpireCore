@@ -2271,6 +2271,25 @@ class TestFillAttack:
         assert (item.base_wall_bonus, item.base_gate_bonus, item.base_moat_bonus) == (110.0, 110.0, 0.0)
         assert MapAreaItem.from_list([1, 700, 710, 900, 4242, 1, 1, 1, 0, 0]).base_wall_bonus is None
 
+    def test_an_unknown_camp_rank_says_which_rank(self):
+        client = self.build([[601, 100_000]])
+        # Rank 99 is an invasion camp the trimmed tables do not describe.
+        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["gaa"] = xt_packet(
+            "gaa", {"AI": [[38, 700, 710, -1, 99, 0, 0, 0, -1, 100, 100, 0]], "OI": []}
+        )
+
+        with pytest.raises(ValueError, match="no camp 99 for area type 38"):
+            client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+    def test_a_tile_the_map_does_not_describe_says_so(self):
+        client = self.build([[601, 100_000]])
+        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [], "OI": []})
+
+        with pytest.raises(ValueError, match="the map has no row for it"):
+            client.attack.fill_attack(12345, target_x=700, target_y=710)
+
     def test_a_target_with_no_level_anywhere_says_so(self):
         client = self.build([[601, 100_000]])
         # An alien camp: not an invasion camp this knows, and no owner record

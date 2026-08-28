@@ -729,10 +729,18 @@ class AttackService(BaseService):
                         "Pass target_x and target_y to read the target, or target_level, "
                         "or camp_victories to derive the level from"
                     )
+                item = MapAreaItem.from_list(target.row) if target.row else None
+                if item is None:
+                    reason = "the attack pre-calculation was refused and the map has no row for it"
+                elif item.is_invasion_camp:
+                    reason = (
+                        f"the items payload describes no camp {item.invasion_camp_field} for area type {item.item_type}"
+                    )
+                else:
+                    reason = f"the map row for area type {target.area_type} carries no owner level"
                 raise ValueError(
-                    f"Nothing at {target.x}:{target.y} says what level to fill for: the attack "
-                    f"pre-calculation was refused and the map row for area type {target.area_type} "
-                    "carries no owner level. Pass target_level to fill it anyway"
+                    f"Nothing at {target.x}:{target.y} says what level to fill for: {reason}. "
+                    "Pass target_level to fill it anyway"
                 )
             target.level = camp_level(target.camp_victories, target.camp_kingdom_id)
         if target.row is not None and target.area_type is None:
