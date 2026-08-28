@@ -2193,6 +2193,35 @@ class TestFillAttack:
         assert "gaa" not in [command for command, _ in conn(client).request_payloads]
         assert result.waves
 
+    def test_a_refused_precalculation_falls_back_to_the_map(self):
+        # The server refuses the pre-calculation for a camp and for anything it
+        # will not let this player hit, but the map still describes the tile.
+        client = self.build([[601, 100_000]])
+        camp_row = [2, 700, 710, -1, 0, -1, -299]
+        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [camp_row], "OI": []})
+
+        result = client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+        assert result.waves
+        # The scan is castle-scoped work too, so the fill returns home first.
+        order = [e for e in conn(client).events if any(c in e for c in ("gaa", "jaa", "gui"))]
+        scanned = next(i for i, e in enumerate(order) if "gaa" in e)
+        reselected = next(i for i, e in enumerate(order) if "jaa" in e)
+        inventory = next(i for i, e in enumerate(order) if "gui" in e)
+        assert scanned < reselected < inventory
+
+    def test_a_target_with_no_level_anywhere_says_so(self):
+        client = self.build([[601, 100_000]])
+        # An event area type: no owner record carries a level for it.
+        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["gaa"] = xt_packet(
+            "gaa", {"AI": [[29, 700, 710, -1, 0, -1, 0, 0, -1, 110, 110, 0]], "OI": []}
+        )
+
+        with pytest.raises(ValueError, match="no owner level"):
+            client.attack.fill_attack(12345, target_x=700, target_y=710)
+
     def test_what_is_passed_is_not_re_read(self):
         client = self.build([[601, 100_000]])
         row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "small castle"]

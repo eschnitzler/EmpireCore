@@ -48,7 +48,7 @@ from empire_core.protocol.models import (
     GetAttackInfoRequest,
     GetAttackInfoResponse,
 )
-from empire_core.protocol.models.map import MapAreaItem, MapItemType
+from empire_core.protocol.models.map import GetMapAreaResponse, MapAreaItem, MapItemType
 from empire_core.services.spy_army import SpyArmy
 from empire_core.utils.enums import Kingdom
 
@@ -445,8 +445,21 @@ class AttackService(BaseService):
         if target.wants_precalculation():
             self._read_precalculation(target, timeout=timeout)
 
+        area = None
+        if target.row is None:
+            # The pre-calculation is refused for a camp and for any target the
+            # server will not let this player hit, but the map still describes
+            # the tile, and that is all the level and the fortification need.
+            area = self._scan_tile(target, timeout=timeout)
+            if area is not None:
+                target.row = next(
+                    (item.raw_data for item in area.items if (item.x, item.y) == (target.x, target.y)),
+                    None,
+                )
+
         item = MapAreaItem.from_list(target.row) if target.row else None
         if item is None:
+            self._return_to_castle(castle_id, home_kingdom, timeout, scanned=area is not None)
             return
         if target.area_type is None:
             target.area_type = item.item_type
@@ -459,15 +472,37 @@ class AttackService(BaseService):
         elif target.level is None:
             # A player's level is not in the row; it sits in the owner records a
             # scan returns beside it.
-            target.level = self._owner_level(target, item.owner_id, timeout)
+            if area is None:
+                area = self._scan_tile(target, timeout=timeout)
+            target.level = self._owner_level(area, item.owner_id, target)
             target.is_player = target.is_player or target.level is not None
-            if target.level is not None:
-                # Scanning moves the client off the attacking castle, and the
-                # inventory read that follows is castle-scoped.
-                try:
-                    self.client.castle.select(castle_id, kingdom_id=home_kingdom, timeout=timeout)
-                except EmpireError as e:
-                    logger.debug(f"Could not return to castle {castle_id} after scanning: {e}")
+        self._return_to_castle(castle_id, home_kingdom, timeout, scanned=area is not None)
+
+    def _return_to_castle(self, castle_id: int, kingdom_id: int, timeout: float, *, scanned: bool) -> None:
+        """Scanning moves the client off the attacking castle; the reads that follow are castle-scoped."""
+        if not scanned:
+            return
+        try:
+            self.client.castle.select(castle_id, kingdom_id=kingdom_id, timeout=timeout)
+        except EmpireError as e:
+            logger.debug(f"Could not return to castle {castle_id} after scanning: {e}")
+
+    def _scan_tile(self, target: "_Target", *, timeout: float) -> GetMapAreaResponse | None:
+        """The map's own record of the target's tile."""
+        try:
+            # Not every kingdom id the game uses is in the enum - event
+            # kingdoms go well past it - and the request only needs the number.
+            return self.client.scan_map_area(
+                target.x,
+                target.y,
+                target.x,
+                target.y,
+                kingdom=cast(Kingdom, target.kingdom_id or 0),
+                timeout=timeout,
+            )
+        except (EmpireError, ValueError) as e:
+            logger.debug(f"Could not scan the map at {target.x}:{target.y}: {e}")
+            return None
 
     def _target_defense(self, game_data: GameData, target: "_Target") -> dict[Flank, DefenderFlankEffects] | None:
         """
@@ -535,21 +570,9 @@ class AttackService(BaseService):
         if target.area_bonuses is None:
             target.area_bonuses = info.attacker_bonuses()
 
-    def _owner_level(self, target: "_Target", owner_id: int, timeout: float) -> int | None:
-        """The level of whoever owns a tile, from a one-tile scan."""
-        try:
-            # Not every kingdom id the game uses is in the enum - event
-            # kingdoms go well past it - and the request only needs the number.
-            area = self.client.scan_map_area(
-                target.x,
-                target.y,
-                target.x,
-                target.y,
-                kingdom=cast(Kingdom, target.kingdom_id or 0),
-                timeout=timeout,
-            )
-        except (EmpireError, ValueError) as e:
-            logger.debug(f"Could not read the owner level at {target.x}:{target.y}: {e}")
+    def _owner_level(self, area: GetMapAreaResponse | None, owner_id: int, target: "_Target") -> int | None:
+        """The level of whoever owns a tile, from the scan of that tile."""
+        if area is None:
             return None
         # A castle row's field 3 is the location id, which is the owner record's
         # object id; the capital-like types put the player id there instead. Try
@@ -689,9 +712,15 @@ class AttackService(BaseService):
 
         if target.level is None:
             if target.camp_victories is None:
+                if target_x is None or target_y is None:
+                    raise ValueError(
+                        "Pass target_x and target_y to read the target, or target_level, "
+                        "or camp_victories to derive the level from"
+                    )
                 raise ValueError(
-                    "Pass target_x and target_y to read the target, or target_level, "
-                    "or camp_victories to derive the level from"
+                    f"Nothing at {target.x}:{target.y} says what level to fill for: the attack "
+                    f"pre-calculation was refused and the map row for area type {target.area_type} "
+                    "carries no owner level. Pass target_level to fill it anyway"
                 )
             target.level = camp_level(target.camp_victories, target.camp_kingdom_id)
         if target.row is not None and target.area_type is None:
