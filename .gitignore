@@ -136,3 +136,6 @@ accounts.json
 *.db
 *.db-shm
 *.db-wal
+
+# Local working notes, never for the public repo
+CODE_REVIEW.md
