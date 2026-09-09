@@ -2,6 +2,239 @@
 
 <!-- version list -->
 
+## v0.34.0 (2026-09-09)
+
+### Bug Fixes
+
+- **attack**: Buff the courtyard's units too
+  ([`3219224`](https://github.com/eschnitzler/EmpireCore/commit/3219224a423a8c5d3c45c90b8d66ed08e218acf0))
+
+- **attack**: Fall back to the map when the pre-calculation is refused
+  ([`f6f1f01`](https://github.com/eschnitzler/EmpireCore/commit/f6f1f01ac0017ce131b5edd3c1c12c783d90f1b3))
+
+- **attack**: Return to the attacking castle after scanning
+  ([`cff2d70`](https://github.com/eschnitzler/EmpireCore/commit/cff2d7015510f1686394b31912d24d13d1a7412f))
+
+- **attack**: Say which of three things left a target with no level
+  ([`9399a4b`](https://github.com/eschnitzler/EmpireCore/commit/9399a4ba58f069fdc39672a8cef1b5ad2c69b9a0))
+
+- **attack**: The commander's own equipment widens the flanks
+  ([`16b8e70`](https://github.com/eschnitzler/EmpireCore/commit/16b8e7002a43932df90797eb2931da3cad8703ca))
+
+- **combat**: A daimyo township is not a camp
+  ([`a8a27e8`](https://github.com/eschnitzler/EmpireCore/commit/a8a27e8ab2f298a8ac59d5d5e131b63c72dd77bc))
+
+- **combat**: A row too short to name its camp is not a camp
+  ([`678986f`](https://github.com/eschnitzler/EmpireCore/commit/678986f192bea2afae5a2ba89a870e9d662b661c))
+
+- **combat**: A unit with an empty attack column stays at zero
+  ([`d749e95`](https://github.com/eschnitzler/EmpireCore/commit/d749e95d1dff0ff3361304378313838acf4f21c4))
+
+- **combat**: Act on the review's confirmed findings
+  ([`bc5bbf2`](https://github.com/eschnitzler/EmpireCore/commit/bc5bbf29de66a0aa2b40644f43e87414b62938c2))
+
+- **combat**: Apply every condition an effect carries
+  ([`4af43b3`](https://github.com/eschnitzler/EmpireCore/commit/4af43b3548831ac13a38fffc173e8bd576084e31))
+
+- **combat**: Budget a tool per wave, not per flank
+  ([`8d811a5`](https://github.com/eschnitzler/EmpireCore/commit/8d811a5e751c85d0358442e9740cbcd1a5459b30))
+
+- **combat**: Feed a tool's effect malus back into the reductions
+  ([`2e11329`](https://github.com/eschnitzler/EmpireCore/commit/2e11329d1c7776e435f75eb050a8ed53b9b3689f))
+
+- **combat**: Gate legend skills on a legendary fight, and drop the invented cap
+  ([`4fd20f5`](https://github.com/eschnitzler/EmpireCore/commit/4fd20f51a36b5dee60e55af6ae10ee8b7b248559))
+
+- **combat**: Only the middle flank meets the gate
+  ([`11215d4`](https://github.com/eschnitzler/EmpireCore/commit/11215d4fa2c39412efff57d07941231130ea702f))
+
+- **combat**: Read a keyed effect's value, not its key
+  ([`b8667d9`](https://github.com/eschnitzler/EmpireCore/commit/b8667d925e0f56bb8b24f2e123e6c292aaf757b1))
+
+- **combat**: Scale the flanks and the middle by their own bonuses
+  ([`9161e9b`](https://github.com/eschnitzler/EmpireCore/commit/9161e9b7271a300e16f2775c3a4054f367fa5364))
+
+- **combat**: Size a wave by the level its target defends at
+  ([`bdf48b6`](https://github.com/eschnitzler/EmpireCore/commit/bdf48b6c3cb0c5c0ddfa481b90599b2b45c37552))
+
+- **combat**: Size a wave from the general's unit limits
+  ([`9eba05c`](https://github.com/eschnitzler/EmpireCore/commit/9eba05cba9ebd949bc07a19f58f45d0852f580ba))
+
+- **combat**: Size a wave from the target owner's level
+  ([`2cb8674`](https://github.com/eschnitzler/EmpireCore/commit/2cb8674bb614dee1de4902e343bf12859421b5fe))
+
+- **combat**: Tool bonuses are fractions, and each placed tool feeds back
+  ([`ccd7023`](https://github.com/eschnitzler/EmpireCore/commit/ccd7023100b481266237a3f4706dede871d95ac2))
+
+- **gamedata**: Do not reuse a cache written against older tables
+  ([`5046412`](https://github.com/eschnitzler/EmpireCore/commit/504641241db7ad63afe63e6f05091be5e3a01e6f))
+
+- **map**: Read an NPC camp's own fields instead of guessing them
+  ([`2e786a8`](https://github.com/eschnitzler/EmpireCore/commit/2e786a8c2bbde25c88bf904d03c264ff089ad1ec))
+
+- **protocol**: Stop treating any payload key E as an error code
+  ([`b5ada61`](https://github.com/eschnitzler/EmpireCore/commit/b5ada61965ad4db09be872dd046056726f06f691))
+
+### Chores
+
+- Keep local review notes out of the repo
+  ([`63b75a2`](https://github.com/eschnitzler/EmpireCore/commit/63b75a223965c5ec75ad1c9b4d8045d2c4f7c03a))
+
+### Code Style
+
+- Use American spelling throughout
+  ([`70112db`](https://github.com/eschnitzler/EmpireCore/commit/70112dbc3e42b6a4f107a3a0ccb7e1f08126ad52))
+
+### Documentation
+
+- Add a fill-waves example
+  ([`99deb7b`](https://github.com/eschnitzler/EmpireCore/commit/99deb7bd36d58549c501b39c063ccf30e0cb0112))
+
+- The example and README only need a target now
+  ([`649ea60`](https://github.com/eschnitzler/EmpireCore/commit/649ea604a027675227837126ca06e4ed2694ae48))
+
+- **combat**: Catalogue every effect that can change a wave
+  ([`5dcf736`](https://github.com/eschnitzler/EmpireCore/commit/5dcf736766f306b1614d5a30aa7d598100db10a7))
+
+- **combat**: Close the relic map encoding question
+  ([`0b41e99`](https://github.com/eschnitzler/EmpireCore/commit/0b41e99ee005829312d5db527a3a181dc1d6fff4))
+
+- **combat**: Record which level drives which quantity
+  ([`ea42a90`](https://github.com/eschnitzler/EmpireCore/commit/ea42a90a83a97efc44f323eaa93fb4e9b2f94699))
+
+- **combat**: Say why the unit buff checks no conditions
+  ([`8d52109`](https://github.com/eschnitzler/EmpireCore/commit/8d521098305516f2a00f202b9b7b081477c3bf90))
+
+- **combat**: State which way the tool discard quirk was decided
+  ([`8dfa4e4`](https://github.com/eschnitzler/EmpireCore/commit/8dfa4e487d4aebc1364ce6cef053453952a7d5f0))
+
+### Features
+
+- **attack**: Build a complete attack in one call, and let tools into the pool
+  ([`9614a0a`](https://github.com/eschnitzler/EmpireCore/commit/9614a0ab37929deed27ef375cde65c93864ab3bb))
+
+- **attack**: Count the Hall of Legends skills in flank sizing
+  ([`8ea1045`](https://github.com/eschnitzler/EmpireCore/commit/8ea1045bbd79e9ca2a67050038107dcc03bf2ee2))
+
+- **attack**: Derive a camp's level from its victory count
+  ([`5398d94`](https://github.com/eschnitzler/EmpireCore/commit/5398d9410f824370e8ac899c2bde1642172a891e))
+
+- **attack**: Fill waves from a castle's inventory
+  ([`f6995a8`](https://github.com/eschnitzler/EmpireCore/commit/f6995a8e97a97f263f0aca7d3e1cc2e61bce1652))
+
+- **attack**: Fill waves on samurai and daimyo targets
+  ([`51d1cf1`](https://github.com/eschnitzler/EmpireCore/commit/51d1cf1d4ab2823a54829cf23e8c597fa9819f6f))
+
+- **attack**: Read a spied castle's defenders per flank
+  ([`d65d5f8`](https://github.com/eschnitzler/EmpireCore/commit/d65d5f810ccb7016eb1823b0483830f5666cc157))
+
+- **attack**: Read the area type off the target row
+  ([`fbcfd5e`](https://github.com/eschnitzler/EmpireCore/commit/fbcfd5e7926884f536e7cb4ea49feb7780eda549))
+
+- **attack**: Read the attack pre-calculation
+  ([`21cbda7`](https://github.com/eschnitzler/EmpireCore/commit/21cbda700f538b130cecc9deb3626ca061e46d83))
+
+- **attack**: Read the defending castellan's effects
+  ([`69c251b`](https://github.com/eschnitzler/EmpireCore/commit/69c251b3147cf1a35a294da95cc6b0dae0c3de27))
+
+- **attack**: Read the generals and skills that size a wave
+  ([`ac3f8f9`](https://github.com/eschnitzler/EmpireCore/commit/ac3f8f91fd362c6e39303c78079d7665702eeca1))
+
+- **combat**: Buff unit attack values from active global effects
+  ([`17086b7`](https://github.com/eschnitzler/EmpireCore/commit/17086b765f1499075085621ee820b4dd0d73cc2b))
+
+- **combat**: Count a tool's effects, not just its columns
+  ([`999a182`](https://github.com/eschnitzler/EmpireCore/commit/999a1829605b75c9201038e13cfbc2eba3383cd3))
+
+- **combat**: Fill a wave's units the way the client's auto-fill does
+  ([`651a07b`](https://github.com/eschnitzler/EmpireCore/commit/651a07b61a206cc43f2de960a75615fe2ff455fd))
+
+- **combat**: Fill tools and the courtyard wave into an attack
+  ([`bb2b16e`](https://github.com/eschnitzler/EmpireCore/commit/bb2b16e428e6be6f34ac8cf7cde5a14afb642db0))
+
+- **combat**: Gate tools by target, and send every yard slot
+  ([`f6cbef3`](https://github.com/eschnitzler/EmpireCore/commit/f6cbef361fdbd596c063b1c01971bf9f2791efa8))
+
+- **combat**: Give camps their walls, and fix a scaling round-trip
+  ([`8cc4387`](https://github.com/eschnitzler/EmpireCore/commit/8cc4387682e146dab351a804c7ea27fbde79697d))
+
+- **combat**: Pick tools with the client's five strategies
+  ([`11c2efa`](https://github.com/eschnitzler/EmpireCore/commit/11c2efa2f9490eb97f856b6552f96ef36a21b621))
+
+- **combat**: Place tools in a flank's slots
+  ([`cbbb547`](https://github.com/eschnitzler/EmpireCore/commit/cbbb54741fc4eba0b41615cab87014b4388debd6))
+
+- **combat**: Port the flank attack and defence maths
+  ([`8615432`](https://github.com/eschnitzler/EmpireCore/commit/861543222bb03e711b7294eb6c4d88619a5e966e))
+
+- **combat**: Read fortification from the event camp tables
+  ([`fbf61c3`](https://github.com/eschnitzler/EmpireCore/commit/fbf61c38e2af9f055b41263f9d97a7653d61249a))
+
+- **combat**: Resolve commander bonuses, in the right id space
+  ([`15c366c`](https://github.com/eschnitzler/EmpireCore/commit/15c366c92909bc67a83b2540d30a7e690ca43f79))
+
+- **combat**: Resolve the bonus sources that are not equipment
+  ([`3ec7163`](https://github.com/eschnitzler/EmpireCore/commit/3ec71633bf0f85350ef12657154c62770439eb13))
+
+- **combat**: Score units with the commander's attack multipliers
+  ([`75c21a8`](https://github.com/eschnitzler/EmpireCore/commit/75c21a8dca64e26e99291fe903dcb7d566318698))
+
+- **combat**: Size a wave from the level instead of asking the caller
+  ([`644cf54`](https://github.com/eschnitzler/EmpireCore/commit/644cf5415735ead48eb4336c16ade17e2ea7b5ed))
+
+- **combat**: Size the courtyard wave
+  ([`8439bd4`](https://github.com/eschnitzler/EmpireCore/commit/8439bd46fcf7cd1bda82b643c572b892ca9930e5))
+
+- **combat**: Take the live strength of a global effect, and its level bracket
+  ([`d7dc1ff`](https://github.com/eschnitzler/EmpireCore/commit/d7dc1ff186793c329d4940df51e15751d333df23))
+
+- **commanders**: Parse the general assigned to a commander
+  ([`3dcafdf`](https://github.com/eschnitzler/EmpireCore/commit/3dcafdf405ca714e5eb4ed5b79ab35cc9cf133d2))
+
+- **gamedata**: Load unit and tool stats from the items payload
+  ([`fe794d6`](https://github.com/eschnitzler/EmpireCore/commit/fe794d65c87c300130e7ead4c25884635a85a5d9))
+
+- **gamedata**: Parse the combat and camp-defence tables
+  ([`cbc32d9`](https://github.com/eschnitzler/EmpireCore/commit/cbc32d932996dd506e0847f47de9d945a9475644))
+
+- **map**: Read the structures that defend a location
+  ([`6574428`](https://github.com/eschnitzler/EmpireCore/commit/6574428aea5be360225bbe2f930efe79e8abe783))
+
+### Refactoring
+
+- **attack**: Give fill_attack a target, not the target's data
+  ([`0b4849b`](https://github.com/eschnitzler/EmpireCore/commit/0b4849b05bc8d1effd0c8228ac0f03c3abe77066))
+
+- **attack**: Read the inventory once for both passes
+  ([`1a0a23a`](https://github.com/eschnitzler/EmpireCore/commit/1a0a23ad67b79009ec69043847135993cb218b5a))
+
+- **attack**: Simplify the fill path
+  ([`275662b`](https://github.com/eschnitzler/EmpireCore/commit/275662b3e19ecdc614af4cfa3e64edb9fc6e0bfa))
+
+### Testing
+
+- Type-check clean under the CI configuration
+  ([`7ece9a0`](https://github.com/eschnitzler/EmpireCore/commit/7ece9a03ecd944d4c136acb61cfa9a45474703ae))
+
+- **attack**: Pin the castellan to the defence it builds
+  ([`aff6982`](https://github.com/eschnitzler/EmpireCore/commit/aff6982b8cee7acc36688ab124f9d6b3125d6049))
+
+- **attack**: Pin the courtyard wave to the RW field
+  ([`37028ac`](https://github.com/eschnitzler/EmpireCore/commit/37028accaba3a67c4523954f20050c54c8ce438d))
+
+- **attack**: Stop the courtyard assertion passing on an empty wave
+  ([`b50f942`](https://github.com/eschnitzler/EmpireCore/commit/b50f9420786839fcebe4c71824a850ec91376db4))
+
+- **combat**: Assert a roleless unit yields no stack value
+  ([`1eec625`](https://github.com/eschnitzler/EmpireCore/commit/1eec6255446f7539768853b13911e2dc55430630))
+
+- **combat**: Assert the solver's invariants over random inputs
+  ([`e352008`](https://github.com/eschnitzler/EmpireCore/commit/e352008c7e99c050a997c1d95b37b2a0959108b2))
+
+- **combat**: Pin that an out-reduced defence needs no tool
+  ([`033eb9c`](https://github.com/eschnitzler/EmpireCore/commit/033eb9ca7347e4354772a9afc09fad24ad172999))
+
+
 ## v0.33.0 (2026-08-25)
 
 ### Bug Fixes
