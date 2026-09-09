@@ -84,6 +84,13 @@ def invasion_camp_level(game_data: GameData, item: MapAreaItem, player_level: in
     if not item.is_invasion_camp:
         return None
 
+    # A row too short to name its camp is one the game does not put on the map
+    # either. Reading the missing field as a zero would make it a real camp at
+    # the band's own base level.
+    field = item.invasion_camp_field
+    if field is None:
+        return None
+
     # Not a camp: the township's owner is whoever is attacking it.
     if item.item_type == MapItemType.DAIMYO_TOWNSHIP:
         return player_level
@@ -92,7 +99,6 @@ def invasion_camp_level(game_data: GameData, item: MapAreaItem, player_level: in
     if scaled is not None:
         return scaled
 
-    field = item.invasion_camp_field or 0
     if item.item_type == MapItemType.DAIMYO_CASTLE:
         rank = game_data.get_event_camp(DAIMYO_CASTLE_TABLE, field)
         return rank.level if rank is not None else None

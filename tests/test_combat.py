@@ -1087,6 +1087,14 @@ class TestInvasionCampLevel:
         # A player too low for any samurai band gets no level either.
         assert self.level(data, [29, 624, 240, -1, 0, 0, 0, 0, -1, 110, 110, 0], 5) is None
 
+    def test_a_row_too_short_to_name_its_camp_has_no_level(self, data):
+        # The game reads a row this short as not on the map at all. Taking the
+        # missing field as a zero would report the band's base as a real level.
+        assert self.level(data, [29, 624, 240], 70) is None
+        assert self.level(data, [38, 619, 250], 70) is None
+        # A camp that really is at zero defeats still has a level.
+        assert self.level(data, [29, 624, 240, -1, 0, 0, 0, 0, -1, 110, 110, 0], 70) == 81
+
     def test_other_area_types_are_not_invasion_camps(self, data):
         assert self.level(data, [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "castle"], 70) is None
         assert self.level(data, [2, 625, 244, -1, 0, -1, 0], 70) is None
