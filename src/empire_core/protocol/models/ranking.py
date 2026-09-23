@@ -62,7 +62,12 @@ class RankingCategory(IntEnum):
 
 
 class RankingEntry:
-    """A single entry in a ranking list."""
+    """A ranking entry with optional global-list and highscore details.
+
+    Global lists identify the server with ``instance_id`` and the paging key
+    with ``score_id``. Neither is an owner ID; ``entity_id`` remains unknown
+    (0) when the payload does not contain one.
+    """
 
     def __init__(self, raw: list | dict) -> None:
         self.raw = raw
@@ -72,6 +77,14 @@ class RankingEntry:
         self.name: str = ""
         self.alliance_id: int = 0
         self.alliance_name: str = ""
+        self.instance_id: int | None = None
+        self.score_id: int | str | None = None
+        self.level: int = 0
+        self.legend_level: int = 0
+        self.honor: int = 0
+        self.might: int = 0
+        self.member_count: int = 0
+        self.fame: int = 0
 
         try:
             # llsp/llsw format: {"R": rank, "S": score, "P": name, "A": alliance, ...}
@@ -80,6 +93,8 @@ class RankingEntry:
                 self.score = raw.get("S", -1)
                 self.name = raw.get("P", "")
                 self.alliance_name = raw.get("A", "")
+                self.instance_id = raw.get("I")
+                self.score_id = raw.get("SI")
                 return
 
             # hgh format: list-based entries
@@ -101,11 +116,17 @@ class RankingEntry:
                 self.name = details.get("N", "")
                 self.alliance_id = details.get("AID", 0)
                 self.alliance_name = details.get("AN", "")
+                self.level = details.get("L", 0)
+                self.legend_level = details.get("LL", 0)
+                self.honor = details.get("H", 0)
+                self.might = details.get("MP", 0)
 
             elif isinstance(details, list):
                 self.rank = raw[o]
                 self.score = raw[o + 1]
                 self.entity_id = details[0] if len(details) > 0 else 0
+                self.member_count = details[2] if len(details) > 2 else 0
+                self.fame = details[3] if len(details) > 3 else 0
                 if len(details) > 1:
                     name_field = details[1]
                     if isinstance(name_field, list):
@@ -131,9 +152,8 @@ class RankingEntry:
     @classmethod
     def unranked(cls, name: str) -> "RankingEntry":
         """Create a synthetic entry for a player with no ranking score."""
-        entry = cls.__new__(cls)
+        entry = cls({})
         entry.raw = []
-        entry.rank = -1
         entry.score = 0
         entry.entity_id = 0
         entry.name = name
@@ -164,6 +184,10 @@ class GetHighscoreResponse(BaseResponse):
     command: ClassVar[str] = GGECommand.HGH
 
     # L: [[Rank, Score, [Details...]], ...]
+    list_type: int | None = Field(alias="LT", default=None)
+    list_id: int | None = Field(alias="LID", default=None)
+    last_rank: int | None = Field(alias="LR", default=None)
+    search_value: str | None = Field(alias="SV", default=None)
     raw_list: list[Any] = Field(alias="L", default_factory=list)
 
     @property
@@ -193,6 +217,8 @@ class GetRankingListResponse(BaseResponse):
     command: ClassVar[str] = "llsp"
 
     # L: List of entries
+    list_type: int | None = Field(alias="LT", default=None)
+    list_id: int | None = Field(alias="LID", default=None)
     raw_list: list[Any] = Field(alias="L", default_factory=list)
     total: int = Field(alias="T", default=0)  # Total count?
 
