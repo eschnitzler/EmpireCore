@@ -135,7 +135,7 @@ per-property observers. Register them on `client.state`:
 
 ```python
 def alert(movement):                      # incoming attacks receive the Movement
-    print(f"Incoming attack {movement.MID} from {movement.source_player_name}")
+    print(f"Incoming attack {movement.movement_id} from {movement.source_player_name}")
 
 def arrived(movement_id, movement):       # arrival/recall: id + Movement (or None)
     print(f"Movement {movement_id} arrived: {movement}")

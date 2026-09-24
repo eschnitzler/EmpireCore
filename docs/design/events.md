@@ -15,7 +15,7 @@ Registered on `client.state`. These are the events most bots want:
 
 ```python
 def on_attack(movement):
-    print(f"Incoming attack {movement.MID} from {movement.source_player_name}")
+    print(f"Incoming attack {movement.movement_id} from {movement.source_player_name}")
 
 client.state.on_incoming_attack(on_attack)
 client.state.on_movement_arrived(lambda movement_id: ...)

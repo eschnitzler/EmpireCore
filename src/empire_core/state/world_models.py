@@ -15,8 +15,6 @@ class MovementResources(BaseModel):
     wood: int = Field(default=0, alias="W")
     stone: int = Field(default=0, alias="S")
     food: int = Field(default=0, alias="F")
-
-    # Special resources
     iron: int = Field(default=0, alias="I")
     glass: int = Field(default=0, alias="G")
     ash: int = Field(default=0, alias="A")
@@ -53,7 +51,7 @@ class Movement(BaseModel):
        payload model with different fields (``movement_id``/``movement_type``
        from ``MID``/``MT`` aliases, ``source_x``, ``arrival_time``, ...) and it
        is *not* interchangeable with this class: attribute access such as
-       ``.MID``, ``.T`` or ``.time_remaining`` fails on it. Import ``Movement``
+       ``.direction``, ``.owner_id`` or ``.time_remaining`` fails on it. Import ``Movement``
        from ``empire_core`` (this class) unless you are parsing packets by hand.
 
     Whether a movement is yours or aimed at you depends on the local player's
@@ -61,91 +59,68 @@ class Movement(BaseModel):
 
     Client: ``BasicMapmovementVO``, ``ArmyAttackMapmovementVO``.
 
-    Naming: the fields are the raw GGE wire keys (``MID``, ``T``, ``PT``, ...)
-    because packet payloads are fed in unchanged; every one of them also has a
-    snake_case read-only property (``movement_id``, ``movement_type``,
-    ``progress_time``, ...), which is what public code should use.
+    Fields are snake_case with the wire key as the alias (``movement_id`` is
+    ``MID``), so a raw ``gam`` record validates unchanged and either name
+    works when building one.
     """
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
-    MID: int = Field(default=-1)  # Movement ID
-    T: int = Field(default=0)  # MovementType
-    PT: int = Field(default=0)  # Progress Time
-    TT: int = Field(default=0)  # Total Time
-    D: int = Field(default=0)  # 1 = returning home
-    TID: int = Field(default=-1)  # Target owner ID
-    KID: int = Field(default=0)  # Kingdom ID
-    SID: int = Field(default=-1)  # Source owner ID
-    OID: int = Field(default=-1)  # Movement owner ID
-    HBW: int = Field(default=-1)  # ?
+    movement_id: int = Field(default=-1, alias="MID", description="Movement id")
+    movement_type: int = Field(default=0, alias="T", description="MovementType value")
+    progress_time: int = Field(default=0, alias="PT", description="Seconds travelled at last_updated")
+    total_time: int = Field(default=0, alias="TT", description="Seconds the trip takes")
+    direction: int = Field(default=0, alias="D", description="1 = returning home, 0 = heading to the target")
+    target_id: int = Field(default=-1, alias="TID", description="Player id owning the target area")
+    kingdom_id: int = Field(default=0, alias="KID", description="Kingdom id")
+    source_id: int = Field(default=-1, alias="SID", description="Player id owning the source area")
+    owner_id: int = Field(default=-1, alias="OID", description="Player id owning the movement")
+    horse_booster_id: int = Field(default=-1, alias="HBW", description="Horse booster item id, -1 for none")
 
-    # TA = Target Area (array with area details)
-    # SA = Source Area (array with area details)
-    target_area: list[Any] | None = Field(default=None, alias="TA")
-    source_area: list[Any] | None = Field(default=None, alias="SA")
+    target_area: list[Any] | None = Field(default=None, alias="TA", description="Raw target area row")
+    source_area: list[Any] | None = Field(default=None, alias="SA", description="Raw source area row")
 
-    # Extracted fields
-    target_area_id: int = Field(default=-1)
-    source_area_id: int = Field(default=-1)
-    target_x: int = Field(default=-1)
-    target_y: int = Field(default=-1)
-    source_x: int = Field(default=-1)
-    source_y: int = Field(default=-1)
-    target_type: int = Field(default=-1)  # MapObjectType value from TA[0]
+    target_area_id: int = Field(default=-1, description="Target area id, TA[3]")
+    source_area_id: int = Field(default=-1, description="Source area id, SA[3]")
+    target_x: int = Field(default=-1, description="Target x, TA[1]")
+    target_y: int = Field(default=-1, description="Target y, TA[2]")
+    source_x: int = Field(default=-1, description="Source x, SA[1]")
+    source_y: int = Field(default=-1, description="Source y, SA[2]")
+    target_type: int = Field(default=-1, description="MapObjectType value, TA[0]")
 
-    # Player id of the account this movement was received on, -1 if unknown
-    local_player_id: int = Field(default=-1)
+    local_player_id: int = Field(default=-1, description="Player id of the receiving account, -1 if unknown")
 
-    # Units in movement (UnitID -> Count)
-    units: dict[int, int] = Field(default_factory=dict)
+    units: dict[int, int] = Field(default_factory=dict, description="Unit id to count, from the wrapper's GA")
+    estimated_size: int = Field(default=0, description="Army size estimate, the wrapper's GS when the army is hidden")
+    resources: MovementResources = Field(
+        default_factory=MovementResources, description="Goods carried, the wrapper's GS when it is a dict"
+    )
 
-    # Estimated army size (GS field when army not visible)
-    estimated_size: int = Field(default=0)
+    target_name: str = Field(default="", description="Target area name, TA[10]")
+    source_name: str = Field(default="", description="Source area name")
+    target_player_name: str = Field(default="", description="From the O owner records")
+    source_player_name: str = Field(default="", description="From the O owner records")
+    target_alliance_name: str = Field(default="", description="From the O owner records")
+    source_alliance_name: str = Field(default="", description="From the O owner records")
 
-    # Resources being transported (for transport/return movements)
-    resources: MovementResources = Field(default_factory=MovementResources)
+    created_at: float = Field(default_factory=time.time, description="When state first saw this movement")
+    last_updated: float = Field(default_factory=time.time, description="When the last packet for it was applied")
 
-    # Target/Source names (if available)
-    target_name: str = Field(default="")
-    source_name: str = Field(default="")
-    target_player_name: str = Field(default="")
-    source_player_name: str = Field(default="")
-    target_alliance_name: str = Field(default="")
-    source_alliance_name: str = Field(default="")
+    commander_equipment: list[Any] = Field(default_factory=list, description="Raw UM.L.EQ")
+    commander_effects: list[Any] = Field(default_factory=list, description="Raw UM.L.AE")
 
-    # Timestamps for tracking
-    created_at: float = Field(default_factory=time.time)  # When we first saw this movement
-    last_updated: float = Field(default_factory=time.time)  # Last update time
+    wait_total: int = Field(default=0, description="Seconds the army stays at its target, UM.TWD")
+    wait_passed: int = Field(default=0, description="Seconds of that wait already passed, UM.PWD")
 
-    # Commander raw data (from UM.L in movement wrapper)
-    # These are exposed for consumers to calculate stats using dynamic effect IDs
-    commander_equipment: list[Any] = Field(default_factory=list)
-    commander_effects: list[Any] = Field(default_factory=list)
-
-    # How long the army stays at its target (UM.TWD) and how much of that has
-    # passed (UM.PWD), in seconds. Non-zero for stationed supports.
-    wait_total: int = Field(default=0)
-    wait_passed: int = Field(default=0)
-
-    # Set by an mfc push: the movement can be force-cancelled
-    force_cancelable: bool = Field(default=False)
+    force_cancelable: bool = Field(default=False, description="Set by an mfc push")
 
     _arrival_dispatched: bool = PrivateAttr(default=False)
-
-    @property
-    def movement_id(self) -> int:
-        return self.MID
-
-    @property
-    def movement_type(self) -> int:
-        return self.T
 
     @property
     def movement_type_enum(self) -> MovementType:
         """Get the MovementType enum value."""
         try:
-            return MovementType(self.T)
+            return MovementType(self.movement_type)
         except ValueError:
             return MovementType.UNKNOWN
 
@@ -167,58 +142,29 @@ class Movement(BaseModel):
     def movement_type_name(self) -> str:
         """Get the name of the movement type."""
         try:
-            return MovementType(self.T).name
+            return MovementType(self.movement_type).name
         except ValueError:
-            return f"UNKNOWN_{self.T}"
-
-    @property
-    def progress_time(self) -> int:
-        return self.PT
-
-    @property
-    def total_time(self) -> int:
-        return self.TT
-
-    @property
-    def direction(self) -> int:
-        """Raw direction flag: 1 = returning home, 0 = heading to the target."""
-        return self.D
-
-    @property
-    def target_id(self) -> int:
-        return self.TID
-
-    @property
-    def kingdom_id(self) -> int:
-        return self.KID
-
-    @property
-    def source_id(self) -> int:
-        return self.SID
-
-    @property
-    def owner_id(self) -> int:
-        return self.OID
+            return f"UNKNOWN_{self.movement_type}"
 
     @property
     def time_remaining(self) -> int:
         """Seconds until arrival, advancing with wall-clock time.
 
-        Extrapolated from the last packet snapshot (TT - PT at
+        Extrapolated from the last packet snapshot (total_time - progress_time at
         ``last_updated``), so it keeps counting down between updates.
         """
         return max(0, int(round(self.estimated_arrival - time.time())))
 
     @property
     def progress_percent(self) -> float:
-        if self.TT > 0:
-            return (self.PT / self.TT) * 100
+        if self.total_time > 0:
+            return (self.progress_time / self.total_time) * 100
         return 0.0
 
     @property
     def estimated_arrival(self) -> float:
         """When the army reaches its target (Unix time)."""
-        return self.last_updated + max(0, self.TT - self.PT)
+        return self.last_updated + max(0, self.total_time - self.progress_time)
 
     @property
     def estimated_end(self) -> float:
@@ -240,12 +186,12 @@ class Movement(BaseModel):
     @property
     def is_returning(self) -> bool:
         """The army is on its way home, whatever its type."""
-        return self.D == 1
+        return self.direction == 1
 
     @property
     def is_mine(self) -> bool:
         """The local player owns this movement."""
-        return self.local_player_id != -1 and self.OID == self.local_player_id
+        return self.local_player_id != -1 and self.owner_id == self.local_player_id
 
     @property
     def is_outgoing(self) -> bool:
@@ -260,7 +206,7 @@ class Movement(BaseModel):
         """
         return (
             self.local_player_id != -1
-            and self.TID == self.local_player_id
+            and self.target_id == self.local_player_id
             and not self.is_mine
             and not self.is_returning
         )
@@ -283,7 +229,7 @@ class Movement(BaseModel):
     @property
     def is_transport(self) -> bool:
         """A market transport of resources. Troops moved between own castles are ``is_travel``."""
-        return self.T == MovementType.MARKET
+        return self.movement_type == MovementType.MARKET
 
     @property
     def is_travel(self) -> bool:
@@ -291,12 +237,12 @@ class Movement(BaseModel):
 
         An army's way home also arrives as a new TRAVEL movement, with ``D == 1``.
         """
-        return self.T == MovementType.TRAVEL
+        return self.movement_type == MovementType.TRAVEL
 
     @property
     def is_spy(self) -> bool:
         """A spy mission."""
-        return self.T == MovementType.SPY
+        return self.movement_type == MovementType.SPY
 
     @property
     def unit_count(self) -> int:
@@ -335,4 +281,4 @@ class Movement(BaseModel):
             return f"{seconds}s"
 
     def __repr__(self) -> str:
-        return f"Movement(id={self.MID}, type={self.movement_type_name}, from={self.source_area_id}, to={self.target_area_id}, remaining={self.format_time_remaining()})"
+        return f"Movement(id={self.movement_id}, type={self.movement_type_name}, from={self.source_area_id}, to={self.target_area_id}, remaining={self.format_time_remaining()})"

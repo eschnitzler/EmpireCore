@@ -45,7 +45,7 @@ def push_payload(mid: int, movement_type: int = 0, oid: int = 999, tt: int = 600
 def arrive(state: GameState, mid: int) -> None:
     """Let a tracked movement's travel time run out, then let state notice."""
     mov = state.movements[mid]
-    mov.last_updated = time.time() - (mov.TT - mov.PT) - 1
+    mov.last_updated = time.time() - (mov.total_time - mov.progress_time) - 1
     state.get_all_movements()
 
 
@@ -150,20 +150,20 @@ class TestMovementDirection:
         assert mov is not None and mov.is_mine and mov.is_outgoing
         assert not mov.is_incoming
         assert me.get_incoming_attacks() == []
-        assert [m.MID for m in me.get_outgoing_movements()] == [700]
+        assert [m.movement_id for m in me.get_outgoing_movements()] == [700]
 
     def test_attack_on_me_is_incoming(self, me):
         me.update_from_packet("gam", gam_payload(701, oid=555, tid=self.ME))
-        assert [m.MID for m in me.get_incoming_attacks()] == [701]
+        assert [m.movement_id for m in me.get_incoming_attacks()] == [701]
         assert me.get_outgoing_movements() == []
 
     def test_npc_attack_on_me_is_incoming(self, me):
         me.update_from_packet("gam", gam_payload(702, movement_type=11, oid=-1, tid=self.ME))
-        assert [m.MID for m in me.get_incoming_attacks()] == [702]
+        assert [m.movement_id for m in me.get_incoming_attacks()] == [702]
 
     def test_support_to_me_is_incoming_but_not_an_attack(self, me):
         me.update_from_packet("gam", gam_payload(703, movement_type=1, oid=555, tid=self.ME))
-        assert [m.MID for m in me.get_incoming_movements()] == [703]
+        assert [m.movement_id for m in me.get_incoming_movements()] == [703]
         assert me.get_incoming_attacks() == []
 
     def test_returning_army_is_neither_incoming_nor_outgoing(self, me):
@@ -331,7 +331,7 @@ class TestMovementPushes:
         state.update_from_packet("asr", payload)
         assert wait_for(lambda: len(fired) == 1)
         assert fired[0].source_player_name == "Raider"
-        assert [m.MID for m in state.get_incoming_attacks()] == [210]
+        assert [m.movement_id for m in state.get_incoming_attacks()] == [210]
 
     def test_push_reads_the_wrapper_not_the_payload(self, state):
         # abr carries the wrapper under A; a top-level M must not be parsed
@@ -814,7 +814,7 @@ class TestArrivalCallbackPayload:
         mid, mov = seen[0]
         assert mid == 600
         assert mov is not None, "movement popped before dispatch, callback got nothing"
-        assert mov.MID == 600 and mov.is_attack
+        assert mov.movement_id == 600 and mov.is_attack
         assert mov.source_player_name == "Attacker"
 
     def test_removed_callback_can_receive_the_movement(self, state):
@@ -826,7 +826,7 @@ class TestArrivalCallbackPayload:
 
         assert wait_for(lambda: len(seen) == 1)
         assert seen[0][0] == 601
-        assert seen[0][1] is not None and seen[0][1].MID == 601
+        assert seen[0][1] is not None and seen[0][1].movement_id == 601
 
     def test_legacy_single_argument_callbacks_still_work(self, state):
         """Consumers register Callable[[int], None] today — that must keep working."""

@@ -589,7 +589,7 @@ class GameState:
         Client: ``MCMCommand``.
         """
         for mov in self._apply_movement_wrappers([data.get("A")], []):
-            self._dispatch_movement_event(self._movement_recalled_callbacks, mov.MID, mov)
+            self._dispatch_movement_event(self._movement_recalled_callbacks, mov.movement_id, mov)
 
     def _apply_movement_wrappers(self, wrappers: Any, owners: Any) -> list[Movement]:
         """Parse and store ``gam``-style movement wrappers; return the ones stored.
@@ -622,7 +622,7 @@ class GameState:
 
     def _store_movement(self, mov: Movement) -> None:
         """Insert or merge a parsed movement; fire callbacks for new attacks."""
-        mid = mov.MID
+        mid = mov.movement_id
         existing = self.movements.get(mid)
 
         if existing is None:
@@ -672,7 +672,7 @@ class GameState:
             if now >= mov.estimated_end:
                 del self.movements[mid]
         for mov in arrived:
-            self._dispatch_movement_event(self._movement_arrived_callbacks, mov.MID, mov)
+            self._dispatch_movement_event(self._movement_arrived_callbacks, mov.movement_id, mov)
 
     def _handle_dcl(self, data: dict[str, Any]) -> None:
         """Handle 'Detailed Castle List' response."""
@@ -846,13 +846,13 @@ class GameState:
             # Extract owner names and alliances from owner_info
             if owner_info:
                 # Attacker info (OID = owner of the movement)
-                attacker_id = mov.OID
+                attacker_id = mov.owner_id
                 if attacker_id in owner_info:
                     mov.source_player_name = owner_info[attacker_id].get("name", "")
                     mov.source_alliance_name = owner_info[attacker_id].get("alliance_name", "")
 
                 # Defender info (TID = target player)
-                defender_id = mov.TID
+                defender_id = mov.target_id
                 if defender_id in owner_info:
                     mov.target_player_name = owner_info[defender_id].get("name", "")
                     mov.target_alliance_name = owner_info[defender_id].get("alliance_name", "")

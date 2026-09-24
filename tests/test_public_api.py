@@ -327,12 +327,19 @@ _SNAKE_CASE_ALIASES = {
 def test_state_models_expose_snake_case_aliases_for_wire_fields(model_name: str) -> None:
     """Consumers must be able to avoid the raw two-letter GGE field names."""
     model_cls = getattr(empire_core, model_name)
-    missing = [snake for snake, _ in _SNAKE_CASE_ALIASES[model_name] if not hasattr(model_cls, snake)]
+    fields = model_cls.model_fields
+    missing = [
+        snake for snake, _ in _SNAKE_CASE_ALIASES[model_name] if snake not in fields and not hasattr(model_cls, snake)
+    ]
     assert not missing, f"{model_name} has no pythonic alias for {missing}"
 
     instance = model_cls()
     for snake, wire in _SNAKE_CASE_ALIASES[model_name]:
-        assert getattr(instance, snake) == getattr(instance, wire), f"{model_name}.{snake} != .{wire}"
+        if snake in fields:
+            assert fields[snake].alias == wire, f"{model_name}.{snake} is not aliased to {wire}"
+            assert getattr(model_cls.model_validate({wire: 7}), snake) == 7
+        else:
+            assert getattr(instance, snake) == getattr(instance, wire), f"{model_name}.{snake} != .{wire}"
 
 
 def test_state_movement_documents_the_protocol_namesake() -> None:
