@@ -797,11 +797,75 @@ class TestMalformedMovementBatch:
         record = wrapper.movement
         assert record.movement_id == 1 and record.movement_type == 0 and not record.is_returning
         assert record.owner_id == 17 and record.target_id == -202
-        assert record.source_position == Position(X=1, Y=2)
-        assert record.target_position == Position(X=3, Y=4)
+        assert record.source_area is not None and record.source_area.position == Position(X=1, Y=2)
+        assert record.target_area is not None and (record.target_area.area_type, record.target_area.y) == (2, 4)
+        assert record.source_area.row[10] == "Home"
         assert wrapper.visible_army is not None and wrapper.visible_army.courtyard == [[3, 1]]
         assert wrapper.unit_info is not None and wrapper.unit_info.wait_total == 0
         assert response.owners[0].name == "me"
+
+    def test_owner_record_as_the_client_reads_it(self):
+        # A live O entry, name scrubbed
+        owner = {
+            "OID": 5,
+            "N": "someone",
+            "E": {"BGT": 0, "BGC1": 3, "BGC2": 0, "SPT": 1, "S1": 2, "SC1": 0, "S2": 0, "SC2": 0, "IS": 1},
+            "L": 70,
+            "LL": 12,
+            "RNP": -1,
+            "H": 250,
+            "MP": 1267,
+            "TOPX": -1,
+            "R": 0,
+            "AID": 190426,
+            "AR": 8,
+            "AN": "Clan",
+            "SA": 0,
+            "RPT": 0,
+            "AP": [[0, 16655119, 633, 235, 1]],
+            "VP": [],
+            "PF": 0,
+            "VF": 1,
+            "DUM": False,
+            "AVP": 0,
+            "RRD": 0,
+            "FN": {"MC": -1, "FID": 0, "TID": 103, "NS": -1, "PMS": -1, "PMT": 0, "SPC": 0},
+            "SUF": -1,
+            "PRE": 0,
+            "CF": 0,
+            "HF": 0,
+        }
+        record = GetMovementsResponse.model_validate({"M": [], "O": [owner]}).owners[0]
+        assert (record.player_id, record.level, record.legend_level, record.honor) == (5, 70, 12, 250)
+        assert (record.alliance_id, record.alliance_rank, record.alliance_name) == (190426, 8, "Clan")
+        assert record.has_vip and not record.has_premium and not record.is_ruin and not record.is_searching_alliance
+        assert record.crest is not None and record.crest.is_set and record.crest.background_color1 == 3
+        assert record.castle_positions[0].model_dump() == {
+            "kingdom_id": 0,
+            "area_id": 16655119,
+            "x": 633,
+            "y": 235,
+            "area_type": 1,
+        }
+        assert record.faction is not None and record.faction.title_id == 103
+
+    def test_spy_and_market_blocks(self):
+        spy = GetMovementsResponse.model_validate(
+            {"M": [{**GOOD_MOVEMENT, "S": {"ST": 2, "SA": 40, "SC": 12, "SR": 5}}]}
+        ).movements[0]
+        assert spy.spy is not None and spy.spy.is_sabotage and spy.spy.accuracy_or_damage == 40
+        market = GetMovementsResponse.model_validate(
+            {"M": [{**GOOD_MOVEMENT, "S": 0, "MM": {"C": 3, "G": [["W", 100], ["S", 50]]}}]}
+        ).movements[0]
+        assert market.spy is None
+        assert market.market is not None and market.market.carriages == 3
+        assert market.market.goods == [("W", 100), ("S", 50)]
+
+    def test_travel_units_and_loot(self):
+        travel = {**GOOD_MOVEMENT, "A": [[216, 500]], "G": [["W", 8], ["C1", 28]]}
+        wrapper = GetMovementsResponse.model_validate({"M": [travel]}).movements[0]
+        assert wrapper.travel_units == [[216, 500]]
+        assert wrapper.travel_goods == [("W", 8), ("C1", 28)]
 
     def test_full_army_wins_over_army(self):
         wrapper = GetMovementsResponse.model_validate({"M": [{**GOOD_MOVEMENT, "FA": {"M": [[9, 1]]}}]}).movements[0]
