@@ -661,12 +661,12 @@ class MovementArmy(BasePayload):
 
 
 class MovementUnitInfo(BasePayload):
-    """Lord and wait details: a wrapper's ``UM``.
+    """Commander and wait details: a wrapper's ``UM``.
 
     Client: ``BasicMapmovementVO.parseUnitMovement``.
     """
 
-    lord: dict[str, Any] | None = Field(alias="L", default=None, description="Commander leading the army")
+    commander: dict[str, Any] | None = Field(alias="L", default=None, description="Commander leading the army")
     wait_passed: int = Field(alias="PWD", default=0, description="Seconds of the wait at the target already passed")
     wait_total: int = Field(alias="TWD", default=0, description="Seconds the army waits at its target")
     advisor_type: int = Field(alias="AAT", default=0, description="Attack advisor type, 0 for none")
@@ -692,7 +692,7 @@ class MovementWrapper(BasePayload):
     army_size: int | dict[str, Any] | None = Field(
         alias="GS", default=None, description="Estimated army size when the army is hidden"
     )
-    unit_info: MovementUnitInfo | None = Field(alias="UM", default=None, description="Lord and wait details")
+    unit_info: MovementUnitInfo | None = Field(alias="UM", default=None, description="Commander and wait details")
     attack_type: int | None = Field(alias="ATT", default=None, description="AttackType value of an attack")
     is_shadow: bool = Field(alias="SM", default=False, description="Shadow movement")
     force_cancelable: bool = Field(alias="FC", default=False, description="The movement can be force-cancelled")
