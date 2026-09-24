@@ -14,6 +14,7 @@ from empire_core.protocol.models.alliance import (
 )
 from empire_core.protocol.models.base import (
     BaseResponse,
+    Position,
     decode_chat_text,
     encode_chat_text,
     get_response_model,
@@ -745,14 +746,36 @@ class TestGoldenRankingPayloads:
 # callers can only defend against the type they are told about.
 # =============================================================================
 
-GOOD_MOVEMENT = {"MID": 1, "MT": 1, "SX": 1, "SY": 2, "TX": 3, "TY": 4, "ST": 100, "AT": 200}
+# One gam wrapper in the shape the server sends (live capture, names scrubbed)
+GOOD_MOVEMENT = {
+    "M": {
+        "MID": 1,
+        "PT": 10,
+        "TT": 128,
+        "D": 0,
+        "TID": -202,
+        "T": 0,
+        "HBW": -1,
+        "KID": 0,
+        "TA": [2, 3, 4, -1, 0, -1, 0],
+        "SID": 17,
+        "OID": 17,
+        "SA": [1, 1, 2, 555, 17, 2, 2, 2, 1, 0, "Home", 0, 0, -1, -1, -1, 0, 0, [], 0],
+    },
+    "UM": {"PWD": 0, "TWD": 0, "L": {"ID": 0}},
+    "GA": {"L": [[1, 5]], "M": [[2, 10]], "R": [], "RW": [[3, 1]]},
+    "ATT": 0,
+    "FC": 0,
+    "S": 0,
+    "AST": [],
+}
 
 
 class TestMalformedMovementBatch:
     """A gam batch is all-or-nothing today; that is worth knowing about."""
 
     def test_one_entry_missing_a_required_field_discards_the_batch(self):
-        broken = {key: value for key, value in GOOD_MOVEMENT.items() if key != "MID"}
+        broken = {**GOOD_MOVEMENT, "M": {key: value for key, value in GOOD_MOVEMENT["M"].items() if key != "MID"}}
         with pytest.raises(ValidationError) as exc_info:
             GetMovementsResponse.model_validate({"M": [GOOD_MOVEMENT, broken]})
         # The error names the offending index and field, which is what makes a
@@ -768,16 +791,35 @@ class TestMalformedMovementBatch:
             GetMovementsResponse.model_validate({"M": "junk"})
 
     def test_a_clean_batch_still_parses(self):
-        response = GetMovementsResponse.model_validate({"M": [GOOD_MOVEMENT]})
-        assert response.movements[0].movement_id == 1
-        assert response.movements[0].source_position.x == 1
-        assert response.movements[0].target_position.y == 4
+        response = GetMovementsResponse.model_validate({"M": [GOOD_MOVEMENT], "O": [{"OID": 17, "N": "me"}]})
+        wrapper = response.movements[0]
+        record = wrapper.movement
+        assert record.movement_id == 1 and record.movement_type == 0 and not record.is_returning
+        assert record.owner_id == 17 and record.target_id == -202
+        assert record.source_position == Position(X=1, Y=2)
+        assert record.target_position == Position(X=3, Y=4)
+        assert wrapper.visible_army is not None and wrapper.visible_army.courtyard == [[3, 1]]
+        assert wrapper.unit_info is not None and wrapper.unit_info.wait_total == 0
+        assert response.owners[0].name == "me"
+
+    def test_full_army_wins_over_army(self):
+        wrapper = GetMovementsResponse.model_validate({"M": [{**GOOD_MOVEMENT, "FA": {"M": [[9, 1]]}}]}).movements[0]
+        assert wrapper.visible_army is not None and wrapper.visible_army.middle == [[9, 1]]
+
+    def test_hidden_army_reports_only_a_size(self):
+        hidden = {"M": GOOD_MOVEMENT["M"], "GS": 250}
+        wrapper = GetMovementsResponse.model_validate({"M": [hidden]}).movements[0]
+        assert wrapper.visible_army is None and wrapper.army_size == 250
+
+    def test_unknown_wrapper_keys_are_kept(self):
+        wrapper = GetMovementsResponse.model_validate({"M": [{**GOOD_MOVEMENT, "NEW": 1}]}).movements[0]
+        assert wrapper.model_extra == {"NEW": 1}
 
     def test_numeric_strings_are_coerced_rather_than_rejected(self):
         # GGE has sent numbers as strings before; lax coercion is what keeps a
         # whole batch from vanishing when it happens.
-        coerced = {**GOOD_MOVEMENT, "MID": "7"}
-        assert GetMovementsResponse.model_validate({"M": [coerced]}).movements[0].movement_id == 7
+        coerced = {**GOOD_MOVEMENT, "M": {**GOOD_MOVEMENT["M"], "MID": "7"}}
+        assert GetMovementsResponse.model_validate({"M": [coerced]}).movements[0].movement.movement_id == 7
 
 
 class TestPositionalArrayParsers:

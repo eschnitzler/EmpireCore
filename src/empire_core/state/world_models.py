@@ -43,16 +43,9 @@ class Movement(BaseModel):
     ``on_incoming_attack`` callbacks, and the one exported as
     ``empire_core.Movement``.
 
-    .. warning::
-
-       There is a second, unrelated class also named ``Movement`` in
-       ``empire_core.protocol.models.map`` (re-exported from
-       ``empire_core.protocol.models``). That one is the raw ``gam`` protocol
-       payload model with different fields (``movement_id``/``movement_type``
-       from ``MID``/``MT`` aliases, ``source_x``, ``arrival_time``, ...) and it
-       is *not* interchangeable with this class: attribute access such as
-       ``.direction``, ``.owner_id`` or ``.time_remaining`` fails on it. Import ``Movement``
-       from ``empire_core`` (this class) unless you are parsing packets by hand.
+    The raw ``gam`` reply is modelled in ``empire_core.protocol.models`` as
+    ``GetMovementsResponse``: a list of ``MovementWrapper`` entries, each
+    holding a ``MovementRecord``. Use those only when parsing packets by hand.
 
     Whether a movement is yours or aimed at you depends on the local player's
     id, which state stamps on every movement as ``local_player_id``.

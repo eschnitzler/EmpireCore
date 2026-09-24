@@ -342,11 +342,11 @@ def test_state_models_expose_snake_case_aliases_for_wire_fields(model_name: str)
             assert getattr(instance, snake) == getattr(instance, wire), f"{model_name}.{snake} != .{wire}"
 
 
-def test_state_movement_documents_the_protocol_namesake() -> None:
-    """Two public classes are named Movement; the collision must be documented."""
-    from empire_core.protocol.models.map import Movement as ProtocolMovement
+def test_state_movement_points_at_the_protocol_models() -> None:
+    """The protocol layer no longer has a Movement of its own; the state one says where the raw models are."""
+    from empire_core.protocol.models import map as protocol_map
     from empire_core.state.world_models import Movement as StateMovement
 
-    assert StateMovement is not ProtocolMovement
+    assert not hasattr(protocol_map, "Movement")
     doc = StateMovement.__doc__ or ""
-    assert "protocol.models.map" in doc, "state Movement must warn about its protocol namesake"
+    assert "MovementWrapper" in doc and "MovementRecord" in doc

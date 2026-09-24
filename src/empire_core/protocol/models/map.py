@@ -13,11 +13,13 @@ from __future__ import annotations
 import logging
 import warnings
 from enum import IntEnum
+from typing import Any
 
 from pydantic import ConfigDict, Field, ValidationError, field_validator
 
 from .alliance import MemberEmblem
 from .base import BasePayload, BaseRequest, BaseResponse, PlayerInfo, Position
+from .profile import PlayerProfileBase
 
 logger = logging.getLogger(__name__)
 
@@ -605,41 +607,106 @@ class GetMovementsRequest(BaseRequest):
     castle_id: int | None = Field(alias="CID", default=None)
 
 
-class Movement(BasePayload):
-    """An active troop movement."""
+class MovementRecord(BasePayload):
+    """The movement itself: the ``M`` inside each ``gam`` wrapper.
 
-    movement_id: int = Field(alias="MID")
-    movement_type: int = Field(alias="MT")  # 1=attack, 2=support, 3=spy, 4=trade, etc.
+    Client: ``BasicMapmovementVO.loadFromParamObject``.
+    """
 
-    # Source
-    source_x: int = Field(alias="SX")
-    source_y: int = Field(alias="SY")
-    source_castle_id: int = Field(alias="SCID", default=0)
-    source_player_id: int = Field(alias="SPID", default=0)
-
-    # Target
-    target_x: int = Field(alias="TX")
-    target_y: int = Field(alias="TY")
-    target_castle_id: int | None = Field(alias="TCID", default=None)
-    target_player_id: int | None = Field(alias="TPID", default=None)
-
-    # Timing
-    start_time: int = Field(alias="ST")  # Unix timestamp
-    arrival_time: int = Field(alias="AT")  # Unix timestamp
-    return_time: int | None = Field(alias="RT", default=None)
-
-    # Status
-    is_returning: bool = Field(alias="IR", default=False)
+    movement_id: int = Field(alias="MID", description="Movement id")
+    movement_type: int = Field(alias="T", default=0, description="MovementType value")
+    progress_time: int = Field(alias="PT", default=0, description="Seconds travelled when the reply was sent")
+    total_time: int = Field(alias="TT", default=0, description="Seconds the trip takes")
+    direction: int = Field(alias="D", default=0, description="1 = returning home, 0 = heading to the target")
+    target_id: int = Field(alias="TID", default=-1, description="Player id owning the target area")
+    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id")
+    source_id: int = Field(alias="SID", default=-1, description="Player id owning the source area")
+    owner_id: int = Field(alias="OID", default=-1, description="Player id owning the movement")
+    horse_booster_id: int = Field(alias="HBW", default=-1, description="Horse booster item id, -1 for none")
+    target_area: list[Any] = Field(alias="TA", default_factory=list, description="Target area row")
+    source_area: list[Any] = Field(alias="SA", default_factory=list, description="Source area row")
 
     @property
-    def source_position(self) -> Position:
-        """Get source position."""
-        return Position(X=self.source_x, Y=self.source_y)
+    def is_returning(self) -> bool:
+        """Client: ``BasicMapmovementVO.isReturnHome``."""
+        return self.direction == 1
 
     @property
-    def target_position(self) -> Position:
-        """Get target position."""
-        return Position(X=self.target_x, Y=self.target_y)
+    def target_position(self) -> Position | None:
+        """Target coordinates from ``TA[1]``/``TA[2]``, if the row has them."""
+        return _area_position(self.target_area)
+
+    @property
+    def source_position(self) -> Position | None:
+        """Source coordinates from ``SA[1]``/``SA[2]``, if the row has them."""
+        return _area_position(self.source_area)
+
+
+def _area_position(row: list[Any]) -> Position | None:
+    if len(row) >= 3 and isinstance(row[1], int) and isinstance(row[2], int):
+        return Position(X=row[1], Y=row[2])
+    return None
+
+
+class MovementArmy(BasePayload):
+    """A visible army: three flanks of ``[unit_id, count]`` pairs plus the courtyard wave.
+
+    Client: ``CastleCompactArmyVO.parseSimpleArmy`` / ``parseYardWave``.
+    """
+
+    left: list[list[int]] = Field(alias="L", default_factory=list, description="Left flank")
+    middle: list[list[int]] = Field(alias="M", default_factory=list, description="Middle")
+    right: list[list[int]] = Field(alias="R", default_factory=list, description="Right flank")
+    courtyard: list[list[int]] = Field(alias="RW", default_factory=list, description="Courtyard (yard) wave")
+
+
+class MovementUnitInfo(BasePayload):
+    """Lord and wait details: a wrapper's ``UM``.
+
+    Client: ``BasicMapmovementVO.parseUnitMovement``.
+    """
+
+    lord: dict[str, Any] | None = Field(alias="L", default=None, description="Commander leading the army")
+    wait_passed: int = Field(alias="PWD", default=0, description="Seconds of the wait at the target already passed")
+    wait_total: int = Field(alias="TWD", default=0, description="Seconds the army waits at its target")
+    advisor_type: int = Field(alias="AAT", default=0, description="Attack advisor type, 0 for none")
+    advisor_movement_count: int = Field(alias="AAC", default=0, description="Attacks in the advisor series")
+    advisor_movement_number: int = Field(alias="AAN", default=0, description="This attack's place in the series")
+    advisor_is_last: int = Field(alias="AAL", default=0, description="1 on the series' last attack")
+
+
+class MovementWrapper(BasePayload):
+    """One entry of ``gam``'s ``M`` list, and the ``A`` of an ``abr``/``asr``/``mcm`` push.
+
+    Which of the optional blocks are present depends on the movement type and
+    on what the receiving player may see. Keys this model does not name are
+    kept, as on every payload.
+
+    Client: ``MapmovementFactory.parseMapMovement`` and the ``loadFromParamObject``
+    of each movement class.
+    """
+
+    movement: MovementRecord = Field(alias="M", description="The movement record")
+    full_army: MovementArmy | None = Field(alias="FA", default=None, description="Army, preferred over GA")
+    army: MovementArmy | None = Field(alias="GA", default=None, description="Army")
+    army_size: int | dict[str, Any] | None = Field(
+        alias="GS", default=None, description="Estimated army size when the army is hidden"
+    )
+    unit_info: MovementUnitInfo | None = Field(alias="UM", default=None, description="Lord and wait details")
+    attack_type: int | None = Field(alias="ATT", default=None, description="AttackType value of an attack")
+    is_shadow: bool = Field(alias="SM", default=False, description="Shadow movement")
+    force_cancelable: bool = Field(alias="FC", default=False, description="The movement can be force-cancelled")
+    support_tools: list[Any] | None = Field(alias="AST", default=None, description="Support tools sent with an attack")
+    auto_skip_cooldown_type: int = Field(alias="ASCT", default=0, description="Auto-skip cooldown type")
+    travel_units: list[Any] | None = Field(alias="A", default=None, description="Units of a travel movement")
+    travel_goods: list[Any] | None = Field(alias="G", default=None, description="Loot or goods of a travel movement")
+    market: Any = Field(alias="MM", default=None, description="Market transport: C carriages, G goods (not seen live)")
+    spy: Any = Field(alias="S", default=None, description="Spy mission details; 0 on movements that are not spies")
+
+    @property
+    def visible_army(self) -> MovementArmy | None:
+        """``FA`` if sent, else ``GA``, as the client picks."""
+        return self.full_army or self.army
 
 
 class GetMovementsResponse(BaseResponse):
@@ -647,11 +714,17 @@ class GetMovementsResponse(BaseResponse):
     Response containing active movements.
 
     Command: gam
+    Payload: {"M": [wrapper, ...], "O": [owner record, ...]}
+
+    Client: ``CastleArmyData.parse_GAM``.
     """
 
     command = "gam"
 
-    movements: list[Movement] = Field(alias="M", default_factory=list)
+    movements: list[MovementWrapper] = Field(alias="M", default_factory=list, description="Movement wrappers")
+    owners: list[PlayerProfileBase] = Field(
+        alias="O", default_factory=list, description="Owner records for every player the movements name"
+    )
 
 
 # =============================================================================
@@ -775,7 +848,10 @@ __all__ = [
     # GAM - Movements
     "GetMovementsRequest",
     "GetMovementsResponse",
-    "Movement",
+    "MovementArmy",
+    "MovementRecord",
+    "MovementUnitInfo",
+    "MovementWrapper",
     # FNM - Find NPC
     "FindNPCRequest",
     "FindNPCResponse",
