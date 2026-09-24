@@ -260,7 +260,10 @@ class Movement(BaseModel):
 
     @property
     def is_travel(self) -> bool:
-        """Troops moved between the owner's own areas."""
+        """Troops moved between the owner's own areas.
+
+        An army's way home also arrives as a new TRAVEL movement, with ``D == 1``.
+        """
         return self.T == MovementType.TRAVEL
 
     @property
