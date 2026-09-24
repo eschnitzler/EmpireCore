@@ -305,9 +305,8 @@ _SNAKE_CASE_ALIASES = {
     ],
     "Alliance": [
         ("id", "AID"),
-        ("name", "N"),
-        ("abbreviation", "SA"),
         ("rank", "R"),
+        ("current_fame", "ACF"),
     ],
     "Movement": [
         ("movement_id", "MID"),

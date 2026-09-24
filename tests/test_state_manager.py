@@ -736,6 +736,20 @@ class TestAllianceMembership:
         assert player.alliance is not None and player.alliance.name == "Clan"
         assert player.AID == 5
 
+    def test_live_gal_shape(self, state):
+        # As a live login sent it: the name under N, SA a 0/1 search flag
+        gal = {"AID": 190426, "R": 1, "N": "H.O.P.E", "ACF": 22, "SA": 0}
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": gal})
+        alliance = state.get_local_player().alliance
+        assert alliance is not None
+        assert (alliance.id, alliance.name, alliance.rank, alliance.current_fame) == (190426, "H.O.P.E", 1, 22)
+        assert alliance.is_searching is False
+
+    def test_name_under_an_as_the_client_reads_it(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "AN": "Clan", "SA": 1}})
+        alliance = state.get_local_player().alliance
+        assert alliance is not None and alliance.name == "Clan" and alliance.is_searching
+
     @pytest.mark.parametrize("gal", [{}, None, {"AID": 0}, {"N": "", "SA": 0}])
     def test_leaving_alliance_clears_it(self, state, gal):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})

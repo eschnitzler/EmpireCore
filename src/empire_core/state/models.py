@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
 class Resources(BaseModel):
@@ -47,38 +47,31 @@ class Building(BaseModel):
 
 
 class Alliance(BaseModel):
-    """Represents an alliance/guild."""
+    """The local player's alliance membership, from the ``gal`` login section.
 
-    model_config = ConfigDict(extra="ignore")
+    Client: ``CastleUserData.parse_GAL``.
+    """
 
-    AID: int = Field(default=-1)  # Alliance ID
-    N: str = Field(default="")  # Alliance Name
-    SA: str = Field(default="")  # Short/Abbreviation (server sends 0 if none)
-    R: int = Field(default=0)  # Rank
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
-    @field_validator("SA", mode="before")
+    id: int = Field(default=-1, alias="AID", description="Alliance id; 0 or less means no alliance")
+    name: str = Field(
+        default="",
+        validation_alias=AliasChoices("AN", "N", "name"),
+        description="Alliance name. The client reads AN; live servers send N",
+    )
+    rank: int = Field(default=0, alias="R", description="The player's rank in the alliance")
+    current_fame: int = Field(default=0, alias="ACF", description="The alliance's current fame")
+    is_searching: bool = Field(default=False, alias="SA", description="The player is looking for an alliance")
+
+    @field_validator("is_searching", mode="before")
     @classmethod
-    def coerce_sa_to_str(cls, v: Any) -> str:
-        """Server sends 0 when there's no abbreviation."""
-        if v is None or v == 0:
-            return ""
-        return str(v)
-
-    @property
-    def id(self) -> int:
-        return self.AID
-
-    @property
-    def name(self) -> str:
-        return self.N
-
-    @property
-    def abbreviation(self) -> str:
-        return self.SA
-
-    @property
-    def rank(self) -> int:
-        return self.R
+    def _searching_flag(cls, value: Any) -> bool:
+        # Client: 1 == parseInt(SA)
+        try:
+            return int(value) == 1
+        except (TypeError, ValueError):
+            return False
 
 
 class Castle(BaseModel):
