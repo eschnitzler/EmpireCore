@@ -14,10 +14,10 @@ from empire_core.state.models import Castle, Player
 from empire_core.state.world_models import Movement
 
 
-def gam_payload(mid: int, movement_type: int = 1, oid: int = 999, tid: int = 1, extra: dict | None = None) -> dict:
+def gam_payload(mid: int, movement_type: int = 0, oid: int = 999, tid: int = 1, extra: dict | None = None) -> dict:
     m_data = {
         "MID": mid,
-        "T": movement_type,  # 1 = ATTACK
+        "T": movement_type,  # 0 = ATTACK
         "PT": 0,
         "TT": 600,
         "D": 0,
@@ -34,7 +34,7 @@ def gam_payload(mid: int, movement_type: int = 1, oid: int = 999, tid: int = 1, 
     }
 
 
-def mov_payload(mid: int, movement_type: int = 1, oid: int = 999, tt: int = 600, direction: int = 0) -> dict:
+def mov_payload(mid: int, movement_type: int = 0, oid: int = 999, tt: int = 600, direction: int = 0) -> dict:
     """A pushed single-movement packet (no owner info, no gam refresh)."""
     return {"M": {"MID": mid, "T": movement_type, "PT": 0, "TT": tt, "D": direction, "OID": oid, "TID": 1}}
 
@@ -95,7 +95,7 @@ class TestAttackCallbacks:
     def test_non_attack_movement_does_not_fire(self, state):
         fired: list[Movement] = []
         state.on_incoming_attack(fired.append)
-        state.update_from_packet("gam", gam_payload(102, movement_type=2))  # 2 = TRANSPORT
+        state.update_from_packet("gam", gam_payload(102, movement_type=1))  # 1 = DEFENCE (support)
         time.sleep(0.2)
         assert fired == []
 
@@ -112,6 +112,108 @@ class TestAttackCallbacks:
         state.update_from_packet("gam", gam_payload(104))
         assert wait_for(lambda: len(fired) == 2)
 
+    def test_npc_attack_fires(self, state):
+        fired: list[Movement] = []
+        state.on_incoming_attack(fired.append)
+        state.update_from_packet("gam", gam_payload(105, movement_type=11))  # 11 = NPC_ATTACK
+        assert wait_for(lambda: len(fired) == 1)
+
+    def test_returning_attack_does_not_fire(self, state):
+        fired: list[Movement] = []
+        state.on_incoming_attack(fired.append)
+        state.update_from_packet("gam", gam_payload(106, extra={"D": 1}))
+        time.sleep(0.2)
+        assert fired == []
+
+
+class TestMovementDirection:
+    ME = 1
+
+    @pytest.fixture
+    def me(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": self.ME, "PN": "me"}})
+        return state
+
+    def test_own_attack_is_outgoing_not_incoming(self, me):
+        me.update_from_packet("gam", gam_payload(700, oid=self.ME, tid=555))
+        mov = me.get_movement_by_id(700)
+        assert mov is not None and mov.is_mine and mov.is_outgoing
+        assert not mov.is_incoming
+        assert me.get_incoming_attacks() == []
+        assert [m.MID for m in me.get_outgoing_movements()] == [700]
+
+    def test_attack_on_me_is_incoming(self, me):
+        me.update_from_packet("gam", gam_payload(701, oid=555, tid=self.ME))
+        assert [m.MID for m in me.get_incoming_attacks()] == [701]
+        assert me.get_outgoing_movements() == []
+
+    def test_npc_attack_on_me_is_incoming(self, me):
+        me.update_from_packet("gam", gam_payload(702, movement_type=11, oid=-1, tid=self.ME))
+        assert [m.MID for m in me.get_incoming_attacks()] == [702]
+
+    def test_support_to_me_is_incoming_but_not_an_attack(self, me):
+        me.update_from_packet("gam", gam_payload(703, movement_type=1, oid=555, tid=self.ME))
+        assert [m.MID for m in me.get_incoming_movements()] == [703]
+        assert me.get_incoming_attacks() == []
+
+    def test_returning_army_is_neither_incoming_nor_outgoing(self, me):
+        me.update_from_packet("gam", gam_payload(704, oid=self.ME, tid=555, extra={"D": 1}))
+        me.update_from_packet("gam", gam_payload(705, oid=555, tid=self.ME, extra={"D": 1}))
+        for mid in (704, 705):
+            mov = me.get_movement_by_id(mid)
+            assert mov is not None and mov.is_returning
+        assert me.get_incoming_movements() == []
+        assert me.get_outgoing_movements() == []
+
+    def test_travel_between_own_castles_is_outgoing_only(self, me):
+        me.update_from_packet("gam", gam_payload(706, movement_type=2, oid=self.ME, tid=self.ME))
+        mov = me.get_movement_by_id(706)
+        assert mov is not None and mov.is_travel and mov.is_outgoing and not mov.is_incoming
+
+    def test_attack_on_someone_else_is_not_incoming(self, me):
+        me.update_from_packet("gam", gam_payload(707, oid=555, tid=666))
+        assert me.get_incoming_attacks() == []
+
+    def test_without_a_local_player_nothing_is_incoming(self, state):
+        state.update_from_packet("gam", gam_payload(708, tid=1))
+        assert state.get_incoming_attacks() == []
+        assert state.get_outgoing_movements() == []
+
+
+class TestMovementTypes:
+    @pytest.mark.parametrize("t", [0, 11, 17, 18, 19, 20, 21, 23, 24, 25, 27, 28, 29, 30, 31, 33, 34])
+    def test_attack_types(self, t):
+        mov = Movement(T=t)
+        assert mov.is_attack and not mov.is_support and not mov.is_siege
+
+    @pytest.mark.parametrize("t", [1, 26, 32])
+    def test_support_types(self, t):
+        mov = Movement(T=t)
+        assert mov.is_support and not mov.is_attack
+
+    @pytest.mark.parametrize("t", [5, 15])
+    def test_siege_types(self, t):
+        assert Movement(T=t).is_siege
+
+    def test_single_value_types(self):
+        assert Movement(T=2).is_travel
+        assert Movement(T=3).is_spy
+        assert Movement(T=4).is_transport
+        assert not Movement(T=2).is_transport
+
+    @pytest.mark.parametrize("t", [2, 3, 4, 6, 14])
+    def test_non_combat_types_are_not_attacks(self, t):
+        assert not Movement(T=t).is_attack
+
+    def test_names_follow_the_client(self):
+        assert Movement(T=1).movement_type_name == "DEFENCE"
+        assert Movement(T=11).movement_type_name == "NPC_ATTACK"
+        assert Movement(T=99).movement_type_name == "UNKNOWN_99"
+
+    def test_direction_flag_marks_returns_for_any_type(self):
+        assert Movement(T=11, D=0).is_returning is False
+        assert Movement(T=4, D=1).is_returning
+
 
 class TestMovementLifecycle:
     def test_update_preserves_created_at_and_names(self, state):
@@ -123,7 +225,7 @@ class TestMovementLifecycle:
 
         time.sleep(0.02)
         # Update without owner info (mov push)
-        state.update_from_packet("mov", {"M": {"MID": 200, "T": 1, "PT": 60, "TT": 600, "D": 0, "OID": 999}})
+        state.update_from_packet("mov", {"M": {"MID": 200, "T": 0, "PT": 60, "TT": 600, "D": 0, "OID": 999}})
         updated = state.get_movement_by_id(200)
         assert updated is not None
         assert updated.created_at == created
@@ -170,14 +272,14 @@ class TestMovementLifecycle:
 
 class TestMovementTime:
     def test_time_remaining_advances_with_wall_clock(self):
-        mov = Movement(MID=1, T=1, PT=0, TT=100, D=0)
+        mov = Movement(MID=1, T=0, PT=0, TT=100, D=0)
         mov.last_updated = time.time() - 30
         # 100s total, packet 30s ago => ~70s remaining
         assert 65 <= mov.time_remaining <= 71
         assert not mov.has_arrived()
 
     def test_has_arrived_after_eta_passes(self):
-        mov = Movement(MID=2, T=1, PT=90, TT=100, D=0)
+        mov = Movement(MID=2, T=0, PT=90, TT=100, D=0)
         mov.last_updated = time.time() - 60  # 10s remained, 60s ago
         assert mov.time_remaining == 0
         assert mov.has_arrived()
@@ -289,6 +391,7 @@ class TestStaleMovementPruning:
 
     def test_pruned_on_query_without_any_gam(self, state):
         # A consumer driven purely by push callbacks never calls gam
+        state.update_from_packet("gbd", {"gpi": {"PID": 1, "PN": "me"}})
         state.update_from_packet("mov", mov_payload(302, tt=1))
         self._make_stale(state, 302)
 
@@ -751,6 +854,7 @@ class TestFreshnessMetadata:
 
 class TestThreadSafety:
     def test_concurrent_updates_and_reads(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 1, "PN": "me"}})
         stop = threading.Event()
         errors = []
 
@@ -784,6 +888,7 @@ class TestThreadSafety:
         """The client facade must read movements through GameState's locked accessors."""
         client = EmpireClient.__new__(EmpireClient)  # the helpers only touch self.state
         client.state = state
+        state.update_from_packet("gbd", {"gpi": {"PID": 1, "PN": "me"}})
         stop = threading.Event()
         errors = []
 

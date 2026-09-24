@@ -584,10 +584,9 @@ class GameState:
         if existing is None:
             mov.created_at = time.time()
             # Alert on new hostile attacks. The server also pushes gam for
-            # attacks on alliance members; exclude only our own outgoing
-            # attacks so those alliance alerts still fire.
-            own_attack = self.local_player is not None and mov.OID == self.local_player.PID
-            if mov.is_attack and not own_attack:
+            # attacks on alliance members, and state has no member list to
+            # match TID against, so exclude only our own armies and returns.
+            if mov.is_attack and not mov.is_mine and not mov.is_returning:
                 with self._lock:
                     attack_callbacks = list(self._incoming_attack_callbacks)
                 for cb in attack_callbacks:
@@ -752,6 +751,8 @@ class GameState:
         try:
             mov = Movement(**m_data)
             mov.last_updated = time.time()
+            if self.local_player is not None:
+                mov.local_player_id = self.local_player.PID
 
             # Extract target coords
             if mov.target_area and isinstance(mov.target_area, list) and len(mov.target_area) >= 5:
@@ -866,13 +867,13 @@ class GameState:
             return list(self.movements.values())
 
     def get_incoming_movements(self) -> list[Movement]:
-        """Get all incoming movements."""
+        """Other players' armies heading to the local player (see ``Movement.is_incoming``)."""
         with self._lock:
             self._prune_stale_movements()
             return [m for m in self.movements.values() if m.is_incoming]
 
     def get_outgoing_movements(self) -> list[Movement]:
-        """Get all outgoing movements."""
+        """The local player's armies heading to their targets, returns excluded."""
         with self._lock:
             self._prune_stale_movements()
             return [m for m in self.movements.values() if m.is_outgoing]

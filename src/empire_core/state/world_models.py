@@ -56,6 +56,11 @@ class Movement(BaseModel):
        ``.MID``, ``.T`` or ``.time_remaining`` fails on it. Import ``Movement``
        from ``empire_core`` (this class) unless you are parsing packets by hand.
 
+    Whether a movement is yours or aimed at you depends on the local player's
+    id, which state stamps on every movement as ``local_player_id``.
+
+    Client: ``BasicMapmovementVO``, ``ArmyAttackMapmovementVO``.
+
     Naming: the fields are the raw GGE wire keys (``MID``, ``T``, ``PT``, ...)
     because packet payloads are fed in unchanged; every one of them also has a
     snake_case read-only property (``movement_id``, ``movement_type``,
@@ -65,14 +70,14 @@ class Movement(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     MID: int = Field(default=-1)  # Movement ID
-    T: int = Field(default=0)  # Type (11=return, etc.)
+    T: int = Field(default=0)  # MovementType
     PT: int = Field(default=0)  # Progress Time
     TT: int = Field(default=0)  # Total Time
-    D: int = Field(default=0)  # Direction
-    TID: int = Field(default=-1)  # Target/Owner ID
+    D: int = Field(default=0)  # 1 = returning home
+    TID: int = Field(default=-1)  # Target owner ID
     KID: int = Field(default=0)  # Kingdom ID
-    SID: int = Field(default=-1)  # Source ID
-    OID: int = Field(default=-1)  # Owner ID
+    SID: int = Field(default=-1)  # Source owner ID
+    OID: int = Field(default=-1)  # Movement owner ID
     HBW: int = Field(default=-1)  # ?
 
     # TA = Target Area (array with area details)
@@ -88,6 +93,9 @@ class Movement(BaseModel):
     source_x: int = Field(default=-1)
     source_y: int = Field(default=-1)
     target_type: int = Field(default=-1)  # MapObjectType value from TA[0]
+
+    # Player id of the account this movement was received on, -1 if unknown
+    local_player_id: int = Field(default=-1)
 
     # Units in movement (UnitID -> Count)
     units: dict[int, int] = Field(default_factory=dict)
@@ -163,7 +171,7 @@ class Movement(BaseModel):
 
     @property
     def direction(self) -> int:
-        """Raw direction flag: 0 = incoming, 1 = outgoing."""
+        """Raw direction flag: 1 = returning home, 0 = heading to the target."""
         return self.D
 
     @property
@@ -203,47 +211,61 @@ class Movement(BaseModel):
         return self.last_updated + max(0, self.TT - self.PT)
 
     @property
-    def is_incoming(self) -> bool:
-        """Check if this movement is incoming to player."""
-        # Type 11 is typically return movement
-        return self.T != 11 and self.D == 0
+    def is_returning(self) -> bool:
+        """The army is on its way home, whatever its type."""
+        return self.D == 1
+
+    @property
+    def is_mine(self) -> bool:
+        """The local player owns this movement."""
+        return self.local_player_id != -1 and self.OID == self.local_player_id
 
     @property
     def is_outgoing(self) -> bool:
-        """Check if this movement is outgoing from player."""
-        return self.T != 11 and self.D == 1
+        """One of the local player's armies heading to its target."""
+        return self.is_mine and not self.is_returning
 
     @property
-    def is_returning(self) -> bool:
-        """Check if this is a return movement."""
-        return self.T == MovementType.RETURN
+    def is_incoming(self) -> bool:
+        """Another player's army heading to one of the local player's areas.
 
-    @property
-    def is_attack(self) -> bool:
-        """Check if this is an attack movement."""
-        # T=0 appears to be a standard attack on player castles
-        # T=1 is ATTACK, T=5 is RAID, T=9 is ATTACK_CAMP, T=10 is RAID_CAMP
-        return self.T in (
-            0,  # Standard attack (observed in gam packets)
-            MovementType.ATTACK,
-            MovementType.ATTACK_CAMP,
-            MovementType.RAID,
-            MovementType.RAID_CAMP,
+        Armies moving between your own areas count as outgoing, not incoming.
+        """
+        return (
+            self.local_player_id != -1
+            and self.TID == self.local_player_id
+            and not self.is_mine
+            and not self.is_returning
         )
 
     @property
-    def is_transport(self) -> bool:
-        """Check if this is a transport movement."""
-        return self.T == MovementType.TRANSPORT
+    def is_attack(self) -> bool:
+        """Any attack type, including NPC, alien, faction and event attacks."""
+        return self.movement_type_enum.is_attack
 
     @property
     def is_support(self) -> bool:
-        """Check if this is a support movement."""
-        return self.T == MovementType.SUPPORT
+        """A support (defence) army."""
+        return self.movement_type_enum.is_support
+
+    @property
+    def is_siege(self) -> bool:
+        """A siege or faction occupation."""
+        return self.movement_type_enum.is_siege
+
+    @property
+    def is_transport(self) -> bool:
+        """A market transport of resources. Troops moved between own castles are ``is_travel``."""
+        return self.T == MovementType.MARKET
+
+    @property
+    def is_travel(self) -> bool:
+        """Troops moved between the owner's own areas."""
+        return self.T == MovementType.TRAVEL
 
     @property
     def is_spy(self) -> bool:
-        """Check if this is a spy/scout movement."""
+        """A spy mission."""
         return self.T == MovementType.SPY
 
     @property
