@@ -230,7 +230,10 @@ class Movement(BaseModel):
 
     @property
     def is_stationed(self) -> bool:
-        """The army has arrived and is waiting at its target, as a support does."""
+        """The army has arrived and is waiting at its target, as a support does.
+
+        Client: ``SupportDefenceMapmovementVO.isStationed``.
+        """
         now = time.time()
         return self.estimated_arrival <= now < self.estimated_end
 

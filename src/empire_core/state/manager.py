@@ -65,7 +65,7 @@ class GameState:
     player identity/level/XP             ``gpi``/``gxp``              re-login
     player gold/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      re-login
     global inventory                     ``sce`` (pushed)             --
-    movements                            ``gam``, pushed ``abr``/``asr``  ``client.get_movements()``
+    movements                            ``gam``, ``abr``/``asr``     ``client.get_movements()``
     ===================================  ==========================  ===================================
 
     In practice a castle's ``resources`` often reflects login time and nothing
@@ -185,9 +185,10 @@ class GameState:
     def on_incoming_attack(self, callback: Callable[[Movement], None]) -> None:  # type: ignore[misc]
         """Register a callback for new hostile attack movements.
 
-        Fires once per newly seen attack that is not the local player's own
-        outgoing attack (i.e. attacks on you or on alliance members the
-        server pushes gam updates for).
+        Fires once per newly seen attack that is not the local player's own,
+        is not on its way home and had not already landed when first seen.
+        That covers attacks on you and every other attack the server shares
+        with you, which includes your alliance members' own attacks (#58).
         """
         with self._lock:
             self._incoming_attack_callbacks.append(callback)
@@ -229,7 +230,9 @@ class GameState:
 
         An army that stays at its target (a stationed support) is kept in
         state until its wait is over (``estimated_end``); every other
-        movement is removed before callbacks run.
+        movement is removed before callbacks run. An army's way home is a
+        movement too, so it fires when the army gets back; check
+        ``movement.is_returning`` to tell the two apart.
 
         Two signatures are supported, picked per callback from its own
         parameter list::
