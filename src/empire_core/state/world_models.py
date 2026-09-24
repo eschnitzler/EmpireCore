@@ -1,7 +1,7 @@
 import time
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from empire_core.utils.enums import MapObjectType, MovementType
 from empire_core.utils.troops import count_troops
@@ -123,6 +123,16 @@ class Movement(BaseModel):
     commander_equipment: list[Any] = Field(default_factory=list)
     commander_effects: list[Any] = Field(default_factory=list)
 
+    # How long the army stays at its target (UM.TWD) and how much of that has
+    # passed (UM.PWD), in seconds. Non-zero for stationed supports.
+    wait_total: int = Field(default=0)
+    wait_passed: int = Field(default=0)
+
+    # Set by an mfc push: the movement can be force-cancelled
+    force_cancelable: bool = Field(default=False)
+
+    _arrival_dispatched: bool = PrivateAttr(default=False)
+
     @property
     def movement_id(self) -> int:
         return self.MID
@@ -207,8 +217,22 @@ class Movement(BaseModel):
 
     @property
     def estimated_arrival(self) -> float:
-        """Estimated arrival timestamp (Unix time)."""
+        """When the army reaches its target (Unix time)."""
         return self.last_updated + max(0, self.TT - self.PT)
+
+    @property
+    def estimated_end(self) -> float:
+        """When the movement is over: arrival plus whatever wait at the target is left.
+
+        Client: ``BasicMapmovementVO._endWaitTimeStamp``.
+        """
+        return self.estimated_arrival + max(0, self.wait_total - self.wait_passed)
+
+    @property
+    def is_stationed(self) -> bool:
+        """The army has arrived and is waiting at its target, as a support does."""
+        now = time.time()
+        return self.estimated_arrival <= now < self.estimated_end
 
     @property
     def is_returning(self) -> bool:

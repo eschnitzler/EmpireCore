@@ -20,6 +20,7 @@ def on_attack(movement):
 client.state.on_incoming_attack(on_attack)
 client.state.on_movement_arrived(lambda movement_id: ...)
 client.state.on_movement_recalled(lambda movement_id: ...)
+client.state.on_movement_removed(lambda movement_id: ...)
 ```
 
 * `on_incoming_attack` fires once per newly seen hostile attack (not on every
@@ -27,7 +28,8 @@ client.state.on_movement_recalled(lambda movement_id: ...)
 * Callbacks are dispatched on a thread pool that is created lazily and survives
   disconnect/reconnect, so registered handlers keep working after a re-login.
 * Unregister with `remove_incoming_attack_callback` /
-  `remove_movement_arrived_callback` / `remove_movement_recalled_callback`.
+  `remove_movement_arrived_callback` / `remove_movement_recalled_callback` /
+  `remove_movement_removed_callback`.
 
 ## 2. Connection Subscriptions
 

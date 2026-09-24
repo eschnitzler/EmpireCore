@@ -61,9 +61,9 @@ graph TD
       plain dicts, guarded by a lock (it is written by the receive thread and
       read from user threads).
     * Updated **passively** — `update_from_packet()` routes each tracked
-      command (`gbd`, `gam`, `dcl`, `mov`, `atv`/`ata`, `mrm`, `sce`, `sei`)
+      command (`gbd`, `gam`, `dcl`, `abr`/`asr`, `mcm`, `mrm`, `mfc`, `sce`, `sei`)
       to a handler that merges the data.
-    * Emits **callbacks** for attacks, arrivals, and recalls, dispatched on a
+    * Emits **callbacks** for attacks, arrivals, recalls and removals, dispatched on a
       thread pool so a callback may itself make blocking calls.
 * See [state_management.md](state_management.md) and [events.md](events.md).
 

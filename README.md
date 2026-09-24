@@ -253,9 +253,11 @@ client.state.on_incoming_attack(on_attack)
 client.state.on_movement_arrived(on_arrived)
 ```
 
-Arrival and recall callbacks also accept a single-argument `(movement_id)`
-form, but the movement is removed from state before they run, so the id alone
-can no longer be resolved — prefer the two-argument form above.
+Arrival, recall and removal callbacks also accept a single-argument
+`(movement_id)` form, but an arrived or removed movement is usually gone from
+state before they run, so the id alone can no longer be resolved — prefer the
+two-argument form above. There is no arrival packet: a movement arrives when
+its travel time is up.
 
 > [!TIP]
 > [`docs/design/state_management.md`](docs/design/state_management.md) documents

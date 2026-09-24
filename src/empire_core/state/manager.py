@@ -15,10 +15,6 @@ from empire_core.state.world_models import Movement, MovementResources
 
 logger = logging.getLogger(__name__)
 
-# Movements whose estimated arrival is this many seconds in the past are
-# considered stale and pruned (their atv/ata packet was probably missed).
-STALE_MOVEMENT_GRACE = 300.0
-
 # A drifted movement schema would fail on every packet, so the warning is
 # rate-limited to one per this interval; the rest go to debug.
 MOVEMENT_PARSE_WARN_INTERVAL = 60.0
@@ -69,7 +65,7 @@ class GameState:
     player identity/level/XP             ``gpi``/``gxp``              re-login
     player gold/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      re-login
     global inventory                     ``sce`` (pushed)             --
-    movements                            ``gam``, pushed ``mov``      ``client.get_movements()``
+    movements                            ``gam``, pushed ``abr``/``asr``  ``client.get_movements()``
     ===================================  ==========================  ===================================
 
     In practice a castle's ``resources`` often reflects login time and nothing
@@ -107,6 +103,7 @@ class GameState:
         self._incoming_attack_callbacks: list[Callable[[Movement], None]] = []
         self._movement_recalled_callbacks: list[tuple[MovementEventCallback, bool]] = []
         self._movement_arrived_callbacks: list[tuple[MovementEventCallback, bool]] = []
+        self._movement_removed_callbacks: list[tuple[MovementEventCallback, bool]] = []
 
         # Thread pool for dispatching callbacks (avoids blocking receive loop).
         # Created lazily so it survives disconnect/reconnect cycles.
@@ -153,21 +150,27 @@ class GameState:
         "lli": "_handle_gbd",
         "gam": "_handle_gam",
         "dcl": "_handle_dcl",
-        "mov": "_handle_mov",
-        "atv": "_handle_movement_arrived",
-        "ata": "_handle_movement_arrived",
+        "abr": "_handle_movement_push",
+        "asr": "_handle_movement_push",
+        "mcm": "_handle_mcm",
         "mrm": "_handle_mrm",
+        "mfc": "_handle_mfc",
         "sce": "_handle_sce",
         "sei": "_handle_sei",
     }
 
     def update_from_packet(self, cmd_id: str, payload: dict[str, Any]) -> None:
-        """Central update router — parses packet and updates state."""
+        """Central update router — parses packet and updates state.
+
+        Every packet, handled or not, also advances movements, so arrivals
+        fire with the server's traffic rather than only on movement packets.
+        """
         handler_name = self._DISPATCH.get(cmd_id)
-        if handler_name:
-            with self._lock:
+        with self._lock:
+            if handler_name:
                 self._packet_times[cmd_id] = time.time()
                 getattr(self, handler_name)(payload)
+            self._advance_movements()
 
     # ----------------------------------------------------------------
     # Callback registration helpers
@@ -195,7 +198,11 @@ class GameState:
             self._incoming_attack_callbacks.remove(callback)
 
     def on_movement_recalled(self, callback: MovementEventCallback) -> None:  # type: ignore[misc]
-        """Register a callback for recalled movements.
+        """Register a callback for your own recalled movements.
+
+        Fires on the ``mcm`` reply to a recall, with the movement as it now
+        stands: on its way home (``is_returning``). A plain removal (``mrm``)
+        fires :meth:`on_movement_removed` instead.
 
         Accepts either signature (see :meth:`on_movement_arrived`)::
 
@@ -212,7 +219,17 @@ class GameState:
             self._remove_listener(self._movement_recalled_callbacks, callback)
 
     def on_movement_arrived(self, callback: MovementEventCallback) -> None:  # type: ignore[misc]
-        """Register a callback for arrived movements.
+        """Register a callback for movements reaching their target.
+
+        The server sends no arrival packet: as in the game client, a movement
+        arrives once its travel time is up. The check runs on every packet
+        and every movement query, so a callback fires with the first of those
+        after arrival. It fires once per movement, and not for a movement
+        first seen after it had already arrived.
+
+        An army that stays at its target (a stationed support) is kept in
+        state until its wait is over (``estimated_end``); every other
+        movement is removed before callbacks run.
 
         Two signatures are supported, picked per callback from its own
         parameter list::
@@ -220,12 +237,7 @@ class GameState:
             def on_arrived(movement_id: int) -> None: ...
             def on_arrived(movement_id: int, movement: Movement | None) -> None: ...
 
-        Prefer the second form: the movement is removed from state before
-        callbacks run (it has arrived — it is no longer in flight), so
-        ``get_movement_by_id(movement_id)`` returns ``None`` by then and the
-        id alone says nothing about what arrived. ``movement`` is ``None``
-        only when the arrival packet refers to a movement this state never
-        tracked (e.g. it arrived during a disconnect window).
+        Prefer the second form: the id alone says nothing about what arrived.
         """
         entry = (callback, self._accepts_movement(callback))
         with self._lock:
@@ -235,6 +247,23 @@ class GameState:
         """Unregister a movement arrived callback."""
         with self._lock:
             self._remove_listener(self._movement_arrived_callbacks, callback)
+
+    def on_movement_removed(self, callback: MovementEventCallback) -> None:  # type: ignore[misc]
+        """Register a callback for movements the server removes (``mrm``).
+
+        The server does not say why: a battle ending, a finished recall and a
+        support sent home all look the same. ``movement`` is ``None`` if state
+        was not tracking it. Accepts either signature (see
+        :meth:`on_movement_arrived`).
+        """
+        entry = (callback, self._accepts_movement(callback))
+        with self._lock:
+            self._movement_removed_callbacks.append(entry)
+
+    def remove_movement_removed_callback(self, callback: MovementEventCallback) -> None:
+        """Unregister a movement removed callback."""
+        with self._lock:
+            self._remove_listener(self._movement_removed_callbacks, callback)
 
     @staticmethod
     def _accepts_movement(callback: Callable[..., Any]) -> bool:
@@ -535,13 +564,38 @@ class GameState:
         logger.debug(f"Parsed {len(owned)} castles")
 
     def _handle_gam(self, data: dict[str, Any]) -> None:
-        """Handle 'Get Army Movements' response."""
-        movements_list = data.get("M", [])
-        owners_list = data.get("O", [])  # Owner info array
+        """Handle 'Get Army Movements' response.
 
-        # Build owner lookup: OID -> {name, alliance_name}
+        Movements missing from the list are kept, as the client keeps them:
+        they leave state when they arrive or when the server removes them.
+
+        Client: ``CastleArmyData.parse_GAM``.
+        """
+        self._apply_movement_wrappers(data.get("M", []), data.get("O", []))
+
+    def _handle_movement_push(self, data: dict[str, Any]) -> None:
+        """Handle abr/asr, pushed as an army comes within range of its target.
+
+        Client: ``CastleArmyData.parse_ABR`` / ``parse_ASR``.
+        """
+        self._apply_movement_wrappers([data.get("A")], data.get("O", []))
+
+    def _handle_mcm(self, data: dict[str, Any]) -> None:
+        """Handle mcm, the reply to your own recall: the movement, now heading home.
+
+        Client: ``MCMCommand``.
+        """
+        for mov in self._apply_movement_wrappers([data.get("A")], []):
+            self._dispatch_movement_event(self._movement_recalled_callbacks, mov.MID, mov)
+
+    def _apply_movement_wrappers(self, wrappers: Any, owners: Any) -> list[Movement]:
+        """Parse and store ``gam``-style movement wrappers; return the ones stored.
+
+        Client: ``CastleArmyData.parseMapMovementArray``.
+        """
+        # OID -> {name, alliance_name}
         owner_info: dict[int, dict[str, str]] = {}
-        for owner in owners_list:
+        for owner in owners if isinstance(owners, list) else []:
             if isinstance(owner, dict):
                 oid = owner.get("OID")
                 if oid is not None:
@@ -550,31 +604,18 @@ class GameState:
                         "alliance_name": owner.get("AN", ""),
                     }
 
-        for m_wrapper in movements_list:
+        stored = []
+        for m_wrapper in wrappers if isinstance(wrappers, list) else []:
             if not isinstance(m_wrapper, dict):
                 continue
-
             m_data = m_wrapper.get("M", {})
-            if not m_data:
+            if not m_data or m_data.get("MID") is None:
                 continue
-
-            mid = m_data.get("MID")
-            if mid is None:
-                continue
-
             mov = self._parse_movement(m_data, m_wrapper, owner_info)
-            if not mov:
-                continue
-
-            self._store_movement(mov)
-
-        # Don't remove movements absent from this packet - wait for explicit
-        # arrival (atv/ata) or recall (mrm) packets so we can properly dispatch
-        # callbacks with full movement data. Missed arrivals are handled by
-        # _prune_stale_movements, which runs *after* storing so a movement this
-        # packet refreshed is never dropped and re-created (which would re-fire
-        # the incoming-attack callback for an attack already alerted on).
-        self._prune_stale_movements()
+            if mov:
+                self._store_movement(mov)
+                stored.append(mov)
+        return stored
 
     def _store_movement(self, mov: Movement) -> None:
         """Insert or merge a parsed movement; fire callbacks for new attacks."""
@@ -583,10 +624,13 @@ class GameState:
 
         if existing is None:
             mov.created_at = time.time()
+            # Arrived before we saw it (a stationed support after login):
+            # there is no arrival to report.
+            mov._arrival_dispatched = mov.estimated_arrival <= mov.created_at
             # Alert on new hostile attacks. The server also pushes gam for
             # attacks on alliance members, and state has no member list to
             # match TID against, so exclude only our own armies and returns.
-            if mov.is_attack and not mov.is_mine and not mov.is_returning:
+            if mov.is_attack and not mov.is_mine and not mov.is_returning and not mov._arrival_dispatched:
                 with self._lock:
                     attack_callbacks = list(self._incoming_attack_callbacks)
                 for cb in attack_callbacks:
@@ -594,6 +638,8 @@ class GameState:
         else:
             # Preserve metadata that later packets may not include
             mov.created_at = existing.created_at
+            mov._arrival_dispatched = existing._arrival_dispatched
+            mov.force_cancelable = mov.force_cancelable or existing.force_cancelable
             mov.source_player_name = mov.source_player_name or existing.source_player_name
             mov.source_alliance_name = mov.source_alliance_name or existing.source_alliance_name
             mov.target_player_name = mov.target_player_name or existing.target_player_name
@@ -603,27 +649,27 @@ class GameState:
 
         self.movements[mid] = mov
 
-    @staticmethod
-    def _is_stale(mov: Movement, now: float | None = None) -> bool:
-        """True if the movement's arrival packet was evidently missed."""
-        if now is None:
-            now = time.time()
-        return now > mov.estimated_arrival + STALE_MOVEMENT_GRACE
+    def _advance_movements(self) -> None:
+        """Fire arrivals whose travel time is up and drop movements that are over.
 
-    def _prune_stale_movements(self) -> None:
-        """Drop movements whose arrival packet was evidently missed.
+        Runs under the lock on every packet and every movement query. A
+        movement leaves state at ``estimated_end``, which for anything but a
+        stationed army is its arrival.
 
-        Runs on every path that inserts movements (gam, pushed mov) and on the
-        list queries, because a consumer driven by push callbacks may never
-        call gam and would otherwise keep seeing attacks that already landed.
-        Cost is O(len(movements)) — the same order as the queries themselves.
+        Client: ``CastleArmyData.updateMapmovements``.
         """
+        if not self.movements:
+            return
         now = time.time()
-        stale = [mid for mid, m in self.movements.items() if self._is_stale(m, now)]
-        for mid in stale:
-            del self.movements[mid]
-        if stale:
-            logger.debug(f"Pruned {len(stale)} stale movements: {stale}")
+        arrived = []
+        for mid, mov in list(self.movements.items()):
+            if not mov._arrival_dispatched and now >= mov.estimated_arrival:
+                mov._arrival_dispatched = True
+                arrived.append(mov)
+            if now >= mov.estimated_end:
+                del self.movements[mid]
+        for mov in arrived:
+            self._dispatch_movement_event(self._movement_arrived_callbacks, mov.MID, mov)
 
     def _handle_dcl(self, data: dict[str, Any]) -> None:
         """Handle 'Detailed Castle List' response."""
@@ -670,46 +716,29 @@ class GameState:
                     # One malformed castle entry must not abort the rest
                     logger.debug(f"Skipping malformed dcl entry for castle {aid}: {e}")
 
-    def _handle_mov(self, data: dict[str, Any]) -> None:
-        """Handle real-time movement update."""
-        m_data = data.get("M", data)
-
-        if isinstance(m_data, list):
-            for item in m_data:
-                if isinstance(item, dict):
-                    self._update_single_movement(item)
-        elif isinstance(m_data, dict):
-            self._update_single_movement(m_data)
-
-        # Pushed movements are an insertion path of their own, so prune here
-        # too: a consumer driven by push callbacks may never call gam. After
-        # storing, so this packet's own movements survive (see _handle_gam).
-        self._prune_stale_movements()
-
-    def _handle_movement_arrived(self, data: dict[str, Any]) -> None:
-        """Handle movement or attack arrival (atv/ata share identical logic).
-
-        The movement is removed from state first and handed to the callbacks,
-        which otherwise could not tell what arrived: dispatch is asynchronous,
-        so a lookup by id inside the callback always misses.
-        """
-        mid = data.get("MID")
-        if mid is None:
-            return
-        mov = self.movements.pop(mid, None)
-        self._dispatch_movement_event(self._movement_arrived_callbacks, mid, mov)
-
     def _handle_mrm(self, data: dict[str, Any]) -> None:
-        """Handle movement recall (mrm = Move Recall Movement).
+        """Handle mrm, the server removing a movement.
 
-        As with arrivals, the recalled Movement is passed to callbacks that
-        take it — it is gone from state by the time they run.
+        The removed Movement is passed to callbacks that take it: it is gone
+        from state by the time they run.
+
+        Client: ``CastleArmyData.parse_MRM``.
         """
         mid = data.get("MID")
         if mid is None:
             return
         mov = self.movements.pop(mid, None)
-        self._dispatch_movement_event(self._movement_recalled_callbacks, mid, mov)
+        self._dispatch_movement_event(self._movement_removed_callbacks, mid, mov)
+
+    def _handle_mfc(self, data: dict[str, Any]) -> None:
+        """Handle mfc: the movement can now be force-cancelled.
+
+        Client: ``CastleArmyData.parse_MFC``.
+        """
+        mid = data.get("MID")
+        mov = self.movements.get(mid) if isinstance(mid, int) else None
+        if mov is not None:
+            mov.force_cancelable = True
 
     def _handle_sce(self, data: Any) -> None:
         """Handle Server Client Exchange (Inventory Update)."""
@@ -804,6 +833,8 @@ class GameState:
                 # Extract commander data from UM.L
                 um_data = m_wrapper.get("UM", {})
                 if isinstance(um_data, dict):
+                    mov.wait_total = int(um_data.get("TWD") or 0)
+                    mov.wait_passed = int(um_data.get("PWD") or 0)
                     commander_data = um_data.get("L", {})
                     if isinstance(commander_data, dict):
                         mov.commander_equipment = commander_data.get("EQ", [])
@@ -849,13 +880,6 @@ class GameState:
         extra = f" ({suppressed} further failures suppressed)" if suppressed else ""
         logger.exception(f"Failed to parse movement {mid} — it is being dropped, incoming attacks may be missed{extra}")
 
-    def _update_single_movement(self, m_data: dict[str, Any]) -> None:
-        """Update a single movement from real-time packet."""
-        mov = self._parse_movement(m_data)
-        if not mov:
-            return
-        self._store_movement(mov)
-
     # ============================================================
     # Query Methods
     # ============================================================
@@ -863,42 +887,36 @@ class GameState:
     def get_all_movements(self) -> list[Movement]:
         """Get all tracked movements (stale ones pruned first)."""
         with self._lock:
-            self._prune_stale_movements()
+            self._advance_movements()
             return list(self.movements.values())
 
     def get_incoming_movements(self) -> list[Movement]:
         """Other players' armies heading to the local player (see ``Movement.is_incoming``)."""
         with self._lock:
-            self._prune_stale_movements()
+            self._advance_movements()
             return [m for m in self.movements.values() if m.is_incoming]
 
     def get_outgoing_movements(self) -> list[Movement]:
         """The local player's armies heading to their targets, returns excluded."""
         with self._lock:
-            self._prune_stale_movements()
+            self._advance_movements()
             return [m for m in self.movements.values() if m.is_outgoing]
 
     def get_incoming_attacks(self) -> list[Movement]:
         """Get all incoming attack movements.
 
-        Attacks whose arrival packet was missed are pruned, so this never
-        reports an attack that landed more than STALE_MOVEMENT_GRACE ago.
+        Attacks whose travel time is up are dropped first, so this never
+        reports one that has landed.
         """
         with self._lock:
-            self._prune_stale_movements()
+            self._advance_movements()
             return [m for m in self.movements.values() if m.is_incoming and m.is_attack]
 
     def get_movement_by_id(self, movement_id: int) -> Movement | None:
         """Get a specific movement by ID."""
         with self._lock:
-            mov = self.movements.get(movement_id)
-            if mov is None:
-                return None
-            # O(1) staleness check: don't turn a point lookup into a full scan
-            if self._is_stale(mov):
-                del self.movements[movement_id]
-                return None
-            return mov
+            self._advance_movements()
+            return self.movements.get(movement_id)
 
     def get_castles(self) -> list[Castle]:
         """Get a snapshot of the player's castles.
@@ -987,7 +1005,7 @@ class GameState:
         """When a packet (or gbd sub-packet) of this kind was last applied.
 
         Accepts the wire ids this manager tracks — "gbd", "lli", "gam", "dcl",
-        "mov", "atv", "ata", "mrm", "sce", "sei" — and the gbd sub-packet keys
+        "abr", "asr", "mcm", "mrm", "mfc", "sce", "sei" — and the gbd sub-packet keys
         "gpi", "gxp", "gcu", "vip", "gal", "gcl", which carry data that never
         arrives on its own. ``None`` means none was ever seen; packets this
         manager ignores are never recorded.

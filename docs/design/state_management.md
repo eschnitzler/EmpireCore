@@ -63,9 +63,10 @@ commands to handlers:
 |--------------|---------------------------------------------------|
 | `gbd`, `lli` | initial login data: player, castles, inventory    |
 | `gam`        | full movement list refresh                        |
-| `mov`        | real-time single-movement update                  |
-| `atv`, `ata` | movement/attack arrived → removed                 |
-| `mrm`        | movement recalled → removed                       |
+| `abr`, `asr` | one movement pushed as it nears its target        |
+| `mcm`        | your recall: the movement, now heading home       |
+| `mrm`        | server removed a movement                         |
+| `mfc`        | movement can be force-cancelled                   |
 | `dcl`        | detailed castle resources / units                 |
 | `sce`        | inventory update                                   |
 | `sei`        | active event ids                                   |
@@ -111,20 +112,21 @@ the container.
 * `time_remaining` and `has_arrived()` are computed against wall-clock time
   (extrapolated from the last packet's `TT - PT`), so they keep counting down
   between updates instead of freezing at the last snapshot.
-* Movements are removed on their `atv`/`ata`/`mrm` packet. If that packet is
-  missed, the movement is pruned once its estimated arrival is more than
-  `STALE_MOVEMENT_GRACE` (300s) in the past, so `movements` can't grow without
-  bound in a long-running session.
-* Pruning runs on every path that inserts movements — the `gam` full refresh
-  *and* pushed `mov` packets — and again inside the list queries
-  (`get_all_movements`, `get_incoming_movements`, `get_outgoing_movements`,
-  `get_incoming_attacks`). A consumer driven purely by push callbacks may never
-  call `gam`, and would otherwise keep being shown attacks that already landed.
-  `get_movement_by_id` checks only the movement asked for and drops that one if
-  it is stale, so the point lookup stays O(1).
-* On the insert paths the prune runs *after* storing, so a movement the packet
-  just refreshed is never dropped and immediately re-created — which would
-  re-fire `on_incoming_attack` for an attack already alerted on.
+* The server sends no arrival packet. As in the game client, a movement
+  arrives once its travel time is up (`estimated_arrival`), and leaves state at
+  `estimated_end`: the same moment, except for an army that waits at its
+  target (a stationed support, `UM.TWD`), which stays until its wait is over.
+  `mrm` removes a movement early.
+* The check runs after every packet, handled or not, and inside every movement
+  query, so arrivals fire with the first packet or query after the travel time
+  is up. `gam` does not remove movements it no longer lists.
+* A packet's movements are stored *before* the check runs, so a movement the
+  packet just refreshed is never dropped and re-created, which would re-fire
+  `on_incoming_attack` for an attack already alerted on.
+* A movement first seen after it arrived (a support already stationed at
+  login, or an attack reported late) is not an arrival and does not alert.
+* An army's way home is a separate movement: a new `MID`, typed TRAVEL, with
+  `D == 1` and source and target swapped.
 
 ## Reactive Callbacks
 
@@ -139,16 +141,21 @@ def arrived(movement_id, movement):       # arrival/recall: id + Movement (or No
     print(f"Movement {movement_id} arrived: {movement}")
 
 client.state.on_incoming_attack(alert)
-client.state.on_movement_arrived(arrived)   # likewise on_movement_recalled
+client.state.on_movement_arrived(arrived)   # likewise on_movement_recalled / _removed
 ```
 
 The signatures differ per event. `on_incoming_attack` callbacks take the
-`Movement`. `on_movement_arrived` / `on_movement_recalled` callbacks take
-either just the movement id (`def cb(movement_id): ...`) or the id plus the
-`Movement` that was removed from state — prefer the two-argument form: the
-movement is already gone from state when the callback runs, so the id alone
-cannot be resolved (`movement` is `None` only for movements this state never
-tracked, e.g. arrivals during a disconnect window).
+`Movement`. `on_movement_arrived` / `on_movement_recalled` /
+`on_movement_removed` callbacks take either just the movement id
+(`def cb(movement_id): ...`) or the id plus the `Movement`. Prefer the
+two-argument form: an arrived or removed movement is usually gone from state
+when the callback runs, so the id alone cannot be resolved. `movement` is
+`None` only for an `mrm` about a movement this state never tracked.
+
+* `on_movement_arrived`: travel time is up (see above). Fires once.
+* `on_movement_recalled`: the `mcm` reply to your own recall, with the
+  movement heading home.
+* `on_movement_removed`: the server sent `mrm`. It does not say why.
 
 `on_incoming_attack` fires **once** per newly seen hostile attack (not on every
 `gam` refresh, and not for the local player's own outgoing attacks). Callbacks
