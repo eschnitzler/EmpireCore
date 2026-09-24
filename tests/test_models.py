@@ -1,6 +1,7 @@
 """Tests for the protocol model registry and base behaviors."""
 
 import logging
+from typing import Any
 
 import pytest
 from pydantic import Field, ValidationError
@@ -747,7 +748,7 @@ class TestGoldenRankingPayloads:
 # =============================================================================
 
 # One gam wrapper in the shape the server sends (live capture, names scrubbed)
-GOOD_MOVEMENT = {
+GOOD_MOVEMENT: dict[str, Any] = {
     "M": {
         "MID": 1,
         "PT": 10,
