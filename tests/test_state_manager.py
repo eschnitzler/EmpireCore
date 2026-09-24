@@ -471,7 +471,7 @@ class TestCastleUpdatesAreAtomic:
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Renamed"), (2, "New")])})
 
         assert state.castles[1] is castle, "user-held castle reference went stale"
-        assert castle.N == "Renamed"
+        assert castle.name == "Renamed"
 
     def test_gcl_relocation_has_no_observable_intermediate_coords(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")], x=10, y=20)})
@@ -488,7 +488,7 @@ class TestCastleUpdatesAreAtomic:
         with patch.object(Castle, "__setattr__", spy):
             state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")], x=30, y=40)})
 
-        assert (castle.X, castle.Y) == (30, 40)
+        assert (castle.x, castle.y) == (30, 40)
         assert all(seen in ((10, 20), (30, 40)) for seen in observed), f"castle observable mid-relocation: {observed}"
 
 
@@ -766,6 +766,71 @@ class TestAllianceMembership:
         state.update_from_packet("gbd", {"gpi": {"PID": 7}})
 
         assert state.get_local_player().alliance is not None
+
+
+class TestCastleDetails:
+    # A live dcl entry for a main castle, trimmed
+    ENTRY = {
+        "AID": 1,
+        "W": 7000.0,
+        "S": 6500.0,
+        "F": 7000.0,
+        "A": 12.0,
+        "C": 0.0,
+        "O": 3.0,
+        "D": 57,
+        "B": 1,
+        "WS": 1,
+        "DW": 0,
+        "H": 1,
+        "MC": 5,
+        "AC": [[656, 1], [650, 213]],
+        "SHI": [[650, 4]],
+        "gpa": {
+            "P": 80,
+            "NDP": 11927,
+            "MRW": 7000,
+            "MRS": 7000,
+            "MRF": 7000,
+            "MRA": 51000,
+            "DW": 2239,
+            "DS": 1952,
+            "DF": 3502,
+            "SAFE_W": 1000.0,
+            "SAFE_S": 1000.0,
+            "SAFE_F": 1000.0,
+        },
+    }
+
+    def _castle(self, state: GameState, entry: dict) -> Castle:
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
+        state.update_from_packet("dcl", {"C": [{"KID": 0, "AI": [entry]}]})
+        return state.get_castles()[0]
+
+    def test_every_dcl_field_lands_on_the_castle(self, state):
+        castle = self._castle(state, self.ENTRY)
+        r = castle.resources
+        assert (r.wood, r.stone, r.food, r.aquamarine, r.oil) == (7000, 6500, 7000, 12, 3)
+        assert (r.wood_cap, r.capacity.aquamarine) == (7000, 51000)
+        assert (r.wood_rate, r.stone_rate, r.food_rate) == (223.9, 195.2, 350.2)
+        assert r.wood_safe == 1000.0
+        assert (castle.population, castle.neutral_deco_points, castle.defence) == (80, 11927, 57)
+        assert castle.market_carriages == 5
+        assert castle.has_barracks and castle.has_siege_workshop and castle.has_hospital
+        assert not castle.has_defense_workshop
+        assert castle.units == {656: 1, 650: 213}
+        assert castle.stronghold_units == {650: 4}
+
+    def test_castle_without_details_reads_zero(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
+        castle = state.get_castles()[0]
+        assert castle.details is None
+        assert (castle.population, castle.market_carriages, castle.has_hospital) == (0, 0, False)
+
+    def test_malformed_entry_keeps_the_old_details(self, state):
+        castle = self._castle(state, self.ENTRY)
+        state.update_from_packet("dcl", {"C": [{"KID": 0, "AI": [{**self.ENTRY, "AC": "junk"}]}]})
+        assert castle.resources.wood == 7000 and castle.market_carriages == 5
 
 
 class TestCastleStaleDrop:

@@ -282,13 +282,6 @@ _SNAKE_CASE_ALIASES = {
         ("x", "X"),
         ("y", "Y"),
         ("kingdom_id", "KID"),
-        ("population", "P"),
-        ("next_day_population", "NDP"),
-        ("max_castellans", "MC"),
-        ("has_barracks", "B"),
-        ("has_workshop", "WS"),
-        ("has_dwelling", "DW"),
-        ("has_harbour", "H"),
     ],
     "Player": [
         ("id", "PID"),
@@ -336,7 +329,8 @@ def test_state_models_expose_snake_case_aliases_for_wire_fields(model_name: str)
     for snake, wire in _SNAKE_CASE_ALIASES[model_name]:
         if snake in fields:
             assert fields[snake].alias == wire, f"{model_name}.{snake} is not aliased to {wire}"
-            assert getattr(model_cls.model_validate({wire: 7}), snake) == 7
+            value = "x" if fields[snake].annotation is str else 7
+            assert getattr(model_cls.model_validate({wire: value}), snake) == value
         else:
             assert getattr(instance, snake) == getattr(instance, wire), f"{model_name}.{snake} != .{wire}"
 

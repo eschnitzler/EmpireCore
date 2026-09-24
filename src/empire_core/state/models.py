@@ -2,37 +2,73 @@ from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
+from empire_core.protocol.models.castle import (
+    DetailedCastleInfo,
+    ResourceProduction,
+    SafeAmount,
+    StorageCapacity,
+)
+
 
 class Resources(BaseModel):
-    """Resources in a castle."""
+    """A castle's resources: stock, storage capacity, hourly production and plunder-safe amount.
 
-    # Basic resources
-    wood: int = 0
-    stone: int = 0
-    food: int = 0
+    Filled from the castle's ``dcl`` entry. Client: ``DetailedCastleVO.parseData``.
+    """
 
-    # Capacity (from dcl packet)
-    wood_cap: int = 0  # MRW (Max Resource Wood)
-    stone_cap: int = 0  # MRS (Max Resource Stone)
-    food_cap: int = 0  # MRF (Max Resource Food)
+    wood: int = Field(default=0, description="Stock, W")
+    stone: int = Field(default=0, description="Stock, S")
+    food: int = Field(default=0, description="Stock, F")
+    coal: int = Field(default=0, description="Stock, C")
+    oil: int = Field(default=0, description="Stock, O")
+    glass: int = Field(default=0, description="Stock, G")
+    iron: int = Field(default=0, description="Stock, I")
+    aquamarine: int = Field(default=0, description="Stock, A")
+    honey: int = Field(default=0, description="Stock, HONEY")
+    mead: int = Field(default=0, description="Stock, MEAD")
+    beef: int = Field(default=0, description="Stock, BEEF")
 
-    # Production rates (from dcl packet)
-    wood_rate: float = 0.0  # RS1
-    stone_rate: float = 0.0  # RS2
-    food_rate: float = 0.0  # RS3
+    capacity: StorageCapacity = Field(default_factory=StorageCapacity, description="Storage cap, gpa MR<key>")
+    production: ResourceProduction = Field(
+        default_factory=ResourceProduction, description="Production per hour, gpa D<key> / 10"
+    )
+    safe: SafeAmount = Field(default_factory=SafeAmount, description="Amount safe from plunder, gpa SAFE_<key>")
 
-    # Safe storage
-    wood_safe: float = 0.0  # SAFE_W
-    stone_safe: float = 0.0  # SAFE_S
-    food_safe: float = 0.0  # SAFE_F
+    @property
+    def wood_cap(self) -> int:
+        return self.capacity.wood
 
-    # Special resources
-    iron: int = 0  # MRI
-    honey: int = 0  # MRHONEY
-    mead: int = 0  # MRMEAD
-    beef: int = 0  # MRBEEF
-    glass: int = 0  # MRG
-    ash: int = 0  # MRA
+    @property
+    def stone_cap(self) -> int:
+        return self.capacity.stone
+
+    @property
+    def food_cap(self) -> int:
+        return self.capacity.food
+
+    @property
+    def wood_rate(self) -> float:
+        return self.production.wood
+
+    @property
+    def stone_rate(self) -> float:
+        return self.production.stone
+
+    @property
+    def food_rate(self) -> float:
+        return self.production.food
+
+    @property
+    def wood_safe(self) -> float:
+        return self.safe.wood
+
+    @property
+    def stone_safe(self) -> float:
+        return self.safe.stone
+
+    @property
+    def food_safe(self) -> float:
+        return self.safe.food
 
 
 class Building(BaseModel):
@@ -76,11 +112,9 @@ class Alliance(BaseModel):
 class Castle(BaseModel):
     """A castle, outpost or metropolis owned by the logged-in player.
 
-    Note on naming: the fields are still the raw GGE wire keys (``OID``, ``N``,
-    ``KID``, ...) because packets are fed in unchanged, but every one of them has
-    a snake_case read-only property (``id``, ``name``, ``kingdom_id``, ...).
-    Public code should use the snake_case names: the wire keys are protocol
-    detail and may become aliases in a future release.
+    Name, position and kingdom come from the castle list (``gcl``); everything
+    else from the castle's ``dcl`` entry, kept whole as ``details`` and
+    ``None`` until one has been received.
 
     Not to be confused with :class:`empire_core.protocol.models.castle.CastleInfo`,
     which is the parsed *protocol* model for another player's castle.
@@ -88,79 +122,64 @@ class Castle(BaseModel):
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
-    OID: int = Field(default=-1)  # Object ID / Area ID (AID)
-    N: str = Field(default="Unknown")  # Name
-    KID: int = Field(default=0)  # Kingdom ID
-    X: int = Field(default=0)  # X coordinate
-    Y: int = Field(default=0)  # Y coordinate
+    id: int = Field(default=-1, alias="OID", description="Castle (area) id")
+    name: str = Field(default="Unknown", alias="N", description="Castle name")
+    kingdom_id: int = Field(default=0, alias="KID", description="Kingdom id")
+    x: int = Field(default=0, alias="X", description="Map x")
+    y: int = Field(default=0, alias="Y", description="Map y")
 
-    # Castle details (from dcl packet)
-    P: int = Field(default=0)  # Population
-    NDP: int = Field(default=0)  # Next Day Population
-    MC: int = Field(default=0)  # Max Castellans
-    B: int = Field(default=0)  # Has Barracks
-    WS: int = Field(default=0)  # Has Workshop
-    DW: int = Field(default=0)  # Has Dwelling
-    H: int = Field(default=0)  # Has Harbour
-
-    # Python-friendly aliases
-    @property
-    def id(self) -> int:
-        return self.OID
-
-    @property
-    def name(self) -> str:
-        return self.N
-
-    @property
-    def x(self) -> int:
-        return self.X
-
-    @property
-    def y(self) -> int:
-        return self.Y
-
-    @property
-    def kingdom_id(self) -> int:
-        return self.KID
-
-    @property
-    def population(self) -> int:
-        return self.P
-
-    @property
-    def next_day_population(self) -> int:
-        return self.NDP
-
-    @property
-    def max_castellans(self) -> int:
-        return self.MC
-
-    @property
-    def has_barracks(self) -> bool:
-        return bool(self.B)
-
-    @property
-    def has_workshop(self) -> bool:
-        return bool(self.WS)
-
-    @property
-    def has_dwelling(self) -> bool:
-        return bool(self.DW)
-
-    @property
-    def has_harbour(self) -> bool:
-        return bool(self.H)
-
-    resources: Resources = Field(default_factory=Resources)
+    resources: Resources = Field(default_factory=Resources, description="Filled from dcl")
     buildings: list[Building] = Field(default_factory=list)
-    units: dict[int, int] = Field(default_factory=dict)
+    units: dict[int, int] = Field(default_factory=dict, description="Units stationed here, dcl AC")
+    details: DetailedCastleInfo | None = Field(default=None, description="The castle's last dcl entry")
 
     raw_data: dict[str, Any] = Field(default_factory=dict, exclude=True)
 
+    @property
+    def population(self) -> int:
+        """gpa P."""
+        area = self.details.production_area if self.details else None
+        return area.population if area else 0
+
+    @property
+    def neutral_deco_points(self) -> int:
+        """gpa NDP."""
+        area = self.details.production_area if self.details else None
+        return area.neutral_deco_points if area else 0
+
+    @property
+    def defence(self) -> int:
+        """dcl D."""
+        return self.details.defense_value if self.details else 0
+
+    @property
+    def market_carriages(self) -> int:
+        """dcl MC: the castle's total market carriages."""
+        return self.details.market_carriages if self.details else 0
+
+    @property
+    def has_barracks(self) -> bool:
+        return bool(self.details and self.details.has_barracks)
+
+    @property
+    def has_siege_workshop(self) -> bool:
+        return bool(self.details and self.details.has_siege_workshop)
+
+    @property
+    def has_defense_workshop(self) -> bool:
+        return bool(self.details and self.details.has_defense_workshop)
+
+    @property
+    def has_hospital(self) -> bool:
+        return bool(self.details and self.details.has_hospital)
+
+    @property
+    def stronghold_units(self) -> dict[int, int]:
+        """Units in the stronghold, dcl SHI."""
+        return self.details.stronghold_units if self.details else {}
+
     @classmethod
     def from_game_data(cls, data: dict[str, Any]) -> "Castle":
-        # Mapping logic for 'gcl' (Global Castle List) / 'gbd' payload
         return cls(**data)
 
 

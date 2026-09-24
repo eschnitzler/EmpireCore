@@ -434,14 +434,14 @@ class AttackService(BaseService):
         missing, so a fully specified target costs nothing.
         """
         castles = getattr(self.client.state, "get_castles", list)() or []
-        source = next((c for c in castles if getattr(c, "OID", None) == castle_id), None)
-        home_kingdom = source.KID if source is not None else 0
+        source = next((c for c in castles if getattr(c, "id", None) == castle_id), None)
+        home_kingdom = source.kingdom_id if source is not None else 0
         if target.kingdom_id is None:
             target.kingdom_id = home_kingdom
         if target.source_x is None:
-            target.source_x = source.X if source is not None else 0
+            target.source_x = source.x if source is not None else 0
         if target.source_y is None:
-            target.source_y = source.Y if source is not None else 0
+            target.source_y = source.y if source is not None else 0
 
         if target.wants_precalculation():
             self._read_precalculation(target, timeout=timeout)

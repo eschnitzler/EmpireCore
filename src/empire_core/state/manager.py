@@ -10,7 +10,15 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from empire_core.state.models import Alliance, Castle, Player
+from pydantic import ValidationError
+
+from empire_core.protocol.models.castle import (
+    DetailedCastleInfo,
+    ResourceProduction,
+    SafeAmount,
+    StorageCapacity,
+)
+from empire_core.state.models import Alliance, Castle, Player, Resources
 from empire_core.state.world_models import Movement, MovementResources
 
 logger = logging.getLogger(__name__)
@@ -542,8 +550,8 @@ class GameState:
                     # written one at a time, a castle mid-relocation would
                     # be observably at (new_x, old_y).
                     merged = dict(existing.__dict__)
-                    merged.update({"N": name, "KID": kid, "X": x, "Y": y})
-                    self._swap_model_fields(existing, merged, {"N", "KID", "X", "Y"})
+                    merged.update({"name": name, "kingdom_id": kid, "x": x, "y": y})
+                    self._swap_model_fields(existing, merged, {"name", "kingdom_id", "x", "y"})
                     owned[area_id] = existing
                 else:
                     owned[area_id] = Castle(OID=area_id, N=name, KID=kid, X=x, Y=y)
@@ -675,49 +683,55 @@ class GameState:
             self._dispatch_movement_event(self._movement_arrived_callbacks, mov.movement_id, mov)
 
     def _handle_dcl(self, data: dict[str, Any]) -> None:
-        """Handle 'Detailed Castle List' response."""
-        kingdoms = data.get("C", [])
+        """Handle 'Detailed Castle List' response.
 
-        for k_data in kingdoms:
-            area_infos = k_data.get("AI", [])
-            for castle_data in area_infos:
+        Each entry is parsed with the protocol model, then the castle's
+        resources, units and details are replaced whole: get_castles() hands
+        out live Castle objects, so editing them in place would let readers see
+        a half-updated castle.
+
+        Client: ``DetailedCastleVO.parseData``.
+        """
+        for k_data in data.get("C", []):
+            if not isinstance(k_data, dict):
+                continue
+            for castle_data in k_data.get("AI", []):
                 if not isinstance(castle_data, dict):
                     continue
-
                 aid = castle_data.get("AID")
                 if aid is None or aid not in self.castles:
                     continue
                 castle = self.castles[aid]
-
                 try:
-                    # Build replacements first, then swap them in. get_castles()
-                    # hands out live Castle objects, so editing them in place is
-                    # visible to readers mid-update (torn resources, or
-                    # dictionary-changed-size while iterating units).
-                    res = castle.resources
-                    castle.resources = res.model_copy(
-                        update={
-                            "wood": int(castle_data.get("W", res.wood)),
-                            "stone": int(castle_data.get("S", res.stone)),
-                            "food": int(castle_data.get("F", res.food)),
-                        }
+                    info = DetailedCastleInfo.model_validate(
+                        {**castle_data, "KID": k_data.get("KID", castle.kingdom_id)}
                     )
-
-                    # Update units from AC array
-                    # AC: [[unit_id, count], ...]
-                    ac = castle_data.get("AC", [])
-                    if ac:
-                        new_units: dict[int, int] = {}
-                        for u_data in ac:
-                            if isinstance(u_data, list) and len(u_data) >= 2:
-                                new_units[u_data[0]] = u_data[1]
-                        castle.units = new_units
-
-                    # Only now is this castle's detail data actually fresh
-                    self._castle_details_at[aid] = time.time()
-                except (ValueError, TypeError) as e:
+                except ValidationError as e:
                     # One malformed castle entry must not abort the rest
                     logger.debug(f"Skipping malformed dcl entry for castle {aid}: {e}")
+                    continue
+
+                area = info.production_area
+                castle.resources = Resources(
+                    wood=info.wood,
+                    stone=info.stone,
+                    food=info.food,
+                    coal=info.coal,
+                    oil=info.oil,
+                    glass=info.glass,
+                    iron=info.iron,
+                    aquamarine=info.aquamarine,
+                    honey=info.honey,
+                    mead=info.mead,
+                    beef=info.beef,
+                    capacity=area.storage_capacity if area else StorageCapacity(),
+                    production=area.production if area else ResourceProduction(),
+                    safe=area.safe_amount if area else SafeAmount(),
+                )
+                if info.raw_units:
+                    castle.units = info.units
+                castle.details = info
+                self._castle_details_at[aid] = time.time()
 
     def _handle_mrm(self, data: dict[str, Any]) -> None:
         """Handle mrm, the server removing a movement.

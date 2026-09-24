@@ -775,8 +775,8 @@ class EmpireClient:
         if self.state:
             # Find a castle in the target kingdom
             for castle in self.state.get_castles():
-                if castle.KID == kingdom.value:
-                    return (castle.X, castle.Y)
+                if castle.kingdom_id == kingdom.value:
+                    return (castle.x, castle.y)
 
         # No castle in this kingdom - use map center as fallback
         return (650, 650)
