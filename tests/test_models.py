@@ -887,12 +887,15 @@ class TestPositionalArrayParsers:
         with pytest.raises(ValidationError):
             MapAreaItem.from_list(data)
 
-    @pytest.mark.parametrize(
-        "data", [[], [[]], [0], [0, 1], [0, 1, 2], [0, 1, 2, 3], ["a", "b", "c", "d", "e"], "abcde"]
-    )
+    @pytest.mark.parametrize("data", [[], [[]], [0], [0, 1], [0, 1, 2], ["a", "b", "c", "d", "e"], "abcde"])
     def test_castle_position_rows_that_do_not_fit_are_skipped(self, data):
         member = AllianceMember.model_validate({"OID": 1, "AP": [data, [0, 12345, 640, 655, 1]]})
         assert [(c.area_id, c.area_type) for c in member.castle_positions] == [(12345, 1)]
+
+    def test_a_castle_position_without_its_area_type_is_kept(self):
+        # MinWorldMapCastleInfoVO.fillFromParamObject reads row[4] raw, so a four-field row still counts
+        member = AllianceMember.model_validate({"OID": 1, "AP": [[0, 12345, 640, 655]]})
+        assert [(c.area_id, c.area_type) for c in member.castle_positions] == [(12345, 0)]
 
     def test_castle_positions_unwrap_a_doubly_nested_entry(self):
         member = AllianceMember.model_validate(
@@ -1104,3 +1107,50 @@ class TestRenameCastle:
 
     def test_the_reply_reads_p(self):
         assert RenameCastleResponse.model_validate({"CID": 1, "KID": 2, "P": 0}).is_rename == 0
+
+
+class TestOwnerRecordLeniency:
+    """Values the client reads through parseInt, int() or raw must not fail a whole reply."""
+
+    def test_a_null_or_odd_crest_faction_or_alliance_crest_still_parses(self):
+        from empire_core.protocol.models import GetMapAreaResponse
+
+        owner = {
+            "OID": 5,
+            "E": {"IS": 2, "S1": None, "SC1": "#ff0000"},
+            "FN": {"FID": 1, "PMS": None},
+            "aee": {"ACCA": {"ACLI": 1, "ACCS": None}},
+        }
+        response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [], "OI": [owner]})
+        record = response.owners[0]
+        assert record.emblem is not None and record.emblem.is_set is True
+        assert record.emblem.symbol1_color == 0xFF0000
+        assert record.faction is not None and record.faction.protection_status == 0
+        assert record.alliance_emblem is not None and record.alliance_emblem.crest is not None
+        assert record.alliance_emblem.crest.color_ids == []
+
+    def test_an_unhashable_area_type_costs_only_its_row(self):
+        from empire_core.protocol.models import GetMapAreaResponse
+
+        response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [[[1], 2, 3, 4], [2, 5, 6, -1, 0, 0, 0]]})
+        assert [item.item_type for item in response.items] == [2]
+
+    def test_a_gcl_row_that_cannot_be_read_costs_only_itself(self):
+        from empire_core.protocol.models import GetCastlesResponse
+
+        bad = [3, 10, 20, 99, 5, None, None, None, None, None, None, 0, 0, 0, 77, 0, 0]
+        good = [1, 30, 40, 100, 5, 1, 1, 1, 1, 1, "Home", 0, 0, 0, 77, 0, 0]
+        response = GetCastlesResponse.model_validate({"C": [{"KID": 0, "AI": [{"AI": bad}, {"AI": good}]}]})
+        assert [castle.castle_id for castle in response.castles] == [100]
+
+
+class TestLeaderboardLeniency:
+    def test_null_and_odd_values_read_as_the_getter_defaults(self):
+        from empire_core.protocol.models import GetRankingListResponse
+
+        response = GetRankingListResponse.model_validate(
+            {"L": [{"R": 1, "S": 10, "P": "a", "A": None}, {"R": None, "S": None, "P": None, "I": "abc"}]}
+        )
+        first, second = response.scores
+        assert (first.rank, first.alliance_name) == (1, "")
+        assert (second.rank, second.score, second.player_name, second.instance_id) == (-1, -1, "", 0)

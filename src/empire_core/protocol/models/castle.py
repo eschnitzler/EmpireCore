@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from .base import BasePayload, BaseRequest, BaseResponse, Position, ResourceAmount
 
@@ -246,6 +246,7 @@ class GetCastlesResponse(BaseResponse):
                     "the castle list may be incomplete"
                 )
         castles = []
+        unparsed = 0
         for kid, entry in _kingdom_entries(section):
             row = entry.get("AI")
             if isinstance(row, list) and len(row) == 1 and isinstance(row[0], list):
@@ -255,7 +256,12 @@ class GetCastlesResponse(BaseResponse):
             if not (isinstance(row, list) and len(row) > 10):
                 logger.debug(f"Skipping malformed gcl row: {entry!r}")
                 continue
-            castles.append(CastleInfo.from_entry(entry, kid))
+            try:
+                castles.append(CastleInfo.from_entry(entry, kid))
+            except (ValidationError, TypeError, ValueError):
+                unparsed += 1
+        if unparsed:
+            logger.warning(f"Skipped {unparsed} gcl castle rows that could not be read")
         data["castles"] = castles
         return data
 

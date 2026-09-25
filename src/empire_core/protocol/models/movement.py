@@ -10,7 +10,7 @@ from pydantic import Field, ValidationError, field_validator, model_validator
 
 from empire_core.utils.enums import MapObjectType
 
-from .base import BasePayload, BaseRequest, BaseResponse, Position
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, Position
 from .commanders import Commander
 
 
@@ -254,23 +254,31 @@ class OwnerCrest(BasePayload):
     """
 
     is_set: bool = Field(alias="IS", default=False, description="False means the tutorial crest is shown")
-    symbol_type: int = Field(alias="SPT", default=0)
-    symbol1: int = Field(alias="S1", default=0)
-    symbol1_color: int = Field(alias="SC1", default=0)
-    symbol2: int = Field(alias="S2", default=0)
-    symbol2_color: int = Field(alias="SC2", default=0)
-    background_type: int = Field(alias="BGT", default=0)
-    background_color1: int = Field(alias="BGC1", default=0)
-    background_color2: int = Field(alias="BGC2", default=0)
+
+    @field_validator("is_set", mode="before")
+    @classmethod
+    def _truthy(cls, value: Any) -> bool:
+        return _truthy(value)
+
+    symbol_type: ClientInt = Field(alias="SPT", default=0)
+    symbol1: ClientInt = Field(alias="S1", default=0)
+    symbol1_color: ClientInt = Field(alias="SC1", default=0)
+    symbol2: ClientInt = Field(alias="S2", default=0)
+    symbol2_color: ClientInt = Field(alias="SC2", default=0)
+    background_type: ClientInt = Field(alias="BGT", default=0)
+    background_color1: ClientInt = Field(alias="BGC1", default=0)
+    background_color2: ClientInt = Field(alias="BGC2", default=0)
 
 
 class OwnerFaction(BasePayload):
     """Faction event standing: an owner record's ``FN``."""
 
-    faction_id: int = Field(alias="FID", default=0)
-    protection_status: int = Field(alias="PMS", default=-1)
-    protection_end_seconds: int = Field(alias="PMT", default=0, description="Seconds until faction protection ends")
-    title_id: int = Field(alias="TID", default=0)
+    faction_id: ClientInt = Field(alias="FID", default=0)
+    protection_status: ClientInt = Field(alias="PMS", default=-1)
+    protection_end_seconds: ClientInt = Field(
+        alias="PMT", default=0, description="Seconds until faction protection ends"
+    )
+    title_id: ClientInt = Field(alias="TID", default=0)
 
 
 class OwnerCastlePosition(BasePayload):
@@ -283,13 +291,13 @@ class OwnerCastlePosition(BasePayload):
     area_id: int = Field(description="row[1]")
     x: int = Field(description="row[2]")
     y: int = Field(description="row[3]")
-    area_type: int = Field(description="row[4]")
+    area_type: int = Field(default=0, description="row[4]; a row without it reads as 0")
 
     @model_validator(mode="before")
     @classmethod
     def _from_row(cls, data: Any) -> Any:
-        if isinstance(data, list) and len(data) >= 5:
-            return dict(zip(("kingdom_id", "area_id", "x", "y", "area_type"), data[:5], strict=True))
+        if isinstance(data, list) and len(data) >= 4:
+            return dict(zip(("kingdom_id", "area_id", "x", "y", "area_type"), data[:5], strict=False))
         return data
 
 

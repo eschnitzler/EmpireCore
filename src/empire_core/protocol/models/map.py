@@ -474,7 +474,7 @@ def parse_area_rows(value: Any) -> tuple[list[MapAreaItem], int]:
             continue
         try:
             items.append(MapAreaItem.from_list(row))
-        except ValidationError:
+        except (ValidationError, TypeError):
             skipped += 1
     return items, skipped
 
@@ -487,7 +487,15 @@ class AllianceCrest(BasePayload):
     """
 
     layout_id: ClientInt = Field(alias="ACLI", default=0, description="Crest layout id")
-    color_ids: list[int] = Field(alias="ACCS", default_factory=list, description="Colour ids, one per layout colour")
+    color_ids: list[ClientInt] = Field(
+        alias="ACCS", default_factory=list, description="Colour ids, one per layout colour"
+    )
+
+    @field_validator("color_ids", mode="before")
+    @classmethod
+    def _stored_raw(cls, value: Any) -> Any:
+        # The client stores ACCS as it arrives, so a missing list is no colours
+        return value if isinstance(value, list) else []
 
 
 class AllianceEmblem(BasePayload):

@@ -14,9 +14,9 @@ import logging
 from enum import IntEnum
 from typing import Any, ClassVar
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
-from .base import BasePayload, BaseRequest, BaseResponse, GGECommand
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, GGECommand
 
 logger = logging.getLogger(__name__)
 
@@ -216,6 +216,10 @@ class GetRankingListRequest(BaseRequest):
     rank: int = Field(alias="R")  # Start rank?
 
 
+def _guarded(value: Any, kind: type | tuple[type, ...]) -> Any:
+    return value if isinstance(value, kind) and not isinstance(value, bool) else None
+
+
 class LeaderboardScore(BasePayload):
     """One entry of a global leaderboard page: an entry of ``llsp``'s ``L``.
 
@@ -223,14 +227,29 @@ class LeaderboardScore(BasePayload):
     ``LeaderBoardDataProvider.onScoreDataReceived`` (bundle line 75957).
     """
 
-    rank: int = Field(alias="R", default=-1, description="Rank on the list")
+    rank: ClientInt = Field(alias="R", default=-1, description="Rank on the list")
     score: int | float = Field(alias="S", default=-1, description="Points, shown with Localize.number")
     player_name: str = Field(alias="P", default="", description="Player name")
     alliance_name: str = Field(alias="A", default="", description="Alliance name, empty without one")
-    instance_id: int | None = Field(alias="I", default=None, description="Game server (instance) the player is on")
+    instance_id: ClientInt | None = Field(
+        alias="I", default=None, description="Game server (instance) the player is on"
+    )
     score_id: int | str | None = Field(
         alias="SI", default=None, description="Paging key the client matches search results against; not an owner id"
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _getters_guard_every_key(cls, data: Any) -> Any:
+        # AGlobalLeaderBoardItem's getters fall back on a missing or empty value
+        if not isinstance(data, dict):
+            return data
+        checks: dict[str, type | tuple[type, ...]] = {"S": (int, float), "P": str, "A": str}
+        return {
+            key: value
+            for key, value in data.items()
+            if value is not None and (key not in checks or _guarded(value, checks[key]) is not None)
+        }
 
 
 class GetRankingListResponse(BaseResponse):
