@@ -1,5 +1,7 @@
 """Flank effect maths, ported from the client's combat helpers."""
 
+from typing import ClassVar
+
 import pytest
 
 from empire_core.combat import (
@@ -8,6 +10,7 @@ from empire_core.combat import (
     FillOptions,
     Flank,
     Inventory,
+    LegendaryFight,
     WaveCapacity,
     boost_to_modifier,
     defender_flank_effects,
@@ -17,16 +20,17 @@ from empire_core.combat import (
     fill_waves,
     fill_yard_wave,
     invasion_camp_level,
-    is_legendary_fight,
     max_attackers,
     max_wave_count,
     minimum_owner_level,
     npc_camp_defense,
+    owner_id_from_row,
     pick_soldier_stack,
     wave_level,
     wave_limit_violations,
     yard_capacity,
 )
+from empire_core.combat.capacity import OTHER_PLAYER_INFO_AREA_TYPES
 from empire_core.gamedata import GameData, UnitStats
 from empire_core.protocol.models import AttackWave, WaveFlank
 from empire_core.protocol.models.map import MapAreaItem, MapItemType
@@ -638,11 +642,61 @@ class TestWaveCapacity:
             assert capacity.flank_soldiers == want_flank, f"flank at level {level}"
             assert capacity.middle_soldiers == want_middle, f"middle at level {level}"
 
-    def test_a_legendary_fight_needs_two_capped_players(self):
-        assert is_legendary_fight(70, 70, target_is_player=True)
-        assert not is_legendary_fight(70, 70, target_is_player=False)
-        assert not is_legendary_fight(70, 45, target_is_player=True)
-        assert not is_legendary_fight(60, 70, target_is_player=True)
+    # Expected flags from AttackDialogHelper.isLegendaryFight, CastleAttackArmyVO.init
+    # and the CastleAttackWaveVO constructor, run in node against these inputs:
+    # (attacker level, attacker legend level, target owner level, wave level,
+    # owner id, owner legend level, area type) -> (unit amount, extra wave, flank tools).
+    LEGENDARY_CASES: ClassVar[list] = [
+        pytest.param((70, 1, 70, 70, 4242, 1, 1), (True, True, True), id="legend player"),
+        pytest.param((70, 1, 70, 70, 4242, 0, 1), (False, True, True), id="level 70 player, no legend level"),
+        pytest.param((70, 0, 70, 70, 4242, 3, 1), (False, False, True), id="attacker without legend level"),
+        pytest.param((50, 0, 70, 70, 4242, 0, 26), (True, False, False), id="low player's monument"),
+        pytest.param((70, 1, 75, 75, -1000, 0, 21), (True, True, True), id="alien camp at 75"),
+        pytest.param((70, 1, 60, 60, -1002, 0, 34), (False, False, False), id="red alien camp at 60"),
+        pytest.param((70, 1, 70, 70, -202, 0, 2), (False, False, False), id="robber baron camp"),
+        pytest.param((70, 1, 70, 70, -1103, 0, 1), (False, False, True), id="listed collector"),
+        pytest.param((70, 1, 70, 70, -1108, 0, 1), (False, False, False), id="collector isCollectorPlayer skips"),
+        pytest.param((70, 1, 70, 70, 4242, 1, 17), (True, True, False), id="faction tower"),
+    ]
+
+    @pytest.mark.parametrize(("case", "flags"), LEGENDARY_CASES)
+    def test_the_three_legendary_rules_match_the_client(self, case, flags):
+        attacker_level, attacker_legend, owner_level, level, owner_id, owner_legend, area_type = case
+
+        fight = LegendaryFight.evaluate(
+            attacker_level=attacker_level,
+            attacker_legend_level=attacker_legend,
+            target_owner_level=owner_level,
+            wave_level=level,
+            owner_id=owner_id,
+            owner_legend_level=owner_legend,
+            area_type=area_type,
+            has_other_player_info=area_type in OTHER_PLAYER_INFO_AREA_TYPES,
+        )
+
+        assert (fight.unit_amount, fight.extra_wave, fight.flank_tools) == flags
+
+    def test_a_target_without_owner_info_gets_no_legend_skills(self):
+        fight = LegendaryFight.evaluate(
+            attacker_level=70,
+            attacker_legend_level=5,
+            target_owner_level=70,
+            wave_level=70,
+            owner_id=None,
+            owner_legend_level=5,
+            area_type=1,
+            has_other_player_info=True,
+        )
+
+        assert not (fight.unit_amount or fight.extra_wave or fight.flank_tools)
+
+    def test_the_owner_id_comes_from_the_row_or_the_alien_class(self):
+        assert owner_id_from_row([1, 5, 6, 900, 4242, 1, 1, 1, 0, 0, "castle"]) == 4242
+        assert owner_id_from_row([1, 5, 6, 900]) is None
+        assert owner_id_from_row([21, 5, 6, 75, 0, 0, 30, 30, 0]) == -1000
+        assert owner_id_from_row([34, 5, 6, 75]) == -1002
+        assert owner_id_from_row([2, 5, 6, 0, 12, 0]) is None
+        assert owner_id_from_row(None) is None
 
     def test_bonuses_are_not_clamped(self):
         # An earlier version clamped these at 50%, which reproduced one target

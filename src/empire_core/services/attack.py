@@ -31,6 +31,7 @@ from empire_core.combat import (
     legend_skill_value,
     minimum_owner_level,
     npc_camp_defense,
+    owner_id_from_row,
     sceat_skill_bonuses,
     spied_castle_defense,
     wave_level,
@@ -38,7 +39,7 @@ from empire_core.combat import (
     yard_capacity,
 )
 from empire_core.combat import fill_waves as solve_waves
-from empire_core.combat.capacity import is_legendary_fight
+from empire_core.combat.capacity import ALIEN_INVASION_AREA_TYPES, OTHER_PLAYER_INFO_AREA_TYPES, LegendaryFight
 from empire_core.exceptions import AttackInProgressError, CommandError, EmpireError, GameDataNotLoadedError
 from empire_core.gamedata import GameData
 from empire_core.protocol.errors import GGEError
@@ -68,7 +69,7 @@ from empire_core.protocol.models import (
     GetVillageAttackInfoResponse,
 )
 from empire_core.protocol.models.base import BaseRequest
-from empire_core.protocol.models.map import GetMapAreaResponse, MapAreaItem, MapItemType
+from empire_core.protocol.models.map import GetMapAreaResponse, MapAreaItem, MapItemType, MapObject
 from empire_core.services.spy_army import SpyArmy
 from empire_core.utils.enums import Kingdom
 
@@ -197,6 +198,7 @@ class _Target:
     row: list | None = None
     area_type: int | None = None
     level: int | None = None
+    owner_legend_level: int | None = None
     is_player: bool = False
     camp_victories: int | None = None
     camp_kingdom_id: int = 0
@@ -403,6 +405,9 @@ class AttackService(BaseService):
         sceat_skill_ids: list[int] | None = None,
         global_effect_ids: list[int] | list[list[int]] | None = None,
         target_is_player: bool = False,
+        owner_id: int | None = None,
+        owner_legend_level: int = 0,
+        attacker_legend_level: int | None = None,
         flank_bonus_percent: float = 0.0,
         front_bonus_percent: float = 0.0,
         tool_bonus: float = 0.0,
@@ -420,6 +425,10 @@ class AttackService(BaseService):
         Only units are placed. The game's button also fills tool slots, which
         needs the tool effect tables resolved, so waves from here carry no
         siege tools yet.
+
+        Client: ``AttackDialogWaveHandler.initWaves`` and ``updateMaxUnitCount``
+        (bundle lines 102525-102541), ``CastleAttackArmyVO.init`` (55831) and
+        the ``CastleAttackWaveVO`` constructor (99927).
 
         Args:
             castle_id: Castle whose troops to draw from
@@ -450,11 +459,17 @@ class AttackService(BaseService):
             general_skill_ids: Unlocked skill ids of the general leading the
                 attack, from ``gie``; its unit-limit skills size the wave
             legend_skill_ids: The player's unlocked legend skills, from
-                ``skl``. They only contribute in a legendary fight - a capped
-                attacker against a capped player - which is also where the two
-                extra waves come from
-            target_is_player: True when the target belongs to a player, which
-                a legendary fight requires
+                ``skl``. Which of them count follows the three rules of
+                :class:`~empire_core.combat.capacity.LegendaryFight`
+            target_is_player: True when the target belongs to a player
+            owner_id: The target owner's player id, see
+                :func:`~empire_core.combat.owner_id_from_row`. An alien
+                invasion camp's is known from its area type. Without one, no
+                legend skill counts
+            owner_legend_level: The target owner's legend level, the ``LL`` of
+                its owner record in a map scan
+            attacker_legend_level: The attacker's legend level; the local
+                player's when not given
             global_effect_ids: Global effects currently running, from ``bie``;
                 either ids or the raw ``[id, seconds_left, strength]`` rows,
                 which carry the live strength.
@@ -479,11 +494,16 @@ class AttackService(BaseService):
 
         player = self.client.state.get_local_player()
         attacker_level = player.level if player else 0
+        if attacker_legend_level is None:
+            attacker_legend_level = player.legendary_level if player else 0
         if level is None:
             raise ValueError("A wave is sized by the level of whoever owns the target; pass level=")
+        target_owner_level = minimum_owner_level(level, area_type, landmark_min_level=landmark_min_level)
         # Some targets defend at a level of their own: a monument is built for
         # level 70 however low its owner is.
         level = wave_level(level, area_type, landmark_min_level=landmark_min_level)
+        if owner_id is None and area_type is not None:
+            owner_id = ALIEN_INVASION_AREA_TYPES.get(area_type)
 
         if defense is None and camp_victories is not None:
             defense = npc_camp_defense(game_data, camp_victories, camp_kingdom_id)
@@ -514,12 +534,24 @@ class AttackService(BaseService):
         if attacker is None and commander_own:
             attacker = attacker_flank_effects(resolver, commander_own, area_type=area_type, player_target=player_target)
 
-        legendary = is_legendary_fight(attacker_level, level, target_is_player=target_is_player)
-        if legendary and legend_skill_ids:
-            flank_bonus_percent += legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFlank")
-            front_bonus_percent += legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFront")
-            wave_bonus += int(legend_skill_value(game_data, legend_skill_ids, "additionalWave"))
-            tool_bonus += legend_skill_value(game_data, legend_skill_ids, "additionalAttackToolAmountFlank")
+        legendary = LegendaryFight.evaluate(
+            attacker_level=attacker_level,
+            attacker_legend_level=attacker_legend_level,
+            target_owner_level=target_owner_level,
+            wave_level=level,
+            owner_id=owner_id,
+            owner_legend_level=owner_legend_level,
+            area_type=area_type,
+            has_other_player_info=area_type in OTHER_PLAYER_INFO_AREA_TYPES,
+        )
+        if legend_skill_ids:
+            if legendary.unit_amount:
+                flank_bonus_percent += legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFlank")
+                front_bonus_percent += legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFront")
+            if legendary.extra_wave:
+                wave_bonus += int(legend_skill_value(game_data, legend_skill_ids, "additionalWave"))
+            if legendary.flank_tools:
+                tool_bonus += legend_skill_value(game_data, legend_skill_ids, "additionalAttackToolAmountFlank")
 
         unit_attack_bonuses = (
             global_unit_attack_bonuses(game_data, global_effect_ids, player_level=attacker_level)
@@ -626,13 +658,17 @@ class AttackService(BaseService):
             if target.level is None and self.client.game_data is not None:
                 player = self.client.state.get_local_player()
                 target.level = invasion_camp_level(self.client.game_data, item, player.level if player else 0)
-        elif target.level is None:
+        elif target.level is None or target.owner_legend_level is None:
             # A player's level is not in the row; it sits in the owner records a
             # scan returns beside it.
             if area is None:
                 area = self._scan_tile(target, timeout=timeout)
-            target.level = self._owner_level(area, item.owner_id, target)
-            target.is_player = target.is_player or target.level is not None
+            owner = self._owner_record(area, item.owner_id, target)
+            if target.level is None:
+                target.level = owner.level if owner is not None else None
+                target.is_player = target.is_player or target.level is not None
+            if target.owner_legend_level is None and owner is not None:
+                target.owner_legend_level = owner.legendary_level
         self._return_to_castle(castle_id, home_kingdom, timeout, scanned=area is not None)
 
     @staticmethod
@@ -748,8 +784,8 @@ class AttackService(BaseService):
         if target.area_bonuses is None:
             target.area_bonuses = info.attacker_bonuses()
 
-    def _owner_level(self, area: GetMapAreaResponse | None, owner_id: int, target: "_Target") -> int | None:
-        """The level of whoever owns a tile, from the scan of that tile."""
+    def _owner_record(self, area: GetMapAreaResponse | None, owner_id: int, target: "_Target") -> MapObject | None:
+        """The owner record of whoever owns a tile, from the scan of that tile."""
         if area is None:
             return None
         # The row's owner id is the owner record's OID; failing that, settle
@@ -763,7 +799,7 @@ class AttackService(BaseService):
         if owner is None:
             logger.debug(f"No owner level came back for {target.x}:{target.y}")
             return None
-        return owner.level
+        return owner
 
     def fill_attack(
         self,
@@ -776,6 +812,8 @@ class AttackService(BaseService):
         source_y: int | None = None,
         target_level: int | None = None,
         target_is_player: bool = False,
+        target_owner_id: int | None = None,
+        target_owner_legend_level: int | None = None,
         camp_victories: int | None = None,
         camp_kingdom_id: int = 0,
         target_row: list | None = None,
@@ -828,6 +866,11 @@ class AttackService(BaseService):
                 Read from the map when coordinates are given, or derived from
                 ``camp_victories`` for a camp
             target_is_player: True for a player's castle or outpost
+            target_owner_id: The target owner's player id, which decides the
+                legend skills; taken from ``target_row`` when not given
+            target_owner_legend_level: The target owner's legend level. Read
+                from the owner records of a one-tile scan when coordinates are
+                given, 0 otherwise
             camp_victories: An NPC camp's victory count
             camp_kingdom_id: Kingdom the camp sits in
             target_row: The target's raw map row, for a castle's structures.
@@ -879,6 +922,7 @@ class AttackService(BaseService):
             row=target_row,
             area_type=area_type,
             level=target_level,
+            owner_legend_level=target_owner_legend_level,
             is_player=target_is_player,
             camp_victories=camp_victories,
             camp_kingdom_id=camp_kingdom_id,
@@ -952,6 +996,8 @@ class AttackService(BaseService):
             sceat_skill_ids=sceat_skill_ids,
             global_effect_ids=global_effect_ids,
             target_is_player=target.is_player,
+            owner_id=target_owner_id if target_owner_id is not None else owner_id_from_row(target.row),
+            owner_legend_level=target.owner_legend_level or 0,
             area_type=target.area_type,
             player_target=target.is_player,
             options=options,

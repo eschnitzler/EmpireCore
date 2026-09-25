@@ -203,6 +203,7 @@ class StubPlayer:
     def __init__(self, alliance_id: int = 0, level: int = 0):
         self.alliance_id = alliance_id
         self.level = level
+        self.legendary_level = 0
 
 
 def stub_player(alliance_id: int = 0, level: int = 0) -> Player:
@@ -2248,6 +2249,39 @@ class TestFillAttack:
         assert "aci" in sent
         assert result.waves
 
+    def test_the_owner_legend_level_comes_from_the_scan(self):
+        from empire_core.gamedata import GameData
+
+        payload = dict(
+            self.UNITS,
+            legendskills=[
+                {
+                    "skillID": "901",
+                    "effectType": "additionalUnitAmountOnFlank",
+                    "totalEffectValue": "30",
+                    "level": "1",
+                    "tier": "5",
+                }
+            ],
+        )
+        row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "castle"]
+        widths = []
+        for legend_level in (0, 5):
+            client = self.build([[601, 100_000]])
+            client.game_data = GameData.parse("test", payload)
+            cast(Any, client.state.local_player).legendary_level = 1
+            conn(client).script["aci"] = xt_packet("aci", {"gaa": {"AI": row}, "S": [], "AE": [], "B": {}})
+            conn(client).script["gaa"] = xt_packet(
+                "gaa", {"AI": [row], "OI": [{"OID": 4242, "N": "owner", "L": 70, "LL": legend_level}]}
+            )
+            result = client.attack.fill_attack(
+                12345, target_x=700, target_y=710, legend_skill_ids=[901], general_skill_ids=[]
+            )
+            widths.append(result.waves[0].model_dump(by_alias=True)["L"]["U"][0][1])
+
+        # getAmountSoldiersFlank(70, 0) and (70, 30), from the client in node.
+        assert widths == [64, 84]
+
     def test_a_conquest_attack_carries_its_extra_waves(self):
         client = self.build([[601, 100_000]])
 
@@ -2293,13 +2327,50 @@ class TestFillAttack:
         # A wall the ladders cannot fully cancel, so the flank fills to capacity.
         defense = {flank: DefenderFlankEffects(wall_bonus=99.0) for flank in Flank}
 
-        plain = client.attack.fill_waves(12345, level=70, target_is_player=True, defense=defense)
-        skilled = client.attack.fill_waves(
-            12345, level=70, target_is_player=True, defense=defense, legend_skill_ids=[900]
+        target = dict(level=70, target_is_player=True, area_type=1, owner_id=4242, defense=defense)
+        plain = client.attack.fill_waves(12345, **target)
+        skilled = client.attack.fill_waves(12345, legend_skill_ids=[900], **target)
+        camp = client.attack.fill_waves(
+            12345, level=70, area_type=2, owner_id=-202, defense=defense, legend_skill_ids=[900]
         )
 
         placed = lambda waves: sum(c for _, c in waves[0].model_dump(by_alias=True)["L"]["T"])  # noqa: E731
-        assert placed(skilled) > placed(plain)
+        # CastleAttackWaveVO sizes a flank for int(ceil(40 + 30)) tools only
+        # against another player's object; an NPC camp gets the base 40.
+        assert (placed(plain), placed(skilled), placed(camp)) == (40, 70, 40)
+
+    def test_legend_flank_skills_need_a_legend_owner(self):
+        # A level 70 player without legend levels is not a legendary fight for
+        # the unit amount; one with legend levels is (AttackDialogHelper.isLegendaryFight).
+        from empire_core.gamedata import GameData
+
+        payload = dict(
+            self.UNITS,
+            legendskills=[
+                {
+                    "skillID": "901",
+                    "effectType": "additionalUnitAmountOnFlank",
+                    "totalEffectValue": "30",
+                    "level": "1",
+                    "tier": "5",
+                },
+                {"skillID": "902", "effectType": "additionalWave", "totalEffectValue": "1", "level": "1", "tier": "5"},
+            ],
+        )
+        client = self.build([[601, 100_000]])
+        client.game_data = GameData.parse("test", payload)
+        target = dict(level=70, target_is_player=True, area_type=1, owner_id=4242, legend_skill_ids=[901, 902])
+
+        capped = client.attack.fill_waves(12345, attacker_legend_level=1, owner_legend_level=0, **target)
+        legend = client.attack.fill_waves(12345, attacker_legend_level=1, owner_legend_level=4, **target)
+        not_legend = client.attack.fill_waves(12345, attacker_legend_level=0, owner_legend_level=4, **target)
+
+        left = lambda waves: waves[0].model_dump(by_alias=True)["L"]["U"][0][1]  # noqa: E731
+        # getAmountSoldiersFlank(70, 0) and (70, 30), from the client in node.
+        assert (left(capped), left(legend), left(not_legend)) == (64, 84, 64)
+        # getMaxWaveCountWithBonus(70, false, 0 or 1): the extra wave needs a
+        # legend attacker and a target level of 70, not a legend owner.
+        assert (len(capped), len(legend), len(not_legend)) == (5, 5, 4)
 
     def test_the_targets_kingdom_reaches_the_tool_gate(self):
         # A tool limited to Berimond (kingdom 10) may be carried there and
@@ -2583,6 +2654,7 @@ class TestFillAttack:
             target_x=700,
             target_y=710,
             target_level=13,
+            target_owner_legend_level=0,
             target_row=row,
             spy_army=SpyArmy.from_spy_data([[], [], [], [], [], [], []]),
             defending_castellan=Commander.model_validate({"ID": 1}),

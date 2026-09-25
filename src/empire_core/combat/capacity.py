@@ -34,20 +34,210 @@ TOOL_SLOT_TYPE_MIDDLE = 1
 TOOL_SLOT_TYPE_FLANK = 2
 
 
-# A fight is legendary when a capped attacker hits a capped player. Legend
-# skills only contribute to a wave then - which is why the same attacker fits
-# 159 units per flank against a level 70 player and 65 against a level 28 one.
 LEVEL_CAP = 70
+"""``PlayerConst.LEVEL_CAP`` (dll line 19599)."""
+
+ALIEN_INVASION_PLAYER_IDS = frozenset({-1000, -1002})
+"""
+``PlayerHelper.isAlienInvasion`` (bundle line 4688): ``NPC_ID_USER_INVASION``
+and ``NPC_ID_RED_ALIEN_INVASION``, i.e. ``DungeonConst.BASIC_ALIEN_ID`` and
+``BASIC_RED_ALIEN_ID`` (dll line 19157).
+"""
+
+COLLECTOR_PLAYER_IDS = frozenset({-1103, -1102, -1107, -1109, -1110, -1105, -1101, -1106, -1104})
+"""
+The collector owners ``PlayerHelper.isCollectorPlayer`` (bundle line 4690)
+lists: carnival, christmas, christmas2, summer, 10th anniversary, elemental,
+halloween, halloween2 and spring, each ``BASIC_COLLECTOR_PLAYER_ID`` (-1100)
+minus its offset (``ClientConstNPCs``, bundle line 5046). The other five
+collector ids are not in its switch.
+"""
+
+LANDMARK_AREA_TYPES = frozenset(
+    {
+        int(MapItemType.METRO),
+        int(MapItemType.CAPITAL),
+        int(MapItemType.KINGS_TOWER),
+        int(MapItemType.MONUMENT),
+        int(MapItemType.LABORATORY),
+    }
+)
+"""``MapObjectHelper.isLandmark`` (bundle line 38531)."""
+
+ALIEN_INVASION_AREA_TYPES: dict[int, int] = {
+    int(MapItemType.ALIEN_CAMP): -1000,
+    int(MapItemType.RED_ALIEN_CAMP): -1002,
+}
+"""
+The area types built as an ``AAlienInvasionMapobjectVO`` (``WorldmapObjectFactory``,
+bundle line 5357; its only subclasses close at bundle lines 65057 and 76481),
+and the owner each one's constructor sets (``_alienPlayerID``, bundle lines
+65049 and 76471). ``parseAreaInfo`` takes the owner from that id, not from the
+row (bundle line 41545).
+"""
+
+OTHER_PLAYER_INFO_AREA_TYPES = frozenset(
+    {
+        int(MapItemType.CASTLE),
+        int(MapItemType.OUTPOST),
+        int(MapItemType.CAPITAL),
+        int(MapItemType.METRO),
+        int(MapItemType.VILLAGE),
+        int(MapItemType.ISLE_RESOURCE),
+        int(MapItemType.KINGS_TOWER),
+        int(MapItemType.MONUMENT),
+        int(MapItemType.LABORATORY),
+        int(MapItemType.FACTION_CAMP),
+        int(MapItemType.ABG_TOWER),
+    }
+)
+"""
+Area types whose map object answers ``hasOtherPlayerInfo`` with true when
+another player owns it: ``CastleMapobjectVO`` (bundle line 18933),
+``OutpostMapobjectVO`` (18838) and its capital and metropolis subclasses
+(18760, 21637), ``VillageMapobjectVO`` (22675) and the resource isle
+(34659), ``KingstowerMapobjectVO`` (19077), ``UpgradableLandmarkMapobjectVO``
+(42650) for monuments and laboratories (21675, 25920),
+``FactionCampMapobjectVO`` (21547) and ``ABGAllianceTowerMapobjectVO``
+(32307). The base ``InteractiveMapobjectVO`` answers false (3684), and so do
+the Berimond faction capital, tower and village (22776, 22822, 28502).
+"""
 
 
-def is_legendary_fight(attacker_level: int, target_level: int, *, target_is_player: bool) -> bool:
+ROW_OWNER_AREA_TYPES = frozenset(
+    {
+        int(MapItemType.CASTLE),
+        int(MapItemType.OUTPOST),
+        int(MapItemType.CAPITAL),
+        int(MapItemType.METRO),
+        int(MapItemType.VILLAGE),
+        int(MapItemType.ISLE_RESOURCE),
+        int(MapItemType.KINGS_TOWER),
+        int(MapItemType.MONUMENT),
+        int(MapItemType.LABORATORY),
+    }
+)
+"""
+Area types whose map row carries the owner's player id at index 4:
+``InteractiveMapobjectVO.parseAreaInfo`` (bundle line 3631), which castles
+(18910) and outposts (through ``ContainerBuilderMapobjectVO``, 6855) use, and
+the capital (18729), metropolis (21609), village (22623), resource isle
+(34603), king's tower (19055), monument (21652) and laboratory (25900)
+overrides.
+"""
+
+
+def owner_id_from_row(row: list | None) -> int | None:
     """
-    Whether legend skills contribute to this attack.
+    The target owner's player id, as the client's map object reads it.
 
-    Both sides must be at the level cap and the target must be a player: an NPC
-    camp is never a legendary fight however high its level.
+    Args:
+        row: The target's raw map row (``gaa`` ``AI`` entry)
+
+    Returns:
+        The owner id, or None for a row that does not name one
     """
-    return target_is_player and attacker_level >= LEVEL_CAP and target_level >= LEVEL_CAP
+    if not row:
+        return None
+    area_type = int(row[0])
+    if area_type in ALIEN_INVASION_AREA_TYPES:
+        return ALIEN_INVASION_AREA_TYPES[area_type]
+    # A castle row of four fields is one on the move; CastleMapobjectVO sets no owner then.
+    if area_type in ROW_OWNER_AREA_TYPES and len(row) > 4:
+        return int(row[4])
+    return None
+
+
+def is_npc_player(player_id: int) -> bool:
+    """Client: ``PlayerHelper.isNPCPlayer`` (bundle line 4687)."""
+    return player_id < 0
+
+
+def is_npc_pvp_player(player_id: int) -> bool:
+    """
+    An NPC the game fights like a player: an alien invasion or a collector.
+
+    Client: ``PlayerHelper.isNpcPvpPlayer`` (bundle line 4689).
+    """
+    return player_id in ALIEN_INVASION_PLAYER_IDS or player_id in COLLECTOR_PLAYER_IDS
+
+
+class LegendaryFight(BaseModel):
+    """
+    Which legend skills an attack gets. The client checks three different rules.
+
+    "Legend" means a legend level above zero (``CastleUserData.isLegend``,
+    bundle line 10085; ``WorldMapOwnerInfoVO.isLegend``, bundle line 10892),
+    not a level of 70.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    unit_amount: bool
+    """
+    ``AttackDialogHelper.isLegendaryFight`` (bundle line 17378). Gates the
+    ``additionalUnitAmountOnFlank`` / ``OnFront`` skills.
+    """
+    extra_wave: bool
+    """``CastleAttackArmyVO.init`` (bundle line 55833). Gates the ``additionalWave`` skill."""
+    flank_tools: bool
+    """
+    ``CastleAttackWaveVO`` constructor (bundle line 99927). Gates the
+    ``additionalAttackToolAmountFlank`` skill.
+    """
+
+    @classmethod
+    def evaluate(
+        cls,
+        *,
+        attacker_level: int,
+        attacker_legend_level: int,
+        target_owner_level: int,
+        wave_level: int,
+        owner_id: int | None,
+        owner_legend_level: int,
+        area_type: int | None,
+        has_other_player_info: bool,
+    ) -> "LegendaryFight":
+        """
+        Apply the client's three rules.
+
+        Args:
+            attacker_level: The attacker's level (``userData.userLevel``)
+            attacker_legend_level: The attacker's legend level
+            target_owner_level: ``CastleAttackInfoVO.targetOwnerLevel``, which is
+                the target's ``minimumOwnerLevel`` unless it is under conquer
+                control (bundle line 30631)
+            wave_level: The level a wave is sized by, ``int(max(level, floor))``
+                in the ``CastleAttackWaveVO`` constructor
+            owner_id: The target owner's player id (``ownerInfo.playerID``), see
+                :func:`owner_id_from_row`. None, for a target without owner
+                info, grants nothing: the wave and tool rules both require
+                ``ownerInfo`` (or an alien invasion object, which always has one)
+            owner_legend_level: The target owner's legend level
+                (``playerLegendLevel``, the ``LL`` of its owner record)
+            area_type: The target's area type
+            has_other_player_info: The target's ``hasOtherPlayerInfo``, see
+                :data:`OTHER_PLAYER_INFO_AREA_TYPES`
+        """
+        if owner_id is None:
+            return cls(unit_amount=False, extra_wave=False, flank_tools=False)
+        npc = is_npc_player(owner_id)
+        npc_pvp = is_npc_pvp_player(owner_id)
+        attacker_legend = attacker_legend_level > 0
+        alien = area_type in ALIEN_INVASION_AREA_TYPES
+
+        unit_amount = False
+        if not npc or npc_pvp:
+            owner_side = target_owner_level >= LEVEL_CAP if alien else owner_legend_level > 0
+            unit_amount = (attacker_legend and owner_side) or area_type in LANDMARK_AREA_TYPES
+
+        extra_wave = attacker_legend and target_owner_level >= LEVEL_CAP and (not npc or alien)
+
+        flank_tools = (
+            ((has_other_player_info and not npc) or npc_pvp) and wave_level >= LEVEL_CAP and attacker_level >= LEVEL_CAP
+        )
+        return cls(unit_amount=unit_amount, extra_wave=extra_wave, flank_tools=flank_tools)
 
 
 def max_attackers(level: int) -> int:
@@ -347,7 +537,17 @@ __all__ = [
     "minimum_owner_level",
     "wave_level",
     "boost_to_modifier",
-    "is_legendary_fight",
+    "ALIEN_INVASION_AREA_TYPES",
+    "ALIEN_INVASION_PLAYER_IDS",
+    "COLLECTOR_PLAYER_IDS",
+    "LANDMARK_AREA_TYPES",
+    "LEVEL_CAP",
+    "LegendaryFight",
+    "OTHER_PLAYER_INFO_AREA_TYPES",
+    "ROW_OWNER_AREA_TYPES",
+    "owner_id_from_row",
+    "is_npc_player",
+    "is_npc_pvp_player",
     "WaveCapacity",
     "flank_soldier_capacity",
     "flank_tool_capacity",
