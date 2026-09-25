@@ -1,6 +1,7 @@
 """Local player tracking: gpi/gxp/gcu/vip/gho/uap, alliance (gal), inventory (sce) and events (sei)."""
 
 import logging
+import math
 import time
 from typing import Any
 
@@ -10,9 +11,47 @@ from empire_core.state.models import Alliance, Player
 logger = logging.getLogger(__name__)
 
 
+LEVEL_CAP = 70
+LEGEND_LEVEL_CAP = 950
+_LEVEL_CAP_XP = LEVEL_CAP * LEVEL_CAP * 30
+
+
 def _section(data: dict[str, Any], key: str) -> dict[str, Any]:
     body = data.get(key)
     return body if isinstance(body, dict) else {}
+
+
+def xp_for_level(level: int) -> int:
+    """Total XP at which ``level`` starts. Client: ``PlayerConst.getXPFromLevel``."""
+    return min(_LEVEL_CAP_XP, level * level * 30)
+
+
+def legend_level_for_xp(xp: int) -> int:
+    """Legend level reached with ``xp`` total XP. Client: ``PlayerConst.getLegendLevelFromXP``."""
+    past_cap = xp - _LEVEL_CAP_XP
+    if past_cap < 0:
+        return 0
+    return min(LEGEND_LEVEL_CAP, max(1, math.floor(((past_cap + 2750) / 3000) ** (1 / 1.19))))
+
+
+def xp_for_legend_level(legend_level: int) -> int:
+    """Total XP at which ``legend_level`` starts. Client: ``PlayerConst.getXPFromLegendLevel``."""
+    if legend_level < 1:
+        return 0
+    legend_level = min(LEGEND_LEVEL_CAP, legend_level)
+    return math.ceil(3000 * legend_level**1.19) - 2750 + _LEVEL_CAP_XP
+
+
+def level_progress(level: int, xp: int) -> tuple[int, int, int]:
+    """Legend level and the XP at which the current and next level start.
+
+    Client: ``CastleUserData.parse_GXP``, which ignores the LL, XPFCL and
+    XPTNL the server sends alongside and computes them from LVL and XP.
+    """
+    legend = legend_level_for_xp(xp) if level >= LEVEL_CAP else 0
+    if legend > 0:
+        return legend, xp_for_legend_level(legend), xp_for_legend_level(legend + 1)
+    return 0, xp_for_level(level), xp_for_level(level + 1)
 
 
 class PlayerState(StateBase):
@@ -62,9 +101,17 @@ class PlayerState(StateBase):
             updated |= gpi_fields
 
         if gxp := _section(data, "gxp"):
-            merged["LVL"] = gxp.get("LVL", merged["LVL"])
-            merged["XP"] = gxp.get("XP", merged["XP"])
-            updated |= {"LVL", "XP"}
+            level = int(gxp.get("LVL", merged["level"]))
+            xp = int(gxp.get("XP", merged["xp"]))
+            legend, current, following = level_progress(level, xp)
+            merged.update(
+                level=level,
+                xp=xp,
+                legendary_level=legend,
+                xp_for_current_level=current,
+                xp_to_next_level=following,
+            )
+            updated |= {"level", "xp", "legendary_level", "xp_for_current_level", "xp_to_next_level"}
 
         if gcu := _section(data, "gcu"):
             merged["gold"] = gcu.get("C1", merged["gold"])

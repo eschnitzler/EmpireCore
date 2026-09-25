@@ -11,15 +11,15 @@ from tests.state_helpers import gam_payload, gcl_payload
 
 class TestPlayerParsing:
     def test_relogin_merges_player_data(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7, "PN": "old_name", "LVL": 10}})
+        state.update_from_packet("gbd", {"gpi": {"PID": 7, "PN": "old_name"}, "gxp": {"LVL": 10, "XP": 3000}})
         player = state.local_player
         assert player is not None and player.PN == "old_name"
 
-        state.update_from_packet("gbd", {"gpi": {"PID": 7, "PN": "new_name", "LVL": 11}})
+        state.update_from_packet("gbd", {"gpi": {"PID": 7, "PN": "new_name"}, "gxp": {"LVL": 11, "XP": 3630}})
         # Identity preserved, data refreshed
         assert state.local_player is player
         assert player.PN == "new_name"
-        assert player.LVL == 11
+        assert player.level == 11
 
     def test_malformed_inventory_entry_skipped(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7, "PN": "x"}})
@@ -94,9 +94,9 @@ class TestLocalPlayerSnapshots:
             "gbd", {"gpi": {"PID": 7, "PN": "old"}, "gxp": {"LVL": 10, "XP": 100}, "gcu": {"C1": 50}}
         )
         player = state.local_player
-        watched = ("PN", "LVL", "XP", "gold")
-        before = {"PN": "old", "LVL": 10, "XP": 100, "gold": 50}
-        after = {"PN": "new", "LVL": 11, "XP": 200, "gold": 60}
+        watched = ("PN", "level", "xp", "gold")
+        before = {"PN": "old", "level": 10, "xp": 100, "gold": 50}
+        after = {"PN": "new", "level": 11, "xp": 200, "gold": 60}
 
         observed: list[dict] = []
         real_setattr = Player.__setattr__
@@ -275,7 +275,7 @@ class TestPlayerPushes:
     def test_live_login_sections(self, state):
         state.update_from_packet("gbd", LIVE_LOGIN)
         player = state.get_local_player()
-        assert (player.gold, player.rubies, player.LVL, player.XP) == (155600, 3098, 13, 5329)
+        assert (player.gold, player.rubies, player.level, player.xp) == (155600, 3098, 13, 5329)
         assert (player.honor, player.ranking) == (0, 93)
         assert player.beginner_protection == {0: False}
         assert state.get_last_packet_time("gho") is not None
@@ -290,7 +290,7 @@ class TestPlayerPushes:
     def test_gxp_push(self, state):
         state.update_from_packet("gbd", LIVE_LOGIN)
         state.update_from_packet("gxp", {"LVL": 13, "XP": 5400})
-        assert state.get_local_player().XP == 5400
+        assert state.get_local_player().xp == 5400
 
     def test_gal_push_joins_and_leaves(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}})
@@ -328,7 +328,7 @@ class TestPlayerPushes:
             "glu", {"gcu": {"C1": 160000, "C2": 3098}, "gxp": {"LVL": 14, "XP": 5880}, "L": 14, "LL": 0}
         )
         player = state.get_local_player()
-        assert (player.LVL, player.XP, player.gold) == (14, 5880, 160000)
+        assert (player.level, player.xp, player.gold) == (14, 5880, 160000)
         assert state.get_last_packet_time("glu") is not None
         assert state.get_last_packet_time("gxp") is not None
 
@@ -395,3 +395,52 @@ class TestPushRobustness:
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})
         state.update_from_packet("gal", {"AID": -1})
         assert state.get_local_player().alliance is None
+
+
+class TestLevelProgress:
+    """LL, XPFCL and XPTNL are computed from LVL and XP, as CastleUserData.parse_GXP does."""
+
+    def _player_after(self, state, gxp: dict) -> Player:
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gxp": gxp})
+        player = state.get_local_player()
+        assert player is not None
+        return player
+
+    def test_matches_what_a_live_login_sends(self, state):
+        player = self._player_after(state, {"LVL": 13, "XP": 5329})
+        live = LIVE_LOGIN["gxp"]
+        assert (player.legendary_level, player.xp_for_current_level, player.xp_to_next_level) == (
+            live["LL"],
+            live["XPFCL"],
+            live["XPTNL"],
+        )
+        assert player.xp_progress == pytest.approx((5329 - 5070) / (5880 - 5070) * 100)
+
+    # Expected values from the client's PlayerConst functions run in node.
+    @pytest.mark.parametrize(
+        ("xp", "legend", "current", "following"),
+        [
+            (200000, 11, 196295, 201973),
+            (1000000, 115, 994119, 1002920),
+            (99999999999, 950, 10630311, 10630311),
+        ],
+    )
+    def test_legend_levels_past_level_70(self, state, xp, legend, current, following):
+        player = self._player_after(state, {"LVL": 70, "XP": xp})
+        assert (player.legendary_level, player.xp_for_current_level, player.xp_to_next_level) == (
+            legend,
+            current,
+            following,
+        )
+
+    def test_level_up_push_recomputes(self, state):
+        self._player_after(state, {"LVL": 69, "XP": 146000})
+        state.update_from_packet("glu", {"gxp": {"LVL": 70, "XP": 200000}, "L": 70, "LL": 0})
+        assert state.get_local_player().legendary_level == 11
+
+    def test_xp_progress_edges(self):
+        assert Player().xp_progress == 0.0
+        at_cap = Player(LVL=70, XP=10630311, LL=950, XPFCL=10630311, XPTNL=10630311)
+        assert at_cap.xp_progress == 0.0
+        just_past_70 = Player(LVL=70, XP=147000, LL=1, XPFCL=147250, XPTNL=151095)
+        assert just_past_70.xp_progress == 0.0

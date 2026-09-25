@@ -186,9 +186,10 @@ class Castle(BaseModel):
 class Player(BaseModel):
     """The logged-in player, as tracked by :class:`~empire_core.state.manager.StateManager`.
 
-    As with :class:`Castle`, the raw GGE wire keys (``PID``, ``PN``, ``LVL``,
-    ...) are the storage fields and each has a snake_case read-only property
-    (``id``, ``name``, ``level``, ...). Prefer the snake_case names.
+    Some fields are still stored under their raw wire keys (``PID``, ``PN``,
+    ...), each with a snake_case read-only property (``id``, ``name``, ...);
+    the rest are snake_case fields aliased to their wire keys. Prefer the
+    snake_case names.
 
     Client: ``CastleUserData`` (``parse_GPI``, ``parse_GXP``, ``parse_GHO``,
     ``parse_UAP``, ``parse_GAL``), ``CurrencyData.parseGCU`` and
@@ -201,12 +202,23 @@ class Player(BaseModel):
     PN: str = Field(default="Unknown")
     AID: int | None = Field(default=None)
 
-    # Levels
-    LVL: int = Field(default=0)
-    XP: int = Field(default=0)
-    LL: int = Field(default=0)  # Legendary Level
-    XPFCL: int = Field(default=0)  # XP for current level
-    XPTNL: int = Field(default=0)  # XP to next level
+    level: int = Field(default=0, alias="LVL", description="Level, from gxp; 70 is the cap before legend levels")
+    xp: int = Field(default=0, alias="XP", description="Total XP, from gxp")
+    legendary_level: int = Field(
+        default=0,
+        alias="LL",
+        description="Legend level, computed from XP once level reaches 70, else 0. Client: parse_GXP",
+    )
+    xp_for_current_level: int = Field(
+        default=0,
+        alias="XPFCL",
+        description="Total XP at which the current level (or legend level) starts, computed from level and XP",
+    )
+    xp_to_next_level: int = Field(
+        default=0,
+        alias="XPTNL",
+        description="Total XP at which the next level (or legend level) starts, computed from level and XP",
+    )
 
     # Resources
     gold: int = 0  # C1 from gcu
@@ -251,26 +263,6 @@ class Player(BaseModel):
         return self.AID
 
     @property
-    def level(self) -> int:
-        return self.LVL
-
-    @property
-    def xp(self) -> int:
-        return self.XP
-
-    @property
-    def legendary_level(self) -> int:
-        return self.LL
-
-    @property
-    def xp_for_current_level(self) -> int:
-        return self.XPFCL
-
-    @property
-    def xp_to_next_level(self) -> int:
-        return self.XPTNL
-
-    @property
     def premium_flag(self) -> int:
         return self.PF
 
@@ -280,10 +272,16 @@ class Player(BaseModel):
 
     @property
     def xp_progress(self) -> float:
-        """Returns XP progress as a percentage (0-100)."""
-        if self.XPTNL > 0:
-            return (self.XPFCL / self.XPTNL) * 100
-        return 0.0
+        """How far through the current level the player is, as a percentage (0-100).
+
+        0 when the level has no XP range: before any gxp, or at the legend level cap.
+        Clamped, because the client puts XP just past level 70 in legend level 1,
+        whose range starts 250 XP later.
+        """
+        span = self.xp_to_next_level - self.xp_for_current_level
+        if span <= 0:
+            return 0.0
+        return min(100.0, max(0.0, (self.xp - self.xp_for_current_level) / span * 100))
 
     castles: dict[int, Castle] = Field(default_factory=dict)
 
