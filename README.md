@@ -39,7 +39,7 @@
 | **Typed end to end** | Pydantic v2 models for every command, and a `py.typed` marker so your type checker actually sees them |
 | **Honest failures** | Typed exceptions from a single `EmpireError` base — no leaked pydantic or socket errors, and no empty list that secretly means "the request failed" |
 | **Thread-safe state** | A background thread applies server pushes while your code reads consistent snapshots |
-| **High-level services** | `client.alliance`, `client.attack`, `client.castle`, `client.army`, `client.commanders`, `client.skills`, `client.ranking`, `client.spy` |
+| **High-level services** | `client.alliance`, `client.attack`, `client.castle`, `client.army`, `client.commanders`, `client.equipment`, `client.skills`, `client.ranking`, `client.spy` |
 | **Map scanning** | BFS kingdom discovery with cheap, targeted re-scans |
 | **Multi-account** | A pool that leases one logged-in client per account |
 
@@ -156,6 +156,21 @@ client.skills.on_skill_list(lambda skills: print("skills now", skills.sceat_skil
 ```
 
 `unlock_skill`, `reset_skills` and `add_xp` change a general the same way.
+
+### `client.equipment`
+
+```python
+inventory = client.equipment.get_inventory()
+for item in inventory:
+    print(item.equipment_id, item.slot, item.rarity_id)
+
+commander = client.commanders.get_commanders()[0]
+item = inventory[0]
+client.equipment.equip(equipment_id=item.equipment_id, commander_id=commander.commander_id)
+client.equipment.unequip(equipment_id=item.equipment_id, commander_id=commander.commander_id)
+```
+
+Both return False when the server rejects the move.
 
 ### `client.attack`
 

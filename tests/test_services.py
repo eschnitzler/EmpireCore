@@ -1686,6 +1686,44 @@ class TestCommandersService:
 
 
 # =============================================================================
+# EquipmentService
+# =============================================================================
+
+
+class TestEquipmentService:
+    def test_inventory_parses(self):
+        rows = [[6515211559, 6, 2, 10, 0, [[242, [25.0]]], 802, 22, 0, -1, -1, 1], [880, 2, 2]]
+        client = make_client({"gei": xt_packet("gei", {"I": rows})})
+
+        items = client.equipment.get_inventory()
+
+        assert [(i.equipment_id, i.slot) for i in items] == [(6515211559, EquipmentSlot.HERO), (880, 2)]
+        assert conn(client).request_payloads == [("gei", {})]
+
+    def test_inventory_error_raises(self):
+        client = make_client({"gei": xt_packet("gei", error_code=21)})
+        with pytest.raises(CommandError):
+            client.equipment.get_inventory()
+
+    def test_equip_sends_one(self):
+        client = make_client()
+
+        assert client.equipment.equip(equipment_id=880, commander_id=91) is True
+        assert conn(client).request_payloads == [("eeq", {"EID": 880, "LID": 91, "E": 1})]
+
+    def test_unequip_sends_zero(self):
+        client = make_client()
+
+        assert client.equipment.unequip(equipment_id=880, commander_id=1005) is True
+        assert conn(client).request_payloads == [("eeq", {"EID": 880, "LID": 1005, "E": 0})]
+
+    def test_a_rejected_equip_returns_false(self):
+        client = make_client({"eeq": xt_packet("eeq", error_code=21)})
+
+        assert client.equipment.equip(equipment_id=880, commander_id=91) is False
+
+
+# =============================================================================
 # RankingService
 # =============================================================================
 

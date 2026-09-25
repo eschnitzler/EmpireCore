@@ -15,6 +15,7 @@ Structure:
 - building.py: Building commands (ebu, eup, emo, sbd, etc.)
 - army.py: Army/soldier/hospital commands (bup, spl, gui, hru, etc.)
 - defense.py: Defense commands (dfc, dfk, dfw, dfm)
+- equipment.py: Equipment inventory commands (gei, eeq)
 
 TODO (lower priority):
 - shop.py: Shop/purchase commands (sbp, gbc)
@@ -238,6 +239,11 @@ from .defense import (
     WallDefense,
     WallSection,
     WallSectionSetup,
+)
+from .equipment import (
+    EquipEquipmentRequest,
+    GetEquipmentInventoryRequest,
+    GetEquipmentInventoryResponse,
 )
 from .inventory import SCEItem
 from .map import (
@@ -539,6 +545,9 @@ __all__ = [
     "General",
     "SelectedAbility",
     "GetCommandersRequest",
+    "GetEquipmentInventoryRequest",
+    "GetEquipmentInventoryResponse",
+    "EquipEquipmentRequest",
     "GetGeneralsRequest",
     "GetGeneralsResponse",
     "AssignGeneralRequest",
