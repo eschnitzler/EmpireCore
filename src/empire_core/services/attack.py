@@ -95,7 +95,6 @@ _ATTACK_PRECALCULATION: dict[int, _Precalculation] = {
     MapItemType.METRO: _ACI,
     # ACTION_TYPE_DUNGEONATTACK
     MapItemType.DUNGEON: _ADI,
-    MapItemType.TREASURE_DUNGEON: _ADI,
     MapItemType.EVENT_DUNGEON: _ADI,
     MapItemType.ISLE_DUNGEON: _ADI,
     MapItemType.ALIEN_CAMP: _ADI,
@@ -578,16 +577,17 @@ class AttackService(BaseService):
             target.area_type = MapAreaItem.from_list(target.row).item_type
 
         area = None
+        scanned = False
         if target.wants_precalculation():
             if target.area_type is None:
                 # Each kind of target answers its own pre-calculation, so the
                 # tile is read first to learn which.
                 area = self._scan_tile(target, timeout=timeout)
+                scanned = True
                 self._take_scanned_row(target, area)
-            if target.area_type is not None:
-                self._read_precalculation(target, timeout=timeout)
+            self._read_precalculation(target, timeout=timeout)
 
-        if target.row is None and area is None:
+        if target.row is None and not scanned:
             # The server refuses the pre-calculation for a target this player
             # may not hit, but the map still describes the tile, and that is
             # all the level and the fortification need.
@@ -724,7 +724,7 @@ class AttackService(BaseService):
             logger.debug(f"Could not read the attack pre-calculation for {target.x}:{target.y}: {e}")
             return
         if target.row is None:
-            target.row = info.target_row()
+            target.row = info.target_row() or None
         if target.spy_army is None:
             target.spy_army = info.spy_army()
         if target.castellan is None:

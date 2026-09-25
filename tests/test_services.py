@@ -2369,6 +2369,32 @@ class TestFillAttack:
         inventory = next(i for i, e in enumerate(order) if "gui" in e)
         assert scanned < reselected < inventory
 
+    def test_a_failed_tile_scan_still_tries_the_pre_calculation_once(self):
+        from empire_core.services.attack import _Target
+
+        client = self.build([[601, 100_000]])
+        conn(client).script["gaa"] = EmpireTimeoutError("no gaa")
+        target = _Target(x=700, y=710)
+
+        client.attack._read_target(target, castle_id=12345, timeout=1.0)
+
+        sent = [command for command, _ in conn(client).request_payloads]
+        assert sent.count("gaa") == 1
+        assert "aci" in sent
+
+    def test_a_pre_calculation_without_a_row_leaves_the_map_to_supply_it(self):
+        from empire_core.services.attack import _Target
+
+        client = self.build([[601, 100_000]])
+        outpost_row = [4, 700, 710, 55, 4242, 1, 1, 1, 0, 0, "outpost"]
+        conn(client).script["coi"] = xt_packet("coi", {"AB": 1, "MB": 2})
+        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [outpost_row], "OI": []})
+        target = _Target(x=700, y=710, area_type=4, conquer=True)
+
+        client.attack._read_target(target, castle_id=12345, timeout=1.0)
+
+        assert target.row == outpost_row
+
     def test_a_samurai_camp_starts_at_the_players_own_league(self):
         # The row carries no level: it starts where the player's league band
         # starts and climbs with every defeat the camp has taken.
@@ -2718,7 +2744,9 @@ class TestTargetPrecalculation:
         assert conn(client).request_payloads[0] == (command, {"KID": 0, "TX": 700, "TY": 710})
 
     @pytest.mark.parametrize(
-        ("area_type", "conquer"), [(41, False), (14, False), (0, False), (9, False), (15, False), (1, True)]
+        ("area_type", "conquer"),
+        # 7: treasure dungeons are pre-calculated with tai from the treasure-map screens, never adi
+        [(41, False), (14, False), (0, False), (9, False), (15, False), (1, True), (7, False)],
     )
     def test_an_unmodelled_target_is_refused_before_sending(self, area_type, conquer):
         client = make_client()
