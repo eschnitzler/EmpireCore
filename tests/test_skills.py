@@ -1,6 +1,36 @@
-"""Generals and player skills: the gie and skl payloads, as the client reads them."""
+"""Generals and player skills: the gie and skl payloads, as the client reads them, and the general commands."""
 
-from empire_core.protocol.models import GetGeneralsResponse, GetSkillsResponse
+import json
+
+import pytest
+
+from empire_core.gamedata import GeneralDef
+from empire_core.protocol.models import (
+    AddGeneralXpRequest,
+    AssignGeneralRequest,
+    AssignGeneralResponse,
+    BaseRequest,
+    General,
+    GetGeneralsResponse,
+    GetSkillsResponse,
+    ObjectUpdateEvent,
+    ResetGeneralSkillsRequest,
+    SetGeneralAbilitiesRequest,
+    SkillList,
+    UnlockGeneralSkillRequest,
+)
+
+# The generals row for general 103 in items v786.03.
+GENERAL_103 = GeneralDef.model_validate(
+    {
+        "generalID": "103",
+        "attackSlots": "101032,101031,101033",
+        "defenseSlots": "101037,101036,101038",
+        "generalRarityID": "4",
+        "maxLevel": "100",
+        "maxStarLevel": "10",
+    }
+)
 
 
 class TestGenerals:
@@ -60,6 +90,57 @@ class TestGenerals:
     def test_an_empty_payload(self):
         assert GetGeneralsResponse.model_validate({}).generals == []
 
+    # Expected values below come from running GeneralVO.parseData and
+    # getSelectedAbilities from the client bundle in node.
+
+    def test_the_abilities_of_each_side(self):
+        general = General.model_validate(
+            {
+                "GID": 103,
+                "GASAIDS": [
+                    [101031, 10073],
+                    [101033, -1],
+                    [101037, 10303],
+                    [101036, 0],
+                    [101011, 10263],
+                    [101032, 10111],
+                ],
+            }
+        )
+
+        assert general.attack_ability_ids(GENERAL_103) == [10073, 10111]
+        assert general.defense_ability_ids(GENERAL_103) == [10303]
+        assert general.ability_ids == [10073, 10303, 10263, 10111]
+
+    @pytest.mark.parametrize(
+        ("data", "star_level", "fixed_level"),
+        [
+            ({"L": 20}, 1, 20),
+            ({"L": 30, "ST": 0}, 2, 30),
+            ({"L": 30, "ST": 4}, 4, 30),
+            ({"L": 0}, 0, -1),
+            ({}, 0, -1),
+        ],
+    )
+    def test_the_star_level_falls_back_on_the_fixed_level(self, data, star_level, fixed_level):
+        general = General.model_validate({"GID": 103, **data})
+
+        assert (general.star_level, general.fixed_level) == (star_level, fixed_level)
+
+    def test_no_star_level_from_a_fixed_level_the_client_reads_as_nan(self):
+        # The client's other branch reads a getter-less property and gets NaN.
+        assert General.model_validate({"GID": 103, "L": 15}).star_level == 0
+
+    def test_the_flags_and_the_old_xp(self):
+        general = General.model_validate({"GID": 103, "IN": 1, "LU": "1", "OXP": 2400})
+
+        assert (general.is_new, general.has_level_up, general.old_experience) == (True, True, 2400)
+
+    def test_a_flag_other_than_1_is_off(self):
+        general = General.model_validate({"GID": 103, "IN": 0, "LU": 2})
+
+        assert (general.is_new, general.has_level_up, general.old_experience) == (False, False, 0)
+
 
 class TestPlayerSkills:
     """``LegendSkillData.parse_SKL``: SID is legend, SIDS is sceat."""
@@ -77,3 +158,84 @@ class TestPlayerSkills:
 
         assert response.legend_skill_ids == []
         assert response.sceat_skill_ids == []
+        assert response.reset_count == 0
+        assert response.activating == []
+
+    def test_the_reset_count_and_the_skills_being_activated(self):
+        response = GetSkillsResponse.model_validate(
+            {"SID": [], "SIDS": [90], "SP": 40, "RS": 0, "RC": 2, "SSA": [{"ID": 91, "RS": 3600}, None, 7]}
+        )
+
+        assert response.reset_count == 2
+        assert [(s.skill_id, s.remaining_seconds) for s in response.activating] == [(91, 3600)]
+
+
+class TestObjectUpdate:
+    """``EGOCommand``: an ego push hands its skl block to ``parse_SKL``."""
+
+    def test_the_skill_list_of_a_push(self):
+        event = ObjectUpdateEvent.model_validate({"skl": {"SID": [3], "SIDS": [90], "SP": 10, "RS": 0, "RC": 1}})
+
+        assert event.skills is not None
+        assert event.skills.legend_skill_ids == [3]
+        assert event.skills.reset_count == 1
+
+    @pytest.mark.parametrize("payload", [{}, {"skl": None}, {"skl": 0}, {"A": {"OID": 5}}])
+    def test_a_push_without_a_skill_list(self, payload):
+        assert ObjectUpdateEvent.model_validate(payload).skills is None
+
+    def test_an_empty_skl_block_is_still_a_skill_list(self):
+        # {} is truthy in JS, so the client parses it and clears its lists.
+        assert ObjectUpdateEvent.model_validate({"skl": {}}).skills == SkillList()
+
+    def test_the_skl_block_does_not_read_an_error_code(self):
+        event = ObjectUpdateEvent.model_validate({"skl": {"SID": [3], "E": 5}})
+
+        assert event.error_code == 0
+        assert not hasattr(event.skills, "error_code")
+
+
+class TestGeneralCommands:
+    """The payloads are ``JSON.stringify`` of the client's VOs, built in node from the bundle."""
+
+    @pytest.mark.parametrize(
+        ("request_", "command", "wire"),
+        [
+            (AssignGeneralRequest(LID=7, GID=103), "gla", '{"LID": 7, "GID": 103}'),
+            (AssignGeneralRequest(LID=7), "gla", '{"LID": 7, "GID": -1}'),
+            (
+                SetGeneralAbilitiesRequest(GID=103, SAIDS=[[101031, 10073], [101033, -1]]),
+                "gaae",
+                '{"GID": 103, "SAIDS": [[101031, 10073], [101033, -1]]}',
+            ),
+            (UnlockGeneralSkillRequest(ID=10317), "guse", '{"ID": 10317}'),
+            (ResetGeneralSkillsRequest(GID=103), "grs", '{"GID": 103}'),
+            (
+                AddGeneralXpRequest(GID=103, CID=7001, AMT=5),
+                "gaxp",
+                '{"GID": 103, "CID": 7001, "AMT": 5}',
+            ),
+        ],
+    )
+    def test_the_payload_matches_the_client(self, request_: BaseRequest, command: str, wire: str):
+        assert request_.get_command() == command
+        # Compared as text so the key order counts too.
+        assert json.dumps(request_.to_payload()) == wire
+
+    def test_the_assignment_reply_is_the_commander_list(self):
+        response = AssignGeneralResponse.model_validate({"gli": {"C": [], "B": []}})
+
+        assert response.commander_roster.commanders == []
+        assert response.commander_roster.castellans == []
+
+    def test_an_assignment_reply_without_a_list(self):
+        assert AssignGeneralResponse.model_validate({}).commander_roster.commanders == []
+
+
+def test_null_skill_lists_read_as_no_skills():
+    from empire_core.protocol.models.skills import GetGeneralsResponse, SkillList
+
+    response = GetGeneralsResponse.model_validate({"G": [{"GID": 1}, {"GID": 2, "SIDS": None}, "junk"]})
+    assert [(g.general_id, g.skill_ids) for g in response.generals] == [(1, []), (2, [])]
+    skills = SkillList.model_validate({"SID": None, "SIDS": [5, None], "RS": None})
+    assert (skills.legend_skill_ids, skills.sceat_skill_ids, skills.seconds_until_reset) == ([], [5], 0)

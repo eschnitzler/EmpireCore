@@ -774,6 +774,94 @@ class TestAllianceChat:
         client.alliance.remove_chat_message_callback(lambda r: None)
 
 
+class TestSkillListUpdates:
+    """``SKLCommand`` and ``EGOCommand`` both hand a skill list to ``parse_SKL``."""
+
+    def test_a_skl_packet_reaches_the_callback(self):
+        client = make_client()
+        seen: list[Any] = []
+        client.skills.on_skill_list(seen.append)
+
+        client._on_packet(xt_packet("skl", {"SID": [3], "SIDS": [90], "SP": 10, "RS": 0, "RC": 1}))
+
+        assert [(s.legend_skill_ids, s.reset_count) for s in seen] == [([3], 1)]
+
+    def test_the_skl_block_of_an_ego_push_reaches_the_callback(self):
+        client = make_client()
+        seen: list[Any] = []
+        client.skills.on_skill_list(seen.append)
+
+        client._on_packet(xt_packet("ego", {"skl": {"SID": [], "SIDS": [90], "SSA": [{"ID": 91, "RS": 60}]}}))
+        client._on_packet(xt_packet("ego", {"A": {"OID": 5}}))
+
+        assert len(seen) == 1
+        assert [(s.skill_id, s.remaining_seconds) for s in seen[0].activating] == [(91, 60)]
+
+    def test_one_raising_callback_does_not_stop_the_others(self, caplog):
+        client = make_client()
+        seen: list[Any] = []
+
+        def boom(skills: Any) -> None:
+            raise RuntimeError("callback bug")
+
+        client.skills.on_skill_list(boom)
+        client.skills.on_skill_list(seen.append)
+
+        with caplog.at_level(logging.ERROR, logger="empire_core.services.skills"):
+            client._on_packet(xt_packet("skl", {"SID": [3]}))
+
+        assert len(seen) == 1
+        assert "callback error" in caplog.text.lower()
+
+    def test_a_removed_callback_is_not_called(self):
+        client = make_client()
+        seen: list[Any] = []
+        client.skills.on_skill_list(seen.append)
+
+        client.skills.remove_skill_list_callback(seen.append)
+        client.skills.remove_skill_list_callback(seen.append)
+        client._on_packet(xt_packet("skl", {"SID": [3]}))
+
+        assert seen == []
+
+
+class TestGeneralCommands:
+    def test_assign_general_returns_the_commander_list(self):
+        client = make_client({"gla": xt_packet("gla", {"gli": {"C": [{"ID": 7, "GID": 103}], "B": []}})})
+
+        response = client.skills.assign_general(7, 103)
+
+        assert conn(client).request_payloads == [("gla", {"LID": 7, "GID": 103})]
+        assert [(c.commander_id, c.general_id) for c in response.commander_roster.commanders] == [(7, 103)]
+
+    def test_set_abilities_sends_every_slot(self):
+        client = make_client()
+
+        assert client.skills.set_abilities(103, [(101031, 10073), (101033, -1)]) is True
+
+        assert conn(client).request_payloads == [("gaae", {"GID": 103, "SAIDS": [[101031, 10073], [101033, -1]]})]
+
+    @pytest.mark.parametrize(
+        ("call", "command", "payload"),
+        [
+            (lambda s: s.unlock_skill(10317), "guse", {"ID": 10317}),
+            (lambda s: s.reset_skills(103), "grs", {"GID": 103}),
+            (lambda s: s.add_xp(103, 7001, 5), "gaxp", {"GID": 103, "CID": 7001, "AMT": 5}),
+        ],
+    )
+    def test_the_no_body_commands(self, call, command, payload):
+        client = make_client()
+
+        assert call(client.skills) is True
+
+        assert conn(client).request_payloads == [(command, payload)]
+
+    def test_a_rejected_command_is_false(self):
+        client = make_client({"grs": xt_packet("grs", error_code=114)})
+
+        assert client.skills.reset_skills(103) is False
+
+
 class TestAllianceHelp:
     def test_help_all_reports_the_count(self):
         client = make_client({"aha": xt_packet("aha", {"HC": 7})})
