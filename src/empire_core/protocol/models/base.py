@@ -16,10 +16,12 @@ Special character encoding for text fields (chat messages, etc.):
 from __future__ import annotations
 
 import json
+import math
+import re
 from enum import IntEnum
-from typing import Any, ClassVar, TypeVar
+from typing import Annotated, Any, ClassVar, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
 
 # Type variable for generic response payloads
 T = TypeVar("T")
@@ -357,6 +359,27 @@ class ResourceAmount(BaseModel):
     rubies: int = Field(alias="R", default=0)
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+def client_int(value: Any) -> int:
+    """The client's ``int()``: a ``#rrggbb`` string as hex, else ``Math.trunc(Number(value))``, NaN as 0.
+
+    Client: ``int`` (dll line 16098)
+    """
+    if isinstance(value, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", value):
+        return int(value[1:], 16)
+    if value is None:
+        return 0
+    if isinstance(value, str) and not value.strip():
+        return 0
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0
+    return 0 if math.isnan(number) or math.isinf(number) else math.trunc(number)
+
+
+ClientInt = Annotated[int, BeforeValidator(client_int)]
 
 
 class UnitCount(BaseModel):

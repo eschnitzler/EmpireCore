@@ -12,13 +12,13 @@ Commands:
 from __future__ import annotations
 
 import logging
-import math
-import re
-from typing import Annotated, Any
+from typing import Any
 
-from pydantic import BeforeValidator, Field
+from pydantic import Field
 
-from .base import BasePayload, BaseRequest, BaseResponse
+from .army import UnitInventory
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt
+from .commanders import Castellan
 from .movement import MovementArea
 
 logger = logging.getLogger(__name__)
@@ -41,26 +41,6 @@ def _as_int(value: Any) -> int | None:
     except (TypeError, ValueError):
         return None
 
-
-def _client_int(value: Any) -> int:
-    """The client's ``int()``: a ``#rrggbb`` string as hex, else ``Math.trunc(Number(value))``, NaN as 0.
-
-    Client: ``int`` (dll line 16098)
-    """
-    if isinstance(value, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", value):
-        return int(value[1:], 16)
-    if value is None:
-        return 0
-    if isinstance(value, str) and not value.strip():
-        return 0
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return 0
-    return 0 if math.isnan(number) or math.isinf(number) else math.trunc(number)
-
-
-ClientInt = Annotated[int, BeforeValidator(_client_int)]
 
 Slot = list[int]
 """One container slot: ``[wod_id, amount]``, ``[-1, 0]`` when empty."""
@@ -184,10 +164,10 @@ class GetDefenseResponse(BaseResponse):
 
     command = "dfc"
 
-    raw_inventory: dict[str, Any] = Field(
+    unit_inventory: UnitInventory = Field(
         alias="gui",
-        default_factory=dict,
-        description="The castle's unit inventory; the client reads gui.I",
+        default_factory=UnitInventory,
+        description="The castle's unit inventory; the client reads only gui.I",
     )
     area: MovementArea | None = Field(alias="A", default=None, description="The castle's map row")
     home_defense_workshop_level: int | None = Field(
@@ -201,38 +181,20 @@ class GetDefenseResponse(BaseResponse):
     range_priority: list[int] = Field(alias="PR", default_factory=list, description="Ranged unit priority")
     melee_priority: list[int] = Field(alias="PM", default_factory=list, description="Melee unit priority")
     gate_defense: ClientInt = Field(alias="GD", default=0, description="Gate defence, truncated as the client does")
-    raw_castellan: dict[str, Any] | None = Field(
+    castellan: Castellan | None = Field(
         alias="L",
         default=None,
-        description="The castellan's commander entry; the client reads L.ID and parses the rest as a lord",
+        description="The castle's castellan; the client reads L.ID and parses the rest with BaronVO.parseLord",
     )
 
     @property
     def castellan_id(self) -> int:
         """The castellan's id, ``L.ID``; -1 when none is set, as the client starts from."""
-        if not self.raw_castellan:
-            return -1
-        return _client_int(self.raw_castellan.get("ID"))
+        return self.castellan.commander_id if self.castellan else -1
 
     def inventory(self) -> dict[int, int]:
-        """
-        The castle's units as ``{wod_id: amount}``.
-
-        Client: ``AUnitInventory.fillFromWodAmountArray`` (bundle line 42572)
-        and ``UnitInventoryDictionary.addUnit`` / ``changeUnitAmount`` (bundle
-        lines 5533-5535): amounts add up, negatives count as 0, and a unit
-        whose total is 0 is left out.
-        """
-        entries = self.raw_inventory.get("I")
-        counts: dict[int, int] = {}
-        if not isinstance(entries, list):
-            return counts
-        for entry in entries:
-            if isinstance(entry, list):
-                wod_id = _client_int(entry[0] if entry else None)
-                amount = _client_int(entry[1] if len(entry) > 1 else None)
-                counts[wod_id] = counts.get(wod_id, 0) + max(0, amount)
-        return {wod_id: amount for wod_id, amount in counts.items() if amount > 0}
+        """The castle's units as ``{wod_id: amount}``, the only inventory ``parse_DFC`` reads."""
+        return dict(self.unit_inventory.units)
 
 
 # =============================================================================

@@ -16,7 +16,7 @@ from empire_core.protocol.models import (
     WallSectionSetup,
     parse_response,
 )
-from empire_core.protocol.models.defense import _client_int
+from empire_core.protocol.models.base import client_int
 
 # Live capture, castle name scrubbed and PR/PM trimmed to three entries
 LIVE_DFC: dict[str, Any] = {
@@ -112,7 +112,10 @@ class TestLiveDefenseReply:
         assert response.range_priority == [1337, 788, 674]
         assert response.melee_priority == [787, 336, 369]
         assert response.castellan_id == 1
+        assert response.castellan is not None
+        assert (response.castellan.wins, response.castellan.defeats, len(response.castellan.area_effects)) == (1, 11, 2)
         assert response.inventory() == {10: 9, 652: 4}
+        assert response.unit_inventory.stronghold == {}
 
     def test_nested_wall_keep_and_moat(self):
         response = GetDefenseResponse.model_validate(LIVE_DFC)
@@ -151,4 +154,4 @@ class TestClientInventoryAndInt:
         [(30.0, 30), (30.7, 30), (-2.5, -2), ("12", 12), ("", 0), (None, 0), ("abc", 0), ("#00FF10", 65296), (True, 1)],
     )
     def test_client_int(self, value: Any, expected: int):
-        assert _client_int(value) == expected
+        assert client_int(value) == expected

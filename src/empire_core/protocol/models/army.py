@@ -17,9 +17,11 @@ Commands:
 
 from __future__ import annotations
 
-from pydantic import Field
+from typing import Annotated
 
-from .base import BasePayload, BaseRequest, BaseResponse, UnitCount
+from pydantic import BeforeValidator, Field
+
+from .base import BasePayload, BaseRequest, BaseResponse, UnitCount, client_int
 
 # =============================================================================
 # BUP - Build Units / Produce
@@ -186,6 +188,44 @@ class GetUnitsRequest(BaseRequest):
     command = "gui"
 
     castle_id: int = Field(alias="CID")
+
+
+def _wod_amounts(value: object) -> object:
+    """
+    ``[[wod_id, amount], ...]`` as ``{wod_id: amount}``.
+
+    Client: ``AUnitInventory.fillFromWodAmountArray`` (bundle line 42572), which
+    reads both through ``int()``, into a ``UnitInventoryDictionary``: ``addUnit``
+    clamps at 0, ``changeUnitAmount`` adds (bundle lines 5533-5535) and
+    ``setUnit`` drops a total of 0 or less (bundle line 5538).
+    """
+    if not isinstance(value, list):
+        return {}
+    totals: dict[int, int] = {}
+    for entry in value:
+        if isinstance(entry, list):
+            wod_id = client_int(entry[0] if entry else None)
+            amount = client_int(entry[1] if len(entry) > 1 else None)
+            totals[wod_id] = totals.get(wod_id, 0) + max(0, amount)
+    return {wod_id: amount for wod_id, amount in totals.items() if amount > 0}
+
+
+WodAmounts = Annotated[dict[int, int], BeforeValidator(_wod_amounts)]
+"""A wod/amount array read as ``{wod_id: amount}``, as the client's unit inventories do."""
+
+
+class UnitInventory(BasePayload):
+    """
+    A castle's unit inventories, the ``gui`` block.
+
+    Client: ``CastleMilitaryData.parse_GUI``, which fills each inventory with
+    ``AUnitInventory.fillFromWodAmountArray`` (bundle line 42572)
+    """
+
+    units: WodAmounts = Field(alias="I", default_factory=dict, description="Units and tools in the castle")
+    in_production: WodAmounts = Field(alias="TU", default_factory=dict, description="Units on their way in")
+    stronghold: WodAmounts = Field(alias="SHI", default_factory=dict, description="Units stored in the stronghold")
+    hospital: WodAmounts = Field(alias="HI", default_factory=dict, description="Wounded units in the hospital")
 
 
 class GetUnitsResponse(BaseResponse):
