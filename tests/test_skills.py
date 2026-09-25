@@ -1,9 +1,24 @@
-"""Generals and player skills: the gie and skl payloads, as the client reads them."""
+"""Generals and player skills: the gie and skl payloads, as the client reads them, and the general commands."""
+
+import json
 
 import pytest
 
 from empire_core.gamedata import GeneralDef
-from empire_core.protocol.models import General, GetGeneralsResponse, GetSkillsResponse, ObjectUpdateEvent, SkillList
+from empire_core.protocol.models import (
+    AddGeneralXpRequest,
+    AssignGeneralRequest,
+    AssignGeneralResponse,
+    BaseRequest,
+    General,
+    GetGeneralsResponse,
+    GetSkillsResponse,
+    ObjectUpdateEvent,
+    ResetGeneralSkillsRequest,
+    SetGeneralAbilitiesRequest,
+    SkillList,
+    UnlockGeneralSkillRequest,
+)
 
 # The generals row for general 103 in items v786.03.
 GENERAL_103 = GeneralDef.model_validate(
@@ -178,3 +193,40 @@ class TestObjectUpdate:
 
         assert event.error_code == 0
         assert not hasattr(event.skills, "error_code")
+
+
+class TestGeneralCommands:
+    """The payloads are ``JSON.stringify`` of the client's VOs, built in node from the bundle."""
+
+    @pytest.mark.parametrize(
+        ("request_", "command", "wire"),
+        [
+            (AssignGeneralRequest(LID=7, GID=103), "gla", '{"LID": 7, "GID": 103}'),
+            (AssignGeneralRequest(LID=7), "gla", '{"LID": 7, "GID": -1}'),
+            (
+                SetGeneralAbilitiesRequest(GID=103, SAIDS=[[101031, 10073], [101033, -1]]),
+                "gaae",
+                '{"GID": 103, "SAIDS": [[101031, 10073], [101033, -1]]}',
+            ),
+            (UnlockGeneralSkillRequest(ID=10317), "guse", '{"ID": 10317}'),
+            (ResetGeneralSkillsRequest(GID=103), "grs", '{"GID": 103}'),
+            (
+                AddGeneralXpRequest(GID=103, CID=7001, AMT=5),
+                "gaxp",
+                '{"GID": 103, "CID": 7001, "AMT": 5}',
+            ),
+        ],
+    )
+    def test_the_payload_matches_the_client(self, request_: BaseRequest, command: str, wire: str):
+        assert request_.get_command() == command
+        # Compared as text so the key order counts too.
+        assert json.dumps(request_.to_payload()) == wire
+
+    def test_the_assignment_reply_is_the_commander_list(self):
+        response = AssignGeneralResponse.model_validate({"gli": {"C": [], "B": []}})
+
+        assert response.commander_roster.commanders == []
+        assert response.commander_roster.castellans == []
+
+    def test_an_assignment_reply_without_a_list(self):
+        assert AssignGeneralResponse.model_validate({}).commander_roster.commanders == []
