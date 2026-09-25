@@ -612,9 +612,13 @@ def commander_bonuses(
     """
     Every bonus a commander grants, resolved into the right id space.
 
-    Four sources from the ``gli`` payload: the commander's own effects (``E``),
-    its area effects (``AE``), the bonus list inside each equipped item, and
-    the gem slotted in each item (see :func:`gem_bonuses`). A relic item's
+    Five sources from the ``gli`` payload: the commander's own effects (``E``),
+    its area effects (``AE``), the bonus list inside each equipped item, the
+    gem slotted in each item (see :func:`gem_bonuses`), and the alien
+    equipment of ``AIE``/``TAE`` when ``EQ`` is empty, whose rows the client
+    builds as ``EquipmentBonusVO`` (``AlienLordEquipmentVO`` and
+    ``AlienLordHeroVO.parseAlienBoniData``, bundle lines 67479 and 67502) in
+    the commander's equipment slots. A relic item's
     bonuses are tagged so they resolve through the relic effect table, and any
     other item's so they resolve through the equipment effect table.
 
@@ -646,6 +650,11 @@ def commander_bonuses(
             rows = [[bonus.effect_id, bonus.values] for bonus in item.bonuses]
         bonuses.extend(parse_bonus_entries(rows, via_relic=item.is_relic, via_equipment=not item.is_relic))
         bonuses.extend(gem_bonuses(game_data, item))
+
+    alien_rows = [
+        [bonus.effect_id, bonus.values] for bonus in (*commander.alien_hero_bonuses, *commander.alien_bonuses)
+    ]
+    bonuses.extend(parse_bonus_entries(alien_rows, via_equipment=True))
     return bonuses
 
 
