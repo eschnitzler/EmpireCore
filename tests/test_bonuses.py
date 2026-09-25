@@ -6,9 +6,11 @@ from empire_core.combat import (
     CombatEffectType,
     EffectResolver,
     alliance_buff_bonuses,
+    attack_dialog_bonuses,
     attacker_flank_effects,
     commander_bonuses,
     construction_item_bonuses,
+    general_passive_bonuses,
     general_skill_bonuses,
     global_effect_bonuses,
     global_unit_attack_bonuses,
@@ -286,6 +288,17 @@ class TestCommanderBonuses:
         assert resolver().flank_unit_bonus(bonuses) == 13.7
         assert resolver().attack_multiplier(bonuses, melee=True) == 1.0
 
+    def test_aci_area_effects_replace_the_commanders_own(self):
+        commander = Commander.model_validate({"ID": 1, "E": [[110, [40.0], "AB"]], "AE": [[120, [50.0], "RH"]]})
+        aci = [Bonus(effect_id=120, value=30.0)]
+
+        assert commander_bonuses(commander, area_effects=aci) == [
+            Bonus(effect_id=110, value=40.0, raw_values=(40.0,)),
+            Bonus(effect_id=120, value=30.0),
+        ]
+        # LordVO's areaEffects setter ignores an empty list.
+        assert commander_bonuses(commander, area_effects=[]) == commander_bonuses(commander)
+
     def test_a_bare_commander_grants_nothing(self):
         assert commander_bonuses(Commander.model_validate({"ID": 1})) == []
 
@@ -370,6 +383,35 @@ class TestSources:
 
         # Effect 100 is an attack bonus in cap 10, which tops out at 50.
         assert r.accumulate(bonuses, CombatEffectType.ATTACK_BONUS) == 12 + 13 + 6
+
+    def test_general_passives_leave_out_ability_skills(self):
+        # GeneralVO.getPassiveSkills drops a skill with an unlockAbility (178)
+        # effect, whatever else it carries.
+        payload = dict(
+            SOURCE_PAYLOAD,
+            effects=[*PAYLOAD["effects"], {"effectID": "170", "name": "unlock", "effectTypeID": "178", "capID": "99"}],
+            generalSkills=[
+                {"skillID": "1", "generalID": "101", "effects": "110&9"},
+                {"skillID": "2", "generalID": "101", "effects": "170&5,120&40"},
+            ],
+        )
+        game = GameData.parse("test", payload)
+
+        assert general_passive_bonuses(game, [1, 2, 999]) == [Bonus(effect_id=110, value=9)]
+
+    def test_the_attack_dialog_list_joins_commander_area_and_general(self):
+        game = source_data()
+        commander = Commander.model_validate({"ID": 1, "E": [[100, [3.0], "A"]], "AE": [[120, [50.0], "RH"]]})
+        area = [Bonus(effect_id=110, value=7)]
+
+        bonuses = attack_dialog_bonuses(game, commander, area_effects=area, general_skill_ids=[10110201])
+
+        assert bonuses == [
+            Bonus(effect_id=100, value=3.0, raw_values=(3.0,)),
+            Bonus(effect_id=110, value=7),
+            Bonus(effect_id=110, value=9),
+        ]
+        assert attack_dialog_bonuses(game, None, area_effects=area) == area
 
     def test_legend_skills_sum_by_effect_type_name(self):
         game = source_data()

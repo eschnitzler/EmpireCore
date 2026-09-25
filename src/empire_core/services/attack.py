@@ -20,19 +20,20 @@ from empire_core.combat import (
     Flank,
     Inventory,
     WaveCapacity,
+    attack_dialog_bonuses,
     attacker_flank_effects,
     camp_level,
     commander_bonuses,
     fill_yard_wave,
     fortification_bonuses,
-    general_skill_bonuses,
     global_unit_attack_bonuses,
     invasion_camp_level,
+    is_npc_player,
+    is_npc_pvp_player,
     legend_skill_value,
     minimum_owner_level,
     npc_camp_defense,
     owner_id_from_row,
-    sceat_skill_bonuses,
     spied_castle_defense,
     wave_level,
     wave_limit_violations,
@@ -402,7 +403,6 @@ class AttackService(BaseService):
         wave_bonus: int = 0,
         general_skill_ids: list[int] | None = None,
         legend_skill_ids: list[int] | None = None,
-        sceat_skill_ids: list[int] | None = None,
         global_effect_ids: list[int] | list[list[int]] | None = None,
         target_is_player: bool = False,
         owner_id: int | None = None,
@@ -441,15 +441,17 @@ class AttackService(BaseService):
                 to; the camp's kingdom when not given
             landmark_min_level: A capital's or metropolis's own defense level,
                 which the client reads from its landmark at runtime
-            area_bonuses: Effects that apply to this attack from outside the
-                commander, from ``get_attack_info(...).attacker_bonuses()``.
-                They carry the flank and front unit-amount bonuses
+            area_bonuses: The ``aci`` ``AE`` list, from
+                ``get_attack_info(...).attacker_bonuses()``. With entries, it
+                replaces the commander's own ``AE`` (see ``commander_bonuses``)
             inventory: Troops to draw from, read from the castle when not given.
                 The waves deduct what they take, so a caller filling more than
                 one thing from one pool passes the same object each time
             area_type: The target's area type, which scopes the general's
                 effects; NPC camps are area type 2
-            player_target: True when attacking a player, False for an NPC
+            player_target: True when attacking a player, False for an NPC.
+                Decides which PvP- or PvE-only effects count; when not given it
+                follows ``owner_id`` (``getFilterStrategyAttackOrDefence``)
             defense: Explicit per-flank defense, overriding ``camp_victories``
             attacker: Attacker multipliers; built from ``commander`` when
                 omitted, and unbuffed if neither is given
@@ -520,29 +522,13 @@ class AttackService(BaseService):
 
         resolver = EffectResolver(game_data)
         commander_own = commander_bonuses(commander) if commander is not None else []
-        # getUnitsOnTheFlankBonusForAreaType accumulates over the commander's
-        # own equipment - relics and gems included - its assigned general, and
-        # the area effects, then adds the legend skill separately. Each source is
-        # truncated on its own, which is why they are not summed first.
-        sources = (
-            commander_own,
-            area_bonuses or [],
-            general_skill_bonuses(game_data, general_skill_ids) if general_skill_ids else [],
-            # Hall of Legends skills, which apply whatever the target is.
-            sceat_skill_bonuses(game_data, sceat_skill_ids) if sceat_skill_ids else [],
-        )
-        for bonuses in sources:
-            if not bonuses:
-                continue
-            flank_bonus_percent += int(
-                resolver.flank_unit_bonus(bonuses, area_type=area_type, player_target=player_target)
-            )
-            front_bonus_percent += int(
-                resolver.front_unit_bonus(bonuses, area_type=area_type, player_target=player_target)
-            )
-
         if attacker is None and commander_own:
             attacker = attacker_flank_effects(resolver, commander_own, area_type=area_type, player_target=player_target)
+
+        # getFilterStrategyAttackOrDefence: an NPC owner filters for PvE
+        # effects unless it is an alien invasion or a collector.
+        if player_target is None and owner_id is not None:
+            player_target = not is_npc_player(owner_id) or is_npc_pvp_player(owner_id)
 
         legendary = LegendaryFight.evaluate(
             attacker_level=attacker_level,
@@ -554,10 +540,21 @@ class AttackService(BaseService):
             area_type=area_type,
             has_other_player_info=area_type in OTHER_PLAYER_INFO_AREA_TYPES,
         )
+        # getUnitsOnTheFlankBonusForAreaType: one int() over the merged list,
+        # then the int() of the legend skill on top.
+        merged = attack_dialog_bonuses(
+            game_data, commander, area_effects=area_bonuses, general_skill_ids=general_skill_ids
+        )
+        flank_bonus_percent += int(resolver.flank_unit_bonus(merged, area_type=area_type, player_target=player_target))
+        front_bonus_percent += int(resolver.front_unit_bonus(merged, area_type=area_type, player_target=player_target))
         if legend_skill_ids:
             if legendary.unit_amount:
-                flank_bonus_percent += legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFlank")
-                front_bonus_percent += legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFront")
+                flank_bonus_percent += int(
+                    legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFlank")
+                )
+                front_bonus_percent += int(
+                    legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFront")
+                )
             if legendary.extra_wave:
                 wave_bonus += int(legend_skill_value(game_data, legend_skill_ids, "additionalWave"))
             if legendary.flank_tools:
@@ -847,7 +844,6 @@ class AttackService(BaseService):
         commander: Commander | None = None,
         general_skill_ids: list[int] | None = None,
         legend_skill_ids: list[int] | None = None,
-        sceat_skill_ids: list[int] | None = None,
         global_effect_ids: list[int] | list[list[int]] | None = None,
         conquer: bool = False,
         tool_bonus: float = 0.0,
@@ -917,8 +913,6 @@ class AttackService(BaseService):
                 are read with ``gie`` for the general this commander carries
             legend_skill_ids: The player's legend skills. Left out, they are
                 read with ``skl``
-            sceat_skill_ids: The player's Hall of Legends skills, read with
-                ``skl`` alongside the legend skills when left out
             global_effect_ids: Global effects currently running
             conquer: A conquest attack carries two extra waves
             tool_bonus: Extra flank tool capacity on top of the legend skill
@@ -987,16 +981,13 @@ class AttackService(BaseService):
                 general_skill_ids = self.client.skills.get_generals(timeout=timeout).skill_ids(general_id)
             except EmpireError as e:
                 logger.debug(f"Could not read the general's skills, sizing without them: {e}")
-        if legend_skill_ids is None or sceat_skill_ids is None:
+        if legend_skill_ids is None:
             try:
-                own = self.client.skills.get_skills(timeout=timeout)
-                if legend_skill_ids is None:
-                    legend_skill_ids = own.legend_skill_ids
-                if sceat_skill_ids is None:
-                    sceat_skill_ids = own.sceat_skill_ids
+                legend_skill_ids = self.client.skills.get_skills(timeout=timeout).legend_skill_ids
             except EmpireError as e:
                 logger.debug(f"Could not read the player's skills, sizing without them: {e}")
 
+        owner_id = target_owner_id if target_owner_id is not None else owner_id_from_row(target.row)
         # One inventory read for both passes: the waves deduct what they take,
         # so the courtyard draws from what they left.
         pool = self.read_inventory(castle_id, timeout=timeout)
@@ -1014,14 +1005,13 @@ class AttackService(BaseService):
             commander=commander,
             general_skill_ids=general_skill_ids,
             legend_skill_ids=legend_skill_ids,
-            sceat_skill_ids=sceat_skill_ids,
             global_effect_ids=global_effect_ids,
             target_is_player=target.is_player,
-            owner_id=target_owner_id if target_owner_id is not None else owner_id_from_row(target.row),
+            owner_id=owner_id,
             owner_legend_level=target.owner_legend_level or 0,
             under_conquer_control=under_conquer_control,
             area_type=target.area_type,
-            player_target=target.is_player,
+            player_target=target.is_player if owner_id is None else None,
             options=options,
             timeout=timeout,
         )

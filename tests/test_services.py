@@ -2182,7 +2182,85 @@ class TestFillAttack:
         # 20% of 320 attackers is 64, then +30%.
         assert (left, wider) == (64, 84)
 
-    def test_one_skl_read_covers_both_skill_lists(self):
+    FLANK_BONUS_DATA: ClassVar[dict] = {
+        "units": [{"wodID": 601, "name": "Barracks", "role": "melee", "meleeAttack": "100", "fightType": "0"}],
+        "effecttypes": [
+            {"effectTypeID": "28", "name": "attackUnitAmountFlank"},
+            {"effectTypeID": "34", "name": "attackUnitAmountFront"},
+        ],
+        "effects": [
+            {"effectID": "66", "name": "flankA", "effectTypeID": "28", "capID": "99"},
+            {"effectID": "67", "name": "flankB", "effectTypeID": "28", "capID": "99"},
+            {"effectID": "68", "name": "frontA", "effectTypeID": "34", "capID": "99"},
+            {"effectID": "69", "name": "frontB", "effectTypeID": "34", "capID": "99"},
+            {"effectID": "70", "name": "flankPvP", "effectTypeID": "28", "capID": "99", "isPvPFight": "1"},
+        ],
+        "legendskills": [
+            {
+                "skillID": "901",
+                "effectType": "additionalUnitAmountOnFlank",
+                "totalEffectValue": "10.5",
+                "level": "1",
+                "tier": "5",
+            }
+        ],
+    }
+
+    def sizes(self, **kwargs):
+        from empire_core.gamedata import GameData
+
+        client = self.build([[601, 100_000]])
+        client.game_data = GameData.parse("test", self.FLANK_BONUS_DATA)
+        wave = client.attack.fill_waves(12345, level=70, **kwargs)[0].model_dump(by_alias=True)
+        return wave["L"]["U"][0][1], wave["M"]["U"][0][1]
+
+    def test_the_flank_bonus_is_truncated_once_over_every_source(self):
+        # 0.6% from the commander and 0.6% from aci's AE: int(1.2) is 1, where
+        # truncating each source first would give 0.
+        from empire_core.combat import parse_bonus_entries
+        from empire_core.protocol.models import Commander
+
+        commander = Commander.model_validate({"ID": 1, "E": [[66, [0.6], "A"], [68, [0.6], "A"]]})
+        area = parse_bonus_entries([[67, [0.6], "CI"], [69, [0.6], "CI"]])
+
+        # getUnitsOnTheFlankBonusForAreaType / Front give 1, and
+        # getAmountSoldiers(0, 70, 1) / (1, 70, 0, 1) give 65 and 194 (client, node).
+        assert self.sizes(commander=commander, area_bonuses=area) == (65, 194)
+
+    def test_aci_area_effects_replace_the_commanders_own(self):
+        # The commander's gli AE and aci's AE carry the same bonus. The attack
+        # dialog puts the aci list in place of the commander's, so it counts once.
+        from empire_core.combat import parse_bonus_entries
+        from empire_core.protocol.models import Commander
+
+        commander = Commander.model_validate({"ID": 1, "AE": [[66, [30.0], "RH"]]})
+        area = parse_bonus_entries([[66, [30.0], "CI"]])
+
+        # getAmountSoldiersFlank(70, 30) and (70, 0), from the client in node.
+        assert self.sizes(commander=commander, area_bonuses=area)[0] == 84
+        # An empty aci list leaves the commander's own AE: the areaEffects
+        # setter ignores an empty array.
+        assert self.sizes(commander=commander, area_bonuses=[])[0] == 84
+
+    def test_an_alien_camp_takes_the_pvp_effects(self):
+        # getFilterStrategyAttackOrDefence: an alien invasion owner is fought
+        # with the PvP filter, a robber baron with the PvE one.
+        from empire_core.combat import parse_bonus_entries
+
+        area = parse_bonus_entries([[70, [30.0], "CI"]])
+
+        # getAmountSoldiersFlank(70, 30) and (70, 0), from the client in node.
+        assert self.sizes(area_type=21, area_bonuses=area)[0] == 84
+        assert self.sizes(area_type=2, owner_id=-202, area_bonuses=area)[0] == 64
+
+    def test_the_legend_flank_skill_is_truncated_on_its_own(self):
+        # int(10.5) on top of int(0): getUnitsOnTheFlankBonusForAreaType gives
+        # 10 and getAmountSoldiersFlank(70, 10) 71 (client, node).
+        legend = dict(attacker_legend_level=1, owner_legend_level=1, area_type=1, owner_id=4242)
+
+        assert self.sizes(legend_skill_ids=[901], **legend)[0] == 71
+
+    def test_the_legend_skills_take_one_skl_read(self):
         from empire_core.protocol.models import Commander
 
         client = self.build([[601, 100_000]])
@@ -2218,7 +2296,6 @@ class TestFillAttack:
             commander=commander,
             general_skill_ids=[],
             legend_skill_ids=[],
-            sceat_skill_ids=[],
         )
 
         sent = [command for command, _ in conn(client).request_payloads]
@@ -2724,7 +2801,6 @@ class TestFillAttack:
             area_bonuses=[],
             general_skill_ids=[],
             legend_skill_ids=[],
-            sceat_skill_ids=[],
         )
 
         sent = [command for command, _ in conn(client).request_payloads]

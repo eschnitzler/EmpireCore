@@ -439,6 +439,36 @@ def general_skill_bonuses(game_data: GameData, skill_ids: Iterable[int]) -> list
     return _spec_bonuses(game_data.general_skills.get(skill_id) for skill_id in skill_ids)
 
 
+UNLOCK_ABILITY_EFFECT_TYPE = 178
+"""``EffectTypeEnum.EFFECT_TYPE_UNLOCK_ABILITY`` (bundle line 1322)."""
+
+
+def general_passive_bonuses(game_data: GameData, skill_ids: Iterable[int]) -> list[Bonus]:
+    """
+    The general's passive effects, which join its commander's bonuses.
+
+    Client: ``GeneralVO.getPassiveEffects`` / ``getPassiveSkills`` (bundle line
+    26781): the boni of every unlocked skill that is not an ability skill, one
+    with an ``EFFECT_TYPE_UNLOCK_ABILITY`` effect (``GeneralSkillVO.isAbilitySkill``,
+    bundle line 113404). Skill effects parse as ``effectID&value``
+    (``GeneralSkillVO.parseXML``, bundle line 113364).
+    """
+    bonuses: list[Bonus] = []
+    for skill_id in skill_ids:
+        skill = game_data.general_skills.get(skill_id)
+        if skill is None:
+            continue
+        boni = parse_effect_spec(skill.raw_effects)
+        if any(
+            (effect := game_data.effects.get(bonus.effect_id)) is not None
+            and effect.effect_type_id == UNLOCK_ABILITY_EFFECT_TYPE
+            for bonus in boni
+        ):
+            continue
+        bonuses.extend(boni)
+    return bonuses
+
+
 def legend_skill_value(game_data: GameData, skill_ids: Iterable[int], effect_type: str) -> float:
     """
     Total value of one legend skill effect type.
@@ -526,7 +556,7 @@ def _within_level_bracket(row: GlobalEffectDef, level: int) -> bool:
     return level >= int(row.min_level) and (ceiling <= 0 or level <= ceiling)
 
 
-def commander_bonuses(commander: Commander) -> list[Bonus]:
+def commander_bonuses(commander: Commander, *, area_effects: Sequence[Bonus] | None = None) -> list[Bonus]:
     """
     Every bonus a commander grants, resolved into the right id space.
 
@@ -538,10 +568,24 @@ def commander_bonuses(commander: Commander) -> list[Bonus]:
     Equipment set bonuses are not included - those are computed from the items
     tables rather than sent in the payload - so a commander wearing a full set
     resolves low.
+
+    Client: ``LordVO.getUniqueBoni`` (bundle line 26496). The attack dialog
+    replaces the commander's area effects with the ``aci`` ``AE`` list
+    (``AttackDialogController.updateAreEffects``, bundle line 4332), but the
+    ``areaEffects`` setter ignores an empty list (bundle line 26652), so the
+    commander keeps its own ``gli`` ``AE`` when ``aci`` sends none.
+
+    Args:
+        commander: The commander's ``gli`` entry
+        area_effects: The ``aci`` ``AE`` list, from
+            ``GetAttackInfoResponse.attacker_bonuses()``. When it has entries
+            they are used instead of the commander's own ``AE``
     """
-    bonuses: list[Bonus] = []
-    for source in (commander.effects, commander.area_effects):
-        bonuses.extend(parse_bonus_entries(entry for entry in source if isinstance(entry, list)))
+    bonuses: list[Bonus] = parse_bonus_entries(entry for entry in commander.effects if isinstance(entry, list))
+    if area_effects:
+        bonuses.extend(area_effects)
+    else:
+        bonuses.extend(parse_bonus_entries(entry for entry in commander.area_effects if isinstance(entry, list)))
 
     for item in commander.raw_equipment:
         if not isinstance(item, Sequence) or isinstance(item, (str, bytes)):
@@ -553,6 +597,41 @@ def commander_bonuses(commander: Commander) -> list[Bonus]:
             continue
         is_relic = len(item) > _EQUIPMENT_TYPE_FIELD and item[_EQUIPMENT_TYPE_FIELD] == _EQUIPMENT_TYPE_RELIC
         bonuses.extend(parse_bonus_entries(boni, via_relic=is_relic))
+    return bonuses
+
+
+def attack_dialog_bonuses(
+    game_data: GameData,
+    commander: Commander | None,
+    *,
+    area_effects: Sequence[Bonus] | None = None,
+    general_skill_ids: Iterable[int] | None = None,
+) -> list[Bonus]:
+    """
+    The one bonus list the attack dialog reads its commander's effects from.
+
+    Client: ``LordVO.getUniqueBoni`` with the assigned general included, as
+    ``CastleEffectsHelper.getAccumulatedEquipmentBonusByEffectTypeForArea``
+    calls it (bundle line 4136): the commander's equipment, effects and area
+    effects (see :func:`commander_bonuses`) plus the general's passive effects.
+    Sceat skills are not part of it.
+
+    Args:
+        game_data: Loaded tables
+        commander: The commander leading the attack. Without one, only
+            ``area_effects`` and the general's skills are counted
+        area_effects: The ``aci`` ``AE`` list
+        general_skill_ids: The unlocked skills of the commander's general
+
+    Returns:
+        Every bonus, unmerged; :meth:`EffectResolver.accumulate` caps them
+    """
+    if commander is not None:
+        bonuses = commander_bonuses(commander, area_effects=area_effects)
+    else:
+        bonuses = list(area_effects or [])
+    if general_skill_ids:
+        bonuses.extend(general_passive_bonuses(game_data, general_skill_ids))
     return bonuses
 
 
@@ -599,8 +678,10 @@ __all__ = [
     "CombatEffectType",
     "EffectResolver",
     "alliance_buff_bonuses",
+    "attack_dialog_bonuses",
     "commander_bonuses",
     "construction_item_bonuses",
+    "general_passive_bonuses",
     "general_skill_bonuses",
     "global_effect_bonuses",
     "global_unit_attack_bonuses",
