@@ -38,7 +38,34 @@ class TestEquipment:
         item = Equipment.model_validate([1, 6, 2, 10, 0, [[242, [25.0]]], 802, 22, 0, -1, -1, "242&25"])
 
         assert (item.slot, item.equipment_type) == (6, EquipmentType.GENERATED)
+        assert item.alien_string == "242&25"
         assert item.bonuses[0].effect_id == 242
+
+    def test_only_a_hero_item_keeps_an_alien_string(self):
+        hero = Equipment.model_validate([1, 6, 2, 10, 0, [], 802, 22, 0, -1, -1, 1])
+        weapon = Equipment.model_validate([1, 2, 2, 4, 0, [], 802, 22, 0, -1, -1, 1])
+        relic_hero = Equipment.model_validate([1, 6, 2, 15, -1, [[4, 84, [116.2]]], -1, -1, 0, -1, -1, 3])
+        # The factory switches on row[1] with ===, so "6" is not a hero slot
+        string_slot = Equipment.model_validate([1, "6", 2, 10, 0, [], 802, 22, 0, -1, -1, "242&25"])
+
+        assert (hero.alien_string, weapon.alien_string, relic_hero.alien_string) == (1, None, None)
+        assert string_slot.alien_string is None
+
+    def test_a_unique_temporary_item(self):
+        item = Equipment.model_validate([1, 2, 2, 0, 0, [], 802, -1, 0, 3600, -1, 2])
+
+        assert item.equipment_type == EquipmentType.UNIQUE_TEMPORARY
+        assert not item.is_relic
+
+    def test_has_set_reads_minus_one_as_no_set(self):
+        assert Equipment.model_validate([1, 2, 2, 4, 0, [], 802, 22]).has_set
+        assert not Equipment.model_validate([1, 2, 2, 4, 0, [], 802, -1]).has_set
+
+    def test_a_row_without_a_set_id_counts_as_set_0_like_the_client(self):
+        # parseEquipFromArray leaves _setID undefined, so hasSetbonus is true and int() reads it as 0
+        item = Equipment.model_validate([880, 2, 2])
+
+        assert (item.set_id, item.has_set) == (0, True)
 
     def test_an_unreadable_bonus_costs_only_itself(self):
         item = Equipment.model_validate([1, 1, 2, 4, 0, ["junk", [53, [25.0]]]])
