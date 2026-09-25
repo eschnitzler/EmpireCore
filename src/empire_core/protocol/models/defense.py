@@ -392,13 +392,10 @@ class GetSupportDefenseResponse(BaseResponse):
         """
         Calculate total number of defending troops.
 
-        A count of 0 or less adds nothing, as ``UnitInventoryList.addUnit``
-        (bundle line 21826) skips it.
-
         Returns:
             Total count of all units across all defense positions.
         """
-        return sum(count for position in self.defense_positions for _, count in position if count > 0)
+        return sum(count for position in self.defense_positions for _, count in position)
 
     def get_max_defense(self) -> int:
         """
@@ -416,9 +413,6 @@ class GetSupportDefenseResponse(BaseResponse):
         """
         Get unit counts grouped by defense position.
 
-        A count of 0 or less is left out, as ``UnitInventoryList.addUnit``
-        (bundle line 21826) skips it.
-
         Returns:
             One dict per position, each mapping unit_id -> count for that position.
         """
@@ -426,8 +420,7 @@ class GetSupportDefenseResponse(BaseResponse):
         for position in self.defense_positions:
             units: dict[int, int] = {}
             for unit_id, count in position:
-                if count > 0:
-                    units[unit_id] = units.get(unit_id, 0) + count
+                units[unit_id] = units.get(unit_id, 0) + count
             result.append(units)
         return result
 

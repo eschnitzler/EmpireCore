@@ -220,24 +220,25 @@ def _spy_positions(value: object) -> object:
 
     Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line 30699) hands each
     position to ``AUnitInventory.fillFromWodAmountArray`` (bundle line 42572),
-    which skips entries that are not arrays and reads ``int(i[0])``, ``int(i[1])``.
-    A position that is not an array fills nothing, so it reads as empty; it is
-    kept, since the client reads positions by order.
+    which skips entries that are not arrays and reads ``int(i[0])``, ``int(i[1])``,
+    into a ``UnitInventoryList``, whose ``addUnit`` skips an amount of 0 or less
+    (bundle line 21826). A position that is not an array fills nothing, so it
+    reads as empty; it is kept, since the client reads positions by order.
     """
     if value is None:
         return []
     if not isinstance(value, list):
         return value
-    return [
-        [
-            [client_int(pair[0] if pair else None), client_int(pair[1] if len(pair) > 1 else None)]
-            for pair in position
-            if isinstance(pair, list)
-        ]
-        if isinstance(position, list)
-        else []
-        for position in value
-    ]
+    positions = []
+    for position in value:
+        pairs = []
+        for pair in position if isinstance(position, list) else []:
+            if isinstance(pair, list):
+                amount = client_int(pair[1] if len(pair) > 1 else None)
+                if amount > 0:
+                    pairs.append([client_int(pair[0] if pair else None), amount])
+        positions.append(pairs)
+    return positions
 
 
 SpyPositions = Annotated[list[list[list[int]]], BeforeValidator(_spy_positions)]

@@ -1078,11 +1078,11 @@ class TestDriftedPayloadsMustNotCrashAccessors:
         assert response.get_total_defenders() == 5
 
     def test_unreadable_defense_counts_read_as_zero_like_the_client(self):
-        # fillFromWodAmountArray reads int() of each value; UnitInventoryList.addUnit skips 0
+        # fillFromWodAmountArray reads int() of each value, and UnitInventoryList.addUnit skips 0
         response = GetSupportDefenseResponse.model_validate(
             {"SCID": 7, "S": [[[487, "x"], [488, None], [489, 5]], ["junk"]]}
         )
-        assert response.defense_positions == [[[487, 0], [488, 0], [489, 5]], []]
+        assert response.defense_positions == [[[489, 5]], []]
         assert response.get_total_defenders() == 5
 
     def test_zero_counts_are_left_out_of_the_per_position_grouping(self):

@@ -40,8 +40,8 @@ class TestBattleSpyDataResponse:
         assert response.spy_data == [[[487, 100]], []]
 
     def test_pairs_are_read_through_int_like_the_client(self):
-        response = BattleSpyDataResponse.model_validate({"S": [[[487, "100"], [488, "x"], [489]]]})
-        assert response.spy_data == [[[487, 100], [488, 0], [489, 0]]]
+        response = BattleSpyDataResponse.model_validate({"S": [[[487, "100"], [488, "x"], [489]], [[490, 0]]]})
+        assert response.spy_data == [[[487, 100]], []]
 
     def test_unreadable_castellan_keeps_the_report(self):
         response = BattleSpyDataResponse.model_validate({"S": [[[487, 100]]], "B": {"N": "no id"}})

@@ -174,13 +174,14 @@ class TestAttackInfoBlocks:
     def test_spy_positions_are_read_through_int(self):
         from empire_core.protocol.models import GetAttackInfoResponse
 
-        # fillFromWodAmountArray skips non-arrays and reads int(i[0]), int(i[1])
+        # fillFromWodAmountArray skips non-arrays and reads int(i[0]), int(i[1]);
+        # UnitInventoryList.addUnit skips an amount of 0
         info = GetAttackInfoResponse.model_validate({"S": [[[487, "20"], "junk", [488, "x"]], "junk", [[10, 1]]]})
 
-        assert info.spy_data == [[[487, 20], [488, 0]], [], [[10, 1]]]
+        assert info.spy_data == [[[487, 20]], [], [[10, 1]]]
         army = info.spy_army()
         assert army is not None
-        assert [(s.wod_id, s.count) for s in army.left] == [(487, 20), (488, 0)]
+        assert [(s.wod_id, s.count) for s in army.left] == [(487, 20)]
         assert [(s.wod_id, s.count) for s in army.right] == [(10, 1)]
 
     def test_a_null_spy_block_is_no_report(self):
