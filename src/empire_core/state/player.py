@@ -1,8 +1,9 @@
-"""Local player tracking: gpi/gxp/gcu/vip/gho/uap, alliance (gal), inventory (sce) and events (sei)."""
+"""Local player tracking: gpi/gxp/gcu/vip/gho/uap, alliance (gal), special currencies (sce) and events (sei)."""
 
 import logging
 import math
 import time
+import warnings
 from typing import Any
 
 from empire_core.state.base import StateBase
@@ -154,36 +155,39 @@ class PlayerState(StateBase):
             self.local_player = player
             logger.debug(f"Local player: {player.name} (ID: {pid})")
 
-    def _parse_inventory(self, data: dict[str, Any]) -> None:
-        """Parse inventory items from sce sub-packet."""
+    def _parse_special_currencies(self, data: dict[str, Any]) -> None:
+        """Apply the login data's sce section (special currencies)."""
         sce = data.get("sce", [])
         if not (sce and self.local_player):
             return
-        total = self._apply_inventory_items(sce)
-        logger.debug(f"Parsed {total} inventory items")
+        total = self._apply_special_currencies(sce)
+        logger.debug(f"Parsed {total} special currencies")
 
-    def _apply_inventory_items(self, items: Any) -> int:
-        """Merge ``[[item_id, count], ...]`` entries into the inventory.
+    def _apply_special_currencies(self, entries: Any) -> int:
+        """Merge ``[[currency_key, amount], ...]`` entries into the special currencies.
 
         The dict is rebuilt and swapped rather than updated in place: user
-        threads read ``local_player.inventory`` without the lock, and
+        threads read ``local_player.special_currencies`` without the lock, and
         iterating a dict the receive thread is writing raises
         "dictionary changed size during iteration".
 
+        Client: ``CurrencyData.parseSCE``, which sets each amount on the
+        generic currency with that key in the item data.
+
         Returns:
-            The number of items in the inventory afterwards.
+            The number of special currencies known afterwards.
         """
         player = self.local_player
-        if player is None or not isinstance(items, list):
+        if player is None or not isinstance(entries, list):
             return 0
-        updated = dict(player.inventory)
-        for item in items:
-            if isinstance(item, list) and len(item) >= 2:
+        updated = dict(player.special_currencies)
+        for entry in entries:
+            if isinstance(entry, list) and len(entry) >= 2:
                 try:
-                    updated[str(item[0])] = int(item[1])
+                    updated[str(entry[0])] = int(entry[1])
                 except (ValueError, TypeError):
-                    logger.debug(f"Skipping malformed inventory entry: {item!r}")
-        player.inventory = updated
+                    logger.debug(f"Skipping malformed special currency entry: {entry!r}")
+        player.special_currencies = updated
         return len(updated)
 
     def _parse_alliance_info(self, data: dict[str, Any]) -> None:
@@ -229,15 +233,16 @@ class PlayerState(StateBase):
         self._swap_model_fields(player, merged, {"alliance", "AID"})
 
     def _handle_sce(self, data: Any) -> None:
-        """Handle Server Client Exchange (Inventory Update)."""
-        # data might be a list directly: [["PTT", 123]]
-        # or a dict if wrapped?
-        items = data if isinstance(data, list) else []
+        """Handle a "get special currency" push: ``[[currency_key, amount], ...]``.
 
-        if items and self.local_player:
-            self._apply_inventory_items(items)
+        Client: ``SCECommand.exec`` / ``CurrencyData.parseSCE``.
+        """
+        entries = data if isinstance(data, list) else []
+
+        if entries and self.local_player:
+            self._apply_special_currencies(entries)
             self._player_updated_at = time.time()
-            logger.debug(f"Updated {len(items)} inventory items from sce")
+            logger.debug(f"Updated {len(entries)} special currencies from sce")
 
     def _handle_sei(self, data: dict[str, Any]) -> None:
         """Handle 'Send Event Information' packet."""
@@ -257,7 +262,7 @@ class PlayerState(StateBase):
     def get_local_player(self) -> Player | None:
         """Get a snapshot of the local player, or None before login.
 
-        Returns a copy taken under the lock, with detached ``inventory``,
+        Returns a copy taken under the lock, with detached ``special_currencies``,
         ``castles`` and ``beginner_protection`` containers, so several fields can be read consistently
         while the receive thread is updating state. ``state.local_player``
         remains available for direct access but is a live object.
@@ -271,22 +276,33 @@ class PlayerState(StateBase):
                 return None
             return player.model_copy(
                 update={
-                    "inventory": dict(player.inventory),
+                    "special_currencies": dict(player.special_currencies),
                     "castles": dict(player.castles),
                     "beginner_protection": dict(player.beginner_protection),
                 }
             )
 
-    def get_inventory(self) -> dict[str, int]:
-        """Get a snapshot of the global inventory (item id -> count).
+    def get_special_currencies(self) -> dict[str, int]:
+        """Get a snapshot of the special currencies (sce currency key -> amount).
 
-        Empty before login, or if no sce packet has arrived yet — use
-        ``get_last_packet_time("sce")`` to tell those apart from "empty".
+        These are the generic currencies from ``sce`` (``PTT``, ``MS1``,
+        ``LWT``, ...), not items. Empty before login, or if no sce packet has
+        arrived yet — use ``get_last_packet_time("sce")`` to tell those apart
+        from "empty".
         """
         with self._lock:
             if self.local_player is None:
                 return {}
-            return dict(self.local_player.inventory)
+            return dict(self.local_player.special_currencies)
+
+    def get_inventory(self) -> dict[str, int]:
+        """Deprecated name of :meth:`get_special_currencies`."""
+        warnings.warn(
+            "GameState.get_inventory() is deprecated; use get_special_currencies() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.get_special_currencies()
 
     def get_player_last_updated(self) -> float | None:
         """When any local-player field was last refreshed, or ``None``.

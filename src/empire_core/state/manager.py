@@ -29,7 +29,7 @@ class GameState(MovementState, CastleState, PlayerState):
 
     The public attributes stay readable directly, but callers that read
     several fields at once (or iterate a container) should use the snapshot
-    accessors — ``get_local_player()``, ``get_inventory()``, ``get_castles()``,
+    accessors — ``get_local_player()``, ``get_special_currencies()``, ``get_castles()``,
     ``get_all_movements()`` — which copy under the lock. Mutation paths swap
     containers instead of editing them in place, so an unlocked reader that
     already holds one never sees it change underneath.
@@ -52,7 +52,7 @@ class GameState(MovementState, CastleState, PlayerState):
     player identity/level/XP             ``gpi``/``gxp``/``glu``      re-login
     player gold/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      re-login
     honor, beginner protection           ``gho``/``uap``              re-login
-    global inventory                     ``sce`` (pushed)             --
+    special currencies                   ``sce`` (pushed)             --
     movements                            ``gam``, ``abr``/``asr``,    ``client.get_movements()``
                                          your sends' replies
                                          (``cra``, ``cds``, ...)
@@ -125,7 +125,7 @@ class GameState(MovementState, CastleState, PlayerState):
         ``GHOCommand`` and ``UAPCommand``.
         """
         self._parse_player_sections(data)
-        self._parse_inventory(data)
+        self._parse_special_currencies(data)
         self._parse_alliance_info(data)
         self._parse_castles(data)
         if dcl := data.get("dcl"):

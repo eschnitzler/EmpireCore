@@ -1,4 +1,4 @@
-"""GameState local player tracking: player sections, alliance, inventory and freshness."""
+"""GameState local player tracking: player sections, alliance, special currencies and freshness."""
 
 import time
 from unittest.mock import patch
@@ -21,17 +21,17 @@ class TestPlayerParsing:
         assert player.PN == "new_name"
         assert player.level == 11
 
-    def test_malformed_inventory_entry_skipped(self, state):
+    def test_malformed_special_currency_entry_skipped(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7, "PN": "x"}})
         state.update_from_packet("sce", [["GOOD", 5], ["BAD", "not-a-number"], ["ALSO_GOOD", 7]])
-        inv = state.local_player.inventory
+        inv = state.local_player.special_currencies
         assert inv["GOOD"] == 5
         assert inv["ALSO_GOOD"] == 7
         assert "BAD" not in inv
 
 
 class TestLocalPlayerSnapshots:
-    """local_player/inventory are read by user threads while the receive
+    """local_player/special_currencies are read by user threads while the receive
     thread updates them, so there must be a locked snapshot path."""
 
     def test_get_local_player_returns_detached_copy(self, state):
@@ -53,28 +53,28 @@ class TestLocalPlayerSnapshots:
         state.update_from_packet("sce", [["B", 2]])
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(2, "Second")])})
 
-        assert snapshot.inventory == {"A": 1}, "snapshot inventory mutated by receive thread"
+        assert snapshot.special_currencies == {"A": 1}, "snapshot currencies mutated by receive thread"
         assert list(snapshot.castles) == [1], "snapshot castles mutated by receive thread"
 
-    def test_get_inventory_returns_copy(self, state):
+    def test_get_special_currencies_returns_copy(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": [["A", 1]]})
-        inventory = state.get_inventory()
+        currencies = state.get_special_currencies()
 
-        assert inventory == {"A": 1}
-        inventory["A"] = 999
-        assert state.get_inventory() == {"A": 1}
+        assert currencies == {"A": 1}
+        currencies["A"] = 999
+        assert state.get_special_currencies() == {"A": 1}
 
-    def test_get_inventory_is_empty_before_login(self, state):
-        assert state.get_inventory() == {}
+    def test_get_special_currencies_is_empty_before_login(self, state):
+        assert state.get_special_currencies() == {}
 
-    def test_sce_swaps_inventory_instead_of_mutating_in_place(self, state):
+    def test_sce_swaps_currencies_instead_of_mutating_in_place(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": [["A", 1]]})
-        reader_view = state.local_player.inventory  # what an unlocked reader holds
+        reader_view = state.local_player.special_currencies  # what an unlocked reader holds
 
         state.update_from_packet("sce", [["B", 2]])
 
         assert reader_view == {"A": 1}, "receive thread mutated a dict a reader already holds"
-        assert state.get_inventory() == {"A": 1, "B": 2}
+        assert state.get_special_currencies() == {"A": 1, "B": 2}
 
     def test_gcl_swaps_player_castles_instead_of_mutating_in_place(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
@@ -252,7 +252,7 @@ class TestFreshnessMetadata:
         time.sleep(0.02)
         state.update_from_packet("sce", [["A", 1]])
         second = state.get_player_last_updated()
-        assert second is not None and second > first, "inventory push did not refresh the stamp"
+        assert second is not None and second > first, "currency push did not refresh the stamp"
 
 
 # Live capture of a login gbd's player sections; name scrubbed.
@@ -395,6 +395,30 @@ class TestPushRobustness:
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})
         state.update_from_packet("gal", {"AID": -1})
         assert state.get_local_player().alliance is None
+
+
+class TestSpecialCurrencies:
+    # Live capture of a login gbd's sce section.
+    LIVE_SCE = [["GRT", 2], ["STL", 100], ["PTT", 1604], ["MS1", 197], ["SLWT", 6], ["KTK", 5]]
+
+    def test_live_sce_shape(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": self.LIVE_SCE})
+        assert state.get_special_currencies() == {"GRT": 2, "STL": 100, "PTT": 1604, "MS1": 197, "SLWT": 6, "KTK": 5}
+
+    def test_push_updates_amounts(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": self.LIVE_SCE})
+        state.update_from_packet("sce", [["PTT", 1500]])
+        currencies = state.get_special_currencies()
+        assert currencies["PTT"] == 1500 and currencies["MS1"] == 197
+
+    def test_old_names_still_read_through(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": [["PTT", 3]]})
+        with pytest.deprecated_call():
+            assert state.get_inventory() == {"PTT": 3}
+        player = state.get_local_player()
+        with pytest.deprecated_call():
+            assert player.inventory == {"PTT": 3}
+        assert Player.model_validate({"inventory": {"PTT": 1}}).special_currencies == {"PTT": 1}
 
 
 class TestLevelProgress:

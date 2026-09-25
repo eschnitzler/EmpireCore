@@ -22,8 +22,8 @@ It is created and owned by `EmpireClient` as `client.state`.
 Despite its type, `players` only ever holds the **local player** — nothing in
 the library records other players there. Don't iterate it expecting opponents
 or alliance members; use the alliance service (`ain`) or the commander/profile
-services for those. The inventory lives on the player itself
-(`local_player.inventory`, item id -> count), not on `GameState`.
+services for those. The special currencies (`sce`) live on the player itself
+(`local_player.special_currencies`, currency key -> amount), not on `GameState`.
 
 ## Thread Safety
 
@@ -38,16 +38,16 @@ for m in client.state.get_all_movements():   # snapshot list
 client.state.get_castles()
 client.state.get_incoming_attacks()
 client.state.get_local_player()              # Player copy, or None before login
-client.state.get_inventory()                 # dict copy: item id -> count
+client.state.get_special_currencies()        # dict copy: currency key -> amount
 ```
 
 * `get_local_player()` returns a `Player` copy taken under the lock, with
-  **detached** `inventory` and `castles` containers, so several fields can be
+  **detached** `special_currencies` and `castles` containers, so several fields can be
   read consistently while the receive thread is applying an update. It returns
   `None` before login. The `Castle` objects inside the snapshot are the live
   ones, as with `get_castles()`.
-* `get_inventory()` returns a `dict[str, int]` copy of the inventory (item id
-  -> count; ids are strings). Empty before login, or before the first `sce`.
+* `get_special_currencies()` returns a `dict[str, int]` copy of the special
+  currencies (`PTT`, `MS1`, ...). Empty before login, or before the first `sce`.
 
 The public attributes (`state.local_player`, `state.castles`, …) stay readable
 directly, but they are live and unlocked. Prefer the accessors when reading
@@ -61,7 +61,7 @@ commands to handlers:
 
 | Command      | Handler effect                                    |
 |--------------|---------------------------------------------------|
-| `gbd`, `lli` | initial login data: player, castles, inventory    |
+| `gbd`, `lli` | initial login data: player, castles, currencies   |
 | `gam`        | full movement list refresh                        |
 | `abr`, `asr` | one movement pushed as it nears its target        |
 | `mcm`        | your recall: the movement, now heading home       |
@@ -71,7 +71,7 @@ commands to handlers:
 | `gpi`, `gxp`, `gcu`, `vip`, `gal`, `gcl`, `gho`, `uap` | one login section, pushed when it changes |
 | `glu`        | level up: its `gcu` and `gxp`                      |
 | `mir`        | castle list (`gcl`) after taking a castle          |
-| `sce`        | inventory update                                   |
+| `sce`        | special currency update                            |
 | `sei`        | active event ids                                   |
 
 ### Presence vs. Absence in `gbd`/`lli`
@@ -99,13 +99,13 @@ name against the old level) or a castle mid-relocation (the new X against the
 old Y).
 
 The *containers* work the other way round — they are rebuilt and swapped, not
-mutated. Each update replaces `local_player.inventory` and
+mutated. Each update replaces `local_player.special_currencies` and
 `local_player.castles` with new dicts (likewise `castle.resources` and
 `castle.units` on `dcl`), so a reference to one of those objects held across an
 update goes **stale**: it keeps the contents it had when it was taken. That is
 deliberate — it is what stops an unlocked reader iterating the container from
 crashing with `dictionary changed size during iteration`. Re-read the attribute
-(or call `get_inventory()` / `get_castles()`) on each pass instead of caching
+(or call `get_special_currencies()` / `get_castles()`) on each pass instead of caching
 the container.
 
 ## Movement Lifecycle

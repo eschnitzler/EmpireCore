@@ -2,9 +2,10 @@ from enum import Enum
 
 
 class SCEItem(str, Enum):
-    """
-    String keys for Global Inventory Items (from 'sce' packet).
-    These match the keys used in 'gpi'/'gbd'/'sce' payloads.
+    """Special currency keys, as sent in ``sce`` entries ``[key, amount]``.
+
+    They name generic currencies in the item data, not items. Client:
+    ``CurrencyData.parseSCE``.
     """
 
     # Travel & Speed

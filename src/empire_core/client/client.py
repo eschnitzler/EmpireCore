@@ -180,7 +180,7 @@ class EmpireClient:
         """Handle incoming packets for state updates and service dispatch."""
         cmd = packet.command_id
         # Most payloads are JSON objects, but some server pushes are JSON
-        # arrays (e.g. 'sce' inventory updates, which arrive as
+        # arrays (e.g. 'sce' special currency updates, which arrive as
         # ``[["PTT", 123]]``). Both have to reach GameState; XML packets
         # (ET.Element) and empty payloads have nothing to apply.
         payload: object = packet.payload

@@ -224,7 +224,7 @@ you mid-iteration.
 player = client.state.get_local_player()      # None until login completes
 castles = client.state.get_castles()
 attacks = client.state.get_incoming_attacks()
-inventory = client.state.get_inventory()
+currencies = client.state.get_special_currencies()
 ```
 
 ### Knowing whether state is fresh
