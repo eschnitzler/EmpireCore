@@ -220,8 +220,8 @@ def gdi_location_row(
 GOLDEN_AIN = {
     "A": {
         "AID": 190426,
-        "N": "Knights of HOPE",
-        "A": "HOPE",
+        "N": "Test Alliance",
+        "A": "Welcome to the alliance",
         "MP": 4213377,
         "ML": 50,
         "STO": {"W": 120000, "S": 98000, "O": 45000, "C1": 3000, "C2": 12, "I": 400, "G": 7},
@@ -338,7 +338,7 @@ GOLDEN_GDI = {
         "L": 70,
         "LL": 500,
         "AID": 190426,
-        "AN": "Knights of HOPE",
+        "AN": "Test Alliance",
         "RPT": 3600,
         "AP": [[0, 12345, 640, 655, 1]],
         "E": {"BGT": 1},
@@ -384,10 +384,10 @@ class TestGoldenAllianceInfo:
         info = GetAllianceInfoResponse.model_validate(GOLDEN_AIN).alliance
         assert info is not None
         assert info.alliance_id == 190426
-        assert info.name == "Knights of HOPE"
-        assert info.abbreviation == "HOPE"
+        assert info.name == "Test Alliance"
+        assert info.announcement == "Welcome to the alliance"
         assert info.might == 4213377
-        assert info.member_limit == 50
+        assert info.external_member_level == 50
         assert info.member_count == 2
 
     def test_storage_and_buildings(self):
@@ -527,7 +527,7 @@ class TestGoldenPlayerInfo:
         assert response.player_id == 4242
         assert response.player_name == "TargetPlayer"
         assert response.alliance_id == 190426
-        assert response.alliance_name == "Knights of HOPE"
+        assert response.alliance_name == "Test Alliance"
         assert response.has_bird is True
         assert response.bird_end_time is not None
 
@@ -1241,3 +1241,38 @@ class TestMapAreaStructureLevels:
         for item in (tower, monument, laboratory):
             assert (item.keep_level, item.wall_level, item.gate_level, item.tower_level, item.moat_level) == (0,) * 5
         assert (tower.landmark_level, monument.landmark_level, laboratory.landmark_level) == (None, 7, 9)
+
+
+class TestAllianceInfoFlags:
+    def test_settings_read_as_alliance_info_vo_does(self):
+        from empire_core.protocol.models.alliance import AllianceInfo
+
+        info = AllianceInfo.model_validate(
+            {
+                "CF": "1200",
+                "HF": 3000,
+                "IS": 1,
+                "IA": 0,
+                "KA": 1,
+                "AW": 1,
+                "HP": 0,
+                "SP": 1,
+                "AA": 3,
+                "AP": 12.5,
+                "A": None,
+            }
+        )
+        assert (info.fame_points, info.highest_fame_points, info.application_count, info.aqua_points) == (
+            1200,
+            3000,
+            3,
+            12.5,
+        )
+        assert (info.is_searching_members, info.is_accepting_members, info.is_king_alliance, info.auto_war) == (
+            True, False, True, True,
+        )  # fmt: skip
+        assert (info.can_be_invited_to_hard_pact, info.can_be_invited_to_soft_pact, info.announcement) == (
+            False,
+            True,
+            "",
+        )

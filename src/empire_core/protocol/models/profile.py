@@ -59,13 +59,13 @@ class PlayerProfileBase(BasePayload):
     name: str = Field(alias="N", default="")
     level: int = Field(alias="L", default=0)
     legendary_level: int = Field(alias="LL", default=0)
-    h_field: int = Field(alias="H", default=0)  # Unknown metric, NOT online status
+    honor: int = Field(alias="H", default=0, description="Honor points, read with parseInt")
     alliance_rank: int = Field(alias="AR", default=0)
-    castle_count: int = Field(alias="CF", default=0)
-    total_castles: int = Field(alias="HF", default=0)
+    glory_points: int = Field(alias="CF", default=0, description="Glory points, as parseUFA reads CF")
+    highest_glory_points: int = Field(alias="HF", default=0, description="Highest glory points reached")
     might: int = Field(alias="MP", default=0)
     is_dummy: bool = Field(alias="DUM", default=False)
-    avatar_points: int = Field(alias="AVP", default=0)
+    achievement_points: int = Field(alias="AVP", default=0)
     title_prefix: int = Field(alias="PRE", default=0)
     title_suffix: int = Field(alias="SUF", default=-1)
     top_ranking: int = Field(alias="TOPX", default=-1)
@@ -119,11 +119,6 @@ class PlayerProfileBase(BasePayload):
             except ValidationError:
                 continue
         return rows
-
-    @property
-    def honor(self) -> int:
-        """Get the player's honor points (H field)."""
-        return self.h_field
 
     @property
     def is_leader(self) -> bool:

@@ -185,35 +185,58 @@ class AllianceInfo(BasePayload):
     Full alliance information from ain response.
 
     Contains alliance details, member list, buildings, storage, etc.
+
+    Client: ``AllianceInfoVO.fillFromParamObject`` (bundle line 25928)
     """
 
     alliance_id: int = Field(alias="AID", default=0)
     name: str = Field(alias="N", default="")
     members: list[AllianceMember] = Field(alias="M", default_factory=list)
 
-    # Alliance stats
-    castle_count: int = Field(alias="CF", default=0)
-    total_castles: int = Field(alias="HF", default=0)
-    might: int = Field(alias="MP", default=0)
-    highest_alliance_might: int = Field(alias="HAMP", default=0)
+    fame_points: ClientInt = Field(alias="CF", default=0, description="Alliance fame points")
+    highest_fame_points: ClientInt = Field(alias="HF", default=0, description="Highest fame points reached")
+    might: ClientInt = Field(alias="MP", default=0)
+    highest_alliance_might: ClientInt = Field(alias="HAMP", default=0)
     description: str = Field(alias="D", default="")
+    announcement: str = Field(alias="A", default="", description="The alliance's announcement")
     language: str = Field(alias="ALL", default="en")
+    external_member_level: ClientInt = Field(alias="ML", default=0)
+    status_to_own_alliance: ClientInt = Field(
+        alias="DOA",
+        default=0,
+        description="Diplomacy status towards the player's own alliance (AllianceConst.DIPLOMACY_*)",
+    )
+    is_searching_members: bool = Field(alias="IS", default=False, description="The alliance is looking for players")
+    is_accepting_members: bool = Field(alias="IA", default=False, description="Players may apply to join")
+    application_count: ClientInt = Field(alias="AA", default=0, description="Pending applications")
+    auto_war: bool = Field(alias="AW", default=False)
+    aqua_points: int | float = Field(alias="AP", default=0)
+    free_renames: ClientInt = Field(alias="FR", default=0)
+    can_be_invited_to_hard_pact: bool = Field(alias="HP", default=False)
+    can_be_invited_to_soft_pact: bool = Field(alias="SP", default=False)
+    is_able_to_forge: bool = Field(alias="MF", default=False)
+    is_forge_inventory_full: bool = Field(alias="IF", default=False)
+    soft_relic_forge_uses: ClientInt = Field(alias="SRFU", default=0)
+    hard_relic_forge_uses: ClientInt = Field(alias="HRFU", default=0)
+    is_king_alliance: bool = Field(alias="KA", default=False)
 
-    # Alliance settings
-    homepage: int = Field(alias="HP", default=0)
-    invite_only: int = Field(alias="IS", default=0)
-    ignore_applications: int = Field(alias="IA", default=0)
-    kick_applications: int = Field(alias="KA", default=0)
-    abbreviation: str = Field(alias="A", default="")
-    friendly_raids: int = Field(alias="FR", default=0)
-    support_priority: int = Field(alias="SP", default=0)
-    auto_accept: int = Field(alias="AA", default=0)
-    alliance_war: int = Field(alias="AW", default=0)
-    member_limit: int = Field(alias="ML", default=0)
-    attack_protection: int = Field(alias="AP", default=0)
-    required_trust: int = Field(alias="RT", default=-1)
-    message_filter: int = Field(alias="MF", default=0)
-    invite_friends: int = Field(alias="IF", default=0)
+    @field_validator("is_searching_members", "is_accepting_members", mode="before")
+    @classmethod
+    def _truthy_flag(cls, value: Any) -> bool:
+        return bool(value)
+
+    @field_validator(
+        "auto_war", "can_be_invited_to_hard_pact", "can_be_invited_to_soft_pact", "is_able_to_forge",
+        "is_forge_inventory_full", "is_king_alliance", mode="before",
+    )  # fmt: skip
+    @classmethod
+    def _one_flag(cls, value: Any) -> bool:
+        return value == 1
+
+    @field_validator("description", "announcement", mode="before")
+    @classmethod
+    def _text(cls, value: Any) -> Any:
+        return "" if value is None else value
 
     # Alliance resources
     storage: AllianceStorage | None = Field(alias="STO", default=None)

@@ -261,7 +261,7 @@ def conn(client: EmpireClient) -> ScriptedConnection:
 GOLDEN_AIN: dict[str, Any] = {
     "A": {
         "AID": 190426,
-        "N": "Knights of HOPE",
+        "N": "Test Alliance",
         "A": "HOPE",
         "D": "Recruiting active players",
         "MP": 4213377,
@@ -282,7 +282,7 @@ GOLDEN_AIN: dict[str, Any] = {
                 "CF": 3,
                 "HF": 9,
                 "AID": 190426,
-                "AN": "Knights of HOPE",
+                "AN": "Test Alliance",
                 "RPT": 0,
                 "AP": [[0, 12345, 640, 655, 1], [2, 22222, 300, 400, 4]],
                 "E": {"BGT": 1, "BGC1": 2, "SPT": 3, "S1": 4, "IS": 1},
@@ -646,7 +646,7 @@ class TestAllianceLocalHelpers:
 
 
 class TestAllianceSearch:
-    GOLDEN_HGH: dict[str, Any] = {"L": [[1, 4213377, [190426, "Knights of HOPE", 47, 1520300]]]}
+    GOLDEN_HGH: dict[str, Any] = {"L": [[1, 4213377, [190426, "Test Alliance", 47, 1520300]]]}
 
     def test_search_parses_positional_results(self):
         client = make_client({"hgh": xt_packet("hgh", self.GOLDEN_HGH)})
@@ -655,7 +655,7 @@ class TestAllianceSearch:
 
         assert len(results) == 1
         assert results[0].alliance_id == 190426
-        assert results[0].name == "Knights of HOPE"
+        assert results[0].name == "Test Alliance"
         assert results[0].member_count == 47
         assert (results[0].rank, results[0].score, results[0].fame_points) == (1, 4213377, 1520300)
 
@@ -697,7 +697,7 @@ class TestAllianceSearch:
         with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.alliance"):
             results = client.alliance.search_alliances("HOPE")
 
-        assert [(r.alliance_id, r.name) for r in results] == [(0, "y"), (190426, "Knights of HOPE")]
+        assert [(r.alliance_id, r.name) for r in results] == [(0, "y"), (190426, "Test Alliance")]
         assert "Skipped 1/3" in caplog.text
 
 
