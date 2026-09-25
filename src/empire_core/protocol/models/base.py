@@ -83,8 +83,8 @@ class GGECommand:
     CSM = "csm"  # Send spy mission
     SSI = "ssi"  # Spy screen info
     GAS = "gas"  # Get attack presets
-    MSD = "msd"  # Skip attack cooldown (rubies)
-    SDC = "sdc"  # Skip defense cooldown
+    MSD = "msd"  # Shorten a dungeon's cooldown with a minute skip
+    SDC = "sdc"  # Skip a dungeon's cooldown
     CDS = "cds"  # Send support troops
 
     # Building
