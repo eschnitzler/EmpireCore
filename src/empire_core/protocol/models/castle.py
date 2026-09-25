@@ -237,8 +237,16 @@ class GetCastlesResponse(BaseResponse):
         if not isinstance(data, dict) or "C" not in data:
             return data
         data = dict(data)
+        section = data.pop("C")
+        if isinstance(section, list):
+            unreadable = [k for k in section if not (isinstance(k, dict) and isinstance(k.get("AI"), list))]
+            if unreadable:
+                logger.warning(
+                    f"Skipped {len(unreadable)}/{len(section)} malformed gcl kingdom entries; "
+                    "the castle list may be incomplete"
+                )
         castles = []
-        for kid, entry in _kingdom_entries(data.pop("C")):
+        for kid, entry in _kingdom_entries(section):
             row = entry.get("AI")
             if isinstance(row, list) and len(row) == 1 and isinstance(row[0], list):
                 # A row wrapped in one extra list, which the old gdi parser unwrapped; the client does not

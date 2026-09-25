@@ -1049,18 +1049,21 @@ class TestDriftedPayloadsMustNotCrashAccessors:
         response = GetPlayerInfoResponse.model_validate({"gcl": {"C": [{"KID": 0, "AI": "junk"}]}})
         assert response.get_castles() == []
 
-    def test_drifted_kingdom_entry_is_skipped_rather_than_crashing(self):
-        response = GetPlayerInfoResponse.model_validate(
-            {
-                "gcl": {
-                    "C": [
-                        {"KID": 0, "AI": [{"AI": [gdi_location_row(1, 1, 2, 3, 4, "Keep", 0)]}]},
-                        "unexpected-string-entry",
-                    ]
+    def test_drifted_kingdom_entry_is_skipped_rather_than_crashing(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.castle"):
+            response = GetPlayerInfoResponse.model_validate(
+                {
+                    "gcl": {
+                        "C": [
+                            {"KID": 0, "AI": [{"AI": [gdi_location_row(1, 1, 2, 3, 4, "Keep", 0)]}]},
+                            "unexpected-string-entry",
+                        ]
+                    }
                 }
-            }
-        )
+            )
         assert [c.castle_name for c in response.get_castles()] == ["Keep"]
+        # Skipped silently is a hole too: the drop must be visible, once.
+        assert caplog.text.count("Skipped 1/2") == 1
 
     def test_string_unit_count_does_not_crash_the_defense_total(self):
         response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[487, 100]], [[488, "20"]]]})
