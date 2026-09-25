@@ -218,3 +218,24 @@ class TestRenameCommander:
         response = RenameCommanderResponse.model_validate({})
 
         assert response.commander_roster.commanders == []
+
+
+class TestAlienEquipmentBonuses:
+    def test_aie_rows_count_through_the_equipment_effect_table(self):
+        game_data = GameData.parse(
+            "test",
+            {
+                "effects": [{"effectID": "326", "name": "x", "effectTypeID": "1"}],
+                "equipment_effects": [{"equipmentEffectID": "37", "effectID": "326"}],
+            },
+        )
+        commander = Commander.model_validate({"ID": 1, "EQ": [], "AIE": [[[37, [5]]], [[37, [10]]]]})
+        bonuses = commander_bonuses(game_data, commander)
+        assert sorted(bonus.via_equipment for bonus in bonuses) == [True, True]
+        assert [bonus.effect_id for bonus in bonuses] == [37, 37]
+
+    def test_aie_is_ignored_while_eq_has_items(self):
+        game_data = GameData.parse("test", {})
+        item = [1, 1, 1, 1, 0, [[37, [5]]], 0, -1, 0, -1, -1, 0]
+        commander = Commander.model_validate({"ID": 1, "EQ": [item], "AIE": [[37, [10]]]})
+        assert len(commander_bonuses(game_data, commander)) == 1
