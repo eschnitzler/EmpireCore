@@ -207,6 +207,7 @@ class _Target:
     camp_kingdom_id: int = 0
     spy_army: SpyArmy | None = None
     castellan: Commander | None = None
+    defender_legend_skill_ids: list[int] | None = None
     area_bonuses: list[Bonus] | None = None
     conquer: bool = False
 
@@ -793,6 +794,7 @@ class AttackService(BaseService):
                 gate_bonus=gate,
                 moat_bonus=moat,
                 castellan=target.castellan,
+                defender_legend_skill_ids=target.defender_legend_skill_ids,
                 area_type=target.area_type,
             )
         # Without a spy report the defending army is unknown, so only the
@@ -882,6 +884,7 @@ class AttackService(BaseService):
         area_bonuses: list[Bonus] | None = None,
         spy_army: SpyArmy | None = None,
         defending_castellan: Commander | None = None,
+        defender_legend_skill_ids: list[int] | None = None,
         commander: Commander | None = None,
         general_skill_ids: list[int] | None = None,
         legend_skill_ids: list[int] | None = None,
@@ -948,6 +951,9 @@ class AttackService(BaseService):
                 ``get_attack_info(...).defending_castellan()``. Its equipment
                 raises the fortification and multiplies the defenders,
                 differently per flank
+            defender_legend_skill_ids: The defender's legend skills, the
+                attack pre-calculation's ``LS`` list. With a spy report they
+                raise the defenders and the fortification
             area_type: The target's area type, which scopes effects and decides
                 which tools may be carried; taken from ``target_row`` when not
                 given
@@ -990,6 +996,7 @@ class AttackService(BaseService):
             camp_kingdom_id=camp_kingdom_id,
             spy_army=spy_army,
             castellan=defending_castellan,
+            defender_legend_skill_ids=defender_legend_skill_ids,
             area_bonuses=area_bonuses,
             conquer=conquer,
         )

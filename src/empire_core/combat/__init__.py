@@ -49,6 +49,7 @@ from .defense import (
     invasion_camp_level,
     npc_camp_defense,
     spied_castle_defense,
+    tool_defense_bonus,
 )
 from .effects import AttackerFlankEffects, DefenderFlankEffects, Flank
 from .solver import (
@@ -137,6 +138,7 @@ __all__ = [
     "middle_tool_capacity",
     "npc_camp_defense",
     "spied_castle_defense",
+    "tool_defense_bonus",
     "YARD_SLOTS",
     "yard_capacity",
     "parse_bonus_entries",

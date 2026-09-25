@@ -12,10 +12,10 @@ import logging
 from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
-from empire_core.gamedata import GameData, NpcCampDefence
+from empire_core.gamedata import GameData, NpcCampDefence, ToolStats
 from empire_core.protocol.models.map import MapAreaItem, MapItemType
 
-from .bonuses import Bonus, CombatEffectType, EffectResolver, commander_bonuses
+from .bonuses import Bonus, CombatEffectType, EffectResolver, commander_bonuses, parse_effect_spec
 from .effects import DefenderFlankEffects, Flank
 
 if TYPE_CHECKING:
@@ -156,6 +156,29 @@ def fortification_bonuses(
 
 Stacks = Iterable[tuple[int, int]]
 
+# EffectTypeEnum.EFFECT_TYPE_DEFENSE_BONUS, the one effect type mapped to
+# ToolEffectType.DEFENSE_BONUS.
+TOOL_DEFENSE_BONUS_TYPE = 31
+
+
+def tool_defense_bonus(game_data: GameData, tool: ToolStats) -> float:
+    """
+    How much a defending tool raises both defender multipliers through its effects.
+
+    Client: ``ToolUnitVO.getBonusByEffect(ToolEffectType.DEFENSE_BONUS)``
+    (bundle line 6562) with ``getEffectValue`` under ``NULL_CONDITION`` (bundle
+    line 6640). It sums the value of every effect of type 31 on the tool, with
+    no area, space or cap filter (``EffectValueSimple.add``, bundle line 17753),
+    and scales by 0.01 because ``DEFENSE_BONUS`` is not an absolute bonus
+    (bundle line 9609).
+    """
+    total = 0.0
+    for bonus in parse_effect_spec(tool.effects if isinstance(tool.effects, str) else ""):
+        effect = game_data.effects.get(bonus.effect_id)
+        if effect is not None and effect.effect_type_id == TOOL_DEFENSE_BONUS_TYPE:
+            total += bonus.value
+    return 0.01 * total
+
 
 def defender_flank_effects(
     stacks: Stacks,
@@ -171,10 +194,14 @@ def defender_flank_effects(
     """
     Aggregate a flank's defenders into strength values.
 
-    Mirrors ``FightScreenHelper.getDefendingUnitStrength``: each defender adds
-    both its melee and its ranged defense, credited to the melee or ranged
-    group according to its own role. Tools among the stacks add their wall,
-    gate and moat bonuses, as the client's ``getDefenceBonuses`` does.
+    Client: ``FightScreenHelper.getDefendingUnitStrength`` (bundle line 19118)
+    and the item loop of ``getDefenceBonuses`` (bundle line 19148). A soldier
+    adds both its melee and its ranged defense, times its count, to the melee
+    group when its role is melee and to the ranged group otherwise. A tool
+    adds, once per stack whatever its count, its ``defMeleeBonus`` and
+    ``defRangeBonus`` to the melee and ranged multipliers, then its
+    ``DEFENSE_BONUS`` effect (:func:`tool_defense_bonus`) to both, and its
+    wall, gate and moat columns to the fortification.
 
     Say which flank this is and the gate is dropped everywhere but the middle,
     which is what ``getDefenceBonuses`` returns - only the middle meets the gate,
@@ -185,8 +212,8 @@ def defender_flank_effects(
         game_data: Loaded stats, for the defenders' defense values
         flank: Which flank these defenders hold; without it the gate is left
             alone
-        melee_bonus: Defender melee multiplier (1.0 = unbuffed)
-        range_bonus: Defender ranged multiplier
+        melee_bonus: Defender melee multiplier before the tools (1.0 = unbuffed)
+        range_bonus: Defender ranged multiplier before the tools
         wall_bonus: Base wall bonus as a fraction
         gate_bonus: Base gate bonus as a fraction
         moat_bonus: Base moat bonus as a fraction
@@ -198,17 +225,20 @@ def defender_flank_effects(
     unknown = 0
 
     for wod_id, count in stacks:
+        # UnitInventoryList.addUnit (bundle line 21826) drops an entry with no count.
         if count <= 0:
             continue
         unit = game_data.get_unit(wod_id)
         if unit is None:
-            # A tool defending the flank raises its fortification instead of
-            # standing in the line. The client adds the bonus once per stack and
-            # ignores how many the stack holds.
             tool = game_data.get_tool(wod_id)
             if tool is None:
                 unknown += 1
                 continue
+            melee_bonus += tool.def_melee_bonus
+            range_bonus += tool.def_range_bonus
+            defense = tool_defense_bonus(game_data, tool)
+            melee_bonus += defense
+            range_bonus += defense
             wall_bonus += tool.wall_bonus
             gate_bonus += tool.gate_bonus
             moat_bonus += tool.moat_bonus
@@ -216,7 +246,7 @@ def defender_flank_effects(
         if unit.is_melee:
             melee_melee += unit.melee_defense * count
             melee_range += unit.range_defense * count
-        elif unit.is_ranged:
+        else:
             range_melee += unit.melee_defense * count
             range_range += unit.range_defense * count
 
@@ -316,6 +346,15 @@ def castellan_fortification(
     )
 
 
+# CastleLegendSkillEffectsEnum names of the defender legend skills the fight
+# screen reads (bundle line 7873).
+LEGEND_DEFENSE_MELEE_BONUS = "defenseMeleeBonus"
+LEGEND_DEFENSE_RANGE_BONUS = "defenseRangeBonus"
+LEGEND_WALL_BONUS = "wallBonus"
+LEGEND_GATE_BONUS = "gateBonus"
+LEGEND_MOAT_BONUS = "moatBonus"
+
+
 def spied_castle_defense(
     game_data: GameData,
     spy_army: "SpyArmy",
@@ -326,16 +365,24 @@ def spied_castle_defense(
     melee_bonus: float = 1.0,
     range_bonus: float = 1.0,
     castellan: "Commander | None" = None,
+    defender_legend_skill_ids: Sequence[int] | None = None,
     area_type: int | None = None,
 ) -> dict[Flank, DefenderFlankEffects]:
     """
     What defends a spied castle, per flank.
 
-    ``getDefenceBonuses`` builds one of these per flank from that flank's own
-    stacks, so the flanks differ: a defending tool raises the fortification of
-    the flank it sits on and no other. That is why the game asks for a different
-    number of siege tools on the left than on the right, and a uniform
-    fortification cannot reproduce it.
+    Client: ``FightScreenHelper.getDefendingUnitStrength`` (bundle line 19118)
+    and ``getDefenceBonuses`` (bundle line 19148), which build one of these per
+    flank from that flank's own stacks plus the support stacks. The flanks
+    differ: a defending tool raises the multipliers and fortification of the
+    flank it sits on and no other.
+
+    Each value is summed in the client's order: the base, then the flank's
+    items, then the castellan, then the defender's legend skills one at a time.
+    ``defenseMeleeBonus`` and ``defenseRangeBonus`` skills add a hundredth of
+    their ``totalEffectValue`` to the melee and ranged multipliers, and
+    ``wallBonus``, ``gateBonus`` and ``moatBonus`` skills to the fortification.
+    The gate is then dropped everywhere but the middle.
 
     The keep's stacks become the courtyard flank.
 
@@ -345,31 +392,38 @@ def spied_castle_defense(
         wall_bonus: The castle's own wall protection, as a fraction
         gate_bonus: Its gate protection; only the middle flank keeps it
         moat_bonus: Its moat protection
-        melee_bonus: Defender melee multiplier before the castellan
-        range_bonus: Defender ranged multiplier before the castellan
-        castellan: The defending castellan, from ``aci``'s ``B`` block. Its
-            equipment raises both the fortification and the defenders, and
+        melee_bonus: Defender melee multiplier before anything is added
+        range_bonus: Defender ranged multiplier before anything is added
+        castellan: The defending castellan the attack pre-calculation names.
+            Its equipment raises both the fortification and the defenders, and
             differently per flank
+        defender_legend_skill_ids: The defender's legend skill ids, which the
+            client takes from ``aci``'s ``LS`` into
+            ``CastleSpyArmyInfoVO.defenderSkills`` (bundle line 30699)
         area_type: The target's area type, which scopes the castellan's effects
 
     Returns:
         Effects per flank
+
+    Raises:
+        ValueError: A legend skill id is not in the items payload. The client
+            looks each one up (``CastleLegendSkillData.getSkillByID``) and has
+            no fallback for a missing one
     """
     resolver = EffectResolver(game_data)
     castellan_bonuses = commander_bonuses(castellan) if castellan is not None else []
+    castellan_wall = castellan_gate = castellan_moat = 0.0
     if castellan_bonuses:
-        wall, gate, moat = castellan_fortification(resolver, castellan_bonuses, area_type=area_type)
-        wall_bonus += wall
-        gate_bonus += gate
-        moat_bonus += moat
-
-    def multiplier(flank: Flank, *, melee: bool) -> float:
-        base = melee_bonus if melee else range_bonus
-        if not castellan_bonuses:
-            return base
-        return base + castellan_defense_multiplier(
-            resolver, castellan_bonuses, flank=flank, melee=melee, area_type=area_type
+        castellan_wall, castellan_gate, castellan_moat = castellan_fortification(
+            resolver, castellan_bonuses, area_type=area_type
         )
+
+    skills = []
+    for skill_id in defender_legend_skill_ids or ():
+        skill = game_data.legend_skills.get(skill_id)
+        if skill is None:
+            raise ValueError(f"Defender legend skill {skill_id} is not in the items payload")
+        skills.append(skill)
 
     # Support troops hold every flank, the courtyard included, as the client
     # concatenates them onto each.
@@ -380,19 +434,52 @@ def spied_castle_defense(
         Flank.RIGHT: spy_army.right,
         Flank.YARD: spy_army.keep,
     }
-    return {
-        flank: defender_flank_effects(
+    result = {}
+    for flank, stacks in per_flank.items():
+        items = defender_flank_effects(
             [(stack.wod_id, stack.count) for stack in stacks] + support,
             game_data,
-            flank=flank,
             wall_bonus=wall_bonus,
             gate_bonus=gate_bonus,
             moat_bonus=moat_bonus,
-            melee_bonus=multiplier(flank, melee=True),
-            range_bonus=multiplier(flank, melee=False),
+            melee_bonus=melee_bonus,
+            range_bonus=range_bonus,
         )
-        for flank, stacks in per_flank.items()
-    }
+        melee, ranged = items.melee_bonus, items.range_bonus
+        wall, gate, moat = items.wall_bonus, items.gate_bonus, items.moat_bonus
+        if castellan_bonuses:
+            melee += castellan_defense_multiplier(
+                resolver, castellan_bonuses, flank=flank, melee=True, area_type=area_type
+            )
+            ranged += castellan_defense_multiplier(
+                resolver, castellan_bonuses, flank=flank, melee=False, area_type=area_type
+            )
+            wall += castellan_wall
+            gate += castellan_gate
+            moat += castellan_moat
+        for skill in skills:
+            if skill.effect_type == LEGEND_DEFENSE_MELEE_BONUS:
+                melee += skill.total_effect_value / 100
+            elif skill.effect_type == LEGEND_DEFENSE_RANGE_BONUS:
+                ranged += skill.total_effect_value / 100
+            elif skill.effect_type == LEGEND_WALL_BONUS:
+                wall += skill.total_effect_value / 100
+            elif skill.effect_type == LEGEND_GATE_BONUS:
+                gate += skill.total_effect_value / 100
+            elif skill.effect_type == LEGEND_MOAT_BONUS:
+                moat += skill.total_effect_value / 100
+        if flank is not Flank.MIDDLE:
+            gate = 0.0
+        result[flank] = items.model_copy(
+            update={
+                "melee_bonus": melee,
+                "range_bonus": ranged,
+                "wall_bonus": wall,
+                "gate_bonus": gate,
+                "moat_bonus": moat,
+            }
+        )
+    return result
 
 
 def npc_camp_defense(
@@ -497,4 +584,5 @@ __all__ = [
     "castellan_fortification",
     "npc_camp_defense",
     "spied_castle_defense",
+    "tool_defense_bonus",
 ]

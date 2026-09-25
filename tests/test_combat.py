@@ -26,14 +26,16 @@ from empire_core.combat import (
     npc_camp_defense,
     owner_id_from_row,
     pick_soldier_stack,
+    spied_castle_defense,
     wave_level,
     wave_limit_violations,
     yard_capacity,
 )
 from empire_core.combat.capacity import OTHER_PLAYER_INFO_AREA_TYPES
 from empire_core.gamedata import GameData, UnitStats
-from empire_core.protocol.models import AttackWave, WaveFlank
+from empire_core.protocol.models import AttackWave, Commander, WaveFlank
 from empire_core.protocol.models.map import MapAreaItem, MapItemType
+from empire_core.services.spy_army import SpyArmy
 
 
 def placed(slots: list[list[int]]) -> list[list[int]]:
@@ -1160,3 +1162,131 @@ class TestInvasionCampLevel:
     def test_other_area_types_are_not_invasion_camps(self, data):
         assert self.level(data, [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "castle"], 70) is None
         assert self.level(data, [2, 625, 244, -1, 0, -1, 0], 70) is None
+
+
+class TestSpiedCastleDefence:
+    """
+    A spied castle's defenders, tools, castellan and legend skills per flank.
+
+    Expected values from running the client's own
+    ``FightScreenHelper.getDefendingUnitStrength`` and ``getDefenceBonuses``,
+    with its ``ToolUnitVO.getBonusByEffect`` and ``EffectValueSimple``, in node
+    on these rows. Tool and skill rows are from items payload v786.03; 990 is a
+    made-up unit with no role. The client's castellan helpers were stubbed with the values the
+    library's castellan helpers give for :class:`TestCastellanDefence`'s
+    castellan.
+    """
+
+    PAYLOAD = {
+        "units": [
+            {"wodID": "601", "name": "Barracks", "role": "melee", "meleeDefence": "5", "rangeDefence": "3"},
+            {"wodID": "211", "name": "Barracks", "role": "ranged", "meleeDefence": "25", "rangeDefence": "42"},
+            {"wodID": "990", "name": "Barracks", "meleeDefence": "10", "rangeDefence": "7"},
+            {"wodID": "645", "name": "Dworkshop", "typ": "Defence", "slotTypes": "1,9", "defRangeBonus": "50"},
+            {"wodID": "730", "name": "Elitetool", "typ": "Defence", "slotTypes": "1,9", "defMeleeBonus": "33"},
+            {"wodID": "441", "name": "Dworkshop", "typ": "Defence", "slotTypes": "6,9", "effects": "618&20,619&1"},
+            {"wodID": "450", "name": "Dworkshop", "typ": "Defence", "slotTypes": "6,9", "effects": "618&40,619&10"},
+            {
+                "wodID": "326",
+                "name": "Dworkshop",
+                "typ": "Defence",
+                "slotTypes": "1,9",
+                "wallBonus": "50",
+                "defRangeBonus": "30",
+            },
+            {"wodID": "646", "name": "Dworkshop", "typ": "Defence", "slotTypes": "4,9", "moatBonus": "80"},
+        ],
+        "effects": [
+            *TestCastellanDefence.PAYLOAD["effects"],
+            {"effectID": "618", "name": "bonusWallCapacity", "effectTypeID": "12", "capID": "99"},
+            {"effectID": "619", "name": "bonusDefencePower", "effectTypeID": "31", "capID": "99"},
+        ],
+        "effecttypes": TestCastellanDefence.PAYLOAD["effecttypes"],
+        "effectCaps": TestCastellanDefence.PAYLOAD["effectCaps"],
+        "legendskills": [
+            {"skillID": "331", "effectType": "defenseMeleeBonus", "totalEffectValue": "0.5"},
+            {"skillID": "371", "effectType": "defenseRangeBonus", "totalEffectValue": "0.5"},
+            {"skillID": "430", "effectType": "wallBonus", "totalEffectValue": "6"},
+            {"skillID": "301", "effectType": "gateBonus", "totalEffectValue": "3"},
+            {"skillID": "512", "effectType": "moatBonus", "totalEffectValue": "5"},
+            {"skillID": "551", "effectType": "defenseBonus", "totalEffectValue": "12"},
+        ],
+    }
+
+    # Left, middle, right, keep, stronghold, support.
+    ARMY = [
+        [[601, 100], [645, 3], [441, 2], [450, 1]],
+        [[211, 50], [730, 1], [326, 1]],
+        [[990, 20], [601, 0]],
+        [[601, 10]],
+        [],
+        [[211, 5], [646, 1]],
+    ]
+
+    # Per flank: the client's [meleeMelee, meleeRange, meleeMult, rangeMelee,
+    # rangeRange, rangeMult] and [wall, gate, moat].
+    ITEMS_ONLY = {
+        Flank.LEFT: ([500, 300, 1.11, 125, 210, 1.61], [0.5, 0, 1.1]),
+        Flank.MIDDLE: ([0, 0, 1.33, 1375, 2310, 1.3], [1, 0.4, 1.1]),
+        Flank.RIGHT: ([0, 0, 1, 325, 350, 1], [0.5, 0, 1.1]),
+        Flank.YARD: ([50, 30, 1, 125, 210, 1], [0.5, 0, 1.1]),
+    }
+    WITH_SKILLS = {
+        Flank.LEFT: ([500, 300, 1.1199999999999999, 125, 210, 1.615], [0.56, 0, 1.1500000000000001]),
+        Flank.MIDDLE: (
+            [0, 0, 1.3399999999999999, 1375, 2310, 1.305],
+            [1.06, 0.43000000000000005, 1.1500000000000001],
+        ),
+        Flank.RIGHT: ([0, 0, 1.0099999999999998, 325, 350, 1.005], [0.56, 0, 1.1500000000000001]),
+        Flank.YARD: ([50, 30, 1.0099999999999998, 125, 210, 1.005], [0.56, 0, 1.1500000000000001]),
+    }
+    WITH_CASTELLAN_AND_SKILLS = {
+        Flank.LEFT: ([500, 300, 4.405, 125, 210, 4.905], [3.36, 0, 2.95]),
+        Flank.MIDDLE: (
+            [0, 0, 7.6049999999999995, 1375, 2310, 7.574999999999999],
+            [3.86, 3.2299999999999995, 2.95],
+        ),
+        Flank.RIGHT: ([0, 0, 4.295, 325, 350, 4.295], [3.36, 0, 2.95]),
+        Flank.YARD: ([50, 30, 4.295, 125, 210, 4.295], [3.36, 0, 2.95]),
+    }
+
+    def defense(self, **kwargs) -> dict[Flank, DefenderFlankEffects]:
+        army = SpyArmy.from_spy_data(self.ARMY)
+        assert army is not None
+        game = GameData.parse("test", self.PAYLOAD)
+        return spied_castle_defense(game, army, wall_bonus=0.5, gate_bonus=0.4, moat_bonus=0.3, area_type=1, **kwargs)
+
+    def assert_matches(self, defense: dict[Flank, DefenderFlankEffects], expected) -> None:
+        for flank, (strength, fortification) in expected.items():
+            effects = defense[flank]
+            assert [
+                effects.melee_units_melee_strength,
+                effects.melee_units_range_strength,
+                effects.melee_bonus,
+                effects.range_units_melee_strength,
+                effects.range_units_range_strength,
+                effects.range_bonus,
+            ] == strength, flank
+            assert [effects.wall_bonus, effects.gate_bonus, effects.moat_bonus] == fortification, flank
+
+    def test_tools_raise_the_multipliers_and_roleless_units_defend_as_ranged(self):
+        self.assert_matches(self.defense(), self.ITEMS_ONLY)
+
+    def test_defender_legend_skills_raise_the_defenders_and_the_fortification(self):
+        self.assert_matches(
+            self.defense(defender_legend_skill_ids=[331, 371, 430, 301, 512, 551, 331]),
+            self.WITH_SKILLS,
+        )
+
+    def test_the_castellan_is_added_after_the_items_and_before_the_skills(self):
+        self.assert_matches(
+            self.defense(
+                castellan=Commander.model_validate(TestCastellanDefence.CASTELLAN),
+                defender_legend_skill_ids=[331, 371, 430, 301, 512, 551],
+            ),
+            self.WITH_CASTELLAN_AND_SKILLS,
+        )
+
+    def test_an_unknown_legend_skill_is_an_error(self):
+        with pytest.raises(ValueError, match="Defender legend skill 9999"):
+            self.defense(defender_legend_skill_ids=[9999])

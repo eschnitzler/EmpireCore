@@ -2627,6 +2627,44 @@ class TestFillAttack:
         placed = lambda a: sum(c for _, c in a.waves[0].model_dump(by_alias=True)["M"]["T"])  # noqa: E731
         assert placed(held) > placed(plain)
 
+    def test_the_defenders_legend_skills_reach_the_defense(self):
+        from empire_core.gamedata import GameData
+
+        payload = dict(
+            self.UNITS,
+            units=[
+                *self.UNITS["units"],
+                {
+                    "wodID": 612,
+                    "name": "Workshop",
+                    "type": "Ladder",
+                    "typ": "Attack",
+                    "slotTypes": "1,2,9",
+                    "wallBonus": "20",
+                    "fightType": "1",
+                },
+            ],
+            # Items payload v786.03 row: the top wall bonus legend skill.
+            legendskills=[{"skillID": "434", "effectType": "wallBonus", "totalEffectValue": "30"}],
+        )
+        client = self.build([[601, 100_000], [611, 500], [612, 500]])
+        client.game_data = GameData.parse("test", payload)
+        row = [1, 5, 6, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+        army = SpyArmy.from_spy_data([[[601, 10]], [], [], [], [], [], []])
+
+        plain = client.attack.fill_attack(12345, target_level=13, target_is_player=True, target_row=row, spy_army=army)
+        skilled = client.attack.fill_attack(
+            12345,
+            target_level=13,
+            target_is_player=True,
+            target_row=row,
+            spy_army=army,
+            defender_legend_skill_ids=[434],
+        )
+
+        placed = lambda a: sum(c for _, c in a.waves[0].model_dump(by_alias=True)["M"]["T"])  # noqa: E731
+        assert placed(skilled) > placed(plain)
+
     def test_the_inventory_is_read_once(self):
         client = self.build([[601, 100_000]])
 
