@@ -1,80 +1,16 @@
-"""Tests for GameState movement lifecycle and callbacks."""
+"""GameState movement tracking: types, direction, arrival, pushes and callbacks."""
 
 import logging
 import threading
 import time
-from collections.abc import Generator
 from unittest.mock import patch
 
 import pytest
 
 from empire_core.client.client import EmpireClient
 from empire_core.state.manager import GameState
-from empire_core.state.models import Castle, Player
 from empire_core.state.world_models import Movement
-
-
-def gam_payload(mid: int, movement_type: int = 0, oid: int = 999, tid: int = 1, extra: dict | None = None) -> dict:
-    m_data = {
-        "MID": mid,
-        "T": movement_type,  # 0 = ATTACK
-        "PT": 0,
-        "TT": 600,
-        "D": 0,
-        "OID": oid,
-        "TID": tid,
-        "KID": 0,
-        "SID": -1,
-    }
-    if extra:
-        m_data.update(extra)
-    return {
-        "M": [{"M": m_data}],
-        "O": [{"OID": oid, "N": "Attacker", "AN": "EvilAlliance"}],
-    }
-
-
-def push_payload(mid: int, movement_type: int = 0, oid: int = 999, tt: int = 600, direction: int = 0) -> dict:
-    """An abr/asr push: one movement wrapper under A, owner records under O."""
-    return {
-        "O": [],
-        "A": {"M": {"MID": mid, "T": movement_type, "PT": 0, "TT": tt, "D": direction, "OID": oid, "TID": 1}},
-    }
-
-
-def arrive(state: GameState, mid: int) -> None:
-    """Let a tracked movement's travel time run out, then let state notice."""
-    mov = state.movements[mid]
-    mov.last_updated = time.time() - (mov.total_time - mov.progress_time) - 1
-    state.get_all_movements()
-
-
-def gcl_payload(castles: list[tuple[int, str]], owner_id: int = 7, kingdom: int = 0, x: int = 10, y: int = 20) -> dict:
-    """Build a gcl castle section listing `castles` as owned by `owner_id`."""
-    return {
-        "C": [
-            {
-                "KID": kingdom,
-                "AI": [{"AI": [0, x, y, area_id, owner_id, 0, 0, 0, 0, 0, name]} for area_id, name in castles],
-            }
-        ]
-    }
-
-
-def wait_for(predicate, timeout: float = 2.0) -> bool:
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if predicate():
-            return True
-        time.sleep(0.01)
-    return False
-
-
-@pytest.fixture
-def state() -> Generator[GameState, None, None]:
-    gs = GameState()
-    yield gs
-    gs.shutdown()
+from tests.state_helpers import arrive, gam_payload, push_payload, wait_for
 
 
 class TestAttackCallbacks:
@@ -412,86 +348,6 @@ class TestMovementTime:
         assert not res.is_empty
 
 
-class TestPlayerParsing:
-    def test_relogin_merges_player_data(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7, "PN": "old_name", "LVL": 10}})
-        player = state.local_player
-        assert player is not None and player.PN == "old_name"
-
-        state.update_from_packet("gbd", {"gpi": {"PID": 7, "PN": "new_name", "LVL": 11}})
-        # Identity preserved, data refreshed
-        assert state.local_player is player
-        assert player.PN == "new_name"
-        assert player.LVL == 11
-
-    def test_malformed_inventory_entry_skipped(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7, "PN": "x"}})
-        state.update_from_packet("sce", [["GOOD", 5], ["BAD", "not-a-number"], ["ALSO_GOOD", 7]])
-        inv = state.local_player.inventory
-        assert inv["GOOD"] == 5
-        assert inv["ALSO_GOOD"] == 7
-        assert "BAD" not in inv
-
-
-class TestCastleUpdatesAreAtomic:
-    """get_castles() hands out live Castle objects, so dcl must swap, not mutate."""
-
-    def test_dcl_swaps_unit_dict_instead_of_clearing_in_place(self, state):
-        state.castles[42] = Castle(OID=42, units={7: 100})
-        reader_view = state.get_castles()[0].units
-
-        state.update_from_packet("dcl", {"C": [{"AI": [{"AID": 42, "AC": [[8, 5]]}]}]})
-
-        assert reader_view == {7: 100}, "receive thread mutated a dict a reader already holds"
-        assert state.get_castles()[0].units == {8: 5}
-
-    def test_dcl_replaces_resources_instead_of_writing_field_by_field(self, state):
-        state.castles[42] = Castle(OID=42)
-        res_before = state.get_castles()[0].resources
-
-        state.update_from_packet("dcl", {"C": [{"AI": [{"AID": 42, "W": 10, "S": 20, "F": 30}]}]})
-
-        assert (res_before.wood, res_before.stone, res_before.food) == (0, 0, 0), "torn read possible"
-        now = state.get_castles()[0].resources
-        assert (now.wood, now.stone, now.food) == (10, 20, 30)
-
-    def test_gcl_swaps_castles_dict_instead_of_mutating_in_place(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main"), (2, "Outpost")])})
-        reader_view = state.castles
-
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
-
-        assert sorted(reader_view) == [1, 2], "receive thread mutated a dict a reader already holds"
-        assert sorted(state.castles) == [1]
-
-    def test_gcl_preserves_identity_of_surviving_castles(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
-        castle = state.castles[1]
-
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Renamed"), (2, "New")])})
-
-        assert state.castles[1] is castle, "user-held castle reference went stale"
-        assert castle.name == "Renamed"
-
-    def test_gcl_relocation_has_no_observable_intermediate_coords(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")], x=10, y=20)})
-        castle = state.castles[1]
-
-        observed: list[tuple[int, int]] = []
-        real_setattr = Castle.__setattr__
-
-        def spy(self, name, value):
-            real_setattr(self, name, value)
-            if self is castle:
-                observed.append((self.X, self.Y))
-
-        with patch.object(Castle, "__setattr__", spy):
-            state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")], x=30, y=40)})
-
-        assert (castle.x, castle.y) == (30, 40)
-        assert all(seen in ((10, 20), (30, 40)) for seen in observed), f"castle observable mid-relocation: {observed}"
-
-
 class TestStaleMovementPruning:
     """Arrival packets get missed (socket errors, disconnect windows), so every
     mutation and query path must prune — not just the gam handler."""
@@ -554,7 +410,7 @@ class TestMovementParseFailures:
     BAD = {"A": {"M": {"MID": "not-an-int", "T": 1}}}
 
     def test_parse_failure_is_visible_at_default_level(self, state, caplog):
-        with caplog.at_level(logging.DEBUG, logger="empire_core.state.manager"):
+        with caplog.at_level(logging.DEBUG, logger="empire_core.state.movements"):
             state.update_from_packet("abr", self.BAD)
 
         warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
@@ -563,7 +419,7 @@ class TestMovementParseFailures:
         assert state.movements == {}
 
     def test_repeated_failures_do_not_flood(self, state, caplog):
-        with caplog.at_level(logging.DEBUG, logger="empire_core.state.manager"):
+        with caplog.at_level(logging.DEBUG, logger="empire_core.state.movements"):
             for _ in range(25):
                 state.update_from_packet("abr", self.BAD)
 
@@ -571,7 +427,7 @@ class TestMovementParseFailures:
         assert len(warnings) == 1, f"log flooded with {len(warnings)} warnings"
 
     def test_next_warning_after_window_reports_suppressed_count(self, state, caplog):
-        with caplog.at_level(logging.DEBUG, logger="empire_core.state.manager"):
+        with caplog.at_level(logging.DEBUG, logger="empire_core.state.movements"):
             for _ in range(5):
                 state.update_from_packet("abr", self.BAD)
             # The rate-limit window expires; the next failure must warn again
@@ -618,264 +474,6 @@ class TestCallbackRegistrationLocking:
             state._lock.release()
         assert done.wait(2.0)
         thread.join()
-
-
-class TestLocalPlayerSnapshots:
-    """local_player/inventory are read by user threads while the receive
-    thread updates them, so there must be a locked snapshot path."""
-
-    def test_get_local_player_returns_detached_copy(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7, "PN": "me"}})
-        snapshot = state.get_local_player()
-
-        assert snapshot is not None and snapshot.PN == "me"
-        assert snapshot is not state.local_player
-        snapshot.PN = "tampered"
-        assert state.local_player.PN == "me"
-
-    def test_get_local_player_is_none_before_login(self, state):
-        assert state.get_local_player() is None
-
-    def test_snapshot_containers_are_detached(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": [["A", 1]], "gcl": gcl_payload([(1, "Main")])})
-        snapshot = state.get_local_player()
-
-        state.update_from_packet("sce", [["B", 2]])
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(2, "Second")])})
-
-        assert snapshot.inventory == {"A": 1}, "snapshot inventory mutated by receive thread"
-        assert list(snapshot.castles) == [1], "snapshot castles mutated by receive thread"
-
-    def test_get_inventory_returns_copy(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": [["A", 1]]})
-        inventory = state.get_inventory()
-
-        assert inventory == {"A": 1}
-        inventory["A"] = 999
-        assert state.get_inventory() == {"A": 1}
-
-    def test_get_inventory_is_empty_before_login(self, state):
-        assert state.get_inventory() == {}
-
-    def test_sce_swaps_inventory_instead_of_mutating_in_place(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": [["A", 1]]})
-        reader_view = state.local_player.inventory  # what an unlocked reader holds
-
-        state.update_from_packet("sce", [["B", 2]])
-
-        assert reader_view == {"A": 1}, "receive thread mutated a dict a reader already holds"
-        assert state.get_inventory() == {"A": 1, "B": 2}
-
-    def test_gcl_swaps_player_castles_instead_of_mutating_in_place(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
-        reader_view = state.local_player.castles
-
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main"), (2, "Outpost")])})
-
-        assert list(reader_view) == [1], "receive thread mutated a dict a reader already holds"
-        assert sorted(state.local_player.castles) == [1, 2]
-
-    def test_relogin_merge_has_no_observable_intermediate_state(self, state):
-        # Identity in gpi, level/XP in gxp, currency in gcu — the sections a
-        # real re-login gbd spreads these fields across. They must land in
-        # ONE atomic swap: gpi alone being atomic still lets a reader see
-        # "new name, old level" while gxp/gcu are applied field by field.
-        state.update_from_packet(
-            "gbd", {"gpi": {"PID": 7, "PN": "old"}, "gxp": {"LVL": 10, "XP": 100}, "gcu": {"C1": 50}}
-        )
-        player = state.local_player
-        watched = ("PN", "LVL", "XP", "gold")
-        before = {"PN": "old", "LVL": 10, "XP": 100, "gold": 50}
-        after = {"PN": "new", "LVL": 11, "XP": 200, "gold": 60}
-
-        observed: list[dict] = []
-        real_setattr = Player.__setattr__
-
-        def spy(self, name, value):
-            real_setattr(self, name, value)
-            if self is player:
-                observed.append({field: getattr(self, field) for field in watched})
-
-        with patch.object(Player, "__setattr__", spy):
-            state.update_from_packet(
-                "gbd", {"gpi": {"PID": 7, "PN": "new"}, "gxp": {"LVL": 11, "XP": 200}, "gcu": {"C1": 60}}
-            )
-
-        assert {field: getattr(player, field) for field in watched} == after
-        assert all(seen in (before, after) for seen in observed), f"half-merged player observable: {observed}"
-
-    def test_players_dict_holds_only_the_local_player(self, state):
-        # Documented contract: `players` is not a map of every player seen
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}})
-        state.update_from_packet("gam", gam_payload(500, oid=999))
-        assert list(state.players) == [7]
-
-
-class TestPartialSubPacketsPreserveState:
-    """A sub-packet that omits a key must not reset that value to 0."""
-
-    def test_partial_gcu_preserves_other_currency(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcu": {"C1": 100, "C2": 5}})
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcu": {"C1": 200}})
-
-        player = state.get_local_player()
-        assert (player.gold, player.rubies) == (200, 5)
-
-    def test_partial_vip_preserves_other_fields(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "vip": {"VP": 10, "VRL": 2, "VRS": 3600}})
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "vip": {"VRS": 1800}})
-
-        player = state.get_local_player()
-        assert (player.vip_points, player.vip_level, player.vip_time_left) == (10, 2, 1800)
-
-
-class TestAllianceMembership:
-    def test_alliance_parsed(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})
-        player = state.get_local_player()
-        assert player.alliance is not None and player.alliance.name == "Clan"
-        assert player.AID == 5
-
-    def test_live_gal_shape(self, state):
-        # Live capture
-        gal = {"AID": 190426, "R": 1, "N": "H.O.P.E", "ACF": 22, "SA": 0}
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": gal})
-        alliance = state.get_local_player().alliance
-        assert alliance is not None
-        assert (alliance.id, alliance.name, alliance.rank, alliance.current_fame) == (190426, "H.O.P.E", 1, 22)
-        assert alliance.is_searching is False
-
-    def test_name_under_an_as_the_client_reads_it(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "AN": "Clan", "SA": 1}})
-        alliance = state.get_local_player().alliance
-        assert alliance is not None and alliance.name == "Clan" and alliance.is_searching
-
-    @pytest.mark.parametrize("gal", [{}, None, {"AID": 0}, {"N": "", "SA": 0}])
-    def test_leaving_alliance_clears_it(self, state, gal):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})
-        # Fresh login after leaving/being kicked: the gal section says "none"
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": gal})
-
-        player = state.get_local_player()
-        assert player.alliance is None, "stale alliance kept forever after leaving"
-        assert player.AID is None
-
-    def test_packet_without_alliance_section_keeps_alliance(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})
-        # No gal key at all: this packet carries no alliance information
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}})
-
-        assert state.get_local_player().alliance is not None
-
-
-class TestCastleDetails:
-    # Live capture, trimmed
-    ENTRY = {
-        "AID": 1,
-        "W": 7000.0,
-        "S": 6500.0,
-        "F": 7000.0,
-        "A": 12.0,
-        "C": 0.0,
-        "O": 3.0,
-        "D": 57,
-        "B": 1,
-        "WS": 1,
-        "DW": 0,
-        "H": 1,
-        "MC": 5,
-        "AC": [[656, 1], [650, 213]],
-        "SHI": [[650, 4]],
-        "gpa": {
-            "P": 80,
-            "NDP": 11927,
-            "MRW": 7000,
-            "MRS": 7000,
-            "MRF": 7000,
-            "MRA": 51000,
-            "DW": 2239,
-            "DS": 1952,
-            "DF": 3502,
-            "SAFE_W": 1000.0,
-            "SAFE_S": 1000.0,
-            "SAFE_F": 1000.0,
-        },
-    }
-
-    def _castle(self, state: GameState, entry: dict) -> Castle:
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
-        state.update_from_packet("dcl", {"C": [{"KID": 0, "AI": [entry]}]})
-        return state.get_castles()[0]
-
-    def test_every_dcl_field_lands_on_the_castle(self, state):
-        castle = self._castle(state, self.ENTRY)
-        r = castle.resources
-        assert (r.wood, r.stone, r.food, r.aquamarine, r.oil) == (7000, 6500, 7000, 12, 3)
-        assert (r.wood_cap, r.capacity.aquamarine) == (7000, 51000)
-        assert (r.wood_rate, r.stone_rate, r.food_rate) == (223.9, 195.2, 350.2)
-        assert r.wood_safe == 1000.0
-        assert (castle.population, castle.neutral_deco_points, castle.defence) == (80, 11927, 57)
-        assert castle.market_carriages == 5
-        assert castle.has_barracks and castle.has_siege_workshop and castle.has_hospital
-        assert not castle.has_defense_workshop
-        assert castle.units == {656: 1, 650: 213}
-        assert castle.stronghold_units == {650: 4}
-
-    def test_castle_without_details_reads_zero(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
-        castle = state.get_castles()[0]
-        assert castle.details is None
-        assert (castle.population, castle.market_carriages, castle.has_hospital) == (0, 0, False)
-
-    def test_malformed_entry_keeps_the_old_details(self, state):
-        castle = self._castle(state, self.ENTRY)
-        state.update_from_packet("dcl", {"C": [{"KID": 0, "AI": [{**self.ENTRY, "AC": "junk"}]}]})
-        assert castle.resources.wood == 7000 and castle.market_carriages == 5
-
-
-class TestCastleStaleDrop:
-    def test_lost_castle_is_dropped(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main"), (2, "Outpost")])})
-        assert sorted(c.id for c in state.get_castles()) == [1, 2]
-
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
-        assert [c.id for c in state.get_castles()] == [1]
-
-    def test_castle_section_listing_zero_owned_castles_drops_all(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
-
-        # Castle section present, but nothing owned any more (lost last castle)
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": {"C": []}})
-
-        assert state.get_castles() == [], "stale castles never removed"
-        assert state.get_local_player().castles == {}
-
-    def test_castle_section_listing_only_foreign_castles_drops_all(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(9, "Enemy")], owner_id=1234)})
-        assert state.get_castles() == []
-
-    def test_all_malformed_castle_section_does_not_wipe_castles(self, state, caplog):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
-
-        # Every entry fails the shape checks: a payload we could not read is
-        # not evidence of ownership loss, so the wipe must not be applied.
-        drifted = {"C": [{"KID": 0, "AI": [{"AI": {"X": 1}}, {"AI": [0, 1]}, "garbage"]}]}
-        with caplog.at_level(logging.DEBUG, logger="empire_core.state.manager"):
-            state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": drifted})
-
-        assert [c.id for c in state.get_castles()] == [1], "unreadable gcl destroyed castle state"
-        assert list(state.get_local_player().castles) == [1]
-        warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
-        assert len(warnings) == 1, "schema drift wiped state with only a debug log"
-        assert "3/3" in warnings[0].getMessage(), "skip count missing from the warning"
-
-    @pytest.mark.parametrize("gcl", [{}, None, {"X": 1}])
-    def test_packet_without_castle_section_keeps_castles(self, state, gcl):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl})
-
-        assert [c.id for c in state.get_castles()] == [1]
 
 
 class TestArrivalCallbackPayload:
@@ -973,83 +571,6 @@ class TestArrivalCallbackPayload:
             state.remove_movement_arrived_callback(two_arg)
         with pytest.raises(ValueError):
             state.remove_movement_recalled_callback(two_arg)
-
-
-class TestFreshnessMetadata:
-    """Castle resources/units are only refreshed when a dcl arrives (often just
-    once, at login), so consumers need to tell live data from leftovers."""
-
-    LOGIN_DCL = {"C": [{"AI": [{"AID": 1, "W": 10, "S": 20, "F": 30}]}]}
-
-    def _login(self, state, dcl: dict | None = None) -> None:
-        payload = {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main"), (2, "Outpost")])}
-        if dcl is not None:
-            payload["dcl"] = dcl
-        state.update_from_packet("gbd", payload)
-
-    def test_castle_without_details_has_no_timestamp(self, state):
-        self._login(state)
-        assert state.get_castle_last_updated(1) is None, "never-synced castle reported as fresh"
-        assert state.get_castle_age(1) is None
-
-    def test_dcl_stamps_only_the_castles_it_refreshed(self, state):
-        self._login(state)
-        before = time.time()
-        state.update_from_packet("dcl", self.LOGIN_DCL)
-
-        stamp = state.get_castle_last_updated(1)
-        assert stamp is not None and before <= stamp <= time.time()
-        assert state.get_castle_last_updated(2) is None, "untouched castle marked fresh"
-        assert 0.0 <= state.get_castle_age(1) < 5.0
-
-    def test_login_embedded_dcl_is_stamped(self, state):
-        self._login(state, dcl=self.LOGIN_DCL)
-        assert state.get_castle_last_updated(1) is not None
-
-    def test_castle_age_grows_with_wall_clock(self, state):
-        self._login(state, dcl=self.LOGIN_DCL)
-        with patch("empire_core.state.manager.time.time", return_value=time.time() + 3600):
-            age = state.get_castle_age(1)
-        assert 3595 <= age <= 3605, "login-time resources still look current an hour later"
-
-    def test_lost_castle_forgets_its_timestamp(self, state):
-        self._login(state, dcl=self.LOGIN_DCL)
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(2, "Outpost")])})
-        assert state.get_castle_last_updated(1) is None
-
-    def test_packet_times_record_what_was_applied(self, state):
-        assert state.get_last_packet_time("gbd") is None
-        assert state.get_last_packet_time("dcl") is None
-
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcu": {"C1": 5, "C2": 1}})
-
-        assert state.get_last_packet_time("gbd") is not None
-        assert state.get_last_packet_time("gcu") is not None, "sub-packet freshness unavailable"
-        assert state.get_last_packet_time("dcl") is None, "unseen packet reported as applied"
-        assert state.get_last_packet_time("nope") is None
-
-    def test_packet_times_snapshot_is_detached(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}})
-        snapshot = state.get_packet_times()
-        assert "gbd" in snapshot
-        snapshot.clear()
-        assert state.get_last_packet_time("gbd") is not None
-
-    def test_unhandled_packet_is_not_stamped(self, state):
-        state.update_from_packet("zzz", {})
-        assert state.get_last_packet_time("zzz") is None
-
-    def test_player_last_updated_tracks_pushes(self, state):
-        assert state.get_player_last_updated() is None
-
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcu": {"C1": 5}})
-        first = state.get_player_last_updated()
-        assert first is not None
-
-        time.sleep(0.02)
-        state.update_from_packet("sce", [["A", 1]])
-        second = state.get_player_last_updated()
-        assert second is not None and second > first, "inventory push did not refresh the stamp"
 
 
 class TestThreadSafety:
