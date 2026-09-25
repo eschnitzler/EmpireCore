@@ -43,7 +43,7 @@ class StateBase:
 
         # Callbacks for specific events — support multiple listeners.
         # Arrival/recall listeners are stored with a flag saying whether they
-        # also take the Movement (see _accepts_movement).
+        # also take the Movement (see MovementState._accepts_movement).
         self._incoming_attack_callbacks: list[Callable[[Movement], None]] = []
         self._movement_recalled_callbacks: list[tuple[MovementEventCallback, bool]] = []
         self._movement_arrived_callbacks: list[tuple[MovementEventCallback, bool]] = []
@@ -58,7 +58,7 @@ class StateBase:
         self._movement_parse_warn_at = 0.0
         self._movement_parse_failures = 0
 
-        # Freshness bookkeeping (see the class docstring). Wall-clock seconds.
+        # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}
         self._castle_details_at: dict[int, float] = {}
         self._player_updated_at: float | None = None

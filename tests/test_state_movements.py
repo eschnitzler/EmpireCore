@@ -432,7 +432,7 @@ class TestMovementParseFailures:
                 state.update_from_packet("abr", self.BAD)
             # The rate-limit window expires; the next failure must warn again
             # and account for the four failures suppressed in between.
-            with patch("empire_core.state.manager.time.time", return_value=time.time() + 61):
+            with patch("time.time", return_value=time.time() + 61):
                 state.update_from_packet("abr", self.BAD)
 
         warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]

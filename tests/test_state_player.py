@@ -211,7 +211,7 @@ class TestFreshnessMetadata:
 
     def test_castle_age_grows_with_wall_clock(self, state):
         self._login(state, dcl=self.LOGIN_DCL)
-        with patch("empire_core.state.manager.time.time", return_value=time.time() + 3600):
+        with patch("time.time", return_value=time.time() + 3600):
             age = state.get_castle_age(1)
         assert 3595 <= age <= 3605, "login-time resources still look current an hour later"
 

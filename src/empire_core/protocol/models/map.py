@@ -3,7 +3,6 @@ Map protocol models.
 
 Commands:
 - gaa: Get map area/chunk
-- gam: Get active movements
 - fnm: Find NPC on map
 - adi: Get area/target detailed info
 """
