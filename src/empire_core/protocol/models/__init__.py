@@ -277,6 +277,7 @@ from .ranking import (
     GetHighscoreResponse,
     GetRankingListRequest,
     GetRankingListResponse,
+    LeaderboardScore,
     RankingCategory,
     RankingEntry,
     RankingType,
@@ -533,4 +534,5 @@ __all__ = [
     "GetHighscoreResponse",
     "GetRankingListRequest",
     "GetRankingListResponse",
+    "LeaderboardScore",
 ]

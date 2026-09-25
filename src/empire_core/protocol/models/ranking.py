@@ -16,7 +16,7 @@ from typing import Any, ClassVar
 
 from pydantic import Field
 
-from .base import BaseRequest, BaseResponse, GGECommand
+from .base import BasePayload, BaseRequest, BaseResponse, GGECommand
 
 logger = logging.getLogger(__name__)
 
@@ -183,12 +183,19 @@ class GetHighscoreResponse(BaseResponse):
 
     command: ClassVar[str] = GGECommand.HGH
 
-    # L: [[Rank, Score, [Details...]], ...]
     list_type: int | None = Field(alias="LT", default=None)
     list_id: int | None = Field(alias="LID", default=None)
     last_rank: int | None = Field(alias="LR", default=None)
     search_value: str | None = Field(alias="SV", default=None)
-    raw_list: list[Any] = Field(alias="L", default_factory=list)
+    raw_list: list[Any] = Field(
+        alias="L",
+        default_factory=list,
+        description="Ranking rows, kept raw: the client hands them to the item renderer of whichever dialog asked, "
+        "and those read different layouts, e.g. [rank, score, owner record], [rank, owner record], "
+        "[rank, score, alliance row] or [value, rank, score, alliance row] "
+        "(CastleSingleplayerRankingItem.update, bundle line 91695; CastleAllianceRankingItem.update, 91645; "
+        "CastleEilandAllianceRankingItem.update, 98076)",
+    )
 
     @property
     def entries(self) -> list[RankingEntry]:
@@ -209,19 +216,38 @@ class GetRankingListRequest(BaseRequest):
     rank: int = Field(alias="R")  # Start rank?
 
 
+class LeaderboardScore(BasePayload):
+    """One entry of a global leaderboard page: an entry of ``llsp``'s ``L``.
+
+    Client: ``AGlobalLeaderBoardItem`` getters (bundle lines 47303-47316) and
+    ``LeaderBoardDataProvider.onScoreDataReceived`` (bundle line 75957).
+    """
+
+    rank: int = Field(alias="R", default=-1, description="Rank on the list")
+    score: int = Field(alias="S", default=-1, description="Points")
+    player_name: str = Field(alias="P", default="", description="Player name")
+    alliance_name: str = Field(alias="A", default="", description="Alliance name, empty without one")
+    instance_id: int | None = Field(alias="I", default=None, description="Game server (instance) the player is on")
+    score_id: int | str | None = Field(
+        alias="SI", default=None, description="Paging key the client matches search results against; not an owner id"
+    )
+
+
 class GetRankingListResponse(BaseResponse):
     """
     Response for llsp command.
+
+    Client: ``LLSPCommand.executeCommand`` (bundle line 124397), ``LeaderBoardDataProvider.onScoreDataReceived``
+    (bundle line 75957).
     """
 
     command: ClassVar[str] = "llsp"
 
-    # L: List of entries
     list_type: int | None = Field(alias="LT", default=None)
     list_id: int | None = Field(alias="LID", default=None)
-    raw_list: list[Any] = Field(alias="L", default_factory=list)
-    total: int = Field(alias="T", default=0)  # Total count?
+    scores: list[LeaderboardScore] = Field(alias="L", default_factory=list, description="The page's entries")
+    total: int = Field(alias="T", default=0, description="Number of scores on the whole list")
 
     @property
     def entries(self) -> list[RankingEntry]:
-        return [RankingEntry(item) for item in self.raw_list]
+        return [RankingEntry(score.model_dump(by_alias=True, exclude_none=True)) for score in self.scores]
