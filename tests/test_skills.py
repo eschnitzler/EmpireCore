@@ -230,3 +230,12 @@ class TestGeneralCommands:
 
     def test_an_assignment_reply_without_a_list(self):
         assert AssignGeneralResponse.model_validate({}).commander_roster.commanders == []
+
+
+def test_null_skill_lists_read_as_no_skills():
+    from empire_core.protocol.models.skills import GetGeneralsResponse, SkillList
+
+    response = GetGeneralsResponse.model_validate({"G": [{"GID": 1}, {"GID": 2, "SIDS": None}, "junk"]})
+    assert [(g.general_id, g.skill_ids) for g in response.generals] == [(1, []), (2, [])]
+    skills = SkillList.model_validate({"SID": None, "SIDS": [5, None], "RS": None})
+    assert (skills.legend_skill_ids, skills.sceat_skill_ids, skills.seconds_until_reset) == ([], [5], 0)

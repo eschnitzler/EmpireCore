@@ -39,7 +39,7 @@
 | **Typed end to end** | Pydantic v2 models for every command, and a `py.typed` marker so your type checker actually sees them |
 | **Honest failures** | Typed exceptions from a single `EmpireError` base — no leaked pydantic or socket errors, and no empty list that secretly means "the request failed" |
 | **Thread-safe state** | A background thread applies server pushes while your code reads consistent snapshots |
-| **High-level services** | `client.alliance`, `client.attack`, `client.castle`, `client.army`, `client.commanders`, `client.ranking`, `client.spy` |
+| **High-level services** | `client.alliance`, `client.attack`, `client.castle`, `client.army`, `client.commanders`, `client.skills`, `client.ranking`, `client.spy` |
 | **Map scanning** | BFS kingdom discovery with cheap, targeted re-scans |
 | **Multi-account** | A pool that leases one logged-in client per account |
 
@@ -136,6 +136,26 @@ client.commanders.rename(castellans[0].commander_id, "farm-1")
 
 The server calls both kinds "lords" (command `gli`, field `LID`); the game UI
 calls them commanders and castellans, and so does this library.
+
+### `client.skills`
+
+```python
+generals = client.skills.get_generals()
+for general in generals.generals:
+    print(general.general_id, general.star_level, general.ability_ids)
+
+# Give a commander a general (-1 takes it off), then choose its abilities as (slot_id, ability_id) pairs.
+client.skills.assign_general(commander_id=3, general_id=101)
+client.skills.set_abilities(101, [(1, 12), (2, 15)])
+
+skills = client.skills.get_skills()
+print(skills.legend_skill_ids, skills.total_points, skills.reset_count)
+
+# Called with the skill list whenever the server sends one, as it does after a change.
+client.skills.on_skill_list(lambda skills: print("skills now", skills.sceat_skill_ids))
+```
+
+`unlock_skill`, `reset_skills` and `add_xp` change a general the same way.
 
 ### `client.attack`
 

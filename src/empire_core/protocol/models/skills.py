@@ -22,6 +22,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _id_list(value: Any) -> list[Any]:
+    """An id array as the client walks it: nothing, or not an array, is no ids; undefined entries are skipped."""
+    return [entry for entry in value if entry is not None] if isinstance(value, list) else []
+
+
 class GetGeneralsRequest(BaseRequest):
     """
     Request every general the player owns.
@@ -73,6 +78,13 @@ class General(BasePayload):
     is_new: bool = Field(alias="IN", default=False, description="1 == IN")
     has_level_up: bool = Field(alias="LU", default=False, description="1 == LU")
     skill_ids: list[int] = Field(alias="SIDS", default_factory=list)
+
+    @field_validator("skill_ids", mode="before")
+    @classmethod
+    def _skill_ids(cls, value: Any) -> Any:
+        # GeneralVO.parseData reads e.SIDS||[]
+        return _id_list(value)
+
     selected_abilities: list[SelectedAbility] = Field(
         alias="GASAIDS", default_factory=list, description="The general's ability slots, filled or empty"
     )
@@ -274,6 +286,17 @@ class GetGeneralsResponse(BaseResponse):
 
     generals: list[General] = Field(alias="G", default_factory=list)
 
+    @field_validator("generals", mode="before")
+    @classmethod
+    def _readable_generals(cls, value: Any) -> Any:
+        generals = []
+        for entry in value if isinstance(value, list) else []:
+            try:
+                generals.append(General.model_validate(entry))
+            except ValidationError:
+                logger.warning(f"Skipped a general that could not be read: {entry!r}")
+        return generals
+
     def skill_ids(self, general_id: int) -> list[int]:
         """The skills one general has unlocked, empty when it is not listed."""
         for general in self.generals:
@@ -317,11 +340,17 @@ class SkillList(BasePayload):
     legend_skill_ids: list[int] = Field(alias="SID", default_factory=list)
     sceat_skill_ids: list[int] = Field(alias="SIDS", default_factory=list)
     total_points: ClientInt = Field(alias="SP", default=0)
-    seconds_until_reset: int = Field(alias="RS", default=0)
+    seconds_until_reset: ClientInt = Field(alias="RS", default=0)
     reset_count: ClientInt = Field(alias="RC", default=0, description="How many times the skills have been reset")
     activating: list[ActivatingSceatSkill] = Field(
         alias="SSA", default_factory=list, description="Sceat skills still being activated"
     )
+
+    @field_validator("legend_skill_ids", "sceat_skill_ids", mode="before")
+    @classmethod
+    def _skill_ids(cls, value: Any) -> Any:
+        # parse_SKL walks SID and SIDS only when they are set
+        return _id_list(value)
 
     @field_validator("activating", mode="before")
     @classmethod
