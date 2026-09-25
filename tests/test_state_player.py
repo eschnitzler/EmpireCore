@@ -376,3 +376,22 @@ class TestPlayerPushes:
 
         assert (player.AID, player.alliance) == (None, None)
         assert observed == [], f"alliance fields written one at a time: {observed}"
+
+
+class TestPushRobustness:
+    def test_snapshot_does_not_share_beginner_protection(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "uap": {"KID": 0, "NS": 60}})
+        snapshot = state.get_local_player()
+        snapshot.beginner_protection[5] = True
+        assert 5 not in state.get_local_player().beginner_protection
+
+    def test_unreadable_gal_push_keeps_the_alliance(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})
+        state.update_from_packet("gal", {"raw": ""})
+        alliance = state.get_local_player().alliance
+        assert alliance is not None and alliance.id == 5
+
+    def test_leave_alliance_push_still_clears_it(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})
+        state.update_from_packet("gal", {"AID": -1})
+        assert state.get_local_player().alliance is None

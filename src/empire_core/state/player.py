@@ -202,8 +202,8 @@ class PlayerState(StateBase):
     def get_local_player(self) -> Player | None:
         """Get a snapshot of the local player, or None before login.
 
-        Returns a copy taken under the lock, with detached ``inventory`` and
-        ``castles`` containers, so several fields can be read consistently
+        Returns a copy taken under the lock, with detached ``inventory``,
+        ``castles`` and ``beginner_protection`` containers, so several fields can be read consistently
         while the receive thread is updating state. ``state.local_player``
         remains available for direct access but is a live object.
 
@@ -218,6 +218,7 @@ class PlayerState(StateBase):
                 update={
                     "inventory": dict(player.inventory),
                     "castles": dict(player.castles),
+                    "beginner_protection": dict(player.beginner_protection),
                 }
             )
 

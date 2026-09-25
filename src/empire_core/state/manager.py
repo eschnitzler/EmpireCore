@@ -108,8 +108,10 @@ class GameState(MovementState, CastleState, PlayerState):
         handler_name = self._DISPATCH.get(cmd_id)
         with self._lock:
             if cmd_id in _SECTION_PUSHES:
-                self._packet_times[cmd_id] = time.time()
-                self._handle_gbd({cmd_id: payload})
+                # An unreadable frame arrives as {"raw": ...}; the client applies a push only on success
+                if isinstance(payload, dict) and "raw" not in payload:
+                    self._packet_times[cmd_id] = time.time()
+                    self._handle_gbd({cmd_id: payload})
             elif handler_name:
                 self._packet_times[cmd_id] = time.time()
                 getattr(self, handler_name)(payload)
@@ -211,8 +213,9 @@ class GameState(MovementState, CastleState, PlayerState):
         "abr", "asr", the send replies ("cra", "cam", "abgcam", "cds", "csm",
         "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm",
         "mfc", "glu", "mir", "sce", "sei" — and the player sections "gpi",
-        "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap" and "gac", stamped
-        whether they came inside a gbd or as a push of their own. A send reply
+        "gxp", "gcu", "vip", "gal", "gcl", "gho" and "uap", stamped whether
+        they came inside a gbd or as a push of their own, plus "gac", which
+        only comes inside a gbd. A send reply
         is stamped even when the server refused the send. ``None`` means none
         was ever seen; packets this manager ignores are never recorded.
         """
