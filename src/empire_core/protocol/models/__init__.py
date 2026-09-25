@@ -243,6 +243,7 @@ from .map import (
 from .messages import (
     BattleSpyDataRequest,
     BattleSpyDataResponse,
+    MessageInfo,
     SystemNotificationEvent,
 )
 from .movement import (
@@ -442,6 +443,7 @@ __all__ = [
     "SkipDungeonCooldownRequest",
     "SkipDungeonCooldownResponse",
     # Messages
+    "MessageInfo",
     "SystemNotificationEvent",
     "BattleSpyDataRequest",
     "BattleSpyDataResponse",

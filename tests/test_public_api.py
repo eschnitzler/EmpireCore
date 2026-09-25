@@ -241,12 +241,13 @@ def test_command_error_does_not_mislabel_unknown_codes() -> None:
 
 
 def test_spy_result_payload_fields_are_typed() -> None:
+    from empire_core.protocol.models.commanders import Castellan
     from empire_core.protocol.models.messages import SpyCastleInfo
     from empire_core.services.spy import SpyResult
 
     hints = get_type_hints(SpyResult)
-    assert hints["spy_data"] == list[Any]
-    assert hints["battle_data"] == dict[str, Any]
+    assert hints["spy_data"] == list[list[list[int]]]
+    assert hints["defending_castellan"] == Castellan | None
     assert hints["target"] == SpyCastleInfo | None
 
     bare_any = [name for name, hint in hints.items() if hint is Any]
@@ -258,7 +259,7 @@ def test_spy_result_payload_defaults_are_empty_not_none() -> None:
 
     result = SpyResult(success=False, reason="no_spies_available")
     assert result.spy_data == []
-    assert result.battle_data == {}
+    assert result.defending_castellan is None
     assert result.target is None
     # Mutable defaults must not be shared between instances.
     assert SpyResult(success=True).spy_data is not result.spy_data
@@ -267,7 +268,7 @@ def test_spy_result_payload_defaults_are_empty_not_none() -> None:
         "reason",
         "message_id",
         "spy_data",
-        "battle_data",
+        "defending_castellan",
         "target",
     }
 

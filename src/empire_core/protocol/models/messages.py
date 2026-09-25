@@ -10,25 +10,82 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
-from .base import BaseRequest, BaseResponse
+from .base import BasePayload, BaseRequest, BaseResponse
+from .commanders import Castellan
 
 # =============================================================================
 # SNE - System Notification Event
 # =============================================================================
 
 
+_MESSAGE_ROW = (
+    "message_id",
+    "message_type",
+    "header",
+    "sender_name",
+    "sender_id",
+    "seconds_since_sent",
+    "is_read",
+    "is_archived",
+    "is_forwarded",
+)
+
+
+class MessageInfo(BasePayload):
+    """One mailbox message: an entry of ``sne``'s ``MSG``.
+
+    Client: ``AMessageVO.loadFromParamArray`` (bundle line 3808), reached through
+    ``CastleMessageData.parse_SNE`` and ``CastleMessageFactory.parseMessage`` (bundle line 135102).
+    """
+
+    message_id: int = Field(description="Message id, row[0]")
+    message_type: int = Field(description="MessageConst.MESSAGE_TYPE_* value, row[1]")
+    header: str = Field(
+        default="",
+        description="row[2]; its layout depends on message_type, each message class parses it in parseMessageHeader",
+    )
+    sender_name: str = Field(default="", description="row[3]")
+    sender_id: int = Field(default=-1, description="Sender's player id, row[4]")
+    seconds_since_sent: int = Field(default=0, description="row[5]")
+    is_read: bool = Field(default=False, description="1 == row[6]")
+    is_archived: bool = Field(default=False, description="1 == row[7]")
+    is_forwarded: bool = Field(default=False, description="1 == row[8]")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if isinstance(data, list) and len(data) >= 2:
+            return dict(zip(_MESSAGE_ROW, data, strict=False))
+        return data
+
+    @field_validator("header", "sender_name", mode="before")
+    @classmethod
+    def _no_text(cls, value: Any) -> Any:
+        return "" if value is None else value
+
+    @field_validator("is_read", "is_archived", "is_forwarded", mode="before")
+    @classmethod
+    def _one_flag(cls, value: Any) -> bool:
+        try:
+            return int(value) == 1
+        except (TypeError, ValueError):
+            return False
+
+
 class SystemNotificationEvent(BaseResponse):
     """
-    System notification event (pushed by server).
+    New mailbox messages, pushed by the server.
 
     Command: sne
+
+    Client: ``SNECommand.exec`` (bundle line 125499), ``CastleMessageData.parse_SNE`` (bundle line 134961).
     """
 
     command = "sne"
 
-    messages: list[list[Any]] = Field(alias="MSG", default_factory=list)
+    messages: list[MessageInfo] = Field(alias="MSG", default_factory=list, description="The new messages")
 
 
 # =============================================================================
@@ -90,21 +147,56 @@ class SpyCastleInfo(BaseModel):
 
 class BattleSpyDataResponse(BaseResponse):
     """
-    Response containing battle or spy report data.
+    A spy report.
 
     Command: bsd
+
+    Client: ``BSDCommand.executeCommand`` (bundle line 125223), ``CastleSpyLogVO.parseSpyLog``
+    (bundle line 60579), ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line 30699).
     """
 
     command = "bsd"
 
     message_id: int = Field(alias="MID", default=0)
-    battle_data: dict[str, Any] = Field(alias="B", default_factory=dict)
-    spy_data: list[Any] = Field(alias="S", default_factory=list)
+    defending_castellan: Castellan | None = Field(
+        alias="B",
+        default=None,
+        description="The castellan defending the spied castle; the client reads it without its equipment. "
+        "None when missing or unreadable",
+    )
+    spy_data: list[list[list[int]]] = Field(
+        alias="S",
+        default_factory=list,
+        description="Spied defenders as [wod_id, amount] pairs per position: left, middle, right, keep, "
+        "stronghold, support, then an optional reserve",
+    )
     target: SpyCastleInfo | None = Field(alias="AI", default=None)
+
+    @field_validator("defending_castellan", mode="before")
+    @classmethod
+    def _readable_castellan(cls, value: Any) -> Any:
+        if not value:
+            return None
+        try:
+            return Castellan.model_validate(value)
+        except ValidationError:
+            return None
+
+    @field_validator("spy_data", mode="before")
+    @classmethod
+    def _wod_amount_pairs(cls, value: Any) -> Any:
+        """Client: ``AUnitInventory.fillFromWodAmountArray`` (bundle line 42572) skips entries that are not arrays."""
+        if not isinstance(value, list):
+            return value
+        return [
+            [pair for pair in position if isinstance(pair, list)] if isinstance(position, list) else []
+            for position in value
+        ]
 
 
 __all__ = [
     "ForwardSpyLogRequest",
+    "MessageInfo",
     "SystemNotificationEvent",
     "BattleSpyDataRequest",
     "BattleSpyDataResponse",

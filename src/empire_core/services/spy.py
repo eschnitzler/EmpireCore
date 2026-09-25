@@ -4,7 +4,6 @@ Spy service for high-level espionage operations.
 
 import time
 from dataclasses import dataclass, field
-from typing import Any
 
 from pydantic import ValidationError
 
@@ -12,10 +11,12 @@ from empire_core.exceptions import CommandError, EmpireError
 
 from ..protocol.models.attack import SendSpyRequest, SpyScreenInfoRequest, SpyScreenInfoResponse
 from ..protocol.models.base import parse_response
+from ..protocol.models.commanders import Castellan
 from ..protocol.models.messages import (
     BattleSpyDataRequest,
     BattleSpyDataResponse,
     ForwardSpyLogRequest,
+    MessageInfo,
     SpyCastleInfo,
     SystemNotificationEvent,
 )
@@ -31,17 +32,15 @@ _SUBTYPE_ATTACKER_FAILED = 2
 _LOST_SPY_RESULTS = frozenset({_SUBTYPE_DEFENDER_SUCCESS, _SUBTYPE_ATTACKER_FAILED})
 
 
-def _parse_spy_notification(message: list[Any]) -> int | None:
+def _parse_spy_notification(message: MessageInfo) -> int | None:
     """The mission's result code from an ``sne`` message, or None if unreadable.
 
-    The params field is ``subtypeSpy+subtypeResult+areaType#kingdomID+ownerID+
+    The header is ``subtypeSpy+subtypeResult+areaType#kingdomID+ownerID+
     areaName``; only the result matters here. Returning None rather than
     assuming success keeps an unrecognized shape from publishing a report the
     mission may never have earned.
     """
-    if len(message) < 3 or not isinstance(message[2], str):
-        return None
-    fields = message[2].split("+")
+    fields = message.header.split("+")
     if len(fields) < 2:
         return None
     try:
@@ -62,21 +61,21 @@ class SpyResult:
         success: whether a spy report was retrieved.
         reason: machine-readable failure tag when ``success`` is False.
         message_id: id of the report message the server created.
-        spy_data: the raw ``S`` array of the report -- one entry per defending
-            position, each a nested array of ``[unit_id, count]`` pairs. Still
-            untyped by the protocol layer, so it is exposed as-is.
+        spy_data: the report's ``S`` block -- one entry per defending
+            position, each a list of ``[unit_id, count]`` pairs.
         army: the same block split by position (left/middle/right flanks, keep,
             stronghold, support, reserve). None when the report carried nothing
             usable.
-        battle_data: the raw ``B`` mapping (present for battle reports).
+        defending_castellan: the castellan defending the spied castle, the
+            report's ``B``, or ``None`` if it carried none.
         target: the spied castle, or ``None`` if the server sent no ``AI`` block.
     """
 
     success: bool
     reason: str | None = None
     message_id: int | None = None
-    spy_data: list[Any] = field(default_factory=list)
-    battle_data: dict[str, Any] = field(default_factory=dict)
+    spy_data: list[list[list[int]]] = field(default_factory=list)
+    defending_castellan: Castellan | None = None
     target: SpyCastleInfo | None = None
     army: SpyArmy | None = None
 
@@ -220,12 +219,11 @@ class SpyService(BaseService):
             if not isinstance(sne_event, SystemNotificationEvent):
                 return SpyResult(success=False, reason="invalid_sne_format")
 
-            # Extract MID from the first message
-            if not sne_event.messages or not sne_event.messages[0]:
+            if not sne_event.messages:
                 return SpyResult(success=False, reason="invalid_sne_format")
 
             first_msg = sne_event.messages[0]
-            message_id = first_msg[0]
+            message_id = first_msg.message_id
 
             outcome = _parse_spy_notification(first_msg)
             if outcome is None:
@@ -254,7 +252,7 @@ class SpyService(BaseService):
                 army=SpyArmy.from_spy_data(bsd_resp.spy_data),
                 message_id=message_id,
                 spy_data=bsd_resp.spy_data,
-                battle_data=bsd_resp.battle_data,
+                defending_castellan=bsd_resp.defending_castellan,
                 target=bsd_resp.target,
             )
         finally:

@@ -1636,8 +1636,8 @@ def spy_script(
             "bsd",
             {
                 "MID": 9001,
-                "S": [[[487, 100]]],
-                "B": {"K": 1},
+                "S": [[[487, 100]], [], [], [], [], []],
+                "B": {"ID": 2, "WID": 1, "VIS": 4, "N": "", "W": 3, "D": 1, "SPR": 0, "E": [[12, [5.0], "EQ"]]},
                 "AI": {"N": "Enemy Keep", "X": 700, "Y": 710, "K": 0},
             },
         ),
@@ -1653,8 +1653,9 @@ class TestSpySuccessPath:
         assert result.success is True
         assert result.reason is None
         assert result.message_id == 9001
-        assert result.spy_data == [[[487, 100]]]
-        assert result.battle_data == {"K": 1}
+        assert result.spy_data == [[[487, 100]], [], [], [], [], []]
+        assert result.defending_castellan is not None
+        assert (result.defending_castellan.commander_id, result.defending_castellan.wins) == (2, 3)
         assert result.target is not None
         assert result.target.castle_name == "Enemy Keep"
 
@@ -1988,7 +1989,7 @@ class TestSpyFailurePaths:
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
         assert result.spy_data == []
-        assert result.battle_data == {}
+        assert result.defending_castellan is None
         assert result.target is None
         assert result.message_id is None
 
