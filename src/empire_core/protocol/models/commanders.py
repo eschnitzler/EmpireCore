@@ -227,7 +227,7 @@ class Equipment(BasePayload):
     equipment_id: int = 0
     slot: int = 0
     wearer_type: int = WearerType.ALL
-    rarity_id: int = 0
+    rarity_id: ClientInt = 0
     graphic: int | str = Field(default=0, description="The client keeps row[4] as its graphic string")
     bonuses: Annotated[list[EquipmentBonus], _readable_rows(EquipmentBonus)] = Field(
         default_factory=list, description="Bonuses of an item that is not a relic; unreadable entries are skipped"
@@ -236,7 +236,7 @@ class Equipment(BasePayload):
         default_factory=list, description="Bonuses of a relic item; unreadable entries are skipped"
     )
     unique_id: ClientInt = 0
-    set_id: int = Field(
+    set_id: ClientInt = Field(
         default=0,
         description=(
             "Equipment set id, -1 for none. The client leaves it undefined on a row shorter than 8, "
