@@ -10,6 +10,7 @@ from empire_core.protocol.models import (
     ChangeWallDefenseRequest,
     GetDefenseRequest,
     GetDefenseResponse,
+    GetSupportDefenseResponse,
     KeepDefense,
     MoatDefense,
     WallDefense,
@@ -165,3 +166,46 @@ class TestDefenseCastellanLeniency:
         assert GetDefenseResponse.model_validate({"L": {"ID": None}}).castellan_id == 0
         assert GetDefenseResponse.model_validate({"L": None}).castellan_id == -1
         assert GetDefenseResponse.model_validate({"L": {"ID": "4"}}).castellan_id == 4
+
+
+class TestSupportDefenseReply:
+    # sdi, shaped as CastleSupportDefenceVO.fillFromParamObject reads it
+    PAYLOAD = {
+        "SCID": 12345,
+        "S": [[[487, 50], [488, "3"]], [], [[487, 10]], [[601, 7]], [], []],
+        "AS": 0,
+        "B": {"ID": 1003, "WID": 1, "N": "", "W": 2, "D": 0, "AE": [[426, [10.0], "GE"]]},
+        "LS": [],
+        "gui": {"I": [[487, 400], [620, 0]], "SHI": [[620, 5]]},
+        "gli": {"C": [{"ID": 3, "WID": 2}], "B": [{"ID": 1003, "WID": 1}]},
+        "UYL": 12000,
+        "AUYL": 3000,
+        "UWL": 5000,
+    }
+
+    def test_every_block_is_typed(self):
+        response = GetSupportDefenseResponse.model_validate(self.PAYLOAD)
+
+        assert response.defense_positions[0] == [[487, 50], [488, 3]]
+        assert response.get_units_by_position()[3] == {601: 7}
+        assert response.get_total_defenders() == 70
+        assert response.castellan is not None
+        assert (response.castellan.commander_id, [e.effect_id for e in response.castellan.area_effects]) == (
+            1003,
+            [426],
+        )
+        assert response.tower_castellan is None
+        assert response.unit_inventory.units == {487: 400}
+        assert response.unit_inventory.stronghold == {620: 5}
+        assert [c.commander_id for c in response.commander_roster.commanders] == [3]
+        assert [c.commander_id for c in response.commander_roster.castellans] == [1003]
+
+    def test_an_unreadable_castellan_is_none(self):
+        assert GetSupportDefenseResponse.model_validate({"B": {"N": "no id"}}).castellan is None
+        assert GetSupportDefenseResponse.model_validate({"B": {}}).castellan is None
+
+    def test_the_tower_castellan_comes_from_abe(self):
+        response = GetSupportDefenseResponse.model_validate({"abe": {"ID": 7, "WID": 1}})
+
+        assert response.tower_castellan is not None and response.tower_castellan.commander_id == 7
+        assert response.castellan is None

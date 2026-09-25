@@ -12,34 +12,15 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from pydantic import Field, ValidationError, ValidatorFunctionWrapHandler, field_validator, model_validator
 
-from .army import UnitInventory
+from .army import SpyPositions, UnitInventory
 from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, client_int
-from .commanders import Castellan
+from .commanders import Castellan, CommanderRoster
 from .movement import MovementArea
 
 logger = logging.getLogger(__name__)
-
-
-def _as_int(value: Any) -> int | None:
-    """Coerce a wire value to int, or None when it is not numeric.
-
-    The server sometimes sends counts as strings, and these accessors are the
-    documented way to read a castle's defense, so a drifted type must not raise.
-    """
-    if isinstance(value, bool):
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        pass
-    try:
-        return int(float(value))
-    except (TypeError, ValueError):
-        return None
 
 
 Slot = list[int]
@@ -336,76 +317,88 @@ class GetSupportDefenseRequest(BaseRequest):
 
 class GetSupportDefenseResponse(BaseResponse):
     """
-    Response containing defense information for an alliance member's castle.
+    Defense information for an alliance member's castle.
 
     Command: sdi
+    Payload::
 
-    The response contains:
-    - SCID: Castle ID queried
-    - S: List of 6 defense positions, each containing [[unit_id, count], ...] pairs
-    - B: Castellan info
-    - gui: Unit inventory
-    - gli: Commander info
-    - UYL: Total yard limit (max troops in courtyard)
-    - AUYL: Available yard limit
-    - UWL: Wall limit
+        {"SCID": source_castle_id,
+         "S": [left, middle, right, keep, stronghold, support, reserve],
+         "AS": spy_age_seconds, "B": {castellan}, "abe": {castellan}, "LS": [...],
+         "gaa": {"AI": [...], "OI": [...]},
+         "gui": {"I": [[wod_id, count], ...], "SHI": [...]},
+         "gli": {"C": [...], "B": [...]},
+         "UYL": yard_limit, "AUYL": alliance_yard_limit, "UWL": wall_limit}
 
-    To get total defenders, sum all unit counts across all positions in S.
+    The client reads ``S``, ``AS``, the castellan and ``LS`` into the same
+    ``CastleSpyArmyInfoVO`` a spy report and an attack pre-calculation use. It
+    takes the castellan from ``abe`` when the target is an alliance
+    battleground tower and from ``B`` otherwise.
+
+    Client: ``SDICommand.executeCommand`` (bundle line 122352), which passes
+    ``gli`` to ``CastleLordData.parse_GLI``;
+    ``CastleSupportDefenceVO.fillFromParamObject`` (bundle line 140066);
+    ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line 30699).
     """
 
     command = "sdi"
 
     castle_id: int = Field(alias="SCID", default=0)
-
-    # S contains 6 arrays (defense positions), each with [unit_id, count] pairs
-    # e.g. [[[487, 5174], [488, 20]], [[487, 347]], ...]
-    defense_positions: list = Field(alias="S", default_factory=list)
-
-    # Castellan info (optional, not always present)
-    castellan_info: dict | None = Field(alias="B", default=None)
-
-    # Unit inventory info
-    unit_inventory: dict | None = Field(alias="gui", default=None)
-
-    # Commander info
-    commanders_info: dict | None = Field(alias="gli", default=None)
+    defense_positions: SpyPositions = Field(
+        alias="S",
+        default_factory=list,
+        description="Defenders as [wod_id, amount] pairs per position: left, middle, right, keep, "
+        "stronghold, support, then an optional reserve",
+    )
+    castellan: Castellan | None = Field(
+        alias="B",
+        default=None,
+        description="The castle's castellan, read without its equipment; None when missing or unreadable",
+    )
+    tower_castellan: Castellan | None = Field(
+        alias="abe",
+        default=None,
+        description="The castellan the client reads instead of B for an alliance battleground tower",
+    )
+    unit_inventory: UnitInventory = Field(
+        alias="gui",
+        default_factory=UnitInventory,
+        description="Your own inventory; the client reads I (units and tools) and SHI (stronghold units)",
+    )
+    commander_roster: CommanderRoster = Field(
+        alias="gli",
+        default_factory=CommanderRoster,
+        description="Your commanders and castellans, which the client parses with CastleLordData.parse_GLI",
+    )
 
     # Capacity limits
     yard_limit: int = Field(alias="UYL", default=0)  # Total yard/courtyard limit
     available_yard_limit: int = Field(alias="AUYL", default=0)  # Available yard space
     wall_limit: int = Field(alias="UWL", default=0)  # Wall limit
 
+    @field_validator("castellan", "tower_castellan", mode="wrap")
+    @classmethod
+    def _castellan_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> Castellan | None:
+        # Client: LordFactory.createLord returns null for an empty entry
+        if not value:
+            return None
+        try:
+            return handler(value)
+        except ValidationError:
+            logger.warning("Could not parse the castellan of an sdi reply")
+            return None
+
     def get_total_defenders(self) -> int:
         """
         Calculate total number of defending troops.
 
+        A count of 0 or less adds nothing, as ``UnitInventoryList.addUnit``
+        (bundle line 21826) skips it.
+
         Returns:
             Total count of all units across all defense positions.
         """
-        total = 0
-        skipped = 0
-        for position in self.defense_positions:
-            if not isinstance(position, list):
-                skipped += 1
-                continue
-            for unit_pair in position:
-                if not (isinstance(unit_pair, list) and len(unit_pair) >= 2):
-                    skipped += 1
-                    continue
-                # unit_pair is [unit_id, count]
-                count = _as_int(unit_pair[1])
-                if count is None:
-                    skipped += 1
-                    continue
-                total += count
-        if skipped:
-            # One line per response, not per entry, so a fully drifted S
-            # array can't flood the log.
-            logger.warning(
-                f"Skipped {skipped} malformed defense entries for castle {self.castle_id}; "
-                "the defender total may be incomplete"
-            )
-        return total
+        return sum(count for position in self.defense_positions for _, count in position if count > 0)
 
     def get_max_defense(self) -> int:
         """
@@ -423,31 +416,19 @@ class GetSupportDefenseResponse(BaseResponse):
         """
         Get unit counts grouped by defense position.
 
+        A count of 0 or less is left out, as ``UnitInventoryList.addUnit``
+        (bundle line 21826) skips it.
+
         Returns:
-            List of 6 dicts, each mapping unit_id -> count for that position.
+            One dict per position, each mapping unit_id -> count for that position.
         """
         result = []
-        skipped = 0
         for position in self.defense_positions:
             units: dict[int, int] = {}
-            if isinstance(position, list):
-                for unit_pair in position:
-                    if not (isinstance(unit_pair, list) and len(unit_pair) >= 2):
-                        skipped += 1
-                        continue
-                    unit_id, count = _as_int(unit_pair[0]), _as_int(unit_pair[1])
-                    if unit_id is None or count is None:
-                        skipped += 1
-                        continue
+            for unit_id, count in position:
+                if count > 0:
                     units[unit_id] = units.get(unit_id, 0) + count
-            else:
-                skipped += 1
             result.append(units)
-        if skipped:
-            logger.warning(
-                f"Skipped {skipped} malformed defense entries for castle {self.castle_id}; "
-                "the per-position unit counts may be incomplete"
-            )
         return result
 
 

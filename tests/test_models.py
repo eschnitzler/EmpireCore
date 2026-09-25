@@ -1077,23 +1077,17 @@ class TestDriftedPayloadsMustNotCrashAccessors:
         response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[487]], ["junk"], [[487, 5]]]})
         assert response.get_total_defenders() == 5
 
-    def test_skipped_defense_pairs_are_logged_once_per_call(self, caplog):
+    def test_unreadable_defense_counts_read_as_zero_like_the_client(self):
+        # fillFromWodAmountArray reads int() of each value; UnitInventoryList.addUnit skips 0
         response = GetSupportDefenseResponse.model_validate(
             {"SCID": 7, "S": [[[487, "x"], [488, None], [489, 5]], ["junk"]]}
         )
-        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.defense"):
-            assert response.get_total_defenders() == 5
-        records = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert len(records) == 1
-        assert "Skipped 3" in records[0].getMessage()
+        assert response.defense_positions == [[[487, 0], [488, 0], [489, 5]], []]
+        assert response.get_total_defenders() == 5
 
-    def test_skipped_pairs_in_the_per_position_grouping_are_logged(self, caplog):
+    def test_zero_counts_are_left_out_of_the_per_position_grouping(self):
         response = GetSupportDefenseResponse.model_validate({"SCID": 7, "S": [[[487, "x"], [488, 20]]]})
-        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.defense"):
-            assert response.get_units_by_position() == [{488: 20}]
-        records = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert len(records) == 1
-        assert "Skipped 1" in records[0].getMessage()
+        assert response.get_units_by_position() == [{488: 20}]
 
     def test_clean_defense_payloads_log_nothing(self, caplog):
         response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[487, 100]]]})
