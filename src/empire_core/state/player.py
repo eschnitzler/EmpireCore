@@ -3,7 +3,6 @@
 import logging
 import math
 import time
-import warnings
 from typing import Any
 
 from empire_core.state.base import StateBase
@@ -294,15 +293,6 @@ class PlayerState(StateBase):
             if self.local_player is None:
                 return {}
             return dict(self.local_player.special_currencies)
-
-    def get_inventory(self) -> dict[str, int]:
-        """Deprecated name of :meth:`get_special_currencies`."""
-        warnings.warn(
-            "GameState.get_inventory() is deprecated; use get_special_currencies() instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.get_special_currencies()
 
     def get_player_last_updated(self) -> float | None:
         """When any local-player field was last refreshed, or ``None``.

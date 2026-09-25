@@ -411,18 +411,6 @@ class TestSpecialCurrencies:
         currencies = state.get_special_currencies()
         assert currencies["PTT"] == 1500 and currencies["MS1"] == 197
 
-    def test_old_names_still_read_through(self, state):
-        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": [["PTT", 3]]})
-        with pytest.deprecated_call():
-            assert state.get_inventory() == {"PTT": 3}
-        player = state.get_local_player()
-        with pytest.deprecated_call():
-            assert player.inventory == {"PTT": 3}
-        assert Player.model_validate({"inventory": {"PTT": 1}}).special_currencies == {"PTT": 1}
-        with pytest.deprecated_call():
-            player.inventory = {"KTK": 2}
-        assert player.special_currencies == {"KTK": 2}
-
 
 class TestLevelProgress:
     """LL, XPFCL and XPTNL are computed from LVL and XP, as CastleUserData.parse_GXP does."""

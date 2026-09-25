@@ -1,4 +1,3 @@
-import warnings
 from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
@@ -227,7 +226,6 @@ class Player(BaseModel):
 
     special_currencies: dict[str, int] = Field(
         default_factory=dict,
-        validation_alias=AliasChoices("special_currencies", "inventory"),
         description=(
             "Special currency key -> amount, from sce entries [key, amount] (PTT, MS1, LWT, ...); "
             "generic currencies in the item data, not items. Client: CurrencyData.parseSCE"
@@ -268,25 +266,6 @@ class Player(BaseModel):
     @property
     def alliance_id(self) -> int | None:
         return self.AID
-
-    @property
-    def inventory(self) -> dict[str, int]:
-        """Deprecated name of :attr:`special_currencies`; sce holds currencies, not items."""
-        warnings.warn(
-            "Player.inventory is deprecated; use special_currencies instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.special_currencies
-
-    @inventory.setter
-    def inventory(self, value: dict[str, int]) -> None:
-        warnings.warn(
-            "Player.inventory is deprecated; use special_currencies instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.special_currencies = value
 
     @property
     def premium_flag(self) -> int:
