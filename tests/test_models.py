@@ -8,9 +8,9 @@ from pydantic import Field, ValidationError
 from empire_core.protocol.models import parse_response
 from empire_core.protocol.models.alliance import (
     AllianceInfo,
+    AllianceMember,
     AllianceSearchResult,
     GetAllianceInfoResponse,
-    MemberCastle,
 )
 from empire_core.protocol.models.base import (
     BaseResponse,
@@ -406,7 +406,7 @@ class TestGoldenAllianceInfo:
     def test_member_castles_parse_from_the_positional_ap_array(self):
         response = GetAllianceInfoResponse.model_validate(GOLDEN_AIN)
         leader = response.members[0]
-        assert [(c.kingdom, c.area_id, c.x, c.y, c.castle_type) for c in leader.castles] == [
+        assert [(c.kingdom_id, c.area_id, c.x, c.y, c.area_type) for c in leader.castle_positions] == [
             (0, 12345, 640, 655, 1),
             (2, 22222, 300, 400, 4),
         ]
@@ -423,7 +423,10 @@ class TestGoldenAllianceInfo:
     def test_typed_member_emblem(self):
         leader = GetAllianceInfoResponse.model_validate(GOLDEN_AIN).members[0]
         assert leader.emblem is not None
-        assert (leader.emblem.background_type, leader.emblem.symbol1, leader.emblem.icon_style) == (1, 4, 1)
+        assert (leader.emblem.background_type, leader.emblem.symbol1, leader.emblem.is_set) == (1, 4, True)
+
+    def test_an_emblem_that_is_not_an_object_reads_as_none(self):
+        assert AllianceMember.model_validate({"OID": 1, "E": 7}).emblem is None
 
 
 class TestGoldenCastlePayloads:
@@ -657,7 +660,20 @@ class TestGoldenMapArea:
         assert (owner.glory_points, owner.highest_glory_points, owner.storm_title_id) == (6469992, 132766143, -1)
         assert owner.has_premium_flag is True and owner.is_searching_alliance is False
         assert owner.area_positions == [[0, 1591282, 598, 201, 1], [0, 16512168, 600, 205, 4]]
-        assert owner.faction == {"FID": 1, "TID": 113}
+        assert owner.faction is not None
+        assert (owner.faction.faction_id, owner.faction.title_id) == (1, 113)
+        assert owner.alliance_emblem is None
+
+    def test_owner_record_alliance_crest(self):
+        record = {**self.OWNER, "aee": {"ACCA": {"ACLI": "4", "ACCS": [3, 7, 11]}}}
+        owner = GetMapAreaResponse.model_validate({"KID": 0, "AI": [], "OI": [record]}).owners[0]
+        assert owner.alliance_emblem is not None and owner.alliance_emblem.crest is not None
+        assert (owner.alliance_emblem.crest.layout_id, owner.alliance_emblem.crest.color_ids) == (4, [3, 7, 11])
+
+    def test_owner_record_blocks_that_are_not_objects_read_as_none(self):
+        record = {**self.OWNER, "E": 0, "aee": [], "FN": 1}
+        owner = GetMapAreaResponse.model_validate({"KID": 0, "AI": [], "OI": [record]}).owners[0]
+        assert (owner.emblem, owner.alliance_emblem, owner.faction) == (None, None, None)
 
     def test_position_lists_lose_an_extra_wrapper(self):
         record = {**self.OWNER, "AP": [[[10, 5, 1, 2, 1]]], "VP": [[[0, 6, 3, 4, 2]]]}
@@ -829,20 +845,21 @@ class TestPositionalArrayParsers:
         with pytest.raises(ValidationError):
             MapAreaItem.from_list(data)
 
-    @pytest.mark.parametrize("data", [[], [[]], [0], [0, 1], [0, 1, 2], [0, 1, 2, 3]])
-    def test_member_castle_tolerates_short_arrays(self, data):
-        castle = MemberCastle.from_list(data)
-        # A missing type field means "unknown", not "main castle".
-        assert castle.castle_type == 0
+    @pytest.mark.parametrize(
+        "data", [[], [[]], [0], [0, 1], [0, 1, 2], [0, 1, 2, 3], ["a", "b", "c", "d", "e"], "abcde"]
+    )
+    def test_castle_position_rows_that_do_not_fit_are_skipped(self, data):
+        member = AllianceMember.model_validate({"OID": 1, "AP": [data, [0, 12345, 640, 655, 1]]})
+        assert [(c.area_id, c.area_type) for c in member.castle_positions] == [(12345, 1)]
 
-    def test_member_castle_unwraps_a_doubly_nested_entry(self):
-        castle = MemberCastle.from_list([[0, 12345, 640, 655, 1]])
-        assert (castle.kingdom, castle.area_id, castle.x, castle.y, castle.castle_type) == (0, 12345, 640, 655, 1)
-
-    @pytest.mark.parametrize("data", [["a", "b", "c", "d", "e"], "abcde"])
-    def test_member_castle_rejects_wrong_types(self, data):
-        with pytest.raises(ValidationError):
-            MemberCastle.from_list(data)
+    def test_castle_positions_unwrap_a_doubly_nested_entry(self):
+        member = AllianceMember.model_validate(
+            {"OID": 1, "AP": [[[0, 12345, 640, 655, 1]]], "VP": [[[0, 6, 3, 4, 10]]]}
+        )
+        assert [(c.kingdom_id, c.area_id, c.x, c.y, c.area_type) for c in member.castle_positions] == [
+            (0, 12345, 640, 655, 1)
+        ]
+        assert [c.area_type for c in member.village_positions] == [10]
 
     @pytest.mark.parametrize("data", [[], [1], [1, 2], [1, 2, 3]])
     def test_player_castle_short_array_yields_defaults(self, data):

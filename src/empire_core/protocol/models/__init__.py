@@ -44,8 +44,6 @@ from .alliance import (
     HelpMemberRequest,
     HelpMemberResponse,
     HelpRequestNotification,
-    MemberCastle,
-    MemberEmblem,
     SearchAllianceRequest,
     SearchAllianceResponse,
 )
@@ -230,6 +228,8 @@ from .defense import (
 )
 from .inventory import SCEItem
 from .map import (
+    AllianceCrest,
+    AllianceEmblem,
     FindNPCRequest,
     FindNPCResponse,
     GetMapAreaRequest,
@@ -332,8 +332,6 @@ __all__ = [
     "AllianceInfo",
     "AllianceBuilding",
     "AllianceStorage",
-    "MemberEmblem",
-    "MemberCastle",
     "AllianceBookmark",
     "GetAllianceBookmarksRequest",
     "GetAllianceBookmarksResponse",
@@ -379,6 +377,8 @@ __all__ = [
     "GetMapAreaRequest",
     "GetMapAreaResponse",
     "MapObject",
+    "AllianceCrest",
+    "AllianceEmblem",
     "GetMovementsRequest",
     "GetMovementsResponse",
     "MovementArea",

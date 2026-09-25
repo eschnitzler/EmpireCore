@@ -24,51 +24,6 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
-class MemberEmblem(BasePayload):
-    """Member's emblem/avatar configuration."""
-
-    background_type: int = Field(alias="BGT", default=0)
-    background_color1: int = Field(alias="BGC1", default=0)
-    background_color2: int = Field(alias="BGC2", default=0)
-    symbol_type: int = Field(alias="SPT", default=0)
-    symbol1: int = Field(alias="S1", default=0)
-    symbol_color1: int = Field(alias="SC1", default=0)
-    symbol2: int = Field(alias="S2", default=0)
-    symbol_color2: int = Field(alias="SC2", default=0)
-    icon_style: int = Field(alias="IS", default=0)
-
-
-class MemberCastle(BasePayload):
-    """
-    Member castle position info from AP array.
-
-    AP array format: [[kingdom, area_id, x, y, castle_type], ...]
-    """
-
-    kingdom: int = 0
-    area_id: int = 0
-    x: int = 0
-    y: int = 0
-    castle_type: int = 0  # 1=main castle, 4=outpost
-
-    @classmethod
-    def from_list(cls, data: list) -> "MemberCastle":
-        """Parse from AP array entry."""
-        # Handle case where data is wrapped in another list (e.g. [[10, 123, ...]])
-        if len(data) > 0 and isinstance(data[0], list):
-            data = data[0]
-
-        return cls(
-            kingdom=data[0] if len(data) > 0 else 0,
-            area_id=data[1] if len(data) > 1 else 0,
-            x=data[2] if len(data) > 2 else 0,
-            y=data[3] if len(data) > 3 else 0,
-            # Index 4 is type (1=Main, 4=Outpost)
-            # If data is short (length 4), type is missing -> default to 0
-            castle_type=data[4] if len(data) > 4 else 0,
-        )
-
-
 class AllianceMember(PlayerProfileBase):
     """
     Alliance member information from ain response.
@@ -86,9 +41,6 @@ class AllianceMember(PlayerProfileBase):
     # The meaning of "R" is unverified: an earlier docstring called it "Global rank",
     # while the field name says ruins. Kept as-is to preserve current behavior.
     is_in_ruins: bool = Field(alias="R", default=False)
-
-    # Emblem (typed here; PlayerOwnerInfo maps the same "E" alias to a plain dict)
-    emblem: MemberEmblem | None = Field(alias="E", default=None)
 
     # Activity tier (populated from AMI array, not from server directly)
     # None means unknown, 0-4 are the activity tiers from the server
@@ -603,8 +555,6 @@ __all__ = [
     "AllianceInfo",
     "AllianceBuilding",
     "AllianceStorage",
-    "MemberEmblem",
-    "MemberCastle",
     # AIN - Get Alliance Info
     "GetAllianceInfoRequest",
     "GetAllianceInfoResponse",

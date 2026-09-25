@@ -3,7 +3,7 @@
 One enum per server ID space, and the enum lives next to the packets that
 describe it:
 
-- kingdom IDs: :class:`empire_core.protocol.models.map.Kingdom` (re-exported
+- kingdom IDs: :class:`empire_core.protocol.models.base.Kingdom` (re-exported
   here as ``KingdomType`` for backwards compatibility),
 - map-scan item types (the ``AI`` array of a ``gaa`` response):
   :class:`empire_core.protocol.models.map.MapItemType`,
@@ -13,7 +13,7 @@ describe it:
 
 from enum import IntEnum
 
-from empire_core.protocol.models.map import Kingdom
+from empire_core.protocol.models.base import Kingdom
 
 # ``KingdomType`` used to be a second, shorter copy of the kingdom ID table (it
 # was missing BERIMOND = 10). It is now an alias of the authoritative enum, so

@@ -12,32 +12,18 @@ from __future__ import annotations
 import logging
 import warnings
 from enum import IntEnum
+from typing import Any
 
 from pydantic import ConfigDict, Field, ValidationError, field_validator
 
-from .alliance import MemberEmblem
-from .base import BasePayload, BaseRequest, BaseResponse, Position
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, Kingdom, Position
+from .movement import OwnerCrest, OwnerFaction
 
 logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Map Item Types
 # =============================================================================
-
-
-class Kingdom(IntEnum):
-    """
-    Kingdom identifiers used throughout the game.
-
-    Each kingdom has different terrain and unit types.
-    """
-
-    GREEN = 0  # Green Kingdom - basic/starter kingdom
-    SANDS = 1  # Sand Kingdom - desert units
-    ICE = 2  # Ice Kingdom - ice/frost units
-    FIRE = 3  # Fire Kingdom - lava/fire units
-    STORM = 4  # Storm Kingdom - storm/lightning units
-    BERIMOND = 10  # Berimond event kingdom
 
 
 class MapItemType(IntEnum):
@@ -461,6 +447,33 @@ class MapAreaItem(BasePayload):
             return f"UNKNOWN_{self.item_type}"
 
 
+class AllianceCrest(BasePayload):
+    """
+    An alliance's crest: a layout and its colours.
+
+    Client: ``AllianceCrestVO.fillWithData`` (bundle line 11233).
+    """
+
+    layout_id: ClientInt = Field(alias="ACLI", default=0, description="Crest layout id")
+    color_ids: list[int] = Field(alias="ACCS", default_factory=list, description="Colour ids, one per layout colour")
+
+
+class AllianceEmblem(BasePayload):
+    """
+    The alliance crest block of an owner record: its ``aee``.
+
+    Client: ``WorldMapOwnerInfoVO.fillFromParamObject`` (bundle line 10794)
+    reads only ``ACCA``, and only for a player in an alliance.
+    """
+
+    crest: AllianceCrest | None = Field(alias="ACCA", default=None, description="The alliance's current crest")
+
+    @field_validator("crest", mode="before")
+    @classmethod
+    def _crest_needs_an_object(cls, value: Any) -> Any:
+        return value if isinstance(value, dict) else None
+
+
 class MapObject(BasePayload):
     """
     An owner record from a map scan's OI list.
@@ -476,7 +489,7 @@ class MapObject(BasePayload):
     owner_id: int | None = Field(alias="OID", default=None)
     is_dummy: bool = Field(alias="DUM", default=False)
     owner_name: str | None = Field(alias="N", default=None)
-    emblem: MemberEmblem | None = Field(alias="E", default=None)
+    emblem: OwnerCrest | None = Field(alias="E", default=None, description="The player's crest")
     level: int = Field(alias="L", default=0)
     legendary_level: int = Field(alias="LL", default=0)
     honor: int = Field(alias="H", default=0)
@@ -491,7 +504,7 @@ class MapObject(BasePayload):
     alliance_id: int | None = Field(alias="AID", default=None)
     alliance_rank: int = Field(alias="AR", default=0)
     alliance_name: str | None = Field(alias="AN", default=None)
-    alliance_emblem: dict | None = Field(alias="aee", default=None)
+    alliance_emblem: AllianceEmblem | None = Field(alias="aee", default=None, description="The alliance's crest")
     remaining_protection_time: int = Field(alias="RPT", default=0)
     area_positions: list[list[int]] | None = Field(alias="AP", default_factory=list)
     village_positions: list[list[int]] | None = Field(alias="VP", default_factory=list)
@@ -501,7 +514,15 @@ class MapObject(BasePayload):
     remaining_relocation_time: int = Field(alias="RRD", default=0)
     storm_title_id: int = Field(alias="TI", default=-1)  # -1: no title, 50-53: ranks 1-4, 54: ranks 5-10
     remaining_noob_protection: int = Field(alias="RNP", default=0)
-    faction: dict | None = Field(alias="FN", default=None)
+    faction: OwnerFaction | None = Field(
+        alias="FN", default=None, description="Faction event standing: FID, PMS, PMT and TID"
+    )
+
+    @field_validator("emblem", "alliance_emblem", "faction", mode="before")
+    @classmethod
+    def _block_needs_an_object(cls, value: Any) -> Any:
+        # The client only reads keys off these; anything that is not an object leaves its defaults
+        return value if isinstance(value, dict) else None
 
     @field_validator("area_positions", "village_positions", mode="before")
     @classmethod
@@ -645,6 +666,8 @@ __all__ = [
     "GetMapAreaResponse",
     "MapAreaItem",
     "MapObject",
+    "AllianceCrest",
+    "AllianceEmblem",
     # FNM - Find NPC
     "FindNPCRequest",
     "FindNPCResponse",

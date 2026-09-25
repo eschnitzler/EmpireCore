@@ -11,14 +11,12 @@ declare their genuinely divergent fields locally.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING
+from typing import Any
 
-from pydantic import Field
+from pydantic import Field, ValidationError, field_validator
 
 from .base import BasePayload
-
-if TYPE_CHECKING:
-    from .alliance import MemberCastle
+from .movement import OwnerCastlePosition, OwnerCrest
 
 
 class PlayerProfileBase(BasePayload):
@@ -48,11 +46,13 @@ class PlayerProfileBase(BasePayload):
     - RPT: Revenge protection time remaining (seconds) — bird
     - AID: Alliance ID
     - AN: Alliance Name
-    - AP: Castle positions [[kingdom, area_id, x, y, castle_type], ...]
+    - AP: Castle positions [[kingdom, area_id, x, y, area_type], ...]
     - VP: Village positions
+    - E: Crest
 
-    The "E" alias (emblem) is declared on the subclasses because its type
-    differs between them.
+    Client: ``WorldMapOwnerInfoVO.fillFromParamObject`` (bundle line 10794),
+    which both the ain member list and the gdi owner go through
+    (``CastleOtherPlayerData.parseOwnerInfo``, bundle line 138996).
     """
 
     player_id: int = Field(alias="OID", default=0)
@@ -78,22 +78,52 @@ class PlayerProfileBase(BasePayload):
     title_index: int = Field(alias="TI", default=-1)
     revenge_protection_seconds: int = Field(alias="RPT", default=0)
 
-    # Castle positions (raw - can be parsed with MemberCastle.from_list)
-    castle_positions: list = Field(alias="AP", default_factory=list)
-    village_positions: list = Field(alias="VP", default_factory=list)
+    emblem: OwnerCrest | None = Field(
+        alias="E", default=None, description="The player's crest, as CrestVO.loadFromParamObject reads it"
+    )
+    castle_positions: list[OwnerCastlePosition] = Field(
+        alias="AP",
+        default_factory=list,
+        description="The player's castles, read by WorldMapOwnerInfoVO.parsePosList (bundle line 10795)",
+    )
+    village_positions: list[OwnerCastlePosition] = Field(
+        alias="VP",
+        default_factory=list,
+        description="The player's villages, read by WorldMapOwnerInfoVO.parsePosList (bundle line 10795)",
+    )
+
+    @field_validator("emblem", mode="before")
+    @classmethod
+    def _crest_needs_an_object(cls, value: Any) -> Any:
+        # CrestVO.loadFromParamObject reads keys off E; anything else leaves the default crest
+        return value if isinstance(value, dict) else None
+
+    @field_validator("castle_positions", "village_positions", mode="before")
+    @classmethod
+    def _position_rows(cls, value: Any) -> Any:
+        """
+        Rows as ``MinWorldMapCastleInfoVO.fillFromParamObject`` (bundle line 18459) reads them.
+
+        A row the server wraps in one extra list (seen on AP in Berimond) is
+        unwrapped, which the client does not do; a row that still is not five
+        numbers is skipped instead of failing the reply.
+        """
+        if not isinstance(value, list):
+            return []
+        rows = []
+        for entry in value:
+            if isinstance(entry, list) and len(entry) == 1 and isinstance(entry[0], list):
+                entry = entry[0]
+            try:
+                rows.append(OwnerCastlePosition.model_validate(entry))
+            except ValidationError:
+                continue
+        return rows
 
     @property
     def honor(self) -> int:
         """Get the player's honor points (H field)."""
         return self.h_field
-
-    @property
-    def castles(self) -> list["MemberCastle"]:
-        """Parse castle positions into MemberCastle objects."""
-        # Imported here to avoid a circular import (alliance.py imports this module)
-        from .alliance import MemberCastle
-
-        return [MemberCastle.from_list(pos) for pos in self.castle_positions]
 
     @property
     def is_leader(self) -> bool:

@@ -185,6 +185,21 @@ class GGECommand:
     SDS = "sds"  # Sell from inventory
 
 
+class Kingdom(IntEnum):
+    """
+    Kingdom identifiers used throughout the game.
+
+    Each kingdom has different terrain and unit types.
+    """
+
+    GREEN = 0  # Green Kingdom - basic/starter kingdom
+    SANDS = 1  # Sand Kingdom - desert units
+    ICE = 2  # Ice Kingdom - ice/frost units
+    FIRE = 3  # Fire Kingdom - lava/fire units
+    STORM = 4  # Storm Kingdom - storm/lightning units
+    BERIMOND = 10  # Berimond event kingdom
+
+
 class HelpType(IntEnum):
     """Types of help requests in alliance."""
 

@@ -543,12 +543,12 @@ class TestAllianceMembers:
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)})
         by_name = {m.name: m for m in client.alliance.get_members(190426)}
 
-        castles = by_name["LeaderGuy"].castles
-        assert [(c.kingdom, c.x, c.y, c.castle_type) for c in castles] == [
+        castles = by_name["LeaderGuy"].castle_positions
+        assert [(c.kingdom_id, c.x, c.y, c.area_type) for c in castles] == [
             (0, 640, 655, 1),
             (2, 300, 400, 4),
         ]
-        assert by_name["AfkDude"].castles == []
+        assert by_name["AfkDude"].castle_positions == []
 
     def test_typed_emblem_is_parsed(self):
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)})

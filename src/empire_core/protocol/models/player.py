@@ -164,10 +164,6 @@ class PlayerOwnerInfo(PlayerProfileBase):
     SA/VF/PF/RRD/TI/RPT/AID/AN/AP/VP) are inherited from PlayerProfileBase.
     """
 
-    # Emblem configuration — kept as a raw dict here (AllianceMember maps the
-    # same "E" alias to a typed MemberEmblem)
-    emblem: dict | None = Field(alias="E", default=None)
-
 
 # =============================================================================
 # GDI - Get Detailed Player Info
