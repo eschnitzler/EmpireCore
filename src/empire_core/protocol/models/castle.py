@@ -249,10 +249,6 @@ class GetCastlesResponse(BaseResponse):
         unparsed = 0
         for kid, entry in _kingdom_entries(section):
             row = entry.get("AI")
-            if isinstance(row, list) and len(row) == 1 and isinstance(row[0], list):
-                # A row wrapped in one extra list, which the old gdi parser unwrapped; the client does not
-                row = row[0]
-                entry = {**entry, "AI": row}
             if not (isinstance(row, list) and len(row) > 10):
                 logger.debug(f"Skipping malformed gcl row: {entry!r}")
                 continue

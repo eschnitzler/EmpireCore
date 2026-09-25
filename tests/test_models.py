@@ -349,13 +349,13 @@ GOLDEN_GDI = {
             {
                 "KID": 0,
                 "AI": [
-                    {"AI": [gdi_location_row(1, 640, 655, 12345, 4242, "Main Castle", 0)]},
-                    {"AI": [gdi_location_row(4, 700, 700, 55555, 4242, "Outpost North", 0, capturer_outpost=9999)]},
+                    {"AI": gdi_location_row(1, 640, 655, 12345, 4242, "Main Castle", 0)},
+                    {"AI": gdi_location_row(4, 700, 700, 55555, 4242, "Outpost North", 0, capturer_outpost=9999)},
                 ],
             },
             {
                 "KID": 2,
-                "AI": [{"AI": [gdi_location_row(3, 300, 400, 77777, 4242, "Ice Capital", 2, capturer_capital=8888)]}],
+                "AI": [{"AI": gdi_location_row(3, 300, 400, 77777, 4242, "Ice Capital", 2, capturer_capital=8888)}],
             },
         ],
     },
@@ -607,9 +607,45 @@ class TestSearchPlayer:
         )
         assert [(i.x, i.y, i.owner_id) for i in response.area.items] == [(640, 655, 4242)]
 
+    def test_the_found_player_owns_the_area_at_x_y(self):
+        # parseSearchInfos opens the area at X/Y, so a neighbour listed first is not the player
+        payload = {
+            "X": 640,
+            "Y": 655,
+            "gaa": {
+                "AI": [
+                    [1, 600, 600, 111, 7, 5, 5, 5, 0, 0, "Neighbour"],
+                    [1, 640, 655, 12345, 4242, 5, 5, 5, 0, 0, "Main Castle"],
+                ],
+                "OI": [{"OID": 7, "N": "Neighbour"}, {"OID": 4242, "N": "TargetPlayer"}],
+            },
+        }
+        player = SearchPlayerResponse.model_validate(payload).get_player()
+        assert player is not None and player.owner_id == 4242
+
     @pytest.mark.parametrize("payload", [{}, {"gaa": "junk"}, {"gaa": {"OI": []}}])
     def test_no_owner_record_is_no_player(self, payload):
         assert SearchPlayerResponse.model_validate(payload).get_player() is None
+
+
+class TestPlayerInfoLandmarks:
+    def test_landmark_lists_join_the_first_kingdom(self):
+        # GDICommand.addGKLToGC and friends unwrap each row and push it into gcl.C[0].AI
+        tower = gdi_location_row(1, 50, 60, 888, 4242, "Tower", 0)
+        tower[0] = 23
+        response = GetPlayerInfoResponse.model_validate(
+            {
+                "gcl": {"C": [{"KID": 0, "AI": [{"AI": gdi_location_row(1, 640, 655, 12345, 4242, "Main", 0)}]}]},
+                "gkl": {"AI": [[tower]]},
+                "gml": {"AI": []},
+            }
+        )
+        assert [c.castle_id for c in response.get_castles()] == [12345, 888]
+
+    def test_a_gcl_row_in_an_extra_list_is_not_unwrapped(self):
+        wrapped = {"AI": [gdi_location_row(1, 640, 655, 12345, 4242, "Main", 0)]}
+        response = GetPlayerInfoResponse.model_validate({"gcl": {"C": [{"KID": 0, "AI": [wrapped]}]}})
+        assert response.get_castles() == []
 
 
 class TestGoldenSupportDefense:
@@ -1058,7 +1094,7 @@ class TestDriftedPayloadsMustNotCrashAccessors:
                 {
                     "gcl": {
                         "C": [
-                            {"KID": 0, "AI": [{"AI": [gdi_location_row(1, 1, 2, 3, 4, "Keep", 0)]}]},
+                            {"KID": 0, "AI": [{"AI": gdi_location_row(1, 1, 2, 3, 4, "Keep", 0)}]},
                             "unexpected-string-entry",
                         ]
                     }

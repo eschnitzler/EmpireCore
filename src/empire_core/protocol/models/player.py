@@ -12,7 +12,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from .base import BasePayload, BaseRequest, BaseResponse
 from .castle import CastleInfo, GetCastlesResponse, get_location_type_name
@@ -106,6 +106,33 @@ class GetPlayerInfoResponse(BaseResponse):
         default_factory=GetCastlesResponse,
         description="The player's castles, outposts and landmarks, as the gcl command sends them",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fold_landmark_lists_into_gcl(cls, data: Any) -> Any:
+        """
+        Client: ``GDICommand.addGKLToGC``, ``addGMLToGC`` and ``addGLLToGC``
+        (bundle line 129458) push each kings tower, monument and laboratory
+        row of ``gkl``, ``gml`` and ``gll``, sent wrapped in one list, into
+        the first kingdom of ``gcl`` before parsing it.
+        """
+        if not isinstance(data, dict):
+            return data
+        rows = [
+            {"AI": entry[0]}
+            for key in ("gkl", "gml", "gll")
+            if isinstance(data.get(key), dict) and isinstance(data[key].get("AI"), list)
+            for entry in data[key]["AI"]
+            if isinstance(entry, list) and entry
+        ]
+        gcl = data.get("gcl")
+        if not rows or not isinstance(gcl, dict) or not isinstance(gcl.get("C"), list) or not gcl["C"]:
+            return data
+        first = gcl["C"][0]
+        if not isinstance(first, dict) or not isinstance(first.get("AI"), list):
+            return data
+        kingdoms = [{**first, "AI": [*first["AI"], *rows]}, *gcl["C"][1:]]
+        return {**data, "gcl": {**gcl, "C": kingdoms}}
 
     @field_validator("castle_list", mode="before")
     @classmethod
@@ -202,7 +229,8 @@ class SearchPlayerResponse(BaseResponse):
 
     Client: ``WSPCommand.executeCommand`` (bundle line 131619) reads ``gaa.OI``
     with ``parseOwnerInfoArray`` and ``gaa.AI`` with ``parseAreaInfos``, as a
-    map area reply.
+    map area reply, then ``CastleWorldmapData.parseSearchInfos`` (bundle line
+    19010) opens the area at ``X``/``Y``, the found player's castle.
     """
 
     command = "wsp"
@@ -214,6 +242,8 @@ class SearchPlayerResponse(BaseResponse):
         default_factory=GetMapAreaResponse,
         description="The found player's map rows and owner records",
     )
+    x: int | None = Field(alias="X", default=None, description="Map x of the found player's castle")
+    y: int | None = Field(alias="Y", default=None, description="Map y of the found player's castle")
 
     @field_validator("area", mode="before")
     @classmethod
@@ -221,7 +251,20 @@ class SearchPlayerResponse(BaseResponse):
         return value if isinstance(value, dict) else {}
 
     def get_player(self) -> MapObject | None:
-        """The first owner record, or None when there is none."""
+        """
+        The found player's owner record: the owner of the area at ``X``/``Y``.
+
+        Falls back to the first owner record when no row sits at ``X``/``Y``
+        or its owner has no record, and None when there are no records.
+        """
+        at_position = next(
+            (item for item in self.area.items if (item.x, item.y) == (self.x, self.y) and item.owner_id >= 0),
+            None,
+        )
+        if at_position is not None:
+            owner = next((o for o in self.area.owners if o.owner_id == at_position.owner_id), None)
+            if owner is not None:
+                return owner
         return self.area.owners[0] if self.area.owners else None
 
 
