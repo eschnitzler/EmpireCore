@@ -42,13 +42,31 @@ from empire_core.combat.capacity import is_legendary_fight
 from empire_core.exceptions import EmpireError, GameDataNotLoadedError
 from empire_core.gamedata import GameData
 from empire_core.protocol.models import (
+    AttackInfoResponse,
     AttackType,
     AttackWave,
     Commander,
     CreateAttackRequest,
     GetAttackInfoRequest,
     GetAttackInfoResponse,
+    GetBossDungeonAttackInfoRequest,
+    GetBossDungeonAttackInfoResponse,
+    GetCapitalConquerInfoRequest,
+    GetCapitalConquerInfoResponse,
+    GetDungeonAttackInfoRequest,
+    GetDungeonAttackInfoResponse,
+    GetIslandAttackInfoRequest,
+    GetIslandAttackInfoResponse,
+    GetLandmarkAttackInfoRequest,
+    GetLandmarkAttackInfoResponse,
+    GetMetropolConquerInfoRequest,
+    GetMetropolConquerInfoResponse,
+    GetOutpostConquerInfoRequest,
+    GetOutpostConquerInfoResponse,
+    GetVillageAttackInfoRequest,
+    GetVillageAttackInfoResponse,
 )
+from empire_core.protocol.models.base import BaseRequest
 from empire_core.protocol.models.map import GetMapAreaResponse, MapAreaItem, MapItemType
 from empire_core.services.spy_army import SpyArmy
 from empire_core.utils.enums import Kingdom
@@ -56,6 +74,110 @@ from empire_core.utils.enums import Kingdom
 from .base import BaseService, register_service
 
 logger = logging.getLogger(__name__)
+
+
+_Precalculation = tuple[type[BaseRequest], type[AttackInfoResponse]]
+
+_ACI: _Precalculation = (GetAttackInfoRequest, GetAttackInfoResponse)
+_ADI: _Precalculation = (GetDungeonAttackInfoRequest, GetDungeonAttackInfoResponse)
+_ALI: _Precalculation = (GetLandmarkAttackInfoRequest, GetLandmarkAttackInfoResponse)
+
+_ATTACK_PRECALCULATION: dict[int, _Precalculation] = {
+    # ACTION_TYPE_ATTACK: CastleMapobjectVO, and KingdomCastleMapobjectVO extends it
+    MapItemType.CASTLE: _ACI,
+    MapItemType.KINGDOM_CASTLE: _ACI,
+    MapItemType.FACTION_VILLAGE: _ACI,
+    MapItemType.FACTION_TOWER: _ACI,
+    MapItemType.FACTION_CAPITAL: _ACI,
+    # ACTION_TYPE_OUTPOSTATTACK: OutpostMapobjectVO, extended by CapitalMapobjectVO and MetropolMapobjectVO
+    MapItemType.OUTPOST: _ACI,
+    MapItemType.CAPITAL: _ACI,
+    MapItemType.METRO: _ACI,
+    # ACTION_TYPE_DUNGEONATTACK
+    MapItemType.DUNGEON: _ADI,
+    MapItemType.TREASURE_DUNGEON: _ADI,
+    MapItemType.EVENT_DUNGEON: _ADI,
+    MapItemType.ISLE_DUNGEON: _ADI,
+    MapItemType.ALIEN_CAMP: _ADI,
+    MapItemType.RED_ALIEN_CAMP: _ADI,
+    MapItemType.NOMAD_CAMP: _ADI,
+    MapItemType.SAMURAI_CAMP: _ADI,
+    MapItemType.FACTION_INVASION_CAMP: _ADI,
+    MapItemType.ALLIANCE_NOMAD_CAMP: _ADI,
+    MapItemType.DAIMYO_CASTLE: _ADI,
+    MapItemType.ABG_RESOURCE_TOWER: _ADI,
+    MapItemType.WOLF_KING: _ADI,
+    MapItemType.ARE_PORTAL: _ADI,
+    # ACTION_TYPE_BOSSDUNGEONATTACK
+    MapItemType.BOSS_DUNGEON: (GetBossDungeonAttackInfoRequest, GetBossDungeonAttackInfoResponse),
+    # ACTION_TYPE_LANDMARK_ATTACK
+    MapItemType.KINGS_TOWER: _ALI,
+    MapItemType.MONUMENT: _ALI,
+    MapItemType.LABORATORY: _ALI,
+    # ACTION_TYPE_VILLAGE_ATTACK
+    MapItemType.VILLAGE: (GetVillageAttackInfoRequest, GetVillageAttackInfoResponse),
+    # ACTION_TYPE_ISLAND_ATTACK
+    MapItemType.ISLE_RESOURCE: (GetIslandAttackInfoRequest, GetIslandAttackInfoResponse),
+}
+
+_CONQUER_PRECALCULATION: dict[int, _Precalculation] = {
+    MapItemType.OUTPOST: (GetOutpostConquerInfoRequest, GetOutpostConquerInfoResponse),
+    MapItemType.CAPITAL: (GetCapitalConquerInfoRequest, GetCapitalConquerInfoResponse),
+    MapItemType.METRO: (GetMetropolConquerInfoRequest, GetMetropolConquerInfoResponse),
+}
+
+
+def _precalculation(area_type: int, conquer: bool) -> _Precalculation:
+    """
+    The request and reply the client uses to pre-calculate an attack on an area type.
+
+    An attack follows the ``attackType`` of the map object the client builds
+    for the area type: ``ACTION_TYPE_ATTACK`` and ``ACTION_TYPE_OUTPOSTATTACK``
+    ask ``aci``, ``ACTION_TYPE_DUNGEONATTACK`` ``adi``, and so on. A conquest
+    asks ``cci`` for a capital, ``cti`` for a metropolis and ``coi`` for an
+    outpost.
+
+    Not modelled, so refused before sending: the alliance battleground tower
+    (``gti``), the collector attack (``acc``), the faction camp conquest, map
+    objects that define no ``attackType`` of their own and only inherit
+    ``InteractiveMapobjectVO``'s, and area types the client builds no map
+    object for.
+
+    Client: ``CastleStartAttackDialog.onClickYes`` (bundle line 14802) and its
+    senders ``attackCastle`` (14824), ``attackDungeon`` (14834),
+    ``attackBossDungeon`` (14837), ``conquerOutpost`` (14839),
+    ``conquerCapital`` (14842), ``conquerMetropol`` (14843), ``attackVillage``
+    (14844), ``attackIsland`` (14845), ``attackLandmark`` (14846);
+    ``WorldmapObjectFactory.__initialize_static_members`` (bundle line 5356).
+    The ``attackType`` getters: ``AInvasionEventMapObjectVO`` (18505),
+    ``OutpostMapobjectVO`` (18850), ``CastleMapobjectVO`` (18941),
+    ``KingstowerMapobjectVO`` (19088), ``MonumentMapobjectVO`` (21668),
+    ``DungeonMapobjectVO`` (22091), ``VillageMapobjectVO`` (22684),
+    ``FactionCapitalMapobjectVO`` (22789), ``FactionTowerMapobjectVO`` (22837),
+    ``LaboratoryMapobjectVO`` (25913), ``FactionVillageMapobjectVO`` (28515),
+    ``WolfkingCastleMapObjectVO`` (34420), ``BossdungeonMapobjectVO`` (34466),
+    ``EventdungeonMapobjectVO`` (34516), ``ResourceIsleMapobjectVO`` (34652),
+    ``AAlienInvasionMapobjectVO`` (41553), ``AllianceRaidEventPortalMapobjectVO``
+    (41611), ``DungeonIsleMapobjectVO`` (76310). Inherited ones:
+    ``CapitalMapobjectVO`` (18760) and ``MetropolMapobjectVO`` (21637) extend
+    ``OutpostMapobjectVO``; ``TreasureDungeonMapObjectVO`` (22033) extends
+    ``DungeonMapobjectVO``; ``KingdomCastleMapobjectVO`` (32706) extends
+    ``CastleMapobjectVO``; ``AlienInvasionMapobjectVO`` (65057) and
+    ``RedAlienInvasionMapobjectVO`` (76481) extend ``AAlienInvasionMapobjectVO``;
+    ``DaimyoCastleMapObjectVO`` (19689), ``FactionInvasionCampMapObjectVO``
+    (76367), ``NomadCampMapObjectVO`` (76420), ``SamuraiCampMapObjectVO``
+    (76536) and ``AAllianceInvasionCampMapObjectVO`` (47418) extend
+    ``AInvasionEventMapObjectVO``, and ``NomadKhanCampMapObjectVO`` (76447) and
+    ``ABGResourceTowerMapobjectVO`` (47447) extend
+    ``AAllianceInvasionCampMapObjectVO``. Area type values from ``WorldConst``
+    (dll line 237).
+    """
+    table = _CONQUER_PRECALCULATION if conquer else _ATTACK_PRECALCULATION
+    found = table.get(area_type)
+    if found is None:
+        kind = "conquest" if conquer else "attack"
+        raise ValueError(f"No {kind} pre-calculation is modelled for area type {area_type}")
+    return found
 
 
 @dataclass
@@ -81,9 +203,10 @@ class _Target:
     spy_army: SpyArmy | None = None
     castellan: Commander | None = None
     area_bonuses: list[Bonus] | None = None
+    conquer: bool = False
 
     def wants_precalculation(self) -> bool:
-        """Whether ``aci`` would answer anything still missing."""
+        """Whether the pre-calculation would answer anything still missing."""
         return any(value is None for value in (self.row, self.spy_army, self.castellan, self.area_bonuses))
 
 
@@ -207,17 +330,18 @@ class AttackService(BaseService):
         source_x: int,
         source_y: int,
         kingdom_id: int = 0,
+        *,
+        area_type: int = MapItemType.CASTLE,
+        conquer: bool = False,
         timeout: float = 10.0,
-    ) -> GetAttackInfoResponse:
+    ) -> AttackInfoResponse:
         """
-        Get the attack pre-calculation for a castle target.
+        Get the attack pre-calculation for a target.
 
         This is what the game's own attack dialog asks for: the target's map
         row, the attacker's inventory and commanders, and the attacker's
-        effects already scoped to this target.
-
-        A camp answers a different command, ``adi``; see
-        ``GetTargetInfoRequest``.
+        effects already scoped to this target. Each kind of target answers its
+        own command, picked from ``area_type`` as the client does.
 
         Args:
             target_x: Target X coordinate
@@ -225,14 +349,21 @@ class AttackService(BaseService):
             source_x: Attacking castle's X coordinate
             source_y: Attacking castle's Y coordinate
             kingdom_id: Kingdom both sit in
+            area_type: The target's area type, the first field of its map row
+            conquer: Ask for the conquest pre-calculation instead, for an
+                outpost, capital or metropolis
             timeout: Timeout in seconds
 
         Raises:
-            CommandError: The server rejected the request, e.g. INVALID_AREA
-                for a target that is not a castle
+            ValueError: The client has no pre-calculation this library models
+                for that area type
+            CommandError: The server rejected the request
         """
-        request = GetAttackInfoRequest(TX=target_x, TY=target_y, SX=source_x, SY=source_y, KID=kingdom_id)
-        return self.request(request, GetAttackInfoResponse, timeout=timeout)
+        request_type, response_type = _precalculation(area_type, conquer)
+        keys = {"KID": kingdom_id, "TX": target_x, "TY": target_y}
+        if "source_x" in request_type.model_fields:
+            keys.update(SX=source_x, SY=source_y)
+        return self.request(request_type(**keys), response_type, timeout=timeout)
 
     def fill_waves(
         self,
@@ -443,20 +574,25 @@ class AttackService(BaseService):
         if target.source_y is None:
             target.source_y = source.y if source is not None else 0
 
-        if target.wants_precalculation():
-            self._read_precalculation(target, timeout=timeout)
+        if target.area_type is None and target.row:
+            target.area_type = MapAreaItem.from_list(target.row).item_type
 
         area = None
-        if target.row is None:
-            # The pre-calculation is refused for a camp and for any target the
-            # server will not let this player hit, but the map still describes
-            # the tile, and that is all the level and the fortification need.
+        if target.wants_precalculation():
+            if target.area_type is None:
+                # Each kind of target answers its own pre-calculation, so the
+                # tile is read first to learn which.
+                area = self._scan_tile(target, timeout=timeout)
+                self._take_scanned_row(target, area)
+            if target.area_type is not None:
+                self._read_precalculation(target, timeout=timeout)
+
+        if target.row is None and area is None:
+            # The server refuses the pre-calculation for a target this player
+            # may not hit, but the map still describes the tile, and that is
+            # all the level and the fortification need.
             area = self._scan_tile(target, timeout=timeout)
-            if area is not None:
-                target.row = next(
-                    (item.raw_data for item in area.items if (item.x, item.y) == (target.x, target.y)),
-                    None,
-                )
+            self._take_scanned_row(target, area)
 
         item = MapAreaItem.from_list(target.row) if target.row else None
         if item is None:
@@ -482,6 +618,18 @@ class AttackService(BaseService):
             target.level = self._owner_level(area, item.owner_id, target)
             target.is_player = target.is_player or target.level is not None
         self._return_to_castle(castle_id, home_kingdom, timeout, scanned=area is not None)
+
+    @staticmethod
+    def _take_scanned_row(target: "_Target", area: GetMapAreaResponse | None) -> None:
+        """Take the target's row, and so its area type, from a scan of its tile."""
+        if area is None or target.row is not None:
+            return
+        target.row = next(
+            (item.raw_data for item in area.items if (item.x, item.y) == (target.x, target.y)),
+            None,
+        )
+        if target.row and target.area_type is None:
+            target.area_type = MapAreaItem.from_list(target.row).item_type
 
     def _return_to_castle(self, castle_id: int, kingdom_id: int, timeout: float, *, scanned: bool) -> None:
         """Scanning moves the client off the attacking castle; the reads that follow are castle-scoped."""
@@ -560,7 +708,7 @@ class AttackService(BaseService):
         }
 
     def _read_precalculation(self, target: "_Target", *, timeout: float) -> None:
-        """Take the target's row, defenders, castellan and area effects from ``aci``."""
+        """Take the target's row, defenders, castellan and area effects from its pre-calculation."""
         try:
             info = self.get_attack_info(
                 target_x=target.x,
@@ -568,9 +716,11 @@ class AttackService(BaseService):
                 source_x=target.source_x or 0,
                 source_y=target.source_y or 0,
                 kingdom_id=target.kingdom_id or 0,
+                area_type=target.area_type if target.area_type is not None else MapItemType.CASTLE,
+                conquer=target.conquer,
                 timeout=timeout,
             )
-        except EmpireError as e:
+        except (EmpireError, ValueError) as e:
             logger.debug(f"Could not read the attack pre-calculation for {target.x}:{target.y}: {e}")
             return
         if target.row is None:
@@ -637,8 +787,9 @@ class AttackService(BaseService):
         Give it a target and it reads the rest itself.
 
         With ``target_x``/``target_y`` it asks the server for the attack
-        pre-calculation and takes what that carries: the target's map row and so
-        its area type and structures, the spied defenders per flank, the
+        pre-calculation, the command the client uses for the target's area type
+        (the conquest one with ``conquer``), and takes what that carries: the
+        target's map row and so its structures, the spied defenders per flank, the
         defending castellan, and the area effects that widen the flanks. A
         camp's victory count comes out of the same row, and a player's level
         from the owner records beside it. The general's skills and the player's
@@ -718,6 +869,7 @@ class AttackService(BaseService):
             spy_army=spy_army,
             castellan=defending_castellan,
             area_bonuses=area_bonuses,
+            conquer=conquer,
         )
         if target_x is not None and target_y is not None:
             self._read_target(target, castle_id=castle_id, timeout=timeout)
@@ -731,7 +883,7 @@ class AttackService(BaseService):
                     )
                 item = MapAreaItem.from_list(target.row) if target.row else None
                 if item is None:
-                    reason = "the attack pre-calculation was refused and the map has no row for it"
+                    reason = "neither the map nor a pre-calculation has a row for it"
                 elif item.is_invasion_camp:
                     reason = (
                         f"the items payload describes no camp {item.invasion_camp_field} for area type {item.item_type}"

@@ -16,7 +16,7 @@ from enum import IntEnum
 from pydantic import ConfigDict, Field, ValidationError, field_validator
 
 from .alliance import MemberEmblem
-from .base import BasePayload, BaseRequest, BaseResponse, PlayerInfo, Position
+from .base import BasePayload, BaseRequest, BaseResponse, Position
 
 logger = logging.getLogger(__name__)
 
@@ -635,65 +635,6 @@ class FindNPCResponse(BaseResponse):
     npcs: list[NPCLocation] = Field(alias="N", default_factory=list)
 
 
-# =============================================================================
-# ADI - Get Area/Target Detailed Info
-# =============================================================================
-
-
-class GetTargetInfoRequest(BaseRequest):
-    """
-    Get detailed info about a specific map location/target.
-
-    Command: adi
-    Payload: {"SX": source_x, "SY": source_y, "TX": target_x, "TY": target_y, "KID": kingdom_id}
-
-    SX/SY is the attacker's source position, TX/TY is the target position.
-    """
-
-    command = "adi"
-
-    source_x: int = Field(alias="SX")
-    source_y: int = Field(alias="SY")
-    target_x: int = Field(alias="TX")
-    target_y: int = Field(alias="TY")
-    kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
-
-
-class TargetInfo(BasePayload):
-    """Detailed information about a target location."""
-
-    x: int = Field(alias="X")
-    y: int = Field(alias="Y")
-    object_type: int = Field(alias="OT")
-    object_id: int = Field(alias="OID", default=0)
-
-    # Owner info (if owned)
-    owner: PlayerInfo | None = Field(alias="O", default=None)
-
-    # Castle-specific
-    castle_name: str | None = Field(alias="CN", default=None)
-    castle_level: int | None = Field(alias="CL", default=None)
-
-    # NPC-specific
-    npc_type: int | None = Field(alias="NT", default=None)
-    npc_level: int | None = Field(alias="NL", default=None)
-
-    # Resources (for resource nodes)
-    resources: int | None = Field(alias="R", default=None)
-
-
-class GetTargetInfoResponse(BaseResponse):
-    """
-    Response containing target information.
-
-    Command: adi
-    """
-
-    command = "adi"
-
-    target: TargetInfo | None = Field(alias="T", default=None)
-
-
 __all__ = [
     # Kingdom
     "Kingdom",
@@ -708,8 +649,4 @@ __all__ = [
     "FindNPCRequest",
     "FindNPCResponse",
     "NPCLocation",
-    # ADI - Target Info
-    "GetTargetInfoRequest",
-    "GetTargetInfoResponse",
-    "TargetInfo",
 ]

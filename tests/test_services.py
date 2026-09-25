@@ -86,6 +86,50 @@ def request_payload(data: str) -> dict[str, Any]:
     return json.loads(raw)
 
 
+# Live capture of an adi reply for a robber baron camp.
+LIVE_ADI: dict[str, Any] = {
+    "KID": 0,
+    "HAWL": 1,
+    "SCID": 16654603,
+    "gaa": {"AI": [2, 620, 231, -1, 0, -1, 0]},
+    "gui": {
+        "I": [[10, 10], [614, 2], [611, 1], [651, 300], [649, 300], [648, 300]],
+        "SHI": [],
+        "HI": [[9, 20]],
+        "TU": [],
+    },
+    "gli": {
+        "B": [{"ID": 1, "WID": 1, "VIS": 0, "LICID": 16654603, "N": "", "GID": -1, "W": 2, "D": 9, "SPR": 1, "EQ": []}],
+        "C": [
+            {
+                "ID": 0,
+                "WID": 2,
+                "VIS": 0,
+                "N": "",
+                "GID": -1,
+                "W": 1,
+                "D": 0,
+                "SPR": 1,
+                "EQ": [[6515211559, 6, 2, 10, 0, [[242, [25.0]]], 802, 22, 0, -1, -1, 1]],
+            },
+            {"ID": 2, "WID": 2, "VIS": 1, "N": "", "GID": -1, "W": 0, "D": 0, "SPR": 0, "EQ": []},
+        ],
+    },
+    "AE": [],
+}
+
+# Live capture of an ali reply for a kings tower, owner record trimmed and scrubbed.
+LIVE_ALI: dict[str, Any] = dict(
+    LIVE_ADI,
+    gaa={
+        "AI": [23, 630, 240, 4758767, 6537608, 0, -1, "630:240"],
+        "OI": [
+            {"OID": 6537608, "DUM": False, "N": "player", "L": 70, "LL": 950, "R": 0, "AID": 3318, "AN": "alliance"}
+        ],
+    },
+)
+
+
 class ScriptedConnection:
     """Scripted stand-in for Connection.
 
@@ -2281,24 +2325,38 @@ class TestFillAttack:
         inventory = next(i for i, e in enumerate(order) if "gui" in e)
         assert scanned < reselected < inventory
 
-    def test_a_camp_victory_count_comes_from_the_row(self):
+    def test_a_camp_is_pre_calculated_with_adi(self):
+        # aci on a camp is refused with INVALID_AREA; the client asks adi.
         client = self.build([[601, 100_000]])
         # Type 2 is a camp; field 3 is the espionage age and field 6 the count.
         camp_row = [2, 700, 710, -1, 0, -1, -299]
-        conn(client).script["aci"] = xt_packet("aci", {"gaa": {"AI": camp_row}, "AE": [], "B": {}})
+        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [camp_row], "OI": []})
+        conn(client).script["adi"] = xt_packet("adi", dict(LIVE_ADI, gaa={"AI": camp_row}))
 
-        result = client.attack.fill_attack(12345, target_x=700, target_y=710)
+        result = client.attack.fill_attack(12345, target_x=700, target_y=710, kingdom_id=0, source_x=5, source_y=6)
 
-        # A camp needs no scan for a level: the count implies it.
+        sent = dict(conn(client).request_payloads)
+        assert "aci" not in sent
+        assert sent["adi"] == {"KID": 0, "SX": 5, "SY": 6, "TX": 700, "TY": 710}
+        assert result.waves
+
+    def test_a_given_area_type_needs_no_scan_for_the_command(self):
+        client = self.build([[601, 100_000]])
+        camp_row = [2, 700, 710, -1, 0, -1, -299]
+        conn(client).script["adi"] = xt_packet("adi", dict(LIVE_ADI, gaa={"AI": camp_row}))
+
+        result = client.attack.fill_attack(12345, target_x=700, target_y=710, area_type=2)
+
+        # A camp needs no scan for a level either: the count implies it.
         assert "gaa" not in [command for command, _ in conn(client).request_payloads]
         assert result.waves
 
     def test_a_refused_precalculation_falls_back_to_the_map(self):
-        # The server refuses the pre-calculation for a camp and for anything it
-        # will not let this player hit, but the map still describes the tile.
+        # The server refuses the pre-calculation for anything it will not let
+        # this player hit, but the map still describes the tile.
         client = self.build([[601, 100_000]])
         camp_row = [2, 700, 710, -1, 0, -1, -299]
-        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
         conn(client).script["gaa"] = xt_packet("gaa", {"AI": [camp_row], "OI": []})
 
         result = client.attack.fill_attack(12345, target_x=700, target_y=710)
@@ -2316,7 +2374,7 @@ class TestFillAttack:
         # starts and climbs with every defeat the camp has taken.
         client = self.build([[601, 100_000]])
         row = [29, 700, 710, -1, 4, 0, 0, 0, -1, 110, 110, 0]
-        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
         conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": []})
 
         result = client.attack.fill_attack(12345, target_x=700, target_y=710)
@@ -2330,7 +2388,7 @@ class TestFillAttack:
         client = self.build([[601, 100_000]])
         # Field 4 is the rank, not a victory count: rank 1 is level 81.
         row = [37, 700, 710, -1, 1, 0, 0, 0, -1, 110, 110, 0]
-        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
         conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": []})
 
         result = client.attack.fill_attack(12345, target_x=700, target_y=710)
@@ -2341,7 +2399,7 @@ class TestFillAttack:
         client = self.build([[601, 100_000]])
         # Field 8 names a difficulty scaling camp, which overrides the rank.
         row = [37, 700, 710, -1, 1, 0, 0, 0, 3, 110, 110, 0]
-        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
         conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": []})
 
         result = client.attack.fill_attack(12345, target_x=700, target_y=710)
@@ -2362,7 +2420,7 @@ class TestFillAttack:
     def test_an_unknown_camp_rank_says_which_rank(self):
         client = self.build([[601, 100_000]])
         # Rank 99 is a daimyo castle the trimmed tables do not describe.
-        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
         conn(client).script["gaa"] = xt_packet(
             "gaa", {"AI": [[37, 700, 710, -1, 99, 0, 0, 0, -1, 110, 110, 0]], "OI": []}
         )
@@ -2372,17 +2430,16 @@ class TestFillAttack:
 
     def test_a_tile_the_map_does_not_describe_says_so(self):
         client = self.build([[601, 100_000]])
-        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
         conn(client).script["gaa"] = xt_packet("gaa", {"AI": [], "OI": []})
 
-        with pytest.raises(ValueError, match="the map has no row for it"):
+        with pytest.raises(ValueError, match="neither the map nor a pre-calculation has a row for it"):
             client.attack.fill_attack(12345, target_x=700, target_y=710)
 
     def test_a_target_with_no_level_anywhere_says_so(self):
         client = self.build([[601, 100_000]])
         # An alien camp: not an invasion camp this knows, and no owner record
         # carries a level for it either.
-        conn(client).script["aci"] = xt_packet("aci", None, error_code=203)
+        conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
         conn(client).script["gaa"] = xt_packet(
             "gaa", {"AI": [[21, 700, 710, -1, 0, -1, 0, 0, -1, 110, 110, 0]], "OI": []}
         )
@@ -2615,6 +2672,91 @@ class TestAttackInfo:
         assert command == "aci"
         assert (payload["TX"], payload["TY"]) == (632, 243)
         assert (payload["SX"], payload["SY"]) == (629, 242)
+
+
+class TestTargetPrecalculation:
+    """Each kind of target answers its own pre-calculation command."""
+
+    @pytest.mark.parametrize(
+        ("area_type", "command", "keys"),
+        [
+            # CastleStartAttackDialog.attackCastle / C2SGetAttackCastleInfosVO
+            (1, "aci", {"TX", "TY", "SX", "SY", "KID"}),
+            (4, "aci", {"TX", "TY", "SX", "SY", "KID"}),
+            # attackDungeon / C2SGetAttackDungeonInfosVO
+            (2, "adi", {"KID", "SX", "SY", "TX", "TY"}),
+            (25, "adi", {"KID", "SX", "SY", "TX", "TY"}),
+            (37, "adi", {"KID", "SX", "SY", "TX", "TY"}),
+            # attackBossDungeon / C2SAttackInfoBossDungeonVO
+            (11, "abi", {"KID", "SX", "SY", "TX", "TY"}),
+            # attackLandmark / C2SAttackInfoLandmarkVO
+            (23, "ali", {"KID", "TX", "TY", "SX", "SY"}),
+            (26, "ali", {"KID", "TX", "TY", "SX", "SY"}),
+            (28, "ali", {"KID", "TX", "TY", "SX", "SY"}),
+            # attackVillage / C2SAttackInfoVillageVO
+            (10, "avi", {"KID", "TX", "TY"}),
+            # attackIsland / C2SAttackInfoIslandVO
+            (24, "aii", {"KID", "TX", "TY"}),
+        ],
+    )
+    def test_the_command_follows_the_area_type(self, area_type, command, keys):
+        client = make_client()
+
+        client.attack.get_attack_info(700, 710, 5, 6, kingdom_id=1, area_type=area_type)
+
+        sent_command, payload = conn(client).request_payloads[0]
+        assert sent_command == command
+        assert set(payload) == keys
+        assert (payload["TX"], payload["TY"], payload["KID"]) == (700, 710, 1)
+
+    @pytest.mark.parametrize(("area_type", "command"), [(4, "coi"), (3, "cci"), (22, "cti")])
+    def test_a_conquest_asks_the_conquer_info(self, area_type, command):
+        client = make_client()
+
+        client.attack.get_attack_info(700, 710, 5, 6, kingdom_id=0, area_type=area_type, conquer=True)
+
+        assert conn(client).request_payloads[0] == (command, {"KID": 0, "TX": 700, "TY": 710})
+
+    @pytest.mark.parametrize(
+        ("area_type", "conquer"), [(41, False), (14, False), (0, False), (9, False), (15, False), (1, True)]
+    )
+    def test_an_unmodelled_target_is_refused_before_sending(self, area_type, conquer):
+        client = make_client()
+
+        with pytest.raises(ValueError, match=f"area type {area_type}"):
+            client.attack.get_attack_info(700, 710, 5, 6, area_type=area_type, conquer=conquer)
+
+        assert conn(client).request_payloads == []
+
+    def test_the_live_adi_reply(self):
+        from empire_core.protocol.models import GetDungeonAttackInfoResponse
+
+        client = make_client({"adi": xt_packet("adi", LIVE_ADI)})
+
+        info = client.attack.get_attack_info(620, 231, 620, 233, area_type=2)
+
+        assert isinstance(info, GetDungeonAttackInfoResponse)
+        assert info.source_castle_id == 16654603
+        assert info.home_workshop_level == 1
+        assert info.target_row() == [2, 620, 231, -1, 0, -1, 0]
+        assert info.inventory() == {10: 10, 614: 2, 611: 1, 651: 300, 649: 300, 648: 300}
+        assert info.spy_army() is None and info.spy_age_seconds == -1
+
+    def test_the_live_ali_reply_carries_owner_records(self):
+        from empire_core.protocol.models import GetLandmarkAttackInfoResponse
+
+        info = GetLandmarkAttackInfoResponse.model_validate(LIVE_ALI)
+
+        assert info.target_row()[:3] == [23, 630, 240]
+        assert [record["OID"] for record in info.owner_records()] == [6537608]
+
+    def test_an_outpost_conquest_reads_its_barons(self):
+        from empire_core.protocol.models import GetOutpostConquerInfoResponse
+
+        info = GetOutpostConquerInfoResponse.model_validate(dict(LIVE_ADI, AB=1, MB=2))
+
+        assert (info.available_barons, info.max_barons) == (1, 2)
+        assert not hasattr(info, "morality")
 
 
 class TestFillAttackLevelDerivation:

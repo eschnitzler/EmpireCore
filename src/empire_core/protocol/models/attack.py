@@ -2,7 +2,8 @@
 Attack and spy protocol models.
 
 Commands:
-- aci: Attack pre-calculation for a castle
+- aci, adi, abi, ali, avi, aii: Attack pre-calculation per kind of target
+- coi, cci, cti: Conquest pre-calculation
 - cra: Create/send attack
 - csm: Send spy mission
 - gas: Get attack presets
@@ -230,21 +231,23 @@ def _wod_amounts(entries: Any) -> dict[int, int]:
     return {wod_id: amount for wod_id, amount in totals.items() if amount > 0}
 
 
-class GetAttackInfoResponse(BaseResponse):
+class AttackInfoResponse(BaseResponse):
     """
-    Everything the attack dialog needs for one target.
+    What every attack pre-calculation reply carries, whatever the target.
 
-    Command: aci
     Payload::
 
         {"SCID": source_castle_id, "KID": ..,
          "AE": [[effect_id, [value], source_tag], ...],
          "S": [left, middle, right, keep, stronghold, support, reserve],
          "AS": spy_age_seconds, "abe": {castellan}, "B": {castellan}, "LS": [...],
-         "MB": morality, "KTB": kings_tower_bonus, "HAWL": home_workshop_level,
+         "KTB": kings_tower_bonus, "HAWL": home_workshop_level,
          "gaa": {"AI": [target map row], "OI": [owner records]},
          "gui": {"I": [[wod_id, count], ...], "SHI": [[wod_id, count], ...]},
          "gli": {"C": [...], "B": [...]}}
+
+    ``MB`` is left to the subclasses: it is the morality in an attack reply
+    and the maximum barons in an outpost conquest reply.
 
     ``AE`` is already scoped by the server to this target. ``S``, ``AS``, the
     castellan and ``LS`` form the spy report; the client reads them only when
@@ -252,11 +255,8 @@ class GetAttackInfoResponse(BaseResponse):
 
     Client: ``CastleAttackInfoVO.fillFromParamObject`` (bundle lines 30620-30633),
     ``CastleFightScreenVO.fillFromParamObject`` for ``AE`` (bundle line 30501),
-    ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line 30699),
-    ``ACICommand.executeCommand`` for ``gaa.OI`` (bundle line 122164).
+    ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line 30699).
     """
-
-    command = "aci"
 
     source_castle_id: int = Field(alias="SCID", default=0, description="Attacking castle's id")
     target_x: int = Field(alias="TX", default=0, description="Target map x")
@@ -283,7 +283,6 @@ class GetAttackInfoResponse(BaseResponse):
         default_factory=list,
         description="The defender's legend skill ids, part of the spy report",
     )
-    morality: float = Field(alias="MB", default=0, description="Morality bonus of the attack")
     kings_tower_bonus: float = Field(alias="KTB", default=0, description="Kings tower bonus")
     home_workshop_level: int = Field(
         alias="HAWL", default=0, description="Level of the attacking castle's workshop, which unlocks support tools"
@@ -297,7 +296,7 @@ class GetAttackInfoResponse(BaseResponse):
     raw_commanders: dict = Field(alias="gli", default_factory=dict, description="The attacker's commanders, as gli")
 
     @model_validator(mode="after")
-    def _no_spy_report_without_an_army(self) -> "GetAttackInfoResponse":
+    def _no_spy_report_without_an_army(self) -> "AttackInfoResponse":
         """Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` sets the age and legend skills only when S is not empty."""
         if not self.raw_spy_army:
             self.spy_age_seconds = -1
@@ -370,8 +369,10 @@ class GetAttackInfoResponse(BaseResponse):
         """
         The raw owner records under ``gaa.OI``.
 
-        Client: ``ACICommand.executeCommand`` passes them to
-        ``OtherPlayerData.parseOwnerInfoArray`` (bundle line 122164).
+        Client: ``ACICommand.executeCommand`` (bundle line 122164) and
+        ``ABICommand.executeCommand`` (bundle line 122128) pass them to
+        ``OtherPlayerData.parseOwnerInfoArray``; the other pre-calculation
+        commands do not read them.
         """
         records = self.raw_map_area.get("OI")
         return [record for record in records if isinstance(record, dict)] if isinstance(records, list) else []
@@ -392,6 +393,298 @@ class GetAttackInfoResponse(BaseResponse):
         ``StrongholdUnitInventory`` (bundle line 30620).
         """
         return _wod_amounts(self.raw_inventory.get("SHI"))
+
+
+class GetAttackInfoResponse(AttackInfoResponse):
+    """
+    The attack pre-calculation for a castle, and the base of every attack reply.
+
+    Command: aci
+
+    Client: ``CastleAttackData.parse_ACI`` (bundle line 133821),
+    ``CastleAttackInfoVO.fillFromParamObject`` reads ``MB`` (bundle line 30620).
+    """
+
+    command = "aci"
+
+    morality: float = Field(alias="MB", default=0, description="Morality bonus of the attack")
+
+
+# =============================================================================
+# ADI / ABI / ALI / AVI / AII - Attack pre-calculation for other targets
+# =============================================================================
+
+
+class GetDungeonAttackInfoRequest(BaseRequest):
+    """
+    Ask for the attack pre-calculation against an NPC camp.
+
+    Every target whose map object attacks as a dungeon answers this command:
+    robber baron camps, event and isle dungeons, invasion and alien camps, the
+    wolf king and the alliance raid portal. The server refuses ``aci`` for a
+    camp with INVALID_AREA.
+
+    Command: adi
+    Payload: {"KID": kingdom_id, "SX": source_x, "SY": source_y, "TX": target_x, "TY": target_y}
+
+    Client: ``C2SGetAttackDungeonInfosVO`` (bundle line 72024),
+    ``CastleStartAttackDialog.attackDungeon`` (bundle line 14834).
+    """
+
+    command = "adi"
+
+    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    source_x: int = Field(alias="SX", description="Attacking castle's map x")
+    source_y: int = Field(alias="SY", description="Attacking castle's map y")
+    target_x: int = Field(alias="TX", description="Target map x")
+    target_y: int = Field(alias="TY", description="Target map y")
+
+
+class GetDungeonAttackInfoResponse(GetAttackInfoResponse):
+    """
+    The attack pre-calculation for an NPC camp.
+
+    Command: adi
+
+    Client: ``ADICommand.executeCommand`` (bundle line 122187), ``CastleAttackData.parse_ADI`` (133830).
+    """
+
+    command = "adi"
+
+
+class GetBossDungeonAttackInfoRequest(BaseRequest):
+    """
+    Ask for the attack pre-calculation against a boss dungeon.
+
+    Command: abi
+    Payload: {"KID": kingdom_id, "SX": source_x, "SY": source_y, "TX": target_x, "TY": target_y}
+
+    Client: ``C2SAttackInfoBossDungeonVO`` (bundle line 71970),
+    ``CastleStartAttackDialog.attackBossDungeon`` (bundle line 14837).
+    """
+
+    command = "abi"
+
+    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    source_x: int = Field(alias="SX", description="Attacking castle's map x")
+    source_y: int = Field(alias="SY", description="Attacking castle's map y")
+    target_x: int = Field(alias="TX", description="Target map x")
+    target_y: int = Field(alias="TY", description="Target map y")
+
+
+class GetBossDungeonAttackInfoResponse(GetAttackInfoResponse):
+    """
+    The attack pre-calculation for a boss dungeon.
+
+    Command: abi
+
+    Client: ``ABICommand.executeCommand`` (bundle line 122128), ``CastleAttackData.parse_ABI`` (133827).
+    """
+
+    command = "abi"
+
+
+class GetLandmarkAttackInfoRequest(BaseRequest):
+    """
+    Ask for the attack pre-calculation against a kings tower, monument or laboratory.
+
+    Command: ali
+    Payload: {"KID": kingdom_id, "TX": target_x, "TY": target_y, "SX": source_x, "SY": source_y}
+
+    Client: ``C2SAttackInfoLandmarkVO`` (bundle line 71988),
+    ``CastleStartAttackDialog.attackLandmark`` (bundle line 14846).
+    """
+
+    command = "ali"
+
+    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    target_x: int = Field(alias="TX", description="Target map x")
+    target_y: int = Field(alias="TY", description="Target map y")
+    source_x: int = Field(alias="SX", description="Attacking castle's map x")
+    source_y: int = Field(alias="SY", description="Attacking castle's map y")
+
+
+class GetLandmarkAttackInfoResponse(GetAttackInfoResponse):
+    """
+    The attack pre-calculation for a landmark.
+
+    Command: ali
+
+    Client: ``ALICommand.executeCommand`` (bundle line 122227), ``CastleAttackData.parse_ALI`` (133836).
+    """
+
+    command = "ali"
+
+
+class GetVillageAttackInfoRequest(BaseRequest):
+    """
+    Ask for the attack pre-calculation against a village.
+
+    The client sends no source castle for it.
+
+    Command: avi
+    Payload: {"KID": kingdom_id, "TX": target_x, "TY": target_y}
+
+    Client: ``C2SAttackInfoVillageVO`` (bundle line 71997),
+    ``CastleStartAttackDialog.attackVillage`` (bundle line 14844).
+    """
+
+    command = "avi"
+
+    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    target_x: int = Field(alias="TX", description="Target map x")
+    target_y: int = Field(alias="TY", description="Target map y")
+
+
+class GetVillageAttackInfoResponse(GetAttackInfoResponse):
+    """
+    The attack pre-calculation for a village.
+
+    Command: avi
+
+    Client: ``AVICommand.executeCommand`` (bundle line 122244), ``CastleAttackData.parse_AVI`` (133832).
+    """
+
+    command = "avi"
+
+
+class GetIslandAttackInfoRequest(BaseRequest):
+    """
+    Ask for the attack pre-calculation against an isle resource.
+
+    An isle dungeon attacks as a dungeon and answers ``adi`` instead.
+
+    Command: aii
+    Payload: {"KID": kingdom_id, "TX": target_x, "TY": target_y}
+
+    Client: ``C2SAttackInfoIslandVO`` (bundle line 71979),
+    ``CastleStartAttackDialog.attackIsland`` (bundle line 14845).
+    """
+
+    command = "aii"
+
+    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    target_x: int = Field(alias="TX", description="Target map x")
+    target_y: int = Field(alias="TY", description="Target map y")
+
+
+class GetIslandAttackInfoResponse(GetAttackInfoResponse):
+    """
+    The attack pre-calculation for an isle resource.
+
+    Command: aii
+
+    Client: ``AIICommand.executeCommand`` (bundle line 122204), ``CastleAttackData.parse_AII`` (133834).
+    """
+
+    command = "aii"
+
+
+# =============================================================================
+# COI / CCI / CTI - Conquest pre-calculation
+# =============================================================================
+
+
+class GetOutpostConquerInfoRequest(BaseRequest):
+    """
+    Ask for the conquest pre-calculation against an outpost.
+
+    Command: coi
+    Payload: {"KID": kingdom_id, "TX": target_x, "TY": target_y}
+
+    Client: ``C2SGetConquerOutpostInfosVO`` (bundle line 72060),
+    ``CastleStartAttackDialog.conquerOutpost`` (bundle line 14839).
+    """
+
+    command = "coi"
+
+    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    target_x: int = Field(alias="TX", description="Target map x")
+    target_y: int = Field(alias="TY", description="Target map y")
+
+
+class GetOutpostConquerInfoResponse(AttackInfoResponse):
+    """
+    The conquest pre-calculation for an outpost, with the barons it can use.
+
+    The client reads ``MB`` twice here: as the morality in the shared parse
+    and as the maximum barons in ``parseBarons``. This model keeps the
+    conquest meaning only.
+
+    Command: coi
+
+    Client: ``COICommand.executeCommand`` (bundle line 122278), ``CastleAttackData.parse_COI`` (133838),
+    ``CastleConquerInfoVO.fillFromParamObject`` / ``parseBarons`` (bundle lines 133904-133907).
+    """
+
+    command = "coi"
+
+    available_barons: int = Field(alias="AB", default=0, description="Barons free to lead the conquest")
+    max_barons: int = Field(alias="MB", default=0, description="Most barons the player may hold")
+
+
+class GetCapitalConquerInfoRequest(BaseRequest):
+    """
+    Ask for the conquest pre-calculation against a capital.
+
+    Command: cci
+    Payload: {"KID": kingdom_id, "TX": target_x, "TY": target_y}
+
+    Client: ``C2SGetConquerCapitalInfosVO`` (bundle line 72042),
+    ``CastleStartAttackDialog.conquerCapital`` (bundle line 14842).
+    """
+
+    command = "cci"
+
+    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    target_x: int = Field(alias="TX", description="Target map x")
+    target_y: int = Field(alias="TY", description="Target map y")
+
+
+class GetCapitalConquerInfoResponse(GetAttackInfoResponse):
+    """
+    The conquest pre-calculation for a capital. The client reads no barons from it.
+
+    Command: cci
+
+    Client: ``CCICommand.executeCommand`` (bundle line 122261), ``CastleAttackData.parse_CCI`` (133840),
+    ``CastleConquerInfoVO.fillFromParamObject``
+    (bundle line 133904).
+    """
+
+    command = "cci"
+
+
+class GetMetropolConquerInfoRequest(BaseRequest):
+    """
+    Ask for the conquest pre-calculation against a metropolis.
+
+    Command: cti
+    Payload: {"KID": kingdom_id, "TX": target_x, "TY": target_y}
+
+    Client: ``C2SGetConquerMetropolInfosVO`` (bundle line 72051),
+    ``CastleStartAttackDialog.conquerMetropol`` (bundle line 14843).
+    """
+
+    command = "cti"
+
+    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    target_x: int = Field(alias="TX", description="Target map x")
+    target_y: int = Field(alias="TY", description="Target map y")
+
+
+class GetMetropolConquerInfoResponse(GetAttackInfoResponse):
+    """
+    The conquest pre-calculation for a metropolis. The client reads no barons from it.
+
+    Command: cti
+
+    Client: ``CTICommand.executeCommand`` (bundle line 122295), ``CastleAttackData.parse_CTI`` (133842),
+    ``CastleConquerInfoVO.fillFromParamObject``
+    (bundle line 133904).
+    """
+
+    command = "cti"
 
 
 # =============================================================================
@@ -582,6 +875,26 @@ class SkipDefenseCooldownResponse(BaseResponse):
 
 
 __all__ = [
+    # Pre-calculation
+    "AttackInfoResponse",
+    "GetAttackInfoRequest",
+    "GetAttackInfoResponse",
+    "GetDungeonAttackInfoRequest",
+    "GetDungeonAttackInfoResponse",
+    "GetBossDungeonAttackInfoRequest",
+    "GetBossDungeonAttackInfoResponse",
+    "GetLandmarkAttackInfoRequest",
+    "GetLandmarkAttackInfoResponse",
+    "GetVillageAttackInfoRequest",
+    "GetVillageAttackInfoResponse",
+    "GetIslandAttackInfoRequest",
+    "GetIslandAttackInfoResponse",
+    "GetOutpostConquerInfoRequest",
+    "GetOutpostConquerInfoResponse",
+    "GetCapitalConquerInfoRequest",
+    "GetCapitalConquerInfoResponse",
+    "GetMetropolConquerInfoRequest",
+    "GetMetropolConquerInfoResponse",
     # CRA - Create Attack
     "CreateAttackRequest",
     "CreateAttackResponse",
