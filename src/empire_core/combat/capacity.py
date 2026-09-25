@@ -115,12 +115,15 @@ ROW_OWNER_AREA_TYPES = frozenset(
         int(MapItemType.KINGS_TOWER),
         int(MapItemType.MONUMENT),
         int(MapItemType.LABORATORY),
+        int(MapItemType.FACTION_CAMP),
     }
 )
 """
 Area types whose map row carries the owner's player id at index 4:
 ``InteractiveMapobjectVO.parseAreaInfo`` (bundle line 3631), which castles
-(18910) and outposts (through ``ContainerBuilderMapobjectVO``, 6855) use, and
+(18910), outposts (through ``ContainerBuilderMapobjectVO``, 6855) and faction
+camps (``FactionCampMapobjectVO.parseAreaInfo`` calls it through
+``FactionInteractiveMapobjectVO`` and ``ContainerBuilderMapobjectVO``) use, and
 the capital (18729), metropolis (21609), village (22623), resource isle
 (34603), king's tower (19055), monument (21652) and laboratory (25900)
 overrides.

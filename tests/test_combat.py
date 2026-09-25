@@ -695,6 +695,8 @@ class TestWaveCapacity:
         assert owner_id_from_row([1, 5, 6, 900]) is None
         assert owner_id_from_row([21, 5, 6, 75, 0, 0, 30, 30, 0]) == -1000
         assert owner_id_from_row([34, 5, 6, 75]) == -1002
+        # FactionCampMapobjectVO reads the row through InteractiveMapobjectVO, owner at 4
+        assert owner_id_from_row([15, 5, 6, 900, 4242, 1, 1, 1, 0, 0, "camp", 0]) == 4242
         assert owner_id_from_row([2, 5, 6, 0, 12, 0]) is None
         assert owner_id_from_row(None) is None
 

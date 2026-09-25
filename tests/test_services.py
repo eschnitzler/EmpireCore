@@ -2282,6 +2282,69 @@ class TestFillAttack:
         # getAmountSoldiersFlank(70, 0) and (70, 30), from the client in node.
         assert widths == [64, 84]
 
+    def test_the_owner_legend_level_comes_from_the_pre_calculation(self):
+        from empire_core.gamedata import GameData
+
+        payload = dict(
+            self.UNITS,
+            legendskills=[
+                {
+                    "skillID": "901",
+                    "effectType": "additionalUnitAmountOnFlank",
+                    "totalEffectValue": "30",
+                    "level": "1",
+                    "tier": "5",
+                }
+            ],
+        )
+        row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "castle"]
+        client = self.build([[601, 100_000]])
+        client.game_data = GameData.parse("test", payload)
+        cast(Any, client.state.local_player).legendary_level = 1
+        conn(client).script["aci"] = xt_packet(
+            "aci",
+            {"gaa": {"AI": row, "OI": [{"OID": 4242, "N": "owner", "L": 70, "LL": 5}]}, "S": [], "AE": [], "B": {}},
+        )
+
+        result = client.attack.fill_attack(
+            12345, target_x=700, target_y=710, target_row=row, legend_skill_ids=[901], general_skill_ids=[]
+        )
+
+        assert result.waves[0].model_dump(by_alias=True)["L"]["U"][0][1] == 84
+        assert "gaa" not in [command for command, _ in conn(client).request_payloads]
+
+    def test_conquer_control_rates_the_owner_by_their_own_level(self):
+        # CastleFightScreenVO.targetOwnerLevel: the owner's level under conquer
+        # control, the landmark's minimum owner level otherwise.
+        from empire_core.gamedata import GameData
+
+        payload = dict(
+            self.UNITS,
+            legendskills=[
+                {"skillID": "902", "effectType": "additionalWave", "totalEffectValue": "1", "level": "1", "tier": "5"}
+            ],
+        )
+        client = self.build([[601, 100_000]])
+        client.game_data = GameData.parse("test", payload)
+        cast(Any, client.state.local_player).legendary_level = 1
+        capital = [3, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "capital"]
+
+        def waves(controlled: bool) -> int:
+            result = client.attack.fill_attack(
+                12345,
+                target_level=60,
+                target_is_player=True,
+                target_row=capital,
+                target_owner_legend_level=5,
+                landmark_min_level=70,
+                under_conquer_control=controlled,
+                legend_skill_ids=[902],
+                general_skill_ids=[],
+            )
+            return len(result.waves)
+
+        assert waves(True) < waves(False)
+
     def test_a_conquest_attack_carries_its_extra_waves(self):
         client = self.build([[601, 100_000]])
 

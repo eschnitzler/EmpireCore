@@ -408,6 +408,7 @@ class AttackService(BaseService):
         owner_id: int | None = None,
         owner_legend_level: int = 0,
         attacker_legend_level: int | None = None,
+        under_conquer_control: bool = False,
         flank_bonus_percent: float = 0.0,
         front_bonus_percent: float = 0.0,
         tool_bonus: float = 0.0,
@@ -470,6 +471,9 @@ class AttackService(BaseService):
                 its owner record in a map scan
             attacker_legend_level: The attacker's legend level; the local
                 player's when not given
+            under_conquer_control: True when the target is held under conquer
+                control; the legend rules then rate its owner by ``level``
+                rather than by the area's minimum owner level
             global_effect_ids: Global effects currently running, from ``bie``;
                 either ids or the raw ``[id, seconds_left, strength]`` rows,
                 which carry the live strength.
@@ -498,7 +502,13 @@ class AttackService(BaseService):
             attacker_legend_level = player.legendary_level if player else 0
         if level is None:
             raise ValueError("A wave is sized by the level of whoever owns the target; pass level=")
-        target_owner_level = minimum_owner_level(level, area_type, landmark_min_level=landmark_min_level)
+        # Client: CastleFightScreenVO.targetOwnerLevel, the owner's own level under
+        # conquer control and the area's minimum owner level otherwise
+        target_owner_level = (
+            level
+            if under_conquer_control
+            else minimum_owner_level(level, area_type, landmark_min_level=landmark_min_level)
+        )
         # Some targets defend at a level of their own: a monument is built for
         # level 70 however low its owner is.
         level = wave_level(level, area_type, landmark_min_level=landmark_min_level)
@@ -781,6 +791,17 @@ class AttackService(BaseService):
             target.spy_army = info.spy_army()
         if target.castellan is None:
             target.castellan = info.defending_castellan()
+        if target.level is None or target.owner_legend_level is None:
+            # The owner records (gaa.OI) carry the owner's level (L) and legend
+            # level (LL), as WorldMapOwnerInfoVO reads them, so no scan is needed
+            owner_id = owner_id_from_row(target.row)
+            record = next((r for r in info.owner_records() if owner_id is not None and r.get("OID") == owner_id), None)
+            if record is not None:
+                if target.level is None and isinstance(record.get("L"), int) and record["L"] > 0:
+                    target.level = record["L"]
+                    target.is_player = True
+                if target.owner_legend_level is None and isinstance(record.get("LL"), int):
+                    target.owner_legend_level = record["LL"]
         if target.area_bonuses is None:
             target.area_bonuses = info.attacker_bonuses()
 
@@ -998,6 +1019,7 @@ class AttackService(BaseService):
             target_is_player=target.is_player,
             owner_id=target_owner_id if target_owner_id is not None else owner_id_from_row(target.row),
             owner_legend_level=target.owner_legend_level or 0,
+            under_conquer_control=under_conquer_control,
             area_type=target.area_type,
             player_target=target.is_player,
             options=options,
