@@ -2,6 +2,7 @@
 Attack and spy protocol models.
 
 Commands:
+- aci: Attack pre-calculation for a castle
 - cra: Create/send attack
 - csm: Send spy mission
 - gas: Get attack presets
@@ -13,9 +14,9 @@ from __future__ import annotations
 
 import logging
 from enum import IntEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from pydantic import Field, ValidationError
+from pydantic import Field, ValidationError, model_validator
 
 from .base import BasePayload, BaseRequest, BaseResponse, UnitCount
 from .commanders import Commander
@@ -196,16 +197,37 @@ class GetAttackInfoRequest(BaseRequest):
     Command: aci
     Payload: {"TX": target_x, "TY": target_y, "SX": source_x, "SY": source_y, "KID": kingdom_id}
 
-    Camps answer a different command: see ``GetTargetInfoRequest`` (adi).
+    Client: ``C2SGetAttackCastleInfosVO`` (bundle line 72015),
+    ``ClientConstSF.C2S_GET_ATTACK_CASTLE_INFOS`` (bundle line 71).
     """
 
     command = "aci"
 
-    target_x: int = Field(alias="TX")
-    target_y: int = Field(alias="TY")
-    source_x: int = Field(alias="SX")
-    source_y: int = Field(alias="SY")
-    kingdom_id: int = Field(alias="KID", default=0)
+    target_x: int = Field(alias="TX", description="Target map x")
+    target_y: int = Field(alias="TY", description="Target map y")
+    source_x: int = Field(alias="SX", description="Attacking castle's map x")
+    source_y: int = Field(alias="SY", description="Attacking castle's map y")
+    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+
+
+def _wod_amounts(entries: Any) -> dict[int, int]:
+    """
+    ``[[wod_id, amount], ...]`` as ``{wod_id: amount}``.
+
+    Repeated ids add up and ids left at zero or less are dropped.
+
+    Client: ``AUnitInventory.fillFromWodAmountArray`` (bundle line 42572) into a
+    ``UnitInventoryDictionary``: ``addUnit`` clamps at 0 and ``changeUnitAmount``
+    adds (bundle lines 5533-5535), ``setUnit`` deletes a total of 0 or less
+    (bundle line 5538).
+    """
+    if not isinstance(entries, list):
+        return {}
+    totals: dict[int, int] = {}
+    for entry in entries:
+        if isinstance(entry, list) and len(entry) >= 2:
+            totals[entry[0]] = totals.get(entry[0], 0) + max(0, entry[1])
+    return {wod_id: amount for wod_id, amount in totals.items() if amount > 0}
 
 
 class GetAttackInfoResponse(BaseResponse):
@@ -215,39 +237,70 @@ class GetAttackInfoResponse(BaseResponse):
     Command: aci
     Payload::
 
-        {"SCID": source_castle_id, "TX": .., "TY": .., "KID": ..,
-         "AE": [[effect_id, [value], source_tag], ...],   # attacker effects,
-                                                          # already scoped to
-                                                          # this target
+        {"SCID": source_castle_id, "KID": ..,
+         "AE": [[effect_id, [value], source_tag], ...],
          "S": [left, middle, right, keep, stronghold, support, reserve],
-                                                          # spied defenders, by
-                                                          # position
-         "AS": defending_castellan_id,
-         "B": {defending castellan entry},
-         "gaa": {"AI": [target map row]},
-         "gui": {"I": [[wod_id, count], ...]},            # attacker inventory
-         "gli": {"C": [...], "B": [...]},                 # commanders/castellans
-         "HAWL": ..}
+         "AS": spy_age_seconds, "abe": {castellan}, "B": {castellan}, "LS": [...],
+         "MB": morality, "KTB": kings_tower_bonus, "HAWL": home_workshop_level,
+         "gaa": {"AI": [target map row], "OI": [owner records]},
+         "gui": {"I": [[wod_id, count], ...], "SHI": [[wod_id, count], ...]},
+         "gli": {"C": [...], "B": [...]}}
 
-    ``AE`` is the useful part: the server has already dropped the effects that
-    do not apply to this target, so the same commander answers differently for
-    a camp and for a player's castle. ``S`` is the second: the spied defenders,
-    per flank, which is the only way to know what each flank actually holds.
+    ``AE`` is already scoped by the server to this target. ``S``, ``AS``, the
+    castellan and ``LS`` form the spy report; the client reads them only when
+    ``S`` is not empty, and otherwise treats the target as never spied.
+
+    Client: ``CastleAttackInfoVO.fillFromParamObject`` (bundle lines 30620-30633),
+    ``CastleFightScreenVO.fillFromParamObject`` for ``AE`` (bundle line 30501),
+    ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line 30699),
+    ``ACICommand.executeCommand`` for ``gaa.OI`` (bundle line 122164).
     """
 
     command = "aci"
 
-    source_castle_id: int = Field(alias="SCID", default=0)
-    target_x: int = Field(alias="TX", default=0)
-    target_y: int = Field(alias="TY", default=0)
-    kingdom_id: int = Field(alias="KID", default=0)
-    raw_attacker_effects: list = Field(alias="AE", default_factory=list)
-    raw_spy_army: list = Field(alias="S", default_factory=list)
-    defending_castellan_id: int = Field(alias="AS", default=-1)
-    raw_defending_castellan: dict = Field(alias="B", default_factory=dict)
-    raw_map_area: dict = Field(alias="gaa", default_factory=dict)
-    raw_inventory: dict = Field(alias="gui", default_factory=dict)
-    raw_commanders: dict = Field(alias="gli", default_factory=dict)
+    source_castle_id: int = Field(alias="SCID", default=0, description="Attacking castle's id")
+    target_x: int = Field(alias="TX", default=0, description="Target map x")
+    target_y: int = Field(alias="TY", default=0, description="Target map y")
+    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id")
+    raw_attacker_effects: list = Field(
+        alias="AE", default_factory=list, description="Area effects on this attack, already scoped to the target"
+    )
+    raw_spy_army: list = Field(alias="S", default_factory=list, description="Spied defenders, one entry per position")
+    spy_age_seconds: int = Field(
+        alias="AS",
+        default=-1,
+        description="Seconds since the target was spied; -1 when there is no spy report, which is also the value "
+        "whenever S is empty",
+    )
+    raw_defending_castellan: dict | None = Field(
+        alias="abe", default=None, description="The castellan defending the target, read in preference to B"
+    )
+    raw_defending_castellan_fallback: dict | None = Field(
+        alias="B", default=None, description="The castellan defending the target when abe is missing"
+    )
+    defender_legend_skill_ids: list[int] = Field(
+        alias="LS",
+        default_factory=list,
+        description="The defender's legend skill ids, part of the spy report",
+    )
+    morality: float = Field(alias="MB", default=0, description="Morality bonus of the attack")
+    kings_tower_bonus: float = Field(alias="KTB", default=0, description="Kings tower bonus")
+    home_workshop_level: int = Field(
+        alias="HAWL", default=0, description="Level of the attacking castle's workshop, which unlocks support tools"
+    )
+    raw_map_area: dict = Field(
+        alias="gaa", default_factory=dict, description="AI: the target's map row, OI: owner records"
+    )
+    raw_inventory: dict = Field(
+        alias="gui", default_factory=dict, description="I: the attacker's units and tools, SHI: its stronghold units"
+    )
+    raw_commanders: dict = Field(alias="gli", default_factory=dict, description="The attacker's commanders, as gli")
+
+    @model_validator(mode="after")
+    def _no_spy_report_without_an_army(self) -> "GetAttackInfoResponse":
+        if not self.raw_spy_army:
+            self.spy_age_seconds = -1
+        return self
 
     def attacker_bonuses(self) -> list["Bonus"]:
         """
@@ -263,46 +316,80 @@ class GetAttackInfoResponse(BaseResponse):
 
     def spy_army(self) -> "SpyArmy | None":
         """
-        The spied defenders, split by the position they hold.
+        The spied defenders, split by the position they hold, or None without a spy report.
 
-        Only present while espionage on the target is still fresh; without it
-        the defending army is unknown and only the target's fortification can be
-        modeled. The block is positional, so a shifted section would silently
-        move defenders between flanks - see :class:`SpyArmy`.
+        Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` fills the positions only
+        when ``S`` is not empty (bundle line 30699).
         """
         from empire_core.services.spy_army import SpyArmy
 
+        if not self.raw_spy_army:
+            return None
         return SpyArmy.from_spy_data(self.raw_spy_army)
 
     def defending_castellan(self) -> Commander | None:
         """
-        The castellan holding the target, if the payload names one.
+        The castellan holding the target, from ``abe`` or else ``B``.
 
-        The ``B`` block is a commander entry like any other, so its equipment
-        and effects parse the same way - they just defend rather than attack.
+        None without a spy report, since the client builds the defending
+        castellan only when ``S`` is not empty. The client does not handle an
+        empty entry, so that is None as well.
+
+        Client: ``CastleAttackInfoVO.fillFromParamObject`` (``t.abe||t.B``,
+        bundle line 30632), ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line
+        30699), ``LordFactory.createLord`` (bundle line 26399).
         """
-        if not self.raw_defending_castellan:
+        if not self.raw_spy_army:
+            return None
+        entry = (
+            self.raw_defending_castellan
+            if self.raw_defending_castellan is not None
+            else self.raw_defending_castellan_fallback
+        )
+        if not entry:
             return None
         try:
-            return Commander.model_validate(self.raw_defending_castellan)
+            return Commander.model_validate(entry)
         except ValidationError:
             logger.warning("Could not parse the defending castellan from an attack pre-calculation")
             return None
 
     def target_row(self) -> list:
-        """The target's raw map row, or an empty list."""
+        """
+        The target's raw map row from ``gaa.AI``, or an empty list.
+
+        Client: ``WorldmapObjectFactory.parseWorldMapArea(t.gaa.AI)`` in
+        ``CastleAttackInfoVO.fillFromParamObject`` (bundle line 30620).
+        """
         row = self.raw_map_area.get("AI")
-        if isinstance(row, list) and row and isinstance(row[0], list):
-            # A map-area response nests its rows; the pre-calculation sends one.
-            return row[0]
         return row if isinstance(row, list) else []
 
+    def owner_records(self) -> list[dict]:
+        """
+        The raw owner records under ``gaa.OI``.
+
+        Client: ``ACICommand.executeCommand`` passes them to
+        ``OtherPlayerData.parseOwnerInfoArray`` (bundle line 122164).
+        """
+        records = self.raw_map_area.get("OI")
+        return [record for record in records if isinstance(record, dict)] if isinstance(records, list) else []
+
     def inventory(self) -> dict[int, int]:
-        """The attacker's units and tools as ``{wod_id: count}``."""
-        entries = self.raw_inventory.get("I")
-        if not isinstance(entries, list):
-            return {}
-        return {entry[0]: entry[1] for entry in entries if isinstance(entry, list) and len(entry) >= 2 and entry[1]}
+        """
+        The attacker's units and tools from ``gui.I``, as ``{wod_id: count}``.
+
+        Client: ``CastleAttackInfoVO.fillFromParamObject`` (bundle line 30620).
+        """
+        return _wod_amounts(self.raw_inventory.get("I"))
+
+    def stronghold_inventory(self) -> dict[int, int]:
+        """
+        The attacker's stronghold units from ``gui.SHI``, as ``{wod_id: count}``.
+
+        Client: ``CastleAttackInfoVO.fillFromParamObject`` into a
+        ``StrongholdUnitInventory`` (bundle line 30620).
+        """
+        return _wod_amounts(self.raw_inventory.get("SHI"))
 
 
 # =============================================================================

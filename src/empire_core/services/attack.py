@@ -675,8 +675,9 @@ class AttackService(BaseService):
                 ``get_attack_info(...).spy_army()``. Without it a castle target
                 is modeled as fortification alone, with no defending army
             defending_castellan: The castellan holding the target, from
-                ``aci``'s ``B`` block. Its equipment raises the fortification
-                and multiplies the defenders, differently per flank
+                ``get_attack_info(...).defending_castellan()``. Its equipment
+                raises the fortification and multiplies the defenders,
+                differently per flank
             area_type: The target's area type, which scopes effects and decides
                 which tools may be carried; taken from ``target_row`` when not
                 given

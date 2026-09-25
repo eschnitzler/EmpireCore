@@ -71,6 +71,7 @@ class GGECommand:
     WSP = "wsp"  # Search player by name
 
     # Attack
+    ACI = "aci"  # Attack pre-calculation for a castle
     CRA = "cra"  # Create/send attack
     CSM = "csm"  # Send spy mission
     SSI = "ssi"  # Spy screen info

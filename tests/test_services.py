@@ -2550,6 +2550,61 @@ class TestAttackInfo:
         assert info.target_row() == []
         assert info.inventory() == {}
 
+    SPIED = {
+        "SCID": 6277054,
+        "KID": 0,
+        "AE": [],
+        "S": [[[601, 50]], [], [], [], [], []],
+        "AS": 1800,
+        "abe": {"ID": 7, "WID": 1},
+        "B": {"ID": 3, "WID": 1},
+        "LS": [101, 102],
+        "MB": 25,
+        "KTB": 10,
+        "gaa": {"AI": [1, 632, 243, 900, 4242, 1, 1, 1, 0, 0, "small castle"], "OI": [{"OID": 4242, "L": 46}, {}]},
+        "gui": {"I": [[601, 100]], "SHI": [[620, 4], [620, 1], [621, 0]]},
+    }
+
+    def test_as_is_the_spy_report_age(self):
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate(self.SPIED)
+
+        assert info.spy_age_seconds == 1800
+        assert info.defender_legend_skill_ids == [101, 102]
+        assert (info.morality, info.kings_tower_bonus) == (25, 10)
+
+    def test_abe_is_the_castellan_before_b(self):
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate(self.SPIED)
+        without_abe = GetAttackInfoResponse.model_validate({k: v for k, v in self.SPIED.items() if k != "abe"})
+
+        castellan = info.defending_castellan()
+        fallback = without_abe.defending_castellan()
+        assert castellan is not None and castellan.commander_id == 7
+        assert fallback is not None and fallback.commander_id == 3
+
+    def test_an_empty_spy_army_means_no_spy_report(self):
+        # parseArmyInfo reads AS, the castellan and LS only when S is not empty.
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate(dict(self.SPIED, S=[]))
+
+        assert info.spy_age_seconds == -1
+        assert info.spy_army() is None
+        assert info.defending_castellan() is None
+
+    def test_stronghold_inventory_and_owner_records(self):
+        # Repeated ids add up and a zero is dropped, as UnitInventoryDictionary does.
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate(self.SPIED)
+
+        assert info.stronghold_inventory() == {620: 5}
+        assert info.owner_records() == [{"OID": 4242, "L": 46}, {}]
+        assert GetAttackInfoResponse.model_validate({}).kings_tower_bonus == 0
+
     def test_service_sends_the_documented_payload(self):
         client = make_client()
 
