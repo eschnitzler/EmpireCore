@@ -1274,5 +1274,22 @@ class TestAllianceInfoFlags:
         assert (info.can_be_invited_to_hard_pact, info.can_be_invited_to_soft_pact, info.announcement) == (
             False,
             True,
-            "",
+            " ",
         )
+
+
+class TestAllianceInfoText:
+    def test_description_and_announcement_read_as_chat_text(self):
+        from empire_core.protocol.models.alliance import AllianceInfo
+
+        info = AllianceInfo.model_validate({"D": "Say &quot;hi&quot;<br />now", "A": "", "RT": "30"})
+        assert info.description == 'Say "hi"\nnow'
+        assert info.announcement == " "
+        assert info.refresh_seconds == 30
+
+    def test_forge_fields_are_read_only_with_mf_and_if(self):
+        from empire_core.protocol.models.alliance import AllianceInfo
+
+        assert AllianceInfo.model_validate({"MF": 1, "SRFU": 4}).soft_relic_forge_uses == 0
+        both = AllianceInfo.model_validate({"MF": 1, "IF": 0, "SRFU": 4})
+        assert (both.is_able_to_forge, both.soft_relic_forge_uses) == (True, 4)
