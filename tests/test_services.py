@@ -2679,6 +2679,7 @@ class TestFillAttack:
                 spy_army=lambda: spy,
                 defending_castellan=lambda: None,
                 attacker_bonuses=lambda: [],
+                owner_records=lambda: [],
                 defender_legend_skill_ids=[434],
             )
 
