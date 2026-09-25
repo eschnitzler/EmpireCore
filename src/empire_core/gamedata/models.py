@@ -9,7 +9,7 @@ a guess.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ITEMS units column "fightType": 0 = offensive, 1 = defensive.
 FIGHT_TYPE_OFFENSIVE = 0
@@ -494,17 +494,46 @@ class RelicEffectDef(_Row):
 
 
 class EquipmentEffectDef(_Row):
-    """A bonus an equipment item can roll."""
+    """
+    A bonus an equipment item can roll.
+
+    Client: ``XmlEquipmentEffectVO.parseXml`` (bundle line 144158)
+    """
 
     equipment_effect_id: int = Field(alias="equipmentEffectID")
     effect_id: int = Field(alias="effectID", default=0)
     bonus: float = 0
     wearer_id: int = Field(alias="wearerID", default=0)
     raw_item_group_ids: str = Field(alias="itemGroupID", default="")
+    ignore_cap: bool = Field(
+        alias="ignoreCap", default=False, description="The bonus escapes its effect's cap; any value but 0 is true"
+    )
+
+    @field_validator("ignore_cap", mode="before")
+    @classmethod
+    def _client_boolean(cls, value: object) -> object:
+        # CastleXMLUtils.getBooleanAttribute (bundle line 1033): "0" != value
+        return value if isinstance(value, bool) else str(value) != "0"
 
     @property
     def item_group_ids(self) -> tuple[int, ...]:
         return parse_ids(self.raw_item_group_ids)
+
+
+class GemDef(EffectSpecRow):
+    """
+    A gem that can be slotted into an equipment item.
+
+    Its ``effects`` name plain effect ids.
+
+    Client: ``CastleGemVO.parseXML`` (bundle line 28287)
+    """
+
+    gem_id: int = Field(alias="gemID")
+    set_id: int = Field(alias="setID", default=-1, description="Equipment set the gem counts toward; -1 for none")
+    trigger_chance: int = Field(
+        alias="triggerChance", default=100, description="Kept on each GemBonusVO; the effect totals do not read it"
+    )
 
 
 class LegendSkillDef(_Row):
@@ -724,6 +753,7 @@ __all__ = [
     "ConstructionItemDef",
     "EffectSpecRow",
     "FortificationDef",
+    "GemDef",
     "GeneralSkillDef",
     "GlobalEffectDef",
     "NpcCampDefence",

@@ -1043,7 +1043,7 @@ class TestCastellanDefence:
         from empire_core.protocol.models import Commander
 
         game = GameData.parse("test", self.PAYLOAD)
-        return EffectResolver(game), commander_bonuses(Commander.model_validate(self.CASTELLAN))
+        return EffectResolver(game), commander_bonuses(game, Commander.model_validate(self.CASTELLAN))
 
     def test_the_fortification_matches_the_effects_panel(self):
         from empire_core.combat import castellan_fortification

@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict
 
 from empire_core.gamedata import EffectDef, GameData, GlobalEffectDef, ToolStats, parse_stacks
-from empire_core.protocol.models import Commander, CommanderEffect
+from empire_core.protocol.models import Commander, CommanderEffect, Equipment
 
 if TYPE_CHECKING:
     from .effects import AttackerFlankEffects
@@ -35,15 +35,25 @@ ATTACK_BONUS_UNIT_TYPE = 148
 # Their wire form is a flat ``[wod_id, value, wod_id, value, ...]`` array and
 # their strength is the value of the first key, never the key itself.
 #
-#   EffectValueMap              148, 149, 150, 154, 188
-#   EffectValueWodID            70, 71, 72, 1026
-#   EffectValueUnitSpeedBoost   102          extends EffectValueWodID
-#   EffectValueSpawnReserveUnit 208, 213     keyed the same way
+#   EffectValueMap                     148, 149, 150, 154, 188
+#   EquippableEffectValueSupportUnits  47, 51       extends EffectValueMap
+#   EffectValueWodID                   70, 71, 72, 1026
+#   EffectValueUnitSpeedBoost          102          extends EffectValueWodID
+#   EffectValueSpawnReserveUnit        208, 213     extends EffectValueWodID
+#   EffectValueCurrencyBoost           168          extends EffectValueWodID
+#   EffectValueMutateReserveUnit       214          extends EffectValueWodID
+#
+# Client: EffectTypeEnum registrations (bundle line 1322); the subclasses at
+# bundle lines 62164, 62311, 62323 and 62369 leave ``strength`` alone.
 #
 # EffectValueIdList (57, 79, 90, 116, 169, 170, 178, 193) is deliberately
 # absent: its strength getter returns ``idList[0]``, so its first number really
 # is the value.
-KEYED_EFFECT_TYPES = frozenset({70, 71, 72, 102, 148, 149, 150, 154, 188, 208, 213, 1026})
+KEYED_EFFECT_TYPES = frozenset({47, 51, 70, 71, 72, 102, 148, 149, 150, 154, 168, 188, 208, 213, 214, 1026})
+
+
+UNCAPPED_EQUIPMENT_CAP_ID = -1
+"""``EquipmentBonusVO.capID`` of a bonus that overrides its cap (bundle line 20962)."""
 
 
 class CombatEffectType(IntEnum):
@@ -73,10 +83,10 @@ class Bonus(BaseModel):
     """
     One granted bonus: an id, its strength, and which id space the id is in.
 
-    A relic item's bonus ids index the relic effect table rather than the plain
-    effect table. The two overlap and disagree - id 4 is an economy effect in
-    one and a gate reduction in the other - so the space has to travel with the
-    bonus.
+    A relic item's bonus ids index the relic effect table, and any other
+    item's the equipment effect table, rather than the plain effect table. The
+    tables overlap and disagree - id 4 is an economy effect in one and a gate
+    reduction in another - so the space has to travel with the bonus.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -84,6 +94,8 @@ class Bonus(BaseModel):
     effect_id: int
     value: float
     via_relic: bool = False
+    via_equipment: bool = False
+    """The id is an equipment effect id, as on an item that is not a relic."""
     raw_values: tuple[float, ...] = ()
     """The value array as sent, for the effect types that carry a keyed map."""
 
@@ -117,23 +129,29 @@ def _first_number(candidate: object) -> float | None:
     return next(iter(_numbers(candidate)), None)
 
 
-def parse_bonus_entries(entries: Iterable, *, via_relic: bool = False) -> list[Bonus]:
+def parse_bonus_entries(entries: Iterable, *, via_relic: bool = False, via_equipment: bool = False) -> list[Bonus]:
     """
     Parse the bonus encodings the server uses.
 
-    Three shapes occur and all are handled: ``[effect_id, value]``,
+    Three shapes occur and all are handled: ``[effect_id, value]`` or
+    ``[effect_id, [value]]`` as on an item that is not a relic,
     ``[effect_id, [value], source_tag]`` as sent for a commander's own effects,
-    and ``[effect_id, strength_id, [value]]`` as sent inside an equipment entry.
-    The effect id is always first; the strength is the first number found after
-    it, preferring a nested list, which is where the real value sits when one is
-    present.
+    and ``[relic_effect_id, power, [value]]`` as on a relic item. The id is
+    always first; the strength is the first number found after it, preferring a
+    nested list, which is where the value sits when one is present.
 
     Unparseable entries are skipped rather than failing the batch.
+
+    Client: ``BasicEquipmentVO.parseBonuses`` (bundle line 7135),
+    ``RelicBonusVO.parseRelicFromValueArray`` (bundle line 45132),
+    ``LordVO.parseRawEffects`` (bundle line 26483).
 
     Args:
         entries: Raw bonus entries
         via_relic: The ids index the relic effect table, as they do for the
             bonuses inside a relic equipment item
+        via_equipment: The ids index the equipment effect table, as they do
+            for the bonuses inside any other equipment item
     """
     bonuses: list[Bonus] = []
     skipped = 0
@@ -154,7 +172,15 @@ def parse_bonus_entries(entries: Iterable, *, via_relic: bool = False) -> list[B
         if value is None:
             skipped += 1
             continue
-        bonuses.append(Bonus(effect_id=int(effect_id), value=value, via_relic=via_relic, raw_values=raw_values))
+        bonuses.append(
+            Bonus(
+                effect_id=int(effect_id),
+                value=value,
+                via_relic=via_relic,
+                via_equipment=via_equipment,
+                raw_values=raw_values,
+            )
+        )
     if skipped:
         logger.debug(f"Skipped {skipped} unparseable bonus entries")
     return bonuses
@@ -167,7 +193,12 @@ class EffectResolver:
     Capping follows the client: bonuses are grouped by their effect's cap, each
     group is summed up to that cap's ceiling, and the capped group totals are
     then added together with no further ceiling. So a cap limits what stacks
-    *within* it, never the effect type as a whole.
+    *within* it, never the effect type as a whole. An equipment bonus whose
+    equipment effect row sets ``ignoreCap`` goes into a group of its own with no
+    ceiling.
+
+    Client: ``CastleEffectsHelper.getTotalEffectValue`` (bundle line 4139),
+    ``EquipmentBonusVO.capID`` and ``maxValueStrength`` (bundle line 20959).
     """
 
     def __init__(self, game_data: GameData) -> None:
@@ -225,16 +256,41 @@ class EffectResolver:
                 effect_type_def = self.game_data.effect_types.get(effect.effect_type_id)
                 if effect_type_def is not None and effect_type_def.is_economy:
                     continue
-            running = buckets.get(effect.cap_id, 0.0) + bonus.strength(effect.effect_type_id)
-            ceiling = math.inf if ignore_cap else self._ceiling(effect.cap_id)
-            buckets[effect.cap_id] = min(running, ceiling)
+            overrides_cap = self.overrides_cap(bonus)
+            cap_id = UNCAPPED_EQUIPMENT_CAP_ID if overrides_cap else effect.cap_id
+            running = buckets.get(cap_id, 0.0) + bonus.strength(effect.effect_type_id)
+            ceiling = math.inf if ignore_cap or overrides_cap else self._ceiling(cap_id)
+            buckets[cap_id] = min(running, ceiling)
         return sum(buckets.values())
 
     def effect_for(self, bonus: Bonus) -> EffectDef | None:
-        """The effect a bonus grants, resolved in the bonus's own id space."""
+        """
+        The effect a bonus grants, resolved in the bonus's own id space.
+
+        An equipment effect id names the effect in its row's ``effectID``; an id
+        with no row is taken as a plain effect id.
+
+        Client: ``EquipmentXml.getEquippableEffectByEquipmentEffect`` (bundle
+        line 144136).
+        """
         if bonus.via_relic:
             return self.game_data.resolve_relic_effect(bonus.effect_id)
+        if bonus.via_equipment:
+            row = self.game_data.equipment_effects.get(bonus.effect_id)
+            return self.game_data.effects.get(row.effect_id if row is not None else bonus.effect_id)
         return self.game_data.effects.get(bonus.effect_id)
+
+    def overrides_cap(self, bonus: Bonus) -> bool:
+        """
+        Whether an equipment bonus escapes its effect's cap.
+
+        Client: ``EquipmentBonusVO.parseBasic`` (bundle line 20942) reads the
+        equipment effect row's ``ignoreCap``.
+        """
+        if not bonus.via_equipment or bonus.via_relic:
+            return False
+        row = self.game_data.equipment_effects.get(bonus.effect_id)
+        return row is not None and row.ignore_cap
 
     def _ceiling(self, cap_id: int | None) -> float:
         """A cap's ceiling; unknown or uncapped groups have none."""
@@ -550,18 +606,22 @@ def _within_level_bracket(row: GlobalEffectDef, level: int) -> bool:
     return level >= int(row.min_level) and (ceiling <= 0 or level <= ceiling)
 
 
-def commander_bonuses(commander: Commander, *, area_effects: Sequence[Bonus] | None = None) -> list[Bonus]:
+def commander_bonuses(
+    game_data: GameData, commander: Commander, *, area_effects: Sequence[Bonus] | None = None
+) -> list[Bonus]:
     """
     Every bonus a commander grants, resolved into the right id space.
 
-    Three sources from the ``gli`` payload: the commander's own effects (``E``),
-    its area effects (``AE``), and the bonus list inside each equipped item.
-    A relic item's bonuses are tagged so they resolve through the relic effect
-    table.
+    Four sources from the ``gli`` payload: the commander's own effects (``E``),
+    its area effects (``AE``), the bonus list inside each equipped item, and
+    the gem slotted in each item (see :func:`gem_bonuses`). A relic item's
+    bonuses are tagged so they resolve through the relic effect table, and any
+    other item's so they resolve through the equipment effect table.
 
-    Equipment set bonuses are not included - those are computed from the items
-    tables rather than sent in the payload - so a commander wearing a full set
-    resolves low.
+    Still left out: equipment set bonuses, which the client works out from the
+    items and gems worn (``LordVO.setCounts``) rather than reading them from the
+    payload, so a commander wearing a full set resolves low; and the gems of a
+    hero item (``AlienLordEquipmentVO.alienGems``).
 
     Client: ``LordVO.getUniqueBoni`` (bundle line 26496). The attack dialog
     replaces the commander's area effects with the ``aci`` ``AE`` list
@@ -570,6 +630,7 @@ def commander_bonuses(commander: Commander, *, area_effects: Sequence[Bonus] | N
     commander keeps its own ``gli`` ``AE`` when ``aci`` sends none.
 
     Args:
+        game_data: Loaded tables, for the gems
         commander: The commander's ``gli`` entry
         area_effects: The ``aci`` ``AE`` list, from
             ``GetAttackInfoResponse.attacker_bonuses()``. When it has entries
@@ -583,8 +644,35 @@ def commander_bonuses(commander: Commander, *, area_effects: Sequence[Bonus] | N
             rows = [[bonus.relic_effect_id, bonus.power, bonus.values] for bonus in item.relic_bonuses]
         else:
             rows = [[bonus.effect_id, bonus.values] for bonus in item.bonuses]
-        bonuses.extend(parse_bonus_entries(rows, via_relic=item.is_relic))
+        bonuses.extend(parse_bonus_entries(rows, via_relic=item.is_relic, via_equipment=not item.is_relic))
+        bonuses.extend(gem_bonuses(game_data, item))
     return bonuses
+
+
+def gem_bonuses(game_data: GameData, item: Equipment) -> list[Bonus]:
+    """
+    The bonuses of the gem slotted in an item.
+
+    A gem id at index 10 other than -1 names a ``gems`` row, whose ``effects``
+    are plain ``effectID&value`` bonuses; an id missing from the table grants
+    nothing. A relic item that carries index 12 has its relic gem there
+    instead, and that gem's bonuses resolve through the relic effect table.
+
+    Client: ``BasicEquipmentVO.parseEquipFromArray`` (bundle line 7116),
+    ``RelicEquipmentVO.parseEquipFromArray`` (bundle line 25039), which replaces
+    the index 10 gem with the index 12 one, ``CastleGemVO.parseXML`` (bundle
+    line 28287) and ``LordVO.getUniqueBoni`` (bundle line 26496).
+    """
+    if item.relic_info is not None:
+        gem = item.relic_info.gem
+        if gem is None:
+            return []
+        rows = [[bonus.relic_effect_id, bonus.power, bonus.values] for bonus in gem.bonuses]
+        return parse_bonus_entries(rows, via_relic=True)
+    if not item.has_gem:
+        return []
+    row = game_data.gems.get(item.gem_id)
+    return parse_effect_spec(row.raw_effects) if row is not None else []
 
 
 def effect_bonuses(effects: Iterable[CommanderEffect]) -> list[Bonus]:
@@ -619,7 +707,7 @@ def attack_dialog_bonuses(
         Every bonus, unmerged; :meth:`EffectResolver.accumulate` caps them
     """
     if commander is not None:
-        bonuses = commander_bonuses(commander, area_effects=area_effects)
+        bonuses = commander_bonuses(game_data, commander, area_effects=area_effects)
     else:
         bonuses = list(area_effects or [])
     if general_skill_ids:
@@ -738,6 +826,7 @@ __all__ = [
     "attack_dialog_bonuses",
     "commander_bonuses",
     "effect_bonuses",
+    "gem_bonuses",
     "construction_item_bonuses",
     "general_passive_bonuses",
     "general_skill_bonuses",

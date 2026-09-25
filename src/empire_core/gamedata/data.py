@@ -34,6 +34,7 @@ from .models import (
     EquipmentEffectDef,
     EventCampDef,
     FortificationDef,
+    GemDef,
     GeneralDef,
     GeneralSkillDef,
     GlobalEffectDef,
@@ -69,6 +70,7 @@ def _schema_fingerprint() -> str:
         EffectTypeDef,
         EffectCapDef,
         EquipmentEffectDef,
+        GemDef,
         RelicEffectDef,
         FortificationDef,
         ConstructionItemDef,
@@ -161,6 +163,7 @@ class GameData(BaseModel):
     effect_caps: dict[int, EffectCapDef] = Field(default_factory=dict)
     equipment_effects: dict[int, EquipmentEffectDef] = Field(default_factory=dict)
     relic_effects: dict[int, RelicEffectDef] = Field(default_factory=dict)
+    gems: dict[int, GemDef] = Field(default_factory=dict)
     fortifications: dict[int, FortificationDef] = Field(default_factory=dict)
     construction_items: dict[int, ConstructionItemDef] = Field(default_factory=dict)
     alliance_buffs: dict[int, AllianceBuffDef] = Field(default_factory=dict)
@@ -317,6 +320,7 @@ class GameData(BaseModel):
                 r.equipment_effect_id: r for r in _rows(items_data.get("equipment_effects"), EquipmentEffectDef)
             },
             relic_effects={r.relic_effect_id: r for r in _rows(items_data.get("relicEffects"), RelicEffectDef)},
+            gems={r.gem_id: r for r in _rows(items_data.get("gems"), GemDef)},
             fortifications={
                 row.wod_id: row
                 for row in _rows(
