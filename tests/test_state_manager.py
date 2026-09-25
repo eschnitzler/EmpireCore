@@ -769,7 +769,7 @@ class TestAllianceMembership:
 
 
 class TestCastleDetails:
-    # A live dcl entry for a main castle, trimmed
+    # Live capture, trimmed
     ENTRY = {
         "AID": 1,
         "W": 7000.0,
