@@ -425,19 +425,19 @@ class GetDungeonAttackInfoRequest(BaseRequest):
     camp with INVALID_AREA.
 
     Command: adi
-    Payload: {"KID": kingdom_id, "SX": source_x, "SY": source_y, "TX": target_x, "TY": target_y}
+    Payload: {"SX": source_x, "SY": source_y, "TX": target_x, "TY": target_y, "KID": kingdom_id}
 
-    Client: ``C2SGetAttackDungeonInfosVO`` (bundle line 72024),
+    Client: ``C2SGetAttackDungeonInfosVO`` (bundle line 72024), whose key order the fields follow;
     ``CastleStartAttackDialog.attackDungeon`` (bundle line 14834).
     """
 
     command = "adi"
 
-    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
     source_x: int = Field(alias="SX", description="Attacking castle's map x")
     source_y: int = Field(alias="SY", description="Attacking castle's map y")
     target_x: int = Field(alias="TX", description="Target map x")
     target_y: int = Field(alias="TY", description="Target map y")
+    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
 
 
 class GetDungeonAttackInfoResponse(GetAttackInfoResponse):
