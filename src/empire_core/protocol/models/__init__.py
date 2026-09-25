@@ -288,6 +288,7 @@ from .skills import (
     GetGeneralsResponse,
     GetSkillsRequest,
     GetSkillsResponse,
+    SelectedAbility,
 )
 
 __all__ = [
@@ -513,6 +514,7 @@ __all__ = [
     "SendSupportRequest",
     "SendSupportResponse",
     "General",
+    "SelectedAbility",
     "GetCommandersRequest",
     "GetGeneralsRequest",
     "GetGeneralsResponse",

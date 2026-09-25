@@ -9,8 +9,9 @@ their own command and neither arrives with the commander list.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
-from pydantic import Field
+from pydantic import Field, ValidationError, field_validator, model_validator
 
 from .base import BasePayload, BaseRequest, BaseResponse
 
@@ -28,6 +29,26 @@ class GetGeneralsRequest(BaseRequest):
     command = "gie"
 
 
+class SelectedAbility(BasePayload):
+    """
+    One ability slot of a general: a ``[slot_id, ability_id]`` entry of ``GASAIDS``.
+
+    Client: ``GeneralVO.parseData`` (bundle line 26666) keeps the pairs, and
+    ``GeneralVO.getAbilities`` (bundle line 26771) reads ``[0]`` as the slot and
+    ``[1]`` as the ability.
+    """
+
+    slot_id: int = Field(description="row[0]: the slot, matched against the general's attack and defense slots")
+    ability_id: int = Field(description="row[1]: the ability, -1 for an empty slot")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if isinstance(data, list) and len(data) >= 2:
+            return {"slot_id": data[0], "ability_id": data[1]}
+        return data
+
+
 class General(BasePayload):
     """
     One general, as ``GeneralVO.parseData`` reads it.
@@ -40,22 +61,35 @@ class General(BasePayload):
     experience: int = Field(alias="XP", default=0)
     star_level: int = Field(alias="ST", default=0)
     skill_ids: list[int] = Field(alias="SIDS", default_factory=list)
-    # Selected abilities arrive as [slot_id, ability_id] pairs, not bare ids.
-    raw_abilities: list = Field(alias="GASAIDS", default_factory=list)
+    selected_abilities: list[SelectedAbility] = Field(
+        alias="GASAIDS", default_factory=list, description="The general's ability slots, filled or empty"
+    )
     fixed_level: int = Field(alias="L", default=-1)
     wins: int = Field(alias="W", default=0)
     defeats: int = Field(alias="D", default=0)
 
+    @field_validator("selected_abilities", mode="before")
+    @classmethod
+    def _skip_malformed_slots(cls, value: Any) -> Any:
+        # The client indexes each entry; one that is not a pair matches no slot and is ignored.
+        if not isinstance(value, list):
+            return []
+        slots = []
+        for entry in value:
+            try:
+                slots.append(SelectedAbility.model_validate(entry))
+            except ValidationError:
+                continue
+        return slots
+
     @property
     def ability_ids(self) -> list[int]:
-        """The abilities this general has selected, one id per filled slot."""
-        ids = []
-        for entry in self.raw_abilities:
-            if isinstance(entry, (list, tuple)) and len(entry) > 1:
-                ids.append(int(entry[1]))
-            elif isinstance(entry, int):
-                ids.append(entry)
-        return ids
+        """
+        The abilities this general has selected, one id per filled slot.
+
+        Client: ``GeneralVO.getAbilities`` (bundle line 26771) skips a slot whose ability id is not above 0.
+        """
+        return [slot.ability_id for slot in self.selected_abilities if slot.ability_id > 0]
 
 
 class GetGeneralsResponse(BaseResponse):
@@ -112,6 +146,7 @@ class GetSkillsResponse(BaseResponse):
 
 __all__ = [
     "General",
+    "SelectedAbility",
     "GetGeneralsRequest",
     "GetGeneralsResponse",
     "GetSkillsRequest",

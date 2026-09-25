@@ -33,6 +33,22 @@ class TestGenerals:
         general = GetGeneralsResponse.model_validate(self.LIVE).generals[0]
 
         assert general.ability_ids == [10073, 10303, 10263]
+        assert (general.selected_abilities[0].slot_id, general.selected_abilities[0].ability_id) == (101031, 10073)
+
+    def test_an_empty_slot_is_not_a_selected_ability(self):
+        general = GetGeneralsResponse.model_validate(
+            {"G": [{"GID": 101, "GASAIDS": [[101031, -1], [101033, 10303]]}]}
+        ).generals[0]
+
+        assert len(general.selected_abilities) == 2
+        assert general.ability_ids == [10303]
+
+    def test_a_malformed_slot_is_skipped(self):
+        general = GetGeneralsResponse.model_validate(
+            {"G": [{"GID": 101, "GASAIDS": [10073, [101031], ["x", "y"], [101033, 10303]]}]}
+        ).generals[0]
+
+        assert general.ability_ids == [10303]
 
     def test_a_general_with_nothing_unlocked(self):
         assert GetGeneralsResponse.model_validate(self.LIVE).skill_ids(102) == []
