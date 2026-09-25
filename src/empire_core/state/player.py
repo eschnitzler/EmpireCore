@@ -1,4 +1,4 @@
-"""Local player tracking: gpi/gxp/gcu/vip, alliance (gal), inventory (sce) and events (sei)."""
+"""Local player tracking: gpi/gxp/gcu/vip/gho/uap, alliance (gal), inventory (sce) and events (sei)."""
 
 import logging
 import time
@@ -10,9 +10,14 @@ from empire_core.state.models import Alliance, Player
 logger = logging.getLogger(__name__)
 
 
+def _section(data: dict[str, Any], key: str) -> dict[str, Any]:
+    body = data.get(key)
+    return body if isinstance(body, dict) else {}
+
+
 class PlayerState(StateBase):
     def _parse_player_sections(self, data: dict[str, Any]) -> None:
-        """Parse the gpi/gxp/gcu/vip sub-packets as ONE atomic player update.
+        """Parse the gpi/gxp/gcu/vip/gho/uap/gac sections as ONE atomic player update.
 
         `local_player` is handed out to user code and read without the lock,
         so a field-by-field merge would let a reader observe a half-merged
@@ -25,14 +30,17 @@ class PlayerState(StateBase):
         identity-map behavior — references held by user code stay live —
         while never exposing an intermediate state.
 
-        gxp, gcu and vip are partial updates: a key they omit keeps its
+        gxp, gcu, vip and gho are partial updates: a key they omit keeps its
         previous value (this packet's gpi value if it carried one, else the
         existing state) rather than resetting to zero.
+
+        Client: ``CastleUserData.parse_GPI`` / ``parse_GXP`` / ``parse_GHO`` /
+        ``parse_UAP``, ``CurrencyData.parseGCU``, ``CastleVIPData.parse_VIP``.
         """
         fresh: Player | None = None
         pid = None
         player = self.local_player
-        gpi = data.get("gpi", {})
+        gpi = _section(data, "gpi")
         if gpi:
             pid = gpi.get("PID")
             if pid is not None:
@@ -53,21 +61,35 @@ class PlayerState(StateBase):
                 merged[field_name] = getattr(fresh, field_name)
             updated |= gpi_fields
 
-        if gxp := data.get("gxp", {}):
+        if gxp := _section(data, "gxp"):
             merged["LVL"] = gxp.get("LVL", merged["LVL"])
             merged["XP"] = gxp.get("XP", merged["XP"])
             updated |= {"LVL", "XP"}
 
-        if gcu := data.get("gcu", {}):
+        if gcu := _section(data, "gcu"):
             merged["gold"] = gcu.get("C1", merged["gold"])
             merged["rubies"] = gcu.get("C2", merged["rubies"])
             updated |= {"gold", "rubies"}
 
-        if vip := data.get("vip", {}):
+        if vip := _section(data, "vip"):
             merged["vip_points"] = vip.get("VP", merged["vip_points"])
             merged["vip_level"] = vip.get("VRL", merged["vip_level"])
             merged["vip_time_left"] = vip.get("VRS", merged["vip_time_left"])
             updated |= {"vip_points", "vip_level", "vip_time_left"}
+
+        if gho := _section(data, "gho"):
+            merged["honor"] = gho.get("H", merged["honor"])
+            merged["ranking"] = gho.get("RP", merged["ranking"])
+            updated |= {"honor", "ranking"}
+
+        protection = dict(merged["beginner_protection"])
+        for key in ("uap", "gac"):
+            uap = _section(data, key)
+            if isinstance(uap.get("KID"), int) and isinstance(uap.get("NS"), int):
+                protection[uap["KID"]] = uap["NS"] > 0
+        if protection != merged["beginner_protection"]:
+            merged["beginner_protection"] = protection
+            updated.add("beginner_protection")
 
         if updated:
             self._swap_model_fields(player, merged, updated)
@@ -119,31 +141,37 @@ class PlayerState(StateBase):
         * "gal" present without a usable AID — the server is telling us the
           player is in no alliance, so a stale alliance (left, kicked,
           disbanded) is cleared.
+
+        The alliance and the player's AID land in one swap, since a push can
+        change them while user threads read the player.
+
+        Client: ``CastleUserData.parse_GAL``.
         """
-        if self.local_player is None or "gal" not in data:
+        player = self.local_player
+        if player is None or "gal" not in data:
             return
 
-        raw_gal = data.get("gal")
-        # A null or non-dict gal section carries no alliance -> treat as empty
-        gal: dict[str, Any] = raw_gal if isinstance(raw_gal, dict) else {}
+        gal = _section(data, "gal")
         try:
             aid = int(gal["AID"]) if gal.get("AID") is not None else 0
         except (TypeError, ValueError):
             aid = 0
 
-        if aid <= 0:
-            if self.local_player.alliance is not None:
-                logger.debug("Alliance cleared: gal section reports no alliance")
-            self.local_player.alliance = None
-            self.local_player.AID = None
-            return
+        alliance: Alliance | None = None
+        if aid > 0:
+            try:
+                alliance = Alliance(**gal)
+            except Exception as e:
+                logger.warning(f"Could not parse alliance: {e}")
+                return
+            logger.debug(f"Alliance: {alliance.name}")
+        elif player.alliance is not None:
+            logger.debug("Alliance cleared: gal section reports no alliance")
 
-        try:
-            self.local_player.alliance = Alliance(**gal)
-            self.local_player.AID = aid
-            logger.debug(f"Alliance: {self.local_player.alliance.name}")
-        except Exception as e:
-            logger.warning(f"Could not parse alliance: {e}")
+        merged = dict(player.__dict__)
+        merged["alliance"] = alliance
+        merged["AID"] = aid if alliance is not None else None
+        self._swap_model_fields(player, merged, {"alliance", "AID"})
 
     def _handle_sce(self, data: Any) -> None:
         """Handle Server Client Exchange (Inventory Update)."""
@@ -207,10 +235,10 @@ class PlayerState(StateBase):
     def get_player_last_updated(self) -> float | None:
         """When any local-player field was last refreshed, or ``None``.
 
-        Most player fields (gold, rubies, VIP, level, alliance) only ever
-        arrive inside a gbd/lli, i.e. at login; only the inventory is pushed
-        during a session (sce). A stamp far in the past means the numbers are
-        from login, not that they were re-confirmed.
+        Player fields arrive in the login gbd and again as a push whenever the
+        server changes them (gpi, gxp, gcu, vip, gal, gcl, gho, uap, glu, mir,
+        sce). A stamp far in the past means no push has arrived since, not
+        that the values were re-confirmed.
         """
         with self._lock:
             return self._player_updated_at

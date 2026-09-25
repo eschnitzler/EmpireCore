@@ -189,6 +189,10 @@ class Player(BaseModel):
     As with :class:`Castle`, the raw GGE wire keys (``PID``, ``PN``, ``LVL``,
     ...) are the storage fields and each has a snake_case read-only property
     (``id``, ``name``, ``level``, ...). Prefer the snake_case names.
+
+    Client: ``CastleUserData`` (``parse_GPI``, ``parse_GXP``, ``parse_GHO``,
+    ``parse_UAP``, ``parse_GAL``), ``CurrencyData.parseGCU`` and
+    ``CastleVIPData.parse_VIP``.
     """
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
@@ -218,6 +222,16 @@ class Player(BaseModel):
 
     # Alliance
     alliance: Alliance | None = None
+
+    honor: int = Field(default=0, alias="H", description="Honor, from gho. Client: CastleUserData.parse_GHO")
+    ranking: int = Field(default=0, alias="RP", description="Ranking points, from gho")
+    beginner_protection: dict[int, bool] = Field(
+        default_factory=dict,
+        description=(
+            "Kingdom id (uap/gac KID) -> whether the player is under beginner protection there (NS > 0). "
+            "Client: CastleUserData.parse_UAP"
+        ),
+    )
 
     # Premium/VIP
     PF: int = Field(default=0)  # Premium Flag

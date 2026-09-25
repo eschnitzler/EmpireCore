@@ -11,12 +11,13 @@ from empire_core.state.movements import MOVEMENT_PARSE_WARN_INTERVAL, MovementSt
 from empire_core.state.player import PlayerState
 
 __all__ = ["MOVEMENT_PARSE_WARN_INTERVAL", "GameState", "MovementEventCallback"]
-# gbd/lli sub-packets whose freshness is tracked separately from the packet
-# that carried them (gold only ever arrives inside a gbd, for instance).
-_TRACKED_SECTIONS = ("gpi", "gxp", "gcu", "vip", "gal", "gcl", "sce", "dcl", "sei")
+# gbd/lli sections stamped under their own id, whether they came in a gbd or as a push.
+_TRACKED_SECTIONS = ("gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce", "dcl", "sei")
 
-# Sub-packets that carry local-player fields (used for get_player_last_updated)
-_PLAYER_SECTIONS = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "sce"})
+_PLAYER_SECTIONS = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce"})
+
+# Pushes whose payload is the body of the gbd section of the same name.
+_SECTION_PUSHES = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap"})
 
 
 class GameState(MovementState, CastleState, PlayerState):
@@ -46,15 +47,19 @@ class GameState(MovementState, CastleState, PlayerState):
     ===================================  ==========================  ===================================
     State                                Refreshed by                Force a refresh with
     ===================================  ==========================  ===================================
-    castle name/coords, castle list      ``gcl`` (inside gbd/lli)     re-login
+    castle name/coords, castle list      ``gcl``, ``mir`` (pushed)    re-login
     castle resources/units/details       ``dcl``                      ``client.castle.get_details(id)``
-    player identity/level/XP             ``gpi``/``gxp``              re-login
+    player identity/level/XP             ``gpi``/``gxp``/``glu``      re-login
     player gold/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      re-login
+    honor, beginner protection           ``gho``/``uap``              re-login
     global inventory                     ``sce`` (pushed)             --
     movements                            ``gam``, ``abr``/``asr``,    ``client.get_movements()``
                                          your sends' replies
                                          (``cra``, ``cds``, ...)
     ===================================  ==========================  ===================================
+
+    Every player section above is sent inside the login gbd and again as a
+    push of its own when it changes.
 
     In practice a castle's ``resources`` often reflects login time and nothing
     else, so use the freshness accessors before trusting them:
@@ -88,6 +93,8 @@ class GameState(MovementState, CastleState, PlayerState):
         "mcm": "_handle_mcm",
         "mrm": "_handle_mrm",
         "mfc": "_handle_mfc",
+        "glu": "_handle_glu",
+        "mir": "_handle_mir",
         "sce": "_handle_sce",
         "sei": "_handle_sei",
     }
@@ -100,13 +107,21 @@ class GameState(MovementState, CastleState, PlayerState):
         """
         handler_name = self._DISPATCH.get(cmd_id)
         with self._lock:
-            if handler_name:
+            if cmd_id in _SECTION_PUSHES:
+                self._packet_times[cmd_id] = time.time()
+                self._handle_gbd({cmd_id: payload})
+            elif handler_name:
                 self._packet_times[cmd_id] = time.time()
                 getattr(self, handler_name)(payload)
             self._advance_movements()
 
     def _handle_gbd(self, data: dict[str, Any]) -> None:
-        """Handle 'Get Big Data' packet — initial login data."""
+        """Apply the login data, or the one section a push wraps in the same shape.
+
+        Client: ``GBDCommand.exec``; the pushes are ``GPICommand``, ``GXPCommand``,
+        ``GCUCommand``, ``VIPCommand``, ``GALCommand``, ``GCLCommand``,
+        ``GHOCommand`` and ``UAPCommand``.
+        """
         self._parse_player_sections(data)
         self._parse_inventory(data)
         self._parse_alliance_info(data)
@@ -152,13 +167,30 @@ class GameState(MovementState, CastleState, PlayerState):
         An error reply carries no movement, so it stores nothing.
         """
         if isinstance(gcu := data.get("gcu"), dict):
-            section = {"gcu": gcu}
-            self._parse_player_sections(section)
-            self._stamp_sections(section)
+            self._handle_gbd({"gcu": gcu})
         self._apply_movement_wrappers([wrapper], data.get("O", []))
 
+    def _handle_glu(self, data: Any) -> None:
+        """Apply a level-up push's currencies and XP.
+
+        ``L`` (the new level) and ``LL`` (a 0/1 legend level-up flag) only
+        drive the client's level-up dialog.
+
+        Client: ``GLUCommand.executeCommand``.
+        """
+        if isinstance(data, dict):
+            self._handle_gbd({key: data[key] for key in ("gcu", "gxp") if key in data})
+
+    def _handle_mir(self, data: Any) -> None:
+        """Apply the castle list sent after taking a castle or outpost.
+
+        Client: ``MIRCommand.executeCommand`` / ``CastleUserData.parse_MIR``.
+        """
+        if isinstance(data, dict) and data.get("gcl"):
+            self._handle_gbd({"gcl": data["gcl"]})
+
     def _stamp_sections(self, data: dict[str, Any]) -> None:
-        """Record when each sub-packet of a gbd/lli payload was applied.
+        """Record when each section of a gbd/lli payload, or a section push, was applied.
 
         A section present but null still counts as applied: "gal": None means
         "you are in no alliance", which is information, not absence of it.
@@ -178,11 +210,11 @@ class GameState(MovementState, CastleState, PlayerState):
         Accepts the wire ids this manager tracks — "gbd", "lli", "gam", "dcl",
         "abr", "asr", the send replies ("cra", "cam", "abgcam", "cds", "csm",
         "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm",
-        "mfc", "sce", "sei" — and the gbd sub-packet keys "gpi", "gxp", "gcu",
-        "vip", "gal", "gcl", which carry data that never arrives on its own. A
-        send reply is stamped even when the server refused the send. ``None``
-        means none was ever seen; packets this manager ignores are never
-        recorded.
+        "mfc", "glu", "mir", "sce", "sei" — and the player sections "gpi",
+        "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap" and "gac", stamped
+        whether they came inside a gbd or as a push of their own. A send reply
+        is stamped even when the server refused the send. ``None`` means none
+        was ever seen; packets this manager ignores are never recorded.
         """
         with self._lock:
             return self._packet_times.get(cmd_id)

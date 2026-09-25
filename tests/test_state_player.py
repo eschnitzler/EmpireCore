@@ -253,3 +253,126 @@ class TestFreshnessMetadata:
         state.update_from_packet("sce", [["A", 1]])
         second = state.get_player_last_updated()
         assert second is not None and second > first, "inventory push did not refresh the stamp"
+
+
+# Live capture of a login gbd's player sections; name scrubbed.
+LIVE_GPI = {"UID": 230862, "PID": 7, "PN": "me", "E": "-1", "V": 0, "CTAC": 1, "CL": 0, "RD": 1762208793}
+LIVE_LOGIN: dict = {
+    "gpi": LIVE_GPI,
+    "gxp": {"XP": 5329, "LVL": 13, "LL": 0, "XPFCL": 5070, "XPTNL": 5880},
+    "gcu": {"C1": 155600, "C2": 3098},
+    "vip": {"VP": 2, "VRL": 3, "VRS": 0, "UPG": 0},
+    "gal": {"AID": 190426, "R": 1, "N": "H.O.P.E", "ACF": 22, "SA": 0},
+    "gho": {"H": 0, "RP": 93},
+    "uap": {"KID": 0, "NS": -1, "PMS": -1, "PMT": 0},
+    "gac": None,
+}
+
+
+class TestPlayerPushes:
+    """Each login section is also pushed on its own, with the section body as payload."""
+
+    def test_live_login_sections(self, state):
+        state.update_from_packet("gbd", LIVE_LOGIN)
+        player = state.get_local_player()
+        assert (player.gold, player.rubies, player.LVL, player.XP) == (155600, 3098, 13, 5329)
+        assert (player.honor, player.ranking) == (0, 93)
+        assert player.beginner_protection == {0: False}
+        assert state.get_last_packet_time("gho") is not None
+
+    def test_gcu_push(self, state):
+        state.update_from_packet("gbd", LIVE_LOGIN)
+        state.update_from_packet("gcu", {"C1": 150000, "C2": 3100})
+        player = state.get_local_player()
+        assert (player.gold, player.rubies) == (150000, 3100)
+        assert state.get_last_packet_time("gcu") is not None
+
+    def test_gxp_push(self, state):
+        state.update_from_packet("gbd", LIVE_LOGIN)
+        state.update_from_packet("gxp", {"LVL": 13, "XP": 5400})
+        assert state.get_local_player().XP == 5400
+
+    def test_gal_push_joins_and_leaves(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}})
+        state.update_from_packet("gal", {"AID": 5, "R": 3, "AN": "Clan", "ACF": 0, "SA": 0})
+        player = state.get_local_player()
+        assert player.alliance is not None and (player.AID, player.alliance.name) == (5, "Clan")
+
+        state.update_from_packet("gal", {"AID": -1})
+        player = state.get_local_player()
+        assert (player.alliance, player.AID) == (None, None)
+
+    def test_gpi_push(self, state):
+        state.update_from_packet("gbd", LIVE_LOGIN)
+        state.update_from_packet("gpi", {**LIVE_GPI, "PN": "renamed"})
+        assert state.get_local_player().PN == "renamed"
+
+    def test_vip_push(self, state):
+        state.update_from_packet("gbd", LIVE_LOGIN)
+        state.update_from_packet("vip", {"VP": 50, "VRL": 4, "VRS": 3600, "UPG": 0})
+        player = state.get_local_player()
+        assert (player.vip_points, player.vip_level, player.vip_time_left) == (50, 4, 3600)
+
+    def test_gcl_push(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
+        state.update_from_packet("gcl", gcl_payload([(1, "Main"), (2, "Outpost")]))
+        assert sorted(state.get_local_player().castles) == [1, 2]
+
+    def test_gcl_push_before_login_is_ignored(self, state):
+        state.update_from_packet("gcl", gcl_payload([(1, "Main")]))
+        assert state.castles == {}
+
+    def test_glu_applies_its_currency_and_xp(self, state):
+        state.update_from_packet("gbd", LIVE_LOGIN)
+        state.update_from_packet(
+            "glu", {"gcu": {"C1": 160000, "C2": 3098}, "gxp": {"LVL": 14, "XP": 5880}, "L": 14, "LL": 0}
+        )
+        player = state.get_local_player()
+        assert (player.LVL, player.XP, player.gold) == (14, 5880, 160000)
+        assert state.get_last_packet_time("glu") is not None
+        assert state.get_last_packet_time("gxp") is not None
+
+    def test_mir_applies_its_castle_list(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
+        state.update_from_packet("mir", {"gcl": gcl_payload([(1, "Main"), (3, "Taken")]), "CID": 3, "KID": 0})
+        assert sorted(state.get_local_player().castles) == [1, 3]
+
+    def test_gho_push(self, state):
+        state.update_from_packet("gbd", LIVE_LOGIN)
+        state.update_from_packet("gho", {"H": 120, "RP": 95})
+        player = state.get_local_player()
+        assert (player.honor, player.ranking) == (120, 95)
+
+    def test_uap_push_is_kept_per_kingdom(self, state):
+        state.update_from_packet("gbd", LIVE_LOGIN)
+        state.update_from_packet("uap", {"KID": 2, "NS": 86400, "PMS": -1, "PMT": 0})
+        assert state.get_local_player().beginner_protection == {0: False, 2: True}
+
+    def test_push_before_login_is_ignored(self, state):
+        state.update_from_packet("gcu", {"C1": 5, "C2": 1})
+        assert state.get_local_player() is None
+
+    def test_push_refreshes_player_stamp(self, state):
+        state.update_from_packet("gbd", LIVE_LOGIN)
+        first = state.get_player_last_updated()
+        time.sleep(0.02)
+        state.update_from_packet("gcu", {"C1": 1, "C2": 1})
+        second = state.get_player_last_updated()
+        assert first is not None and second is not None and second > first
+
+    def test_alliance_change_is_one_swap(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})
+        player = state.local_player
+        observed: list[tuple] = []
+        real_setattr = Player.__setattr__
+
+        def spy(self, name, value):
+            real_setattr(self, name, value)
+            if self is player:
+                observed.append((self.AID, self.alliance))
+
+        with patch.object(Player, "__setattr__", spy):
+            state.update_from_packet("gal", {"AID": -1})
+
+        assert (player.AID, player.alliance) == (None, None)
+        assert observed == [], f"alliance fields written one at a time: {observed}"

@@ -295,6 +295,8 @@ _SNAKE_CASE_ALIASES = {
         ("email", "E"),
         ("premium_flag", "PF"),
         ("vip_flag", "VF"),
+        ("honor", "H"),
+        ("ranking", "RP"),
     ],
     "Alliance": [
         ("id", "AID"),
