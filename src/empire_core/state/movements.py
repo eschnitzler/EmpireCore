@@ -8,7 +8,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from empire_core.protocol.models.movement import MovementWrapper
+from empire_core.protocol.models.movement import MovementArea, MovementWrapper
 from empire_core.state.base import MovementEventCallback, StateBase
 from empire_core.state.world_models import Movement, MovementResources
 
@@ -309,21 +309,7 @@ class MovementState(StateBase):
             if self.local_player is not None:
                 mov.local_player_id = self.local_player.PID
 
-            # Extract target coords
-            if mov.target_area and isinstance(mov.target_area, list) and len(mov.target_area) >= 5:
-                mov.target_type = mov.target_area[0]
-                mov.target_x = mov.target_area[1]
-                mov.target_y = mov.target_area[2]
-                mov.target_area_id = mov.target_area[3]
-                if len(mov.target_area) > 10:
-                    mov.target_name = str(mov.target_area[10]) if mov.target_area[10] else ""
-
-            # Extract source coords
-            if mov.source_area and isinstance(mov.source_area, list) and len(mov.source_area) >= 3:
-                mov.source_x = mov.source_area[1]
-                mov.source_y = mov.source_area[2]
-                if len(mov.source_area) >= 4:
-                    mov.source_area_id = mov.source_area[3]
+            self._apply_areas(mov)
 
             if m_wrapper:
                 self._apply_wrapper_blocks(mov, m_wrapper)
@@ -346,6 +332,24 @@ class MovementState(StateBase):
         except Exception:
             self._log_movement_parse_failure(mid)
             return None
+
+    @staticmethod
+    def _apply_areas(mov: Movement) -> None:
+        """Read type, position, object id and name from the TA and SA rows."""
+        for side, row in (("target", mov.target_area), ("source", mov.source_area)):
+            if not isinstance(row, list):
+                continue
+            try:
+                area = MovementArea.model_validate(row)
+            except ValidationError:
+                logger.debug(f"Ignoring unreadable {side} area row: {row!r}")
+                continue
+            setattr(mov, f"{side}_x", area.x)
+            setattr(mov, f"{side}_y", area.y)
+            setattr(mov, f"{side}_area_id", area.object_id if area.object_id is not None else -1)
+            setattr(mov, f"{side}_name", area.name)
+            if side == "target":
+                mov.target_type = area.area_type
 
     @staticmethod
     def _wrapper_block(key: str, value: Any) -> MovementWrapper | None:

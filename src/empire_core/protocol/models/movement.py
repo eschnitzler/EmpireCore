@@ -8,6 +8,8 @@ from typing import Any
 
 from pydantic import Field, field_validator, model_validator
 
+from empire_core.utils.enums import MapObjectType
+
 from .base import BasePayload, BaseRequest, BaseResponse, Position
 
 
@@ -37,14 +39,36 @@ def _is_one(value: Any) -> bool:
         return False
 
 
+_AREA_LAYOUTS: dict[int, tuple[int | None, int | None, int | None]] = {
+    MapObjectType.CASTLE: (3, 4, 10),
+    MapObjectType.CAPITAL: (3, 4, 10),
+    MapObjectType.OUTPOST: (3, 4, 10),
+    MapObjectType.KINGDOM_CASTLE: (3, 4, 10),
+    MapObjectType.METRO: (3, 4, 10),
+    MapObjectType.VILLAGE: (3, 4, None),
+    MapObjectType.FACTION_VILLAGE: (None, 3, None),
+    MapObjectType.FACTION_TOWER: (None, 3, None),
+    MapObjectType.FACTION_CAPITAL: (None, 3, None),
+    MapObjectType.KINGS_TOWER: (3, 4, 7),
+    MapObjectType.ISLE_RESOURCE: (3, 4, 6),
+    MapObjectType.MONUMENT: (3, 4, 9),
+    MapObjectType.LABORATORY: (3, 4, 8),
+    MapObjectType.ABG_TOWER: (3, None, 4),
+}
+
+
 class MovementArea(BasePayload):
     """A movement's ``TA`` or ``SA`` area row.
 
     Only the first three positions mean the same for every area type
-    (``BasicMapobjectVO.parseAreaInfo``). The rest of the row depends on the
-    area type and is kept as ``row``.
+    (``BasicMapobjectVO.parseAreaInfo``); ``object_id``, ``owner_id`` and
+    ``name`` read the positions the area type's own parser uses. A castle
+    row of four or fewer entries is a castle being relocated and has none.
 
-    Client: ``WorldmapObjectFactory.parseWorldMapArea``.
+    Client: ``WorldmapObjectFactory.parseWorldMapArea``, ``InteractiveMapobjectVO``,
+    ``KingstowerMapobjectVO``, ``MonumentMapobjectVO``, ``LaboratoryMapobjectVO``,
+    ``ResourceIsleMapobjectVO``, ``VillageMapobjectVO``, ``Faction*MapobjectVO``
+    and ``ABGAllianceTowerMapobjectVO`` ``.parseAreaInfo``.
     """
 
     area_type: int = Field(description="Area type, row[0]")
@@ -62,6 +86,28 @@ class MovementArea(BasePayload):
     @property
     def position(self) -> Position:
         return Position(X=self.x, Y=self.y)
+
+    def _at(self, slot: int) -> Any:
+        layout = _AREA_LAYOUTS.get(self.area_type)
+        if layout is None or (self.area_type == MapObjectType.CASTLE and len(self.row) <= 4):
+            return None
+        index = layout[slot]
+        return self.row[index] if index is not None and index < len(self.row) else None
+
+    @property
+    def object_id(self) -> int | None:
+        value = self._at(0)
+        return value if isinstance(value, int) else None
+
+    @property
+    def owner_id(self) -> int | None:
+        value = self._at(1)
+        return value if isinstance(value, int) else None
+
+    @property
+    def name(self) -> str:
+        value = self._at(2)
+        return value if isinstance(value, str) else ""
 
 
 class MovementRecord(BasePayload):

@@ -700,3 +700,17 @@ class TestThreadSafety:
         for t in threads:
             t.join()
         assert errors == []
+
+
+class TestMovementAreas:
+    def test_kings_tower_target_name(self, state):
+        state.update_from_packet("gam", gam_payload(950, extra={"TA": [23, 10, 20, 55, 7, 1, 30, "Tower"]}))
+        mov = state.get_movement_by_id(950)
+        assert mov is not None
+        assert (mov.target_type, mov.target_area_id, mov.target_name) == (23, 55, "Tower")
+
+    def test_camp_target_has_no_id_or_name(self, state):
+        state.update_from_packet("gam", gam_payload(951, extra={"TA": [2, 630, 243, -1, 0, -1, 0]}))
+        mov = state.get_movement_by_id(951)
+        assert mov is not None
+        assert (mov.target_x, mov.target_y, mov.target_area_id, mov.target_name) == (630, 243, -1, "")

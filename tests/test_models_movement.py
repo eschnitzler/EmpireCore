@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from empire_core.protocol.models import GetMovementsResponse
+from empire_core.protocol.models import GetMovementsResponse, MovementArea
 from empire_core.protocol.models.base import Position
 
 # Live capture, names scrubbed
@@ -146,3 +146,37 @@ class TestMalformedMovementBatch:
         # whole batch from vanishing when it happens.
         coerced = {**GOOD_MOVEMENT, "M": {**GOOD_MOVEMENT["M"], "MID": "7"}}
         assert GetMovementsResponse.model_validate({"M": [coerced]}).movements[0].movement.movement_id == 7
+
+
+class TestMovementAreaLayouts:
+    CASTLE = [1, 632, 243, 16654596, 17743260, 2, 2, 2, 1, 0, "Home", 0, 0, -1, -1, -1, 0, 0, [], 0]
+
+    def test_castle_family_reads_id_owner_and_name(self):
+        area = MovementArea.model_validate(self.CASTLE)
+        assert (area.object_id, area.owner_id, area.name) == (16654596, 17743260, "Home")
+
+    def test_kings_tower_name_is_at_seven(self):
+        area = MovementArea.model_validate([23, 10, 20, 55, 7, 1, 30, "Tower"])
+        assert (area.object_id, area.owner_id, area.name) == (55, 7, "Tower")
+
+    def test_monument_name_is_at_nine(self):
+        area = MovementArea.model_validate([26, 10, 20, 56, 7, 2, 5, 1, 30, "Monument"])
+        assert (area.object_id, area.owner_id, area.name) == (56, 7, "Monument")
+
+    def test_village_has_no_name(self):
+        area = MovementArea.model_validate([10, 10, 20, 57, 7, 3, 0, 30])
+        assert (area.object_id, area.owner_id, area.name) == (57, 7, "")
+
+    def test_faction_targets_keep_the_owner_at_three(self):
+        area = MovementArea.model_validate([17, 10, 20, 900, 0, [], 30, 5])
+        assert (area.object_id, area.owner_id, area.name) == (None, 900, "")
+
+    def test_npc_camp_reads_nothing_past_the_position(self):
+        # Live capture of a robber baron camp
+        area = MovementArea.model_validate([2, 630, 243, -1, 0, -1, 0])
+        assert (area.x, area.y) == (630, 243)
+        assert (area.object_id, area.owner_id, area.name) == (None, None, "")
+
+    def test_relocating_castle_row_reads_nothing(self):
+        area = MovementArea.model_validate([1, 10, 20, 17743260])
+        assert (area.object_id, area.owner_id, area.name) == (None, None, "")
