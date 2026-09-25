@@ -2,20 +2,24 @@
 Defense protocol models.
 
 Commands:
-- dfc: Get defense configuration
-- dfk: Change keep defense
-- dfw: Change wall defense
-- dfm: Change moat defense
+- dfc: Read a castle's keep, wall and moat setup
+- dfk: Set the keep's tools and unit settings
+- dfw: Set the wall's tools and unit split
+- dfm: Set the moat's tools
+- sdi: Defense info for an alliance member's castle
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+import math
+import re
+from typing import Annotated, Any
 
-from pydantic import Field
+from pydantic import BeforeValidator, Field
 
-from .base import BasePayload, BaseRequest, BaseResponse, UnitCount
+from .base import BasePayload, BaseRequest, BaseResponse
+from .movement import MovementArea
 
 logger = logging.getLogger(__name__)
 
@@ -38,146 +42,286 @@ def _as_int(value: Any) -> int | None:
         return None
 
 
+def _client_int(value: Any) -> int:
+    """The client's ``int()``: a ``#rrggbb`` string as hex, else ``Math.trunc(Number(value))``, NaN as 0.
+
+    Client: ``int`` (dll line 16098)
+    """
+    if isinstance(value, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", value):
+        return int(value[1:], 16)
+    if value is None:
+        return 0
+    if isinstance(value, str) and not value.strip():
+        return 0
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0
+    return 0 if math.isnan(number) or math.isinf(number) else math.trunc(number)
+
+
+ClientInt = Annotated[int, BeforeValidator(_client_int)]
+
+Slot = list[int]
+"""One container slot: ``[wod_id, amount]``, ``[-1, 0]`` when empty."""
+
+
 # =============================================================================
-# DFC - Get Defense Configuration
+# DFC - Read a castle's defense setup
 # =============================================================================
 
 
 class GetDefenseRequest(BaseRequest):
     """
-    Get defense configuration for a castle.
+    Read the defense setup of one of your castles.
 
     Command: dfc
-    Payload: {"CID": castle_id}
+    Client: ``C2SDefenceCompleteVO`` (bundle line 32769); every call site
+    passes the castle's ``absAreaPos`` and ``objectId``, with ``KID`` -1 or
+    omitted (``CastleDefenceDialog.updateDefenceData``, bundle line 15978)
     """
 
     command = "dfc"
 
-    castle_id: int = Field(alias="CID")
+    castle_x: int = Field(alias="CX", description="Castle map x")
+    castle_y: int = Field(alias="CY", description="Castle map y")
+    area_id: int = Field(alias="AID", description="The castle's area id")
+    kingdom_id: int = Field(alias="KID", default=-1, description="Kingdom id; the client sends -1")
 
 
-class DefenseConfiguration(BasePayload):
-    """Defense configuration for a location (keep, wall, moat)."""
+class WallSection(BasePayload):
+    """
+    One wall section's setup as the ``dfw`` reply carries it; a missing
+    number reads as 0, as the client's ``int()`` gives.
 
-    units: list[UnitCount] = Field(alias="U", default_factory=list)
-    tools: list[UnitCount] = Field(alias="T", default_factory=list)
+    Client: ``CastleDefenceData.parse_DFW`` (bundle line 134250)
+    """
+
+    slots: list[Slot] = Field(alias="S", default_factory=list, description="Wall tool slots")
+    unit_percent: ClientInt = Field(alias="UP", default=0, description="Share of the wall's units on this section")
+    unit_composition: ClientInt = Field(alias="UC", default=0, description="Unit composition of this section")
+
+
+class WallDefense(BaseResponse):
+    """
+    The wall setup: the ``dfw`` reply, also nested in ``dfc``.
+
+    Command: dfw
+    Client: ``DFWCommand.executeCommand`` (bundle line 123525),
+    ``CastleDefenceData.parse_DFW`` (bundle line 134250)
+    """
+
+    command = "dfw"
+
+    left: WallSection = Field(alias="L", default_factory=WallSection, description="Left wall section")
+    middle: WallSection = Field(alias="M", default_factory=WallSection, description="Middle wall section")
+    right: WallSection = Field(alias="R", default_factory=WallSection, description="Right wall section")
+    unit_count: ClientInt = Field(alias="U", default=0, description="Units on the wall")
+    unit_slot_count: ClientInt = Field(alias="US", default=0, description="Units the wall can hold")
+    defense: ClientInt = Field(alias="D", default=0, description="Wall defence, truncated as the client does")
+
+
+class KeepDefense(BaseResponse):
+    """
+    The keep setup: the ``dfk`` reply, also nested in ``dfc``.
+
+    Command: dfk
+    Client: ``DFKCommand.executeCommand`` (bundle line 123495),
+    ``CastleDefenceData.parse_DFK`` (bundle line 134251)
+    """
+
+    command = "dfk"
+
+    slots: list[Slot] = Field(alias="S", default_factory=list, description="Keep tool slots")
+    support_tool_slots: list[Slot] = Field(alias="STS", default_factory=list, description="Keep support-tool slots")
+    alliance_unit_yard_limit: ClientInt = Field(alias="AUYL", default=0, description="Alliance unit yard limit")
+    unit_yard_limit: ClientInt = Field(alias="UYL", default=0, description="Unit yard limit")
+    unit_count: ClientInt = Field(alias="U", default=0, description="Units in the keep")
+    unit_composition: ClientInt = Field(alias="UC", default=0, description="Keep unit composition")
+    min_attacking_units_for_tools: ClientInt = Field(
+        alias="MAUCT",
+        default=0,
+        description="Minimum attacking units before the keep's tools are used",
+    )
+
+    @property
+    def keep_unit_slot_count(self) -> int:
+        """
+        Units the keep can hold: ``UYL - AUYL``.
+
+        The client makes it unlimited on special servers and in daimyo
+        townships, which this reply cannot tell.
+        """
+        return self.unit_yard_limit - self.alliance_unit_yard_limit
+
+
+class MoatDefense(BaseResponse):
+    """
+    The moat setup: the ``dfm`` reply, also nested in ``dfc``.
+
+    Command: dfm
+    Client: ``DFMCommand.executeCommand`` (bundle line 123510),
+    ``CastleDefenceData.parse_DFM`` (bundle line 134252)
+    """
+
+    command = "dfm"
+
+    left_slots: list[Slot] = Field(alias="LS", default_factory=list, description="Left moat slots")
+    middle_slots: list[Slot] = Field(alias="MS", default_factory=list, description="Middle moat slots")
+    right_slots: list[Slot] = Field(alias="RS", default_factory=list, description="Right moat slots")
+    defense: ClientInt = Field(alias="D", default=0, description="Moat defence, truncated as the client does")
 
 
 class GetDefenseResponse(BaseResponse):
     """
-    Response containing defense configuration.
+    A castle's whole defense setup.
 
     Command: dfc
+    Client: ``DFCCommand.executeCommand`` (bundle line 123480),
+    ``CastleDefenceData.parse_DFC`` (bundle line 134243). The server also
+    sends ``MDS`` and ``RDS``, which the client does not read.
     """
 
     command = "dfc"
 
-    keep: DefenseConfiguration | None = Field(alias="K", default=None)
-    wall: DefenseConfiguration | None = Field(alias="W", default=None)
-    moat: DefenseConfiguration | None = Field(alias="M", default=None)
-    courtyard: DefenseConfiguration | None = Field(alias="C", default=None)
+    raw_inventory: dict[str, Any] = Field(
+        alias="gui",
+        default_factory=dict,
+        description="The castle's unit inventory; the client reads gui.I",
+    )
+    area: MovementArea | None = Field(alias="A", default=None, description="The castle's map row")
+    home_defense_workshop_level: int | None = Field(
+        alias="HDWL",
+        default=None,
+        description="Defense workshop level, which unlocks the keep's support-tool slots",
+    )
+    wall: WallDefense | None = Field(alias="dfw", default=None, description="Wall setup")
+    keep: KeepDefense | None = Field(alias="dfk", default=None, description="Keep setup")
+    moat: MoatDefense | None = Field(alias="dfm", default=None, description="Moat setup")
+    range_priority: list[int] = Field(alias="PR", default_factory=list, description="Ranged unit priority")
+    melee_priority: list[int] = Field(alias="PM", default_factory=list, description="Melee unit priority")
+    gate_defense: ClientInt = Field(alias="GD", default=0, description="Gate defence, truncated as the client does")
+    raw_castellan: dict[str, Any] | None = Field(
+        alias="L",
+        default=None,
+        description="The castellan's commander entry; the client reads L.ID and parses the rest as a lord",
+    )
+
+    @property
+    def castellan_id(self) -> int:
+        """The castellan's id, ``L.ID``; -1 when none is set, as the client starts from."""
+        if not self.raw_castellan:
+            return -1
+        return _client_int(self.raw_castellan.get("ID"))
+
+    def inventory(self) -> dict[int, int]:
+        """
+        The castle's units as ``{wod_id: amount}``.
+
+        Client: ``AUnitInventory.fillFromWodAmountArray`` (bundle line 42572)
+        and ``UnitInventoryDictionary.addUnit`` / ``changeUnitAmount`` (bundle
+        lines 5533-5535): amounts add up, negatives count as 0, and a unit
+        whose total is 0 is left out.
+        """
+        entries = self.raw_inventory.get("I")
+        counts: dict[int, int] = {}
+        if not isinstance(entries, list):
+            return counts
+        for entry in entries:
+            if isinstance(entry, list):
+                wod_id = _client_int(entry[0] if entry else None)
+                amount = _client_int(entry[1] if len(entry) > 1 else None)
+                counts[wod_id] = counts.get(wod_id, 0) + max(0, amount)
+        return {wod_id: amount for wod_id, amount in counts.items() if amount > 0}
 
 
 # =============================================================================
-# DFK - Change Keep Defense
+# DFK / DFW / DFM - Change the keep, wall and moat setup
 # =============================================================================
 
 
 class ChangeKeepDefenseRequest(BaseRequest):
     """
-    Change keep defense configuration.
+    Set the keep's tools, support tools and unit settings.
+
+    The client builds the slot lists from its keep containers, one pair per
+    slot; start from the ``dfc`` reply's ``dfk`` lists. Fields follow the
+    client's key order.
 
     Command: dfk
-    Payload: {
-        "CID": castle_id,
-        "U": [{"UID": unit_id, "C": count}, ...],
-        "T": [{"TID": tool_id, "C": count}, ...]
-    }
+    Client: ``C2SDefenceKeepVO`` (bundle line 66597), built by
+    ``CastleDefenceDialog.sendKeepData`` (bundle line 16041), which sends an
+    empty ``STS`` when there is no support-tool container
     """
 
     command = "dfk"
 
-    castle_id: int = Field(alias="CID")
-    units: list[UnitCount] = Field(alias="U", default_factory=list)
-    tools: list[UnitCount] = Field(alias="T", default_factory=list)
+    castle_x: int = Field(alias="CX", description="Castle map x")
+    castle_y: int = Field(alias="CY", description="Castle map y")
+    area_id: int = Field(alias="AID", description="The castle's area id")
+    min_attacking_units_for_tools: int = Field(
+        alias="MAUCT",
+        default=0,
+        description="Minimum attacking units before the keep's tools are used",
+    )
+    unit_composition: int = Field(alias="UC", default=50, description="Keep unit composition")
+    slots: list[Slot] = Field(alias="S", description="Keep tool slots")
+    support_tool_slots: list[Slot] = Field(alias="STS", default_factory=list, description="Keep support-tool slots")
 
 
-class ChangeKeepDefenseResponse(BaseResponse):
+class WallSectionSetup(BasePayload):
     """
-    Response to changing keep defense.
+    One wall section in a ``dfw`` request; the client has no defaults.
 
-    Command: dfk
+    Client: ``C2SDefenceWallVO`` (bundle line 66616)
     """
 
-    command = "dfk"
-
-
-# =============================================================================
-# DFW - Change Wall Defense
-# =============================================================================
+    slots: list[Slot] = Field(alias="S", description="Wall tool slots")
+    unit_percent: int = Field(alias="UP", description="Share of the wall's units on this section")
+    unit_composition: int = Field(alias="UC", description="Unit composition of this section")
 
 
 class ChangeWallDefenseRequest(BaseRequest):
     """
-    Change wall defense configuration.
+    Set the wall's tools and unit split per section.
+
+    Every section needs its slots, unit percent and unit composition; the
+    client has no defaults for them. Start from the ``dfc`` reply's ``dfw``.
 
     Command: dfw
-    Payload: {
-        "CID": castle_id,
-        "U": [{"UID": unit_id, "C": count}, ...],
-        "T": [{"TID": tool_id, "C": count}, ...]
-    }
+    Client: ``C2SDefenceWallVO`` (bundle line 66616), built by
+    ``CastleDefenceDialog.sendWallData`` (bundle line 16045)
     """
 
     command = "dfw"
 
-    castle_id: int = Field(alias="CID")
-    units: list[UnitCount] = Field(alias="U", default_factory=list)
-    tools: list[UnitCount] = Field(alias="T", default_factory=list)
-
-
-class ChangeWallDefenseResponse(BaseResponse):
-    """
-    Response to changing wall defense.
-
-    Command: dfw
-    """
-
-    command = "dfw"
-
-
-# =============================================================================
-# DFM - Change Moat Defense
-# =============================================================================
+    castle_x: int = Field(alias="CX", description="Castle map x")
+    castle_y: int = Field(alias="CY", description="Castle map y")
+    area_id: int = Field(alias="AID", description="The castle's area id")
+    left: WallSectionSetup = Field(alias="L", description="Left wall section")
+    middle: WallSectionSetup = Field(alias="M", description="Middle wall section")
+    right: WallSectionSetup = Field(alias="R", description="Right wall section")
 
 
 class ChangeMoatDefenseRequest(BaseRequest):
     """
-    Change moat defense configuration.
+    Set the moat's tools.
+
+    Start from the ``dfc`` reply's ``dfm`` lists.
 
     Command: dfm
-    Payload: {
-        "CID": castle_id,
-        "U": [{"UID": unit_id, "C": count}, ...],
-        "T": [{"TID": tool_id, "C": count}, ...]
-    }
+    Client: ``C2SDefenceMoatVO`` (bundle line 66607), built by
+    ``CastleDefenceDialog.sendMoatData`` (bundle line 16049)
     """
 
     command = "dfm"
 
-    castle_id: int = Field(alias="CID")
-    units: list[UnitCount] = Field(alias="U", default_factory=list)
-    tools: list[UnitCount] = Field(alias="T", default_factory=list)
-
-
-class ChangeMoatDefenseResponse(BaseResponse):
-    """
-    Response to changing moat defense.
-
-    Command: dfm
-    """
-
-    command = "dfm"
+    castle_x: int = Field(alias="CX", description="Castle map x")
+    castle_y: int = Field(alias="CY", description="Castle map y")
+    area_id: int = Field(alias="AID", description="The castle's area id")
+    left_slots: list[Slot] = Field(alias="LS", description="Left moat slots")
+    middle_slots: list[Slot] = Field(alias="MS", description="Middle moat slots")
+    right_slots: list[Slot] = Field(alias="RS", description="Right moat slots")
 
 
 # =============================================================================
@@ -326,16 +470,17 @@ __all__ = [
     # DFC - Get Defense
     "GetDefenseRequest",
     "GetDefenseResponse",
-    "DefenseConfiguration",
+    "WallSection",
+    "WallSectionSetup",
+    "WallDefense",
+    "KeepDefense",
+    "MoatDefense",
     # DFK - Keep Defense
     "ChangeKeepDefenseRequest",
-    "ChangeKeepDefenseResponse",
     # DFW - Wall Defense
     "ChangeWallDefenseRequest",
-    "ChangeWallDefenseResponse",
     # DFM - Moat Defense
     "ChangeMoatDefenseRequest",
-    "ChangeMoatDefenseResponse",
     # SDI - Support Defense Info
     "GetSupportDefenseRequest",
     "GetSupportDefenseResponse",

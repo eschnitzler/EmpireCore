@@ -216,16 +216,17 @@ from .commanders import (
 )
 from .defense import (
     ChangeKeepDefenseRequest,
-    ChangeKeepDefenseResponse,
     ChangeMoatDefenseRequest,
-    ChangeMoatDefenseResponse,
     ChangeWallDefenseRequest,
-    ChangeWallDefenseResponse,
-    DefenseConfiguration,
     GetDefenseRequest,
     GetDefenseResponse,
     GetSupportDefenseRequest,
     GetSupportDefenseResponse,
+    KeepDefense,
+    MoatDefense,
+    WallDefense,
+    WallSection,
+    WallSectionSetup,
 )
 from .inventory import SCEItem
 from .map import (
@@ -447,13 +448,14 @@ __all__ = [
     # Defense
     "GetDefenseRequest",
     "GetDefenseResponse",
-    "DefenseConfiguration",
+    "WallSection",
+    "WallSectionSetup",
+    "WallDefense",
+    "KeepDefense",
+    "MoatDefense",
     "ChangeKeepDefenseRequest",
-    "ChangeKeepDefenseResponse",
     "ChangeWallDefenseRequest",
-    "ChangeWallDefenseResponse",
     "ChangeMoatDefenseRequest",
-    "ChangeMoatDefenseResponse",
     "GetSupportDefenseRequest",
     "GetSupportDefenseResponse",
     # Building

@@ -118,10 +118,10 @@ class GGECommand:
     HRA = "hra"  # Heal all
 
     # Defense
-    DFC = "dfc"  # Get defense configuration
-    DFK = "dfk"  # Change keep defense
-    DFW = "dfw"  # Change wall defense
-    DFM = "dfm"  # Change moat defense
+    DFC = "dfc"  # Read a castle's keep, wall and moat setup
+    DFK = "dfk"  # Set the keep's tools and unit settings
+    DFW = "dfw"  # Set the wall's tools and unit split
+    DFM = "dfm"  # Set the moat's tools
     SDI = "sdi"  # Get support defense info (alliance member castle defense)
 
     # Shop
