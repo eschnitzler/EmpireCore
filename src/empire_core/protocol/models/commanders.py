@@ -48,11 +48,20 @@ class WearerType(IntEnum):
 
 
 class EquipmentType(IntEnum):
-    """Origin of an equipment item."""
+    """
+    Origin of an equipment item.
+
+    Client: ``EquipmentConst.EQUIPMENT_TYPE_ID_*`` (dll line 19249)
+    """
 
     GENERATED = 0
     UNIQUE = 1
+    UNIQUE_TEMPORARY = 2
     RELIC = 3
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def _wrapped(value: Any) -> list[Any]:
@@ -189,14 +198,16 @@ class Equipment(BasePayload):
     Entries are truncated by the server when trailing fields do not apply.
 
     Index 5 holds the bonuses: a relic item (index 11 is 3) lists them as
-    ``relic_bonuses``, any other item as ``bonuses``. A hero item's
-    ``CastleHeroVO`` also keeps index 11 as its ``alienString``; the type is
-    still read from it through ``int()``.
+    ``relic_bonuses`` (``[relic_effect_id, power, values]``), any other item as
+    ``bonuses`` (``[effect_id, values]``). A hero item (slot 6, not a relic)
+    also keeps index 11 as ``alien_string``; the type is still read from it
+    through ``int()``.
 
     Client: ``BasicEquipmentVO.parseEquipFromArray`` (bundle line 7115),
     ``CastleEquipmentFactory.createEquipmentVO`` (bundle line 18134),
     ``RelicEquipmentVO.parseEquipFromArray`` (bundle line 25039),
-    ``CastleHeroVO.parseEquipFromArray`` (bundle line 40585).
+    ``CastleHeroVO.parseEquipFromArray`` (bundle line 40585),
+    ``BasicEquipmentVO.hasSetbonus`` (bundle line 7213).
     """
 
     equipment_id: int = 0
@@ -211,7 +222,13 @@ class Equipment(BasePayload):
         default_factory=list, description="Bonuses of a relic item; unreadable entries are skipped"
     )
     unique_id: ClientInt = 0
-    set_id: int = 0
+    set_id: int = Field(
+        default=0,
+        description=(
+            "Equipment set id, -1 for none. The client leaves it undefined on a row shorter than 8, "
+            "then counts it as set 0, which no set uses"
+        ),
+    )
     enchantment_level: ClientInt = 0
     duration_seconds: int | float = 0
     gem_id: ClientInt = NO_GEM_ID
@@ -220,6 +237,13 @@ class Equipment(BasePayload):
     )
     relic_info: RelicInfo | None = Field(
         default=None, description="A relic item's type, category, might and gem, index 12; None for other items"
+    )
+    alien_string: Any = Field(
+        default=None,
+        description=(
+            "A hero item's index 11 as sent, which the client matches against an alien hero's "
+            "'effect_id&value,...' string; None for other items"
+        ),
     )
 
     @field_validator("relic_info", mode="wrap")
@@ -243,6 +267,11 @@ class Equipment(BasePayload):
         return self.gem_id != NO_GEM_ID
 
     @property
+    def has_set(self) -> bool:
+        """True unless ``set_id`` is -1, as the client's ``hasSetbonus`` reads it."""
+        return self.set_id != -1
+
+    @property
     def is_relic(self) -> bool:
         """True for a relic item, whose bonuses index the relic effect table."""
         return self.equipment_type == EquipmentType.RELIC
@@ -257,6 +286,9 @@ class Equipment(BasePayload):
             row["relic_bonuses"] = row.pop("bonuses", [])
             if len(data) >= 13:
                 row["relic_info"] = data[12]
+        elif len(data) > 1 and _is_number(data[1]) and data[1] == EquipmentSlot.HERO:
+            # CastleEquipmentFactory switches on row[1] with ===
+            row["alien_string"] = data[11] if len(data) >= 12 else None
         return row
 
     @classmethod
