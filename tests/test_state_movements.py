@@ -786,3 +786,150 @@ class TestAllianceAttackAlerts:
         assert mov is not None and mov.owner is not None
         assert (mov.owner.level, mov.owner.alliance_rank, mov.owner.might) == (70, 8, 1267)
         assert (mov.owner_alliance_id, mov.source_player_name, mov.source_alliance_name) == (99, "enemy", "Foes")
+
+
+# Live capture of a cra reply, names scrubbed
+SENT_ATTACK: dict = {
+    "AAM": {
+        "M": {
+            "MID": 93053681,
+            "PT": 0,
+            "TT": 128,
+            "D": 0,
+            "TID": -202,
+            "T": 0,
+            "HBW": -1,
+            "KID": 0,
+            "TA": [2, 630, 243, -1, 0, -1, 0],
+            "SID": 17743260,
+            "OID": 17743260,
+            "SA": [1, 632, 243, 16654596, 17743260, 2, 2, 2, 1, 0, "Home", 0, 0, -1, -1, -1, 0, 0, [], 0],
+        },
+        "UM": {
+            "PWD": 0,
+            "TWD": 0,
+            "L": {
+                "ID": 0,
+                "WID": 2,
+                "VIS": 0,
+                "N": "",
+                "GID": -1,
+                "W": 2,
+                "D": 0,
+                "SPR": 2,
+                "EQ": [[6515210043, 6, 2, 10, 0, [[242, [25.0]]], 802, 22, 0, -1, -1, 1]],
+                "AE": [[426, [10.0], "GE"]],
+            },
+        },
+        "FA": {"L": [[656, 1], [640, 2]], "M": [], "R": [], "RW": []},
+        "AST": [],
+        "ATT": 0,
+        "ASCT": 0,
+        "FC": 0,
+    },
+    "O": [
+        {
+            "OID": 17743260,
+            "DUM": False,
+            "N": "me",
+            "L": 13,
+            "LL": 0,
+            "H": 0,
+            "AVP": 1490,
+            "MP": 4442,
+            "R": 0,
+            "AID": 190426,
+            "AR": 1,
+            "AN": "Clan",
+            "RPT": 0,
+            "AP": [[0, 16654596, 632, 243, 1], [0, 16656989, 630, 244, 4]],
+            "VP": [],
+            "SA": 0,
+            "VF": 0,
+            "PF": 0,
+            "RRD": 0,
+        },
+        {},
+    ],
+}
+
+
+class TestSentMovements:
+    ME = 17743260
+    MID = 93053681
+
+    def test_attack_reply_is_stored_at_once(self, state):
+        login(state, self.ME)
+        state.update_from_packet("cra", SENT_ATTACK)
+        [mov] = state.get_outgoing_movements()
+        assert mov.movement_id == self.MID
+        assert mov.units == {656: 1, 640: 2}
+        assert (mov.target_x, mov.target_y, mov.target_id) == (630, 243, -202)
+        assert mov.source_name == "Home"
+        assert mov.commander_equipment == SENT_ATTACK["AAM"]["UM"]["L"]["EQ"]
+        assert (mov.source_player_name, mov.source_alliance_name) == ("me", "Clan")
+        assert mov.estimated_arrival == pytest.approx(time.time() + 128, abs=2)
+
+    def test_later_gam_updates_the_same_movement(self, state):
+        login(state, self.ME)
+        state.update_from_packet("cra", SENT_ATTACK)
+        created = state.movements[self.MID].created_at
+        wrapper = {**SENT_ATTACK["AAM"], "M": {**SENT_ATTACK["AAM"]["M"], "PT": 10}}
+        state.update_from_packet("gam", {"M": [wrapper], "O": []})
+        [mov] = state.get_outgoing_movements()
+        assert (mov.progress_time, mov.created_at, mov.source_player_name) == (10, created, "me")
+
+    def test_own_attack_does_not_alert(self, state):
+        login(state, self.ME)
+        fired: list[Movement] = []
+        state.on_incoming_attack(fired.append)
+        state.update_from_packet("cra", SENT_ATTACK)
+        time.sleep(0.1)
+        assert fired == []
+
+    @pytest.mark.parametrize("cmd", ["cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm"])
+    def test_replies_under_a_are_stored(self, state, cmd):
+        login(state, self.ME)
+        state.update_from_packet(cmd, {"A": {"M": {"MID": 5, "T": 3, "TT": 60, "OID": self.ME}}, "O": []})
+        assert [m.movement_id for m in state.get_outgoing_movements()] == [5]
+
+    @pytest.mark.parametrize("cmd", ["cam", "abgcam"])
+    def test_other_attack_replies_are_stored(self, state, cmd):
+        login(state, self.ME)
+        state.update_from_packet(cmd, SENT_ATTACK)
+        assert [m.movement_id for m in state.get_outgoing_movements()] == [self.MID]
+
+    def test_treasure_hunt_reply_is_stored(self, state):
+        login(state, self.ME)
+        state.update_from_packet("thm", {"TM": {"M": {"MID": 6, "T": 0, "TT": 60, "OID": self.ME}}})
+        assert [m.movement_id for m in state.get_outgoing_movements()] == [6]
+
+    def test_daimyo_taunt_payload_is_the_wrapper(self, state):
+        login(state, self.ME)
+        state.update_from_packet("ldt", {"M": {"MID": 7, "T": 0, "TT": 60, "OID": self.ME}})
+        assert [m.movement_id for m in state.get_outgoing_movements()] == [7]
+
+    def test_reply_gold_and_rubies_are_applied(self, state):
+        login(state, self.ME)
+        state.update_from_packet("cra", {**SENT_ATTACK, "gcu": {"C1": 1200, "C2": 30}})
+        assert state.local_player is not None
+        assert (state.local_player.gold, state.local_player.rubies) == (1200, 30)
+        assert state.get_last_packet_time("gcu") is not None
+
+    def test_reply_without_gcu_keeps_gold(self, state):
+        login(state, self.ME)
+        state.update_from_packet("gbd", {"gcu": {"C1": 500, "C2": 7}})
+        state.update_from_packet("cra", SENT_ATTACK)
+        assert state.local_player is not None
+        assert (state.local_player.gold, state.local_player.rubies) == (500, 7)
+
+    def test_error_reply_stores_nothing(self, state):
+        login(state, self.ME)
+        state.update_from_packet("cra", {"TS": 10, "AS": 3})
+        state.update_from_packet("csm", {})
+        assert state.movements == {}
+
+    def test_unreadable_block_keeps_the_movement(self, state):
+        login(state, self.ME)
+        state.update_from_packet("cra", {**SENT_ATTACK, "AAM": {**SENT_ATTACK["AAM"], "UM": "junk"}})
+        assert [m.movement_id for m in state.get_outgoing_movements()] == [self.MID]

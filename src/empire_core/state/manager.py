@@ -51,7 +51,9 @@ class GameState(MovementState, CastleState, PlayerState):
     player identity/level/XP             ``gpi``/``gxp``              re-login
     player gold/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      re-login
     global inventory                     ``sce`` (pushed)             --
-    movements                            ``gam``, ``abr``/``asr``     ``client.get_movements()``
+    movements                            ``gam``, ``abr``/``asr``,    ``client.get_movements()``
+                                         your sends' replies
+                                         (``cra``, ``cds``, ...)
     ===================================  ==========================  ===================================
 
     In practice a castle's ``resources`` often reflects login time and nothing
@@ -70,6 +72,19 @@ class GameState(MovementState, CastleState, PlayerState):
         "dcl": "_handle_dcl",
         "abr": "_handle_movement_push",
         "asr": "_handle_movement_push",
+        "cra": "_handle_attack_sent",
+        "cam": "_handle_attack_sent",
+        "abgcam": "_handle_attack_sent",
+        "cds": "_handle_movement_sent",
+        "csm": "_handle_movement_sent",
+        "cat": "_handle_movement_sent",
+        "crm": "_handle_movement_sent",
+        "css": "_handle_movement_sent",
+        "tde": "_handle_movement_sent",
+        "cdd": "_handle_movement_sent",
+        "cpm": "_handle_movement_sent",
+        "thm": "_handle_thm",
+        "ldt": "_handle_ldt",
         "mcm": "_handle_mcm",
         "mrm": "_handle_mrm",
         "mfc": "_handle_mfc",
@@ -102,6 +117,46 @@ class GameState(MovementState, CastleState, PlayerState):
             self._handle_sei(sei)
         self._stamp_sections(data)
 
+    def _handle_attack_sent(self, data: dict[str, Any]) -> None:
+        """Handle the reply to an attack you send: the new movement under ``AAM``.
+
+        Client: ``CRACommand``, ``CAMCommand`` and ``ABGCAMCommand``.
+        """
+        self._apply_sent_movement(data, data.get("AAM"))
+
+    def _handle_movement_sent(self, data: dict[str, Any]) -> None:
+        """Handle the reply to a support, spy, travel, transport, siege or monk you send: the new movement under ``A``.
+
+        Client: ``CDSCommand``, ``CSMCommand``, ``CATCommand``, ``CRMCommand``,
+        ``CSSCommand``, ``TDECommand``, ``CDDCommand`` and ``CPMCommand``.
+        """
+        self._apply_sent_movement(data, data.get("A"))
+
+    def _handle_thm(self, data: dict[str, Any]) -> None:
+        """Handle thm, the reply to a treasure hunt you send: the new movement under ``TM``.
+
+        Client: ``THMCommand``.
+        """
+        self._apply_sent_movement(data, data.get("TM"))
+
+    def _handle_ldt(self, data: dict[str, Any]) -> None:
+        """Handle ldt, a daimyo taunt attack: the payload is the movement wrapper itself.
+
+        Client: ``LDTCommand``.
+        """
+        self._apply_movement_wrappers([data], [])
+
+    def _apply_sent_movement(self, data: dict[str, Any], wrapper: Any) -> None:
+        """Apply a send reply's gold and rubies (``gcu``), then store its movement with the owner records (``O``).
+
+        An error reply carries no movement, so it stores nothing.
+        """
+        if isinstance(gcu := data.get("gcu"), dict):
+            section = {"gcu": gcu}
+            self._parse_player_sections(section)
+            self._stamp_sections(section)
+        self._apply_movement_wrappers([wrapper], data.get("O", []))
+
     def _stamp_sections(self, data: dict[str, Any]) -> None:
         """Record when each sub-packet of a gbd/lli payload was applied.
 
@@ -121,10 +176,13 @@ class GameState(MovementState, CastleState, PlayerState):
         """When a packet (or gbd sub-packet) of this kind was last applied.
 
         Accepts the wire ids this manager tracks — "gbd", "lli", "gam", "dcl",
-        "abr", "asr", "mcm", "mrm", "mfc", "sce", "sei" — and the gbd sub-packet keys
-        "gpi", "gxp", "gcu", "vip", "gal", "gcl", which carry data that never
-        arrives on its own. ``None`` means none was ever seen; packets this
-        manager ignores are never recorded.
+        "abr", "asr", the send replies ("cra", "cam", "abgcam", "cds", "csm",
+        "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm",
+        "mfc", "sce", "sei" — and the gbd sub-packet keys "gpi", "gxp", "gcu",
+        "vip", "gal", "gcl", which carry data that never arrives on its own. A
+        send reply is stamped even when the server refused the send. ``None``
+        means none was ever seen; packets this manager ignores are never
+        recorded.
         """
         with self._lock:
             return self._packet_times.get(cmd_id)
