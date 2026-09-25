@@ -825,6 +825,43 @@ class TestSkillListUpdates:
         assert seen == []
 
 
+class TestGeneralCommands:
+    def test_assign_general_returns_the_commander_list(self):
+        client = make_client({"gla": xt_packet("gla", {"gli": {"C": [{"ID": 7, "GID": 103}], "B": []}})})
+
+        response = client.skills.assign_general(7, 103)
+
+        assert conn(client).request_payloads == [("gla", {"LID": 7, "GID": 103})]
+        assert [(c.commander_id, c.general_id) for c in response.commander_roster.commanders] == [(7, 103)]
+
+    def test_set_abilities_sends_every_slot(self):
+        client = make_client()
+
+        assert client.skills.set_abilities(103, [(101031, 10073), (101033, -1)]) is True
+
+        assert conn(client).request_payloads == [("gaae", {"GID": 103, "SAIDS": [[101031, 10073], [101033, -1]]})]
+
+    @pytest.mark.parametrize(
+        ("call", "command", "payload"),
+        [
+            (lambda s: s.unlock_skill(10317), "guse", {"ID": 10317}),
+            (lambda s: s.reset_skills(103), "grs", {"GID": 103}),
+            (lambda s: s.add_xp(103, 7001, 5), "gaxp", {"GID": 103, "CID": 7001, "AMT": 5}),
+        ],
+    )
+    def test_the_no_body_commands(self, call, command, payload):
+        client = make_client()
+
+        assert call(client.skills) is True
+
+        assert conn(client).request_payloads == [(command, payload)]
+
+    def test_a_rejected_command_is_false(self):
+        client = make_client({"grs": xt_packet("grs", error_code=114)})
+
+        assert client.skills.reset_skills(103) is False
+
+
 class TestAllianceHelp:
     def test_help_all_reports_the_count(self):
         client = make_client({"aha": xt_packet("aha", {"HC": 7})})

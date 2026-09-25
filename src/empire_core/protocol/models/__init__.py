@@ -294,14 +294,20 @@ from .ranking import (
 )
 from .skills import (
     ActivatingSceatSkill,
+    AddGeneralXpRequest,
+    AssignGeneralRequest,
+    AssignGeneralResponse,
     General,
     GetGeneralsRequest,
     GetGeneralsResponse,
     GetSkillsRequest,
     GetSkillsResponse,
     ObjectUpdateEvent,
+    ResetGeneralSkillsRequest,
     SelectedAbility,
+    SetGeneralAbilitiesRequest,
     SkillList,
+    UnlockGeneralSkillRequest,
 )
 
 __all__ = [
@@ -535,6 +541,12 @@ __all__ = [
     "GetCommandersRequest",
     "GetGeneralsRequest",
     "GetGeneralsResponse",
+    "AssignGeneralRequest",
+    "AssignGeneralResponse",
+    "SetGeneralAbilitiesRequest",
+    "UnlockGeneralSkillRequest",
+    "ResetGeneralSkillsRequest",
+    "AddGeneralXpRequest",
     "GetSkillsRequest",
     "GetSkillsResponse",
     "SkillList",

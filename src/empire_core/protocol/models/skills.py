@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import Field, ValidationError, field_validator, model_validator
 
 from .base import BasePayload, BaseRequest, BaseResponse, ClientInt
+from .commanders import CommanderRoster
 
 if TYPE_CHECKING:
     from empire_core.gamedata.models import GeneralDef
@@ -155,6 +156,112 @@ class General(BasePayload):
         return [slot.ability_id for slot in self.selected_abilities if slot.slot_id in slots and slot.ability_id > 0]
 
 
+class AssignGeneralRequest(BaseRequest):
+    """
+    Assign a general to a commander, or take the commander's general away.
+
+    Command: gla
+    Payload: {"LID": commander_id, "GID": general_id}
+
+    Client: ``C2SGeneralAssignLord`` (bundle line 101985)
+    """
+
+    command = "gla"
+
+    commander_id: int = Field(alias="LID")
+    general_id: int = Field(alias="GID", default=-1, description="-1 unassigns the commander's general")
+
+
+class AssignGeneralResponse(BaseResponse):
+    """
+    Reply to a general assignment: the full commander list.
+
+    Command: gla
+    Payload: {"gli": {"C": [..], "B": [..]}}
+
+    Client: ``GLACommand.executeCommand`` (bundle line 124218) passes ``gli`` to ``parse_GLI``.
+    """
+
+    command = "gla"
+
+    commander_roster: CommanderRoster = Field(
+        alias="gli", default_factory=CommanderRoster, description="The commanders and castellans after the change"
+    )
+
+
+class SetGeneralAbilitiesRequest(BaseRequest):
+    """
+    Choose a general's abilities, one per slot.
+
+    Command: gaae
+    Payload: {"GID": general_id, "SAIDS": [[slot_id, ability_id], ..]}
+
+    The ability dialog sends every slot it shows, with -1 for a cleared one.
+    The server replies with no body.
+
+    Client: ``C2SGeneralSelectAbilities`` (bundle line 70767),
+    ``GeneralsAbilityDialog.onSave`` (bundle line 27846)
+    """
+
+    command = "gaae"
+
+    general_id: int = Field(alias="GID")
+    abilities: list[list[int]] = Field(alias="SAIDS", description="[slot_id, ability_id] pairs, -1 for no ability")
+
+
+class UnlockGeneralSkillRequest(BaseRequest):
+    """
+    Unlock a general skill. The skill id names the general, so none is sent.
+
+    Command: guse
+    Payload: {"ID": skill_id}
+
+    The server replies with no body.
+
+    Client: ``C2SGeneralUnlockSkillVO`` (bundle line 67469), ``GUSECommand`` (bundle line 124280)
+    """
+
+    command = "guse"
+
+    skill_id: int = Field(alias="ID")
+
+
+class ResetGeneralSkillsRequest(BaseRequest):
+    """
+    Reset a general's skill tree.
+
+    Command: grs
+    Payload: {"GID": general_id}
+
+    The server replies with no body.
+
+    Client: ``C2SGeneralResetSkills`` (bundle line 67460), ``GRSCommand`` (bundle line 124242)
+    """
+
+    command = "grs"
+
+    general_id: int = Field(alias="GID")
+
+
+class AddGeneralXpRequest(BaseRequest):
+    """
+    Feed a general xp items.
+
+    Command: gaxp
+    Payload: {"GID": general_id, "CID": currency_id, "AMT": amount}
+
+    The server replies with no body.
+
+    Client: ``C2SGeneralAddXpVO`` (bundle line 74507), ``GAXPCommand`` (bundle line 124176)
+    """
+
+    command = "gaxp"
+
+    general_id: int = Field(alias="GID")
+    currency_id: int = Field(alias="CID", description="The xp item, a currency")
+    amount: int = Field(alias="AMT")
+
+
 class GetGeneralsResponse(BaseResponse):
     """
     Response listing the player's generals.
@@ -265,6 +372,12 @@ __all__ = [
     "SelectedAbility",
     "GetGeneralsRequest",
     "GetGeneralsResponse",
+    "AssignGeneralRequest",
+    "AssignGeneralResponse",
+    "SetGeneralAbilitiesRequest",
+    "UnlockGeneralSkillRequest",
+    "ResetGeneralSkillsRequest",
+    "AddGeneralXpRequest",
     "GetSkillsRequest",
     "GetSkillsResponse",
     "SkillList",
