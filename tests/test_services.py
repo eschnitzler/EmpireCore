@@ -2665,6 +2665,33 @@ class TestFillAttack:
         placed = lambda a: sum(c for _, c in a.waves[0].model_dump(by_alias=True)["M"]["T"])  # noqa: E731
         assert placed(skilled) > placed(plain)
 
+    def test_the_precalculation_supplies_the_defenders_legend_skills(self):
+        from types import SimpleNamespace
+
+        from empire_core.services.attack import _Target
+
+        client = self.build([[601, 100_000]])
+        army = SpyArmy.from_spy_data([[[601, 10]], [], [], [], [], [], []])
+
+        def info(spy):
+            return SimpleNamespace(
+                target_row=lambda: None,
+                spy_army=lambda: spy,
+                defending_castellan=lambda: None,
+                attacker_bonuses=lambda: [],
+                defender_legend_skill_ids=[434],
+            )
+
+        spied = _Target(x=5, y=6)
+        client.attack.get_attack_info = lambda **_: info(army)
+        client.attack._read_precalculation(spied, timeout=1.0)
+        assert spied.defender_legend_skill_ids == [434]
+
+        unspied = _Target(x=5, y=6)
+        client.attack.get_attack_info = lambda **_: info(None)
+        client.attack._read_precalculation(unspied, timeout=1.0)
+        assert unspied.defender_legend_skill_ids is None
+
     def test_the_inventory_is_read_once(self):
         client = self.build([[601, 100_000]])
 
