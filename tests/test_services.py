@@ -2594,6 +2594,7 @@ class TestAttackInfo:
         assert info.spy_age_seconds == -1
         assert info.spy_army() is None
         assert info.defending_castellan() is None
+        assert info.defender_legend_skill_ids == []
 
     def test_stronghold_inventory_and_owner_records(self):
         # Repeated ids add up and a zero is dropped, as UnitInventoryDictionary does.

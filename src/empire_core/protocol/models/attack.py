@@ -298,8 +298,10 @@ class GetAttackInfoResponse(BaseResponse):
 
     @model_validator(mode="after")
     def _no_spy_report_without_an_army(self) -> "GetAttackInfoResponse":
+        """Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` sets the age and legend skills only when S is not empty."""
         if not self.raw_spy_army:
             self.spy_age_seconds = -1
+            self.defender_legend_skill_ids = []
         return self
 
     def attacker_bonuses(self) -> list["Bonus"]:
