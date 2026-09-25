@@ -435,13 +435,18 @@ class SendSupportRequest(BaseRequest):
         "LID": commander_id,
         "WT": wait_time,
         "HBW": horses_type (-1 when PTT is set),
-        "BPC": boost_with_coins,
+        "BPC": use_premium_commander,
         "PTT": feathers,
         "SD": slowdown,
         "A": [[unit_id, count], ...]
     }
 
-    The client sends no kingdom id. Fields follow its key order.
+    The client sends no kingdom id. Fields follow its key order. ``BPC`` is
+    1 only when the premium commander (``LID`` -14,
+    ``TravelConst.COMMANDER_PREMIUM``) leads the army, which uses one of the
+    player's premium commanders or, when none are left, costs rubies
+    (``CastlePostAttackDialog.startAttack`` sends ``sendMovement(0)`` for any
+    other commander). ``PTT`` 1 pays for the movement with feathers.
 
     Client: ``C2SCreateDefenceSupportMovementVO`` (bundle line 133893), built
     by ``CastleAttackData.sendSupport`` (bundle line 133855)
@@ -452,11 +457,11 @@ class SendSupportRequest(BaseRequest):
     source_castle_id: int = Field(alias="SID")
     target_x: int = Field(alias="TX")
     target_y: int = Field(alias="TY")
-    commander_id: int = Field(alias="LID", default=-14)
+    commander_id: int = Field(alias="LID", default=0, description="Commander id, 0 for none")
     wait_time: int = Field(alias="WT", default=12, ge=0, le=12)
     horses_type: int = Field(alias="HBW", default=-1)
-    boost_with_coins: int = Field(alias="BPC", default=1)
-    feathers: int = Field(alias="PTT", default=1)
+    use_premium_commander: int = Field(alias="BPC", default=0, description="1 when the premium commander leads")
+    feathers: int = Field(alias="PTT", default=0, description="1 to pay with feathers")
     slowdown: int = Field(alias="SD", default=0)
     units: list[list[int]] = Field(alias="A")
 

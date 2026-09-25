@@ -89,7 +89,7 @@ toolsSupportWodIds, yardWaveSlotList, autoSkipCooldownType)`
 | `TX`, `TY` | Target absolute map coordinates |
 | `A` | Wave list (see below) |
 | `KID` | Source kingdom ID |
-| `LID` | Commander leading the attack. Every id in the `gli` `C` list is a real commander, `0` included (the free starting one); the server echoes the chosen one back under `AAM.UM.L`. An id outside the list is `INVALID_LORD_ID` (219) and a castellan already posted to a castle is `LORD_IS_USED` (256), both checked before the army is. `-14`, the no-commander sentinel of `cds`, passes validation here too, but no accepted `-14` send has been captured and players report it can cost rubies depending on VIP level |
+| `LID` | Commander leading the attack. Every id in the `gli` `C` list is a real commander, `0` included (the free starting one); the server echoes the chosen one back under `AAM.UM.L`. An id outside the list is `INVALID_LORD_ID` (219) and a castellan already posted to a castle is `LORD_IS_USED` (256), both checked before the army is. `-14` is the premium commander (`TravelConst.COMMANDER_PREMIUM`), not a no-commander value. The client leads with it only when the player picks it, and then sends `BPC` 1, which uses a premium commander or, when none are left, costs rubies after a confirmation (`CastlePostAttackDialog.startAttack`) |
 | `WT` | Wait time |
 | `HBW` | Horse type, forced to `-1` when the feather flag is set |
 | `BPC` | Boost with coins |

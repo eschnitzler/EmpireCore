@@ -971,25 +971,26 @@ class TestCastleActions:
         assert (payload["TX"], payload["TY"]) == (700, 710)
         assert payload["A"] == [[487, 100]]
         assert payload["WT"] == 6
-        assert payload["BPC"] == 1
-        assert payload["LID"] == -14
+        # No commander, no premium commander, no feathers: nothing is spent
+        assert (payload["LID"], payload["BPC"], payload["PTT"], payload["HBW"]) == (0, 0, 0, -1)
 
     def test_send_support_with_feathers_sends_no_horses(self):
         client = make_client()
-        client.castle.send_support(12345, 700, 710, [[487, 1]], horses_type=3, feathers=1)
+        client.castle.send_support(12345, 700, 710, [[487, 1]], horses_type=3, feathers=True)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
 
     def test_send_support_without_feathers_keeps_the_horses(self):
         client = make_client()
-        client.castle.send_support(12345, 700, 710, [[487, 1]], horses_type=3, feathers=0)
+        client.castle.send_support(12345, 700, 710, [[487, 1]], horses_type=3)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (3, 0)
 
-    def test_send_support_without_coin_boost(self):
+    def test_send_support_with_the_premium_commander(self):
         client = make_client()
-        client.castle.send_support(12345, 700, 710, [[487, 1]], boost_with_coins=False)
-        assert conn(client).request_payloads[0][1]["BPC"] == 0
+        client.castle.send_support(12345, 700, 710, [[487, 1]], commander_id=-14, use_premium_commander=True)
+        payload = conn(client).request_payloads[0][1]
+        assert (payload["LID"], payload["BPC"]) == (-14, 1)
 
     def test_out_of_range_wait_time_is_rejected_before_sending(self):
         client = make_client()
