@@ -68,6 +68,11 @@ def test_global_list_paging_and_server_metadata():
     assert response.scores[1].alliance_name == ""
 
 
+def test_llsp_rows_the_client_would_not_break_on():
+    response = GetRankingListResponse.model_validate({"L": [{"R": 1, "S": 12.5, "P": "p"}, None]})
+    assert [(s.rank, s.score) for s in response.scores] == [(1, 12.5), (-1, -1)]
+
+
 def test_empty_highscore_retains_zero_last_rank_and_search():
     response = GetHighscoreResponse.model_validate({"LT": 5, "LID": 6, "LR": 0, "SV": "Nobody", "L": []})
     assert response.last_rank == 0

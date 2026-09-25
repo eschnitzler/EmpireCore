@@ -14,7 +14,7 @@ import logging
 from enum import IntEnum
 from typing import Any, ClassVar
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from .base import BasePayload, BaseRequest, BaseResponse, GGECommand
 
@@ -224,7 +224,7 @@ class LeaderboardScore(BasePayload):
     """
 
     rank: int = Field(alias="R", default=-1, description="Rank on the list")
-    score: int = Field(alias="S", default=-1, description="Points")
+    score: int | float = Field(alias="S", default=-1, description="Points, shown with Localize.number")
     player_name: str = Field(alias="P", default="", description="Player name")
     alliance_name: str = Field(alias="A", default="", description="Alliance name, empty without one")
     instance_id: int | None = Field(alias="I", default=None, description="Game server (instance) the player is on")
@@ -247,6 +247,14 @@ class GetRankingListResponse(BaseResponse):
     list_id: int | None = Field(alias="LID", default=None)
     scores: list[LeaderboardScore] = Field(alias="L", default_factory=list, description="The page's entries")
     total: int = Field(alias="T", default=0, description="Number of scores on the whole list")
+
+    @field_validator("scores", mode="before")
+    @classmethod
+    def _rows_without_data_read_as_empty(cls, value: object) -> object:
+        # The item getters guard with this._data?, so a row that is not an object shows its defaults
+        if not isinstance(value, list):
+            return []
+        return [row if isinstance(row, dict) else {} for row in value]
 
     @property
     def entries(self) -> list[RankingEntry]:
