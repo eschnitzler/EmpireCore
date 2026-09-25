@@ -2253,6 +2253,40 @@ class TestFillAttack:
         assert self.sizes(area_type=21, area_bonuses=area)[0] == 84
         assert self.sizes(area_type=2, owner_id=-202, area_bonuses=area)[0] == 64
 
+    def test_effect_156_and_support_tools_add_waves(self):
+        from empire_core.gamedata import GameData
+        from empire_core.protocol.models import Commander
+
+        payload = {
+            "units": [
+                {"wodID": 601, "name": "Barracks", "role": "melee", "meleeAttack": "100", "fightType": "0"},
+                {"wodID": 700, "name": "Horn", "typ": "Attack", "slotTypes": "10", "effects": "80&1"},
+                {"wodID": 701, "name": "Drum", "typ": "Attack", "slotTypes": "10", "effects": "80&0.5"},
+            ],
+            "effecttypes": [{"effectTypeID": "156", "name": "additionalWave"}],
+            "effects": [{"effectID": "80", "name": "additionalWave", "effectTypeID": "156", "capID": "99"}],
+        }
+        commander = Commander.model_validate({"ID": 1, "E": [[80, [1.5], "A"]]})
+
+        def waves(**kwargs):
+            client = self.build([[601, 100_000]])
+            client.game_data = GameData.parse("test", payload)
+            return len(client.attack.fill_waves(12345, level=70, **kwargs))
+
+        # AttackDialogWaveHandler.initWaves in node, on top of the four waves a
+        # level 70 attacker opens with: int(1.5) = 1, plus 1 from the horn; a
+        # half wave from the drum settles back to none.
+        assert waves() == 4
+        assert waves(commander=commander) == 5
+        assert waves(commander=commander, support_tools=[700, -1, -1]) == 6
+        assert waves(support_tools=[701]) == 4
+
+    def test_an_unknown_support_tool_is_refused(self):
+        client = self.build([[601, 100_000]])
+
+        with pytest.raises(ValueError, match="Support tool 9999"):
+            client.attack.fill_waves(12345, level=70, support_tools=[9999])
+
     def test_the_legend_flank_skill_is_truncated_on_its_own(self):
         # int(10.5) on top of int(0): getUnitsOnTheFlankBonusForAreaType gives
         # 10 and getAmountSoldiersFlank(70, 10) 71 (client, node).

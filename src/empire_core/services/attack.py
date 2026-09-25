@@ -7,12 +7,14 @@ Provides APIs for sending attacks.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from typing import cast
 
 from empire_core.combat import (
     AttackerFlankEffects,
     Bonus,
+    CombatEffectType,
     DefenderFlankEffects,
     EffectResolver,
     FilledAttack,
@@ -23,7 +25,6 @@ from empire_core.combat import (
     attack_dialog_bonuses,
     attacker_flank_effects,
     camp_level,
-    commander_bonuses,
     fill_yard_wave,
     fortification_bonuses,
     global_unit_attack_bonuses,
@@ -35,6 +36,7 @@ from empire_core.combat import (
     npc_camp_defense,
     owner_id_from_row,
     spied_castle_defense,
+    support_tool_waves,
     wave_level,
     wave_limit_violations,
     yard_capacity,
@@ -42,7 +44,7 @@ from empire_core.combat import (
 from empire_core.combat import fill_waves as solve_waves
 from empire_core.combat.capacity import ALIEN_INVASION_AREA_TYPES, OTHER_PLAYER_INFO_AREA_TYPES, LegendaryFight
 from empire_core.exceptions import AttackInProgressError, CommandError, EmpireError, GameDataNotLoadedError
-from empire_core.gamedata import GameData
+from empire_core.gamedata import GameData, ToolStats
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import (
     AttackInfoResponse,
@@ -404,6 +406,7 @@ class AttackService(BaseService):
         general_skill_ids: list[int] | None = None,
         legend_skill_ids: list[int] | None = None,
         global_effect_ids: list[int] | list[list[int]] | None = None,
+        support_tools: list[int] | None = None,
         target_is_player: bool = False,
         owner_id: int | None = None,
         owner_legend_level: int = 0,
@@ -453,12 +456,16 @@ class AttackService(BaseService):
                 Decides which PvP- or PvE-only effects count; when not given it
                 follows ``owner_id`` (``getFilterStrategyAttackOrDefence``)
             defense: Explicit per-flank defense, overriding ``camp_victories``
-            attacker: Attacker multipliers; built from ``commander`` when
-                omitted, and unbuffed if neither is given
+            attacker: Attacker multipliers; built from ``commander``, the
+                legend skills and ``support_tools`` when omitted
             commander: The commander leading the attack, whose equipment and
                 effects supply the attack multipliers used to score units
             conquer: A conquest attack carries extra waves
-            wave_bonus: Extra waves from the ADDITIONAL_WAVE legend skill
+            wave_bonus: Extra waves on top of the legend skill, effect type 156
+                and the support tools
+            support_tools: The support tools the attack will carry, as sent in
+                ``AST``: one wod id per slot, -1 for an empty one. They buff
+                every flank and can add waves
             general_skill_ids: Unlocked skill ids of the general leading the
                 attack, from ``gie``; its unit-limit skills size the wave
             legend_skill_ids: The player's unlocked legend skills, from
@@ -521,9 +528,7 @@ class AttackService(BaseService):
             defense = npc_camp_defense(game_data, camp_victories, camp_kingdom_id)
 
         resolver = EffectResolver(game_data)
-        commander_own = commander_bonuses(commander) if commander is not None else []
-        if attacker is None and commander_own:
-            attacker = attacker_flank_effects(resolver, commander_own, area_type=area_type, player_target=player_target)
+        tools = self._support_tools(game_data, support_tools)
 
         # getFilterStrategyAttackOrDefence: an NPC owner filters for PvE
         # effects unless it is an alien invasion or a collector.
@@ -540,11 +545,20 @@ class AttackService(BaseService):
             area_type=area_type,
             has_other_player_info=area_type in OTHER_PLAYER_INFO_AREA_TYPES,
         )
-        # getUnitsOnTheFlankBonusForAreaType: one int() over the merged list,
-        # then the int() of the legend skill on top.
         merged = attack_dialog_bonuses(
             game_data, commander, area_effects=area_bonuses, general_skill_ids=general_skill_ids
         )
+        if attacker is None:
+            attacker = attacker_flank_effects(
+                resolver,
+                merged,
+                area_type=area_type,
+                legend_skill_ids=legend_skill_ids or (),
+                legendary=legendary.unit_amount,
+                support_tools=tools,
+            )
+        # getUnitsOnTheFlankBonusForAreaType: one int() over the merged list,
+        # then the int() of the legend skill on top.
         flank_bonus_percent += int(resolver.flank_unit_bonus(merged, area_type=area_type, player_target=player_target))
         front_bonus_percent += int(resolver.front_unit_bonus(merged, area_type=area_type, player_target=player_target))
         if legend_skill_ids:
@@ -559,6 +573,15 @@ class AttackService(BaseService):
                 wave_bonus += int(legend_skill_value(game_data, legend_skill_ids, "additionalWave"))
             if legendary.flank_tools:
                 tool_bonus += legend_skill_value(game_data, legend_skill_ids, "additionalAttackToolAmountFlank")
+        # initWaves: int() of effect 156 over the merged list plus the support
+        # tools' ADDITIONAL_WAVE. Its add-while-below, then remove-while-above
+        # loops settle on the floor of that total.
+        extra_waves = int(
+            resolver.accumulate(
+                merged, CombatEffectType.ADDITIONAL_WAVE, area_type=area_type, player_target=player_target
+            )
+        ) + support_tool_waves(game_data, tools)
+        wave_bonus += math.floor(extra_waves)
 
         unit_attack_bonuses = (
             global_unit_attack_bonuses(game_data, global_effect_ids, player_level=attacker_level)
@@ -587,6 +610,19 @@ class AttackService(BaseService):
             space_id=camp_kingdom_id if space_id is None else space_id,
             target_is_player=target_is_player,
         )
+
+    @staticmethod
+    def _support_tools(game_data: GameData, wod_ids: list[int] | None) -> list[ToolStats]:
+        """The tools behind an ``AST`` list; ``toolsSupportWodIds`` sends -1 for an empty slot."""
+        tools = []
+        for wod_id in wod_ids or []:
+            if wod_id == -1:
+                continue
+            tool = game_data.get_tool(wod_id)
+            if tool is None:
+                raise ValueError(f"Support tool {wod_id} is not a tool in the items payload")
+            tools.append(tool)
+        return tools
 
     def read_inventory(self, castle_id: int, *, timeout: float = 5.0) -> Inventory:
         """
@@ -845,6 +881,7 @@ class AttackService(BaseService):
         general_skill_ids: list[int] | None = None,
         legend_skill_ids: list[int] | None = None,
         global_effect_ids: list[int] | list[list[int]] | None = None,
+        support_tools: list[int] | None = None,
         conquer: bool = False,
         tool_bonus: float = 0.0,
         yard_bonus: float = 0.0,
@@ -914,6 +951,8 @@ class AttackService(BaseService):
             legend_skill_ids: The player's legend skills. Left out, they are
                 read with ``skl``
             global_effect_ids: Global effects currently running
+            support_tools: The support tools the attack will carry, as sent in
+                ``AST``; pass the same list to :meth:`send_attack`
             conquer: A conquest attack carries two extra waves
             tool_bonus: Extra flank tool capacity on top of the legend skill
             yard_bonus: Absolute courtyard capacity bonus, effect type 179
@@ -1006,6 +1045,7 @@ class AttackService(BaseService):
             general_skill_ids=general_skill_ids,
             legend_skill_ids=legend_skill_ids,
             global_effect_ids=global_effect_ids,
+            support_tools=support_tools,
             target_is_player=target.is_player,
             owner_id=owner_id,
             owner_legend_level=target.owner_legend_level or 0,

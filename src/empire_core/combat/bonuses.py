@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
-from empire_core.gamedata import EffectDef, GameData, GlobalEffectDef, parse_stacks
+from empire_core.gamedata import EffectDef, GameData, GlobalEffectDef, ToolStats, parse_stacks
 from empire_core.protocol.models import Commander
 
 if TYPE_CHECKING:
@@ -66,6 +66,7 @@ class CombatEffectType(IntEnum):
     REINFORCEMENT_BONUS = 179
     REINFORCEMENT_BOOST = 180
     ATTACK_BONUS = 36
+    ADDITIONAL_WAVE = 156
 
 
 class Bonus(BaseModel):
@@ -635,41 +636,106 @@ def attack_dialog_bonuses(
     return bonuses
 
 
+def tool_effect_strength(game_data: GameData, tool: ToolStats, effect_type: int) -> float:
+    """
+    The summed strength of a tool's own effects of one type, with no condition.
+
+    Client: ``ToolUnitVO.getEffectValue`` with ``NULL_CONDITION`` (bundle line
+    6640), as ``getBonusByEffect`` reads it for a mapped tool effect type: area,
+    space and wod id are all -1, so no effect is filtered out. The effects parse
+    as ``effectID&value`` (``ToolUnitVO.parseEffects``, bundle line 6644).
+    """
+    total = 0.0
+    for bonus in parse_effect_spec(tool.effects if isinstance(tool.effects, str) else ""):
+        effect = game_data.effects.get(bonus.effect_id)
+        if effect is not None and effect.effect_type_id == effect_type:
+            total += bonus.strength(effect_type)
+    return total
+
+
 def attacker_flank_effects(
     resolver: "EffectResolver",
     bonuses: Iterable[Bonus],
     *,
     area_type: int | None = None,
     player_target: bool | None = None,
+    legend_skill_ids: Iterable[int] = (),
+    legendary: bool = False,
+    support_tools: Sequence[ToolStats] = (),
 ) -> "AttackerFlankEffects":
     """
     Build a flank's attacker multipliers from resolved bonuses.
 
-    Mirrors ``FightScreenHelper.getAttackerFlankEffectVO`` for the lord's own
-    contribution: the melee and ranged multipliers, and the wall, gate and moat
-    reductions. Tools placed in the flank add to these as they are placed, and
-    are not included here.
+    Client: ``FightScreenHelper.getAttackerFlankEffectVO`` (bundle line 19179),
+    in its order: the commander's reductions and multipliers, then the legend
+    skills in a legendary fight, then each tool. The auto-fill starts from an
+    empty wave, so the tools here are only the support tools, one of each
+    ``AST`` entry. Tools the solver places later are added by
+    ``AttackerFlankEffects.apply_tool``.
 
     Args:
         resolver: Resolver over the loaded game data
-        bonuses: The commander's bonuses, and any other source
+        bonuses: The commander's bonuses, see :func:`attack_dialog_bonuses`
         area_type: The target's area type, for scoping
-        player_target: True when attacking a player
+        player_target: True when attacking a player. The client passes no
+            filter strategy here, which keeps PvP and PvE effects alike; that
+            is what None does
+        legend_skill_ids: The player's unlocked legend skills
+        legendary: ``AttackDialogHelper.isLegendaryFight``, i.e.
+            ``LegendaryFight.unit_amount``. The legend skills count only then
+        support_tools: The support tools picked for the attack
 
     Returns:
         The flank's attacker effects
     """
     from .effects import AttackerFlankEffects
 
+    game_data = resolver.game_data
     bonuses = list(bonuses)
     wall, gate, moat = resolver.fortification_reductions(bonuses, area_type=area_type, player_target=player_target)
+    melee = resolver.attack_multiplier(bonuses, melee=True, area_type=area_type, player_target=player_target)
+    ranged = resolver.attack_multiplier(bonuses, melee=False, area_type=area_type, player_target=player_target)
+    defender_range = 0.0
+    if legendary:
+        skills = list(legend_skill_ids)
+        wall += legend_skill_value(game_data, skills, "wallReduction") / 100
+        gate += legend_skill_value(game_data, skills, "gateReduction") / 100
+        moat += legend_skill_value(game_data, skills, "moatReduction") / 100
+        melee += legend_skill_value(game_data, skills, "attackMeleeBonus") / 100
+        ranged += legend_skill_value(game_data, skills, "attackRangeBonus") / 100
+    for tool in support_tools:
+        wall += tool.wall_bonus
+        gate += tool.gate_bonus
+        moat += tool.moat_bonus
+        defender_range += tool.def_range_bonus
+        ranged += tool.off_range_bonus
+        melee += tool.off_melee_bonus
+        # ToolEffectType.ATTACK_BONUS is not absolute (bundle line 9629), so
+        # getBonusByEffect scales it by 0.01.
+        attack = 0.01 * tool_effect_strength(game_data, tool, CombatEffectType.ATTACK_BONUS)
+        ranged += attack
+        melee += attack
     return AttackerFlankEffects(
-        melee_bonus=resolver.attack_multiplier(bonuses, melee=True, area_type=area_type, player_target=player_target),
-        range_bonus=resolver.attack_multiplier(bonuses, melee=False, area_type=area_type, player_target=player_target),
+        melee_bonus=melee,
+        range_bonus=ranged,
+        defender_range_reduction=defender_range,
         wall_reduction=wall,
         gate_reduction=gate,
         moat_reduction=moat,
     )
+
+
+def support_tool_waves(game_data: GameData, support_tools: Sequence[ToolStats]) -> float:
+    """
+    Extra waves the support tools grant.
+
+    Client: ``CastleFightItemContainer.getTotalBonusByToolEffect(ADDITIONAL_WAVE)``
+    (bundle line 20719)
+    over the support container, one of each ``AST`` entry.
+    ``ToolEffectType.ADDITIONAL_WAVE`` is absolute (bundle line 9615), so the
+    effect's strength is taken as it is; it maps to effect type 156.
+    """
+    return sum(tool_effect_strength(game_data, tool, CombatEffectType.ADDITIONAL_WAVE) for tool in support_tools)
 
 
 __all__ = [
@@ -689,4 +755,6 @@ __all__ = [
     "parse_bonus_entries",
     "parse_effect_spec",
     "sceat_skill_bonuses",
+    "support_tool_waves",
+    "tool_effect_strength",
 ]

@@ -17,6 +17,8 @@ from .bonuses import (
     parse_bonus_entries,
     parse_effect_spec,
     sceat_skill_bonuses,
+    support_tool_waves,
+    tool_effect_strength,
 )
 from .capacity import (
     YARD_SLOTS,
@@ -136,6 +138,8 @@ __all__ = [
     "parse_bonus_entries",
     "parse_effect_spec",
     "sceat_skill_bonuses",
+    "support_tool_waves",
+    "tool_effect_strength",
     "pick_soldier_stack",
     "wave_limit_violations",
 ]

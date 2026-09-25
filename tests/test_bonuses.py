@@ -1,5 +1,7 @@
 """Effect resolution: parsing, area and fight scoping, and the cap semantics."""
 
+from typing import ClassVar
+
 from empire_core.combat import (
     AttackerFlankEffects,
     Bonus,
@@ -441,6 +443,59 @@ class TestAttackerFlankEffects:
         assert effects.range_bonus == 1.10
         assert effects.wall_reduction == 0.25
         assert (effects.gate_reduction, effects.moat_reduction) == (0.0, 0.0)
+
+    # A support tool with every column getAttackerFlankEffectVO reads, and an
+    # attackBonus (36) effect of its own.
+    SUPPORT_TOOL: ClassVar[dict] = {
+        "wodID": "700",
+        "name": "Banner",
+        "typ": "Attack",
+        "slotTypes": "10",
+        "wallBonus": "10",
+        "offMeleeBonus": "5",
+        "offRangeBonus": "3",
+        "defRangeBonus": "20",
+        "effects": "100&15",
+    }
+    COMMANDER: ClassVar[list] = [
+        Bonus(effect_id=100, value=10),
+        Bonus(effect_id=110, value=5),
+        Bonus(effect_id=111, value=20),
+        Bonus(effect_id=130, value=25),
+    ]
+
+    def test_legend_skills_and_support_tools_join_the_commander(self):
+        game = GameData.parse("test", dict(SOURCE_PAYLOAD, units=[self.SUPPORT_TOOL]))
+        tool = game.get_tool(700)
+        assert tool is not None
+
+        effects = attacker_flank_effects(
+            EffectResolver(game), self.COMMANDER, legend_skill_ids=[1, 2, 9], legendary=True, support_tools=[tool]
+        )
+
+        # FightScreenHelper.getAttackerFlankEffectVO in node, for the same
+        # commander terms, legend skills and tool.
+        assert (
+            effects.melee_bonus,
+            effects.range_bonus,
+            effects.wall_reduction,
+            effects.gate_reduction,
+            effects.moat_reduction,
+            effects.defender_range_reduction,
+        ) == (1.55, 1.28, 0.4, 0.1, 0.0, 0.2)
+
+    def test_legend_skills_need_a_legendary_fight(self):
+        effects = attacker_flank_effects(
+            EffectResolver(source_data()), self.COMMANDER, legend_skill_ids=[1, 2, 9], legendary=False
+        )
+
+        # The same getAttackerFlankEffectVO run with isLegendaryFight false.
+        assert (effects.melee_bonus, effects.range_bonus, effects.wall_reduction, effects.gate_reduction) == (
+            1.35,
+            1.1,
+            0.25,
+            0.0,
+        )
 
     def test_no_bonuses_is_an_unbuffed_attack(self):
         effects = attacker_flank_effects(EffectResolver(source_data()), [])
