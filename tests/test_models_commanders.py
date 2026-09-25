@@ -75,6 +75,6 @@ class TestCommanderEffects:
         )
 
         assert commander_bonuses(commander) == [
-            Bonus(effect_id=53, value=25.0, raw_values=(25.0,)),
+            Bonus(effect_id=53, value=25.0, via_equipment=True, raw_values=(25.0,)),
             Bonus(effect_id=4, value=116.2, via_relic=True, raw_values=(116.2,)),
         ]
