@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict
 
 from empire_core.gamedata import EffectDef, GameData, GlobalEffectDef, ToolStats, parse_stacks
 from empire_core.protocol.models import Commander, CommanderEffect, Equipment
+from empire_core.protocol.models.base import client_int
 
 if TYPE_CHECKING:
     from .effects import AttackerFlankEffects
@@ -622,10 +623,13 @@ def commander_bonuses(
     bonuses are tagged so they resolve through the relic effect table, and any
     other item's so they resolve through the equipment effect table.
 
+    The bonuses come in the client's order, equipment slots first and then
+    ``E`` and ``AE``, which matters once a capped total mixes signs. The gems of
+    alien equipment (``GEM``) count while ``AIE``/``TAE`` stand in for ``EQ``.
+
     Still left out: equipment set bonuses, which the client works out from the
     items and gems worn (``LordVO.setCounts``) rather than reading them from the
-    payload, so a commander wearing a full set resolves low; and the gems of a
-    hero item (``AlienLordEquipmentVO.alienGems``).
+    payload, so a commander wearing a full set resolves low.
 
     Client: ``LordVO.getUniqueBoni`` (bundle line 26496). The attack dialog
     replaces the commander's area effects with the ``aci`` ``AE`` list
@@ -640,9 +644,7 @@ def commander_bonuses(
             ``GetAttackInfoResponse.attacker_bonuses()``. When it has entries
             they are used instead of the commander's own ``AE``
     """
-    bonuses = effect_bonuses(commander.effects)
-    bonuses.extend(area_effects if area_effects else effect_bonuses(commander.area_effects))
-
+    bonuses: list[Bonus] = []
     for item in commander.equipment:
         if item.is_relic:
             rows = [[bonus.relic_effect_id, bonus.power, bonus.values] for bonus in item.relic_bonuses]
@@ -655,6 +657,15 @@ def commander_bonuses(
         [bonus.effect_id, bonus.values] for bonus in (*commander.alien_hero_bonuses, *commander.alien_bonuses)
     ]
     bonuses.extend(parse_bonus_entries(alien_rows, via_equipment=True))
+    if not commander.equipment and (commander.alien_equipment is not None or commander.temporary_equipment is not None):
+        # AlienLordEquipmentVO.parseGemBoniData (bundle line 67486) looks each GEM id up in the gem table
+        for gem_id in commander.alien_gem_ids:
+            row = game_data.gems.get(client_int(gem_id))
+            if row is not None:
+                bonuses.extend(parse_effect_spec(row.raw_effects))
+
+    bonuses.extend(effect_bonuses(commander.effects))
+    bonuses.extend(area_effects if area_effects else effect_bonuses(commander.area_effects))
     return bonuses
 
 

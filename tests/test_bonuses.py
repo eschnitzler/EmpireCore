@@ -314,11 +314,12 @@ class TestCommanderBonuses:
 
         bonuses = commander_bonuses(data(), commander)
 
+        # LordVO.getUniqueBoni adds the equipment slots before E and AE
         assert bonuses == [
-            Bonus(effect_id=110, value=40.0, raw_values=(40.0,)),
-            Bonus(effect_id=120, value=50.0, raw_values=(50.0,)),
             Bonus(effect_id=300, value=10.0, via_equipment=True, raw_values=(10.0,)),
             Bonus(effect_id=100, value=5.0, via_equipment=True, raw_values=(5.0,)),
+            Bonus(effect_id=110, value=40.0, raw_values=(40.0,)),
+            Bonus(effect_id=120, value=50.0, raw_values=(50.0,)),
         ]
         # 40 from effect 110 plus 10 from equipment effect 300, which is 110 too.
         assert resolver().accumulate(bonuses, CombatEffectType.MELEE_BONUS) == 50.0
