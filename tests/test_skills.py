@@ -1,6 +1,21 @@
 """Generals and player skills: the gie and skl payloads, as the client reads them."""
 
-from empire_core.protocol.models import GetGeneralsResponse, GetSkillsResponse
+import pytest
+
+from empire_core.gamedata import GeneralDef
+from empire_core.protocol.models import General, GetGeneralsResponse, GetSkillsResponse
+
+# The generals row for general 103 in items v786.03.
+GENERAL_103 = GeneralDef.model_validate(
+    {
+        "generalID": "103",
+        "attackSlots": "101032,101031,101033",
+        "defenseSlots": "101037,101036,101038",
+        "generalRarityID": "4",
+        "maxLevel": "100",
+        "maxStarLevel": "10",
+    }
+)
 
 
 class TestGenerals:
@@ -59,6 +74,57 @@ class TestGenerals:
 
     def test_an_empty_payload(self):
         assert GetGeneralsResponse.model_validate({}).generals == []
+
+    # Expected values below come from running GeneralVO.parseData and
+    # getSelectedAbilities from the client bundle in node.
+
+    def test_the_abilities_of_each_side(self):
+        general = General.model_validate(
+            {
+                "GID": 103,
+                "GASAIDS": [
+                    [101031, 10073],
+                    [101033, -1],
+                    [101037, 10303],
+                    [101036, 0],
+                    [101011, 10263],
+                    [101032, 10111],
+                ],
+            }
+        )
+
+        assert general.attack_ability_ids(GENERAL_103) == [10073, 10111]
+        assert general.defense_ability_ids(GENERAL_103) == [10303]
+        assert general.ability_ids == [10073, 10303, 10263, 10111]
+
+    @pytest.mark.parametrize(
+        ("data", "star_level", "fixed_level"),
+        [
+            ({"L": 20}, 1, 20),
+            ({"L": 30, "ST": 0}, 2, 30),
+            ({"L": 30, "ST": 4}, 4, 30),
+            ({"L": 0}, 0, -1),
+            ({}, 0, -1),
+        ],
+    )
+    def test_the_star_level_falls_back_on_the_fixed_level(self, data, star_level, fixed_level):
+        general = General.model_validate({"GID": 103, **data})
+
+        assert (general.star_level, general.fixed_level) == (star_level, fixed_level)
+
+    def test_no_star_level_from_a_fixed_level_the_client_reads_as_nan(self):
+        # The client's other branch reads a getter-less property and gets NaN.
+        assert General.model_validate({"GID": 103, "L": 15}).star_level == 0
+
+    def test_the_flags_and_the_old_xp(self):
+        general = General.model_validate({"GID": 103, "IN": 1, "LU": "1", "OXP": 2400})
+
+        assert (general.is_new, general.has_level_up, general.old_experience) == (True, True, 2400)
+
+    def test_a_flag_other_than_1_is_off(self):
+        general = General.model_validate({"GID": 103, "IN": 0, "LU": 2})
+
+        assert (general.is_new, general.has_level_up, general.old_experience) == (False, False, 0)
 
 
 class TestPlayerSkills:
