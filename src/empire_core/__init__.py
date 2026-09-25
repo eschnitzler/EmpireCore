@@ -17,6 +17,7 @@ from empire_core.client.client import EmpireClient
 from empire_core.client.map_scanner import ScanResult
 from empire_core.config import EmpireConfig
 from empire_core.exceptions import (
+    AttackInProgressError,
     CommandError,
     ConnectionClosedError,
     EmpireError,
@@ -73,6 +74,7 @@ __all__ = [
     "PacketError",
     "EmpireTimeoutError",
     "CommandError",
+    "AttackInProgressError",
     "GameDataNotLoadedError",
     "GGEError",
     "PoolExhaustedError",

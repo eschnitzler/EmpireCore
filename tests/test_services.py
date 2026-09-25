@@ -1051,6 +1051,29 @@ class TestCreateAttackReply:
 
 
 class TestAttackService:
+    def test_an_attack_already_on_its_way_raises_with_its_details(self):
+        from empire_core import AttackInProgressError
+
+        client = make_client({"cra": xt_packet("cra", {"TS": 95, "AS": 120}, error_code=234)})
+
+        with pytest.raises(AttackInProgressError) as caught:
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91)
+
+        assert (caught.value.arrival_seconds, caught.value.army_size) == (95, 120)
+        assert conn(client).request_payloads[0][1]["FC"] == 0
+
+    def test_send_anyway_sets_fc(self):
+        client = make_client()
+
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, send_anyway=True)
+
+        assert conn(client).request_payloads[0][1]["FC"] == 1
+
+    def test_other_rejections_still_return_false(self):
+        client = make_client({"cra": xt_packet("cra", None, error_code=219)})
+
+        assert client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91) is False
+
     def test_send_attack_builds_the_client_payload(self):
         client = make_client()
 

@@ -90,3 +90,24 @@ class CommandError(EmpireError):
             self.error = None
         name = self.error.name if self.error is not None else "UNKNOWN_ERROR"
         super().__init__(f"Server error {name} ({code}) for command '{command}'")
+
+
+class AttackInProgressError(CommandError):
+    """The server refused an attack with ``ATTACK_IN_PROGRESS`` (234): one of yours is already on its way there.
+
+    The client shows how long until that attack arrives and how big it is,
+    and offers to send anyway, which resends the same attack with ``FC`` 1;
+    ``send_attack(send_anyway=True)`` does the same.
+
+    Attributes:
+        arrival_seconds: seconds until the attack already on its way arrives (``TS``), or None
+        army_size: the size of that attack (``AS``), or None
+
+    Client: ``CRACommand.executeCommand``, ``CastlePostPostAttackFactionDialog.onClick``.
+    """
+
+    def __init__(self, command: str, code: int, payload: Any = None):
+        super().__init__(command, code, payload)
+        details = payload if isinstance(payload, dict) else {}
+        self.arrival_seconds: float | None = details.get("TS")
+        self.army_size: float | None = details.get("AS")

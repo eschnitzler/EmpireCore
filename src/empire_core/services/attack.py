@@ -39,8 +39,9 @@ from empire_core.combat import (
 )
 from empire_core.combat import fill_waves as solve_waves
 from empire_core.combat.capacity import is_legendary_fight
-from empire_core.exceptions import EmpireError, GameDataNotLoadedError
+from empire_core.exceptions import AttackInProgressError, CommandError, EmpireError, GameDataNotLoadedError
 from empire_core.gamedata import GameData
+from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import (
     AttackInfoResponse,
     AttackType,
@@ -239,6 +240,7 @@ class AttackService(BaseService):
         yard_capacity: int | None = None,
         support_tools: list[int] | None = None,
         collector_booster: list | None = None,
+        send_anyway: bool = False,
         timeout: float = 5.0,
     ) -> bool:
         """
@@ -280,12 +282,17 @@ class AttackService(BaseService):
             yard_capacity: The courtyard's capacity, checked the same way
             support_tools: Support tool WOD IDs
             collector_booster: Collector event booster entries
+            send_anyway: Send although one of your attacks is already on its way
+                there (``FC`` 1), as the client's confirmation dialog does
             timeout: Timeout in seconds
 
         Returns:
             True when the server accepted the attack, False when it rejected it
 
         Raises:
+            AttackInProgressError: One of your attacks is already on its way
+                there; it carries that attack's arrival time and size. Retry
+                with ``send_anyway=True`` to send regardless
             ValueError: No wave carries any units, or a container is overfull
             EmpireTimeoutError / ConnectionClosedError / NetworkError: transport failures
         """
@@ -319,8 +326,16 @@ class AttackService(BaseService):
             RW=yard_wave or [],
             AST=support_tools or [],
             BKS=collector_booster or [],
+            FC=1 if send_anyway else 0,
         )
-        return self.execute(request, timeout=timeout)
+        try:
+            self.client.send(request, wait=True, timeout=timeout)
+        except CommandError as e:
+            if e.error is GGEError.ATTACK_IN_PROGRESS:
+                raise AttackInProgressError(e.command, e.code, e.payload) from e
+            logger.warning(f"Action '{request.get_command()}' rejected: {e}")
+            return False
+        return True
 
     def get_attack_info(
         self,

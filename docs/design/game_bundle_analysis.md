@@ -96,7 +96,7 @@ toolsSupportWodIds, yardWaveSlotList, autoSkipCooldownType)`
 | `ATT` | `CombatConst.ATTACK_TYPE_ATTACK` or `ATTACK_TYPE_CONQUER` |
 | `AV` | Bool flag (0/1) |
 | `LP` | Int |
-| `FC` | Bool flag; the attack dialog always passes `false` |
+| `FC` | Send anyway: 1 when resending after `ATTACK_IN_PROGRESS` (234), from `CastlePostPostAttackFactionDialog`'s yes button; the attack dialog itself passes `false` |
 | `PTT` | Feathers (0/1) |
 | `SD` | Slowdown |
 | `ICA` | Collector attack (0/1) |

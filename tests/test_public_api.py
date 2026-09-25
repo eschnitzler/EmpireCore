@@ -75,6 +75,7 @@ def test_previously_exported_names_are_still_available() -> None:
         "PacketError",
         "EmpireTimeoutError",
         "CommandError",
+        "AttackInProgressError",
         "Player",
         "Castle",
         "Resources",

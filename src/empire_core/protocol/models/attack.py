@@ -101,7 +101,7 @@ class CreateAttackRequest(BaseRequest):
         "ATT": attack_type (see AttackType),
         "AV": share_battle_view,
         "LP": loot_priority resource id,
-        "FC": fast_cast,
+        "FC": send_anyway,
         "PTT": feathers,
         "SD": slowdown offset in seconds,
         "ICA": collector_attack,
@@ -128,7 +128,11 @@ class CreateAttackRequest(BaseRequest):
     attack_type: int = Field(alias="ATT", default=AttackType.ATTACK)
     share_battle_view: int = Field(alias="AV", default=0)
     loot_priority: int = Field(alias="LP", default=0)
-    fast_cast: int = Field(alias="FC", default=0)
+    send_anyway: int = Field(
+        alias="FC",
+        default=0,
+        description="1 to send although one of your attacks is already on its way there (after ATTACK_IN_PROGRESS)",
+    )
     feathers: int = Field(alias="PTT", default=0)
     slowdown: int = Field(alias="SD", default=0)
     collector_attack: int = Field(alias="ICA", default=0)
@@ -161,8 +165,8 @@ class CreateAttackResponse(BaseResponse):
     with the movement. An ``ATTACK_IN_PROGRESS`` (234) reply carries ``TS`` and
     ``AS`` instead, the countdown and army size of the attack already on its
     way, which the client shows before offering to send anyway with ``FC=1``.
-    That reply arrives as a ``CommandError`` whose ``payload`` this model
-    validates.
+    ``send_attack`` raises that reply as ``AttackInProgressError``, with both
+    values read off it.
 
     Client: ``CRACommand.executeCommand`` (bundle line 125954),
     ``CurrencyData.parseGCU`` (bundle line 141191) with ``CollectableItemC1VO.SERVER_KEY`` "C1" (7995)
