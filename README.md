@@ -129,6 +129,9 @@ for commander in client.commanders.get_commanders():
 
 # The defensive counterparts come back from the same command.
 castellans = client.commanders.get_castellans()
+
+# Rename either kind; the reply carries the updated list.
+client.commanders.rename(castellans[0].commander_id, "farm-1")
 ```
 
 The server calls both kinds "lords" (command `gli`, field `LID`); the game UI

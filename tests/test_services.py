@@ -1578,6 +1578,24 @@ class TestCommandersService:
         client = make_client({"gli": xt_packet("gli", {"C": [{"ID": 91}]})})
         assert client.commanders.get_castellans() == []
 
+    def test_rename_sends_the_client_payload_and_reads_the_new_list(self):
+        reply = {"gli": {"C": [{"ID": 91, "WID": 2, "N": "farm-1"}], "B": [{"ID": 1005, "WID": 1, "N": "Warden"}]}}
+        client = make_client({"arl": xt_packet("arl", reply)})
+
+        response = client.commanders.rename(91, "farm-1")
+
+        # C2SRenameLordVO sets LID before N
+        assert conn(client).request_payloads == [("arl", {"LID": 91, "N": "farm-1"})]
+        assert list(conn(client).request_payloads[0][1]) == ["LID", "N"]
+        roster = response.commander_roster
+        assert [(c.commander_id, c.name) for c in roster.commanders] == [(91, "farm-1")]
+        assert [c.commander_id for c in roster.castellans] == [1005]
+
+    def test_rename_rejection_raises(self):
+        client = make_client({"arl": xt_packet("arl", error_code=21)})
+        with pytest.raises(CommandError):
+            client.commanders.rename(91, "farm-1")
+
 
 # =============================================================================
 # RankingService
