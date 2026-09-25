@@ -239,3 +239,9 @@ class TestAlienEquipmentBonuses:
         item = [1, 1, 1, 1, 0, [[37, [5]]], 0, -1, 0, -1, -1, 0]
         commander = Commander.model_validate({"ID": 1, "EQ": [item], "AIE": [[37, [10]]]})
         assert len(commander_bonuses(game_data, commander)) == 1
+
+
+def test_a_null_set_id_or_odd_rarity_keeps_the_item():
+    # parseEquipFromArray stores e[3] and e[7] raw; getUniqueBoni reads the set through int()
+    item = Equipment.model_validate([4, 2, 2, "rare", 0, [], 802, None])
+    assert (item.rarity_id, item.set_id, item.has_set) == (0, 0, True)
