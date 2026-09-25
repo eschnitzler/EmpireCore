@@ -17,10 +17,11 @@ import logging
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any
 
-from pydantic import Field, ValidationError, field_serializer, model_validator
+from pydantic import Field, ValidationError, field_serializer, field_validator, model_validator
 
 from .base import BasePayload, BaseRequest, BaseResponse, UnitCount
 from .commanders import Commander
+from .map import MapAreaItem
 
 if TYPE_CHECKING:
     from empire_core.combat import Bonus
@@ -886,12 +887,21 @@ class MinuteSkipDungeonResponse(BaseResponse):
 
     Command: msd
     Client: ``MSDCommand.executeCommand`` (bundle line 125782), which parses
-    ``AI`` with ``WorldmapObjectFactory.parseWorldMapArea``
+    ``AI`` with ``WorldmapObjectFactory.parseWorldMapArea`` (``DungeonMapobjectVO`` for a camp)
     """
 
     command = "msd"
 
-    area_row: list[Any] = Field(alias="AI", default_factory=list, description="The dungeon's updated map row")
+    area: MapAreaItem | None = Field(
+        alias="AI",
+        default=None,
+        description="The dungeon's updated map row, with its victories and remaining cooldown",
+    )
+
+    @field_validator("area", mode="before")
+    @classmethod
+    def _parse_row(cls, value: object) -> object:
+        return MapAreaItem.from_list(value) if isinstance(value, list) else value
 
 
 class SkipDungeonCooldownRequest(BaseRequest):
@@ -918,12 +928,21 @@ class SkipDungeonCooldownResponse(BaseResponse):
 
     Command: sdc
     Client: ``SDCCommand.executeCommand`` (bundle line 122333), which parses
-    ``AI`` with ``WorldmapObjectFactory.parseWorldMapArea``
+    ``AI`` with ``WorldmapObjectFactory.parseWorldMapArea`` (``DungeonMapobjectVO`` for a camp)
     """
 
     command = "sdc"
 
-    area_row: list[Any] = Field(alias="AI", default_factory=list, description="The dungeon's updated map row")
+    area: MapAreaItem | None = Field(
+        alias="AI",
+        default=None,
+        description="The dungeon's updated map row, with its victories and remaining cooldown",
+    )
+
+    @field_validator("area", mode="before")
+    @classmethod
+    def _parse_row(cls, value: object) -> object:
+        return MapAreaItem.from_list(value) if isinstance(value, list) else value
 
 
 __all__ = [

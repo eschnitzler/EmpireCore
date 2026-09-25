@@ -32,8 +32,12 @@ class TestDungeonCooldownSkips:
         assert (payload["MID"], payload["NID"]) == (7, 4)
 
     def test_replies_carry_the_dungeon_row(self):
-        row = [2, 100, 200, -1, 0, 0, 0]
+        row = [2, 100, 200, -1, 12, 0, 0]
         assert isinstance(parse_response("msd", {"AI": row}), MinuteSkipDungeonResponse)
         assert isinstance(parse_response("sdc", {"AI": row}), SkipDungeonCooldownResponse)
-        assert SkipDungeonCooldownResponse.model_validate({"AI": row}).area_row == row
+        area = SkipDungeonCooldownResponse.model_validate({"AI": row}).area
+        assert area is not None
+        assert (area.x, area.y, area.victory_count, area.attack_cooldown_seconds) == (100, 200, 12, 0)
+        minute_skip = MinuteSkipDungeonResponse.model_validate({"AI": [2, 1, 2, -1, 3, 540, 0]}).area
+        assert minute_skip is not None and minute_skip.attack_cooldown_seconds == 540
         assert not hasattr(SkipDungeonCooldownResponse.model_validate({"AI": row}), "rubies_spent")
