@@ -179,15 +179,18 @@ class CancelProductionResponse(BaseResponse):
 
 class GetUnitsRequest(BaseRequest):
     """
-    Get units inventory for a castle.
+    Get the unit inventories of the castle the session is in.
 
     Command: gui
-    Payload: {"CID": castle_id}
+    Payload: {}
+
+    The request names no castle: the server answers for the joined castle, and
+    with ``NOT_IN_OWNED_CASTLE`` once a map scan has moved the session away.
+
+    Client: ``C2SGetUnitInventoryVO`` (no fields)
     """
 
     command = "gui"
-
-    castle_id: int = Field(alias="CID")
 
 
 def _wod_amounts(value: object) -> object:
