@@ -209,11 +209,14 @@ from .chat import (
 from .commanders import (
     Castellan,
     Commander,
+    CommanderEffect,
     Equipment,
+    EquipmentBonus,
     EquipmentSlot,
     EquipmentType,
     GetCommandersRequest,
     GetCommandersResponse,
+    RelicBonus,
     WearerType,
 )
 from .defense import (
@@ -525,9 +528,12 @@ __all__ = [
     "GetCommandersResponse",
     "Castellan",
     "Commander",
+    "CommanderEffect",
     "Equipment",
+    "EquipmentBonus",
     "EquipmentSlot",
     "EquipmentType",
+    "RelicBonus",
     "WearerType",
     "SCEItem",
     # Ranking

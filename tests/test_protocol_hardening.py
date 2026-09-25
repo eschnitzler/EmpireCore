@@ -503,12 +503,11 @@ class TestDriftedEquipmentEntries:
     """A drifted EQ entry must be skipped, not raised through the accessor."""
 
     def test_unparseable_entries_are_skipped_and_logged(self, caplog):
-        response = GetCommandersResponse.model_validate(
-            {"C": [{"ID": 91, "EQ": [{"nested": 1}, 5, [880, "not-a-slot"], [880, 2, 2]]}]}
-        )
-
         with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.commanders"):
-            items = response.commanders[0].equipment()
+            response = GetCommandersResponse.model_validate(
+                {"C": [{"ID": 91, "EQ": [{"nested": 1}, 5, [880, "not-a-slot"], [880, 2, 2]]}]}
+            )
+        items = response.commanders[0].equipment
 
         assert [(i.equipment_id, i.slot) for i in items] == [(880, 2)]
         assert "3/4" in caplog.text
@@ -553,7 +552,7 @@ class TestDriftedEquipmentEntries:
         leader = response.leader
         assert leader is not None
         assert (leader.commander_id, leader.wins, leader.win_spree) == (0, 1, 1)
-        assert leader.equipment()[0].slot == 6
+        assert leader.equipment[0].slot == 6
 
     def test_leader_is_none_when_the_server_sends_no_commander(self):
         assert CreateAttackResponse.model_validate({"AAM": {"M": {}}}).leader is None

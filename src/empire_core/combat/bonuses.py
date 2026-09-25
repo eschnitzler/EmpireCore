@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict
 
 from empire_core.gamedata import EffectDef, GameData, GlobalEffectDef, ToolStats, parse_stacks
-from empire_core.protocol.models import Commander
+from empire_core.protocol.models import Commander, CommanderEffect
 
 if TYPE_CHECKING:
     from .effects import AttackerFlankEffects
@@ -357,13 +357,6 @@ class EffectResolver:
         )
 
 
-# Index 11 of an EQ entry is the equipment type; 3 means the item is a relic,
-# so its bonus ids belong to the relic effect table.
-_EQUIPMENT_TYPE_FIELD = 11
-_EQUIPMENT_TYPE_RELIC = 3
-_EQUIPMENT_BONI_FIELD = 5
-
-
 def parse_effect_spec(spec: str | None) -> list[Bonus]:
     """
     Parse the ``effectID&value`` encoding, comma separated.
@@ -582,23 +575,21 @@ def commander_bonuses(commander: Commander, *, area_effects: Sequence[Bonus] | N
             ``GetAttackInfoResponse.attacker_bonuses()``. When it has entries
             they are used instead of the commander's own ``AE``
     """
-    bonuses: list[Bonus] = parse_bonus_entries(entry for entry in commander.effects if isinstance(entry, list))
-    if area_effects:
-        bonuses.extend(area_effects)
-    else:
-        bonuses.extend(parse_bonus_entries(entry for entry in commander.area_effects if isinstance(entry, list)))
+    bonuses = effect_bonuses(commander.effects)
+    bonuses.extend(area_effects if area_effects else effect_bonuses(commander.area_effects))
 
-    for item in commander.raw_equipment:
-        if not isinstance(item, Sequence) or isinstance(item, (str, bytes)):
-            continue
-        if len(item) <= _EQUIPMENT_BONI_FIELD:
-            continue
-        boni = item[_EQUIPMENT_BONI_FIELD]
-        if not isinstance(boni, list):
-            continue
-        is_relic = len(item) > _EQUIPMENT_TYPE_FIELD and item[_EQUIPMENT_TYPE_FIELD] == _EQUIPMENT_TYPE_RELIC
-        bonuses.extend(parse_bonus_entries(boni, via_relic=is_relic))
+    for item in commander.equipment:
+        if item.is_relic:
+            rows = [[bonus.relic_effect_id, bonus.power, bonus.values] for bonus in item.relic_bonuses]
+        else:
+            rows = [[bonus.effect_id, bonus.values] for bonus in item.bonuses]
+        bonuses.extend(parse_bonus_entries(rows, via_relic=item.is_relic))
     return bonuses
+
+
+def effect_bonuses(effects: Iterable[CommanderEffect]) -> list[Bonus]:
+    """The bonuses of a list of commander effects, such as a ``gli`` ``E`` or an ``aci`` ``AE``."""
+    return parse_bonus_entries([effect.effect_id, effect.values] for effect in effects)
 
 
 def attack_dialog_bonuses(
@@ -746,6 +737,7 @@ __all__ = [
     "alliance_buff_bonuses",
     "attack_dialog_bonuses",
     "commander_bonuses",
+    "effect_bonuses",
     "construction_item_bonuses",
     "general_passive_bonuses",
     "general_skill_bonuses",

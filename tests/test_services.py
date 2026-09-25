@@ -1286,9 +1286,7 @@ class TestAttackService:
         client.game_data = GameData.parse("test", payload)
         client.state.local_player = stub_player(level=70)
         # An equipped item worth +30% units on each side flank.
-        commander = Commander.model_validate(
-            {"ID": 7, "EQ": [[1, 1, 2, 5, -1, [[500, 86, [30.0]]], -1, -1, 0, -1, -1, 1]]}
-        )
+        commander = Commander.model_validate({"ID": 7, "EQ": [[1, 1, 2, 5, -1, [[500, [30.0]]], -1, -1, 0, -1, -1, 1]]})
 
         plain = client.attack.fill_waves(12345, level=13)
         widened = client.attack.fill_waves(12345, level=13, commander=commander)
@@ -1485,8 +1483,8 @@ class TestCommandersService:
 
         commander = client.commanders.get_commanders()[0]
 
-        assert commander.effects == [[12, [5]]]
-        assert commander.area_effects == [[34, [10]]]
+        assert [(e.effect_id, e.values) for e in commander.effects] == [(12, [5])]
+        assert [(e.effect_id, e.values) for e in commander.area_effects] == [(34, [10])]
 
     def test_equipment_parsed(self):
         # EQ entry: [id, slot, wearer, rareID, graphic, bonuses, uniqueID,
@@ -1494,14 +1492,14 @@ class TestCommandersService:
         entry = [880, 2, 2, 4, 3, [[12, [5]]], 5501, 17, 3, 0, -1, 1]
         client = make_client({"gli": xt_packet("gli", {"C": [{"ID": 91, "EQ": [entry]}]})})
 
-        item = client.commanders.get_commanders()[0].equipment()[0]
+        item = client.commanders.get_commanders()[0].equipment[0]
 
         assert item.equipment_id == 880
         assert item.slot == EquipmentSlot.WEAPON
         assert item.wearer_type == WearerType.COMMANDER
         assert item.rarity_id == 4
         assert item.graphic == 3
-        assert item.bonuses == [[12, [5]]]
+        assert [(b.effect_id, b.values) for b in item.bonuses] == [(12, [5])]
         assert item.unique_id == 5501
         assert item.set_id == 17
         assert item.enchantment_level == 3
@@ -1512,7 +1510,7 @@ class TestCommandersService:
     def test_equipment_short_entry_does_not_raise(self):
         client = make_client({"gli": xt_packet("gli", {"C": [{"ID": 91, "EQ": [[880, 2, 2]]}]})})
 
-        item = client.commanders.get_commanders()[0].equipment()[0]
+        item = client.commanders.get_commanders()[0].equipment[0]
 
         assert (item.equipment_id, item.slot) == (880, EquipmentSlot.WEAPON)
         assert item.equipment_type == 0
@@ -1524,12 +1522,12 @@ class TestCommandersService:
         entry = [6515210043, 6, 2, 10, 0, [[242, [25.0]]], 802, 22, 0, -1, -1, 1]
         client = make_client({"gli": xt_packet("gli", {"C": [{"ID": 91, "EQ": [entry]}]})})
 
-        item = client.commanders.get_commanders()[0].equipment()[0]
+        item = client.commanders.get_commanders()[0].equipment[0]
 
         assert item.equipment_id == 6515210043
         assert item.slot == EquipmentSlot.HERO
         assert item.wearer_type == WearerType.COMMANDER
-        assert item.bonuses == [[242, [25.0]]]
+        assert [(b.effect_id, b.values) for b in item.bonuses] == [(242, [25.0])]
         assert item.set_id == 22
         assert item.duration_seconds == -1
         assert item.is_permanent
@@ -1540,7 +1538,7 @@ class TestCommandersService:
         entry = [880, 2, 2, 4, 3, [], 5501, 17, 0, 3600, -1, 0]
         client = make_client({"gli": xt_packet("gli", {"C": [{"ID": 91, "EQ": [entry]}]})})
 
-        item = client.commanders.get_commanders()[0].equipment()[0]
+        item = client.commanders.get_commanders()[0].equipment[0]
 
         assert item.duration_seconds == 3600
         assert not item.is_permanent

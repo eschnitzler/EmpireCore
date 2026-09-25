@@ -48,7 +48,7 @@ def main() -> int:
         commanders = client.commanders.get_commanders()
         print(f"\n{len(commanders)} commander(s):")
         for commander in commanders:
-            equipment = commander.equipment()
+            equipment = commander.equipment
             print(
                 f"  [{commander.commander_id}] {commander.name or '(unnamed)'} "
                 f"- {commander.wins}W/{commander.defeats}L, "

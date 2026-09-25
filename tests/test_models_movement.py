@@ -155,7 +155,7 @@ class TestMalformedMovementBatch:
         assert wrapper.unit_info is not None and wrapper.unit_info.commander is not None
         leader = wrapper.unit_info.commander
         assert (leader.commander_id, leader.wearer_id, leader.picture_id, leader.wins) == (3, 2, 5, 2)
-        assert [item.unique_id for item in leader.equipment()] == [802]
+        assert [item.unique_id for item in leader.equipment] == [802]
 
     def test_unreadable_commander_keeps_the_wait(self):
         wrapper = GetMovementsResponse.model_validate(

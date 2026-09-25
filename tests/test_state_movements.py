@@ -409,7 +409,8 @@ class TestMovementWrapperBlocks:
         assert (mov.advisor_type, mov.advisor_movement_count, mov.advisor_movement_number) == (1, 3, 3)
         assert mov.advisor_is_last
         [item] = mov.commander_equipment
-        assert (item.equipment_id, item.slot, item.bonuses) == (901, 2, [[242, [25.0]]])
+        assert (item.equipment_id, item.slot) == (901, 2)
+        assert [(b.effect_id, b.values) for b in item.bonuses] == [(242, [25.0])]
         assert mov.commander_effects == [CommanderEffect(effect_id=426, values=[10.0], source="GE")]
         assert mov.battle_time == pytest.approx(mov.estimated_arrival + 30)
 
