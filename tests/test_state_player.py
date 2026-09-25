@@ -438,6 +438,13 @@ class TestLevelProgress:
         state.update_from_packet("glu", {"gxp": {"LVL": 70, "XP": 200000}, "L": 70, "LL": 0})
         assert state.get_local_player().legendary_level == 11
 
+    @pytest.mark.parametrize("bad", [None, "", "x"])
+    def test_unreadable_level_keeps_the_rest_of_the_packet(self, state, bad):
+        self._player_after(state, {"LVL": 13, "XP": 5329})
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gxp": {"LVL": bad, "XP": 5400}, "gcu": {"C1": 77}})
+        player = state.get_local_player()
+        assert (player.level, player.xp, player.gold) == (13, 5400, 77)
+
     def test_xp_progress_edges(self):
         assert Player().xp_progress == 0.0
         at_cap = Player(LVL=70, XP=10630311, LL=950, XPFCL=10630311, XPTNL=10630311)

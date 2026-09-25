@@ -54,6 +54,14 @@ def level_progress(level: int, xp: int) -> tuple[int, int, int]:
     return 0, xp_for_level(level), xp_for_level(level + 1)
 
 
+def _as_int(value: Any, previous: int) -> int:
+    """The value as an int, or ``previous`` when it is missing or unreadable."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return previous
+
+
 class PlayerState(StateBase):
     def _parse_player_sections(self, data: dict[str, Any]) -> None:
         """Parse the gpi/gxp/gcu/vip/gho/uap/gac sections as ONE atomic player update.
@@ -101,8 +109,8 @@ class PlayerState(StateBase):
             updated |= gpi_fields
 
         if gxp := _section(data, "gxp"):
-            level = int(gxp.get("LVL", merged["level"]))
-            xp = int(gxp.get("XP", merged["xp"]))
+            level = _as_int(gxp.get("LVL"), merged["level"])
+            xp = _as_int(gxp.get("XP"), merged["xp"])
             legend, current, following = level_progress(level, xp)
             merged.update(
                 level=level,
