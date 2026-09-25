@@ -463,6 +463,22 @@ def decode_chat_text(text: str) -> str:
     return result
 
 
+def parse_chat_json_message(text: str | None) -> str:
+    """
+    Decode server text the way the client's ``parseChatJSONMessage`` does.
+
+    Replaces ``&percnt;``, ``&quot;``, ``&145;``, ``<br />`` and ``%5C`` in that
+    order and turns square brackets into spaces; nothing reads as ``""``.
+
+    Client: ``TextValide.parseChatJSONMessage`` (dll line 5820)
+    """
+    if not text:
+        return ""
+    result = text.replace("&percnt;", "%").replace("&quot;", '"').replace("&145;", "'")
+    result = result.replace("<br />", "\n").replace("%5C", "\\")
+    return result.replace("[", " ").replace("]", " ")
+
+
 __all__ = [
     # Command registry
     "GGECommand",
@@ -483,6 +499,7 @@ __all__ = [
     # Utilities
     "encode_chat_text",
     "decode_chat_text",
+    "parse_chat_json_message",
     # Response registry
     "get_response_model",
     "parse_response",

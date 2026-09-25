@@ -15,7 +15,7 @@ from typing import Any
 
 from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
 
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, HelpType
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, HelpType, parse_chat_json_message
 from .map import MapAreaItem, MapObject, parse_area_rows
 from .profile import PlayerProfileBase
 
@@ -198,7 +198,9 @@ class AllianceInfo(BasePayload):
     might: ClientInt = Field(alias="MP", default=0)
     highest_alliance_might: ClientInt = Field(alias="HAMP", default=0)
     description: str = Field(alias="D", default="")
-    announcement: str = Field(alias="A", default="", description="The alliance's announcement")
+    announcement: str = Field(
+        alias="A", default=" ", description='The alliance\'s announcement; " " when it has none, as in the client'
+    )
     language: str = Field(alias="ALL", default="en")
     external_member_level: ClientInt = Field(alias="ML", default=0)
     status_to_own_alliance: ClientInt = Field(
@@ -219,6 +221,12 @@ class AllianceInfo(BasePayload):
     soft_relic_forge_uses: ClientInt = Field(alias="SRFU", default=0)
     hard_relic_forge_uses: ClientInt = Field(alias="HRFU", default=0)
     is_king_alliance: bool = Field(alias="KA", default=False)
+    refresh_seconds: ClientInt = Field(
+        alias="RT",
+        default=0,
+        description="Seconds until the client asks for the alliance again, as CastleAllianceData.parseAllianceInfo "
+        "(bundle line 11609) reads it; 0 when none is set",
+    )
 
     @field_validator("is_searching_members", "is_accepting_members", mode="before")
     @classmethod
@@ -233,10 +241,24 @@ class AllianceInfo(BasePayload):
     def _one_flag(cls, value: Any) -> bool:
         return value == 1
 
+    @model_validator(mode="before")
+    @classmethod
+    def _forge_fields_come_together(cls, data: Any) -> Any:
+        # The client reads MF, IF, SRFU and HRFU only when both MF and IF are sent
+        if isinstance(data, dict) and (data.get("MF") is None or data.get("IF") is None):
+            return {k: v for k, v in data.items() if k not in ("MF", "IF", "SRFU", "HRFU")}
+        return data
+
     @field_validator("description", "announcement", mode="before")
     @classmethod
-    def _text(cls, value: Any) -> Any:
-        return "" if value is None else value
+    def _chat_text(cls, value: Any) -> Any:
+        return parse_chat_json_message(value) if isinstance(value, str) else ""
+
+    @field_validator("announcement", mode="after")
+    @classmethod
+    def _empty_announcement(cls, value: str) -> str:
+        # fillFromParamObject turns an empty announcement into " "
+        return value or " "
 
     # Alliance resources
     storage: AllianceStorage | None = Field(alias="STO", default=None)
@@ -265,10 +287,6 @@ class AllianceInfo(BasePayload):
     laboratories: list[MapAreaItem] = Field(
         alias="ALA", default_factory=list, description="Map rows of the alliance's laboratories (LaboratoryMapobjectVO)"
     )
-
-    # Resource usage flags
-    spend_resources_food_upgrade: int = Field(alias="SRFU", default=0)
-    help_resources_food_upgrade: int = Field(alias="HRFU", default=0)
 
     @property
     def member_count(self) -> int:
