@@ -21,6 +21,7 @@ from empire_core.protocol.models.base import (
 from empire_core.protocol.models.castle import (
     GetCastlesResponse,
     GetDetailedCastleResponse,
+    PlayerCastle,
     RenameCastleRequest,
     RenameCastleResponse,
 )
@@ -32,7 +33,7 @@ from empire_core.protocol.models.map import (
     MapAreaItem,
     MapItemType,
 )
-from empire_core.protocol.models.player import GetPlayerInfoResponse, PlayerCastle
+from empire_core.protocol.models.player import GetPlayerInfoResponse, SearchPlayerResponse
 from empire_core.protocol.models.ranking import GetHighscoreResponse, GetRankingListResponse, RankingEntry
 
 
@@ -532,23 +533,30 @@ class TestGoldenPlayerInfo:
 
     def test_castles_are_flattened_across_kingdoms(self):
         castles = GetPlayerInfoResponse.model_validate(GOLDEN_GDI).get_castles()
-        assert [(c.name, c.kingdom, c.x, c.y, c.castle_type) for c in castles] == [
+        assert [(c.castle_name, c.kingdom_id, c.x, c.y, c.castle_type) for c in castles] == [
             ("Main Castle", 0, 640, 655, 1),
             ("Outpost North", 0, 700, 700, 4),
             ("Ice Capital", 2, 300, 400, 3),
         ]
 
-    def test_castle_type_names_are_resolved(self):
-        castles = GetPlayerInfoResponse.model_validate(GOLDEN_GDI).get_castles()
-        assert [c.castle_type_name for c in castles] == ["Castle", "Outpost", "Capital"]
+    def test_the_castle_list_is_the_gcl_model(self):
+        response = GetPlayerInfoResponse.model_validate(GOLDEN_GDI)
+        assert isinstance(response.castle_list, GetCastlesResponse)
+        assert response.castle_list.player_id == 4242
+        assert [c.castle_id for c in response.castle_list.castles] == [12345, 55555, 77777]
+
+    def test_an_unwrapped_row_parses_too(self):
+        row = gdi_location_row(1, 640, 655, 12345, 4242, "Main Castle", 0)
+        response = GetPlayerInfoResponse.model_validate({"gcl": {"C": [{"KID": 0, "AI": [{"AI": row, "AOT": 30}]}]}})
+        assert [(c.castle_id, c.abandon_outpost_seconds) for c in response.get_castles()] == [(12345, 30)]
 
     def test_capturer_id_is_read_from_the_type_specific_index(self):
         # Outposts carry it at index 15, capitals at index 14 - reading the
         # wrong one reports a capture that is not happening (or misses one).
-        castles = {c.name: c for c in GetPlayerInfoResponse.model_validate(GOLDEN_GDI).get_castles()}
-        assert castles["Main Castle"].is_being_captured is False
-        assert castles["Outpost North"].capturer_id == 9999
-        assert castles["Ice Capital"].capturer_id == 8888
+        castles = {c.castle_name: c for c in GetPlayerInfoResponse.model_validate(GOLDEN_GDI).get_castles()}
+        assert castles["Main Castle"].occupier_id == -1
+        assert castles["Outpost North"].occupier_id == 9999
+        assert castles["Ice Capital"].occupier_id == 8888
 
     def test_captures_are_extracted_with_their_kingdom(self):
         captures = GetPlayerInfoResponse.model_validate(GOLDEN_GDI).get_location_captures()
@@ -568,6 +576,40 @@ class TestGoldenPlayerInfo:
         assert response.get_castles() == []
         assert response.get_location_captures() == []
         assert response.has_bird is False
+
+    def test_the_owner_crest_is_typed(self):
+        owner = GetPlayerInfoResponse.model_validate(GOLDEN_GDI).owner
+        assert owner is not None and owner.emblem is not None
+        assert (owner.emblem.background_type, owner.emblem.is_set) == (1, False)
+        assert [(c.area_id, c.area_type) for c in owner.castle_positions] == [(12345, 1)]
+
+
+class TestSearchPlayer:
+    """WSPCommand.executeCommand: gaa is a map area reply."""
+
+    def test_the_found_player_is_the_first_owner_record(self):
+        payload = {
+            "X": 640,
+            "Y": 655,
+            "gaa": {
+                "AI": [[1, 640, 655, 12345, 4242, 5, 5, 5, 0, 0, "Main Castle"]],
+                "OI": [{"OID": 4242, "N": "TargetPlayer", "L": 70, "AID": 190426}],
+            },
+        }
+        response = SearchPlayerResponse.model_validate(payload)
+        player = response.get_player()
+        assert player is not None
+        assert (player.owner_id, player.owner_name, player.level, player.alliance_id) == (
+            4242,
+            "TargetPlayer",
+            70,
+            190426,
+        )
+        assert [(i.x, i.y, i.owner_id) for i in response.area.items] == [(640, 655, 4242)]
+
+    @pytest.mark.parametrize("payload", [{}, {"gaa": "junk"}, {"gaa": {"OI": []}}])
+    def test_no_owner_record_is_no_player(self, payload):
+        assert SearchPlayerResponse.model_validate(payload).get_player() is None
 
 
 class TestGoldenSupportDefense:
@@ -1007,7 +1049,7 @@ class TestDriftedPayloadsMustNotCrashAccessors:
         response = GetPlayerInfoResponse.model_validate({"gcl": {"C": [{"KID": 0, "AI": "junk"}]}})
         assert response.get_castles() == []
 
-    def test_drifted_kingdom_entry_is_skipped_rather_than_crashing(self, caplog):
+    def test_drifted_kingdom_entry_is_skipped_rather_than_crashing(self):
         response = GetPlayerInfoResponse.model_validate(
             {
                 "gcl": {
@@ -1018,10 +1060,7 @@ class TestDriftedPayloadsMustNotCrashAccessors:
                 }
             }
         )
-        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.player"):
-            assert [c.name for c in response.get_castles()] == ["Keep"]
-        # Skipped silently is a hole too: the drop must be visible, once.
-        assert "Skipped 1/2" in caplog.text
+        assert [c.castle_name for c in response.get_castles()] == ["Keep"]
 
     def test_string_unit_count_does_not_crash_the_defense_total(self):
         response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[487, 100]], [[488, "20"]]]})

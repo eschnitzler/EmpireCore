@@ -10,38 +10,16 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from typing import Any
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 
 from .base import BasePayload, BaseRequest, BaseResponse
-from .map import Kingdom
+from .castle import CastleInfo, GetCastlesResponse, get_location_type_name
+from .map import GetMapAreaResponse, Kingdom, MapObject
 from .profile import PlayerProfileBase
 
 logger = logging.getLogger(__name__)
-
-# =============================================================================
-# Location Types
-# =============================================================================
-
-LOCATION_TYPES = {
-    0: "Empty",
-    1: "Castle",
-    2: "Dungeon",
-    3: "Capital",
-    4: "Outpost",
-    7: "Treasure Dungeon",
-    12: "Castle",  # Colored kingdom castle (KID 1-4)
-    15: "Camp",
-    22: "Metro",
-    26: "Monument",
-    28: "Laboratory",
-}
-
-
-def get_location_type_name(type_id: int) -> str:
-    """Get the human-readable name for a location type."""
-    return LOCATION_TYPES.get(type_id, f"Unknown ({type_id})")
-
 
 # =============================================================================
 # Location Capture Info
@@ -70,88 +48,6 @@ class LocationCapture(BasePayload):
 
 
 # =============================================================================
-# Player Castle (gcl parsed)
-# =============================================================================
-
-
-class PlayerCastle(BasePayload):
-    """
-    A castle/location from the gdi response's gcl.C[].AI[] arrays.
-
-    AI array format (confirmed from packet examples):
-    [type, x, y, location_id, owner_id, lvl1, lvl2, lvl3, lvl4, lvl5,
-     name, ?, ?, ?, capturer_id_capital, capturer_id_outpost, kingdom, ...]
-
-    Index reference:
-    - 0:  castle_type (1=Castle, 3=Capital, 4=Outpost, 12=?, 15=Camp, 22=Metro)
-    - 1:  x
-    - 2:  y
-    - 3:  location_id (area_id)
-    - 4:  owner_id
-    - 10: name
-    - 14: capturer_id (Capital/Metro)
-    - 15: capturer_id (Outpost)
-    - 16: kingdom (KID)
-    """
-
-    kingdom: int = 0
-    location_id: int = 0
-    x: int = 0
-    y: int = 0
-    castle_type: int = 0
-    owner_id: int = 0
-    name: str = ""
-    capturer_id: int = -1
-
-    @property
-    def castle_type_name(self) -> str:
-        """Human-readable castle type."""
-        return get_location_type_name(self.castle_type)
-
-    @property
-    def is_being_captured(self) -> bool:
-        """Check if this location is currently being captured."""
-        return self.capturer_id != -1
-
-    @classmethod
-    def from_list(cls, data: list, kingdom: int = 0) -> "PlayerCastle":
-        """Parse from a gcl.C[].AI[] array entry."""
-        if not data or len(data) < 4:
-            return cls(kingdom=kingdom)
-
-        castle_type = data[0] if len(data) > 0 else 0
-        x = data[1] if len(data) > 1 else 0
-        y = data[2] if len(data) > 2 else 0
-        location_id = data[3] if len(data) > 3 else 0
-        owner_id = data[4] if len(data) > 4 else 0
-        name = data[10] if len(data) > 10 else ""
-
-        # Capturer ID position depends on type
-        type_name = get_location_type_name(castle_type)
-        if type_name == "Outpost":
-            capturer_id = data[15] if len(data) > 15 else -1
-        elif type_name in ("Capital", "Metro"):
-            capturer_id = data[14] if len(data) > 14 else -1
-        else:
-            capturer_id = -1
-
-        # Kingdom can also be read from index 16 if present (overrides passed-in kingdom)
-        if len(data) > 16 and isinstance(data[16], int):
-            kingdom = data[16]
-
-        return cls(
-            kingdom=kingdom,
-            location_id=location_id,
-            x=x,
-            y=y,
-            castle_type=castle_type,
-            owner_id=owner_id,
-            name=name,
-            capturer_id=capturer_id,
-        )
-
-
-# =============================================================================
 # Player Owner Info
 # =============================================================================
 
@@ -161,7 +57,7 @@ class PlayerOwnerInfo(PlayerProfileBase):
     Owner info from the gdi response's O object.
 
     Common profile fields (OID/N/L/LL/H/AR/CF/HF/MP/DUM/AVP/PRE/SUF/TOPX/
-    SA/VF/PF/RRD/TI/RPT/AID/AN/AP/VP) are inherited from PlayerProfileBase.
+    SA/VF/PF/RRD/TI/RPT/AID/AN/AP/VP/E) are inherited from PlayerProfileBase.
     """
 
 
@@ -192,20 +88,12 @@ class GetPlayerInfoResponse(BaseResponse):
     Command: gdi
     Response format: {
         "O": { ...player fields... },
-        "gcl": {"PID": ..., "C": [{"KID": ..., "AI": [{"AI": [...]}]}]}
+        "gcl": {"PID": ..., "C": [{"KID": ..., "AI": [{"AI": [...], ...}]}]}
     }
 
-    The gcl.C array contains castle/location info per kingdom.
-    Each location AI array:
-    - Index 0:  location type (1=Castle, 3=Capital, 4=Outpost, 15=Camp, 22=Metro)
-    - Index 1:  x
-    - Index 2:  y
-    - Index 3:  location ID
-    - Index 4:  owner player ID
-    - Index 10: name
-    - Index 14: capturer ID (Capital/Metro)
-    - Index 15: capturer ID (Outpost)
-    - Index 16: kingdom ID
+    Client: ``GDICommand.executeCommand`` (bundle line 129458) reads ``O`` with
+    ``parseOwnerInfo`` and hands ``gcl`` to the same
+    ``CastleListVO.parseCastleList`` as the gcl command.
     """
 
     command = "gdi"
@@ -213,7 +101,16 @@ class GetPlayerInfoResponse(BaseResponse):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     owner: PlayerOwnerInfo | None = Field(alias="O", default=None)
-    raw_castle_list: dict = Field(alias="gcl", default_factory=dict)
+    castle_list: GetCastlesResponse = Field(
+        alias="gcl",
+        default_factory=GetCastlesResponse,
+        description="The player's castles, outposts and landmarks, as the gcl command sends them",
+    )
+
+    @field_validator("castle_list", mode="before")
+    @classmethod
+    def _castle_list_needs_an_object(cls, value: Any) -> Any:
+        return value if isinstance(value, dict) else {}
 
     @property
     def player_id(self) -> int:
@@ -245,43 +142,9 @@ class GetPlayerInfoResponse(BaseResponse):
         """When bird protection ends (UTC), or None."""
         return self.owner.bird_end_time if self.owner else None
 
-    def get_castles(self) -> list[PlayerCastle]:
-        """
-        Parse gcl.C into a flat list of PlayerCastle objects.
-
-        Returns:
-            All castles/outposts/locations across all kingdoms.
-        """
-        castles = []
-        worlds = self.raw_castle_list.get("C", [])
-        skipped = 0
-
-        for world in worlds:
-            if not isinstance(world, dict):
-                # Drifted kingdom entry: skip it rather than raising out of a
-                # consumer-facing accessor.
-                skipped += 1
-                continue
-            kingdom = world.get("KID", 0)
-            locations = world.get("AI", [])
-
-            for loc_wrapper in locations:
-                location = loc_wrapper.get("AI", []) if isinstance(loc_wrapper, dict) else []
-                if not location:
-                    continue
-                # Handle nested list (e.g. [[10, 127, ...]])
-                if location and isinstance(location[0], list):
-                    location = location[0]
-                castles.append(PlayerCastle.from_list(location, kingdom=kingdom))
-
-        if skipped:
-            # One line per response, not per entry, so a fully drifted gcl
-            # block can't flood the log.
-            logger.warning(
-                f"Skipped {skipped}/{len(worlds)} malformed gcl kingdom entries for "
-                f"player {self.player_id}; the castle list may be incomplete"
-            )
-        return castles
+    def get_castles(self) -> list[CastleInfo]:
+        """All castles, outposts and landmarks across all kingdoms."""
+        return list(self.castle_list.castles)
 
     def get_location_captures(self) -> list[LocationCapture]:
         """
@@ -292,20 +155,20 @@ class GetPlayerInfoResponse(BaseResponse):
         """
         captures = []
         for castle in self.get_castles():
-            if castle.is_being_captured:
+            if castle.occupier_id != -1:
                 try:
-                    kingdom = Kingdom(castle.kingdom)
+                    kingdom = Kingdom(castle.kingdom_id)
                 except ValueError:
                     continue
                 captures.append(
                     LocationCapture(
-                        location_id=castle.location_id,
+                        location_id=castle.castle_id,
                         location_type=castle.castle_type,
-                        location_type_name=castle.castle_type_name,
+                        location_type_name=get_location_type_name(castle.castle_type),
                         x=castle.x,
                         y=castle.y,
                         kingdom=kingdom,
-                        capturer_id=castle.capturer_id,
+                        capturer_id=castle.occupier_id,
                     )
                 )
         return captures
@@ -331,36 +194,42 @@ class SearchPlayerRequest(BaseRequest):
     player_name: str = Field(alias="PN")
 
 
-class SearchPlayerResult(BasePayload):
-    player_id: int = Field(alias="OID", default=0)
-    name: str = Field(alias="N", default="")
-    level: int = Field(alias="L", default=0)
-    alliance_id: int = Field(alias="AID", default=0)
-
-
 class SearchPlayerResponse(BaseResponse):
+    """
+    Response to a player search.
+
+    Command: wsp
+
+    Client: ``WSPCommand.executeCommand`` (bundle line 131619) reads ``gaa.OI``
+    with ``parseOwnerInfoArray`` and ``gaa.AI`` with ``parseAreaInfos``, as a
+    map area reply.
+    """
+
     command = "wsp"
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    raw_gaa: dict = Field(alias="gaa", default_factory=dict)
+    area: GetMapAreaResponse = Field(
+        alias="gaa",
+        default_factory=GetMapAreaResponse,
+        description="The found player's map rows and owner records",
+    )
 
-    def get_player(self) -> SearchPlayerResult | None:
-        owner_info = self.raw_gaa.get("OI", [])
-        if owner_info and len(owner_info) > 0:
-            return SearchPlayerResult.model_validate(owner_info[0])
-        return None
+    @field_validator("area", mode="before")
+    @classmethod
+    def _area_needs_an_object(cls, value: Any) -> Any:
+        return value if isinstance(value, dict) else {}
+
+    def get_player(self) -> MapObject | None:
+        """The first owner record, or None when there is none."""
+        return self.area.owners[0] if self.area.owners else None
 
 
 __all__ = [
     "GetPlayerInfoRequest",
     "GetPlayerInfoResponse",
     "PlayerOwnerInfo",
-    "PlayerCastle",
     "LocationCapture",
-    "LOCATION_TYPES",
-    "get_location_type_name",
     "SearchPlayerRequest",
     "SearchPlayerResponse",
-    "SearchPlayerResult",
 ]

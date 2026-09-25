@@ -19,9 +19,114 @@ from typing import Any
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from .base import BasePayload, BaseRequest, BaseResponse, Position, ResourceAmount
-from .player import PlayerCastle
 
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# Location Types
+# =============================================================================
+
+LOCATION_TYPES = {
+    0: "Empty",
+    1: "Castle",
+    2: "Dungeon",
+    3: "Capital",
+    4: "Outpost",
+    7: "Treasure Dungeon",
+    12: "Castle",  # Colored kingdom castle (KID 1-4)
+    15: "Camp",
+    22: "Metro",
+    26: "Monument",
+    28: "Laboratory",
+}
+
+
+def get_location_type_name(type_id: int) -> str:
+    """Get the human-readable name for a location type."""
+    return LOCATION_TYPES.get(type_id, f"Unknown ({type_id})")
+
+
+# =============================================================================
+# Player Castle (gcl parsed)
+# =============================================================================
+
+
+class PlayerCastle(BasePayload):
+    """
+    A castle/location from the gdi response's gcl.C[].AI[] arrays.
+
+    AI array format (confirmed from packet examples):
+    [type, x, y, location_id, owner_id, lvl1, lvl2, lvl3, lvl4, lvl5,
+     name, ?, ?, ?, capturer_id_capital, capturer_id_outpost, kingdom, ...]
+
+    Index reference:
+    - 0:  castle_type (1=Castle, 3=Capital, 4=Outpost, 12=?, 15=Camp, 22=Metro)
+    - 1:  x
+    - 2:  y
+    - 3:  location_id (area_id)
+    - 4:  owner_id
+    - 10: name
+    - 14: capturer_id (Capital/Metro)
+    - 15: capturer_id (Outpost)
+    - 16: kingdom (KID)
+    """
+
+    kingdom: int = 0
+    location_id: int = 0
+    x: int = 0
+    y: int = 0
+    castle_type: int = 0
+    owner_id: int = 0
+    name: str = ""
+    capturer_id: int = -1
+
+    @property
+    def castle_type_name(self) -> str:
+        """Human-readable castle type."""
+        return get_location_type_name(self.castle_type)
+
+    @property
+    def is_being_captured(self) -> bool:
+        """Check if this location is currently being captured."""
+        return self.capturer_id != -1
+
+    @classmethod
+    def from_list(cls, data: list, kingdom: int = 0) -> "PlayerCastle":
+        """Parse from a gcl.C[].AI[] array entry."""
+        if not data or len(data) < 4:
+            return cls(kingdom=kingdom)
+
+        castle_type = data[0] if len(data) > 0 else 0
+        x = data[1] if len(data) > 1 else 0
+        y = data[2] if len(data) > 2 else 0
+        location_id = data[3] if len(data) > 3 else 0
+        owner_id = data[4] if len(data) > 4 else 0
+        name = data[10] if len(data) > 10 else ""
+
+        # Capturer ID position depends on type
+        type_name = get_location_type_name(castle_type)
+        if type_name == "Outpost":
+            capturer_id = data[15] if len(data) > 15 else -1
+        elif type_name in ("Capital", "Metro"):
+            capturer_id = data[14] if len(data) > 14 else -1
+        else:
+            capturer_id = -1
+
+        # Kingdom can also be read from index 16 if present (overrides passed-in kingdom)
+        if len(data) > 16 and isinstance(data[16], int):
+            kingdom = data[16]
+
+        return cls(
+            kingdom=kingdom,
+            location_id=location_id,
+            x=x,
+            y=y,
+            castle_type=castle_type,
+            owner_id=owner_id,
+            name=name,
+            capturer_id=capturer_id,
+        )
+
 
 # =============================================================================
 # GCL - Get Castles List
@@ -116,6 +221,9 @@ class GetCastlesResponse(BaseResponse):
     Payload: {"PID": player_id, "C": [{"KID": kingdom, "AI": [{"AI": [row...], "AOT": .., "TA": ..}, ...]}, ...]}
 
     Entries are flattened across kingdoms into ``castles``.
+
+    Client: ``CastleListVO.parseCastleList`` (bundle line 13698), which gdi
+    uses for its ``gcl`` block too.
     """
 
     command = "gcl"
@@ -132,6 +240,10 @@ class GetCastlesResponse(BaseResponse):
         castles = []
         for kid, entry in _kingdom_entries(data.pop("C")):
             row = entry.get("AI")
+            if isinstance(row, list) and len(row) == 1 and isinstance(row[0], list):
+                # A row wrapped in one extra list, which the old gdi parser unwrapped; the client does not
+                row = row[0]
+                entry = {**entry, "AI": row}
             if not (isinstance(row, list) and len(row) > 10):
                 logger.debug(f"Skipping malformed gcl row: {entry!r}")
                 continue
@@ -568,6 +680,9 @@ __all__ = [
     # GCL - Get Castles
     "GetCastlesRequest",
     "GetCastlesResponse",
+    "LOCATION_TYPES",
+    "PlayerCastle",
+    "get_location_type_name",
     "CastleInfo",
     # DCL - Detailed Castle
     "GetDetailedCastleRequest",

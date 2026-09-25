@@ -31,7 +31,7 @@ class AllianceMember(PlayerProfileBase):
     Alliance member information from ain response.
 
     Common profile fields (OID/N/L/LL/H/AR/CF/HF/MP/DUM/AVP/PRE/SUF/TOPX/
-    SA/VF/PF/RRD/TI/RPT/AID/AN/AP/VP) are inherited from PlayerProfileBase.
+    SA/VF/PF/RRD/TI/RPT/AID/AN/AP/VP/E) are inherited from PlayerProfileBase.
 
     Note: Activity status comes from the AMI array in AllianceInfo
     (``AllianceMemberInfo.login_activity``), not the H field.
