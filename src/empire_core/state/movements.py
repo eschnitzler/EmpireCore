@@ -10,16 +10,13 @@ from pydantic import ValidationError
 
 from empire_core.protocol.models.movement import MovementArea, MovementOwner, MovementWrapper
 from empire_core.state.base import MovementEventCallback, StateBase
-from empire_core.state.world_models import Movement, MovementResources
+from empire_core.state.world_models import DAIMYO_TOWNSHIP_PLAYER_ID, Movement, MovementResources
 
 logger = logging.getLogger(__name__)
 
 # A drifted movement schema would fail on every packet, so the warning is
 # rate-limited to one per this interval; the rest go to debug.
 MOVEMENT_PARSE_WARN_INTERVAL = 60.0
-
-# Client: DungeonConst.BASIC_DAIMYO_TOWNSHIP_PLAYER_ID, counted as the local player
-DAIMYO_TOWNSHIP_PLAYER_ID = -815
 
 
 class MovementState(StateBase):
@@ -218,11 +215,15 @@ class MovementState(StateBase):
     def _is_attack_on_us(self, mov: Movement) -> bool:
         """A new attack aimed at the local player or at a member of their alliance.
 
-        Client: ``ArmyAttackMapmovementVO.isAttackingMovement`` (the target is
-        you, or the daimyo township pseudo-player) and ``isAllyAttackingMovement``
-        (the target is an alliance member other than you). The member list is
-        matched through the target's owner record, whose alliance id is sent
-        with every movement.
+        Client: ``CastleArmyData.checkAllAttackMovements``. An attack on you
+        (``isAttackingMovement``: the target is you, or the daimyo township,
+        which the client files under your own owner record) counts whoever
+        sends it. An attack on an alliance member other than you
+        (``isAllyAttackingMovement``) counts only when
+        ``showAsAllianceAttackWarning`` holds: the attacker is a player
+        (``isNPCPlayer`` is ``id < 0``) whose owner record is known. The member
+        list is matched through the target's owner record, whose alliance id
+        comes with every movement.
         """
         if not mov.is_attack or mov.is_mine or mov.is_returning or mov._arrival_dispatched:
             return False
@@ -231,6 +232,8 @@ class MovementState(StateBase):
             return False
         if mov.target_id in (me, DAIMYO_TOWNSHIP_PLAYER_ID):
             return True
+        if mov.owner is None or mov.owner_id < 0:
+            return False
         alliance = self.local_player.alliance if self.local_player else None
         return alliance is not None and alliance.id > 0 and mov.target_alliance_id == alliance.id
 

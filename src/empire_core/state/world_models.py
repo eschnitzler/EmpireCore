@@ -7,6 +7,10 @@ from empire_core.protocol.models.movement import MovementOwner
 from empire_core.utils.enums import MapObjectType, MovementType
 from empire_core.utils.troops import count_troops
 
+# Client: DungeonConst.BASIC_DAIMYO_TOWNSHIP_PLAYER_ID. getOwnerInfoVO files it under
+# the local player's own record, so the daimyo township counts as yours.
+DAIMYO_TOWNSHIP_PLAYER_ID = -815
+
 
 class MovementResources(BaseModel):
     """Resources a movement carries: market goods or travel loot.
@@ -233,11 +237,12 @@ class Movement(BaseModel):
     def is_incoming(self) -> bool:
         """Another player's army heading to one of the local player's areas.
 
-        Armies moving between your own areas count as outgoing, not incoming.
+        The daimyo township counts as yours, as in the client. Armies moving
+        between your own areas count as outgoing, not incoming.
         """
         return (
             self.local_player_id != -1
-            and self.target_id == self.local_player_id
+            and self.target_id in (self.local_player_id, DAIMYO_TOWNSHIP_PLAYER_ID)
             and not self.is_mine
             and not self.is_returning
         )

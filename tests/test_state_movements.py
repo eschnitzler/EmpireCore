@@ -743,6 +743,21 @@ class TestAllianceAttackAlerts:
         fired = self.attack(state, 2, self.ENEMY, self.ALLY, owners)
         assert len(fired) == 1 and fired[0].target_alliance_id == self.CLAN
 
+    def test_npc_attack_on_an_alliance_member_does_not_fire(self, state):
+        # Client: showAsAllianceAttackWarning is false for NPC (dungeon) owners
+        login(state, self.ME, self.CLAN)
+        owners = [{"OID": self.ALLY, "AID": self.CLAN, "N": "ally"}]
+        assert self.attack(state, 8, -202, self.ALLY, owners) == []
+
+    def test_npc_attack_on_me_fires(self, state):
+        login(state, self.ME, self.CLAN)
+        assert len(self.attack(state, 9, -202, self.ME, [])) == 1
+
+    def test_attack_on_an_ally_by_an_unknown_player_does_not_fire(self, state):
+        login(state, self.ME, self.CLAN)
+        owners = [{"OID": self.ALLY, "AID": self.CLAN, "N": "ally"}]
+        assert self.attack(state, 10, self.ENEMY, self.ALLY, owners) == []
+
     def test_ally_attacking_an_outsider_does_not_fire(self, state):
         # Live: the server shares an alliance member's own attack on a player outside the alliance
         login(state, self.ME, self.CLAN)
@@ -752,6 +767,7 @@ class TestAllianceAttackAlerts:
     def test_attack_on_the_daimyo_township_fires(self, state):
         login(state, self.ME, self.CLAN)
         assert len(self.attack(state, 4, self.ENEMY, -815, [])) == 1
+        assert [m.movement_id for m in state.get_incoming_attacks()] == [4]
 
     def test_no_alliance_means_only_attacks_on_me(self, state):
         login(state, self.ME)
