@@ -31,9 +31,9 @@ from pydantic import (
     model_validator,
 )
 
-from .army import UnitInventory
+from .army import SpyPositions, UnitInventory
 from .base import BasePayload, BaseRequest, BaseResponse
-from .commanders import Commander, CommanderRoster
+from .commanders import Commander, CommanderEffects, CommanderRoster
 from .map import MapAreaItem, MapObject
 
 if TYPE_CHECKING:
@@ -316,7 +316,8 @@ class AttackInfoResponse(BaseResponse):
     ``S`` is not empty, and otherwise treats the target as never spied.
 
     Client: ``CastleAttackInfoVO.fillFromParamObject`` (bundle lines 30620-30633),
-    ``CastleFightScreenVO.fillFromParamObject`` for ``AE`` (bundle line 30501),
+    ``CastleFightScreenVO.fillFromParamObject`` for ``AE`` (bundle line 30501), which hands it to
+    ``SimpleEffectSource.parseEffects`` (bundle line 38429),
     ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line 30699).
     """
 
@@ -324,10 +325,17 @@ class AttackInfoResponse(BaseResponse):
     target_x: int = Field(alias="TX", default=0, description="Target map x")
     target_y: int = Field(alias="TY", default=0, description="Target map y")
     kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id")
-    raw_attacker_effects: list = Field(
-        alias="AE", default_factory=list, description="Area effects on this attack, already scoped to the target"
+    attacker_effects: CommanderEffects = Field(
+        alias="AE",
+        default_factory=list,
+        description="Area effects on this attack, already scoped to the target; unreadable entries are skipped",
     )
-    raw_spy_army: list = Field(alias="S", default_factory=list, description="Spied defenders, one entry per position")
+    spy_data: SpyPositions = Field(
+        alias="S",
+        default_factory=list,
+        description="Spied defenders as [wod_id, amount] pairs per position: left, middle, right, keep, "
+        "stronghold, support, then an optional reserve",
+    )
     spy_age_seconds: int = Field(
         alias="AS",
         default=-1,
@@ -392,7 +400,7 @@ class AttackInfoResponse(BaseResponse):
     @model_validator(mode="after")
     def _no_spy_report_without_an_army(self) -> "AttackInfoResponse":
         """Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` sets the age and legend skills only when S is not empty."""
-        if not self.raw_spy_army:
+        if not self.spy_data:
             self.spy_age_seconds = -1
             self.defender_legend_skill_ids = []
         return self
@@ -405,9 +413,9 @@ class AttackInfoResponse(BaseResponse):
         effects the attack picks up on top of it, and they include the flank and
         front unit-amount bonuses that decide how many troops a wave holds.
         """
-        from empire_core.combat import parse_bonus_entries
+        from empire_core.combat import effect_bonuses
 
-        return parse_bonus_entries(self.raw_attacker_effects)
+        return effect_bonuses(self.attacker_effects)
 
     def spy_army(self) -> "SpyArmy | None":
         """
@@ -418,9 +426,9 @@ class AttackInfoResponse(BaseResponse):
         """
         from empire_core.services.spy_army import SpyArmy
 
-        if not self.raw_spy_army:
+        if not self.spy_data:
             return None
-        return SpyArmy.from_spy_data(self.raw_spy_army)
+        return SpyArmy.from_spy_data(self.spy_data)
 
     def defending_castellan(self) -> Commander | None:
         """
@@ -434,7 +442,7 @@ class AttackInfoResponse(BaseResponse):
         bundle line 30632), ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line
         30699), ``LordFactory.createLord`` (bundle line 26399).
         """
-        if not self.raw_spy_army:
+        if not self.spy_data:
             return None
         return self.spied_castellan if self._castellan_from_abe else self.spied_castellan_fallback
 

@@ -12,6 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
+from .army import SpyPositions
 from .base import BasePayload, BaseRequest, BaseResponse
 from .commanders import Castellan
 
@@ -164,7 +165,7 @@ class BattleSpyDataResponse(BaseResponse):
         description="The castellan defending the spied castle; the client reads it without its equipment. "
         "None when missing or unreadable",
     )
-    spy_data: list[list[list[int]]] = Field(
+    spy_data: SpyPositions = Field(
         alias="S",
         default_factory=list,
         description="Spied defenders as [wod_id, amount] pairs per position: left, middle, right, keep, "
@@ -181,17 +182,6 @@ class BattleSpyDataResponse(BaseResponse):
             return Castellan.model_validate(value)
         except ValidationError:
             return None
-
-    @field_validator("spy_data", mode="before")
-    @classmethod
-    def _wod_amount_pairs(cls, value: Any) -> Any:
-        """Client: ``AUnitInventory.fillFromWodAmountArray`` (bundle line 42572) skips entries that are not arrays."""
-        if not isinstance(value, list):
-            return value
-        return [
-            [pair for pair in position if isinstance(pair, list)] if isinstance(position, list) else []
-            for position in value
-        ]
 
 
 __all__ = [

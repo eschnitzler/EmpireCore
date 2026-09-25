@@ -3024,12 +3024,11 @@ class TestAttackInfo:
         assert info.inventory() == {211: 5323, 601: 100}
 
     def test_scoped_attacker_effects_resolve(self):
-        from empire_core.combat import parse_bonus_entries
         from empire_core.protocol.models import GetAttackInfoResponse
 
         info = GetAttackInfoResponse.model_validate(self.PAYLOAD)
 
-        bonuses = parse_bonus_entries(info.raw_attacker_effects)
+        bonuses = info.attacker_bonuses()
 
         # The construction item's flank bonus arrives tagged CI.
         assert any(b.effect_id == 66 and b.value == 30.0 for b in bonuses)

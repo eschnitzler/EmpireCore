@@ -165,3 +165,32 @@ class TestAttackInfoBlocks:
         # {} is truthy in JavaScript, so the client never falls back to B, and builds no castellan from it
         assert picked(abe={}, B=castellan) is None
         assert picked(abe={"N": "no id"}, B=castellan) is None
+
+    def test_spy_positions_are_read_through_int(self):
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        # fillFromWodAmountArray skips non-arrays and reads int(i[0]), int(i[1])
+        info = GetAttackInfoResponse.model_validate({"S": [[[487, "20"], "junk", [488, "x"]], "junk", [[10, 1]]]})
+
+        assert info.spy_data == [[[487, 20], [488, 0]], [], [[10, 1]]]
+        army = info.spy_army()
+        assert army is not None
+        assert [(s.wod_id, s.count) for s in army.left] == [(487, 20), (488, 0)]
+        assert [(s.wod_id, s.count) for s in army.right] == [(10, 1)]
+
+    def test_a_null_spy_block_is_no_report(self):
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate({"S": None, "AS": 30, "LS": [5]})
+
+        assert info.spy_army() is None
+        assert (info.spy_age_seconds, info.defender_legend_skill_ids) == (-1, [])
+
+    def test_attacker_effects_are_typed(self):
+        from empire_core.combat import Bonus
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate({"AE": [[66, [30.0], "CI"], "junk", [67]]})
+
+        assert [(e.effect_id, e.values, e.source) for e in info.attacker_effects] == [(66, [30.0], "CI"), (67, [], "")]
+        assert info.attacker_bonuses() == [Bonus(effect_id=66, value=30.0, raw_values=(30.0,))]
