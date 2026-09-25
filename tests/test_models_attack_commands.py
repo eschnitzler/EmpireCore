@@ -200,3 +200,56 @@ class TestAttackInfoBlocks:
 
         assert [(e.effect_id, e.values, e.source) for e in info.attacker_effects] == [(66, [30.0], "CI"), (67, [], "")]
         assert info.attacker_bonuses() == [Bonus(effect_id=66, value=30.0, raw_values=(30.0,))]
+
+
+class TestReviewedLeniency:
+    """Values the client converts or skips must cost at most their own entry."""
+
+    def test_odd_commander_values_are_read_like_the_client(self):
+        from empire_core.protocol.models import Commander, CommanderRoster
+
+        assert Commander.model_validate({"ID": 1, "W": "n/a", "N": 5}).wins == 0
+        assert Commander.model_validate({"DLID": -3}).commander_id == -3
+        roster = CommanderRoster.model_validate({"C": [{"N": "x"}, {"ID": 2}], "B": None})
+        assert [c.commander_id for c in roster.commanders] == [2]
+        assert CommanderRoster.model_validate(None).commanders == []
+
+    def test_a_bad_owner_record_or_row_costs_only_itself(self):
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate(
+            {"gaa": {"AI": [[1], 2, 3, 4], "OI": [{"OID": 5, "L": None}, {"OID": 6, "AP": "x"}]}}
+        )
+        assert info.target_area.area is None
+        assert [(o.owner_id, o.level) for o in info.owner_records()] == [(5, 0)]
+
+    def test_the_castellan_source_also_follows_field_names(self):
+        from empire_core.protocol.models import Commander, GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate({"S": [[[1, 2]]], "spied_castellan": Commander(ID=7)})
+        again = GetAttackInfoResponse.model_validate(info.model_dump())
+        for response in (info, again):
+            castellan = response.defending_castellan()
+            assert castellan is not None and castellan.commander_id == 7
+
+    def test_cra_keeps_its_movement_id_and_leader_when_the_wrapper_breaks(self):
+        from empire_core.protocol.models import CreateAttackResponse
+
+        reply = CreateAttackResponse.model_validate(
+            {"AAM": {"M": {"MID": 9, "TA": [1, 2]}, "UM": {"L": {"ID": 3}}}, "gcu": {"C1": 10.5}}
+        )
+        assert reply.attack_movement is None
+        assert reply.movement_id == 9
+        assert reply.leader is not None and reply.leader.commander_id == 3
+        assert reply.currencies is not None and reply.currencies.gold == 10.5
+
+    def test_equipment_effects_and_messages_the_client_still_reads(self):
+        from empire_core.protocol.models import CommanderEffect, Equipment, SystemNotificationEvent
+
+        item = Equipment.model_validate([1, 2, 1, 3, "graphic", [[5, [10]]], 0, 0, 0, 1.5, -1, 0])
+        assert (item.graphic, item.duration_seconds, len(item.bonuses)) == ("graphic", 1.5, 1)
+        assert CommanderEffect.model_validate([5, [10], 7]).source == ""
+        event = SystemNotificationEvent.model_validate(
+            {"MSG": [[1, 2, "h", "s", None, 1.5, 0, 0, 0], {"not": "a row"}, [3, 4, "h", "s", 9, 0, 0, 0, 0]]}
+        )
+        assert [(m.message_id, m.sender_id) for m in event.messages] == [(1, 0), (3, 9)]

@@ -476,12 +476,19 @@ class TestRequestSemantics:
         assert exc_info.value.code == 21
 
     def test_unparseable_payload_raises_packet_error(self):
-        # 'gli' requires an ID per commander; a drifted entry must surface as a
+        # 'arc' requires the castle id; a drifted reply must surface as a
         # library error, not a raw pydantic ValidationError.
-        client = make_client({"gli": xt_packet("gli", {"C": [{"N": "no id here"}]})})
+        from empire_core.protocol.models import RenameCastleRequest, RenameCastleResponse
+
+        client = make_client({"arc": xt_packet("arc", {"N": "no id here"})})
         with pytest.raises(PacketError) as exc_info:
-            client.commanders.get_commanders()
-        assert "gli" in str(exc_info.value)
+            client.request(RenameCastleRequest(CID=1, N="x", AT=1, KID=0, P=1), RenameCastleResponse)
+        assert "arc" in str(exc_info.value)
+
+    def test_a_gli_entry_without_an_id_is_skipped(self):
+        # parse_GLI builds every entry; one the library cannot read costs only itself
+        client = make_client({"gli": xt_packet("gli", {"C": [{"N": "no id here"}, {"ID": 2}]})})
+        assert [c.commander_id for c in client.commanders.get_commanders()] == [2]
 
     def test_array_payload_raises_packet_error_not_none(self):
         # A JSON-array payload has no response model, so send() returns None;
@@ -2040,13 +2047,13 @@ class TestOnResponse:
     def test_unparseable_push_does_not_reach_the_handler(self, caplog):
         client = make_client()
         seen: list[object] = []
-        client.commanders.on_response("gli", seen.append)
+        client.castle.on_response("arc", seen.append)
 
         with caplog.at_level(logging.ERROR, logger="empire_core.client.client"):
-            client._on_packet(xt_packet("gli", {"C": [{"N": "no id"}]}))
+            client._on_packet(xt_packet("arc", {"N": "no id"}))
 
         assert seen == []
-        assert "gli" in caplog.text
+        assert "arc" in caplog.text
 
     def test_commands_without_handlers_are_not_parsed(self):
         client = make_client()

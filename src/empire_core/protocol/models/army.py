@@ -549,6 +549,7 @@ class SendSupportResponse(BaseResponse):
 
 
 __all__ = [
+    "UnitInventory",
     # BUP - Produce Units
     "ProduceUnitsRequest",
     "ProduceUnitsResponse",

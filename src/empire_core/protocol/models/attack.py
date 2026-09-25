@@ -22,7 +22,6 @@ from typing import TYPE_CHECKING, Any
 from pydantic import (
     BaseModel,
     Field,
-    ModelWrapValidatorHandler,
     PrivateAttr,
     ValidationError,
     ValidatorFunctionWrapHandler,
@@ -30,6 +29,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from .army import SpyPositions, UnitInventory
 from .base import BasePayload, BaseRequest, BaseResponse
@@ -189,8 +189,12 @@ class CurrencyTotals(BasePayload):
     ``CollectableItemC2VO.SERVER_KEY`` "C2" (bundle line 4876).
     """
 
-    gold: int | None = Field(alias="C1", default=None, description="Gold (C1); None when the block leaves it out")
-    rubies: int | None = Field(alias="C2", default=None, description="Rubies (C2); None when the block leaves it out")
+    gold: int | float | None = Field(
+        alias="C1", default=None, description="Gold (C1), assigned as sent; None when the block leaves it out"
+    )
+    rubies: int | float | None = Field(
+        alias="C2", default=None, description="Rubies (C2), assigned as sent; None when the block leaves it out"
+    )
 
 
 class CreateAttackResponse(BaseResponse):
@@ -254,6 +258,18 @@ class CreateAttackResponse(BaseResponse):
         alias="AS", default=None, description="On ATTACK_IN_PROGRESS: the size of the attack already on its way"
     )
 
+    _raw_attack_movement: dict[str, Any] = PrivateAttr(default_factory=dict)
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _keep_the_raw_movement(
+        cls, data: object, handler: ModelWrapValidatorHandler["CreateAttackResponse"]
+    ) -> "CreateAttackResponse":
+        model = handler(data)
+        if isinstance(data, dict) and isinstance(data.get("AAM"), dict):
+            model._raw_attack_movement = data["AAM"]
+        return model
+
     @field_validator("attack_movement", mode="wrap")
     @classmethod
     def _movement_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> MovementWrapper | None:
@@ -281,13 +297,30 @@ class CreateAttackResponse(BaseResponse):
     @property
     def leader(self) -> Commander | None:
         """The commander leading the attack, as the server echoed it back."""
-        unit_info = self.attack_movement.unit_info if self.attack_movement else None
-        return unit_info.commander if unit_info else None
+        if self.attack_movement:
+            unit_info = self.attack_movement.unit_info
+            return unit_info.commander if unit_info else None
+        raw = (self._raw_attack_movement.get("UM") or {}).get("L")
+        if not isinstance(raw, dict):
+            return None
+        try:
+            return Commander.model_validate(raw)
+        except ValidationError:
+            logger.warning("Could not parse the commander echoed back by cra")
+            return None
 
     @property
     def movement_id(self) -> int | None:
         """The created movement's ID, or None when the server sent no movement."""
-        return self.attack_movement.movement.movement_id if self.attack_movement else None
+        if self.attack_movement:
+            return self.attack_movement.movement.movement_id
+        movement = self._raw_attack_movement.get("M")
+        if not isinstance(movement, dict):
+            return None
+        try:
+            return int(movement["MID"])
+        except (KeyError, TypeError, ValueError):
+            return None
 
 
 # =============================================================================
@@ -332,12 +365,26 @@ class AttackTargetArea(BasePayload):
     @field_validator("area", mode="before")
     @classmethod
     def _parse_row(cls, value: object) -> object:
-        return MapAreaItem.from_list(value) if isinstance(value, list) else None
+        if not isinstance(value, list):
+            return None
+        try:
+            return MapAreaItem.from_list(value)
+        except (ValidationError, TypeError):
+            logger.warning("Could not read the target's map row from an attack pre-calculation")
+            return None
 
     @field_validator("owners", mode="before")
     @classmethod
-    def _skip_non_records(cls, value: object) -> object:
-        return [record for record in value if isinstance(record, dict)] if isinstance(value, list) else []
+    def _readable_records(cls, value: object) -> list[MapObject]:
+        records = []
+        for record in value if isinstance(value, list) else []:
+            if not isinstance(record, dict):
+                continue
+            try:
+                records.append(MapObject.model_validate(record))
+            except ValidationError:
+                logger.warning("Skipped an owner record of an attack pre-calculation that could not be read")
+        return records
 
 
 class AttackInfoResponse(BaseResponse):
@@ -428,7 +475,7 @@ class AttackInfoResponse(BaseResponse):
         # Client: t.abe||t.B, so B is read only when abe is falsy in JavaScript
         model = handler(data)
         if isinstance(data, dict):
-            abe = data.get("abe")
+            abe = data.get("abe", data.get("spied_castellan"))
             model._castellan_from_abe = abe is not None and abe is not False and abe != 0 and abe != ""
         return model
 
@@ -1215,6 +1262,7 @@ class SkipDungeonCooldownResponse(BaseResponse):
 
 
 __all__ = [
+    "AttackTargetArea",
     # Pre-calculation
     "AttackInfoResponse",
     "GetAttackInfoRequest",

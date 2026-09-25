@@ -13,7 +13,7 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 from .army import SpyPositions
-from .base import BasePayload, BaseRequest, BaseResponse
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt
 from .commanders import Castellan
 
 # =============================================================================
@@ -42,14 +42,14 @@ class MessageInfo(BasePayload):
     """
 
     message_id: int = Field(description="Message id, row[0]")
-    message_type: int = Field(description="MessageConst.MESSAGE_TYPE_* value, row[1]")
+    message_type: ClientInt = Field(description="MessageConst.MESSAGE_TYPE_* value, row[1]")
     header: str = Field(
         default="",
         description="row[2]; its layout depends on message_type, each message class parses it in parseMessageHeader",
     )
     sender_name: str = Field(default="", description="row[3]")
-    sender_id: int = Field(default=-1, description="Sender's player id, row[4]")
-    seconds_since_sent: int = Field(default=0, description="row[5]")
+    sender_id: ClientInt = Field(default=-1, description="Sender's player id, row[4]")
+    seconds_since_sent: int | float = Field(default=0, description="row[5]")
     is_read: bool = Field(default=False, description="1 == row[6]")
     is_archived: bool = Field(default=False, description="1 == row[7]")
     is_forwarded: bool = Field(default=False, description="1 == row[8]")
@@ -86,7 +86,20 @@ class SystemNotificationEvent(BaseResponse):
 
     command = "sne"
 
-    messages: list[MessageInfo] = Field(alias="MSG", default_factory=list, description="The new messages")
+    messages: list[MessageInfo] = Field(
+        alias="MSG", default_factory=list, description="The new messages; rows that cannot be read are skipped"
+    )
+
+    @field_validator("messages", mode="before")
+    @classmethod
+    def _readable_rows(cls, value: Any) -> Any:
+        rows = []
+        for row in value if isinstance(value, list) else []:
+            try:
+                rows.append(MessageInfo.model_validate(row))
+            except ValidationError:
+                continue
+        return rows
 
 
 # =============================================================================

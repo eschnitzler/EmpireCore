@@ -139,7 +139,7 @@ class Equipment(BasePayload):
     slot: int = 0
     wearer_type: int = WearerType.ALL
     rarity_id: int = 0
-    graphic: int = 0
+    graphic: int | str = Field(default=0, description="The client keeps row[4] as its graphic string")
     bonuses: Annotated[list[EquipmentBonus], _readable_rows(EquipmentBonus)] = Field(
         default_factory=list, description="Bonuses of an item that is not a relic; unreadable entries are skipped"
     )
@@ -149,7 +149,7 @@ class Equipment(BasePayload):
     unique_id: ClientInt = 0
     set_id: int = 0
     enchantment_level: ClientInt = 0
-    duration_seconds: int = 0
+    duration_seconds: int | float = 0
     gem_id: ClientInt = NO_GEM_ID
     equipment_type: ClientInt = Field(
         default=EquipmentType.GENERATED, description="EquipmentType value, read through int() as the client does"
@@ -216,6 +216,11 @@ class CommanderEffect(BasePayload):
     )
     source: str = Field(default="", description="EffectSourceEnum server key, row[2]")
 
+    @field_validator("source", mode="before")
+    @classmethod
+    def _source_key(cls, value: Any) -> Any:
+        return value if isinstance(value, str) else ""
+
     @model_validator(mode="before")
     @classmethod
     def _from_row(cls, data: Any) -> Any:
@@ -246,23 +251,35 @@ class LeaderBase(BasePayload):
     ``ST`` and ``L``.
     """
 
-    commander_id: int = Field(alias="ID")
-    wearer_id: int | None = Field(
+    commander_id: int = Field(alias="ID", description="DLID for a default commander, else ID")
+    wearer_id: ClientInt | None = Field(
         alias="WID", default=None, description="EquipmentConst wearer id: 2 builds a CommanderVO, 1 a BaronVO"
     )
-    picture_id: int = Field(alias="VIS", default=0, description="Portrait id")
+    picture_id: ClientInt = Field(alias="VIS", default=0, description="Portrait id")
     name: str = Field(alias="N", default="")
-    wins: int = Field(alias="W", default=0)
-    defeats: int = Field(alias="D", default=0)
-    win_spree: int = Field(alias="SPR", default=0)
+    wins: ClientInt = Field(alias="W", default=0)
+    defeats: ClientInt = Field(alias="D", default=0)
+    win_spree: ClientInt = Field(alias="SPR", default=0)
     effects: CommanderEffects = Field(alias="E", default_factory=list, description="The commander's own effects")
     area_effects: CommanderEffects = Field(alias="AE", default_factory=list, description="Area effects")
     equipment: list[Equipment] = Field(
         alias="EQ", default_factory=list, description="Equipped items; entries that do not parse are skipped"
     )
-    general_id: int | None = Field(alias="GID", default=None)
-    star_level: int = Field(alias="ST", default=0)
-    level: int = Field(alias="L", default=0)
+    general_id: ClientInt | None = Field(alias="GID", default=None)
+    star_level: ClientInt = Field(alias="ST", default=0)
+    level: ClientInt = Field(alias="L", default=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _id_as_the_client_reads_it(cls, data: Any) -> Any:
+        # Client: LordFactory.createLord reads int(e.DLID||e.ID); LordVO.parseLord takes N as it comes
+        if isinstance(data, dict):
+            data = dict(data)
+            if data.get("DLID"):
+                data["ID"] = data["DLID"]
+            if not isinstance(data.get("N", ""), str):
+                data.pop("N")
+        return data
 
     @field_validator("equipment", mode="before")
     @classmethod
@@ -316,6 +333,28 @@ class CommanderRoster(BasePayload):
 
     commanders: list[Commander] = Field(alias="C", default_factory=list, description="Commanders, as CommanderVO")
     castellans: list[Castellan] = Field(alias="B", default_factory=list, description="Castellans, as BaronVO")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _no_block(cls, data: Any) -> Any:
+        # parse_GLI does nothing without a block
+        return {} if data is None else data
+
+    @field_validator("commanders", "castellans", mode="before")
+    @classmethod
+    def _readable_entries(cls, value: Any, info: ValidationInfo) -> Any:
+        if not isinstance(value, list):
+            return []
+        model = Commander if info.field_name == "commanders" else Castellan
+        entries = []
+        for entry in value:
+            if entry is None:
+                continue
+            try:
+                entries.append(model.model_validate(entry))
+            except ValidationError:
+                logger.warning(f"Skipped a gli entry that could not be read: {entry!r}")
+        return entries
 
 
 class GetCommandersResponse(BaseResponse, CommanderRoster):

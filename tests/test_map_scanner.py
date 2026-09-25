@@ -291,7 +291,7 @@ class TestMalformedResponses:
     def test_invalid_map_object_is_logged(self, caplog):
         fake = _FakeClient(
             content_chunks=set(),
-            payloads={(1, 1): {"AI": [], "OI": [{"OID": 7, "L": "not-a-number"}]}},
+            payloads={(1, 1): {"AI": [], "OI": [{"OID": 7, "AP": "not-a-list"}]}},
         )
         with caplog.at_level(logging.DEBUG, logger="empire_core.client.map_scanner"):
             result = _make_scanner(fake).scan_chunks(
@@ -363,7 +363,7 @@ class TestMalformedResponses:
     def test_skipped_map_objects_counted_in_drift_warning(self, caplog):
         fake = _FakeClient(
             content_chunks=set(),
-            payloads={(1, 1): {"AI": [], "OI": [{"OID": 7, "L": "not-a-number"}, "junk"]}},
+            payloads={(1, 1): {"AI": [], "OI": [{"OID": 7, "AP": "not-a-list"}, "junk"]}},
         )
         with caplog.at_level(logging.WARNING, logger="empire_core.client.map_scanner"):
             _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
