@@ -3,6 +3,7 @@ Commander protocol models.
 
 Commands:
 - gli: Get Lords Info - the server name for the commander/castellan list
+- arl: rename a commander or castellan
 """
 
 from __future__ import annotations
@@ -588,3 +589,40 @@ class GetCommandersResponse(BaseResponse, CommanderRoster):
     """
 
     command = "gli"
+
+
+class RenameCommanderRequest(BaseRequest):
+    """
+    Rename a commander or castellan.
+
+    Command: arl
+    Payload: {"LID": commander_id, "N": name}
+
+    The game's dialog allows 3 to 15 characters (``EquipmentConst.LORD_NAME_MIN_LENGTH``
+    and ``LORD_NAME_MAX_LENGTH``, dll line 19249); the server's own rules were not traced.
+
+    Client: ``C2SRenameLordVO`` (bundle line 65748), sent by ``CastleRenameLordDialog.sendCommand``
+    (bundle line 65738)
+    """
+
+    command = "arl"
+
+    commander_id: int = Field(alias="LID", description="ID of the commander or castellan")
+    name: str = Field(alias="N")
+
+
+class RenameCommanderResponse(BaseResponse):
+    """
+    Reply to a rename: the full commander and castellan list.
+
+    Command: arl
+
+    Client: ``ARLCommand.executeCommand`` (bundle line 123657), which passes ``gli`` to
+    ``CastleLordData.parse_GLI``
+    """
+
+    command = "arl"
+
+    commander_roster: CommanderRoster = Field(
+        alias="gli", default_factory=CommanderRoster, description="Commanders and castellans after the rename"
+    )

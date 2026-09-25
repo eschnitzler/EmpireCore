@@ -1,6 +1,13 @@
 from empire_core.combat import Bonus, commander_bonuses
 from empire_core.gamedata import GameData
-from empire_core.protocol.models import Castellan, Commander, Equipment, EquipmentType
+from empire_core.protocol.models import (
+    Castellan,
+    Commander,
+    Equipment,
+    EquipmentType,
+    RenameCommanderRequest,
+    RenameCommanderResponse,
+)
 
 
 class TestEquipment:
@@ -198,3 +205,16 @@ class TestAlienEquipment:
         assert commander.name == "x"
         assert (commander.alien_equipment, commander.alien_gem_ids) == (None, [])
         assert [b.effect_id for b in commander.alien_bonuses] == [54]
+
+
+class TestRenameCommander:
+    def test_the_payload_matches_c2s_rename_lord_vo(self):
+        request = RenameCommanderRequest(LID=91, N="farm-1")
+
+        assert request.command == "arl"
+        assert list(request.to_payload().items()) == [("LID", 91), ("N", "farm-1")]
+
+    def test_a_reply_without_gli_is_an_empty_roster(self):
+        response = RenameCommanderResponse.model_validate({})
+
+        assert response.commander_roster.commanders == []
