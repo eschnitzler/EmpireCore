@@ -14,7 +14,7 @@ import warnings
 from enum import IntEnum
 from typing import Any
 
-from pydantic import ConfigDict, Field, ValidationError, field_validator
+from pydantic import ConfigDict, Field, ValidationError, ValidationInfo, field_validator
 
 from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, Kingdom, Position
 from .movement import OwnerCrest, OwnerFaction
@@ -215,7 +215,11 @@ class MapAreaItem(BasePayload):
     x: int = 0
     y: int = 0
     owner_id: int = -1
-    raw_data: list = []  # Full raw array for extended parsing
+    raw_data: list[Any] = Field(
+        default_factory=list,
+        description="The whole row, kept raw: past [type, x, y] its layout is whatever the parseAreaInfo "
+        "of the area type's map object reads (WorldmapObjectFactory.parseWorldMapArea, bundle line 5343)",
+    )
 
     @classmethod
     def from_list(cls, data: list) -> "MapAreaItem":
@@ -447,6 +451,34 @@ class MapAreaItem(BasePayload):
             return f"UNKNOWN_{self.item_type}"
 
 
+def parse_area_rows(value: Any) -> tuple[list[MapAreaItem], int]:
+    """
+    Map rows as :class:`MapAreaItem`, with how many rows could not be read.
+
+    A row shorter than ``[type, x, y, id]`` is dropped without counting, and a
+    row whose fields have the wrong types is counted and skipped, so one bad
+    row costs only itself.
+
+    Client: ``CastleWorldmapData.parseAreaInfos`` (bundle line 18993) hands
+    each row to ``WorldmapObjectFactory.parseWorldMapArea`` (bundle line 5343).
+    """
+    if not isinstance(value, list):
+        return [], 0
+    items: list[MapAreaItem] = []
+    skipped = 0
+    for row in value:
+        if isinstance(row, MapAreaItem):
+            items.append(row)
+            continue
+        if not (isinstance(row, list) and len(row) >= 4):
+            continue
+        try:
+            items.append(MapAreaItem.from_list(row))
+        except ValidationError:
+            skipped += 1
+    return items, skipped
+
+
 class AllianceCrest(BasePayload):
     """
     An alliance's crest: a layout and its colours.
@@ -543,8 +575,10 @@ class GetMapAreaResponse(BaseResponse):
     Command: gaa
     Response format: {"KID": 0, "AI": [[type, x, y, location_id, player_id, ...], ...], ...}
 
-    The AI array contains raw map items. Use get_moving_flags() to extract the
-    castles that are currently in transit.
+    Use get_moving_flags() to extract the castles that are currently in transit.
+
+    Client: ``GAACommand.executeCommand`` (bundle line 130112) reads ``OI``
+    with ``parseOwnerInfoArray`` and ``AI`` with ``parseAreaInfos``.
     """
 
     command = "gaa"
@@ -552,8 +586,20 @@ class GetMapAreaResponse(BaseResponse):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
-    raw_items: list = Field(alias="AI", default_factory=list)
+    items: list[MapAreaItem] = Field(alias="AI", default_factory=list, description="The area's map rows")
     owners: list[MapObject] = Field(alias="OI", default_factory=list)
+
+    @field_validator("items", mode="before")
+    @classmethod
+    def _parse_rows(cls, value: Any, info: ValidationInfo) -> Any:
+        items, skipped = parse_area_rows(value)
+        if skipped:
+            # One line per response, not per row, so a fully drifted AI array can't flood the log.
+            logger.warning(
+                f"Skipped {skipped}/{len(value)} unparseable AI rows in map area "
+                f"response for kingdom {info.data.get('kingdom')}"
+            )
+        return items
 
     def get_ruins(self) -> list[MapObject]:
         """
@@ -562,32 +608,6 @@ class GetMapAreaResponse(BaseResponse):
         These have no coordinates; see :class:`MapObject`.
         """
         return [owner for owner in self.owners if owner.is_ruin]
-
-    @property
-    def items(self) -> list[MapAreaItem]:
-        """Parse raw AI array into MapAreaItem objects.
-
-        The raw AI rows are validated lazily, so a drifted row surfaces here
-        rather than at parse time. Accessors must not leak raw pydantic errors
-        after parse time, so such rows are skipped and counted instead.
-        """
-        items: list[MapAreaItem] = []
-        skipped = 0
-        for row in self.raw_items:
-            if not (isinstance(row, list) and len(row) >= 4):
-                continue
-            try:
-                items.append(MapAreaItem.from_list(row))
-            except ValidationError:
-                skipped += 1
-        if skipped:
-            # One line per response, not per row, so a fully drifted AI array
-            # can't flood the log.
-            logger.warning(
-                f"Skipped {skipped}/{len(self.raw_items)} unparseable AI rows in map area "
-                f"response for kingdom {self.kingdom}"
-            )
-        return items
 
     def get_moving_flags(self) -> dict[int, tuple[int, int]]:
         """
@@ -665,6 +685,7 @@ __all__ = [
     "GetMapAreaRequest",
     "GetMapAreaResponse",
     "MapAreaItem",
+    "parse_area_rows",
     "MapObject",
     "AllianceCrest",
     "AllianceEmblem",

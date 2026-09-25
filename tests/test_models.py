@@ -968,25 +968,25 @@ class TestMalformedNestedResponsePayloads:
         assert response.members == []
         assert response.online_members == []
 
-    def test_drifted_map_row_is_skipped_and_counted_by_the_item_accessor(self, caplog):
-        # The payload itself parses; the raw AI rows are validated lazily, so a
-        # drifted row surfaces when .items / .get_moving_flags() is read. Per
-        # TestDriftedPayloadsMustNotCrashAccessors, it must be skipped and
-        # logged there, never raised.
-        response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [["?", "?", "?", "?"]]})
-        assert response.kingdom == Kingdom.GREEN
+    def test_drifted_map_row_is_skipped_and_counted_at_parse_time(self, caplog):
         with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.map"):
-            assert response.items == []
-            assert response.get_moving_flags() == {}
+            response = GetMapAreaResponse.model_validate({"KID": 1, "AI": [["?", "?", "?", "?"]]})
+        assert response.kingdom == Kingdom.SANDS
+        assert response.items == []
+        assert response.get_moving_flags() == {}
         assert "Skipped 1/1" in caplog.text
+        assert "kingdom 1" in caplog.text
 
     def test_map_rows_survive_a_drifted_neighbour(self, caplog):
         good_row = [1, 640, 655, 900, 4242]
-        response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [["?", "?", "?", "?"], good_row]})
         with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.map"):
-            items = response.items
-        assert [(i.x, i.y) for i in items] == [(640, 655)]
-        assert "Skipped 1/2" in caplog.text
+            response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [["?", "?", "?", "?"], good_row, "junk"]})
+        assert [(i.x, i.y, i.owner_id) for i in response.items] == [(640, 655, 4242)]
+        assert response.items[0].raw_data == good_row
+        assert "Skipped 1/3" in caplog.text
+
+    def test_a_map_area_without_a_row_list_has_no_items(self):
+        assert GetMapAreaResponse.model_validate({"KID": 0, "AI": {"x": 1}}).items == []
 
 
 class TestDriftedPayloadsMustNotCrashAccessors:
