@@ -148,3 +148,20 @@ class TestAttackInfoBlocks:
         assert info.stronghold_inventory() == {620: 5}
         assert [c.commander_id for c in info.commander_roster.commanders] == [3]
         assert [c.commander_id for c in info.commander_roster.castellans] == [1]
+
+    def test_the_castellan_follows_the_client_abe_or_b(self):
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        spied = {"S": [[[10, 1]], [], [], [], [], []], "AS": 5}
+        castellan = {"ID": 4, "WID": 2}
+
+        def picked(**blocks: object) -> int | None:
+            chosen = GetAttackInfoResponse.model_validate({**spied, **blocks}).defending_castellan()
+            return chosen.commander_id if chosen else None
+
+        assert picked(abe={"ID": 9}, B=castellan) == 9
+        assert picked(B=castellan) == 4
+        assert picked(abe=None, B=castellan) == 4
+        # {} is truthy in JavaScript, so the client never falls back to B, and builds no castellan from it
+        assert picked(abe={}, B=castellan) is None
+        assert picked(abe={"N": "no id"}, B=castellan) is None

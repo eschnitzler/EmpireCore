@@ -19,7 +19,17 @@ import logging
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, Field, ValidationError, field_serializer, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    ModelWrapValidatorHandler,
+    PrivateAttr,
+    ValidationError,
+    ValidatorFunctionWrapHandler,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from .army import UnitInventory
 from .base import BasePayload, BaseRequest, BaseResponse
@@ -324,10 +334,10 @@ class AttackInfoResponse(BaseResponse):
         description="Seconds since the target was spied; -1 when there is no spy report, which is also the value "
         "whenever S is empty",
     )
-    raw_defending_castellan: dict | None = Field(
+    spied_castellan: Commander | None = Field(
         alias="abe", default=None, description="The castellan defending the target, read in preference to B"
     )
-    raw_defending_castellan_fallback: dict | None = Field(
+    spied_castellan_fallback: Commander | None = Field(
         alias="B", default=None, description="The castellan defending the target when abe is missing"
     )
     defender_legend_skill_ids: list[int] = Field(
@@ -352,6 +362,32 @@ class AttackInfoResponse(BaseResponse):
         default_factory=CommanderRoster,
         description="The attacker's commanders and castellans, which the client parses with CastleLordData.parse_GLI",
     )
+
+    _castellan_from_abe: bool = PrivateAttr(default=False)
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _note_castellan_source(
+        cls, data: object, handler: ModelWrapValidatorHandler["AttackInfoResponse"]
+    ) -> "AttackInfoResponse":
+        # Client: t.abe||t.B, so B is read only when abe is falsy in JavaScript
+        model = handler(data)
+        if isinstance(data, dict):
+            abe = data.get("abe")
+            model._castellan_from_abe = abe is not None and abe is not False and abe != 0 and abe != ""
+        return model
+
+    @field_validator("spied_castellan", "spied_castellan_fallback", mode="wrap")
+    @classmethod
+    def _castellan_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> Commander | None:
+        # The client builds no castellan from an empty entry
+        if not value:
+            return None
+        try:
+            return handler(value)
+        except ValidationError:
+            logger.warning("Could not parse the defending castellan from an attack pre-calculation")
+            return None
 
     @model_validator(mode="after")
     def _no_spy_report_without_an_army(self) -> "AttackInfoResponse":
@@ -400,18 +436,7 @@ class AttackInfoResponse(BaseResponse):
         """
         if not self.raw_spy_army:
             return None
-        entry = (
-            self.raw_defending_castellan
-            if self.raw_defending_castellan is not None
-            else self.raw_defending_castellan_fallback
-        )
-        if not entry:
-            return None
-        try:
-            return Commander.model_validate(entry)
-        except ValidationError:
-            logger.warning("Could not parse the defending castellan from an attack pre-calculation")
-            return None
+        return self.spied_castellan if self._castellan_from_abe else self.spied_castellan_fallback
 
     def target_row(self) -> list:
         """
