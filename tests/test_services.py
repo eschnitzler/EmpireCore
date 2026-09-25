@@ -1487,7 +1487,9 @@ class TestArmyService:
         units = client.army.get_units(12345)
 
         assert [(u.unit_id, u.count) for u in units] == [(487, 100), (488, 20), (301, 5)]
-        assert conn(client).request_payloads == [("gui", {"CID": 12345})]
+        # gui names no castle (C2SGetUnitInventoryVO), so the castle is joined first
+        assert [command for command, _ in conn(client).request_payloads] == ["jaa", "gui"]
+        assert conn(client).request_payloads[-1] == ("gui", {})
 
     def test_production_queue_parses(self):
         payload = {"Q": [{"QID": 1, "UID": 487, "C": 50, "R": 20, "CT": 1712345678}]}
@@ -2907,7 +2909,7 @@ class TestFillAttack:
         # Type 2 is a camp; field 3 is the espionage age and field 6 the count.
         camp_row = [2, 700, 710, -1, 0, -1, -299]
         conn(client).script["gaa"] = xt_packet("gaa", {"AI": [camp_row], "OI": []})
-        conn(client).script["adi"] = xt_packet("adi", dict(LIVE_ADI, gaa={"AI": camp_row}))
+        conn(client).script["adi"] = xt_packet("adi", dict(LIVE_ADI, gaa={"AI": camp_row}, gui={"I": [[601, 100_000]]}))
 
         result = client.attack.fill_attack(12345, target_x=700, target_y=710, kingdom_id=0, source_x=5, source_y=6)
 
@@ -2916,10 +2918,29 @@ class TestFillAttack:
         assert sent["adi"] == {"KID": 0, "SX": 5, "SY": 6, "TX": 700, "TY": 710}
         assert result.waves
 
+    def test_the_army_comes_from_the_pre_calculation(self):
+        # CastleAttackInfoVO fills the attack dialog's army from gui.I, so no gui is sent,
+        # and a map scan that moved the session off its castle does not matter
+        client = self.build([[601, 5]])
+        camp_row = [2, 700, 710, -1, 0, -1, -299]
+        conn(client).script["adi"] = xt_packet("adi", dict(LIVE_ADI, gaa={"AI": camp_row}, gui={"I": [[601, 100_000]]}))
+
+        result = client.attack.fill_attack(12345, target_x=700, target_y=710, area_type=2)
+
+        assert "gui" not in [command for command, _ in conn(client).request_payloads]
+        placed = sum(
+            n
+            for wave in result.waves
+            for flank in (wave.left, wave.middle, wave.right)
+            for wod, n in flank.units
+            if wod == 601
+        )
+        assert placed > 5
+
     def test_a_given_area_type_needs_no_scan_for_the_command(self):
         client = self.build([[601, 100_000]])
         camp_row = [2, 700, 710, -1, 0, -1, -299]
-        conn(client).script["adi"] = xt_packet("adi", dict(LIVE_ADI, gaa={"AI": camp_row}))
+        conn(client).script["adi"] = xt_packet("adi", dict(LIVE_ADI, gaa={"AI": camp_row}, gui={"I": [[601, 100_000]]}))
 
         result = client.attack.fill_attack(12345, target_x=700, target_y=710, area_type=2)
 
