@@ -221,6 +221,8 @@ from .commanders import (
     GetCommandersRequest,
     GetCommandersResponse,
     RelicBonus,
+    RenameCommanderRequest,
+    RenameCommanderResponse,
     WearerType,
 )
 from .defense import (
@@ -534,6 +536,8 @@ __all__ = [
     "GetSkillsResponse",
     "GetCommandersResponse",
     "CommanderRoster",
+    "RenameCommanderRequest",
+    "RenameCommanderResponse",
     "Castellan",
     "Commander",
     "CommanderEffect",
