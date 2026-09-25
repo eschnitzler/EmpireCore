@@ -32,6 +32,11 @@ from empire_core.protocol.models import AttackWave, WaveFlank
 from empire_core.protocol.models.map import MapAreaItem, MapItemType
 
 
+def placed(slots: list[list[int]]) -> list[list[int]]:
+    """A wave container's filled slots; fill_wave pads the rest with [-1, 0]."""
+    return [slot for slot in slots if slot[0] != -1]
+
+
 def unit_of(game: GameData, wod_id: int) -> UnitStats:
     """The unit, insisting it is there - a missing row is a failure, not a None."""
     unit = game.get_unit(wod_id)
@@ -485,10 +490,11 @@ class TestFillWave:
 
         assert wave.is_complete()
         payload = wave.model_dump(by_alias=True)
-        assert payload["L"]["U"] == [[601, 10]]
-        assert payload["M"]["U"] == [[601, 10]]
-        assert payload["R"]["U"] == [[601, 10]]
-        assert payload["L"]["T"] == []
+        # One pair per slot, locked slots included, as getSlotList sends them
+        assert payload["L"] == {"T": [[-1, 0], [-1, 0]], "U": [[601, 10], [-1, 0]]}
+        assert payload["R"] == {"T": [[-1, 0], [-1, 0]], "U": [[601, 10], [-1, 0]]}
+        assert payload["M"] == {"T": [[-1, 0]] * 3, "U": [[601, 10]] + [[-1, 0]] * 5}
+        assert list(payload) == ["L", "R", "M"]
         assert inv.available(601) == 0
 
     def test_inventory_is_shared_across_flanks_in_the_clients_order(self):
@@ -500,9 +506,9 @@ class TestFillWave:
         wave = fill_wave(inv, game, _capacity(10, 1))
 
         payload = wave.model_dump(by_alias=True)
-        assert payload["L"]["U"] == [[601, 10]]
-        assert payload["R"]["U"] == [[601, 5]]
-        assert payload["M"]["U"] == []
+        assert placed(payload["L"]["U"]) == [[601, 10]]
+        assert placed(payload["R"]["U"]) == [[601, 5]]
+        assert placed(payload["M"]["U"]) == []
 
     def test_disabled_flanks_stay_empty(self):
         game = solver_data()
@@ -516,9 +522,9 @@ class TestFillWave:
         )
 
         payload = wave.model_dump(by_alias=True)
-        assert payload["L"]["U"] == []
-        assert payload["M"]["U"] == [[601, 10]]
-        assert payload["R"]["U"] == []
+        assert placed(payload["L"]["U"]) == []
+        assert placed(payload["M"]["U"]) == [[601, 10]]
+        assert placed(payload["R"]["U"]) == []
 
     def test_an_unfillable_wave_is_incomplete_not_an_error(self):
         wave = fill_wave(Inventory({}), solver_data(), _capacity(10, 2))
@@ -672,8 +678,8 @@ class TestFillWaves:
 
         assert len(waves) == 2
         first = waves[0].model_dump(by_alias=True)
-        assert first["L"]["U"] == [[601, 15]]
-        assert first["M"]["U"] == [[601, 43]]
+        assert placed(first["L"]["U"]) == [[601, 15]]
+        assert placed(first["M"]["U"]) == [[601, 43]]
         assert waves[0].unit_count() == max_attackers(13)
 
     def test_filling_stops_when_the_pool_runs_dry(self):
@@ -785,8 +791,8 @@ class TestWaveWithTools:
         wave = fill_wave(inv, game, self.capacity(), defense=defense)
 
         payload = wave.model_dump(by_alias=True)
-        assert payload["L"]["T"] == [[611, 3]]  # 30 gate / 10 per ram
-        assert payload["L"]["U"] == [[601, 10]]
+        assert placed(payload["L"]["T"]) == [[611, 3]]  # 30 gate / 10 per ram
+        assert placed(payload["L"]["U"]) == [[601, 10]]
 
     def test_tools_are_returned_when_a_flank_gets_no_units(self):
         game = self.data()
@@ -797,7 +803,7 @@ class TestWaveWithTools:
         wave = fill_wave(inv, game, self.capacity(), defense=defense)
 
         payload = wave.model_dump(by_alias=True)
-        assert payload["L"]["T"] == []
+        assert placed(payload["L"]["T"]) == []
         assert inv.available(611) == 100
 
     def test_a_unit_only_wave_is_still_available(self):
@@ -807,7 +813,7 @@ class TestWaveWithTools:
 
         wave = fill_wave(inv, game, self.capacity(), defense=defense, strategies=[])
 
-        assert wave.model_dump(by_alias=True)["L"]["T"] == []
+        assert placed(wave.model_dump(by_alias=True)["L"]["T"]) == []
         assert inv.available(611) == 100
 
 

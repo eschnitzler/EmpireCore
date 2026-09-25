@@ -5,6 +5,7 @@ import json
 from empire_core.protocol.models import (
     AttackPreset,
     AttackWave,
+    CreateAttackRequest,
     GetPresetsRequest,
     GetPresetsResponse,
     MinuteSkipDungeonRequest,
@@ -103,7 +104,27 @@ class TestAttackPresets:
         assert request.command == "sas"
         assert request.to_payload() == {"S": 3, "A": WAVE_SAVED_AS}
 
+    def test_save_from_a_padded_wave_drops_the_empty_slots(self):
+        wave = AttackWave(M=WaveFlank(T=[[-1, 0]] * 3, U=[[10, 20]] + [[-1, 0]] * 5))
+        assert PresetArmy.from_wave(wave).to_arrays() == [[], [], [], [10, 20], [], []]
+
     def test_save_round_trips_through_the_reply(self):
         army = AttackPreset.model_validate({"S": 0, "A": SIX_ARRAYS}).army()
         assert army is not None
         assert SavePresetRequest.create(0, army).to_payload()["A"] == SIX_ARRAYS
+
+
+class TestAttackRequestShapes:
+    def test_cra_keys_follow_the_client_order(self):
+        request = CreateAttackRequest(SX=1, SY=2, TX=3, TY=4, A=[AttackWave()])
+        # C2SCreateArmyAttackMovementVO initialises SX..CD, then sets A, BKS, AST, RW, ASCT
+        assert list(request.to_payload()) == [
+            "SX", "SY", "TX", "TY", "KID", "LID", "WT", "HBW", "BPC", "ATT", "AV",
+            "LP", "FC", "PTT", "SD", "ICA", "CD", "A", "BKS", "AST", "RW", "ASCT",
+        ]  # fmt: skip
+
+    def test_wave_keys_follow_the_client_order(self):
+        # CastleAttackWaveVO.getWaveInfoObject builds {L, R, M}, each {T, U}
+        wave = AttackWave().model_dump(by_alias=True)
+        assert list(wave) == ["L", "R", "M"]
+        assert list(wave["L"]) == ["T", "U"]

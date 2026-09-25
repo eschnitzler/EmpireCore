@@ -63,6 +63,12 @@ from empire_core.services import spy as spy_module
 from empire_core.services.spy_army import SpyArmy
 from empire_core.state.models import Player
 
+
+def placed(slots: list[list[int]]) -> list[list[int]]:
+    """A wave container's filled slots; fill_wave pads the rest with [-1, 0]."""
+    return [slot for slot in slots if slot[0] != -1]
+
+
 # =============================================================================
 # Harness
 # =============================================================================
@@ -955,16 +961,30 @@ class TestCastleActions:
     def test_send_support_builds_the_documented_payload(self):
         client = make_client()
 
-        assert client.castle.send_support(12345, 700, 710, [[487, 100]], kingdom_id=2, wait_time=6) is True
+        assert client.castle.send_support(12345, 700, 710, [[487, 100]], wait_time=6) is True
 
         command, payload = conn(client).request_payloads[0]
         assert command == "cds"
+        # C2SCreateDefenceSupportMovementVO's keys, in its order, with no KID
+        assert list(payload) == ["SID", "TX", "TY", "LID", "WT", "HBW", "BPC", "PTT", "SD", "A"]
         assert payload["SID"] == 12345
-        assert (payload["TX"], payload["TY"], payload["KID"]) == (700, 710, 2)
+        assert (payload["TX"], payload["TY"]) == (700, 710)
         assert payload["A"] == [[487, 100]]
         assert payload["WT"] == 6
         assert payload["BPC"] == 1
         assert payload["LID"] == -14
+
+    def test_send_support_with_feathers_sends_no_horses(self):
+        client = make_client()
+        client.castle.send_support(12345, 700, 710, [[487, 1]], horses_type=3, feathers=1)
+        payload = conn(client).request_payloads[0][1]
+        assert (payload["HBW"], payload["PTT"]) == (-1, 1)
+
+    def test_send_support_without_feathers_keeps_the_horses(self):
+        client = make_client()
+        client.castle.send_support(12345, 700, 710, [[487, 1]], horses_type=3, feathers=0)
+        payload = conn(client).request_payloads[0][1]
+        assert (payload["HBW"], payload["PTT"]) == (3, 0)
 
     def test_send_support_without_coin_boost(self):
         client = make_client()
@@ -1251,7 +1271,7 @@ class TestAttackService:
             defense={f: DefenderFlankEffects(gate_bonus=0.30) for f in Flank},
         )
 
-        assert waves[0].model_dump(by_alias=True)["M"]["T"] == [[611, 1]]
+        assert placed(waves[0].model_dump(by_alias=True)["M"]["T"]) == [[611, 1]]
 
     def test_a_commanders_own_equipment_widens_the_flanks(self):
         from empire_core.gamedata import GameData
@@ -1302,7 +1322,7 @@ class TestAttackService:
             wod_id == 601
             for wave in waves
             for flank in wave.model_dump(by_alias=True).values()
-            for wod_id, _count in flank["U"]
+            for wod_id, _count in placed(flank["U"])
         )
 
     def test_fill_waves_without_a_target_level_is_an_error_not_a_guess(self):
@@ -2136,7 +2156,7 @@ class TestFillAttack:
 
         # Wall and gate protection of 30% each, and a ram that cancels 30%.
         payload = result.waves[0].model_dump(by_alias=True)
-        assert payload["M"]["T"] == [[611, 1]]
+        assert placed(payload["M"]["T"]) == [[611, 1]]
 
     def test_the_area_bonuses_widen_the_flanks(self):
         # aci's AE carries attackUnitAmountFlank; the live capture has +30%.
@@ -2640,7 +2660,7 @@ class TestFillAttack:
 
         result = client.attack.fill_attack(12345, target_level=13, target_is_player=True, target_row=row)
 
-        assert result.waves[0].model_dump(by_alias=True)["M"]["T"] == []
+        assert placed(result.waves[0].model_dump(by_alias=True)["M"]["T"]) == []
 
     def test_the_same_tool_is_carried_when_the_row_matches(self):
         client = self.build([[601, 100_000], [611, 500]])
@@ -2649,7 +2669,7 @@ class TestFillAttack:
 
         result = client.attack.fill_attack(12345, target_level=13, target_is_player=True, target_row=row)
 
-        assert result.waves[0].model_dump(by_alias=True)["M"]["T"] == [[611, 1]]
+        assert placed(result.waves[0].model_dump(by_alias=True)["M"]["T"]) == [[611, 1]]
 
     def test_no_game_data_is_an_error(self):
         from empire_core.exceptions import GameDataNotLoadedError
@@ -2888,7 +2908,7 @@ class TestFillAttackLevelDerivation:
         result = client.attack.fill_attack(12345, camp_victories=299, camp_kingdom_id=0)
 
         # Level 45 gives 47 units per flank before bonuses.
-        assert result.waves[0].model_dump(by_alias=True)["L"]["U"] == [[601, 47]]
+        assert placed(result.waves[0].model_dump(by_alias=True)["L"]["U"]) == [[601, 47]]
 
     def test_neither_level_nor_victories_is_an_error(self):
         from empire_core.gamedata import GameData

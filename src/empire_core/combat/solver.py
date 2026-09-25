@@ -19,7 +19,15 @@ from pydantic import BaseModel, ConfigDict, Field
 from empire_core.gamedata import GameData
 from empire_core.protocol.models import AttackWave, WaveFlank
 
-from .capacity import YARD_SLOTS, WaveCapacity, max_wave_count
+from .capacity import (
+    TOOL_SLOT_LEVELS_FLANK,
+    TOOL_SLOT_LEVELS_MIDDLE,
+    UNIT_SLOT_LEVELS_FLANK,
+    UNIT_SLOT_LEVELS_MIDDLE,
+    YARD_SLOTS,
+    WaveCapacity,
+    max_wave_count,
+)
 from .effects import AttackerFlankEffects, DefenderFlankEffects, Flank
 from .tools import TargetContext, check_flank, default_tool_strategies, fill_flank_with_tools
 
@@ -270,7 +278,14 @@ def fill_wave(
         target_is_player: Whether the target belongs to another player
 
     Returns:
-        An :class:`AttackWave` ready for ``send_attack``
+        An :class:`AttackWave` ready for ``send_attack``. Each container holds
+        one ``[wod_id, count]`` pair per slot, locked slots included, with
+        ``[-1, 0]`` for an empty one, as the client sends it.
+
+    Client: ``CastleAttackWaveVO.getWaveInfoObject`` (bundle line 99930) and
+    ``CastleFightItemContainer.getSlotList`` (bundle line 20573), which lists
+    every slot of the container's ``CombatConst.ITEMS_*`` table (dll lines
+    18864-18876), unlocked ones first
     """
     options = options or FillOptions()
     # The client fills left, then right, then middle. The order is visible in
@@ -326,6 +341,13 @@ def fill_wave(
 
         units[flank] = [[wod_id, count] for wod_id, count in placed_units]
         tools[flank] = [[wod_id, count] for wod_id, count in placed_tools]
+
+    for flank in wanted:
+        middle = flank == Flank.MIDDLE
+        unit_slots = len(UNIT_SLOT_LEVELS_MIDDLE if middle else UNIT_SLOT_LEVELS_FLANK)
+        tool_slots = len(TOOL_SLOT_LEVELS_MIDDLE if middle else TOOL_SLOT_LEVELS_FLANK)
+        units[flank] += [[-1, 0]] * (unit_slots - len(units[flank]))
+        tools[flank] += [[-1, 0]] * (tool_slots - len(tools[flank]))
 
     return AttackWave(
         L=WaveFlank(U=units[Flank.LEFT], T=tools[Flank.LEFT]),

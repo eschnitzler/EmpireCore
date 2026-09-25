@@ -425,22 +425,26 @@ class HealAllResponse(BaseResponse):
 
 class SendSupportRequest(BaseRequest):
     """
-    Send support troops to a location.
+    Send support troops to a castle.
 
     Command: cds
     Payload: {
         "SID": source_castle_id,
         "TX": target_x,
         "TY": target_y,
-        "KID": kingdom_id (0=Green, 2=Ice, 1=Sand, 3=Fire),
-        "LID": commander_id (-14 = the default premium commander entry),
-        "WT": wait_time (station duration in hours, 0-12),
-        "HBW": horses_type (-1 for default/none),
-        "BPC": boost_with_coins (1 = use coins for faster travel, 0 = normal speed),
-        "PTT": feathers (speed boost item, 1 = use, 0 = don't use),
-        "SD": slowdown (movement slowdown modifier, 0 = none),
+        "LID": commander_id,
+        "WT": wait_time,
+        "HBW": horses_type (-1 when PTT is set),
+        "BPC": boost_with_coins,
+        "PTT": feathers,
+        "SD": slowdown,
         "A": [[unit_id, count], ...]
     }
+
+    The client sends no kingdom id. Fields follow its key order.
+
+    Client: ``C2SCreateDefenceSupportMovementVO`` (bundle line 133893), built
+    by ``CastleAttackData.sendSupport`` (bundle line 133855)
     """
 
     command = "cds"
@@ -448,7 +452,6 @@ class SendSupportRequest(BaseRequest):
     source_castle_id: int = Field(alias="SID")
     target_x: int = Field(alias="TX")
     target_y: int = Field(alias="TY")
-    kingdom_id: int = Field(alias="KID", default=0)
     commander_id: int = Field(alias="LID", default=-14)
     wait_time: int = Field(alias="WT", default=12, ge=0, le=12)
     horses_type: int = Field(alias="HBW", default=-1)

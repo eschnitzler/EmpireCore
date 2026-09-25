@@ -61,9 +61,10 @@ def main() -> int:
         for index, wave in enumerate(filled.waves):
             payload = wave.model_dump(by_alias=True)
             for flank in ("L", "M", "R"):
-                side = payload[flank]
-                if side["U"] or side["T"]:
-                    print(f"  wave {index} {flank}: units {side['U']} tools {side['T']}")
+                units = [pair for pair in payload[flank]["U"] if pair[0] != -1]
+                tools = [pair for pair in payload[flank]["T"] if pair[0] != -1]
+                if units or tools:
+                    print(f"  wave {index} {flank}: units {units} tools {tools}")
         placed = [pair for pair in filled.yard if pair[0] != -1]
         print(f"  courtyard: {placed or 'empty'}")
 

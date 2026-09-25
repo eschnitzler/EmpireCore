@@ -177,7 +177,6 @@ class CastleService(BaseService):
         target_x: int,
         target_y: int,
         units: list[list[int]],
-        kingdom_id: int = 0,
         wait_time: int = 12,
         boost_with_coins: bool = True,
         horses_type: int = -1,
@@ -194,10 +193,10 @@ class CastleService(BaseService):
             target_x: Target X coordinate
             target_y: Target Y coordinate
             units: List of [unit_id, count] pairs
-            kingdom_id: Target kingdom ID (0=Green, 2=Ice, 1=Sand, 3=Fire, default: 0)
             wait_time: Station duration in hours (0-12, default: 12)
             boost_with_coins: Use coins to speed up travel (default: True)
-            horses_type: Type of horses for speed bonus (-1 = none, default: -1)
+            horses_type: Type of horses for speed bonus (-1 = none, default: -1);
+                sent as -1 whenever feathers are used, as the client does
             feathers: Use feathers for speed boost (1 = use, 0 = don't, default: 1)
             slowdown: Movement slowdown modifier (0 = none, default: 0)
             commander_id: Commander ID (-14 = the game's default premium
@@ -208,11 +207,10 @@ class CastleService(BaseService):
             SID=source_castle_id,
             TX=target_x,
             TY=target_y,
-            KID=kingdom_id,
             A=units,
             WT=wait_time,
             BPC=1 if boost_with_coins else 0,
-            HBW=horses_type,
+            HBW=-1 if feathers else horses_type,
             PTT=feathers,
             SD=slowdown,
             LID=commander_id,

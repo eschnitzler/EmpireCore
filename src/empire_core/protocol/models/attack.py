@@ -63,14 +63,16 @@ class WaveFlank(BasePayload):
 
 class AttackWave(BasePayload):
     """
-    A single attack wave: left, middle and right flank.
+    A single attack wave: left, right and middle flank.
 
-    Payload: {"L": flank, "M": flank, "R": flank}
+    Payload: {"L": flank, "R": flank, "M": flank}, in the client's key order.
+
+    Client: ``CastleAttackWaveVO.getWaveInfoObject`` (bundle line 99930)
     """
 
     left: WaveFlank = Field(alias="L", default_factory=WaveFlank)
-    middle: WaveFlank = Field(alias="M", default_factory=WaveFlank)
     right: WaveFlank = Field(alias="R", default_factory=WaveFlank)
+    middle: WaveFlank = Field(alias="M", default_factory=WaveFlank)
 
     def unit_count(self) -> int:
         """Total units across all three flanks; non-pair entries count as zero."""
@@ -95,7 +97,6 @@ class CreateAttackRequest(BaseRequest):
     Payload: {
         "SX": source_x, "SY": source_y,      # absolute map coordinates
         "TX": target_x, "TY": target_y,
-        "A": [wave, ...],                    # see AttackWave
         "KID": kingdom_id,
         "LID": commander_id (0 = none),
         "WT": wait_time,
@@ -108,12 +109,18 @@ class CreateAttackRequest(BaseRequest):
         "PTT": feathers,
         "SD": slowdown offset in seconds,
         "ICA": collector_attack,
+        "CD": 99,                            # hardcoded by the client
+        "A": [wave, ...],                    # see AttackWave
         "BKS": [collector_booster, ...],
         "AST": [support_tool_wod_id, ...],
-        "CD": 99,                            # hardcoded by the client
         "RW": [[unit_id, count], ...],       # yard wave
         "ASCT": auto_skip_cooldown_type
     }
+
+    Fields follow the client's key order: the constructor initialises SX
+    through CD before it sets A, BKS, AST, RW and ASCT.
+
+    Client: ``C2SCreateArmyAttackMovementVO`` (bundle line 60851)
     """
 
     command = "cra"
@@ -122,7 +129,6 @@ class CreateAttackRequest(BaseRequest):
     source_y: int = Field(alias="SY")
     target_x: int = Field(alias="TX")
     target_y: int = Field(alias="TY")
-    waves: list[AttackWave] = Field(alias="A", default_factory=list)
     kingdom_id: int = Field(alias="KID", default=0)
     commander_id: int = Field(alias="LID", default=0)
     wait_time: int = Field(alias="WT", default=0)
@@ -139,9 +145,10 @@ class CreateAttackRequest(BaseRequest):
     feathers: int = Field(alias="PTT", default=0)
     slowdown: int = Field(alias="SD", default=0)
     collector_attack: int = Field(alias="ICA", default=0)
+    countdown: int = Field(alias="CD", default=99)
+    waves: list[AttackWave] = Field(alias="A", default_factory=list)
     collector_booster: list = Field(alias="BKS", default_factory=list)
     support_tools: list[int] = Field(alias="AST", default_factory=list)
-    countdown: int = Field(alias="CD", default=99)
     yard_wave: list[list[int]] = Field(alias="RW", default_factory=list)
     auto_skip_cooldown: int = Field(alias="ASCT", default=0)
 

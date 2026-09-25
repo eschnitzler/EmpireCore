@@ -16,9 +16,22 @@ from empire_core.combat import (
     fill_waves,
 )
 from empire_core.gamedata import GameData
+from empire_core.protocol.models import AttackWave
 
 SEEDS = range(40)
 FLANKS = ("L", "M", "R")
+
+# Slots per container: CombatConst.ITEMS_* tables, dll lines 18864-18876
+SLOTS = {"L": {"U": 2, "T": 2}, "M": {"U": 6, "T": 3}, "R": {"U": 2, "T": 2}}
+
+
+def filled(wave: AttackWave) -> dict[str, dict[str, list[list[int]]]]:
+    """The wave's payload without the [-1, 0] padding of empty slots."""
+    payload = wave.model_dump(by_alias=True)
+    return {
+        flank: {kind: [slot for slot in slots if slot[0] != -1] for kind, slots in side.items()}
+        for flank, side in payload.items()
+    }
 
 
 def random_game(rng: random.Random) -> tuple[GameData, dict[int, int]]:
@@ -99,7 +112,7 @@ class TestSolverInvariants:
 
             placed: dict[int, int] = {}
             for wave in waves:
-                payload = wave.model_dump(by_alias=True)
+                payload = filled(wave)
                 for flank in FLANKS:
                     for wod_id, count in payload[flank]["U"] + payload[flank]["T"]:
                         placed[wod_id] = placed.get(wod_id, 0) + count
@@ -113,13 +126,23 @@ class TestSolverInvariants:
             _, _, _, waves, capacity = self.run(seed)
 
             for wave in waves:
-                payload = wave.model_dump(by_alias=True)
+                payload = filled(wave)
                 for name, flank in zip(FLANKS, (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT), strict=True):
                     side = payload[name]
                     assert sum(count for _, count in side["U"]) <= capacity.soldier_capacity(flank)
                     assert sum(count for _, count in side["T"]) <= capacity.tool_capacity(flank)
                     assert len(side["U"]) <= capacity.unit_slots(flank)
                     assert len(side["T"]) <= capacity.tool_slots(flank)
+
+    def test_every_slot_is_sent(self):
+        for seed in SEEDS:
+            _, _, _, waves, _ = self.run(seed)
+
+            for wave in waves:
+                payload = wave.model_dump(by_alias=True)
+                for flank in FLANKS:
+                    for kind in ("U", "T"):
+                        assert len(payload[flank][kind]) == SLOTS[flank][kind], f"seed {seed}: {flank}.{kind}"
 
     def test_a_tools_per_wave_budget_holds_across_the_flanks(self):
         # The budget is keyed by type and shared by every tier of it, so the
@@ -140,7 +163,7 @@ class TestSolverInvariants:
             }
 
             for index, wave in enumerate(waves):
-                payload = wave.model_dump(by_alias=True)
+                payload = filled(wave)
                 per_type: dict[str, int] = {}
                 for flank in FLANKS:
                     for wod_id, count in payload[flank]["T"]:
@@ -156,7 +179,7 @@ class TestSolverInvariants:
             game, _, _, waves, capacity = self.run(seed)
 
             for wave in waves:
-                payload = wave.model_dump(by_alias=True)
+                payload = filled(wave)
                 for name, flank in zip(FLANKS, (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT), strict=True):
                     for wod_id, _ in payload[name]["T"]:
                         tool = game.get_tool(wod_id)
@@ -168,7 +191,7 @@ class TestSolverInvariants:
             _, _, _, waves, _ = self.run(seed)
 
             for wave in waves:
-                payload = wave.model_dump(by_alias=True)
+                payload = filled(wave)
                 for flank in FLANKS:
                     if payload[flank]["T"]:
                         assert payload[flank]["U"], f"seed {seed}: tools with no units on {flank}"
