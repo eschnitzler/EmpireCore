@@ -457,7 +457,7 @@ class SendSupportRequest(BaseRequest):
     source_castle_id: int = Field(alias="SID")
     target_x: int = Field(alias="TX")
     target_y: int = Field(alias="TY")
-    commander_id: int = Field(alias="LID", default=0, description="Commander id, 0 for none")
+    commander_id: int = Field(alias="LID", description="Commander id; 0 is the free starting commander")
     wait_time: int = Field(alias="WT", default=12, ge=0, le=12)
     horses_type: int = Field(alias="HBW", default=-1)
     use_premium_commander: int = Field(alias="BPC", default=0, description="1 when the premium commander leads")

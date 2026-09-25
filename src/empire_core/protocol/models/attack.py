@@ -101,7 +101,7 @@ class CreateAttackRequest(BaseRequest):
         "LID": commander_id (0 = none),
         "WT": wait_time,
         "HBW": horses_type (-1 when PTT is set),
-        "BPC": boost_with_coins,
+        "BPC": use_premium_commander,
         "ATT": attack_type (see AttackType),
         "AV": share_battle_view,
         "LP": loot_priority resource id,
@@ -133,7 +133,14 @@ class CreateAttackRequest(BaseRequest):
     commander_id: int = Field(alias="LID", default=0)
     wait_time: int = Field(alias="WT", default=0)
     horses_type: int = Field(alias="HBW", default=-1)
-    boost_with_coins: int = Field(alias="BPC", default=0)
+    use_premium_commander: int = Field(
+        alias="BPC",
+        default=0,
+        description=(
+            "1 when the premium commander (LID -14) leads, which uses a premium commander or costs rubies; "
+            "CastlePostAttackDialog.startAttack sends 0 for any other commander"
+        ),
+    )
     attack_type: int = Field(alias="ATT", default=AttackType.ATTACK)
     share_battle_view: int = Field(alias="AV", default=0)
     loot_priority: int = Field(alias="LP", default=0)

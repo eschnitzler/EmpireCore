@@ -177,12 +177,12 @@ class CastleService(BaseService):
         target_x: int,
         target_y: int,
         units: list[list[int]],
+        commander_id: int,
         wait_time: int = 12,
         use_premium_commander: bool = False,
         horses_type: int = -1,
         feathers: bool = False,
         slowdown: int = 0,
-        commander_id: int = 0,
         timeout: float = 5.0,
     ) -> bool:
         """
@@ -193,6 +193,10 @@ class CastleService(BaseService):
             target_x: Target X coordinate
             target_y: Target Y coordinate
             units: List of [unit_id, count] pairs
+            commander_id: Commander to lead the support, from client.commanders.
+                There is no default: ``0`` is a real commander (the free starting
+                one), and the client never sends a support without a commander
+                (with none picked it leads with the premium one, ``-14``)
             wait_time: Station duration in hours (0-12, default: 12)
             use_premium_commander: Lead with the premium commander (``commander_id``
                 -14). It uses one of your premium commanders, or costs rubies when
@@ -201,7 +205,6 @@ class CastleService(BaseService):
                 sent as -1 whenever feathers are used, as the client does
             feathers: Pay for the movement with feathers
             slowdown: Movement slowdown modifier (0 = none, default: 0)
-            commander_id: Commander ID, 0 for none
             timeout: Timeout in seconds
         """
         request = SendSupportRequest(

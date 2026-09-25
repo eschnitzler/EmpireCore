@@ -231,7 +231,7 @@ class AttackService(BaseService):
         wait_time: int = 0,
         horses_type: int = -1,
         feathers: bool = False,
-        boost_with_coins: bool = False,
+        use_premium_commander: bool = False,
         share_battle_view: bool = False,
         loot_priority: int = 0,
         slowdown: int = 0,
@@ -255,10 +255,9 @@ class AttackService(BaseService):
         commander under ``AAM.UM.L``. The server validates the id before it
         looks at the army: an id outside the list is ``INVALID_LORD_ID`` (219),
         and a castellan already posted to a castle is ``LORD_IS_USED`` (256).
-        ``-14`` (the no-commander sentinel of ``cds``) also passes validation
-        here, but no accepted ``-14`` send has been captured, and players report
-        it can cost rubies depending on VIP level, so it is not used as a
-        default.
+        ``-14`` is the premium commander (``TravelConst.COMMANDER_PREMIUM``); the
+        client sends it with ``BPC`` 1 (``use_premium_commander``), which uses a
+        premium commander or costs rubies, so it is never a default.
 
         Args:
             source_x: Source absolute X coordinate
@@ -272,7 +271,9 @@ class AttackService(BaseService):
             wait_time: Wait time before the troops return
             horses_type: Horse type for the speed bonus (-1 = none)
             feathers: Use feathers for the speed boost
-            boost_with_coins: Pay coins to speed up travel
+            use_premium_commander: Lead with the premium commander (``commander_id``
+                -14). It uses one of your premium commanders, or costs rubies when
+                none are left; the client asks first, this does not
             share_battle_view: Let others watch the battle
             loot_priority: Resource ID to prioritise when looting
             slowdown: Slowdown offset in seconds
@@ -319,7 +320,7 @@ class AttackService(BaseService):
             WT=wait_time,
             HBW=-1 if feathers else horses_type,
             PTT=1 if feathers else 0,
-            BPC=1 if boost_with_coins else 0,
+            BPC=1 if use_premium_commander else 0,
             AV=1 if share_battle_view else 0,
             LP=loot_priority,
             SD=slowdown,
