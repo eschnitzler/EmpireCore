@@ -73,7 +73,11 @@ Both entry kinds parse through `LordVO.parseLord`:
 | `D` | Defeats |
 | `SPR` | Win spree |
 | `EQ` | Equipment entries; `entry[1]` is the slot type (helmet/armor/weapon/artifact/skin/hero) |
-| `AIE` / `TAE` | Temporary/alien effect block, whichever is present |
+| `VIS` | Portrait id (`picID`), read through `int()` |
+| `AIE` / `TAE` | Alien / temporary equipment, whichever is present, read only when `EQ` is empty: a list of `[effect_id, values]` rows, or `[hero_rows, equipment_rows]` |
+| `GEM` | Gem ids for the `AIE`/`TAE` equipment |
+| `ST`, `L` | Read by `GeneralVO.parseData` only when the entry doubles as its general (`GID` > 0 on a default commander) |
+| `LICID` | Castellans only (`BaronVO.parseLord`): the castle it is locked in, read through `int()`; `>= 0` keeps it off movements |
 
 Commanders are sorted, then given `playerIndex = position + 1` for display.
 

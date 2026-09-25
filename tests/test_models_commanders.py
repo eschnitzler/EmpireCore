@@ -1,6 +1,6 @@
 from empire_core.combat import Bonus, commander_bonuses
 from empire_core.gamedata import GameData
-from empire_core.protocol.models import Commander, Equipment, EquipmentType
+from empire_core.protocol.models import Castellan, Commander, Equipment, EquipmentType
 
 
 class TestEquipment:
@@ -106,3 +106,95 @@ class TestCommanderEffects:
             Bonus(effect_id=53, value=25.0, via_equipment=True, raw_values=(25.0,)),
             Bonus(effect_id=4, value=116.2, via_relic=True, raw_values=(116.2,)),
         ]
+
+
+class TestCastellanAvailability:
+    # Captured shape of a gli B entry
+    ENTRY = {"ID": 1, "WID": 1, "VIS": 0, "N": "", "GID": -1, "W": 2, "D": 9, "SPR": 1, "EQ": []}
+
+    def castellan(self, **keys):
+        return Castellan.model_validate({**self.ENTRY, **keys})
+
+    def test_a_castellan_locked_in_a_castle_is_not_available(self):
+        castellan = self.castellan(LICID=16654603)
+
+        assert castellan.locked_in_castle_id == 16654603
+        assert castellan.is_locked_in_castle
+        assert not castellan.is_available_for_movement(0)
+
+    def test_a_free_castellan_is_available_in_any_kingdom(self):
+        castellan = self.castellan(LICID=-1)
+
+        assert not castellan.is_locked_in_castle
+        assert all(castellan.is_available_for_movement(kingdom) for kingdom in (0, 1, 2, 3, 4, 10))
+
+    def test_a_missing_licid_reads_as_0_like_the_client(self):
+        # BaronVO.parseLord reads int(t.LICID), and int(undefined) is 0
+        castellan = self.castellan()
+
+        assert castellan.locked_in_castle_id == 0
+        assert not castellan.is_available_for_movement(0)
+
+    def test_an_island_portrait_moves_only_in_the_storm_islands(self):
+        castellan = self.castellan(LICID=-1, VIS=13)
+
+        assert castellan.is_available_for_movement(4)
+        assert not castellan.is_available_for_movement(0)
+
+    def test_a_faction_portrait_is_compared_with_the_faction_baron_id(self):
+        # The client checks activeKingdomID == FactionConst.BARON_ID (-16), not the Berimond kingdom (10)
+        castellan = self.castellan(LICID=-1, VIS=5)
+
+        assert not castellan.is_available_for_movement(10)
+        assert not castellan.is_available_for_movement(0)
+        assert castellan.is_available_for_movement(-16)
+
+
+class TestAlienEquipment:
+    def test_a_flat_alien_block_is_all_equipment(self):
+        commander = Commander.model_validate({"ID": 1, "EQ": [], "AIE": [[53, [25.0]], [54, [10]]], "GEM": [12, 13]})
+
+        assert [(b.effect_id, b.values) for b in commander.alien_bonuses] == [(53, [25.0]), (54, [10])]
+        assert commander.alien_hero_bonuses == []
+        assert commander.alien_gem_ids == [12, 13]
+
+    def test_a_two_part_block_splits_hero_and_equipment(self):
+        commander = Commander.model_validate({"ID": 1, "AIE": [[[242, [25.0]]], [[53, [25.0]]]]})
+
+        assert [b.effect_id for b in commander.alien_hero_bonuses] == [242]
+        assert [b.effect_id for b in commander.alien_bonuses] == [53]
+
+    def test_a_two_part_block_with_an_empty_hero_half(self):
+        commander = Commander.model_validate({"ID": 1, "AIE": [[], [[53, [25.0]]]]})
+
+        assert commander.alien_hero_bonuses == []
+        assert [b.effect_id for b in commander.alien_bonuses] == [53]
+
+    def test_two_flat_rows_are_not_mistaken_for_halves(self):
+        # [53, [25.0]] has a number first, so the block is flat
+        commander = Commander.model_validate({"ID": 1, "TAE": [[53, [25.0]], [54, [10]]]})
+
+        assert commander.alien_hero_bonuses == []
+        assert [b.effect_id for b in commander.alien_bonuses] == [53, 54]
+
+    def test_aie_wins_over_tae_even_when_empty(self):
+        commander = Commander.model_validate({"ID": 1, "AIE": [], "TAE": [[53, [25.0]]]})
+
+        assert commander.temporary_equipment == [[53, [25.0]]]
+        assert commander.alien_bonuses == []
+
+    def test_equipment_in_eq_hides_the_alien_block(self):
+        commander = Commander.model_validate(
+            {"ID": 1, "EQ": [[1, 1, 2, 4, 0, [[53, [25.0]]], -1, -1, 0, -1, -1, 0]], "AIE": [[54, [10]]]}
+        )
+
+        assert commander.alien_bonuses == []
+
+    def test_unreadable_blocks_cost_only_themselves(self):
+        commander = Commander.model_validate(
+            {"ID": 1, "N": "x", "AIE": "junk", "GEM": 5, "TAE": [["junk"], [54, [10]]]}
+        )
+
+        assert commander.name == "x"
+        assert (commander.alien_equipment, commander.alien_gem_ids) == (None, [])
+        assert [b.effect_id for b in commander.alien_bonuses] == [54]
