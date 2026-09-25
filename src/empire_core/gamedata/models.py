@@ -520,6 +520,22 @@ class EquipmentEffectDef(_Row):
         return parse_ids(self.raw_item_group_ids)
 
 
+class GemDef(EffectSpecRow):
+    """
+    A gem that can be slotted into an equipment item.
+
+    Its ``effects`` name plain effect ids.
+
+    Client: ``CastleGemVO.parseXML`` (bundle line 28287)
+    """
+
+    gem_id: int = Field(alias="gemID")
+    set_id: int = Field(alias="setID", default=-1, description="Equipment set the gem counts toward; -1 for none")
+    trigger_chance: int = Field(
+        alias="triggerChance", default=100, description="Kept on each GemBonusVO; the effect totals do not read it"
+    )
+
+
 class LegendSkillDef(_Row):
     """One level of a legend skill, e.g. ``gateReduction``."""
 
@@ -737,6 +753,7 @@ __all__ = [
     "ConstructionItemDef",
     "EffectSpecRow",
     "FortificationDef",
+    "GemDef",
     "GeneralSkillDef",
     "GlobalEffectDef",
     "NpcCampDefence",

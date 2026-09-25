@@ -320,6 +320,30 @@ class TestCombatTables:
 
         assert data.general_skills[10110201].raw_effects == "400&10201"
 
+    def test_gems_are_keyed_by_gem_id(self):
+        payload = dict(
+            FULL_PAYLOAD,
+            gems=[
+                {
+                    "gemID": "333",
+                    "gemLevelID": "0",
+                    "wearerID": "2",
+                    "setID": "38",
+                    "triggerChance": "100",
+                    "effects": "504&20,55&15",
+                },
+                {"gemID": "334", "gemLevelID": "0", "effects": "33&5"},
+                {"gemLevelID": "0", "effects": "33&5"},
+            ],
+        )
+
+        gems = GameData.parse("783.01", payload).gems
+
+        assert sorted(gems) == [333, 334]
+        assert (gems[333].set_id, gems[333].trigger_chance, gems[333].raw_effects) == (38, 100, "504&20,55&15")
+        # CastleGemVO.parseXML defaults: no set, always triggers.
+        assert (gems[334].set_id, gems[334].trigger_chance) == (-1, 100)
+
     def test_unmodeled_tables_are_kept_raw(self):
         payload = dict(FULL_PAYLOAD, bossdungeons=[{"kID": "2", "countVictories": "-1"}])
 

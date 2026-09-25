@@ -411,7 +411,7 @@ def spied_castle_defense(
             no fallback for a missing one
     """
     resolver = EffectResolver(game_data)
-    castellan_bonuses = commander_bonuses(castellan) if castellan is not None else []
+    castellan_bonuses = commander_bonuses(game_data, castellan) if castellan is not None else []
     castellan_wall = castellan_gate = castellan_moat = 0.0
     if castellan_bonuses:
         castellan_wall, castellan_gate, castellan_moat = castellan_fortification(
