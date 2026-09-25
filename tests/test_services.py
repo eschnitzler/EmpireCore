@@ -1045,15 +1045,31 @@ class TestCreateAttackReply:
         reply = CreateAttackResponse.model_validate(self.LIVE)
 
         assert reply.movement_id == 93337642
-        assert reply.owners == self.LIVE["O"]
+        # parseOwnerInfo skips a record without an OID, so the {} goes.
+        assert [(o.player_id, o.level, o.alliance_id) for o in reply.owners] == [(17743261, 9, -1)]
         # None of the live replies carried gcu.
-        assert reply.currencies == {}
+        assert reply.currencies is None
+
+    def test_the_movement_is_typed(self):
+        reply = CreateAttackResponse.model_validate(self.LIVE)
+
+        movement = reply.attack_movement
+        assert movement is not None
+        assert (movement.movement.target_id, movement.movement.total_time) == (-210, 71)
+        assert movement.full_army is not None and movement.full_army.left == [[10, 2]]
+        assert reply.leader is not None and reply.leader.commander_id == 0
 
     def test_the_currencies_are_kept(self):
         # CurrencyData.parseGCU reads C1 and C2.
         reply = CreateAttackResponse.model_validate(dict(self.LIVE, gcu={"C1": 1200, "C2": 30}))
 
-        assert reply.currencies == {"C1": 1200, "C2": 30}
+        assert reply.currencies is not None
+        assert (reply.currencies.gold, reply.currencies.rubies) == (1200, 30)
+
+    def test_an_unreadable_owner_record_costs_only_itself(self):
+        reply = CreateAttackResponse.model_validate({"O": ["junk", {"OID": 5, "L": "x"}, {"OID": 6}]})
+
+        assert [o.player_id for o in reply.owners] == [6]
 
     def test_attack_in_progress_explains_itself(self):
         from empire_core.protocol.errors import GGEError

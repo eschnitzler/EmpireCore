@@ -123,6 +123,11 @@ class TestAttackRequestShapes:
             "LP", "FC", "PTT", "SD", "ICA", "CD", "A", "BKS", "AST", "RW", "ASCT",
         ]  # fmt: skip
 
+    def test_collector_boosters_are_currency_amount_pairs(self):
+        # CastleFightScreenVO.addCollectorBooster pushes [boosterKey, amount]
+        request = CreateAttackRequest(SX=1, SY=2, TX=3, TY=4, A=[AttackWave()], BKS=[[31, 2], [32, 0]])
+        assert request.to_payload()["BKS"] == [[31, 2], [32, 0]]
+
     def test_wave_keys_follow_the_client_order(self):
         # CastleAttackWaveVO.getWaveInfoObject builds {L, R, M}, each {T, U}
         wave = AttackWave().model_dump(by_alias=True)

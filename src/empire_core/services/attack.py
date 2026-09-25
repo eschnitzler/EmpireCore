@@ -245,7 +245,7 @@ class AttackService(BaseService):
         capacity: WaveCapacity | None = None,
         yard_capacity: int | None = None,
         support_tools: list[int] | None = None,
-        collector_booster: list | None = None,
+        collector_booster: list[list[int]] | None = None,
         send_anyway: bool = False,
         timeout: float = 5.0,
     ) -> bool:
@@ -288,7 +288,7 @@ class AttackService(BaseService):
                 an overfull army is refused here rather than by the server
             yard_capacity: The courtyard's capacity, checked the same way
             support_tools: Support tool WOD IDs
-            collector_booster: Collector event booster entries
+            collector_booster: Collector event boosters as [currency_id, amount]
             send_anyway: Send although one of your attacks is already on its way
                 there (``FC`` 1), as the client's confirmation dialog does
             timeout: Timeout in seconds

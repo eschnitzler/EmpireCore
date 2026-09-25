@@ -35,6 +35,7 @@ from .army import SpyPositions, UnitInventory
 from .base import BasePayload, BaseRequest, BaseResponse
 from .commanders import Commander, CommanderEffects, CommanderRoster
 from .map import MapAreaItem, MapObject
+from .movement import MovementOwner, MovementWrapper
 
 if TYPE_CHECKING:
     from empire_core.combat import Bonus
@@ -122,7 +123,7 @@ class CreateAttackRequest(BaseRequest):
         "ICA": collector_attack,
         "CD": 99,                            # hardcoded by the client
         "A": [wave, ...],                    # see AttackWave
-        "BKS": [collector_booster, ...],
+        "BKS": [[currency_id, amount], ...], # collector event boosters
         "AST": [support_tool_wod_id, ...],
         "RW": [[unit_id, count], ...],       # yard wave
         "ASCT": auto_skip_cooldown_type
@@ -131,7 +132,11 @@ class CreateAttackRequest(BaseRequest):
     Fields follow the client's key order: the constructor initialises SX
     through CD before it sets A, BKS, AST, RW and ASCT.
 
-    Client: ``C2SCreateArmyAttackMovementVO`` (bundle line 60851)
+    Client: ``C2SCreateArmyAttackMovementVO`` (bundle line 60851), filled by
+    ``CastleAttackData.sendAttack`` (bundle line 133852) with the fight screen's
+    ``collecterBooster``, built by ``CastleFightScreenVO.addCollectorBooster``
+    (bundle line 30584) from the booster dialogs' ``boosterKey``, a currency id
+    (bundle lines 55905, 100060, 100154, 100189, 100221).
     """
 
     command = "cra"
@@ -165,10 +170,27 @@ class CreateAttackRequest(BaseRequest):
     collector_attack: int = Field(alias="ICA", default=0)
     countdown: int = Field(alias="CD", default=99)
     waves: list[AttackWave] = Field(alias="A", default_factory=list)
-    collector_booster: list = Field(alias="BKS", default_factory=list)
+    collector_booster: list[list[int]] = Field(
+        alias="BKS",
+        default_factory=list,
+        description="Collector event boosters as [currency_id, amount], such as 31 (samurai medal booster)",
+    )
     support_tools: list[int] = Field(alias="AST", default_factory=list)
     yard_wave: list[list[int]] = Field(alias="RW", default_factory=list)
     auto_skip_cooldown: int = Field(alias="ASCT", default=0)
+
+
+class CurrencyTotals(BasePayload):
+    """
+    Gold and rubies after an action, the ``gcu`` block.
+
+    Client: ``CurrencyData.parseGCU`` (bundle line 141191), which reads
+    ``CollectableItemC1VO.SERVER_KEY`` "C1" (bundle line 7995) and
+    ``CollectableItemC2VO.SERVER_KEY`` "C2" (bundle line 4876).
+    """
+
+    gold: int | None = Field(alias="C1", default=None, description="Gold (C1); None when the block leaves it out")
+    rubies: int | None = Field(alias="C2", default=None, description="Rubies (C2); None when the block leaves it out")
 
 
 class CreateAttackResponse(BaseResponse):
@@ -196,20 +218,33 @@ class CreateAttackResponse(BaseResponse):
     ``send_attack`` raises that reply as ``AttackInProgressError``, with both
     values read off it.
 
+    ``CRACommand`` hands ``AAM`` to ``CastleArmyData.parseMapMovementArray``
+    as ``[i.AAM]``, the same read as a ``gam`` entry or an ``abr`` push, and
+    ``O`` to ``CastleOtherPlayerData.parseOwnerInfoArray``, which skips a
+    record without an ``OID``.
+
     Client: ``CRACommand.executeCommand`` (bundle line 125954),
-    ``CurrencyData.parseGCU`` (bundle line 141191) with ``CollectableItemC1VO.SERVER_KEY`` "C1" (7995)
-    and ``CollectableItemC2VO.SERVER_KEY`` "C2" (4876),
+    ``CastleArmyData.parseMapMovementArray`` (bundle line 133626),
+    ``MapmovementFactory.parseMapMovement`` (bundle line 133793),
+    ``CastleOtherPlayerData.parseOwnerInfo`` (bundle line 138996),
+    ``CurrencyData.parseGCU`` (bundle line 141191),
     ``CastlePostPostAttackFactionDialogProperties`` (bundle line 40173),
     ``CastlePostPostAttackFactionDialog.onClick`` (bundle line 40155).
     """
 
     command = "cra"
 
-    attack_movement: dict | None = Field(alias="AAM", default=None, description="The created movement wrapper")
-    currencies: dict = Field(
-        alias="gcu", default_factory=dict, description="Currency totals after the send, C1 and C2 as the gcu command"
+    attack_movement: MovementWrapper | None = Field(
+        alias="AAM", default=None, description="The created movement; None when missing or unreadable"
     )
-    owners: list = Field(alias="O", default_factory=list, description="Owner records for the movement's areas")
+    currencies: CurrencyTotals | None = Field(
+        alias="gcu", default=None, description="Gold and rubies after the send; None when the reply has no gcu"
+    )
+    owners: list[MovementOwner] = Field(
+        alias="O",
+        default_factory=list,
+        description="Owner records for the movement's areas; records without an OID or that do not parse are skipped",
+    )
     arrival_seconds: int | float | None = Field(
         alias="TS",
         default=None,
@@ -219,28 +254,40 @@ class CreateAttackResponse(BaseResponse):
         alias="AS", default=None, description="On ATTACK_IN_PROGRESS: the size of the attack already on its way"
     )
 
+    @field_validator("attack_movement", mode="wrap")
+    @classmethod
+    def _movement_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> MovementWrapper | None:
+        if not value:
+            return None
+        try:
+            return handler(value)
+        except ValidationError:
+            logger.warning("Could not parse the movement created by cra")
+            return None
+
+    @field_validator("owners", mode="before")
+    @classmethod
+    def _readable_owners(cls, value: object) -> list[MovementOwner]:
+        owners = []
+        for record in value if isinstance(value, list) else []:
+            if not isinstance(record, dict) or not record.get("OID"):
+                continue
+            try:
+                owners.append(MovementOwner.model_validate(record))
+            except ValidationError:
+                logger.warning("Could not parse an owner record sent with cra")
+        return owners
+
     @property
     def leader(self) -> Commander | None:
         """The commander leading the attack, as the server echoed it back."""
-        raw = ((self.attack_movement or {}).get("UM") or {}).get("L")
-        if not isinstance(raw, dict):
-            return None
-        try:
-            return Commander.model_validate(raw)
-        except ValidationError:
-            logger.warning("Could not parse the commander echoed back by cra")
-            return None
+        unit_info = self.attack_movement.unit_info if self.attack_movement else None
+        return unit_info.commander if unit_info else None
 
     @property
     def movement_id(self) -> int | None:
         """The created movement's ID, or None when the server sent no movement."""
-        movement = (self.attack_movement or {}).get("M")
-        if not isinstance(movement, dict):
-            return None
-        try:
-            return int(movement["MID"])
-        except (KeyError, TypeError, ValueError):
-            return None
+        return self.attack_movement.movement.movement_id if self.attack_movement else None
 
 
 # =============================================================================
@@ -1191,6 +1238,7 @@ __all__ = [
     # CRA - Create Attack
     "CreateAttackRequest",
     "CreateAttackResponse",
+    "CurrencyTotals",
     # CSM - Send Spy
     "SendSpyRequest",
     "SendSpyResponse",
