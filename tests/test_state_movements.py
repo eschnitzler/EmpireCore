@@ -10,11 +10,12 @@ import pytest
 from empire_core.client.client import EmpireClient
 from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
-from tests.state_helpers import arrive, gam_payload, push_payload, wait_for
+from tests.state_helpers import arrive, gam_payload, login, push_payload, wait_for
 
 
 class TestAttackCallbacks:
     def test_new_attack_fires_callback_once(self, state):
+        login(state)
         fired: list[Movement] = []
         state.on_incoming_attack(fired.append)
 
@@ -46,6 +47,7 @@ class TestAttackCallbacks:
         assert fired == []
 
     def test_callbacks_survive_multiple_dispatch_cycles(self, state):
+        login(state)
         # Executor is created lazily and must keep working after shutdown+reuse
         fired: list[Movement] = []
         state.on_incoming_attack(fired.append)
@@ -59,6 +61,7 @@ class TestAttackCallbacks:
         assert wait_for(lambda: len(fired) == 2)
 
     def test_npc_attack_fires(self, state):
+        login(state)
         fired: list[Movement] = []
         state.on_incoming_attack(fired.append)
         state.update_from_packet("gam", gam_payload(105, movement_type=11))  # 11 = NPC_ATTACK
@@ -400,6 +403,7 @@ class TestMovementWrapperBlocks:
         assert mov.battle_time == pytest.approx(mov.estimated_arrival + 30)
 
     def test_one_unreadable_block_does_not_drop_the_attack(self, state):
+        login(state)
         fired: list[Movement] = []
         state.on_incoming_attack(fired.append)
         mov = self.stored(state, AST="junk", GA={"M": [[1, 2]]})
@@ -438,6 +442,7 @@ class TestStaleMovementPruning:
         assert state.movements == {}, "movements dict grows without bound"
 
     def test_refreshed_movement_is_not_resurrected_as_new(self, state):
+        login(state)
         fired: list[Movement] = []
         state.on_incoming_attack(fired.append)
         state.update_from_packet("abr", push_payload(304, tt=1))
@@ -714,3 +719,54 @@ class TestMovementAreas:
         mov = state.get_movement_by_id(951)
         assert mov is not None
         assert (mov.target_x, mov.target_y, mov.target_area_id, mov.target_name) == (630, 243, -1, "")
+
+
+class TestAllianceAttackAlerts:
+    ME, ALLY, ENEMY, OUTSIDER, CLAN = 1, 2, 3, 4, 190426
+
+    def attack(self, state, mid: int, owner: int, target: int, owners: list[dict]) -> list[Movement]:
+        fired: list[Movement] = []
+        state.on_incoming_attack(fired.append)
+        payload = gam_payload(mid, oid=owner, tid=target)
+        payload["O"] = owners
+        state.update_from_packet("gam", payload)
+        time.sleep(0.15)
+        return fired
+
+    def test_attack_on_me_fires(self, state):
+        login(state, self.ME, self.CLAN)
+        assert len(self.attack(state, 1, self.ENEMY, self.ME, [])) == 1
+
+    def test_attack_on_an_alliance_member_fires(self, state):
+        login(state, self.ME, self.CLAN)
+        owners = [{"OID": self.ALLY, "AID": self.CLAN, "N": "ally"}, {"OID": self.ENEMY, "AID": 99, "N": "enemy"}]
+        fired = self.attack(state, 2, self.ENEMY, self.ALLY, owners)
+        assert len(fired) == 1 and fired[0].target_alliance_id == self.CLAN
+
+    def test_ally_attacking_an_outsider_does_not_fire(self, state):
+        # Live: the server shares an alliance member's own attack on a player outside the alliance
+        login(state, self.ME, self.CLAN)
+        owners: list[dict] = [{"OID": self.OUTSIDER, "AID": -1, "N": "outsider"}, {"OID": self.ALLY, "AID": self.CLAN}]
+        assert self.attack(state, 3, self.ALLY, self.OUTSIDER, owners) == []
+
+    def test_attack_on_the_daimyo_township_fires(self, state):
+        login(state, self.ME, self.CLAN)
+        assert len(self.attack(state, 4, self.ENEMY, -815, [])) == 1
+
+    def test_no_alliance_means_only_attacks_on_me(self, state):
+        login(state, self.ME)
+        owners = [{"OID": self.ALLY, "AID": self.CLAN}]
+        assert self.attack(state, 5, self.ENEMY, self.ALLY, owners) == []
+
+    def test_no_local_player_means_no_alerts(self, state):
+        assert self.attack(state, 6, self.ENEMY, self.ME, []) == []
+
+    def test_owner_records_are_kept_across_updates(self, state):
+        login(state, self.ME, self.CLAN)
+        owners = [{"OID": self.ENEMY, "AID": 99, "AR": 8, "L": 70, "MP": 1267, "N": "enemy", "AN": "Foes"}]
+        self.attack(state, 7, self.ENEMY, self.ME, owners)
+        state.update_from_packet("abr", {"A": {"M": {"MID": 7, "T": 0, "TT": 600, "OID": self.ENEMY, "TID": self.ME}}})
+        mov = state.get_movement_by_id(7)
+        assert mov is not None and mov.owner is not None
+        assert (mov.owner.level, mov.owner.alliance_rank, mov.owner.might) == (70, 8, 1267)
+        assert (mov.owner_alliance_id, mov.source_player_name, mov.source_alliance_name) == (99, "enemy", "Foes")

@@ -3,6 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
+from empire_core.protocol.models.movement import MovementOwner
 from empire_core.utils.enums import MapObjectType, MovementType
 from empire_core.utils.troops import count_troops
 
@@ -110,6 +111,9 @@ class Movement(BaseModel):
 
     force_cancelable: bool = Field(default=False, description="Wrapper FC, or set by an mfc push")
 
+    owner: MovementOwner | None = Field(default=None, description="Owner record (O) of the movement's owner, OID")
+    target_owner: MovementOwner | None = Field(default=None, description="Owner record (O) of the target's owner, TID")
+
     attack_type: int | None = Field(default=None, description="AttackType value, the wrapper's ATT")
     is_shadow: bool = Field(default=False, description="Shadow movement, the wrapper's SM")
     support_tool_ids: list[int] = Field(default_factory=list, description="Support tools sent along, the wrapper's AST")
@@ -182,6 +186,16 @@ class Movement(BaseModel):
         Client: ``BasicMapmovementVO._endWaitTimeStamp``.
         """
         return self.estimated_arrival + max(0, self.wait_total - self.wait_passed)
+
+    @property
+    def owner_alliance_id(self) -> int:
+        """Alliance of the movement's owner, -1 if none or unknown."""
+        return self.owner.alliance_id if self.owner else -1
+
+    @property
+    def target_alliance_id(self) -> int:
+        """Alliance of the target's owner, -1 if none or unknown."""
+        return self.target_owner.alliance_id if self.target_owner else -1
 
     @property
     def battle_time(self) -> float:

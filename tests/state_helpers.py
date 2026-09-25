@@ -59,3 +59,11 @@ def wait_for(predicate, timeout: float = 2.0) -> bool:
             return True
         time.sleep(0.01)
     return False
+
+
+def login(state: GameState, pid: int = 1, alliance_id: int | None = None) -> None:
+    """Make ``pid`` the local player, optionally in an alliance; payloads target PID 1 by default."""
+    gbd: dict = {"gpi": {"PID": pid, "PN": "me"}}
+    if alliance_id is not None:
+        gbd["gal"] = {"AID": alliance_id, "N": "Clan", "R": 1}
+    state.update_from_packet("gbd", gbd)

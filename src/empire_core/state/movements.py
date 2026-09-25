@@ -8,7 +8,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from empire_core.protocol.models.movement import MovementArea, MovementWrapper
+from empire_core.protocol.models.movement import MovementArea, MovementOwner, MovementWrapper
 from empire_core.state.base import MovementEventCallback, StateBase
 from empire_core.state.world_models import Movement, MovementResources
 
@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 # A drifted movement schema would fail on every packet, so the warning is
 # rate-limited to one per this interval; the rest go to debug.
 MOVEMENT_PARSE_WARN_INTERVAL = 60.0
+
+# Client: DungeonConst.BASIC_DAIMYO_TOWNSHIP_PLAYER_ID, counted as the local player
+DAIMYO_TOWNSHIP_PLAYER_ID = -815
 
 
 class MovementState(StateBase):
@@ -190,16 +193,14 @@ class MovementState(StateBase):
 
         Client: ``CastleArmyData.parseMapMovementArray``.
         """
-        # OID -> {name, alliance_name}
-        owner_info: dict[int, dict[str, str]] = {}
+        owner_info: dict[int, MovementOwner] = {}
         for owner in owners if isinstance(owners, list) else []:
-            if isinstance(owner, dict):
-                oid = owner.get("OID")
-                if oid is not None:
-                    owner_info[oid] = {
-                        "name": owner.get("N", ""),
-                        "alliance_name": owner.get("AN", ""),
-                    }
+            try:
+                record = MovementOwner.model_validate(owner)
+            except ValidationError:
+                logger.debug(f"Ignoring unreadable owner record: {owner!r}")
+                continue
+            owner_info[record.player_id] = record
 
         stored = []
         for m_wrapper in wrappers if isinstance(wrappers, list) else []:
@@ -214,6 +215,25 @@ class MovementState(StateBase):
                 stored.append(mov)
         return stored
 
+    def _is_attack_on_us(self, mov: Movement) -> bool:
+        """A new attack aimed at the local player or at a member of their alliance.
+
+        Client: ``ArmyAttackMapmovementVO.isAttackingMovement`` (the target is
+        you, or the daimyo township pseudo-player) and ``isAllyAttackingMovement``
+        (the target is an alliance member other than you). The member list is
+        matched through the target's owner record, whose alliance id is sent
+        with every movement.
+        """
+        if not mov.is_attack or mov.is_mine or mov.is_returning or mov._arrival_dispatched:
+            return False
+        me = mov.local_player_id
+        if me == -1:
+            return False
+        if mov.target_id in (me, DAIMYO_TOWNSHIP_PLAYER_ID):
+            return True
+        alliance = self.local_player.alliance if self.local_player else None
+        return alliance is not None and alliance.id > 0 and mov.target_alliance_id == alliance.id
+
     def _store_movement(self, mov: Movement) -> None:
         """Insert or merge a parsed movement; fire callbacks for new attacks."""
         mid = mov.movement_id
@@ -224,10 +244,7 @@ class MovementState(StateBase):
             # Arrived before we saw it (a stationed support after login):
             # there is no arrival to report.
             mov._arrival_dispatched = mov.estimated_arrival <= mov.created_at
-            # Alert on new hostile attacks. The server also pushes gam for
-            # attacks on alliance members, and state has no member list to
-            # match TID against, so exclude only our own armies and returns.
-            if mov.is_attack and not mov.is_mine and not mov.is_returning and not mov._arrival_dispatched:
+            if self._is_attack_on_us(mov):
                 with self._lock:
                     attack_callbacks = list(self._incoming_attack_callbacks)
                 for cb in attack_callbacks:
@@ -241,6 +258,8 @@ class MovementState(StateBase):
             mov.source_alliance_name = mov.source_alliance_name or existing.source_alliance_name
             mov.target_player_name = mov.target_player_name or existing.target_player_name
             mov.target_alliance_name = mov.target_alliance_name or existing.target_alliance_name
+            mov.owner = mov.owner or existing.owner
+            mov.target_owner = mov.target_owner or existing.target_owner
             if not mov.units and existing.units:
                 mov.units = existing.units
 
@@ -296,7 +315,7 @@ class MovementState(StateBase):
         self,
         m_data: dict[str, Any],
         m_wrapper: dict[str, Any] | None = None,
-        owner_info: dict[int, dict[str, str]] | None = None,
+        owner_info: dict[int, MovementOwner] | None = None,
     ) -> Movement | None:
         """Parse a Movement from packet data."""
         mid = m_data.get("MID")
@@ -314,19 +333,15 @@ class MovementState(StateBase):
             if m_wrapper:
                 self._apply_wrapper_blocks(mov, m_wrapper)
 
-            # Extract owner names and alliances from owner_info
             if owner_info:
-                # Attacker info (OID = owner of the movement)
-                attacker_id = mov.owner_id
-                if attacker_id in owner_info:
-                    mov.source_player_name = owner_info[attacker_id].get("name", "")
-                    mov.source_alliance_name = owner_info[attacker_id].get("alliance_name", "")
-
-                # Defender info (TID = target player)
-                defender_id = mov.target_id
-                if defender_id in owner_info:
-                    mov.target_player_name = owner_info[defender_id].get("name", "")
-                    mov.target_alliance_name = owner_info[defender_id].get("alliance_name", "")
+                if (owner := owner_info.get(mov.owner_id)) is not None:
+                    mov.owner = owner
+                    mov.source_player_name = owner.name
+                    mov.source_alliance_name = owner.alliance_name
+                if (target := owner_info.get(mov.target_id)) is not None:
+                    mov.target_owner = target
+                    mov.target_player_name = target.name
+                    mov.target_alliance_name = target.alliance_name
 
             return mov
         except Exception:
