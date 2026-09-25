@@ -412,6 +412,7 @@ class AttackService(BaseService):
         owner_legend_level: int = 0,
         attacker_legend_level: int | None = None,
         under_conquer_control: bool = False,
+        active_raid_boss_id: int | None = None,
         flank_bonus_percent: float = 0.0,
         front_bonus_percent: float = 0.0,
         tool_bonus: float = 0.0,
@@ -483,6 +484,9 @@ class AttackService(BaseService):
             under_conquer_control: True when the target is held under conquer
                 control; the legend rules then rate its owner by ``level``
                 rather than by the area's minimum owner level
+            active_raid_boss_id: The boss of the alliance raid-boss event
+                running now, None when none is. Tools tied to other raid bosses
+                are left out
             global_effect_ids: Global effects currently running, from ``bie``;
                 either ids or the raw ``[id, seconds_left, strength]`` rows,
                 which carry the live strength.
@@ -609,6 +613,7 @@ class AttackService(BaseService):
             area_type=area_type,
             space_id=camp_kingdom_id if space_id is None else space_id,
             target_is_player=target_is_player,
+            active_raid_boss_id=active_raid_boss_id,
         )
 
     @staticmethod
@@ -883,6 +888,7 @@ class AttackService(BaseService):
         global_effect_ids: list[int] | list[list[int]] | None = None,
         support_tools: list[int] | None = None,
         conquer: bool = False,
+        active_raid_boss_id: int | None = None,
         tool_bonus: float = 0.0,
         yard_bonus: float = 0.0,
         yard_boost: float = 0.0,
@@ -954,6 +960,8 @@ class AttackService(BaseService):
             support_tools: The support tools the attack will carry, as sent in
                 ``AST``; pass the same list to :meth:`send_attack`
             conquer: A conquest attack carries two extra waves
+            active_raid_boss_id: The boss of the alliance raid-boss event
+                running now, None when none is
             tool_bonus: Extra flank tool capacity on top of the legend skill
             yard_bonus: Absolute courtyard capacity bonus, effect type 179
             yard_boost: Courtyard capacity boost, effect type 180
@@ -1050,6 +1058,7 @@ class AttackService(BaseService):
             owner_id=owner_id,
             owner_legend_level=target.owner_legend_level or 0,
             under_conquer_control=under_conquer_control,
+            active_raid_boss_id=active_raid_boss_id,
             area_type=target.area_type,
             player_target=target.is_player if owner_id is None else None,
             options=options,

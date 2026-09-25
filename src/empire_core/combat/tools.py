@@ -25,6 +25,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# WorldConst.AREA_TYPE_ALIEN_CAMP and AREA_TYPE_RED_ALIEN_CAMP.
+ALIEN_INVASION_AREA_TYPES = frozenset({21, 34})
+
 
 @dataclass(frozen=True)
 class TargetContext:
@@ -32,13 +35,32 @@ class TargetContext:
     What a strategy needs to know about the target to judge a tool.
 
     The client passes the defender's area and space id down into
-    ``pickToolByStrategy``; both defaults here are permissive, matching a tool
+    ``pickToolByStrategy``; their None defaults are permissive, matching a tool
     that names no restriction.
+
+    ``active_raid_boss_id`` is the boss of the alliance raid-boss event that is
+    running now, None when none is. The client reads it from
+    ``AllianceRaidbossEventEventVO.getActiveEventVO().raidBossServerDataVO``
+    (``EffectConditionHelper.isEffectForActiveRaidBoss``, bundle line 32868),
+    whatever the target is.
     """
 
     area_type: int | None = None
     space_id: int | None = None
     is_player: bool = True
+    active_raid_boss_id: int | None = None
+
+    @property
+    def is_alien_invasion(self) -> bool:
+        """
+        Whether the target is an alien invasion camp.
+
+        Client: the map object factory builds an ``AAlienInvasionMapobjectVO``
+        subclass for exactly ``AREA_TYPE_ALIEN_CAMP`` and
+        ``AREA_TYPE_RED_ALIEN_CAMP`` (bundle line 5357; ``WorldConst`` dll line
+        20003).
+        """
+        return self.area_type in ALIEN_INVASION_AREA_TYPES
 
 
 class FilledTools(NamedTuple):
@@ -166,7 +188,7 @@ class ReduceDefenceBonusStrategy:
             tool = game_data.get_tool(wod_id)
             if tool is None or not tool.is_attack_tool or available <= 0:
                 continue
-            if not can_use_tool_on_target(tool, target):
+            if not can_use_tool_on_target(tool, target, game_data):
                 continue
             bonus = self.tool_bonus(tool)
             if self.malus_effect_type is not None:
@@ -204,29 +226,82 @@ def _per_wave_allowance(tool: ToolStats, used_per_type: Mapping[str, int], free_
     return free_items
 
 
-def can_use_tool_on_target(tool: ToolStats, target: TargetContext) -> bool:
+def can_use_tool_on_target(tool: ToolStats, target: TargetContext, game_data: GameData) -> bool:
     """
     Whether this tool may be carried against this target at all.
 
-    ``AttackHelper.canUseToolForAttackOnTarget``: a tool flagged
-    ``canBeUsedToAttackNPC="0"`` is only allowed against another player, and
-    ``allowedToAttack`` restricts a tool to named kingdoms and area types. Both
-    default to permissive, so a tool that says nothing is usable everywhere.
+    Client: ``AttackHelper.canUseToolForAttackOnTarget`` (bundle line 8583). A
+    tool flagged ``canBeUsedToAttackNPC="0"`` is only allowed against another
+    player or an alien invasion camp, ``allowedToAttack`` restricts a tool to
+    named kingdoms and area types, and a tool tied to raid bosses needs one of
+    them to be the active one.
 
-    The client's third branch, an event tool with no inventory left, cannot be
+    The client's last branch, an event tool with no inventory left, cannot be
     reached from the fill path - it needs an amount of zero, which the pick
     already skips.
 
     Args:
         tool: The tool being considered
         target: Where the attack is going
+        game_data: Loaded effects, to read which raid bosses the tool's effects
+            are tied to
 
     Returns:
         True when the tool may be used
     """
-    if not (tool.can_attack_npc or target.is_player):
+    usable_against_owner = tool.can_attack_npc or target.is_player or target.is_alien_invasion
+    allowed = tool.is_allowed_by_attack_target(target.space_id, target.area_type)
+    if not is_tool_usable_against_active_raid_boss(tool, game_data, target.active_raid_boss_id):
         return False
-    return tool.is_allowed_by_attack_target(target.space_id, target.area_type)
+    return usable_against_owner and allowed
+
+
+def is_tool_usable_against_active_raid_boss(
+    tool: ToolStats,
+    game_data: GameData,
+    active_raid_boss_id: int | None,
+) -> bool:
+    """
+    Whether a tool's raid-boss ties, if any, allow it now.
+
+    Client: ``AttackHelper.isToolUsableAgainstActiveRaidBoss`` (bundle line
+    8593) with ``EffectConditionHelper.isEffectForActiveRaidBoss`` (bundle line
+    32868). A tool with no effects, or with one effect tied to no raid boss,
+    is usable. Otherwise one of its effects must be tied to the active boss.
+    An effect id the effects table does not know is skipped, as the client
+    skips a ``BonusVO`` without an effect, so a tool whose effects are all
+    unknown stays usable.
+
+    ``ToolUnitVO.parseEffects`` (bundle line 6644) makes one entry per
+    non-empty ``effects`` segment and resolves the id before ``&``.
+
+    Args:
+        tool: The tool being considered
+        game_data: Loaded effects
+        active_raid_boss_id: The active raid-boss event's boss, None when no
+            raid-boss event is running
+
+    Returns:
+        True when the tool may be used
+    """
+    spec = tool.effects if isinstance(tool.effects, str) else ""
+    tied = False
+    for segment in spec.split(","):
+        if not segment:
+            continue
+        try:
+            effect_id = int(segment.split("&")[0])
+        except ValueError:
+            continue
+        effect = game_data.effects.get(effect_id)
+        if effect is None:
+            continue
+        if not effect.raid_boss_ids:
+            return True
+        tied = True
+        if active_raid_boss_id is not None and effect.is_for_raid_boss(active_raid_boss_id):
+            return True
+    return not tied
 
 
 def default_tool_strategies() -> list[ReduceDefenceBonusStrategy]:
@@ -413,7 +488,9 @@ __all__ = [
     "MELEE_DEFENSE_MALUS_TYPE",
     "RANGE_DEFENSE_MALUS_TYPE",
     "ReduceDefenceBonusStrategy",
+    "ALIEN_INVASION_AREA_TYPES",
     "can_use_tool_on_target",
+    "is_tool_usable_against_active_raid_boss",
     "FilledTools",
     "TargetContext",
     "conditioned_effect_bonus",

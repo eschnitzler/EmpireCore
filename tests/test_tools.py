@@ -16,6 +16,7 @@ from empire_core.combat import (
     conditioned_effect_bonus,
     default_tool_strategies,
     fill_flank_with_tools,
+    is_tool_usable_against_active_raid_boss,
 )
 from empire_core.gamedata import GameData, ToolStats
 
@@ -457,7 +458,13 @@ class TestConditionedEffectBonus:
 
 
 class TestCanUseToolOnTarget:
-    """``AttackHelper.canUseToolForAttackOnTarget``, whose two flags both default open."""
+    """
+    ``AttackHelper.canUseToolForAttackOnTarget``.
+
+    Expected values from running the client's own ``canUseToolForAttackOnTarget``,
+    ``isToolUsableAgainstActiveRaidBoss`` and ``isEffectForActiveRaidBoss`` in
+    node against stub VOs.
+    """
 
     GATED = {
         "units": [
@@ -470,8 +477,29 @@ class TestCanUseToolOnTarget:
             },
             {"wodID": 402, "name": "Workshop", "typ": "Attack", "slotTypes": "2", "allowedToAttack": "0+43#1+29"},
             {"wodID": 403, "name": "Workshop", "typ": "Attack", "slotTypes": "2"},
+            # Items payload v786.03 rows: 807 weakens the legendary dragon (boss 3), 579 is an
+            # infection tool for boss 1.
+            {
+                "wodID": 807,
+                "name": "Eventtool",
+                "typ": "Attack",
+                "slotTypes": "1,2,9",
+                "allowedToAttack": "0+43",
+                "effects": "489&50",
+            },
+            {"wodID": 579, "name": "Eventtool", "typ": "Attack", "slotTypes": "10", "effects": "439&5"},
+            {"wodID": 404, "name": "Workshop", "typ": "Attack", "slotTypes": "2", "effects": "489&50,632&1"},
+            {"wodID": 405, "name": "Workshop", "typ": "Attack", "slotTypes": "2", "effects": "999&1"},
+            {"wodID": 406, "name": "Workshop", "typ": "Attack", "slotTypes": "2", "effects": "999&1,489&50"},
+            {"wodID": 407, "name": "Workshop", "typ": "Attack", "slotTypes": "2", "effects": "700&1"},
         ]
     }
+    GATED["effects"] = [
+        {"effectID": "489", "name": "meleeDefenseMalus", "effectTypeID": "215", "raidBossID": "3"},
+        {"effectID": "439", "name": "infectionRateBaseMalus", "effectTypeID": "202", "raidBossID": "1"},
+        {"effectID": "632", "name": "unscoped", "effectTypeID": "36"},
+        {"effectID": "700", "name": "twoBosses", "effectTypeID": "36", "raidBossID": "1,2"},
+    ]
 
     def game(self) -> GameData:
         return GameData.parse("test", self.GATED)
@@ -481,24 +509,87 @@ class TestCanUseToolOnTarget:
         assert tool is not None
         return tool
 
+    def usable(self, wod_id: int, target: TargetContext) -> bool:
+        return can_use_tool_on_target(self.tool(wod_id), target, self.game())
+
     def test_a_tool_that_says_nothing_goes_anywhere(self):
         plain = self.tool(403)
         assert plain.can_attack_npc
         assert plain.allowed_targets == ()
-        assert can_use_tool_on_target(plain, TargetContext(area_type=43, space_id=0, is_player=False))
+        assert self.usable(403, TargetContext(area_type=43, space_id=0, is_player=False))
 
     def test_an_npc_opt_out_only_bars_npc_targets(self):
-        gated = self.tool(401)
-        assert not can_use_tool_on_target(gated, TargetContext(is_player=False))
-        assert can_use_tool_on_target(gated, TargetContext(is_player=True))
+        assert not self.usable(401, TargetContext(is_player=False))
+        assert self.usable(401, TargetContext(is_player=True))
+
+    def test_an_npc_opt_out_still_allows_alien_invasion_camps(self):
+        assert self.usable(401, TargetContext(area_type=21, is_player=False))
+        assert self.usable(401, TargetContext(area_type=34, is_player=False))
+        assert not self.usable(401, TargetContext(area_type=33, is_player=False))
+        assert TargetContext(area_type=21).is_alien_invasion
+        assert not TargetContext().is_alien_invasion
 
     def test_an_allowed_list_bars_everything_it_does_not_name(self):
         listed = self.tool(402)
         assert listed.allowed_targets == ((0, 43), (1, 29))
-        assert can_use_tool_on_target(listed, TargetContext(area_type=43, space_id=0))
-        assert can_use_tool_on_target(listed, TargetContext(area_type=29, space_id=1))
-        assert not can_use_tool_on_target(listed, TargetContext(area_type=29, space_id=0))
-        assert not can_use_tool_on_target(listed, TargetContext(area_type=43, space_id=1))
+        assert self.usable(402, TargetContext(area_type=43, space_id=0))
+        assert self.usable(402, TargetContext(area_type=29, space_id=1))
+        assert not self.usable(402, TargetContext(area_type=29, space_id=0))
+        assert not self.usable(402, TargetContext(area_type=43, space_id=1))
+
+    def test_a_raid_boss_tool_needs_its_boss_active(self):
+        def at_boss(boss: int | None) -> TargetContext:
+            return TargetContext(area_type=43, space_id=0, is_player=False, active_raid_boss_id=boss)
+
+        assert not self.usable(807, at_boss(None))
+        assert self.usable(807, at_boss(3))
+        assert not self.usable(807, at_boss(1))
+        # An event running with no raid reports boss 0.
+        assert not self.usable(807, at_boss(0))
+        assert self.usable(579, TargetContext(active_raid_boss_id=1))
+
+    def test_one_effect_tied_to_no_boss_frees_the_tool(self):
+        assert self.usable(404, TargetContext())
+
+    def test_an_effect_may_name_several_bosses(self):
+        assert self.game().effects[700].raid_boss_ids == (1, 2)
+        assert self.usable(407, TargetContext(active_raid_boss_id=2))
+        assert not self.usable(407, TargetContext(active_raid_boss_id=3))
+
+    def test_unknown_effects_are_skipped(self):
+        assert self.usable(405, TargetContext())
+        assert not self.usable(406, TargetContext())
+
+    def test_the_raid_boss_guard_matches_the_client(self):
+        game = self.game()
+        cases = [
+            (403, None, True),
+            (807, None, False),
+            (807, 3, True),
+            (807, 1, False),
+            (807, 0, False),
+            (407, 2, True),
+            (404, None, True),
+            (405, None, True),
+            (406, None, False),
+        ]
+        for wod_id, boss, expected in cases:
+            assert is_tool_usable_against_active_raid_boss(self.tool(wod_id), game, boss) is expected, wod_id
+
+    def test_the_fill_leaves_out_a_tool_for_an_inactive_boss(self):
+        game = self.game()
+        defense = DefenderFlankEffects(melee_bonus=1.0, melee_units_melee_strength=100)
+
+        def fill(boss: int | None) -> list[tuple[int, int]]:
+            target = TargetContext(area_type=43, space_id=0, is_player=False, active_raid_boss_id=boss)
+            inv = Inventory({807: 100})
+            return fill_flank_with_tools(
+                40, 2, 2, inv, game, [by_name("melee")], defender=defense, target=target
+            ).placed
+
+        assert fill(None) == []
+        assert fill(1) == []
+        assert [wod_id for wod_id, _count in fill(3)] == [807]
 
     def test_a_barred_tool_is_never_picked(self):
         payload = {

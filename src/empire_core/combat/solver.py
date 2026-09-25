@@ -254,6 +254,7 @@ def fill_wave(
     area_type: int | None = None,
     space_id: int | None = None,
     target_is_player: bool = True,
+    active_raid_boss_id: int | None = None,
 ) -> AttackWave:
     """
     Build one wave, flank by flank.
@@ -276,6 +277,9 @@ def fill_wave(
         area_type: The target's area type, which scopes a tool's effects
         space_id: The kingdom the target sits in, which some tools are limited to
         target_is_player: Whether the target belongs to another player
+        active_raid_boss_id: The boss of the alliance raid-boss event running
+            now, None when none is. A tool whose effects are all tied to other
+            raid bosses is not carried
 
     Returns:
         An :class:`AttackWave` ready for ``send_attack``. Each container holds
@@ -321,7 +325,12 @@ def fill_wave(
             pool,
             attacker=attacker,
             defender=defender,
-            target=TargetContext(area_type, space_id, target_is_player),
+            target=TargetContext(
+                area_type=area_type,
+                space_id=space_id,
+                is_player=target_is_player,
+                active_raid_boss_id=active_raid_boss_id,
+            ),
             used_per_type=used_per_type,
         )
         placed_tools = tools_placed.placed
@@ -419,6 +428,7 @@ def fill_waves(
     area_type: int | None = None,
     space_id: int | None = None,
     target_is_player: bool = True,
+    active_raid_boss_id: int | None = None,
 ) -> list[AttackWave]:
     """
     Fill every wave the attack may carry, front to back.
@@ -446,6 +456,9 @@ def fill_waves(
         area_type: The target's area type, which scopes a tool's effects
         space_id: The kingdom the target sits in, which some tools are limited to
         target_is_player: Whether the target belongs to another player
+        active_raid_boss_id: The boss of the alliance raid-boss event running
+            now, None when none is. A tool whose effects are all tied to other
+            raid bosses is not carried
 
     Returns:
         One :class:`AttackWave` per filled wave, in send order
@@ -474,6 +487,7 @@ def fill_waves(
             area_type=area_type,
             space_id=space_id,
             target_is_player=target_is_player,
+            active_raid_boss_id=active_raid_boss_id,
         )
         if not wave.is_complete():
             break

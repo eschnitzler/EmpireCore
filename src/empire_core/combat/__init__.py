@@ -63,6 +63,7 @@ from .solver import (
     wave_limit_violations,
 )
 from .tools import (
+    ALIEN_INVASION_AREA_TYPES,
     MELEE_DEFENSE_MALUS_TYPE,
     RANGE_DEFENSE_MALUS_TYPE,
     ReduceDefenceBonusStrategy,
@@ -73,6 +74,7 @@ from .tools import (
     conditioned_effect_bonus,
     default_tool_strategies,
     fill_flank_with_tools,
+    is_tool_usable_against_active_raid_boss,
 )
 
 __all__ = [
@@ -115,7 +117,9 @@ __all__ = [
     "TargetContext",
     "ToolStrategy",
     "default_tool_strategies",
+    "ALIEN_INVASION_AREA_TYPES",
     "can_use_tool_on_target",
+    "is_tool_usable_against_active_raid_boss",
     "check_flank",
     "fill_flank_with_soldiers",
     "fill_flank_with_tools",

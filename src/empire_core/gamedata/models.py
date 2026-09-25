@@ -271,7 +271,11 @@ class EffectDef(_Row):
     is_pve_fight: bool = Field(alias="isPvEFight", default=False)
     raw_space_ids: str = Field(alias="spaceIDs", default="")
     player_relation: str = Field(alias="playerRelation", default="")
-    raid_boss_id: int | None = Field(alias="raidBossID", default=None)
+    raw_raid_boss_ids: str = Field(
+        alias="raidBossID",
+        default="",
+        description="Comma-separated raid boss ids the effect is tied to; empty means any raid boss",
+    )
 
     @property
     def area_type_ids(self) -> tuple[int, ...]:
@@ -309,11 +313,35 @@ class EffectDef(_Row):
             return True
         return self.player_relation == relation
 
+    @property
+    def raid_boss_ids(self) -> tuple[int, ...]:
+        """
+        Raid bosses this effect is tied to; empty means none in particular.
+
+        Client: ``EffectVO.parseXML`` reads ``raidBossID`` as a comma-separated
+        int list (bundle line 41702).
+        """
+        return parse_ids(self.raw_raid_boss_ids)
+
+    def is_for_raid_boss(self, raid_boss_id: int) -> bool:
+        """
+        Whether the effect counts against this raid boss.
+
+        Client: ``EffectVO.isForRaidBoss`` (bundle line 41705).
+        """
+        allowed = self.raid_boss_ids
+        return not allowed or raid_boss_id in allowed
+
     def applies_to_raid_boss(self, raid_boss_id: int | None) -> bool:
-        """Whether the effect counts against this raid boss."""
-        if self.raid_boss_id is None or raid_boss_id is None:
+        """
+        Whether the effect counts against this raid boss; None keeps every effect.
+
+        Client: ``EffectVO.isForRaidBoss`` (bundle line 41705) once a boss is
+        known.
+        """
+        if raid_boss_id is None:
             return True
-        return self.raid_boss_id == raid_boss_id
+        return self.is_for_raid_boss(raid_boss_id)
 
     def applies_to_fight(self, *, player_target: bool | None) -> bool:
         """
