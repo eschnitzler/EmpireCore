@@ -293,12 +293,15 @@ from .ranking import (
     RankingType,
 )
 from .skills import (
+    ActivatingSceatSkill,
     General,
     GetGeneralsRequest,
     GetGeneralsResponse,
     GetSkillsRequest,
     GetSkillsResponse,
+    ObjectUpdateEvent,
     SelectedAbility,
+    SkillList,
 )
 
 __all__ = [
@@ -534,6 +537,9 @@ __all__ = [
     "GetGeneralsResponse",
     "GetSkillsRequest",
     "GetSkillsResponse",
+    "SkillList",
+    "ActivatingSceatSkill",
+    "ObjectUpdateEvent",
     "GetCommandersResponse",
     "CommanderRoster",
     "RenameCommanderRequest",
