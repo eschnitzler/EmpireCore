@@ -3,10 +3,17 @@
 import json
 
 from empire_core.protocol.models import (
+    AttackPreset,
+    AttackWave,
+    GetPresetsRequest,
+    GetPresetsResponse,
     MinuteSkipDungeonRequest,
     MinuteSkipDungeonResponse,
+    PresetArmy,
+    SavePresetRequest,
     SkipDungeonCooldownRequest,
     SkipDungeonCooldownResponse,
+    WaveFlank,
     parse_response,
 )
 
@@ -41,3 +48,62 @@ class TestDungeonCooldownSkips:
         minute_skip = MinuteSkipDungeonResponse.model_validate({"AI": [2, 1, 2, -1, 3, 540, 0]}).area
         assert minute_skip is not None and minute_skip.attack_cooldown_seconds == 540
         assert not hasattr(SkipDungeonCooldownResponse.model_validate({"AI": row}), "rubies_spent")
+
+
+# Live capture of a gas reply for an account with one untouched slot
+LIVE_GAS = {"S": [{"S": 0, "A": None, "SN": None}]}
+
+# Inputs and outputs of the client's FightPresetVO, run in node
+SEVEN_ARRAYS = "[[1,2],[3,4,5,6],[],[10,20,11,21],[12,22],[13,23],[7,8,-1]]"
+SIX_ARRAYS = "[[1,2],[],[],[10,20],[],[]]"
+WAVE_SAVED_AS = "[[1,2],[],[3,4],[10,20,11,5],[],[12,7]]"
+
+
+class TestAttackPresets:
+    def test_get_presets_sends_an_empty_payload(self):
+        assert GetPresetsRequest().to_payload() == {}
+
+    def test_live_reply_with_an_empty_slot(self):
+        response = parse_response("gas", LIVE_GAS)
+        assert isinstance(response, GetPresetsResponse)
+        assert [preset.index for preset in response.presets] == [0]
+        assert response.presets[0].name is None
+        assert response.presets[0].army() is None
+
+    def test_seven_arrays_carry_support_tools(self):
+        preset = GetPresetsResponse.model_validate({"S": [{"S": 2, "SN": "Farm", "A": SEVEN_ARRAYS}]}).presets[0]
+        army = preset.army()
+        assert army is not None
+        assert preset.name == "Farm"
+        assert army.support_tools == [7, 8, -1]
+        assert army.middle_tools[0] == [1, 2]
+        assert army.left_tools[1] == [5, 6]
+        assert army.right_tools == []
+        assert army.middle_units[1] == [11, 21]
+
+    def test_six_arrays_have_no_support_tools(self):
+        army = AttackPreset.model_validate({"S": 0, "A": SIX_ARRAYS}).army()
+        assert army is not None
+        assert army.support_tools == [-1, -1, -1]
+
+    def test_unparsable_army_reads_as_none(self):
+        assert AttackPreset.model_validate({"S": 0, "A": "not json"}).army() is None
+
+    def test_null_entries_are_skipped(self):
+        response = GetPresetsResponse.model_validate({"S": [None, {"S": 1}]})
+        assert [preset.index for preset in response.presets] == [1]
+
+    def test_save_from_wave_matches_the_client(self):
+        wave = AttackWave(
+            M=WaveFlank(T=[[1, 2], [-1, 0]], U=[[10, 20], [-1, 0], [11, 5]]),
+            L=WaveFlank(T=[[-1, 0]], U=[[-1, 0], [-1, 0]]),
+            R=WaveFlank(T=[[3, 4]], U=[[12, 7]]),
+        )
+        request = SavePresetRequest.create(3, PresetArmy.from_wave(wave))
+        assert request.command == "sas"
+        assert request.to_payload() == {"S": 3, "A": WAVE_SAVED_AS}
+
+    def test_save_round_trips_through_the_reply(self):
+        army = AttackPreset.model_validate({"S": 0, "A": SIX_ARRAYS}).army()
+        assert army is not None
+        assert SavePresetRequest.create(0, army).to_payload()["A"] == SIX_ARRAYS
