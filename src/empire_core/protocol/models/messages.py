@@ -3,7 +3,7 @@ Message and report protocol models.
 
 Commands:
 - sne: System notification event
-- bsd: Battle/spy data
+- bsd: Spy report (the client's S2C_SPY_LOG_DETAIL)
 """
 
 from __future__ import annotations
@@ -89,13 +89,13 @@ class SystemNotificationEvent(BaseResponse):
 
 
 # =============================================================================
-# BSD - Battle/Spy Data
+# BSD - Spy Log Detail
 # =============================================================================
 
 
 class BattleSpyDataRequest(BaseRequest):
     """
-    Request battle or spy report data.
+    Request a spy report.
 
     Command: bsd
     Payload: {
