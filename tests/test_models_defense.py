@@ -155,3 +155,13 @@ class TestClientInventoryAndInt:
     )
     def test_client_int(self, value: Any, expected: int):
         assert client_int(value) == expected
+
+
+class TestDefenseCastellanLeniency:
+    def test_an_unreadable_castellan_keeps_the_reply(self):
+        # parse_DFC: e.L && (this._lordID = int(e.L.ID)); {} is truthy, so the id reads as 0
+        assert GetDefenseResponse.model_validate({"L": {}}).castellan is None
+        assert GetDefenseResponse.model_validate({"L": {}}).castellan_id == 0
+        assert GetDefenseResponse.model_validate({"L": {"ID": None}}).castellan_id == 0
+        assert GetDefenseResponse.model_validate({"L": None}).castellan_id == -1
+        assert GetDefenseResponse.model_validate({"L": {"ID": "4"}}).castellan_id == 4

@@ -14,10 +14,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, ValidationError, ValidatorFunctionWrapHandler, field_validator, model_validator
 
 from .army import UnitInventory
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, client_int
 from .commanders import Castellan
 from .movement import MovementArea
 
@@ -184,13 +184,36 @@ class GetDefenseResponse(BaseResponse):
     castellan: Castellan | None = Field(
         alias="L",
         default=None,
-        description="The castle's castellan; the client reads L.ID and parses the rest with BaronVO.parseLord",
+        description="The castle's castellan; the client reads L.ID and parses the rest with BaronVO.parseLord. "
+        "None when missing or unreadable",
     )
+    listed_castellan_id: ClientInt = Field(
+        default=-1, exclude=True, description="int(L.ID) when L is set, as parse_DFC reads it; -1 otherwise"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _castellan_id_from_l(cls, data: Any) -> Any:
+        # Client: parse_DFC does e.L && (this._lordID = int(e.L.ID)), and {} is truthy
+        if isinstance(data, dict) and isinstance(data.get("L"), dict):
+            data = {**data, "listed_castellan_id": client_int(data["L"].get("ID"))}
+        return data
+
+    @field_validator("castellan", mode="wrap")
+    @classmethod
+    def _castellan_or_none(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> Castellan | None:
+        if not value:
+            return None
+        try:
+            return handler(value)
+        except ValidationError:
+            logger.warning("Could not parse the castellan of a dfc reply")
+            return None
 
     @property
     def castellan_id(self) -> int:
-        """The castellan's id, ``L.ID``; -1 when none is set, as the client starts from."""
-        return self.castellan.commander_id if self.castellan else -1
+        """The castellan's id, ``int(L.ID)``; -1 when none is set, as the client starts from."""
+        return self.castellan.commander_id if self.castellan else self.listed_castellan_id
 
     def inventory(self) -> dict[int, int]:
         """The castle's units as ``{wod_id: amount}``, the only inventory ``parse_DFC`` reads."""
