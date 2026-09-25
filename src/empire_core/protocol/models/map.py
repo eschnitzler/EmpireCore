@@ -698,8 +698,6 @@ class MovementUnitInfo(BasePayload):
     advisor_is_last: int = Field(alias="AAL", default=0, description="1 on the series' last attack")
 
 
-# Goods and loot as [key, amount] pairs, e.g. [["W", 8], ["C1", 28]]; the
-# client also accepts a flat list of numbers (CollectableParserS2CParamList)
 MovementGoods = list[tuple[str | int, int]] | list[int]
 
 
@@ -762,7 +760,6 @@ class MovementWrapper(BasePayload):
     @field_validator("spy", mode="before")
     @classmethod
     def _no_spy_details(cls, value: Any) -> Any:
-        # Movements that are not spies carry S: 0
         return value if isinstance(value, dict) else None
 
     @property
@@ -863,7 +860,6 @@ class MovementOwner(BasePayload):
     @field_validator("via_refer_a_friend", mode="before")
     @classmethod
     def _int_flag(cls, value: Any) -> bool:
-        # Client: !!parseInt(IRF)
         try:
             return bool(int(value))
         except (TypeError, ValueError):

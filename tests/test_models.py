@@ -747,7 +747,7 @@ class TestGoldenRankingPayloads:
 # callers can only defend against the type they are told about.
 # =============================================================================
 
-# One gam wrapper in the shape the server sends (live capture, names scrubbed)
+# Live capture, names scrubbed
 GOOD_MOVEMENT: dict[str, Any] = {
     "M": {
         "MID": 1,
@@ -805,7 +805,7 @@ class TestMalformedMovementBatch:
         assert response.owners[0].name == "me"
 
     def test_owner_record_as_the_client_reads_it(self):
-        # A live O entry, name scrubbed
+        # Live capture, name scrubbed
         owner = {
             "OID": 5,
             "N": "someone",
