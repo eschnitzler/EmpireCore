@@ -279,6 +279,15 @@ class Player(BaseModel):
         )
         return self.special_currencies
 
+    @inventory.setter
+    def inventory(self, value: dict[str, int]) -> None:
+        warnings.warn(
+            "Player.inventory is deprecated; use special_currencies instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.special_currencies = value
+
     @property
     def premium_flag(self) -> int:
         return self.PF

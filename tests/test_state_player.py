@@ -419,6 +419,9 @@ class TestSpecialCurrencies:
         with pytest.deprecated_call():
             assert player.inventory == {"PTT": 3}
         assert Player.model_validate({"inventory": {"PTT": 1}}).special_currencies == {"PTT": 1}
+        with pytest.deprecated_call():
+            player.inventory = {"KTK": 2}
+        assert player.special_currencies == {"KTK": 2}
 
 
 class TestLevelProgress:
