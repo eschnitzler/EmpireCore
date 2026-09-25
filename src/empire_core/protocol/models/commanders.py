@@ -202,7 +202,18 @@ class GetCommandersRequest(BaseRequest):
     command = "gli"
 
 
-class GetCommandersResponse(BaseResponse):
+class CommanderRoster(BasePayload):
+    """
+    A player's commanders and castellans, the ``gli`` block.
+
+    Client: ``CastleLordData.parse_GLI`` (bundle line 38553)
+    """
+
+    commanders: list[Commander] = Field(alias="C", default_factory=list, description="Commanders, as CommanderVO")
+    castellans: list[Castellan] = Field(alias="B", default_factory=list, description="Castellans, as BaronVO")
+
+
+class GetCommandersResponse(BaseResponse, CommanderRoster):
     """
     Response containing commanders (C) and castellans (B).
 
@@ -210,6 +221,3 @@ class GetCommandersResponse(BaseResponse):
     """
 
     command = "gli"
-
-    commanders: list[Commander] = Field(alias="C", default_factory=list)
-    castellans: list[Castellan] = Field(alias="B", default_factory=list)

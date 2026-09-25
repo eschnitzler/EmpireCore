@@ -839,13 +839,13 @@ class AttackService(BaseService):
             # The owner records (gaa.OI) carry the owner's level (L) and legend
             # level (LL), as WorldMapOwnerInfoVO reads them, so no scan is needed
             owner_id = owner_id_from_row(target.row)
-            record = next((r for r in info.owner_records() if owner_id is not None and r.get("OID") == owner_id), None)
+            record = next((r for r in info.owner_records() if owner_id is not None and r.owner_id == owner_id), None)
             if record is not None:
-                if target.level is None and isinstance(record.get("L"), int) and record["L"] > 0:
-                    target.level = record["L"]
+                if target.level is None and record.level > 0:
+                    target.level = record.level
                     target.is_player = True
-                if target.owner_legend_level is None and isinstance(record.get("LL"), int):
-                    target.owner_legend_level = record["LL"]
+                if target.owner_legend_level is None and "legendary_level" in record.model_fields_set:
+                    target.owner_legend_level = record.legendary_level
         if target.defender_legend_skill_ids is None and info.spy_army() is not None:
             target.defender_legend_skill_ids = info.defender_legend_skill_ids
         if target.area_bonuses is None:

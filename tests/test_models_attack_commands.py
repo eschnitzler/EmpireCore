@@ -128,3 +128,23 @@ class TestAttackRequestShapes:
         wave = AttackWave().model_dump(by_alias=True)
         assert list(wave) == ["L", "R", "M"]
         assert list(wave["L"]) == ["T", "U"]
+
+
+class TestAttackInfoBlocks:
+    def test_gaa_gui_and_gli_are_typed(self):
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate(
+            {
+                "gaa": {"AI": [2, 620, 231, -1, 4, 30, 0], "OI": [{"OID": 7, "L": 12, "LL": 3}, "junk"]},
+                "gui": {"I": [["10", "4"], [11, 2], [11, 1]], "SHI": [[620, 5], [621, 0]]},
+                "gli": {"C": [{"ID": 3, "N": "c"}], "B": [{"ID": 1}]},
+            }
+        )
+
+        assert info.target_area.area is not None and info.target_area.area.victory_count == 4
+        assert [(o.owner_id, o.level, o.legendary_level) for o in info.owner_records()] == [(7, 12, 3)]
+        assert info.inventory() == {10: 4, 11: 3}
+        assert info.stronghold_inventory() == {620: 5}
+        assert [c.commander_id for c in info.commander_roster.commanders] == [3]
+        assert [c.commander_id for c in info.commander_roster.castellans] == [1]

@@ -3099,7 +3099,7 @@ class TestAttackInfo:
         info = GetAttackInfoResponse.model_validate(self.SPIED)
 
         assert info.stronghold_inventory() == {620: 5}
-        assert info.owner_records() == [{"OID": 4242, "L": 46}, {}]
+        assert [(r.owner_id, r.level) for r in info.owner_records()] == [(4242, 46), (None, 0)]
         assert GetAttackInfoResponse.model_validate({}).kings_tower_bonus == 0
 
     def test_service_sends_the_documented_payload(self):
@@ -3189,7 +3189,7 @@ class TestTargetPrecalculation:
         info = GetLandmarkAttackInfoResponse.model_validate(LIVE_ALI)
 
         assert info.target_row()[:3] == [23, 630, 240]
-        assert [record["OID"] for record in info.owner_records()] == [6537608]
+        assert [record.owner_id for record in info.owner_records()] == [6537608]
 
     def test_an_outpost_conquest_reads_its_barons(self):
         from empire_core.protocol.models import GetOutpostConquerInfoResponse

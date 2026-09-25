@@ -21,9 +21,10 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field, ValidationError, field_serializer, field_validator, model_validator
 
+from .army import UnitInventory
 from .base import BasePayload, BaseRequest, BaseResponse
-from .commanders import Commander
-from .map import MapAreaItem
+from .commanders import Commander, CommanderRoster
+from .map import MapAreaItem, MapObject
 
 if TYPE_CHECKING:
     from empire_core.combat import Bonus
@@ -257,24 +258,29 @@ class GetAttackInfoRequest(BaseRequest):
     kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
 
 
-def _wod_amounts(entries: Any) -> dict[int, int]:
+class AttackTargetArea(BasePayload):
     """
-    ``[[wod_id, amount], ...]`` as ``{wod_id: amount}``.
+    The target's map row and owner records, the ``gaa`` block of a pre-calculation reply.
 
-    Repeated ids add up and ids left at zero or less are dropped.
-
-    Client: ``AUnitInventory.fillFromWodAmountArray`` (bundle line 42572) into a
-    ``UnitInventoryDictionary``: ``addUnit`` clamps at 0 and ``changeUnitAmount``
-    adds (bundle lines 5533-5535), ``setUnit`` deletes a total of 0 or less
-    (bundle line 5538).
+    Client: ``CastleAttackInfoVO.fillFromParamObject`` (bundle line 30620) parses
+    ``AI`` with ``WorldmapObjectFactory.parseWorldMapArea``; ``ACICommand`` and
+    ``ABICommand`` pass ``OI`` to ``OtherPlayerData.parseOwnerInfoArray``
     """
-    if not isinstance(entries, list):
-        return {}
-    totals: dict[int, int] = {}
-    for entry in entries:
-        if isinstance(entry, list) and len(entry) >= 2:
-            totals[entry[0]] = totals.get(entry[0], 0) + max(0, entry[1])
-    return {wod_id: amount for wod_id, amount in totals.items() if amount > 0}
+
+    area: MapAreaItem | None = Field(alias="AI", default=None, description="The target's map row")
+    owners: list[MapObject] = Field(
+        alias="OI", default_factory=list, description="Owner records, as WorldMapOwnerInfoVO reads them"
+    )
+
+    @field_validator("area", mode="before")
+    @classmethod
+    def _parse_row(cls, value: object) -> object:
+        return MapAreaItem.from_list(value) if isinstance(value, list) else None
+
+    @field_validator("owners", mode="before")
+    @classmethod
+    def _skip_non_records(cls, value: object) -> object:
+        return [record for record in value if isinstance(record, dict)] if isinstance(value, list) else []
 
 
 class AttackInfoResponse(BaseResponse):
@@ -333,13 +339,19 @@ class AttackInfoResponse(BaseResponse):
     home_workshop_level: int = Field(
         alias="HAWL", default=0, description="Level of the attacking castle's workshop, which unlocks support tools"
     )
-    raw_map_area: dict = Field(
-        alias="gaa", default_factory=dict, description="AI: the target's map row, OI: owner records"
+    target_area: AttackTargetArea = Field(
+        alias="gaa", default_factory=lambda: AttackTargetArea(), description="The target's map row and owner records"
     )
-    raw_inventory: dict = Field(
-        alias="gui", default_factory=dict, description="I: the attacker's units and tools, SHI: its stronghold units"
+    unit_inventory: UnitInventory = Field(
+        alias="gui",
+        default_factory=UnitInventory,
+        description="The attacker's inventory; the client reads I (units and tools) and SHI (stronghold units)",
     )
-    raw_commanders: dict = Field(alias="gli", default_factory=dict, description="The attacker's commanders, as gli")
+    commander_roster: CommanderRoster = Field(
+        alias="gli",
+        default_factory=CommanderRoster,
+        description="The attacker's commanders and castellans, which the client parses with CastleLordData.parse_GLI",
+    )
 
     @model_validator(mode="after")
     def _no_spy_report_without_an_army(self) -> "AttackInfoResponse":
@@ -408,20 +420,18 @@ class AttackInfoResponse(BaseResponse):
         Client: ``WorldmapObjectFactory.parseWorldMapArea(t.gaa.AI)`` in
         ``CastleAttackInfoVO.fillFromParamObject`` (bundle line 30620).
         """
-        row = self.raw_map_area.get("AI")
-        return row if isinstance(row, list) else []
+        return list(self.target_area.area.raw_data) if self.target_area.area else []
 
-    def owner_records(self) -> list[dict]:
+    def owner_records(self) -> list[MapObject]:
         """
-        The raw owner records under ``gaa.OI``.
+        The owner records under ``gaa.OI``.
 
         Client: ``ACICommand.executeCommand`` (bundle line 122164) and
         ``ABICommand.executeCommand`` (bundle line 122128) pass them to
         ``OtherPlayerData.parseOwnerInfoArray``; the other pre-calculation
         commands do not read them.
         """
-        records = self.raw_map_area.get("OI")
-        return [record for record in records if isinstance(record, dict)] if isinstance(records, list) else []
+        return list(self.target_area.owners)
 
     def inventory(self) -> dict[int, int]:
         """
@@ -429,7 +439,7 @@ class AttackInfoResponse(BaseResponse):
 
         Client: ``CastleAttackInfoVO.fillFromParamObject`` (bundle line 30620).
         """
-        return _wod_amounts(self.raw_inventory.get("I"))
+        return dict(self.unit_inventory.units)
 
     def stronghold_inventory(self) -> dict[int, int]:
         """
@@ -438,7 +448,7 @@ class AttackInfoResponse(BaseResponse):
         Client: ``CastleAttackInfoVO.fillFromParamObject`` into a
         ``StrongholdUnitInventory`` (bundle line 30620).
         """
-        return _wod_amounts(self.raw_inventory.get("SHI"))
+        return dict(self.unit_inventory.stronghold)
 
 
 class GetAttackInfoResponse(AttackInfoResponse):
