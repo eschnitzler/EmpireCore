@@ -1221,3 +1221,23 @@ class TestRelicInfo:
         assert Equipment.model_validate([*self.RELIC[:12], "junk"]).relic_info is None
         ordinary = [*self.RELIC[:11], 0, [1, 6, 2980, []]]
         assert Equipment.model_validate(ordinary).relic_info is None
+
+
+class TestMapAreaStructureLevels:
+    """Only castle-like rows carry levels at fields 5 to 9 (InteractiveMapobjectVO, Capital, Metropol)."""
+
+    def test_castle_rows_floor_keep_wall_and_gate(self):
+        item = MapAreaItem.from_list([1, 1, 2, 3, 4, 0, 0, 0, 2, 1, "c"])
+        assert (item.keep_level, item.wall_level, item.gate_level, item.tower_level, item.moat_level) == (1, 1, 1, 2, 1)
+
+    def test_capital_rows_take_the_levels_as_sent(self):
+        item = MapAreaItem.from_list([MapItemType.CAPITAL, 1, 2, 3, 4, 0, 5, 6, 7, 8, "cap"])
+        assert (item.keep_level, item.wall_level, item.gate_level, item.tower_level, item.moat_level) == (0, 5, 6, 7, 8)
+
+    def test_landmarks_carry_no_structure_levels(self):
+        tower = MapAreaItem.from_list([MapItemType.KINGS_TOWER, 1, 2, 3, 4, 0, 60, "tower"])
+        monument = MapAreaItem.from_list([MapItemType.MONUMENT, 1, 2, 3, 4, 2, 7, 0, 60, "monument"])
+        laboratory = MapAreaItem.from_list([MapItemType.LABORATORY, 1, 2, 3, 4, 9, 0, 60, "lab"])
+        for item in (tower, monument, laboratory):
+            assert (item.keep_level, item.wall_level, item.gate_level, item.tower_level, item.moat_level) == (0,) * 5
+        assert (tower.landmark_level, monument.landmark_level, laboratory.landmark_level) == (None, 7, 9)

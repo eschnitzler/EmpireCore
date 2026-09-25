@@ -16,7 +16,7 @@ from typing import Any
 
 from pydantic import ConfigDict, Field, ValidationError, ValidationInfo, field_validator
 
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, Kingdom, Position
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, Kingdom, Position, client_int
 from .movement import OwnerCrest, OwnerFaction
 
 logger = logging.getLogger(__name__)
@@ -179,6 +179,20 @@ FACTION_LANDMARK_TYPES = frozenset(
     }
 )
 
+# Rows whose structure levels sit at fields 5 to 9. InteractiveMapobjectVO.parseAreaInfo
+# (bundle line 3631) reads them through int() and floors keep, wall and gate at 1;
+# CapitalMapobjectVO (18731) and MetropolMapobjectVO (21611) take them as sent.
+# Kings towers, monuments, laboratories, villages and isles parse their own rows
+# and leave the inherited levels at 0.
+_FLOORED_LEVEL_TYPES = frozenset(
+    {MapItemType.CASTLE, MapItemType.OUTPOST, MapItemType.KINGDOM_CASTLE, MapItemType.FACTION_CAMP}
+)
+_RAW_LEVEL_TYPES = frozenset({MapItemType.CAPITAL, MapItemType.METRO})
+
+# The level of an upgradable landmark: MonumentMapobjectVO reads it at field 6,
+# LaboratoryMapobjectVO at field 5.
+_LANDMARK_LEVEL_FIELDS: dict[int, int] = {MapItemType.MONUMENT: 6, MapItemType.LABORATORY: 5}
+
 INVASION_AREA_TYPES = frozenset(
     {
         MapItemType.SAMURAI_CAMP,
@@ -280,17 +294,28 @@ class MapAreaItem(BasePayload):
         return self._dungeon_field(_DUNGEON_KINGDOM_FIELD)
 
     def _level_field(self, index: int, minimum: int = 0) -> int:
-        """A structure level from an owned-location row."""
-        if self.item_type == MapItemType.DUNGEON or len(self.raw_data) <= index:
+        """A structure level, 0 for a row that carries none."""
+        if len(self.raw_data) <= index:
             return 0
         value = self.raw_data[index]
-        if isinstance(value, bool) or not isinstance(value, int):
-            return 0
-        return max(value, minimum)
+        if self.item_type in _FLOORED_LEVEL_TYPES:
+            return max(client_int(value), minimum)
+        if self.item_type in _RAW_LEVEL_TYPES and isinstance(value, int) and not isinstance(value, bool):
+            return value
+        return 0
+
+    @property
+    def landmark_level(self) -> int | None:
+        """A monument's or laboratory's level, or None for other types."""
+        index = _LANDMARK_LEVEL_FIELDS.get(self.item_type)
+        if index is None or len(self.raw_data) <= index:
+            return None
+        value = self.raw_data[index]
+        return value if isinstance(value, int) and not isinstance(value, bool) else None
 
     @property
     def keep_level(self) -> int:
-        """The defender's keep level; the client floors this at 1."""
+        """The defender's keep level; floored at 1 except on a capital or metropolis, 0 for a landmark."""
         return self._level_field(_KEEP_LEVEL_FIELD, minimum=1)
 
     @property
