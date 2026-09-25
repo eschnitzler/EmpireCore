@@ -67,7 +67,6 @@ class Alliance(BaseModel):
     @field_validator("is_searching", mode="before")
     @classmethod
     def _searching_flag(cls, value: Any) -> bool:
-        # Client: 1 == parseInt(SA)
         try:
             return int(value) == 1
         except (TypeError, ValueError):

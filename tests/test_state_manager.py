@@ -737,7 +737,7 @@ class TestAllianceMembership:
         assert player.AID == 5
 
     def test_live_gal_shape(self, state):
-        # As a live login sent it: the name under N, SA a 0/1 search flag
+        # Live capture
         gal = {"AID": 190426, "R": 1, "N": "H.O.P.E", "ACF": 22, "SA": 0}
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": gal})
         alliance = state.get_local_player().alliance
