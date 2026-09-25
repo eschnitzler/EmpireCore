@@ -6,11 +6,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, ValidationError, field_validator, model_validator
 
 from empire_core.utils.enums import MapObjectType
 
 from .base import BasePayload, BaseRequest, BaseResponse, Position
+from .commanders import Commander
 
 
 class GetMovementsRequest(BaseRequest):
@@ -150,16 +151,30 @@ class MovementArmy(BasePayload):
 class MovementUnitInfo(BasePayload):
     """Commander and wait details: a wrapper's ``UM``.
 
-    Client: ``BasicMapmovementVO.parseUnitMovement``.
+    Client: ``BasicMapmovementVO.parseUnitMovement`` (bundle line 19385), which hands ``L`` to
+    ``LordFactory.createLord`` (bundle line 26399).
     """
 
-    commander: dict[str, Any] | None = Field(alias="L", default=None, description="Commander leading the army")
+    commander: Commander | None = Field(
+        alias="L", default=None, description="Commander leading the army; None when missing or unreadable"
+    )
     wait_passed: int = Field(alias="PWD", default=0, description="Seconds of the wait at the target already passed")
     wait_total: int = Field(alias="TWD", default=0, description="Seconds the army waits at its target")
     advisor_type: int = Field(alias="AAT", default=0, description="Attack advisor type, 0 for none")
     advisor_movement_count: int = Field(alias="AAC", default=0, description="Attacks in the advisor series")
     advisor_movement_number: int = Field(alias="AAN", default=0, description="This attack's place in the series")
     advisor_is_last: int = Field(alias="AAL", default=0, description="1 on the series' last attack")
+
+    @field_validator("commander", mode="before")
+    @classmethod
+    def _readable_commander(cls, value: Any) -> Any:
+        """An unreadable commander costs only itself, not the wait and advisor details."""
+        if not value:
+            return None
+        try:
+            return Commander.model_validate(value)
+        except ValidationError:
+            return None
 
 
 MovementGoods = list[tuple[str | int, int]] | list[int]

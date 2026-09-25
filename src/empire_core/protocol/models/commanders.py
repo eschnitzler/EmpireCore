@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import logging
 from enum import IntEnum
+from typing import Any
 
-from pydantic import Field, ValidationError
+from pydantic import Field, ValidationError, model_validator
 
 from .base import BasePayload, BaseRequest, BaseResponse
 
@@ -54,6 +55,8 @@ class Equipment(BasePayload):
     [id, slot, wearer, rarity, graphic, bonuses, unique_id, set_id,
      enchantment_level, duration_seconds, gem_id, equipment_type]
     Entries are truncated by the server when trailing fields do not apply.
+
+    Client: ``BasicEquipmentVO.parseEquipFromArray`` (bundle line 7115).
     """
 
     equipment_id: int = 0
@@ -79,24 +82,60 @@ class Equipment(BasePayload):
         """True when a gem is slotted."""
         return self.gem_id != NO_GEM_ID
 
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if not isinstance(data, (list, tuple)):
+            return data
+        return dict(zip(_EQUIPMENT_ROW, data, strict=False))
+
     @classmethod
     def from_list(cls, data: list) -> "Equipment":
         """Parse from an EQ array entry, tolerating short entries."""
-        size = len(data)
-        return cls(
-            equipment_id=data[0] if size > 0 else 0,
-            slot=data[1] if size > 1 else 0,
-            wearer_type=data[2] if size > 2 else WearerType.ALL,
-            rarity_id=data[3] if size > 3 else 0,
-            graphic=data[4] if size > 4 else 0,
-            bonuses=data[5] if size > 5 else [],
-            unique_id=data[6] if size > 6 else 0,
-            set_id=data[7] if size > 7 else 0,
-            enchantment_level=data[8] if size > 8 else 0,
-            duration_seconds=data[9] if size > 9 else 0,
-            gem_id=data[10] if size > 10 else NO_GEM_ID,
-            equipment_type=data[11] if size > 11 else EquipmentType.GENERATED,
-        )
+        return cls.model_validate(data)
+
+
+_EQUIPMENT_ROW = (
+    "equipment_id",
+    "slot",
+    "wearer_type",
+    "rarity_id",
+    "graphic",
+    "bonuses",
+    "unique_id",
+    "set_id",
+    "enchantment_level",
+    "duration_seconds",
+    "gem_id",
+    "equipment_type",
+)
+
+
+class CommanderEffect(BasePayload):
+    """One entry of a commander's ``E`` or ``AE``: ``[effect_id, values, source]``.
+
+    Client: ``LordVO.parseRawEffects`` (bundle line 26483), ``BonusVO.parseFromValueArray``
+    (bundle line 5707).
+    """
+
+    effect_id: int = Field(description="Effect id, row[0]")
+    values: list[Any] = Field(
+        default_factory=list,
+        description="Value array, row[1]; its layout depends on the effect type's EffectValue class",
+    )
+    source: str = Field(default="", description="EffectSourceEnum server key, row[2]")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if isinstance(data, (list, tuple)) and data:
+            row = {"effect_id": data[0]}
+            if len(data) > 1:
+                row["values"] = data[1]
+            if len(data) > 2 and data[2] is not None:
+                row["source"] = data[2]
+            return row
+        return data
 
 
 class LeaderBase(BasePayload):
@@ -105,9 +144,17 @@ class LeaderBase(BasePayload):
 
     The wire protocol calls both kinds "lords" (command ``gli``, field ``LID``
     on movement commands); the game UI says commander and castellan.
+
+    Client: ``LordFactory.createLord`` (bundle line 26399), ``LordVO.parseLord`` (bundle line 26451),
+    ``LordVO.parseGeneral`` (bundle line 26480) and ``GeneralVO.parseData`` (bundle line 26666) for
+    ``ST`` and ``L``.
     """
 
     commander_id: int = Field(alias="ID")
+    wearer_id: int | None = Field(
+        alias="WID", default=None, description="EquipmentConst wearer id: 2 builds a CommanderVO, 1 a BaronVO"
+    )
+    picture_id: int = Field(alias="VIS", default=0, description="Portrait id")
     name: str = Field(alias="N", default="")
     wins: int = Field(alias="W", default=0)
     defeats: int = Field(alias="D", default=0)

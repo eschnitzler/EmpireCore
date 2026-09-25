@@ -8,7 +8,8 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from empire_core.protocol.models.movement import MovementArea, MovementOwner, MovementWrapper
+from empire_core.protocol.models.commanders import CommanderEffect
+from empire_core.protocol.models.movement import MovementOwner, MovementWrapper
 from empire_core.state.base import MovementEventCallback, StateBase
 from empire_core.state.world_models import DAIMYO_TOWNSHIP_PLAYER_ID, Movement, MovementResources
 
@@ -354,13 +355,8 @@ class MovementState(StateBase):
     @staticmethod
     def _apply_areas(mov: Movement) -> None:
         """Read type, position, object id and name from the TA and SA rows."""
-        for side, row in (("target", mov.target_area), ("source", mov.source_area)):
-            if not isinstance(row, list):
-                continue
-            try:
-                area = MovementArea.model_validate(row)
-            except ValidationError:
-                logger.debug(f"Ignoring unreadable {side} area row: {row!r}")
+        for side, area in (("target", mov.target_area), ("source", mov.source_area)):
+            if area is None:
                 continue
             setattr(mov, f"{side}_x", area.x)
             setattr(mov, f"{side}_y", area.y)
@@ -377,6 +373,17 @@ class MovementState(StateBase):
         except ValidationError:
             logger.debug(f"Ignoring unreadable movement wrapper block {key}: {value!r}")
             return None
+
+    @staticmethod
+    def _commander_effects(entries: list[Any]) -> list[CommanderEffect]:
+        """Skip unreadable entries, as ``LordVO.parseRawEffects`` (bundle line 26483) skips unknown effects."""
+        effects = []
+        for entry in entries:
+            try:
+                effects.append(CommanderEffect.model_validate(entry))
+            except ValidationError:
+                logger.debug(f"Ignoring unreadable commander effect: {entry!r}")
+        return effects
 
     def _apply_wrapper_blocks(self, mov: Movement, m_wrapper: dict[str, Any]) -> None:
         """Copy the wrapper's army, wait, cargo and flags onto ``mov``.
@@ -413,9 +420,9 @@ class MovementState(StateBase):
             mov.advisor_movement_count = info.advisor_movement_count
             mov.advisor_movement_number = info.advisor_movement_number
             mov.advisor_is_last = info.advisor_is_last == 1
-            if isinstance(info.commander, dict):
-                mov.commander_equipment = info.commander.get("EQ", [])
-                mov.commander_effects = info.commander.get("AE", [])
+            if info.commander is not None:
+                mov.commander_equipment = info.commander.equipment()
+                mov.commander_effects = self._commander_effects(info.commander.area_effects)
 
         if (mm := block("MM")) is not None and mm.market is not None:
             mov.market_carriages = mm.market.carriages

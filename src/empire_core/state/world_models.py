@@ -1,11 +1,15 @@
+import logging
 import time
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError, field_validator
 
-from empire_core.protocol.models.movement import MovementOwner
+from empire_core.protocol.models.commanders import CommanderEffect, Equipment
+from empire_core.protocol.models.movement import MovementArea, MovementOwner
 from empire_core.utils.enums import MapObjectType, MovementType
 from empire_core.utils.troops import count_troops
+
+logger = logging.getLogger(__name__)
 
 # Client: DungeonConst.BASIC_DAIMYO_TOWNSHIP_PLAYER_ID. getOwnerInfoVO files it under
 # the local player's own record, so the daimyo township counts as yours.
@@ -78,8 +82,12 @@ class Movement(BaseModel):
     owner_id: int = Field(default=-1, alias="OID", description="Player id owning the movement")
     horse_booster_id: int = Field(default=-1, alias="HBW", description="Horse booster item id, -1 for none")
 
-    target_area: list[Any] | None = Field(default=None, alias="TA", description="Raw target area row")
-    source_area: list[Any] | None = Field(default=None, alias="SA", description="Raw source area row")
+    target_area: MovementArea | None = Field(
+        default=None, alias="TA", description="Target area row; None when it is missing or unreadable"
+    )
+    source_area: MovementArea | None = Field(
+        default=None, alias="SA", description="Source area row; None when it is missing or unreadable"
+    )
 
     target_area_id: int = Field(default=-1, description="Target area id, TA[3]")
     source_area_id: int = Field(default=-1, description="Source area id, SA[3]")
@@ -107,8 +115,12 @@ class Movement(BaseModel):
     created_at: float = Field(default_factory=time.time, description="When state first saw this movement")
     last_updated: float = Field(default_factory=time.time, description="When the last packet for it was applied")
 
-    commander_equipment: list[Any] = Field(default_factory=list, description="Raw UM.L.EQ")
-    commander_effects: list[Any] = Field(default_factory=list, description="Raw UM.L.AE")
+    commander_equipment: list[Equipment] = Field(
+        default_factory=list, description="Equipment the commander wears, UM.L.EQ"
+    )
+    commander_effects: list[CommanderEffect] = Field(
+        default_factory=list, description="The commander's area effects, UM.L.AE"
+    )
 
     wait_total: int = Field(default=0, description="Seconds the army stays at its target, UM.TWD")
     wait_passed: int = Field(default=0, description="Seconds of that wait already passed, UM.PWD")
@@ -132,6 +144,19 @@ class Movement(BaseModel):
     )
 
     _arrival_dispatched: bool = PrivateAttr(default=False)
+
+    @field_validator("target_area", "source_area", mode="before")
+    @classmethod
+    def _readable_area(cls, value: Any) -> Any:
+        """Client: ``WorldmapObjectFactory.parseWorldMapArea`` (bundle line 5343) yields no area for a
+        falsy row and ``BasicMapmovementVO`` falls back to a dummy, so an unreadable row costs only itself."""
+        if not value:
+            return None
+        try:
+            return MovementArea.model_validate(value)
+        except ValidationError:
+            logger.debug(f"Ignoring unreadable area row: {value!r}")
+            return None
 
     @property
     def movement_type_enum(self) -> MovementType:

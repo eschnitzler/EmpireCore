@@ -137,6 +137,33 @@ class TestMalformedMovementBatch:
         wrapper = GetMovementsResponse.model_validate({"M": [hidden]}).movements[0]
         assert wrapper.visible_army is None and wrapper.army_size == 250
 
+    def test_commander_as_the_client_reads_it(self):
+        commander = {
+            "ID": 3,
+            "WID": 2,
+            "VIS": 5,
+            "N": "",
+            "W": 2,
+            "D": 1,
+            "SPR": 2,
+            "EQ": [[6515210043, 6, 2, 10, 0, [[242, [25.0]]], 802, 22, 0, -1, -1, 1]],
+            "AE": [[426, [10.0], "GE"]],
+        }
+        wrapper = GetMovementsResponse.model_validate(
+            {"M": [{**GOOD_MOVEMENT, "UM": {"PWD": 0, "TWD": 20, "L": commander}}]}
+        ).movements[0]
+        assert wrapper.unit_info is not None and wrapper.unit_info.commander is not None
+        leader = wrapper.unit_info.commander
+        assert (leader.commander_id, leader.wearer_id, leader.picture_id, leader.wins) == (3, 2, 5, 2)
+        assert [item.unique_id for item in leader.equipment()] == [802]
+
+    def test_unreadable_commander_keeps_the_wait(self):
+        wrapper = GetMovementsResponse.model_validate(
+            {"M": [{**GOOD_MOVEMENT, "UM": {"PWD": 4, "TWD": 20, "L": {"N": "no id"}}}]}
+        ).movements[0]
+        assert wrapper.unit_info is not None
+        assert (wrapper.unit_info.commander, wrapper.unit_info.wait_passed) == (None, 4)
+
     def test_unknown_wrapper_keys_are_kept(self):
         wrapper = GetMovementsResponse.model_validate({"M": [{**GOOD_MOVEMENT, "NEW": 1}]}).movements[0]
         assert wrapper.model_extra == {"NEW": 1}
