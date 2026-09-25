@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from enum import IntEnum
-from typing import Annotated, Any
+from typing import Annotated, Any, TypeVar
 
 from pydantic import (
     BeforeValidator,
@@ -26,6 +26,15 @@ from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, client_int
 logger = logging.getLogger(__name__)
 
 NO_GEM_ID = -1
+
+PICTURE_FACTION_CASTELLAN = 5
+"""``EquipmentConst.PICK_BARON_FACTION`` (dll line 19249)"""
+PICTURE_ISLAND_CASTELLAN = 13
+"""``EquipmentConst.PICK_BARON_ISLAND`` (dll line 19249)"""
+FACTION_BARON_ID = -16
+"""``FactionConst.BARON_ID`` (dll line 19333)"""
+ISLAND_KINGDOM_ID = 4
+"""``WorldIsland.KINGDOM_ID`` (dll line 20036)"""
 
 
 class EquipmentSlot(IntEnum):
@@ -117,19 +126,23 @@ class RelicBonus(BasePayload):
         return data
 
 
-def _readable_rows(model: type[BasePayload]) -> Any:
-    def parse(value: Any) -> Any:
-        if not isinstance(value, list):
-            return []
-        rows = []
-        for entry in value:
-            try:
-                rows.append(model.model_validate(entry))
-            except ValidationError:
-                logger.debug(f"Ignoring unreadable {model.__name__} entry: {entry!r}")
-        return rows
+_Row = TypeVar("_Row", bound=BasePayload)
 
-    return BeforeValidator(parse)
+
+def _parse_rows(model: type[_Row], value: Any) -> list[_Row]:
+    if not isinstance(value, list):
+        return []
+    rows = []
+    for entry in value:
+        try:
+            rows.append(model.model_validate(entry))
+        except ValidationError:
+            logger.debug(f"Ignoring unreadable {model.__name__} entry: {entry!r}")
+    return rows
+
+
+def _readable_rows(model: type[BasePayload]) -> Any:
+    return BeforeValidator(lambda value: _parse_rows(model, value))
 
 
 class RelicGem(BasePayload):
@@ -357,6 +370,10 @@ class LeaderBase(BasePayload):
     The wire protocol calls both kinds "lords" (command ``gli``, field ``LID``
     on movement commands); the game UI says commander and castellan.
 
+    ``AIE`` (alien) or ``TAE`` (temporary) equipment stands in for ``EQ``: the
+    client reads the first of them that is present, and only when ``EQ`` is
+    empty. See ``alien_bonuses``.
+
     Client: ``LordFactory.createLord`` (bundle line 26399), ``LordVO.parseLord`` (bundle line 26451),
     ``LordVO.parseGeneral`` (bundle line 26480) and ``GeneralVO.parseData`` (bundle line 26666) for
     ``ST`` and ``L``.
@@ -376,9 +393,30 @@ class LeaderBase(BasePayload):
     equipment: list[Equipment] = Field(
         alias="EQ", default_factory=list, description="Equipped items; entries that do not parse are skipped"
     )
+    alien_equipment: list[Any] | None = Field(
+        alias="AIE",
+        default=None,
+        description="Alien equipment: [effect_id, values] rows, or [hero_rows, equipment_rows]; used when EQ is empty",
+    )
+    temporary_equipment: list[Any] | None = Field(
+        alias="TAE",
+        default=None,
+        description="Temporary equipment, same layout as AIE; used when EQ and AIE are absent",
+    )
+    alien_gem_ids: list[Any] = Field(
+        alias="GEM", default_factory=list, description="Gem ids the client adds to the AIE/TAE equipment"
+    )
     general_id: ClientInt | None = Field(alias="GID", default=None)
-    star_level: ClientInt = Field(alias="ST", default=0)
-    level: ClientInt = Field(alias="L", default=0)
+    star_level: ClientInt = Field(
+        alias="ST",
+        default=0,
+        description="Read by the client only when the entry doubles as its general: GID > 0 on a default commander",
+    )
+    level: ClientInt = Field(
+        alias="L",
+        default=0,
+        description="Read by the client only when the entry doubles as its general: GID > 0 on a default commander",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -391,6 +429,46 @@ class LeaderBase(BasePayload):
             if not isinstance(data.get("N", ""), str):
                 data.pop("N")
         return data
+
+    @field_validator("alien_equipment", "temporary_equipment", mode="before")
+    @classmethod
+    def _alien_block(cls, value: Any) -> Any:
+        return value if isinstance(value, list) else None
+
+    @field_validator("alien_gem_ids", mode="before")
+    @classmethod
+    def _gem_list(cls, value: Any) -> Any:
+        return value if isinstance(value, list) else []
+
+    def _alien_rows(self) -> tuple[list[Any], list[Any]]:
+        block = self.alien_equipment if self.alien_equipment is not None else self.temporary_equipment
+        if self.equipment or block is None:
+            return [], []
+        if len(block) == 2 and all(
+            isinstance(part, list) and (not part or isinstance(part[0], list)) for part in block
+        ):
+            return block[0], block[1]
+        return [], block
+
+    @property
+    def alien_hero_bonuses(self) -> list[EquipmentBonus]:
+        """
+        The hero half of ``AIE``/``TAE`` when it is sent as ``[hero_rows, equipment_rows]``.
+
+        Client: ``LordVO.parseLord`` (bundle line 26451), ``AlienLordHeroVO.parseAlienBoniData``
+        (bundle line 67502)
+        """
+        return _parse_rows(EquipmentBonus, self._alien_rows()[0])
+
+    @property
+    def alien_bonuses(self) -> list[EquipmentBonus]:
+        """
+        The equipment bonuses of ``AIE``/``TAE``, empty when ``EQ`` has items.
+
+        Client: ``LordVO.parseLord`` (bundle line 26451), ``AlienLordEquipmentVO.parseAlienBoniData``
+        (bundle line 67479)
+        """
+        return _parse_rows(EquipmentBonus, self._alien_rows()[1])
 
     @field_validator("equipment", mode="before")
     @classmethod
@@ -421,7 +499,41 @@ class Commander(LeaderBase):
 
 
 class Castellan(LeaderBase):
-    """A castellan - the defensive counterpart of a commander (``BaronVO``)."""
+    """
+    A castellan - the defensive counterpart of a commander (``BaronVO``).
+
+    Client: ``BaronVO.parseLord`` (bundle line 43534)
+    """
+
+    locked_in_castle_id: ClientInt = Field(
+        alias="LICID",
+        default=0,
+        description="Castle the castellan is locked in, -1 for none; read through int(), so a missing key is 0",
+    )
+
+    @property
+    def is_locked_in_castle(self) -> bool:
+        """True when ``locked_in_castle_id`` is 0 or more."""
+        return self.locked_in_castle_id >= 0
+
+    def is_available_for_movement(self, kingdom_id: int) -> bool:
+        """
+        Whether the client offers this castellan for a movement in ``kingdom_id``.
+
+        Not when it is locked in a castle. A faction-portrait castellan (``VIS`` 5) is
+        compared with ``FactionConst.BARON_ID`` (-16), not a kingdom id, so it is never
+        available in a real kingdom; an island-portrait one (``VIS`` 13) only in the
+        storm islands (4). The client also refuses a castellan that already leads one of
+        the player's movements, which this model cannot see.
+
+        Client: ``BaronVO.isAvailableForMovement`` (bundle line 43535),
+        ``LordVO.isAvailableForMovement`` (bundle line 26607)
+        """
+        if self.is_locked_in_castle:
+            return False
+        if self.picture_id == PICTURE_FACTION_CASTELLAN and kingdom_id != FACTION_BARON_ID:
+            return False
+        return not (self.picture_id == PICTURE_ISLAND_CASTELLAN and kingdom_id != ISLAND_KINGDOM_ID)
 
 
 class GetCommandersRequest(BaseRequest):
