@@ -11,7 +11,15 @@ import logging
 from enum import IntEnum
 from typing import Annotated, Any
 
-from pydantic import BeforeValidator, Field, ValidationError, ValidationInfo, field_validator, model_validator
+from pydantic import (
+    BeforeValidator,
+    Field,
+    ValidationError,
+    ValidationInfo,
+    ValidatorFunctionWrapHandler,
+    field_validator,
+    model_validator,
+)
 
 from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, client_int
 
@@ -115,6 +123,62 @@ def _readable_rows(model: type[BasePayload]) -> Any:
     return BeforeValidator(parse)
 
 
+class RelicGem(BasePayload):
+    """
+    The gem set in a relic item: ``[gem_id, relic_type_id, relic_category_id, might, bonuses, enchantment_level]``.
+
+    Client: ``RelicGemVO.parseServerObject`` (bundle line 22222)
+    """
+
+    gem_id: int = Field(description="row[0]")
+    relic_type_id: int = Field(default=0, description="row[1]")
+    relic_category_id: int = Field(default=0, description="row[2]")
+    might: int | float = Field(default=0, description="row[3]")
+    bonuses: Annotated[list[RelicBonus], _readable_rows(RelicBonus)] = Field(
+        default_factory=list, description="row[4]; unreadable entries are skipped"
+    )
+    enchantment_level: ClientInt = Field(default=0, description="row[5], read through int()")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if isinstance(data, (list, tuple)) and data:
+            keys = ("gem_id", "relic_type_id", "relic_category_id", "might", "bonuses", "enchantment_level")
+            return dict(zip(keys, data, strict=False))
+        return data
+
+
+class RelicInfo(BasePayload):
+    """
+    What a relic item carries at index 12: ``[relic_type_id, relic_category_id, might, gem]``.
+
+    Client: ``RelicEquipmentVO.parseEquipFromArray`` (bundle line 25039)
+    """
+
+    relic_type_id: int = Field(default=0, description="row[0]")
+    relic_category_id: int = Field(default=0, description="row[1]")
+    might: int | float = Field(default=0, description="row[2]")
+    gem: RelicGem | None = Field(default=None, description="row[3]; None when no gem is set")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if isinstance(data, (list, tuple)):
+            return dict(zip(("relic_type_id", "relic_category_id", "might", "gem"), data, strict=False))
+        return data
+
+    @field_validator("gem", mode="wrap")
+    @classmethod
+    def _gem_or_none(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> RelicGem | None:
+        # The client builds a gem only from a non-empty row
+        if not isinstance(value, list) or not value:
+            return None
+        try:
+            return handler(value)
+        except ValidationError:
+            return None
+
+
 class Equipment(BasePayload):
     """
     An equipment item worn by a commander or castellan.
@@ -154,6 +218,19 @@ class Equipment(BasePayload):
     equipment_type: ClientInt = Field(
         default=EquipmentType.GENERATED, description="EquipmentType value, read through int() as the client does"
     )
+    relic_info: RelicInfo | None = Field(
+        default=None, description="A relic item's type, category, might and gem, index 12; None for other items"
+    )
+
+    @field_validator("relic_info", mode="wrap")
+    @classmethod
+    def _relic_info_or_none(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> RelicInfo | None:
+        if not isinstance(value, list):
+            return None
+        try:
+            return handler(value)
+        except ValidationError:
+            return None
 
     @property
     def is_permanent(self) -> bool:
@@ -178,6 +255,8 @@ class Equipment(BasePayload):
         row = dict(zip(_EQUIPMENT_ROW, data, strict=False))
         if len(data) >= 12 and client_int(data[11]) == EquipmentType.RELIC:
             row["relic_bonuses"] = row.pop("bonuses", [])
+            if len(data) >= 13:
+                row["relic_info"] = data[12]
         return row
 
     @classmethod

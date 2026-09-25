@@ -1190,3 +1190,34 @@ class TestLeaderboardLeniency:
         first, second = response.scores
         assert (first.rank, first.alliance_name) == (1, "")
         assert (second.rank, second.score, second.player_name, second.instance_id) == (-1, -1, "", 0)
+
+
+class TestRelicInfo:
+    # A captured relic row: index 12 is [relic_type_id, relic_category_id, might, gem]
+    RELIC = [
+        6109572530, 1, 2, 5, -1,
+        [[4, 84, [116.2]], [5, 61, [75.1]], [103, 53, [11.7]]],
+        -1, -1, 0, -1, -1, 3,
+        [1, 6, 2980, [890593, 32, 6, 2770, [[302, 61, [34.7]], [305, 62, [10.0]], [307, 54, [4.6]]], 0]],
+    ]  # fmt: skip
+
+    def test_a_relic_carries_its_type_might_and_gem(self):
+        from empire_core.protocol.models.commanders import Equipment
+
+        item = Equipment.model_validate(self.RELIC)
+        assert item.is_relic and len(item.relic_bonuses) == 3
+        info = item.relic_info
+        assert info is not None and (info.relic_type_id, info.relic_category_id, info.might) == (1, 6, 2980)
+        assert info.gem is not None
+        assert (info.gem.gem_id, info.gem.relic_type_id, info.gem.might, info.gem.enchantment_level) == (
+            890593, 32, 2770, 0,
+        )  # fmt: skip
+        assert [b.relic_effect_id for b in info.gem.bonuses] == [302, 305, 307]
+
+    def test_no_gem_and_ordinary_items(self):
+        from empire_core.protocol.models.commanders import Equipment
+
+        assert Equipment.model_validate([*self.RELIC[:12], [1, 6, 2980, []]]).relic_info.gem is None  # type: ignore[union-attr]
+        assert Equipment.model_validate([*self.RELIC[:12], "junk"]).relic_info is None
+        ordinary = [*self.RELIC[:11], 0, [1, 6, 2980, []]]
+        assert Equipment.model_validate(ordinary).relic_info is None
