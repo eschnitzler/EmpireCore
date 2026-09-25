@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict
 
 from empire_core.gamedata import EffectDef, GameData, GlobalEffectDef, ToolStats, parse_stacks
-from empire_core.protocol.models import Commander, CommanderEffect
+from empire_core.protocol.models import Commander, CommanderEffect, Equipment
 
 if TYPE_CHECKING:
     from .effects import AttackerFlankEffects
@@ -606,19 +606,22 @@ def _within_level_bracket(row: GlobalEffectDef, level: int) -> bool:
     return level >= int(row.min_level) and (ceiling <= 0 or level <= ceiling)
 
 
-def commander_bonuses(commander: Commander, *, area_effects: Sequence[Bonus] | None = None) -> list[Bonus]:
+def commander_bonuses(
+    game_data: GameData, commander: Commander, *, area_effects: Sequence[Bonus] | None = None
+) -> list[Bonus]:
     """
     Every bonus a commander grants, resolved into the right id space.
 
-    Three sources from the ``gli`` payload: the commander's own effects (``E``),
-    its area effects (``AE``), and the bonus list inside each equipped item.
-    A relic item's bonuses are tagged so they resolve through the relic effect
-    table, and any other item's so they resolve through the equipment effect
-    table.
+    Four sources from the ``gli`` payload: the commander's own effects (``E``),
+    its area effects (``AE``), the bonus list inside each equipped item, and
+    the gem slotted in each item (see :func:`gem_bonuses`). A relic item's
+    bonuses are tagged so they resolve through the relic effect table, and any
+    other item's so they resolve through the equipment effect table.
 
-    Equipment set bonuses are not included - those are computed from the items
-    tables rather than sent in the payload - so a commander wearing a full set
-    resolves low.
+    Still left out: equipment set bonuses, which the client works out from the
+    items and gems worn (``LordVO.setCounts``) rather than reading them from the
+    payload, so a commander wearing a full set resolves low; and the gems of a
+    hero item (``AlienLordEquipmentVO.alienGems``).
 
     Client: ``LordVO.getUniqueBoni`` (bundle line 26496). The attack dialog
     replaces the commander's area effects with the ``aci`` ``AE`` list
@@ -627,6 +630,7 @@ def commander_bonuses(commander: Commander, *, area_effects: Sequence[Bonus] | N
     commander keeps its own ``gli`` ``AE`` when ``aci`` sends none.
 
     Args:
+        game_data: Loaded tables, for the gems
         commander: The commander's ``gli`` entry
         area_effects: The ``aci`` ``AE`` list, from
             ``GetAttackInfoResponse.attacker_bonuses()``. When it has entries
@@ -641,7 +645,34 @@ def commander_bonuses(commander: Commander, *, area_effects: Sequence[Bonus] | N
         else:
             rows = [[bonus.effect_id, bonus.values] for bonus in item.bonuses]
         bonuses.extend(parse_bonus_entries(rows, via_relic=item.is_relic, via_equipment=not item.is_relic))
+        bonuses.extend(gem_bonuses(game_data, item))
     return bonuses
+
+
+def gem_bonuses(game_data: GameData, item: Equipment) -> list[Bonus]:
+    """
+    The bonuses of the gem slotted in an item.
+
+    A gem id at index 10 other than -1 names a ``gems`` row, whose ``effects``
+    are plain ``effectID&value`` bonuses; an id missing from the table grants
+    nothing. A relic item that carries index 12 has its relic gem there
+    instead, and that gem's bonuses resolve through the relic effect table.
+
+    Client: ``BasicEquipmentVO.parseEquipFromArray`` (bundle line 7116),
+    ``RelicEquipmentVO.parseEquipFromArray`` (bundle line 25039), which replaces
+    the index 10 gem with the index 12 one, ``CastleGemVO.parseXML`` (bundle
+    line 28287) and ``LordVO.getUniqueBoni`` (bundle line 26496).
+    """
+    if item.relic_info is not None:
+        gem = item.relic_info.gem
+        if gem is None:
+            return []
+        rows = [[bonus.relic_effect_id, bonus.power, bonus.values] for bonus in gem.bonuses]
+        return parse_bonus_entries(rows, via_relic=True)
+    if not item.has_gem:
+        return []
+    row = game_data.gems.get(item.gem_id)
+    return parse_effect_spec(row.raw_effects) if row is not None else []
 
 
 def effect_bonuses(effects: Iterable[CommanderEffect]) -> list[Bonus]:
@@ -676,7 +707,7 @@ def attack_dialog_bonuses(
         Every bonus, unmerged; :meth:`EffectResolver.accumulate` caps them
     """
     if commander is not None:
-        bonuses = commander_bonuses(commander, area_effects=area_effects)
+        bonuses = commander_bonuses(game_data, commander, area_effects=area_effects)
     else:
         bonuses = list(area_effects or [])
     if general_skill_ids:
@@ -795,6 +826,7 @@ __all__ = [
     "attack_dialog_bonuses",
     "commander_bonuses",
     "effect_bonuses",
+    "gem_bonuses",
     "construction_item_bonuses",
     "general_passive_bonuses",
     "general_skill_bonuses",

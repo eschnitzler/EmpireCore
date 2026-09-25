@@ -70,6 +70,10 @@ PAYLOAD = {
         {"capID": "11", "maxTotalBonus": "20"},
         {"capID": "99"},
     ],
+    "gems": [
+        {"gemID": "400", "setID": "38", "triggerChance": "100", "effects": "100&12,120&5"},
+        {"gemID": "401", "wearerID": "2", "effects": "110&8"},
+    ],
     "equipment_effects": [
         # 300 maps to the melee effect; 301 and 302 to the capped attack
         # effect, 301 escaping its cap. 100 has no row, so it falls back.
@@ -308,7 +312,7 @@ class TestCommanderBonuses:
             }
         )
 
-        bonuses = commander_bonuses(commander)
+        bonuses = commander_bonuses(data(), commander)
 
         assert bonuses == [
             Bonus(effect_id=110, value=40.0, raw_values=(40.0,)),
@@ -326,7 +330,7 @@ class TestCommanderBonuses:
             {"ID": 1, "EQ": [[6291449662, 6, 2, 15, -1, [[100, 91, [13.7]]], -1, -1, 0, -1, -1, 3]]}
         )
 
-        bonuses = commander_bonuses(commander)
+        bonuses = commander_bonuses(data(), commander)
 
         assert bonuses == [Bonus(effect_id=100, value=13.7, via_relic=True, raw_values=(13.7,))]
         # Resolved in the relic space, this is a flank unit bonus, not an
@@ -338,19 +342,69 @@ class TestCommanderBonuses:
         commander = Commander.model_validate({"ID": 1, "E": [[110, [40.0], "AB"]], "AE": [[120, [50.0], "RH"]]})
         aci = [Bonus(effect_id=120, value=30.0)]
 
-        assert commander_bonuses(commander, area_effects=aci) == [
+        assert commander_bonuses(data(), commander, area_effects=aci) == [
             Bonus(effect_id=110, value=40.0, raw_values=(40.0,)),
             Bonus(effect_id=120, value=30.0),
         ]
         # LordVO's areaEffects setter ignores an empty list.
-        assert commander_bonuses(commander, area_effects=[]) == commander_bonuses(commander)
+        assert commander_bonuses(data(), commander, area_effects=[]) == commander_bonuses(data(), commander)
+
+    def test_a_slotted_gem_adds_its_bonuses(self):
+        # Index 10 is the gem id; its effects are plain effect ids.
+        commander = Commander.model_validate(
+            {"ID": 1, "EQ": [[1, 2, 2, 5, -1, [[300, [10.0]]], -1, -1, 0, -1, 400, 1]]}
+        )
+
+        bonuses = commander_bonuses(data(), commander)
+
+        assert bonuses == [
+            Bonus(effect_id=300, value=10.0, via_equipment=True, raw_values=(10.0,)),
+            Bonus(effect_id=100, value=12.0),
+            Bonus(effect_id=120, value=5.0),
+        ]
+        assert resolver().accumulate(bonuses, CombatEffectType.ATTACK_BONUS) == 12.0
+        assert resolver().flank_unit_bonus(bonuses) == 5.0
+
+    def test_a_gem_missing_from_the_table_adds_nothing(self):
+        commander = Commander.model_validate({"ID": 1, "EQ": [[1, 2, 2, 5, -1, [], -1, -1, 0, -1, 999, 1]]})
+
+        assert commander_bonuses(data(), commander) == []
+
+    def test_a_relic_gem_adds_its_relic_bonuses(self):
+        # EQ[12] = [relic_type, relic_category, might, gem]; the gem's bonuses
+        # at gem[4] are relic rows, so relic id 120 is attack effect 100.
+        gem = [77, 5, 2, 900, [[120, 60, [7.5]]], 0]
+        commander = Commander.model_validate(
+            {"ID": 1, "EQ": [[1, 2, 2, 15, -1, [[100, 91, [13.7]]], -1, -1, 0, -1, -1, 3, [5, 2, 1200, gem]]]}
+        )
+
+        bonuses = commander_bonuses(data(), commander)
+
+        assert bonuses == [
+            Bonus(effect_id=100, value=13.7, via_relic=True, raw_values=(13.7,)),
+            Bonus(effect_id=120, value=7.5, via_relic=True, raw_values=(7.5,)),
+        ]
+        assert resolver().accumulate(bonuses, CombatEffectType.ATTACK_BONUS) == 7.5
+
+    def test_a_relic_item_with_index_12_ignores_the_index_10_gem(self):
+        # RelicEquipmentVO replaces the index 10 gem with EQ[12][3], here empty.
+        commander = Commander.model_validate(
+            {"ID": 1, "EQ": [[1, 2, 2, 15, -1, [], -1, -1, 0, -1, 400, 3, [5, 2, 1200, []]]]}
+        )
+
+        assert commander_bonuses(data(), commander) == []
+
+    def test_a_short_relic_item_keeps_its_index_10_gem(self):
+        commander = Commander.model_validate({"ID": 1, "EQ": [[1, 2, 2, 15, -1, [], -1, -1, 0, -1, 401, 3]]})
+
+        assert commander_bonuses(data(), commander) == [Bonus(effect_id=110, value=8.0)]
 
     def test_a_bare_commander_grants_nothing(self):
-        assert commander_bonuses(Commander.model_validate({"ID": 1})) == []
+        assert commander_bonuses(data(), Commander.model_validate({"ID": 1})) == []
 
     def test_malformed_equipment_is_skipped(self):
         commander = Commander.model_validate({"ID": 1, "EQ": [[1, 2], "junk", [1, 2, 3, 4, 5, "not a list"]]})
-        assert commander_bonuses(commander) == []
+        assert commander_bonuses(data(), commander) == []
 
 
 # =============================================================================

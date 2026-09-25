@@ -1,4 +1,5 @@
 from empire_core.combat import Bonus, commander_bonuses
+from empire_core.gamedata import GameData
 from empire_core.protocol.models import Commander, Equipment, EquipmentType
 
 
@@ -74,7 +75,7 @@ class TestCommanderEffects:
             }
         )
 
-        assert commander_bonuses(commander) == [
+        assert commander_bonuses(GameData(version="test"), commander) == [
             Bonus(effect_id=53, value=25.0, via_equipment=True, raw_values=(25.0,)),
             Bonus(effect_id=4, value=116.2, via_relic=True, raw_values=(116.2,)),
         ]
