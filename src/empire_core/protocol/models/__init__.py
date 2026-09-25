@@ -212,14 +212,23 @@ from .map import (
     FindNPCResponse,
     GetMapAreaRequest,
     GetMapAreaResponse,
-    GetMovementsRequest,
-    GetMovementsResponse,
     GetTargetInfoRequest,
     GetTargetInfoResponse,
     Kingdom,
     MapAreaItem,
     MapItemType,
     MapObject,
+    NPCLocation,
+    TargetInfo,
+)
+from .messages import (
+    BattleSpyDataRequest,
+    BattleSpyDataResponse,
+    SystemNotificationEvent,
+)
+from .movement import (
+    GetMovementsRequest,
+    GetMovementsResponse,
     MovementArea,
     MovementArmy,
     MovementMarket,
@@ -228,16 +237,9 @@ from .map import (
     MovementSpy,
     MovementUnitInfo,
     MovementWrapper,
-    NPCLocation,
     OwnerCastlePosition,
     OwnerCrest,
     OwnerFaction,
-    TargetInfo,
-)
-from .messages import (
-    BattleSpyDataRequest,
-    BattleSpyDataResponse,
-    SystemNotificationEvent,
 )
 from .player import (
     LOCATION_TYPES,
