@@ -1285,6 +1285,9 @@ class TestAllianceInfoText:
         info = AllianceInfo.model_validate({"D": "Say &quot;hi&quot;<br />now", "A": "", "RT": "30"})
         assert info.description == 'Say "hi"\nnow'
         assert info.announcement == " "
+        # parseChatJSONMessage: &percnt; before %5C, and brackets become spaces
+        assert AllianceInfo.model_validate({"D": "[TAG] 100&percnt;5C"}).description == " TAG  100\\"
+        assert AllianceInfo.model_validate({}).announcement == " "
         assert info.refresh_seconds == 30
 
     def test_forge_fields_are_read_only_with_mf_and_if(self):

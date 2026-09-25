@@ -15,7 +15,7 @@ from typing import Any
 
 from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
 
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, HelpType, decode_chat_text
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, HelpType, parse_chat_json_message
 from .map import MapAreaItem, MapObject, parse_area_rows
 from .profile import PlayerProfileBase
 
@@ -198,7 +198,9 @@ class AllianceInfo(BasePayload):
     might: ClientInt = Field(alias="MP", default=0)
     highest_alliance_might: ClientInt = Field(alias="HAMP", default=0)
     description: str = Field(alias="D", default="")
-    announcement: str = Field(alias="A", default="", description="The alliance's announcement")
+    announcement: str = Field(
+        alias="A", default=" ", description='The alliance\'s announcement; " " when it has none, as in the client'
+    )
     language: str = Field(alias="ALL", default="en")
     external_member_level: ClientInt = Field(alias="ML", default=0)
     status_to_own_alliance: ClientInt = Field(
@@ -250,8 +252,7 @@ class AllianceInfo(BasePayload):
     @field_validator("description", "announcement", mode="before")
     @classmethod
     def _chat_text(cls, value: Any) -> Any:
-        # TextValide.parseChatJSONMessage (dll line 5820): nothing reads as ""
-        return decode_chat_text(value) if isinstance(value, str) and value else ""
+        return parse_chat_json_message(value) if isinstance(value, str) else ""
 
     @field_validator("announcement", mode="after")
     @classmethod
