@@ -35,15 +35,21 @@ ATTACK_BONUS_UNIT_TYPE = 148
 # Their wire form is a flat ``[wod_id, value, wod_id, value, ...]`` array and
 # their strength is the value of the first key, never the key itself.
 #
-#   EffectValueMap              148, 149, 150, 154, 188
-#   EffectValueWodID            70, 71, 72, 1026
-#   EffectValueUnitSpeedBoost   102          extends EffectValueWodID
-#   EffectValueSpawnReserveUnit 208, 213     keyed the same way
+#   EffectValueMap                     148, 149, 150, 154, 188
+#   EquippableEffectValueSupportUnits  47, 51       extends EffectValueMap
+#   EffectValueWodID                   70, 71, 72, 1026
+#   EffectValueUnitSpeedBoost          102          extends EffectValueWodID
+#   EffectValueSpawnReserveUnit        208, 213     extends EffectValueWodID
+#   EffectValueCurrencyBoost           168          extends EffectValueWodID
+#   EffectValueMutateReserveUnit       214          extends EffectValueWodID
+#
+# Client: EffectTypeEnum registrations (bundle line 1322); the subclasses at
+# bundle lines 62164, 62311, 62323 and 62369 leave ``strength`` alone.
 #
 # EffectValueIdList (57, 79, 90, 116, 169, 170, 178, 193) is deliberately
 # absent: its strength getter returns ``idList[0]``, so its first number really
 # is the value.
-KEYED_EFFECT_TYPES = frozenset({70, 71, 72, 102, 148, 149, 150, 154, 188, 208, 213, 1026})
+KEYED_EFFECT_TYPES = frozenset({47, 51, 70, 71, 72, 102, 148, 149, 150, 154, 168, 188, 208, 213, 214, 1026})
 
 
 class CombatEffectType(IntEnum):

@@ -684,6 +684,20 @@ class TestKeyedEffectValues:
         assert bonus.strength(102) == 6.0
         assert EffectResolver(game).accumulate([bonus], 102) == 6.0
 
+    def test_support_unit_effects_read_the_unit_count(self):
+        # EquippableEffectValueSupportUnits, types 47 and 51: [wod_id 655, 10 units]
+        for effect_type in (47, 51):
+            assert parse_bonus_entries([[1, [655, 10.0]]])[0].strength(effect_type) == 10.0
+
+    def test_a_currency_boost_reads_its_value(self):
+        # EffectValueCurrencyBoost, type 168, also takes the pair nested once
+        assert parse_bonus_entries([[1, [31, 25.0]]])[0].strength(168) == 25.0
+        assert parse_bonus_entries([[1, [[31, 25.0]]]])[0].strength(168) == 25.0
+
+    def test_a_reserve_unit_mutation_reads_its_value(self):
+        # EffectValueMutateReserveUnit, type 214
+        assert parse_bonus_entries([[1, [620, 3.0]]])[0].strength(214) == 3.0
+
     def test_an_id_list_effect_keeps_its_first_number(self):
         # EffectValueIdList's strength getter returns idList[0], so for these
         # types the first number really is the value.
