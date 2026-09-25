@@ -70,6 +70,13 @@ PAYLOAD = {
         {"capID": "11", "maxTotalBonus": "20"},
         {"capID": "99"},
     ],
+    "equipment_effects": [
+        # 300 maps to the melee effect; 301 and 302 to the capped attack
+        # effect, 301 escaping its cap. 100 has no row, so it falls back.
+        {"equipmentEffectID": "300", "effectID": "110", "wearerID": "2", "itemGroupID": "1", "bonus": "10"},
+        {"equipmentEffectID": "301", "effectID": "100", "wearerID": "2", "ignoreCap": "1", "bonus": "10"},
+        {"equipmentEffectID": "302", "effectID": "100", "wearerID": "2", "ignoreCap": "0", "bonus": "10"},
+    ],
 }
 
 
@@ -89,8 +96,8 @@ class TestParsing:
         # Live gli shape: [effect_id, [value], source_tag]
         assert parse_bonus_entries([[111, [40.0], "AB"]]) == [Bonus(effect_id=111, value=40.0, raw_values=(40.0,))]
 
-    def test_equipment_bonus_shape(self):
-        # Live EQ shape: [effect_id, strength_id, [value]]
+    def test_relic_bonus_shape(self):
+        # A relic item's row: [relic_effect_id, power, [value]]
         assert parse_bonus_entries([[4, 86, [116.3]]]) == [Bonus(effect_id=4, value=116.3, raw_values=(116.3,))]
 
     def test_junk_entries_are_skipped(self):
@@ -257,6 +264,37 @@ class TestIdSpaces:
     def test_unknown_relic_id_contributes_nothing(self):
         assert resolver().accumulate([Bonus(effect_id=99999, value=5, via_relic=True)], 36) == 0.0
 
+    def test_an_equipment_id_resolves_through_its_row(self):
+        # Equipment effect 300 is the melee effect 110, not plain effect 300.
+        effect = resolver().effect_for(Bonus(effect_id=300, value=10, via_equipment=True))
+
+        assert effect is not None and effect.effect_id == 110
+        assert resolver().effect_for(Bonus(effect_id=300, value=10)) is None
+
+    def test_an_equipment_id_without_a_row_is_a_plain_effect_id(self):
+        effect = resolver().effect_for(Bonus(effect_id=100, value=10, via_equipment=True))
+
+        assert effect is not None and effect.effect_id == 100
+
+    def test_an_ignore_cap_bonus_has_its_own_uncapped_group(self):
+        # Cap 10 tops out at 50. The ignoreCap bonus stacks beside that group
+        # (EquipmentBonusVO.capID is -1) instead of spending its budget.
+        bonuses = [
+            Bonus(effect_id=302, value=40, via_equipment=True),
+            Bonus(effect_id=301, value=40, via_equipment=True),
+            Bonus(effect_id=101, value=10),
+            Bonus(effect_id=301, value=30, via_equipment=True),
+        ]
+
+        assert resolver().accumulate(bonuses, 36) == 50 + 70
+
+    def test_ignore_cap_is_read_as_the_client_reads_a_boolean(self):
+        game = data()
+
+        assert game.equipment_effects[301].ignore_cap is True
+        assert game.equipment_effects[302].ignore_cap is False
+        assert game.equipment_effects[300].ignore_cap is False
+
 
 class TestCommanderBonuses:
     def test_bonuses_come_from_effects_area_effects_and_equipment(self):
@@ -265,16 +303,22 @@ class TestCommanderBonuses:
                 "ID": 1,
                 "E": [[110, [40.0], "AB"]],
                 "AE": [[120, [50.0], "RH"]],
-                # equipmentTypeID 1 = not a relic, so plain effect ids.
-                "EQ": [[6406756464, 1, 2, 5, -1, [[100, [10.0]]], -1, -1, 0, -1, -1, 1]],
+                # equipmentTypeID 1 = not a relic, so equipment effect ids.
+                "EQ": [[6406756464, 1, 2, 5, -1, [[300, [10.0]], [100, 5.0]], -1, -1, 0, -1, -1, 1]],
             }
         )
 
         bonuses = commander_bonuses(commander)
 
-        assert Bonus(effect_id=110, value=40.0, raw_values=(40.0,)) in bonuses
-        assert Bonus(effect_id=120, value=50.0, raw_values=(50.0,)) in bonuses
-        assert Bonus(effect_id=100, value=10.0, via_relic=False, raw_values=(10.0,)) in bonuses
+        assert bonuses == [
+            Bonus(effect_id=110, value=40.0, raw_values=(40.0,)),
+            Bonus(effect_id=120, value=50.0, raw_values=(50.0,)),
+            Bonus(effect_id=300, value=10.0, via_equipment=True, raw_values=(10.0,)),
+            Bonus(effect_id=100, value=5.0, via_equipment=True, raw_values=(5.0,)),
+        ]
+        # 40 from effect 110 plus 10 from equipment effect 300, which is 110 too.
+        assert resolver().accumulate(bonuses, CombatEffectType.MELEE_BONUS) == 50.0
+        assert resolver().accumulate(bonuses, CombatEffectType.ATTACK_BONUS) == 5.0
 
     def test_relic_equipment_bonuses_are_tagged(self):
         # equipmentTypeID 3 = relic.
