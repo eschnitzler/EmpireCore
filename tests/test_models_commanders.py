@@ -245,3 +245,24 @@ def test_a_null_set_id_or_odd_rarity_keeps_the_item():
     # parseEquipFromArray stores e[3] and e[7] raw; getUniqueBoni reads the set through int()
     item = Equipment.model_validate([4, 2, 2, "rare", 0, [], 802, None])
     assert (item.rarity_id, item.set_id, item.has_set) == (0, 0, True)
+
+
+def test_alien_equipment_gems_count_while_it_stands_in_for_eq():
+    game_data = GameData.parse(
+        "test",
+        {
+            "effects": [{"effectID": "504", "name": "x", "effectTypeID": "1"}],
+            "gems": [{"gemID": "333", "effects": "504&20"}],
+        },
+    )
+    alien = Commander.model_validate({"ID": 1, "EQ": [], "AIE": [], "GEM": [333, "333", 999]})
+    assert [(b.effect_id, b.value) for b in commander_bonuses(game_data, alien)] == [(504, 20.0), (504, 20.0)]
+    worn = Commander.model_validate({"ID": 1, "EQ": [[1, 1, 1, 1, 0, [], 0, -1, 0, -1, -1, 0]], "GEM": [333]})
+    assert commander_bonuses(game_data, worn) == []
+
+
+def test_equipment_bonuses_come_before_the_commanders_own():
+    game_data = GameData.parse("test", {})
+    item = [1, 1, 1, 1, 0, [[37, [5]]], 0, -1, 0, -1, -1, 0]
+    commander = Commander.model_validate({"ID": 1, "EQ": [item], "E": [[2111, [150]]]})
+    assert [b.effect_id for b in commander_bonuses(game_data, commander)] == [37, 2111]
