@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
-from .base import BasePayload, BaseRequest, BaseResponse
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt
 
 if TYPE_CHECKING:
     from empire_core.gamedata.models import GeneralDef
@@ -186,25 +186,78 @@ class GetSkillsRequest(BaseRequest):
     command = "skl"
 
 
-class GetSkillsResponse(BaseResponse):
+class ActivatingSceatSkill(BasePayload):
+    """
+    A Hall of Legends sceat skill still being activated, an entry of ``SSA``.
+
+    Client: ``CastleLegendSkillData.parse_SKL`` (bundle line 112051)
+    """
+
+    skill_id: ClientInt = Field(alias="ID", default=0)
+    remaining_seconds: ClientInt = Field(alias="RS", default=0, description="Seconds until the skill is active")
+
+
+class SkillList(BasePayload):
+    """
+    The player's legend and sceat skills, the ``skl`` block.
+
+    ``SID`` are the legend skills, which apply only in a legendary fight, and
+    ``SIDS`` the Hall of Legends sceat skills, which always apply.
+
+    Client: ``CastleLegendSkillData.parse_SKL`` (bundle line 112051)
+    """
+
+    legend_skill_ids: list[int] = Field(alias="SID", default_factory=list)
+    sceat_skill_ids: list[int] = Field(alias="SIDS", default_factory=list)
+    total_points: ClientInt = Field(alias="SP", default=0)
+    seconds_until_reset: int = Field(alias="RS", default=0)
+    reset_count: ClientInt = Field(alias="RC", default=0, description="How many times the skills have been reset")
+    activating: list[ActivatingSceatSkill] = Field(
+        alias="SSA", default_factory=list, description="Sceat skills still being activated"
+    )
+
+    @field_validator("activating", mode="before")
+    @classmethod
+    def _readable_entries(cls, value: Any) -> Any:
+        if not isinstance(value, list):
+            return []
+        return [entry for entry in value if isinstance(entry, dict)]
+
+
+class GetSkillsResponse(BaseResponse, SkillList):
     """
     Response listing the player's legend and sceat skills.
 
     Command: skl
-    Payload: {"SID": [legend skill ids], "SIDS": [sceat skill ids],
-              "SP": total_points, "RS": seconds_until_reset}
+    Payload: {"SID": [legend skill ids], "SIDS": [sceat skill ids], "SP": total_points,
+              "RS": seconds_until_reset, "RC": reset_count, "SSA": [{"ID": .., "RS": ..}, ..]}
 
-    ``parse_SKL`` reads exactly these: ``SID`` are the legend skills, which
-    apply only in a legendary fight, and ``SIDS`` the Hall of Legends sceat
-    skills, which always apply.
+    Client: ``SKLCommand.executeCommand`` (bundle line 129742)
     """
 
     command = "skl"
 
-    legend_skill_ids: list[int] = Field(alias="SID", default_factory=list)
-    sceat_skill_ids: list[int] = Field(alias="SIDS", default_factory=list)
-    total_points: int = Field(alias="SP", default=0)
-    seconds_until_reset: int = Field(alias="RS", default=0)
+
+class ObjectUpdateEvent(BaseResponse):
+    """
+    An object update pushed by the server.
+
+    Only the skill list is read here; the area update the client also takes
+    from it stays in the extra fields.
+
+    Command: ego
+    Client: ``EGOCommand.executeCommand`` (bundle line 122801)
+    """
+
+    command = "ego"
+
+    skills: SkillList | None = Field(alias="skl", default=None, description="A new skill list, when one was sent")
+
+    @field_validator("skills", mode="before")
+    @classmethod
+    def _no_skills(cls, value: Any) -> Any:
+        # The client parses skl whenever it is truthy, an empty object included
+        return value if isinstance(value, dict) else None
 
 
 __all__ = [
@@ -214,4 +267,7 @@ __all__ = [
     "GetGeneralsResponse",
     "GetSkillsRequest",
     "GetSkillsResponse",
+    "SkillList",
+    "ActivatingSceatSkill",
+    "ObjectUpdateEvent",
 ]

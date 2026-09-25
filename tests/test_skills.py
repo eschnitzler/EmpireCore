@@ -3,7 +3,7 @@
 import pytest
 
 from empire_core.gamedata import GeneralDef
-from empire_core.protocol.models import General, GetGeneralsResponse, GetSkillsResponse
+from empire_core.protocol.models import General, GetGeneralsResponse, GetSkillsResponse, ObjectUpdateEvent, SkillList
 
 # The generals row for general 103 in items v786.03.
 GENERAL_103 = GeneralDef.model_validate(
@@ -143,3 +143,38 @@ class TestPlayerSkills:
 
         assert response.legend_skill_ids == []
         assert response.sceat_skill_ids == []
+        assert response.reset_count == 0
+        assert response.activating == []
+
+    def test_the_reset_count_and_the_skills_being_activated(self):
+        response = GetSkillsResponse.model_validate(
+            {"SID": [], "SIDS": [90], "SP": 40, "RS": 0, "RC": 2, "SSA": [{"ID": 91, "RS": 3600}, None, 7]}
+        )
+
+        assert response.reset_count == 2
+        assert [(s.skill_id, s.remaining_seconds) for s in response.activating] == [(91, 3600)]
+
+
+class TestObjectUpdate:
+    """``EGOCommand``: an ego push hands its skl block to ``parse_SKL``."""
+
+    def test_the_skill_list_of_a_push(self):
+        event = ObjectUpdateEvent.model_validate({"skl": {"SID": [3], "SIDS": [90], "SP": 10, "RS": 0, "RC": 1}})
+
+        assert event.skills is not None
+        assert event.skills.legend_skill_ids == [3]
+        assert event.skills.reset_count == 1
+
+    @pytest.mark.parametrize("payload", [{}, {"skl": None}, {"skl": 0}, {"A": {"OID": 5}}])
+    def test_a_push_without_a_skill_list(self, payload):
+        assert ObjectUpdateEvent.model_validate(payload).skills is None
+
+    def test_an_empty_skl_block_is_still_a_skill_list(self):
+        # {} is truthy in JS, so the client parses it and clears its lists.
+        assert ObjectUpdateEvent.model_validate({"skl": {}}).skills == SkillList()
+
+    def test_the_skl_block_does_not_read_an_error_code(self):
+        event = ObjectUpdateEvent.model_validate({"skl": {"SID": [3], "E": 5}})
+
+        assert event.error_code == 0
+        assert not hasattr(event.skills, "error_code")
