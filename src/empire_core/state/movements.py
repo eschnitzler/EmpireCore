@@ -6,6 +6,9 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from pydantic import ValidationError
+
+from empire_core.protocol.models.movement import MovementWrapper
 from empire_core.state.base import MovementEventCallback, StateBase
 from empire_core.state.world_models import Movement, MovementResources
 
@@ -322,46 +325,8 @@ class MovementState(StateBase):
                 if len(mov.source_area) >= 4:
                     mov.source_area_id = mov.source_area[3]
 
-            # Extract units from wrapper (GA = Garrison Army at wrapper level)
             if m_wrapper:
-                ga_data = m_wrapper.get("GA", {})
-
-                # GA contains unit arrays in L (left), M (melee), R (ranged), RW (ranged wall)
-                # Each is a list of [unit_id, count] pairs
-                for key in ("L", "M", "R", "RW"):
-                    unit_list = ga_data.get(key, [])
-                    if isinstance(unit_list, list):
-                        for item in unit_list:
-                            if isinstance(item, (list, tuple)) and len(item) >= 2:
-                                try:
-                                    unit_id = int(item[0])
-                                    count = int(item[1])
-                                    mov.units[unit_id] = mov.units.get(unit_id, 0) + count
-                                except (ValueError, TypeError):
-                                    pass
-
-                # Extract resources or estimated size from GS field
-                # GS is an int when army not visible (estimated size)
-                # GS is a dict when transporting resources
-                gs_data = m_wrapper.get("GS")
-                if isinstance(gs_data, int):
-                    mov.estimated_size = gs_data
-                elif isinstance(gs_data, dict):
-                    mov.resources = MovementResources(
-                        W=gs_data.get("W", 0),
-                        S=gs_data.get("S", 0),
-                        F=gs_data.get("F", 0),
-                    )
-
-                # Extract commander data from UM.L
-                um_data = m_wrapper.get("UM", {})
-                if isinstance(um_data, dict):
-                    mov.wait_total = int(um_data.get("TWD") or 0)
-                    mov.wait_passed = int(um_data.get("PWD") or 0)
-                    commander_data = um_data.get("L", {})
-                    if isinstance(commander_data, dict):
-                        mov.commander_equipment = commander_data.get("EQ", [])
-                        mov.commander_effects = commander_data.get("AE", [])
+                self._apply_wrapper_blocks(mov, m_wrapper)
 
             # Extract owner names and alliances from owner_info
             if owner_info:
@@ -381,6 +346,76 @@ class MovementState(StateBase):
         except Exception:
             self._log_movement_parse_failure(mid)
             return None
+
+    @staticmethod
+    def _wrapper_block(key: str, value: Any) -> MovementWrapper | None:
+        """Validate one wrapper key on its own, so a drifted block costs only itself."""
+        try:
+            return MovementWrapper.model_validate({"M": {"MID": 0}, key: value})
+        except ValidationError:
+            logger.debug(f"Ignoring unreadable movement wrapper block {key}: {value!r}")
+            return None
+
+    def _apply_wrapper_blocks(self, mov: Movement, m_wrapper: dict[str, Any]) -> None:
+        """Copy the wrapper's army, wait, cargo and flags onto ``mov``.
+
+        Client: ``ArmyAttackMapmovementVO.loadFromParamObject``, ``parseUnitMovement``,
+        ``ArmyTravelMapMovementVO`` and ``MarketMapmovementVO``.
+        """
+        blocks = {key: self._wrapper_block(key, value) for key, value in m_wrapper.items() if key != "M"}
+
+        def block(key: str) -> MovementWrapper | None:
+            return blocks.get(key)
+
+        army = next((b.visible_army for b in (block("FA"), block("GA")) if b and b.visible_army), None)
+        if army is not None:
+            pairs = [*army.left, *army.middle, *army.right, *army.courtyard]
+        elif (travel := block("A")) is not None:
+            pairs = travel.travel_units
+        else:
+            pairs = []
+        units: dict[int, int] = {}
+        for pair in pairs:
+            if len(pair) >= 2:
+                units[pair[0]] = units.get(pair[0], 0) + pair[1]
+        mov.units = units
+
+        if (gs := block("GS")) is not None and gs.army_size is not None:
+            mov.estimated_size = gs.army_size
+
+        if (um := block("UM")) is not None and um.unit_info is not None:
+            info = um.unit_info
+            mov.wait_total = info.wait_total
+            mov.wait_passed = info.wait_passed
+            mov.advisor_type = info.advisor_type
+            mov.advisor_movement_count = info.advisor_movement_count
+            mov.advisor_movement_number = info.advisor_movement_number
+            mov.advisor_is_last = info.advisor_is_last == 1
+            if isinstance(info.commander, dict):
+                mov.commander_equipment = info.commander.get("EQ", [])
+                mov.commander_effects = info.commander.get("AE", [])
+
+        if (mm := block("MM")) is not None and mm.market is not None:
+            mov.market_carriages = mm.market.carriages
+            mov.goods = mm.market.goods
+        elif (loot := block("G")) is not None:
+            mov.goods = loot.travel_goods
+        amounts: dict[str, int] = {}
+        for entry in mov.goods:
+            if isinstance(entry, tuple) and isinstance(entry[0], str):
+                amounts[entry[0]] = amounts.get(entry[0], 0) + entry[1]
+        mov.resources = MovementResources.model_validate(amounts)
+
+        if (att := block("ATT")) is not None:
+            mov.attack_type = att.attack_type
+        if (sm := block("SM")) is not None:
+            mov.is_shadow = sm.is_shadow
+        if (fc := block("FC")) is not None:
+            mov.force_cancelable = fc.force_cancelable
+        if (ast := block("AST")) is not None:
+            mov.support_tool_ids = ast.support_tools
+        if (asct := block("ASCT")) is not None:
+            mov.auto_skip_cooldown_type = asct.auto_skip_cooldown_type
 
     def _log_movement_parse_failure(self, mid: Any) -> None:
         """Report a dropped movement loudly, but at most once a minute.

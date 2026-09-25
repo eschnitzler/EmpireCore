@@ -8,16 +8,21 @@ from empire_core.utils.troops import count_troops
 
 
 class MovementResources(BaseModel):
-    """Resources being transported in a movement."""
+    """Resources a movement carries: market goods or travel loot.
 
-    model_config = ConfigDict(extra="ignore")
+    Keys are the client's collectable server keys (``CollectableItem*VO.SERVER_KEY``).
+    """
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     wood: int = Field(default=0, alias="W")
     stone: int = Field(default=0, alias="S")
     food: int = Field(default=0, alias="F")
-    iron: int = Field(default=0, alias="I")
+    coal: int = Field(default=0, alias="C")
+    oil: int = Field(default=0, alias="O")
     glass: int = Field(default=0, alias="G")
-    ash: int = Field(default=0, alias="A")
+    iron: int = Field(default=0, alias="I")
+    aquamarine: int = Field(default=0, alias="A")
     honey: int = Field(default=0, alias="HONEY")
     mead: int = Field(default=0, alias="MEAD")
     beef: int = Field(default=0, alias="BEEF")
@@ -25,9 +30,7 @@ class MovementResources(BaseModel):
     @property
     def total(self) -> int:
         """Total resources in transport."""
-        return (
-            self.wood + self.stone + self.food + self.iron + self.glass + self.ash + self.honey + self.mead + self.beef
-        )
+        return sum(getattr(self, name) for name in type(self).model_fields)
 
     @property
     def is_empty(self) -> bool:
@@ -105,7 +108,20 @@ class Movement(BaseModel):
     wait_total: int = Field(default=0, description="Seconds the army stays at its target, UM.TWD")
     wait_passed: int = Field(default=0, description="Seconds of that wait already passed, UM.PWD")
 
-    force_cancelable: bool = Field(default=False, description="Set by an mfc push")
+    force_cancelable: bool = Field(default=False, description="Wrapper FC, or set by an mfc push")
+
+    attack_type: int | None = Field(default=None, description="AttackType value, the wrapper's ATT")
+    is_shadow: bool = Field(default=False, description="Shadow movement, the wrapper's SM")
+    support_tool_ids: list[int] = Field(default_factory=list, description="Support tools sent along, the wrapper's AST")
+    auto_skip_cooldown_type: int = Field(default=0, description="The wrapper's ASCT")
+    advisor_type: int = Field(default=0, description="Attack advisor type, UM.AAT; 0 for none")
+    advisor_movement_count: int = Field(default=0, description="Attacks in the advisor series, UM.AAC")
+    advisor_movement_number: int = Field(default=0, description="This attack's place in the series, UM.AAN")
+    advisor_is_last: bool = Field(default=False, description="Last attack of the series, UM.AAL")
+    market_carriages: int = Field(default=0, description="Carriages of a market transport, MM.C")
+    goods: list[tuple[str | int, int]] | list[int] = Field(
+        default_factory=list, description="Raw goods or loot pairs, MM.G or the wrapper's G"
+    )
 
     _arrival_dispatched: bool = PrivateAttr(default=False)
 
@@ -166,6 +182,14 @@ class Movement(BaseModel):
         Client: ``BasicMapmovementVO._endWaitTimeStamp``.
         """
         return self.estimated_arrival + max(0, self.wait_total - self.wait_passed)
+
+    @property
+    def battle_time(self) -> float:
+        """When the battle starts (Unix time): arrival plus the wait at the target.
+
+        Client: ``BasicMapmovementVO.parseUnitMovement``.
+        """
+        return self.estimated_end
 
     @property
     def is_stationed(self) -> bool:

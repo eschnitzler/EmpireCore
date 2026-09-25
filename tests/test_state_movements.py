@@ -343,9 +343,68 @@ class TestMovementTime:
     def test_resources_total_includes_special(self):
         from empire_core.state.world_models import MovementResources
 
-        res = MovementResources(MEAD=5)
-        assert res.total == 5
+        res = MovementResources(MEAD=5, A=2, C=1, O=4)
+        assert (res.aquamarine, res.coal, res.oil) == (2, 1, 4)
+        assert res.total == 12
         assert not res.is_empty
+
+
+class TestMovementWrapperBlocks:
+    @staticmethod
+    def stored(state: GameState, **blocks) -> Movement:
+        payload = gam_payload(900)
+        payload["M"][0].update(blocks)
+        state.update_from_packet("gam", payload)
+        mov = state.get_movement_by_id(900)
+        assert mov is not None
+        return mov
+
+    def test_full_army_is_read_before_army(self, state):
+        mov = self.stored(state, FA={"M": [[1, 5]], "RW": [[2, 1]]}, GA={"M": [[9, 9]]})
+        assert mov.units == {1: 5, 2: 1}
+
+    def test_full_army_alone_gives_units(self, state):
+        assert self.stored(state, FA={"L": [[3, 2]], "R": [[3, 1]]}).units == {3: 3}
+
+    def test_hidden_army_only_has_a_size(self, state):
+        mov = self.stored(state, GS=1164)
+        assert mov.units == {} and mov.estimated_size == 1164
+
+    def test_travel_units_and_loot(self, state):
+        # Live capture of a return home
+        mov = self.stored(state, A=[[216, 500]], G=[["W", 8], ["S", 7], ["F", 21], ["C1", 28]])
+        assert mov.units == {216: 500}
+        assert (mov.resources.wood, mov.resources.stone, mov.resources.food) == (8, 7, 21)
+        assert ("C1", 28) in mov.goods
+
+    def test_market_cargo(self, state):
+        mov = self.stored(state, MM={"C": 3, "G": [["A", 40], ["O", 5]]})
+        assert mov.market_carriages == 3
+        assert (mov.resources.aquamarine, mov.resources.oil) == (40, 5)
+
+    def test_attack_flags_and_advisor(self, state):
+        mov = self.stored(
+            state,
+            ATT=0,
+            SM=1,
+            FC=1,
+            AST=[651, 652],
+            ASCT=2,
+            UM={"PWD": 0, "TWD": 30, "AAT": 1, "AAC": 3, "AAN": 3, "AAL": 1, "L": {"EQ": [1], "AE": [2]}},
+        )
+        assert (mov.attack_type, mov.is_shadow, mov.force_cancelable) == (0, True, True)
+        assert (mov.support_tool_ids, mov.auto_skip_cooldown_type) == ([651, 652], 2)
+        assert (mov.advisor_type, mov.advisor_movement_count, mov.advisor_movement_number) == (1, 3, 3)
+        assert mov.advisor_is_last
+        assert (mov.commander_equipment, mov.commander_effects) == ([1], [2])
+        assert mov.battle_time == pytest.approx(mov.estimated_arrival + 30)
+
+    def test_one_unreadable_block_does_not_drop_the_attack(self, state):
+        fired: list[Movement] = []
+        state.on_incoming_attack(fired.append)
+        mov = self.stored(state, AST="junk", GA={"M": [[1, 2]]})
+        assert mov.units == {1: 2} and mov.support_tool_ids == []
+        assert wait_for(lambda: len(fired) == 1)
 
 
 class TestStaleMovementPruning:
