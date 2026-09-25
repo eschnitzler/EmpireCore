@@ -881,13 +881,14 @@ class TestPositionalArrayParsers:
             PlayerCastle.from_list(data)
 
     @pytest.mark.parametrize("data", [[], [1], [1, 2], [1, 2, "nope"], [1, 2, []], [1, 2, {}]])
-    def test_alliance_search_result_degrades_to_unknown(self, data):
-        result = AllianceSearchResult.from_list(data)
-        assert result.name == "Unknown" or result.alliance_id == 0
+    def test_alliance_search_result_without_an_alliance_row_has_defaults(self, data):
+        result = AllianceSearchResult.model_validate(data)
+        assert (result.alliance_id, result.name, result.member_count) == (0, "", 0)
 
-    def test_alliance_search_result_rejects_a_non_numeric_id(self):
-        with pytest.raises(ValidationError):
-            AllianceSearchResult.from_list([1, 2, ["x", "y"]])
+    def test_alliance_search_result_reads_numbers_like_the_client(self):
+        result = AllianceSearchResult.model_validate(["3", 2.0, ["x", 7, "12", None]])
+        assert (result.rank, result.score, result.alliance_id, result.name, result.member_count) == (3, 2, 0, "7", 12)
+        assert result.fame_points == 0
 
 
 class TestRankingEntryDriftedLayouts:

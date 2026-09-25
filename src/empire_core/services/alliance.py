@@ -208,22 +208,8 @@ class AllianceService(BaseService):
             # a raw pydantic error must not leak out of the service layer.
             raise PacketError(f"Could not parse 'hgh' response: {e}") from e
 
-        # Entries are parsed one by one so a single drifted entry costs only
-        # itself, not the whole result. (SearchAllianceResponse.results parses
-        # eagerly and would abort on the first bad entry.)
-        results: list[AllianceSearchResult] = []
-        skipped = 0
-        for entry in response.raw_results:
-            try:
-                results.append(AllianceSearchResult.from_list(entry))
-            except (ValidationError, TypeError):
-                skipped += 1
-        if skipped:
-            logger.warning(
-                f"Skipped {skipped}/{len(response.raw_results)} malformed alliance search entries for {search_term!r}"
-            )
-        logger.debug(f"Alliance search found {len(results)} results")
-        return results
+        logger.debug(f"Alliance search found {len(response.results)} results")
+        return list(response.results)
 
     # =========================================================================
     # Own Alliance Operations

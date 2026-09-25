@@ -10,7 +10,6 @@ import xml.etree.ElementTree as ET
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
 
 from empire_core.network.connection import _summarize_frame
 from empire_core.protocol.models.alliance import AllianceInfo
@@ -66,41 +65,79 @@ def _castle_entry(
 
 
 class TestAllianceMemberInfoGuard:
-    """Finding 1: model_post_init must not raise on drifted AMI entries."""
+    """AMI rows as AdditionalMemberInfoVO.parseAMI reads them, without failing the reply."""
 
-    def test_scalar_ami_entry_does_not_raise_typeerror(self):
-        # pydantic does not wrap model_post_init exceptions in ValidationError,
-        # so a raw TypeError here would escape model_validate and crash callers
-        # that correctly catch only ValidationError.
-        info = AllianceInfo.model_validate({"AID": 1, "AMI": [5]})
-        assert info.member_info == [5]
+    def test_a_scalar_ami_entry_is_skipped(self, caplog):
+        with caplog.at_level("WARNING"):
+            info = AllianceInfo.model_validate({"AID": 1, "AMI": [5, [7, 0, 0, 0, 1]]})
+        assert [row.player_id for row in info.member_info] == [7]
+        assert "malformed AMI entries" in caplog.text
 
-    def test_mixed_malformed_ami_entries_are_skipped(self, caplog):
+    def test_short_and_unreadable_fields_read_as_zero(self):
         payload = {
             "AID": 7,
             "AMI": [
-                5,  # scalar
-                None,
-                ["not-an-int", 0, 0, 0, 2],  # unparseable player id
-                [11, 0, 0, 0],  # too short
-                [12, 0, 0, 0, "x"],  # unparseable tier
-                [13, 0, 0, 0, 3],  # valid
+                ["not-an-int", 0, 0, 0, 2],
+                [11, 0, 0, 0],
+                [12, 0, 0, 0, "x"],
+                [13, 0, 0, 0, 3],
             ],
         }
-        with caplog.at_level("WARNING"):
-            info = AllianceInfo.model_validate(payload)
-        assert info.alliance_id == 7
-        assert "malformed AMI entries" in caplog.text
+        info = AllianceInfo.model_validate(payload)
+        assert [(row.player_id, row.login_activity) for row in info.member_info] == [(0, 2), (11, 0), (12, 0), (13, 3)]
 
-    def test_non_list_ami_still_fails_validation(self):
-        # Shape drift inside the array is tolerated; a wholly wrong AMI type is
-        # still a validation error, which callers already handle.
-        try:
-            AllianceInfo.model_validate({"AID": 1, "AMI": "nope"})
-        except ValidationError:
-            pass
-        else:
-            raise AssertionError("expected ValidationError for non-list AMI")
+    def test_a_full_row(self):
+        info = AllianceInfo.model_validate({"AMI": [[42, 1000, 5, 250000, 1, 1, 2, 0, 1, 3, 180]]})
+        row = info.member_info[0]
+        assert (row.player_id, row.given_c1, row.given_c2, row.given_resources, row.login_activity) == (
+            42,
+            1000,
+            5,
+            250000,
+            1,
+        )
+        assert (row.capital_count, row.metropolis_count, row.kings_tower_count) == (1, 2, 0)
+        assert (row.monument_count, row.laboratory_count, row.daily_fame) == (1, 3, 180)
+
+    def test_a_non_list_ami_reads_as_empty(self):
+        assert AllianceInfo.model_validate({"AID": 1, "AMI": "nope"}).member_info == []
+
+
+class TestAllianceLandmarksAndDiplomacy:
+    """AllianceInfoVO.parseStatusList and AllianceLandmarksList.parseCompleteLandmarksList."""
+
+    CAPITAL = [3, 500, 600, 900001, 4242, 1, 1, 1, 0, 0, "Capital"]
+
+    def test_landmark_lists_are_map_rows(self):
+        info = AllianceInfo.model_validate(
+            {
+                "ACA": [self.CAPITAL],
+                "ATC": [[22, 10, 20, 900002, 4243]],
+                "AKT": [[23, 30, 40, 900003, 4244, 0, -1]],
+                "AMO": [[26, 50, 60, 900004, 4245, 1, 3]],
+                "ALA": [[28, 70, 80, 900005, 4246, 2, 0]],
+            }
+        )
+        assert [(i.item_type, i.location_id, i.owner_id) for i in info.capitals] == [(3, 900001, 4242)]
+        assert [i.location_id for i in info.metropolises] == [900002]
+        assert [i.location_id for i in info.kings_towers] == [900003]
+        assert [i.location_id for i in info.monuments] == [900004]
+        assert [i.location_id for i in info.laboratories] == [900005]
+
+    def test_an_unreadable_landmark_row_is_skipped(self, caplog):
+        with caplog.at_level("WARNING"):
+            info = AllianceInfo.model_validate({"ACA": [["?", "?", "?", "?"], self.CAPITAL]})
+        assert [i.x for i in info.capitals] == [500]
+        assert "alliance landmark rows" in caplog.text
+
+    def test_diplomacy_entries(self):
+        info = AllianceInfo.model_validate(
+            {"ADL": [{"AID": 55, "AN": "Other", "AS": 3, "AC": 1}, "junk", {"AID": "56", "AS": 0, "AC": 0}]}
+        )
+        assert [(d.alliance_id, d.alliance_name, d.status, d.status_confirmed) for d in info.alliance_diplomacy] == [
+            (55, "Other", 3, 1),
+            (56, None, 0, 0),
+        ]
 
 
 class TestMovingFlags:

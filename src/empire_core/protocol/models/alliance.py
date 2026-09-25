@@ -11,10 +11,12 @@ Commands:
 from __future__ import annotations
 
 import logging
+from typing import Any
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
 
-from .base import BasePayload, BaseRequest, BaseResponse, HelpType
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, HelpType
+from .map import MapAreaItem, MapObject, parse_area_rows
 from .profile import PlayerProfileBase
 
 logger = logging.getLogger(__name__)
@@ -31,8 +33,8 @@ class AllianceMember(PlayerProfileBase):
     Common profile fields (OID/N/L/LL/H/AR/CF/HF/MP/DUM/AVP/PRE/SUF/TOPX/
     SA/VF/PF/RRD/TI/RPT/AID/AN/AP/VP) are inherited from PlayerProfileBase.
 
-    Note: Activity status comes from the AMI array in AllianceInfo, not the H field.
-    The AMI array format is: [player_id, field1, field2, field3, activity_tier, ...]
+    Note: Activity status comes from the AMI array in AllianceInfo
+    (``AllianceMemberInfo.login_activity``), not the H field.
     Activity tiers: 0=online, 1=<12hrs, 2=<48hrs, 3=<7days, 4=7+days offline.
     """
 
@@ -104,6 +106,75 @@ class AllianceStorage(BasePayload):
     iron: int = Field(alias="I", default=0)
 
 
+_MEMBER_INFO_FIELDS = (
+    "player_id",
+    "given_c1",
+    "given_c2",
+    "given_resources",
+    "login_activity",
+    "capital_count",
+    "metropolis_count",
+    "kings_tower_count",
+    "monument_count",
+    "laboratory_count",
+    "daily_fame",
+)
+
+
+class AllianceMemberInfo(BasePayload):
+    """
+    A member's extra alliance info: one ``AMI`` row.
+
+    Client: ``AdditionalMemberInfoVO.parseAMI`` (bundle line 66296) shifts the
+    fields off in this order and reads each with ``int``, so a missing field is 0.
+    """
+
+    player_id: ClientInt = Field(default=0, description="row[0]")
+    given_c1: ClientInt = Field(default=0, description="row[1]: C1 the member donated to the alliance (givenC1)")
+    given_c2: ClientInt = Field(default=0, description="row[2]: C2 the member donated to the alliance (givenC2)")
+    given_resources: ClientInt = Field(default=0, description="row[3]: resources the member donated")
+    login_activity: ClientInt = Field(
+        default=0,
+        description="row[4]: AllianceConst.ONLINESTATE_*: 0 online, 1 last 12 hours, 2 last 48 hours, "
+        "3 last week, 4 longer ago",
+    )
+    capital_count: ClientInt = Field(default=0, description="row[5]: capitals the member holds")
+    metropolis_count: ClientInt = Field(default=0, description="row[6]: metropolises the member holds")
+    kings_tower_count: ClientInt = Field(default=0, description="row[7]: kings towers the member holds")
+    monument_count: ClientInt = Field(default=0, description="row[8]: monuments the member holds")
+    laboratory_count: ClientInt = Field(default=0, description="row[9]: laboratories the member holds")
+    daily_fame: ClientInt = Field(default=0, description="row[10]: fame gained today")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if isinstance(data, list):
+            return dict(zip(_MEMBER_INFO_FIELDS, data, strict=False))
+        return data
+
+
+class AllianceDiplomacyStatus(BasePayload):
+    """
+    The alliance's standing with one other alliance: an ``ADL`` entry.
+
+    Client: ``AllianceInfoVO.parseStatusList`` (bundle line 25973) into an
+    ``OtherAllianceStatusListItemVO`` (bundle line 66330).
+    """
+
+    alliance_id: ClientInt = Field(alias="AID", default=0, description="The other alliance")
+    alliance_name: str | None = Field(alias="AN", default=None, description="The other alliance's name")
+    status: ClientInt = Field(
+        alias="AS",
+        default=0,
+        description="AllianceConst.DIPLOMACY_*: 0 at war, 1 neutral, 2 soft allied, 3 real allied",
+    )
+    status_confirmed: ClientInt = Field(
+        alias="AC",
+        default=0,
+        description="AllianceConst.DIPLOMACY_CONFIRMED (1) once agreed, DIPLOMACY_REQUEST (0) while only requested",
+    )
+
+
 # =============================================================================
 # Alliance Info Model
 # =============================================================================
@@ -150,18 +221,27 @@ class AllianceInfo(BasePayload):
     # Alliance buildings
     buildings: list[AllianceBuilding] = Field(alias="ABL", default_factory=list)
 
-    # Member info arrays (for donation tracking etc)
-    # AMI: [[player_id, field1, field2, field3, activity_tier, ...], ...]
-    # activity_tier at index 4: 0=online, 1=<12hrs, 2=<48hrs, 3=<7days, 4=7+days offline
-    member_info: list = Field(alias="AMI", default_factory=list)
-
-    # Alliance diplomacy lists
-    alliance_diplomacy: list = Field(alias="ADL", default_factory=list)
-    alliance_contracts: list = Field(alias="ACA", default_factory=list)
-    alliance_truces: list = Field(alias="ATC", default_factory=list)
-    alliance_kingdoms: list = Field(alias="AKT", default_factory=list)
-    alliance_monuments: list = Field(alias="AMO", default_factory=list)
-    alliance_landmarks: list = Field(alias="ALA", default_factory=list)
+    member_info: list[AllianceMemberInfo] = Field(
+        alias="AMI", default_factory=list, description="Donations, activity and landmark counts per member"
+    )
+    alliance_diplomacy: list[AllianceDiplomacyStatus] = Field(
+        alias="ADL", default_factory=list, description="The alliance's standing with other alliances"
+    )
+    capitals: list[MapAreaItem] = Field(
+        alias="ACA", default_factory=list, description="Map rows of the alliance's capitals (CapitalMapobjectVO)"
+    )
+    metropolises: list[MapAreaItem] = Field(
+        alias="ATC", default_factory=list, description="Map rows of the alliance's metropolises (MetropolMapobjectVO)"
+    )
+    kings_towers: list[MapAreaItem] = Field(
+        alias="AKT", default_factory=list, description="Map rows of the alliance's kings towers (KingstowerMapobjectVO)"
+    )
+    monuments: list[MapAreaItem] = Field(
+        alias="AMO", default_factory=list, description="Map rows of the alliance's monuments (MonumentMapobjectVO)"
+    )
+    laboratories: list[MapAreaItem] = Field(
+        alias="ALA", default_factory=list, description="Map rows of the alliance's laboratories (LaboratoryMapobjectVO)"
+    )
 
     # Resource usage flags
     spend_resources_food_upgrade: int = Field(alias="SRFU", default=0)
@@ -182,57 +262,48 @@ class AllianceInfo(BasePayload):
         """Get count of online members."""
         return len(self.online_members)
 
+    @field_validator("member_info", mode="before")
+    @classmethod
+    def _member_info_rows(cls, value: Any) -> Any:
+        # The client shifts fields off each row; one that is not a row is skipped here instead of failing the reply
+        if not isinstance(value, list):
+            return []
+        rows = [row for row in value if isinstance(row, list)]
+        if len(rows) < len(value):
+            logger.warning(
+                f"Skipped {len(value) - len(rows)}/{len(value)} malformed AMI entries; "
+                "member activity status may be incomplete"
+            )
+        return rows
+
+    @field_validator("alliance_diplomacy", mode="before")
+    @classmethod
+    def _diplomacy_entries(cls, value: Any) -> Any:
+        if not isinstance(value, list):
+            return []
+        return [entry for entry in value if isinstance(entry, dict)]
+
+    @field_validator("capitals", "metropolises", "kings_towers", "monuments", "laboratories", mode="before")
+    @classmethod
+    def _landmark_rows(cls, value: Any) -> Any:
+        """Client: ``AllianceLandmarksList.parseCompleteLandmarksList`` (bundle line 42738)."""
+        items, skipped = parse_area_rows(value)
+        if skipped:
+            logger.warning(f"Skipped {skipped}/{len(value)} unparseable alliance landmark rows")
+        return items
+
     def model_post_init(self, __context) -> None:
         """Populate member activity tier from AMI array after parsing."""
         self._populate_activity_tier()
 
     def _populate_activity_tier(self) -> None:
         """
-        Populate member activity tier from the AMI array.
+        Give each member the login activity of its AMI row.
 
-        AMI format: [[player_id, field1, field2, field3, activity_tier, ...], ...]
-
-        Activity tiers at index 4:
-        - 0: Online now
-        - 1: Offline < 12 hours
-        - 2: Offline < 48 hours
-        - 3: Offline < 7 days
-        - 4: Offline 7+ days
-
-        Every entry is shape-checked: ``member_info`` is a bare ``list``, so
-        element shape is unvalidated, and this positional array has drifted
-        format before. Raising here is not an option — pydantic does not wrap
-        model_post_init exceptions in ValidationError, so it would escape
-        model_validate un-wrapped and crash callers that correctly catch
-        ValidationError. Malformed entries are skipped and reported instead.
+        Client: ``AllianceInfoVO.parseAMI`` (bundle line 25947) keys the rows by
+        player id, and ``getOnlineUserList`` reads ``loginActivity`` from them.
         """
-        if not self.member_info:
-            return
-
-        # Build lookup: player_id -> activity tier
-        activity_lookup: dict[int, int] = {}
-        skipped = 0
-        for ami_entry in self.member_info:
-            if not isinstance(ami_entry, (list, tuple)) or len(ami_entry) < 5:
-                skipped += 1
-                continue
-            try:
-                player_id = int(ami_entry[0])
-                activity_tier = int(ami_entry[4])
-            except (TypeError, ValueError):
-                skipped += 1
-                continue
-            activity_lookup[player_id] = activity_tier
-
-        if skipped:
-            # One line per response, not per entry, so a fully drifted AMI
-            # array can't flood the log.
-            logger.warning(
-                f"Skipped {skipped}/{len(self.member_info)} malformed AMI entries for "
-                f"alliance {self.alliance_id}; member activity status may be incomplete"
-            )
-
-        # Set activity tier on each member
+        activity_lookup = {info.player_id: info.login_activity for info in self.member_info}
         for member in self.members:
             if member.player_id in activity_lookup:
                 member._activity_tier = activity_lookup[member.player_id]
@@ -452,18 +523,22 @@ class GetAllianceBookmarksRequest(BaseRequest):
 class AllianceBookmark(BasePayload):
     """
     Alliance bookmark information from GBL response.
+
+    Client: ``CastleBookmarkData.parseBookmarkObject`` (bundle line 33427) and
+    ``CastleWorldmapBookmarkVO.parseParamObject`` (bundle line 68469).
     """
 
     name: str = Field(alias="N", default="")
-    # OI contains bookmark details like coordinates
-    # For birding we need to parse AP from OI
-    # AP: [[kingdom, area_id, x, y, type], ...]
-    object_info: dict = Field(alias="OI", default_factory=dict)
+    owner: MapObject | None = Field(
+        alias="OI",
+        default=None,
+        description="The owner record of the bookmarked target, which the client parses with parseOwnerInfoArray",
+    )
 
-    @property
-    def positions(self) -> list[list[int]]:
-        """Get list of positions from object info."""
-        return self.object_info.get("AP", [])
+    @field_validator("owner", mode="before")
+    @classmethod
+    def _owner_needs_an_object(cls, value: Any) -> Any:
+        return value if isinstance(value, dict) else None
 
 
 class GetAllianceBookmarksResponse(BaseResponse):
@@ -485,29 +560,34 @@ class GetAllianceBookmarksResponse(BaseResponse):
 
 
 class AllianceSearchResult(BasePayload):
-    """Result from alliance search."""
+    """
+    One row of an alliance highscore list: ``[rank, score, [alliance_id, name, member_count, fame_points]]``.
 
-    alliance_id: int = Field(alias="AID")
-    name: str = Field(alias="N")
-    member_count: int = Field(alias="MC", default=0)
-    might: int = Field(alias="MP", default=0)
+    Client: ``CastleHighscoreDialog.onGetHighscoreData`` (bundle line 27538)
+    shifts rank and score off an alliance list's row and fills an
+    ``AllianceHighscoreInfoVO`` (bundle line 27680) from the third field, which
+    it ignores unless that is an array. Every number is read with ``int``.
+    """
 
+    rank: ClientInt = Field(default=0, description="row[0]")
+    score: ClientInt = Field(default=0, description="row[1]: the listed value, the alliance's might for LT 11")
+    alliance_id: ClientInt = Field(default=0, description="row[2][0]")
+    name: str = Field(default="", description="row[2][1]")
+    member_count: ClientInt = Field(default=0, description="row[2][2]")
+    fame_points: ClientInt = Field(default=0, description="row[2][3]: the alliance's current fame")
+
+    @model_validator(mode="before")
     @classmethod
-    def from_list(cls, data: list) -> "AllianceSearchResult":
-        """
-        Parse from highscore list entry.
-        Format: [Rank, ID, [AID, Name, Members, Might]]
-        """
-        if len(data) < 3 or not isinstance(data[2], list):
-            return cls(AID=0, N="Unknown")
-
-        info = data[2]
-        return cls(
-            AID=info[0] if len(info) > 0 else 0,
-            N=info[1] if len(info) > 1 else "Unknown",
-            MC=info[2] if len(info) > 2 else 0,
-            MP=info[3] if len(info) > 3 else 0,
-        )
+    def _from_row(cls, data: Any) -> Any:
+        if not isinstance(data, list):
+            return data
+        fields: dict[str, Any] = dict(zip(("rank", "score"), data[:2], strict=False))
+        info = data[2] if len(data) > 2 else None
+        if isinstance(info, list):
+            fields.update(zip(("alliance_id", "name", "member_count", "fame_points"), info, strict=False))
+            if "name" in fields:
+                fields["name"] = "" if fields["name"] is None else str(fields["name"])
+        return fields
 
 
 class SearchAllianceRequest(BaseRequest):
@@ -541,12 +621,25 @@ class SearchAllianceResponse(BaseResponse, register=False):
 
     command = "hgh"
 
-    raw_results: list = Field(alias="L", default_factory=list)
+    results: list[AllianceSearchResult] = Field(alias="L", default_factory=list, description="The matching rows")
 
-    @property
-    def results(self) -> list[AllianceSearchResult]:
-        """Parse raw search results."""
-        return [AllianceSearchResult.from_list(item) for item in self.raw_results]
+    @field_validator("results", mode="before")
+    @classmethod
+    def _rows(cls, value: Any) -> Any:
+        # The client shifts fields off each row; one that is not a row is skipped instead of failing the reply
+        if not isinstance(value, list):
+            return []
+        rows = []
+        for row in value:
+            if not isinstance(row, list):
+                continue
+            try:
+                rows.append(AllianceSearchResult.model_validate(row))
+            except ValidationError:
+                continue
+        if len(rows) < len(value):
+            logger.warning(f"Skipped {len(value) - len(rows)}/{len(value)} malformed alliance search rows")
+        return rows
 
 
 __all__ = [
@@ -555,6 +648,8 @@ __all__ = [
     "AllianceInfo",
     "AllianceBuilding",
     "AllianceStorage",
+    "AllianceMemberInfo",
+    "AllianceDiplomacyStatus",
     # AIN - Get Alliance Info
     "GetAllianceInfoRequest",
     "GetAllianceInfoResponse",

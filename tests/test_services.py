@@ -639,7 +639,7 @@ class TestAllianceLocalHelpers:
 
 
 class TestAllianceSearch:
-    GOLDEN_HGH: dict[str, Any] = {"L": [[1, 4213377, [190426, "Knights of HOPE", 47, 4213377]]]}
+    GOLDEN_HGH: dict[str, Any] = {"L": [[1, 4213377, [190426, "Knights of HOPE", 47, 1520300]]]}
 
     def test_search_parses_positional_results(self):
         client = make_client({"hgh": xt_packet("hgh", self.GOLDEN_HGH)})
@@ -650,7 +650,7 @@ class TestAllianceSearch:
         assert results[0].alliance_id == 190426
         assert results[0].name == "Knights of HOPE"
         assert results[0].member_count == 47
-        assert results[0].might == 4213377
+        assert (results[0].rank, results[0].score, results[0].fame_points) == (1, 4213377, 1520300)
 
     def test_search_sends_the_search_term(self):
         client = make_client({"hgh": xt_packet("hgh", self.GOLDEN_HGH)})
@@ -674,29 +674,24 @@ class TestAllianceSearch:
         client = make_client({"hgh": xt_packet("hgh", [1, 2, 3])})
         assert client.alliance.search_alliances("HOPE") == []
 
-    def test_drifted_entry_degrades_to_unknown(self):
+    def test_a_row_without_an_alliance_keeps_its_defaults(self):
         client = make_client({"hgh": xt_packet("hgh", {"L": [[1, 2], [1, 2, "not-a-list"]]})})
         results = client.alliance.search_alliances("HOPE")
-        assert [r.name for r in results] == ["Unknown", "Unknown"]
+        assert [(r.rank, r.score, r.name) for r in results] == [(1, 2, ""), (1, 2, "")]
 
-    def test_unparseable_payload_raises_packet_error_not_validation_error(self):
-        # 'L' of the wrong type fails model_validate; the documented parse
-        # failure type of the request contract is PacketError.
+    def test_a_list_that_is_not_a_list_is_an_empty_result(self):
         client = make_client({"hgh": xt_packet("hgh", {"L": "junk"})})
-        with pytest.raises(PacketError):
-            client.alliance.search_alliances("HOPE")
+        assert client.alliance.search_alliances("HOPE") == []
 
-    def test_wrong_typed_entry_is_skipped_not_fatal(self, caplog):
-        # Well-shaped but wrong-typed: a non-numeric AID raises ValidationError
-        # inside from_list; only that entry may be lost.
+    def test_a_row_that_is_not_a_list_is_skipped_not_fatal(self, caplog):
         payload = {"L": [[1, 2, ["x", "y"]], self.GOLDEN_HGH["L"][0], 5]}
         client = make_client({"hgh": xt_packet("hgh", payload)})
 
-        with caplog.at_level(logging.WARNING, logger="empire_core.services.alliance"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.alliance"):
             results = client.alliance.search_alliances("HOPE")
 
-        assert [r.name for r in results] == ["Knights of HOPE"]
-        assert "Skipped 2/3" in caplog.text
+        assert [(r.alliance_id, r.name) for r in results] == [(0, "y"), (190426, "Knights of HOPE")]
+        assert "Skipped 1/3" in caplog.text
 
 
 class TestAllianceChat:
@@ -814,13 +809,16 @@ class TestAllianceHelp:
         assert request_payload(conn(client).sent[0]) == {"CID": 12345, "HT": int(HelpType.HEAL)}
 
     def test_bookmarks_expose_their_positions(self):
-        payload = {"ABL": [{"N": "Enemy cluster", "OI": {"AP": [[0, 1, 640, 655, 1]]}}]}
+        payload = {"ABL": [{"N": "Enemy cluster", "OI": {"OID": 4242, "AP": [[0, 1, 640, 655, 1]]}}, {"N": "Plot"}]}
         client = make_client({"gbl": xt_packet("gbl", payload)})
 
         bookmarks = client.alliance.get_bookmarks()
 
-        assert [b.name for b in bookmarks] == ["Enemy cluster"]
-        assert bookmarks[0].positions == [[0, 1, 640, 655, 1]]
+        assert [b.name for b in bookmarks] == ["Enemy cluster", "Plot"]
+        assert bookmarks[0].owner is not None
+        assert bookmarks[0].owner.owner_id == 4242
+        assert bookmarks[0].owner.area_positions == [[0, 1, 640, 655, 1]]
+        assert bookmarks[1].owner is None
 
 
 # =============================================================================
