@@ -462,7 +462,7 @@ class EmpireClient:
 
         if response_packet.error_code != 0:
             # Reported under the command sent, which is what the caller asked for.
-            raise CommandError(command, response_packet.error_code)
+            raise CommandError(command, response_packet.error_code, response_packet.payload)
 
         if isinstance(response_packet.payload, dict):
             try:

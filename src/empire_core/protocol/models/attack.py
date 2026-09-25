@@ -156,11 +156,36 @@ class CreateAttackResponse(BaseResponse):
     ``UM.L`` is the same shape as a ``gli`` entry, equipment included, so it is
     what confirms which commander ``LID`` selected. ``FA`` is the army the
     server actually accepted, after it dropped empty flanks.
+
+    A success also carries ``gcu`` and ``O``; the state manager applies both
+    with the movement. An ``ATTACK_IN_PROGRESS`` (234) reply carries ``TS`` and
+    ``AS`` instead, the countdown and army size of the attack already on its
+    way, which the client shows before offering to send anyway with ``FC=1``.
+    That reply arrives as a ``CommandError`` whose ``payload`` this model
+    validates.
+
+    Client: ``CRACommand.executeCommand`` (bundle line 125954),
+    ``CurrencyData.parseGCU`` (bundle line 141191) with ``CollectableItemC1VO.SERVER_KEY`` "C1" (7995)
+    and ``CollectableItemC2VO.SERVER_KEY`` "C2" (4876),
+    ``CastlePostPostAttackFactionDialogProperties`` (bundle line 40173),
+    ``CastlePostPostAttackFactionDialog.onClick`` (bundle line 40155).
     """
 
     command = "cra"
 
-    attack_movement: dict | None = Field(alias="AAM", default=None)
+    attack_movement: dict | None = Field(alias="AAM", default=None, description="The created movement wrapper")
+    currencies: dict = Field(
+        alias="gcu", default_factory=dict, description="Currency totals after the send, C1 and C2 as the gcu command"
+    )
+    owners: list = Field(alias="O", default_factory=list, description="Owner records for the movement's areas")
+    arrival_seconds: int | float | None = Field(
+        alias="TS",
+        default=None,
+        description="On ATTACK_IN_PROGRESS: seconds until the attack already on its way arrives",
+    )
+    army_size: int | float | None = Field(
+        alias="AS", default=None, description="On ATTACK_IN_PROGRESS: the size of the attack already on its way"
+    )
 
     @property
     def leader(self) -> Commander | None:

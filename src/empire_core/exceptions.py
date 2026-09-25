@@ -8,6 +8,8 @@ Failure modes are kept distinct so callers can react to them individually:
 - ``GameDataNotLoadedError``: an API needed the items payload; load it first.
 """
 
+from typing import Any
+
 from empire_core.protocol.errors import GGEError
 
 
@@ -73,11 +75,15 @@ class CommandError(EmpireError):
             ``GGEError.from_code()`` deliberately is not used here: it collapses
             unrecognized codes to ``GENERAL_ERROR``, which would mislabel new
             server codes as a generic failure.
+        payload: the error reply's payload when the server sent one. Some
+            commands explain the error in it, e.g. ``cra`` for
+            ``ATTACK_IN_PROGRESS``; see ``CreateAttackResponse``.
     """
 
-    def __init__(self, command: str, code: int):
+    def __init__(self, command: str, code: int, payload: Any = None):
         self.command = command
         self.code = code
+        self.payload = payload
         try:
             self.error: GGEError | None = GGEError(code)
         except ValueError:

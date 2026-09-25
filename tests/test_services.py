@@ -993,6 +993,63 @@ def wave(units=None, tools=None, middle_units=None):
     )
 
 
+class TestCreateAttackReply:
+    # Live capture of a cra reply for a robber baron camp, names scrubbed.
+    LIVE = {
+        "AAM": {
+            "M": {
+                "MID": 93337642,
+                "PT": 0,
+                "TT": 71,
+                "D": 0,
+                "TID": -210,
+                "T": 0,
+                "HBW": -1,
+                "KID": 0,
+                "TA": [2, 623, 235, -1, 1, -2606959, 0],
+                "SID": 17743261,
+                "OID": 17743261,
+                "SA": [1, 624, 234, 16654597, 17743261, 1, 1, 1, 1, 0, "castle", 0, 0, -1, -1, -1, 0, 0, [], 0],
+            },
+            "UM": {"PWD": 0, "TWD": 0, "L": {"ID": 0, "WID": 2, "VIS": 0, "N": "", "GID": -1, "EQ": [], "AE": []}},
+            "FA": {"L": [[10, 2]], "M": [], "R": [], "RW": []},
+            "AST": [],
+            "ATT": 0,
+            "ASCT": 0,
+            "FC": 0,
+        },
+        "O": [{}, {"OID": 17743261, "DUM": False, "N": "player", "L": 9, "AID": -1}],
+    }
+
+    def test_the_owner_records_are_kept(self):
+        reply = CreateAttackResponse.model_validate(self.LIVE)
+
+        assert reply.movement_id == 93337642
+        assert reply.owners == self.LIVE["O"]
+        # None of the live replies carried gcu.
+        assert reply.currencies == {}
+
+    def test_the_currencies_are_kept(self):
+        # CurrencyData.parseGCU reads C1 and C2.
+        reply = CreateAttackResponse.model_validate(dict(self.LIVE, gcu={"C1": 1200, "C2": 30}))
+
+        assert reply.currencies == {"C1": 1200, "C2": 30}
+
+    def test_attack_in_progress_explains_itself(self):
+        from empire_core.protocol.errors import GGEError
+        from empire_core.protocol.models import CreateAttackRequest
+
+        client = make_client({"cra": xt_packet("cra", {"TS": 95, "AS": 40}, error_code=234)})
+        request = CreateAttackRequest(SX=1, SY=2, TX=3, TY=4, A=[wave(units=[[487, 1]])])
+
+        with pytest.raises(CommandError) as raised:
+            client.send(request, wait=True)
+
+        assert raised.value.error is GGEError.ATTACK_IN_PROGRESS
+        reply = CreateAttackResponse.model_validate(raised.value.payload)
+        assert (reply.arrival_seconds, reply.army_size) == (95, 40)
+
+
 class TestAttackService:
     def test_send_attack_builds_the_client_payload(self):
         client = make_client()
