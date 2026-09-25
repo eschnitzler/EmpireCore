@@ -173,7 +173,7 @@ def tool_defense_bonus(game_data: GameData, tool: ToolStats) -> float:
     (bundle line 9609).
     """
     total = 0.0
-    for bonus in parse_effect_spec(tool.effects if isinstance(tool.effects, str) else ""):
+    for bonus in parse_effect_spec(tool.raw_effects):
         effect = game_data.effects.get(bonus.effect_id)
         if effect is not None and effect.effect_type_id == TOOL_DEFENSE_BONUS_TYPE:
             total += bonus.value

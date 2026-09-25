@@ -9,8 +9,6 @@ a guess.
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, ConfigDict, Field
 
 # ITEMS units column "fightType": 0 = offensive, 1 = defensive.
@@ -124,8 +122,10 @@ class ToolStats(_Row):
     """
     A siege or defense tool.
 
-    ``effects`` is kept raw; resolve it through
+    ``raw_effects`` is kept as the ``effectID&value`` string; resolve it through
     :attr:`~empire_core.gamedata.data.GameData.effects`.
+
+    Client: ``ToolUnitVO.parseXmlNode`` (bundle line 6538), ``ToolUnitVO.parseEffects`` (bundle line 6644).
     """
 
     wod_id: int = Field(alias="wodID")
@@ -143,7 +143,11 @@ class ToolStats(_Row):
     delete_after_battle: int = Field(alias="deleteToolAfterBattle", default=0)
     can_attack_npc: bool = Field(alias="canBeUsedToAttackNPC", default=True)
     fight_type: int = Field(alias="fightType", default=0)
-    effects: Any = None
+    raw_effects: str = Field(
+        alias="effects",
+        default="",
+        description="Comma-separated effectID&value pairs, split by ToolUnitVO.parseEffects",
+    )
 
     # The raw items columns, which are percentages. The client scales them by
     # 0.01 when it parses a tool, so the fractions are exposed as properties

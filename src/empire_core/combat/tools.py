@@ -122,7 +122,7 @@ def conditioned_effect_bonus(
     at all, so without this they look useless to the strategies.
     """
     total = 0.0
-    for bonus in parse_effect_spec(tool.effects if isinstance(tool.effects, str) else ""):
+    for bonus in parse_effect_spec(tool.raw_effects):
         effect = game_data.effects.get(bonus.effect_id)
         if effect is None or effect.effect_type_id != effect_type:
             continue
@@ -284,7 +284,7 @@ def is_tool_usable_against_active_raid_boss(
     Returns:
         True when the tool may be used
     """
-    spec = tool.effects if isinstance(tool.effects, str) else ""
+    spec = tool.raw_effects
     tied = False
     for segment in spec.split(","):
         if not segment:

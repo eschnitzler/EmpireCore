@@ -227,6 +227,11 @@ class TestModels:
         assert ToolStats.model_validate({"wodID": 1, "deleteToolAfterBattle": "2"}).is_consumed_in_battle
         assert not ToolStats.model_validate({"wodID": 1}).is_consumed_in_battle
 
+    def test_tool_effects_are_the_raw_effect_string(self):
+        tool = ToolStats.model_validate({"wodID": 1, "effects": "632&275,504&1"})
+        assert tool.raw_effects == "632&275,504&1"
+        assert ToolStats.model_validate({"wodID": 1}).raw_effects == ""
+
     def test_tool_without_slot_types_has_none(self):
         tool = ToolStats.model_validate({"wodID": 1})
         assert tool.slot_types == ()
