@@ -224,10 +224,10 @@ class Equipment(BasePayload):
     ``BasicEquipmentVO.hasSetbonus`` (bundle line 7213).
     """
 
-    equipment_id: int = 0
-    slot: int = 0
-    wearer_type: int = WearerType.ALL
-    rarity_id: ClientInt = 0
+    equipment_id: int = Field(default=0, description="Item id, row[0]")
+    slot: int = Field(default=0, description="Slot type id, row[1]")
+    wearer_type: int = Field(default=WearerType.ALL, description="Who can wear it (WearerType), row[2]")
+    rarity_id: ClientInt = Field(default=0, description="Rarity id, row[3], stored as sent")
     graphic: int | str = Field(default=0, description="The client keeps row[4] as its graphic string")
     bonuses: Annotated[list[EquipmentBonus], _readable_rows(EquipmentBonus)] = Field(
         default_factory=list, description="Bonuses of an item that is not a relic; unreadable entries are skipped"
@@ -235,7 +235,7 @@ class Equipment(BasePayload):
     relic_bonuses: Annotated[list[RelicBonus], _readable_rows(RelicBonus)] = Field(
         default_factory=list, description="Bonuses of a relic item; unreadable entries are skipped"
     )
-    unique_id: ClientInt = 0
+    unique_id: ClientInt = Field(default=0, description="Unique item id, row[6], read through int()")
     set_id: ClientInt = Field(
         default=0,
         description=(
@@ -243,9 +243,11 @@ class Equipment(BasePayload):
             "then counts it as set 0, which no set uses"
         ),
     )
-    enchantment_level: ClientInt = 0
-    duration_seconds: int | float = 0
-    gem_id: ClientInt = NO_GEM_ID
+    enchantment_level: ClientInt = Field(default=0, description="Enchantment level, row[8], read through int()")
+    duration_seconds: int | float = Field(
+        default=0, description="Seconds until the item expires, row[9]; below 1 it is permanent"
+    )
+    gem_id: ClientInt = Field(default=NO_GEM_ID, description="Slotted gem id, row[10]; -1 for none")
     equipment_type: ClientInt = Field(
         default=EquipmentType.GENERATED, description="EquipmentType value, read through int() as the client does"
     )
@@ -385,10 +387,10 @@ class LeaderBase(BasePayload):
         alias="WID", default=None, description="EquipmentConst wearer id: 2 builds a CommanderVO, 1 a BaronVO"
     )
     picture_id: ClientInt = Field(alias="VIS", default=0, description="Portrait id")
-    name: str = Field(alias="N", default="")
-    wins: ClientInt = Field(alias="W", default=0)
-    defeats: ClientInt = Field(alias="D", default=0)
-    win_spree: ClientInt = Field(alias="SPR", default=0)
+    name: str = Field(alias="N", default="", description="Name, taken as sent")
+    wins: ClientInt = Field(alias="W", default=0, description="Battles won")
+    defeats: ClientInt = Field(alias="D", default=0, description="Battles lost")
+    win_spree: ClientInt = Field(alias="SPR", default=0, description="Current winning streak")
     effects: CommanderEffects = Field(alias="E", default_factory=list, description="The commander's own effects")
     area_effects: CommanderEffects = Field(alias="AE", default_factory=list, description="Area effects")
     equipment: list[Equipment] = Field(
@@ -407,7 +409,9 @@ class LeaderBase(BasePayload):
     alien_gem_ids: list[Any] = Field(
         alias="GEM", default_factory=list, description="Gem ids the client adds to the AIE/TAE equipment"
     )
-    general_id: ClientInt | None = Field(alias="GID", default=None)
+    general_id: ClientInt | None = Field(
+        alias="GID", default=None, description="The assigned general's id (LordVO.parseGeneral); -1 or None for none"
+    )
     star_level: ClientInt = Field(
         alias="ST",
         default=0,
@@ -496,7 +500,11 @@ class LeaderBase(BasePayload):
 
 
 class Commander(LeaderBase):
-    """A commander - the leader assigned to an attack or support movement."""
+    """
+    A commander - the leader assigned to an attack or support movement.
+
+    Client: ``CommanderVO``, built by ``LordFactory.createLord`` (bundle line 26399)
+    """
 
 
 class Castellan(LeaderBase):
@@ -543,6 +551,8 @@ class GetCommandersRequest(BaseRequest):
 
     Command: gli
     Payload: {}
+
+    Client: ``C2SGetLordsInfoVO`` (bundle line 32779, no fields)
     """
 
     command = "gli"
@@ -586,6 +596,9 @@ class GetCommandersResponse(BaseResponse, CommanderRoster):
     Response containing commanders (C) and castellans (B).
 
     Command: gli
+
+    Client: ``GLICommand.executeCommand`` (bundle line 123976) hands it to
+    ``CastleLordData.parse_GLI``
     """
 
     command = "gli"
@@ -608,7 +621,7 @@ class RenameCommanderRequest(BaseRequest):
     command = "arl"
 
     commander_id: int = Field(alias="LID", description="ID of the commander or castellan")
-    name: str = Field(alias="N")
+    name: str = Field(alias="N", description="The new name; the game's dialog allows 3 to 15 characters")
 
 
 class RenameCommanderResponse(BaseResponse):
