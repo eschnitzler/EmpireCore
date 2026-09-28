@@ -33,6 +33,8 @@ class GetGeneralsRequest(BaseRequest):
 
     Command: gie
     Payload: {}
+
+    Client: ``C2SGetGeneralsInfoVO`` (bundle line 56405, no fields)
     """
 
     command = "gie"
@@ -68,8 +70,8 @@ class General(BasePayload):
     Client: ``GeneralVO.parseData`` (bundle line 26666)
     """
 
-    general_id: int = Field(alias="GID", default=-1)
-    experience: int = Field(alias="XP", default=0)
+    general_id: int = Field(alias="GID", default=-1, description="General id, the key the client matches the entry by")
+    experience: int = Field(alias="XP", default=0, description="Experience, 0 when missing (e.XP||0)")
     star_level: int = Field(
         alias="ST",
         default=0,
@@ -77,21 +79,21 @@ class General(BasePayload):
     )
     is_new: bool = Field(alias="IN", default=False, description="1 == IN")
     has_level_up: bool = Field(alias="LU", default=False, description="1 == LU")
-    skill_ids: list[int] = Field(alias="SIDS", default_factory=list)
-
-    @field_validator("skill_ids", mode="before")
-    @classmethod
-    def _skill_ids(cls, value: Any) -> Any:
-        # GeneralVO.parseData reads e.SIDS||[]
-        return _id_list(value)
-
+    skill_ids: list[int] = Field(
+        alias="SIDS", default_factory=list, description="Unlocked skill ids; none when missing (e.SIDS||[])"
+    )
     selected_abilities: list[SelectedAbility] = Field(
         alias="GASAIDS", default_factory=list, description="The general's ability slots, filled or empty"
     )
     fixed_level: int = Field(alias="L", default=-1, description="L, or -1 when L is missing or 0")
     old_experience: int = Field(alias="OXP", default=0, description="The xp before the last change")
-    wins: int = Field(alias="W", default=0)
-    defeats: int = Field(alias="D", default=0)
+    wins: int = Field(alias="W", default=0, description="Battles won, 0 when missing")
+    defeats: int = Field(alias="D", default=0, description="Battles lost, 0 when missing")
+
+    @field_validator("skill_ids", mode="before")
+    @classmethod
+    def _skill_ids(cls, value: Any) -> Any:
+        return _id_list(value)
 
     @field_validator("experience", "old_experience", "wins", "defeats", "star_level", mode="before")
     @classmethod
@@ -180,7 +182,7 @@ class AssignGeneralRequest(BaseRequest):
 
     command = "gla"
 
-    commander_id: int = Field(alias="LID")
+    commander_id: int = Field(alias="LID", description="The commander to give the general to")
     general_id: int = Field(alias="GID", default=-1, description="-1 unassigns the commander's general")
 
 
@@ -217,7 +219,7 @@ class SetGeneralAbilitiesRequest(BaseRequest):
 
     command = "gaae"
 
-    general_id: int = Field(alias="GID")
+    general_id: int = Field(alias="GID", description="The general whose abilities are chosen")
     abilities: list[list[int]] = Field(alias="SAIDS", description="[slot_id, ability_id] pairs, -1 for no ability")
 
 
@@ -235,7 +237,7 @@ class UnlockGeneralSkillRequest(BaseRequest):
 
     command = "guse"
 
-    skill_id: int = Field(alias="ID")
+    skill_id: int = Field(alias="ID", description="The skill to unlock")
 
 
 class ResetGeneralSkillsRequest(BaseRequest):
@@ -252,7 +254,7 @@ class ResetGeneralSkillsRequest(BaseRequest):
 
     command = "grs"
 
-    general_id: int = Field(alias="GID")
+    general_id: int = Field(alias="GID", description="The general whose skills are reset")
 
 
 class AddGeneralXpRequest(BaseRequest):
@@ -269,9 +271,9 @@ class AddGeneralXpRequest(BaseRequest):
 
     command = "gaxp"
 
-    general_id: int = Field(alias="GID")
+    general_id: int = Field(alias="GID", description="The general to give xp to")
     currency_id: int = Field(alias="CID", description="The xp item, a currency")
-    amount: int = Field(alias="AMT")
+    amount: int = Field(alias="AMT", description="How many of the xp item to use")
 
 
 class GetGeneralsResponse(BaseResponse):
@@ -280,11 +282,16 @@ class GetGeneralsResponse(BaseResponse):
 
     Command: gie
     Payload: {"G": [{"GID": .., "SIDS": [skill ids], ..}, ..]}
+
+    Client: ``GIECommand.executeCommand`` (bundle line 124204) hands it to
+    ``GeneralsData.parse_GIE`` (bundle line 113069), which updates each general by ``GID``.
     """
 
     command = "gie"
 
-    generals: list[General] = Field(alias="G", default_factory=list)
+    generals: list[General] = Field(
+        alias="G", default_factory=list, description="The player's generals; one that cannot be read is skipped"
+    )
 
     @field_validator("generals", mode="before")
     @classmethod
@@ -311,6 +318,8 @@ class GetSkillsRequest(BaseRequest):
 
     Command: skl
     Payload: {}
+
+    Client: ``C2SGetSkillListVO`` (bundle line 112219, no fields)
     """
 
     command = "skl"
@@ -323,7 +332,7 @@ class ActivatingSceatSkill(BasePayload):
     Client: ``CastleLegendSkillData.parse_SKL`` (bundle line 112051)
     """
 
-    skill_id: ClientInt = Field(alias="ID", default=0)
+    skill_id: ClientInt = Field(alias="ID", default=0, description="The sceat skill being activated")
     remaining_seconds: ClientInt = Field(alias="RS", default=0, description="Seconds until the skill is active")
 
 
@@ -337,10 +346,14 @@ class SkillList(BasePayload):
     Client: ``CastleLegendSkillData.parse_SKL`` (bundle line 112051)
     """
 
-    legend_skill_ids: list[int] = Field(alias="SID", default_factory=list)
-    sceat_skill_ids: list[int] = Field(alias="SIDS", default_factory=list)
-    total_points: ClientInt = Field(alias="SP", default=0)
-    seconds_until_reset: ClientInt = Field(alias="RS", default=0)
+    legend_skill_ids: list[int] = Field(
+        alias="SID", default_factory=list, description="Legend skills, which apply only in a legendary fight"
+    )
+    sceat_skill_ids: list[int] = Field(
+        alias="SIDS", default_factory=list, description="Hall of Legends sceat skills, which always apply"
+    )
+    total_points: ClientInt = Field(alias="SP", default=0, description="Skill points")
+    seconds_until_reset: ClientInt = Field(alias="RS", default=0, description="Seconds until the skills can be reset")
     reset_count: ClientInt = Field(alias="RC", default=0, description="How many times the skills have been reset")
     activating: list[ActivatingSceatSkill] = Field(
         alias="SSA", default_factory=list, description="Sceat skills still being activated"
