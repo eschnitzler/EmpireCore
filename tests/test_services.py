@@ -1480,8 +1480,9 @@ class TestArmyService:
         assert [(u.unit_id, u.count) for u in response.get_stronghold()] == [(646, 500)]
         assert [(u.unit_id, u.count) for u in response.get_hospital()] == [(627, 7)]
 
-    def test_get_units_merges_units_and_tools(self):
-        payload = {"U": [{"UID": 487, "C": 100}, {"UID": 488, "C": 20}], "T": [{"UID": 301, "C": 5}]}
+    def test_get_units_joins_the_castle_and_reads_i(self):
+        # parse_GUI reads I, TU, SHI and HI; U and T are not read
+        payload = {"U": [{"UID": 1, "C": 1}], "I": [[487, 100], [488, 20], [301, 5]]}
         client = make_client({"gui": xt_packet("gui", payload)})
 
         units = client.army.get_units(12345)

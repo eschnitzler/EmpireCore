@@ -263,41 +263,29 @@ class UnitInventory(BasePayload):
     hospital: WodAmounts = Field(alias="HI", default_factory=dict, description="Wounded units in the hospital")
 
 
-class GetUnitsResponse(BaseResponse):
+class GetUnitsResponse(BaseResponse, UnitInventory):
     """
-    Response containing the castle's unit inventories.
+    The unit inventories of the castle the session is in.
 
     Command: gui
-    Payload: {
-        "I": [[wod_id, count], ...],    # available units and tools
-        "TU": [[wod_id, count], ...],   # currently in production
-        "SHI": [[wod_id, count], ...],  # stored in the stronghold
-        "HI": [[wod_id, count], ...],   # wounded, in the hospital
-    }
+    Payload: {"I": [[wod_id, amount], ...], "TU": [...], "SHI": [...], "HI": [...]}
 
-    The U and T fields are kept because older captures show them, but a live
-    server sends the four wod/amount arrays above instead.
+    Client: ``GUICommand.exec`` (bundle line 125600) hands the reply to
+    ``CastleMilitaryData.parse_GUI``, which reads I, TU, SHI and HI and nothing else.
     """
 
     command = "gui"
 
-    inventory: list[list[int]] = Field(alias="I", default_factory=list)
-    in_production: list[list[int]] = Field(alias="TU", default_factory=list)
-    stronghold: list[list[int]] = Field(alias="SHI", default_factory=list)
-    hospital: list[list[int]] = Field(alias="HI", default_factory=list)
-    units: list[UnitCount] = Field(alias="U", default_factory=list)
-    tools: list[UnitCount] = Field(alias="T", default_factory=list)
-
     @staticmethod
-    def _as_counts(entries: list[list[int]]) -> list[UnitCount]:
-        return [UnitCount(UID=entry[0], C=entry[1]) for entry in entries if len(entry) >= 2 and entry[1]]
+    def _as_counts(amounts: dict[int, int]) -> list[UnitCount]:
+        return [UnitCount(UID=wod_id, C=amount) for wod_id, amount in amounts.items()]
 
     def get_inventory(self) -> list[UnitCount]:
-        """Available units and tools, whichever shape the server used."""
-        return self._as_counts(self.inventory) or (self.units + self.tools)
+        """Available units and tools."""
+        return self._as_counts(self.units)
 
     def get_in_production(self) -> list[UnitCount]:
-        """Units currently being recruited."""
+        """Units on their way in."""
         return self._as_counts(self.in_production)
 
     def get_stronghold(self) -> list[UnitCount]:
