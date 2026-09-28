@@ -500,14 +500,23 @@ class EquipmentEffectDef(_Row):
     Client: ``XmlEquipmentEffectVO.parseXml`` (bundle line 144158)
     """
 
-    equipment_effect_id: int = Field(alias="equipmentEffectID")
-    effect_id: int = Field(alias="effectID", default=0)
-    bonus: float = 0
-    wearer_id: int = Field(alias="wearerID", default=0)
-    raw_item_group_ids: str = Field(alias="itemGroupID", default="")
+    equipment_effect_id: int = Field(alias="equipmentEffectID", description="The id an item's bonus row names")
+    effect_id: int = Field(alias="effectID", default=-1, description="The effect it resolves to; -1 when unset")
+    bonus: int = Field(default=0, description="Bonus value, read through int()")
+    wearer_id: int = Field(alias="wearerID", default=-1, description="Who can roll it (WearerType); -1 when unset")
+    raw_item_group_ids: str = Field(alias="itemGroupID", default="", description="Comma-separated item group ids")
     ignore_cap: bool = Field(
         alias="ignoreCap", default=False, description="The bonus escapes its effect's cap; any value but 0 is true"
     )
+
+    @field_validator("bonus", mode="before")
+    @classmethod
+    def _int_attribute(cls, value: object) -> object:
+        # CastleXMLUtils.getIntAttribute then int()
+        try:
+            return int(float(value))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return 0
 
     @field_validator("ignore_cap", mode="before")
     @classmethod
@@ -529,7 +538,7 @@ class GemDef(EffectSpecRow):
     Client: ``CastleGemVO.parseXML`` (bundle line 28287)
     """
 
-    gem_id: int = Field(alias="gemID")
+    gem_id: int = Field(alias="gemID", description="Gem id, the value an item's index 10 names")
     set_id: int = Field(alias="setID", default=-1, description="Equipment set the gem counts toward; -1 for none")
     trigger_chance: int = Field(
         alias="triggerChance", default=100, description="Kept on each GemBonusVO; the effect totals do not read it"
