@@ -1,4 +1,11 @@
+"""Tests for the commanders models."""
+
+import logging
+
+from empire_core.army.models.units import AttackWave, WaveFlank
+from empire_core.attack.models.send import CreateAttackResponse
 from empire_core.combat import Bonus, commander_bonuses
+from empire_core.commanders.models.roster import GetCommandersResponse
 from empire_core.gamedata import GameData
 from empire_core.protocol.models import (
     Castellan,
@@ -285,3 +292,95 @@ def test_unreadable_eq_rows_still_keep_aie_out():
     commander = Commander.model_validate({"ID": 1, "EQ": [None], "AIE": [[37, [10]]]})
     assert commander.equipment == []
     assert not commander.uses_alien_equipment and commander.alien_bonuses == []
+
+
+class TestRelicInfo:
+    # A captured relic row: index 12 is [relic_type_id, relic_category_id, might, gem]
+    RELIC = [
+        6109572530, 1, 2, 5, -1,
+        [[4, 84, [116.2]], [5, 61, [75.1]], [103, 53, [11.7]]],
+        -1, -1, 0, -1, -1, 3,
+        [1, 6, 2980, [890593, 32, 6, 2770, [[302, 61, [34.7]], [305, 62, [10.0]], [307, 54, [4.6]]], 0]],
+    ]  # fmt: skip
+
+    def test_a_relic_carries_its_type_might_and_gem(self):
+        from empire_core.commanders.models.roster import Equipment
+
+        item = Equipment.model_validate(self.RELIC)
+        assert item.is_relic and len(item.relic_bonuses) == 3
+        info = item.relic_info
+        assert info is not None and (info.relic_type_id, info.relic_category_id, info.might) == (1, 6, 2980)
+        assert info.gem is not None
+        assert (info.gem.gem_id, info.gem.relic_type_id, info.gem.might, info.gem.enchantment_level) == (
+            890593, 32, 2770, 0,
+        )  # fmt: skip
+        assert [b.relic_effect_id for b in info.gem.bonuses] == [302, 305, 307]
+
+    def test_no_gem_and_ordinary_items(self):
+        from empire_core.commanders.models.roster import Equipment
+
+        assert Equipment.model_validate([*self.RELIC[:12], [1, 6, 2980, []]]).relic_info.gem is None  # type: ignore[union-attr]
+        assert Equipment.model_validate([*self.RELIC[:12], "junk"]).relic_info is None
+        ordinary = [*self.RELIC[:11], 0, [1, 6, 2980, []]]
+        assert Equipment.model_validate(ordinary).relic_info is None
+
+
+class TestDriftedEquipmentEntries:
+    """A drifted EQ entry must be skipped, not raised through the accessor."""
+
+    def test_unparseable_entries_are_skipped_and_logged(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="empire_core.commanders.models.roster"):
+            response = GetCommandersResponse.model_validate(
+                {"C": [{"ID": 91, "EQ": [{"nested": 1}, 5, [880, "not-a-slot"], [880, 2, 2]]}]}
+            )
+        items = response.commanders[0].equipment
+
+        assert [(i.equipment_id, i.slot) for i in items] == [(880, 2)]
+        assert "3/4" in caplog.text
+
+    def test_a_flank_entry_that_is_not_a_pair_counts_as_no_units(self):
+        # A padded or truncated slot must not raise out of the wave check.
+        assert AttackWave(L=WaveFlank(U=[[487]])).unit_count() == 0
+        assert AttackWave(L=WaveFlank(U=[[487, 5, 1], [488, 2]])).unit_count() == 7
+        assert AttackWave(L=WaveFlank(U=[[-1, 0]])).is_complete() is False
+
+    def test_a_movement_without_a_usable_id_reports_none(self):
+        assert CreateAttackResponse.model_validate({"AAM": {"M": []}}).movement_id is None
+        assert CreateAttackResponse.model_validate({"AAM": {"M": {"MID": "x"}}}).movement_id is None
+        assert CreateAttackResponse.model_validate({"AAM": {"M": {"MID": "7"}}}).movement_id == 7
+
+    def test_leader_comes_back_under_um(self):
+        # Captured from an accepted live cra: LID=0 selected commander 0, and the
+        # server echoed that commander, equipment included, under AAM.UM.L.
+        response = CreateAttackResponse.model_validate(
+            {
+                "AAM": {
+                    "M": {"MID": 58246863},
+                    "UM": {
+                        "PWD": 0,
+                        "TWD": 0,
+                        "L": {
+                            "ID": 0,
+                            "WID": 2,
+                            "N": "",
+                            "W": 1,
+                            "D": 0,
+                            "SPR": 1,
+                            "EQ": [[6515211113, 6, 2, 10, 0, [[242, [25.0]]], 802, 22, 0, -1, -1, 1]],
+                            "AE": [],
+                        },
+                    },
+                    "FA": {"L": [[10, 1]], "M": [], "R": [], "RW": []},
+                }
+            }
+        )
+
+        leader = response.leader
+        assert leader is not None
+        assert (leader.commander_id, leader.wins, leader.win_spree) == (0, 1, 1)
+        assert leader.equipment[0].slot == 6
+
+    def test_leader_is_none_when_the_server_sends_no_commander(self):
+        assert CreateAttackResponse.model_validate({"AAM": {"M": {}}}).leader is None
+        assert CreateAttackResponse.model_validate({"AAM": {"UM": {"L": []}}}).leader is None
+        assert CreateAttackResponse.model_validate({"AAM": {"UM": {"L": {"N": "no id"}}}}).leader is None

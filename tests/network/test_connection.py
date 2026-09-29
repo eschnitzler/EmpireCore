@@ -7,7 +7,7 @@ import pytest
 import websocket
 
 from empire_core.exceptions import ConnectionClosedError, EmpireTimeoutError, NetworkError
-from empire_core.network.connection import SESSION_IDLE_TIMEOUT, Connection
+from empire_core.network.connection import SESSION_IDLE_TIMEOUT, Connection, _summarize_frame
 from empire_core.protocol.packet import Packet
 
 
@@ -711,3 +711,23 @@ class TestSessionLiveness:
         live_conn._recv_loop(FakeSocket([make_frame("gam")]), 1)
 
         assert time.monotonic() - live_conn._last_recv_at < 5
+
+
+class TestFrameRedactionEscapedQuotes:
+    """Finding: a JSON-escaped quote inside a credential value must not stop
+    the mask early and leak the tail of the secret."""
+
+    def test_escaped_quote_does_not_leak_the_password_tail(self):
+        summary = _summarize_frame('%xt%z%unk%1%{"PW": "hun\\"ter2secret"}%')
+        assert "ter2secret" not in summary
+        assert '"<redacted>"' in summary
+
+    def test_escaped_backslash_before_the_closing_quote(self):
+        summary = _summarize_frame('%xt%z%unk%1%{"PW": "hunter2\\\\"}%')
+        assert "hunter2" not in summary
+        assert '"<redacted>"' in summary
+
+    def test_plain_password_is_still_masked(self):
+        summary = _summarize_frame('%xt%z%unk%1%{"PW": "hunter2", "NM": "user"}%')
+        assert "hunter2" not in summary
+        assert '"NM": "user"' in summary

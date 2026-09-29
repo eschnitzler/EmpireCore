@@ -12,7 +12,7 @@ from empire_core.commanders.models.roster import CommanderEffect
 from empire_core.enums import MapItemType, MovementType
 from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
-from tests.state_helpers import arrive, gam_payload, login, push_payload, wait_for
+from tests.state.state_helpers import arrive, gam_payload, login, push_payload, wait_for
 
 
 class TestAttackCallbacks:

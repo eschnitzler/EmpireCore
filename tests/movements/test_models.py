@@ -210,3 +210,9 @@ class TestMovementAreaLayouts:
     def test_relocating_castle_row_reads_nothing(self):
         area = MovementArea.model_validate([1, 10, 20, 17743260])
         assert (area.object_id, area.owner_id, area.name) == (None, None, "")
+
+
+def test_gam_sends_no_castle():
+    from empire_core.movements.models import GetMovementsRequest
+
+    assert GetMovementsRequest().to_payload() == {}

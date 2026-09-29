@@ -1,13 +1,14 @@
 """Highscore list types and the hgh/llsp request shapes, checked against the client."""
 
 import json
+import logging
 
 import pytest
 
 from empire_core.alliance.models.search import SearchAllianceRequest
 from empire_core.enums import RankingType
 from empire_core.protocol.models import GetHighscoreRequest, GetRankingListRequest
-from empire_core.ranking.models import GetHighscoreResponse, GetRankingListResponse
+from empire_core.ranking.models import GetHighscoreResponse, GetRankingListResponse, RankingEntry
 
 # Every list id in HighscoreConst (dll line 19438); the page sizes, point
 # values, sentinels and the PLAYER_BUILDINGS/ALLIANCE_BUILDINGS aliases are left out.
@@ -146,3 +147,93 @@ class TestResponseLeague:
     def test_llsp_reads_a_falsy_league_as_none(self, lid, expected):
         # LeaderBoardDataProvider.onScoreDataReceived: e.params.LID || this._leagueTypeID
         assert GetRankingListResponse.model_validate({"LT": 53, "LID": lid, "L": []}).league_type_id == expected
+
+
+class TestGoldenRankingPayloads:
+    def test_dict_details_layout(self):
+        payload = {"L": [[1, 999999, {"OID": 7001, "N": "LeaderGuy", "AID": 190426, "AN": "HOPE"}]]}
+        entry = GetHighscoreResponse.model_validate(payload).entries[0]
+        assert (entry.rank, entry.score, entry.entity_id, entry.name) == (1, 999999, 7001, "LeaderGuy")
+        assert (entry.alliance_id, entry.alliance_name) == (190426, "HOPE")
+
+    def test_list_details_layout(self):
+        payload = {"L": [[2, 888888, [7002, "OfficerGal"]]]}
+        entry = GetHighscoreResponse.model_validate(payload).entries[0]
+        assert (entry.rank, entry.score, entry.entity_id, entry.name) == (2, 888888, 7002, "OfficerGal")
+
+    def test_nested_name_field_is_flattened(self):
+        payload = {"L": [[2, 888888, [7002, ["OfficerGal"]]]]}
+        assert GetHighscoreResponse.model_validate(payload).entries[0].name == "OfficerGal"
+
+    def test_cargo_layout_has_a_leading_extra_value(self):
+        # LT=13 prepends the cargo value: [cargo, rank, score, {details}].
+        payload = {"L": [[5000, 3, 777777, {"OID": 7003, "N": "AfkDude"}]]}
+        entry = GetHighscoreResponse.model_validate(payload).entries[0]
+        assert (entry.rank, entry.score, entry.entity_id, entry.name) == (3, 777777, 7003, "AfkDude")
+
+    def test_flat_layout(self):
+        payload = {"L": [[4, 666, 7004, "FlatGuy"]]}
+        entry = GetHighscoreResponse.model_validate(payload).entries[0]
+        assert (entry.rank, entry.score, entry.entity_id, entry.name) == (4, 666, 7004, "FlatGuy")
+
+    def test_ranking_list_dict_layout(self):
+        payload = {"L": [{"R": 3, "S": 500, "P": "SomePlayer", "A": "SomeAlliance"}], "T": 12345}
+        response = GetRankingListResponse.model_validate(payload)
+        assert response.total == 12345
+        entry = response.entries[0]
+        assert (entry.rank, entry.score, entry.name, entry.alliance_name) == (3, 500, "SomePlayer", "SomeAlliance")
+
+    def test_unranked_synthetic_entry(self):
+        entry = RankingEntry.unranked("Nobody")
+        assert (entry.rank, entry.score, entry.name) == (-1, 0, "Nobody")
+
+
+class TestRankingEntryDriftedLayouts:
+    """RankingEntry parses four different shapes and must never raise."""
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            {},
+            [],
+            [1],
+            [1, 2],
+            None,
+            "abcd",
+            [1, 2, None],
+            [None, None, {}],
+            [1, 2, {"unexpected": "keys"}],
+            [[1, 2], [3, 4]],
+        ],
+    )
+    def test_drifted_entries_never_raise(self, raw):
+        entry = RankingEntry(raw)
+        assert entry.raw is raw
+        assert repr(entry)
+
+    @pytest.mark.parametrize("raw", [[], [1, 2]])
+    def test_unknown_layout_is_logged_and_left_unranked(self, raw, caplog):
+        with caplog.at_level(logging.WARNING, logger="empire_core.ranking.models"):
+            entry = RankingEntry(raw)
+        assert entry.rank == -1
+        assert "Unknown RankingEntry format" in caplog.text
+
+    def test_a_layout_that_raises_internally_is_logged_as_an_error(self, caplog):
+        with caplog.at_level(logging.ERROR, logger="empire_core.ranking.models"):
+            # Deliberately not a list/dict: the point of the test is that an
+            # unparseable layout degrades to rank -1 rather than raising.
+            entry = RankingEntry(None)  # type: ignore[arg-type]
+        assert entry.rank == -1
+        assert "Failed to parse RankingEntry" in caplog.text
+
+
+class TestLeaderboardLeniency:
+    def test_null_and_odd_values_read_as_the_getter_defaults(self):
+        from empire_core.protocol.models import GetRankingListResponse
+
+        response = GetRankingListResponse.model_validate(
+            {"L": [{"R": 1, "S": 10, "P": "a", "A": None}, {"R": None, "S": None, "P": None, "I": "abc"}]}
+        )
+        first, second = response.scores
+        assert (first.rank, first.alliance_name) == (1, "")
+        assert (second.rank, second.score, second.player_name, second.instance_id) == (-1, -1, "", 0)

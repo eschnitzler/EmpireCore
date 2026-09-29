@@ -224,3 +224,39 @@ class TestSupportDefenseReply:
 
         assert response.tower_castellan is not None and response.tower_castellan.commander_id == 7
         assert response.castellan is None
+
+
+GOLDEN_SDI = {
+    "SCID": 12345,
+    # Six defense positions, each a list of [unit_id, count] pairs.
+    "S": [[[487, 5174], [488, 20]], [[487, 347]], [], [[301, 10]], [], []],
+    "B": {"LID": -14},
+    "gui": {"U": []},
+    "gli": {"C": []},
+    "UYL": 12000,
+    "AUYL": 3000,
+    "UWL": 5000,
+}
+
+
+class TestGoldenSupportDefense:
+    def test_registry_parses_sdi(self):
+        assert isinstance(parse_response("sdi", GOLDEN_SDI), GetSupportDefenseResponse)
+
+    def test_total_defenders_sums_every_position(self):
+        response = GetSupportDefenseResponse.model_validate(GOLDEN_SDI)
+        assert response.get_total_defenders() == 5174 + 20 + 347 + 10
+
+    def test_units_are_grouped_per_position(self):
+        response = GetSupportDefenseResponse.model_validate(GOLDEN_SDI)
+        assert response.get_units_by_position() == [{487: 5174, 488: 20}, {487: 347}, {}, {301: 10}, {}, {}]
+
+    def test_capacity_fields(self):
+        response = GetSupportDefenseResponse.model_validate(GOLDEN_SDI)
+        assert (response.yard_limit, response.available_yard_limit, response.wall_limit) == (12000, 3000, 5000)
+        assert response.get_max_defense() == 12000
+
+    def test_empty_defense_is_zero_not_an_error(self):
+        response = GetSupportDefenseResponse.model_validate({"SCID": 1})
+        assert response.get_total_defenders() == 0
+        assert response.get_units_by_position() == []

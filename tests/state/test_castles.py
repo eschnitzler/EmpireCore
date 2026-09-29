@@ -8,7 +8,7 @@ import pytest
 from empire_core.enums import Kingdom
 from empire_core.state.manager import GameState
 from empire_core.state.models import Castle
-from tests.state_helpers import gcl_payload
+from tests.state.state_helpers import gcl_payload
 
 
 class TestCastleUpdatesAreAtomic:

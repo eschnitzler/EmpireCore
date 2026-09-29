@@ -1,0 +1,270 @@
+"""Harness shared by the service tests: a scripted connection and a stub client."""
+
+from __future__ import annotations
+
+import json
+import threading
+from typing import Any, cast
+
+from empire_core.client.client import EmpireClient
+from empire_core.config import EmpireConfig
+from empire_core.network.connection import ResponseWaiter
+from empire_core.protocol.models import AttackWave, WaveFlank
+from empire_core.protocol.packet import Packet
+from empire_core.services import get_registered_services
+from empire_core.state.models import Player
+
+
+def placed(slots: list[list[int]]) -> list[list[int]]:
+    """A wave container's filled slots; fill_wave pads the rest with [-1, 0]."""
+    return [slot for slot in slots if slot[0] != -1]
+
+
+# =============================================================================
+# Harness
+# =============================================================================
+
+
+def xt_packet(command: str, payload: Any = None, error_code: int = 0) -> Packet:
+    """Build a response packet the way the wire delivers it."""
+    body = "{}" if payload is None else json.dumps(payload)
+    return Packet.from_bytes(f"%xt%{command}%1%{error_code}%{body}%".encode())
+
+
+def request_payload(data: str) -> dict[str, Any]:
+    """Recover the JSON payload from a built request packet.
+
+    Split with maxsplit so a '%' inside the payload (encoded chat text uses
+    '%5C' for a backslash) cannot truncate it.
+    """
+    raw = data.split("%", 5)[5]
+    if raw.endswith("%"):
+        raw = raw[:-1]
+    return json.loads(raw)
+
+
+# Live capture of an adi reply for a robber baron camp.
+LIVE_ADI: dict[str, Any] = {
+    "KID": 0,
+    "HAWL": 1,
+    "SCID": 16654603,
+    "gaa": {"AI": [2, 620, 231, -1, 0, -1, 0]},
+    "gui": {
+        "I": [[10, 10], [614, 2], [611, 1], [651, 300], [649, 300], [648, 300]],
+        "SHI": [],
+        "HI": [[9, 20]],
+        "TU": [],
+    },
+    "gli": {
+        "B": [{"ID": 1, "WID": 1, "VIS": 0, "LICID": 16654603, "N": "", "GID": -1, "W": 2, "D": 9, "SPR": 1, "EQ": []}],
+        "C": [
+            {
+                "ID": 0,
+                "WID": 2,
+                "VIS": 0,
+                "N": "",
+                "GID": -1,
+                "W": 1,
+                "D": 0,
+                "SPR": 1,
+                "EQ": [[6515211559, 6, 2, 10, 0, [[242, [25.0]]], 802, 22, 0, -1, -1, 1]],
+            },
+            {"ID": 2, "WID": 2, "VIS": 1, "N": "", "GID": -1, "W": 0, "D": 0, "SPR": 0, "EQ": []},
+        ],
+    },
+    "AE": [],
+}
+
+
+class ScriptedConnection:
+    """Scripted stand-in for Connection.
+
+    ``script`` maps a command id to a Packet to return, an Exception to raise,
+    or a list of either consumed one per call. Unscripted command ids get an
+    empty successful packet, so an ``execute()`` call needs no scripting to
+    succeed.
+    """
+
+    def __init__(self, script: dict[str, Any] | None = None):
+        self.script = script or {}
+        self.connected = True
+        self.sent: list[str] = []
+        self.requested: list[str] = []
+        self.request_payloads: list[tuple[str, dict[str, Any]]] = []
+        self.waiters_created: list[str] = []
+        self.waiters_canceled: list[str] = []
+        self.waited_for: list[str] = []
+        self.events: list[str] = []
+        self.on_packet = None
+        self.on_disconnect = None
+
+    def _resolve(self, cmd_id: str) -> Packet:
+        result = self.script.get(cmd_id, xt_packet(cmd_id))
+        if isinstance(result, list):
+            result = result.pop(0) if result else xt_packet(cmd_id)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    def send(self, data: str) -> None:
+        self.sent.append(data)
+
+    def request(self, data: str, cmd_id: str, timeout: float = 5.0) -> Packet:
+        self.requested.append(cmd_id)
+        self.request_payloads.append((cmd_id, request_payload(data)))
+        self.events.append(f"request:{cmd_id}")
+        return self._resolve(cmd_id)
+
+    def create_waiter(self, cmd_id: str) -> ResponseWaiter:
+        self.waiters_created.append(cmd_id)
+        self.events.append(f"create_waiter:{cmd_id}")
+        return ResponseWaiter()
+
+    def cancel_waiter(self, cmd_id: str, waiter: ResponseWaiter) -> None:
+        self.waiters_canceled.append(cmd_id)
+        self.events.append(f"cancel_waiter:{cmd_id}")
+
+    def wait_for_result(self, cmd_id: str, waiter: ResponseWaiter, timeout: float = 5.0) -> Packet:
+        self.waited_for.append(cmd_id)
+        self.events.append(f"wait_for_result:{cmd_id}")
+        return self._resolve(cmd_id)
+
+    def subscribe(self, cmd_id: str, callback: object) -> None:
+        pass
+
+    def unsubscribe(self, cmd_id: str, callback: object) -> None:
+        pass
+
+    def disconnect(self) -> None:
+        self.connected = False
+
+
+class StubPlayer:
+    def __init__(self, alliance_id: int = 0, level: int = 0):
+        self.alliance_id = alliance_id
+        self.level = level
+        self.legendary_level = 0
+
+
+def stub_player(alliance_id: int = 0, level: int = 0) -> Player:
+    """
+    A stand-in for the real player record.
+
+    Only the attributes the services read are set, so it is cast rather than
+    constructed - a full Player needs a payload no test here cares about.
+    """
+    return cast(Player, StubPlayer(alliance_id=alliance_id, level=level))
+
+
+class StubState:
+    """Only the members the services actually touch."""
+
+    def __init__(self, local_player: StubPlayer | None = None):
+        self.local_player = local_player
+        self.updates: list[tuple[str, object]] = []
+
+    def update_from_packet(self, cmd_id: str, payload: object) -> None:
+        self.updates.append((cmd_id, payload))
+
+    def get_local_player(self) -> StubPlayer | None:
+        return self.local_player
+
+
+def make_client(script: dict[str, Any] | None = None, state: StubState | None = None) -> EmpireClient:
+    """Build a client with every registered service attached, but no socket."""
+    client = EmpireClient.__new__(EmpireClient)
+    client.config = EmpireConfig()
+    client.username = "tester"
+    client.password = "secret"
+    client.connection = ScriptedConnection(script)  # type: ignore[assignment]
+    client.state = state or StubState()  # type: ignore[assignment]
+    client.game_data = None
+    client.is_logged_in = True
+    client._handlers = {}
+    client._handlers_lock = threading.Lock()
+    client._services = {}
+    for name, service_cls in get_registered_services().items():
+        service = service_cls(client)
+        client._services[name] = service
+        setattr(client, name, service)
+    return client
+
+
+def conn(client: EmpireClient) -> ScriptedConnection:
+    return client.connection  # type: ignore[return-value]
+
+
+GOLDEN_GCL: dict[str, Any] = {
+    "PID": 17743260,
+    "C": [
+        {
+            "KID": 0,
+            "AI": [
+                {
+                    "AI": [
+                        1,
+                        632,
+                        243,
+                        16654596,
+                        17743260,
+                        2,
+                        2,
+                        2,
+                        1,
+                        0,
+                        "Main Castle",
+                        0,
+                        0,
+                        -1,
+                        -1,
+                        -1,
+                        0,
+                        0,
+                        [],
+                        0,
+                    ],
+                    "AOT": -1,
+                    "TA": -1,
+                },
+                {
+                    "AI": [
+                        4,
+                        630,
+                        244,
+                        16656989,
+                        17743260,
+                        1,
+                        1,
+                        1,
+                        0,
+                        0,
+                        "Outpost North",
+                        0,
+                        0,
+                        -1,
+                        1,
+                        -1,
+                        0,
+                        0,
+                        [],
+                        0,
+                    ],
+                    "TA": 0,
+                },
+            ],
+        }
+    ],
+}
+
+
+# =============================================================================
+# AttackService
+# =============================================================================
+
+
+def wave(units=None, tools=None, middle_units=None):
+    return AttackWave(
+        L=WaveFlank(U=units or [], T=tools or []),
+        M=WaveFlank(U=middle_units or []),
+        R=WaveFlank(),
+    )

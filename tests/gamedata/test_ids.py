@@ -21,9 +21,9 @@ from empire_core.commanders.models.skills import SetGeneralAbilitiesRequest
 from empire_core.enums import Kingdom
 from empire_core.gamedata import GameData, UnitStats, default_cache_dir, ids
 from empire_core.gamedata.data import CACHE_FILENAME_TEMPLATE, ROW_TABLES, rows_by_id
-from tests.test_gamedata import LOOKUP_PAYLOAD, PAYLOAD
+from tests.gamedata.test_gamedata import LOOKUP_PAYLOAD, PAYLOAD
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 IDS_DIR = ROOT / "src" / "empire_core" / "gamedata" / "ids"
 
 

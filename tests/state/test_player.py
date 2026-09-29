@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from empire_core.state.models import Player
-from tests.state_helpers import gam_payload, gcl_payload
+from tests.state.state_helpers import gam_payload, gcl_payload
 
 
 class TestPlayerParsing:

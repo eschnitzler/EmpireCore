@@ -1,0 +1,328 @@
+"""Tests for the alliance models."""
+
+import logging
+
+import pytest
+from pydantic import ValidationError
+
+from empire_core.alliance.models.chat import AllianceChatLogResponse, AllianceChatMessageResponse
+from empire_core.alliance.models.info import AllianceInfo, AllianceMember, AllianceStorage, GetAllianceInfoResponse
+from empire_core.protocol.models import parse_response
+
+
+class TestAllianceInfoMemberInfo:
+    """AMI is an unvalidated positional server array that has drifted format before.
+
+    model_post_init exceptions are NOT wrapped by pydantic, so anything raised
+    here escapes model_validate un-wrapped and defeats `except ValidationError`.
+    """
+
+    @pytest.mark.parametrize(
+        "ami",
+        [
+            [5],  # entry is a bare int -> len() fails
+            [None],  # entry is None
+            [[1, 2]],  # entry too short
+            [[[1, 2], 0, 0, 0, 3]],  # unhashable player id
+            [{"OID": 1, "AT": 3}],  # drifted to dicts
+            "not-a-list",  # whole field drifted
+        ],
+    )
+    def test_malformed_ami_does_not_raise(self, ami):
+        try:
+            info = AllianceInfo.model_validate({"AID": 1, "AMI": ami})
+        except ValidationError:
+            # Rejecting the field outright is acceptable; crashing is not.
+            return
+        assert info.alliance_id == 1
+
+    def test_malformed_ami_entry_is_logged(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="empire_core.alliance.models.info"):
+            AllianceInfo.model_validate({"AID": 1, "AMI": [5]})
+        assert [r for r in caplog.records if r.levelno >= logging.WARNING], "malformed AMI logged nothing"
+
+    def test_valid_ami_still_populates_activity_tier(self):
+        info = AllianceInfo.model_validate(
+            {
+                "AID": 1,
+                "M": [{"OID": 7, "N": "online_guy"}, {"OID": 8, "N": "afk_guy"}],
+                "AMI": [[7, 0, 0, 0, 0], [8, 0, 0, 0, 4]],
+            }
+        )
+        by_name = {m.name: m for m in info.members}
+        assert by_name["online_guy"].activity_tier == 0
+        assert by_name["online_guy"].is_online
+        assert by_name["afk_guy"].activity_tier == 4
+        assert not by_name["afk_guy"].is_online
+        assert info.online_count == 1
+
+    def test_good_entries_survive_a_bad_neighbour(self):
+        info = AllianceInfo.model_validate(
+            {
+                "AID": 1,
+                "M": [{"OID": 7, "N": "good"}],
+                "AMI": [5, [7, 0, 0, 0, 2]],
+            }
+        )
+        assert info.members[0].activity_tier == 2
+
+
+GOLDEN_AIN = {
+    "A": {
+        "AID": 190426,
+        "N": "Test Alliance",
+        "A": "Welcome to the alliance",
+        "MP": 4213377,
+        "ML": 50,
+        "STO": {"W": 120000, "S": 98000, "O": 45000, "C1": 3000, "C2": 12, "I": 400, "G": 7},
+        "ABL": [{"BT": 1, "L": 5, "CD": -1}, {"BT": 2, "L": 3, "CD": 3600}],
+        "M": [
+            {
+                "OID": 7001,
+                "N": "LeaderGuy",
+                "L": 70,
+                "LL": 812,
+                "AR": 8,
+                "MP": 1200000,
+                "RPT": 0,
+                "AP": [[0, 12345, 640, 655, 1], [2, 22222, 300, 400, 4]],
+                "E": {"BGT": 1, "BGC1": 2, "SPT": 3, "S1": 4, "IS": 1},
+            },
+            {"OID": 7002, "N": "OfficerGal", "L": 70, "AR": 4, "RPT": 7200, "AP": [[0, 12346, 641, 656, 1]]},
+        ],
+        "AMI": [[7001, 0, 0, 0, 0], [7002, 0, 0, 0, 2]],
+    }
+}
+
+
+class TestGoldenAllianceInfo:
+    def test_registry_parses_ain_into_the_alliance_response(self):
+        response = parse_response("ain", GOLDEN_AIN)
+        assert isinstance(response, GetAllianceInfoResponse)
+        assert response.success is True
+
+    def test_alliance_header_fields(self):
+        info = GetAllianceInfoResponse.model_validate(GOLDEN_AIN).alliance
+        assert info is not None
+        assert info.alliance_id == 190426
+        assert info.name == "Test Alliance"
+        assert info.announcement == "Welcome to the alliance"
+        assert info.might == 4213377
+        assert info.external_member_level == 50
+        assert info.member_count == 2
+
+    def test_storage_and_buildings(self):
+        info = GetAllianceInfoResponse.model_validate(GOLDEN_AIN).alliance
+        assert info is not None
+        assert info.storage is not None
+        assert (info.storage.wood, info.storage.stone, info.storage.oil) == (120000, 98000, 45000)
+        assert [(b.building_type, b.level, b.cooldown) for b in info.buildings] == [(1, 5, -1), (2, 3, 3600)]
+
+    def test_storage_reads_every_donatable_key(self):
+        storage = AllianceStorage.model_validate(
+            {"C1": 3000, "C2": 12, "O": 45000, "G": 7, "C": 9, "FD": 1, "AC": 2, "LRC": 3, "AIN": 4}
+        )
+        assert (storage.coins, storage.rubies, storage.oil, storage.glass, storage.coal) == (3000, 12, 45000, 7, 9)
+        assert (storage.fury_doubloons, storage.alliance_coins, storage.legendary_rift_coins) == (1, 2, 3)
+        assert storage.alliance_influence == 4
+
+    def test_storage_amounts_are_floored_and_default_to_zero(self):
+        # parseStorageFromServer reads STO[key] || 0; ACollectableItemVO.amount floors it
+        storage = AllianceStorage.model_validate({"W": 10.9, "S": None, "I": "abc", "C1": "25"})
+        assert (storage.wood, storage.stone, storage.iron, storage.coins, storage.rubies) == (10, 0, 0, 25, 0)
+
+    def test_members_get_their_activity_tier_from_ami(self):
+        response = GetAllianceInfoResponse.model_validate(GOLDEN_AIN)
+        by_name = {m.name: m for m in response.members}
+        assert by_name["LeaderGuy"].activity_tier == 0
+        assert by_name["OfficerGal"].activity_tier == 2
+        assert [m.name for m in response.online_members] == ["LeaderGuy"]
+
+    def test_member_castles_parse_from_the_positional_ap_array(self):
+        response = GetAllianceInfoResponse.model_validate(GOLDEN_AIN)
+        leader = response.members[0]
+        assert [(c.kingdom_id, c.area_id, c.x, c.y, c.area_type) for c in leader.castle_positions] == [
+            (0, 12345, 640, 655, 1),
+            (2, 22222, 300, 400, 4),
+        ]
+
+    def test_member_derived_flags(self):
+        response = GetAllianceInfoResponse.model_validate(GOLDEN_AIN)
+        by_name = {m.name: m for m in response.members}
+        assert by_name["LeaderGuy"].is_leader is True
+        assert by_name["OfficerGal"].is_officer is True
+        assert by_name["OfficerGal"].has_bird is True
+        assert by_name["OfficerGal"].bird_end_time is not None
+        assert by_name["LeaderGuy"].bird_end_time is None
+
+    def test_typed_member_emblem(self):
+        leader = GetAllianceInfoResponse.model_validate(GOLDEN_AIN).members[0]
+        assert leader.emblem is not None
+        assert (leader.emblem.background_type, leader.emblem.symbol1, leader.emblem.is_set) == (1, 4, True)
+
+    def test_an_emblem_that_is_not_an_object_reads_as_none(self):
+        assert AllianceMember.model_validate({"OID": 1, "E": 7}).emblem is None
+
+
+class TestGoldenChatPayloads:
+    def test_incoming_message_decodes(self):
+        payload = {"CM": {"PN": "LeaderGuy", "MT": "100&percnt; ready, said &quot;go&quot;", "PID": 7001}}
+        response = AllianceChatMessageResponse.model_validate(payload)
+        assert response.player_name == "LeaderGuy"
+        assert response.player_id == 7001
+        assert response.decoded_text == '100% ready, said "go"'
+        assert response.message_text.startswith("100&percnt;")
+
+    def test_missing_chat_block_yields_empty_accessors(self):
+        response = AllianceChatMessageResponse.model_validate({})
+        assert (response.player_name, response.message_text, response.decoded_text) == ("", "", "")
+        assert response.player_id == 0
+
+    def test_chat_log_entries_decode(self):
+        payload = {
+            "CL": [
+                {"PN": "LeaderGuy", "MT": "line&145;s one", "PID": 7001, "T": 1712345678},
+                {"PN": "OfficerGal", "MT": "two<br />lines", "PID": 7002},
+            ]
+        }
+        response = AllianceChatLogResponse.model_validate(payload)
+        assert [e.decoded_text for e in response.chat_log] == ["line's one", "two\nlines"]
+        assert response.chat_log[1].timestamp is None
+
+
+class TestAllianceInfoFlags:
+    def test_settings_read_as_alliance_info_vo_does(self):
+        from empire_core.alliance.models.info import AllianceInfo
+
+        info = AllianceInfo.model_validate(
+            {
+                "CF": "1200",
+                "HF": 3000,
+                "IS": 1,
+                "IA": 0,
+                "KA": 1,
+                "AW": 1,
+                "HP": 0,
+                "SP": 1,
+                "AA": 3,
+                "AP": 12.5,
+                "A": None,
+            }
+        )
+        assert (info.fame_points, info.highest_fame_points, info.application_count, info.aqua_points) == (
+            1200,
+            3000,
+            3,
+            12.5,
+        )
+        assert (info.is_searching_members, info.is_accepting_members, info.is_king_alliance, info.auto_war) == (
+            True, False, True, True,
+        )  # fmt: skip
+        assert (info.can_be_invited_to_hard_pact, info.can_be_invited_to_soft_pact, info.announcement) == (
+            False,
+            True,
+            " ",
+        )
+
+
+class TestAllianceInfoText:
+    def test_description_and_announcement_read_as_chat_text(self):
+        from empire_core.alliance.models.info import AllianceInfo
+
+        info = AllianceInfo.model_validate({"D": "Say &quot;hi&quot;<br />now", "A": "", "RT": "30"})
+        assert info.description == 'Say "hi"\nnow'
+        assert info.announcement == " "
+        # parseChatJSONMessage: &percnt; before %5C, and brackets become spaces
+        assert AllianceInfo.model_validate({"D": "[TAG] 100&percnt;5C"}).description == " TAG  100\\"
+        assert AllianceInfo.model_validate({}).announcement == " "
+        assert info.refresh_seconds == 30
+
+    def test_forge_fields_are_read_only_with_mf_and_if(self):
+        from empire_core.alliance.models.info import AllianceInfo
+
+        assert AllianceInfo.model_validate({"MF": 1, "SRFU": 4}).soft_relic_forge_uses == 0
+        both = AllianceInfo.model_validate({"MF": 1, "IF": 0, "SRFU": 4})
+        assert (both.is_able_to_forge, both.soft_relic_forge_uses) == (True, 4)
+
+
+def test_ain_parseint_fields_read_as_javascript_parseint():
+    from empire_core.alliance.models.info import AllianceInfo
+
+    info = AllianceInfo.model_validate({"AID": "12abc", "MP": "1e3", "ML": None, "AA": 7.9})
+    assert (info.alliance_id, info.might, info.external_member_level, info.application_count) == (12, 1, 0, 7)
+
+
+class TestAllianceMemberInfoGuard:
+    """AMI rows as AdditionalMemberInfoVO.parseAMI reads them, without failing the reply."""
+
+    def test_a_scalar_ami_entry_is_skipped(self, caplog):
+        with caplog.at_level("WARNING"):
+            info = AllianceInfo.model_validate({"AID": 1, "AMI": [5, [7, 0, 0, 0, 1]]})
+        assert [row.player_id for row in info.member_info] == [7]
+        assert "malformed AMI entries" in caplog.text
+
+    def test_short_and_unreadable_fields_read_as_zero(self):
+        payload = {
+            "AID": 7,
+            "AMI": [
+                ["not-an-int", 0, 0, 0, 2],
+                [11, 0, 0, 0],
+                [12, 0, 0, 0, "x"],
+                [13, 0, 0, 0, 3],
+            ],
+        }
+        info = AllianceInfo.model_validate(payload)
+        assert [(row.player_id, row.login_activity) for row in info.member_info] == [(0, 2), (11, 0), (12, 0), (13, 3)]
+
+    def test_a_full_row(self):
+        info = AllianceInfo.model_validate({"AMI": [[42, 1000, 5, 250000, 1, 1, 2, 0, 1, 3, 180]]})
+        row = info.member_info[0]
+        assert (row.player_id, row.given_coins, row.given_rubies, row.given_resources, row.login_activity) == (
+            42,
+            1000,
+            5,
+            250000,
+            1,
+        )
+        assert (row.capital_count, row.metropolis_count, row.kings_tower_count) == (1, 2, 0)
+        assert (row.monument_count, row.laboratory_count, row.daily_fame) == (1, 3, 180)
+
+    def test_a_non_list_ami_reads_as_empty(self):
+        assert AllianceInfo.model_validate({"AID": 1, "AMI": "nope"}).member_info == []
+
+
+class TestAllianceLandmarksAndDiplomacy:
+    """AllianceInfoVO.parseStatusList and AllianceLandmarksList.parseCompleteLandmarksList."""
+
+    CAPITAL = [3, 500, 600, 900001, 4242, 1, 1, 1, 0, 0, "Capital"]
+
+    def test_landmark_lists_are_map_rows(self):
+        info = AllianceInfo.model_validate(
+            {
+                "ACA": [self.CAPITAL],
+                "ATC": [[22, 10, 20, 900002, 4243]],
+                "AKT": [[23, 30, 40, 900003, 4244, 0, -1]],
+                "AMO": [[26, 50, 60, 900004, 4245, 1, 3]],
+                "ALA": [[28, 70, 80, 900005, 4246, 2, 0]],
+            }
+        )
+        assert [(i.item_type, i.location_id, i.owner_id) for i in info.capitals] == [(3, 900001, 4242)]
+        assert [i.location_id for i in info.metropolises] == [900002]
+        assert [i.location_id for i in info.kings_towers] == [900003]
+        assert [i.location_id for i in info.monuments] == [900004]
+        assert [i.location_id for i in info.laboratories] == [900005]
+
+    def test_an_unreadable_landmark_row_is_skipped(self, caplog):
+        with caplog.at_level("WARNING"):
+            info = AllianceInfo.model_validate({"ACA": [["?", "?", "?", "?"], self.CAPITAL]})
+        assert [i.x for i in info.capitals] == [500]
+        assert "alliance landmark rows" in caplog.text
+
+    def test_diplomacy_entries(self):
+        info = AllianceInfo.model_validate(
+            {"ADL": [{"AID": 55, "AN": "Other", "AS": 3, "AC": 1}, "junk", {"AID": "56", "AS": 0, "AC": 0}]}
+        )
+        assert [(d.alliance_id, d.alliance_name, d.status, d.status_confirmed) for d in info.alliance_diplomacy] == [
+            (55, "Other", 3, 1),
+            (56, None, 0, 0),
+        ]
