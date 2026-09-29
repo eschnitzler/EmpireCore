@@ -16,6 +16,8 @@ import hashlib
 import json
 import logging
 import os
+import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import TypeVar
@@ -633,6 +635,12 @@ class GameData(BaseModel):
 
 
 _default: GameData | None = None
+_default_lock = threading.Lock()
+_default_failure: NetworkError | None = None
+_default_failed_at = 0.0
+
+_FAILURE_RETRY_INTERVAL = 300.0
+"""Seconds a failed first-use load is remembered before :func:`default_game_data` tries again."""
 
 
 def default_game_data() -> GameData:
@@ -640,18 +648,37 @@ def default_game_data() -> GameData:
     The GameData the id enums' ``stats`` and ``info`` properties read.
 
     That is the one :meth:`GameData.load` returned last, which includes
-    :meth:`EmpireClient.load_game_data`; if nothing has been loaded, the first
-    call loads it (a download on a cache miss) and keeps it.
+    :meth:`EmpireClient.load_game_data`; it is shared by every client in the
+    process, so the last load wins. If nothing has been loaded, the first call
+    loads it (a download on a cache miss) and keeps it. Concurrent first calls
+    load once. A failed load raises its NetworkError again, without another
+    request, for ``_FAILURE_RETRY_INTERVAL`` seconds.
+
+    Raises:
+        NetworkError: The CDN could not be reached, now or within the retry interval
     """
-    if _default is None:
-        return GameData.load()
-    return _default
+    global _default_failure, _default_failed_at
+    data = _default
+    if data is not None:
+        return data
+    with _default_lock:
+        if _default is not None:
+            return _default
+        if _default_failure is not None and time.monotonic() - _default_failed_at < _FAILURE_RETRY_INTERVAL:
+            raise _default_failure
+        try:
+            return GameData.load()
+        except NetworkError as e:
+            _default_failure, _default_failed_at = e, time.monotonic()
+            raise
 
 
 def set_default_game_data(data: GameData | None) -> None:
     """Make ``data`` what :func:`default_game_data` returns; None forgets it, so the next call loads."""
-    global _default
+    global _default, _default_failure
+    # No lock: default_game_data holds it while GameData.load() calls this
     _default = data
+    _default_failure = None
 
 
 __all__ = ["GameData", "default_cache_dir", "default_game_data", "set_default_game_data"]

@@ -9,6 +9,8 @@ import pickle
 import shutil
 import subprocess
 import sys
+import threading
+import time
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -17,6 +19,7 @@ import pytest
 from pydantic import BaseModel
 
 from empire_core import gamedata
+from empire_core.exceptions import NetworkError
 from empire_core.gamedata import GameData, default_cache_dir, default_game_data, ids, set_default_game_data
 from empire_core.gamedata.data import CACHE_FILENAME_TEMPLATE
 from empire_core.protocol.models.skills import SetGeneralAbilitiesRequest
@@ -172,12 +175,11 @@ class TestPackage:
 
 
 @pytest.fixture
-def lookup_data():
-    """The lookup fixtures as the default game data, forgotten again afterwards."""
+def lookup_data() -> GameData:
+    """The lookup fixtures as the default game data; conftest forgets it afterwards."""
     data = GameData.parse(ids.ITEMS_VERSION, IDS_PAYLOAD)
     set_default_game_data(data)
-    yield data
-    set_default_game_data(None)
+    return data
 
 
 class TestMemberData:
@@ -275,13 +277,55 @@ class TestLinks:
             return LOOKUP_PAYLOAD
 
         monkeypatch.setattr("empire_core.gamedata.data.fetch_items_data", fetch)
-        set_default_game_data(None)
-        try:
-            assert ids.General.TORIL.info is not None
-            assert ids.Unit.MEAD_RANGER_L6.stats is default_game_data().units[211]
-        finally:
-            set_default_game_data(None)
+        assert ids.General.TORIL.info is not None
+        assert ids.Unit.MEAD_RANGER_L6.stats is default_game_data().units[211]
         assert fetched == [ids.ITEMS_VERSION]
+
+    def test_concurrent_first_uses_load_once(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: ids.ITEMS_VERSION)
+        fetched: list[str] = []
+        release = threading.Event()
+
+        def fetch(version: str) -> dict:
+            fetched.append(version)
+            release.wait(5)
+            return LOOKUP_PAYLOAD
+
+        monkeypatch.setattr("empire_core.gamedata.data.fetch_items_data", fetch)
+        results: list[GameData] = []
+        threads = [threading.Thread(target=lambda: results.append(default_game_data())) for _ in range(8)]
+        for thread in threads:
+            thread.start()
+        time.sleep(0.05)
+        release.set()
+        for thread in threads:
+            thread.join(5)
+        assert fetched == [ids.ITEMS_VERSION]
+        assert len(results) == 8 and all(result is results[0] for result in results)
+
+    def test_a_failed_first_use_is_not_retried_within_the_interval(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+        requests: list[str] = []
+
+        def offline() -> str:
+            requests.append("ItemsVersion.properties")
+            raise OSError("offline")
+
+        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", offline)
+        with pytest.raises(NetworkError) as first:
+            _ = ids.Unit.MEAD_RANGER_L6.stats
+        for _ in range(3):
+            with pytest.raises(NetworkError) as again:
+                default_game_data()
+            assert again.value is first.value
+        assert len(requests) == 1
+
+        now = time.monotonic()
+        monkeypatch.setattr("empire_core.gamedata.data.time.monotonic", lambda: now + 301)
+        with pytest.raises(NetworkError):
+            default_game_data()
+        assert len(requests) == 2
 
     def test_the_enums_load_lazily(self):
         code = (
@@ -498,13 +542,10 @@ class TestStaleness:
         assert "v0.01" in message and f"v{ids.ITEMS_VERSION}" in message
 
     def test_load_becomes_the_default(self, load):
-        try:
-            data = load(ids.ITEMS_VERSION)
-            assert default_game_data() is data
-            again = load(ids.ITEMS_VERSION)
-            assert again is not data and default_game_data() is again
-        finally:
-            set_default_game_data(None)
+        data = load(ids.ITEMS_VERSION)
+        assert default_game_data() is data
+        again = load(ids.ITEMS_VERSION)
+        assert again is not data and default_game_data() is again
 
     def test_load_is_quiet_for_the_version_the_ids_came_from(self, load, caplog):
         with caplog.at_level(logging.WARNING, logger="empire_core.gamedata.data"):
