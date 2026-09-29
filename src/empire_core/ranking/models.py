@@ -194,8 +194,12 @@ class GetRankingListRequest(BaseRequest):
     Payload: {"LT": list_type, "LID": league_type_id, "M": max_results, "R": rank}
 
     The client pages only event leaderboards this way (score, long-term
-    point, alliance mobilisation/raid and donation events), passing the
-    running event's league as ``LID``. A live server answered NO_EVENT
+    point, alliance mobilisation/raid and donation events). ``LID`` is the
+    event's league, or -1: the score and long-term point dialogs start at the
+    event's league and page through leagues 1 to the event's league count
+    (``GlobalLeaderBoardLeagueComponent``, bundle line 100470), the alliance
+    mobilisation dialog passes the event's league, and the donation ranking
+    passes none, so -1. A live server answered NO_EVENT
     (145) for every list with no event running, the regular highscore
     lists included; read those with ``hgh``.
 
@@ -214,7 +218,7 @@ class GetRankingListRequest(BaseRequest):
     league_type_id: int = Field(
         alias="LID",
         default=-1,
-        description="The league, a level band (see GameData.league_type); -1 for none",
+        description="The event's league, a level band (see GameData.league_type); -1 for none",
     )
     max_results: int = Field(alias="M", description="Entries per page")
     rank: int = Field(alias="R", default=1, description="The first rank on the page")

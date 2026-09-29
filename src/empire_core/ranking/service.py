@@ -70,7 +70,7 @@ class RankingService(BaseService):
             list_type: The event's highscore list (LT), e.g. ``RankingType.LONG_TERM_POINT_EVENT``
             rank: The first rank on the page
             max_results: Entries per page (M)
-            league_type_id: The running event's league (LID), as the client passes it; -1 for none
+            league_type_id: The event's league (LID), or -1 for none, as the donation ranking sends
             timeout: Timeout in seconds
 
         Returns:
