@@ -24,7 +24,7 @@ from pydantic import (
 )
 from pydantic.functional_validators import ModelWrapValidatorHandler
 
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, client_int, enum_or_none
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, Kingdom, client_int, enum_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +36,6 @@ PICTURE_ISLAND_CASTELLAN = 13
 """``EquipmentConst.PICK_BARON_ISLAND`` (dll line 19249)"""
 FACTION_BARON_ID = -16
 """``FactionConst.BARON_ID`` (dll line 19333)"""
-ISLAND_KINGDOM_ID = 4
-"""``WorldIsland.KINGDOM_ID`` (dll line 20036)"""
 
 
 class EquipmentSlot(IntEnum):
@@ -52,10 +50,18 @@ class EquipmentSlot(IntEnum):
 
 
 class WearerType(IntEnum):
-    """Who may wear an equipment item."""
+    """
+    Who may wear an equipment item.
 
-    ALL = 0
-    CASTELLAN = 1  # EquipmentConst.BARON_WEARER_ID
+    The client treats any id but 1 and 2 as wearable by all
+    (``BasicEquippableVO.getLordType``, bundle line 4837).
+
+    Client: ``EquipmentConst.UNDEFINED_WEARER_ID``, ``BARON_WEARER_ID`` and
+    ``COMMANDER_WEARER_ID`` (dll line 19249)
+    """
+
+    UNDEFINED = -1
+    CASTELLAN = 1
     COMMANDER = 2
 
 
@@ -260,7 +266,7 @@ class Equipment(BasePayload):
 
     equipment_id: int = Field(default=0, description="Item id, row[0]")
     slot: int = Field(default=0, description="Slot type id, row[1]")
-    wearer_type: int = Field(default=WearerType.ALL, description="Who can wear it (WearerType), row[2]")
+    wearer_type: int = Field(default=WearerType.UNDEFINED, description="Who can wear it (WearerType), row[2]")
     rarity_id: ClientInt = Field(default=0, description="Rarity id, row[3], read through int()")
     graphic: int | str = Field(default=0, description="The client keeps row[4] as its graphic string")
     bonuses: Annotated[list[EquipmentBonus], _readable_rows(EquipmentBonus)] = Field(
@@ -612,7 +618,7 @@ class Castellan(LeaderBase):
             return False
         if self.picture_id == PICTURE_FACTION_CASTELLAN and kingdom_id != FACTION_BARON_ID:
             return False
-        return not (self.picture_id == PICTURE_ISLAND_CASTELLAN and kingdom_id != ISLAND_KINGDOM_ID)
+        return not (self.picture_id == PICTURE_ISLAND_CASTELLAN and kingdom_id != Kingdom.STORM)
 
 
 class GetCommandersRequest(BaseRequest):

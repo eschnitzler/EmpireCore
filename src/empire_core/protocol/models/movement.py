@@ -8,9 +8,7 @@ from typing import Any
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
-from empire_core.utils.enums import MapObjectType
-
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, Position
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, MapItemType, Position
 from .commanders import Commander
 
 
@@ -41,20 +39,20 @@ def _is_one(value: Any) -> bool:
 
 
 _AREA_LAYOUTS: dict[int, tuple[int | None, int | None, int | None]] = {
-    MapObjectType.CASTLE: (3, 4, 10),
-    MapObjectType.CAPITAL: (3, 4, 10),
-    MapObjectType.OUTPOST: (3, 4, 10),
-    MapObjectType.KINGDOM_CASTLE: (3, 4, 10),
-    MapObjectType.METRO: (3, 4, 10),
-    MapObjectType.VILLAGE: (3, 4, None),
-    MapObjectType.FACTION_VILLAGE: (None, 3, None),
-    MapObjectType.FACTION_TOWER: (None, 3, None),
-    MapObjectType.FACTION_CAPITAL: (None, 3, None),
-    MapObjectType.KINGS_TOWER: (3, 4, 7),
-    MapObjectType.ISLE_RESOURCE: (3, 4, 6),
-    MapObjectType.MONUMENT: (3, 4, 9),
-    MapObjectType.LABORATORY: (3, 4, 8),
-    MapObjectType.ABG_TOWER: (3, None, 4),
+    MapItemType.CASTLE: (3, 4, 10),
+    MapItemType.CAPITAL: (3, 4, 10),
+    MapItemType.OUTPOST: (3, 4, 10),
+    MapItemType.KINGDOM_CASTLE: (3, 4, 10),
+    MapItemType.METRO: (3, 4, 10),
+    MapItemType.VILLAGE: (3, 4, None),
+    MapItemType.FACTION_VILLAGE: (None, 3, None),
+    MapItemType.FACTION_TOWER: (None, 3, None),
+    MapItemType.FACTION_CAPITAL: (None, 3, None),
+    MapItemType.KINGS_TOWER: (3, 4, 7),
+    MapItemType.ISLE_RESOURCE: (3, 4, 6),
+    MapItemType.MONUMENT: (3, 4, 9),
+    MapItemType.LABORATORY: (3, 4, 8),
+    MapItemType.ABG_TOWER: (3, None, 4),
 }
 
 
@@ -90,7 +88,7 @@ class MovementArea(BasePayload):
 
     def _at(self, slot: int) -> Any:
         layout = _AREA_LAYOUTS.get(self.area_type)
-        if layout is None or (self.area_type == MapObjectType.CASTLE and len(self.row) <= 4):
+        if layout is None or (self.area_type == MapItemType.CASTLE and len(self.row) <= 4):
             return None
         index = layout[slot]
         return self.row[index] if index is not None and index < len(self.row) else None

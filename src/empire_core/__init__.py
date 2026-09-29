@@ -48,7 +48,7 @@ from empire_core.protocol.packet import Packet
 from empire_core.services.spy import SpyResult, SpyService
 from empire_core.state.models import Alliance, Building, Castle, Player, Resources
 from empire_core.state.world_models import Movement, MovementResources
-from empire_core.utils.enums import KingdomType, MapObjectType, MovementType
+from empire_core.utils.enums import MovementType
 from empire_core.utils.events import GameEvent
 from empire_core.utils.troops import get_troop_ids, troop_data_available
 
@@ -115,8 +115,6 @@ __all__ = [
     "EquipmentSlot",
     "MapItemType",
     "MovementType",
-    "MapObjectType",
-    "KingdomType",
     "GameEvent",
     # Helpers
     "decode_chat_text",

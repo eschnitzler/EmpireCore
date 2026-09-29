@@ -84,8 +84,6 @@ def test_previously_exported_names_are_still_available() -> None:
         "Movement",
         "MovementResources",
         "MovementType",
-        "MapObjectType",
-        "KingdomType",
         "GameEvent",
     ):
         assert name in empire_core.__all__
@@ -109,41 +107,17 @@ def test_top_level_movement_is_the_state_model_consumers_use() -> None:
 # Forked enums (finding 3)
 # ---------------------------------------------------------------------------
 
-# MapObjectType (movement target areas) and MapItemType (map-scan AI array)
-# both mirror the client's WorldConst.AREA_TYPE_* constants, so they must not
-# disagree on any shared ID. They used to contradict each other on 2, 7 and 12.
-_KNOWN_MAP_TYPE_CONFLICTS: set[int] = set()
 
-
-def test_kingdom_type_is_an_alias_of_the_authoritative_kingdom_enum() -> None:
-    """One kingdom ID space => one enum. KingdomType stays as a legacy alias."""
-    from empire_core.protocol.models.map import Kingdom
+def test_each_id_space_has_one_enum() -> None:
+    """Kingdom and MapItemType are the only kingdom and area-type enums; the old duplicates are gone."""
+    from empire_core.protocol.models import base, map
     from empire_core.utils import enums
 
-    assert enums.KingdomType is Kingdom
-    assert empire_core.KingdomType is Kingdom
-    # The old members must keep working, and the alias gains the member the
-    # duplicate table was missing.
-    assert enums.KingdomType.GREEN == 0
-    assert enums.KingdomType.STORM == 4
-    assert enums.KingdomType(10) is Kingdom.BERIMOND
-
-
-def test_map_type_enums_only_disagree_on_the_documented_values() -> None:
-    from empire_core.protocol.models.map import MapItemType
-    from empire_core.utils.enums import MapObjectType
-
-    shared = {m.value for m in MapObjectType} & {m.value for m in MapItemType}
-    conflicts = {v for v in shared if MapObjectType(v).name != MapItemType(v).name}
-    assert conflicts == _KNOWN_MAP_TYPE_CONFLICTS
-
-
-def test_map_object_type_documents_its_id_space() -> None:
-    """The duplicate table must say what it describes and point at the other."""
-    from empire_core.utils.enums import MapObjectType
-
-    doc = MapObjectType.__doc__ or ""
-    assert "MapItemType" in doc, "MapObjectType must point at the parallel enum"
+    assert map.Kingdom is base.Kingdom and map.MapItemType is base.MapItemType
+    assert empire_core.MapItemType is base.MapItemType
+    for gone in ("KingdomType", "MapObjectType"):
+        assert not hasattr(enums, gone)
+        assert not hasattr(empire_core, gone)
 
 
 def test_npc_camps_resolve_through_map_item_type() -> None:

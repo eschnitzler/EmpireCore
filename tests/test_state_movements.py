@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from empire_core.client.client import EmpireClient
+from empire_core.protocol.models.base import MapItemType
 from empire_core.protocol.models.commanders import CommanderEffect
 from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
@@ -159,6 +160,12 @@ class TestMovementTypes:
         assert Movement(T=1).movement_type_name == "DEFENCE"
         assert Movement(T=11).movement_type_name == "NPC_ATTACK"
         assert Movement(T=99).movement_type_name == "UNKNOWN_99"
+
+    def test_target_type_reads_as_an_area_type(self):
+        assert Movement(target_type=1).target_type_enum is MapItemType.CASTLE
+        assert Movement(target_type=43).target_type_enum is MapItemType.ARE_PORTAL
+        assert Movement(target_type=32).target_type_enum is None
+        assert Movement().target_type_enum is None
 
     def test_direction_flag_marks_returns_for_any_type(self):
         assert Movement(T=11, D=0).is_returning is False

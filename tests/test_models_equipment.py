@@ -2,16 +2,27 @@ import json
 
 from empire_core.protocol.models import (
     EquipEquipmentRequest,
+    Equipment,
     EquipmentSlot,
     EquipmentType,
     GetEquipmentInventoryRequest,
     GetEquipmentInventoryResponse,
+    WearerType,
     get_response_model,
 )
 
 # Shape of a gli EQ entry, which gei shares
 HERO_ROW = [6515211559, 6, 2, 10, 0, [[242, [25.0]]], 802, 22, 0, -1, -1, 1]
 RELIC_ROW = [6109572530, 1, 2, 5, -1, [[4, 84, [116.2]]], -1, -1, 0, -1, -1, 3, [2, 1, 3500, []]]
+
+
+class TestWearerType:
+    def test_values_follow_the_client(self):
+        assert [(m.name, m.value) for m in WearerType] == [("UNDEFINED", -1), ("CASTELLAN", 1), ("COMMANDER", 2)]
+
+    def test_an_item_without_a_wearer_is_undefined(self):
+        assert Equipment().wearer_type == WearerType.UNDEFINED == -1
+        assert Equipment.model_validate(HERO_ROW).wearer_type == WearerType.COMMANDER
 
 
 class TestGetEquipmentInventory:

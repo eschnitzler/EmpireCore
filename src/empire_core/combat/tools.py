@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, NamedTuple, Protocol
 
 from empire_core.gamedata import GameData, ToolStats
+from empire_core.protocol.models.base import MapItemType
 
 from .bonuses import parse_effect_spec
 from .effects import AttackerFlankEffects, DefenderFlankEffects
@@ -25,8 +26,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# WorldConst.AREA_TYPE_ALIEN_CAMP and AREA_TYPE_RED_ALIEN_CAMP.
-ALIEN_INVASION_AREA_TYPES = frozenset({21, 34})
+ALIEN_INVASION_AREA_TYPES = frozenset({MapItemType.ALIEN_CAMP, MapItemType.RED_ALIEN_CAMP})
 
 
 @dataclass(frozen=True)

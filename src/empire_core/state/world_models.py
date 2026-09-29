@@ -4,9 +4,10 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError, field_validator
 
+from empire_core.protocol.models.base import MapItemType, enum_or_none
 from empire_core.protocol.models.commanders import CommanderEffect, Equipment
 from empire_core.protocol.models.movement import MovementArea, MovementOwner
-from empire_core.utils.enums import MapObjectType, MovementType
+from empire_core.utils.enums import MovementType
 from empire_core.utils.troops import count_troops
 
 logger = logging.getLogger(__name__)
@@ -95,7 +96,7 @@ class Movement(BaseModel):
     target_y: int = Field(default=-1, description="Target y, TA[2]")
     source_x: int = Field(default=-1, description="Source x, SA[1]")
     source_y: int = Field(default=-1, description="Source y, SA[2]")
-    target_type: int = Field(default=-1, description="MapObjectType value, TA[0]")
+    target_type: int = Field(default=-1, description="Area type (MapItemType), TA[0]")
 
     local_player_id: int = Field(default=-1, description="Player id of the receiving account, -1 if unknown")
 
@@ -167,18 +168,9 @@ class Movement(BaseModel):
             return MovementType.UNKNOWN
 
     @property
-    def target_type_enum(self) -> MapObjectType:
-        """The target area's object type, or ``UNKNOWN`` for unmapped IDs.
-
-        ``target_type`` comes from ``TA[0]``, so it is interpreted with
-        :class:`~empire_core.utils.enums.MapObjectType` -- *not* with
-        ``MapItemType``, which describes map-scan items and disagrees on some
-        IDs (see the warning on ``MapObjectType``).
-        """
-        try:
-            return MapObjectType(self.target_type)
-        except ValueError:
-            return MapObjectType.UNKNOWN
+    def target_type_enum(self) -> MapItemType | None:
+        """The target area's type (``TA[0]``) as a :class:`MapItemType`, None for an id the client does not define."""
+        return enum_or_none(MapItemType, self.target_type)
 
     @property
     def movement_type_name(self) -> str:
