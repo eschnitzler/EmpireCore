@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import warnings
-from typing import Any
+from typing import Any, cast
 
 from pydantic import ConfigDict, Field, ValidationError, ValidationInfo, field_validator
 
@@ -125,7 +125,7 @@ _RAW_LEVEL_TYPES = frozenset({MapItemType.CAPITAL, MapItemType.METROPOL})
 
 # The level of an upgradable landmark: MonumentMapobjectVO reads it at field 6,
 # LaboratoryMapobjectVO at field 5.
-_LANDMARK_LEVEL_FIELDS: dict[int, int] = {MapItemType.MONUMENT: 6, MapItemType.LABORATORY: 5}
+_LANDMARK_LEVEL_FIELDS: dict[MapItemType, int] = {MapItemType.MONUMENT: 6, MapItemType.LABORATORY: 5}
 
 INVASION_AREA_TYPES = frozenset(
     {
@@ -242,7 +242,7 @@ class MapAreaItem(BasePayload):
     @property
     def landmark_level(self) -> int | None:
         """A monument's or laboratory's level, or None for other types."""
-        index = _LANDMARK_LEVEL_FIELDS.get(self.item_type)
+        index = _LANDMARK_LEVEL_FIELDS.get(cast(MapItemType, self.item_type))
         if index is None or len(self.raw_data) <= index:
             return None
         value = self.raw_data[index]
