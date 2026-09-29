@@ -101,7 +101,10 @@ def _names_target(header: _SpyHeader, target: MovementRecord | None, target_king
     """Whether a spy log's header names this mission's target.
 
     Without the csm movement only the kingdom can be compared; the report's
-    position is checked once it is read.
+    position is checked once it is read. An empty name in the header is
+    unknown, not a mismatch: the client names such an area itself.
+
+    Client: ``MessageSpyPlayerVO.parseSender`` (bundle line 137666)
     """
     if header.result is None or header.kingdom_id is None:
         return False
@@ -112,7 +115,7 @@ def _names_target(header: _SpyHeader, target: MovementRecord | None, target_king
         return False
     if area is not None and header.area_type is not None and header.area_type != area.area_type:
         return False
-    return not (area is not None and area.name and header.area_name != area.name)
+    return not (area is not None and area.name and header.area_name and header.area_name != area.name)
 
 
 @dataclass
@@ -177,6 +180,7 @@ class SpyService(BaseService):
         target_kingdom: Kingdom = Kingdom.GREEN,
         risk_tolerance: int | None = None,
         accuracy: int = MAX_ACCURACY,
+        *,
         horses_type: int = -1,
         feathers: bool = False,
         slowdown: int = 0,
@@ -194,8 +198,8 @@ class SpyService(BaseService):
         ``sne`` in the wait is looked at without being taken from other
         listeners; only a spy log whose header names this mission's target
         (kingdom, owner, area type and name, from the csm reply's movement)
-        and whose report is for the target's position counts, the rest are
-        skipped. ``sne`` carries no mission id, so two missions to the same
+        and whose report, a caught mission's too, is for the target's position
+        counts; the rest are skipped. ``sne`` carries no mission id, so two missions to the same
         target at once cannot be told apart.
 
         Blocks the calling thread for up to ~10s while polling for spy
@@ -332,8 +336,6 @@ class SpyService(BaseService):
                 header = _parse_spy_header(message)
                 if header is None or not _names_target(header, target, target_kingdom):
                     continue
-                if header.result in _LOST_SPY_RESULTS:
-                    return SpyResult(success=False, reason="spy_caught", message_id=message.message_id)
                 try:
                     bsd_resp = self.request(BattleSpyDataRequest(MID=message.message_id), BattleSpyDataResponse)
                 except EmpireError as e:
@@ -345,6 +347,9 @@ class SpyService(BaseService):
                         # Another area with the same owner, e.g. one of many robber barons.
                         missed = "report_target_mismatch"
                         continue
+
+                if header.result in _LOST_SPY_RESULTS:
+                    return SpyResult(success=False, reason="spy_caught", message_id=message.message_id)
 
                 if not bsd_resp.spy_data:
                     # A report with no army block was never read: the castle is not

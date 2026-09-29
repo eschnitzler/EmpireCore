@@ -42,6 +42,11 @@ def bsd_reply(message_id: int = 9001, x: int = 700, y: int = 710) -> Packet:
     )
 
 
+def caught_bsd(message_id: int = 9001, x: int = 700, y: int = 710) -> Packet:
+    """A caught mission's report: no army, but the spied area's position."""
+    return xt_packet("bsd", {"MID": message_id, "AI": {"N": "", "X": x, "Y": y, "K": 0}})
+
+
 def spy_client(
     ssi: Any = None,
     csm: Any = None,
@@ -181,16 +186,36 @@ class TestSpyNotificationDecoding:
     """
 
     def test_a_caught_mission_is_reported_as_caught(self, no_sleep):
-        client = spy_client(sne=sne_packet("1+2+2#0+-211+"))
+        client = spy_client(sne=sne_packet("1+2+2#0+-211+"), bsd=caught_bsd())
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
         assert result.success is False
         assert result.reason == "spy_caught"
-        assert "bsd" not in conn(client).requested
+        # A caught report's header is shared by sibling camps; its position decides
+        assert conn(client).request_payloads[-1] == ("bsd", {"MID": 9001})
+
+    def test_a_sibling_camps_caught_report_is_not_this_mission(self, no_sleep):
+        # Another mission to a robber baron of the same owner was caught first
+        client = spy_client(
+            sne=[sne_packet("1+2+2#0+-211+", message_id=8000), sne_packet(message_id=9001)],
+            bsd=[caught_bsd(8000, x=111, y=222), bsd_reply(9001)],
+        )
+
+        result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert result.success is True
+        assert result.message_id == 9001
+
+    def test_only_a_sibling_camps_caught_report_is_a_mismatch(self, no_sleep):
+        client = spy_client(sne=sne_packet("1+2+2#0+-211+", message_id=8000), bsd=caught_bsd(8000, x=111, y=222))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, max_wait=0.05)
+
+        assert result.reason == "report_target_mismatch"
 
     def test_a_successful_defense_for_the_target_is_also_a_loss(self, no_sleep):
-        client = spy_client(sne=sne_packet("1+1+2#0+-211+"))
+        client = spy_client(sne=sne_packet("1+1+2#0+-211+"), bsd=caught_bsd())
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
@@ -272,6 +297,21 @@ class TestOnlyThisMissionsReportCounts:
 
         assert result.success is True
         assert result.message_id == 9001
+
+    def test_an_empty_header_name_is_unknown_not_a_mismatch(self, no_sleep):
+        reply = csm_reply()
+        reply["A"]["M"]["TA"] = [1, 700, 710, 2001, 1001, 2, 2, 2, 1, 0, "Spy Castle", 0, 0, -1, -1, -1, 0, 0, [], 0]
+        reply["A"]["M"]["TID"] = 1001
+        client = spy_client(csm=xt_packet("csm", reply), sne=sne_packet("1+0+1#0+1001+", message_type=3))
+
+        assert client.spy.execute_instant_spy(12345, 700, 710).success is True
+
+    def test_the_payment_options_are_keyword_only(self, no_sleep):
+        client = spy_client()
+        call: Any = client.spy.execute_instant_spy
+
+        with pytest.raises(TypeError):
+            call(12345, 700, 710, Kingdom.GREEN, None, 100, 1010)
 
     def test_the_deadline_ends_the_wait(self, no_sleep):
         client = spy_client(sne=[])
