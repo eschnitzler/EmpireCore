@@ -360,6 +360,7 @@ def readable_list(
     value: Any,
     *,
     accept: Callable[[Any], Any] | None = None,
+    keep: Callable[[Any], Any] | None = None,
     parse: Callable[[Any], _M] | None = None,
     warn: logging.Logger | None = None,
     what: str = "entries",
@@ -367,24 +368,32 @@ def readable_list(
     """
     Each entry of an array read as ``model``, so one unreadable entry costs only itself.
 
-    An entry ``accept`` rejects, or one that fails validation, is skipped; with
-    ``warn`` the skipped entries are counted in one warning. Anything but an
-    array reads as no entries.
+    A null entry, or one ``keep`` rejects, is skipped quietly, as the client
+    skips it. One ``accept`` rejects or that fails validation is unreadable:
+    it is skipped too, and with ``warn`` those are counted in one warning that
+    shows the first. Anything but an array reads as no entries.
     """
     if not isinstance(value, list):
         return []
     read = parse or model.model_validate
     rows: list[_M] = []
+    failed: list[Any] = []
     for entry in value:
         if isinstance(entry, model):
             rows.append(entry)
-        elif entry is not None and (accept is None or accept(entry)):
+        elif entry is None:
+            continue
+        elif accept is not None and not accept(entry):
+            failed.append(entry)
+        elif keep is not None and not keep(entry):
+            continue
+        else:
             try:
                 rows.append(read(entry))
             except ValidationError:
-                continue
-    if warn is not None and (skipped := len(value) - len(rows)):
-        warn.warning(f"Skipped {skipped}/{len(value)} unreadable {what}")
+                failed.append(entry)
+    if warn is not None and failed:
+        warn.warning(f"Skipped {len(failed)}/{len(value)} unreadable {what}, first: {failed[0]!r:.200}")
     return rows
 
 

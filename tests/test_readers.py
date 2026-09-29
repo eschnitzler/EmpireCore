@@ -39,10 +39,22 @@ class TestReadableList:
         rows = readable_list(Row, [[4], {"ID": 5}], accept=lambda e: isinstance(e, list), parse=lambda e: Row(ID=e[0]))
         assert [row.row_id for row in rows] == [4]
 
-    def test_skipped_entries_are_counted_once(self, caplog):
+    def test_unreadable_entries_are_counted_once_with_the_first_shown(self, caplog):
         with caplog.at_level(logging.WARNING, logger="tests.readers"):
-            readable_list(Row, [{"ID": 1}, {"ID": "x"}, None], warn=logger, what="test rows")
-        assert caplog.text.count("Skipped 2/3 unreadable test rows") == 1
+            readable_list(Row, [{"ID": 1}, {"ID": "x"}, {"ID": "y"}, None], warn=logger, what="test rows")
+        assert caplog.text.count("Skipped 2/4 unreadable test rows, first: {'ID': 'x'}") == 1
+
+    def test_null_and_unkept_entries_are_skipped_quietly(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="tests.readers"):
+            rows = readable_list(Row, [{"ID": 1}, None, {"ID": 0}], keep=lambda e: e["ID"], warn=logger)
+        assert [row.row_id for row in rows] == [1]
+        assert caplog.text == ""
+
+    def test_unaccepted_entries_count_as_unreadable(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="tests.readers"):
+            rows = readable_list(Row, [{"ID": 1}, 5], accept=lambda e: isinstance(e, dict), warn=logger)
+        assert [row.row_id for row in rows] == [1]
+        assert "Skipped 1/2 unreadable entries, first: 5" in caplog.text
 
     def test_nothing_is_logged_without_skips(self, caplog):
         with caplog.at_level(logging.WARNING, logger="tests.readers"):

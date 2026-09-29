@@ -20,14 +20,13 @@ Apart from gui these act on the castle the session has joined (``jca``);
 
 from __future__ import annotations
 
-import math
 from typing import Annotated, Any, ClassVar
 
 from pydantic import BeforeValidator, Field, model_validator
 
 from empire_core.utils.enums import Kingdom, ProductionListId, SlotType
 
-from ..js import ParseInt, js_int, js_loose_equals, js_truthy
+from ..js import ParseInt, js_int, js_loose_equals, js_number, js_truthy
 from .base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, UnitCount, object_or_none
 
 BUY_UNIT_PACKAGE_SK = 73
@@ -304,14 +303,6 @@ class HospitalSlot(BasePayload):
         return self.wod_id == -2
 
 
-def _number(value: Any) -> float:
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return 0.0
-    return 0.0 if math.isnan(number) or math.isinf(number) else number
-
-
 def _queue_slots(value: Any) -> Any:
     if not isinstance(value, list):
         return []
@@ -335,7 +326,7 @@ def _hospital_slots(value: Any) -> Any:
                 "wod_id": js_int(values[0]),
                 "amount": js_int(values[1]),
                 "remaining_seconds": js_int(values[2]),
-                "recruitment_speed": _number(values[3]) / 100,
+                "recruitment_speed": js_number(values[3]) / 100,
                 "heal_time_reduction": js_int(values[4]),
                 "recruitment_id": js_int(values[5]),
                 "seconds_till_locked": js_int(values[6]),
@@ -921,6 +912,7 @@ class SendSupportResponse(BaseResponse):
 
 
 __all__ = [
+    "wod_amount_pairs",
     "BUY_UNIT_PACKAGE_SK",
     "UnitInventory",
     # Production lists

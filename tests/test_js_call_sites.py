@@ -48,6 +48,13 @@ class TestParseIntOneFlags:
         # WorldMapOwnerInfoVO.fillFromParamObject (bundle line 10794): 1 == parseInt(e.R)
         assert MovementOwner.model_validate({"OID": 5, "R": value}).is_ruin is expected
 
+    @pytest.mark.parametrize(
+        ("value", "expected"), [("1.9", True), ("1abc", True), ("0x1", True), (True, False), (0, False)]
+    )
+    def test_owner_refer_a_friend_flag(self, value, expected):
+        # WorldMapOwnerInfoVO.fillFromParamObject (bundle line 10794): !!parseInt(e.IRF)
+        assert MovementOwner.model_validate({"OID": 5, "IRF": value}).via_refer_a_friend is expected
+
     @pytest.mark.parametrize(("value", "expected"), [("1abc", True), (True, False), (1, True)])
     def test_alliance_searching_flag(self, value, expected):
         # CastleUserData.parse_GAL (bundle line 9869): 1 == parseInt(e.SA)

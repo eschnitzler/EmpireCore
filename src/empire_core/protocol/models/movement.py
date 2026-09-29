@@ -10,7 +10,7 @@ from pydantic import Field, field_validator, model_validator
 
 from empire_core.utils.enums import MapItemType, SpyType
 
-from ..js import ClientInt, js_loose_equals, js_parse_int, js_truthy
+from ..js import ClientInt, js_loose_equals, js_parse_int, js_parse_int_or_zero, js_truthy
 from .base import BasePayload, BaseRequest, BaseResponse, Position, enum_or_none, object_or_none, read_or_none
 from .commanders import Commander
 
@@ -339,11 +339,8 @@ class MovementOwner(BasePayload):
 
     @field_validator("via_refer_a_friend", mode="before")
     @classmethod
-    def _int_flag(cls, value: Any) -> bool:
-        try:
-            return bool(int(value))
-        except (TypeError, ValueError):
-            return False
+    def _parsed_truthy_flag(cls, value: Any) -> bool:
+        return js_parse_int_or_zero(value) != 0
 
 
 class GetMovementsResponse(BaseResponse):

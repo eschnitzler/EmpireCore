@@ -68,7 +68,10 @@ def _number(value: Any) -> float:
     if isinstance(value, (bool, float)):
         return float(value)
     if isinstance(value, int):
-        return float(value) if abs(value) < 2**1024 else math.copysign(math.inf, value)
+        try:
+            return float(value)
+        except OverflowError:
+            return math.inf if value > 0 else -math.inf
     if isinstance(value, (list, tuple)):
         return _number(_text(value))
     if not isinstance(value, str):
@@ -100,6 +103,12 @@ def js_int(value: Any) -> int:
         return value
     number = _number(value)
     return 0 if math.isnan(number) or math.isinf(number) else math.trunc(number)
+
+
+def js_number(value: Any) -> float:
+    """``Number(value)``, NaN and infinities as 0."""
+    number = _number(value)
+    return 0.0 if math.isnan(number) or math.isinf(number) else number
 
 
 def js_parse_int(value: Any) -> int | None:

@@ -259,7 +259,8 @@ class CreateAttackResponse(BaseResponse):
         return readable_list(
             MovementOwner,
             value,
-            accept=lambda record: isinstance(record, dict) and record.get("OID"),
+            accept=lambda record: isinstance(record, dict),
+            keep=lambda record: record.get("OID"),
             warn=logger,
             what="owner records sent with cra",
         )
