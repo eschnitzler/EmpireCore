@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 
+from empire_core.protocol.js import js_int
 from empire_core.protocol.models import (
     ChangeKeepDefenseRequest,
     ChangeMoatDefenseRequest,
@@ -17,7 +18,6 @@ from empire_core.protocol.models import (
     WallSectionSetup,
     parse_response,
 )
-from empire_core.protocol.models.base import client_int
 
 # Live capture, castle name scrubbed and PR/PM trimmed to three entries
 LIVE_DFC: dict[str, Any] = {
@@ -155,7 +155,7 @@ class TestClientInventoryAndInt:
         [(30.0, 30), (30.7, 30), (-2.5, -2), ("12", 12), ("", 0), (None, 0), ("abc", 0), ("#00FF10", 65296), (True, 1)],
     )
     def test_client_int(self, value: Any, expected: int):
-        assert client_int(value) == expected
+        assert js_int(value) == expected
 
 
 class TestDefenseCastellanLeniency:

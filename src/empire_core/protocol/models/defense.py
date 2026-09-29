@@ -18,8 +18,9 @@ from pydantic import Field, ValidationError, ValidatorFunctionWrapHandler, field
 
 from empire_core.utils.enums import Kingdom
 
+from ..js import ClientInt, js_int
 from .army import SpyPositions, UnitInventory
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, client_int
+from .base import BasePayload, BaseRequest, BaseResponse
 from .commanders import Castellan, CommanderRoster
 from .movement import MovementArea
 
@@ -182,7 +183,7 @@ class GetDefenseResponse(BaseResponse):
     def _castellan_id_from_l(cls, data: Any) -> Any:
         # Client: parse_DFC does e.L && (this._lordID = int(e.L.ID)), and {} is truthy
         if isinstance(data, dict) and isinstance(data.get("L"), dict):
-            data = {**data, "listed_castellan_id": client_int(data["L"].get("ID"))}
+            data = {**data, "listed_castellan_id": js_int(data["L"].get("ID"))}
         return data
 
     @field_validator("castellan", mode="wrap")

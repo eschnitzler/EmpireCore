@@ -17,7 +17,8 @@ from pydantic import ConfigDict, Field, ValidationError, ValidationInfo, field_v
 
 from empire_core.utils.enums import Kingdom, MapItemType
 
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, Position, client_int
+from ..js import ClientInt, js_int
+from .base import BasePayload, BaseRequest, BaseResponse, Position
 from .movement import OwnerCrest, OwnerFaction
 
 logger = logging.getLogger(__name__)
@@ -234,7 +235,7 @@ class MapAreaItem(BasePayload):
             return 0
         value = self.raw_data[index]
         if self.item_type in _FLOORED_LEVEL_TYPES:
-            return max(client_int(value), minimum)
+            return max(js_int(value), minimum)
         if self.item_type in _RAW_LEVEL_TYPES and isinstance(value, int) and not isinstance(value, bool):
             return value
         return 0

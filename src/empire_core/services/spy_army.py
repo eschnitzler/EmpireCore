@@ -17,6 +17,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from empire_core.protocol.models.army import wod_amount_pairs
+
 # Order matters: it is the wire order the client relies on.
 SECTION_NAMES = ("left", "middle", "right", "keep", "stronghold", "support", "reserve")
 
@@ -33,20 +35,13 @@ class UnitStack:
 
 
 def _stacks(entry: Any) -> list[UnitStack]:
-    """Parse one position, skipping anything that is not a [wod_id, amount] pair.
-
-    A drifted or truncated stack costs its own entry, never the whole report.
     """
-    if not isinstance(entry, list):
-        return []
-    stacks = []
-    for pair in entry:
-        if not isinstance(pair, (list, tuple)) or len(pair) < 2:
-            continue
-        wod_id, count = pair[0], pair[1]
-        if isinstance(wod_id, int) and isinstance(count, int):
-            stacks.append(UnitStack(wod_id, count))
-    return stacks
+    One position's stacks, read as the client reads them.
+
+    Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line 30699) fills a
+    ``UnitInventoryList``, whose ``addUnit`` skips an amount of 0 or less (bundle line 21826).
+    """
+    return [UnitStack(wod_id, count) for wod_id, count in wod_amount_pairs(entry) if count > 0]
 
 
 @dataclass

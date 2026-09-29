@@ -25,7 +25,8 @@ from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from empire_core.utils.enums import EquipmentSlot, EquipmentType, Kingdom, Rareness, WearerType
 
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, client_int, enum_or_none
+from ..js import ClientInt, js_int
+from .base import BasePayload, BaseRequest, BaseResponse, enum_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -274,7 +275,7 @@ class Equipment(BasePayload):
         if not isinstance(data, (list, tuple)):
             return data
         row = dict(zip(_EQUIPMENT_ROW, data, strict=False))
-        if len(data) >= 12 and client_int(data[11]) == EquipmentType.RELIC:
+        if len(data) >= 12 and js_int(data[11]) == EquipmentType.RELIC:
             row["relic_bonuses"] = row.pop("bonuses", [])
             if len(data) >= 13:
                 row["relic_info"] = data[12]

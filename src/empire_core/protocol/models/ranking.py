@@ -15,7 +15,8 @@ from typing import Any, ClassVar
 
 from pydantic import Field, field_validator, model_validator
 
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, GGECommand
+from ..js import ClientInt
+from .base import BasePayload, BaseRequest, BaseResponse, GGECommand
 
 logger = logging.getLogger(__name__)
 

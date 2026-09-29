@@ -9,11 +9,11 @@ a guess.
 
 from __future__ import annotations
 
-import math
-import re
 from contextvars import ContextVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+from empire_core.protocol.js import js_falsy, js_parse_int
 
 # BasicUnitVO.FIGHTTYPE_OFF / FIGHTTYPE_DEF (bundle line 19345)
 FIGHT_TYPE_OFFENSIVE = 0
@@ -56,25 +56,8 @@ def parse_ids(value: str | None) -> tuple[int, ...]:
     return tuple(ids)
 
 
-def _js_parse_int(value: object) -> int | None:
-    """JavaScript's ``parseInt``: the leading integer of the value's text, None where it gives NaN."""
-    if isinstance(value, int):
-        return int(value)
-    if isinstance(value, float):
-        return None if math.isnan(value) or math.isinf(value) else math.trunc(value)
-    match = re.match(r"\s*([+-]?\d+)", str(value))
-    return int(match.group(1)) if match else None
-
-
 READING_CACHE: ContextVar[bool] = ContextVar("reading_game_data_cache", default=False)
 """True while GameData reads its own cache, whose ints are already parsed values."""
-
-
-def _js_falsy(value: object) -> bool:
-    """JavaScript falsiness: undefined, null, false, 0, NaN and the empty string."""
-    if value is None or value is False or value == "":
-        return True
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and (value == 0 or value != value)
 
 
 def _parse_int_or_default(value: object, default: int) -> int:
@@ -89,9 +72,9 @@ def _parse_int_or_default(value: object, default: int) -> int:
     """
     if READING_CACHE.get() and isinstance(value, int) and not isinstance(value, bool):
         return value
-    if _js_falsy(value):
+    if js_falsy(value):
         return default
-    parsed = _js_parse_int(value)
+    parsed = js_parse_int(value)
     return default if parsed is None else parsed
 
 
@@ -125,7 +108,7 @@ class _UnitRow(_Row):
     def _int_attribute(cls, value: object) -> object:
         # CastleWodData.parseVOFromWODXml keys the row by parseInt(wodID); a row
         # with no such id fails here, so GameData.parse skips just that row.
-        parsed = None if _js_falsy(value) else _js_parse_int(value)
+        parsed = None if js_falsy(value) else js_parse_int(value)
         if parsed is None:
             raise ValueError(f"wodID {value!r} has no leading integer")
         return parsed
@@ -414,7 +397,7 @@ class ToolStats(_UnitRow):
         pairs = []
         for entry in entries:
             parts = entry.split("+")
-            pairs.append((_js_parse_int(parts[0]), _js_parse_int(parts[1]) if len(parts) > 1 else None))
+            pairs.append((js_parse_int(parts[0]), js_parse_int(parts[1]) if len(parts) > 1 else None))
         return tuple(pairs)
 
     @property
@@ -716,11 +699,8 @@ class EquipmentEffectDef(_Row):
     @field_validator("bonus", mode="before")
     @classmethod
     def _int_attribute(cls, value: object) -> object:
-        # CastleXMLUtils.getIntAttribute then int()
-        try:
-            return int(float(value))  # type: ignore[arg-type]
-        except (TypeError, ValueError):
-            return 0
+        # int(CastleXMLUtils.getIntAttribute("bonus", e)), int(NaN) being 0
+        return _parse_int_or_default(value, 0)
 
     @field_validator("ignore_cap", mode="before")
     @classmethod

@@ -16,8 +16,6 @@ Special character encoding for text fields (chat messages, etc.):
 from __future__ import annotations
 
 import json
-import math
-import re
 from enum import IntEnum
 from typing import Annotated, Any, ClassVar, TypeVar
 
@@ -349,27 +347,6 @@ class ResourceAmount(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
-def client_int(value: Any) -> int:
-    """The client's ``int()``: a ``#rrggbb`` string as hex, else ``Math.trunc(Number(value))``, NaN as 0.
-
-    Client: ``int`` (dll line 16098)
-    """
-    if isinstance(value, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", value):
-        return int(value[1:], 16)
-    if value is None:
-        return 0
-    if isinstance(value, str) and not value.strip():
-        return 0
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return 0
-    return 0 if math.isnan(number) or math.isinf(number) else math.trunc(number)
-
-
-ClientInt = Annotated[int, BeforeValidator(client_int)]
-
-
 class CurrencyTotals(BasePayload):
     """
     Gold and rubies after an action, the ``gcu`` block.
@@ -400,25 +377,6 @@ def _currency_block(value: Any) -> Any:
 
 CurrencyBlock = Annotated[CurrencyTotals | None, BeforeValidator(_currency_block)]
 """A ``gcu`` block, or None when a reply sends none or something that is not an object."""
-
-
-def parse_int(value: Any) -> int:
-    """
-    JavaScript's ``parseInt``: the leading integer of the value's text, 0 where it gives NaN.
-
-    ``"12abc"`` reads as 12 and ``"1e3"`` as 1, unlike :func:`client_int`.
-    """
-    if isinstance(value, bool):
-        return 0
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return 0 if math.isnan(value) or math.isinf(value) else math.trunc(value)
-    match = re.match(r"\s*([+-]?\d+)", str(value)) if value is not None else None
-    return int(match.group(1)) if match else 0
-
-
-ParseInt = Annotated[int, BeforeValidator(parse_int)]
 
 
 _E = TypeVar("_E", bound=IntEnum)
@@ -548,9 +506,7 @@ __all__ = [
     "encode_chat_text",
     "decode_chat_text",
     "parse_chat_json_message",
-    "parse_int",
     "smartfox_json_text",
-    "ParseInt",
     "enum_or_none",
     # Response registry
     "get_response_model",

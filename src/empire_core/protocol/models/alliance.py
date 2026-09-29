@@ -17,7 +17,8 @@ from pydantic import ConfigDict, Field, ValidationError, field_validator, model_
 
 from empire_core.utils.enums import DiplomacyStatus, HelpType, OnlineState
 
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, ParseInt, enum_or_none, parse_chat_json_message
+from ..js import ClientInt, ParseInt, js_loose_equals, js_truthy
+from .base import BasePayload, BaseRequest, BaseResponse, enum_or_none, parse_chat_json_message
 from .map import MapAreaItem, MapObject, parse_area_rows
 from .profile import PlayerProfileBase
 
@@ -240,7 +241,7 @@ class AllianceInfo(BasePayload):
     @field_validator("is_searching_members", "is_accepting_members", mode="before")
     @classmethod
     def _truthy_flag(cls, value: Any) -> bool:
-        return bool(value)
+        return js_truthy(value)
 
     @field_validator(
         "auto_war", "can_be_invited_to_hard_pact", "can_be_invited_to_soft_pact", "is_able_to_forge",
@@ -248,7 +249,7 @@ class AllianceInfo(BasePayload):
     )  # fmt: skip
     @classmethod
     def _one_flag(cls, value: Any) -> bool:
-        return value == 1
+        return js_loose_equals(value, 1)
 
     @model_validator(mode="before")
     @classmethod

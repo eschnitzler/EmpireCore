@@ -12,8 +12,9 @@ from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
+from ..js import ClientInt, js_int, js_loose_equals
 from .army import SpyPositions
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt
+from .base import BasePayload, BaseRequest, BaseResponse
 from .commanders import Castellan
 
 # =============================================================================
@@ -66,13 +67,15 @@ class MessageInfo(BasePayload):
     def _no_text(cls, value: Any) -> Any:
         return "" if value is None else value
 
-    @field_validator("is_read", "is_archived", "is_forwarded", mode="before")
+    @field_validator("is_read", "is_archived", mode="before")
     @classmethod
     def _one_flag(cls, value: Any) -> bool:
-        try:
-            return int(value) == 1
-        except (TypeError, ValueError):
-            return False
+        return js_loose_equals(value, 1)
+
+    @field_validator("is_forwarded", mode="before")
+    @classmethod
+    def _int_one_flag(cls, value: Any) -> bool:
+        return js_int(value) == 1
 
 
 class SystemNotificationEvent(BaseResponse):

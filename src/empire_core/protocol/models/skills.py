@@ -13,7 +13,8 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt
+from ..js import ClientInt, js_loose_equals
+from .base import BasePayload, BaseRequest, BaseResponse
 from .commanders import CommanderRoster
 
 if TYPE_CHECKING:
@@ -110,10 +111,7 @@ class General(BasePayload):
     @field_validator("is_new", "has_level_up", mode="before")
     @classmethod
     def _one_flag(cls, value: Any) -> bool:
-        try:
-            return float(value) == 1
-        except (TypeError, ValueError):
-            return False
+        return js_loose_equals(value, 1)
 
     @field_validator("selected_abilities", mode="before")
     @classmethod

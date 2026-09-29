@@ -2,6 +2,7 @@ from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
+from empire_core.protocol.js import js_parse_int
 from empire_core.protocol.models.castle import (
     DetailedCastleInfo,
     ResourceProduction,
@@ -107,10 +108,7 @@ class Alliance(BaseModel):
     @field_validator("is_searching", mode="before")
     @classmethod
     def _searching_flag(cls, value: Any) -> bool:
-        try:
-            return int(value) == 1
-        except (TypeError, ValueError):
-            return False
+        return js_parse_int(value) == 1
 
 
 class Castle(BaseModel):

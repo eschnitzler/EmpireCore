@@ -27,36 +27,12 @@ from pydantic import BeforeValidator, Field, model_validator
 
 from empire_core.utils.enums import Kingdom, ProductionListId, SlotType
 
-from .base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, ParseInt, UnitCount, client_int
+from ..js import ParseInt, js_int, js_loose_equals, js_truthy
+from .base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, UnitCount
 
 BUY_UNIT_PACKAGE_SK = 73
 """``SK`` of every ``bup``: each client caller leaves ``C2SBuyUnitPackageVO``'s
 default; nothing in the client reads it or says what it means."""
-
-
-def _js_truthy(value: Any) -> bool:
-    """The client's ``!!value``."""
-    if isinstance(value, float) and math.isnan(value):
-        return False
-    if isinstance(value, (list, dict)):
-        return True
-    return bool(value)
-
-
-def _loose_zero(value: Any) -> bool:
-    """The client's ``0 == value``."""
-    if value is None:
-        return False
-    if isinstance(value, (bool, int, float)):
-        return value == 0
-    if isinstance(value, str):
-        if not value.strip():
-            return True
-        try:
-            return float(value) == 0
-        except ValueError:
-            return False
-    return False
 
 
 def _block(value: Any) -> Any:
@@ -89,23 +65,33 @@ class GetUnitsRequest(BaseRequest):
     command = "gui"
 
 
+def wod_amount_pairs(value: object) -> list[tuple[int, int]]:
+    """
+    ``[[wod_id, amount], ...]`` as ``(wod_id, amount)`` pairs, before any inventory adds them up.
+
+    Client: ``AUnitInventory.fillFromWodAmountArray`` (bundle line 42572), which
+    skips entries that are not arrays and reads ``int(i[0])``, ``int(i[1])``.
+    """
+    if not isinstance(value, list):
+        return []
+    return [
+        (js_int(entry[0] if entry else None), js_int(entry[1] if len(entry) > 1 else None))
+        for entry in value
+        if isinstance(entry, list)
+    ]
+
+
 def _wod_amounts(value: object) -> object:
     """
     ``[[wod_id, amount], ...]`` as ``{wod_id: amount}``.
 
-    Client: ``AUnitInventory.fillFromWodAmountArray`` (bundle line 42572), which
-    reads both through ``int()``, into a ``UnitInventoryDictionary``: ``addUnit``
+    Client: :func:`wod_amount_pairs` into a ``UnitInventoryDictionary``: ``addUnit``
     clamps at 0, ``changeUnitAmount`` adds (bundle lines 5533-5535) and
     ``setUnit`` drops a total of 0 or less (bundle line 5538).
     """
-    if not isinstance(value, list):
-        return {}
     totals: dict[int, int] = {}
-    for entry in value:
-        if isinstance(entry, list):
-            wod_id = client_int(entry[0] if entry else None)
-            amount = client_int(entry[1] if len(entry) > 1 else None)
-            totals[wod_id] = totals.get(wod_id, 0) + max(0, amount)
+    for wod_id, amount in wod_amount_pairs(value):
+        totals[wod_id] = totals.get(wod_id, 0) + max(0, amount)
     return {wod_id: amount for wod_id, amount in totals.items() if amount > 0}
 
 
@@ -128,16 +114,7 @@ def _spy_positions(value: object) -> object:
         return []
     if not isinstance(value, list):
         return value
-    positions = []
-    for position in value:
-        pairs = []
-        for pair in position if isinstance(position, list) else []:
-            if isinstance(pair, list):
-                amount = client_int(pair[1] if len(pair) > 1 else None)
-                if amount > 0:
-                    pairs.append([client_int(pair[0] if pair else None), amount])
-        positions.append(pairs)
-    return positions
+    return [[[wod_id, amount] for wod_id, amount in wod_amount_pairs(position) if amount > 0] for position in value]
 
 
 SpyPositions = Annotated[list[list[list[int]]], BeforeValidator(_spy_positions)]
@@ -257,22 +234,22 @@ class ProductionSlot(BasePayload):
 
         def package(block: Any) -> None:
             get = block.get if isinstance(block, dict) else (lambda _key: None)
-            slot["wod_id"] = client_int(get("WID"))
-            slot["amount"] = client_int(get("TUA"))
-            slot["boost_count"] = client_int(get("CBS"))
-            slot["received_alliance_help"] = _js_truthy(get("RAH"))
-            slot["recruitment_id"] = client_int(get("PID"))
+            slot["wod_id"] = js_int(get("WID"))
+            slot["amount"] = js_int(get("TUA"))
+            slot["boost_count"] = js_int(get("CBS"))
+            slot["received_alliance_help"] = js_truthy(get("RAH"))
+            slot["recruitment_id"] = js_int(get("PID"))
 
-        if _js_truthy(data.get("ICT")):
+        if js_truthy(data.get("ICT")):
             package(data)
-            slot["remaining_seconds"] = client_int(data.get("RCT"))
-            slot["production_seconds"] = client_int(data.get("ICT"))
-            slot["source_recruitment_id"] = client_int(data.get("SPID"))
+            slot["remaining_seconds"] = js_int(data.get("RCT"))
+            slot["production_seconds"] = js_int(data.get("ICT"))
+            slot["source_recruitment_id"] = js_int(data.get("SPID"))
             slot["is_free"] = False
-        if _js_truthy(data.get("P")):
+        if js_truthy(data.get("P")):
             package(data["P"])
         info = data.get("SI")
-        if _js_truthy(info):
+        if js_truthy(info):
             get = info.get if isinstance(info, dict) else (lambda _key: None)
             rut = get("RUT")
             if isinstance(rut, list):
@@ -281,8 +258,8 @@ class ProductionSlot(BasePayload):
             elif isinstance(rut, dict):
                 rut = None
             slot["seconds_till_locked"] = rut if slot["amount"] <= 0 else -1
-            slot["is_vip"] = _js_truthy(get("VIP"))
-            slot["is_locked"] = _loose_zero(slot["seconds_till_locked"])
+            slot["is_vip"] = js_truthy(get("VIP"))
+            slot["is_locked"] = js_loose_equals(slot["seconds_till_locked"], 0)
             slot["is_free"] = not slot["is_locked"] and slot["amount"] <= 0
         return slot
 
@@ -360,13 +337,13 @@ def _hospital_slots(value: Any) -> Any:
         slots.append(
             {
                 "position": index,
-                "wod_id": client_int(values[0]),
-                "amount": client_int(values[1]),
-                "remaining_seconds": client_int(values[2]),
+                "wod_id": js_int(values[0]),
+                "amount": js_int(values[1]),
+                "remaining_seconds": js_int(values[2]),
                 "recruitment_speed": _number(values[3]) / 100,
-                "heal_time_reduction": client_int(values[4]),
-                "recruitment_id": client_int(values[5]),
-                "seconds_till_locked": client_int(values[6]),
+                "heal_time_reduction": js_int(values[4]),
+                "recruitment_id": js_int(values[5]),
+                "seconds_till_locked": js_int(values[6]),
             }
         )
     return slots
@@ -414,10 +391,10 @@ class ProductionList(BasePayload):
             return data
         data = dict(data)
         if "LID" in data:
-            data["LID"] = client_int(data["LID"])
+            data["LID"] = js_int(data["LID"])
         for key in ("RM", "TCT"):
             if key in data:
-                data[key] = client_int(data[key])
+                data[key] = js_int(data[key])
         return data
 
 
@@ -482,7 +459,7 @@ class AddedUnit(BasePayload):
     def _client_ints(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
-        return {**data, "W": client_int(data.get("W")), "AMT": client_int(data.get("AMT"))}
+        return {**data, "W": js_int(data.get("W")), "AMT": js_int(data.get("AMT"))}
 
 
 class ProduceUnitsResponse(BaseResponse):
