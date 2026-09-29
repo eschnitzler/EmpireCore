@@ -33,7 +33,8 @@ from pydantic.functional_validators import ModelWrapValidatorHandler
 from empire_core.army.models.production import SpyPositions, UnitInventory
 from empire_core.commanders.models.roster import Commander, CommanderEffects, CommanderRoster
 from empire_core.enums import AttackType, AutoSkipCooldownType, Kingdom, LootPriority, SpyType
-from empire_core.map.models.items import MapAreaItem, MapObject
+from empire_core.map.models.areas import MapObject
+from empire_core.map.models.items import MapAreaItem
 from empire_core.movements.models import MovementOwner, MovementWrapper
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, read_or_none, readable_list
 from empire_core.protocol.js import js_truthy

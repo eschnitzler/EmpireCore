@@ -28,7 +28,8 @@ from empire_core.castle.models.castles import (
 )
 from empire_core.defense.models import GetSupportDefenseResponse
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.map.models.items import GetMapAreaRequest, GetMapAreaResponse, MapAreaItem
+from empire_core.map.models.areas import GetMapAreaRequest, GetMapAreaResponse
+from empire_core.map.models.items import MapAreaItem
 from empire_core.player.models.info import GetPlayerInfoResponse, SearchPlayerResponse
 from empire_core.protocol.base import BaseResponse, get_response_model
 from empire_core.protocol.models import parse_response

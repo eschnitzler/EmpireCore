@@ -16,7 +16,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from empire_core.castle.models.castles import CastleInfo, GetCastlesResponse
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.map.models.items import GetMapAreaResponse, MapObject
+from empire_core.map.models.areas import GetMapAreaResponse, MapObject
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none
 
 from .profile import PlayerProfileBase

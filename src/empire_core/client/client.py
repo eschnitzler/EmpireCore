@@ -30,23 +30,12 @@ from empire_core.client.map_scanner import MapScanner, ScanResult
 from empire_core.commanders.service import CommandersService
 from empire_core.commanders.service_equipment import EquipmentService
 from empire_core.commanders.service_skills import SkillsService
-from empire_core.config import (
-    LOGIN_DEFAULTS,
-    EmpireConfig,
-    ServerError,
-    default_config,
-)
+from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, ServerError, default_config
 from empire_core.defense.models import GetSupportDefenseRequest, GetSupportDefenseResponse
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.exceptions import (
-    CommandError,
-    EmpireTimeoutError,
-    LoginCooldownError,
-    LoginError,
-    PacketError,
-)
+from empire_core.exceptions import CommandError, EmpireTimeoutError, LoginCooldownError, LoginError, PacketError
 from empire_core.gamedata import GameData
-from empire_core.map.models.items import GetMapAreaRequest, GetMapAreaResponse
+from empire_core.map.models.areas import GetMapAreaRequest, GetMapAreaResponse
 from empire_core.network.connection import Connection
 from empire_core.player.models.info import (
     GetPlayerInfoRequest,

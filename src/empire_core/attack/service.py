@@ -68,7 +68,8 @@ from empire_core.commanders.models.roster import Commander
 from empire_core.enums import AttackType, CombatEffectType, Flank, Kingdom, LootPriority, MapItemType
 from empire_core.exceptions import AttackInProgressError, CommandError, EmpireError, GameDataNotLoadedError
 from empire_core.gamedata import GameData, ToolStats
-from empire_core.map.models.items import GetMapAreaResponse, MapAreaItem, MapObject
+from empire_core.map.models.areas import GetMapAreaResponse, MapObject
+from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.base import BaseRequest
 from empire_core.protocol.errors import GGEError
 from empire_core.services.base import BaseService, register_service

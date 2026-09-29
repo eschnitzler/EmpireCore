@@ -35,7 +35,8 @@ from empire_core.exceptions import (
     PacketError,
 )
 from empire_core.gamedata import GameData, ToolStats, UnitStats
-from empire_core.map.models.items import MapAreaItem, MapObject
+from empire_core.map.models.areas import MapObject
+from empire_core.map.models.items import MapAreaItem
 from empire_core.messages.models import SpyCastleInfo
 from empire_core.pool import AccountPool, PoolExhaustedError
 from empire_core.protocol.errors import GGEError
