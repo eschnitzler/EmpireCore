@@ -200,8 +200,8 @@ class TestMemberData:
             1,
         )
         assert (ids.Event.NOMAD_INVASION.value, ids.Event.NOMAD_INVASION.event_type) == (5, "NomadInvasion")
-        assert (ids.Research.RECRUITMENT_SPEED_L1.group_id, ids.Research.RECRUITMENT_SPEED_L1.level) == (41, 1)
-        assert ids.ConstructionItem.BARRACKS_COST_L1.rareness_id == 1
+        assert (ids.Research.RECRUITMENT_SPEED_G41_L1.group_id, ids.Research.RECRUITMENT_SPEED_G41_L1.level) == (41, 1)
+        assert ids.ConstructionItem.BARRACKS_COST_G1_L1.rareness_id == 1
         assert (ids.EquipmentGroup.ATTACK_PVP.wearer_id, ids.EquipmentGroup.ATTACK_PVP.slot_id) == (2, 6)
         assert ids.LootBox.MYSTERY_BOX_BRONZE_R1.rarity == 1
         assert ids.DifficultyType.EASY_PLUS == 2
@@ -259,7 +259,7 @@ class TestLinks:
         assert ids.EffectType.FAME_DEFENSE_BONUS.info is lookup_data.effect_types[0]
         assert ids.RaidBoss.NECROMANCER.info is lookup_data.raid_bosses[1]
         assert ids.GlobalEffect.SPEED_BOOST_11.info is lookup_data.global_effects[11]
-        assert ids.ConstructionItem.BARRACKS_COST_L1.info is lookup_data.construction_items[1]
+        assert ids.ConstructionItem.BARRACKS_COST_G1_L1.info is lookup_data.construction_items[1]
         assert ids.Building.CASTLEWALL_L1.fortification is lookup_data.fortifications[501]
         assert ids.Building.KEEP_L1.fortification is None
 
@@ -401,12 +401,29 @@ class TestGenerator:
             "GUARD_L0": 401,
             "CASTLEWALL_L1": 501,
         }
-        assert self.members(items, "Research") == {"REKRUTIERUNGSGESCHW_L1": 1, "RECRUITMENT_SPEED_L1": 256}
+        assert self.members(items, "Research") == {"REKRUTIERUNGSGESCHW_G1_L1": 1, "RECRUITMENT_SPEED_G41_L1": 256}
         assert self.members(items, "Event") == {"NOMAD_INVASION": 5, "PAYMENTREWARD_6": 6, "PAYMENTREWARD_74": 74}
         assert self.members(items, "LootBox") == {"MYSTERY_BOX_BRONZE_R1": 1}
         assert self.members(items, "EquipmentGroup") == {"ATTACK_PVP": 102}
         assert self.members(items, "DifficultyType") == {"EASY_PLUS": 2}
-        assert self.members(items, "ConstructionItem") == {"BARRACKS_COST_L1": 1}
+        assert self.members(items, "ConstructionItem") == {"BARRACKS_COST_G1_L1": 1}
+
+    def test_research_names_are_unique_by_group_and_level(self):
+        # Two groups share a note; group and level keep them apart, and a row without a note still gets a name
+        payload = {
+            "researches": [
+                {"researchID": "10", "comment2": "Refined Lumber", "groupID": "7", "level": "1"},
+                {"researchID": "11", "comment2": "Refined Lumber", "groupID": "8", "level": "1"},
+                {"researchID": "12", "groupID": "9", "level": "2"},
+            ]
+        }
+        table = next(t for t in gen.tables(GameData.parse("786.03", payload), payload) if t.enum == "Research")
+        assert dict(gen.members(table)) == {
+            "REFINED_LUMBER_G7_L1": 10,
+            "REFINED_LUMBER_G8_L1": 11,
+            "RESEARCH_G9_L2": 12,
+        }
+        assert gen.collided(table) == 0
 
     def test_a_row_without_a_numeric_id_is_skipped(self):
         payload = {"events": [{"eventID": "x", "eventType": "Nomad"}, "junk", {"eventID": "3", "eventType": "Faction"}]}
@@ -503,6 +520,54 @@ class TestCheck:
         assert self.run(items_file, out, "--check") == 1
         after = {path.name: path.read_text() for path in out.glob("*.py")} if out.exists() else {}
         assert after == before
+
+    def test_name_changes_against_the_committed_package(self, items_file, tmp_path):
+        out = tmp_path / "ids"
+        assert self.run(items_file, out) == 0
+        payload = json.loads(items_file.read_text())
+        payload["events"] = [
+            {"eventID": "5", "eventType": "NomadAttack"},
+            {"eventID": "6", "eventType": "Paymentreward"},
+            {"eventID": "99", "eventType": "Brandnew"},
+        ]
+        payload["lootBoxes"] = []
+        payload["equipment_groups"] = [{"itemGroupID": "103", "name": "AttackPVP", "wearerID": "2", "slotID": "6"}]
+        items_file.write_text(json.dumps(payload))
+        names, footer = tmp_path / "names.md", tmp_path / "footer.txt"
+        with pytest.raises(SystemExit):
+            # The generator refuses an empty table, so LootBox has to keep a row
+            self.run(items_file, out, "--check")
+        payload["lootBoxes"] = [{"lootBoxID": "2", "name": "MysteryBoxBronze", "rarity": "2"}]
+        items_file.write_text(json.dumps(payload))
+        assert self.run(items_file, out, "--check", "--diff-names", str(names), "--breaking-footer", str(footer)) == 1
+
+        changes = gen.name_changes(gen.render(GameData.parse("786.03", payload), payload), out)
+        assert changes.renamed == [
+            ("Event.NOMAD_INVASION", "Event.NOMAD_ATTACK"),
+            ("Event.PAYMENTREWARD_6", "Event.PAYMENTREWARD"),
+        ]
+        assert changes.removed == ["Event.PAYMENTREWARD_74", "LootBox.MYSTERY_BOX_BRONZE_R1"]
+        assert changes.changed == ["EquipmentGroup.ATTACK_PVP"]
+        assert changes.added == ["Event.BRANDNEW", "LootBox.MYSTERY_BOX_BRONZE_R2"]
+        report = names.read_text()
+        assert "### Renamed (2)" in report and "- `Event.NOMAD_INVASION` -> `Event.NOMAD_ATTACK`" in report
+        assert "### Removed (2)" in report and "### Now another id (1)" in report and "### Added (2)" in report
+        assert footer.read_text().startswith("BREAKING CHANGE: Event.NOMAD_INVASION is now Event.NOMAD_ATTACK; ")
+
+    def test_an_unchanged_package_reports_no_names(self, items_file, tmp_path):
+        out = tmp_path / "ids"
+        assert self.run(items_file, out) == 0
+        names, footer = tmp_path / "names.md", tmp_path / "footer.txt"
+        assert self.run(items_file, out, "--check", "--diff-names", str(names), "--breaking-footer", str(footer)) == 0
+        assert names.read_text() == "No member was added, renamed or removed.\n"
+        assert footer.read_text() == ""
+
+    @pytest.mark.parametrize("version", ["786.03\nx", "7'86", "", "786."])
+    def test_a_malformed_version_is_refused(self, tmp_path, version):
+        path = tmp_path / "items.json"
+        path.write_text(json.dumps({**IDS_PAYLOAD, "versionInfo": {"version": {"@value": version or " "}}}))
+        with pytest.raises(SystemExit, match="not dotted digits"):
+            gen.main(["--items", str(path), "--out", str(tmp_path / "ids")])
 
     def test_the_committed_package_is_current(self):
         path = os.environ.get("EMPIRE_CORE_ITEMS_JSON")

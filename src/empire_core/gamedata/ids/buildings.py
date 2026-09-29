@@ -12,7 +12,8 @@ class Building(IntEnum):
     """
     Building ``wodID`` values from the ``buildings`` table, named name, type (for decorations) and level.
 
-    Client: ``AVisualVO.parseXmlNode`` (bundle line 17800), ``AShopVO.parseXmlNode`` (bundle line 31713)
+    Client: ``AVisualVO.parseXmlNode`` (bundle line 17800) reads name, group and type, ``AShopVO.parseXmlNode`` (bundle
+    line 31713) the level
     """
 
     _value_: int

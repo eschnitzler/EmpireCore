@@ -9,7 +9,8 @@ class Event(IntEnum):
     """
     Event ids from the ``events`` table, named from ``eventType``.
 
-    Client: ``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle line 2959)
+    Client: ``CastleSpecialEventData.storeXmlEvents`` (bundle line 139777) keys rows by ``eventID``,
+    ``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle line 2959) reads ``eventType``
     """
 
     _value_: int

@@ -4,6 +4,7 @@ Generate the ``empire_core.gamedata.ids`` enums from the items data.
     uv run python scripts/generate_gamedata_ids.py                  # the version GameData.load() fetches
     uv run python scripts/generate_gamedata_ids.py --items items_v786.03.json
     uv run python scripts/generate_gamedata_ids.py --check          # exit 1 if the package is out of date
+    uv run python scripts/generate_gamedata_ids.py --diff-names names.md --breaking-footer footer.txt
 
 Each table becomes one module. Member names come from the row's name columns,
 UPPER_SNAKE; names that still collide after that all get the row id appended,
@@ -16,10 +17,12 @@ regenerating from the same data changes nothing.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import keyword
 import re
 import sys
+import textwrap
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -32,6 +35,7 @@ from empire_core.utils.troops import fetch_items_data, get_items_version
 SCRIPT = "scripts/generate_gamedata_ids.py"
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "src" / "empire_core" / "gamedata" / "ids"
 LINE_LENGTH = 120
+VERSION = re.compile(r"\d+(\.\d+)*")
 
 Value = int | str
 
@@ -176,6 +180,16 @@ def building_name(name: str, building_type: str, level: int) -> str:
     if building_type and building_type != "Placeholder" and not re.fullmatch(r"Level\d+", building_type):
         base += "_" + to_snake(building_type)
     return base + level_suffix(level)
+
+
+def research_name(label: str, group_id: int, level: int) -> str:
+    """
+    ``<label>_G<group>_L<level>``; group and level make it unique, the label only makes it readable.
+
+    The label is the ``comment2`` note, which the client does not read; a row without one is ``RESEARCH``.
+    """
+    stem = identifier(label, "R") if re.search(r"[A-Za-z]", label) else "RESEARCH"
+    return f"{stem}_G{group_id}{level_suffix(level)}"
 
 
 def building_rows(payload: dict) -> list[Row]:
@@ -393,7 +407,8 @@ def tables(data: GameData, payload: dict) -> list[Table]:
             "Building",
             "B",
             "Building ``wodID`` values from the ``buildings`` table, named name, type (for decorations) and level.",
-            "``AVisualVO.parseXmlNode`` (bundle line 17800), ``AShopVO.parseXmlNode`` (bundle line 31713)",
+            "``AVisualVO.parseXmlNode`` (bundle line 17800) reads name, group and type, ``AShopVO.parseXmlNode`` "
+            "(bundle line 31713) the level",
             building_rows(payload),
             (
                 ROW_NAME,
@@ -414,11 +429,13 @@ def tables(data: GameData, payload: dict) -> list[Table]:
             "researches",
             "Research",
             "R",
-            "Research ids from the ``researches`` table, named from the ``comment2`` note and level.",
+            "Research ids from the ``researches`` table, named from the ``comment2`` note, group and level.",
             "``AResearchVO.fillFromParamXML`` (bundle line 61502), which does not read ``comment2``",
             [
                 Row(
-                    str_column(row, "comment2") + level_suffix(int_column(row, "level", -1)),
+                    research_name(
+                        str_column(row, "comment2"), int_column(row, "groupID", -1), int_column(row, "level", -1)
+                    ),
                     research_id,
                     str(research_id),
                     (int_column(row, "groupID", -1), int_column(row, "level", -1)),
@@ -431,11 +448,11 @@ def tables(data: GameData, payload: dict) -> list[Table]:
             "construction_items",
             "ConstructionItem",
             "C",
-            "Construction item ids from the ``constructionItems`` table, named name and level.",
+            "Construction item ids from the ``constructionItems`` table, named name, group and level.",
             "``ConstructionItemVO.parseBasicValues`` (bundle line 47719)",
             [
                 Row(
-                    to_snake(c.name) + level_suffix(c.level),
+                    f"{to_snake(c.name)}_G{c.group_id}{level_suffix(c.level)}",
                     c.construction_item_id,
                     str(c.construction_item_id),
                     (c.name, c.group_id, c.level, c.rareness_id),
@@ -455,7 +472,8 @@ def tables(data: GameData, payload: dict) -> list[Table]:
             "Event",
             "E",
             "Event ids from the ``events`` table, named from ``eventType``.",
-            "``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle line 2959)",
+            "``CastleSpecialEventData.storeXmlEvents`` (bundle line 139777) keys rows by ``eventID``, "
+            "``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle line 2959) reads ``eventType``",
             [
                 Row(
                     to_snake(str_column(row, "eventType")) or f"E{event_id}",
@@ -552,10 +570,15 @@ def signature_lines(table: Table) -> list[str]:
     return ["    def __new__(", *(f"        {p}," for p in params), f"    ) -> {table.enum}:"]
 
 
+def wrapped(text: str) -> list[str]:
+    """Docstring lines, indented, within the line length."""
+    return textwrap.wrap(text, LINE_LENGTH, initial_indent="    ", subsequent_indent="    ", break_on_hyphens=False)
+
+
 def class_lines(table: Table, named: list[tuple[str, Value]]) -> list[str]:
     base = "str" if table.str_enum else "int"
     out = [f"class {table.enum}({'str, Enum' if table.str_enum else 'IntEnum'}):"]
-    out += ['    """', f"    {table.doc}", "", f"    Client: {table.client}", '    """', ""]
+    out += ['    """', *wrapped(table.doc), "", *wrapped(f"Client: {table.client}"), '    """', ""]
     out.append(f"    _value_: {base}")
     for attr in table.attrs:
         out += [f"    {attr.name}: {attr.type}", f'    """{attr.doc}"""']
@@ -624,7 +647,7 @@ def render_init(version: str, table_list: list[Table]) -> str:
     for module in sorted(by_module):
         out.append(f"from .{module} import {', '.join(sorted(by_module[module]))}")
     out += ["", "if TYPE_CHECKING:", "    from empire_core.gamedata.data import GameData", ""]
-    out += [f'ITEMS_VERSION = "{version}"', '"""The items version these enums were generated from."""', "", ""]
+    out += [f"ITEMS_VERSION = {literal(version)}", '"""The items version these enums were generated from."""', "", ""]
     out += [
         "def is_current(game_data: GameData) -> bool:",
         '    """Whether ``game_data`` is the items version these enums were generated from."""',
@@ -667,6 +690,84 @@ def items_version(path: Path, payload: dict) -> str:
     raise SystemExit(f"cannot tell the items version of {path}; name it items_v<version>.json")
 
 
+def member_values(files: dict[str, str]) -> dict[str, Value]:
+    """``Enum.MEMBER`` -> value for every member in a rendered or committed package."""
+    found: dict[str, Value] = {}
+    for text in files.values():
+        for node in ast.parse(text).body:
+            if not isinstance(node, ast.ClassDef):
+                continue
+            for item in node.body:
+                if isinstance(item, ast.Assign) and len(item.targets) == 1 and isinstance(item.targets[0], ast.Name):
+                    value = item.value.elts[0] if isinstance(item.value, ast.Tuple) else item.value
+                    if isinstance(value, ast.Constant) and isinstance(value.value, (int, str)):
+                        found[f"{node.name}.{item.targets[0].id}"] = value.value
+    return found
+
+
+@dataclass(frozen=True)
+class NameChanges:
+    renamed: list[tuple[str, str]]
+    """(old, new) for a value whose member name changed."""
+    removed: list[str]
+    changed: list[str]
+    """Names kept but now naming another value."""
+    added: list[str]
+
+    @property
+    def breaking(self) -> bool:
+        return bool(self.renamed or self.removed or self.changed)
+
+
+def name_changes(files: dict[str, str], out: Path) -> NameChanges:
+    """How the members in ``files`` differ from the package committed in ``out``."""
+    on_disk = {path.name: path.read_text() for path in out.glob("*.py")} if out.is_dir() else {}
+    old, new = member_values(on_disk), member_values(files)
+
+    new_by_value = {(name.split(".")[0], value): name for name, value in new.items()}
+    renamed, removed, changed = [], [], []
+    for name, value in old.items():
+        if name in new:
+            if new[name] != value:
+                changed.append(name)
+            continue
+        successor = new_by_value.get((name.split(".")[0], value))
+        if successor is not None and successor not in old:
+            renamed.append((name, successor))
+        else:
+            removed.append(name)
+    moved = {new_name for _, new_name in renamed}
+    added = [name for name in new if name not in old and name not in moved]
+    return NameChanges(sorted(renamed), sorted(removed), sorted(changed), sorted(added))
+
+
+def names_report(changes: NameChanges) -> str:
+    """Markdown listing every renamed, removed, changed and added member."""
+    if not (changes.breaking or changes.added):
+        return "No member was added, renamed or removed.\n"
+    out = []
+    sections = [
+        ("Renamed", [f"`{old}` -> `{new}`" for old, new in changes.renamed]),
+        ("Removed", [f"`{name}`" for name in changes.removed]),
+        ("Now another id", [f"`{name}`" for name in changes.changed]),
+        ("Added", [f"`{name}`" for name in changes.added]),
+    ]
+    for title, lines in sections:
+        if lines:
+            out += [f"### {title} ({len(lines)})", "", *(f"- {line}" for line in lines), ""]
+    return "\n".join(out)
+
+
+def breaking_footer(changes: NameChanges) -> str:
+    """A ``BREAKING CHANGE:`` footer naming what callers lose, or "" when nothing breaks."""
+    if not changes.breaking:
+        return ""
+    parts = [f"{old} is now {new}" for old, new in changes.renamed]
+    parts += [f"{name} is removed" for name in changes.removed]
+    parts += [f"{name} now names another id" for name in changes.changed]
+    return "BREAKING CHANGE: " + "; ".join(parts) + ".\n"
+
+
 def stale(files: dict[str, str], out: Path) -> list[str]:
     """The files in ``out`` that writing ``files`` would change, add or remove."""
     on_disk = {path.name: path.read_text() for path in out.glob("*.py")} if out.is_dir() else {}
@@ -689,6 +790,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--items", type=Path, help="a full items_v<version>.json (default: download the current one)")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="package directory to write")
     parser.add_argument("--check", action="store_true", help="write nothing; exit 1 if the package would change")
+    parser.add_argument(
+        "--diff-names", type=Path, help="write a Markdown list of renamed, removed and added members here"
+    )
+    parser.add_argument(
+        "--breaking-footer", type=Path, help='write a "BREAKING CHANGE:" footer here, empty when nothing breaks'
+    )
     args = parser.parse_args(argv)
 
     if args.items:
@@ -697,6 +804,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         version = get_items_version()
         payload = fetch_items_data(version)
+    if not VERSION.fullmatch(version):
+        raise SystemExit(f"items version {version!r} is not dotted digits")
     data = GameData.parse(version, payload)
 
     table_list = tables(data, payload)
@@ -704,11 +813,17 @@ def main(argv: list[str] | None = None) -> int:
     if empty:
         raise SystemExit(f"no rows for {', '.join(empty)}; is this the full items file?")
     files = render(data, payload)
+    changes = name_changes(files, args.out)
+    if args.diff_names:
+        args.diff_names.write_text(names_report(changes))
+    if args.breaking_footer:
+        args.breaking_footer.write_text(breaking_footer(changes))
     if args.check:
         changed = stale(files, args.out)
         for name in changed:
             print(f"out of date: {args.out / name}", file=sys.stderr)
         if changed:
+            print(names_report(changes), file=sys.stderr)
             print(f"Regenerate for items {data.version}: uv run python {SCRIPT}", file=sys.stderr)
             return 1
         print(f"{args.out} is up to date with items {data.version}", file=sys.stderr)
