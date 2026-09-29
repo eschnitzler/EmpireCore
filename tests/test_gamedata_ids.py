@@ -11,6 +11,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -315,11 +316,14 @@ class TestLinks:
         monkeypatch.setattr("empire_core.gamedata.data.get_items_version", offline)
         with pytest.raises(NetworkError) as first:
             _ = ids.Unit.MEAD_RANGER_L6.stats
+        depths = []
         for _ in range(3):
             with pytest.raises(NetworkError) as again:
                 default_game_data()
             assert again.value is first.value
+            depths.append(len(traceback.extract_tb(again.value.__traceback__)))
         assert len(requests) == 1
+        assert depths[0] == depths[-1]
 
         now = time.monotonic()
         monkeypatch.setattr("empire_core.gamedata.data.time.monotonic", lambda: now + 301)

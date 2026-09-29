@@ -665,7 +665,7 @@ def default_game_data() -> GameData:
         if _default is not None:
             return _default
         if _default_failure is not None and time.monotonic() - _default_failed_at < _FAILURE_RETRY_INTERVAL:
-            raise _default_failure
+            raise _default_failure.with_traceback(None)
         try:
             return GameData.load()
         except NetworkError as e:

@@ -80,6 +80,7 @@ jobs:
           fi
 
           lease="$BRANCH:"
+          push=true
           if remote=$(git rev-parse --verify --quiet "refs/remotes/origin/$BRANCH"); then
             foreign=$(git log --format='%an' "origin/master..$remote" | grep -vx 'github-actions\[bot\]' || true)
             if [ -n "$foreign" ]; then
@@ -88,7 +89,7 @@ jobs:
             fi
             if git diff --cached --quiet "$remote" -- "$IDS"; then
               echo "::notice::$BRANCH already holds these ids; nothing to push"
-              exit 0
+              push=false
             fi
             lease="$BRANCH:$remote"
           fi
@@ -120,9 +121,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -C "$BRANCH"
-          git commit -F "$RUNNER_TEMP/message.txt"
-          git push --force-with-lease="$lease" origin "HEAD:refs/heads/$BRANCH"
+          if [ "$push" = true ]; then
+            git switch -C "$BRANCH"
+            git commit -F "$RUNNER_TEMP/message.txt"
+            git push --force-with-lease="$lease" origin "HEAD:refs/heads/$BRANCH"
+          fi
 
           open=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')
           if [ -n "$open" ]; then
