@@ -443,7 +443,7 @@ class TestUnclaimedOutposts:
 class TestItemTypeFiltering:
     """Locks in the documented (inverted) item_types sentinel semantics."""
 
-    ROBBER_BARON_AI = {"AI": [[int(MapItemType.ROBBER_BARON), 95, 95, 7]], "OI": []}
+    ROBBER_BARON_AI = {"AI": [[int(MapItemType.DUNGEON), 95, 95, 7]], "OI": []}
 
     def test_none_means_castles_only(self):
         fake = _FakeClient(content_chunks=set(), payloads={(1, 1): self.ROBBER_BARON_AI})
@@ -453,7 +453,7 @@ class TestItemTypeFiltering:
     def test_camps_survive_the_unowned_filter(self):
         # A live camp row carries an espionage age of -1 where an owned
         # location carries an id, so the unowned filter must not drop it.
-        live_camp = {"AI": [[int(MapItemType.ROBBER_BARON), 95, 95, -1, 297, -100, 0]], "OI": []}
+        live_camp = {"AI": [[int(MapItemType.DUNGEON), 95, 95, -1, 297, -100, 0]], "OI": []}
         fake = _FakeClient(content_chunks=set(), payloads={(1, 1): live_camp})
 
         result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
@@ -472,4 +472,4 @@ class TestItemTypeFiltering:
     def test_empty_list_means_no_filtering(self):
         fake = _FakeClient(content_chunks=set(), payloads={(1, 1): self.ROBBER_BARON_AI})
         result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
-        assert [i.item_type for i in result.items] == [int(MapItemType.ROBBER_BARON)]
+        assert [i.item_type for i in result.items] == [int(MapItemType.DUNGEON)]

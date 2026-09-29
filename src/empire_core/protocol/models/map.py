@@ -385,7 +385,7 @@ class MapAreaItem(BasePayload):
             MapItemType.CASTLE,
             MapItemType.CAPITAL,
             MapItemType.OUTPOST,
-            MapItemType.EXTERNAL_KINGDOM,
+            MapItemType.KINGDOM_CASTLE,
             MapItemType.METRO,
         )
 

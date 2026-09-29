@@ -160,12 +160,9 @@ class Movement(BaseModel):
             return None
 
     @property
-    def movement_type_enum(self) -> MovementType:
-        """Get the MovementType enum value."""
-        try:
-            return MovementType(self.movement_type)
-        except ValueError:
-            return MovementType.UNKNOWN
+    def movement_type_enum(self) -> MovementType | None:
+        """The movement's type (``T``) as a :class:`MovementType`, None for an id the client does not define."""
+        return enum_or_none(MovementType, self.movement_type)
 
     @property
     def target_type_enum(self) -> MapItemType | None:
@@ -267,17 +264,20 @@ class Movement(BaseModel):
     @property
     def is_attack(self) -> bool:
         """Any attack type, including NPC, alien, faction and event attacks."""
-        return self.movement_type_enum.is_attack
+        movement_type = self.movement_type_enum
+        return movement_type is not None and movement_type.is_attack
 
     @property
     def is_support(self) -> bool:
         """A support (defence) army."""
-        return self.movement_type_enum.is_support
+        movement_type = self.movement_type_enum
+        return movement_type is not None and movement_type.is_support
 
     @property
     def is_siege(self) -> bool:
         """A siege or faction occupation."""
-        return self.movement_type_enum.is_siege
+        movement_type = self.movement_type_enum
+        return movement_type is not None and movement_type.is_siege
 
     @property
     def is_transport(self) -> bool:

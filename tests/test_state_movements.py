@@ -11,7 +11,7 @@ from empire_core.client.client import EmpireClient
 from empire_core.protocol.models.commanders import CommanderEffect
 from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
-from empire_core.utils.enums import MapItemType
+from empire_core.utils.enums import MapItemType, MovementType
 from tests.state_helpers import arrive, gam_payload, login, push_payload, wait_for
 
 
@@ -160,6 +160,12 @@ class TestMovementTypes:
         assert Movement(T=1).movement_type_name == "DEFENCE"
         assert Movement(T=11).movement_type_name == "NPC_ATTACK"
         assert Movement(T=99).movement_type_name == "UNKNOWN_99"
+
+    def test_a_type_the_client_lacks_has_no_enum(self):
+        movement = Movement(T=-1)
+        assert movement.movement_type_enum is None
+        assert not (movement.is_attack or movement.is_support or movement.is_siege)
+        assert Movement(T=11).movement_type_enum is MovementType.NPC_ATTACK
 
     def test_target_type_reads_as_an_area_type(self):
         assert Movement(target_type=1).target_type_enum is MapItemType.CASTLE

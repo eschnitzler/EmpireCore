@@ -47,7 +47,6 @@ class MapItemType(IntEnum):
     EMPTY = 0
     CASTLE = 1  # Player main castle (while relocating, x/y is its in-transit position)
     DUNGEON = 2  # NPC camp - what players call a robber baron castle
-    ROBBER_BARON = 2  # Alias of DUNGEON
     CAPITAL = 3  # Player capital
     OUTPOST = 4  # Player outpost
     TREASURE_DUNGEON = 7
@@ -56,7 +55,6 @@ class MapItemType(IntEnum):
     VILLAGE = 10
     BOSS_DUNGEON = 11
     KINGDOM_CASTLE = 12  # Player castle in another kingdom
-    EXTERNAL_KINGDOM = 12  # Alias of KINGDOM_CASTLE
     EVENT_DUNGEON = 13
     NO_LANDMARK = 14
     FACTION_CAMP = 15
@@ -79,8 +77,6 @@ class MapItemType(IntEnum):
     SAMURAI_ALIEN_CAMP = 33
     RED_ALIEN_CAMP = 34
     ALLIANCE_NOMAD_CAMP = 35  # Nomad khan camp
-    KHAN_CAMP = 35  # Alias of ALLIANCE_NOMAD_CAMP
-    KHAN_TENT = 35  # Alias of ALLIANCE_NOMAD_CAMP
     DAIMYO_CASTLE = 37
     DAIMYO_TOWNSHIP = 38
     ABG_RESOURCE_TOWER = 40

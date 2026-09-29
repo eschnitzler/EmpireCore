@@ -124,7 +124,6 @@ def test_npc_camps_resolve_through_map_item_type() -> None:
     """A robber baron camp is AREA_TYPE_DUNGEON (2) in the client's own table."""
     from empire_core.utils.enums import MapItemType
 
-    assert MapItemType.ROBBER_BARON is MapItemType.DUNGEON
     assert MapItemType.DUNGEON == 2
     assert MapItemType(7) is MapItemType.TREASURE_DUNGEON
     assert MapItemType(12) is MapItemType.KINGDOM_CASTLE
@@ -134,9 +133,16 @@ def test_khan_camp_resolves_under_its_event_type() -> None:
     """The nomad khan camp is ALLIANCE_NOMAD_CAMP (35), not a type of its own."""
     from empire_core.utils.enums import MapItemType
 
-    assert MapItemType.KHAN_TENT is MapItemType.ALLIANCE_NOMAD_CAMP
-    assert MapItemType.KHAN_CAMP is MapItemType.ALLIANCE_NOMAD_CAMP
-    assert MapItemType.ALLIANCE_NOMAD_CAMP == 35
+    assert MapItemType(35) is MapItemType.ALLIANCE_NOMAD_CAMP
+
+
+def test_map_item_type_has_no_non_client_aliases() -> None:
+    """WorldConst.AREA_TYPE_* (dll line 20003) names each id once."""
+    from empire_core.utils.enums import MapItemType
+
+    for gone in ("ROBBER_BARON", "EXTERNAL_KINGDOM", "KHAN_CAMP", "KHAN_TENT"):
+        assert gone not in MapItemType.__members__
+    assert len(MapItemType.__members__) == len(MapItemType)
 
 
 def test_ruins_are_castles_not_a_map_item_type() -> None:
