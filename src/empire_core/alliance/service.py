@@ -309,7 +309,8 @@ class AllianceService(BaseService):
         Get alliance chat history.
 
         The game client never asks for acl; it only reads the acl the server
-        sends, so whether the server answers this request is not known from it.
+        sends, which a live server pushes once at login. A live server also
+        answers this request, with the same ``CM`` list.
 
         Args:
             timeout: Timeout in seconds to wait for response

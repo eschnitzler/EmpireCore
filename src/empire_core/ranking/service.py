@@ -59,17 +59,28 @@ class RankingService(BaseService):
         timeout: float = 5.0,
     ) -> list[RankingEntry]:
         """
-        Get a page of a global leaderboard.
+        Get a page of an event leaderboard, from a rank.
+
+        Only works while the list's event runs: the client sends llsp only
+        from event leaderboards, and a live server answered NO_EVENT (145)
+        for every list with no event running, the regular highscore lists
+        included (use :meth:`get_highscore` for those).
 
         Args:
-            list_type: The highscore list (LT)
+            list_type: The event's highscore list (LT), e.g. ``RankingType.LONG_TERM_POINT_EVENT``
             rank: The first rank on the page
             max_results: Entries per page (M)
-            league_type_id: League type id (LID); -1 for none, the client default
+            league_type_id: The running event's league (LID), as the client passes it; -1 for none
             timeout: Timeout in seconds
 
         Returns:
-            List of entries around that rank
+            List of entries from that rank
+
+        Raises:
+            CommandError: NO_EVENT (145) when the list's event is not running
+
+        Client: ``LeaderBoardDataProvider`` (bundle line 75933), built only by
+        ``GlobalLeaderBoardComponent.init`` (bundle line 34989) for event leaderboard dialogs
         """
         request = GetRankingListRequest(LT=list_type, LID=league_type_id, M=max_results, R=rank)
         return self.request(request, GetRankingListResponse, timeout=timeout).entries

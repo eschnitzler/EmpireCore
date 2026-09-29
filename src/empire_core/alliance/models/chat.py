@@ -135,7 +135,8 @@ class AllianceChatLogRequest(BaseRequest):
     The client never sends acl: it has no C2S VO for it, and the only
     ``C2S_ALLIANCE_CHAT_LOG`` is an unused constant in ggs.dll (line 18958).
     It only reads the acl the server sends, so this payload is not taken
-    from the client.
+    from the client. A live server answers it with the ``CM`` list, and
+    also pushes one acl at login.
     """
 
     command = "acl"
