@@ -26,107 +26,84 @@ from .base import BasePayload, BaseRequest, BaseResponse, Position, ResourceAmou
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# Location Types
-# =============================================================================
-
-LOCATION_TYPES: dict[int, str] = {
-    MapItemType.EMPTY: "Empty",
-    MapItemType.CASTLE: "Castle",
-    MapItemType.DUNGEON: "Dungeon",
-    MapItemType.CAPITAL: "Capital",
-    MapItemType.OUTPOST: "Outpost",
-    MapItemType.TREASURE_DUNGEON: "Treasure Dungeon",
-    MapItemType.KINGDOM_CASTLE: "Castle",
-    MapItemType.FACTION_CAMP: "Camp",
-    MapItemType.METROPOL: "Metro",
-    MapItemType.MONUMENT: "Monument",
-    MapItemType.LABORATORY: "Laboratory",
-}
-
-
-def get_location_type_name(type_id: int) -> str:
-    """Get the human-readable name for a location type."""
-    return LOCATION_TYPES.get(type_id, f"Unknown ({type_id})")
-
-
-# =============================================================================
 # Player Castle (gcl parsed)
 # =============================================================================
 
 
 class PlayerCastle(BasePayload):
     """
-    A castle/location from the gdi response's gcl.C[].AI[] arrays.
+    One row of a castle list's ``AI`` entries, read by field position.
 
-    AI array format (confirmed from packet examples):
-    [type, x, y, location_id, owner_id, lvl1, lvl2, lvl3, lvl4, lvl5,
-     name, ?, ?, ?, capturer_id_capital, capturer_id_outpost, kingdom, ...]
+    Row: [area_type, x, y, object_id, owner_id, keep, wall, gate, tower, moat,
+    name, attack_cooldown, sabotage_cooldown, seconds_since_espionage, ...,
+    kingdom_id at 16, ...]
 
-    Index reference:
-    - 0:  castle_type (1=Castle, 3=Capital, 4=Outpost, 12=?, 15=Camp, 22=Metro)
-    - 1:  x
-    - 2:  y
-    - 3:  location_id (area_id)
-    - 4:  owner_id
-    - 10: name
-    - 14: capturer_id (Capital/Metro)
-    - 15: capturer_id (Outpost)
-    - 16: kingdom (KID)
+    Castles, outposts and kingdom castles go through
+    ``InteractiveMapobjectVO.parseAreaInfo``: field 14 is the outpost type, 15
+    the occupier. Capitals and metropolises have their own parsers, which read
+    the occupier at 14. All five read the kingdom at 16; any other type keeps
+    the kingdom it is listed under and has no occupier here.
+
+    Client: ``WorldmapObjectFactory.parseWorldMapArea`` (bundle line 5343),
+    ``InteractiveMapobjectVO.parseAreaInfo`` (bundle line 3631),
+    ``CastleMapobjectVO.parseAreaInfo`` (bundle line 18910),
+    ``CapitalMapobjectVO.parseAreaInfo`` (bundle line 18729),
+    ``MetropolMapobjectVO.parseAreaInfo`` (bundle line 21609)
     """
 
-    kingdom: Kingdom = Kingdom.GREEN
-    location_id: int = 0
-    x: int = 0
-    y: int = 0
-    castle_type: int = 0
-    owner_id: int = 0
-    name: str = ""
-    capturer_id: int = -1
-
-    @property
-    def castle_type_name(self) -> str:
-        """Human-readable castle type."""
-        return get_location_type_name(self.castle_type)
+    kingdom: Kingdom = Field(default=Kingdom.GREEN, description="The castle's kingdom")
+    location_id: int = Field(default=0, description="The castle's object id")
+    x: int = Field(default=0, description="Map x")
+    y: int = Field(default=0, description="Map y")
+    castle_type: MapItemType = Field(default=MapItemType.EMPTY, description="The row's area type")
+    owner_id: int = Field(default=0, description="Player id of the owner")
+    name: str = Field(default="", description="The castle's name")
+    capturer_id: int = Field(default=-1, description="Player id of the occupier, -1 when there is none")
 
     @property
     def is_being_captured(self) -> bool:
-        """Check if this location is currently being captured."""
+        """Whether someone occupies this castle."""
         return self.capturer_id != -1
 
     @classmethod
     def from_list(cls, data: list, kingdom: Kingdom = Kingdom.GREEN) -> "PlayerCastle":
-        """Parse from a gcl.C[].AI[] array entry."""
+        """
+        Read a ``gcl.C[].AI[].AI`` row; ``kingdom`` is the block it is listed under.
+
+        Raises:
+            ValidationError: A field has the wrong type, or the area type is
+                not a MapItemType; the client registers no map object for it
+        """
         if not data or len(data) < 4:
             return cls(kingdom=kingdom)
 
-        castle_type = data[0] if len(data) > 0 else 0
-        x = data[1] if len(data) > 1 else 0
-        y = data[2] if len(data) > 2 else 0
-        location_id = data[3] if len(data) > 3 else 0
-        owner_id = data[4] if len(data) > 4 else 0
-        name = data[10] if len(data) > 10 else ""
-
-        # Capturer ID position depends on type
-        if castle_type == MapItemType.OUTPOST:
-            capturer_id = data[15] if len(data) > 15 else -1
-        elif castle_type in (MapItemType.CAPITAL, MapItemType.METROPOL):
-            capturer_id = data[14] if len(data) > 14 else -1
-        else:
-            capturer_id = -1
-
-        # Kingdom can also be read from index 16 if present (overrides passed-in kingdom)
-        row_kingdom: Any = data[16] if len(data) > 16 and isinstance(data[16], int) else kingdom
+        castle_type = data[0]
+        capturer_field = _OCCUPIER_FIELDS.get(castle_type) if isinstance(castle_type, int) else None
+        row_kingdom: Any = kingdom
+        if capturer_field is not None and len(data) > _ROW_KINGDOM_FIELD:
+            row_kingdom = data[_ROW_KINGDOM_FIELD]
 
         return cls(
             kingdom=row_kingdom,
-            location_id=location_id,
-            x=x,
-            y=y,
+            location_id=data[3],
+            x=data[1],
+            y=data[2],
             castle_type=castle_type,
-            owner_id=owner_id,
-            name=name,
-            capturer_id=capturer_id,
+            owner_id=data[4] if len(data) > 4 else 0,
+            name=data[10] if len(data) > 10 else "",
+            capturer_id=data[capturer_field] if capturer_field is not None and len(data) > capturer_field else -1,
         )
+
+
+# Where each castle type's row keeps its occupier; all of them keep the kingdom at 16.
+_OCCUPIER_FIELDS: dict[Any, int] = {
+    MapItemType.CASTLE: 15,
+    MapItemType.OUTPOST: 15,
+    MapItemType.KINGDOM_CASTLE: 15,
+    MapItemType.CAPITAL: 14,
+    MapItemType.METROPOL: 14,
+}
+_ROW_KINGDOM_FIELD = 16
 
 
 # =============================================================================
@@ -159,31 +136,48 @@ class GetCastlesRequest(BaseRequest):
 
 
 class CastleInfo(BasePayload):
-    """One of the player's locations: a gcl entry plus its positional row.
+    """
+    One of the player's locations: a castle list entry and its map row.
 
-    An ``AI[n]`` alias is the row index the client's
-    InteractiveMapobjectVO.parseAreaInfo reads; the other aliases are the
-    entry keys around the row.
+    Entry: {"AI": [row], "OGT": .., "OGC": .., "AOT": .., "CAT": .., "TA": ..}
+
+    An ``AI[n]`` alias is the row field the value comes from (see
+    :class:`PlayerCastle`); the other aliases are the entry's keys, and
+    ``KID`` is the kingdom block the entry is listed under.
+
+    Client: ``CastleListVO.parseCastleList`` (bundle line 13698), which reads
+    the row with ``WorldmapObjectFactory.parseWorldMapArea`` and the entry's
+    ``OGT``, ``OGC``, ``AOT``, ``CAT`` and ``TA`` through ``int()``
     """
 
-    castle_id: int = Field(alias="AI[3]", default=0)
-    castle_name: str = Field(alias="AI[10]", default="")
-    x: int = Field(alias="AI[1]", default=0)
-    y: int = Field(alias="AI[2]", default=0)
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
-    castle_type: int = Field(alias="AI[0]", default=0)  # 1=castle, 3=capital, 4=outpost, 12=kingdom castle, 22=metro
-    owner_id: int = Field(alias="AI[4]", default=0)
-    occupier_id: int = Field(alias="AI[14|15]", default=-1)  # 14 for a capital or metro, 15 for an outpost
-    keep_level: int = Field(alias="AI[5]", default=0)
-    wall_level: int = Field(alias="AI[6]", default=0)
-    gate_level: int = Field(alias="AI[7]", default=0)
-    tower_level: int = Field(alias="AI[8]", default=0)
-    moat_level: int = Field(alias="AI[9]", default=0)
-    open_gate_seconds: int = Field(alias="OGT", default=0)
-    open_gate_counter: int = Field(alias="OGC", default=0)
-    abandon_outpost_seconds: int = Field(alias="AOT", default=-1)
-    cancel_abandon_seconds: int = Field(alias="CAT", default=-1)
-    no_abandon_seconds: int = Field(alias="TA", default=-1)
+    castle_id: int = Field(alias="AI[3]", default=0, description="The castle's object id")
+    castle_name: str = Field(alias="AI[10]", default="", description="The castle's name")
+    x: int = Field(alias="AI[1]", default=0, description="Map x")
+    y: int = Field(alias="AI[2]", default=0, description="Map y")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom it is listed under")
+    castle_type: MapItemType = Field(alias="AI[0]", default=MapItemType.EMPTY, description="The castle's area type")
+    owner_id: int = Field(alias="AI[4]", default=0, description="Player id of the owner")
+    occupier_id: int = Field(
+        alias="AI[14|15]",
+        default=-1,
+        description="Player id of the occupier, -1 when there is none",
+    )
+    keep_level: int = Field(alias="AI[5]", default=0, description="Keep level")
+    wall_level: int = Field(alias="AI[6]", default=0, description="Wall level")
+    gate_level: int = Field(alias="AI[7]", default=0, description="Gate level")
+    tower_level: int = Field(alias="AI[8]", default=0, description="Tower level")
+    moat_level: int = Field(alias="AI[9]", default=0, description="Moat level")
+    open_gate_seconds: int = Field(alias="OGT", default=0, description="Seconds the gate stays open")
+    open_gate_counter: int = Field(alias="OGC", default=0, description="How often the gate has been opened")
+    abandon_outpost_seconds: int = Field(
+        alias="AOT", default=-1, description="Seconds until the outpost is abandoned, -1 when it is not"
+    )
+    cancel_abandon_seconds: int = Field(
+        alias="CAT", default=-1, description="Seconds left to cancel abandoning the outpost"
+    )
+    no_abandon_seconds: int = Field(
+        alias="TA", default=-1, description="Seconds before the outpost may be abandoned again"
+    )
 
     @property
     def position(self) -> Position:
@@ -729,9 +723,7 @@ __all__ = [
     # GCL - Get Castles
     "GetCastlesRequest",
     "GetCastlesResponse",
-    "LOCATION_TYPES",
     "PlayerCastle",
-    "get_location_type_name",
     "CastleInfo",
     # DCL - Detailed Castle
     "GetDetailedCastleRequest",

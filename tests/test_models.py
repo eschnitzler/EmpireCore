@@ -18,7 +18,6 @@ from empire_core.protocol.models.base import (
     get_response_model,
 )
 from empire_core.protocol.models.castle import (
-    LOCATION_TYPES,
     GetCastlesResponse,
     GetDetailedCastleResponse,
     PlayerCastle,
@@ -221,9 +220,9 @@ def gdi_location_row(
 ) -> list:
     """A 20-field gdi/gcl location row as the live server sends it.
 
-    Index map (see GetPlayerInfoResponse's docstring): 0 type, 1 x, 2 y,
-    3 location id, 4 owner id, 10 name, 14 capturer (Capital/Metro),
-    15 capturer (Outpost), 16 kingdom.
+    Index map (see PlayerCastle): 0 type, 1 x, 2 y, 3 location id, 4 owner
+    id, 10 name, 14 occupier of a capital or metropolis, 15 occupier of a
+    castle, outpost or kingdom castle, 16 kingdom.
     """
     return [
         location_type,
@@ -1003,15 +1002,31 @@ class TestPositionalArrayParsers:
 
     @pytest.mark.parametrize(
         ("area_type", "capturer"),
-        [(MapItemType.OUTPOST, 77), (MapItemType.CAPITAL, 66), (MapItemType.METROPOL, 66), (MapItemType.CASTLE, -1)],
+        [
+            (MapItemType.OUTPOST, 77),
+            (MapItemType.CASTLE, 77),
+            (MapItemType.KINGDOM_CASTLE, 77),
+            (MapItemType.CAPITAL, 66),
+            (MapItemType.METROPOL, 66),
+            (MapItemType.MONUMENT, -1),
+        ],
     )
     def test_player_castle_capturer_depends_on_the_area_type(self, area_type, capturer):
+        # InteractiveMapobjectVO.parseAreaInfo reads the occupier at 15; Capital and Metropol parsers at 14
         row = gdi_location_row(area_type, 640, 655, 12345, 4242, "Main", 0, capturer_capital=66, capturer_outpost=77)
         assert PlayerCastle.from_list(row).capturer_id == capturer
 
-    def test_location_labels_are_keyed_by_area_type(self):
-        assert all(isinstance(t, MapItemType) for t in LOCATION_TYPES)
-        assert LOCATION_TYPES[15] == "Camp" and MapItemType(15) is MapItemType.FACTION_CAMP
+    def test_a_row_of_an_area_type_the_client_does_not_register_is_refused(self):
+        # WorldmapObjectFactory.parseWorldMapArea returns null for it, and parseCastleList cannot read it
+        with pytest.raises(ValidationError):
+            PlayerCastle.from_list(gdi_location_row(200, 640, 655, 12345, 4242, "Main", 0))
+
+    def test_a_gcl_row_of_an_unknown_area_type_costs_only_itself(self):
+        from empire_core.protocol.models import GetCastlesResponse
+
+        rows = [{"AI": gdi_location_row(t, 640, 655, 100 + t, 4242, "Main", 0)} for t in (200, 4)]
+        response = GetCastlesResponse.model_validate({"C": [{"KID": 0, "AI": rows}]})
+        assert [(c.castle_id, c.castle_type) for c in response.castles] == [(104, MapItemType.OUTPOST)]
 
     def test_relocate_sends_only_the_position(self):
         # C2SStartRelocationVO(posX, posY) declares PX and PY and nothing else

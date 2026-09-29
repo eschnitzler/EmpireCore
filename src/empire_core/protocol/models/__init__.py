@@ -199,7 +199,6 @@ from .building import (
     UpgradeWallResponse,
 )
 from .castle import (
-    LOCATION_TYPES,
     CastleInfo,
     CastleProductionArea,
     DetailedCastleInfo,
@@ -222,7 +221,6 @@ from .castle import (
     SelectCastleRequest,
     SelectCastleResponse,
     StorageCapacity,
-    get_location_type_name,
 )
 from .chat import (
     AllianceChatLogRequest,
@@ -440,8 +438,6 @@ __all__ = [
     "GetPlayerInfoResponse",
     "PlayerOwnerInfo",
     "LocationCapture",
-    "LOCATION_TYPES",
-    "get_location_type_name",
     "SearchPlayerRequest",
     "SearchPlayerResponse",
     # Attack

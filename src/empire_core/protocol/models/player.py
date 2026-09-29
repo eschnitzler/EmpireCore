@@ -14,10 +14,10 @@ from typing import Any
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from empire_core.utils.enums import Kingdom
+from empire_core.utils.enums import Kingdom, MapItemType
 
 from .base import BasePayload, BaseRequest, BaseResponse, object_or_none
-from .castle import CastleInfo, GetCastlesResponse, get_location_type_name
+from .castle import CastleInfo, GetCastlesResponse
 from .map import GetMapAreaResponse, MapObject
 from .profile import PlayerProfileBase
 
@@ -30,18 +30,21 @@ logger = logging.getLogger(__name__)
 
 class LocationCapture(BasePayload):
     """
-    Information about a location being captured.
+    One of the player's locations that someone occupies, from the gdi castle list.
 
-    Extracted from the gdi response's gcl.C[].AI[] arrays.
+    Built from a :class:`CastleInfo` whose ``occupier_id`` is set.
+
+    Client: ``InteractiveMapobjectVO.parseAreaInfo`` (bundle line 3631) and
+    ``CapitalMapobjectVO.parseAreaInfo`` (bundle line 18729) read the occupier
+    as ``occupierID``
     """
 
-    location_id: int = 0
-    location_type: int = 0
-    location_type_name: str = ""
-    x: int = 0
-    y: int = 0
-    kingdom: Kingdom = Kingdom.GREEN
-    capturer_id: int = -1  # Player ID of who is capturing, -1 if none
+    location_id: int = Field(default=0, description="The location's object id")
+    location_type: MapItemType = Field(default=MapItemType.EMPTY, description="The location's area type")
+    x: int = Field(default=0, description="Map x")
+    y: int = Field(default=0, description="Map y")
+    kingdom: Kingdom = Field(default=Kingdom.GREEN, description="The location's kingdom")
+    capturer_id: int = Field(default=-1, description="Player id of the occupier, -1 when there is none")
 
     @property
     def is_being_captured(self) -> bool:
@@ -191,18 +194,13 @@ class GetPlayerInfoResponse(BaseResponse):
         captures = []
         for castle in self.get_castles():
             if castle.occupier_id != -1:
-                try:
-                    kingdom = Kingdom(castle.kingdom_id)
-                except ValueError:
-                    continue
                 captures.append(
                     LocationCapture(
                         location_id=castle.castle_id,
                         location_type=castle.castle_type,
-                        location_type_name=get_location_type_name(castle.castle_type),
                         x=castle.x,
                         y=castle.y,
-                        kingdom=kingdom,
+                        kingdom=castle.kingdom_id,
                         capturer_id=castle.occupier_id,
                     )
                 )
