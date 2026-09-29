@@ -526,7 +526,7 @@ class AskHelpRequest(BaseRequest):
     )
     help_type: int = Field(alias="HT")
     building_id: int | None = Field(
-        alias="BID", default=None, description="The building; no library call returns building ids yet"
+        alias="BID", default=None, description="The building, e.g. from BuildResponse.building_id"
     )
 
     @classmethod

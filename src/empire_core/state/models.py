@@ -13,7 +13,10 @@ from empire_core.protocol.models.castle import (
 class Resources(BaseModel):
     """A castle's resources: stock, storage capacity, hourly production and plunder-safe amount.
 
-    Filled from the castle's ``dcl`` entry. Client: ``DetailedCastleVO.parseData``.
+    Stock comes from the castle's ``dcl`` entry; capacity, production and the
+    plunder-safe amount from its ``gpa`` production area.
+
+    Client: ``DetailedCastleVO.parseData``
     """
 
     wood: int = Field(default=0, description="Wood in stock")
