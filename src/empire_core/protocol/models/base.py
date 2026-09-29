@@ -4,13 +4,6 @@ Base classes and common types for GGE protocol models.
 GGE Protocol Format:
 - Request: %xt%{zone}%{command}%1%{json_payload}%
 - Response: %{command}%{zone}%{error_code}%{json_payload}%
-
-Special character encoding for text fields (chat messages, etc.):
-- percent -> &percnt;
-- quote -> &quot;
-- apostrophe -> &145;
-- newline -> <br /> or <br>
-- backslash -> %5C
 """
 
 from __future__ import annotations
@@ -468,82 +461,6 @@ class PlayerInfo(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
-# Text encoding/decoding utilities for chat messages
-def encode_chat_text(text: str) -> str:
-    """
-    Encode text for sending in chat messages.
-
-    Converts special characters to their encoded forms:
-    - % -> &percnt;
-    - " -> &quot;
-    - ' -> &145;
-    - \n -> <br />
-    - backslash -> %5C
-    """
-    result = text
-    # '%' must be encoded before backslash, otherwise the '%' introduced
-    # by the '%5C' replacement would itself get re-encoded.
-    result = result.replace("%", "&percnt;")
-    result = result.replace("\\", "%5C")
-    result = result.replace('"', "&quot;")
-    result = result.replace("'", "&145;")
-    result = result.replace("\n", "<br />")
-    return result
-
-
-def smartfox_json_text(text: str) -> str:
-    """
-    Encode text the way the client does before it puts it in a command.
-
-    Replaces ``%``, ``'``, ``"``, a carriage return, a backslash and a newline, in
-    that order, and turns tabs into spaces.
-
-    Client: ``TextValide.getValideSmartFoxJSONTextMessage`` (dll line 5817)
-    """
-    result = text.replace("%", "&percnt;").replace("'", "&145;").replace('"', "&quot;")
-    result = result.replace("\r", "<br />").replace("\\", "%5C").replace("\n", "<br />")
-    return result.replace("\t", " ")
-
-
-def decode_chat_text(text: str) -> str:
-    """
-    Decode text received in chat messages.
-
-    Converts encoded forms back to special characters:
-    - &percnt; -> %
-    - &quot; -> "
-    - &145; -> '
-    - <br /> or <br> -> \n
-    - %5C -> backslash
-    """
-    result = text
-    result = result.replace("<br />", "\n")
-    result = result.replace("<br>", "\n")
-    # '%5C' must be decoded before '&percnt;' so a literal '%5C' typed by
-    # a user (encoded as '&percnt;5C') doesn't turn into a backslash.
-    result = result.replace("%5C", "\\")
-    result = result.replace("&percnt;", "%")
-    result = result.replace("&quot;", '"')
-    result = result.replace("&145;", "'")
-    return result
-
-
-def parse_chat_json_message(text: str | None) -> str:
-    """
-    Decode server text the way the client's ``parseChatJSONMessage`` does.
-
-    Replaces ``&percnt;``, ``&quot;``, ``&145;``, ``<br />`` and ``%5C`` in that
-    order and turns square brackets into spaces; nothing reads as ``""``.
-
-    Client: ``TextValide.parseChatJSONMessage`` (dll line 5820)
-    """
-    if not text:
-        return ""
-    result = text.replace("&percnt;", "%").replace("&quot;", '"').replace("&145;", "'")
-    result = result.replace("<br />", "\n").replace("%5C", "\\")
-    return result.replace("[", " ").replace("]", " ")
-
-
 __all__ = [
     # Command registry
     "GGECommand",
@@ -561,10 +478,6 @@ __all__ = [
     "UnitCount",
     "PlayerInfo",
     # Utilities
-    "encode_chat_text",
-    "decode_chat_text",
-    "parse_chat_json_message",
-    "smartfox_json_text",
     "enum_or_none",
     "list_or_empty",
     "object_or_none",

@@ -275,7 +275,7 @@ class HospitalSlot(BasePayload):
 
     ``[wod_id, amount, remaining_seconds, speed * 100, heal_time_reduction,
     recruitment_id, seconds_till_locked]``, which the client reads in that order
-    with no ``int()``; here each goes through ``client_int`` so the fields are
+    with no ``int()``; here each goes through ``js_int`` so the fields are
     ints, and a missing value reads as 0. An entry that is not an array reads as
     an empty slot here, where the client would stop reading the list.
 

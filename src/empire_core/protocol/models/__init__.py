@@ -170,8 +170,6 @@ from .base import (
     Position,
     ResourceAmount,
     UnitCount,
-    decode_chat_text,
-    encode_chat_text,
     get_response_model,
     parse_response,
 )
@@ -345,8 +343,6 @@ __all__ = [
     "ResourceAmount",
     "UnitCount",
     "PlayerInfo",
-    "encode_chat_text",
-    "decode_chat_text",
     "get_response_model",
     "parse_response",
     # Auth

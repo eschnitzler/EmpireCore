@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from .base import BasePayload, BaseRequest, BaseResponse, decode_chat_text, encode_chat_text
+from ..text import decode_json_text, encode_json_text
+from .base import BasePayload, BaseRequest, BaseResponse
 
 # =============================================================================
 # ACM - Alliance Chat Message
@@ -24,7 +25,9 @@ class AllianceChatMessageRequest(BaseRequest):
     Command: acm
     Payload: {"M": "encoded_message_text"}
 
-    The message text must be encoded using encode_chat_text() before sending.
+    The message text must be encoded; :meth:`create` does it.
+
+    Client: ``C2SAllianceChatVO`` (bundle line 66771)
     """
 
     command = "acm"
@@ -33,8 +36,8 @@ class AllianceChatMessageRequest(BaseRequest):
 
     @classmethod
     def create(cls, text: str) -> "AllianceChatMessageRequest":
-        """Create a chat message request with properly encoded text."""
-        return cls(M=encode_chat_text(text))
+        """A chat message request, the text encoded as ``C2SAllianceChatVO`` does after dropping carriage returns."""
+        return cls(M=encode_json_text(text.replace("\r", "")))
 
 
 class ChatMessageData(BasePayload):
@@ -50,8 +53,8 @@ class ChatMessageData(BasePayload):
 
     @property
     def decoded_text(self) -> str:
-        """Get the message text with special characters decoded."""
-        return decode_chat_text(self.message_text)
+        """The message text decoded as ``ChatMessageVO.parseObj`` (bundle line 111316) decodes it."""
+        return decode_json_text(self.message_text)
 
 
 class AllianceChatMessageResponse(BaseResponse):
@@ -117,8 +120,8 @@ class ChatLogEntry(BasePayload):
 
     @property
     def decoded_text(self) -> str:
-        """Get the message text with special characters decoded."""
-        return decode_chat_text(self.message_text)
+        """The message text decoded as ``ChatMessageVO.parseObj`` (bundle line 111316) decodes it."""
+        return decode_json_text(self.message_text)
 
 
 class AllianceChatLogResponse(BaseResponse):

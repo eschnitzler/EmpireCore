@@ -36,7 +36,7 @@ from empire_core.exceptions import (
 )
 from empire_core.gamedata import GameData
 from empire_core.network.connection import Connection
-from empire_core.protocol.models import BaseRequest, BaseResponse, encode_chat_text, parse_response
+from empire_core.protocol.models import AllianceChatMessageRequest, BaseRequest, BaseResponse, parse_response
 from empire_core.protocol.models.alliance import GetAllianceInfoRequest, GetAllianceInfoResponse
 from empire_core.protocol.models.chat import AllianceChatLogRequest, AllianceChatLogResponse
 from empire_core.protocol.models.defense import (
@@ -533,7 +533,7 @@ class EmpireClient:
         Args:
             message: The message to send
         """
-        payload = {"M": encode_chat_text(message)}
+        payload = AllianceChatMessageRequest.create(message).to_payload()
         packet = Packet.build_xt(self.config.default_zone, "acm", payload)
         self.connection.send(packet)
 

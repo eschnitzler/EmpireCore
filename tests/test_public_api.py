@@ -43,8 +43,8 @@ _DE_FACTO_PUBLIC_SURFACE = [
     ("CastleInfo", "empire_core.protocol.models.castle"),
     ("AllianceMember", "empire_core.protocol.models.alliance"),
     ("RankingEntry", "empire_core.protocol.models.ranking"),
-    ("decode_chat_text", "empire_core.protocol.models.chat"),
-    ("encode_chat_text", "empire_core.protocol.models.chat"),
+    ("decode_json_text", "empire_core.protocol.text"),
+    ("encode_json_text", "empire_core.protocol.text"),
     # The documented-preferred pool API raises this, and count_troops' docs
     # tell callers to use these two — none may require a deep import.
     ("PoolExhaustedError", "empire_core.pool"),

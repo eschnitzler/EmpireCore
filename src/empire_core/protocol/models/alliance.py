@@ -18,13 +18,13 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 from empire_core.utils.enums import DiplomacyStatus, HelpType, OnlineState
 
 from ..js import ClientInt, ParseInt, js_loose_equals, js_truthy
+from ..text import decode_json_text
 from .base import (
     BasePayload,
     BaseRequest,
     BaseResponse,
     enum_or_none,
     object_or_none,
-    parse_chat_json_message,
     readable_list,
 )
 from .map import MapAreaItem, MapObject, parse_area_rows
@@ -270,7 +270,7 @@ class AllianceInfo(BasePayload):
     @field_validator("description", "announcement", mode="before")
     @classmethod
     def _chat_text(cls, value: Any) -> Any:
-        return parse_chat_json_message(value) if isinstance(value, str) else ""
+        return decode_json_text(value) if isinstance(value, str) else ""
 
     @field_validator("announcement", mode="after")
     @classmethod

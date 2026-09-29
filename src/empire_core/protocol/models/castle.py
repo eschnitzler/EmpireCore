@@ -20,7 +20,8 @@ from pydantic import ConfigDict, Field, ValidationError, field_serializer, field
 
 from empire_core.utils.enums import Kingdom, MapItemType
 
-from .base import BasePayload, BaseRequest, BaseResponse, Position, ResourceAmount, smartfox_json_text
+from ..text import encode_json_text
+from .base import BasePayload, BaseRequest, BaseResponse, Position, ResourceAmount
 
 logger = logging.getLogger(__name__)
 
@@ -584,7 +585,7 @@ class RenameCastleRequest(BaseRequest):
 
     @field_serializer("castle_name")
     def _encoded_name(self, value: str) -> str:
-        return smartfox_json_text(value)
+        return encode_json_text(value)
 
 
 class RenameCastleResponse(BaseResponse):
