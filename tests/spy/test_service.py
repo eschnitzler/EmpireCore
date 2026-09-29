@@ -9,6 +9,7 @@ import pytest
 from empire_core.enums import Kingdom
 from empire_core.exceptions import EmpireTimeoutError
 from tests.service_helpers import conn, make_client, xt_packet
+from tests.spy.payloads import CSM_REPLY
 
 
 def spy_script(
@@ -19,7 +20,7 @@ def spy_script(
 ) -> dict[str, Any]:
     return {
         "ssi": ssi if ssi is not None else xt_packet("ssi", {"AS": 46, "GC": 0}),
-        "csm": csm if csm is not None else xt_packet("csm", {"MID": 1}),
+        "csm": csm if csm is not None else xt_packet("csm", CSM_REPLY),
         "sne": sne
         if sne is not None
         else xt_packet("sne", {"MSG": [[9001, 3, "1+0+4#0+16324240+Enemy Keep", "", -1, 0, 0, 0, 0]]}),
@@ -64,7 +65,8 @@ class TestSpySuccessPath:
         assert payloads["ssi"] == {"TX": 700, "TY": 710, "KID": 2}
         assert payloads["csm"]["SC"] == 6
         assert payloads["csm"]["SE"] == 100
-        assert payloads["csm"]["PTT"] == 1
+        assert payloads["csm"]["PTT"] == 0
+        assert payloads["csm"]["HBW"] == -1
         assert payloads["csm"]["SID"] == 12345
         assert payloads["bsd"] == {"MID": 9001}
 
@@ -400,6 +402,90 @@ class TestSpyFailurePaths:
         client.spy.execute_instant_spy(12345, 700, 710)
 
         assert conn(client).waiters_canceled == ["sne"]
+
+
+class TestPaying:
+    """Nothing is paid for unless asked (CastlePostSpyDialog.spyCastle, C2SCreateSpyMovementVO)."""
+
+    def test_by_default_no_horse_is_used_and_nothing_is_paid(self, no_sleep):
+        client = make_client(spy_script())
+
+        client.spy.execute_instant_spy(12345, 700, 710)
+
+        sent = dict(conn(client).request_payloads)["csm"]
+        assert (sent["HBW"], sent["PTT"], sent["SD"]) == (-1, 0, 0)
+
+    def test_feathers_send_no_horse_with_ptt(self, no_sleep):
+        client = make_client(spy_script())
+
+        client.spy.execute_instant_spy(12345, 700, 710, pay_with_feathers=True)
+
+        sent = dict(conn(client).request_payloads)["csm"]
+        assert (sent["HBW"], sent["PTT"]) == (-1, 1)
+
+    def test_a_horse_is_sent_by_its_wod_id(self, no_sleep):
+        client = make_client(spy_script())
+
+        client.spy.execute_instant_spy(12345, 700, 710, horse_wod_id=1010)
+
+        sent = dict(conn(client).request_payloads)["csm"]
+        assert (sent["HBW"], sent["PTT"]) == (1010, 0)
+
+    def test_feathers_win_over_a_horse(self, no_sleep):
+        client = make_client(spy_script())
+
+        client.spy.execute_instant_spy(12345, 700, 710, pay_with_feathers=True, horse_wod_id=1010)
+
+        sent = dict(conn(client).request_payloads)["csm"]
+        assert (sent["HBW"], sent["PTT"]) == (-1, 1)
+
+    def test_the_slowdown_is_sent(self, no_sleep):
+        client = make_client(spy_script())
+
+        client.spy.execute_instant_spy(12345, 700, 710, slowdown=30)
+
+        assert dict(conn(client).request_payloads)["csm"]["SD"] == 30
+
+    def test_the_keys_keep_the_client_order(self, no_sleep):
+        client = make_client(spy_script())
+
+        client.spy.execute_instant_spy(12345, 700, 710, horse_wod_id=1010)
+
+        sent = dict(conn(client).request_payloads)["csm"]
+        assert list(sent) == ["SID", "TX", "TY", "SC", "ST", "SE", "HBW", "KID", "PTT", "SD"]
+
+
+class TestReportWait:
+    """The report can only come once the spies arrive, TT - PT seconds after the csm reply."""
+
+    @staticmethod
+    def _record_timeouts(client: Any, monkeypatch: pytest.MonkeyPatch) -> list[float]:
+        fake = conn(client)
+        timeouts: list[float] = []
+        original = fake.wait_for_result
+
+        def wait_for_result(cmd_id: str, waiter: Any, timeout: float = 5.0) -> Any:
+            timeouts.append(timeout)
+            return original(cmd_id, waiter, timeout)
+
+        monkeypatch.setattr(fake, "wait_for_result", wait_for_result)
+        return timeouts
+
+    def test_the_wait_covers_the_trip(self, no_sleep, monkeypatch):
+        client = make_client(spy_script())
+        timeouts = self._record_timeouts(client, monkeypatch)
+
+        assert client.spy.execute_instant_spy(12345, 700, 710).success is True
+
+        assert timeouts == [38 + 10.0]
+
+    def test_a_reply_without_a_movement_waits_the_margin_only(self, no_sleep, monkeypatch):
+        client = make_client(spy_script(csm=xt_packet("csm", {})))
+        timeouts = self._record_timeouts(client, monkeypatch)
+
+        client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert timeouts == [10.0]
 
 
 class TestAccuracyIsTradedForRisk:

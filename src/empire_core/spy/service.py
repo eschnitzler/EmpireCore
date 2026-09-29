@@ -22,7 +22,7 @@ from empire_core.messages.models import (
 from empire_core.protocol.base import parse_response
 from empire_core.services.base import BaseService, register_service
 
-from .models import SendSpyRequest, SpyScreenInfoRequest, SpyScreenInfoResponse
+from .models import SendSpyRequest, SendSpyResponse, SpyScreenInfoRequest, SpyScreenInfoResponse
 from .risk import MAX_ACCURACY, MAX_RISK_SPY, plan_mission
 
 # Outcome codes from MessageConst in the game client. A spy log is a loss when
@@ -31,6 +31,7 @@ _SUBTYPE_ATTACKER_SUCCESS = 0
 _SUBTYPE_DEFENDER_SUCCESS = 1
 _SUBTYPE_ATTACKER_FAILED = 2
 _LOST_SPY_RESULTS = frozenset({_SUBTYPE_DEFENDER_SUCCESS, _SUBTYPE_ATTACKER_FAILED})
+_REPORT_MARGIN = 10.0
 
 
 def _parse_spy_notification(message: MessageInfo) -> int | None:
@@ -112,12 +113,21 @@ class SpyService(BaseService):
         target_kingdom: Kingdom = Kingdom.GREEN,
         risk_tolerance: int | None = None,
         accuracy: int = MAX_ACCURACY,
+        pay_with_feathers: bool = False,
+        horse_wod_id: int = -1,
+        slowdown: int = 0,
     ) -> SpyResult:
         """
-        Execute an instant spy mission using feathers.
+        Send a military spy mission and read its report.
+
+        Nothing is paid unless asked: by default the spies travel without a
+        horse. ``pay_with_feathers`` uses the instant spy horse, paid with
+        feathers, which the client sends as ``HBW`` -1 with ``PTT`` 1 and
+        which wins over ``horse_wod_id``, as in the client.
 
         Blocks the calling thread for up to ~10s while polling for spy
-        availability — do not call this from a state callback.
+        availability, then until the spies arrive (the csm reply's travel
+        time) plus 10s for the report — do not call this from a state callback.
 
         Args:
             source_castle_id: The castle the spies leave from, one of yours: ``CastleInfo.castle_id``
@@ -131,6 +141,14 @@ class SpyService(BaseService):
                 that stays above it is skipped rather than spied badly.
             accuracy: Spy accuracy (50-100). Lower values need fewer spies for
                 the same risk but return a less complete report.
+            pay_with_feathers: Use the instant spy horse and pay for it with feathers
+            horse_wod_id: A horse's wod id to speed the spies up, paid in coins or
+                rubies; -1 for none
+            slowdown: Seconds to delay the arrival by
+
+        Client: ``CastlePostSpyDialog.spyCastle`` (bundle line 38457),
+        ``C2SCreateSpyMovementVO`` (bundle line 100126),
+        ``HorseTravelboosterVO.isPayedWithPegasusTickets`` (bundle line 118825)
 
         Returns:
             SpyResult with the spy report data or a failure reason.
@@ -182,10 +200,6 @@ class SpyService(BaseService):
         # The plan may have traded detail for risk; send what it settled on.
         accuracy = plan.accuracy
 
-        # 2. Calculate risk (simplified for now - just use max spies)
-        # In a real implementation, we'd calculate exact spies needed for risk_tolerance
-
-        # 3. Send the spy mission (instant with feathers)
         csm_req = SendSpyRequest(
             SID=source_castle_id,
             TX=target_x,
@@ -194,9 +208,9 @@ class SpyService(BaseService):
             SC=spies_to_send,
             ST=SpyType.MILITARY,
             SE=accuracy,
-            HBW=-1,
-            PTT=1,  # Use feathers
-            SD=0,
+            HBW=-1 if pay_with_feathers else horse_wod_id,
+            PTT=1 if pay_with_feathers else 0,
+            SD=slowdown,
         )
 
         # Register the sne waiter before sending csm so the notification
@@ -207,13 +221,13 @@ class SpyService(BaseService):
 
         try:
             try:
-                self.send(csm_req, wait=True)
+                csm_resp = self.request(csm_req, SendSpyResponse)
             except EmpireError as e:
                 return SpyResult(success=False, reason=f"csm_failed_{_error_tag(e)}")
 
-            # 4. Wait for the SNE event to get the message ID
+            travel = csm_resp.seconds_until_arrival or 0
             try:
-                sne_packet = self.client.connection.wait_for_result("sne", sne_waiter, timeout=10.0)
+                sne_packet = self.client.connection.wait_for_result("sne", sne_waiter, timeout=travel + _REPORT_MARGIN)
             except EmpireError as e:
                 return SpyResult(success=False, reason=f"sne_timeout_or_error_{_error_tag(e)}")
 
@@ -242,7 +256,6 @@ class SpyService(BaseService):
             if outcome in _LOST_SPY_RESULTS:
                 return SpyResult(success=False, reason="spy_caught")
 
-            # 5. Request the actual spy report data
             try:
                 bsd_resp = self.request(BattleSpyDataRequest(MID=message_id), BattleSpyDataResponse)
             except EmpireError as e:
