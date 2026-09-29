@@ -13,6 +13,7 @@ from empire_core.protocol.models import BaseRequest, BaseResponse
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
+    from empire_core.state.models import Castle
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,11 @@ class BaseService:
     def zone(self) -> str:
         """Get the game zone from client config."""
         return self.client.config.default_zone
+
+    def _own_castle(self, castle_id: int) -> Castle | None:
+        """One of the player's castles as the state knows it, or None when the state has no such castle."""
+        castles = getattr(self.client.state, "get_castles", list)() or []
+        return next((c for c in castles if getattr(c, "id", None) == castle_id), None)
 
     def send(self, request: BaseRequest, wait: bool = False, timeout: float = 5.0) -> BaseResponse | None:
         """

@@ -678,8 +678,7 @@ class AttackService(BaseService):
         Each request is made only when something it would answer is still
         missing, so a fully specified target costs nothing.
         """
-        castles = getattr(self.client.state, "get_castles", list)() or []
-        source = next((c for c in castles if getattr(c, "id", None) == castle_id), None)
+        source = self._own_castle(castle_id)
         home_kingdom = source.kingdom_id if source is not None else 0
         if target.kingdom_id is None:
             target.kingdom_id = home_kingdom

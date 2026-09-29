@@ -74,8 +74,7 @@ class ArmyService(BaseService):
         Raises:
             CommandError: The server refused to join the castle
         """
-        castles = getattr(self.client.state, "get_castles", list)() or []
-        castle = next((c for c in castles if getattr(c, "id", None) == castle_id), None)
+        castle = self._own_castle(castle_id)
         kingdom_id = castle.kingdom_id if castle is not None else 0
         self.request(SelectCastleRequest(CID=castle_id, KID=kingdom_id), SelectCastleResponse, timeout=timeout)
         return kingdom_id
