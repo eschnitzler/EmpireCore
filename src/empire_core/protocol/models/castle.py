@@ -18,7 +18,7 @@ from typing import Any
 
 from pydantic import ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
 
-from .base import BasePayload, BaseRequest, BaseResponse, Position, ResourceAmount, smartfox_json_text
+from .base import BasePayload, BaseRequest, BaseResponse, Kingdom, Position, ResourceAmount, smartfox_json_text
 
 logger = logging.getLogger(__name__)
 
@@ -528,7 +528,7 @@ class SelectCastleRequest(BaseRequest):
     response_command = "jaa"
 
     castle_id: int = Field(alias="CID")
-    kingdom_id: int = Field(alias="KID", default=0)
+    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN)
 
 
 class SelectCastleResponse(BaseResponse):

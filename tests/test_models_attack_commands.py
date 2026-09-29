@@ -2,18 +2,28 @@
 
 import json
 
+import pytest
+from pydantic import ValidationError
+
 from empire_core.protocol.models import (
     AttackPreset,
+    AttackType,
     AttackWave,
+    AutoSkipCooldownType,
     CreateAttackRequest,
+    GetDungeonAttackInfoRequest,
     GetPresetsRequest,
     GetPresetsResponse,
+    Kingdom,
+    LootPriority,
     MinuteSkipDungeonRequest,
     MinuteSkipDungeonResponse,
     PresetArmy,
     SavePresetRequest,
+    SendSpyRequest,
     SkipDungeonCooldownRequest,
     SkipDungeonCooldownResponse,
+    SpyType,
     WaveFlank,
     parse_response,
 )
@@ -253,3 +263,51 @@ class TestReviewedLeniency:
             {"MSG": [[1, 2, "h", "s", None, 1.5, 0, 0, 0], {"not": "a row"}, [3, 4, "h", "s", 9, 0, 0, 0, 0]]}
         )
         assert [(m.message_id, m.sender_id) for m in event.messages] == [(1, 0), (3, 9)]
+
+
+class TestInputEnums:
+    """Finite inputs take the client's constants (CombatConst, AutoSkipCooldownConst, ClientConstCastle)."""
+
+    def test_enum_values_match_the_client_constants(self):
+        assert [m.value for m in LootPriority] == list(range(12))
+        assert (LootPriority.NO, LootPriority.IRON, LootPriority.BEEF) == (0, 8, 11)
+        assert [(m.name, m.value) for m in AutoSkipCooldownType] == [("OFF", 0), ("MINUTE_SKIP", 1), ("C2", 2)]
+        assert [(m.name, m.value) for m in SpyType] == [("MILITARY", 0), ("ECO", 1), ("SABOTAGE", 2), ("PLAGUE", 3)]
+
+    def test_cra_sends_enum_inputs_as_their_numbers(self):
+        request = CreateAttackRequest(
+            SX=1,
+            SY=2,
+            TX=3,
+            TY=4,
+            KID=Kingdom.ICE,
+            ATT=AttackType.OUTPOST_CONQUER,
+            LP=LootPriority.IRON,
+            ASCT=AutoSkipCooldownType.MINUTE_SKIP,
+        )
+        payload = request.to_payload()
+        assert (payload["KID"], payload["ATT"], payload["LP"], payload["ASCT"]) == (2, 1, 8, 1)
+        sent = json.loads(request.to_packet().split("%")[5])
+        assert (sent["KID"], sent["ATT"], sent["LP"], sent["ASCT"]) == (2, 1, 8, 1)
+
+    def test_cra_refuses_values_the_client_does_not_define(self):
+        for field, value in (("LP", 12), ("ATT", 4), ("ASCT", 3)):
+            with pytest.raises(ValidationError):
+                CreateAttackRequest.model_validate({"SX": 1, "SY": 2, "TX": 3, "TY": 4, field: value})
+
+    def test_a_kingdom_the_enum_lacks_is_still_sent(self):
+        assert CreateAttackRequest(SX=1, SY=2, TX=3, TY=4, KID=11).to_payload()["KID"] == 11
+        assert GetDungeonAttackInfoRequest(SX=1, SY=2, TX=3, TY=4, KID=11).to_payload()["KID"] == 11
+
+    def test_csm_takes_a_spy_type(self):
+        request = SendSpyRequest(SID=5, TX=3, TY=4, KID=Kingdom.FIRE, ST=SpyType.SABOTAGE)
+        payload = request.to_payload()
+        assert (payload["KID"], payload["ST"]) == (3, 2)
+        assert SendSpyRequest(SID=5, TX=3, TY=4).to_payload()["ST"] == 0
+        with pytest.raises(ValidationError):
+            SendSpyRequest.model_validate({"SID": 5, "TX": 3, "TY": 4, "ST": 4})
+
+    def test_minute_skip_sends_an_enum_kingdom_as_its_number_string(self):
+        request = MinuteSkipDungeonRequest(MST="MS2", KID=Kingdom.ICE, X=100, Y=200)
+        assert request.to_payload()["KID"] == "2"
+        assert json.loads(request.to_packet().split("%")[5])["KID"] == "2"

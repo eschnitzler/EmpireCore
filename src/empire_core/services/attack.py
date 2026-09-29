@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from typing import cast
 
 from empire_core.combat import (
     AttackerFlankEffects,
@@ -70,11 +69,11 @@ from empire_core.protocol.models import (
     GetOutpostConquerInfoResponse,
     GetVillageAttackInfoRequest,
     GetVillageAttackInfoResponse,
+    LootPriority,
 )
-from empire_core.protocol.models.base import BaseRequest
+from empire_core.protocol.models.base import BaseRequest, Kingdom
 from empire_core.protocol.models.map import GetMapAreaResponse, MapAreaItem, MapItemType, MapObject
 from empire_core.services.spy_army import SpyArmy
-from empire_core.utils.enums import Kingdom
 
 from .base import BaseService, register_service
 
@@ -242,14 +241,14 @@ class AttackService(BaseService):
         target_y: int,
         waves: list[AttackWave],
         commander_id: int,
-        kingdom_id: int = 0,
-        attack_type: int = AttackType.ATTACK,
+        kingdom_id: Kingdom | int = Kingdom.GREEN,
+        attack_type: AttackType = AttackType.ATTACK,
         wait_time: int = 0,
         horses_type: int = -1,
         feathers: bool = False,
         use_premium_commander: bool = False,
         share_battle_view: bool = False,
-        loot_priority: int = 0,
+        loot_priority: LootPriority = LootPriority.NO,
         slowdown: int = 0,
         yard_wave: list[list[int]] | None = None,
         capacity: WaveCapacity | None = None,
@@ -281,7 +280,7 @@ class AttackService(BaseService):
             target_x: Target absolute X coordinate
             target_y: Target absolute Y coordinate
             waves: Attack waves, front to back
-            kingdom_id: Source kingdom ID (0=Green, 1=Sand, 2=Ice, 3=Fire)
+            kingdom_id: Source kingdom, a Kingdom or the id of one it lacks
             commander_id: Commander to lead the attack, from client.commanders
             attack_type: See AttackType (default: a normal attack)
             wait_time: Wait time before the troops return
@@ -291,7 +290,8 @@ class AttackService(BaseService):
                 -14). It uses one of your premium commanders, or costs rubies when
                 none are left; the client asks first, this does not
             share_battle_view: Let others watch the battle
-            loot_priority: Resource ID to prioritise when looting
+            loot_priority: Resource to loot first (``CombatConst.LOOT_PRIO_*``); the
+                client offers the choice from player level 20
             slowdown: Slowdown offset in seconds
             yard_wave: Courtyard wave as [unit_id, count] pairs
             capacity: The capacities these waves were sized against. Given one,
@@ -360,9 +360,9 @@ class AttackService(BaseService):
         target_y: int,
         source_x: int,
         source_y: int,
-        kingdom_id: int = 0,
+        kingdom_id: Kingdom | int = Kingdom.GREEN,
         *,
-        area_type: int = MapItemType.CASTLE,
+        area_type: MapItemType = MapItemType.CASTLE,
         conquer: bool = False,
         timeout: float = 10.0,
     ) -> AttackInfoResponse:
@@ -402,9 +402,9 @@ class AttackService(BaseService):
         *,
         level: int | None = None,
         camp_victories: int | None = None,
-        camp_kingdom_id: int = 0,
+        camp_kingdom_id: Kingdom | int = Kingdom.GREEN,
         space_id: int | None = None,
-        area_type: int | None = None,
+        area_type: MapItemType | int | None = None,
         landmark_min_level: int = 0,
         area_bonuses: list[Bonus] | None = None,
         inventory: Inventory | None = None,
@@ -759,14 +759,12 @@ class AttackService(BaseService):
     def _scan_tile(self, target: "_Target", *, timeout: float) -> GetMapAreaResponse | None:
         """The map's own record of the target's tile."""
         try:
-            # Not every kingdom id the game uses is in the enum - event
-            # kingdoms go well past it - and the request only needs the number.
             return self.client.scan_map_area(
                 target.x,
                 target.y,
                 target.x,
                 target.y,
-                kingdom=cast(Kingdom, target.kingdom_id or 0),
+                kingdom=target.kingdom_id or 0,
                 timeout=timeout,
             )
         except (EmpireError, ValueError) as e:
@@ -837,7 +835,7 @@ class AttackService(BaseService):
                 source_x=target.source_x or 0,
                 source_y=target.source_y or 0,
                 kingdom_id=target.kingdom_id or 0,
-                area_type=target.area_type if target.area_type is not None else MapItemType.CASTLE,
+                area_type=MapItemType(target.area_type) if target.area_type is not None else MapItemType.CASTLE,
                 conquer=target.conquer,
                 timeout=timeout,
             )
@@ -893,7 +891,7 @@ class AttackService(BaseService):
         *,
         target_x: int | None = None,
         target_y: int | None = None,
-        kingdom_id: int | None = None,
+        kingdom_id: Kingdom | int | None = None,
         source_x: int | None = None,
         source_y: int | None = None,
         target_level: int | None = None,
@@ -901,9 +899,9 @@ class AttackService(BaseService):
         target_owner_id: int | None = None,
         target_owner_legend_level: int | None = None,
         camp_victories: int | None = None,
-        camp_kingdom_id: int = 0,
+        camp_kingdom_id: Kingdom | int = Kingdom.GREEN,
         target_row: list | None = None,
-        area_type: int | None = None,
+        area_type: MapItemType | int | None = None,
         landmark_min_level: int = 0,
         under_conquer_control: bool = False,
         area_bonuses: list[Bonus] | None = None,

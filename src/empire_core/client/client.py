@@ -742,7 +742,7 @@ class EmpireClient:
         y1: int,
         x2: int,
         y2: int,
-        kingdom: Kingdom = Kingdom.GREEN,
+        kingdom: Kingdom | int = Kingdom.GREEN,
         timeout: float = 5.0,
     ) -> GetMapAreaResponse:
         """
@@ -753,7 +753,7 @@ class EmpireClient:
             y1: Top Y coordinate
             x2: Right X coordinate
             y2: Bottom Y coordinate
-            kingdom: Kingdom to scan (GREEN, SANDS, ICE, FIRE, STORM)
+            kingdom: Kingdom to scan, a Kingdom or the id of one it lacks
             timeout: Timeout in seconds
 
         Raises:
@@ -762,7 +762,7 @@ class EmpireClient:
         request = GetMapAreaRequest(KID=kingdom, AX1=x1, AY1=y1, AX2=x2, AY2=y2)
         return self.request(request, GetMapAreaResponse, timeout=timeout)
 
-    def _get_kingdom_start_position(self, kingdom: Kingdom) -> tuple[int, int]:
+    def _get_kingdom_start_position(self, kingdom: Kingdom | int) -> tuple[int, int]:
         """
         Get a starting position for scanning a kingdom.
 
@@ -778,7 +778,7 @@ class EmpireClient:
         if self.state:
             # Find a castle in the target kingdom
             for castle in self.state.get_castles():
-                if castle.kingdom_id == kingdom.value:
+                if castle.kingdom_id == int(kingdom):
                     return (castle.x, castle.y)
 
         # No castle in this kingdom - use map center as fallback
@@ -786,7 +786,7 @@ class EmpireClient:
 
     def scan_kingdom(
         self,
-        kingdom: Kingdom = Kingdom.GREEN,
+        kingdom: Kingdom | int = Kingdom.GREEN,
         item_types: list[MapItemType] | None = None,
         timeout: float = 300.0,
         request_timeout: float = 5.0,
@@ -805,7 +805,7 @@ class EmpireClient:
 
     def scan_chunks(
         self,
-        kingdom: Kingdom,
+        kingdom: Kingdom | int,
         chunks: list[tuple[int, int]],
         item_types: list[MapItemType] | None = None,
         timeout: float = 300.0,

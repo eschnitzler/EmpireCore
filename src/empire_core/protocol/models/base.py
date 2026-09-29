@@ -192,7 +192,12 @@ class Kingdom(IntEnum):
     """
     Kingdom identifiers used throughout the game.
 
-    Each kingdom has different terrain and unit types.
+    Each kingdom has different terrain and unit types. Inputs take
+    ``Kingdom | int``: the server may use kingdom ids this list lacks.
+
+    Client: ``WorldClassic.KINGDOM_ID`` (dll line 19928), ``WorldDessert``
+    (20019), ``WorldIce`` (20035), ``WorldVolcano`` (20067), ``WorldIsland``
+    (20051), ``FactionConst.KINGDOM_ID`` (19333)
     """
 
     GREEN = 0  # Green Kingdom - basic/starter kingdom
@@ -419,6 +424,17 @@ def parse_int(value: Any) -> int:
 ParseInt = Annotated[int, BeforeValidator(parse_int)]
 
 
+_E = TypeVar("_E", bound=IntEnum)
+
+
+def enum_or_none(enum: type[_E], value: int) -> _E | None:
+    """The member of ``enum`` for a reply's int, or None when the client defines no such value."""
+    try:
+        return enum(value)
+    except ValueError:
+        return None
+
+
 class UnitCount(BaseModel):
     """A unit type and count pair."""
 
@@ -539,6 +555,7 @@ __all__ = [
     "parse_int",
     "smartfox_json_text",
     "ParseInt",
+    "enum_or_none",
     # Response registry
     "get_response_model",
     "parse_response",

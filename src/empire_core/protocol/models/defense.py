@@ -17,7 +17,7 @@ from typing import Any
 from pydantic import Field, ValidationError, ValidatorFunctionWrapHandler, field_validator, model_validator
 
 from .army import SpyPositions, UnitInventory
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, client_int
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, Kingdom, client_int
 from .commanders import Castellan, CommanderRoster
 from .movement import MovementArea
 
@@ -48,7 +48,7 @@ class GetDefenseRequest(BaseRequest):
     castle_x: int = Field(alias="CX", description="Castle map x")
     castle_y: int = Field(alias="CY", description="Castle map y")
     area_id: int = Field(alias="AID", description="The castle's area id")
-    kingdom_id: int = Field(alias="KID", default=-1, description="Kingdom id; the client sends -1")
+    kingdom_id: Kingdom | int = Field(alias="KID", default=-1, description="Kingdom id; the client sends -1")
 
 
 class WallSection(BasePayload):

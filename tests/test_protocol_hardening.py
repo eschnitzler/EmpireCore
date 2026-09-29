@@ -12,9 +12,10 @@ from typing import Any
 import pytest
 
 from empire_core.network.connection import _summarize_frame
-from empire_core.protocol.models.alliance import AllianceInfo
+from empire_core.protocol.models.alliance import AllianceInfo, DiplomacyStatus, OnlineState
 from empire_core.protocol.models.attack import AttackWave, CreateAttackResponse, WaveFlank
-from empire_core.protocol.models.commanders import GetCommandersResponse
+from empire_core.protocol.models.base import Kingdom
+from empire_core.protocol.models.commanders import Equipment, GetCommandersResponse, Rareness
 from empire_core.protocol.models.map import GetMapAreaResponse, MapAreaItem, MapItemType
 from empire_core.protocol.packet import (
     MALFORMED_STATUS_CODE,
@@ -558,3 +559,31 @@ class TestDriftedEquipmentEntries:
         assert CreateAttackResponse.model_validate({"AAM": {"M": {}}}).leader is None
         assert CreateAttackResponse.model_validate({"AAM": {"UM": {"L": []}}}).leader is None
         assert CreateAttackResponse.model_validate({"AAM": {"UM": {"L": {"N": "no id"}}}}).leader is None
+
+
+class TestReplyEnumProperties:
+    """Reply fields stay ints; the enum properties read None for a value the client does not define."""
+
+    def test_alliance_standing_and_activity_read_as_client_constants(self):
+        info = AllianceInfo.model_validate(
+            {
+                "DOA": 3,
+                "ADL": [{"AID": 5, "AS": 0, "AC": 1}, {"AID": 6, "AS": 9, "AC": 0}],
+                "AMI": [[42, 0, 0, 0, 1], [43, 0, 0, 0, 7]],
+            }
+        )
+        assert info.status_to_own_alliance == 3
+        assert info.status_to_own_alliance_enum is DiplomacyStatus.REAL_ALLIED
+        assert [s.status for s in info.alliance_diplomacy] == [0, 9]
+        assert [s.status_enum for s in info.alliance_diplomacy] == [DiplomacyStatus.IN_WAR, None]
+        assert [m.login_activity_enum for m in info.member_info] == [OnlineState.LAST_12_HOURS, None]
+
+    def test_equipment_rarity_reads_as_rareness(self):
+        assert Rareness.HERO_BEGINN is Rareness.HERO_UNIQUE
+        assert Equipment(rarity_id=4).rarity_enum is Rareness.LEGENDARY
+        assert Equipment(rarity_id=13).rarity_enum is Rareness.HERO_EPIC
+        assert Equipment(rarity_id=7).rarity_enum is None
+
+    def test_a_scan_of_a_kingdom_the_enum_lacks_is_read(self):
+        assert GetMapAreaResponse.model_validate({"KID": 2, "AI": []}).kingdom is Kingdom.ICE
+        assert GetMapAreaResponse.model_validate({"KID": 11, "AI": []}).kingdom == 11

@@ -9,8 +9,8 @@ from pydantic import ValidationError
 
 from empire_core.exceptions import CommandError, EmpireError
 
-from ..protocol.models.attack import SendSpyRequest, SpyScreenInfoRequest, SpyScreenInfoResponse
-from ..protocol.models.base import parse_response
+from ..protocol.models.attack import SendSpyRequest, SpyScreenInfoRequest, SpyScreenInfoResponse, SpyType
+from ..protocol.models.base import Kingdom, parse_response
 from ..protocol.models.commanders import Castellan
 from ..protocol.models.messages import (
     BattleSpyDataRequest,
@@ -99,7 +99,7 @@ class SpyService(BaseService):
         source_castle_id: int,
         target_x: int,
         target_y: int,
-        target_kingdom: int = 0,
+        target_kingdom: Kingdom | int = Kingdom.GREEN,
         risk_tolerance: int | None = None,
         accuracy: int = MAX_ACCURACY,
     ) -> SpyResult:
@@ -113,7 +113,7 @@ class SpyService(BaseService):
             source_castle_id: Source castle ID
             target_x: Target X coordinate
             target_y: Target Y coordinate
-            target_kingdom: Target kingdom ID (default 0 for Green)
+            target_kingdom: Target kingdom, a Kingdom or the id of one it lacks
             risk_tolerance: Ceiling on the chance of being caught, as a
                 percentage. Missions always run at the lowest risk the spy pool
                 allows; this only decides whether to send at all, so a target
@@ -181,7 +181,7 @@ class SpyService(BaseService):
             TY=target_y,
             KID=target_kingdom,
             SC=spies_to_send,
-            ST=0,
+            ST=SpyType.MILITARY,
             SE=accuracy,
             HBW=-1,
             PTT=1,  # Use feathers

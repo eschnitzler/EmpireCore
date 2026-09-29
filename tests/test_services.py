@@ -45,6 +45,7 @@ from empire_core.protocol.models import (
     GetAllianceInfoRequest,
     GetAllianceInfoResponse,
     HelpType,
+    MapItemType,
     SelectCastleRequest,
     WaveFlank,
     WearerType,
@@ -2536,6 +2537,21 @@ class TestFillAttack:
         assert "aci" in sent
         assert result.waves
 
+    def test_a_kingdom_the_enum_lacks_is_scanned_and_asked_about(self):
+        # Event kingdoms use ids past the Kingdom enum; inputs take them as plain ints.
+        client = self.build([[601, 100_000]])
+        row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+        conn(client).script["gaa"] = xt_packet(
+            "gaa", {"KID": 11, "AI": [row], "OI": [{"OID": 900, "PID": 4242, "PN": "dweller", "L": 46}]}
+        )
+        conn(client).script["aci"] = xt_packet("aci", {"gaa": {"AI": row}, "S": [], "AE": [], "B": {}})
+
+        client.attack.fill_attack(12345, target_x=700, target_y=710, kingdom_id=11)
+
+        kingdoms = {command: payload["KID"] for command, payload in conn(client).request_payloads if "KID" in payload}
+        assert kingdoms["gaa"] == 11
+        assert kingdoms["aci"] == 11
+
     def test_the_owner_legend_level_comes_from_the_scan(self):
         from empire_core.gamedata import GameData
 
@@ -3385,7 +3401,7 @@ class TestTargetPrecalculation:
 
         client = make_client({"adi": xt_packet("adi", LIVE_ADI)})
 
-        info = client.attack.get_attack_info(620, 231, 620, 233, area_type=2)
+        info = client.attack.get_attack_info(620, 231, 620, 233, area_type=MapItemType.DUNGEON)
 
         assert isinstance(info, GetDungeonAttackInfoResponse)
         assert info.source_castle_id == 16654603

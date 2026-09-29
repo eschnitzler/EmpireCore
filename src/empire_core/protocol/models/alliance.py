@@ -11,15 +11,53 @@ Commands:
 from __future__ import annotations
 
 import logging
+from enum import IntEnum
 from typing import Any
 
 from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
 
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, HelpType, ParseInt, parse_chat_json_message
+from .base import (
+    BasePayload,
+    BaseRequest,
+    BaseResponse,
+    ClientInt,
+    HelpType,
+    ParseInt,
+    enum_or_none,
+    parse_chat_json_message,
+)
 from .map import MapAreaItem, MapObject, parse_area_rows
 from .profile import PlayerProfileBase
 
 logger = logging.getLogger(__name__)
+
+
+class DiplomacyStatus(IntEnum):
+    """
+    An alliance's standing with another alliance.
+
+    Client: ``AllianceConst.DIPLOMACY_*`` (dll line 18805)
+    """
+
+    IN_WAR = 0
+    NEUTRAL = 1
+    SOFT_ALLIED = 2
+    REAL_ALLIED = 3
+
+
+class OnlineState(IntEnum):
+    """
+    How recently an alliance member was online.
+
+    Client: ``AllianceConst.ONLINESTATE_*`` (dll line 18805)
+    """
+
+    ONLINE = 0
+    LAST_12_HOURS = 1
+    LAST_48_HOURS = 2
+    LAST_1_WEEK = 3
+    LONG_AGO = 4
+
 
 # =============================================================================
 # Alliance Member Model
@@ -145,6 +183,11 @@ class AllianceMemberInfo(BasePayload):
     laboratory_count: ClientInt = Field(default=0, description="row[9]: laboratories the member holds")
     daily_fame: ClientInt = Field(default=0, description="row[10]: fame gained today")
 
+    @property
+    def login_activity_enum(self) -> OnlineState | None:
+        """``login_activity`` as an :class:`OnlineState`, None for a value the client does not define."""
+        return enum_or_none(OnlineState, self.login_activity)
+
     @model_validator(mode="before")
     @classmethod
     def _from_row(cls, data: Any) -> Any:
@@ -173,6 +216,11 @@ class AllianceDiplomacyStatus(BasePayload):
         default=0,
         description="AllianceConst.DIPLOMACY_CONFIRMED (1) once agreed, DIPLOMACY_REQUEST (0) while only requested",
     )
+
+    @property
+    def status_enum(self) -> DiplomacyStatus | None:
+        """``status`` as a :class:`DiplomacyStatus`, None for a value the client does not define."""
+        return enum_or_none(DiplomacyStatus, self.status)
 
 
 # =============================================================================
@@ -296,6 +344,11 @@ class AllianceInfo(BasePayload):
     laboratories: list[MapAreaItem] = Field(
         alias="ALA", default_factory=list, description="Map rows of the alliance's laboratories (LaboratoryMapobjectVO)"
     )
+
+    @property
+    def status_to_own_alliance_enum(self) -> DiplomacyStatus | None:
+        """``status_to_own_alliance`` as a :class:`DiplomacyStatus`, None for a value the client does not define."""
+        return enum_or_none(DiplomacyStatus, self.status_to_own_alliance)
 
     @property
     def member_count(self) -> int:
@@ -693,6 +746,8 @@ class SearchAllianceResponse(BaseResponse, register=False):
 
 
 __all__ = [
+    "DiplomacyStatus",
+    "OnlineState",
     # Alliance Member
     "AllianceMember",
     "AllianceInfo",

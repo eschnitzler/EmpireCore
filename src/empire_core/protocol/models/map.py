@@ -111,7 +111,7 @@ class GetMapAreaRequest(BaseRequest):
 
     command = "gaa"
 
-    kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
+    kingdom: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN)
     x1: int = Field(alias="AX1")
     y1: int = Field(alias="AY1")
     x2: int = Field(alias="AX2")
@@ -618,7 +618,12 @@ class GetMapAreaResponse(BaseResponse):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
+    kingdom: Kingdom | int = Field(
+        alias="KID",
+        default=Kingdom.GREEN,
+        union_mode="left_to_right",
+        description="A Kingdom member, or the plain id of a kingdom the enum lacks",
+    )
     items: list[MapAreaItem] = Field(alias="AI", default_factory=list, description="The area's map rows")
     owners: list[MapObject] = Field(alias="OI", default_factory=list)
 

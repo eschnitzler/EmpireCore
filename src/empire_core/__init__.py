@@ -32,7 +32,7 @@ from empire_core.gamedata import GameData, ToolStats, UnitStats
 from empire_core.pool import AccountPool, PoolExhaustedError
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models.alliance import AllianceInfo, AllianceMember
-from empire_core.protocol.models.attack import AttackType, AttackWave, WaveFlank
+from empire_core.protocol.models.attack import AttackType, AttackWave, LootPriority, SpyType, WaveFlank
 from empire_core.protocol.models.castle import CastleInfo
 from empire_core.protocol.models.chat import decode_chat_text, encode_chat_text
 from empire_core.protocol.models.commanders import (
@@ -110,6 +110,8 @@ __all__ = [
     # Enums
     "Kingdom",
     "AttackType",
+    "LootPriority",
+    "SpyType",
     "EquipmentSlot",
     "MapItemType",
     "MovementType",

@@ -24,7 +24,7 @@ from pydantic import (
 )
 from pydantic.functional_validators import ModelWrapValidatorHandler
 
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, client_int
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, client_int, enum_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +70,28 @@ class EquipmentType(IntEnum):
     UNIQUE = 1
     UNIQUE_TEMPORARY = 2
     RELIC = 3
+
+
+class Rareness(IntEnum):
+    """
+    Rarity of an equipment item; hero items have their own range.
+
+    Client: ``EquipmentConst.RARENESS_*`` (dll line 19249)
+    """
+
+    UNIQUE = 0
+    COMMON = 1
+    RARE = 2
+    EPIC = 3
+    LEGENDARY = 4
+    RELIC = 5
+    HERO_UNIQUE = 10
+    HERO_BEGINN = 10
+    HERO_COMMON = 11
+    HERO_RARE = 12
+    HERO_EPIC = 13
+    HERO_LEGENDARY = 14
+    HERO_RELIC = 15
 
 
 def _is_number(value: Any) -> bool:
@@ -303,6 +325,11 @@ class Equipment(BasePayload):
     def is_relic(self) -> bool:
         """True for a relic item, whose bonuses index the relic effect table."""
         return self.equipment_type == EquipmentType.RELIC
+
+    @property
+    def rarity_enum(self) -> Rareness | None:
+        """``rarity_id`` as a :class:`Rareness`, None for a value the client does not define."""
+        return enum_or_none(Rareness, self.rarity_id)
 
     @model_validator(mode="before")
     @classmethod

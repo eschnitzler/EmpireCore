@@ -30,6 +30,7 @@ from empire_core.protocol.models import (
     SelectCastleRequest,
     SendSupportRequest,
 )
+from empire_core.protocol.models.base import Kingdom
 
 from .base import BaseService, register_service
 
@@ -91,7 +92,7 @@ class CastleService(BaseService):
     # Castle Selection
     # =========================================================================
 
-    def select(self, castle_id: int, kingdom_id: int = 0, timeout: float = 5.0) -> bool:
+    def select(self, castle_id: int, kingdom_id: Kingdom | int = Kingdom.GREEN, timeout: float = 5.0) -> bool:
         """
         Select/jump to a castle (makes it the active castle).
 

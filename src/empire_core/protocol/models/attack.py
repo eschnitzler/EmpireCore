@@ -32,7 +32,7 @@ from pydantic import (
 from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from .army import SpyPositions, UnitInventory
-from .base import BasePayload, BaseRequest, BaseResponse
+from .base import BasePayload, BaseRequest, BaseResponse, Kingdom
 from .commanders import Commander, CommanderEffects, CommanderRoster
 from .map import MapAreaItem, MapObject
 from .movement import MovementOwner, MovementWrapper
@@ -49,7 +49,11 @@ logger = logging.getLogger(__name__)
 
 
 class AttackType(IntEnum):
-    """Values for the ATT field (CombatConst.ATTACK_TYPE_*)."""
+    """
+    Values for the ATT field.
+
+    Client: ``CombatConst.ATTACK_TYPE_*`` (dll line 18941)
+    """
 
     ATTACK = 0
     OUTPOST_CONQUER = 1
@@ -60,6 +64,56 @@ class AttackType(IntEnum):
     CONQUER = 7
     MONUMENT_CONQUER = 8
     LABORATORY_CONQUER = 9
+
+
+class LootPriority(IntEnum):
+    """
+    The resource an attack loots first, the LP field; NO loots everything evenly.
+
+    The client offers the dropdown from player level ``LOOT_PRIO_MIN_LEVEL`` (20).
+
+    Client: ``CombatConst.LOOT_PRIO_*`` (dll line 18941), offered by
+    ``CastlePostAttackDialog.initLootPriority`` (bundle line 38351)
+    """
+
+    NO = 0
+    WOOD = 1
+    STONE = 2
+    FOOD = 3
+    COAL = 4
+    OIL = 5
+    GLASS = 6
+    AQUAMARINE = 7
+    IRON = 8
+    HONEY = 9
+    MEAD = 10
+    BEEF = 11
+
+
+class AutoSkipCooldownType(IntEnum):
+    """
+    How the target's cooldown is skipped when the attack lands, the ASCT field.
+
+    Client: ``AutoSkipCooldownConst`` (dll line 18836), picked in
+    ``CastlePostAttackHorseDialog.selectAutoskipOption`` (bundle line 99902)
+    """
+
+    OFF = 0
+    MINUTE_SKIP = 1
+    C2 = 2
+
+
+class SpyType(IntEnum):
+    """
+    Kind of spy mission, the ST field of ``csm``.
+
+    Client: ``ClientConstCastle.SPYTYPE_*`` (bundle line 1004)
+    """
+
+    MILITARY = 0
+    ECO = 1
+    SABOTAGE = 2
+    PLAGUE = 3
 
 
 class WaveFlank(BasePayload):
@@ -116,7 +170,7 @@ class CreateAttackRequest(BaseRequest):
         "BPC": use_premium_commander,
         "ATT": attack_type (see AttackType),
         "AV": share_battle_view,
-        "LP": loot_priority resource id,
+        "LP": loot_priority (see LootPriority),
         "FC": send_anyway,
         "PTT": feathers,
         "SD": slowdown offset in seconds,
@@ -126,7 +180,7 @@ class CreateAttackRequest(BaseRequest):
         "BKS": [[currency_id, amount], ...], # collector event boosters
         "AST": [support_tool_wod_id, ...],
         "RW": [[unit_id, count], ...],       # yard wave
-        "ASCT": auto_skip_cooldown_type
+        "ASCT": auto_skip_cooldown (see AutoSkipCooldownType)
     }
 
     Fields follow the client's key order: the constructor initialises SX
@@ -145,7 +199,7 @@ class CreateAttackRequest(BaseRequest):
     source_y: int = Field(alias="SY")
     target_x: int = Field(alias="TX")
     target_y: int = Field(alias="TY")
-    kingdom_id: int = Field(alias="KID", default=0)
+    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN)
     commander_id: int = Field(alias="LID", default=0)
     wait_time: int = Field(alias="WT", default=0)
     horses_type: int = Field(alias="HBW", default=-1)
@@ -157,9 +211,9 @@ class CreateAttackRequest(BaseRequest):
             "CastlePostAttackDialog.startAttack sends 0 for any other commander"
         ),
     )
-    attack_type: int = Field(alias="ATT", default=AttackType.ATTACK)
+    attack_type: AttackType = Field(alias="ATT", default=AttackType.ATTACK)
     share_battle_view: int = Field(alias="AV", default=0)
-    loot_priority: int = Field(alias="LP", default=0)
+    loot_priority: LootPriority = Field(alias="LP", default=LootPriority.NO)
     send_anyway: int = Field(
         alias="FC",
         default=0,
@@ -177,7 +231,7 @@ class CreateAttackRequest(BaseRequest):
     )
     support_tools: list[int] = Field(alias="AST", default_factory=list)
     yard_wave: list[list[int]] = Field(alias="RW", default_factory=list)
-    auto_skip_cooldown: int = Field(alias="ASCT", default=0)
+    auto_skip_cooldown: AutoSkipCooldownType = Field(alias="ASCT", default=AutoSkipCooldownType.OFF)
 
 
 class CurrencyTotals(BasePayload):
@@ -345,7 +399,7 @@ class GetAttackInfoRequest(BaseRequest):
     target_y: int = Field(alias="TY", description="Target map y")
     source_x: int = Field(alias="SX", description="Attacking castle's map x")
     source_y: int = Field(alias="SY", description="Attacking castle's map y")
-    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
 
 
 class AttackTargetArea(BasePayload):
@@ -620,7 +674,7 @@ class GetDungeonAttackInfoRequest(BaseRequest):
     source_y: int = Field(alias="SY", description="Attacking castle's map y")
     target_x: int = Field(alias="TX", description="Target map x")
     target_y: int = Field(alias="TY", description="Target map y")
-    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
 
 
 class GetDungeonAttackInfoResponse(GetAttackInfoResponse):
@@ -648,7 +702,7 @@ class GetBossDungeonAttackInfoRequest(BaseRequest):
 
     command = "abi"
 
-    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
     source_x: int = Field(alias="SX", description="Attacking castle's map x")
     source_y: int = Field(alias="SY", description="Attacking castle's map y")
     target_x: int = Field(alias="TX", description="Target map x")
@@ -680,7 +734,7 @@ class GetLandmarkAttackInfoRequest(BaseRequest):
 
     command = "ali"
 
-    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
     target_x: int = Field(alias="TX", description="Target map x")
     target_y: int = Field(alias="TY", description="Target map y")
     source_x: int = Field(alias="SX", description="Attacking castle's map x")
@@ -714,7 +768,7 @@ class GetVillageAttackInfoRequest(BaseRequest):
 
     command = "avi"
 
-    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
     target_x: int = Field(alias="TX", description="Target map x")
     target_y: int = Field(alias="TY", description="Target map y")
 
@@ -746,7 +800,7 @@ class GetIslandAttackInfoRequest(BaseRequest):
 
     command = "aii"
 
-    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
     target_x: int = Field(alias="TX", description="Target map x")
     target_y: int = Field(alias="TY", description="Target map y")
 
@@ -781,7 +835,7 @@ class GetOutpostConquerInfoRequest(BaseRequest):
 
     command = "coi"
 
-    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
     target_x: int = Field(alias="TX", description="Target map x")
     target_y: int = Field(alias="TY", description="Target map y")
 
@@ -819,7 +873,7 @@ class GetCapitalConquerInfoRequest(BaseRequest):
 
     command = "cci"
 
-    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
     target_x: int = Field(alias="TX", description="Target map x")
     target_y: int = Field(alias="TY", description="Target map y")
 
@@ -851,7 +905,7 @@ class GetMetropolConquerInfoRequest(BaseRequest):
 
     command = "cti"
 
-    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id of the target")
+    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
     target_x: int = Field(alias="TX", description="Target map x")
     target_y: int = Field(alias="TY", description="Target map y")
 
@@ -886,7 +940,7 @@ class SendSpyRequest(BaseRequest):
         "TY": target_y,
         "KID": target_kingdom,
         "SC": spy_count,
-        "ST": spy_type,
+        "ST": spy_type (see SpyType),
         "SE": precision,
         "HBW": horses_type,
         "PTT": pay_to_travel,
@@ -899,9 +953,9 @@ class SendSpyRequest(BaseRequest):
     castle_id: int = Field(alias="SID")
     target_x: int = Field(alias="TX")
     target_y: int = Field(alias="TY")
-    target_kingdom: int = Field(alias="KID", default=0)
+    target_kingdom: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN)
     spy_count: int = Field(alias="SC", default=1)
-    spy_type: int = Field(alias="ST", default=0)
+    spy_type: SpyType = Field(alias="ST", default=SpyType.MILITARY)
     precision: int = Field(alias="SE", default=100)
     horses_type: int = Field(alias="HBW", default=-1)
     pay_to_travel: int = Field(alias="PTT", default=0)
@@ -942,7 +996,7 @@ class SpyScreenInfoRequest(BaseRequest):
 
     target_x: int = Field(alias="TX")
     target_y: int = Field(alias="TY")
-    target_kingdom: int = Field(alias="KID", default=0)
+    target_kingdom: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN)
 
 
 class SpyScreenInfoResponse(BaseResponse):
@@ -1190,11 +1244,13 @@ class MinuteSkipDungeonRequest(BaseRequest):
         alias="MST",
         description="JSON key of the minute-skip currency used, MS1 to MS7 in the item data (see SCEItem)",
     )
-    kingdom_id: int = Field(alias="KID", description="Kingdom id; sent as a string, as the client's toString() does")
+    kingdom_id: Kingdom | int = Field(
+        alias="KID", description="Kingdom id; sent as a string, as the client's toString() does"
+    )
 
     @field_serializer("kingdom_id")
     def _kingdom_id_as_string(self, value: int) -> str:
-        return str(value)
+        return str(int(value))
 
 
 class MinuteSkipDungeonResponse(BaseResponse):
@@ -1233,7 +1289,7 @@ class SkipDungeonCooldownRequest(BaseRequest):
 
     x: int = Field(alias="X", description="Dungeon map x")
     y: int = Field(alias="Y", description="Dungeon map y")
-    kingdom_id: int = Field(alias="KID", description="Kingdom id")
+    kingdom_id: Kingdom | int = Field(alias="KID", description="Kingdom id")
     map_id: int = Field(alias="MID", default=-1, description="Treasure-map id, -1 for an ordinary dungeon")
     node_id: int = Field(alias="NID", default=-1, description="Treasure-map node id, -1 for an ordinary dungeon")
 
@@ -1284,10 +1340,14 @@ __all__ = [
     "GetMetropolConquerInfoRequest",
     "GetMetropolConquerInfoResponse",
     # CRA - Create Attack
+    "AttackType",
+    "LootPriority",
+    "AutoSkipCooldownType",
     "CreateAttackRequest",
     "CreateAttackResponse",
     "CurrencyTotals",
     # CSM - Send Spy
+    "SpyType",
     "SendSpyRequest",
     "SendSpyResponse",
     # SSI - Spy Screen Info

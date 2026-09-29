@@ -82,7 +82,7 @@ class MapScanner:
         self,
         cx: int,
         cy: int,
-        kingdom: Kingdom,
+        kingdom: Kingdom | int,
         filter_types: set[MapItemType] | None,
         collected_items: list[MapAreaItem],
         collected_objects: dict[int, MapObject],
@@ -212,7 +212,7 @@ class MapScanner:
 
     def scan_kingdom(
         self,
-        kingdom: Kingdom = Kingdom.GREEN,
+        kingdom: Kingdom | int = Kingdom.GREEN,
         item_types: list[MapItemType] | None = None,
         timeout: float = 300.0,
         request_timeout: float = 5.0,
@@ -260,7 +260,7 @@ class MapScanner:
         filter_types = set(item_types) if item_types else None
 
         filter_desc = f"types={list(item_types)}" if item_types else "all types"
-        logger.debug(f"Scanning kingdom {kingdom.name} from chunk ({start_cx}, {start_cy}) for {filter_desc}...")
+        logger.debug(f"Scanning kingdom {kingdom!r} from chunk ({start_cx}, {start_cy}) for {filter_desc}...")
 
         # State tracking
         collected_items: list[MapAreaItem] = []
@@ -357,7 +357,7 @@ class MapScanner:
         if failed_chunks:
             logger.warning(f"Kingdom scan incomplete: {len(failed_chunks)} chunk(s) failed: {failed_chunks[:10]}")
         logger.debug(
-            f"Kingdom {kingdom.name} scan complete. "
+            f"Kingdom {kingdom!r} scan complete. "
             f"Scanned {total_requests} chunks in {elapsed:.1f}s, "
             f"found {len(collected_items)} items. "
             f"Map bounds: x=[{min_x_found * self.CHUNK_SIZE}-{(max_x_found + 1) * self.CHUNK_SIZE}] "
@@ -372,7 +372,7 @@ class MapScanner:
 
     def scan_chunks(
         self,
-        kingdom: Kingdom,
+        kingdom: Kingdom | int,
         chunks: list[tuple[int, int]],
         item_types: list[MapItemType] | None = None,
         timeout: float = 300.0,
