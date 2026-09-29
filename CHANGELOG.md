@@ -129,9 +129,22 @@
 
 ### Breaking Changes
 
+- **alliance**: AllianceInfo.spend_resources_food_upgrade and help_resources_food_upgrade are
+  removed; use soft_relic_forge_uses and hard_relic_forge_uses. description and announcement are
+  decoded, and an empty announcement reads as " ".
+
 - **army**: GetUnitsResponse.inventory is renamed units and, with in_production, stronghold and
   hospital, holds {wod_id: amount} instead of [wod_id, amount] lists; the units (U) and tools (T)
   fields are removed.
+
+- **attack**: GetUnitsRequest has no castle_id and sends {}; army.get_units and get_units_response
+  join the given castle before reading it.
+
+- **combat**: Commander_bonuses takes the GameData as its first argument:
+  commander_bonuses(game_data, commander, area_effects=...).
+
+- **skills**: General.fixed_level is -1 for L: 0 (was 0), and General.star_level is derived from L
+  when ST is missing or 0 and L is a multiple of 10 (was 0).
 
 
 ## v0.39.0 (2026-09-25)
@@ -350,6 +363,143 @@
   ([#201](https://github.com/eschnitzler/EmpireCore/pull/201),
   [`26a10a1`](https://github.com/eschnitzler/EmpireCore/commit/26a10a1527e7bb2552d2217db67a330977e620a1))
 
+### Breaking Changes
+
+- **alliance**: AllianceInfo.castle_count, total_castles, homepage, invite_only,
+  ignore_applications, kick_applications, abbreviation, friendly_raids, support_priority,
+  auto_accept, alliance_war, member_limit, attack_protection, message_filter and invite_friends are
+  renamed to fame_points, highest_fame_points, can_be_invited_to_hard_pact, is_searching_members,
+  is_accepting_members, is_king_alliance, announcement, free_renames, can_be_invited_to_soft_pact,
+  application_count, auto_war, external_member_level, aqua_points, is_able_to_forge and
+  is_forge_inventory_full; required_trust is removed. PlayerProfileBase h_field, castle_count,
+  total_castles and avatar_points are renamed to honor, glory_points, highest_glory_points and
+  achievement_points.
+
+- **alliance**: AllianceInfo.member_info is list[AllianceMemberInfo]; alliance_diplomacy is
+  list[AllianceDiplomacyStatus]; alliance_contracts, alliance_truces, alliance_kingdoms,
+  alliance_monuments and alliance_landmarks are renamed to capitals, metropolises, kings_towers,
+  monuments and laboratories (list[MapAreaItem]). AllianceBookmark.object_info and positions are
+  replaced by owner, a MapObject. SearchAllianceResponse.raw_results is replaced by results;
+  AllianceSearchResult.from_list and might are removed, and it gains rank, score and fame_points. A
+  non-list AMI or L now reads as empty instead of failing validation, and a missing search name is
+  "" instead of "Unknown".
+
+- **army**: Send_support's boost_with_coins is use_premium_commander (default False), feathers is a
+  bool (default False) and commander_id defaults to 0. SendSupportRequest.boost_with_coins is
+  use_premium_commander, and LID, BPC and PTT default to 0.
+
+- **attack**: AttackInfoResponse.raw_defending_castellan and raw_defending_castellan_fallback are
+  replaced by spied_castellan and spied_castellan_fallback, which hold Commander models.
+
+- **attack**: AttackInfoResponse.raw_map_area, raw_inventory and raw_commanders are replaced by
+  target_area, unit_inventory and commander_roster, and owner_records() returns MapObject records
+  instead of dicts.
+
+- **attack**: AttackInfoResponse.raw_spy_army is renamed spy_data, and raw_attacker_effects is
+  replaced by attacker_effects, a list of CommanderEffect models.
+
+- **attack**: CreateAttackResponse.attack_movement is a MovementWrapper instead of a dict,
+  currencies a CurrencyTotals or None instead of a dict, and owners a list of MovementOwner models.
+  CreateAttackRequest's and send_attack's collector_booster take a list of [currency_id, amount]
+  pairs.
+
+- **attack**: Fill_wave and fill_waves return waves whose containers are padded with [-1, 0] for
+  every empty or locked slot. SendSupportRequest no longer has kingdom_id and
+  CastleService.send_support no longer takes it.
+
+- **attack**: GetAttackInfoResponse.defending_castellan_id is now spy_age_seconds.
+  raw_defending_castellan now holds abe and the B entry moved to raw_defending_castellan_fallback.
+  spy_army() and defending_castellan() return None when S is empty. target_row() no longer unwraps a
+  nested row list.
+
+- **attack**: GetPresetsRequest takes no castle_id. AttackPreset now has index, name and raw_army
+  with an army() decoder instead of preset_id, name, units and tools. GetPresetsResponse.presets
+  reads the S key.
+
+- **attack**: GetTargetInfoRequest, GetTargetInfoResponse and TargetInfo are removed; use
+  GetDungeonAttackInfoRequest and GetDungeonAttackInfoResponse. get_attack_info returns an
+  AttackInfoResponse and takes timeout as a keyword after area_type and conquer. fill_attack on a
+  target of unknown area type now scans the tile before the pre-calculation.
+
+- **attack**: Send_attack raises AttackInProgressError on ATTACK_IN_PROGRESS instead of returning
+  False. CreateAttackRequest.fast_cast is send_anyway.
+
+- **attack**: Send_attack's boost_with_coins and CreateAttackRequest.boost_with_coins are
+  use_premium_commander. send_support takes commander_id right after units, with no default, and
+  SendSupportRequest.commander_id is required.
+
+- **attack**: SkipAttackCooldownRequest/Response are now MinuteSkipDungeonRequest/Response and
+  SkipDefenseCooldownRequest/Response are now SkipDungeonCooldownRequest/Response. The requests take
+  the dungeon's coordinates, kingdom and treasure-map ids instead of castle_id, and the replies
+  expose area_row instead of rubies_spent.
+
+- **combat**: EffectDef.raid_boss_id is replaced by raw_raid_boss_ids and the raid_boss_ids
+  property. can_use_tool_on_target now takes the game data as a third argument.
+
+- **combat**: Fill_waves and fill_attack no longer take sceat_skill_ids.
+
+- **combat**: Is_legendary_fight is removed; use LegendaryFight.evaluate. Without owner_id,
+  fill_waves grants no legend skills except an alien camp's, whose owner id follows from its area
+  type.
+
+- **commanders**: LeaderBase.raw_equipment and the equipment() method are replaced by the equipment
+  field, a list of Equipment. LeaderBase.effects and area_effects hold CommanderEffect models
+  instead of raw rows. Equipment.bonuses holds EquipmentBonus models, and a relic item's bonuses
+  move to Equipment.relic_bonuses as RelicBonus models.
+
+- **defense**: GetDefenseRequest and the ChangeKeep/Wall/MoatDefenseRequest models take the castle's
+  coordinates and area id instead of castle_id, and the change requests take slot lists instead of
+  units and tools, with ChangeWallDefenseRequest taking one WallSectionSetup per section.
+  GetDefenseResponse has the dfc fields instead of keep/wall/moat/courtyard. DefenseConfiguration is
+  removed, and ChangeKeep/Wall/MoatDefenseResponse are replaced by KeepDefense, WallDefense and
+  MoatDefense.
+
+- **defense**: GetSupportDefenseResponse.castellan_info (dict) is replaced by castellan (Castellan),
+  unit_inventory is a UnitInventory instead of a dict, and commanders_info (dict) is replaced by
+  commander_roster (CommanderRoster). defense_positions holds pairs already read through int().
+
+- **gamedata**: ToolStats.effects is renamed to raw_effects and is a str instead of Any.
+
+- **map**: GetMapAreaResponse.raw_items is removed; items is now a field holding the parsed rows,
+  and unparseable rows are logged when the reply is parsed rather than when items is read.
+
+- **map**: MapAreaItem's structure levels are 0 for kings towers, monuments, laboratories, villages
+  and isles, and a capital's or metropolis's keep, wall and gate levels are no longer floored at 1.
+
+- **messages**: SystemNotificationEvent.messages is list[MessageInfo] instead of raw lists.
+  BattleSpyDataResponse.battle_data and SpyResult.battle_data are renamed to defending_castellan and
+  are Castellan | None instead of a dict. BattleSpyDataResponse.spy_data and SpyResult.spy_data are
+  list[list[list[int]]].
+
+- **models**: MemberEmblem and MemberCastle are removed. AllianceMember.emblem,
+  PlayerOwnerInfo.emblem and MapObject.emblem are OwnerCrest (icon_style is now is_set,
+  symbol_color1/2 are symbol1_color/symbol2_color). PlayerProfileBase.castle_positions and
+  village_positions are list[OwnerCastlePosition] and the castles property is removed.
+  MapObject.faction is OwnerFaction and MapObject.alliance_emblem is AllianceEmblem instead of
+  dicts.
+
+- **movements**: Movement.target_area and Movement.source_area are MovementArea | None instead of
+  the raw list (the row is at .row). Movement.commander_equipment is list[Equipment] and
+  Movement.commander_effects is list[CommanderEffect] instead of raw lists.
+  MovementUnitInfo.commander is Commander | None instead of a dict.
+
+- **player**: A gcl row wrapped in an extra list is no longer unwrapped and is skipped, as the
+  client would not read it. SearchPlayerResponse gains x and y, and get_player picks the owner of
+  the area at X/Y rather than the first owner record.
+
+- **player**: GetPlayerInfoResponse.raw_castle_list is replaced by castle_list (GetCastlesResponse)
+  and get_castles returns list[CastleInfo] instead of list[PlayerCastle] (castle_name, kingdom_id,
+  castle_id and occupier_id instead of name, kingdom, location_id and capturer_id). Like the gcl
+  command it drops rows of ten fields or fewer, and a capture's kingdom is the list's KID.
+  SearchPlayerResponse.raw_gaa is replaced by area, SearchPlayerResult is removed and get_player
+  returns MapObject | None. PlayerCastle, LOCATION_TYPES and get_location_type_name are no longer
+  importable from models.player; import them from models.castle or models.
+
+- **ranking**: GetRankingListResponse.raw_list is replaced by scores, a list[LeaderboardScore].
+
+- **skills**: General.raw_abilities is replaced by selected_abilities, a list[SelectedAbility];
+  ability_ids no longer includes -1 or bare ids.
+
 
 ## v0.38.0 (2026-09-25)
 
@@ -402,6 +552,23 @@
 - **state**: The deprecated Player.inventory can be assigned again
   ([#189](https://github.com/eschnitzler/EmpireCore/pull/189),
   [`c391575`](https://github.com/eschnitzler/EmpireCore/commit/c391575c9fa624f07d3d50e2fda489bdb5e5c835))
+
+### Breaking Changes
+
+- **state**: MovementResources.ash is aquamarine. Movement.resources is filled from market goods or
+  travel loot, never from GS.
+
+- **state**: On_incoming_attack no longer fires before the local player is known, nor for attacks
+  whose target is outside your alliance.
+
+- **state**: Player.inventory, Player(inventory=...) and GameState.get_inventory() are gone. Use
+  Player.special_currencies and GameState.get_special_currencies().
+
+- **state**: Player.LVL, XP, LL, XPFCL and XPTNL are replaced by level, xp, legendary_level,
+  xp_for_current_level and xp_to_next_level, which are now fields (they were read-only properties).
+
+- **state**: Player.model_dump() now uses the key special_currencies; there is no inventory key any
+  more. Player(inventory=...) and the inventory property still work, with a DeprecationWarning.
 
 
 ## v0.37.0 (2026-09-25)
@@ -469,6 +636,20 @@
   ([#177](https://github.com/eschnitzler/EmpireCore/pull/177),
   [`14deeb9`](https://github.com/eschnitzler/EmpireCore/commit/14deeb9d3c7ab74d0e46e44a81bcfa469163cd4e))
 
+### Breaking Changes
+
+- **protocol**: Protocol.models.map.Movement is removed. GetMovementsResponse.movements holds
+  MovementWrapper entries; the record is .movement, with the fields of the state Movement.
+
+- **state**: Alliance.abbreviation is removed; is_searching is the flag SA really holds. The AID, N,
+  SA and R attributes are replaced by id, name, is_searching and rank.
+
+- **state**: Castle.max_castellans, has_workshop, has_dwelling, has_harbour and next_day_population
+  are replaced by market_carriages, has_siege_workshop, has_defense_workshop, has_hospital and
+  neutral_deco_points; defence and stronghold_units are new. Resources.ash is aquamarine. The OID,
+  N, KID, X, Y, P, NDP, MC, B, WS, DW and H attributes are gone: use id, name, kingdom_id, x, y and
+  the properties above.
+
 
 ## v0.36.0 (2026-09-24)
 
@@ -512,9 +693,19 @@
 
 ### Breaking Changes
 
+- **state**: Every MovementType member except SPY changed number or name. SUPPORT is DEFENCE,
+  TRANSPORT is MARKET, and RAID, SETTLE, CAMP, TRADE, ATTACK_CAMP, RAID_CAMP and RETURN are removed.
+
+- **state**: Is_incoming and is_outgoing need the local player id and no longer read D. is_returning
+  is D == 1. get_outgoing_movements() lists your armies heading out, not armies on their way home.
+  is_transport is a market transport only; troops moved between your own castles are is_travel.
+
 - **state**: Movement no longer has the MID, T, PT, TT, D, TID, KID, SID, OID and HBW attributes.
   Use movement_id, movement_type, progress_time, total_time, direction, target_id, kingdom_id,
   source_id, owner_id and horse_booster_id, which keep their names and meanings.
+
+- **state**: On_movement_arrived is time-based and can fire from a query; STALE_MOVEMENT_GRACE is
+  gone. on_movement_recalled no longer fires on mrm: use on_movement_removed for removals.
 
 
 ## v0.35.3 (2026-09-24)
@@ -585,6 +776,16 @@
 
 - **castle**: Narrow the optional castle before reading its units
   ([`8d79e0c`](https://github.com/eschnitzler/EmpireCore/commit/8d79e0c9950289f81017d2df5c3d1afcee59114b))
+
+### Breaking Changes
+
+- **castle**: CastleInfo lost level and gained owner_id. DetailedCastleInfo lost buildings,
+  population and max_population; items is now units. BuildingInfo is gone. GetDetailedCastleRequest
+  no longer takes a castle id. GetCastlesResponse and GetDetailedCastleResponse carry player_id and
+  a castles list.
+
+- **map**: MapAreaItem.owner_id is the player id for type-1 and type-12 rows too. Use the new
+  location_id for the castle id.
 
 
 ## v0.34.0 (2026-09-09)
@@ -866,6 +1067,10 @@
 - **attack**: AttackService.send_attack now takes commander_id as a required argument, positioned
   after waves, and empire_core.services.attack.NO_COMMANDER is removed.
 
+- **commanders**: Client.lords is now client.commanders, LordsService is CommandersService,
+  get_lords() is get_commanders(), the Lord model is Commander with lord_id renamed to commander_id,
+  and the lord_id keyword of CastleService.send_support is now commander_id.
+
 
 ## v0.32.1 (2026-08-19)
 
@@ -1046,6 +1251,23 @@
 - Keep the type checker happy about deliberately malformed fixtures
   ([`5b7c618`](https://github.com/eschnitzler/EmpireCore/commit/5b7c618f2e9576804122b581936c7b3ece26b577))
 
+### Breaking Changes
+
+- **accounts,pool**: Lease() raising instead of returning None, and .env no longer being read at
+  import. Neither has a consumer in dreambot-v3.
+
+- **connection,client**: Connect() raises NetworkError instead of leaking websocket-client/socket
+  exceptions, and send(wait=True)/request() raise PacketError instead of pydantic ValidationError.
+
+- **packaging**: Sqlmodel and aiosqlite moved to the optional [storage] extra; importing
+  empire_core.storage without it raises an ImportError.
+
+- **protocol**: Get_moving_flags() keys results by player id (was castle id) and only includes
+  castles that are actually relocating.
+
+- **utils**: Get_active_events() and get_troop_ids() raise NetworkError on CDN failure instead of
+  returning an empty list/set.
+
 
 ## v0.29.0 (2026-08-11)
 
@@ -1108,6 +1330,11 @@
 
 - Prune dead modules, fix pool/accounts lifecycle, add test suite
   ([`843d835`](https://github.com/eschnitzler/EmpireCore/commit/843d8354915ed804423a6568ba9eb9c7984dd9ca))
+
+### Breaking Changes
+
+- Client.send(wait=True) and query methods now raise typed exceptions instead of returning None on
+  failure.
 
 
 ## v0.27.0 (2026-05-29)
@@ -1529,6 +1756,20 @@
 - _online property replaced with _activity_tier
 
 
+## v0.12.0 (2026-01-10)
+
+### Bug Fixes
+
+- Use AMI array for online status instead of H field
+  ([`623fc10`](https://github.com/eschnitzler/EmpireCore/commit/623fc10fa05fe4fded7824cc276e4b4c27744c9d))
+
+### Breaking Changes
+
+- The H field was incorrectly assumed to be 'hours since online'. It's actually 'honor' points.
+  Online status now correctly comes from the AMI array (index 4), where 0 = online and non-zero =
+  offline.
+
+
 ## v0.11.0 (2026-01-08)
 
 ### Features
@@ -1689,6 +1930,19 @@
 
 - Bump version to 0.4.4
   ([`6f14f68`](https://github.com/eschnitzler/EmpireCore/commit/6f14f6867546550751cdad4df0073df3176d253b))
+
+
+## v0.4.3 (2026-01-04)
+
+### Bug Fixes
+
+- Route all packets through GameState for callbacks
+  ([`88ada1b`](https://github.com/eschnitzler/EmpireCore/commit/88ada1bf4998e4c044657a22f08e2e24b816045e))
+
+### Chores
+
+- Bump version to 0.4.3
+  ([`4dd9202`](https://github.com/eschnitzler/EmpireCore/commit/4dd92028d375776f3aca1975e7f04d7bee4306fd))
 
 
 ## v0.4.2 (2026-01-05)
