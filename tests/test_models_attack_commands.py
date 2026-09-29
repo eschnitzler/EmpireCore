@@ -23,6 +23,7 @@ from empire_core.protocol.models import (
     SendSpyRequest,
     SkipDungeonCooldownRequest,
     SkipDungeonCooldownResponse,
+    SpyScreenInfoRequest,
     SpyType,
     WaveFlank,
     parse_response,
@@ -132,6 +133,19 @@ class TestAttackRequestShapes:
             "SX", "SY", "TX", "TY", "KID", "LID", "WT", "HBW", "BPC", "ATT", "AV",
             "LP", "FC", "PTT", "SD", "ICA", "CD", "A", "BKS", "AST", "RW", "ASCT",
         ]  # fmt: skip
+
+    def test_csm_keys_follow_the_client_order(self):
+        # C2SCreateSpyMovementVO declares SID, TX, TY, SC, ST, SE, HBW, KID, PTT, SD
+        request = SendSpyRequest(SID=5, TX=3, TY=4, SC=2, ST=SpyType.ECO, SE=80, HBW=-1, KID=Kingdom.ICE, PTT=1, SD=7)
+        assert list(request.to_payload().items()) == [
+            ("SID", 5), ("TX", 3), ("TY", 4), ("SC", 2), ("ST", 1),
+            ("SE", 80), ("HBW", -1), ("KID", 2), ("PTT", 1), ("SD", 7),
+        ]  # fmt: skip
+
+    def test_ssi_keys_follow_the_client_order(self):
+        # C2SGetSpyInfo declares TX, TY, KID
+        request = SpyScreenInfoRequest(TX=3, TY=4, KID=Kingdom.STORM)
+        assert list(request.to_payload().items()) == [("TX", 3), ("TY", 4), ("KID", 4)]
 
     def test_collector_boosters_are_currency_amount_pairs(self):
         # CastleFightScreenVO.addCollectorBooster pushes [boosterKey, amount]

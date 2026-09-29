@@ -613,24 +613,21 @@ class RenameCastleResponse(BaseResponse):
 
 class RelocateCastleRequest(BaseRequest):
     """
-    Relocate a castle to new coordinates.
+    Start a relocation to a new position.
 
     Command: rst
-    Payload: {"CID": castle_id, "X": x, "Y": y, "KID": kingdom_id}
+    Payload: {"PX": x, "PY": y}
+
+    The client sends only the position: no castle id and no kingdom.
+
+    Client: ``C2SStartRelocationVO`` (bundle line 109634), sent by
+    ``CastleRelocateDialog.onClick`` (bundle line 109619)
     """
 
     command = "rst"
 
-    castle_id: int = Field(
-        alias="CID",
-        description=(
-            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
-            "client.state.get_castles()"
-        ),
-    )
-    x: int = Field(alias="X")
-    y: int = Field(alias="Y")
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
+    x: int = Field(alias="PX", description="Map x of the new position")
+    y: int = Field(alias="PY", description="Map y of the new position")
 
 
 class RelocateCastleResponse(BaseResponse):

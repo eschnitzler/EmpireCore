@@ -32,7 +32,7 @@ from empire_core.protocol.models.chat import (
     AllianceChatMessageResponse,
 )
 from empire_core.protocol.models.defense import GetSupportDefenseResponse
-from empire_core.protocol.models.map import GetMapAreaResponse, MapAreaItem
+from empire_core.protocol.models.map import GetMapAreaRequest, GetMapAreaResponse, MapAreaItem
 from empire_core.protocol.models.player import GetPlayerInfoResponse, SearchPlayerResponse
 from empire_core.protocol.models.ranking import GetHighscoreResponse, GetRankingListResponse, RankingEntry
 from empire_core.protocol.text import decode_json_text, encode_json_text
@@ -1013,9 +1013,9 @@ class TestPositionalArrayParsers:
         assert all(isinstance(t, MapItemType) for t in LOCATION_TYPES)
         assert LOCATION_TYPES[15] == "Camp" and MapItemType(15) is MapItemType.FACTION_CAMP
 
-    def test_relocate_takes_a_kingdom(self):
-        payload = RelocateCastleRequest(CID=5, X=10, Y=20, KID=Kingdom.ICE).to_payload()
-        assert payload == {"CID": 5, "X": 10, "Y": 20, "KID": 2}
+    def test_relocate_sends_only_the_position(self):
+        # C2SStartRelocationVO(posX, posY) declares PX and PY and nothing else
+        assert list(RelocateCastleRequest(PX=10, PY=20).to_payload().items()) == [("PX", 10), ("PY", 20)]
 
     @pytest.mark.parametrize("data", [[1, "x", 3, 4], "abcd", [1, 2, 3, [4]]])
     def test_player_castle_rejects_wrong_types(self, data):
@@ -1225,6 +1225,11 @@ class TestOwnerRecordLeniency:
         assert record.faction is not None and record.faction.protection_status == 0
         assert record.alliance_emblem is not None and record.alliance_emblem.crest is not None
         assert record.alliance_emblem.crest.color_ids == []
+
+    def test_gaa_keys_follow_the_client_order(self):
+        # C2SGetAreasVO declares KID, AX1, AY1, AX2, AY2
+        request = GetMapAreaRequest(KID=Kingdom.FIRE, AX1=1, AY1=2, AX2=3, AY2=4)
+        assert list(request.to_payload().items()) == [("KID", 3), ("AX1", 1), ("AY1", 2), ("AX2", 3), ("AY2", 4)]
 
     def test_an_unhashable_area_type_costs_only_its_row(self):
         from empire_core.protocol.models import GetMapAreaResponse

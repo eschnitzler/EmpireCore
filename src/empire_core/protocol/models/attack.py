@@ -94,28 +94,15 @@ class CreateAttackRequest(BaseRequest):
     Send an attack to a target.
 
     Command: cra
-    Payload: {
-        "SX": source_x, "SY": source_y,      # absolute map coordinates
-        "TX": target_x, "TY": target_y,
-        "KID": kingdom_id,
-        "LID": commander_id (0 is a commander too, -14 the premium one),
-        "WT": wait_time,
-        "HBW": horses_type (-1 when PTT is set),
-        "BPC": use_premium_commander,
-        "ATT": attack_type (see AttackType),
-        "AV": share_battle_view,
-        "LP": loot_priority (see LootPriority),
-        "FC": send_anyway,
-        "PTT": feathers,
-        "SD": slowdown offset in seconds,
-        "ICA": collector_attack,
-        "CD": 99,                            # hardcoded by the client
-        "A": [wave, ...],                    # see AttackWave
-        "BKS": [[currency_id, amount], ...], # collector event boosters
-        "AST": [support_tool_wod_id, ...],
-        "RW": [[unit_id, count], ...],       # yard wave
-        "ASCT": auto_skip_cooldown (see AutoSkipCooldownType)
-    }
+    Payload: {"SX": source_x, "SY": source_y, "TX": target_x, "TY": target_y, "KID": kingdom_id,
+              "LID": commander_id, "WT": wait_time, "HBW": horses_type, "BPC": use_premium_commander,
+              "ATT": attack_type, "AV": share_battle_view, "LP": loot_priority, "FC": send_anyway,
+              "PTT": feathers, "SD": slowdown, "ICA": collector_attack, "CD": 99, "A": waves,
+              "BKS": collector_booster, "AST": support_tools, "RW": yard_wave,
+              "ASCT": auto_skip_cooldown}
+
+    ``KID`` is the attacking castle's kingdom. A horse paid with feathers is
+    sent as ``HBW`` -1 with ``PTT`` 1. ``CD`` is always 99.
 
     Fields follow the client's key order: the constructor initialises SX
     through CD before it sets A, BKS, AST, RW and ASCT.
@@ -129,11 +116,11 @@ class CreateAttackRequest(BaseRequest):
 
     command = "cra"
 
-    source_x: int = Field(alias="SX")
-    source_y: int = Field(alias="SY")
-    target_x: int = Field(alias="TX")
-    target_y: int = Field(alias="TY")
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
+    source_x: int = Field(alias="SX", description="Attacking castle's map x")
+    source_y: int = Field(alias="SY", description="Attacking castle's map y")
+    target_x: int = Field(alias="TX", description="Target map x")
+    target_y: int = Field(alias="TY", description="Target map y")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The attacking castle's kingdom")
     commander_id: int = Field(
         alias="LID",
         description=(
@@ -141,8 +128,8 @@ class CreateAttackRequest(BaseRequest):
             "0 is the free starting commander, -14 the premium one"
         ),
     )
-    wait_time: int = Field(alias="WT", default=0)
-    horses_type: int = Field(alias="HBW", default=-1)
+    wait_time: int = Field(alias="WT", default=0, description="Wait time the attack is sent with")
+    horses_type: int = Field(alias="HBW", default=-1, description="The horse's wod id, -1 for none or for feathers")
     use_premium_commander: int = Field(
         alias="BPC",
         default=0,
@@ -151,27 +138,33 @@ class CreateAttackRequest(BaseRequest):
             " costs rubies; 0 for any other commander"
         ),
     )
-    attack_type: AttackType = Field(alias="ATT", default=AttackType.ATTACK)
-    share_battle_view: int = Field(alias="AV", default=0)
-    loot_priority: LootPriority = Field(alias="LP", default=LootPriority.NO)
+    attack_type: AttackType = Field(alias="ATT", default=AttackType.ATTACK, description="The kind of attack")
+    share_battle_view: int = Field(alias="AV", default=0, description="1 to let others watch the battle")
+    loot_priority: LootPriority = Field(alias="LP", default=LootPriority.NO, description="Resource to loot first")
     send_anyway: int = Field(
         alias="FC",
         default=0,
         description="1 to send although one of your attacks is already on its way there (after ATTACK_IN_PROGRESS)",
     )
-    feathers: int = Field(alias="PTT", default=0)
-    slowdown: int = Field(alias="SD", default=0)
-    collector_attack: int = Field(alias="ICA", default=0)
-    countdown: int = Field(alias="CD", default=99)
-    waves: list[AttackWave] = Field(alias="A", default_factory=list)
+    feathers: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
+    slowdown: int = Field(alias="SD", default=0, description="Slowdown offset in seconds")
+    collector_attack: int = Field(alias="ICA", default=0, description="1 for a collector event attack")
+    countdown: int = Field(alias="CD", default=99, description="Always 99")
+    waves: list[AttackWave] = Field(alias="A", default_factory=list, description="The attack waves, front to back")
     collector_booster: list[list[int]] = Field(
         alias="BKS",
         default_factory=list,
         description="Collector event boosters as [currency_id, amount], such as 31 (samurai medal booster)",
     )
-    support_tools: list[int] = Field(alias="AST", default_factory=list)
-    yard_wave: list[list[int]] = Field(alias="RW", default_factory=list)
-    auto_skip_cooldown: AutoSkipCooldownType = Field(alias="ASCT", default=AutoSkipCooldownType.OFF)
+    support_tools: list[int] = Field(alias="AST", default_factory=list, description="Support tool wod ids")
+    yard_wave: list[list[int]] = Field(
+        alias="RW", default_factory=list, description="The courtyard wave as [unit_id, count] pairs"
+    )
+    auto_skip_cooldown: AutoSkipCooldownType = Field(
+        alias="ASCT",
+        default=AutoSkipCooldownType.OFF,
+        description="How the target's cooldown is skipped when the attack lands",
+    )
 
 
 class CreateAttackResponse(BaseResponse):
@@ -841,18 +834,16 @@ class SendSpyRequest(BaseRequest):
     Send a spy mission to a target.
 
     Command: csm
-    Payload: {
-        "SID": source_castle_id,
-        "TX": target_x,
-        "TY": target_y,
-        "KID": target_kingdom,
-        "SC": spy_count,
-        "ST": spy_type (see SpyType),
-        "SE": precision,
-        "HBW": horses_type,
-        "PTT": pay_to_travel,
-        "SD": sd
-    }
+    Payload: {"SID": castle_id, "TX": target_x, "TY": target_y, "SC": spy_count, "ST": spy_type,
+              "SE": precision, "HBW": horses_type, "KID": target_kingdom, "PTT": pay_to_travel,
+              "SD": slowdown}
+
+    The keys follow the client's order. ``SE`` is the sabotage damage for a
+    sabotage mission and the accuracy for any other. A horse paid with
+    feathers is sent as ``HBW`` -1 with ``PTT`` 1.
+
+    Client: ``C2SCreateSpyMovementVO`` (bundle line 100126), built by
+    ``CastlePostSpyDialog.spyCastle`` (bundle line 38457)
     """
 
     command = "csm"
@@ -864,15 +855,17 @@ class SendSpyRequest(BaseRequest):
             "client.state.get_castles()"
         ),
     )
-    target_x: int = Field(alias="TX")
-    target_y: int = Field(alias="TY")
-    target_kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
-    spy_count: int = Field(alias="SC", default=1)
-    spy_type: SpyType = Field(alias="ST", default=SpyType.MILITARY)
-    precision: int = Field(alias="SE", default=100)
-    horses_type: int = Field(alias="HBW", default=-1)
-    pay_to_travel: int = Field(alias="PTT", default=0)
-    sd: int = Field(alias="SD", default=0)
+    target_x: int = Field(alias="TX", description="Target map x")
+    target_y: int = Field(alias="TY", description="Target map y")
+    spy_count: int = Field(alias="SC", default=1, description="How many spies to send")
+    spy_type: SpyType = Field(alias="ST", default=SpyType.MILITARY, description="What the spies are sent to do")
+    precision: int = Field(
+        alias="SE", default=100, description="Sabotage damage for a sabotage mission, accuracy for any other"
+    )
+    horses_type: int = Field(alias="HBW", default=-1, description="The horse's wod id, -1 for none or for feathers")
+    target_kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The target's kingdom")
+    pay_to_travel: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
+    slowdown: int = Field(alias="SD", default=0, description="Slowdown offset in seconds")
 
 
 class SendSpyResponse(BaseResponse):
@@ -895,21 +888,20 @@ class SendSpyResponse(BaseResponse):
 
 class SpyScreenInfoRequest(BaseRequest):
     """
-    Get spy screen info (guard count, available spies).
+    Get what a spy mission against a target would face: its guards and the spies at hand.
 
     Command: ssi
-    Payload: {
-        "TX": target_x,
-        "TY": target_y,
-        "KID": target_kingdom
-    }
+    Payload: {"TX": target_x, "TY": target_y, "KID": target_kingdom}
+
+    Client: ``C2SGetSpyInfo`` (bundle line 22504), sent with the target's
+    ``absAreaPos`` and ``kingdomID`` when the spy dialog opens (bundle line 14800)
     """
 
     command = "ssi"
 
-    target_x: int = Field(alias="TX")
-    target_y: int = Field(alias="TY")
-    target_kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
+    target_x: int = Field(alias="TX", description="Target map x")
+    target_y: int = Field(alias="TY", description="Target map y")
+    target_kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The target's kingdom")
 
 
 class SpyScreenInfoResponse(BaseResponse):
