@@ -53,8 +53,8 @@ class SelectedAbility(BasePayload):
     slot and ``[1]`` as the ability.
     """
 
-    slot_id: int = Field(description="row[0]: the slot, matched against the general's attack and defense slots")
-    ability_id: int = Field(description="row[1]: the ability, -1 for an empty slot")
+    slot_id: int = Field(description="The slot, matched against the general's attack and defense slots")
+    ability_id: int = Field(description="The ability, -1 for an empty slot")
 
     @model_validator(mode="before")
     @classmethod
@@ -74,22 +74,20 @@ class General(BasePayload):
     Client: ``GeneralVO.parseData`` (bundle line 26666)
     """
 
-    general_id: int = Field(alias="GID", default=-1, description="General id, the key the client matches the entry by")
-    experience: int = Field(alias="XP", default=0, description="Experience, 0 when missing (e.XP||0)")
+    general_id: int = Field(alias="GID", default=-1, description="General id")
+    experience: int = Field(alias="XP", default=0, description="Experience, 0 when missing")
     star_level: int = Field(
         alias="ST",
         default=0,
-        description="Without ST (or with ST 0) and with a fixed level that is a multiple of 10, derived from L",
+        description="Star level; when none is set, derived from fixed_level if that is a multiple of 10",
     )
-    is_new: bool = Field(alias="IN", default=False, description="1 == IN")
-    has_level_up: bool = Field(alias="LU", default=False, description="1 == LU")
-    skill_ids: list[int] = Field(
-        alias="SIDS", default_factory=list, description="Unlocked skill ids; none when missing (e.SIDS||[])"
-    )
+    is_new: bool = Field(alias="IN", default=False, description="The general is new")
+    has_level_up: bool = Field(alias="LU", default=False, description="The general has levelled up")
+    skill_ids: list[int] = Field(alias="SIDS", default_factory=list, description="Unlocked skill ids")
     selected_abilities: list[SelectedAbility] = Field(
         alias="GASAIDS", default_factory=list, description="The general's ability slots, filled or empty"
     )
-    fixed_level: int = Field(alias="L", default=-1, description="L, or -1 when L is missing or 0")
+    fixed_level: int = Field(alias="L", default=-1, description="Fixed level; -1 when there is none")
     old_experience: int = Field(alias="OXP", default=0, description="The xp before the last change")
     wins: int = Field(alias="W", default=0, description="Battles won, 0 when missing")
     defeats: int = Field(alias="D", default=0, description="Battles lost, 0 when missing")
@@ -320,9 +318,7 @@ class GetGeneralsResponse(BaseResponse):
 
     command = "gie"
 
-    generals: list[General] = Field(
-        alias="G", default_factory=list, description="The player's generals; one that cannot be read is skipped"
-    )
+    generals: list[General] = Field(alias="G", default_factory=list, description="The player's generals")
 
     @field_validator("generals", mode="before")
     @classmethod
@@ -385,7 +381,7 @@ class SkillList(BasePayload):
     )
     total_points: ClientInt = Field(alias="SP", default=0, description="Skill points")
     seconds_until_reset: int | float = Field(
-        alias="RS", default=0, description="Seconds until the skills can be reset; parse_SKL keeps fractions (RS*1000)"
+        alias="RS", default=0, description="Seconds until the skills can be reset, fractions included"
     )
 
     reset_count: ClientInt = Field(alias="RC", default=0, description="How many times the skills have been reset")

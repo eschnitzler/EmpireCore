@@ -126,21 +126,20 @@ class AllianceMemberInfo(BasePayload):
     fields off in this order and reads each with ``int``, so a missing field is 0.
     """
 
-    player_id: ClientInt = Field(default=0, description="row[0]")
-    given_c1: ClientInt = Field(default=0, description="row[1]: C1 the member donated to the alliance (givenC1)")
-    given_c2: ClientInt = Field(default=0, description="row[2]: C2 the member donated to the alliance (givenC2)")
-    given_resources: ClientInt = Field(default=0, description="row[3]: resources the member donated")
+    player_id: ClientInt = Field(default=0, description="The member's player id")
+    given_c1: ClientInt = Field(default=0, description="Gold (C1) the member donated to the alliance")
+    given_c2: ClientInt = Field(default=0, description="Rubies (C2) the member donated to the alliance")
+    given_resources: ClientInt = Field(default=0, description="Resources the member donated")
     login_activity: ClientInt = Field(
         default=0,
-        description="row[4]: AllianceConst.ONLINESTATE_*: 0 online, 1 last 12 hours, 2 last 48 hours, "
-        "3 last week, 4 longer ago",
+        description="0 online, 1 last 12 hours, 2 last 48 hours, 3 last week, 4 longer ago",
     )
-    capital_count: ClientInt = Field(default=0, description="row[5]: capitals the member holds")
-    metropolis_count: ClientInt = Field(default=0, description="row[6]: metropolises the member holds")
-    kings_tower_count: ClientInt = Field(default=0, description="row[7]: kings towers the member holds")
-    monument_count: ClientInt = Field(default=0, description="row[8]: monuments the member holds")
-    laboratory_count: ClientInt = Field(default=0, description="row[9]: laboratories the member holds")
-    daily_fame: ClientInt = Field(default=0, description="row[10]: fame gained today")
+    capital_count: ClientInt = Field(default=0, description="Capitals the member holds")
+    metropolis_count: ClientInt = Field(default=0, description="Metropolises the member holds")
+    kings_tower_count: ClientInt = Field(default=0, description="Kings towers the member holds")
+    monument_count: ClientInt = Field(default=0, description="Monuments the member holds")
+    laboratory_count: ClientInt = Field(default=0, description="Laboratories the member holds")
+    daily_fame: ClientInt = Field(default=0, description="Fame gained today")
 
     @property
     def login_activity_enum(self) -> OnlineState | None:
@@ -168,12 +167,12 @@ class AllianceDiplomacyStatus(BasePayload):
     status: ClientInt = Field(
         alias="AS",
         default=0,
-        description="AllianceConst.DIPLOMACY_*: 0 at war, 1 neutral, 2 soft allied, 3 real allied",
+        description="0 at war, 1 neutral, 2 soft allied, 3 real allied",
     )
     status_confirmed: ClientInt = Field(
         alias="AC",
         default=0,
-        description="AllianceConst.DIPLOMACY_CONFIRMED (1) once agreed, DIPLOMACY_REQUEST (0) while only requested",
+        description="1 once agreed, 0 while only requested",
     )
 
     @property
@@ -193,15 +192,17 @@ class AllianceInfo(BasePayload):
 
     Contains alliance details, member list, buildings, storage, etc.
 
-    Client: ``AllianceInfoVO.fillFromParamObject`` (bundle line 25928)
+    Client: ``AllianceInfoVO.fillFromParamObject`` (bundle line 25928), ``parseMemberList`` (bundle line 25968),
+    ``parseStorageFromServer`` (bundle line 25940), ``parseBuffList`` (bundle line 25955);
+    ``CastleAllianceData.parseAllianceInfo`` (bundle line 11609) for ``RT``
     """
 
-    alliance_id: ParseInt = Field(alias="AID", default=0, description="Alliance id, read with parseInt")
+    alliance_id: ParseInt = Field(alias="AID", default=0, description="Alliance id")
     name: str = Field(alias="N", default="", description="Alliance name")
     members: list[AllianceMember] = Field(
         alias="M",
         default_factory=list,
-        description="Members, as AllianceInfoVO.parseMemberList (bundle line 25968) reads them",
+        description="Members",
     )
 
     fame_points: ClientInt = Field(alias="CF", default=0, description="Alliance fame points")
@@ -209,23 +210,19 @@ class AllianceInfo(BasePayload):
     might: ParseInt = Field(alias="MP", default=0, description="Alliance might points")
     highest_alliance_might: ParseInt = Field(alias="HAMP", default=0, description="Highest might points reached")
     description: str = Field(alias="D", default="", description="The alliance's description, decoded as chat text")
-    announcement: str = Field(
-        alias="A", default=" ", description='The alliance\'s announcement; " " when it has none, as in the client'
-    )
+    announcement: str = Field(alias="A", default=" ", description='The alliance\'s announcement; " " when it has none')
     language: str = Field(alias="ALL", default="en", description="The alliance's language code")
-    external_member_level: ParseInt = Field(
-        alias="ML", default=0, description="Read with parseInt as the external member level"
-    )
+    external_member_level: ParseInt = Field(alias="ML", default=0, description="External member level")
     status_to_own_alliance: ParseInt = Field(
         alias="DOA",
         default=0,
-        description="Diplomacy status towards the player's own alliance (AllianceConst.DIPLOMACY_*)",
+        description="Diplomacy status towards the player's own alliance, a DiplomacyStatus value",
     )
     is_searching_members: bool = Field(alias="IS", default=False, description="The alliance is looking for players")
     is_accepting_members: bool = Field(alias="IA", default=False, description="Players may apply to join")
     application_count: ParseInt = Field(alias="AA", default=0, description="Pending applications")
-    auto_war: bool = Field(alias="AW", default=False, description="Auto war is on (1 == AW)")
-    aqua_points: int | float = Field(alias="AP", default=0, description="Aqua points, kept as sent")
+    auto_war: bool = Field(alias="AW", default=False, description="Auto war is on")
+    aqua_points: int | float = Field(alias="AP", default=0, description="Aqua points")
     free_renames: ClientInt = Field(alias="FR", default=0, description="Free alliance renames left")
     can_be_invited_to_hard_pact: bool = Field(alias="HP", default=False, description="Open to hard pact invitations")
     can_be_invited_to_soft_pact: bool = Field(alias="SP", default=False, description="Open to soft pact invitations")
@@ -237,8 +234,7 @@ class AllianceInfo(BasePayload):
     refresh_seconds: ClientInt = Field(
         alias="RT",
         default=0,
-        description="Seconds until the client asks for the alliance again, as CastleAllianceData.parseAllianceInfo "
-        "(bundle line 11609) reads it; 0 when none is set",
+        description="Seconds until the alliance should be requested again; 0 when none is set",
     )
 
     @field_validator("is_searching_members", "is_accepting_members", mode="before")
@@ -276,11 +272,9 @@ class AllianceInfo(BasePayload):
     storage: AllianceStorage | None = Field(
         alias="STO",
         default=None,
-        description="Alliance storage, as parseStorageFromServer (bundle line 25940) reads it",
+        description="Alliance storage",
     )
-    buildings: list[AllianceBuilding] = Field(
-        alias="ABL", default_factory=list, description="Alliance buffs, as parseBuffList (bundle line 25955) reads them"
-    )
+    buildings: list[AllianceBuilding] = Field(alias="ABL", default_factory=list, description="Alliance buffs")
 
     member_info: list[AllianceMemberInfo] = Field(
         alias="AMI", default_factory=list, description="Donations, activity and landmark counts per member"
@@ -289,19 +283,19 @@ class AllianceInfo(BasePayload):
         alias="ADL", default_factory=list, description="The alliance's standing with other alliances"
     )
     capitals: list[MapAreaItem] = Field(
-        alias="ACA", default_factory=list, description="Map rows of the alliance's capitals (CapitalMapobjectVO)"
+        alias="ACA", default_factory=list, description="Map rows of the alliance's capitals"
     )
     metropolises: list[MapAreaItem] = Field(
-        alias="ATC", default_factory=list, description="Map rows of the alliance's metropolises (MetropolMapobjectVO)"
+        alias="ATC", default_factory=list, description="Map rows of the alliance's metropolises"
     )
     kings_towers: list[MapAreaItem] = Field(
-        alias="AKT", default_factory=list, description="Map rows of the alliance's kings towers (KingstowerMapobjectVO)"
+        alias="AKT", default_factory=list, description="Map rows of the alliance's kings towers"
     )
     monuments: list[MapAreaItem] = Field(
-        alias="AMO", default_factory=list, description="Map rows of the alliance's monuments (MonumentMapobjectVO)"
+        alias="AMO", default_factory=list, description="Map rows of the alliance's monuments"
     )
     laboratories: list[MapAreaItem] = Field(
-        alias="ALA", default_factory=list, description="Map rows of the alliance's laboratories (LaboratoryMapobjectVO)"
+        alias="ALA", default_factory=list, description="Map rows of the alliance's laboratories"
     )
 
     @property
@@ -531,7 +525,9 @@ class AskHelpRequest(BaseRequest):
         ),
     )
     help_type: int = Field(alias="HT")
-    building_id: int | None = Field(alias="BID", default=None, description="The library does not read building ids yet")
+    building_id: int | None = Field(
+        alias="BID", default=None, description="The building; no library call returns building ids yet"
+    )
 
     @classmethod
     def heal(cls, castle_id: int) -> "AskHelpRequest":
@@ -608,7 +604,7 @@ class AllianceBookmark(BasePayload):
     owner: MapObject | None = Field(
         alias="OI",
         default=None,
-        description="The owner record of the bookmarked target, which the client parses with parseOwnerInfoArray",
+        description="The owner record of the bookmarked target",
     )
 
     @field_validator("owner", mode="before")
@@ -645,12 +641,12 @@ class AllianceSearchResult(BasePayload):
     it ignores unless that is an array. Every number is read with ``int``.
     """
 
-    rank: ClientInt = Field(default=0, description="row[0]")
-    score: ClientInt = Field(default=0, description="row[1]: the listed value, the alliance's might for LT 11")
-    alliance_id: ClientInt = Field(default=0, description="row[2][0]")
-    name: str = Field(default="", description="row[2][1]")
-    member_count: ClientInt = Field(default=0, description="row[2][2]")
-    fame_points: ClientInt = Field(default=0, description="row[2][3]: the alliance's current fame")
+    rank: ClientInt = Field(default=0, description="Rank on the list")
+    score: ClientInt = Field(default=0, description="The listed value, the alliance's might on list type 11")
+    alliance_id: ClientInt = Field(default=0, description="Alliance id")
+    name: str = Field(default="", description="Alliance name")
+    member_count: ClientInt = Field(default=0, description="Number of members")
+    fame_points: ClientInt = Field(default=0, description="The alliance's current fame")
 
     @model_validator(mode="before")
     @classmethod

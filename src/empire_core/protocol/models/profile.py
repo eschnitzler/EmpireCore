@@ -52,16 +52,17 @@ class PlayerProfileBase(BasePayload):
 
     Client: ``WorldMapOwnerInfoVO.fillFromParamObject`` (bundle line 10794),
     which both the ain member list and the gdi owner go through
-    (``CastleOtherPlayerData.parseOwnerInfo``, bundle line 138996).
+    (``CastleOtherPlayerData.parseOwnerInfo``, bundle line 138996);
+    ``WorldMapOwnerInfoVO.parsePosList`` (bundle line 10795) for ``AP`` and ``VP``.
     """
 
     player_id: int = Field(alias="OID", default=0)
     name: str = Field(alias="N", default="")
     level: int = Field(alias="L", default=0)
     legendary_level: int = Field(alias="LL", default=0)
-    honor: int = Field(alias="H", default=0, description="Honor points, read with parseInt")
+    honor: int = Field(alias="H", default=0, description="Honor points")
     alliance_rank: int = Field(alias="AR", default=0)
-    glory_points: int = Field(alias="CF", default=0, description="Glory points, as parseUFA reads CF")
+    glory_points: int = Field(alias="CF", default=0, description="Glory points")
     highest_glory_points: int = Field(alias="HF", default=0, description="Highest glory points reached")
     might: int = Field(alias="MP", default=0)
     is_dummy: bool = Field(alias="DUM", default=False)
@@ -78,18 +79,16 @@ class PlayerProfileBase(BasePayload):
     title_index: int = Field(alias="TI", default=-1)
     revenge_protection_seconds: int = Field(alias="RPT", default=0)
 
-    emblem: OwnerCrest | None = Field(
-        alias="E", default=None, description="The player's crest, as CrestVO.loadFromParamObject reads it"
-    )
+    emblem: OwnerCrest | None = Field(alias="E", default=None, description="The player's crest")
     castle_positions: list[OwnerCastlePosition] = Field(
         alias="AP",
         default_factory=list,
-        description="The player's castles, read by WorldMapOwnerInfoVO.parsePosList (bundle line 10795)",
+        description="The player's castles",
     )
     village_positions: list[OwnerCastlePosition] = Field(
         alias="VP",
         default_factory=list,
-        description="The player's villages, read by WorldMapOwnerInfoVO.parsePosList (bundle line 10795)",
+        description="The player's villages",
     )
 
     @field_validator("emblem", mode="before")

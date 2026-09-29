@@ -157,6 +157,8 @@ class MapAreaItem(BasePayload):
     - 4: Outpost
     - 22: Metropolis
     - 26: Monument
+
+    Client: ``WorldmapObjectFactory.parseWorldMapArea`` (bundle line 5343)
     """
 
     item_type: int = 0
@@ -165,8 +167,7 @@ class MapAreaItem(BasePayload):
     owner_id: int = -1
     raw_data: list[Any] = Field(
         default_factory=list,
-        description="The whole row, kept raw: past [type, x, y] its layout is whatever the parseAreaInfo "
-        "of the area type's map object reads (WorldmapObjectFactory.parseWorldMapArea, bundle line 5343)",
+        description="The whole row; past [type, x, y] its layout depends on the area type",
     )
 
     @classmethod
@@ -513,9 +514,7 @@ class MapObject(BasePayload):
     remaining_relocation_time: ClientInt = Field(alias="RRD", default=0)
     storm_title_id: ClientInt = Field(alias="TI", default=-1)  # -1: no title, 50-53: ranks 1-4, 54: ranks 5-10
     remaining_noob_protection: ClientInt = Field(alias="RNP", default=0)
-    faction: OwnerFaction | None = Field(
-        alias="FN", default=None, description="Faction event standing: FID, PMS, PMT and TID"
-    )
+    faction: OwnerFaction | None = Field(alias="FN", default=None, description="Faction event standing")
 
     @field_validator("emblem", "alliance_emblem", "faction", mode="before")
     @classmethod

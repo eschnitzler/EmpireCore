@@ -112,7 +112,7 @@ class GetPlayerInfoResponse(BaseResponse):
     castle_list: GetCastlesResponse = Field(
         alias="gcl",
         default_factory=GetCastlesResponse,
-        description="The player's castles, outposts and landmarks, as the gcl command sends them",
+        description="The player's castles, outposts and landmarks, shaped as a GetCastlesResponse",
     )
 
     @model_validator(mode="before")

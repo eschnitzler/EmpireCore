@@ -29,7 +29,7 @@ class RankingType(IntEnum):
     BERIMOND = 113
     SHAPESHIFTER = 60
     HORIZON = 134
-    OUTER_REALMS = 63  # 601 in some contexts?
+    OUTER_REALMS = 63
 
 
 class RankingCategory(IntEnum):
@@ -39,5 +39,5 @@ class RankingCategory(IntEnum):
     """
 
     LEVEL_70 = 6  # Standard for most events (Level 70 bracket)
-    LEGENDARY_TOP = 5  # 950+ usually
+    LEGENDARY_TOP = 5
     GLOBAL = 1

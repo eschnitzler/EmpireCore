@@ -536,7 +536,7 @@ class SelectCastleRequest(BaseRequest):
         alias="CID",
         description=(
             "The castle to join, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
-            "client.state.get_castles(); the client names -1 MY_CASTLE"
+            "client.state.get_castles()"
         ),
     )
     kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")

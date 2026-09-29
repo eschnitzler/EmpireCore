@@ -55,10 +55,10 @@ class EquipmentBonus(BasePayload):
     value that is not an array into one.
     """
 
-    effect_id: int = Field(description="Equipment effect id, row[0]")
+    effect_id: int = Field(description="Equipment effect id")
     values: list[Any] = Field(
         default_factory=list,
-        description="Value array, row[1]; its layout depends on the effect type's EffectValue class",
+        description="Value array; its layout depends on the effect type",
     )
 
     @model_validator(mode="before")
@@ -79,9 +79,9 @@ class RelicBonus(BasePayload):
     and a one-value array read the same.
     """
 
-    relic_effect_id: int = Field(description="Relic effect id, row[0]")
-    power: float = Field(default=0, description="row[1]")
-    values: list[Any] = Field(default_factory=list, description="Value array, row[2]")
+    relic_effect_id: int = Field(description="Relic effect id")
+    power: float = Field(default=0, description="Power")
+    values: list[Any] = Field(default_factory=list, description="Value array")
 
     @model_validator(mode="before")
     @classmethod
@@ -122,14 +122,14 @@ class RelicGem(BasePayload):
     Client: ``RelicGemVO.parseServerObject`` (bundle line 22222)
     """
 
-    gem_id: int = Field(description="row[0]")
-    relic_type_id: int = Field(default=0, description="row[1]")
-    relic_category_id: int = Field(default=0, description="row[2]")
-    might: int | float = Field(default=0, description="row[3]")
+    gem_id: int = Field(description="Gem id")
+    relic_type_id: int = Field(default=0, description="Relic type id")
+    relic_category_id: int = Field(default=0, description="Relic category id")
+    might: int | float = Field(default=0, description="Might")
     bonuses: Annotated[list[RelicBonus], _readable_rows(RelicBonus)] = Field(
-        default_factory=list, description="row[4]; unreadable entries are skipped"
+        default_factory=list, description="The gem's relic bonuses"
     )
-    enchantment_level: ClientInt = Field(default=0, description="row[5], read through int()")
+    enchantment_level: ClientInt = Field(default=0, description="Enchantment level")
 
     @model_validator(mode="before")
     @classmethod
@@ -147,10 +147,10 @@ class RelicInfo(BasePayload):
     Client: ``RelicEquipmentVO.parseEquipFromArray`` (bundle line 25039)
     """
 
-    relic_type_id: int = Field(default=0, description="row[0]")
-    relic_category_id: int = Field(default=0, description="row[1]")
-    might: int | float = Field(default=0, description="row[2]")
-    gem: RelicGem | None = Field(default=None, description="row[3]; None when no gem is set")
+    relic_type_id: int = Field(default=0, description="Relic type id")
+    relic_category_id: int = Field(default=0, description="Relic category id")
+    might: int | float = Field(default=0, description="Might")
+    gem: RelicGem | None = Field(default=None, description="The gem set in the relic; None when there is none")
 
     @model_validator(mode="before")
     @classmethod
@@ -203,42 +203,34 @@ class Equipment(BasePayload):
     ``BasicEquipmentVO.hasSetbonus`` (bundle line 7213).
     """
 
-    equipment_id: int = Field(default=0, description="Item id, row[0]")
-    slot: int = Field(default=0, description="Slot type id, row[1]")
-    wearer_type: int = Field(default=WearerType.UNDEFINED, description="Who can wear it (WearerType), row[2]")
-    rarity_id: ClientInt = Field(default=0, description="Rarity id, row[3], read through int()")
-    graphic: int | str = Field(default=0, description="The client keeps row[4] as its graphic string")
+    equipment_id: int = Field(default=0, description="Item id")
+    slot: int = Field(default=0, description="Slot type id")
+    wearer_type: int = Field(default=WearerType.UNDEFINED, description="Who can wear it (WearerType)")
+    rarity_id: ClientInt = Field(default=0, description="Rarity id")
+    graphic: int | str = Field(default=0, description="The item's graphic")
     bonuses: Annotated[list[EquipmentBonus], _readable_rows(EquipmentBonus)] = Field(
-        default_factory=list, description="Bonuses of an item that is not a relic; unreadable entries are skipped"
+        default_factory=list, description="Bonuses of an item that is not a relic"
     )
     relic_bonuses: Annotated[list[RelicBonus], _readable_rows(RelicBonus)] = Field(
-        default_factory=list, description="Bonuses of a relic item; unreadable entries are skipped"
+        default_factory=list, description="Bonuses of a relic item"
     )
-    unique_id: ClientInt = Field(default=0, description="Unique item id, row[6], read through int()")
+    unique_id: ClientInt = Field(default=0, description="Unique item id")
     set_id: ClientInt = Field(
         default=0,
-        description=(
-            "Equipment set id, -1 for none. The client leaves it undefined on a row shorter than 8, "
-            "then counts it as set 0, which no set uses"
-        ),
+        description="Equipment set id, -1 for none; 0, which no set uses, when the row has none",
     )
-    enchantment_level: ClientInt = Field(default=0, description="Enchantment level, row[8], read through int()")
+    enchantment_level: ClientInt = Field(default=0, description="Enchantment level")
     duration_seconds: int | float = Field(
-        default=0, description="Seconds until the item expires, row[9]; below 1 it is permanent"
+        default=0, description="Seconds until the item expires; below 1 it is permanent"
     )
-    gem_id: ClientInt = Field(default=NO_GEM_ID, description="Slotted gem id, row[10]; -1 for none")
-    equipment_type: ClientInt = Field(
-        default=EquipmentType.GENERATED, description="EquipmentType value, read through int() as the client does"
-    )
+    gem_id: ClientInt = Field(default=NO_GEM_ID, description="Slotted gem id; -1 for none")
+    equipment_type: ClientInt = Field(default=EquipmentType.GENERATED, description="EquipmentType value")
     relic_info: RelicInfo | None = Field(
-        default=None, description="A relic item's type, category, might and gem, index 12; None for other items"
+        default=None, description="A relic item's type, category, might and gem; None for other items"
     )
     alien_string: Any = Field(
         default=None,
-        description=(
-            "A hero item's index 11 as sent, which the client matches against an alien hero's "
-            "'effect_id&value,...' string; None for other items"
-        ),
+        description="A hero item's alien string; None for other items",
     )
 
     @field_validator("relic_info", mode="wrap")
@@ -320,12 +312,12 @@ class CommanderEffect(BasePayload):
     (bundle line 5707).
     """
 
-    effect_id: int = Field(description="Effect id, row[0]")
+    effect_id: int = Field(description="Effect id")
     values: list[Any] = Field(
         default_factory=list,
-        description="Value array, row[1]; its layout depends on the effect type's EffectValue class",
+        description="Value array; its layout depends on the effect type",
     )
-    source: str = Field(default="", description="EffectSourceEnum server key, row[2]")
+    source: str = Field(default="", description="The key of the effect's source")
 
     @field_validator("source", mode="before")
     @classmethod
@@ -366,45 +358,50 @@ class LeaderBase(BasePayload):
     ``ST`` and ``L``.
     """
 
-    commander_id: int = Field(alias="ID", description="DLID for a default commander, else ID")
-    wearer_id: ClientInt | None = Field(
-        alias="WID", default=None, description="EquipmentConst wearer id: 2 builds a CommanderVO, 1 a BaronVO"
-    )
+    commander_id: int = Field(alias="ID", description="Commander id; for a default commander, its default-commander id")
+    wearer_id: ClientInt | None = Field(alias="WID", default=None, description="2 for a commander, 1 for a castellan")
     picture_id: ClientInt = Field(alias="VIS", default=0, description="Portrait id")
-    name: str = Field(alias="N", default="", description="Name, taken as sent")
+    name: str = Field(alias="N", default="", description="Name")
     wins: ClientInt = Field(alias="W", default=0, description="Battles won")
     defeats: ClientInt = Field(alias="D", default=0, description="Battles lost")
     win_spree: ClientInt = Field(alias="SPR", default=0, description="Current winning streak")
     effects: CommanderEffects = Field(alias="E", default_factory=list, description="The commander's own effects")
     area_effects: CommanderEffects = Field(alias="AE", default_factory=list, description="Area effects")
-    equipment: list[Equipment] = Field(
-        alias="EQ", default_factory=list, description="Equipped items; entries that do not parse are skipped"
-    )
+    equipment: list[Equipment] = Field(alias="EQ", default_factory=list, description="Equipped items")
     alien_equipment: list[Any] | None = Field(
         alias="AIE",
         default=None,
-        description="Alien equipment: [effect_id, values] rows, or [hero_rows, equipment_rows]; used when EQ is empty",
+        description=(
+            "Alien equipment: [effect_id, values] rows, or [hero_rows, equipment_rows]; applies when equipment is empty"
+        ),
     )
     temporary_equipment: list[Any] | None = Field(
         alias="TAE",
         default=None,
-        description="Temporary equipment, same layout as AIE; used when EQ and AIE are absent",
+        description=(
+            "Temporary equipment, same layout as alien_equipment; applies when equipment and alien_equipment are absent"
+        ),
     )
     alien_gem_ids: list[Any] = Field(
-        alias="GEM", default_factory=list, description="Gem ids the client adds to the AIE/TAE equipment"
+        alias="GEM", default_factory=list, description="Gem ids added to the alien or temporary equipment"
     )
     general_id: ClientInt | None = Field(
-        alias="GID", default=None, description="The assigned general's id (LordVO.parseGeneral); -1 or None for none"
+        alias="GID", default=None, description="The assigned general's id; -1 or None for none"
     )
     star_level: ClientInt = Field(
         alias="ST",
         default=0,
-        description="Read by the client only when the entry doubles as its general: GID > 0 on a default commander",
+        description=(
+            "The general's star level when the entry doubles as its general: a default commander with"
+            " a general_id above 0"
+        ),
     )
     level: ClientInt = Field(
         alias="L",
         default=0,
-        description="Read by the client only when the entry doubles as its general: GID > 0 on a default commander",
+        description=(
+            "The general's level when the entry doubles as its general: a default commander with a general_id above 0"
+        ),
     )
 
     @model_validator(mode="before")
@@ -532,7 +529,7 @@ class Castellan(LeaderBase):
     locked_in_castle_id: ClientInt = Field(
         alias="LICID",
         default=0,
-        description="Castle the castellan is locked in, -1 for none; read through int(), so a missing key is 0",
+        description="Castle the castellan is locked in, -1 for none; 0 when the entry has none",
     )
 
     @property
@@ -580,8 +577,8 @@ class CommanderRoster(BasePayload):
     Client: ``CastleLordData.parse_GLI`` (bundle line 38553)
     """
 
-    commanders: list[Commander] = Field(alias="C", default_factory=list, description="Commanders, as CommanderVO")
-    castellans: list[Castellan] = Field(alias="B", default_factory=list, description="Castellans, as BaronVO")
+    commanders: list[Commander] = Field(alias="C", default_factory=list, description="Commanders")
+    castellans: list[Castellan] = Field(alias="B", default_factory=list, description="Castellans")
 
     @model_validator(mode="before")
     @classmethod
@@ -639,7 +636,7 @@ class RenameCommanderRequest(BaseRequest):
         alias="LID",
         description="The commander_id of a Commander or Castellan from client.commanders.get_all()",
     )
-    name: str = Field(alias="N", description="The new name; the game's dialog allows 3 to 15 characters")
+    name: str = Field(alias="N", description="The new name; the game allows 3 to 15 characters")
 
 
 class RenameCommanderResponse(BaseResponse):

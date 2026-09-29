@@ -51,9 +51,9 @@ class GetDefenseRequest(BaseRequest):
     castle_y: int = Field(alias="CY", description="Castle map y")
     area_id: int = Field(
         alias="AID",
-        description="The castle's id (objectId): CastleInfo.castle_id from client.castle.get_all() or Castle.id",
+        description="The castle's id: CastleInfo.castle_id from client.castle.get_all() or Castle.id",
     )
-    kingdom_id: Kingdom | int = Field(alias="KID", default=-1, description="Kingdom id; the client sends -1")
+    kingdom_id: Kingdom | int = Field(alias="KID", default=-1, description="Kingdom id")
 
 
 class WallSection(BasePayload):
@@ -85,7 +85,7 @@ class WallDefense(BaseResponse):
     right: WallSection = Field(alias="R", default_factory=WallSection, description="Right wall section")
     unit_count: ClientInt = Field(alias="U", default=0, description="Units on the wall")
     unit_slot_count: ClientInt = Field(alias="US", default=0, description="Units the wall can hold")
-    defense: ClientInt = Field(alias="D", default=0, description="Wall defence, truncated as the client does")
+    defense: ClientInt = Field(alias="D", default=0, description="Wall defence, as a whole number")
 
 
 class KeepDefense(BaseResponse):
@@ -136,7 +136,7 @@ class MoatDefense(BaseResponse):
     left_slots: list[Slot] = Field(alias="LS", default_factory=list, description="Left moat slots")
     middle_slots: list[Slot] = Field(alias="MS", default_factory=list, description="Middle moat slots")
     right_slots: list[Slot] = Field(alias="RS", default_factory=list, description="Right moat slots")
-    defense: ClientInt = Field(alias="D", default=0, description="Moat defence, truncated as the client does")
+    defense: ClientInt = Field(alias="D", default=0, description="Moat defence, as a whole number")
 
 
 class GetDefenseResponse(BaseResponse):
@@ -154,7 +154,7 @@ class GetDefenseResponse(BaseResponse):
     unit_inventory: UnitInventory = Field(
         alias="gui",
         default_factory=UnitInventory,
-        description="The castle's unit inventory; the client reads only gui.I",
+        description="The castle's unit inventory",
     )
     area: MovementArea | None = Field(alias="A", default=None, description="The castle's map row")
     home_defense_workshop_level: int | None = Field(
@@ -167,15 +167,14 @@ class GetDefenseResponse(BaseResponse):
     moat: MoatDefense | None = Field(alias="dfm", default=None, description="Moat setup")
     range_priority: list[int] = Field(alias="PR", default_factory=list, description="Ranged unit priority")
     melee_priority: list[int] = Field(alias="PM", default_factory=list, description="Melee unit priority")
-    gate_defense: ClientInt = Field(alias="GD", default=0, description="Gate defence, truncated as the client does")
+    gate_defense: ClientInt = Field(alias="GD", default=0, description="Gate defence, as a whole number")
     castellan: Castellan | None = Field(
         alias="L",
         default=None,
-        description="The castle's castellan; the client reads L.ID and parses the rest with BaronVO.parseLord. "
-        "None when missing or unreadable",
+        description="The castle's castellan; None when there is none",
     )
     listed_castellan_id: ClientInt = Field(
-        default=-1, exclude=True, description="int(L.ID) when L is set, as parse_DFC reads it; -1 otherwise"
+        default=-1, exclude=True, description="The listed castellan's id; -1 when none is listed"
     )
 
     @model_validator(mode="before")
@@ -232,7 +231,7 @@ class ChangeKeepDefenseRequest(BaseRequest):
     castle_y: int = Field(alias="CY", description="Castle map y")
     area_id: int = Field(
         alias="AID",
-        description="The castle's id (objectId): CastleInfo.castle_id from client.castle.get_all() or Castle.id",
+        description="The castle's id: CastleInfo.castle_id from client.castle.get_all() or Castle.id",
     )
     min_attacking_units_for_tools: int = Field(
         alias="MAUCT",
@@ -274,7 +273,7 @@ class ChangeWallDefenseRequest(BaseRequest):
     castle_y: int = Field(alias="CY", description="Castle map y")
     area_id: int = Field(
         alias="AID",
-        description="The castle's id (objectId): CastleInfo.castle_id from client.castle.get_all() or Castle.id",
+        description="The castle's id: CastleInfo.castle_id from client.castle.get_all() or Castle.id",
     )
     left: WallSectionSetup = Field(alias="L", description="Left wall section")
     middle: WallSectionSetup = Field(alias="M", description="Middle wall section")
@@ -298,7 +297,7 @@ class ChangeMoatDefenseRequest(BaseRequest):
     castle_y: int = Field(alias="CY", description="Castle map y")
     area_id: int = Field(
         alias="AID",
-        description="The castle's id (objectId): CastleInfo.castle_id from client.castle.get_all() or Castle.id",
+        description="The castle's id: CastleInfo.castle_id from client.castle.get_all() or Castle.id",
     )
     left_slots: list[Slot] = Field(alias="LS", description="Left moat slots")
     middle_slots: list[Slot] = Field(alias="MS", description="Middle moat slots")
@@ -368,22 +367,22 @@ class GetSupportDefenseResponse(BaseResponse):
     castellan: Castellan | None = Field(
         alias="B",
         default=None,
-        description="The castle's castellan, read without its equipment; None when missing or unreadable",
+        description="The castle's castellan, without its equipment; None when there is none",
     )
     tower_castellan: Castellan | None = Field(
         alias="abe",
         default=None,
-        description="The castellan the client reads instead of B for an alliance battleground tower",
+        description="The castellan of an alliance battleground tower, in place of castellan",
     )
     unit_inventory: UnitInventory = Field(
         alias="gui",
         default_factory=UnitInventory,
-        description="Your own inventory; the client reads I (units and tools) and SHI (stronghold units)",
+        description="Your own units and tools, and your stronghold units",
     )
     commander_roster: CommanderRoster = Field(
         alias="gli",
         default_factory=CommanderRoster,
-        description="Your commanders and castellans, which the client parses with CastleLordData.parse_GLI",
+        description="Your commanders and castellans",
     )
 
     # Capacity limits

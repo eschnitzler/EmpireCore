@@ -72,9 +72,9 @@ class MovementArea(BasePayload):
     and ``ABGAllianceTowerMapobjectVO`` ``.parseAreaInfo``.
     """
 
-    area_type: int = Field(description="Area type, row[0]")
-    x: int = Field(description="Map x, row[1]")
-    y: int = Field(description="Map y, row[2]")
+    area_type: int = Field(description="Area type")
+    x: int = Field(description="Map x")
+    y: int = Field(description="Map y")
     row: list[Any] = Field(description="The whole row, whose layout depends on area_type")
 
     @model_validator(mode="before")
@@ -156,7 +156,7 @@ class MovementUnitInfo(BasePayload):
     """
 
     commander: Commander | None = Field(
-        alias="L", default=None, description="Commander leading the army; None when missing or unreadable"
+        alias="L", default=None, description="Commander leading the army; None when there is none"
     )
     wait_passed: int = Field(alias="PWD", default=0, description="Seconds of the wait at the target already passed")
     wait_total: int = Field(alias="TWD", default=0, description="Seconds the army waits at its target")
@@ -225,7 +225,7 @@ class MovementWrapper(BasePayload):
     """
 
     movement: MovementRecord = Field(alias="M", description="The movement record")
-    full_army: MovementArmy | None = Field(alias="FA", default=None, description="Army, preferred over GA")
+    full_army: MovementArmy | None = Field(alias="FA", default=None, description="The full army, preferred over army")
     army: MovementArmy | None = Field(alias="GA", default=None, description="Army")
     army_size: int | None = Field(alias="GS", default=None, description="Estimated army size when the army is hidden")
     unit_info: MovementUnitInfo | None = Field(alias="UM", default=None, description="Commander and wait details")
@@ -292,11 +292,11 @@ class OwnerCastlePosition(BasePayload):
     Client: ``MinWorldMapCastleInfoVO.fillFromParamObject``.
     """
 
-    kingdom_id: int = Field(description="row[0]")
-    area_id: int = Field(description="row[1]")
-    x: int = Field(description="row[2]")
-    y: int = Field(description="row[3]")
-    area_type: int = Field(default=0, description="row[4]; a row without it reads as 0")
+    kingdom_id: int = Field(description="Kingdom id")
+    area_id: int = Field(description="Area id")
+    x: int = Field(description="Map x")
+    y: int = Field(description="Map y")
+    area_type: int = Field(default=0, description="Area type; 0 when the row has none")
 
     @model_validator(mode="before")
     @classmethod
@@ -321,7 +321,7 @@ class MovementOwner(BasePayload):
     honor: int = Field(alias="H", default=0)
     might: int = Field(alias="MP", default=0)
     top_x: int = Field(alias="TOPX", default=-1, description="Top-ranking placement, -1 for none")
-    is_ruin: bool = Field(alias="R", default=False, description="1 == R")
+    is_ruin: bool = Field(alias="R", default=False, description="The owner record is flagged as a ruin")
     alliance_id: int = Field(alias="AID", default=-1, description="-1 for no alliance")
     alliance_rank: int = Field(alias="AR", default=0)
     alliance_name: str = Field(alias="AN", default="")
@@ -331,7 +331,7 @@ class MovementOwner(BasePayload):
     village_positions: list[OwnerCastlePosition] = Field(alias="VP", default_factory=list)
     has_premium: bool = Field(alias="PF", default=False)
     has_vip: bool = Field(alias="VF", default=False)
-    is_dummy: bool = Field(alias="DUM", default=False, description="1 == DUM")
+    is_dummy: bool = Field(alias="DUM", default=False, description="The owner record is a dummy")
     achievement_points: int = Field(alias="AVP", default=0)
     relocation_seconds: int = Field(alias="RRD", default=0, description="Seconds until a relocation ends")
     faction: OwnerFaction | None = Field(alias="FN", default=None)

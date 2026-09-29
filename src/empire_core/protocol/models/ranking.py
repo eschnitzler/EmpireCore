@@ -138,6 +138,10 @@ class GetHighscoreRequest(BaseRequest):
 class GetHighscoreResponse(BaseResponse):
     """
     Response for hgh command.
+
+    Client: ``CastleSingleplayerRankingItem.update`` (bundle line 91695),
+    ``CastleAllianceRankingItem.update`` (bundle line 91645),
+    ``CastleEilandAllianceRankingItem.update`` (bundle line 98076)
     """
 
     command: ClassVar[str] = GGECommand.HGH
@@ -149,11 +153,11 @@ class GetHighscoreResponse(BaseResponse):
     raw_list: list[Any] = Field(
         alias="L",
         default_factory=list,
-        description="Ranking rows, kept raw: the client hands them to the item renderer of whichever dialog asked, "
-        "and those read different layouts, e.g. [rank, score, owner record], [rank, owner record], "
-        "[rank, score, alliance row] or [value, rank, score, alliance row] "
-        "(CastleSingleplayerRankingItem.update, bundle line 91695; CastleAllianceRankingItem.update, 91645; "
-        "CastleEilandAllianceRankingItem.update, 98076)",
+        description=(
+            "Ranking rows, kept raw: their layout depends on the list, e.g. [rank, score, owner "
+            "record], [rank, owner record], [rank, score, alliance row] or [value, rank, score, "
+            "alliance row]"
+        ),
     )
 
     @property
@@ -187,14 +191,14 @@ class LeaderboardScore(BasePayload):
     """
 
     rank: ClientInt = Field(alias="R", default=-1, description="Rank on the list")
-    score: int | float = Field(alias="S", default=-1, description="Points, shown with Localize.number")
+    score: int | float = Field(alias="S", default=-1, description="Points")
     player_name: str = Field(alias="P", default="", description="Player name")
     alliance_name: str = Field(alias="A", default="", description="Alliance name, empty without one")
     instance_id: ClientInt | None = Field(
         alias="I", default=None, description="Game server (instance) the player is on"
     )
     score_id: int | str | None = Field(
-        alias="SI", default=None, description="Paging key the client matches search results against; not an owner id"
+        alias="SI", default=None, description="Paging key that search results are matched against; not an owner id"
     )
 
     @model_validator(mode="before")

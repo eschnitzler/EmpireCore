@@ -16,23 +16,23 @@ class Resources(BaseModel):
     Filled from the castle's ``dcl`` entry. Client: ``DetailedCastleVO.parseData``.
     """
 
-    wood: int = Field(default=0, description="Stock, W")
-    stone: int = Field(default=0, description="Stock, S")
-    food: int = Field(default=0, description="Stock, F")
-    coal: int = Field(default=0, description="Stock, C")
-    oil: int = Field(default=0, description="Stock, O")
-    glass: int = Field(default=0, description="Stock, G")
-    iron: int = Field(default=0, description="Stock, I")
-    aquamarine: int = Field(default=0, description="Stock, A")
-    honey: int = Field(default=0, description="Stock, HONEY")
-    mead: int = Field(default=0, description="Stock, MEAD")
-    beef: int = Field(default=0, description="Stock, BEEF")
+    wood: int = Field(default=0, description="Wood in stock")
+    stone: int = Field(default=0, description="Stone in stock")
+    food: int = Field(default=0, description="Food in stock")
+    coal: int = Field(default=0, description="Coal in stock")
+    oil: int = Field(default=0, description="Oil in stock")
+    glass: int = Field(default=0, description="Glass in stock")
+    iron: int = Field(default=0, description="Iron in stock")
+    aquamarine: int = Field(default=0, description="Aquamarine in stock")
+    honey: int = Field(default=0, description="Honey in stock")
+    mead: int = Field(default=0, description="Mead in stock")
+    beef: int = Field(default=0, description="Beef in stock")
 
-    capacity: StorageCapacity = Field(default_factory=StorageCapacity, description="Storage cap, gpa MR<key>")
+    capacity: StorageCapacity = Field(default_factory=StorageCapacity, description="Storage capacity per resource")
     production: ResourceProduction = Field(
-        default_factory=ResourceProduction, description="Production per hour, gpa D<key> / 10"
+        default_factory=ResourceProduction, description="Production per hour, per resource"
     )
-    safe: SafeAmount = Field(default_factory=SafeAmount, description="Amount safe from plunder, gpa SAFE_<key>")
+    safe: SafeAmount = Field(default_factory=SafeAmount, description="Amount per resource safe from plunder")
 
     @property
     def wood_cap(self) -> int:
@@ -91,10 +91,11 @@ class Alliance(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     id: int = Field(default=-1, alias="AID", description="Alliance id; 0 or less means no alliance")
+    # The client reads AN; live servers send N
     name: str = Field(
         default="",
         validation_alias=AliasChoices("AN", "N", "name"),
-        description="Alliance name. The client reads AN; live servers send N",
+        description="Alliance name",
     )
     rank: int = Field(default=0, alias="R", description="The player's rank in the alliance")
     current_fame: int = Field(default=0, alias="ACF", description="The alliance's current fame")
@@ -128,10 +129,12 @@ class Castle(BaseModel):
     x: int = Field(default=0, alias="X", description="Map x")
     y: int = Field(default=0, alias="Y", description="Map y")
 
-    resources: Resources = Field(default_factory=Resources, description="Filled from dcl")
+    resources: Resources = Field(default_factory=Resources, description="The castle's resources")
     buildings: list[Building] = Field(default_factory=list)
-    units: dict[int, int] = Field(default_factory=dict, description="Units stationed here, dcl AC")
-    details: DetailedCastleInfo | None = Field(default=None, description="The castle's last dcl entry")
+    units: dict[int, int] = Field(default_factory=dict, description="Units stationed here")
+    details: DetailedCastleInfo | None = Field(
+        default=None, description="The castle's latest details; None until they arrive"
+    )
 
     raw_data: dict[str, Any] = Field(default_factory=dict, exclude=True)
 
@@ -202,12 +205,12 @@ class Player(BaseModel):
     PN: str = Field(default="Unknown")
     AID: int | None = Field(default=None)
 
-    level: int = Field(default=0, alias="LVL", description="Level, from gxp; 70 is the cap before legend levels")
-    xp: int = Field(default=0, alias="XP", description="Total XP, from gxp")
+    level: int = Field(default=0, alias="LVL", description="Level; 70 is the cap before legend levels")
+    xp: int = Field(default=0, alias="XP", description="Total XP")
     legendary_level: int = Field(
         default=0,
         alias="LL",
-        description="Legend level, computed from XP once level reaches 70, else 0. Client: parse_GXP",
+        description="Legend level, computed from XP once level reaches 70, else 0",
     )
     xp_for_current_level: int = Field(
         default=0,
@@ -227,8 +230,7 @@ class Player(BaseModel):
     special_currencies: dict[str, int] = Field(
         default_factory=dict,
         description=(
-            "Special currency key -> amount, from sce entries [key, amount] (PTT, MS1, LWT, ...); "
-            "generic currencies in the item data, not items. Client: CurrencyData.parseSCE"
+            "Special currency key -> amount (PTT, MS1, LWT, ...); generic currencies in the item data, not items"
         ),
     )
 
@@ -240,14 +242,11 @@ class Player(BaseModel):
     # Alliance
     alliance: Alliance | None = None
 
-    honor: int = Field(default=0, alias="H", description="Honor, from gho. Client: CastleUserData.parse_GHO")
-    ranking: int = Field(default=0, alias="RP", description="Ranking points, from gho")
+    honor: int = Field(default=0, alias="H", description="Honor")
+    ranking: int = Field(default=0, alias="RP", description="Ranking points")
     beginner_protection: dict[int, bool] = Field(
         default_factory=dict,
-        description=(
-            "Kingdom id (uap/gac KID) -> whether the player is under beginner protection there (NS > 0). "
-            "Client: CastleUserData.parse_UAP"
-        ),
+        description="Kingdom id -> whether the player is under beginner protection there",
     )
 
     # Premium/VIP

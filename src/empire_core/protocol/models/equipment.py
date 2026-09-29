@@ -47,7 +47,7 @@ class GetEquipmentInventoryResponse(BaseResponse):
     items: list[Equipment] = Field(
         alias="I",
         default_factory=list,
-        description="Inventory items; entries that do not parse are skipped, and a missing I reads as empty",
+        description="Inventory items",
     )
 
     @field_validator("items", mode="before")
@@ -92,8 +92,8 @@ class EquipEquipmentRequest(BaseRequest):
     equipment_id: int = Field(
         alias="EID",
         description=(
-            "Equipment.equipment_id (EQ index 0): of an inventory item from client.equipment.get_inventory() "
-            "to equip, of a worn one from client.commanders.get_all() to take off"
+            "Equipment.equipment_id: of an inventory item from client.equipment.get_inventory() to "
+            "equip, of a worn one from client.commanders.get_all() to take off"
         ),
     )
     commander_id: int = Field(

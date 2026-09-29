@@ -84,7 +84,7 @@ class UpgradeBuildingRequest(BaseRequest):
             "client.state.get_castles()"
         ),
     )
-    building_id: int = Field(alias="BID", description="The library does not read building ids yet")
+    building_id: int = Field(alias="BID", description="The building; no library call returns building ids yet")
 
 
 class UpgradeBuildingResponse(BaseResponse):
@@ -122,7 +122,7 @@ class MoveBuildingRequest(BaseRequest):
             "client.state.get_castles()"
         ),
     )
-    building_id: int = Field(alias="BID", description="The library does not read building ids yet")
+    building_id: int = Field(alias="BID", description="The building; no library call returns building ids yet")
     x: int = Field(alias="X")
     y: int = Field(alias="Y")
 
@@ -159,7 +159,7 @@ class SellBuildingRequest(BaseRequest):
             "client.state.get_castles()"
         ),
     )
-    building_id: int = Field(alias="BID", description="The library does not read building ids yet")
+    building_id: int = Field(alias="BID", description="The building; no library call returns building ids yet")
 
 
 class SellBuildingResponse(BaseResponse):
@@ -196,7 +196,7 @@ class DestroyBuildingRequest(BaseRequest):
             "client.state.get_castles()"
         ),
     )
-    building_id: int = Field(alias="BID", description="The library does not read building ids yet")
+    building_id: int = Field(alias="BID", description="The building; no library call returns building ids yet")
 
 
 class DestroyBuildingResponse(BaseResponse):
@@ -231,7 +231,7 @@ class FastCompleteRequest(BaseRequest):
             "client.state.get_castles()"
         ),
     )
-    building_id: int = Field(alias="BID", description="The library does not read building ids yet")
+    building_id: int = Field(alias="BID", description="The building; no library call returns building ids yet")
 
 
 class FastCompleteResponse(BaseResponse):
@@ -268,7 +268,7 @@ class TimeSkipBuildingRequest(BaseRequest):
             "client.state.get_castles()"
         ),
     )
-    building_id: int = Field(alias="BID", description="The library does not read building ids yet")
+    building_id: int = Field(alias="BID", description="The building; no library call returns building ids yet")
     item_id: int = Field(alias="IID")
 
 
@@ -344,7 +344,7 @@ class RepairBuildingRequest(BaseRequest):
             "client.state.get_castles()"
         ),
     )
-    building_id: int = Field(alias="BID", description="The library does not read building ids yet")
+    building_id: int = Field(alias="BID", description="The building; no library call returns building ids yet")
 
 
 class RepairBuildingResponse(BaseResponse):

@@ -214,19 +214,22 @@ class ProductionSlot(BasePayload):
 
     starts_free: ClassVar[bool] = False
 
-    position: int = Field(default=0, description="Index in QS, the S of mcu and bou; 0 for PS")
+    position: int = Field(
+        default=0,
+        description="Index in the queue, the position boost and cancel requests take; 0 for the slot producing now",
+    )
     wod_id: int = Field(alias="WID", default=0, description="Unit or tool wod id")
     amount: int = Field(alias="TUA", default=0, description="Units in the slot")
-    boost_count: int = Field(alias="CBS", default=0, description="How often the slot's units were doubled (bou)")
+    boost_count: int = Field(alias="CBS", default=0, description="How often the slot's units were doubled")
     received_alliance_help: bool = Field(alias="RAH", default=False)
     recruitment_id: int = Field(alias="PID", default=0)
-    remaining_seconds: int = Field(alias="RCT", default=0, description="Seconds left; top level only")
-    production_seconds: int = Field(alias="ICT", default=0, description="Total production time; top level only")
-    source_recruitment_id: int = Field(alias="SPID", default=0, description="Top level only")
+    remaining_seconds: int = Field(alias="RCT", default=0, description="Seconds left on the slot")
+    production_seconds: int = Field(alias="ICT", default=0, description="Total production time, in seconds")
+    source_recruitment_id: int = Field(alias="SPID", default=0, description="Source recruitment id")
     seconds_till_locked: int | float | str | None = Field(
-        default=0, description="SI.RUT as sent while the slot is empty, else -1; 0 means locked"
+        default=0, description="Seconds until the slot locks while it is empty, else -1; 0 means locked"
     )
-    is_vip: bool = Field(default=False, description="SI.VIP")
+    is_vip: bool = Field(default=False, description="The slot is a VIP slot")
     is_locked: bool = Field(default=False)
     is_free: bool = Field(default=False, description="Unlocked and empty")
 
@@ -307,11 +310,13 @@ class HospitalSlot(BasePayload):
     Client: ``UnitHealPackageSlotVO.fillFromParamArray`` (bundle line 138964)
     """
 
-    position: int = Field(default=0, description="Index in PIDL, the S of hcs and hss")
+    position: int = Field(
+        default=0, description="Index in the hospital list, the position cancel and skip requests take"
+    )
     wod_id: int = Field(default=0, description="Unit wod id; -1 for a free slot, -2 for a locked one")
     amount: int = Field(default=0)
     remaining_seconds: int = Field(default=0)
-    recruitment_speed: float = Field(default=0.0, description="The fourth value / 100")
+    recruitment_speed: float = Field(default=0.0, description="Recruitment speed")
     heal_time_reduction: int = Field(default=0)
     recruitment_id: int = Field(default=0)
     seconds_till_locked: int = Field(default=0)
@@ -376,7 +381,8 @@ class ProductionList(BasePayload):
     sends ``QS``, ``PS``, ``RM`` and ``TCT``.
 
     Client: ``CastleMilitaryData.parse_SPL`` (bundle line 138830),
-    ``UnitPackageList.parseList`` / ``parseMilitaryList`` (bundle lines 138899, 138907)
+    ``UnitPackageList.parseList`` / ``parseMilitaryList`` (bundle lines 138899, 138907);
+    ``RecruitmentConst`` (dll line 19660) for the ``RM`` modes
     """
 
     list_id: int | None = Field(alias="LID", default=None, description="A ProductionListId; None when missing")
@@ -391,13 +397,15 @@ class ProductionList(BasePayload):
     recruitment_mode: int = Field(
         alias="RM",
         default=0,
-        description="RecruitmentConst FINISH_FIRST_STACK_MODE_ID 0 or FINISH_STACKS_EQUALLY_MODE_ID 1 (dll line 19660)",
+        description="0 finishes the first stack first, 1 finishes the stacks equally",
     )
     remaining_seconds: int = Field(alias="TCT", default=0, description="Seconds until the list's production is done")
     hospital_slots: Annotated[list[HospitalSlot], BeforeValidator(_hospital_slots)] = Field(
         alias="PIDL", default_factory=list, description="Hospital list only: slots by position"
     )
-    active_slot_index: ParseInt = Field(alias="ASI", default=0, description="Hospital list only")
+    active_slot_index: ParseInt = Field(
+        alias="ASI", default=0, description="Index of the active hospital slot; hospital list only"
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -448,13 +456,12 @@ class ProduceUnitsRequest(BaseRequest):
     amount: int = Field(alias="AMT")
     private_offer_id: int = Field(alias="PO", default=-1, description="Resource merchant offer id, -1 for none")
     pay_with_rubies: int = Field(alias="PWR", default=0, description="1 to pay rubies for missing resources")
-    sk: int = Field(alias="SK", default=BUY_UNIT_PACKAGE_SK, description="Always 73; meaning not in the client")
+    sk: int = Field(alias="SK", default=BUY_UNIT_PACKAGE_SK, description="Always 73")
     kingdom_id: Kingdom | int = Field(alias="SID", description="The joined castle's kingdom")
     castle_id: int = Field(
         alias="AID",
         description=(
-            "The castle joined with jca, as the client sends it; ArmyService joins it first. Castle.id from "
-            "client.state.get_castles()"
+            "The castle the session is in, a Castle.id from client.state.get_castles(); ArmyService joins it first"
         ),
     )
 
@@ -493,7 +500,7 @@ class ProduceUnitsResponse(BaseResponse):
     command = "bup"
 
     production_list: ProductionListBlock = Field(alias="spl", default=None)
-    resources: RawBlock = Field(alias="grc", default=None, description="As sent; read by AreaDataUpdater.parseGRC")
+    resources: RawBlock = Field(alias="grc", default=None, description="The castle's resources, as a raw block")
     currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Gold and rubies after the change")
     unit_inventory: UnitInventoryBlock = Field(alias="gui", default=None)
     added_unit: Annotated[AddedUnit | None, BeforeValidator(_block)] = Field(alias="O", default=None)
@@ -559,8 +566,7 @@ class DoubleProductionSlotRequest(BaseRequest):
     castle_id: int = Field(
         alias="AID",
         description=(
-            "The castle joined with jca, as the client sends it; ArmyService joins it first. Castle.id from "
-            "client.state.get_castles()"
+            "The castle the session is in, a Castle.id from client.state.get_castles(); ArmyService joins it first"
         ),
     )
     kingdom_id: Kingdom | int = Field(alias="SID", description="The joined castle's kingdom")
@@ -601,7 +607,7 @@ class CancelProductionRequest(BaseRequest):
     command = "mcu"
 
     list_id: ProductionListId = Field(alias="LID")
-    position: int = Field(alias="S", description="0 for the slot producing now, else its index in QS")
+    position: int = Field(alias="S", description="0 for the slot producing now, else its index in the queue")
     slot_type: SlotType = Field(alias="ST")
 
 
@@ -654,7 +660,7 @@ class DismissUnitsResponse(BaseResponse):
     command = "dup"
 
     production_area: RawBlock = Field(
-        alias="gpa", default=None, description="As sent; read by AreaDataUpdater.parseGPA"
+        alias="gpa", default=None, description="The castle's production and storage figures, as a raw block"
     )
     unit_inventory: UnitInventoryBlock = Field(alias="gui", default=None)
 
@@ -715,7 +721,7 @@ class CancelHealRequest(BaseRequest):
 
     command = "hcs"
 
-    position: int = Field(alias="S", description="The slot's index in PIDL")
+    position: int = Field(alias="S", description="The slot's index in the hospital list")
 
 
 class CancelHealResponse(BaseResponse):
@@ -751,7 +757,7 @@ class SkipHealRequest(BaseRequest):
 
     command = "hss"
 
-    position: int = Field(alias="S", description="The slot's index in PIDL")
+    position: int = Field(alias="S", description="The slot's index in the hospital list")
 
 
 class SkipHealResponse(BaseResponse):
@@ -868,7 +874,7 @@ class HealAllResponse(BaseResponse):
     currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Gold and rubies after the change")
     unit_inventory: UnitInventoryBlock = Field(alias="gui", default=None)
     production_area: RawBlock = Field(
-        alias="gpa", default=None, description="As sent; read by AreaDataUpdater.parseGPA"
+        alias="gpa", default=None, description="The castle's production and storage figures, as a raw block"
     )
 
 

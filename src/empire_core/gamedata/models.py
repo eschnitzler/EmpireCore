@@ -106,18 +106,18 @@ class _UnitRow(_Row):
     Client: ``AVisualVO.parseXmlNode`` (bundle line 17800), ``BasicUnitVO.parseXmlNode`` (bundle line 19211)
     """
 
-    wod_id: int = Field(alias="wodID", description="Row id, the leading integer of the value; required")
+    wod_id: int = Field(alias="wodID", description="Unit or tool id; required")
     source: str = Field(
         alias="name",
         default="",
-        description="E.g. Barracks or Eventtool; the client's VO class is name + group + VO",
+        description="The row's name, e.g. Barracks or Eventtool",
     )
     level: int = Field(default=-1, description="Upgrade level; -1 when the row has none")
     speed: int = Field(default=0, description="Base travel speed, before research bonuses")
     fight_type: int = Field(
         alias="fightType",
         default=FIGHT_TYPE_OFFENSIVE,
-        description="0 offensive, 1 defensive (BasicUnitVO.FIGHTTYPE_*)",
+        description="0 offensive, 1 defensive",
     )
 
     @field_validator("wod_id", mode="before")
@@ -163,28 +163,24 @@ class UnitStats(_UnitRow):
     """
 
     unit_type: str = Field(alias="type", default="", description="Unit type, e.g. MeadRanger; shared across levels")
-    role: str = Field(default="", description="melee or ranged (SoldierUnitVO.ROLE_MELEE / ROLE_RANGE)")
+    role: str = Field(default="", description="melee or ranged")
     melee_attack: int = Field(alias="meleeAttack", default=0, description="Base melee attack")
     range_attack: int = Field(alias="rangeAttack", default=0, description="Base ranged attack")
     melee_defense: int = Field(alias="meleeDefence", default=0, description="Base defence against melee")
     range_defense: int = Field(alias="rangeDefence", default=0, description="Base defence against ranged")
     loot_value: int = Field(alias="lootValue", default=0, description="Loot one unit carries")
-    mead_supply: int = Field(
-        alias="meadSupply", default=0, description="Mead upkeep; the client's getter floors it at 0"
-    )
-    beef_supply: int = Field(
-        alias="beefSupply", default=0, description="Beef upkeep; the client's getter floors it at 0"
-    )
+    mead_supply: int = Field(alias="meadSupply", default=0, description="Mead upkeep")
+    beef_supply: int = Field(alias="beefSupply", default=0, description="Beef upkeep")
     food_supply: int = Field(
         alias="foodSupply",
         default=0,
-        description="Food upkeep, before the global food-consumption effect the client's getter adds",
+        description="Food upkeep, before the global food-consumption effect",
     )
     healing_cost_c1: int = Field(
-        alias="healingCostC1", default=0, description="Coin cost to heal one, before the client's cost effects"
+        alias="healingCostC1", default=0, description="Coin cost to heal one, before cost effects"
     )
     healing_cost_c2: int = Field(alias="healingCostC2", default=0, description="Ruby cost to heal one")
-    hybrid: bool = Field(default=False, description="Fits either flank; true only for a value of 1")
+    hybrid: bool = Field(default=False, description="Fits either flank")
 
     @field_validator(
         "melee_attack",
@@ -278,7 +274,7 @@ class ToolStats(_UnitRow):
     category: str = Field(
         alias="typ",
         default="0",
-        description="Attack or Defence (ClientConstCastle.ATTACK_TOOL / DEFENSE_TOOL); the client's default is 0",
+        description='Attack or Defence; "0" when the row has none',
     )
     raw_slot_types: str = Field(alias="slotTypes", default="", description="Comma-separated slot types the tool fits")
     raw_allowed_to_attack: str = Field(
@@ -289,22 +285,22 @@ class ToolStats(_UnitRow):
     tool_category: str = Field(
         alias="toolCategory",
         default="",
-        description="Tool category name, lowercased as the client stores it, e.g. basic",
+        description="Tool category name in lower case, e.g. basic",
     )
     amount_per_wave: int = Field(
         alias="amountPerWave",
         default=-1,
-        description="The column's per-wave limit; -1 when absent. See per_wave_limit for the one the client applies",
+        description="The row's per-wave limit; -1 when absent. per_wave_limit is the limit that applies",
     )
     can_attack_npc: bool = Field(
         alias="canBeUsedToAttackNPC",
         default=True,
-        description="Usable against an NPC target; true unless the value is other than 1",
+        description="Usable against an NPC target",
     )
     raw_effects: str = Field(
         alias="effects",
         default="",
-        description="Comma-separated effectID&value pairs, split by ToolUnitVO.parseEffects",
+        description="Comma-separated effectID&value pairs",
     )
     raw_wall_bonus: int = Field(alias="wallBonus", default=0, description="Wall protection cancelled, in percent")
     raw_gate_bonus: int = Field(alias="gateBonus", default=0, description="Gate protection cancelled, in percent")
@@ -712,12 +708,10 @@ class EquipmentEffectDef(_Row):
 
     equipment_effect_id: int = Field(alias="equipmentEffectID", description="The id an item's bonus row names")
     effect_id: int = Field(alias="effectID", default=-1, description="The effect it resolves to; -1 when unset")
-    bonus: int = Field(default=0, description="Bonus value, read through int()")
+    bonus: int = Field(default=0, description="Bonus value")
     wearer_id: int = Field(alias="wearerID", default=-1, description="Who can roll it (WearerType); -1 when unset")
     raw_item_group_ids: str = Field(alias="itemGroupID", default="", description="Comma-separated item group ids")
-    ignore_cap: bool = Field(
-        alias="ignoreCap", default=False, description="The bonus escapes its effect's cap; any value but 0 is true"
-    )
+    ignore_cap: bool = Field(alias="ignoreCap", default=False, description="The bonus escapes its effect's cap")
 
     @field_validator("bonus", mode="before")
     @classmethod
@@ -748,10 +742,10 @@ class GemDef(EffectSpecRow):
     Client: ``CastleGemVO.parseXML`` (bundle line 28287)
     """
 
-    gem_id: int = Field(alias="gemID", description="Gem id, the value an item's index 10 names")
+    gem_id: int = Field(alias="gemID", description="Gem id, as in Equipment.gem_id")
     set_id: int = Field(alias="setID", default=-1, description="Equipment set the gem counts toward; -1 for none")
     trigger_chance: int = Field(
-        alias="triggerChance", default=100, description="Kept on each GemBonusVO; the effect totals do not read it"
+        alias="triggerChance", default=100, description="Trigger chance; the effect totals do not apply it"
     )
 
 
@@ -884,13 +878,17 @@ class RaidBossDef(_Row):
 
 
 class GeneralDef(_Row):
-    """A general, the hero assigned to a commander."""
+    """
+    A general, the hero assigned to a commander.
+
+    Client: ``GeneralXmlVO.fillFromParamXml`` (bundle line 33102)
+    """
 
     general_id: int = Field(alias="generalID")
     name: str = Field(
         alias="generalName",
         default="",
-        description="Unique per general; GeneralXmlVO.fillFromParamXml (bundle line 33102) does not read it",
+        description="Internal name, unique per general",
     )
     raw_attack_slots: str = Field(alias="attackSlots", default="")
     raw_defense_slots: str = Field(alias="defenseSlots", default="")

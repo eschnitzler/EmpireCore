@@ -41,18 +41,18 @@ class MessageInfo(BasePayload):
     ``CastleMessageData.parse_SNE`` and ``CastleMessageFactory.parseMessage`` (bundle line 135102).
     """
 
-    message_id: int = Field(description="Message id, row[0]")
-    message_type: ClientInt = Field(description="MessageConst.MESSAGE_TYPE_* value, row[1]")
+    message_id: int = Field(description="Message id")
+    message_type: ClientInt = Field(description="Message type id")
     header: str = Field(
         default="",
-        description="row[2]; its layout depends on message_type, each message class parses it in parseMessageHeader",
+        description="Message header; its layout depends on message_type",
     )
-    sender_name: str = Field(default="", description="row[3]")
-    sender_id: ClientInt = Field(default=-1, description="Sender's player id, row[4]")
-    seconds_since_sent: int | float = Field(default=0, description="row[5]")
-    is_read: bool = Field(default=False, description="1 == row[6]")
-    is_archived: bool = Field(default=False, description="1 == row[7]")
-    is_forwarded: bool = Field(default=False, description="1 == row[8]")
+    sender_name: str = Field(default="", description="Sender's name")
+    sender_id: ClientInt = Field(default=-1, description="Sender's player id")
+    seconds_since_sent: int | float = Field(default=0, description="Seconds since the message was sent")
+    is_read: bool = Field(default=False, description="The message has been read")
+    is_archived: bool = Field(default=False, description="The message is archived")
+    is_forwarded: bool = Field(default=False, description="The message was forwarded")
 
     @model_validator(mode="before")
     @classmethod
@@ -86,9 +86,7 @@ class SystemNotificationEvent(BaseResponse):
 
     command = "sne"
 
-    messages: list[MessageInfo] = Field(
-        alias="MSG", default_factory=list, description="The new messages; rows that cannot be read are skipped"
-    )
+    messages: list[MessageInfo] = Field(alias="MSG", default_factory=list, description="The new messages")
 
     @field_validator("messages", mode="before")
     @classmethod
@@ -138,8 +136,8 @@ class ForwardSpyLogRequest(BaseRequest):
     player_ids: list[int] = Field(
         alias="PID",
         description=(
-            "Recipients; the client offers your alliance's other members, AllianceMember.player_id "
-            "from client.alliance.get_local_members()"
+            "Recipients, e.g. your alliance's other members: AllianceMember.player_id from "
+            "client.alliance.get_local_members()"
         ),
     )
     message_id: int = Field(
@@ -187,8 +185,7 @@ class BattleSpyDataResponse(BaseResponse):
     defending_castellan: Castellan | None = Field(
         alias="B",
         default=None,
-        description="The castellan defending the spied castle; the client reads it without its equipment. "
-        "None when missing or unreadable",
+        description="The castellan defending the spied castle, without its equipment; None when there is none",
     )
     spy_data: SpyPositions = Field(
         alias="S",

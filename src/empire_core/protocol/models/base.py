@@ -380,10 +380,10 @@ class CurrencyTotals(BasePayload):
     """
 
     gold: int | float | None = Field(
-        alias="C1", default=None, description="Gold (C1), assigned as sent; None when missing or not a number"
+        alias="C1", default=None, description="Gold; None when the reply has no number for it"
     )
     rubies: int | float | None = Field(
-        alias="C2", default=None, description="Rubies (C2), assigned as sent; None when missing or not a number"
+        alias="C2", default=None, description="Rubies; None when the reply has no number for it"
     )
 
     @field_validator("gold", "rubies", mode="before")

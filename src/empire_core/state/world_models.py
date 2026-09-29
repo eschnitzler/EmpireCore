@@ -84,64 +84,58 @@ class Movement(BaseModel):
     horse_booster_id: int = Field(default=-1, alias="HBW", description="Horse booster item id, -1 for none")
 
     target_area: MovementArea | None = Field(
-        default=None, alias="TA", description="Target area row; None when it is missing or unreadable"
+        default=None, alias="TA", description="Target area row; None when there is none"
     )
     source_area: MovementArea | None = Field(
-        default=None, alias="SA", description="Source area row; None when it is missing or unreadable"
+        default=None, alias="SA", description="Source area row; None when there is none"
     )
 
-    target_area_id: int = Field(default=-1, description="Target area id, TA[3]")
-    source_area_id: int = Field(default=-1, description="Source area id, SA[3]")
-    target_x: int = Field(default=-1, description="Target x, TA[1]")
-    target_y: int = Field(default=-1, description="Target y, TA[2]")
-    source_x: int = Field(default=-1, description="Source x, SA[1]")
-    source_y: int = Field(default=-1, description="Source y, SA[2]")
-    target_type: int = Field(default=-1, description="Area type (MapItemType), TA[0]")
+    target_area_id: int = Field(default=-1, description="Target area id")
+    source_area_id: int = Field(default=-1, description="Source area id")
+    target_x: int = Field(default=-1, description="Target x")
+    target_y: int = Field(default=-1, description="Target y")
+    source_x: int = Field(default=-1, description="Source x")
+    source_y: int = Field(default=-1, description="Source y")
+    target_type: int = Field(default=-1, description="Target area type (MapItemType)")
 
     local_player_id: int = Field(default=-1, description="Player id of the receiving account, -1 if unknown")
 
-    units: dict[int, int] = Field(default_factory=dict, description="Unit id to count, from the wrapper's GA")
-    estimated_size: int = Field(default=0, description="Army size estimate, the wrapper's GS when the army is hidden")
-    resources: MovementResources = Field(
-        default_factory=MovementResources, description="Goods carried, the wrapper's GS when it is a dict"
-    )
+    units: dict[int, int] = Field(default_factory=dict, description="Unit id to count")
+    estimated_size: int = Field(default=0, description="Army size estimate when the army is hidden")
+    resources: MovementResources = Field(default_factory=MovementResources, description="Goods carried")
 
-    target_name: str = Field(default="", description="Target area name, TA[10]")
+    target_name: str = Field(default="", description="Target area name")
     source_name: str = Field(default="", description="Source area name")
-    target_player_name: str = Field(default="", description="From the O owner records")
-    source_player_name: str = Field(default="", description="From the O owner records")
-    target_alliance_name: str = Field(default="", description="From the O owner records")
-    source_alliance_name: str = Field(default="", description="From the O owner records")
+    target_player_name: str = Field(default="", description="Name of the target's owner")
+    source_player_name: str = Field(default="", description="Name of the movement's owner")
+    target_alliance_name: str = Field(default="", description="Alliance name of the target's owner")
+    source_alliance_name: str = Field(default="", description="Alliance name of the movement's owner")
 
     created_at: float = Field(default_factory=time.time, description="When state first saw this movement")
     last_updated: float = Field(default_factory=time.time, description="When the last packet for it was applied")
 
-    commander_equipment: list[Equipment] = Field(
-        default_factory=list, description="Equipment the commander wears, UM.L.EQ"
-    )
-    commander_effects: list[CommanderEffect] = Field(
-        default_factory=list, description="The commander's area effects, UM.L.AE"
-    )
+    commander_equipment: list[Equipment] = Field(default_factory=list, description="Equipment the commander wears")
+    commander_effects: list[CommanderEffect] = Field(default_factory=list, description="The commander's area effects")
 
-    wait_total: int = Field(default=0, description="Seconds the army stays at its target, UM.TWD")
-    wait_passed: int = Field(default=0, description="Seconds of that wait already passed, UM.PWD")
+    wait_total: int = Field(default=0, description="Seconds the army stays at its target")
+    wait_passed: int = Field(default=0, description="Seconds of that wait already passed")
 
-    force_cancelable: bool = Field(default=False, description="Wrapper FC, or set by an mfc push")
+    force_cancelable: bool = Field(default=False, description="The movement can be force-cancelled")
 
-    owner: MovementOwner | None = Field(default=None, description="Owner record (O) of the movement's owner, OID")
-    target_owner: MovementOwner | None = Field(default=None, description="Owner record (O) of the target's owner, TID")
+    owner: MovementOwner | None = Field(default=None, description="Owner record of the movement's owner")
+    target_owner: MovementOwner | None = Field(default=None, description="Owner record of the target's owner")
 
-    attack_type: int | None = Field(default=None, description="AttackType value, the wrapper's ATT")
-    is_shadow: bool = Field(default=False, description="Shadow movement, the wrapper's SM")
-    support_tool_ids: list[int] = Field(default_factory=list, description="Support tools sent along, the wrapper's AST")
-    auto_skip_cooldown_type: int = Field(default=0, description="The wrapper's ASCT")
-    advisor_type: int = Field(default=0, description="Attack advisor type, UM.AAT; 0 for none")
-    advisor_movement_count: int = Field(default=0, description="Attacks in the advisor series, UM.AAC")
-    advisor_movement_number: int = Field(default=0, description="This attack's place in the series, UM.AAN")
-    advisor_is_last: bool = Field(default=False, description="Last attack of the series, UM.AAL")
-    market_carriages: int = Field(default=0, description="Carriages of a market transport, MM.C")
+    attack_type: int | None = Field(default=None, description="AttackType value")
+    is_shadow: bool = Field(default=False, description="Shadow movement")
+    support_tool_ids: list[int] = Field(default_factory=list, description="Support tools sent along")
+    auto_skip_cooldown_type: int = Field(default=0, description="Auto-skip cooldown type (AutoSkipCooldownType)")
+    advisor_type: int = Field(default=0, description="Attack advisor type; 0 for none")
+    advisor_movement_count: int = Field(default=0, description="Attacks in the advisor series")
+    advisor_movement_number: int = Field(default=0, description="This attack's place in the series")
+    advisor_is_last: bool = Field(default=False, description="Last attack of the series")
+    market_carriages: int = Field(default=0, description="Carriages of a market transport")
     goods: list[tuple[str | int, int]] | list[int] = Field(
-        default_factory=list, description="Raw goods or loot pairs, MM.G or the wrapper's G"
+        default_factory=list, description="Goods or loot pairs, kept raw"
     )
 
     _arrival_dispatched: bool = PrivateAttr(default=False)

@@ -146,8 +146,8 @@ class CreateAttackRequest(BaseRequest):
         alias="BPC",
         default=0,
         description=(
-            "1 when the premium commander (LID -14) leads, which uses a premium commander or costs rubies; "
-            "CastlePostAttackDialog.startAttack sends 0 for any other commander"
+            "1 when the premium commander (commander_id -14) leads, which uses a premium commander or"
+            " costs rubies; 0 for any other commander"
         ),
     )
     attack_type: AttackType = Field(alias="ATT", default=AttackType.ATTACK)
@@ -215,15 +215,15 @@ class CreateAttackResponse(BaseResponse):
     command = "cra"
 
     attack_movement: MovementWrapper | None = Field(
-        alias="AAM", default=None, description="The created movement; None when missing or unreadable"
+        alias="AAM", default=None, description="The created movement; None when there is none"
     )
     currencies: CurrencyBlock = Field(
-        alias="gcu", default=None, description="Gold and rubies after the send; None when the reply has no gcu"
+        alias="gcu", default=None, description="Gold and rubies after the send; None when the reply has none"
     )
     owners: list[MovementOwner] = Field(
         alias="O",
         default_factory=list,
-        description="Owner records for the movement's areas; records without an OID or that do not parse are skipped",
+        description="Owner records for the movement's areas",
     )
     arrival_seconds: int | float | None = Field(
         alias="TS",
@@ -334,9 +334,7 @@ class AttackTargetArea(BasePayload):
     """
 
     area: MapAreaItem | None = Field(alias="AI", default=None, description="The target's map row")
-    owners: list[MapObject] = Field(
-        alias="OI", default_factory=list, description="Owner records, as WorldMapOwnerInfoVO reads them"
-    )
+    owners: list[MapObject] = Field(alias="OI", default_factory=list, description="Owner records")
 
     @field_validator("area", mode="before")
     @classmethod
@@ -398,7 +396,7 @@ class AttackInfoResponse(BaseResponse):
     attacker_effects: CommanderEffects = Field(
         alias="AE",
         default_factory=list,
-        description="Area effects on this attack, already scoped to the target; unreadable entries are skipped",
+        description="Area effects on this attack, already scoped to the target",
     )
     spy_data: SpyPositions = Field(
         alias="S",
@@ -409,14 +407,15 @@ class AttackInfoResponse(BaseResponse):
     spy_age_seconds: int = Field(
         alias="AS",
         default=-1,
-        description="Seconds since the target was spied; -1 when there is no spy report, which is also the value "
-        "whenever S is empty",
+        description="Seconds since the target was spied; -1 when there is no spy report",
     )
     spied_castellan: Commander | None = Field(
-        alias="abe", default=None, description="The castellan defending the target, read in preference to B"
+        alias="abe",
+        default=None,
+        description="The castellan defending the target, preferred over spied_castellan_fallback",
     )
     spied_castellan_fallback: Commander | None = Field(
-        alias="B", default=None, description="The castellan defending the target when abe is missing"
+        alias="B", default=None, description="The castellan defending the target when spied_castellan is missing"
     )
     defender_legend_skill_ids: list[int] = Field(
         alias="LS",
@@ -433,12 +432,12 @@ class AttackInfoResponse(BaseResponse):
     unit_inventory: UnitInventory = Field(
         alias="gui",
         default_factory=UnitInventory,
-        description="The attacker's inventory; the client reads I (units and tools) and SHI (stronghold units)",
+        description="The attacker's units and tools, and its stronghold units",
     )
     commander_roster: CommanderRoster = Field(
         alias="gli",
         default_factory=CommanderRoster,
-        description="The attacker's commanders and castellans, which the client parses with CastleLordData.parse_GLI",
+        description="The attacker's commanders and castellans",
     )
 
     _castellan_from_abe: bool = PrivateAttr(default=False)
@@ -987,15 +986,15 @@ class PresetArmy(BaseModel):
     constructor and ``flanks`` getter (bundle lines 99925, 99983)
     """
 
-    middle_tools: list[list[int]] = Field(default_factory=list, description="A[0], as [wod_id, count] pairs")
-    left_tools: list[list[int]] = Field(default_factory=list, description="A[1], as [wod_id, count] pairs")
-    right_tools: list[list[int]] = Field(default_factory=list, description="A[2], as [wod_id, count] pairs")
-    middle_units: list[list[int]] = Field(default_factory=list, description="A[3], as [wod_id, count] pairs")
-    left_units: list[list[int]] = Field(default_factory=list, description="A[4], as [wod_id, count] pairs")
-    right_units: list[list[int]] = Field(default_factory=list, description="A[5], as [wod_id, count] pairs")
+    middle_tools: list[list[int]] = Field(default_factory=list, description="Middle tools as [wod_id, count] pairs")
+    left_tools: list[list[int]] = Field(default_factory=list, description="Left tools as [wod_id, count] pairs")
+    right_tools: list[list[int]] = Field(default_factory=list, description="Right tools as [wod_id, count] pairs")
+    middle_units: list[list[int]] = Field(default_factory=list, description="Middle units as [wod_id, count] pairs")
+    left_units: list[list[int]] = Field(default_factory=list, description="Left units as [wod_id, count] pairs")
+    right_units: list[list[int]] = Field(default_factory=list, description="Right units as [wod_id, count] pairs")
     support_tools: list[int] = Field(
         default_factory=lambda: [-1, -1, -1],
-        description="A[6] when A has exactly seven arrays, else [-1, -1, -1]",
+        description="Support tool wod ids; [-1, -1, -1] when the preset has none",
     )
 
     @classmethod
@@ -1068,7 +1067,7 @@ class AttackPreset(BasePayload):
     name: str | None = Field(
         alias="SN",
         default=None,
-        description="Preset name; missing or empty means the client's default name",
+        description="Preset name; None or empty means the game's default name",
     )
     raw_army: str | None = Field(alias="A", default=None, description="The army as a JSON string, see PresetArmy")
 
@@ -1172,12 +1171,11 @@ class MinuteSkipDungeonRequest(BaseRequest):
         alias="MST",
         description="JSON key of the minute-skip currency used, MS1 to MS7 in the item data (see SCEItem)",
     )
-    kingdom_id: Kingdom | int = Field(
-        alias="KID", description="Kingdom id; sent as a string, as the client's toString() does"
-    )
+    kingdom_id: Kingdom | int = Field(alias="KID", description="Kingdom id")
 
     @field_serializer("kingdom_id")
     def _kingdom_id_as_string(self, value: int) -> str:
+        # The client sends it through toString()
         return str(int(value))
 
 
