@@ -80,7 +80,8 @@ class CommandersService(BaseService):
         Rename a commander or castellan.
 
         Args:
-            commander_id: ID of the commander or castellan
+            commander_id: The leader's ``commander_id``, a ``Commander`` or ``Castellan``
+                from ``client.commanders.get_all()``
             name: The new name; the game's dialog allows 3 to 15 characters
             timeout: Timeout in seconds
 

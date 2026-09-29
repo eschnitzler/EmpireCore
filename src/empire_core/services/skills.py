@@ -69,10 +69,10 @@ class SkillsService(BaseService):
         Assign a general to a commander; ``general_id=-1`` takes its general away.
 
         Args:
-            commander_id: The commander
-            general_id: The general's ``generalID``; find one by name with
-                ``client.game_data.general(name)``, or read the owned ones with
-                :meth:`get_generals`
+            commander_id: A ``Commander.commander_id`` from
+                ``client.commanders.get_commanders()``
+            general_id: An owned general's ``General.general_id`` from :meth:`get_generals`;
+                ``client.game_data.general(name)`` finds its ``generalID`` by name
             timeout: Timeout in seconds
 
         Returns:
@@ -92,7 +92,8 @@ class SkillsService(BaseService):
         Choose a general's abilities.
 
         Args:
-            general_id: The general's ``generalID``, see ``client.game_data.general(name)``
+            general_id: An owned general's ``General.general_id`` from :meth:`get_generals`;
+                ``client.game_data.general(name)`` finds its ``generalID`` by name
             abilities: ``(slot_id, ability_id)`` pairs, ``-1`` to clear a slot.
                 The client sends every slot it shows. An ability id comes from
                 ``client.game_data.general_ability(name, level)``
@@ -126,7 +127,8 @@ class SkillsService(BaseService):
         Reset a general's skill tree.
 
         Args:
-            general_id: The general's ``generalID``, see ``client.game_data.general(name)``
+            general_id: An owned general's ``General.general_id`` from :meth:`get_generals`;
+                ``client.game_data.general(name)`` finds its ``generalID`` by name
             timeout: Timeout in seconds
 
         Returns:
@@ -139,7 +141,8 @@ class SkillsService(BaseService):
         Feed a general xp items.
 
         Args:
-            general_id: The general's ``generalID``, see ``client.game_data.general(name)``
+            general_id: An owned general's ``General.general_id`` from :meth:`get_generals`;
+                ``client.game_data.general(name)`` finds its ``generalID`` by name
             currency_id: The xp item's ``currencyID``, e.g.
                 ``client.game_data.currency("GXP1").currency_id``
                 (``GeneralsLevelUpDialogListItem.sendXPSelected``, bundle line 74485)

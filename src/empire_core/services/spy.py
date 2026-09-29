@@ -89,6 +89,15 @@ class SpyService(BaseService):
 
         Returns False when the server rejects it — a report can age out of the
         mailbox, and the recipients may no longer be reachable.
+
+        Args:
+            message_id: The report's message id: ``SpyResult.message_id`` from
+                :meth:`execute_instant_spy`, or a ``MessageInfo.message_id`` from an ``sne`` push
+            player_ids: The recipients. The client offers the members of your alliance
+                other than you, ``AllianceMember.player_id`` from
+                ``client.alliance.get_local_members()``
+
+        Client: ``CastleForwardMessageDialog.fillList`` and ``sendMessage`` (bundle line 60719)
         """
         if not player_ids:
             return False
@@ -110,7 +119,8 @@ class SpyService(BaseService):
         availability — do not call this from a state callback.
 
         Args:
-            source_castle_id: Source castle ID
+            source_castle_id: The castle the spies leave from, one of yours: ``CastleInfo.castle_id``
+                from ``client.castle.get_all()`` or ``Castle.id`` from ``client.state.get_castles()``
             target_x: Target X coordinate
             target_y: Target Y coordinate
             target_kingdom: Target kingdom, a Kingdom or the id of one it lacks

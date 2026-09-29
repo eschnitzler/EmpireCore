@@ -86,7 +86,9 @@ class AllianceService(BaseService):
         online status (via AMI array), level, rank, etc.
 
         Args:
-            alliance_id: The alliance ID to get members for
+            alliance_id: Your own is ``client.alliance.local_alliance_id``; another
+                alliance's is ``AllianceSearchResult.alliance_id`` from :meth:`search_alliances`
+                or a player's ``client.get_player_info(player_id).alliance_id``
             timeout: Timeout in seconds to wait for response
 
         Returns:
@@ -111,7 +113,9 @@ class AllianceService(BaseService):
         (members with online status from AMI array).
 
         Args:
-            alliance_id: The alliance ID to get members for
+            alliance_id: Your own is ``client.alliance.local_alliance_id``; another
+                alliance's is ``AllianceSearchResult.alliance_id`` from :meth:`search_alliances`
+                or a player's ``client.get_player_info(player_id).alliance_id``
             timeout: Timeout in seconds to wait for response
 
         Returns:
@@ -129,7 +133,7 @@ class AllianceService(BaseService):
         Get a specific member by player ID.
 
         Args:
-            player_id: The player's ID
+            player_id: The member's ``AllianceMember.player_id``, as :meth:`get_members` lists it
             no_cache: If True, refresh alliance data from server first
 
         Returns:
@@ -370,8 +374,9 @@ class AllianceService(BaseService):
         Help heal a specific member's wounded soldiers.
 
         Args:
-            player_id: The player's ID
-            castle_id: The castle ID with wounded soldiers
+            player_id: The member who asked for help. The library does not read
+                help requests yet, so it has no source for this or ``castle_id``
+            castle_id: The member's castle with wounded soldiers
         """
         request = HelpMemberRequest.heal(player_id, castle_id)
         self.send(request)
@@ -381,8 +386,9 @@ class AllianceService(BaseService):
         Help repair a specific member's building.
 
         Args:
-            player_id: The player's ID
-            castle_id: The castle ID with damaged building
+            player_id: The member who asked for help. The library does not read
+                help requests yet, so it has no source for this or ``castle_id``
+            castle_id: The member's castle with the damaged building
         """
         request = HelpMemberRequest.repair(player_id, castle_id)
         self.send(request)
@@ -392,8 +398,9 @@ class AllianceService(BaseService):
         Help a specific member with soldier recruitment.
 
         Args:
-            player_id: The player's ID
-            castle_id: The castle ID recruiting soldiers
+            player_id: The member who asked for help. The library does not read
+                help requests yet, so it has no source for this or ``castle_id``
+            castle_id: The member's castle recruiting soldiers
         """
         request = HelpMemberRequest.recruit(player_id, castle_id)
         self.send(request)
@@ -403,7 +410,8 @@ class AllianceService(BaseService):
         Request heal help from alliance for a castle.
 
         Args:
-            castle_id: The castle ID with wounded soldiers
+            castle_id: One of your castles, from ``client.castle.get_all()``
+                (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
         """
         request = AskHelpRequest.heal(castle_id)
         self.send(request)
@@ -413,8 +421,9 @@ class AllianceService(BaseService):
         Request repair help from alliance for a building.
 
         Args:
-            castle_id: The castle ID
-            building_id: The building ID that needs repair
+            castle_id: One of your castles, from ``client.castle.get_all()``
+                (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
+            building_id: The building that needs repair; the library does not read building ids yet
         """
         request = AskHelpRequest.repair(castle_id, building_id)
         self.send(request)
@@ -424,7 +433,8 @@ class AllianceService(BaseService):
         Request recruit help from alliance for a castle.
 
         Args:
-            castle_id: The castle ID recruiting soldiers
+            castle_id: One of your castles, from ``client.castle.get_all()``
+                (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
         """
         request = AskHelpRequest.recruit(castle_id)
         self.send(request)

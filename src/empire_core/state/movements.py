@@ -484,7 +484,7 @@ class MovementState(StateBase):
             return [m for m in self.movements.values() if m.is_incoming and m.is_attack]
 
     def get_movement_by_id(self, movement_id: int) -> Movement | None:
-        """Get a specific movement by ID."""
+        """Get a tracked movement by its ``Movement.movement_id``, as ``client.get_movements()`` lists it."""
         with self._lock:
             self._advance_movements()
             return self.movements.get(movement_id)

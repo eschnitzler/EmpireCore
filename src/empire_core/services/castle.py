@@ -80,6 +80,11 @@ class CastleService(BaseService):
         The server answers with every castle; the one asked for is picked
         out here, and None means it was not in the list.
 
+        Args:
+            castle_id: One of your castles, from ``client.castle.get_all()``
+                (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
+            timeout: Timeout in seconds
+
         Example:
             details = client.castle.get_details(12345)
             if details:
@@ -95,6 +100,12 @@ class CastleService(BaseService):
     def select(self, castle_id: int, kingdom_id: Kingdom | int = Kingdom.GREEN, timeout: float = 5.0) -> bool:
         """
         Select/jump to a castle (makes it the active castle).
+
+        Args:
+            castle_id: One of your castles, from ``client.castle.get_all()``
+                (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
+            kingdom_id: The castle's kingdom, its ``CastleInfo.kingdom_id``
+            timeout: Timeout in seconds
 
         Example:
             if client.castle.select(12345, kingdom_id=2):
@@ -114,6 +125,13 @@ class CastleService(BaseService):
         server needs, so this costs one extra round trip. Pass
         ``is_initial_name=True`` to name a newly acquired castle, such as a
         monument or laboratory, instead of renaming one.
+
+        Args:
+            castle_id: One of your castles, from ``client.castle.get_all()``
+                (``CastleInfo.castle_id``)
+            new_name: The new name
+            is_initial_name: Name a newly acquired castle instead of renaming one
+            timeout: Timeout in seconds
 
         Raises:
             ValueError: ``castle_id`` is not one of your castles.
@@ -144,6 +162,11 @@ class CastleService(BaseService):
         """
         Get current resources for a castle.
 
+        Args:
+            castle_id: One of your castles, from ``client.castle.get_all()``
+                (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
+            timeout: Timeout in seconds
+
         Example:
             resources = client.castle.get_resources(12345)
             if resources:
@@ -156,6 +179,11 @@ class CastleService(BaseService):
     ) -> tuple[ProductionRates | None, ProductionRates | None]:
         """
         Get production and consumption rates for a castle.
+
+        Args:
+            castle_id: One of your castles, from ``client.castle.get_all()``
+                (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
+            timeout: Timeout in seconds
 
         Returns:
             Tuple of (production_rates, consumption_rates)
@@ -190,11 +218,13 @@ class CastleService(BaseService):
         Send support troops from a castle to a target location.
 
         Args:
-            source_castle_id: Source castle ID
+            source_castle_id: The castle the troops leave from, one of yours: ``CastleInfo.castle_id``
+                from ``client.castle.get_all()`` or ``Castle.id`` from ``client.state.get_castles()``
             target_x: Target X coordinate
             target_y: Target Y coordinate
             units: List of [unit_id, count] pairs
-            commander_id: Commander to lead the support, from client.commanders.
+            commander_id: Commander to lead the support, a ``Commander.commander_id``
+                from ``client.commanders.get_commanders()``.
                 There is no default: ``0`` is a real commander (the free starting
                 one), and the client never sends a support without a commander
                 (with none picked it leads with the premium one, ``-14``)

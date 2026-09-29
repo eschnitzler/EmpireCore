@@ -46,6 +46,13 @@ class EquipmentService(BaseService):
         and then putting it on the second. The reply carries no data; re-read
         ``client.commanders.get_all()`` to see the change.
 
+        Args:
+            equipment_id: An item in the inventory, its ``Equipment.equipment_id``
+                from :meth:`get_inventory`
+            commander_id: The leader's ``commander_id``, a ``Commander`` or ``Castellan``
+                from ``client.commanders.get_all()``
+            timeout: Timeout in seconds
+
         Returns:
             False when the server rejects the request
         """
@@ -55,6 +62,13 @@ class EquipmentService(BaseService):
     def unequip(self, equipment_id: int, commander_id: int, timeout: float = 5.0) -> bool:
         """
         Take an item off a commander or castellan.
+
+        Args:
+            equipment_id: An item the leader wears, the ``Equipment.equipment_id`` of an
+                entry in its ``equipment`` list from ``client.commanders.get_all()``
+            commander_id: The leader's ``commander_id``, a ``Commander`` or ``Castellan``
+                from ``client.commanders.get_all()``
+            timeout: Timeout in seconds
 
         Returns:
             False when the server rejects the request

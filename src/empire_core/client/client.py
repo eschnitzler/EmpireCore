@@ -547,7 +547,9 @@ class EmpireClient:
         capture info.
 
         Args:
-            player_id: The player's ID
+            player_id: A player's id: ``search_player_by_name(name).get_player().owner_id``,
+                an owner record's ``MapObject.owner_id`` from a map scan, or an
+                ``AllianceMember.player_id`` from ``client.alliance.get_members()``
             timeout: Timeout in seconds
 
         Raises:
@@ -560,7 +562,8 @@ class EmpireClient:
         Get info about an alliance.
 
         Args:
-            alliance_id: The alliance ID
+            alliance_id: Your own is ``client.alliance.local_alliance_id``; another is an
+                ``AllianceSearchResult.alliance_id`` from ``client.alliance.search_alliances()``
             timeout: Timeout in seconds
 
         Raises:
@@ -849,7 +852,7 @@ class EmpireClient:
         ``send_delay``), and collects responses via a thread-safe queue.
 
         Args:
-            player_ids: List of player IDs to fetch
+            player_ids: Player ids to fetch, found as for :meth:`get_player_info`
             timeout: Max time to wait for all responses. The pacing sleeps are
                 not charged against it - the clock starts once all requests
                 are out.

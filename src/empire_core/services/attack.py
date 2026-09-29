@@ -281,7 +281,8 @@ class AttackService(BaseService):
             target_y: Target absolute Y coordinate
             waves: Attack waves, front to back
             kingdom_id: Source kingdom, a Kingdom or the id of one it lacks
-            commander_id: Commander to lead the attack, from client.commanders
+            commander_id: Commander to lead the attack, a ``Commander.commander_id`` from
+                ``client.commanders.get_commanders()``
             attack_type: See AttackType (default: a normal attack)
             wait_time: Wait time before the troops return
             horses_type: Horse type for the speed bonus (-1 = none)
@@ -448,7 +449,8 @@ class AttackService(BaseService):
         the ``CastleAttackWaveVO`` constructor (99927).
 
         Args:
-            castle_id: Castle whose troops to draw from
+            castle_id: Castle whose troops to draw from, one of yours: a ``Castle.id``
+                from ``client.state.get_castles()``
             level: The *target owner's* level, which is what sizes a wave
             camp_victories: An NPC camp's victory count, to derive its defense
                 from the game data - see ``MapAreaItem.victory_count``
@@ -652,7 +654,8 @@ class AttackService(BaseService):
         soldier pass ignores anything that is not a unit.
 
         Args:
-            castle_id: Castle whose troops to read
+            castle_id: Castle whose troops to read, one of yours: a ``Castle.id``
+                from ``client.state.get_castles()``
             timeout: Timeout in seconds
 
         Returns:
@@ -943,7 +946,8 @@ class AttackService(BaseService):
         ``target_level`` or ``camp_victories`` is required, as before.
 
         Args:
-            castle_id: Castle whose troops to draw from
+            castle_id: Castle whose troops to draw from, one of yours: a ``Castle.id``
+                from ``client.state.get_castles()``
             target_x: Target's map x, which lets this method read the rest
             target_y: Target's map y
             kingdom_id: Kingdom the target sits in; the source castle's when not

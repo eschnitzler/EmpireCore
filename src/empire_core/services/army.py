@@ -54,6 +54,10 @@ class ArmyService(BaseService):
 
     Accessible via client.army after auto-registration.
 
+    Each method joins the castle it is given first (``jca``), as the client acts
+    on the castle it is in. It joins in that castle's ``Castle.kingdom_id`` from
+    ``client.state.get_castles()``, or in kingdom 0 when the castle is not listed there.
+
     Usage:
         client = EmpireClient(...)
 
@@ -89,6 +93,10 @@ class ArmyService(BaseService):
         the hospital are reported separately - use get_units_response() for
         those.
 
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+            timeout: Timeout in seconds
+
         Returns:
             List of UnitCount objects
         """
@@ -97,6 +105,10 @@ class ArmyService(BaseService):
     def get_units_response(self, castle_id: int, timeout: float = 5.0) -> GetUnitsResponse:
         """
         Get every unit inventory a castle reports.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+            timeout: Timeout in seconds
 
         Returns:
             The full gui response: available, in production, stronghold, hospital
@@ -113,6 +125,9 @@ class ArmyService(BaseService):
     ) -> bool:
         """
         Dismiss units of the castle, or of its stronghold.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
 
         Client: ``CastleRecruitDismissUnitsDialog.dismissUnits`` (bundle line 84330)
         """
@@ -138,7 +153,7 @@ class ArmyService(BaseService):
         Produce units or tools.
 
         Args:
-            castle_id: The castle, from ``client.castle.get_all()``
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
             list_id: SOLDIERS, TOOLS or AUXILIARIES
             wod_id: Unit or tool wod id
             amount: How many to produce
@@ -170,6 +185,9 @@ class ArmyService(BaseService):
         Get one production list of a castle: the slot producing now and the queue,
         or the hospital slots for ``ProductionListId.HOSPITAL``.
 
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+
         Client: ``C2SShowPackageListVO`` (bundle line 22860)
         """
         self._join_castle(castle_id, timeout)
@@ -182,6 +200,7 @@ class ArmyService(BaseService):
         Cancel a production slot.
 
         Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
             slot_type: PRODUCTION for the slot producing now, QUEUE for a queued one
             position: 0 for the slot producing now, else the slot's
                 ``ProductionSlot.position``
@@ -199,6 +218,7 @@ class ArmyService(BaseService):
         Double the units of a production slot. Costs rubies.
 
         Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
             slot_type: PRODUCTION for the slot producing now, QUEUE for a queued one
             position: 0 for the slot producing now, else the slot's
                 ``ProductionSlot.position``
@@ -217,6 +237,9 @@ class ArmyService(BaseService):
         """
         Queue wounded units for healing.
 
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+
         Client: ``CastleRecruitSelectedUnitComponent.onReviveClick`` (bundle line 51105)
         """
         self._join_castle(castle_id, timeout)
@@ -227,6 +250,7 @@ class ArmyService(BaseService):
         Heal every wounded unit at once, for rubies.
 
         Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
             ruby_cost: The price the client would show (see ``HealAllRequest``);
                 the server refuses a price that no longer matches the hospital
 
@@ -239,6 +263,9 @@ class ArmyService(BaseService):
         """
         Cancel a hospital slot, by its ``HospitalSlot.position``.
 
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+
         Client: ``CastleRecruitDialogHospital.onCurrentSlotCancelled`` (bundle line 83508)
         """
         self._join_castle(castle_id, timeout)
@@ -247,6 +274,9 @@ class ArmyService(BaseService):
     def skip_heal(self, castle_id: int, position: int, timeout: float = 5.0) -> bool:
         """
         Finish a hospital slot now, by its ``HospitalSlot.position``. Costs rubies.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
 
         Client: ``CastleRecruitDialogHospital`` (bundle line 83504)
         """
@@ -257,6 +287,9 @@ class ArmyService(BaseService):
         """
         Dismiss wounded units of one type instead of healing them.
 
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+
         Client: ``CastleHospitalDismissUnitsDialog.dismissUnits`` (bundle line 83737)
         """
         self._join_castle(castle_id, timeout)
@@ -265,6 +298,9 @@ class ArmyService(BaseService):
     def dismiss_wounded_units(self, castle_id: int, units: Mapping[int, int], timeout: float = 5.0) -> bool:
         """
         Dismiss wounded units of several types at once, as ``{wod_id: amount}``.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
 
         Client: ``CastleRecruitDialogHospital.onConfirmDeleteAll`` (bundle line 83498)
         """
