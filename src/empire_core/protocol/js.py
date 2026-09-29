@@ -113,7 +113,7 @@ def js_number(value: Any) -> float:
 
 def js_number_or_none(value: Any) -> int | float | None:
     """``Number(value)``, None read as ``undefined``; None where it gives NaN or an infinity, an int kept as is."""
-    if isinstance(value, int) and not isinstance(value, bool):
+    if isinstance(value, int) and not isinstance(value, bool) and abs(value) < 2**1024:
         return value
     number = _number(value)
     return None if math.isnan(number) or math.isinf(number) else number

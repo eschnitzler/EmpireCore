@@ -203,3 +203,8 @@ def test_js_number_or_none(value, expected):
 def test_huge_int_compares_without_overflow():
     assert js_loose_equals(2**1024 - 2**969, 1) is False
     assert js_loose_equals(10**400, 1) is False
+
+
+def test_js_number_or_none_reads_an_int_too_large_for_a_number_as_none():
+    assert js_number_or_none(10**400) is None
+    assert js_number_or_none(-(10**400)) is None

@@ -368,8 +368,9 @@ def readable_list(
     """
     Each entry of an array read as ``model``, so one unreadable entry costs only itself.
 
-    A null entry, or one ``keep`` rejects, is skipped quietly, as the client
-    skips it. One ``accept`` rejects or that fails validation is unreadable:
+    A null entry, or one ``keep`` rejects, is skipped quietly. Where the client
+    would throw on a bad entry instead, skipping it is a deliberate leniency: it
+    costs only that entry. One ``accept`` rejects or that fails validation is unreadable:
     it is skipped too, and with ``warn`` those are counted in one warning that
     shows the first. Anything but an array reads as no entries.
     """

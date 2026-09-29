@@ -293,6 +293,8 @@ class TestMalformedNestedResponsePayloads:
             AllianceChatMessageResponse.model_validate({"CM": "junk"})
 
     def test_one_bad_chat_log_entry_costs_only_itself(self, caplog):
+        # parseHistory throws on a null entry and keeps a non-object as a blank
+        # message; the library skips such entries instead, deliberately
         payload = {"CM": [{"PID": 1, "PN": "a", "MT": "b"}, None, "junk", {"PID": 2, "PN": ["c"]}, {"PID": 3}]}
         with caplog.at_level("WARNING", logger="empire_core.alliance.models.chat"):
             response = AllianceChatLogResponse.model_validate(payload)
