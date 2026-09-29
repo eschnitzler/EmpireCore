@@ -59,13 +59,22 @@ class AutoSkipCooldownType(IntEnum):
 
 
 class Flank(IntEnum):
-    """Attack-screen flanks (``ClientConstCastle.FLANK_*``)."""
+    """
+    Battle flanks.
+
+    REINFORCEMENT_SUMMARY is not a flank troops stand on: the client uses it
+    only in the battle log (``CastleBattleLogDetailAdvancedDialog``, bundle
+    line 135711).
+
+    Client: ``ClientConstCastle.FLANK_*`` (bundle line 1004)
+    """
 
     LEFT = 0
     MIDDLE = 1
     RIGHT = 2
     YARD = 3
     REINFORCEMENT = 4
+    REINFORCEMENT_SUMMARY = 5
 
 
 class CombatEffectType(IntEnum):

@@ -747,7 +747,7 @@ class TestSoldiersSeeThePlacedTools:
                 range_units_melee_strength=5000,
                 range_units_range_strength=100,
             )
-            for flank in Flank
+            for flank in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT, Flank.YARD)
         }
         inventory = Inventory({310: 100, 601: 10_000, 602: 10_000})
 

@@ -82,7 +82,7 @@ def random_defense(rng: random.Random) -> dict[Flank, DefenderFlankEffects]:
             melee_units_melee_strength=rng.randint(0, 9_000),
             range_units_range_strength=rng.randint(0, 9_000),
         )
-        for flank in Flank
+        for flank in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT, Flank.YARD)
     }
 
 

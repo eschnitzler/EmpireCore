@@ -4,7 +4,11 @@ from enum import IntEnum
 
 
 class EquipmentSlot(IntEnum):
-    """Slot an equipment item occupies."""
+    """
+    Slot an equipment item occupies.
+
+    Client: ``EquipmentConst.SLOT_*`` (dll line 19249)
+    """
 
     ARMOR = 1
     WEAPON = 2

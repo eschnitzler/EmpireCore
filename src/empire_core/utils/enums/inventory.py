@@ -6,8 +6,12 @@ from enum import Enum
 class SCEItem(str, Enum):
     """Special currency keys, as sent in ``sce`` entries ``[key, amount]``.
 
-    They name generic currencies in the item data, not items. Client:
-    ``CurrencyData.parseSCE``.
+    The client has no constant class for these: each value is the ``JSONKey``
+    of a row in the items data's ``currencies`` table. This is a curated
+    subset of that table; look any other key up with
+    :meth:`GameData.currency(json_key) <empire_core.gamedata.GameData.currency>`.
+
+    Client: ``CurrencyData.parseSCE`` (bundle line 141182)
     """
 
     # Travel & Speed

@@ -295,6 +295,7 @@ class TestValueObjects:
 
     def test_flank_constants_match_the_client(self):
         assert (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT, Flank.YARD) == (0, 1, 2, 3)
+        assert (Flank.REINFORCEMENT, Flank.REINFORCEMENT_SUMMARY) == (4, 5)
 
 
 # =============================================================================

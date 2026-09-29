@@ -822,7 +822,7 @@ class AttackService(BaseService):
                 gate_bonus=gate if flank is Flank.MIDDLE else 0.0,
                 moat_bonus=moat,
             )
-            for flank in Flank
+            for flank in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT, Flank.YARD)
         }
 
     def _read_precalculation(self, target: "_Target", *, timeout: float) -> None:

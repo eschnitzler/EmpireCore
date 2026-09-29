@@ -9,7 +9,7 @@ class MovementType(IntEnum):
     A returning army is not a type: any type can be on its way home, which is
     the movement's ``D`` flag.
 
-    Client: ``ClientConstCastle`` MOVEMENTTYPE_* constants.
+    Client: ``ClientConstCastle.MOVEMENTTYPE_*`` (bundle line 1004)
     """
 
     ATTACK = 0

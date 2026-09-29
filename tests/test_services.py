@@ -1383,7 +1383,7 @@ class TestAttackService:
         waves = client.attack.fill_waves(
             12345,
             level=13,
-            defense={f: DefenderFlankEffects(gate_bonus=0.30) for f in Flank},
+            defense={f: DefenderFlankEffects(gate_bonus=0.30) for f in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT, Flank.YARD)},
         )
 
         assert placed(waves[0].model_dump(by_alias=True)["M"]["T"]) == [[611, 1]]
@@ -2738,7 +2738,7 @@ class TestFillAttack:
         client = self.build([[601, 100_000], [614, 100_000]])
         client.game_data = GameData.parse("test", payload)
         # A wall the ladders cannot fully cancel, so the flank fills to capacity.
-        defense = {flank: DefenderFlankEffects(wall_bonus=99.0) for flank in Flank}
+        defense = {flank: DefenderFlankEffects(wall_bonus=99.0) for flank in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT, Flank.YARD)}
 
         target = dict(level=70, target_is_player=True, area_type=1, owner_id=4242, defense=defense)
         plain = client.attack.fill_waves(12345, **target)
