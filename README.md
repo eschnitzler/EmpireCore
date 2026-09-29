@@ -302,7 +302,7 @@ a type with no level to tell them apart. Horses have no named lookup yet; use
 For autocomplete, the ids of one items version are also generated as enums:
 
 ```python
-from empire_core.gamedata import Currency, General, GeneralSkill, Unit
+from empire_core.gamedata import Building, Currency, General, GeneralSkill, Research, Tool, Unit
 
 General.TORIL                        # 101
 Currency.GXP1                        # "GXP1", the key the server uses

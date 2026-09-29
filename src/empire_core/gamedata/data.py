@@ -266,6 +266,7 @@ class GameData(BaseModel):
         data = GameData.load()
         data.get_unit(211).range_attack
         data.general("Toril").general_id
+        data.record(Unit.MEAD_RANGER_L6).range_attack
     """
 
     model_config = ConfigDict(extra="ignore")
