@@ -55,7 +55,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if git diff --quiet -- src/empire_core/gamedata/ids; then
+          if [ -z "$(git status --porcelain -- src/empire_core/gamedata/ids)" ]; then
             echo "Regenerating changed nothing"
             exit 0
           fi
@@ -76,5 +76,5 @@ jobs:
           if [ -n "$open" ]; then
             gh pr edit "$open" --title "$title" --body "$body"
           else
-            gh pr create --base "${{ github.event.repository.default_branch }}" --head "$BRANCH" --title "$title" --body "$body"
+            gh pr create --base master --head "$BRANCH" --title "$title" --body "$body"
           fi
