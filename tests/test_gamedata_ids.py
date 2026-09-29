@@ -236,7 +236,9 @@ class TestStaleness:
         return load
 
     def stale_warnings(self, caplog) -> list[str]:
-        return [r.getMessage() for r in caplog.records if "scripts/generate_gamedata_ids.py" in r.getMessage()]
+        return [
+            r.getMessage() for r in caplog.records if "empire_core.gamedata.ids was generated from" in r.getMessage()
+        ]
 
     def test_load_warns_once_when_the_ids_are_from_another_version(self, load, caplog):
         with caplog.at_level(logging.WARNING, logger="empire_core.gamedata.data"):

@@ -301,7 +301,9 @@ def items_version(path: Path, payload: dict) -> str:
         value = (info.get("version") or {}).get("@value")
         if value:
             return str(value)
-    match = re.fullmatch(r"items_v(.+?)(?:\.trimmed)?\.json", path.name)
+    if path.name.endswith(".trimmed.json"):
+        raise SystemExit(f"{path} is GameData's parsed cache, not an items file; pass the items JSON itself")
+    match = re.fullmatch(r"items_v(.+?)\.json", path.name)
     if match:
         return match.group(1)
     raise SystemExit(f"cannot tell the items version of {path}; name it items_v<version>.json")
@@ -328,9 +330,11 @@ def main(argv: list[str] | None = None) -> int:
         payload = json.loads(args.items.read_text())
         data = GameData.parse(items_version(args.items, payload), payload)
     else:
-        # A cached copy reads a unit's level 0 back as -1, so parse afresh.
         data = GameData.load(refresh=True)
 
+    empty = [t.enum for t in tables(data) if not t.rows]
+    if empty:
+        raise SystemExit(f"no rows for {', '.join(empty)}; is this the full items file?")
     files = render(data)
     write(files, args.out)
     for t in tables(data):

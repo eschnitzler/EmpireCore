@@ -315,9 +315,10 @@ by id), generals, general abilities and skills, legend skills, raid bosses and
 global effects each have one. Where two rows would get the same name, both carry
 their id (`GlobalEffect.SPEED_BOOST_2`, `GlobalEffect.SPEED_BOOST_11`).
 
-`ITEMS_VERSION` is the items version they came from, and `GameData.load()` logs
-a warning when it loads a different one. Ids added since are not in the enums;
-the lookups above cover them. To regenerate after a client update:
+`ITEMS_VERSION` is the items version they came from; `is_current(game_data)` says
+whether loaded data matches it, and `GameData.load()` logs a warning when it does
+not. Ids added since are not in the enums; the lookups above cover them. To
+regenerate from a checkout after a client update:
 
 ```bash
 uv run python scripts/generate_gamedata_ids.py                 # downloads the current items

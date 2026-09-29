@@ -1,21 +1,26 @@
 """Static game data: unit and tool stats, effects, NPC camp defenses, and id enums."""
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .ids import (
+        ITEMS_VERSION,
+        Currency,
+        CurrencyId,
+        Effect,
+        EffectType,
+        General,
+        GeneralAbility,
+        GeneralSkill,
+        GlobalEffect,
+        LegendSkill,
+        RaidBoss,
+        Tool,
+        Unit,
+        is_current,
+    )
+
 from .data import CAMP_TABLES, RAW_TABLES, GameData, default_cache_dir
-from .ids import (
-    ITEMS_VERSION,
-    Currency,
-    CurrencyId,
-    Effect,
-    EffectType,
-    General,
-    GeneralAbility,
-    GeneralSkill,
-    GlobalEffect,
-    LegendSkill,
-    RaidBoss,
-    Tool,
-    Unit,
-)
 from .models import (
     AllianceBuffDef,
     AttackSlotDef,
@@ -56,6 +61,7 @@ __all__ = [
     "GeneralSkill",
     "GlobalEffect",
     "ITEMS_VERSION",
+    "is_current",
     "LegendSkill",
     "RaidBoss",
     "Tool",
@@ -92,3 +98,31 @@ __all__ = [
     "parse_ids",
     "parse_stacks",
 ]
+
+_IDS = frozenset(
+    {
+        "Currency",
+        "CurrencyId",
+        "Effect",
+        "EffectType",
+        "General",
+        "GeneralAbility",
+        "GeneralSkill",
+        "GlobalEffect",
+        "ITEMS_VERSION",
+        "LegendSkill",
+        "RaidBoss",
+        "Tool",
+        "Unit",
+        "is_current",
+    }
+)
+
+
+def __getattr__(name: str) -> object:
+    # The id enums hold thousands of members, so they load on first use
+    if name in _IDS:
+        from . import ids
+
+        return getattr(ids, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -23,7 +23,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from empire_core.exceptions import AmbiguousLookupError, NetworkError
 from empire_core.utils.troops import fetch_items_data, get_items_version
 
-from .ids import ITEMS_VERSION
 from .models import (
     READING_CACHE,
     AllianceBuffDef,
@@ -141,12 +140,14 @@ _warned_versions: set[str] = set()
 
 def _check_ids_version(version: str) -> None:
     """Log once per version when the loaded items differ from the ones the id enums came from."""
+    from .ids import ITEMS_VERSION
+
     if version == ITEMS_VERSION or version in _warned_versions:
         return
     _warned_versions.add(version)
     logger.warning(
         f"Loaded items v{version}, but empire_core.gamedata.ids was generated from v{ITEMS_VERSION}; "
-        "its ids may be stale. Regenerate with scripts/generate_gamedata_ids.py, or use the GameData lookups."
+        "ids added since may be missing: use the GameData lookups for those, or update empire_core."
     )
 
 
