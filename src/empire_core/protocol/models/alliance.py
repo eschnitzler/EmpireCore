@@ -15,7 +15,7 @@ from typing import Any
 
 from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
 
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, HelpType, parse_chat_json_message
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, HelpType, ParseInt, parse_chat_json_message
 from .map import MapAreaItem, MapObject, parse_area_rows
 from .profile import PlayerProfileBase
 
@@ -189,7 +189,7 @@ class AllianceInfo(BasePayload):
     Client: ``AllianceInfoVO.fillFromParamObject`` (bundle line 25928)
     """
 
-    alliance_id: ClientInt = Field(alias="AID", default=0, description="Alliance id, read with parseInt")
+    alliance_id: ParseInt = Field(alias="AID", default=0, description="Alliance id, read with parseInt")
     name: str = Field(alias="N", default="", description="Alliance name")
     members: list[AllianceMember] = Field(
         alias="M",
@@ -199,24 +199,24 @@ class AllianceInfo(BasePayload):
 
     fame_points: ClientInt = Field(alias="CF", default=0, description="Alliance fame points")
     highest_fame_points: ClientInt = Field(alias="HF", default=0, description="Highest fame points reached")
-    might: ClientInt = Field(alias="MP", default=0, description="Alliance might points")
-    highest_alliance_might: ClientInt = Field(alias="HAMP", default=0, description="Highest might points reached")
+    might: ParseInt = Field(alias="MP", default=0, description="Alliance might points")
+    highest_alliance_might: ParseInt = Field(alias="HAMP", default=0, description="Highest might points reached")
     description: str = Field(alias="D", default="", description="The alliance's description, decoded as chat text")
     announcement: str = Field(
         alias="A", default=" ", description='The alliance\'s announcement; " " when it has none, as in the client'
     )
     language: str = Field(alias="ALL", default="en", description="The alliance's language code")
-    external_member_level: ClientInt = Field(
+    external_member_level: ParseInt = Field(
         alias="ML", default=0, description="Read with parseInt as the external member level"
     )
-    status_to_own_alliance: ClientInt = Field(
+    status_to_own_alliance: ParseInt = Field(
         alias="DOA",
         default=0,
         description="Diplomacy status towards the player's own alliance (AllianceConst.DIPLOMACY_*)",
     )
     is_searching_members: bool = Field(alias="IS", default=False, description="The alliance is looking for players")
     is_accepting_members: bool = Field(alias="IA", default=False, description="Players may apply to join")
-    application_count: ClientInt = Field(alias="AA", default=0, description="Pending applications")
+    application_count: ParseInt = Field(alias="AA", default=0, description="Pending applications")
     auto_war: bool = Field(alias="AW", default=False, description="Auto war is on (1 == AW)")
     aqua_points: int | float = Field(alias="AP", default=0, description="Aqua points, kept as sent")
     free_renames: ClientInt = Field(alias="FR", default=0, description="Free alliance renames left")

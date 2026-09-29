@@ -1296,3 +1296,10 @@ class TestAllianceInfoText:
         assert AllianceInfo.model_validate({"MF": 1, "SRFU": 4}).soft_relic_forge_uses == 0
         both = AllianceInfo.model_validate({"MF": 1, "IF": 0, "SRFU": 4})
         assert (both.is_able_to_forge, both.soft_relic_forge_uses) == (True, 4)
+
+
+def test_ain_parseint_fields_read_as_javascript_parseint():
+    from empire_core.protocol.models.alliance import AllianceInfo
+
+    info = AllianceInfo.model_validate({"AID": "12abc", "MP": "1e3", "ML": None, "AA": 7.9})
+    assert (info.alliance_id, info.might, info.external_member_level, info.application_count) == (12, 1, 0, 7)
