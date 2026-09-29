@@ -2,10 +2,12 @@
 Static game data from the GGE items payload.
 
 The client builds its combat maths from ``items_v{version}.json`` on the GGE
-CDN. That file is ~20 MB, so nothing here is fetched implicitly: call
-:meth:`GameData.load` (or :meth:`EmpireClient.load_game_data`) when you want it.
-What is parsed is trimmed to the combat-relevant tables and cached on disk per
-version, so the download happens once per game patch.
+CDN. That file is ~20 MB, so call :meth:`GameData.load` (or
+:meth:`EmpireClient.load_game_data`) when you want it. The one exception is
+:func:`default_game_data`, which the id enums' ``stats`` and ``info``
+properties read: it loads on first use if nothing has been loaded yet. What is
+parsed is trimmed to the combat-relevant tables and cached on disk per version,
+so the download happens once per game patch.
 """
 
 from __future__ import annotations
@@ -581,6 +583,7 @@ class GameData(BaseModel):
             cached = cls._read_cache(cache_file, version)
             if cached is not None:
                 _check_ids_version(version)
+                set_default_game_data(cached)
                 return cached
 
         try:
@@ -595,6 +598,7 @@ class GameData(BaseModel):
             f"{len(data.dungeons)} camp defenses (v{version})"
         )
         _check_ids_version(version)
+        set_default_game_data(data)
         return data
 
     @classmethod
@@ -628,4 +632,26 @@ class GameData(BaseModel):
             logger.warning(f"Could not cache game data to {cache_file}: {e}")
 
 
-__all__ = ["GameData", "default_cache_dir"]
+_default: GameData | None = None
+
+
+def default_game_data() -> GameData:
+    """
+    The GameData the id enums' ``stats`` and ``info`` properties read.
+
+    That is the one :meth:`GameData.load` returned last, which includes
+    :meth:`EmpireClient.load_game_data`; if nothing has been loaded, the first
+    call loads it (a download on a cache miss) and keeps it.
+    """
+    if _default is None:
+        return GameData.load()
+    return _default
+
+
+def set_default_game_data(data: GameData | None) -> None:
+    """Make ``data`` what :func:`default_game_data` returns; None forgets it, so the next call loads."""
+    global _default
+    _default = data
+
+
+__all__ = ["GameData", "default_cache_dir", "default_game_data", "set_default_game_data"]

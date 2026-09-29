@@ -400,15 +400,17 @@ class EmpireClient:
         Load the static game data (unit and tool stats) and attach it.
 
         Explicit by design: the items payload is a large download, so no other
-        API fetches it behind your back. Cached on disk per game version, so
-        this is cheap after the first call.
+        API fetches it behind your back, bar the id enums' ``stats`` and
+        ``info`` when nothing is loaded yet. Cached on disk per game version,
+        so this is cheap after the first call.
 
         Args:
             refresh: Ignore any cached copy and re-download
             cache_dir: Where to keep trimmed data (default: XDG cache dir)
 
         Returns:
-            The loaded data, also available as ``client.game_data``
+            The loaded data, also available as ``client.game_data`` and, until
+            another load, as :func:`~empire_core.gamedata.default_game_data`
 
         Raises:
             NetworkError: The CDN could not be reached

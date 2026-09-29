@@ -5,6 +5,16 @@ Game-data ids as enums, so they autocomplete.
 
 One enum per items table, each member named from the row in UPPER_SNAKE;
 where two rows would share a name, both carry their id (``SPEED_BOOST_2``).
+Members are plain ints (``Currency`` members plain strs), so they go on the
+wire and into models as their value.
+
+Each member also carries the columns that identify its row and do not change
+between patches, e.g. ``Unit.MEAD_RANGER_L6.unit_type``. Anything a balance
+patch can change is not baked in: ``Unit.X.stats``, ``Tool.X.stats`` and the
+other enums' ``info`` return the full row from
+:func:`~empire_core.gamedata.default_game_data`, the GameData loaded last
+(loading it on first use if none was).
+
 ``ITEMS_VERSION`` is the items version they were generated from, and
 :func:`is_current` says whether a loaded :class:`GameData` is that version. For
 anything newer, use the named lookups on :class:`GameData`.

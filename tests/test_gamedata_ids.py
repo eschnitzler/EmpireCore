@@ -1,9 +1,11 @@
 """The generated game-data id enums and the script that writes them."""
 
+import copy
 import importlib.util
 import json
 import logging
 import os
+import pickle
 import shutil
 import subprocess
 import sys
@@ -12,10 +14,12 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import BaseModel
 
 from empire_core import gamedata
-from empire_core.gamedata import GameData, default_cache_dir, ids
+from empire_core.gamedata import GameData, default_cache_dir, default_game_data, ids, set_default_game_data
 from empire_core.gamedata.data import CACHE_FILENAME_TEMPLATE
+from empire_core.protocol.models.skills import SetGeneralAbilitiesRequest
 from tests.test_gamedata import LOOKUP_PAYLOAD, PAYLOAD
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -123,6 +127,111 @@ class TestPackage:
         assert gen.render(data) == committed
 
 
+@pytest.fixture
+def lookup_data():
+    """The lookup fixtures as the default game data, forgotten again afterwards."""
+    data = GameData.parse(ids.ITEMS_VERSION, LOOKUP_PAYLOAD)
+    set_default_game_data(data)
+    yield data
+    set_default_game_data(None)
+
+
+class TestMemberData:
+    def test_fixed_columns_are_baked_in(self):
+        unit = ids.Unit.VETERAN_SABERSLASHER
+        assert (unit.value, unit.unit_type, unit.level, unit.role) == (5, "VeteranSaberslasher", -1, "melee")
+        assert (ids.Unit.MEAD_RANGER_L6.unit_type, ids.Unit.MEAD_RANGER_L6.level) == ("MeadRanger", 6)
+        assert (ids.General.TORIL.row_name, ids.General.TORIL.rarity_id) == ("Toril", 4)
+        assert ids.GeneralSkill.TORIL_ASPECTOFTHE_DRAGON_L1.general_id == ids.General.TORIL
+        assert ids.Currency.KT.currency_id == ids.CurrencyId.KT
+        assert ids.CurrencyId.KT.json_key == ids.Currency.KT
+
+    def test_baked_columns_match_the_generated_rows(self):
+        payload: dict[str, Any] = dict(LOOKUP_PAYLOAD)
+        payload["units"] = [*payload["units"], *PAYLOAD["units"]]
+        data = GameData.parse(ids.ITEMS_VERSION, payload)
+        for table in gen.tables(data):
+            enum = getattr(ids, table.enum)
+            for row in table.rows:
+                member = enum._value2member_map_.get(row.value)
+                if member is not None:
+                    assert tuple(getattr(member, a.name) for a in table.attrs) == row.attrs, member
+
+    def test_members_are_their_values(self):
+        unit, currency = ids.Unit.MEAD_RANGER_L6, ids.Currency.KT
+        assert unit == 211 and hash(unit) == hash(211) and {211: "x"}[unit] == "x"
+        assert currency == "KT" and hash(currency) == hash("KT")
+        for member in (unit, currency):
+            assert pickle.loads(pickle.dumps(member)) is member
+            assert copy.copy(member) is member and copy.deepcopy(member) is member
+        assert json.dumps([unit, currency]) == '[211, "KT"]'
+        assert ids.Unit(211) is unit and ids.Currency("KT") is currency
+
+    def test_members_go_on_the_wire_as_plain_values(self):
+        request = SetGeneralAbilitiesRequest(GID=ids.General.TORIL, SAIDS=[[0, ids.GeneralAbility.POWER_SURGE_L1]])
+        payload = request.to_payload()
+        assert payload == {"GID": 101, "SAIDS": [[0, 10011]]}
+        assert type(payload["GID"]) is int and type(payload["SAIDS"][0][1]) is int
+
+        class Typed(BaseModel):
+            unit: ids.Unit
+            currency: ids.Currency
+
+        typed = Typed.model_validate({"unit": 211, "currency": "KT"})
+        assert typed.unit is ids.Unit.MEAD_RANGER_L6
+        assert typed.model_dump(mode="json") == {"unit": 211, "currency": "KT"}
+
+    def test_game_data_lookups_take_members(self, lookup_data):
+        assert lookup_data.get_unit(ids.Unit.MEAD_RANGER_L6) is lookup_data.units[211]
+        assert lookup_data.currency(ids.Currency.KT) is lookup_data.currencies[1]
+        assert lookup_data.generals.get(ids.General.TORIL) is lookup_data.generals[101]
+
+
+class TestLinks:
+    def test_properties_read_the_default_game_data(self, lookup_data):
+        assert ids.Unit.MEAD_RANGER_L6.stats is lookup_data.units[211]
+        assert ids.Tool.ELITE_COMBO_RAM_113.stats is lookup_data.tools[113]
+        assert ids.General.TORIL.info is lookup_data.generals[101]
+        assert ids.GeneralAbility.POWER_SURGE_L1.info is lookup_data.general_abilities[10011]
+        assert ids.GeneralSkill.TORIL_ASPECTOFTHE_DRAGON_L1.info is lookup_data.general_skills[10110201]
+        assert ids.LegendSkill.GATE_REDUCTION_T0_G1_L1.info is lookup_data.legend_skills[1]
+        assert ids.Currency.KT.info is ids.CurrencyId.KT.info is lookup_data.currencies[1]
+        assert ids.EffectType.FAME_DEFENSE_BONUS.info is lookup_data.effect_types[0]
+        assert ids.RaidBoss.NECROMANCER.info is lookup_data.raid_bosses[1]
+        assert ids.GlobalEffect.SPEED_BOOST_11.info is lookup_data.global_effects[11]
+
+    def test_a_row_the_data_lacks_is_none(self, lookup_data):
+        assert ids.Unit.VETERAN_SABERSLASHER.stats is None
+        assert ids.Currency.GXP1.info is None
+
+    def test_the_first_use_loads_and_keeps_the_game_data(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: ids.ITEMS_VERSION)
+        fetched: list[str] = []
+
+        def fetch(version: str) -> dict:
+            fetched.append(version)
+            return LOOKUP_PAYLOAD
+
+        monkeypatch.setattr("empire_core.gamedata.data.fetch_items_data", fetch)
+        set_default_game_data(None)
+        try:
+            assert ids.General.TORIL.info is not None
+            assert ids.Unit.MEAD_RANGER_L6.stats is default_game_data().units[211]
+        finally:
+            set_default_game_data(None)
+        assert fetched == [ids.ITEMS_VERSION]
+
+    def test_the_enums_load_lazily(self):
+        code = (
+            "import sys, empire_core, empire_core.gamedata as g\n"
+            "assert 'empire_core.gamedata.ids' not in sys.modules\n"
+            "g.Unit\n"
+            "assert 'empire_core.gamedata.ids' in sys.modules\n"
+        )
+        subprocess.run([sys.executable, "-c", code], check=True)
+
+
 class TestGenerator:
     @pytest.fixture
     def data(self) -> GameData:
@@ -207,7 +316,21 @@ class TestGenerator:
         if ruff is None:
             pytest.skip("ruff is not installed")
             return
-        gen.write(gen.render(data), tmp_path)
+        files = gen.render(data)
+        long_name = "A" * 90
+        wide = gen.Table(
+            "wide",
+            "Wide",
+            "W",
+            "Rows too long for one line.",
+            "none",
+            [gen.Row(long_name, 1, "1", ("x" * 40, 2)), gen.Row("SHORT", 2, "2", ("y", 3))],
+            (gen.Attr("first_column_with_a_long_name", "str", "Long."), gen.Attr("second_long_column", "int", "Too.")),
+            (gen.Link("info", "UnitStats", "get_unit", "Linked."),),
+        )
+        files["wide.py"] = gen.render_module("786.03", [(wide, gen.members(wide))])
+        assert f"    {long_name} = (\n" in files["wide.py"] and "    SHORT = 2, " in files["wide.py"]
+        gen.write(files, tmp_path)
         subprocess.run([ruff, "format", "--check", "--config", str(ROOT / "pyproject.toml"), str(tmp_path)], check=True)
         subprocess.run([ruff, "check", "--config", str(ROOT / "pyproject.toml"), str(tmp_path)], check=True)
 
@@ -247,6 +370,15 @@ class TestStaleness:
 
         (message,) = self.stale_warnings(caplog)
         assert "v0.01" in message and f"v{ids.ITEMS_VERSION}" in message
+
+    def test_load_becomes_the_default(self, load):
+        try:
+            data = load(ids.ITEMS_VERSION)
+            assert default_game_data() is data
+            again = load(ids.ITEMS_VERSION)
+            assert again is not data and default_game_data() is again
+        finally:
+            set_default_game_data(None)
 
     def test_load_is_quiet_for_the_version_the_ids_came_from(self, load, caplog):
         with caplog.at_level(logging.WARNING, logger="empire_core.gamedata.data"):

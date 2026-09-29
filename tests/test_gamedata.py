@@ -537,7 +537,9 @@ LOOKUP_PAYLOAD = {
         {"wodID": 564, "name": "Eventtool", "type": "EliteComboRam", "typ": "Attack", "slotTypes": "1"},
         {**PREMIUM_STAKES, "level": "2"},
     ],
-    "generals": [{"generalID": "101", "generalName": "Toril", "attackSlots": "101011", "maxLevel": "100"}],
+    "generals": [
+        {"generalID": "101", "generalName": "Toril", "generalRarityID": "4", "attackSlots": "101011", "maxLevel": "100"}
+    ],
     "generalAbilities": [
         {
             "abilityID": "10011",

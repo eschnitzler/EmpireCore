@@ -20,7 +20,7 @@ if TYPE_CHECKING:
         is_current,
     )
 
-from .data import CAMP_TABLES, RAW_TABLES, GameData, default_cache_dir
+from .data import CAMP_TABLES, RAW_TABLES, GameData, default_cache_dir, default_game_data, set_default_game_data
 from .models import (
     AllianceBuffDef,
     AttackSlotDef,
@@ -95,6 +95,8 @@ __all__ = [
     "ToolStats",
     "UnitStats",
     "default_cache_dir",
+    "default_game_data",
+    "set_default_game_data",
     "parse_ids",
     "parse_stacks",
 ]

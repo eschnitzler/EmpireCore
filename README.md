@@ -315,6 +315,22 @@ by id), generals, general abilities and skills, legend skills, raid bosses and
 global effects each have one. Where two rows would get the same name, both carry
 their id (`GlobalEffect.SPEED_BOOST_2`, `GlobalEffect.SPEED_BOOST_11`).
 
+Members are plain ints (or strs), so they go straight into requests. Each also
+carries the columns that identify its row, and a property for the rest of the
+row, read from the loaded game data:
+
+```python
+Unit.MEAD_RANGER_L6.unit_type        # "MeadRanger"; also .level and .role
+General.TORIL.rarity_id              # 4
+Unit.MEAD_RANGER_L6.stats            # UnitStats, from the loaded GameData
+General.TORIL.info                   # GeneralDef
+```
+
+Stats and costs are not baked in, as balance patches change them. The
+properties read `default_game_data()`: the GameData that `GameData.load()` (or
+`client.load_game_data()`) returned last, loaded on first use if there is none.
+`set_default_game_data(data)` picks another.
+
 `ITEMS_VERSION` is the items version they came from; `is_current(game_data)` says
 whether loaded data matches it, and `GameData.load()` logs a warning when it does
 not. Ids added since are not in the enums; the lookups above cover them. To
