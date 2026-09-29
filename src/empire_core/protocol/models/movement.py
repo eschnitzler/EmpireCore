@@ -19,12 +19,12 @@ class GetMovementsRequest(BaseRequest):
     Get all active troop movements.
 
     Command: gam
-    Payload: {} (empty) or {"CID": castle_id}
+    Payload: {}
+
+    Client: ``C2SGetAllMovementsVO`` (bundle line 129713, no fields)
     """
 
     command = "gam"
-
-    castle_id: int | None = Field(alias="CID", default=None)
 
 
 def _truthy(value: Any) -> bool:

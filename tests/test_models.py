@@ -1303,3 +1303,18 @@ def test_ain_parseint_fields_read_as_javascript_parseint():
 
     info = AllianceInfo.model_validate({"AID": "12abc", "MP": "1e3", "ML": None, "AA": 7.9})
     assert (info.alliance_id, info.might, info.external_member_level, info.application_count) == (12, 1, 0, 7)
+
+
+def test_rename_castle_sends_the_client_keys_and_encodes_the_name():
+    from empire_core.protocol.models.castle import RenameCastleRequest
+
+    payload = RenameCastleRequest(CID=5, N="100% 'mine'\tnow", AT=1, KID=2, P=1).to_payload()
+    # C2SRenameCastleVO: CID, P, KID and AT are initialised before N
+    assert list(payload) == ["CID", "P", "KID", "AT", "N"]
+    assert payload["N"] == "100&percnt; &145;mine&145; now"
+
+
+def test_gam_sends_no_castle():
+    from empire_core.protocol.models.movement import GetMovementsRequest
+
+    assert GetMovementsRequest().to_payload() == {}

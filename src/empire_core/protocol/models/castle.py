@@ -16,9 +16,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
 
-from .base import BasePayload, BaseRequest, BaseResponse, Position, ResourceAmount
+from .base import BasePayload, BaseRequest, BaseResponse, Position, ResourceAmount, smartfox_json_text
 
 logger = logging.getLogger(__name__)
 
@@ -551,19 +551,27 @@ class RenameCastleRequest(BaseRequest):
     Rename a castle.
 
     Command: arc
-    Payload: {"CID": castle_id, "N": "new_name", "AT": castle_type, "KID": kingdom_id, "P": 1}
-    Client: C2SRenameCastleVO
+    Payload: {"CID": castle_id, "P": 0 or 1, "KID": kingdom_id, "AT": area_type, "N": name}
 
-    ``P`` is 0 when naming a newly acquired castle and 1 for a normal rename.
+    The keys follow the client's order: the constructor initialises CID, P, KID
+    and AT before it sets N, which it encodes as it encodes any text it sends.
+
+    Client: ``C2SRenameCastleVO`` (bundle line 42424)
     """
 
     command = "arc"
 
-    castle_id: int = Field(alias="CID")
-    castle_name: str = Field(alias="N")
-    castle_type: int = Field(alias="AT")
-    kingdom_id: int = Field(alias="KID", default=0)
-    is_rename: int = Field(alias="P", default=1)
+    castle_id: int = Field(alias="CID", description="The castle to rename, from client.castle.get_all()")
+    is_rename: int = Field(
+        alias="P", default=1, description="1 to rename, 0 to name a newly acquired castle such as a monument"
+    )
+    kingdom_id: int = Field(alias="KID", default=0, description="The castle's kingdom")
+    castle_type: int = Field(alias="AT", description="The castle's area type (MapItemType)")
+    castle_name: str = Field(alias="N", description="The new name")
+
+    @field_serializer("castle_name")
+    def _encoded_name(self, value: str) -> str:
+        return smartfox_json_text(value)
 
 
 class RenameCastleResponse(BaseResponse):
@@ -572,14 +580,17 @@ class RenameCastleResponse(BaseResponse):
 
     Command: arc
     Payload: {"CID": castle_id, "KID": kingdom_id, "P": 0 or 1}
-    Client: ARCCommand.executeCommand
+
+    Client: ``ARCCommand.executeCommand`` (bundle line 124966), which looks the
+    castle up by CID and KID, and joins a kingdom castle's area again after a
+    first naming (P 0)
     """
 
     command = "arc"
 
-    castle_id: int = Field(alias="CID")
-    kingdom_id: int = Field(alias="KID", default=0)
-    is_rename: int = Field(alias="P", default=1)
+    castle_id: int = Field(alias="CID", description="The renamed castle")
+    kingdom_id: int = Field(alias="KID", default=0, description="The castle's kingdom")
+    is_rename: int = Field(alias="P", default=1, description="1 for a rename, 0 for a first naming")
 
 
 # =============================================================================

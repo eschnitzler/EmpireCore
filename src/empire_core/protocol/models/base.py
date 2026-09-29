@@ -462,6 +462,20 @@ def encode_chat_text(text: str) -> str:
     return result
 
 
+def smartfox_json_text(text: str) -> str:
+    """
+    Encode text the way the client does before it puts it in a command.
+
+    Replaces ``%``, ``'``, ``"``, a carriage return, a backslash and a newline, in
+    that order, and turns tabs into spaces.
+
+    Client: ``TextValide.getValideSmartFoxJSONTextMessage`` (dll line 5817)
+    """
+    result = text.replace("%", "&percnt;").replace("'", "&145;").replace('"', "&quot;")
+    result = result.replace("\r", "<br />").replace("\\", "%5C").replace("\n", "<br />")
+    return result.replace("\t", " ")
+
+
 def decode_chat_text(text: str) -> str:
     """
     Decode text received in chat messages.
@@ -523,6 +537,7 @@ __all__ = [
     "decode_chat_text",
     "parse_chat_json_message",
     "parse_int",
+    "smartfox_json_text",
     "ParseInt",
     # Response registry
     "get_response_model",
