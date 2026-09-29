@@ -10,7 +10,6 @@ Provides high-level APIs for:
 from __future__ import annotations
 
 import logging
-import warnings
 from collections.abc import Callable
 
 from pydantic import ValidationError
@@ -33,7 +32,6 @@ from empire_core.alliance.models.search import (
     SearchAllianceResponse,
 )
 from empire_core.exceptions import CommandError, PacketError
-from empire_core.protocol.packet import Packet
 from empire_core.services.base import BaseService, register_service
 
 logger = logging.getLogger(__name__)
@@ -322,66 +320,6 @@ class AllianceService(BaseService):
                 print(f"{entry.player_name}: {entry.decoded_text}")
         """
         return self.request(AllianceChatLogRequest(), AllianceChatLogResponse, timeout=timeout).chat_log
-
-    def send_alliance_chat(self, message: str) -> None:
-        """
-        Send a message to alliance chat.
-
-        Args:
-            message: The message to send
-        """
-        payload = AllianceChatMessageRequest.create(message).to_payload()
-        packet = Packet.build_xt(self.zone, "acm", payload)
-        self.client.connection.send(packet)
-
-    def get_alliance_chat(self, timeout: float = 5.0) -> AllianceChatLogResponse:
-        """
-        Get alliance chat history.
-
-        Args:
-            timeout: Timeout in seconds
-
-        Raises:
-            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
-        """
-        return self.request(AllianceChatLogRequest(), AllianceChatLogResponse, timeout=timeout)
-
-    def _warn_raw_chat_subscription(self, method: str) -> None:
-        warnings.warn(
-            f"client.alliance.{method}() delivers raw wire packets and is deprecated; "
-            "use client.alliance.on_chat_message(), which delivers a typed "
-            "AllianceChatMessageResponse with .player_name/.decoded_text.",
-            DeprecationWarning,
-            stacklevel=3,
-        )
-
-    def subscribe_alliance_chat(self, callback: Callable[[Packet], None]) -> None:
-        """
-        Subscribe to alliance chat messages as raw packets.
-
-        .. deprecated::
-            Use :meth:`on_chat_message` instead. It delivers a typed
-            ``AllianceChatMessageResponse`` with ``player_name`` and
-            ``decoded_text``, so consumers never touch protocol keys or
-            reimplement the chat-text decoder.
-
-        Args:
-            callback: Function to call with each chat packet.
-                      Packet payload will have format:
-                      {"CM": {"PN": "player_name", "MT": "message_text", ...}}
-        """
-        self._warn_raw_chat_subscription("subscribe_alliance_chat")
-        # Alliance chat messages come via 'acm' command (not 'aci')
-        self.client.connection.subscribe("acm", callback)
-
-    def unsubscribe_alliance_chat(self, callback: Callable[[Packet], None]) -> None:
-        """Unsubscribe from raw alliance chat packets.
-
-        .. deprecated::
-            See :meth:`subscribe_alliance_chat`.
-        """
-        self._warn_raw_chat_subscription("unsubscribe_alliance_chat")
-        self.client.connection.unsubscribe("acm", callback)
 
     def on_chat_message(self, callback: Callable[[AllianceChatMessageResponse], None]) -> None:
         """

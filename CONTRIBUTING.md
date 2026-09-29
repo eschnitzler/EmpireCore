@@ -209,55 +209,41 @@ Services provide high-level APIs that use protocol models. They are auto-attache
 
 ### Step 1: Create Service Class
 
+A service lives in its area's `service.py`, one service per area. The example
+below is a hypothetical new `bookmarks` area; for an area that already has a
+service (`client.map`, `client.castle`, ...), add the method to that class
+instead.
+
 ```python
-# map/service.py
+# bookmarks/service.py
 
 from __future__ import annotations
 
-import logging
-import threading
-from typing import Callable
-
-from empire_core.map.models.bookmarks import Bookmark, GetBookmarksRequest, GetBookmarksResponse
+from empire_core.bookmarks.models import Bookmark, GetBookmarksRequest, GetBookmarksResponse
 from empire_core.services.base import BaseService, register_service
-
-logger = logging.getLogger(__name__)
 
 
 @register_service("bookmarks")
 class BookmarksService(BaseService):
     """
     Service for bookmark operations.
-    
+
     Accessible via client.bookmarks after auto-registration.
-    
-    Usage:
-        client = EmpireClient(...)
-        client.login()
-        
-        bookmarks = client.bookmarks.get_all()
-        for b in bookmarks:
-            print(f"{b.name} at ({b.x}, {b.y})")
     """
-    
+
     def get_all(self, timeout: float = 5.0) -> list[Bookmark]:
         """
         Get all bookmarks.
-        
-        Args:
-            timeout: Timeout in seconds
-            
-        Returns:
-            List of Bookmark objects
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        request = GetBookmarksRequest()
-        response = self.send(request, wait=True, timeout=timeout)
-        
-        if isinstance(response, GetBookmarksResponse):
-            return response.bookmarks
-        
-        return []
+        return self.request(GetBookmarksRequest(), GetBookmarksResponse, timeout=timeout).bookmarks
 ```
+
+A new area also needs an `__init__.py` (re-exporting its models, never its
+service) and a row in the `RANK` table of `tests/test_layers.py`, ranked above
+every area it imports.
 
 ### Step 2: Register Service
 
@@ -265,11 +251,17 @@ Import the service in `client/client.py` (the import runs `@register_service`)
 and give the client a typed attribute next to the others:
 
 ```python
-from empire_core.map.service import BookmarksService
+from empire_core.bookmarks.service import BookmarksService
 
-# in EmpireClient.__init__
-self.bookmarks: BookmarksService = cast(BookmarksService, self._services["bookmarks"])
+class EmpireClient:
+    bookmarks: BookmarksService
+
+    def __init__(self, ...):
+        ...
+        self.bookmarks: BookmarksService = cast(BookmarksService, self._services["bookmarks"])
 ```
+
+Add it to `SERVICE_TYPES` in `tests/test_smoke.py` as well.
 
 ### Service Patterns
 

@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
-from typing import Any, get_type_hints
+from typing import Any
 
 import pytest
 
-from empire_core.alliance.service import AllianceService
 from empire_core.exceptions import CommandError
 from empire_core.protocol.models import AllianceChatMessageResponse, AllianceMember, HelpType
-from empire_core.protocol.packet import Packet
 from tests.service_helpers import StubPlayer, StubState, conn, make_client, request_payload, xt_packet
 
 # =============================================================================
@@ -333,37 +330,6 @@ class TestAllianceChat:
     def test_removing_an_unregistered_callback_is_a_no_op(self):
         client = make_client()
         client.alliance.remove_chat_message_callback(lambda r: None)
-
-
-class TestRawChatSubscriptionIsDeprecated:
-    """The typed API lives on client.alliance.on_chat_message."""
-
-    def test_subscribe_warns_and_points_at_the_typed_api(self):
-        client = make_client()
-
-        def callback(packet: Packet) -> None:
-            pass
-
-        with pytest.deprecated_call(match=r"alliance\.on_chat_message"):
-            client.alliance.subscribe_alliance_chat(callback)
-
-        assert conn(client).subscriptions == [("acm", callback)]
-
-    def test_unsubscribe_warns_and_still_unsubscribes(self):
-        client = make_client()
-
-        def callback(packet: Packet) -> None:
-            pass
-
-        with pytest.deprecated_call(match=r"alliance\.on_chat_message"):
-            client.alliance.unsubscribe_alliance_chat(callback)
-
-        assert conn(client).unsubscriptions == [("acm", callback)]
-
-    def test_chat_subscription_callbacks_are_typed(self):
-        expected = Callable[[Packet], None]
-        assert get_type_hints(AllianceService.subscribe_alliance_chat)["callback"] == expected
-        assert get_type_hints(AllianceService.unsubscribe_alliance_chat)["callback"] == expected
 
 
 class TestAllianceHelp:

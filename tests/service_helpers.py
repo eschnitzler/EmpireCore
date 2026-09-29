@@ -95,8 +95,6 @@ class ScriptedConnection:
         self.waiters_canceled: list[str] = []
         self.waited_for: list[str] = []
         self.events: list[str] = []
-        self.subscriptions: list[tuple[str, object]] = []
-        self.unsubscriptions: list[tuple[str, object]] = []
         self.on_packet = None
         self.on_disconnect = None
 
@@ -132,10 +130,10 @@ class ScriptedConnection:
         return self._resolve(cmd_id)
 
     def subscribe(self, cmd_id: str, callback: object) -> None:
-        self.subscriptions.append((cmd_id, callback))
+        pass
 
     def unsubscribe(self, cmd_id: str, callback: object) -> None:
-        self.unsubscriptions.append((cmd_id, callback))
+        pass
 
     def disconnect(self) -> None:
         self.connected = False
