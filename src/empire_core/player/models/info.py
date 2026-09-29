@@ -87,7 +87,7 @@ class GetPlayerInfoRequest(BaseRequest):
     player_id: int = Field(
         alias="PID",
         description=(
-            "A player's id, e.g. MapObject.owner_id from a map scan or client.search_player_by_name(), "
+            "A player's id, e.g. MapObject.owner_id from a map scan or client.player.search_player_by_name(), "
             "or AllianceMember.player_id"
         ),
     )

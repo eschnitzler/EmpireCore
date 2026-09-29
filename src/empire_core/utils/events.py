@@ -6,7 +6,7 @@ the event IDs returned by the server's `sei` packet to produce typed GameEvent o
 
 Usage:
     # Get raw IDs from the live server connection
-    event_ids = client.get_active_event_ids()
+    event_ids = client.events.get_active_event_ids()
 
     # Resolve to named events (fetches CDN data, cached after first call)
     events = get_active_events(event_ids)
@@ -197,7 +197,7 @@ def get_active_events(
 
     Fetches event metadata and translations from the GGS CDN (results are
     cached for 24h and refreshed afterwards). Pass the IDs from
-    ``client.get_active_event_ids()``.
+    ``client.events.get_active_event_ids()``.
 
     Args:
         event_ids: List of active event IDs from the server's sei packet.
@@ -220,7 +220,7 @@ def get_active_events(
             polling in a loop do not hammer the CDN.
 
     Example:
-        event_ids = client.get_active_event_ids()
+        event_ids = client.events.get_active_event_ids()
         try:
             events = get_active_events(event_ids)
         except NetworkError:

@@ -39,7 +39,7 @@
 | **Typed end to end** | Pydantic v2 models for every command, and a `py.typed` marker so your type checker actually sees them |
 | **Honest failures** | Typed exceptions from a single `EmpireError` base — no leaked pydantic or socket errors, and no empty list that secretly means "the request failed" |
 | **Thread-safe state** | A background thread applies server pushes while your code reads consistent snapshots |
-| **High-level services** | `client.alliance`, `client.attack`, `client.castle`, `client.army`, `client.commanders`, `client.equipment`, `client.skills`, `client.ranking`, `client.spy` |
+| **High-level services** | `client.alliance`, `client.attack`, `client.castle`, `client.army`, `client.commanders`, `client.equipment`, `client.skills`, `client.ranking`, `client.spy`, `client.map`, `client.movements`, `client.player`, `client.defense`, `client.events` |
 | **Map scanning** | BFS kingdom discovery with cheap, targeted re-scans |
 | **Multi-account** | A pool that leases one logged-in client per account |
 
@@ -137,7 +137,11 @@ client.army.heal_units(12345, wod_id=620, amount=10)
 client.army.cancel_heal(12345, position=hospital.hospital_slots[0].position)
 ```
 
-Also available: `client.ranking` and `client.spy`.
+Also available: `client.ranking`, `client.spy`, `client.movements`
+(`get_movements()`, `get_incoming_attacks()`), `client.player`
+(`get_player_info()`, `search_player_by_name()`), `client.defense`
+(`get_castle_defense()`) and `client.events` (`get_active_events()`).
+`client.map` is covered under [Map Scanning](#map-scanning).
 
 ### `client.commanders`
 
@@ -421,7 +425,7 @@ discovery from your castle's position and can take a few minutes:
 ```python
 from empire_core import Kingdom, MapItemType
 
-result = client.scan_kingdom(Kingdom.GREEN, item_types=[MapItemType.CASTLE])
+result = client.map.scan_kingdom(Kingdom.GREEN, item_types=[MapItemType.CASTLE])
 print(f"{len(result.items)} items, {len(result.failed_chunks)} failed chunks")
 ```
 
@@ -434,20 +438,20 @@ long-running scans unless you know the server tolerates it.
 > only this field tells them apart.
 
 **Re-scanning cheaply.** `result.content_chunks` lists the chunks that held
-items. Feed it back into `scan_chunks()` to re-scan a known region without
+items. Feed it back into `client.map.scan_chunks()` to re-scan a known region without
 paying for BFS discovery again (roughly a third fewer requests), and run a full
-`scan_kingdom()` periodically to pick up content in previously-empty chunks:
+`client.map.scan_kingdom()` periodically to pick up content in previously-empty chunks:
 
 ```python
-discovery = client.scan_kingdom(Kingdom.GREEN, item_types=[MapItemType.CASTLE])
+discovery = client.map.scan_kingdom(Kingdom.GREEN, item_types=[MapItemType.CASTLE])
 
-fresh = client.scan_chunks(
+fresh = client.map.scan_chunks(
     Kingdom.GREEN, list(discovery.content_chunks), item_types=[MapItemType.CASTLE]
 )
 ```
 
 For very frequent scans, split `content_chunks` across several logged-in
-accounts (interleaved slices `chunks[i::n]`) and run the `scan_chunks()` calls
+accounts (interleaved slices `chunks[i::n]`) and run the `client.map.scan_chunks()` calls
 concurrently — per-account request rate is what the server limits.
 
 ## Multiple Accounts
@@ -462,7 +466,7 @@ from empire_core import AccountPool, PoolExhaustedError
 pool = AccountPool()
 try:
     with pool.leased(tag="scanning") as client:
-        result = client.scan_kingdom()
+        result = client.map.scan_kingdom()
 except PoolExhaustedError:
     ...   # no candidate account was free
 ```
@@ -523,7 +527,7 @@ helpers, and **`PacketError`** when a response cannot be parsed. Catching
 `pydantic.ValidationError` or raw socket exceptions past its own API.
 
 An empty collection therefore always means "nothing there", never "the lookup
-failed": `get_active_events()` and `get_troop_ids()` raise on a CDN outage
+failed": `client.events.get_active_events()` and `get_troop_ids()` raise on a CDN outage
 rather than return empty. Where an exact answer depends on data that may be
 missing, ask first:
 
@@ -550,14 +554,14 @@ Bugs and feature requests are best filed as [issues](https://github.com/eschnitz
 
 ```
 empire_core/
-├── client/          # EmpireClient — main entry point, map scanner
+├── client/          # EmpireClient — main entry point
 ├── network/         # WebSocket connection, receive loop, redaction
 ├── protocol/        # Base models and the response registry, packets, errors;
 │                    # protocol.models re-exports every area's models
 ├── map/ commanders/ castle/ army/ movements/ messages/ defense/
-├── player/ attack/ spy/ alliance/ ranking/
+├── player/ attack/ spy/ alliance/ ranking/ events/
 │                    # Game areas: each has its models, and a service.py where
-│                    # the client has one (client.castle, client.attack, ...)
+│                    # the client has one (client.castle, client.map, ...)
 ├── combat/          # Wave solver, capacity and bonus math
 ├── enums/           # Every game enum, one module per area
 ├── gamedata/        # Items data: units, tools, effects and the id enums

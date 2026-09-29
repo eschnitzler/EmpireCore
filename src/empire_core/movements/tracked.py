@@ -53,7 +53,7 @@ class Movement(BaseModel):
     """A live army movement (Attack, Support, Transport, ...) tracked in state.
 
     This is the movement type the client returns from
-    :meth:`~empire_core.client.client.EmpireClient.get_movements` and passes to
+    :meth:`~empire_core.movements.service.MovementsService.get_movements` and passes to
     ``on_incoming_attack`` callbacks, and the one exported as
     ``empire_core.Movement``.
 

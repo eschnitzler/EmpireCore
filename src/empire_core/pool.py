@@ -235,7 +235,7 @@ class AccountPool:
         Usage::
 
             with pool.leased(tag="scanner") as client:
-                client.scan_kingdom(Kingdom.GREEN)
+                client.map.scan_kingdom(Kingdom.GREEN)
 
         Args:
             username: Specific username to lease (optional).

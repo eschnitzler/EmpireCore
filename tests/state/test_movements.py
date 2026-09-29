@@ -7,7 +7,6 @@ from unittest.mock import patch
 
 import pytest
 
-from empire_core.client.client import EmpireClient
 from empire_core.commanders.models.roster import CommanderEffect
 from empire_core.enums import MapItemType, MovementType
 from empire_core.movements.tracked import Movement
@@ -687,43 +686,6 @@ class TestThreadSafety:
                 try:
                     state.get_all_movements()
                     state.get_incoming_attacks()
-                except Exception as e:  # pragma: no cover
-                    errors.append(e)
-
-        threads = [threading.Thread(target=writer), threading.Thread(target=reader), threading.Thread(target=reader)]
-        for t in threads:
-            t.start()
-        time.sleep(0.5)
-        stop.set()
-        for t in threads:
-            t.join()
-        assert errors == []
-
-    def test_client_movement_helpers_are_lock_protected(self, state):
-        """The client facade must read movements through GameState's locked accessors."""
-        client = EmpireClient.__new__(EmpireClient)  # the helpers only touch self.state
-        client.state = state
-        state.update_from_packet("gbd", {"gpi": {"PID": 1, "PN": "me"}})
-        stop = threading.Event()
-        errors = []
-
-        def writer():
-            i = 0
-            while not stop.is_set():
-                i += 1
-                # Ever-increasing MIDs: each update inserts a new key, so the dict
-                # genuinely changes size while readers iterate it.
-                try:
-                    state.update_from_packet("gam", gam_payload(1000 + i))
-                except Exception as e:  # pragma: no cover
-                    errors.append(e)
-
-        def reader():
-            while not stop.is_set():
-                try:
-                    client.get_incoming_attacks()
-                    client.get_incoming_movements()
-                    client.get_outgoing_movements()
                 except Exception as e:  # pragma: no cover
                     errors.append(e)
 

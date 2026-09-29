@@ -3,13 +3,14 @@
 import json
 import logging
 import time
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from empire_core.client.map_scanner import MapScanner
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
+from empire_core.map.scanner import MapScanner
 from empire_core.protocol.packet import Packet
 
 
@@ -104,15 +105,24 @@ class _FakeClient:
     ):
         self.connection = _FakeConnection(content_chunks, **connection_kwargs)
         self.config = _FakeConfig()
-        self._start_chunk = start_chunk
+        self.state = _FakeState(start_chunk)
 
-    def _get_kingdom_start_position(self, kingdom: Kingdom) -> tuple[int, int]:
-        cx, cy = self._start_chunk
-        return (cx * MapScanner.CHUNK_SIZE, cy * MapScanner.CHUNK_SIZE)
+
+class _FakeState:
+    """One own castle in the green kingdom, inside ``start_chunk``."""
+
+    def __init__(self, start_chunk: tuple[int, int]):
+        cx, cy = start_chunk
+        self.castle = SimpleNamespace(
+            kingdom_id=Kingdom.GREEN, x=cx * MapScanner.CHUNK_SIZE, y=cy * MapScanner.CHUNK_SIZE
+        )
+
+    def get_castles(self) -> list[SimpleNamespace]:
+        return [self.castle]
 
 
 def _make_scanner(fake: _FakeClient) -> MapScanner:
-    return MapScanner(fake)  # type: ignore[arg-type]
+    return MapScanner(fake)
 
 
 class TestScanChunks:
@@ -184,18 +194,18 @@ class TestScanChunks:
         )
         assert len(included.items) == 1, "include_unowned_types was not passed through"
 
-    def test_client_facade_signatures_match_the_scanner(self):
-        """EmpireClient.scan_chunks/scan_kingdom delegate to MapScanner; a
+    def test_service_signatures_match_the_scanner(self):
+        """MapService.scan_chunks/scan_kingdom delegate to MapScanner; a
         parameter added to the scanner but not the facade is invisible to
         every consumer and TypeErrors at the real call site — which is
         exactly how include_unowned_types shipped broken in 0.30.2."""
         import inspect
 
-        from empire_core.client.client import EmpireClient
+        from empire_core.map.service import MapService
 
         for name in ("scan_chunks", "scan_kingdom"):
             scanner_params = list(inspect.signature(getattr(MapScanner, name)).parameters)
-            facade_params = list(inspect.signature(getattr(EmpireClient, name)).parameters)
+            facade_params = list(inspect.signature(getattr(MapService, name)).parameters)
             assert facade_params == scanner_params, f"{name}: facade {facade_params} != scanner {scanner_params}"
 
     def test_chunk_for_position(self):
@@ -204,6 +214,16 @@ class TestScanChunks:
         assert scanner.chunk_for_position(MapScanner.CHUNK_SIZE - 1, 0) == (0, 0)
         assert scanner.chunk_for_position(MapScanner.CHUNK_SIZE, 0) == (1, 0)
         assert scanner.chunk_for_position(455, 545) == (5, 6)
+
+
+class TestKingdomStartPosition:
+    def test_starts_at_the_own_castle_in_that_kingdom(self):
+        scanner = _make_scanner(_FakeClient(content_chunks=set(), start_chunk=(5, 6)))
+        assert scanner._get_kingdom_start_position(Kingdom.GREEN) == (450, 540)
+
+    def test_falls_back_to_the_map_center_without_a_castle_there(self):
+        scanner = _make_scanner(_FakeClient(content_chunks=set()))
+        assert scanner._get_kingdom_start_position(Kingdom.FIRE) == (650, 650)
 
 
 class TestServerErrorCodes:
@@ -284,7 +304,7 @@ class TestMalformedResponses:
 
     def test_garbage_ai_entry_is_logged(self, caplog):
         fake = _FakeClient(content_chunks=set(), payloads={(1, 1): {"AI": [["?", "?", "?", "?"]], "OI": []}})
-        with caplog.at_level(logging.DEBUG, logger="empire_core.client.map_scanner"):
+        with caplog.at_level(logging.DEBUG, logger="empire_core.map.scanner"):
             _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
         assert "skipping invalid map item" in caplog.text
 
@@ -293,7 +313,7 @@ class TestMalformedResponses:
             content_chunks=set(),
             payloads={(1, 1): {"AI": [], "OI": [{"OID": 7, "AP": "not-a-list"}]}},
         )
-        with caplog.at_level(logging.DEBUG, logger="empire_core.client.map_scanner"):
+        with caplog.at_level(logging.DEBUG, logger="empire_core.map.scanner"):
             result = _make_scanner(fake).scan_chunks(
                 kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0
             )
@@ -308,7 +328,7 @@ class TestMalformedResponses:
             content_chunks=set(),
             payloads={(1, 1): {"AI": [{"unexpected": "shape"}, {"also": "wrong"}], "OI": []}},
         )
-        with caplog.at_level(logging.INFO, logger="empire_core.client.map_scanner"):
+        with caplog.at_level(logging.INFO, logger="empire_core.map.scanner"):
             result = _make_scanner(fake).scan_chunks(
                 kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0
             )
@@ -337,7 +357,7 @@ class TestMalformedResponses:
                 }
             },
         )
-        with caplog.at_level(logging.DEBUG, logger="empire_core.client.map_scanner"):
+        with caplog.at_level(logging.DEBUG, logger="empire_core.map.scanner"):
             result = _make_scanner(fake).scan_chunks(
                 kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0
             )
@@ -353,7 +373,7 @@ class TestMalformedResponses:
             content_chunks=set(),
             payloads={(1, 1): {"AI": [["x", "y", "z", "w"], [31, 0, 996]], "OI": []}},
         )
-        with caplog.at_level(logging.WARNING, logger="empire_core.client.map_scanner"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.map.scanner"):
             _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
 
         warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
@@ -365,7 +385,7 @@ class TestMalformedResponses:
             content_chunks=set(),
             payloads={(1, 1): {"AI": [], "OI": [{"OID": 7, "AP": "not-a-list"}, "junk"]}},
         )
-        with caplog.at_level(logging.WARNING, logger="empire_core.client.map_scanner"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.map.scanner"):
             _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
 
         warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
@@ -377,7 +397,7 @@ class TestMalformedResponses:
             content_chunks=set(),
             payloads={(1, 1): {"AI": [{"blob": "x" * 5000}], "OI": []}},
         )
-        with caplog.at_level(logging.WARNING, logger="empire_core.client.map_scanner"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.map.scanner"):
             _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
 
         warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
@@ -386,7 +406,7 @@ class TestMalformedResponses:
 
     def test_clean_chunk_emits_no_drift_warning(self, caplog):
         fake = _FakeClient(content_chunks={(1, 1)})
-        with caplog.at_level(logging.WARNING, logger="empire_core.client.map_scanner"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.map.scanner"):
             _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
 
         assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []

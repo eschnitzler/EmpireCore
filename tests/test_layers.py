@@ -28,6 +28,7 @@ PACKAGE = Path(empire_core.__file__).parent
 RANK = {
     "map": 0,
     "ranking": 0,
+    "events": 0,
     "commanders": 1,
     "castle": 1,
     "army": 2,

@@ -36,7 +36,7 @@ _DE_FACTO_PUBLIC_SURFACE = [
     ("Kingdom", "empire_core.enums"),
     ("MapItemType", "empire_core.enums"),
     ("MapAreaItem", "empire_core.map.models.items"),
-    ("ScanResult", "empire_core.client.map_scanner"),
+    ("ScanResult", "empire_core.map.scanner"),
     ("SpyService", "empire_core.spy.service"),
     ("SpyResult", "empire_core.spy.service"),
     ("Packet", "empire_core.protocol.packet"),

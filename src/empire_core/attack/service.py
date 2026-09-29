@@ -760,7 +760,7 @@ class AttackService(BaseService):
     def _scan_tile(self, target: "_Target", *, timeout: float) -> GetMapAreaResponse | None:
         """The map's own record of the target's tile."""
         try:
-            return self.client.scan_map_area(
+            return self.client.map.scan_map_area(
                 target.x,
                 target.y,
                 target.x,

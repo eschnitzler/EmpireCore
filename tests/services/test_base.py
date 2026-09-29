@@ -34,7 +34,19 @@ from tests.service_helpers import GOLDEN_GCL, conn, make_client, xt_packet
 class TestServiceRegistration:
     def test_every_documented_service_is_registered(self):
         registered = get_registered_services()
-        assert set(registered) >= {"alliance", "castle", "army", "commanders", "spy", "ranking"}
+        assert set(registered) >= {
+            "alliance",
+            "castle",
+            "army",
+            "commanders",
+            "spy",
+            "ranking",
+            "map",
+            "movements",
+            "defense",
+            "player",
+            "events",
+        }
 
     def test_services_attach_to_the_client_by_name(self):
         client = make_client()

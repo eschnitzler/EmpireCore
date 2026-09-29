@@ -49,7 +49,7 @@ def main() -> int:
             if resources is not None:
                 print(f"\nResources in {castles[0].castle_name!r}: {resources}")
 
-        movements = client.get_movements()
+        movements = client.movements.get_movements()
         print(f"\n{len(movements)} movement(s) in flight:")
         for movement in movements:
             print(f"  {movement}")

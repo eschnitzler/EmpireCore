@@ -17,7 +17,6 @@ from empire_core.alliance.models.info import AllianceInfo, AllianceMember
 from empire_core.army.models.units import AttackWave, WaveFlank
 from empire_core.castle.models.castles import CastleInfo
 from empire_core.client.client import EmpireClient
-from empire_core.client.map_scanner import ScanResult
 from empire_core.commanders.models.equipment import Equipment
 from empire_core.commanders.models.roster import Castellan, Commander
 from empire_core.config import EmpireConfig
@@ -38,6 +37,7 @@ from empire_core.exceptions import (
 from empire_core.gamedata import GameData, ToolStats, UnitStats
 from empire_core.map.models.areas import MapObject
 from empire_core.map.models.items import MapAreaItem
+from empire_core.map.scanner import ScanResult
 from empire_core.messages.models import SpyCastleInfo
 from empire_core.movements.tracked import Movement, MovementResources
 from empire_core.pool import AccountPool, PoolExhaustedError

@@ -15,6 +15,11 @@ from empire_core.army.service import ArmyService
 from empire_core.attack.service import AttackService
 from empire_core.castle.service import CastleService
 from empire_core.commanders.service import CommandersService
+from empire_core.defense.service import DefenseService
+from empire_core.events.service import EventsService
+from empire_core.map.service import MapService
+from empire_core.movements.service import MovementsService
+from empire_core.player.service import PlayerService
 from empire_core.ranking.service import RankingService
 from empire_core.services import get_registered_services
 from empire_core.spy.service import SpyService
@@ -27,6 +32,11 @@ SERVICE_TYPES = {
     "commanders": CommandersService,
     "spy": SpyService,
     "ranking": RankingService,
+    "map": MapService,
+    "movements": MovementsService,
+    "defense": DefenseService,
+    "player": PlayerService,
+    "events": EventsService,
 }
 
 

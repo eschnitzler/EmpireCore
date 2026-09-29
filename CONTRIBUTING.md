@@ -19,7 +19,7 @@ src/empire_core/
 │   ├── models/            #   castles, details, actions, buildings, support
 │   └── service.py         #   CastleService, where the area has a service
 ├── ...                    # commanders, army, movements, messages, defense,
-│                          # player, attack, spy, alliance, ranking
+│                          # player, attack, spy, alliance, ranking, events
 ├── combat/                # Wave solver, capacity and bonus math
 ├── enums/                 # Every game enum, one module per area
 ├── services/
@@ -30,7 +30,7 @@ src/empire_core/
 └── utils/                 # CDN-backed event and troop data
 ```
 
-Areas import only areas below them (map and ranking at the bottom, then
+Areas import only areas below them (map, ranking and events at the bottom, then
 commanders and castle, army, movements and messages, defense, combat and player,
 attack and alliance, and spy at the top); `tests/test_layers.py` enforces the
 order. Library code imports models from their area, never from

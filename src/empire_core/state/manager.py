@@ -44,19 +44,19 @@ class GameState(MovementState, CastleState, PlayerState):
     that carried it, and some packets arrive only once per session. Cached
     values are therefore *not* automatically current:
 
-    ===================================  ==========================  ===================================
+    ===================================  ==========================  ======================================
     State                                Refreshed by                Force a refresh with
-    ===================================  ==========================  ===================================
+    ===================================  ==========================  ======================================
     castle name/coords, castle list      ``gcl``, ``mir`` (pushed)    re-login
     castle resources/units/details       ``dcl``                      ``client.castle.get_details(id)``
     player identity/level/XP             ``gpi``/``gxp``/``glu``      re-login
     player coins/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      re-login
     honor, beginner protection           ``gho``/``uap``              re-login
     special currencies                   ``sce`` (pushed)             --
-    movements                            ``gam``, ``abr``/``asr``,    ``client.get_movements()``
+    movements                            ``gam``, ``abr``/``asr``,    ``client.movements.get_movements()``
                                          your sends' replies
                                          (``cra``, ``cds``, ...)
-    ===================================  ==========================  ===================================
+    ===================================  ==========================  ======================================
 
     Every player section above is sent inside the login gbd and again as a
     push of its own when it changes.

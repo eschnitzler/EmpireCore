@@ -1,9 +1,10 @@
 """Scan a kingdom for castles, then re-scan only the chunks that had content.
 
-A full ``scan_kingdom()`` walks the map by BFS from your own castle and takes
-minutes. ``result.content_chunks`` records which chunks actually held items, so
-a follow-up ``scan_chunks()`` refreshes the same region for roughly a third
-fewer requests. Run the full scan occasionally, the targeted one often.
+A full ``client.map.scan_kingdom()`` walks the map by BFS from your own castle
+and takes minutes. ``result.content_chunks`` records which chunks actually held
+items, so a follow-up ``client.map.scan_chunks()`` refreshes the same region for
+roughly a third fewer requests. Run the full scan occasionally, the targeted one
+often.
 
     export GGE_USERNAME=your_user
     export GGE_PASSWORD=your_pass
@@ -48,14 +49,14 @@ def main() -> int:
         # chunk_delay paces the requests. The server drops connections that
         # sustain a high request rate, so leave the default alone unless you
         # have measured what this account tolerates.
-        discovery = client.scan_kingdom(KINGDOM, item_types=ITEM_TYPES)
+        discovery = client.map.scan_kingdom(KINGDOM, item_types=ITEM_TYPES)
         summarize("discovery scan", discovery)
 
         if not discovery.content_chunks:
             print("Nothing found; skipping the targeted re-scan.")
             return 0
 
-        fresh = client.scan_chunks(KINGDOM, list(discovery.content_chunks), item_types=ITEM_TYPES)
+        fresh = client.map.scan_chunks(KINGDOM, list(discovery.content_chunks), item_types=ITEM_TYPES)
         summarize("targeted re-scan", fresh)
 
         for item in fresh.items[:10]:

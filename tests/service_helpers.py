@@ -95,6 +95,8 @@ class ScriptedConnection:
         self.waiters_canceled: list[str] = []
         self.waited_for: list[str] = []
         self.events: list[str] = []
+        self.subscriptions: list[tuple[str, object]] = []
+        self.unsubscriptions: list[tuple[str, object]] = []
         self.on_packet = None
         self.on_disconnect = None
 
@@ -130,10 +132,10 @@ class ScriptedConnection:
         return self._resolve(cmd_id)
 
     def subscribe(self, cmd_id: str, callback: object) -> None:
-        pass
+        self.subscriptions.append((cmd_id, callback))
 
     def unsubscribe(self, cmd_id: str, callback: object) -> None:
-        pass
+        self.unsubscriptions.append((cmd_id, callback))
 
     def disconnect(self) -> None:
         self.connected = False
@@ -159,8 +161,10 @@ def stub_player(alliance_id: int = 0, level: int = 0) -> Player:
 class StubState:
     """Only the members the services actually touch."""
 
-    def __init__(self, local_player: StubPlayer | None = None):
+    def __init__(self, local_player: StubPlayer | None = None, movements: list | None = None):
         self.local_player = local_player
+        self.movements = movements if movements is not None else []
+        self.events: list[str] = []
         self.updates: list[tuple[str, object]] = []
 
     def update_from_packet(self, cmd_id: str, payload: object) -> None:
@@ -168,6 +172,10 @@ class StubState:
 
     def get_local_player(self) -> StubPlayer | None:
         return self.local_player
+
+    def get_all_movements(self) -> list:
+        self.events.append("get_all_movements")
+        return list(self.movements)
 
 
 def make_client(script: dict[str, Any] | None = None, state: StubState | None = None) -> EmpireClient:

@@ -9,18 +9,14 @@ from __future__ import annotations
 
 import json
 import threading
-from collections.abc import Callable
-from typing import get_type_hints
 
 import pytest
 from pydantic import BaseModel
 
 from empire_core.client import client as client_module
 from empire_core.client.client import EmpireClient
-from empire_core.client.map_scanner import ScanResult
 from empire_core.config import EmpireConfig
 from empire_core.exceptions import (
-    CommandError,
     EmpireError,
     EmpireTimeoutError,
     LoginCooldownError,
@@ -28,7 +24,7 @@ from empire_core.exceptions import (
     PacketError,
 )
 from empire_core.network.connection import ResponseWaiter
-from empire_core.player.models.info import GetPlayerInfoRequest, GetPlayerInfoResponse
+from empire_core.player.models.info import GetPlayerInfoRequest
 from empire_core.protocol.models import BaseResponse
 from empire_core.protocol.packet import Packet
 
@@ -257,36 +253,6 @@ class TestLoginClientVersion:
         assert xt_payload["CONM"] == 4242
 
 
-class TestGetMovements:
-    def test_server_error_raises_command_error(self):
-        conn = StubConnection({"gam": xt_packet("gam", error_code=21)})
-        state = StubState(movements=["stale"])
-        client = make_client(conn, state)
-
-        with pytest.raises(CommandError) as exc_info:
-            client.get_movements()
-
-        assert exc_info.value.command == "gam"
-        assert exc_info.value.code == 21
-        assert "get_all_movements" not in state.events
-
-    def test_successful_response_returns_state_movements(self):
-        conn = StubConnection({"gam": xt_packet("gam", '{"M": []}')})
-        state = StubState(movements=["m1", "m2"])
-        client = make_client(conn, state)
-
-        assert client.get_movements() == ["m1", "m2"]
-
-    def test_fire_and_forget_returns_state_movements(self):
-        conn = StubConnection()
-        state = StubState(movements=["m1"])
-        client = make_client(conn, state)
-
-        assert client.get_movements(wait=False) == ["m1"]
-        assert conn.requested == []
-        assert len(conn.sent) == 1
-
-
 class TestOnPacketPayloadTypes:
     def test_list_payload_reaches_state(self):
         # 'sce' inventory pushes arrive as a JSON array; dropping them loses
@@ -452,104 +418,3 @@ class TestHandlerRegistryIsLocked:
         client._on_packet(xt_packet("gam", '{"M": []}'))
 
         assert calls == ["called"]
-
-
-class TestRawChatSubscriptionIsDeprecated:
-    """The typed API lives on client.alliance.on_chat_message."""
-
-    def test_subscribe_warns_and_points_at_the_typed_api(self):
-        conn = StubConnection()
-        client = make_client(conn)
-
-        def callback(packet: Packet) -> None:
-            pass
-
-        with pytest.deprecated_call(match=r"alliance\.on_chat_message"):
-            client.subscribe_alliance_chat(callback)
-
-        assert conn.subscriptions == [("acm", callback)]
-
-    def test_unsubscribe_warns_and_still_unsubscribes(self):
-        conn = StubConnection()
-        client = make_client(conn)
-
-        def callback(packet: Packet) -> None:
-            pass
-
-        with pytest.deprecated_call(match=r"alliance\.on_chat_message"):
-            client.unsubscribe_alliance_chat(callback)
-
-        assert conn.unsubscriptions == [("acm", callback)]
-
-
-class TestPublicSurfaceIsTyped:
-    """The README advertises a fully typed client."""
-
-    def test_scan_methods_return_scan_result(self):
-        assert get_type_hints(EmpireClient.scan_kingdom)["return"] is ScanResult
-        assert get_type_hints(EmpireClient.scan_chunks)["return"] is ScanResult
-
-    def test_chat_subscription_callbacks_are_typed(self):
-        expected = Callable[[Packet], None]
-        assert get_type_hints(EmpireClient.subscribe_alliance_chat)["callback"] == expected
-        assert get_type_hints(EmpireClient.unsubscribe_alliance_chat)["callback"] == expected
-
-
-class TestBulkPlayerDetailsPacing:
-    """The server drops connections that sustain high request rates."""
-
-    def test_sends_are_paced(self, monkeypatch):
-        sleeps: list[float] = []
-        monkeypatch.setattr(client_module.time, "sleep", sleeps.append)
-        conn = StubConnection()
-        client = make_client(conn)
-
-        client.get_player_details_bulk([1, 2, 3], timeout=0.0, send_delay=0.05)
-
-        assert len(conn.sent) == 3
-        # Paced between sends only - no leading or trailing sleep.
-        assert sleeps == [0.05, 0.05]
-
-    def test_zero_delay_keeps_the_old_burst_behavior(self, monkeypatch):
-        sleeps: list[float] = []
-        monkeypatch.setattr(client_module.time, "sleep", sleeps.append)
-        client = make_client()
-
-        client.get_player_details_bulk([1, 2, 3], timeout=0.0, send_delay=0.0)
-
-        assert sleeps == []
-
-    def test_single_id_is_not_delayed(self, monkeypatch):
-        sleeps: list[float] = []
-        monkeypatch.setattr(client_module.time, "sleep", sleeps.append)
-        client = make_client()
-
-        client.get_player_details_bulk([7], timeout=0.0)
-
-        assert sleeps == []
-
-    def test_handler_is_removed_afterwards(self):
-        client = make_client()
-
-        client.get_player_details_bulk([1, 2], timeout=0.0, send_delay=0.0)
-
-        assert client._handlers.get("gdi", []) == []
-
-    def test_pacing_does_not_break_response_collection(self):
-        client = make_client()
-        original_send = client.send
-
-        def send_and_answer(request, wait=False, timeout=5.0):
-            result = original_send(request, wait=wait, timeout=timeout)
-            # Simulate the server answering immediately on the recv thread.
-            payload = json.dumps({"O": {"OID": request.player_id, "N": "p"}})
-            client._on_packet(xt_packet("gdi", payload))
-            return result
-
-        client.send = send_and_answer  # type: ignore[method-assign]
-        collected: dict[int, GetPlayerInfoResponse] = client.get_player_details_bulk(
-            [1, 2], timeout=1.0, send_delay=0.01
-        )
-
-        assert sorted(collected) == [1, 2]
-        assert all(isinstance(r, GetPlayerInfoResponse) for r in collected.values())
