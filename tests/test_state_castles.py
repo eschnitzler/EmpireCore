@@ -50,6 +50,16 @@ class TestCastleUpdatesAreAtomic:
         assert sorted(state.castles) == [1]
         assert state.castles[1].kingdom_id is Kingdom.GREEN
 
+    def test_gcl_landmarks_and_stray_row_kingdoms_are_tracked(self, state):
+        section = gcl_payload([(1, "Main")])
+        castle_row = section["C"][0]["AI"][0]["AI"]
+        castle_row.extend([0, 0, 0, -1, -1, "stray"])
+        section["C"][0]["AI"].append({"AI": [23, 50, 60, 888, 7, 0, -1, "Tower"]})
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": section})
+
+        assert sorted(state.castles) == [1, 888]
+        assert (state.castles[888].name, state.castles[1].kingdom_id) == ("Tower", Kingdom.GREEN)
+
     def test_gcl_preserves_identity_of_surviving_castles(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
         castle = state.castles[1]

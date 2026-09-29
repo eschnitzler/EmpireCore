@@ -46,7 +46,7 @@ def gcl_payload(castles: list[tuple[int, str]], owner_id: int = 7, kingdom: int 
         "C": [
             {
                 "KID": kingdom,
-                "AI": [{"AI": [0, x, y, area_id, owner_id, 0, 0, 0, 0, 0, name]} for area_id, name in castles],
+                "AI": [{"AI": [1, x, y, area_id, owner_id, 1, 1, 1, 0, 0, name]} for area_id, name in castles],
             }
         ]
     }

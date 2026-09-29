@@ -59,9 +59,7 @@ class GetDefenseRequest(BaseRequest):
         alias="AID",
         description="The castle's id: CastleInfo.castle_id from client.castle.get_all() or Castle.id",
     )
-    kingdom_id: Kingdom | None = Field(
-        alias="KID", default=None, description="The castle's kingdom; None sends -1, as the client does"
-    )
+    kingdom_id: Kingdom | None = Field(alias="KID", default=None, description="The castle's kingdom; None for none")
 
     @field_validator("kingdom_id", mode="before")
     @classmethod

@@ -487,7 +487,9 @@ class TestRequestSemantics:
 
         client = make_client({"arc": xt_packet("arc", {"N": "no id here"})})
         with pytest.raises(PacketError) as exc_info:
-            client.request(RenameCastleRequest(CID=1, N="x", AT=1, KID=Kingdom.GREEN, P=1), RenameCastleResponse)
+            client.request(
+                RenameCastleRequest(CID=1, N="x", AT=MapItemType.CASTLE, KID=Kingdom.GREEN, P=1), RenameCastleResponse
+            )
         assert "arc" in str(exc_info.value)
 
     def test_a_gli_entry_without_an_id_is_skipped(self):

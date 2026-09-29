@@ -27,7 +27,10 @@ class MapItemType(IntEnum):
     Area types: the first field of a map row, as in a scan's AI array.
 
     These mirror the game client's own ``WorldConst.AREA_TYPE_*`` constants,
-    cross-checked against the client's area-type-to-map-object registration.
+    a superset of the types ``WorldmapObjectFactory.mapObjectVOs`` (bundle
+    line 5357) registers a map object for: NO_LANDMARK (14), TROOP_HOSTEL
+    (20), SAMURAI_ALIEN_CAMP (33) and NO_OUTPOST (99) have none, so the client
+    cannot read a map row of those types.
 
     Two things that are not separate types:
 

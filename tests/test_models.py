@@ -18,6 +18,7 @@ from empire_core.protocol.models.base import (
     get_response_model,
 )
 from empire_core.protocol.models.castle import (
+    CastleInfo,
     GetCastlesResponse,
     GetDetailedCastleResponse,
     PlayerCastle,
@@ -494,7 +495,7 @@ class TestGoldenCastlePayloads:
     def test_gcl_without_a_castle_section_is_empty(self):
         assert GetCastlesResponse.model_validate({"PID": 1}).castles == []
 
-    def test_gcl_skips_rows_too_short_to_name_a_castle(self):
+    def test_gcl_skips_rows_too_short_for_their_type(self):
         payload = {
             "C": [{"KID": 0, "AI": [{"AI": [1, 2, 3]}, "junk", {"AI": gdi_location_row(1, 1, 1, 5, 9, "ok", 0)}]}]
         }
@@ -609,6 +610,20 @@ class TestGoldenPlayerInfo:
             (77777, 8888, Kingdom.ICE),
         }
 
+    def test_captures_include_main_and_kingdom_castles_occupied_by_player_zero(self):
+        # isOccupied is an occupier id above -1, and castles read it at field 15 like outposts
+        rows = [
+            gdi_location_row(1, 1, 1, 501, 4242, "Main", 0, capturer_outpost=0),
+            gdi_location_row(12, 2, 2, 502, 4242, "Sands", 1, capturer_outpost=77),
+            gdi_location_row(4, 3, 3, 503, 4242, "Free", 0, capturer_outpost=-2),
+        ]
+        response = GetPlayerInfoResponse.model_validate({"gcl": {"C": [{"KID": 0, "AI": [{"AI": r} for r in rows]}]}})
+        assert response.get_all_captures_by_location() == {501: 0, 502: 77}
+        assert [c.location_type for c in response.get_location_captures()] == [
+            MapItemType.CASTLE,
+            MapItemType.KINGDOM_CASTLE,
+        ]
+
     def test_captures_by_location_mapping(self):
         response = GetPlayerInfoResponse.model_validate(GOLDEN_GDI)
         assert response.get_all_captures_by_location() == {55555: 9999, 77777: 8888}
@@ -675,16 +690,23 @@ class TestSearchPlayer:
 class TestPlayerInfoLandmarks:
     def test_landmark_lists_join_the_first_kingdom(self):
         # GDICommand.addGKLToGC and friends unwrap each row and push it into gcl.C[0].AI
-        tower = gdi_location_row(1, 50, 60, 888, 4242, "Tower", 0)
-        tower[0] = 23
         response = GetPlayerInfoResponse.model_validate(
             {
                 "gcl": {"C": [{"KID": 0, "AI": [{"AI": gdi_location_row(1, 640, 655, 12345, 4242, "Main", 0)}]}]},
-                "gkl": {"AI": [[tower]]},
-                "gml": {"AI": []},
+                "gkl": {"AI": [[[23, 50, 60, 888, 4242, 0, -1, "Tower"], []]]},
+                "gml": {"AI": [[[26, 51, 61, 889, 4242, 1, 5, 0, -1, "Monument"], []]]},
+                "gll": {"AI": [[[28, 52, 62, 890, 4242, 3, 0, -1, "Lab"], []]]},
             }
         )
-        assert [c.castle_id for c in response.get_castles()] == [12345, 888]
+        castles = response.get_castles()
+        assert [(c.castle_id, c.castle_type, c.castle_name) for c in castles] == [
+            (12345, MapItemType.CASTLE, "Main"),
+            (888, MapItemType.KINGS_TOWER, "Tower"),
+            (889, MapItemType.MONUMENT, "Monument"),
+            (890, MapItemType.LABORATORY, "Lab"),
+        ]
+        assert [c.landmark_level for c in castles] == [None, None, 5, 3]
+        assert castles[1].keep_level is None
 
     def test_a_gcl_row_in_an_extra_list_is_not_unwrapped(self):
         wrapped = {"AI": [gdi_location_row(1, 640, 655, 12345, 4242, "Main", 0)]}
@@ -986,15 +1008,81 @@ class TestPositionalArrayParsers:
         ]
         assert [c.area_type for c in member.village_positions] == [10]
 
-    @pytest.mark.parametrize("data", [[], [1], [1, 2], [1, 2, 3]])
-    def test_player_castle_short_array_yields_defaults(self, data):
-        castle = PlayerCastle.from_list(data, kingdom=Kingdom.ICE)
-        assert castle.kingdom == 2
-        assert (castle.x, castle.y, castle.location_id) == (0, 0, 0)
+    @pytest.mark.parametrize("data", [[], [1], [1, 2], [1, 2, 3], [1, 640, 655, 12345, 4242]])
+    def test_a_row_too_short_for_its_type_is_refused(self, data):
+        with pytest.raises(ValueError):
+            PlayerCastle.from_list(data, kingdom=Kingdom.ICE)
 
-    def test_player_castle_keeps_the_passed_kingdom_when_the_row_is_short(self):
-        row = [1, 640, 655, 12345, 4242]
-        assert PlayerCastle.from_list(row, kingdom=Kingdom.FIRE).kingdom == 3
+    def test_player_castle_keeps_the_passed_kingdom_when_the_row_has_none(self):
+        row = [1, 640, 655, 12345, 4242, 1, 1, 1, 0, 0, "Main"]
+        assert PlayerCastle.from_list(row, kingdom=Kingdom.FIRE).kingdom is Kingdom.FIRE
+
+    @pytest.mark.parametrize("stray", [11, "2", None, [4], True])
+    def test_a_stray_row_kingdom_reads_as_the_block_kingdom(self, stray):
+        # The client stores field 16 as sent and keys the castle by its block's KID
+        row = gdi_location_row(1, 640, 655, 12345, 4242, "Main", 0)
+        row[16] = stray
+        assert PlayerCastle.from_list(row, kingdom=Kingdom.ICE).kingdom is Kingdom.ICE
+
+    def test_a_castle_row_reads_its_levels_as_the_client_does(self):
+        # InteractiveMapobjectVO: keep, wall and gate through int() and at least 1; tower and moat through int()
+        row = gdi_location_row(1, 640, 655, 12345, 4242, "Main", 0)
+        row[5:10] = [0, "3", 2.7, "4", None]
+        castle = PlayerCastle.from_list(row)
+        levels = (castle.keep_level, castle.wall_level, castle.gate_level, castle.tower_level, castle.moat_level)
+        assert levels == (1, 3, 2, 4, 0)
+        assert castle.landmark_level is None
+
+    def test_a_capital_row_takes_its_levels_as_sent(self):
+        row = gdi_location_row(3, 640, 655, 12345, 4242, "Capital", 0)
+        row[5:10] = [0, 7, 7, 3, 2]
+        castle = PlayerCastle.from_list(row)
+        assert (castle.keep_level, castle.wall_level, castle.moat_level) == (0, 7, 2)
+
+    def test_a_kings_tower_row_has_its_own_layout(self):
+        # KingstowerMapobjectVO: object 3, owner 4, kingdom 5, espionage 6, name 7
+        castle = PlayerCastle.from_list([23, 50, 60, 888, 4242, 2, -1, "Tower"], kingdom=Kingdom.GREEN)
+        assert (castle.location_id, castle.owner_id, castle.kingdom, castle.name) == (888, 4242, Kingdom.ICE, "Tower")
+        assert (castle.keep_level, castle.landmark_level, castle.capturer_id) == (None, None, -1)
+
+    def test_a_monument_row_has_its_own_layout(self):
+        # MonumentMapobjectVO: object 3, owner 4, type 5, level 6, kingdom 7, espionage 8, name 9
+        castle = PlayerCastle.from_list([26, 50, 60, 889, 4242, 1, 5, 0, -1, "Monument"])
+        assert (castle.location_id, castle.landmark_level, castle.kingdom, castle.name) == (
+            889,
+            5,
+            Kingdom.GREEN,
+            "Monument",
+        )
+        assert castle.keep_level is None
+
+    def test_a_laboratory_row_has_its_own_layout(self):
+        # LaboratoryMapobjectVO: object 3, owner 4, level 5, kingdom 6, espionage 7, name 8
+        castle = PlayerCastle.from_list([28, 50, 60, 890, 4242, 3, 1, -1, "Lab"])
+        assert (castle.location_id, castle.landmark_level, castle.kingdom, castle.name) == (
+            890,
+            3,
+            Kingdom.SANDS,
+            "Lab",
+        )
+
+    def test_a_faction_capital_row_has_no_object_id_or_name(self):
+        # FactionCapitalMapobjectVO: owner 3, protectors 4, espionage 5, level 6, destroyed 7, camp id 8
+        castle = PlayerCastle.from_list([18, 50, 60, -600, [], -1, 40, 0, 12], kingdom=Kingdom.BERIMOND)
+        assert (castle.location_id, castle.owner_id, castle.name, castle.kingdom) == (
+            None,
+            -600,
+            None,
+            Kingdom.BERIMOND,
+        )
+
+    @pytest.mark.parametrize(("occupier", "occupied"), [(0, True), (-1, False), (-2, False)])
+    def test_occupied_means_an_occupier_id_above_minus_one(self, occupier, occupied):
+        # CastleMapobjectVO.isOccupied is _occupierID > -1
+        row = gdi_location_row(1, 640, 655, 12345, 4242, "Main", 0, capturer_outpost=occupier)
+        assert PlayerCastle.from_list(row).is_being_captured is occupied
+        entry = CastleInfo.from_entry({"AI": row})
+        assert entry.is_occupied is occupied
 
     def test_player_castle_row_kingdom_wins_when_present(self):
         row = gdi_location_row(1, 640, 655, 12345, 4242, "Main", 4)
@@ -1008,7 +1096,6 @@ class TestPositionalArrayParsers:
             (MapItemType.KINGDOM_CASTLE, 77),
             (MapItemType.CAPITAL, 66),
             (MapItemType.METROPOL, 66),
-            (MapItemType.MONUMENT, -1),
         ],
     )
     def test_player_castle_capturer_depends_on_the_area_type(self, area_type, capturer):
@@ -1016,10 +1103,11 @@ class TestPositionalArrayParsers:
         row = gdi_location_row(area_type, 640, 655, 12345, 4242, "Main", 0, capturer_capital=66, capturer_outpost=77)
         assert PlayerCastle.from_list(row).capturer_id == capturer
 
-    def test_a_row_of_an_area_type_the_client_does_not_register_is_refused(self):
-        # WorldmapObjectFactory.parseWorldMapArea returns null for it, and parseCastleList cannot read it
-        with pytest.raises(ValidationError):
-            PlayerCastle.from_list(gdi_location_row(200, 640, 655, 12345, 4242, "Main", 0))
+    @pytest.mark.parametrize("area_type", [200, MapItemType.NO_LANDMARK, MapItemType.NO_OUTPOST, MapItemType.VILLAGE])
+    def test_a_row_of_an_area_type_a_castle_list_does_not_hold_is_refused(self, area_type):
+        # 14, 20, 33 and 99 have no map object in WorldmapObjectFactory.mapObjectVOs; villages come in kgv
+        with pytest.raises(ValueError):
+            PlayerCastle.from_list(gdi_location_row(area_type, 640, 655, 12345, 4242, "Main", 0))
 
     def test_a_gcl_row_of_an_unknown_area_type_costs_only_itself(self):
         from empire_core.protocol.models import GetCastlesResponse
@@ -1032,10 +1120,16 @@ class TestPositionalArrayParsers:
         # C2SStartRelocationVO(posX, posY) declares PX and PY and nothing else
         assert list(RelocateCastleRequest(PX=10, PY=20).to_payload().items()) == [("PX", 10), ("PY", 20)]
 
-    @pytest.mark.parametrize("data", [[1, "x", 3, 4], "abcd", [1, 2, 3, [4]]])
-    def test_player_castle_rejects_wrong_types(self, data):
+    @pytest.mark.parametrize("field", [1, 3, 10])
+    def test_player_castle_rejects_wrong_types(self, field):
+        row = gdi_location_row(1, 640, 655, 12345, 4242, "Main", 0)
+        row[field] = [4]
         with pytest.raises(ValidationError):
-            PlayerCastle.from_list(data)
+            PlayerCastle.from_list(row)
+
+    def test_player_castle_rejects_what_is_not_a_row(self):
+        with pytest.raises(ValueError):
+            PlayerCastle.from_list("abcd")
 
     @pytest.mark.parametrize("data", [[], [1], [1, 2], [1, 2, "nope"], [1, 2, []], [1, 2, {}]])
     def test_alliance_search_result_without_an_alliance_row_has_defaults(self, data):
@@ -1214,7 +1308,7 @@ class TestDriftedPayloadsMustNotCrashAccessors:
 
 class TestRenameCastle:
     def test_a_rename_sends_p_1(self):
-        request = RenameCastleRequest(CID=1, N="Keep", AT=1, KID=Kingdom.ICE)
+        request = RenameCastleRequest(CID=1, N="Keep", AT=MapItemType.CASTLE, KID=Kingdom.ICE)
         assert request.to_payload() == {"CID": 1, "N": "Keep", "AT": 1, "KID": 2, "P": 1}
 
     def test_the_reply_reads_p(self):
@@ -1255,7 +1349,7 @@ class TestOwnerRecordLeniency:
     def test_a_gcl_row_that_cannot_be_read_costs_only_itself(self):
         from empire_core.protocol.models import GetCastlesResponse
 
-        bad = [3, 10, 20, 99, 5, None, None, None, None, None, None, 0, 0, 0, 77, 0, 0]
+        bad = [3, "x", 20, 99, 5, 1, 1, 1, 1, 1, "Capital", 0, 0, 0, 77, 0, 0]
         good = [1, 30, 40, 100, 5, 1, 1, 1, 1, 1, "Home", 0, 0, 0, 77, 0, 0]
         response = GetCastlesResponse.model_validate({"C": [{"KID": 0, "AI": [{"AI": bad}, {"AI": good}]}]})
         assert [castle.castle_id for castle in response.castles] == [100]
@@ -1398,7 +1492,7 @@ def test_ain_parseint_fields_read_as_javascript_parseint():
 def test_rename_castle_sends_the_client_keys_and_encodes_the_name():
     from empire_core.protocol.models.castle import RenameCastleRequest
 
-    payload = RenameCastleRequest(CID=5, N="100% 'mine'\tnow", AT=1, KID=Kingdom.ICE, P=1).to_payload()
+    payload = RenameCastleRequest(CID=5, N="100% 'mine'\tnow", AT=MapItemType.CASTLE, KID=Kingdom.ICE, P=1).to_payload()
     # C2SRenameCastleVO: CID, P, KID and AT are initialised before N
     assert list(payload) == ["CID", "P", "KID", "AT", "N"]
     assert payload["N"] == "100&percnt; &145;mine&145; now"

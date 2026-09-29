@@ -14,14 +14,16 @@ Commands:
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from pydantic import ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
 
 from empire_core.utils.enums import Kingdom, MapItemType
 
+from ..js import js_int
 from ..text import encode_json_text
-from .base import BasePayload, BaseRequest, BaseResponse, Position, ResourceAmount
+from .base import BasePayload, BaseRequest, BaseResponse, Position, ResourceAmount, enum_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -30,80 +32,156 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
+@dataclass(frozen=True)
+class _RowLayout:
+    """Where one area type's castle-list row keeps each value; None where it has none."""
+
+    object_id: int | None
+    owner: int
+    owner_through_int: bool
+    name: int | None
+    kingdom: int | None
+    occupier: int | None = None
+    levels: str | None = None
+    landmark_level: int | None = None
+
+
+_INTERACTIVE_ROW = _RowLayout(
+    object_id=3, owner=4, owner_through_int=True, name=10, kingdom=16, occupier=15, levels="floored"
+)
+_CAPITAL_ROW = _RowLayout(object_id=3, owner=4, owner_through_int=True, name=10, kingdom=16, occupier=14, levels="raw")
+
+# The area types a castle list can hold, each with its client parser's layout.
+_ROW_LAYOUTS: dict[Any, _RowLayout] = {
+    MapItemType.CASTLE: _INTERACTIVE_ROW,
+    MapItemType.OUTPOST: _INTERACTIVE_ROW,
+    MapItemType.KINGDOM_CASTLE: _INTERACTIVE_ROW,
+    MapItemType.FACTION_CAMP: _INTERACTIVE_ROW,
+    MapItemType.CAPITAL: _CAPITAL_ROW,
+    MapItemType.METROPOL: _CAPITAL_ROW,
+    MapItemType.KINGS_TOWER: _RowLayout(object_id=3, owner=4, owner_through_int=True, name=7, kingdom=5),
+    MapItemType.MONUMENT: _RowLayout(
+        object_id=3, owner=4, owner_through_int=False, name=9, kingdom=7, landmark_level=6
+    ),
+    MapItemType.LABORATORY: _RowLayout(
+        object_id=3, owner=4, owner_through_int=False, name=8, kingdom=6, landmark_level=5
+    ),
+    MapItemType.FACTION_CAPITAL: _RowLayout(object_id=None, owner=3, owner_through_int=False, name=None, kingdom=None),
+}
+
+
 class PlayerCastle(BasePayload):
     """
-    One row of a castle list's ``AI`` entries, read by field position.
+    One row of a castle list's ``AI`` entries, read by field position as its
+    area type's client parser reads it.
 
-    Row: [area_type, x, y, object_id, owner_id, keep, wall, gate, tower, moat,
-    name, attack_cooldown, sabotage_cooldown, seconds_since_espionage, ...,
-    kingdom_id at 16, ...]
+    - Castles, outposts, kingdom castles and faction camps
+      (``InteractiveMapobjectVO.parseAreaInfo``): object id 3, owner 4, keep,
+      wall, gate, tower and moat 5 to 9 through ``int()`` with keep, wall and
+      gate at least 1, name 10, occupier 15, kingdom 16.
+    - Capitals and metropolises: as above, but the levels as sent and the
+      occupier at 14.
+    - Kings towers: object id 3, owner 4, kingdom 5, name 7.
+    - Monuments: object id 3, owner 4, level 6, kingdom 7, name 9.
+    - Laboratories: object id 3, owner 4, level 5, kingdom 6, name 8.
+    - Faction capitals: owner 3, and no object id, name or kingdom.
 
-    Castles, outposts and kingdom castles go through
-    ``InteractiveMapobjectVO.parseAreaInfo``: field 14 is the outpost type, 15
-    the occupier. Capitals and metropolises have their own parsers, which read
-    the occupier at 14. All five read the kingdom at 16; any other type keeps
-    the kingdom it is listed under and has no occupier here.
+    The client stores the row's kingdom as sent; one that is not a Kingdom
+    reads as the kingdom the row is listed under.
 
     Client: ``WorldmapObjectFactory.parseWorldMapArea`` (bundle line 5343),
     ``InteractiveMapobjectVO.parseAreaInfo`` (bundle line 3631),
     ``CastleMapobjectVO.parseAreaInfo`` (bundle line 18910),
+    ``FactionCampMapobjectVO.parseAreaInfo`` (bundle line 21526),
     ``CapitalMapobjectVO.parseAreaInfo`` (bundle line 18729),
-    ``MetropolMapobjectVO.parseAreaInfo`` (bundle line 21609)
+    ``MetropolMapobjectVO.parseAreaInfo`` (bundle line 21609),
+    ``KingstowerMapobjectVO.parseAreaInfo`` (bundle line 19055),
+    ``MonumentMapobjectVO.parseAreaInfo`` (bundle line 21652),
+    ``LaboratoryMapobjectVO.parseAreaInfo`` (bundle line 25900),
+    ``FactionCapitalMapobjectVO.parseAreaInfo`` (bundle line 22764)
     """
 
     kingdom: Kingdom = Field(default=Kingdom.GREEN, description="The castle's kingdom")
-    location_id: int = Field(default=0, description="The castle's object id")
+    location_id: int | None = Field(default=None, description="The castle's object id; None for a type with none")
     x: int = Field(default=0, description="Map x")
     y: int = Field(default=0, description="Map y")
     castle_type: MapItemType = Field(default=MapItemType.EMPTY, description="The row's area type")
     owner_id: int = Field(default=0, description="Player id of the owner")
-    name: str = Field(default="", description="The castle's name")
+    name: str | None = Field(default=None, description="The castle's name; None for a type with none")
     capturer_id: int = Field(default=-1, description="Player id of the occupier, -1 when there is none")
+    keep_level: int | None = Field(default=None, description="Keep level; None for a type with none")
+    wall_level: int | None = Field(default=None, description="Wall level; None for a type with none")
+    gate_level: int | None = Field(default=None, description="Gate level; None for a type with none")
+    tower_level: int | None = Field(default=None, description="Tower level; None for a type with none")
+    moat_level: int | None = Field(default=None, description="Moat level; None for a type with none")
+    landmark_level: int | None = Field(
+        default=None, description="A monument's or laboratory's level; None for any other type"
+    )
 
     @property
     def is_being_captured(self) -> bool:
-        """Whether someone occupies this castle."""
-        return self.capturer_id != -1
+        """Whether someone occupies this castle; the client's ``isOccupied`` is an occupier id above -1."""
+        return self.capturer_id > -1
 
     @classmethod
-    def from_list(cls, data: list, kingdom: Kingdom = Kingdom.GREEN) -> "PlayerCastle":
+    def from_list(cls, data: Any, kingdom: Kingdom = Kingdom.GREEN) -> "PlayerCastle":
         """
         Read a ``gcl.C[].AI[].AI`` row; ``kingdom`` is the block it is listed under.
 
         Raises:
-            ValidationError: A field has the wrong type, or the area type is
-                not a MapItemType; the client registers no map object for it
+            ValueError: The row is not a list, its area type is not one a
+                castle list holds, or it is too short for its type's layout.
+                ``ValidationError`` is one, for a field of the wrong type
         """
-        if not data or len(data) < 4:
-            return cls(kingdom=kingdom)
+        if not isinstance(data, list) or not data:
+            raise ValueError(f"Not a castle list row: {data!r}")
+        area_type = data[0]
+        layout = _ROW_LAYOUTS.get(area_type) if isinstance(area_type, int) and not isinstance(area_type, bool) else None
+        if layout is None:
+            raise ValueError(f"No castle list layout for area type {area_type!r}")
+        if area_type == MapItemType.FACTION_CAMP and len(data) <= 3:
+            raise ValueError("A faction camp row without its fields is not on the map")
 
-        castle_type = data[0]
-        capturer_field = _OCCUPIER_FIELDS.get(castle_type) if isinstance(castle_type, int) else None
-        row_kingdom: Any = kingdom
-        if capturer_field is not None and len(data) > _ROW_KINGDOM_FIELD:
-            row_kingdom = data[_ROW_KINGDOM_FIELD]
+        def field(index: int | None) -> Any:
+            if index is None:
+                return None
+            if len(data) <= index:
+                raise ValueError(f"Row too short for area type {area_type}: {data!r}")
+            return data[index]
 
-        return cls(
-            kingdom=row_kingdom,
-            location_id=data[3],
-            x=data[1],
-            y=data[2],
-            castle_type=castle_type,
-            owner_id=data[4] if len(data) > 4 else 0,
-            name=data[10] if len(data) > 10 else "",
-            capturer_id=data[capturer_field] if capturer_field is not None and len(data) > capturer_field else -1,
+        row_kingdom = field(layout.kingdom) if layout.kingdom is not None and len(data) > layout.kingdom else None
+        read_kingdom = (
+            enum_or_none(Kingdom, row_kingdom)
+            if isinstance(row_kingdom, int) and not isinstance(row_kingdom, bool)
+            else None
         )
-
-
-# Where each castle type's row keeps its occupier; all of them keep the kingdom at 16.
-_OCCUPIER_FIELDS: dict[Any, int] = {
-    MapItemType.CASTLE: 15,
-    MapItemType.OUTPOST: 15,
-    MapItemType.KINGDOM_CASTLE: 15,
-    MapItemType.CAPITAL: 14,
-    MapItemType.METROPOL: 14,
-}
-_ROW_KINGDOM_FIELD = 16
+        owner = field(layout.owner)
+        values: dict[str, Any] = {
+            "kingdom": kingdom if read_kingdom is None else read_kingdom,
+            "location_id": field(layout.object_id),
+            "x": field(1),
+            "y": field(2),
+            "castle_type": area_type,
+            "owner_id": js_int(owner) if layout.owner_through_int else owner,
+            "name": field(layout.name),
+            "landmark_level": field(layout.landmark_level),
+        }
+        if layout.occupier is not None:
+            occupier = data[layout.occupier] if len(data) > layout.occupier else -1
+            values["capturer_id"] = js_int(occupier) if layout.levels == "floored" else occupier
+        if layout.levels == "floored":
+            keep, wall, gate, tower, moat = (js_int(field(i)) for i in range(5, 10))
+            values.update(
+                keep_level=max(keep, 1),
+                wall_level=max(wall, 1),
+                gate_level=max(gate, 1),
+                tower_level=tower,
+                moat_level=moat,
+            )
+        elif layout.levels == "raw":
+            keep, wall, gate, tower, moat = (field(i) for i in range(5, 10))
+            values.update(keep_level=keep, wall_level=wall, gate_level=gate, tower_level=tower, moat_level=moat)
+        return cls(**values)
 
 
 # =============================================================================
@@ -141,9 +219,11 @@ class CastleInfo(BasePayload):
 
     Entry: {"AI": [row], "OGT": .., "OGC": .., "AOT": .., "CAT": .., "TA": ..}
 
-    An ``AI[n]`` alias is the row field the value comes from (see
-    :class:`PlayerCastle`); the other aliases are the entry's keys, and
-    ``KID`` is the kingdom block the entry is listed under.
+    The row is read by its area type's layout (see :class:`PlayerCastle`); an
+    ``AI[n]`` alias names the field a castle's row keeps the value in. The
+    other aliases are the entry's keys, and ``KID`` is the kingdom block the
+    entry is listed under. A faction capital's row carries no object id, so
+    it has no CastleInfo.
 
     Client: ``CastleListVO.parseCastleList`` (bundle line 13698), which reads
     the row with ``WorldmapObjectFactory.parseWorldMapArea`` and the entry's
@@ -162,11 +242,14 @@ class CastleInfo(BasePayload):
         default=-1,
         description="Player id of the occupier, -1 when there is none",
     )
-    keep_level: int = Field(alias="AI[5]", default=0, description="Keep level")
-    wall_level: int = Field(alias="AI[6]", default=0, description="Wall level")
-    gate_level: int = Field(alias="AI[7]", default=0, description="Gate level")
-    tower_level: int = Field(alias="AI[8]", default=0, description="Tower level")
-    moat_level: int = Field(alias="AI[9]", default=0, description="Moat level")
+    keep_level: int | None = Field(alias="AI[5]", default=None, description="Keep level; None for a type with none")
+    wall_level: int | None = Field(alias="AI[6]", default=None, description="Wall level; None for a type with none")
+    gate_level: int | None = Field(alias="AI[7]", default=None, description="Gate level; None for a type with none")
+    tower_level: int | None = Field(alias="AI[8]", default=None, description="Tower level; None for a type with none")
+    moat_level: int | None = Field(alias="AI[9]", default=None, description="Moat level; None for a type with none")
+    landmark_level: int | None = Field(
+        default=None, description="A monument's or laboratory's level; None for any other type"
+    )
     open_gate_seconds: int = Field(alias="OGT", default=0, description="Seconds the gate stays open")
     open_gate_counter: int = Field(alias="OGC", default=0, description="How often the gate has been opened")
     abandon_outpost_seconds: int = Field(
@@ -180,15 +263,21 @@ class CastleInfo(BasePayload):
     )
 
     @property
+    def is_occupied(self) -> bool:
+        """Whether someone occupies it; the client's ``isOccupied`` is an occupier id above -1."""
+        return self.occupier_id > -1
+
+    @property
     def position(self) -> Position:
         """Get castle position as Position object."""
         return Position(X=self.x, Y=self.y, KID=self.kingdom_id)
 
     @classmethod
     def from_entry(cls, entry: dict[str, Any], kingdom: Kingdom = Kingdom.GREEN) -> CastleInfo:
-        """Parse a ``gcl.C[].AI[]`` entry; its ``AI`` row shares the gdi layout."""
-        row = entry["AI"]
-        parsed = PlayerCastle.from_list(row, kingdom)
+        """Parse a ``gcl.C[].AI[]`` entry; its ``AI`` row is read by its area type (see :class:`PlayerCastle`)."""
+        parsed = PlayerCastle.from_list(entry["AI"], kingdom)
+        if parsed.location_id is None or parsed.name is None:
+            raise ValueError(f"A {parsed.castle_type.name} row has no object id to list it by")
         fields: dict[str, Any] = {
             "castle_id": parsed.location_id,
             "castle_name": parsed.name,
@@ -198,11 +287,12 @@ class CastleInfo(BasePayload):
             "castle_type": parsed.castle_type,
             "owner_id": parsed.owner_id,
             "occupier_id": parsed.capturer_id,
-            "keep_level": row[5],
-            "wall_level": row[6],
-            "gate_level": row[7],
-            "tower_level": row[8],
-            "moat_level": row[9],
+            "keep_level": parsed.keep_level,
+            "wall_level": parsed.wall_level,
+            "gate_level": parsed.gate_level,
+            "tower_level": parsed.tower_level,
+            "moat_level": parsed.moat_level,
+            "landmark_level": parsed.landmark_level,
         }
         fields.update({key: entry[key] for key in ("OGT", "OGC", "AOT", "CAT", "TA") if key in entry})
         return cls.model_validate(fields)
@@ -243,13 +333,10 @@ class GetCastlesResponse(BaseResponse):
         castles = []
         unparsed = 0
         for kid, entry in _kingdom_entries(section):
-            row = entry.get("AI")
-            if not (isinstance(row, list) and len(row) > 10):
-                logger.debug(f"Skipping malformed gcl row: {entry!r}")
-                continue
             try:
                 castles.append(CastleInfo.from_entry(entry, kid))
-            except (ValidationError, TypeError, ValueError):
+            except (ValidationError, TypeError, ValueError, KeyError) as e:
+                logger.debug(f"Skipping unreadable gcl row {entry!r}: {e}")
                 unparsed += 1
         if unparsed:
             logger.warning(f"Skipped {unparsed} gcl castle rows that could not be read")
@@ -573,7 +660,7 @@ class RenameCastleRequest(BaseRequest):
         alias="P", default=1, description="1 to rename, 0 to name a newly acquired castle such as a monument"
     )
     kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
-    castle_type: MapItemType | int = Field(alias="AT", description="The castle's area type")
+    castle_type: MapItemType = Field(alias="AT", description="The castle's area type")
     castle_name: str = Field(alias="N", description="The new name")
 
     @field_serializer("castle_name")

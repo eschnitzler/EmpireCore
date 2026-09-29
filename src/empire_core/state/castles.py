@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from empire_core.protocol.models.base import enum_or_none
 from empire_core.protocol.models.castle import (
     DetailedCastleInfo,
+    PlayerCastle,
     ResourceProduction,
     SafeAmount,
     StorageCapacity,
@@ -59,14 +60,16 @@ class CastleState(StateBase):
                     skipped += 1
                     logger.debug(f"Skipping malformed gcl area entry: {area_entry!r}")
                     continue
-                raw_ai = area_entry.get("AI")
-                if not (isinstance(raw_ai, list) and len(raw_ai) > 10):
+                try:
+                    row = PlayerCastle.from_list(area_entry.get("AI"), kid)
+                except (ValueError, TypeError) as e:
                     skipped += 1
-                    logger.debug(f"Skipping malformed gcl area entry: {area_entry!r}")
+                    logger.debug(f"Skipping unreadable gcl area entry {area_entry!r}: {e}")
                     continue
-                x, y, area_id, owner_id, name = raw_ai[1], raw_ai[2], raw_ai[3], raw_ai[4], raw_ai[10]
-                if owner_id != self.local_player.id:
+                if row.location_id is None or row.owner_id != self.local_player.id:
+                    # A castle is tracked by its object id; a faction capital's row has none
                     continue
+                x, y, area_id, name = row.x, row.y, row.location_id, row.name or ""
                 existing = self.castles.get(area_id)
                 if existing is not None:
                     # Identity preserved for user-held references, but the

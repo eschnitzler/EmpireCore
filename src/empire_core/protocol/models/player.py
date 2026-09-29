@@ -32,7 +32,8 @@ class LocationCapture(BasePayload):
     """
     One of the player's locations that someone occupies, from the gdi castle list.
 
-    Built from a :class:`CastleInfo` whose ``occupier_id`` is set.
+    Built from a :class:`CastleInfo` that is occupied: its ``occupier_id`` is above -1, as the
+    client's ``isOccupied`` checks.
 
     Client: ``InteractiveMapobjectVO.parseAreaInfo`` (bundle line 3631) and
     ``CapitalMapobjectVO.parseAreaInfo`` (bundle line 18729) read the occupier
@@ -48,8 +49,8 @@ class LocationCapture(BasePayload):
 
     @property
     def is_being_captured(self) -> bool:
-        """Check if this location is being captured."""
-        return self.capturer_id != -1
+        """Whether someone occupies this location: an occupier id above -1."""
+        return self.capturer_id > -1
 
 
 # =============================================================================
@@ -193,7 +194,7 @@ class GetPlayerInfoResponse(BaseResponse):
         """
         captures = []
         for castle in self.get_castles():
-            if castle.occupier_id != -1:
+            if castle.is_occupied:
                 captures.append(
                     LocationCapture(
                         location_id=castle.castle_id,
