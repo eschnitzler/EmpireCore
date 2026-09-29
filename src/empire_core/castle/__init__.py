@@ -41,6 +41,8 @@ from .models import (
     SelectCastleResponse,
     SellBuildingRequest,
     SellBuildingResponse,
+    SendSupportRequest,
+    SendSupportResponse,
     StorageCapacity,
     TimeSkipBuildingRequest,
     TimeSkipBuildingResponse,
@@ -98,4 +100,6 @@ __all__ = [
     "GetProductionRequest",
     "GetProductionResponse",
     "ProductionRates",
+    "SendSupportRequest",
+    "SendSupportResponse",
 ]

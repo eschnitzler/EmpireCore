@@ -16,7 +16,7 @@ from typing import Any
 
 from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
-from empire_core.army.models.production import SpyPositions, UnitInventory
+from empire_core.army.models.units import SpyPositions, UnitInventory
 from empire_core.commanders.models.roster import Castellan, CommanderRoster
 from empire_core.enums import Kingdom
 from empire_core.movements.models import MovementArea

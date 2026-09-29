@@ -51,6 +51,7 @@ from .castles import (
     SelectCastleResponse,
     StorageCapacity,
 )
+from .support import SendSupportRequest, SendSupportResponse
 
 __all__ = [
     "BuildRequest",
@@ -100,4 +101,6 @@ __all__ = [
     "GetProductionRequest",
     "GetProductionResponse",
     "ProductionRates",
+    "SendSupportRequest",
+    "SendSupportResponse",
 ]

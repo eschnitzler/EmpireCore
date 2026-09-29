@@ -13,7 +13,6 @@ disconnect) raise. Query methods raise on any failure.
 
 from __future__ import annotations
 
-from empire_core.army.models.production import SendSupportRequest
 from empire_core.castle.models.castles import (
     CastleInfo,
     DetailedCastleInfo,
@@ -29,6 +28,7 @@ from empire_core.castle.models.castles import (
     RenameCastleRequest,
     SelectCastleRequest,
 )
+from empire_core.castle.models.support import SendSupportRequest
 from empire_core.enums import Kingdom
 from empire_core.protocol.base import ResourceAmount
 from empire_core.services.base import BaseService, register_service
