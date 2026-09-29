@@ -23,7 +23,11 @@ logger = logging.getLogger(__name__)
 
 
 def _id_list(value: Any) -> list[Any]:
-    """An id array as the client walks it: nothing, or not an array, is no ids; undefined entries are skipped."""
+    """
+    An id array as the client walks it: nothing, or not an array, is no ids.
+
+    The client skips only undefined entries; a null one is dropped here too, since it is no id.
+    """
     return [entry for entry in value if entry is not None] if isinstance(value, list) else []
 
 
@@ -353,11 +357,19 @@ class SkillList(BasePayload):
         alias="SIDS", default_factory=list, description="Hall of Legends sceat skills, which always apply"
     )
     total_points: ClientInt = Field(alias="SP", default=0, description="Skill points")
-    seconds_until_reset: ClientInt = Field(alias="RS", default=0, description="Seconds until the skills can be reset")
+    seconds_until_reset: int | float = Field(
+        alias="RS", default=0, description="Seconds until the skills can be reset; parse_SKL keeps fractions (RS*1000)"
+    )
+
     reset_count: ClientInt = Field(alias="RC", default=0, description="How many times the skills have been reset")
     activating: list[ActivatingSceatSkill] = Field(
         alias="SSA", default_factory=list, description="Sceat skills still being activated"
     )
+
+    @field_validator("seconds_until_reset", mode="before")
+    @classmethod
+    def _seconds(cls, value: Any) -> Any:
+        return value if isinstance(value, (int, float)) and not isinstance(value, bool) else 0
 
     @field_validator("legend_skill_ids", "sceat_skill_ids", mode="before")
     @classmethod
