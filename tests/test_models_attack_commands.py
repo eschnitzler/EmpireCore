@@ -311,3 +311,10 @@ class TestInputEnums:
         request = MinuteSkipDungeonRequest(MST="MS2", KID=Kingdom.ICE, X=100, Y=200)
         assert request.to_payload()["KID"] == "2"
         assert json.loads(request.to_packet().split("%")[5])["KID"] == "2"
+
+
+def test_a_gcu_that_is_not_an_object_reads_as_no_currencies():
+    # CurrencyData.parseGCU reads the block only when it is set
+    from empire_core.protocol.models import CreateAttackResponse
+
+    assert CreateAttackResponse.model_validate({"gcu": [1]}).currencies is None

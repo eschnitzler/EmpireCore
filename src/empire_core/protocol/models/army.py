@@ -26,7 +26,7 @@ from typing import Annotated, Any, ClassVar
 
 from pydantic import BeforeValidator, Field, model_validator
 
-from .base import BasePayload, BaseRequest, BaseResponse, Kingdom, ParseInt, UnitCount, client_int
+from .base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, Kingdom, ParseInt, UnitCount, client_int
 
 
 class ProductionListId(IntEnum):
@@ -511,7 +511,7 @@ class ProduceUnitsResponse(BaseResponse):
 
     production_list: ProductionListBlock = Field(alias="spl", default=None)
     resources: RawBlock = Field(alias="grc", default=None, description="As sent; read by AreaDataUpdater.parseGRC")
-    currencies: RawBlock = Field(alias="gcu", default=None, description="As sent; read by CurrencyData.parseGCU")
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Gold and rubies after the change")
     unit_inventory: UnitInventoryBlock = Field(alias="gui", default=None)
     added_unit: Annotated[AddedUnit | None, BeforeValidator(_block)] = Field(alias="O", default=None)
 
@@ -590,7 +590,7 @@ class DoubleProductionSlotResponse(BaseResponse):
     command = "bou"
 
     production_list: ProductionListBlock = Field(alias="spl", default=None)
-    currencies: RawBlock = Field(alias="gcu", default=None, description="As sent; read by CurrencyData.parseGCU")
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Gold and rubies after the change")
 
 
 # =============================================================================
@@ -704,7 +704,7 @@ class HealUnitsResponse(BaseResponse):
     command = "hru"
 
     production_list: ProductionListBlock = Field(alias="spl", default=None)
-    currencies: RawBlock = Field(alias="gcu", default=None, description="As sent; read by CurrencyData.parseGCU")
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Gold and rubies after the change")
     unit_inventory: UnitInventoryBlock = Field(alias="gui", default=None)
 
 
@@ -776,7 +776,7 @@ class SkipHealResponse(BaseResponse):
 
     command = "hss"
 
-    currencies: RawBlock = Field(alias="gcu", default=None, description="As sent; read by CurrencyData.parseGCU")
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Gold and rubies after the change")
 
 
 # =============================================================================
@@ -876,7 +876,7 @@ class HealAllResponse(BaseResponse):
 
     command = "hra"
 
-    currencies: RawBlock = Field(alias="gcu", default=None, description="As sent; read by CurrencyData.parseGCU")
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Gold and rubies after the change")
     unit_inventory: UnitInventoryBlock = Field(alias="gui", default=None)
     production_area: RawBlock = Field(
         alias="gpa", default=None, description="As sent; read by AreaDataUpdater.parseGPA"

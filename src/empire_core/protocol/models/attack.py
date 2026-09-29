@@ -32,7 +32,7 @@ from pydantic import (
 from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from .army import SpyPositions, UnitInventory
-from .base import BasePayload, BaseRequest, BaseResponse, Kingdom
+from .base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, Kingdom
 from .commanders import Commander, CommanderEffects, CommanderRoster
 from .map import MapAreaItem, MapObject
 from .movement import MovementOwner, MovementWrapper
@@ -234,23 +234,6 @@ class CreateAttackRequest(BaseRequest):
     auto_skip_cooldown: AutoSkipCooldownType = Field(alias="ASCT", default=AutoSkipCooldownType.OFF)
 
 
-class CurrencyTotals(BasePayload):
-    """
-    Gold and rubies after an action, the ``gcu`` block.
-
-    Client: ``CurrencyData.parseGCU`` (bundle line 141191), which reads
-    ``CollectableItemC1VO.SERVER_KEY`` "C1" (bundle line 7995) and
-    ``CollectableItemC2VO.SERVER_KEY`` "C2" (bundle line 4876).
-    """
-
-    gold: int | float | None = Field(
-        alias="C1", default=None, description="Gold (C1), assigned as sent; None when the block leaves it out"
-    )
-    rubies: int | float | None = Field(
-        alias="C2", default=None, description="Rubies (C2), assigned as sent; None when the block leaves it out"
-    )
-
-
 class CreateAttackResponse(BaseResponse):
     """
     Response to attack creation.
@@ -295,7 +278,7 @@ class CreateAttackResponse(BaseResponse):
     attack_movement: MovementWrapper | None = Field(
         alias="AAM", default=None, description="The created movement; None when missing or unreadable"
     )
-    currencies: CurrencyTotals | None = Field(
+    currencies: CurrencyBlock = Field(
         alias="gcu", default=None, description="Gold and rubies after the send; None when the reply has no gcu"
     )
     owners: list[MovementOwner] = Field(
@@ -1345,7 +1328,6 @@ __all__ = [
     "AutoSkipCooldownType",
     "CreateAttackRequest",
     "CreateAttackResponse",
-    "CurrencyTotals",
     # CSM - Send Spy
     "SpyType",
     "SendSpyRequest",

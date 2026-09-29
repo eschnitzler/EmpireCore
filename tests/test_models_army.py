@@ -217,7 +217,7 @@ class TestReplies:
         assert reply.production_list is not None and reply.production_list.current.wod_id == 649
         assert reply.unit_inventory is not None and reply.unit_inventory.units == {649: 3}
         assert reply.added_unit is not None and (reply.added_unit.wod_id, reply.added_unit.amount) == (649, 2)
-        assert reply.currencies == {"C1": 5000, "C2": 30}
+        assert reply.currencies is not None and (reply.currencies.gold, reply.currencies.rubies) == (5000, 30)
         assert reply.resources == {"W": 100}
 
     def test_an_o_of_zero_adds_nothing(self):
