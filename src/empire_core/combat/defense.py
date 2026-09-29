@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from empire_core.gamedata import GameData, NpcCampDefence, ToolStats
 from empire_core.protocol.models.map import MapAreaItem
-from empire_core.utils.enums import CombatEffectType, Flank, MapItemType
+from empire_core.utils.enums import CombatEffectType, Flank, Kingdom, MapItemType
 
 from .bonuses import Bonus, EffectResolver, commander_bonuses, parse_effect_spec
 from .effects import DefenderFlankEffects
@@ -31,13 +31,14 @@ GATE_WOD_IDS = (450, 451, 452, 453, 469, 2544, 1985, 2545, 3183)
 MOAT_WOD_IDS = (455, 830, 1987, 2546, 456, 831, 1988, 2547)
 
 # DungeonConst: a camp's level follows from how often it has been beaten, and
-# its walls from that level.
+# its walls from that level. The offsets are DungeonConst.getKingdomOffset
+# (dll line 19137).
 CAMP_LEVEL_FACTOR = 1.9
 CAMP_LEVEL_POWER = 0.555
-CAMP_KINGDOM_OFFSETS = {0: 1, 2: 20, 1: 35, 3: 45}
+CAMP_KINGDOM_OFFSETS: dict[int, int] = {Kingdom.GREEN: 1, Kingdom.ICE: 20, Kingdom.SANDS: 35, Kingdom.FIRE: 45}
 
 
-def camp_level(victories: int, kingdom_id: int = 0) -> int:
+def camp_level(victories: int, kingdom_id: Kingdom | int = Kingdom.GREEN) -> int:
     """
     A camp's level, from its victory count (``DungeonConst.getLevel``).
 
@@ -157,10 +158,6 @@ def fortification_bonuses(
 
 Stacks = Iterable[tuple[int, int]]
 
-# EffectTypeEnum.EFFECT_TYPE_DEFENSE_BONUS, the one effect type mapped to
-# ToolEffectType.DEFENSE_BONUS.
-TOOL_DEFENSE_BONUS_TYPE = 31
-
 
 def tool_defense_bonus(game_data: GameData, tool: ToolStats) -> float:
     """
@@ -171,12 +168,13 @@ def tool_defense_bonus(game_data: GameData, tool: ToolStats) -> float:
     line 6640). It sums the value of every effect of type 31 on the tool, with
     no area, space or cap filter (``EffectValueSimple.add``, bundle line 17753),
     and scales by 0.01 because ``DEFENSE_BONUS`` is not an absolute bonus
-    (bundle line 9609).
+    (bundle line 9609). Type 31 is the one effect type mapped to
+    ``ToolEffectType.DEFENSE_BONUS``.
     """
     total = 0.0
     for bonus in parse_effect_spec(tool.raw_effects):
         effect = game_data.effects.get(bonus.effect_id)
-        if effect is not None and effect.effect_type_id == TOOL_DEFENSE_BONUS_TYPE:
+        if effect is not None and effect.effect_type_id == CombatEffectType.DEFENSE_BONUS:
             total += bonus.value
     return 0.01 * total
 
@@ -271,15 +269,9 @@ def defender_flank_effects(
 
 
 # The defending castellan's own effect types, which are a different set from
-# the attacker's: 6/7/8 raise the fortification, 9/10 the defenders themselves,
-# 31 every defender on any flank, and 49/50/32 one position each.
-DEFENDER_WALL_BONUS_TYPE = 6
-DEFENDER_GATE_BONUS_TYPE = 7
-DEFENDER_MOAT_BONUS_TYPE = 8
-DEFENSE_BONUS_TYPE = 31
-DEFENSE_BOOST_YARD_TYPE = 32
-DEFENSE_BOOST_FRONT_TYPE = 49
-DEFENSE_BOOST_FLANK_TYPE = 50
+# the attacker's: wall/gate/moat bonus raise the fortification, melee/range
+# bonus the defenders themselves, DEFENSE_BONUS every defender on any flank,
+# and the DEFENSE_BOOST_* types one position each.
 
 
 def castellan_defense_multiplier(
@@ -314,18 +306,18 @@ def castellan_defense_multiplier(
     Returns:
         The percentage to add to 1.0
     """
-    total = resolver.accumulate(bonuses, DEFENSE_BONUS_TYPE, area_type=area_type)
+    total = resolver.accumulate(bonuses, CombatEffectType.DEFENSE_BONUS, area_type=area_type)
     total += resolver.accumulate(
         bonuses,
         CombatEffectType.MELEE_BONUS if melee else CombatEffectType.RANGE_BONUS,
         area_type=area_type,
     )
     if flank is Flank.MIDDLE:
-        total += resolver.accumulate(bonuses, DEFENSE_BOOST_FRONT_TYPE, area_type=area_type)
+        total += resolver.accumulate(bonuses, CombatEffectType.DEFENSE_BOOST_FRONT, area_type=area_type)
         # The client adds the courtyard boost here, on the middle flank.
-        total += resolver.accumulate(bonuses, DEFENSE_BOOST_YARD_TYPE, area_type=area_type)
+        total += resolver.accumulate(bonuses, CombatEffectType.DEFENSE_BOOST_YARD, area_type=area_type)
     elif flank in (Flank.LEFT, Flank.RIGHT):
-        total += resolver.accumulate(bonuses, DEFENSE_BOOST_FLANK_TYPE, area_type=area_type)
+        total += resolver.accumulate(bonuses, CombatEffectType.DEFENSE_BOOST_FLANK, area_type=area_type)
     return total / 100
 
 
@@ -343,7 +335,11 @@ def castellan_fortification(
     """
     return tuple(  # type: ignore[return-value]
         resolver.accumulate(bonuses, effect_type, area_type=area_type) / 100
-        for effect_type in (DEFENDER_WALL_BONUS_TYPE, DEFENDER_GATE_BONUS_TYPE, DEFENDER_MOAT_BONUS_TYPE)
+        for effect_type in (
+            CombatEffectType.WALL_BONUS,
+            CombatEffectType.GATE_BONUS,
+            CombatEffectType.MOAT_BONUS,
+        )
     )
 
 
@@ -486,7 +482,7 @@ def spied_castle_defense(
 def npc_camp_defense(
     game_data: GameData,
     victories: int,
-    kingdom_id: int = 0,
+    kingdom_id: Kingdom | int = Kingdom.GREEN,
 ) -> dict[Flank, DefenderFlankEffects] | None:
     """
     What defends an NPC camp, per flank, without asking the server.

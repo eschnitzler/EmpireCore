@@ -27,7 +27,8 @@ UNIT_SLOT_LEVELS_MIDDLE = (0, 0, 13, 13, 26, 26)
 TOOL_SLOT_LEVELS_FLANK = (0, 37)
 TOOL_SLOT_LEVELS_MIDDLE = (0, 11, 37)
 
-# The slot type a tool must fit to go in these slots (ClientConstCombat).
+# The slot type a tool must fit to go in these slots: CombatConst.SLOT_TYPE_MIDDLE_TOOL
+# and SLOT_TYPE_FLANK_TOOL (dll line 18941).
 TOOL_SLOT_TYPE_MIDDLE = 1
 TOOL_SLOT_TYPE_FLANK = 2
 

@@ -814,3 +814,19 @@ class TestKeyedEffectValues:
 
         assert bonus.raw_values == (602.0, 13.0, 608.0, 13.0)
         assert bonus.strength(148) == 13.0
+
+
+class TestEffectTypeIds:
+    def test_keyed_effect_types_are_the_clients_map_valued_types(self):
+        from empire_core.combat.bonuses import KEYED_EFFECT_TYPES
+
+        # EffectTypeEnum registrations with a map or wod-id value (bundle line 1322).
+        assert KEYED_EFFECT_TYPES == {47, 51, 70, 71, 72, 102, 148, 149, 150, 154, 168, 188, 208, 213, 214, 1026}
+        assert all(isinstance(t, CombatEffectType) for t in KEYED_EFFECT_TYPES)
+
+    def test_defender_and_tool_types_match_the_client(self):
+        assert (CombatEffectType.WALL_BONUS, CombatEffectType.GATE_BONUS, CombatEffectType.MOAT_BONUS) == (6, 7, 8)
+        assert (CombatEffectType.DEFENSE_BONUS, CombatEffectType.DEFENSE_BOOST_YARD) == (31, 32)
+        assert (CombatEffectType.DEFENSE_BOOST_FRONT, CombatEffectType.DEFENSE_BOOST_FLANK) == (49, 50)
+        assert (CombatEffectType.UNLOCK_ABILITY, CombatEffectType.CRAFTING_QUEUE_PRODUCTION_BOOST) == (178, 188)
+        assert (CombatEffectType.MELEE_DEFENSE_MALUS, CombatEffectType.RANGE_DEFENSE_MALUS) == (215, 217)

@@ -28,9 +28,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# Effect type 148: a per-unit attack bonus, keyed by wod id.
-ATTACK_BONUS_UNIT_TYPE = 148
-
 # Effect types whose value is a wod-id-keyed map rather than a single number.
 # Their wire form is a flat ``[wod_id, value, wod_id, value, ...]`` array and
 # their strength is the value of the first key, never the key itself.
@@ -49,7 +46,26 @@ ATTACK_BONUS_UNIT_TYPE = 148
 # EffectValueIdList (57, 79, 90, 116, 169, 170, 178, 193) is deliberately
 # absent: its strength getter returns ``idList[0]``, so its first number really
 # is the value.
-KEYED_EFFECT_TYPES = frozenset({47, 51, 70, 71, 72, 102, 148, 149, 150, 154, 168, 188, 208, 213, 214, 1026})
+KEYED_EFFECT_TYPES = frozenset(
+    {
+        CombatEffectType.DEFENSE_SUPPORT_UNITS,
+        CombatEffectType.ATTACK_SUPPORT_UNITS,
+        CombatEffectType.RECRUITMENT_COST_DECREASE,
+        CombatEffectType.RECRUITMENT_SPEED_BOOST,
+        CombatEffectType.TOOL_PRODUCTION_SPEED_BOOST,
+        CombatEffectType.UNIT_SPEED_BONUS,
+        CombatEffectType.ATTACK_BONUS_UNIT,
+        CombatEffectType.SPEED_BOOST_UNIT,
+        CombatEffectType.LOOT_VALUE_BOOST_UNIT,
+        CombatEffectType.FAME_BOOST_UNIT,
+        CombatEffectType.CURRENCY_LOOT_BOOST,
+        CombatEffectType.CRAFTING_QUEUE_PRODUCTION_BOOST,
+        CombatEffectType.RESERVE_UNIT_KILL,
+        CombatEffectType.SPAWN_RESERVE_UNIT,
+        CombatEffectType.MUTATE_RESERVE_UNIT,
+        CombatEffectType.ABILITY_PLUNDER,
+    }
+)
 
 
 UNCAPPED_EQUIPMENT_CAP_ID = -1
@@ -184,7 +200,7 @@ class EffectResolver:
     def accumulate(
         self,
         bonuses: Iterable[Bonus],
-        effect_type: int,
+        effect_type: CombatEffectType | int,
         *,
         area_type: int | None = None,
         player_target: bool | None = None,
@@ -466,10 +482,6 @@ def general_skill_bonuses(game_data: GameData, skill_ids: Iterable[int]) -> list
     return _spec_bonuses(game_data.general_skills.get(skill_id) for skill_id in skill_ids)
 
 
-UNLOCK_ABILITY_EFFECT_TYPE = 178
-"""``EffectTypeEnum.EFFECT_TYPE_UNLOCK_ABILITY`` (bundle line 1322)."""
-
-
 def general_passive_bonuses(game_data: GameData, skill_ids: Iterable[int]) -> list[Bonus]:
     """
     The general's passive effects, which join its commander's bonuses.
@@ -488,7 +500,7 @@ def general_passive_bonuses(game_data: GameData, skill_ids: Iterable[int]) -> li
         boni = parse_effect_spec(skill.raw_effects)
         if any(
             (effect := game_data.effects.get(bonus.effect_id)) is not None
-            and effect.effect_type_id == UNLOCK_ABILITY_EFFECT_TYPE
+            and effect.effect_type_id == CombatEffectType.UNLOCK_ABILITY
             for bonus in boni
         ):
             continue
@@ -570,7 +582,7 @@ def global_unit_attack_bonuses(
             if not value:
                 continue
             effect = game_data.effects.get(int(spec_id)) if spec_id.strip().isdigit() else None
-            if effect is None or effect.effect_type_id != ATTACK_BONUS_UNIT_TYPE:
+            if effect is None or effect.effect_type_id != CombatEffectType.ATTACK_BONUS_UNIT:
                 continue
             for wod_id, strength in parse_stacks(value):
                 bonuses[wod_id] = bonuses.get(wod_id, 0.0) + (override if override > -1 else strength)
@@ -712,7 +724,7 @@ def attack_dialog_bonuses(
     return bonuses
 
 
-def tool_effect_strength(game_data: GameData, tool: ToolStats, effect_type: int) -> float:
+def tool_effect_strength(game_data: GameData, tool: ToolStats, effect_type: CombatEffectType | int) -> float:
     """
     The summed strength of a tool's own effects of one type, with no condition.
 

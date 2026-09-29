@@ -68,8 +68,6 @@ from .solver import (
 )
 from .tools import (
     ALIEN_INVASION_AREA_TYPES,
-    MELEE_DEFENSE_MALUS_TYPE,
-    RANGE_DEFENSE_MALUS_TYPE,
     ReduceDefenceBonusStrategy,
     TargetContext,
     ToolStrategy,
@@ -116,8 +114,6 @@ __all__ = [
     "global_effect_bonuses",
     "global_unit_attack_bonuses",
     "legend_skill_value",
-    "MELEE_DEFENSE_MALUS_TYPE",
-    "RANGE_DEFENSE_MALUS_TYPE",
     "ReduceDefenceBonusStrategy",
     "conditioned_effect_bonus",
     "TargetContext",

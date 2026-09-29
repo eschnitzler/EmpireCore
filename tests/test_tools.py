@@ -3,9 +3,8 @@
 import pytest
 
 from empire_core.combat import (
-    MELEE_DEFENSE_MALUS_TYPE,
-    RANGE_DEFENSE_MALUS_TYPE,
     AttackerFlankEffects,
+    CombatEffectType,
     DefenderFlankEffects,
     Flank,
     Inventory,
@@ -423,7 +422,7 @@ class TestConditionedEffectBonus:
         tool = game.get_tool(811)
 
         assert tool.def_range_bonus == 0.0
-        assert conditioned_effect_bonus(game, tool, RANGE_DEFENSE_MALUS_TYPE) == 2.5
+        assert conditioned_effect_bonus(game, tool, CombatEffectType.RANGE_DEFENSE_MALUS) == 2.5
 
     def test_placing_it_dents_the_defense_for_the_next_pick(self):
         game = self.data()
@@ -454,7 +453,7 @@ class TestConditionedEffectBonus:
 
     def test_effects_of_another_type_do_not_count(self):
         game = self.data()
-        assert conditioned_effect_bonus(game, game.get_tool(811), MELEE_DEFENSE_MALUS_TYPE) == 0.0
+        assert conditioned_effect_bonus(game, game.get_tool(811), CombatEffectType.MELEE_DEFENSE_MALUS) == 0.0
 
 
 class TestCanUseToolOnTarget:

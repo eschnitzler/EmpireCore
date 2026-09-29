@@ -1383,7 +1383,9 @@ class TestAttackService:
         waves = client.attack.fill_waves(
             12345,
             level=13,
-            defense={f: DefenderFlankEffects(gate_bonus=0.30) for f in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT, Flank.YARD)},
+            defense={
+                f: DefenderFlankEffects(gate_bonus=0.30) for f in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT, Flank.YARD)
+            },
         )
 
         assert placed(waves[0].model_dump(by_alias=True)["M"]["T"]) == [[611, 1]]
@@ -2738,7 +2740,10 @@ class TestFillAttack:
         client = self.build([[601, 100_000], [614, 100_000]])
         client.game_data = GameData.parse("test", payload)
         # A wall the ladders cannot fully cancel, so the flank fills to capacity.
-        defense = {flank: DefenderFlankEffects(wall_bonus=99.0) for flank in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT, Flank.YARD)}
+        defense = {
+            flank: DefenderFlankEffects(wall_bonus=99.0)
+            for flank in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT, Flank.YARD)
+        }
 
         target = dict(level=70, target_is_player=True, area_type=1, owner_id=4242, defense=defense)
         plain = client.attack.fill_waves(12345, **target)
@@ -3478,6 +3483,7 @@ class TestFillAttackLevelDerivation:
     def test_a_camp_level_follows_from_its_victories(self):
         from empire_core.combat import camp_level
         from empire_core.gamedata import GameData
+        from empire_core.utils.enums import Kingdom
 
         client = make_client({"gui": xt_packet("gui", {"I": [[601, 10_000]]})})
         client.game_data = GameData.parse(
@@ -3492,6 +3498,9 @@ class TestFillAttackLevelDerivation:
 
         # 299 victories in the green kingdom is a level 45 camp.
         assert camp_level(299, 0) == 45
+        # DungeonConst.getKingdomOffset (dll line 19137) takes the kingdom id.
+        assert camp_level(299, Kingdom.SANDS) == camp_level(299, 1) == 45 - 1 + 35
+        assert camp_level(299, Kingdom.STORM) == 45 - 1
         result = client.attack.fill_attack(12345, camp_victories=299, camp_kingdom_id=0)
 
         # Level 45 gives 47 units per flank before bonuses.

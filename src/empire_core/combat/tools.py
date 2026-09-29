@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, NamedTuple, Protocol
 
 from empire_core.gamedata import GameData, ToolStats
-from empire_core.utils.enums import MapItemType
+from empire_core.utils.enums import CombatEffectType, MapItemType
 
 from .bonuses import parse_effect_spec
 from .effects import AttackerFlankEffects, DefenderFlankEffects
@@ -101,16 +101,10 @@ class ToolStrategy(Protocol):
     ) -> tuple[ToolStats, int] | None: ...
 
 
-# Effect types a tool can carry that weaken a defender directly, rather than
-# through one of its own columns.
-MELEE_DEFENSE_MALUS_TYPE = 215
-RANGE_DEFENSE_MALUS_TYPE = 217
-
-
 def conditioned_effect_bonus(
     game_data: GameData,
     tool: ToolStats,
-    effect_type: int,
+    effect_type: CombatEffectType | int,
     area_type: int | None = None,
 ) -> float:
     """
@@ -151,7 +145,7 @@ class ReduceDefenceBonusStrategy:
     tool_bonus: Callable[[ToolStats], float]
     defender_bonus: Callable[[AttackerFlankEffects, DefenderFlankEffects], float]
     requires: Callable[[DefenderFlankEffects], bool] | None = None
-    malus_effect_type: int | None = None
+    malus_effect_type: CombatEffectType | int | None = None
 
     def __call__(
         self,
@@ -322,14 +316,14 @@ def default_tool_strategies() -> list[ReduceDefenceBonusStrategy]:
             lambda tool: tool.def_range_bonus,
             lambda a, d: d.range_bonus - a.defender_range_reduction,
             requires=lambda d: d.has_range_defenders,
-            malus_effect_type=RANGE_DEFENSE_MALUS_TYPE,
+            malus_effect_type=CombatEffectType.RANGE_DEFENSE_MALUS,
         ),
         ReduceDefenceBonusStrategy(
             "melee",
             lambda tool: tool.def_melee_bonus,
             lambda a, d: d.melee_bonus - a.defender_melee_reduction,
             requires=lambda d: d.has_melee_defenders,
-            malus_effect_type=MELEE_DEFENSE_MALUS_TYPE,
+            malus_effect_type=CombatEffectType.MELEE_DEFENSE_MALUS,
         ),
         ReduceDefenceBonusStrategy(
             "gate",
@@ -436,8 +430,8 @@ def fill_flank_with_tools(
         effects = effects.apply_tool(
             tool,
             taken,
-            range_malus=conditioned_effect_bonus(game_data, tool, RANGE_DEFENSE_MALUS_TYPE, area_type),
-            melee_malus=conditioned_effect_bonus(game_data, tool, MELEE_DEFENSE_MALUS_TYPE, area_type),
+            range_malus=conditioned_effect_bonus(game_data, tool, CombatEffectType.RANGE_DEFENSE_MALUS, area_type),
+            melee_malus=conditioned_effect_bonus(game_data, tool, CombatEffectType.MELEE_DEFENSE_MALUS, area_type),
         )
 
     return FilledTools(list(placed.items()), effects)
@@ -485,8 +479,6 @@ def check_flank(
 
 
 __all__ = [
-    "MELEE_DEFENSE_MALUS_TYPE",
-    "RANGE_DEFENSE_MALUS_TYPE",
     "ReduceDefenceBonusStrategy",
     "ALIEN_INVASION_AREA_TYPES",
     "can_use_tool_on_target",
