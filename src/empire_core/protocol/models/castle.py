@@ -18,7 +18,16 @@ from typing import Any
 
 from pydantic import ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
 
-from .base import BasePayload, BaseRequest, BaseResponse, Kingdom, Position, ResourceAmount, smartfox_json_text
+from .base import (
+    BasePayload,
+    BaseRequest,
+    BaseResponse,
+    Kingdom,
+    MapItemType,
+    Position,
+    ResourceAmount,
+    smartfox_json_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -518,17 +527,23 @@ class GetDetailedCastleResponse(BaseResponse):
 
 class SelectCastleRequest(BaseRequest):
     """
-    Select/jump to a castle (makes it the active castle).
+    Join a castle, making it the session's active castle.
 
-    Command: jca (acknowledged by the server as 'jaa')
+    Command: jca (answered as 'jaa')
     Payload: {"CID": castle_id, "KID": kingdom_id}
+
+    Castle-scoped reads such as ``gui`` answer for the joined castle.
+
+    Client: ``C2SJoinCastleVO`` (bundle line 5841); its ``MY_CASTLE`` is -1
     """
 
     command = "jca"
     response_command = "jaa"
 
-    castle_id: int = Field(alias="CID")
-    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN)
+    castle_id: int = Field(
+        alias="CID", description="The castle to join, from client.castle.get_all(); the client names -1 MY_CASTLE"
+    )
+    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
 
 
 class SelectCastleResponse(BaseResponse):
@@ -565,8 +580,8 @@ class RenameCastleRequest(BaseRequest):
     is_rename: int = Field(
         alias="P", default=1, description="1 to rename, 0 to name a newly acquired castle such as a monument"
     )
-    kingdom_id: int = Field(alias="KID", default=0, description="The castle's kingdom")
-    castle_type: int = Field(alias="AT", description="The castle's area type (MapItemType)")
+    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
+    castle_type: MapItemType | int = Field(alias="AT", description="The castle's area type")
     castle_name: str = Field(alias="N", description="The new name")
 
     @field_serializer("castle_name")
