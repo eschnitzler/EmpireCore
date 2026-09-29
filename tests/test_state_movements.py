@@ -960,7 +960,7 @@ class TestSentMovements:
         assert (state.local_player.coins, state.local_player.rubies) == (1200, 30)
         assert state.get_last_packet_time("gcu") is not None
 
-    def test_reply_without_gcu_keeps_gold(self, state):
+    def test_reply_without_gcu_keeps_coins_and_rubies(self, state):
         login(state, self.ME)
         state.update_from_packet("gbd", {"gcu": {"C1": 500, "C2": 7}})
         state.update_from_packet("cra", SENT_ATTACK)
