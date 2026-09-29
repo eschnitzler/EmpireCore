@@ -218,16 +218,78 @@ class TestModels:
         unit = UnitStats.model_validate({"wodID": 1, "role": "melee", "hybrid": "1"})
         assert unit.is_allround
 
-    def test_tool_category_is_a_name_not_a_number(self):
+    def test_tool_category_is_lowercased_as_the_client_stores_it(self):
         # Live values: Combo, Event, Premium, Basic, Elite.
+        # BasicUnitVO.parseXmlNode: getStringAttribute("toolCategory", t).toLowerCase()
         tool = ToolStats.model_validate({"wodID": 1, "slotTypes": "9", "toolCategory": "Basic"})
-        assert tool.tool_category == "Basic"
+        assert tool.tool_category == "basic"
+        assert ToolStats.model_validate({"wodID": 1}).tool_category == ""
 
-    def test_delete_after_battle_keeps_its_value(self):
-        # Live data uses 1 and 2, so this is not a boolean.
-        assert ToolStats.model_validate({"wodID": 1, "deleteToolAfterBattle": "2"}).delete_after_battle == 2
-        assert ToolStats.model_validate({"wodID": 1, "deleteToolAfterBattle": "2"}).is_consumed_in_battle
-        assert not ToolStats.model_validate({"wodID": 1}).is_consumed_in_battle
+    def test_a_row_without_a_level_reads_minus_one(self):
+        # BasicUnitVO.parseXmlNode: parseInt(getValueOrDefault("level", t, "-1"))
+        assert UnitStats.model_validate({"wodID": 1}).level == -1
+        assert UnitStats.model_validate({"wodID": 1, "level": ""}).level == -1
+        assert UnitStats.model_validate({"wodID": 1, "level": "0"}).level == 0
+        assert ToolStats.model_validate({"wodID": 1}).level == -1
+
+    def test_unit_defaults_are_the_clients(self):
+        unit = UnitStats.model_validate({"wodID": 1})
+
+        assert (unit.unit_type, unit.role, unit.source) == ("", "", "")
+        assert (unit.speed, unit.fight_type, unit.loot_value, unit.food_supply) == (0, 0, 0, 0)
+        assert not unit.hybrid
+
+    def test_tool_defaults_are_the_clients(self):
+        tool = ToolStats.model_validate({"wodID": 1})
+
+        # String(getValueOrDefault("typ", t, "0", true))
+        assert tool.category == "0"
+        assert (tool.amount_per_wave, tool.speed, tool.raw_wall_bonus) == (-1, 0, 0)
+        assert tool.can_attack_npc
+
+    def test_int_columns_read_with_parse_int(self):
+        unit = UnitStats.model_validate(
+            {"wodID": "211x", "level": "6.9", "meleeAttack": "12abc", "rangeDefence": "nope", "lootValue": " 52"}
+        )
+
+        assert (unit.wod_id, unit.level, unit.melee_attack, unit.loot_value) == (211, 6, 12, 52)
+        # NaN to the client; the column's default here.
+        assert unit.range_defense == 0
+        tool = ToolStats.model_validate({"wodID": 1, "wallBonus": "12.5", "amountPerWave": "x"})
+        assert (tool.raw_wall_bonus, tool.amount_per_wave) == (12, -1)
+
+    def test_a_row_without_a_numeric_id_is_skipped(self):
+        data = GameData.parse("1.0", {"units": [MEAD_RANGER, {"wodID": "x", "name": "Barracks"}, {"wodID": ""}]})
+
+        assert set(data.units) == {211}
+
+    def test_flags_are_true_only_for_one(self):
+        # 1 == parseInt(...): any other number is false.
+        assert UnitStats.model_validate({"wodID": 1, "hybrid": "1"}).hybrid
+        assert not UnitStats.model_validate({"wodID": 1, "hybrid": "2"}).hybrid
+        assert not ToolStats.model_validate({"wodID": 1, "canBeUsedToAttackNPC": "0"}).can_attack_npc
+        assert not ToolStats.model_validate({"wodID": 1, "canBeUsedToAttackNPC": "2"}).can_attack_npc
+        assert ToolStats.model_validate({"wodID": 1, "canBeUsedToAttackNPC": ""}).can_attack_npc
+
+    def test_a_dash_type_reads_as_no_type(self):
+        # AVisualVO.parseXmlNode: "-" == this._type && (this._type = "")
+        assert UnitStats.model_validate({"wodID": 1, "type": "-"}).unit_type == ""
+        assert ToolStats.model_validate({"wodID": 1, "type": "-"}).tool_type == ""
+
+    def test_unparsed_columns_are_not_modeled(self):
+        # Nothing in the unit or tool parsers reads these.
+        assert "might_value" not in UnitStats.model_fields
+        assert "delete_after_battle" not in ToolStats.model_fields
+
+    def test_allowed_targets_keep_nan_pairs_as_a_restriction(self):
+        # parseSpaceIdAreaTypeValues pushes NaN pairs; checkIfTargetIsInArray matches none of them.
+        tool = ToolStats.model_validate({"wodID": 1, "allowedToAttack": "x+21"})
+
+        assert tool.allowed_targets == ((None, 21),)
+        assert not tool.is_allowed_by_attack_target(0, 21)
+        extra = ToolStats.model_validate({"wodID": 1, "allowedToAttack": "0+21+5#1+-1"})
+        assert extra.allowed_targets == ((0, 21), (1, -1))
+        assert extra.is_allowed_by_attack_target(1, 7)
 
     def test_tool_effects_are_the_raw_effect_string(self):
         tool = ToolStats.model_validate({"wodID": 1, "effects": "632&275,504&1"})
@@ -421,6 +483,37 @@ class TestCacheSchemaFingerprint:
 
         assert GameData._read_cache(cache, "1.0") is None
 
+    def test_parsed_values_survive_the_cache(self, tmp_path):
+        payload = {
+            "units": [
+                {"wodID": 1, "name": "Barracks", "role": "melee", "hybrid": "1"},
+                {
+                    "wodID": 2,
+                    "name": "Workshop",
+                    "slotTypes": "1",
+                    "canBeUsedToAttackNPC": "0",
+                    "toolCategory": "Basic",
+                },
+            ]
+        }
+        cache = tmp_path / "items_v1.0.trimmed.json"
+        GameData.parse("1.0", payload)._write_cache(cache)
+
+        cached = GameData._read_cache(cache, "1.0")
+
+        assert cached is not None
+        assert cached.units[1].hybrid and cached.units[1].level == -1
+        assert not cached.tools[2].can_attack_npc
+        assert (cached.tools[2].tool_category, cached.tools[2].category) == ("basic", "0")
+
+    def test_the_fingerprint_covers_defaults(self, monkeypatch):
+        from empire_core.gamedata.data import _schema_fingerprint
+
+        before = _schema_fingerprint()
+        monkeypatch.setattr(UnitStats.model_fields["level"], "default", 0)
+
+        assert _schema_fingerprint() != before
+
     def test_the_fingerprint_covers_the_tool_columns(self):
         # The columns that caused this: a cache predating them read them as
         # their defaults and quietly widened the tool pool.
@@ -546,6 +639,19 @@ class TestNamedLookups:
     def test_a_tool_without_a_level_reads_minus_one(self, data):
         # BasicUnitVO.parseXmlNode: getValueOrDefault("level", t, "-1")
         assert data.get_tool(113).level == -1
+
+    def test_level_zero_and_no_level_are_different_rows(self):
+        # v786.03 has Renegadepiratemelee at levels 0, 1 and 2 and once with no level.
+        pirates = [
+            {"wodID": wod_id, "name": "Eventunit", "type": "Renegadepiratemelee", "role": "melee", **level}
+            for wod_id, level in ((759, {"level": "0"}), (760, {"level": "1"}), (962, {}))
+        ]
+        data = GameData.parse("786.03", {"units": pirates})
+
+        level_zero = data.unit("Renegadepiratemelee", 0)
+        no_level = data.unit("Renegadepiratemelee", -1)
+        assert level_zero is not None and level_zero.wod_id == 759
+        assert no_level is not None and no_level.wod_id == 962
 
     def test_the_new_tables_survive_the_cache(self, data, tmp_path):
         cache = tmp_path / "items_v786.03.trimmed.json"

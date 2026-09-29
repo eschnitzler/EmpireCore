@@ -9,9 +9,12 @@ a guess.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+import math
+import re
 
-# ITEMS units column "fightType": 0 = offensive, 1 = defensive.
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+# BasicUnitVO.FIGHTTYPE_OFF / FIGHTTYPE_DEF (bundle line 19345)
 FIGHT_TYPE_OFFENSIVE = 0
 FIGHT_TYPE_DEFENSIVE = 1
 
@@ -52,36 +55,155 @@ def parse_ids(value: str | None) -> tuple[int, ...]:
     return tuple(ids)
 
 
+def _js_parse_int(value: object) -> int | None:
+    """JavaScript's ``parseInt``: the leading integer of the value's text, None where it gives NaN."""
+    if isinstance(value, int):
+        return int(value)
+    if isinstance(value, float):
+        return None if math.isnan(value) or math.isinf(value) else math.trunc(value)
+    match = re.match(r"\s*([+-]?\d+)", str(value))
+    return int(match.group(1)) if match else None
+
+
+def _parse_int_or_default(value: object, default: int) -> int:
+    """
+    ``parseInt(CastleXMLUtils.getValueOrDefault(key, node, default))``.
+
+    A missing or empty value reads as the default, as ``getValueOrDefault``
+    (bundle line 1027) returns it for any falsy value. Otherwise the leading
+    integer of the text counts, so ``"12abc"`` reads as 12. Text with no
+    leading integer is NaN to the client, which no int can hold; it reads as
+    the default.
+    """
+    if value is None or value == "":
+        return default
+    parsed = _js_parse_int(value)
+    return default if parsed is None else parsed
+
+
 class _Row(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
 
-class UnitStats(_Row):
+class _UnitRow(_Row):
+    """
+    What ``AVisualVO.parseXmlNode`` and ``BasicUnitVO.parseXmlNode`` read for every unit and tool.
+
+    Client: ``AVisualVO.parseXmlNode`` (bundle line 17800), ``BasicUnitVO.parseXmlNode`` (bundle line 19211)
+    """
+
+    wod_id: int = Field(alias="wodID", description="Row id, the leading integer of the value; required")
+    source: str = Field(
+        alias="name",
+        default="",
+        description="E.g. Barracks or Eventtool; the client's VO class is name + group + VO",
+    )
+    level: int = Field(default=-1, description="Upgrade level; -1 when the row has none")
+    speed: int = Field(default=0, description="Base travel speed, before research bonuses")
+    fight_type: int = Field(
+        alias="fightType",
+        default=FIGHT_TYPE_OFFENSIVE,
+        description="0 offensive, 1 defensive (BasicUnitVO.FIGHTTYPE_*)",
+    )
+
+    @field_validator("wod_id", mode="before")
+    @classmethod
+    def _int_attribute(cls, value: object) -> object:
+        # CastleWodData.parseVOFromWODXml keys the row by parseInt(wodID); a row
+        # with no such id fails here, so GameData.parse skips just that row.
+        parsed = None if value is None or value == "" else _js_parse_int(value)
+        if parsed is None:
+            raise ValueError(f"wodID {value!r} has no leading integer")
+        return parsed
+
+    @field_validator("level", "speed", "fight_type", mode="before")
+    @classmethod
+    def _parse_int(cls, value: object, info: ValidationInfo) -> object:
+        return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def _string_attribute(cls, value: object) -> object:
+        # getStringAttribute: a missing or empty value reads as ""
+        return value or ""
+
+    @staticmethod
+    def _type_attribute(value: object) -> object:
+        # AVisualVO.parseXmlNode: "-" is read as no type
+        value = value or ""
+        return "" if value == "-" else value
+
+
+class UnitStats(_UnitRow):
     """
     A combat unit.
 
-    Units are the entries without ``slotTypes``; everything else is a tool.
+    ``GameData.parse`` takes the ``units`` rows without ``slotTypes`` as
+    units. The client picks a row's class from ``name`` and ``group``
+    instead (``CastleWodData.getClassName``, bundle line 2057): Barracks,
+    Eventunit, Keep, Kingdomunit and QuickAttack rows are ``SoldierUnitVO``s,
+    while an ``Unknown`` row is a bare ``BasicUnitVO`` that reads no soldier
+    columns.
+
+    Client: ``SoldierUnitVO.parseXmlNode`` (bundle line 12531), after ``BasicUnitVO.parseXmlNode`` (bundle line 19211)
     """
 
-    wod_id: int = Field(alias="wodID")
-    source: str = Field(alias="name", default="")
-    unit_type: str = Field(alias="type", default="")
-    role: str = ""
-    level: int = 0
-    speed: int = 0
-    melee_attack: int = Field(alias="meleeAttack", default=0)
-    range_attack: int = Field(alias="rangeAttack", default=0)
-    melee_defense: int = Field(alias="meleeDefence", default=0)
-    range_defense: int = Field(alias="rangeDefence", default=0)
-    loot_value: float = Field(alias="lootValue", default=0)
-    might_value: float = Field(alias="mightValue", default=0)
-    mead_supply: int = Field(alias="meadSupply", default=0)
-    beef_supply: int = Field(alias="beefSupply", default=0)
-    food_supply: int = Field(alias="foodSupply", default=0)
-    healing_cost_c1: int = Field(alias="healingCostC1", default=0)
-    healing_cost_c2: int = Field(alias="healingCostC2", default=0)
-    hybrid: bool = False
-    fight_type: int = Field(alias="fightType", default=0)
+    unit_type: str = Field(alias="type", default="", description="Unit type, e.g. MeadRanger; shared across levels")
+    role: str = Field(default="", description="melee or ranged (SoldierUnitVO.ROLE_MELEE / ROLE_RANGE)")
+    melee_attack: int = Field(alias="meleeAttack", default=0, description="Base melee attack")
+    range_attack: int = Field(alias="rangeAttack", default=0, description="Base ranged attack")
+    melee_defense: int = Field(alias="meleeDefence", default=0, description="Base defence against melee")
+    range_defense: int = Field(alias="rangeDefence", default=0, description="Base defence against ranged")
+    loot_value: int = Field(alias="lootValue", default=0, description="Loot one unit carries")
+    mead_supply: int = Field(
+        alias="meadSupply", default=0, description="Mead upkeep; the client's getter floors it at 0"
+    )
+    beef_supply: int = Field(
+        alias="beefSupply", default=0, description="Beef upkeep; the client's getter floors it at 0"
+    )
+    food_supply: int = Field(
+        alias="foodSupply",
+        default=0,
+        description="Food upkeep, before the global food-consumption effect the client's getter adds",
+    )
+    healing_cost_c1: int = Field(
+        alias="healingCostC1", default=0, description="Coin cost to heal one, before the client's cost effects"
+    )
+    healing_cost_c2: int = Field(alias="healingCostC2", default=0, description="Ruby cost to heal one")
+    hybrid: bool = Field(default=False, description="Fits either flank; true only for a value of 1")
+
+    @field_validator(
+        "melee_attack",
+        "range_attack",
+        "melee_defense",
+        "range_defense",
+        "loot_value",
+        "mead_supply",
+        "beef_supply",
+        "food_supply",
+        "healing_cost_c1",
+        "healing_cost_c2",
+        mode="before",
+    )
+    @classmethod
+    def _parse_int_column(cls, value: object, info: ValidationInfo) -> object:
+        return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
+
+    @field_validator("unit_type", mode="before")
+    @classmethod
+    def _type(cls, value: object) -> object:
+        return cls._type_attribute(value)
+
+    @field_validator("role", mode="before")
+    @classmethod
+    def _role(cls, value: object) -> object:
+        return value or ""
+
+    @field_validator("hybrid", mode="before")
+    @classmethod
+    def _hybrid(cls, value: object) -> object:
+        # BasicUnitVO.parseXmlNode: 1 == parseInt(getValueOrDefault("hybrid", t, "0"))
+        return value if isinstance(value, bool) else _parse_int_or_default(value, 0) == 1
 
     @property
     def is_melee(self) -> bool:
@@ -93,7 +215,7 @@ class UnitStats(_Row):
 
     @property
     def is_allround(self) -> bool:
-        """A hybrid unit, which the client treats as fitting either flank."""
+        """A hybrid unit, which fits either flank (``BasicUnitVO.isAllround``, bundle line 19318)."""
         return self.hybrid
 
     @property
@@ -109,7 +231,7 @@ class UnitStats(_Row):
     @property
     def is_offensive(self) -> bool:
         """
-        Whether the game treats this unit as an attacker.
+        Whether the game treats this unit as an attacker (``BasicUnitVO.isOffensive``, bundle line 19316).
 
         This is the ``fightType`` column, not "has an attack value": a defensive
         unit such as a halberdier carries a small attack value but is never an
@@ -118,51 +240,112 @@ class UnitStats(_Row):
         return self.fight_type == FIGHT_TYPE_OFFENSIVE
 
 
-class ToolStats(_Row):
+class ToolStats(_UnitRow):
     """
     A siege or defense tool.
 
-    ``raw_effects`` is kept as the ``effectID&value`` string; resolve it through
+    ``GameData.parse`` takes the ``units`` rows with ``slotTypes`` as tools;
+    the client's ``ToolUnitVO`` rows are those named Workshop, Dworkshop,
+    Elitetool and Eventtool. ``raw_effects`` is kept as the ``effectID&value`` string; resolve it through
     :attr:`~empire_core.gamedata.data.GameData.effects`.
 
-    Client: ``ToolUnitVO.parseXmlNode`` (bundle line 6538), ``ToolUnitVO.parseEffects`` (bundle line 6644).
+    The ``raw_*_bonus`` columns are percentages. The client scales them by
+    0.01 as it parses, so the fractions are the properties of the same name
+    without ``raw_``: scaling in a validator would scale again on every cache
+    round trip.
+
+    Client: ``ToolUnitVO.parseXmlNode`` (bundle line 6538), after ``BasicUnitVO.parseXmlNode`` (bundle line 19211);
+    ``ToolUnitVO.parseEffects`` (bundle line 6644)
     """
 
-    wod_id: int = Field(alias="wodID")
-    source: str = Field(alias="name", default="")
-    tool_type: str = Field(alias="type", default="")
-    level: int = Field(
-        default=-1, description="BasicUnitVO.parseXmlNode (bundle line 19211) reads it with a default of -1"
+    tool_type: str = Field(
+        alias="type", default="", description="Tool type, e.g. Ladder; shared across levels, keys the per-wave limit"
     )
-    category: str = Field(alias="typ", default="")
-    raw_slot_types: str = Field(alias="slotTypes", default="")
-    raw_allowed_to_attack: str = Field(alias="allowedToAttack", default="")
-    tool_category: str = Field(alias="toolCategory", default="")
-    speed: int = 0
-    # The client reads both of these with a default, and both defaults are
-    # permissive: -1 is "no per-wave limit", 1 is "usable against an NPC".
-    amount_per_wave: int = Field(alias="amountPerWave", default=-1)
-    # 0/absent, 1 and 2 all occur; the client distinguishes them, so keep the value.
-    delete_after_battle: int = Field(alias="deleteToolAfterBattle", default=0)
-    can_attack_npc: bool = Field(alias="canBeUsedToAttackNPC", default=True)
-    fight_type: int = Field(alias="fightType", default=0)
+    category: str = Field(
+        alias="typ",
+        default="0",
+        description="Attack or Defence (ClientConstCastle.ATTACK_TOOL / DEFENSE_TOOL); the client's default is 0",
+    )
+    raw_slot_types: str = Field(alias="slotTypes", default="", description="Comma-separated slot types the tool fits")
+    raw_allowed_to_attack: str = Field(
+        alias="allowedToAttack",
+        default="",
+        description="space+areaType pairs joined by #; see allowed_targets",
+    )
+    tool_category: str = Field(
+        alias="toolCategory",
+        default="",
+        description="Tool category name, lowercased as the client stores it, e.g. basic",
+    )
+    amount_per_wave: int = Field(
+        alias="amountPerWave",
+        default=-1,
+        description="The column's per-wave limit; -1 when absent. See per_wave_limit for the one the client applies",
+    )
+    can_attack_npc: bool = Field(
+        alias="canBeUsedToAttackNPC",
+        default=True,
+        description="Usable against an NPC target; true unless the value is other than 1",
+    )
     raw_effects: str = Field(
         alias="effects",
         default="",
         description="Comma-separated effectID&value pairs, split by ToolUnitVO.parseEffects",
     )
+    raw_wall_bonus: int = Field(alias="wallBonus", default=0, description="Wall protection cancelled, in percent")
+    raw_gate_bonus: int = Field(alias="gateBonus", default=0, description="Gate protection cancelled, in percent")
+    raw_moat_bonus: int = Field(alias="moatBonus", default=0, description="Moat protection cancelled, in percent")
+    raw_def_range_bonus: int = Field(
+        alias="defRangeBonus", default=0, description="Defender ranged strength cancelled, in percent"
+    )
+    raw_def_melee_bonus: int = Field(
+        alias="defMeleeBonus", default=0, description="Defender melee strength cancelled, in percent"
+    )
+    raw_off_range_bonus: int = Field(alias="offRangeBonus", default=0, description="Ranged attack added, in percent")
+    raw_off_melee_bonus: int = Field(alias="offMeleeBonus", default=0, description="Melee attack added, in percent")
 
-    # The raw items columns, which are percentages. The client scales them by
-    # 0.01 when it parses a tool, so the fractions are exposed as properties
-    # below: scaling in a validator instead would re-scale on every cache
-    # round-trip, since the cache stores what validation produced.
-    raw_wall_bonus: float = Field(alias="wallBonus", default=0)
-    raw_gate_bonus: float = Field(alias="gateBonus", default=0)
-    raw_moat_bonus: float = Field(alias="moatBonus", default=0)
-    raw_def_range_bonus: float = Field(alias="defRangeBonus", default=0)
-    raw_def_melee_bonus: float = Field(alias="defMeleeBonus", default=0)
-    raw_off_range_bonus: float = Field(alias="offRangeBonus", default=0)
-    raw_off_melee_bonus: float = Field(alias="offMeleeBonus", default=0)
+    @field_validator(
+        "amount_per_wave",
+        "raw_wall_bonus",
+        "raw_gate_bonus",
+        "raw_moat_bonus",
+        "raw_def_range_bonus",
+        "raw_def_melee_bonus",
+        "raw_off_range_bonus",
+        "raw_off_melee_bonus",
+        mode="before",
+    )
+    @classmethod
+    def _parse_int_column(cls, value: object, info: ValidationInfo) -> object:
+        return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
+
+    @field_validator("tool_type", mode="before")
+    @classmethod
+    def _type(cls, value: object) -> object:
+        return cls._type_attribute(value)
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def _category(cls, value: object) -> object:
+        # String(getValueOrDefault("typ", t, "0", true))
+        return str(value) if value else "0"
+
+    @field_validator("raw_slot_types", "raw_allowed_to_attack", "raw_effects", mode="before")
+    @classmethod
+    def _string_column(cls, value: object) -> object:
+        return value or ""
+
+    @field_validator("tool_category", mode="before")
+    @classmethod
+    def _tool_category(cls, value: object) -> object:
+        # BasicUnitVO.parseXmlNode: getStringAttribute("toolCategory", t).toLowerCase()
+        return str(value or "").lower()
+
+    @field_validator("can_attack_npc", mode="before")
+    @classmethod
+    def _can_attack_npc(cls, value: object) -> object:
+        # 1 == parseInt(getValueOrDefault("canBeUsedToAttackNPC", t, "1"))
+        return value if isinstance(value, bool) else _parse_int_or_default(value, 1) == 1
 
     @property
     def wall_bonus(self) -> float:
@@ -205,23 +388,23 @@ class ToolStats(_Row):
         return parse_ids(self.raw_slot_types)
 
     @property
-    def allowed_targets(self) -> tuple[tuple[int, int], ...]:
+    def allowed_targets(self) -> tuple[tuple[int | None, int | None], ...]:
         """
         ``(space_id, area_type)`` pairs this tool may attack.
 
-        ``BasicUnitVO.parseSpaceIdAreaTypeValues`` reads
-        ``"space+areaType#space+areaType"``. An empty list means no restriction,
-        and ``-1`` in either position means "any".
+        An empty list means no restriction, and ``-1`` in either position means
+        "any". A position with no leading integer is None, the client's NaN:
+        that pair matches no target but still makes the list a restriction.
+
+        Client: ``BasicUnitVO.parseSpaceIdAreaTypeValues`` (bundle line 19214)
         """
+        entries = self.raw_allowed_to_attack.split("#")
+        if entries[0] == "":
+            entries.pop(0)
         pairs = []
-        for entry in self.raw_allowed_to_attack.split("#"):
-            if not entry:
-                continue
-            space, _, area = entry.partition("+")
-            try:
-                pairs.append((int(space), int(area)))
-            except ValueError:
-                continue
+        for entry in entries:
+            parts = entry.split("+")
+            pairs.append((_js_parse_int(parts[0]), _js_parse_int(parts[1]) if len(parts) > 1 else None))
         return tuple(pairs)
 
     @property
@@ -229,35 +412,45 @@ class ToolStats(_Row):
         """
         How many of this tool one wave may carry; 0 or less means no limit.
 
-        ``ToolUnitVO.amountPerWave``: an offence support tool - one that fits
-        slot type 10 - is always limited to one, whatever the column says.
+        An offence support tool - one that fits slot type 10 - is always
+        limited to one, whatever the column says.
+
+        Client: ``ToolUnitVO.amountPerWave`` (bundle line 6658)
         """
         return 1 if 10 in self.slot_types else self.amount_per_wave
 
     def is_allowed_by_attack_target(self, space_id: int | None, area_type: int | None) -> bool:
-        """``BasicUnitVO.isAllowedByAttackTarget``: no list means allowed anywhere."""
+        """
+        Whether the tool may attack this target; no list means allowed anywhere.
+
+        None for the space or area type means it is unknown and matches any
+        pair; a pair holding the client's NaN matches nothing.
+
+        Client: ``BasicUnitVO.checkIfTargetIsInArray`` (bundle line 19324)
+        """
         allowed = self.allowed_targets
         if not allowed:
             return True
         return any(
-            (space_id is None or space in (space_id, -1)) and (area == -1 or area_type is None or area == area_type)
+            space is not None
+            and area is not None
+            and (space_id is None or space in (space_id, -1))
+            and (area_type is None or area in (area_type, -1))
             for space, area in allowed
         )
 
     @property
     def is_attack_tool(self) -> bool:
+        """``typ`` is ``ClientConstCastle.ATTACK_TOOL``."""
         return self.category == "Attack"
 
     @property
     def is_defense_tool(self) -> bool:
+        """``typ`` is ``ClientConstCastle.DEFENSE_TOOL``."""
         return self.category == "Defence"
 
-    @property
-    def is_consumed_in_battle(self) -> bool:
-        return self.delete_after_battle > 0
-
     def fits_slot(self, slot_type: int) -> bool:
-        """Whether this tool may go in the given slot type."""
+        """Whether this tool may go in the given slot type (``ToolUnitVO.isToolForSlotType``, bundle line 6541)."""
         return slot_type in self.slot_types
 
 

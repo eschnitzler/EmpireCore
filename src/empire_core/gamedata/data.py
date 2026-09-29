@@ -96,11 +96,15 @@ def _schema_fingerprint() -> str:
 
     The cache holds parsed models keyed by field name, so a model that gains a
     column reads back the old file with that column at its default - silently,
-    and wrongly. Fingerprinting the field names means any such change
+    and wrongly, and a changed default leaves the old default in the file.
+    Fingerprinting the field names and defaults means any such change
     invalidates the cache instead.
     """
-    names = ";".join(f"{model.__name__}:{','.join(sorted(model.model_fields))}" for model in _CACHED_MODELS)
-    return hashlib.sha256(names.encode()).hexdigest()[:12]
+    tables = []
+    for model in _CACHED_MODELS:
+        fields = ",".join(f"{name}={field.default!r}" for name, field in sorted(model.model_fields.items()))
+        tables.append(f"{model.__name__}:{fields}")
+    return hashlib.sha256(";".join(tables).encode()).hexdigest()[:12]
 
 
 # Camp tables that share the NpcCampDefence shape.
@@ -410,7 +414,9 @@ class GameData(BaseModel):
         Units have no unique name. A type repeats across levels, and event
         variants of one unit share its type, often with no level to tell them
         apart (``Ogermace`` is both 68 and 7), so a lookup that still matches
-        several units raises rather than picking one.
+        several units raises rather than picking one. A row without a level
+        has level -1, as the client reads it, so ``level=-1`` finds those and
+        ``level=0`` only a row whose level is 0.
         """
         return _single(
             f"unit {unit_type!r}" + (f" level {level}" if level is not None else ""),
