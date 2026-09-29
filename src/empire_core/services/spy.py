@@ -109,7 +109,7 @@ class SpyService(BaseService):
         source_castle_id: int,
         target_x: int,
         target_y: int,
-        target_kingdom: Kingdom | int = Kingdom.GREEN,
+        target_kingdom: Kingdom = Kingdom.GREEN,
         risk_tolerance: int | None = None,
         accuracy: int = MAX_ACCURACY,
     ) -> SpyResult:
@@ -124,7 +124,7 @@ class SpyService(BaseService):
                 from ``client.castle.get_all()`` or ``Castle.id`` from ``client.state.get_castles()``
             target_x: Target X coordinate
             target_y: Target Y coordinate
-            target_kingdom: Target kingdom, a Kingdom or the id of one it lacks
+            target_kingdom: Target kingdom
             risk_tolerance: Ceiling on the chance of being caught, as a
                 percentage. Missions always run at the lowest risk the spy pool
                 allows; this only decides whether to send at all, so a target

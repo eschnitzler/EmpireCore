@@ -22,7 +22,7 @@ await client.send_attack(
         620: 10,  # 10 of unit type 620
         614: 5    # 5 of unit type 614
     },
-    kingdom_id=0
+    kingdom_id=Kingdom.GREEN
 )
 ```
 
@@ -30,7 +30,7 @@ await client.send_attack(
 - `origin_castle_id` (int): Your attacking castle ID
 - `target_area_id` (int): Target area/castle ID
 - `units` (Dict[int, int]): Dictionary of unit_id -> count
-- `kingdom_id` (int, optional): Kingdom ID (default: 0)
+- `kingdom_id` (Kingdom, optional): Kingdom (default: Kingdom.GREEN)
 
 **Returns:** `bool` - True if command sent successfully
 

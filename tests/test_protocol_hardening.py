@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from empire_core.network.connection import _summarize_frame
 from empire_core.protocol.models.alliance import AllianceInfo
@@ -278,7 +279,7 @@ class TestNpcCampRows:
         assert item.victory_count == 297
         assert item.seconds_since_espionage == -1
         assert item.attack_cooldown_seconds == -17639997
-        assert item.camp_kingdom_id == 0
+        assert item.camp_kingdom_id is Kingdom.GREEN
 
     def test_a_camp_has_no_owner(self):
         # Field 3 is the espionage age; reading it as an owner id was wrong.
@@ -584,6 +585,18 @@ class TestReplyEnumProperties:
         assert Equipment(rarity_id=13).rarity_enum is Rareness.HERO_EPIC
         assert Equipment(rarity_id=7).rarity_enum is None
 
-    def test_a_scan_of_a_kingdom_the_enum_lacks_is_read(self):
+    def test_a_scan_of_a_kingdom_the_client_does_not_define_is_refused(self):
+        # GAACommand has no fallback for a kingdom id, and Kingdom holds every one the client defines
         assert GetMapAreaResponse.model_validate({"KID": 2, "AI": []}).kingdom is Kingdom.ICE
-        assert GetMapAreaResponse.model_validate({"KID": 11, "AI": []}).kingdom == 11
+        with pytest.raises(ValidationError):
+            GetMapAreaResponse.model_validate({"KID": 11, "AI": []})
+
+    def test_a_camp_row_in_a_kingdom_the_client_does_not_define_keeps_the_row(self):
+        # Rows carry their kingdom only in the raw fields, so an unknown one costs only camp_kingdom_id
+        response = GetMapAreaResponse.model_validate(
+            {"KID": 0, "AI": [[2, 630, 243, -1, 297, 5, 11], [2, 1, 2, -1, 3, 5, 2]]}
+        )
+        assert [(item.victory_count, item.camp_kingdom_id) for item in response.items] == [
+            (297, None),
+            (3, Kingdom.ICE),
+        ]

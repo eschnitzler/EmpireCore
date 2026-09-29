@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable, Sequence
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from empire_core.gamedata import GameData, NpcCampDefence, ToolStats
 from empire_core.protocol.models.map import MapAreaItem
@@ -32,13 +32,13 @@ MOAT_WOD_IDS = (455, 830, 1987, 2546, 456, 831, 1988, 2547)
 
 # DungeonConst: a camp's level follows from how often it has been beaten, and
 # its walls from that level. The offsets are DungeonConst.getKingdomOffset
-# (dll line 19137).
+# (dll line 19137), which gives 0 for any other kingdom.
 CAMP_LEVEL_FACTOR = 1.9
 CAMP_LEVEL_POWER = 0.555
 CAMP_KINGDOM_OFFSETS: dict[Kingdom, int] = {Kingdom.GREEN: 1, Kingdom.ICE: 20, Kingdom.SANDS: 35, Kingdom.FIRE: 45}
 
 
-def camp_level(victories: int, kingdom_id: Kingdom | int = Kingdom.GREEN) -> int:
+def camp_level(victories: int, kingdom_id: Kingdom = Kingdom.GREEN) -> int:
     """
     A camp's level, from its victory count (``DungeonConst.getLevel``).
 
@@ -46,7 +46,7 @@ def camp_level(victories: int, kingdom_id: Kingdom | int = Kingdom.GREEN) -> int
         victories: The camp's victory count, from ``MapAreaItem.victory_count``
         kingdom_id: Kingdom the camp sits in, which shifts the result
     """
-    offset = CAMP_KINGDOM_OFFSETS.get(cast(Kingdom, kingdom_id), 0)
+    offset = CAMP_KINGDOM_OFFSETS.get(kingdom_id, 0)
     return int(CAMP_LEVEL_FACTOR * abs(victories) ** CAMP_LEVEL_POWER) + offset
 
 
@@ -482,7 +482,7 @@ def spied_castle_defense(
 def npc_camp_defense(
     game_data: GameData,
     victories: int,
-    kingdom_id: Kingdom | int = Kingdom.GREEN,
+    kingdom_id: Kingdom = Kingdom.GREEN,
 ) -> dict[Flank, DefenderFlankEffects] | None:
     """
     What defends an NPC camp, per flank, without asking the server.

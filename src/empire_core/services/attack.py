@@ -191,7 +191,7 @@ class _Target:
 
     x: int
     y: int
-    kingdom_id: int | None = None
+    kingdom_id: Kingdom | None = None
     source_x: int | None = None
     source_y: int | None = None
     row: list | None = None
@@ -200,7 +200,7 @@ class _Target:
     owner_legend_level: int | None = None
     is_player: bool = False
     camp_victories: int | None = None
-    camp_kingdom_id: int = 0
+    camp_kingdom_id: Kingdom = Kingdom.GREEN
     spy_army: SpyArmy | None = None
     castellan: Commander | None = None
     defender_legend_skill_ids: list[int] | None = None
@@ -238,7 +238,7 @@ class AttackService(BaseService):
         target_y: int,
         waves: list[AttackWave],
         commander_id: int,
-        kingdom_id: Kingdom | int = Kingdom.GREEN,
+        kingdom_id: Kingdom = Kingdom.GREEN,
         attack_type: AttackType = AttackType.ATTACK,
         wait_time: int = 0,
         horses_type: int = -1,
@@ -277,7 +277,7 @@ class AttackService(BaseService):
             target_x: Target absolute X coordinate
             target_y: Target absolute Y coordinate
             waves: Attack waves, front to back
-            kingdom_id: Source kingdom, a Kingdom or the id of one it lacks
+            kingdom_id: Source kingdom
             commander_id: Commander to lead the attack, a ``Commander.commander_id`` from
                 ``client.commanders.get_commanders()``
             attack_type: See AttackType (default: a normal attack)
@@ -359,7 +359,7 @@ class AttackService(BaseService):
         target_y: int,
         source_x: int,
         source_y: int,
-        kingdom_id: Kingdom | int = Kingdom.GREEN,
+        kingdom_id: Kingdom = Kingdom.GREEN,
         *,
         area_type: MapItemType = MapItemType.CASTLE,
         conquer: bool = False,
@@ -401,7 +401,7 @@ class AttackService(BaseService):
         *,
         level: int | None = None,
         camp_victories: int | None = None,
-        camp_kingdom_id: Kingdom | int = Kingdom.GREEN,
+        camp_kingdom_id: Kingdom = Kingdom.GREEN,
         space_id: int | None = None,
         area_type: MapItemType | int | None = None,
         landmark_min_level: int = 0,
@@ -679,7 +679,7 @@ class AttackService(BaseService):
         missing, so a fully specified target costs nothing.
         """
         source = self._own_castle(castle_id)
-        home_kingdom = source.kingdom_id if source is not None else 0
+        home_kingdom = source.kingdom_id if source is not None else Kingdom.GREEN
         if target.kingdom_id is None:
             target.kingdom_id = home_kingdom
         if target.source_x is None:
@@ -719,7 +719,8 @@ class AttackService(BaseService):
             # row carries the count.
             if target.camp_victories is None:
                 target.camp_victories = item.victory_count
-            target.camp_kingdom_id = target.camp_kingdom_id or (item.camp_kingdom_id or 0)
+            if target.camp_kingdom_id == Kingdom.GREEN and item.camp_kingdom_id is not None:
+                target.camp_kingdom_id = item.camp_kingdom_id
         elif item.is_invasion_camp:
             if target.level is None and self.client.game_data is not None:
                 player = self.client.state.get_local_player()
@@ -749,7 +750,7 @@ class AttackService(BaseService):
         if target.row and target.area_type is None:
             target.area_type = MapAreaItem.from_list(target.row).item_type
 
-    def _return_to_castle(self, castle_id: int, kingdom_id: int, timeout: float, *, scanned: bool) -> None:
+    def _return_to_castle(self, castle_id: int, kingdom_id: Kingdom, timeout: float, *, scanned: bool) -> None:
         """Scanning moves the client off the attacking castle; the reads that follow are castle-scoped."""
         if not scanned:
             return
@@ -766,7 +767,7 @@ class AttackService(BaseService):
                 target.y,
                 target.x,
                 target.y,
-                kingdom=target.kingdom_id or 0,
+                kingdom=Kingdom.GREEN if target.kingdom_id is None else target.kingdom_id,
                 timeout=timeout,
             )
         except (EmpireError, ValueError) as e:
@@ -836,7 +837,7 @@ class AttackService(BaseService):
                 target_y=target.y,
                 source_x=target.source_x or 0,
                 source_y=target.source_y or 0,
-                kingdom_id=target.kingdom_id or 0,
+                kingdom_id=Kingdom.GREEN if target.kingdom_id is None else target.kingdom_id,
                 area_type=MapItemType(target.area_type) if target.area_type is not None else MapItemType.CASTLE,
                 conquer=target.conquer,
                 timeout=timeout,
@@ -893,7 +894,7 @@ class AttackService(BaseService):
         *,
         target_x: int | None = None,
         target_y: int | None = None,
-        kingdom_id: Kingdom | int | None = None,
+        kingdom_id: Kingdom | None = None,
         source_x: int | None = None,
         source_y: int | None = None,
         target_level: int | None = None,
@@ -901,7 +902,7 @@ class AttackService(BaseService):
         target_owner_id: int | None = None,
         target_owner_legend_level: int | None = None,
         camp_victories: int | None = None,
-        camp_kingdom_id: Kingdom | int = Kingdom.GREEN,
+        camp_kingdom_id: Kingdom = Kingdom.GREEN,
         target_row: list | None = None,
         area_type: MapItemType | int | None = None,
         landmark_min_level: int = 0,
@@ -1011,7 +1012,7 @@ class AttackService(BaseService):
         target = _Target(
             x=target_x or 0,
             y=target_y or 0,
-            kingdom_id=kingdom_id,
+            kingdom_id=None if kingdom_id is None else Kingdom(kingdom_id),
             source_x=source_x,
             source_y=source_y,
             row=target_row,
@@ -1020,7 +1021,7 @@ class AttackService(BaseService):
             owner_legend_level=target_owner_legend_level,
             is_player=target_is_player,
             camp_victories=camp_victories,
-            camp_kingdom_id=camp_kingdom_id,
+            camp_kingdom_id=Kingdom(camp_kingdom_id),
             spy_army=spy_army,
             castellan=defending_castellan,
             defender_legend_skill_ids=defender_legend_skill_ids,

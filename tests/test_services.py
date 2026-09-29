@@ -66,7 +66,7 @@ from empire_core.services import (
 from empire_core.services import spy as spy_module
 from empire_core.services.spy_army import SpyArmy
 from empire_core.state.models import Player
-from empire_core.utils.enums import RankingType
+from empire_core.utils.enums import Kingdom, RankingType
 
 
 def placed(slots: list[list[int]]) -> list[list[int]]:
@@ -487,7 +487,7 @@ class TestRequestSemantics:
 
         client = make_client({"arc": xt_packet("arc", {"N": "no id here"})})
         with pytest.raises(PacketError) as exc_info:
-            client.request(RenameCastleRequest(CID=1, N="x", AT=1, KID=0, P=1), RenameCastleResponse)
+            client.request(RenameCastleRequest(CID=1, N="x", AT=1, KID=Kingdom.GREEN, P=1), RenameCastleResponse)
         assert "arc" in str(exc_info.value)
 
     def test_a_gli_entry_without_an_id_is_skipped(self):
@@ -996,7 +996,7 @@ class TestCastleActions:
     def test_select_sends_castle_and_kingdom(self):
         client = make_client()
 
-        assert client.castle.select(12345, kingdom_id=2) is True
+        assert client.castle.select(12345, kingdom_id=Kingdom.ICE) is True
 
         assert conn(client).request_payloads == [("jaa", {"CID": 12345, "KID": 2})]
 
@@ -1219,7 +1219,7 @@ class TestAttackService:
             target_x=700,
             target_y=710,
             waves=[wave(units=[[487, 100]], tools=[[301, 5]])],
-            kingdom_id=2,
+            kingdom_id=Kingdom.ICE,
             commander_id=91,
         )
 
@@ -1324,7 +1324,7 @@ class TestAttackService:
                 SY=242,
                 TX=630,
                 TY=243,
-                KID=0,
+                KID=Kingdom.GREEN,
                 LID=1,
                 A=[wave(units=[[211, 5]])],
             ),
@@ -1892,7 +1892,7 @@ class TestSpySuccessPath:
         # mission wait for spies to walk home.
         client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 46, "GC": 0})))
 
-        client.spy.execute_instant_spy(12345, 700, 710, target_kingdom=2)
+        client.spy.execute_instant_spy(12345, 700, 710, target_kingdom=Kingdom.ICE)
 
         payloads = dict(conn(client).request_payloads)
         assert payloads["ssi"] == {"TX": 700, "TY": 710, "KID": 2}
@@ -2281,7 +2281,7 @@ class TestOnResponse:
 
 class TestRequestBuilding:
     def test_select_castle_request_packet_shape(self):
-        packet = SelectCastleRequest(CID=12345, KID=2).to_packet(zone="EmpireEx_21")
+        packet = SelectCastleRequest(CID=12345, KID=Kingdom.ICE).to_packet(zone="EmpireEx_21")
         assert packet == '%xt%EmpireEx_21%jca%1%{"CID": 12345, "KID": 2}%'
 
     def test_alliance_info_request_requires_an_id(self):
@@ -2588,20 +2588,16 @@ class TestFillAttack:
         assert "aci" in sent
         assert result.waves
 
-    def test_a_kingdom_the_enum_lacks_is_scanned_and_asked_about(self):
-        # Event kingdoms use ids past the Kingdom enum; inputs take them as plain ints.
+    def test_a_kingdom_the_client_does_not_define_is_refused_before_any_request(self):
         client = self.build([[601, 100_000]])
-        row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
-        conn(client).script["gaa"] = xt_packet(
-            "gaa", {"KID": 11, "AI": [row], "OI": [{"OID": 900, "PID": 4242, "PN": "dweller", "L": 46}]}
-        )
-        conn(client).script["aci"] = xt_packet("aci", {"gaa": {"AI": row}, "S": [], "AE": [], "B": {}})
+        sent_before = len(conn(client).request_payloads)
 
-        client.attack.fill_attack(12345, target_x=700, target_y=710, kingdom_id=11)
+        with pytest.raises(ValueError):
+            client.attack.fill_attack(12345, target_x=700, target_y=710, kingdom_id=11)
+        with pytest.raises(ValueError):
+            client.attack.fill_attack(12345, camp_victories=299, camp_kingdom_id=11)
 
-        kingdoms = {command: payload["KID"] for command, payload in conn(client).request_payloads if "KID" in payload}
-        assert kingdoms["gaa"] == 11
-        assert kingdoms["aci"] == 11
+        assert len(conn(client).request_payloads) == sent_before
 
     def test_the_owner_legend_level_comes_from_the_scan(self):
         from empire_core.gamedata import GameData
@@ -3386,7 +3382,7 @@ class TestAttackInfo:
     def test_service_sends_the_documented_payload(self):
         client = make_client()
 
-        client.attack.get_attack_info(632, 243, 629, 242, kingdom_id=0)
+        client.attack.get_attack_info(632, 243, 629, 242, kingdom_id=Kingdom.GREEN)
 
         command, payload = conn(client).request_payloads[0]
         assert command == "aci"
@@ -3422,7 +3418,7 @@ class TestTargetPrecalculation:
     def test_the_command_follows_the_area_type(self, area_type, command, keys):
         client = make_client()
 
-        client.attack.get_attack_info(700, 710, 5, 6, kingdom_id=1, area_type=area_type)
+        client.attack.get_attack_info(700, 710, 5, 6, kingdom_id=Kingdom.SANDS, area_type=area_type)
 
         sent_command, payload = conn(client).request_payloads[0]
         assert sent_command == command
@@ -3433,7 +3429,7 @@ class TestTargetPrecalculation:
     def test_a_conquest_asks_the_conquer_info(self, area_type, command):
         client = make_client()
 
-        client.attack.get_attack_info(700, 710, 5, 6, kingdom_id=0, area_type=area_type, conquer=True)
+        client.attack.get_attack_info(700, 710, 5, 6, kingdom_id=Kingdom.GREEN, area_type=area_type, conquer=True)
 
         assert conn(client).request_payloads[0] == (command, {"KID": 0, "TX": 700, "TY": 710})
 
@@ -3485,7 +3481,6 @@ class TestFillAttackLevelDerivation:
     def test_a_camp_level_follows_from_its_victories(self):
         from empire_core.combat import camp_level
         from empire_core.gamedata import GameData
-        from empire_core.utils.enums import Kingdom
 
         client = make_client({"gui": xt_packet("gui", {"I": [[601, 10_000]]})})
         client.game_data = GameData.parse(
@@ -3499,11 +3494,11 @@ class TestFillAttackLevelDerivation:
         client.state.local_player = stub_player(level=70)
 
         # 299 victories in the green kingdom is a level 45 camp.
-        assert camp_level(299, 0) == 45
+        assert camp_level(299, Kingdom.GREEN) == 45
         # DungeonConst.getKingdomOffset (dll line 19137) takes the kingdom id.
-        assert camp_level(299, Kingdom.SANDS) == camp_level(299, 1) == 45 - 1 + 35
+        assert camp_level(299, Kingdom.SANDS) == 45 - 1 + 35
         assert camp_level(299, Kingdom.STORM) == 45 - 1
-        result = client.attack.fill_attack(12345, camp_victories=299, camp_kingdom_id=0)
+        result = client.attack.fill_attack(12345, camp_victories=299, camp_kingdom_id=Kingdom.GREEN)
 
         # Level 45 gives 47 units per flank before bonuses.
         assert placed(result.waves[0].model_dump(by_alias=True)["L"]["U"]) == [[601, 47]]

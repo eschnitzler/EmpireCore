@@ -74,7 +74,7 @@ class PlayerCastle(BasePayload):
     - 16: kingdom (KID)
     """
 
-    kingdom: int = 0
+    kingdom: Kingdom = Kingdom.GREEN
     location_id: int = 0
     x: int = 0
     y: int = 0
@@ -94,7 +94,7 @@ class PlayerCastle(BasePayload):
         return self.capturer_id != -1
 
     @classmethod
-    def from_list(cls, data: list, kingdom: int = 0) -> "PlayerCastle":
+    def from_list(cls, data: list, kingdom: Kingdom = Kingdom.GREEN) -> "PlayerCastle":
         """Parse from a gcl.C[].AI[] array entry."""
         if not data or len(data) < 4:
             return cls(kingdom=kingdom)
@@ -115,11 +115,10 @@ class PlayerCastle(BasePayload):
             capturer_id = -1
 
         # Kingdom can also be read from index 16 if present (overrides passed-in kingdom)
-        if len(data) > 16 and isinstance(data[16], int):
-            kingdom = data[16]
+        row_kingdom: Any = data[16] if len(data) > 16 and isinstance(data[16], int) else kingdom
 
         return cls(
-            kingdom=kingdom,
+            kingdom=row_kingdom,
             location_id=location_id,
             x=x,
             y=y,
@@ -135,9 +134,9 @@ class PlayerCastle(BasePayload):
 # =============================================================================
 
 
-def _kingdom_entries(section: Any) -> list[tuple[int, dict[str, Any]]]:
-    """(kingdom id, entry) pairs from a ``C: [{KID, AI: [...]}]`` section."""
-    pairs: list[tuple[int, dict[str, Any]]] = []
+def _kingdom_entries(section: Any) -> list[tuple[Any, dict[str, Any]]]:
+    """(kingdom id as sent, entry) pairs from a ``C: [{KID, AI: [...]}]`` section."""
+    pairs: list[tuple[Any, dict[str, Any]]] = []
     if not isinstance(section, list):
         return pairs
     for kingdom in section:
@@ -171,7 +170,7 @@ class CastleInfo(BasePayload):
     castle_name: str = Field(alias="AI[10]", default="")
     x: int = Field(alias="AI[1]", default=0)
     y: int = Field(alias="AI[2]", default=0)
-    kingdom_id: int = Field(alias="KID", default=0)
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
     castle_type: int = Field(alias="AI[0]", default=0)  # 1=castle, 3=capital, 4=outpost, 12=kingdom castle, 22=metro
     owner_id: int = Field(alias="AI[4]", default=0)
     occupier_id: int = Field(alias="AI[14|15]", default=-1)  # 14 for a capital or metro, 15 for an outpost
@@ -192,7 +191,7 @@ class CastleInfo(BasePayload):
         return Position(X=self.x, Y=self.y, KID=self.kingdom_id)
 
     @classmethod
-    def from_entry(cls, entry: dict[str, Any], kingdom: int = 0) -> CastleInfo:
+    def from_entry(cls, entry: dict[str, Any], kingdom: Kingdom = Kingdom.GREEN) -> CastleInfo:
         """Parse a ``gcl.C[].AI[]`` entry; its ``AI`` row shares the gdi layout."""
         row = entry["AI"]
         parsed = PlayerCastle.from_list(row, kingdom)
@@ -540,7 +539,7 @@ class SelectCastleRequest(BaseRequest):
             "client.state.get_castles()"
         ),
     )
-    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
 
 
 class SelectCastleResponse(BaseResponse):
@@ -579,7 +578,7 @@ class RenameCastleRequest(BaseRequest):
     is_rename: int = Field(
         alias="P", default=1, description="1 to rename, 0 to name a newly acquired castle such as a monument"
     )
-    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
     castle_type: MapItemType | int = Field(alias="AT", description="The castle's area type")
     castle_name: str = Field(alias="N", description="The new name")
 
@@ -603,7 +602,7 @@ class RenameCastleResponse(BaseResponse):
     command = "arc"
 
     castle_id: int = Field(alias="CID", description="The renamed castle")
-    kingdom_id: int = Field(alias="KID", default=0, description="The castle's kingdom")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
     is_rename: int = Field(alias="P", default=1, description="1 for a rename, 0 for a first naming")
 
 
@@ -631,7 +630,7 @@ class RelocateCastleRequest(BaseRequest):
     )
     x: int = Field(alias="X")
     y: int = Field(alias="Y")
-    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN)
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
 
 
 class RelocateCastleResponse(BaseResponse):

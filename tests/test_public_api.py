@@ -19,6 +19,7 @@ from typing import Any, get_type_hints
 import pytest
 
 import empire_core
+from empire_core.utils.enums import Kingdom
 
 # ---------------------------------------------------------------------------
 # Top-level exports (findings 1 & 2)
@@ -313,7 +314,7 @@ def test_state_models_expose_snake_case_aliases_for_wire_fields(model_name: str)
     for snake, wire in _SNAKE_CASE_ALIASES[model_name]:
         if snake in fields:
             assert fields[snake].alias == wire, f"{model_name}.{snake} is not aliased to {wire}"
-            value = "x" if fields[snake].annotation is str else 7
+            value = {str: "x", Kingdom: Kingdom.STORM}.get(fields[snake].annotation, 7)
             assert getattr(model_cls.model_validate({wire: value}), snake) == value
         else:
             assert getattr(instance, snake) == getattr(instance, wire), f"{model_name}.{snake} != .{wire}"

@@ -18,7 +18,7 @@ from pydantic import ConfigDict, Field, ValidationError, ValidationInfo, field_v
 from empire_core.utils.enums import Kingdom, MapItemType
 
 from ..js import ClientInt, js_int
-from .base import BasePayload, BaseRequest, BaseResponse, Position, list_or_empty, object_or_none
+from .base import BasePayload, BaseRequest, BaseResponse, Position, enum_or_none, list_or_empty, object_or_none
 from .movement import OwnerCrest, OwnerFaction
 
 logger = logging.getLogger(__name__)
@@ -30,27 +30,25 @@ logger = logging.getLogger(__name__)
 
 class GetMapAreaRequest(BaseRequest):
     """
-    Get a chunk of the map.
+    Get the map rows of a rectangle of one kingdom.
 
     Command: gaa
-    Payload: {"KID": kingdom_id, "AX1": x1, "AY1": y1, "AX2": x2, "AY2": y2}
+    Payload: {"KID": kingdom, "AX1": x1, "AY1": y1, "AX2": x2, "AY2": y2}
 
-    Returns information about all objects in the specified area.
+    The client asks for at most 100 tiles a side: it clamps ``AX2`` to
+    ``AX1 + 99`` once the span passes 100, and ``AY2`` the same way.
 
-    The server allows a maximum chunk size of ~90 tiles in each dimension.
-    Invalid coordinates (outside map bounds) return empty AI array.
-
-    Example:
-        request = GetMapAreaRequest(KID=0, AX1=622, AY1=235, AX2=712, AY2=325)
+    Client: ``C2SGetAreasVO`` (bundle line 65991), built by
+    ``CastleWorldmapData.updateAreaRange`` (bundle line 19006)
     """
 
     command = "gaa"
 
-    kingdom: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN)
-    x1: int = Field(alias="AX1")
-    y1: int = Field(alias="AY1")
-    x2: int = Field(alias="AX2")
-    y2: int = Field(alias="AY2")
+    kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom to read")
+    x1: int = Field(alias="AX1", description="First corner's map x")
+    y1: int = Field(alias="AY1", description="First corner's map y")
+    x2: int = Field(alias="AX2", description="Second corner's map x")
+    y2: int = Field(alias="AY2", description="Second corner's map y")
 
 
 # Indices into an owned-location raw entry, from the client's
@@ -225,9 +223,10 @@ class MapAreaItem(BasePayload):
         return self._dungeon_field(_DUNGEON_COOLDOWN_FIELD)
 
     @property
-    def camp_kingdom_id(self) -> int | None:
-        """The kingdom an NPC camp sits in, as the camp row reports it."""
-        return self._dungeon_field(_DUNGEON_KINGDOM_FIELD)
+    def camp_kingdom_id(self) -> Kingdom | None:
+        """The kingdom an NPC camp sits in, as the camp row reports it; None for a kingdom id Kingdom lacks."""
+        value = self._dungeon_field(_DUNGEON_KINGDOM_FIELD)
+        return None if value is None else enum_or_none(Kingdom, value)
 
     def _level_field(self, index: int, minimum: int = 0) -> int:
         """A structure level, 0 for a row that carries none."""
@@ -552,14 +551,11 @@ class GetMapAreaResponse(BaseResponse):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    kingdom: Kingdom | int = Field(
-        alias="KID",
-        default=Kingdom.GREEN,
-        union_mode="left_to_right",
-        description="A Kingdom member, or the plain id of a kingdom the enum lacks",
-    )
+    kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom the area lies in")
     items: list[MapAreaItem] = Field(alias="AI", default_factory=list, description="The area's map rows")
-    owners: list[MapObject] = Field(alias="OI", default_factory=list)
+    owners: list[MapObject] = Field(
+        alias="OI", default_factory=list, description="Owner records for the players owning the rows"
+    )
 
     @field_validator("items", mode="before")
     @classmethod

@@ -7,20 +7,19 @@ class Kingdom(IntEnum):
     """
     Kingdom identifiers used throughout the game.
 
-    Each kingdom has different terrain and unit types. Inputs take
-    ``Kingdom | int``: the server may use kingdom ids this list lacks.
+    Each kingdom has different terrain and unit types.
 
     Client: ``WorldClassic.KINGDOM_ID`` (dll line 19928), ``WorldDessert``
     (20019), ``WorldIce`` (20035), ``WorldVolcano`` (20067), ``WorldIsland``
     (20051), ``FactionConst.KINGDOM_ID`` (19333)
     """
 
-    GREEN = 0  # Green Kingdom - basic/starter kingdom
-    SANDS = 1  # Sand Kingdom - desert units
-    ICE = 2  # Ice Kingdom - ice/frost units
-    FIRE = 3  # Fire Kingdom - lava/fire units
-    STORM = 4  # Storm Kingdom - storm/lightning units
-    BERIMOND = 10  # Berimond event kingdom
+    GREEN = 0
+    SANDS = 1
+    ICE = 2
+    FIRE = 3
+    STORM = 4
+    BERIMOND = 10
 
 
 class MapItemType(IntEnum):

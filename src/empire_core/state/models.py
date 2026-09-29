@@ -9,6 +9,7 @@ from empire_core.protocol.models.castle import (
     SafeAmount,
     StorageCapacity,
 )
+from empire_core.utils.enums import Kingdom
 
 
 class Resources(BaseModel):
@@ -126,7 +127,7 @@ class Castle(BaseModel):
 
     id: int = Field(default=-1, alias="OID", description="Castle (area) id")
     name: str = Field(default="Unknown", alias="N", description="Castle name")
-    kingdom_id: int = Field(default=0, alias="KID", description="Kingdom id")
+    kingdom_id: Kingdom = Field(default=Kingdom.GREEN, alias="KID", description="The kingdom the castle is in")
     x: int = Field(default=0, alias="X", description="Map x")
     y: int = Field(default=0, alias="Y", description="Map y")
 

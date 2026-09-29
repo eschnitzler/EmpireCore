@@ -133,7 +133,7 @@ class CreateAttackRequest(BaseRequest):
     source_y: int = Field(alias="SY")
     target_x: int = Field(alias="TX")
     target_y: int = Field(alias="TY")
-    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN)
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
     commander_id: int = Field(
         alias="LID",
         description=(
@@ -313,7 +313,7 @@ class GetAttackInfoRequest(BaseRequest):
     target_y: int = Field(alias="TY", description="Target map y")
     source_x: int = Field(alias="SX", description="Attacking castle's map x")
     source_y: int = Field(alias="SY", description="Attacking castle's map y")
-    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
 
 
 class AttackTargetArea(BasePayload):
@@ -382,7 +382,7 @@ class AttackInfoResponse(BaseResponse):
     source_castle_id: int = Field(alias="SCID", default=0, description="Attacking castle's id")
     target_x: int = Field(alias="TX", default=0, description="Target map x")
     target_y: int = Field(alias="TY", default=0, description="Target map y")
-    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The attacking castle's kingdom")
     attacker_effects: CommanderEffects = Field(
         alias="AE",
         default_factory=list,
@@ -581,7 +581,7 @@ class GetDungeonAttackInfoRequest(BaseRequest):
     source_y: int = Field(alias="SY", description="Attacking castle's map y")
     target_x: int = Field(alias="TX", description="Target map x")
     target_y: int = Field(alias="TY", description="Target map y")
-    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
 
 
 class GetDungeonAttackInfoResponse(GetAttackInfoResponse):
@@ -609,7 +609,7 @@ class GetBossDungeonAttackInfoRequest(BaseRequest):
 
     command = "abi"
 
-    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
     source_x: int = Field(alias="SX", description="Attacking castle's map x")
     source_y: int = Field(alias="SY", description="Attacking castle's map y")
     target_x: int = Field(alias="TX", description="Target map x")
@@ -641,7 +641,7 @@ class GetLandmarkAttackInfoRequest(BaseRequest):
 
     command = "ali"
 
-    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
     target_x: int = Field(alias="TX", description="Target map x")
     target_y: int = Field(alias="TY", description="Target map y")
     source_x: int = Field(alias="SX", description="Attacking castle's map x")
@@ -675,7 +675,7 @@ class GetVillageAttackInfoRequest(BaseRequest):
 
     command = "avi"
 
-    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
     target_x: int = Field(alias="TX", description="Target map x")
     target_y: int = Field(alias="TY", description="Target map y")
 
@@ -707,7 +707,7 @@ class GetIslandAttackInfoRequest(BaseRequest):
 
     command = "aii"
 
-    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
     target_x: int = Field(alias="TX", description="Target map x")
     target_y: int = Field(alias="TY", description="Target map y")
 
@@ -742,7 +742,7 @@ class GetOutpostConquerInfoRequest(BaseRequest):
 
     command = "coi"
 
-    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
     target_x: int = Field(alias="TX", description="Target map x")
     target_y: int = Field(alias="TY", description="Target map y")
 
@@ -780,7 +780,7 @@ class GetCapitalConquerInfoRequest(BaseRequest):
 
     command = "cci"
 
-    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
     target_x: int = Field(alias="TX", description="Target map x")
     target_y: int = Field(alias="TY", description="Target map y")
 
@@ -812,7 +812,7 @@ class GetMetropolConquerInfoRequest(BaseRequest):
 
     command = "cti"
 
-    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
     target_x: int = Field(alias="TX", description="Target map x")
     target_y: int = Field(alias="TY", description="Target map y")
 
@@ -866,7 +866,7 @@ class SendSpyRequest(BaseRequest):
     )
     target_x: int = Field(alias="TX")
     target_y: int = Field(alias="TY")
-    target_kingdom: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN)
+    target_kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
     spy_count: int = Field(alias="SC", default=1)
     spy_type: SpyType = Field(alias="ST", default=SpyType.MILITARY)
     precision: int = Field(alias="SE", default=100)
@@ -909,7 +909,7 @@ class SpyScreenInfoRequest(BaseRequest):
 
     target_x: int = Field(alias="TX")
     target_y: int = Field(alias="TY")
-    target_kingdom: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN)
+    target_kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
 
 
 class SpyScreenInfoResponse(BaseResponse):
@@ -1157,10 +1157,10 @@ class MinuteSkipDungeonRequest(BaseRequest):
         alias="MST",
         description="JSON key of the minute-skip currency used, MS1 to MS7 in the item data (see SCEItem)",
     )
-    kingdom_id: Kingdom | int = Field(alias="KID", description="Kingdom id")
+    kingdom_id: Kingdom = Field(alias="KID", description="Kingdom id")
 
     @field_serializer("kingdom_id")
-    def _kingdom_id_as_string(self, value: int) -> str:
+    def _kingdom_id_as_string(self, value: Kingdom) -> str:
         # The client sends it through toString()
         return str(int(value))
 
@@ -1201,7 +1201,7 @@ class SkipDungeonCooldownRequest(BaseRequest):
 
     x: int = Field(alias="X", description="Dungeon map x")
     y: int = Field(alias="Y", description="Dungeon map y")
-    kingdom_id: Kingdom | int = Field(alias="KID", description="Kingdom id")
+    kingdom_id: Kingdom = Field(alias="KID", description="Kingdom id")
     map_id: int = Field(alias="MID", default=-1, description="Treasure-map id, -1 for an ordinary dungeon")
     node_id: int = Field(alias="NID", default=-1, description="Treasure-map node id, -1 for an ordinary dungeon")
 

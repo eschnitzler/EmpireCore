@@ -36,7 +36,7 @@ from empire_core.gamedata import GameData, UnitStats
 from empire_core.protocol.models import AttackWave, Commander, WaveFlank
 from empire_core.protocol.models.map import MapAreaItem
 from empire_core.services.spy_army import SpyArmy
-from empire_core.utils.enums import MapItemType
+from empire_core.utils.enums import Kingdom, MapItemType
 
 
 def placed(slots: list[list[int]]) -> list[list[int]]:
@@ -263,7 +263,7 @@ class TestEventCampDefence:
 
 class TestNpcCampDefence:
     def test_camp_defense_is_read_per_flank(self):
-        effects = npc_camp_defense(data(), victories=-6, kingdom_id=0)
+        effects = npc_camp_defense(data(), victories=-6, kingdom_id=Kingdom.GREEN)
 
         assert effects is not None
         middle = effects[Flank.MIDDLE]
@@ -275,7 +275,7 @@ class TestNpcCampDefence:
         assert effects[Flank.YARD].is_empty()
 
     def test_unknown_camp_returns_none(self):
-        assert npc_camp_defense(data(), victories=-6, kingdom_id=2) is None
+        assert npc_camp_defense(data(), victories=-6, kingdom_id=Kingdom.ICE) is None
         assert npc_camp_defense(data(), victories=99) is None
 
     def test_defending_tools_are_not_folded_in_yet(self):

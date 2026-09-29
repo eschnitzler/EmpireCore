@@ -989,17 +989,17 @@ class TestPositionalArrayParsers:
 
     @pytest.mark.parametrize("data", [[], [1], [1, 2], [1, 2, 3]])
     def test_player_castle_short_array_yields_defaults(self, data):
-        castle = PlayerCastle.from_list(data, kingdom=2)
+        castle = PlayerCastle.from_list(data, kingdom=Kingdom.ICE)
         assert castle.kingdom == 2
         assert (castle.x, castle.y, castle.location_id) == (0, 0, 0)
 
     def test_player_castle_keeps_the_passed_kingdom_when_the_row_is_short(self):
         row = [1, 640, 655, 12345, 4242]
-        assert PlayerCastle.from_list(row, kingdom=3).kingdom == 3
+        assert PlayerCastle.from_list(row, kingdom=Kingdom.FIRE).kingdom == 3
 
     def test_player_castle_row_kingdom_wins_when_present(self):
         row = gdi_location_row(1, 640, 655, 12345, 4242, "Main", 4)
-        assert PlayerCastle.from_list(row, kingdom=0).kingdom == 4
+        assert PlayerCastle.from_list(row, kingdom=Kingdom.GREEN).kingdom is Kingdom.STORM
 
     @pytest.mark.parametrize(
         ("area_type", "capturer"),
@@ -1199,7 +1199,7 @@ class TestDriftedPayloadsMustNotCrashAccessors:
 
 class TestRenameCastle:
     def test_a_rename_sends_p_1(self):
-        request = RenameCastleRequest(CID=1, N="Keep", AT=1, KID=2)
+        request = RenameCastleRequest(CID=1, N="Keep", AT=1, KID=Kingdom.ICE)
         assert request.to_payload() == {"CID": 1, "N": "Keep", "AT": 1, "KID": 2, "P": 1}
 
     def test_the_reply_reads_p(self):
@@ -1239,6 +1239,15 @@ class TestOwnerRecordLeniency:
         good = [1, 30, 40, 100, 5, 1, 1, 1, 1, 1, "Home", 0, 0, 0, 77, 0, 0]
         response = GetCastlesResponse.model_validate({"C": [{"KID": 0, "AI": [{"AI": bad}, {"AI": good}]}]})
         assert [castle.castle_id for castle in response.castles] == [100]
+
+    def test_a_gcl_row_in_a_kingdom_the_client_does_not_define_costs_only_itself(self):
+        from empire_core.protocol.models import GetCastlesResponse
+
+        row = [1, 30, 40, 100, 5, 1, 1, 1, 1, 1, "Home", 0, 0, 0, 77, 0, 0]
+        response = GetCastlesResponse.model_validate(
+            {"C": [{"KID": 11, "AI": [{"AI": [*row[:3], 99, *row[4:]]}]}, {"KID": 2, "AI": [{"AI": row}]}]}
+        )
+        assert [(castle.castle_id, castle.kingdom_id) for castle in response.castles] == [(100, Kingdom.ICE)]
 
 
 class TestLeaderboardLeniency:
@@ -1369,7 +1378,7 @@ def test_ain_parseint_fields_read_as_javascript_parseint():
 def test_rename_castle_sends_the_client_keys_and_encodes_the_name():
     from empire_core.protocol.models.castle import RenameCastleRequest
 
-    payload = RenameCastleRequest(CID=5, N="100% 'mine'\tnow", AT=1, KID=2, P=1).to_payload()
+    payload = RenameCastleRequest(CID=5, N="100% 'mine'\tnow", AT=1, KID=Kingdom.ICE, P=1).to_payload()
     # C2SRenameCastleVO: CID, P, KID and AT are initialised before N
     assert list(payload) == ["CID", "P", "KID", "AT", "N"]
     assert payload["N"] == "100&percnt; &145;mine&145; now"

@@ -35,6 +35,7 @@ from empire_core.protocol.models import (
     SlotType,
     WoundedUnits,
 )
+from empire_core.utils.enums import Kingdom
 
 
 def wire(request: Any) -> str:
@@ -51,16 +52,20 @@ class TestRequests:
         "request_,expected",
         [
             (
-                ProduceUnitsRequest(LID=ProductionListId.SOLDIERS, WID=620, AMT=150, SID=0, AID=12345),
+                ProduceUnitsRequest(LID=ProductionListId.SOLDIERS, WID=620, AMT=150, SID=Kingdom.GREEN, AID=12345),
                 {"LID": 0, "WID": 620, "AMT": 150, "PO": -1, "PWR": 0, "SK": 73, "SID": 0, "AID": 12345},
             ),
             (
-                ProduceUnitsRequest(LID=ProductionListId.TOOLS, WID=649, AMT=20, PO=88, PWR=1, SID=2, AID=12345),
+                ProduceUnitsRequest(
+                    LID=ProductionListId.TOOLS, WID=649, AMT=20, PO=88, PWR=1, SID=Kingdom.ICE, AID=12345
+                ),
                 {"LID": 1, "WID": 649, "AMT": 20, "PO": 88, "PWR": 1, "SK": 73, "SID": 2, "AID": 12345},
             ),
             (GetProductionListRequest(LID=ProductionListId.AUXILIARIES), {"LID": 3}),
             (
-                DoubleProductionSlotRequest(LID=ProductionListId.SOLDIERS, S=2, AID=12345, SID=0, ST=SlotType.QUEUE),
+                DoubleProductionSlotRequest(
+                    LID=ProductionListId.SOLDIERS, S=2, AID=12345, SID=Kingdom.GREEN, ST=SlotType.QUEUE
+                ),
                 {"LID": 0, "S": 2, "AID": 12345, "SID": 0, "ST": "queue"},
             ),
             (

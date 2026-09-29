@@ -1,5 +1,6 @@
 """Castle defense requests and replies, checked against the game client and a live dfc reply."""
 
+import json
 from typing import Any
 
 import pytest
@@ -18,6 +19,7 @@ from empire_core.protocol.models import (
     WallSectionSetup,
     parse_response,
 )
+from empire_core.utils.enums import Kingdom
 
 # Live capture, castle name scrubbed and PR/PM trimmed to three entries
 LIVE_DFC: dict[str, Any] = {
@@ -66,6 +68,19 @@ class TestDefenseRequests:
     def test_dfc_addresses_the_castle_by_position_and_area(self):
         request = GetDefenseRequest(CX=635, CY=242, AID=16655114)
         assert list(request.to_payload().items()) == [("CX", 635), ("CY", 242), ("AID", 16655114), ("KID", -1)]
+
+    def test_dfc_sends_a_given_kingdom_in_place_of_the_client_default(self):
+        # C2SDefenceCompleteVO defaults KID to -1; a kingdom takes the same place
+        request = GetDefenseRequest(CX=635, CY=242, AID=16655114, KID=Kingdom.ICE)
+        assert list(request.to_payload().items()) == [("CX", 635), ("CY", 242), ("AID", 16655114), ("KID", 2)]
+        assert json.loads(request.to_packet().split("%")[5])["KID"] == 2
+
+    def test_dfc_reads_the_client_default_as_no_kingdom(self):
+        request = GetDefenseRequest.model_validate({"CX": 1, "CY": 2, "AID": 3, "KID": -1})
+        assert request.kingdom_id is None
+        assert request.to_payload()["KID"] == -1
+        with pytest.raises(ValueError):
+            GetDefenseRequest.model_validate({"CX": 1, "CY": 2, "AID": 3, "KID": 11})
 
     def test_dfk_keys_and_defaults_follow_the_client(self):
         request = ChangeKeepDefenseRequest(CX=1, CY=2, AID=3, S=[[-1, 0]] * 3)

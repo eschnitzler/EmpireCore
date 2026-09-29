@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from empire_core.exceptions import AmbiguousLookupError, NetworkError
 from empire_core.gamedata import GameData, ToolStats, UnitStats, parse_ids, parse_stacks
+from empire_core.utils.enums import Kingdom
 
 
 def _recording_fetch(fetches: list[str]):
@@ -362,13 +363,13 @@ class TestCombatTables:
     def test_dungeon_defense_is_looked_up_by_victories(self):
         data = GameData.parse("783.01", FULL_PAYLOAD)
 
-        row = data.dungeon_defense(-6, kingdom_id=0)
+        row = data.dungeon_defense(-6, kingdom_id=Kingdom.GREEN)
 
         assert row is not None
         assert row.units_middle == [(604, 3), (606, 3), (652, 45)]
         assert row.units_left == []
         assert row.total_units() == 51
-        assert data.dungeon_defense(-6, kingdom_id=2) is None
+        assert data.dungeon_defense(-6, kingdom_id=Kingdom.ICE) is None
 
     def test_camp_tables_share_one_shape(self):
         data = GameData.parse("783.01", FULL_PAYLOAD)

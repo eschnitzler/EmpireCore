@@ -31,22 +31,22 @@ from empire_core.protocol.models import (
 
 class TestDungeonCooldownSkips:
     def test_minute_skip_sends_the_client_keys_with_kingdom_as_string(self):
-        request = MinuteSkipDungeonRequest(MST="MS2", KID=2, X=100, Y=200)
+        request = MinuteSkipDungeonRequest(MST="MS2", KID=Kingdom.ICE, X=100, Y=200)
         payload = request.to_payload()
         assert list(payload.items()) == [("X", 100), ("Y", 200), ("MID", -1), ("NID", -1), ("MST", "MS2"), ("KID", "2")]
 
     def test_minute_skip_on_a_treasure_map_node(self):
-        request = MinuteSkipDungeonRequest(MST="MS1", KID=0, X=5, Y=6, MID=3, NID=12)
+        request = MinuteSkipDungeonRequest(MST="MS1", KID=Kingdom.GREEN, X=5, Y=6, MID=3, NID=12)
         assert request.to_payload()["MID"] == 3
         assert request.to_payload()["NID"] == 12
         assert json.loads(request.to_packet().split("%")[5])["KID"] == "0"
 
     def test_full_skip_sends_the_client_keys_with_kingdom_as_number(self):
-        request = SkipDungeonCooldownRequest(X=100, Y=200, KID=2)
+        request = SkipDungeonCooldownRequest(X=100, Y=200, KID=Kingdom.ICE)
         assert list(request.to_payload().items()) == [("X", 100), ("Y", 200), ("KID", 2), ("MID", -1), ("NID", -1)]
 
     def test_full_skip_on_a_treasure_map_node(self):
-        payload = SkipDungeonCooldownRequest(X=1, Y=2, KID=0, MID=7, NID=4).to_payload()
+        payload = SkipDungeonCooldownRequest(X=1, Y=2, KID=Kingdom.GREEN, MID=7, NID=4).to_payload()
         assert (payload["MID"], payload["NID"]) == (7, 4)
 
     def test_replies_carry_the_dungeon_row(self):
@@ -298,9 +298,15 @@ class TestInputEnums:
                 CreateAttackRequest.model_validate({**base, field: value})
         assert CreateAttackRequest.model_validate({**base, "LP": 5, "ATT": 3, "ASCT": 2}).to_payload()["LP"] == 5
 
-    def test_a_kingdom_the_enum_lacks_is_still_sent(self):
-        assert CreateAttackRequest(LID=0, SX=1, SY=2, TX=3, TY=4, KID=11).to_payload()["KID"] == 11
-        assert GetDungeonAttackInfoRequest(SX=1, SY=2, TX=3, TY=4, KID=11).to_payload()["KID"] == 11
+    def test_a_kingdom_the_client_does_not_define_is_refused(self):
+        base = {"LID": 0, "SX": 1, "SY": 2, "TX": 3, "TY": 4}
+        with pytest.raises(ValidationError):
+            CreateAttackRequest.model_validate({**base, "KID": 11})
+        with pytest.raises(ValidationError):
+            GetDungeonAttackInfoRequest.model_validate({"SX": 1, "SY": 2, "TX": 3, "TY": 4, "KID": 11})
+        request = CreateAttackRequest.model_validate({**base, "KID": 10})
+        assert request.kingdom_id is Kingdom.BERIMOND
+        assert json.loads(request.to_packet().split("%")[5])["KID"] == 10
 
     def test_csm_takes_a_spy_type(self):
         request = SendSpyRequest(SID=5, TX=3, TY=4, KID=Kingdom.FIRE, ST=SpyType.SABOTAGE)

@@ -416,11 +416,11 @@ class ProduceUnitsRequest(BaseRequest):
 
     list_id: ProductionListId = Field(alias="LID", description="The list to produce into")
     wod_id: int = Field(alias="WID", description="Unit or tool wod id")
-    amount: int = Field(alias="AMT")
+    amount: int = Field(alias="AMT", description="How many to produce")
     private_offer_id: int = Field(alias="PO", default=-1, description="Resource merchant offer id, -1 for none")
     pay_with_rubies: int = Field(alias="PWR", default=0, description="1 to pay rubies for missing resources")
     sk: int = Field(alias="SK", default=BUY_UNIT_PACKAGE_SK, description="Always 73")
-    kingdom_id: Kingdom | int = Field(alias="SID", description="The joined castle's kingdom")
+    kingdom_id: Kingdom = Field(alias="SID", description="The joined castle's kingdom")
     castle_id: int = Field(
         alias="AID",
         description=(
@@ -524,16 +524,16 @@ class DoubleProductionSlotRequest(BaseRequest):
 
     command = "bou"
 
-    list_id: ProductionListId = Field(alias="LID")
-    position: int = Field(alias="S")
+    list_id: ProductionListId = Field(alias="LID", description="The list the slot belongs to")
+    position: int = Field(alias="S", description="0 for the slot producing now, its index in QS for a queued one")
     castle_id: int = Field(
         alias="AID",
         description=(
             "The castle the session is in, a Castle.id from client.state.get_castles(); ArmyService joins it first"
         ),
     )
-    kingdom_id: Kingdom | int = Field(alias="SID", description="The joined castle's kingdom")
-    slot_type: SlotType = Field(alias="ST")
+    kingdom_id: Kingdom = Field(alias="SID", description="The joined castle's kingdom")
+    slot_type: SlotType = Field(alias="ST", description="Whether the slot is producing now or queued")
 
 
 class DoubleProductionSlotResponse(BaseResponse):

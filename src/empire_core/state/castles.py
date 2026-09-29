@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from empire_core.protocol.models.base import enum_or_none
 from empire_core.protocol.models.castle import (
     DetailedCastleInfo,
     ResourceProduction,
@@ -14,6 +15,7 @@ from empire_core.protocol.models.castle import (
 )
 from empire_core.state.base import StateBase
 from empire_core.state.models import Castle, Resources
+from empire_core.utils.enums import Kingdom
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +48,13 @@ class CastleState(StateBase):
                 skipped += 1
                 logger.debug(f"Skipping malformed gcl kingdom entry: {k_data!r}")
                 continue
-            kid = k_data.get("KID", 0)
+            kid = enum_or_none(Kingdom, k_data.get("KID", 0))
             for area_entry in k_data.get("AI", []):
                 entries += 1
+                if kid is None:
+                    skipped += 1
+                    logger.debug(f"Skipping gcl entry in a kingdom Kingdom lacks: {k_data.get('KID')!r}")
+                    continue
                 if not isinstance(area_entry, dict):
                     skipped += 1
                     logger.debug(f"Skipping malformed gcl area entry: {area_entry!r}")

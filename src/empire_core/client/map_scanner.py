@@ -83,7 +83,7 @@ class MapScanner:
         self,
         cx: int,
         cy: int,
-        kingdom: Kingdom | int,
+        kingdom: Kingdom,
         filter_types: set[MapItemType] | None,
         collected_items: list[MapAreaItem],
         collected_objects: dict[int, MapObject],
@@ -213,7 +213,7 @@ class MapScanner:
 
     def scan_kingdom(
         self,
-        kingdom: Kingdom | int = Kingdom.GREEN,
+        kingdom: Kingdom = Kingdom.GREEN,
         item_types: list[MapItemType] | None = None,
         timeout: float = 300.0,
         request_timeout: float = 5.0,
@@ -373,7 +373,7 @@ class MapScanner:
 
     def scan_chunks(
         self,
-        kingdom: Kingdom | int,
+        kingdom: Kingdom,
         chunks: list[tuple[int, int]],
         item_types: list[MapItemType] | None = None,
         timeout: float = 300.0,

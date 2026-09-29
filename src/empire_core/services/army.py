@@ -41,7 +41,7 @@ from empire_core.protocol.models import (
     UnitCount,
     WoundedUnits,
 )
-from empire_core.utils.enums import ProductionListId, SlotType
+from empire_core.utils.enums import Kingdom, ProductionListId, SlotType
 
 from .base import BaseService, register_service
 
@@ -55,7 +55,7 @@ class ArmyService(BaseService):
 
     Each method joins the castle it is given first (``jca``), as the client acts
     on the castle it is in. It joins in that castle's ``Castle.kingdom_id`` from
-    ``client.state.get_castles()``, or in kingdom 0 when the castle is not listed there.
+    ``client.state.get_castles()``, or in ``Kingdom.GREEN`` when the castle is not listed there.
 
     Usage:
         client = EmpireClient(...)
@@ -67,7 +67,7 @@ class ArmyService(BaseService):
         client.army.produce_units(123, ProductionListId.SOLDIERS, wod_id=620, amount=50)
     """
 
-    def _join_castle(self, castle_id: int, timeout: float) -> int:
+    def _join_castle(self, castle_id: int, timeout: float) -> Kingdom:
         """
         Join the castle and return its kingdom id.
 
@@ -75,7 +75,7 @@ class ArmyService(BaseService):
             CommandError: The server refused to join the castle
         """
         castle = self._own_castle(castle_id)
-        kingdom_id = castle.kingdom_id if castle is not None else 0
+        kingdom_id = castle.kingdom_id if castle is not None else Kingdom.GREEN
         self.request(SelectCastleRequest(CID=castle_id, KID=kingdom_id), SelectCastleResponse, timeout=timeout)
         return kingdom_id
 

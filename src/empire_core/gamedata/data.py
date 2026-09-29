@@ -21,6 +21,7 @@ from typing import TypeVar
 from pydantic import BaseModel, ConfigDict, Field
 
 from empire_core.exceptions import AmbiguousLookupError, NetworkError
+from empire_core.utils.enums import Kingdom
 from empire_core.utils.troops import fetch_items_data, get_items_version
 
 from .models import (
@@ -337,7 +338,7 @@ class GameData(BaseModel):
         effect_type = self.effect_types.get(effect.effect_type_id)
         return effect_type.name if effect_type else ""
 
-    def dungeon_defense(self, victories: int, kingdom_id: int = 0) -> DungeonDefence | None:
+    def dungeon_defense(self, victories: int, kingdom_id: Kingdom = Kingdom.GREEN) -> DungeonDefence | None:
         """The camp defense for a victory count in a kingdom."""
         for row in self.dungeons:
             if row.count_victories == victories and row.kingdom_id == kingdom_id:

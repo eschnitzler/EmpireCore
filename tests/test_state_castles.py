@@ -7,6 +7,7 @@ import pytest
 
 from empire_core.state.manager import GameState
 from empire_core.state.models import Castle
+from empire_core.utils.enums import Kingdom
 from tests.state_helpers import gcl_payload
 
 
@@ -40,6 +41,14 @@ class TestCastleUpdatesAreAtomic:
 
         assert sorted(reader_view) == [1, 2], "receive thread mutated a dict a reader already holds"
         assert sorted(state.castles) == [1]
+
+    def test_gcl_castles_in_a_kingdom_the_client_does_not_define_are_skipped(self, state):
+        # CastleListVO.parseCastleList keys castles by KID; Kingdom holds every id the client defines
+        section = {"C": [*gcl_payload([(1, "Main")])["C"], *gcl_payload([(2, "Odd")], kingdom=11)["C"]]}
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": section})
+
+        assert sorted(state.castles) == [1]
+        assert state.castles[1].kingdom_id is Kingdom.GREEN
 
     def test_gcl_preserves_identity_of_surviving_castles(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})

@@ -41,6 +41,11 @@ class GetDefenseRequest(BaseRequest):
     Read the defense setup of one of your castles.
 
     Command: dfc
+    Payload: {"CX": castle_x, "CY": castle_y, "AID": area_id, "KID": kingdom}
+
+    ``KID`` is -1 unless a kingdom is given: the VO defaults it to -1, and
+    every call site passes -1 or leaves it out.
+
     Client: ``C2SDefenceCompleteVO`` (bundle line 32769); every call site
     passes the castle's ``absAreaPos`` and ``objectId``, with ``KID`` -1 or
     omitted (``CastleDefenceDialog.updateDefenceData``, bundle line 15978)
@@ -54,7 +59,20 @@ class GetDefenseRequest(BaseRequest):
         alias="AID",
         description="The castle's id: CastleInfo.castle_id from client.castle.get_all() or Castle.id",
     )
-    kingdom_id: Kingdom | int = Field(alias="KID", default=-1, description="Kingdom id")
+    kingdom_id: Kingdom | None = Field(
+        alias="KID", default=None, description="The castle's kingdom; None sends -1, as the client does"
+    )
+
+    @field_validator("kingdom_id", mode="before")
+    @classmethod
+    def _no_kingdom(cls, value: Any) -> Any:
+        return None if value == -1 else value
+
+    def to_payload(self) -> dict[str, Any]:
+        payload = super().to_payload()
+        if self.kingdom_id is None:
+            payload["KID"] = -1
+        return payload
 
 
 class WallSection(BasePayload):
