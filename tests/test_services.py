@@ -1175,7 +1175,7 @@ class TestCreateAttackReply:
         from empire_core.protocol.models import CreateAttackRequest
 
         client = make_client({"cra": xt_packet("cra", {"TS": 95, "AS": 40}, error_code=234)})
-        request = CreateAttackRequest(SX=1, SY=2, TX=3, TY=4, A=[wave(units=[[487, 1]])])
+        request = CreateAttackRequest(LID=0, SX=1, SY=2, TX=3, TY=4, A=[wave(units=[[487, 1]])])
 
         with pytest.raises(CommandError) as raised:
             client.send(request, wait=True)
@@ -1335,7 +1335,7 @@ class TestAttackService:
     def test_response_without_a_movement_has_no_id(self):
         client = make_client({"cra": xt_packet("cra", {})})
         response = client.request(
-            CreateAttackRequest(SX=1, SY=1, TX=2, TY=2, A=[wave(units=[[211, 1]])]),
+            CreateAttackRequest(LID=0, SX=1, SY=1, TX=2, TY=2, A=[wave(units=[[211, 1]])]),
             CreateAttackResponse,
         )
         assert response.movement_id is None

@@ -164,7 +164,7 @@ class CreateAttackRequest(BaseRequest):
         "SX": source_x, "SY": source_y,      # absolute map coordinates
         "TX": target_x, "TY": target_y,
         "KID": kingdom_id,
-        "LID": commander_id (0 = none),
+        "LID": commander_id (0 is a commander too, -14 the premium one),
         "WT": wait_time,
         "HBW": horses_type (-1 when PTT is set),
         "BPC": use_premium_commander,
@@ -202,7 +202,6 @@ class CreateAttackRequest(BaseRequest):
     kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN)
     commander_id: int = Field(
         alias="LID",
-        default=0,
         description=(
             "A Commander.commander_id from client.commanders.get_commanders(); "
             "0 is the free starting commander, -14 the premium one"
