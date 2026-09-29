@@ -131,6 +131,9 @@ class ToolStats(_Row):
     wod_id: int = Field(alias="wodID")
     source: str = Field(alias="name", default="")
     tool_type: str = Field(alias="type", default="")
+    level: int = Field(
+        default=-1, description="BasicUnitVO.parseXmlNode (bundle line 19211) reads it with a default of -1"
+    )
     category: str = Field(alias="typ", default="")
     raw_slot_types: str = Field(alias="slotTypes", default="")
     raw_allowed_to_attack: str = Field(alias="allowedToAttack", default="")
@@ -573,7 +576,12 @@ class ToolCategoryDef(_Row):
 
 
 class HorseStats(_Row):
-    """A travel booster - the value behind the ``HBW`` field on movements."""
+    """
+    A travel booster - the value behind the ``HBW`` field on movements.
+
+    There is no lookup by name: what tells the horse variants apart is not
+    traced yet, so look one up by id with ``GameData.get_horse``.
+    """
 
     wod_id: int = Field(alias="wodID")
     source: str = Field(alias="name", default="")
@@ -597,11 +605,63 @@ class DefaultLordDef(_Row):
     wearer_id: int = Field(alias="wearerID", default=0)
 
 
+class GeneralAbilityDef(_Row):
+    """
+    One level of a general's ability, the value ``set_abilities`` sends per slot.
+
+    Client: ``GeneralAbilityXmlVO.fillFromParamXml`` (bundle line 113203), keyed by
+    ``abilityID`` in ``GeneralsData`` (bundle line 113021)
+    """
+
+    ability_id: int = Field(alias="abilityID")
+    name: str = ""
+    ability_group_id: int = Field(alias="abilityGroupID", default=0)
+    level: int = 0
+    ability_trigger_id: int = Field(alias="abilityTriggerID", default=0)
+    trigger_per_wave: int = Field(alias="triggerPerWave", default=0)
+    ability_attack_effect_id: int = Field(alias="abilityAttackEffectID", default=0)
+    ability_defense_effect_id: int = Field(alias="abilityDefenseEffectID", default=0)
+
+
+class CurrencyDef(_Row):
+    """
+    A currency; ``json_key`` is the key the server uses for it in currency lists.
+
+    The caps, rareness and hidden flags the client reads from other tables are
+    not parsed.
+
+    Client: ``XmlCurrencyVO.parseXml`` (bundle line 141282), read from the
+    ``currencies`` table by ``CurrencyData.parseXml`` (bundle line 141151)
+    """
+
+    currency_id: int = Field(alias="currencyID", default=-1)
+    name: str = Field(alias="Name", default="")
+    json_key: str = Field(alias="JSONKey", default="")
+    asset_name: str = Field(alias="assetName", default="")
+
+
+class RaidBossDef(_Row):
+    """
+    An alliance raid boss.
+
+    Client: ``AllianceRaidbossVO.parseXML`` (bundle line 113835), read from the
+    ``raidBosses`` table by ``RaidBossData`` (bundle line 113671)
+    """
+
+    raid_boss_id: int = Field(alias="raidBossID", default=0)
+    name: str = ""
+    rarity: int = 0
+
+
 class GeneralDef(_Row):
     """A general, the hero assigned to a commander."""
 
     general_id: int = Field(alias="generalID")
-    name: str = Field(alias="generalName", default="")
+    name: str = Field(
+        alias="generalName",
+        default="",
+        description="Unique per general; GeneralXmlVO.fillFromParamXml (bundle line 33102) does not read it",
+    )
     raw_attack_slots: str = Field(alias="attackSlots", default="")
     raw_defense_slots: str = Field(alias="defenseSlots", default="")
     rarity_id: int = Field(alias="generalRarityID", default=0)
@@ -760,7 +820,10 @@ __all__ = [
     "LegendSkillDef",
     "AllianceBuffDef",
     "ConstructionItemDef",
+    "CurrencyDef",
     "EffectSpecRow",
+    "GeneralAbilityDef",
+    "RaidBossDef",
     "FortificationDef",
     "GemDef",
     "GeneralSkillDef",

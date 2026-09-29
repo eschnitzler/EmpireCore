@@ -68,6 +68,13 @@ class SkillsService(BaseService):
         """
         Assign a general to a commander; ``general_id=-1`` takes its general away.
 
+        Args:
+            commander_id: The commander
+            general_id: The general's ``generalID``; find one by name with
+                ``client.game_data.general(name)``, or read the owned ones with
+                :meth:`get_generals`
+            timeout: Timeout in seconds
+
         Returns:
             The ``gla`` response, with the commander list after the change
 
@@ -85,9 +92,10 @@ class SkillsService(BaseService):
         Choose a general's abilities.
 
         Args:
-            general_id: The general
+            general_id: The general's ``generalID``, see ``client.game_data.general(name)``
             abilities: ``(slot_id, ability_id)`` pairs, ``-1`` to clear a slot.
-                The client sends every slot it shows.
+                The client sends every slot it shows. An ability id comes from
+                ``client.game_data.general_ability(name, level)``
             timeout: Timeout in seconds
 
         Returns:
@@ -102,6 +110,12 @@ class SkillsService(BaseService):
 
         The general's new skills arrive with the next ``gie``.
 
+        Args:
+            skill_id: The skill level's ``skillID``, from
+                ``client.game_data.general_skill(general_id, name, level)``
+                (``GeneralVO.unlockSkill``, bundle line 26773)
+            timeout: Timeout in seconds
+
         Returns:
             True if the server accepted the unlock
         """
@@ -110,6 +124,10 @@ class SkillsService(BaseService):
     def reset_skills(self, general_id: int, timeout: float = 5.0) -> bool:
         """
         Reset a general's skill tree.
+
+        Args:
+            general_id: The general's ``generalID``, see ``client.game_data.general(name)``
+            timeout: Timeout in seconds
 
         Returns:
             True if the server accepted the reset
@@ -121,8 +139,10 @@ class SkillsService(BaseService):
         Feed a general xp items.
 
         Args:
-            general_id: The general
-            currency_id: The xp item, a currency
+            general_id: The general's ``generalID``, see ``client.game_data.general(name)``
+            currency_id: The xp item's ``currencyID``, e.g.
+                ``client.game_data.currency("GXP1").currency_id``
+                (``GeneralsLevelUpDialogListItem.sendXPSelected``, bundle line 74485)
             amount: How many of the item to use
             timeout: Timeout in seconds
 

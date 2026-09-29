@@ -1,10 +1,12 @@
 """Game data loading: classification, coercion, caching."""
 
 import json
+from typing import get_args
 
 import pytest
+from pydantic import BaseModel
 
-from empire_core.exceptions import NetworkError
+from empire_core.exceptions import AmbiguousLookupError, NetworkError
 from empire_core.gamedata import GameData, ToolStats, UnitStats, parse_ids, parse_stacks
 
 
@@ -428,3 +430,145 @@ class TestCacheSchemaFingerprint:
         assert "can_attack_npc" in ToolStats.model_fields
         before = _schema_fingerprint()
         assert len(before) == 12
+
+
+# Rows as the items payload has them, from v786.03.
+LOOKUP_PAYLOAD = {
+    "units": [
+        MEAD_RANGER,
+        {**MEAD_RANGER, "wodID": 212, "level": "7"},
+        {"wodID": 68, "name": "Eventunit", "type": "Ogermace", "role": "melee", "eventIDs": "64"},
+        {"wodID": 7, "name": "Eventunit", "type": "Ogermace", "role": "melee"},
+        {"wodID": 113, "name": "Elitetool", "type": "EliteComboRam", "typ": "Attack", "slotTypes": "1"},
+        {"wodID": 564, "name": "Eventtool", "type": "EliteComboRam", "typ": "Attack", "slotTypes": "1"},
+        {**PREMIUM_STAKES, "level": "2"},
+    ],
+    "generals": [{"generalID": "101", "generalName": "Toril", "attackSlots": "101011", "maxLevel": "100"}],
+    "generalAbilities": [
+        {
+            "abilityID": "10011",
+            "name": "PowerSurge",
+            "abilityGroupID": "1001",
+            "level": "1",
+            "abilityTriggerID": "2",
+            "triggerPerWave": "2",
+            "abilityAttackEffectID": "100110",
+            "abilityDefenseEffectID": "100115",
+            "affectsEnemyArmy": "0",
+        },
+        {"abilityID": "10012", "name": "PowerSurge", "abilityGroupID": "1001", "level": "2"},
+    ],
+    "generalSkills": [
+        {"skillID": "10110201", "name": "AspectoftheDragon", "generalID": "101", "level": "1", "effects": "400&10201"},
+        {"skillID": "10110202", "name": "AspectoftheDragon", "generalID": "101", "level": "2"},
+        {"skillID": "10210201", "name": "AspectoftheDragon", "generalID": "102", "level": "1"},
+    ],
+    "legendskills": [
+        {"skillID": "1", "level": "1", "skillTreeID": "0", "skillGroupID": "1", "effectType": "gateReduction"},
+        {"skillID": "2", "level": "2", "skillTreeID": "0", "skillGroupID": "1", "effectType": "gateReduction"},
+    ],
+    "currencies": [
+        {"currencyID": "1", "Name": "KhanTablet", "JSONKey": "KT", "assetName": "KhanTablet"},
+        {"currencyID": "100000", "Name": "DecoDust", "JSONKey": "DD", "assetName": "DecoDust"},
+    ],
+    "effecttypes": [{"effectTypeID": "0", "sortCategory": "6", "sortGroup": "9", "name": "fameDefenseBonus"}],
+    "raidBosses": [{"raidBossID": "1", "rarity": "2", "name": "Necromancer", "leaguetypeID": "1"}],
+    "globalEffects": [
+        {"globalEffectID": "1", "name": "CooldownReductionRBC", "effects": "425&50", "boostValue": "50"},
+        {"globalEffectID": "2", "name": "SpeedBoost", "effects": "426&60", "boostValue": "60"},
+        {"globalEffectID": "11", "name": "SpeedBoost", "effects": "426&1000", "boostValue": "1000"},
+    ],
+}
+
+
+class TestNamedLookups:
+    @pytest.fixture
+    def data(self) -> GameData:
+        return GameData.parse("786.03", LOOKUP_PAYLOAD)
+
+    def test_new_tables_are_parsed(self, data):
+        assert data.currencies[1].json_key == "KT"
+        assert data.currencies[100000].name == "DecoDust"
+        ability = data.general_abilities[10011]
+        assert (ability.ability_group_id, ability.ability_trigger_id, ability.trigger_per_wave) == (1001, 2, 2)
+        assert (ability.ability_attack_effect_id, ability.ability_defense_effect_id) == (100110, 100115)
+        assert data.general_abilities[10012].ability_trigger_id == 0
+        assert (data.raid_bosses[1].name, data.raid_bosses[1].rarity) == ("Necromancer", 2)
+
+    def test_hits(self, data):
+        assert data.general("Toril").general_id == 101
+        assert data.general_ability("PowerSurge", 2).ability_id == 10012
+        assert data.general_skill(101, "AspectoftheDragon", 2).skill_id == 10110202
+        assert data.general_skill(102, "AspectoftheDragon", 1).skill_id == 10210201
+        assert data.legend_skill(0, 1, 2).skill_id == 2
+        assert data.currency("KT").currency_id == 1
+        assert data.effect_type("fameDefenseBonus").effect_type_id == 0
+        assert data.raid_boss("Necromancer").raid_boss_id == 1
+        assert data.global_effect("CooldownReductionRBC").global_effect_id == 1
+        assert data.unit("MeadRanger", 7).wod_id == 212
+        assert data.tool("Premiumstakes").wod_id == 646
+        assert data.tool("Premiumstakes", 2).level == 2
+
+    def test_misses_return_none(self, data):
+        assert data.general("toril") is None
+        assert data.general_ability("PowerSurge", 3) is None
+        assert data.general_skill(103, "AspectoftheDragon", 1) is None
+        assert data.legend_skill(1, 1, 1) is None
+        assert data.currency("C1") is None
+        assert data.effect_type("nope") is None
+        assert data.raid_boss("nope") is None
+        assert data.global_effect("nope") is None
+        assert data.unit("MeadRanger", 9) is None
+        assert data.tool("Premiumstakes", 3) is None
+
+    def test_speed_boost_is_ambiguous(self, data):
+        with pytest.raises(AmbiguousLookupError) as caught:
+            data.global_effect("SpeedBoost")
+
+        assert caught.value.ids == [2, 11]
+        assert isinstance(caught.value, LookupError)
+
+    def test_a_unit_type_across_levels_needs_a_level(self, data):
+        with pytest.raises(AmbiguousLookupError) as caught:
+            data.unit("MeadRanger")
+
+        assert caught.value.ids == [211, 212]
+
+    def test_event_variants_without_a_level_are_ambiguous(self, data):
+        with pytest.raises(AmbiguousLookupError) as caught:
+            data.unit("Ogermace")
+        assert caught.value.ids == [7, 68]
+
+        with pytest.raises(AmbiguousLookupError) as caught:
+            data.tool("EliteComboRam")
+        assert caught.value.ids == [113, 564]
+
+    def test_a_tool_without_a_level_reads_minus_one(self, data):
+        # BasicUnitVO.parseXmlNode: getValueOrDefault("level", t, "-1")
+        assert data.get_tool(113).level == -1
+
+    def test_the_new_tables_survive_the_cache(self, data, tmp_path):
+        cache = tmp_path / "items_v786.03.trimmed.json"
+        data._write_cache(cache)
+
+        cached = GameData._read_cache(cache, "786.03")
+
+        assert cached is not None
+        currency = cached.currency("DD")
+        ability = cached.general_ability("PowerSurge", 1)
+        boss = cached.raid_boss("Necromancer")
+        assert currency is not None and currency.currency_id == 100000
+        assert ability is not None and ability.ability_id == 10011
+        assert boss is not None and boss.raid_boss_id == 1
+
+    def test_the_fingerprint_covers_every_cached_table(self):
+        from empire_core.gamedata.data import _CACHED_MODELS
+
+        def row_models(annotation) -> set[type]:
+            if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+                return {annotation}
+            return {model for arg in get_args(annotation) for model in row_models(arg)}
+
+        cached = {model for field in GameData.model_fields.values() for model in row_models(field.annotation)}
+
+        assert cached == set(_CACHED_MODELS)

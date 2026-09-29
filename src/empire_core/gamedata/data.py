@@ -14,18 +14,20 @@ import hashlib
 import json
 import logging
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from empire_core.exceptions import NetworkError
+from empire_core.exceptions import AmbiguousLookupError, NetworkError
 from empire_core.utils.troops import fetch_items_data, get_items_version
 
 from .models import (
     AllianceBuffDef,
     AttackSlotDef,
     ConstructionItemDef,
+    CurrencyDef,
     DefaultLordDef,
     DungeonDefence,
     EffectCapDef,
@@ -35,6 +37,7 @@ from .models import (
     EventCampDef,
     FortificationDef,
     GemDef,
+    GeneralAbilityDef,
     GeneralDef,
     GeneralSkillDef,
     GlobalEffectDef,
@@ -42,6 +45,7 @@ from .models import (
     LeagueBracketDef,
     LegendSkillDef,
     NpcCampDefence,
+    RaidBossDef,
     RelicEffectDef,
     SceatSkillDef,
     ToolCategoryDef,
@@ -54,6 +58,38 @@ logger = logging.getLogger(__name__)
 CACHE_FILENAME_TEMPLATE = "items_v{version}.trimmed.json"
 
 
+_CACHED_MODELS = (
+    UnitStats,
+    ToolStats,
+    EffectDef,
+    EffectTypeDef,
+    EffectCapDef,
+    EquipmentEffectDef,
+    GemDef,
+    RelicEffectDef,
+    FortificationDef,
+    ConstructionItemDef,
+    AllianceBuffDef,
+    GlobalEffectDef,
+    SceatSkillDef,
+    GeneralSkillDef,
+    NpcCampDefence,
+    DungeonDefence,
+    ToolCategoryDef,
+    EventCampDef,
+    LeagueBracketDef,
+    LegendSkillDef,
+    AttackSlotDef,
+    HorseStats,
+    DefaultLordDef,
+    GeneralDef,
+    GeneralAbilityDef,
+    CurrencyDef,
+    RaidBossDef,
+)
+"""Every row model the cache stores; the fingerprint covers each one's fields."""
+
+
 def _schema_fingerprint() -> str:
     """
     A short hash of every field the cache stores.
@@ -63,28 +99,7 @@ def _schema_fingerprint() -> str:
     and wrongly. Fingerprinting the field names means any such change
     invalidates the cache instead.
     """
-    models = (
-        UnitStats,
-        ToolStats,
-        EffectDef,
-        EffectTypeDef,
-        EffectCapDef,
-        EquipmentEffectDef,
-        GemDef,
-        RelicEffectDef,
-        FortificationDef,
-        ConstructionItemDef,
-        AllianceBuffDef,
-        GlobalEffectDef,
-        SceatSkillDef,
-        GeneralSkillDef,
-        NpcCampDefence,
-        DungeonDefence,
-        ToolCategoryDef,
-        EventCampDef,
-        LeagueBracketDef,
-    )
-    names = ";".join(f"{model.__name__}:{','.join(sorted(model.model_fields))}" for model in models)
+    names = ";".join(f"{model.__name__}:{','.join(sorted(model.model_fields))}" for model in _CACHED_MODELS)
     return hashlib.sha256(names.encode()).hexdigest()[:12]
 
 
@@ -140,6 +155,13 @@ def _rows(entries: object, model: type[R]) -> list[R]:
     return parsed
 
 
+def _single(what: str, matches: list[R], id_of: Callable[[R], int]) -> R | None:
+    """The one match, None for none, and an error naming every id for several."""
+    if len(matches) > 1:
+        raise AmbiguousLookupError(what, sorted(id_of(r) for r in matches))
+    return matches[0] if matches else None
+
+
 class GameData(BaseModel):
     """
     The combat-relevant tables for one items version.
@@ -148,6 +170,7 @@ class GameData(BaseModel):
 
         data = GameData.load()
         data.get_unit(211).range_attack
+        data.general("Toril").general_id
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -176,6 +199,9 @@ class GameData(BaseModel):
     horses: dict[int, HorseStats] = Field(default_factory=dict)
     default_lords: dict[int, DefaultLordDef] = Field(default_factory=dict)
     generals: dict[int, GeneralDef] = Field(default_factory=dict)
+    general_abilities: dict[int, GeneralAbilityDef] = Field(default_factory=dict)
+    currencies: dict[int, CurrencyDef] = Field(default_factory=dict)
+    raid_bosses: dict[int, RaidBossDef] = Field(default_factory=dict)
     dungeons: list[DungeonDefence] = Field(default_factory=list)
     camps: dict[str, list[NpcCampDefence]] = Field(default_factory=dict)
     event_camps: dict[str, dict[int, EventCampDef]] = Field(default_factory=dict)
@@ -282,6 +308,129 @@ class GameData(BaseModel):
         return self.raw_tables.get(table, [])
 
     # ------------------------------------------------------------------
+    # Named lookups
+    # ------------------------------------------------------------------
+    # Game-data ids change between client releases, so these find a row by
+    # the key that identifies it instead. Names match exactly. A miss returns
+    # None; a key that matches more than one row raises AmbiguousLookupError
+    # with every matching id. Horses have none yet: what separates their
+    # variants is not traced, so use get_horse by id.
+
+    def general(self, name: str) -> GeneralDef | None:
+        """A general by its ``generalName``, e.g. ``"Toril"``."""
+        return _single(
+            f"general {name!r}", [r for r in self.generals.values() if r.name == name], lambda r: r.general_id
+        )
+
+    def general_ability(self, name: str, level: int) -> GeneralAbilityDef | None:
+        """A general's ability at one level, e.g. ``("PowerSurge", 1)``."""
+        return _single(
+            f"general ability {name!r} level {level}",
+            [r for r in self.general_abilities.values() if r.name == name and r.level == level],
+            lambda r: r.ability_id,
+        )
+
+    def general_skill(self, general_id: int, name: str, level: int) -> GeneralSkillDef | None:
+        """
+        One level of a general's skill; the general's id comes from :meth:`general`.
+
+        Skill names repeat across generals, so the general is part of the key.
+        """
+        return _single(
+            f"general {general_id} skill {name!r} level {level}",
+            [
+                r
+                for r in self.general_skills.values()
+                if r.general_id == general_id and r.name == name and r.level == level
+            ],
+            lambda r: r.skill_id,
+        )
+
+    def legend_skill(self, tree_id: int, group_id: int, level: int) -> LegendSkillDef | None:
+        """
+        A legend skill by its tree, group and level.
+
+        Its ``effectType`` is no key: the same effect sits in more than one tree.
+        """
+        return _single(
+            f"legend skill tree {tree_id} group {group_id} level {level}",
+            [
+                r
+                for r in self.legend_skills.values()
+                if r.skill_tree_id == tree_id and r.skill_group_id == group_id and r.level == level
+            ],
+            lambda r: r.skill_id,
+        )
+
+    def currency(self, json_key: str) -> CurrencyDef | None:
+        """
+        A currency by its ``JSONKey``, e.g. ``"KT"`` for khan tablets.
+
+        C1 and C2 (coins and rubies) are not in this table.
+
+        Client: ``CurrencyData.getXmlCurrencyByKey`` (bundle line 141194)
+        """
+        return _single(
+            f"currency {json_key!r}",
+            [r for r in self.currencies.values() if r.json_key == json_key],
+            lambda r: r.currency_id,
+        )
+
+    def effect_type(self, name: str) -> EffectTypeDef | None:
+        """An effect type by name, e.g. ``"fameDefenseBonus"``."""
+        return _single(
+            f"effect type {name!r}",
+            [r for r in self.effect_types.values() if r.name == name],
+            lambda r: r.effect_type_id,
+        )
+
+    def raid_boss(self, name: str) -> RaidBossDef | None:
+        """An alliance raid boss by name, e.g. ``"Necromancer"``."""
+        return _single(
+            f"raid boss {name!r}", [r for r in self.raid_bosses.values() if r.name == name], lambda r: r.raid_boss_id
+        )
+
+    def global_effect(self, name: str) -> GlobalEffectDef | None:
+        """
+        A global effect by name.
+
+        Names are not quite unique: ``"SpeedBoost"`` is two effects of
+        different strength, and asking for it raises with both ids.
+        """
+        return _single(
+            f"global effect {name!r}",
+            [r for r in self.global_effects.values() if r.name == name],
+            lambda r: r.global_effect_id,
+        )
+
+    def unit(self, unit_type: str, level: int | None = None) -> UnitStats | None:
+        """
+        A unit by its ``type`` and, optionally, level.
+
+        Units have no unique name. A type repeats across levels, and event
+        variants of one unit share its type, often with no level to tell them
+        apart (``Ogermace`` is both 68 and 7), so a lookup that still matches
+        several units raises rather than picking one.
+        """
+        return _single(
+            f"unit {unit_type!r}" + (f" level {level}" if level is not None else ""),
+            [r for r in self.units.values() if r.unit_type == unit_type and (level is None or r.level == level)],
+            lambda r: r.wod_id,
+        )
+
+    def tool(self, tool_type: str, level: int | None = None) -> ToolStats | None:
+        """
+        A tool by its ``type`` and, optionally, level; see :meth:`unit` for why it can be ambiguous.
+
+        Event copies of a tool share its type (``EliteComboRam`` is both 113 and 564).
+        """
+        return _single(
+            f"tool {tool_type!r}" + (f" level {level}" if level is not None else ""),
+            [r for r in self.tools.values() if r.tool_type == tool_type and (level is None or r.level == level)],
+            lambda r: r.wod_id,
+        )
+
+    # ------------------------------------------------------------------
     # Construction
     # ------------------------------------------------------------------
 
@@ -346,6 +495,9 @@ class GameData(BaseModel):
             horses={r.wod_id: r for r in _rows(items_data.get("horses"), HorseStats)},
             default_lords={r.lord_id: r for r in _rows(items_data.get("lords"), DefaultLordDef)},
             generals={r.general_id: r for r in _rows(items_data.get("generals"), GeneralDef)},
+            general_abilities={r.ability_id: r for r in _rows(items_data.get("generalAbilities"), GeneralAbilityDef)},
+            currencies={r.currency_id: r for r in _rows(items_data.get("currencies"), CurrencyDef)},
+            raid_bosses={r.raid_boss_id: r for r in _rows(items_data.get("raidBosses"), RaidBossDef)},
             dungeons=_rows(items_data.get("dungeons"), DungeonDefence),
             camps={
                 table: _rows(items_data.get(table), NpcCampDefence) for table in CAMP_TABLES if items_data.get(table)

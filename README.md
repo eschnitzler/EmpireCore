@@ -251,6 +251,32 @@ Alongside the waves comes the courtyard wave, the final assault that rides in
 the same request. It holds units only, is sized from both levels rather than the
 target's alone, and is filled against the defenders of the keep.
 
+### Looking up game data
+
+Game-data ids (generals, skills, currencies, effects, units and tools) change
+from one client release to the next, so look them up by the key that names them:
+
+```python
+data = client.load_game_data()
+
+toril = data.general("Toril")
+client.skills.assign_general(commander_id=3, general_id=toril.general_id)
+surge = data.general_ability("PowerSurge", 1)
+skill = data.general_skill(toril.general_id, "AspectoftheDragon", 1)
+tablets = data.currency("KT")            # by JSONKey
+boss = data.raid_boss("Necromancer")
+data.legend_skill(0, 1, 1)               # tree, group, level
+data.effect_type("fameDefenseBonus")
+data.unit("MeadRanger", 6)               # type and level
+```
+
+A miss returns `None`. A key that matches several rows raises
+`AmbiguousLookupError`, whose `ids` lists them: `global_effect("SpeedBoost")`
+does, as two global effects share that name, and so do units and tools, which
+have no unique name. Their type repeats across levels, and event variants share
+a type with no level to tell them apart. Horses have no named lookup yet; use
+`get_horse` by id.
+
 ## Game State
 
 A background thread applies server pushes to `client.state` while your code

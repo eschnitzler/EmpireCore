@@ -298,7 +298,8 @@ class AttackService(BaseService):
                 an overfull army is refused here rather than by the server
             yard_capacity: The courtyard's capacity, checked the same way
             support_tools: Support tool WOD IDs
-            collector_booster: Collector event boosters as [currency_id, amount]
+            collector_booster: Collector event boosters as [currency_id, amount];
+                the id is a ``currencyID``, e.g. ``client.game_data.currency("SMB")``
             send_anyway: Send although one of your attacks is already on its way
                 there (``FC`` 1), as the client's confirmation dialog does
             timeout: Timeout in seconds
@@ -481,7 +482,8 @@ class AttackService(BaseService):
             general_skill_ids: Unlocked skill ids of the general leading the
                 attack, from ``gie``; its unit-limit skills size the wave
             legend_skill_ids: The player's unlocked legend skills, from
-                ``skl``. Which of them count follows the three rules of
+                ``skl`` or ``client.game_data.legend_skill(tree, group, level)``.
+                Which of them count follows the three rules of
                 :class:`~empire_core.combat.capacity.LegendaryFight`
             target_is_player: True when the target belongs to a player
             owner_id: The target owner's player id, see
@@ -496,11 +498,12 @@ class AttackService(BaseService):
                 control; the legend rules then rate its owner by ``level``
                 rather than by the area's minimum owner level
             active_raid_boss_id: The boss of the alliance raid-boss event
-                running now, None when none is. Tools tied to other raid bosses
-                are left out
+                running now, None when none is; ``client.game_data.raid_boss(name)``
+                finds one by name. Tools tied to other raid bosses are left out
             global_effect_ids: Global effects currently running, from ``bie``;
                 either ids or the raw ``[id, seconds_left, strength]`` rows,
-                which carry the live strength.
+                which carry the live strength. ``client.game_data.global_effect(name)``
+                finds an id by name.
                 These are the only thing that buffs a unit's attack value
             flank_bonus_percent: Extra flank bonus, added to whatever the
                 general contributes
@@ -985,12 +988,13 @@ class AttackService(BaseService):
                 are read with ``gie`` for the general this commander carries
             legend_skill_ids: The player's legend skills. Left out, they are
                 read with ``skl``
-            global_effect_ids: Global effects currently running
+            global_effect_ids: Global effects currently running, see
+                ``client.game_data.global_effect(name)``
             support_tools: The support tools the attack will carry, as sent in
                 ``AST``; pass the same list to :meth:`send_attack`
             conquer: A conquest attack carries two extra waves
             active_raid_boss_id: The boss of the alliance raid-boss event
-                running now, None when none is
+                running now, None when none is; see ``client.game_data.raid_boss(name)``
             tool_bonus: Extra flank tool capacity on top of the legend skill
             yard_bonus: Absolute courtyard capacity bonus, effect type 179
             yard_boost: Courtyard capacity boost, effect type 180

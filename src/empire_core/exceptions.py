@@ -6,6 +6,7 @@ Failure modes are kept distinct so callers can react to them individually:
 - ``ConnectionClosedError``: the connection dropped while waiting.
 - ``CommandError``: the server answered with a non-zero error code.
 - ``GameDataNotLoadedError``: an API needed the items payload; load it first.
+- ``AmbiguousLookupError``: a game-data lookup matched more than one row.
 """
 
 from typing import Any
@@ -56,6 +57,19 @@ class GameDataNotLoadedError(EmpireError):
     Call :meth:`EmpireClient.load_game_data` first: it is explicit because the
     items payload is a large download.
     """
+
+
+class AmbiguousLookupError(EmpireError, LookupError):
+    """
+    Raised when a game-data lookup matches more than one row.
+
+    Attributes:
+        ids: the ids of every matching row, to pick one from the table directly.
+    """
+
+    def __init__(self, message: str, ids: list[int]):
+        self.ids = ids
+        super().__init__(f"{message}: matches ids {ids}")
 
 
 class CommandError(EmpireError):

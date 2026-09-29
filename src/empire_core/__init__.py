@@ -17,6 +17,7 @@ from empire_core.client.client import EmpireClient
 from empire_core.client.map_scanner import ScanResult
 from empire_core.config import EmpireConfig
 from empire_core.exceptions import (
+    AmbiguousLookupError,
     AttackInProgressError,
     CommandError,
     ConnectionClosedError,
@@ -76,6 +77,7 @@ __all__ = [
     "CommandError",
     "AttackInProgressError",
     "GameDataNotLoadedError",
+    "AmbiguousLookupError",
     "GGEError",
     "PoolExhaustedError",
     # State models (live game state for the logged-in account)
