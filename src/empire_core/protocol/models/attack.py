@@ -32,6 +32,7 @@ from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from empire_core.utils.enums import AttackType, AutoSkipCooldownType, Kingdom, LootPriority, SpyType
 
+from ..js import js_truthy
 from .army import SpyPositions, UnitInventory
 from .base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, read_or_none, readable_list
 from .commanders import Commander, CommanderEffects, CommanderRoster
@@ -260,7 +261,7 @@ class CreateAttackResponse(BaseResponse):
             MovementOwner,
             value,
             accept=lambda record: isinstance(record, dict),
-            keep=lambda record: record.get("OID"),
+            keep=lambda record: js_truthy(record.get("OID")),
             warn=logger,
             what="owner records sent with cra",
         )
