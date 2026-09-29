@@ -1,6 +1,21 @@
-"""Static game data: unit and tool stats, effects, and NPC camp defenses."""
+"""Static game data: unit and tool stats, effects, NPC camp defenses, and id enums."""
 
 from .data import CAMP_TABLES, RAW_TABLES, GameData, default_cache_dir
+from .ids import (
+    ITEMS_VERSION,
+    Currency,
+    CurrencyId,
+    Effect,
+    EffectType,
+    General,
+    GeneralAbility,
+    GeneralSkill,
+    GlobalEffect,
+    LegendSkill,
+    RaidBoss,
+    Tool,
+    Unit,
+)
 from .models import (
     AllianceBuffDef,
     AttackSlotDef,
@@ -32,6 +47,19 @@ from .models import (
 )
 
 __all__ = [
+    "Currency",
+    "CurrencyId",
+    "Effect",
+    "EffectType",
+    "General",
+    "GeneralAbility",
+    "GeneralSkill",
+    "GlobalEffect",
+    "ITEMS_VERSION",
+    "LegendSkill",
+    "RaidBoss",
+    "Tool",
+    "Unit",
     "AllianceBuffDef",
     "AttackSlotDef",
     "ConstructionItemDef",
