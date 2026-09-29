@@ -1,7 +1,8 @@
 import logging
 import time
 from collections import deque
-from typing import NamedTuple
+from collections.abc import Iterable
+from typing import NamedTuple, Protocol
 
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
@@ -36,13 +37,49 @@ class _ChunkResult(NamedTuple):
     has_content: bool
 
 
+class _Config(Protocol):
+    @property
+    def default_zone(self) -> str: ...
+
+
+class _Connection(Protocol):
+    @property
+    def connected(self) -> bool: ...
+
+    def request(self, data: str, cmd_id: str, timeout: float = 5.0) -> Packet: ...
+
+
+class _Castle(Protocol):
+    @property
+    def kingdom_id(self) -> Kingdom: ...
+    @property
+    def x(self) -> int: ...
+    @property
+    def y(self) -> int: ...
+
+
+class _State(Protocol):
+    def get_castles(self) -> Iterable[_Castle]: ...
+
+
+class _Client(Protocol):
+    """What the scanner uses of EmpireClient, which the map area can't import."""
+
+    @property
+    def config(self) -> _Config: ...
+    @property
+    def connection(self) -> _Connection: ...
+    @property
+    def state(self) -> _State: ...
+
+
 class MapScanner:
     """Utility class to scan kingdom maps with dynamic boundary detection."""
 
     CHUNK_SIZE = 90  # Max allowed by GGE server
     MAX_COORD = 20  # Max chunk coordinate (20 * 90 = 1800, well beyond any map)
 
-    def __init__(self, client):
+    def __init__(self, client: _Client) -> None:
         self.client = client
 
     def _chunk_bounds(self, cx: int, cy: int) -> tuple[int, int, int, int]:
