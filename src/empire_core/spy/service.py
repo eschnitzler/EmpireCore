@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from pydantic import ValidationError
 
 from empire_core.army.spy_army import SpyArmy
-from empire_core.attack.models.info import SendSpyRequest, SpyScreenInfoRequest, SpyScreenInfoResponse
 from empire_core.commanders.models.roster import Castellan
 from empire_core.enums import Kingdom, SpyType
 from empire_core.exceptions import CommandError, EmpireError
@@ -23,6 +22,7 @@ from empire_core.messages.models import (
 from empire_core.protocol.base import parse_response
 from empire_core.services.base import BaseService, register_service
 
+from .models import SendSpyRequest, SpyScreenInfoRequest, SpyScreenInfoResponse
 from .risk import MAX_ACCURACY, MAX_RISK_SPY, plan_mission
 
 # Outcome codes from MessageConst in the game client. A spy log is a loss when

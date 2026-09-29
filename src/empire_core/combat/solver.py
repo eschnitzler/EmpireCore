@@ -16,7 +16,7 @@ from collections.abc import Iterable, Mapping, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from empire_core.attack.models.info import AttackWave, WaveFlank
+from empire_core.army.models.units import AttackWave, WaveFlank
 from empire_core.enums import Flank
 from empire_core.gamedata import GameData
 

@@ -10,13 +10,11 @@ import logging
 import math
 from dataclasses import dataclass
 
+from empire_core.army.models.units import AttackWave
 from empire_core.army.spy_army import SpyArmy
-from empire_core.attack.models.info import (
-    AttackInfoResponse,
-    AttackWave,
-    CreateAttackRequest,
-    GetAttackInfoRequest,
-    GetAttackInfoResponse,
+from empire_core.attack.models.info import AttackInfoResponse, GetAttackInfoRequest, GetAttackInfoResponse
+from empire_core.attack.models.send import CreateAttackRequest
+from empire_core.attack.models.target_info import (
     GetBossDungeonAttackInfoRequest,
     GetBossDungeonAttackInfoResponse,
     GetCapitalConquerInfoRequest,

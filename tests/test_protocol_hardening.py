@@ -13,7 +13,8 @@ import pytest
 from pydantic import ValidationError
 
 from empire_core.alliance.models.info import AllianceInfo
-from empire_core.attack.models.info import AttackWave, CreateAttackResponse, WaveFlank
+from empire_core.army.models.units import AttackWave, WaveFlank
+from empire_core.attack.models.send import CreateAttackResponse
 from empire_core.commanders.models.roster import Equipment, GetCommandersResponse
 from empire_core.enums import DiplomacyStatus, Kingdom, MapItemType, OnlineState, Rareness
 from empire_core.map.models.areas import GetMapAreaResponse

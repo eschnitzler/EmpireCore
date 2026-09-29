@@ -194,6 +194,50 @@ class DismissUnitsResponse(BaseResponse):
     unit_inventory: UnitInventoryBlock = Field(alias="gui", default=None)
 
 
+# =============================================================================
+# CRA - Create Attack
+# =============================================================================
+
+
+class WaveFlank(BasePayload):
+    """
+    One flank of an attack wave.
+
+    Payload: {"T": [[tool_id, count], ...], "U": [[unit_id, count], ...]}
+    """
+
+    tools: list[list[int]] = Field(alias="T", default_factory=list)
+    units: list[list[int]] = Field(alias="U", default_factory=list)
+
+
+class AttackWave(BasePayload):
+    """
+    A single attack wave: left, right and middle flank.
+
+    Payload: {"L": flank, "R": flank, "M": flank}, in the client's key order.
+
+    Client: ``CastleAttackWaveVO.getWaveInfoObject`` (bundle line 99930)
+    """
+
+    left: WaveFlank = Field(alias="L", default_factory=WaveFlank)
+    right: WaveFlank = Field(alias="R", default_factory=WaveFlank)
+    middle: WaveFlank = Field(alias="M", default_factory=WaveFlank)
+
+    def unit_count(self) -> int:
+        """Total units across all three flanks; non-pair entries count as zero."""
+        return sum(
+            entry[1] for flank in (self.left, self.middle, self.right) for entry in flank.units if len(entry) >= 2
+        )
+
+    def is_complete(self) -> bool:
+        """
+        Whether the client would send this wave.
+
+        The game drops any wave without units, tools included.
+        """
+        return self.unit_count() > 0
+
+
 __all__ = [
     "wod_amount_pairs",
     "BUY_UNIT_PACKAGE_SK",

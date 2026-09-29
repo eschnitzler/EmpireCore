@@ -14,7 +14,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 from empire_core.accounts import Account, accounts
 from empire_core.alliance.models.info import AllianceInfo, AllianceMember
-from empire_core.attack.models.info import AttackWave, WaveFlank
+from empire_core.army.models.units import AttackWave, WaveFlank
 from empire_core.castle.models.castles import CastleInfo
 from empire_core.client.client import EmpireClient
 from empire_core.client.map_scanner import ScanResult
