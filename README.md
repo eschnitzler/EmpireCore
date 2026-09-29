@@ -313,9 +313,9 @@ GeneralSkill.TORIL_ASPECTOFTHE_DRAGON_L1
 Units, tools, effects, effect types, currencies (`Currency` by key, `CurrencyId`
 by id), generals, general abilities and skills, legend skills, raid bosses,
 global effects, buildings, researches, construction items, events, loot boxes,
-equipment groups and event difficulty types each have one. Research names come
-from the items file's own notes, which are partly German and less settled than
-the other tables' names. Where two rows would get the same name, both carry
+equipment groups and event difficulty types each have one. Research names start
+with the items file's own note, which is partly German, and end in group and
+level (`Research.RECRUITMENT_SPEED_G41_L1`), which keep them unique. Where two rows would get the same name, both carry
 their id (`GlobalEffect.SPEED_BOOST_2`, `GlobalEffect.SPEED_BOOST_11`).
 
 Members are plain ints (or strs), so they go straight into requests. Each also
@@ -347,7 +347,8 @@ uv run python scripts/generate_gamedata_ids.py --check         # exit 1 if the i
 
 A weekly workflow (`.github/workflows/gamedata-ids.yml`) compares the live items
 version with `ITEMS_VERSION` and, when they differ, opens a pull request with
-the regenerated ids.
+the regenerated ids, listing every member renamed, removed or added
+(`--diff-names names.md` writes the same list locally).
 
 ## Game State
 
