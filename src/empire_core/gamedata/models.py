@@ -1006,17 +1006,27 @@ class LeagueBracketDef(_Row):
     ``LeagueTypeVO.parseXML`` (bundle line 91460)
     """
 
-    league_type_id: int = Field(alias="leaguetypeID", default=0, description="League type id")
-    event_id: int = Field(alias="eventID", default=-1, description="The event it belongs to; -1 for none")
+    league_type_id: int | None = Field(
+        alias="leaguetypeID", default=None, description="League type id; None when the row has none"
+    )
+    event_id: int | None = Field(
+        alias="eventID", default=None, description="The event it belongs to; -1 for none, None when the row has none"
+    )
     sub_type: int = Field(alias="subType", default=0, description="The event's sub type, e.g. a Berimond faction")
     min_level: int = Field(alias="minLevel", default=0, description="Lowest player level in the league")
     max_level: int = Field(alias="maxLevel", default=0, description="Highest player level in the league")
     victory_min: int = Field(alias="countVictoryMin", default=0, description="Lower victory count")
     victory_max: int = Field(alias="countVictoryMax", default=0, description="Upper victory count")
 
-    @field_validator(
-        "league_type_id", "event_id", "sub_type", "min_level", "max_level", "victory_min", "victory_max", mode="before"
-    )
+    @field_validator("league_type_id", "event_id", mode="before")
+    @classmethod
+    def _parse_int_or_none(cls, value: object) -> int | None:
+        # parseInt(row.eventID || ""): a row without one matches no event
+        if READING_CACHE.get() and (value is None or (isinstance(value, int) and not isinstance(value, bool))):
+            return value
+        return js_parse_int(value)
+
+    @field_validator("sub_type", "min_level", "max_level", "victory_min", "victory_max", mode="before")
     @classmethod
     def _parse_int(cls, value: object, info: ValidationInfo) -> int:
         # parseInt of each value; subType is read with getValueOrDefault("subType", row, "0")

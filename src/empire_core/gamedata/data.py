@@ -314,7 +314,7 @@ class GameData(BaseModel):
                 for r in self.league_brackets
                 if r.league_type_id == league_type_id and r.event_id == event_id and r.sub_type == sub_type
             ],
-            lambda r: r.league_type_id,
+            lambda r: league_type_id,
         )
 
     def resolve_relic_effect(self, relic_effect_id: int) -> EffectDef | None:

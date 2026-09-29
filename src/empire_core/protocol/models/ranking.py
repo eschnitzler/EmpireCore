@@ -141,7 +141,7 @@ class GetHighscoreRequest(BaseRequest):
     league_type_id: int = Field(
         alias="LID",
         default=-1,
-        description="League type id from the leaguetypes table (see GameData.league_type); -1 for none",
+        description="The league, a level band (see GameData.league_type); -1 for none",
     )
     search_value: str = Field(
         alias="SV", description='A name, or a rank as text; "-1" asks for the page around your own rank'
@@ -204,7 +204,7 @@ class GetRankingListRequest(BaseRequest):
     league_type_id: int = Field(
         alias="LID",
         default=-1,
-        description="League type id from the leaguetypes table (see GameData.league_type); -1 for none",
+        description="The league, a level band (see GameData.league_type); -1 for none",
     )
     max_results: int = Field(alias="M", description="Entries per page")
     rank: int = Field(alias="R", default=1, description="The first rank on the page")

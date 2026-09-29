@@ -731,9 +731,15 @@ class TestLeagueTypes:
         assert data.league_type(1, 71, sub_type=2) is None
 
     def test_values_are_read_with_parse_int(self):
-        data = GameData.parse("786.03", {"leaguetypes": [{"leaguetypeID": "3x", "eventID": "", "maxLevel": "9"}]})
+        data = GameData.parse("786.03", {"leaguetypes": [{"leaguetypeID": "3x", "eventID": "-1", "maxLevel": "9"}]})
         league = data.league_type(3)
         assert league is not None and (league.event_id, league.sub_type, league.max_level) == (-1, 0, 9)
+
+    def test_a_row_without_an_event_matches_no_event(self):
+        # AScoreEventVO.generateLeagueLevelsList: parseInt(o.eventID || "") is NaN
+        data = GameData.parse("786.03", {"leaguetypes": [{"leaguetypeID": "3", "eventID": ""}]})
+        assert data.league_type(3) is None
+        assert data.league_brackets[0].event_id is None
 
     def test_leagues_survive_the_cache(self, data, tmp_path):
         cache = tmp_path / "items_v786.03.trimmed.json"
