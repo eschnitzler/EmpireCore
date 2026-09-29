@@ -1,8 +1,8 @@
 """
 Shared player profile payload fields.
 
-Both the alliance member list (ain response, alliance.py) and the detailed
-player info owner object (gdi response, player.py) return the same ~20-field
+Both the alliance member list (ain response, alliance.models.info) and the detailed
+player info owner object (gdi response, player.models.info) return the same ~20-field
 player profile structure. PlayerProfileBase holds the common fields and
 derived properties; AllianceMember and PlayerOwnerInfo subclass it and only
 declare their genuinely divergent fields locally.

@@ -9,22 +9,32 @@ src/empire_core/
 ├── client/
 │   └── client.py          # Main EmpireClient - auto-attaches services
 ├── protocol/
-│   ├── models/            # Pydantic models for all GGE commands
-│   │   ├── base.py        # BaseRequest, BaseResponse, registry
-│   │   ├── chat.py        # Chat commands (acm, acl)
-│   │   ├── alliance.py    # Alliance commands (ahc, aha, ahr)
-│   │   ├── castle.py      # Castle commands (gcl, dcl, jca, etc.)
-│   │   └── ...
+│   ├── base.py            # BaseRequest, BaseResponse, GGECommand, the registry
+│   ├── models.py          # Re-exports every area's models (public namespace)
 │   └── packet.py          # Low-level packet parsing
-├── services/              # High-level service APIs
-│   ├── base.py            # BaseService, @register_service
-│   ├── alliance.py        # AllianceService
-│   └── castle.py          # CastleService
+├── map/                   # One package per game area:
+│   ├── models/            #   its request/response models
+│   └── ...
+├── castle/
+│   ├── models/            #   castles, details, actions, buildings, support
+│   └── service.py         #   CastleService, where the area has a service
+├── ...                    # commanders, army, movements, messages, defense,
+│                          # player, attack, spy, alliance, ranking
+├── combat/                # Wave solver, capacity and bonus math
+├── enums/                 # Every game enum, one module per area
+├── services/
+│   └── base.py            # BaseService, @register_service
 ├── network/               # WebSocket connection, receive loop, redaction
 ├── state/                 # Thread-safe game state and world models
 ├── storage/               # Experimental persistence (optional extra)
-└── utils/                 # Enums, CDN-backed event and troop data
+└── utils/                 # CDN-backed event and troop data
 ```
+
+Areas import only areas below them (map and ranking at the bottom, then
+commanders and castle, army, movements and messages, defense, combat and player,
+attack and alliance, and spy at the top); `tests/test_layers.py` enforces the
+order. Library code imports models from their area, never from
+`empire_core.protocol.models`.
 
 Design notes for the trickier layers live in [`docs/design/`](docs/design/) —
 read [`state_management.md`](docs/design/state_management.md) before touching
@@ -38,7 +48,7 @@ Protocol models define the request/response structure for GGE commands. Each com
 
 ### Step 1: Add the Command Code
 
-Add the command code to `GGECommand` in `protocol/models/base.py`:
+Add the command code to `GGECommand` in `protocol/base.py`:
 
 ```python
 class GGECommand:
@@ -55,10 +65,11 @@ Request models inherit from `BaseRequest` and define:
 - Fields with `Field(alias="X")` for wire format
 
 ```python
-# protocol/models/your_domain.py
+# <area>/models.py, or <area>/models/<topic>.py
 
 from pydantic import Field
-from .base import BaseRequest
+
+from empire_core.protocol.base import BaseRequest
 
 class YourRequest(BaseRequest):
     """
@@ -85,7 +96,8 @@ Response models inherit from `BaseResponse`:
 
 ```python
 from pydantic import Field
-from .base import BaseResponse
+
+from empire_core.protocol.base import BaseResponse
 
 class YourResponse(BaseResponse):
     """
@@ -112,13 +124,13 @@ class YourResponse(BaseResponse):
 
 ### Step 4: Export Models
 
-Add exports to `protocol/models/__init__.py`:
+List the new names in the module's `__all__`; the area's `__init__` re-exports
+them. To make them public in `empire_core.protocol.models` as well, import them
+there from their module and add them to its `__all__`:
 
 ```python
-from .your_domain import (
-    YourRequest,
-    YourResponse,
-)
+# protocol/models.py
+from empire_core.map.models.bookmarks import YourRequest, YourResponse
 
 __all__ = [
     # ... existing exports ...
@@ -127,18 +139,21 @@ __all__ = [
 ]
 ```
 
+Importing `empire_core` imports the aggregator (through the client), which is
+what fills the response registry: a model module nothing imports never registers.
+
 ### Complete Example: Adding a New Command
 
 Here's a complete example adding a hypothetical "get bookmarks" command:
 
 ```python
-# protocol/models/bookmarks.py
+# map/models/bookmarks.py
 
 from __future__ import annotations
 
 from pydantic import ConfigDict, Field
 
-from .base import BaseRequest, BaseResponse, Position
+from empire_core.protocol.base import BaseRequest, BaseResponse, Position
 
 
 class GetBookmarksRequest(BaseRequest):
@@ -195,7 +210,7 @@ Services provide high-level APIs that use protocol models. They are auto-attache
 ### Step 1: Create Service Class
 
 ```python
-# services/bookmarks.py
+# map/service.py
 
 from __future__ import annotations
 
@@ -203,13 +218,8 @@ import logging
 import threading
 from typing import Callable
 
-from empire_core.protocol.models import (
-    Bookmark,
-    GetBookmarksRequest,
-    GetBookmarksResponse,
-)
-
-from .base import BaseService, register_service
+from empire_core.map.models.bookmarks import Bookmark, GetBookmarksRequest, GetBookmarksResponse
+from empire_core.services.base import BaseService, register_service
 
 logger = logging.getLogger(__name__)
 
@@ -251,25 +261,14 @@ class BookmarksService(BaseService):
 
 ### Step 2: Register Service
 
-Add the import to `services/__init__.py`:
+Import the service in `client/client.py` (the import runs `@register_service`)
+and give the client a typed attribute next to the others:
 
 ```python
-from .base import BaseService, register_service, get_registered_services
+from empire_core.map.service import BookmarksService
 
-# Import services to trigger registration
-from .alliance import AllianceService
-from .castle import CastleService
-from .bookmarks import BookmarksService  # Add this
-
-__all__ = [
-    "BaseService",
-    "register_service",
-    "get_registered_services",
-    # Services
-    "AllianceService",
-    "CastleService",
-    "BookmarksService",  # Add this
-]
+# in EmpireClient.__init__
+self.bookmarks: BookmarksService = cast(BookmarksService, self._services["bookmarks"])
 ```
 
 ### Service Patterns

@@ -552,13 +552,19 @@ Bugs and feature requests are best filed as [issues](https://github.com/eschnitz
 empire_core/
 ├── client/          # EmpireClient — main entry point, map scanner
 ├── network/         # WebSocket connection, receive loop, redaction
-├── protocol/
-│   ├── models/      # Pydantic request/response models per command
-│   └── packet.py    # Low-level frame parsing
-├── services/        # High-level APIs attached to the client
+├── protocol/        # Base models and the response registry, packets, errors;
+│                    # protocol.models re-exports every area's models
+├── map/ commanders/ castle/ army/ movements/ messages/ defense/
+├── player/ attack/ spy/ alliance/ ranking/
+│                    # Game areas: each has its models, and a service.py where
+│                    # the client has one (client.castle, client.attack, ...)
+├── combat/          # Wave solver, capacity and bonus math
+├── enums/           # Every game enum, one module per area
+├── gamedata/        # Items data: units, tools, effects and the id enums
+├── services/        # BaseService and the service registry
 ├── state/           # Thread-safe game state and world models
 ├── storage/         # Experimental persistence (optional extra)
-└── utils/           # Enums, CDN-backed event and troop data
+└── utils/           # CDN-backed event and troop data
 ```
 
 Design notes live in [`docs/design/`](docs/design/).
