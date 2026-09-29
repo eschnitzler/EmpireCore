@@ -321,7 +321,7 @@ class TestMalformedNestedResponsePayloads:
         assert response.online_members == []
 
     def test_drifted_map_row_is_skipped_and_counted_at_parse_time(self, caplog):
-        with caplog.at_level(logging.WARNING, logger="empire_core.map.models.items"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.map.models.areas"):
             response = GetMapAreaResponse.model_validate({"KID": 1, "AI": [["?", "?", "?", "?"]]})
         assert response.kingdom == Kingdom.SANDS
         assert response.items == []
@@ -331,7 +331,7 @@ class TestMalformedNestedResponsePayloads:
 
     def test_map_rows_survive_a_drifted_neighbour(self, caplog):
         good_row = [1, 640, 655, 900, 4242]
-        with caplog.at_level(logging.WARNING, logger="empire_core.map.models.items"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.map.models.areas"):
             response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [["?", "?", "?", "?"], good_row, "junk"]})
         assert [(i.x, i.y, i.owner_id) for i in response.items] == [(640, 655, 4242)]
         assert response.items[0].raw_data == good_row
