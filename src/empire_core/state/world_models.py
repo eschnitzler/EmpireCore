@@ -4,7 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
 
-from empire_core.commanders.models.roster import CommanderEffect, Equipment
+from empire_core.commanders.models.equipment import Equipment
+from empire_core.commanders.models.roster import CommanderEffect
 from empire_core.enums import MapItemType, MovementType
 from empire_core.movements.models import MovementArea, MovementOwner
 from empire_core.protocol.base import enum_or_none, read_or_none

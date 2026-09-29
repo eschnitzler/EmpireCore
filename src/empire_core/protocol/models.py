@@ -165,19 +165,19 @@ from empire_core.castle.models.castles import (
 )
 from empire_core.commanders.models.equipment import (
     EquipEquipmentRequest,
+    Equipment,
+    EquipmentBonus,
     GetEquipmentInventoryRequest,
     GetEquipmentInventoryResponse,
+    RelicBonus,
 )
 from empire_core.commanders.models.roster import (
     Castellan,
     Commander,
     CommanderEffect,
     CommanderRoster,
-    Equipment,
-    EquipmentBonus,
     GetCommandersRequest,
     GetCommandersResponse,
-    RelicBonus,
     RenameCommanderRequest,
     RenameCommanderResponse,
 )

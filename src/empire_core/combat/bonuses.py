@@ -18,7 +18,8 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
-from empire_core.commanders.models.roster import Commander, CommanderEffect, Equipment
+from empire_core.commanders.models.equipment import Equipment
+from empire_core.commanders.models.roster import Commander, CommanderEffect
 from empire_core.enums import CombatEffectType
 from empire_core.gamedata import EffectDef, GameData, GlobalEffectDef, ToolStats, parse_stacks
 

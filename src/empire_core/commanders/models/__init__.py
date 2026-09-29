@@ -1,9 +1,18 @@
 """Commanders, castellans, generals, skills and equipment: protocol models."""
 
-from .equipment import EquipEquipmentRequest, GetEquipmentInventoryRequest, GetEquipmentInventoryResponse
+from .equipment import (
+    NO_GEM_ID,
+    EquipEquipmentRequest,
+    Equipment,
+    EquipmentBonus,
+    GetEquipmentInventoryRequest,
+    GetEquipmentInventoryResponse,
+    RelicBonus,
+    RelicGem,
+    RelicInfo,
+)
 from .roster import (
     FACTION_BARON_ID,
-    NO_GEM_ID,
     PICTURE_FACTION_CASTELLAN,
     PICTURE_ISLAND_CASTELLAN,
     Castellan,
@@ -11,14 +20,9 @@ from .roster import (
     CommanderEffect,
     CommanderEffects,
     CommanderRoster,
-    Equipment,
-    EquipmentBonus,
     GetCommandersRequest,
     GetCommandersResponse,
     LeaderBase,
-    RelicBonus,
-    RelicGem,
-    RelicInfo,
     RenameCommanderRequest,
     RenameCommanderResponse,
 )
@@ -41,18 +45,18 @@ from .skills import (
 )
 
 __all__ = [
-    "GetEquipmentInventoryRequest",
-    "GetEquipmentInventoryResponse",
-    "EquipEquipmentRequest",
     "NO_GEM_ID",
-    "PICTURE_FACTION_CASTELLAN",
-    "PICTURE_ISLAND_CASTELLAN",
-    "FACTION_BARON_ID",
     "EquipmentBonus",
     "RelicBonus",
     "RelicGem",
     "RelicInfo",
     "Equipment",
+    "GetEquipmentInventoryRequest",
+    "GetEquipmentInventoryResponse",
+    "EquipEquipmentRequest",
+    "PICTURE_FACTION_CASTELLAN",
+    "PICTURE_ISLAND_CASTELLAN",
+    "FACTION_BARON_ID",
     "CommanderEffect",
     "CommanderEffects",
     "LeaderBase",
