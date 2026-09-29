@@ -2,9 +2,9 @@ import logging
 import time
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
 
-from empire_core.protocol.models.base import enum_or_none
+from empire_core.protocol.models.base import enum_or_none, read_or_none
 from empire_core.protocol.models.commanders import CommanderEffect, Equipment
 from empire_core.protocol.models.movement import MovementArea, MovementOwner
 from empire_core.utils.enums import MapItemType, MovementType
@@ -145,13 +145,7 @@ class Movement(BaseModel):
     def _readable_area(cls, value: Any) -> Any:
         """Client: ``WorldmapObjectFactory.parseWorldMapArea`` (bundle line 5343) yields no area for a
         falsy row and ``BasicMapmovementVO`` falls back to a dummy, so an unreadable row costs only itself."""
-        if not value:
-            return None
-        try:
-            return MovementArea.model_validate(value)
-        except ValidationError:
-            logger.debug(f"Ignoring unreadable area row: {value!r}")
-            return None
+        return read_or_none(MovementArea.model_validate, value) if value else None
 
     @property
     def movement_type_enum(self) -> MovementType | None:

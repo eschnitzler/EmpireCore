@@ -28,19 +28,14 @@ from pydantic import BeforeValidator, Field, model_validator
 from empire_core.utils.enums import Kingdom, ProductionListId, SlotType
 
 from ..js import ParseInt, js_int, js_loose_equals, js_truthy
-from .base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, UnitCount
+from .base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, UnitCount, object_or_none
 
 BUY_UNIT_PACKAGE_SK = 73
 """``SK`` of every ``bup``: each client caller leaves ``C2SBuyUnitPackageVO``'s
 default; nothing in the client reads it or says what it means."""
 
 
-def _block(value: Any) -> Any:
-    """A nested reply block, or None where the client would find nothing to parse."""
-    return value if isinstance(value, dict) else None
-
-
-RawBlock = Annotated[dict[str, Any] | None, BeforeValidator(_block)]
+RawBlock = Annotated[dict[str, Any] | None, BeforeValidator(object_or_none)]
 """A reply block this module keeps as sent; the docstring names the client parser."""
 
 
@@ -398,8 +393,8 @@ class ProductionList(BasePayload):
         return data
 
 
-ProductionListBlock = Annotated[ProductionList | None, BeforeValidator(_block)]
-UnitInventoryBlock = Annotated[UnitInventory | None, BeforeValidator(_block)]
+ProductionListBlock = Annotated[ProductionList | None, BeforeValidator(object_or_none)]
+UnitInventoryBlock = Annotated[UnitInventory | None, BeforeValidator(object_or_none)]
 
 
 # =============================================================================
@@ -480,7 +475,7 @@ class ProduceUnitsResponse(BaseResponse):
     resources: RawBlock = Field(alias="grc", default=None, description="The castle's resources, as a raw block")
     currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Gold and rubies after the change")
     unit_inventory: UnitInventoryBlock = Field(alias="gui", default=None)
-    added_unit: Annotated[AddedUnit | None, BeforeValidator(_block)] = Field(alias="O", default=None)
+    added_unit: Annotated[AddedUnit | None, BeforeValidator(object_or_none)] = Field(alias="O", default=None)
 
 
 # =============================================================================

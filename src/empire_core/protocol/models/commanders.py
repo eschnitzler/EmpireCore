@@ -9,13 +9,13 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Annotated, Any, TypeVar
+from functools import partial
+from typing import Annotated, Any
 
 from pydantic import (
     BeforeValidator,
     Field,
     PrivateAttr,
-    ValidationError,
     ValidationInfo,
     ValidatorFunctionWrapHandler,
     field_validator,
@@ -26,7 +26,7 @@ from pydantic.functional_validators import ModelWrapValidatorHandler
 from empire_core.utils.enums import EquipmentSlot, EquipmentType, Kingdom, Rareness, WearerType
 
 from ..js import ClientInt, js_int
-from .base import BasePayload, BaseRequest, BaseResponse, enum_or_none
+from .base import BasePayload, BaseRequest, BaseResponse, enum_or_none, list_or_empty, read_or_none, readable_list
 
 logger = logging.getLogger(__name__)
 
@@ -97,25 +97,6 @@ class RelicBonus(BasePayload):
         return data
 
 
-_Row = TypeVar("_Row", bound=BasePayload)
-
-
-def _parse_rows(model: type[_Row], value: Any) -> list[_Row]:
-    if not isinstance(value, list):
-        return []
-    rows = []
-    for entry in value:
-        try:
-            rows.append(model.model_validate(entry))
-        except ValidationError:
-            logger.debug(f"Ignoring unreadable {model.__name__} entry: {entry!r}")
-    return rows
-
-
-def _readable_rows(model: type[BasePayload]) -> Any:
-    return BeforeValidator(lambda value: _parse_rows(model, value))
-
-
 class RelicGem(BasePayload):
     """
     The gem set in a relic item: ``[gem_id, relic_type_id, relic_category_id, might, bonuses, enchantment_level]``.
@@ -127,7 +108,7 @@ class RelicGem(BasePayload):
     relic_type_id: int = Field(default=0, description="Relic type id")
     relic_category_id: int = Field(default=0, description="Relic category id")
     might: int | float = Field(default=0, description="Might")
-    bonuses: Annotated[list[RelicBonus], _readable_rows(RelicBonus)] = Field(
+    bonuses: Annotated[list[RelicBonus], BeforeValidator(partial(readable_list, RelicBonus))] = Field(
         default_factory=list, description="The gem's relic bonuses"
     )
     enchantment_level: ClientInt = Field(default=0, description="Enchantment level")
@@ -166,10 +147,7 @@ class RelicInfo(BasePayload):
         # The client builds a gem only from a non-empty row
         if not isinstance(value, list) or not value:
             return None
-        try:
-            return handler(value)
-        except ValidationError:
-            return None
+        return read_or_none(handler, value)
 
 
 _SLOT_ORDER = (
@@ -209,10 +187,10 @@ class Equipment(BasePayload):
     wearer_type: int = Field(default=WearerType.UNDEFINED, description="Who can wear it (WearerType)")
     rarity_id: ClientInt = Field(default=0, description="Rarity id")
     graphic: int | str = Field(default=0, description="The item's graphic")
-    bonuses: Annotated[list[EquipmentBonus], _readable_rows(EquipmentBonus)] = Field(
+    bonuses: Annotated[list[EquipmentBonus], BeforeValidator(partial(readable_list, EquipmentBonus))] = Field(
         default_factory=list, description="Bonuses of an item that is not a relic"
     )
-    relic_bonuses: Annotated[list[RelicBonus], _readable_rows(RelicBonus)] = Field(
+    relic_bonuses: Annotated[list[RelicBonus], BeforeValidator(partial(readable_list, RelicBonus))] = Field(
         default_factory=list, description="Bonuses of a relic item"
     )
     unique_id: ClientInt = Field(default=0, description="Unique item id")
@@ -239,10 +217,7 @@ class Equipment(BasePayload):
     def _relic_info_or_none(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> RelicInfo | None:
         if not isinstance(value, list):
             return None
-        try:
-            return handler(value)
-        except ValidationError:
-            return None
+        return read_or_none(handler, value)
 
     @property
     def is_permanent(self) -> bool:
@@ -338,7 +313,7 @@ class CommanderEffect(BasePayload):
         return data
 
 
-CommanderEffects = Annotated[list[CommanderEffect], _readable_rows(CommanderEffect)]
+CommanderEffects = Annotated[list[CommanderEffect], BeforeValidator(partial(readable_list, CommanderEffect))]
 """``[effect_id, values, source]`` rows; unreadable entries are skipped, as the client skips
 effects it cannot resolve (``LordVO.parseRawEffects``, bundle line 26483)."""
 
@@ -425,7 +400,7 @@ class LeaderBase(BasePayload):
     @field_validator("alien_gem_ids", mode="before")
     @classmethod
     def _gem_list(cls, value: Any) -> Any:
-        return value if isinstance(value, list) else []
+        return list_or_empty(value)
 
     _equipment_sent: bool = PrivateAttr(default=False)
 
@@ -476,7 +451,7 @@ class LeaderBase(BasePayload):
         Client: ``LordVO.parseLord`` (bundle line 26451), ``AlienLordHeroVO.parseAlienBoniData``
         (bundle line 67502)
         """
-        return _parse_rows(EquipmentBonus, self._alien_rows()[0])
+        return readable_list(EquipmentBonus, self._alien_rows()[0])
 
     @property
     def alien_bonuses(self) -> list[EquipmentBonus]:
@@ -486,30 +461,20 @@ class LeaderBase(BasePayload):
         Client: ``LordVO.parseLord`` (bundle line 26451), ``AlienLordEquipmentVO.parseAlienBoniData``
         (bundle line 67479)
         """
-        return _parse_rows(EquipmentBonus, self._alien_rows()[1])
+        return readable_list(EquipmentBonus, self._alien_rows()[1])
 
     @field_validator("equipment", mode="before")
     @classmethod
     def _readable_equipment(cls, value: Any, info: ValidationInfo) -> Any:
         """Client: ``LordVO.parseLord`` (bundle line 26451) builds an item from every EQ entry."""
-        if not isinstance(value, list):
-            return []
-        items: list[Equipment] = []
-        for entry in value:
-            if isinstance(entry, Equipment):
-                items.append(entry)
-                continue
-            if not isinstance(entry, (list, tuple)):
-                continue
-            try:
-                items.append(Equipment.from_list(list(entry)))
-            except ValidationError:
-                continue
-        if skipped := len(value) - len(items):
-            logger.warning(
-                f"Skipped {skipped}/{len(value)} unparseable EQ entries for commander {info.data.get('commander_id')}"
-            )
-        return items
+        return readable_list(
+            Equipment,
+            value,
+            accept=lambda entry: isinstance(entry, (list, tuple)),
+            parse=lambda entry: Equipment.from_list(list(entry)),
+            warn=logger,
+            what=f"EQ entries for commander {info.data.get('commander_id')}",
+        )
 
 
 class Commander(LeaderBase):
@@ -590,18 +555,8 @@ class CommanderRoster(BasePayload):
     @field_validator("commanders", "castellans", mode="before")
     @classmethod
     def _readable_entries(cls, value: Any, info: ValidationInfo) -> Any:
-        if not isinstance(value, list):
-            return []
         model = Commander if info.field_name == "commanders" else Castellan
-        entries = []
-        for entry in value:
-            if entry is None:
-                continue
-            try:
-                entries.append(model.model_validate(entry))
-            except ValidationError:
-                logger.warning(f"Skipped a gli entry that could not be read: {entry!r}")
-        return entries
+        return readable_list(model, value, warn=logger, what="gli entries")
 
 
 class GetCommandersResponse(BaseResponse, CommanderRoster):

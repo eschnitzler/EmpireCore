@@ -16,7 +16,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from empire_core.utils.enums import Kingdom
 
-from .base import BasePayload, BaseRequest, BaseResponse
+from .base import BasePayload, BaseRequest, BaseResponse, object_or_none
 from .castle import CastleInfo, GetCastlesResponse, get_location_type_name
 from .map import GetMapAreaResponse, MapObject
 from .profile import PlayerProfileBase
@@ -145,7 +145,7 @@ class GetPlayerInfoResponse(BaseResponse):
     @field_validator("castle_list", mode="before")
     @classmethod
     def _castle_list_needs_an_object(cls, value: Any) -> Any:
-        return value if isinstance(value, dict) else {}
+        return object_or_none(value) or {}
 
     @property
     def player_id(self) -> int:
@@ -256,7 +256,7 @@ class SearchPlayerResponse(BaseResponse):
     @field_validator("area", mode="before")
     @classmethod
     def _area_needs_an_object(cls, value: Any) -> Any:
-        return value if isinstance(value, dict) else {}
+        return object_or_none(value) or {}
 
     def get_player(self) -> MapObject | None:
         """

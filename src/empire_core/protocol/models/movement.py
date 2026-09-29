@@ -6,12 +6,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field, ValidationError, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from empire_core.utils.enums import MapItemType, SpyType
 
 from ..js import ClientInt, js_loose_equals, js_parse_int, js_truthy
-from .base import BasePayload, BaseRequest, BaseResponse, Position, enum_or_none
+from .base import BasePayload, BaseRequest, BaseResponse, Position, enum_or_none, object_or_none, read_or_none
 from .commanders import Commander
 
 
@@ -157,12 +157,7 @@ class MovementUnitInfo(BasePayload):
     @classmethod
     def _readable_commander(cls, value: Any) -> Any:
         """An unreadable commander costs only itself, not the wait and advisor details."""
-        if not value:
-            return None
-        try:
-            return Commander.model_validate(value)
-        except ValidationError:
-            return None
+        return read_or_none(Commander.model_validate, value) if value else None
 
 
 MovementGoods = list[tuple[str | int, int]] | list[int]
@@ -232,7 +227,7 @@ class MovementWrapper(BasePayload):
     @field_validator("spy", mode="before")
     @classmethod
     def _no_spy_details(cls, value: Any) -> Any:
-        return value if isinstance(value, dict) else None
+        return object_or_none(value)
 
     @property
     def visible_army(self) -> MovementArmy | None:

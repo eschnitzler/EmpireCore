@@ -16,10 +16,12 @@ Special character encoding for text fields (chat messages, etc.):
 from __future__ import annotations
 
 import json
+import logging
+from collections.abc import Callable
 from enum import IntEnum
 from typing import Annotated, Any, ClassVar, TypeVar
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationError, field_validator
 
 # Type variable for generic response payloads
 T = TypeVar("T")
@@ -347,6 +349,67 @@ class ResourceAmount(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+def object_or_none(value: Any) -> Any:
+    """A reply block that is an object, else None: the client reads keys off it only when it is one."""
+    return value if isinstance(value, (dict, BaseModel)) else None
+
+
+def list_or_empty(value: Any) -> Any:
+    """A reply value that is an array, else no entries."""
+    return value if isinstance(value, list) else []
+
+
+_M = TypeVar("_M", bound=BaseModel)
+
+
+def readable_list(
+    model: type[_M],
+    value: Any,
+    *,
+    accept: Callable[[Any], Any] | None = None,
+    parse: Callable[[Any], _M] | None = None,
+    warn: logging.Logger | None = None,
+    what: str = "entries",
+) -> list[_M]:
+    """
+    Each entry of an array read as ``model``, so one unreadable entry costs only itself.
+
+    An entry ``accept`` rejects, or one that fails validation, is skipped; with
+    ``warn`` the skipped entries are counted in one warning. Anything but an
+    array reads as no entries.
+    """
+    if not isinstance(value, list):
+        return []
+    read = parse or model.model_validate
+    rows: list[_M] = []
+    for entry in value:
+        if isinstance(entry, model):
+            rows.append(entry)
+        elif entry is not None and (accept is None or accept(entry)):
+            try:
+                rows.append(read(entry))
+            except ValidationError:
+                continue
+    if warn is not None and (skipped := len(value) - len(rows)):
+        warn.warning(f"Skipped {skipped}/{len(value)} unreadable {what}")
+    return rows
+
+
+_T = TypeVar("_T")
+
+
+def read_or_none(
+    read: Callable[[Any], _T], value: Any, *, warn: logging.Logger | None = None, what: str = "an entry"
+) -> _T | None:
+    """``read(value)``, or None when validation fails, so an unreadable block costs only itself."""
+    try:
+        return read(value)
+    except ValidationError:
+        if warn is not None:
+            warn.warning(f"Could not read {what}")
+        return None
+
+
 class CurrencyTotals(BasePayload):
     """
     Gold and rubies after an action, the ``gcu`` block.
@@ -370,12 +433,7 @@ class CurrencyTotals(BasePayload):
         return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
-def _currency_block(value: Any) -> Any:
-    # parseGCU reads the block only when it is set
-    return value if isinstance(value, (dict, CurrencyTotals)) else None
-
-
-CurrencyBlock = Annotated[CurrencyTotals | None, BeforeValidator(_currency_block)]
+CurrencyBlock = Annotated[CurrencyTotals | None, BeforeValidator(object_or_none)]
 """A ``gcu`` block, or None when a reply sends none or something that is not an object."""
 
 
@@ -508,6 +566,10 @@ __all__ = [
     "parse_chat_json_message",
     "smartfox_json_text",
     "enum_or_none",
+    "list_or_empty",
+    "object_or_none",
+    "read_or_none",
+    "readable_list",
     # Response registry
     "get_response_model",
     "parse_response",

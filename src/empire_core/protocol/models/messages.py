@@ -10,11 +10,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..js import ClientInt, js_int, js_loose_equals
 from .army import SpyPositions
-from .base import BasePayload, BaseRequest, BaseResponse
+from .base import BasePayload, BaseRequest, BaseResponse, read_or_none, readable_list
 from .commanders import Castellan
 
 # =============================================================================
@@ -94,13 +94,7 @@ class SystemNotificationEvent(BaseResponse):
     @field_validator("messages", mode="before")
     @classmethod
     def _readable_rows(cls, value: Any) -> Any:
-        rows = []
-        for row in value if isinstance(value, list) else []:
-            try:
-                rows.append(MessageInfo.model_validate(row))
-            except ValidationError:
-                continue
-        return rows
+        return readable_list(MessageInfo, value)
 
 
 # =============================================================================
@@ -201,12 +195,7 @@ class BattleSpyDataResponse(BaseResponse):
     @field_validator("defending_castellan", mode="before")
     @classmethod
     def _readable_castellan(cls, value: Any) -> Any:
-        if not value:
-            return None
-        try:
-            return Castellan.model_validate(value)
-        except ValidationError:
-            return None
+        return read_or_none(Castellan.model_validate, value) if value else None
 
 
 __all__ = [

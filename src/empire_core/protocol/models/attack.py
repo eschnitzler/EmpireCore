@@ -33,7 +33,7 @@ from pydantic.functional_validators import ModelWrapValidatorHandler
 from empire_core.utils.enums import AttackType, AutoSkipCooldownType, Kingdom, LootPriority, SpyType
 
 from .army import SpyPositions, UnitInventory
-from .base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock
+from .base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, read_or_none, readable_list
 from .commanders import Commander, CommanderEffects, CommanderRoster
 from .map import MapAreaItem, MapObject
 from .movement import MovementOwner, MovementWrapper
@@ -251,24 +251,18 @@ class CreateAttackResponse(BaseResponse):
     def _movement_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> MovementWrapper | None:
         if not value:
             return None
-        try:
-            return handler(value)
-        except ValidationError:
-            logger.warning("Could not parse the movement created by cra")
-            return None
+        return read_or_none(handler, value, warn=logger, what="the movement created by cra")
 
     @field_validator("owners", mode="before")
     @classmethod
     def _readable_owners(cls, value: object) -> list[MovementOwner]:
-        owners = []
-        for record in value if isinstance(value, list) else []:
-            if not isinstance(record, dict) or not record.get("OID"):
-                continue
-            try:
-                owners.append(MovementOwner.model_validate(record))
-            except ValidationError:
-                logger.warning("Could not parse an owner record sent with cra")
-        return owners
+        return readable_list(
+            MovementOwner,
+            value,
+            accept=lambda record: isinstance(record, dict) and record.get("OID"),
+            warn=logger,
+            what="owner records sent with cra",
+        )
 
     @property
     def leader(self) -> Commander | None:
@@ -279,11 +273,7 @@ class CreateAttackResponse(BaseResponse):
         raw = (self._raw_attack_movement.get("UM") or {}).get("L")
         if not isinstance(raw, dict):
             return None
-        try:
-            return Commander.model_validate(raw)
-        except ValidationError:
-            logger.warning("Could not parse the commander echoed back by cra")
-            return None
+        return read_or_none(Commander.model_validate, raw, warn=logger, what="the commander echoed back by cra")
 
     @property
     def movement_id(self) -> int | None:
@@ -350,15 +340,13 @@ class AttackTargetArea(BasePayload):
     @field_validator("owners", mode="before")
     @classmethod
     def _readable_records(cls, value: object) -> list[MapObject]:
-        records = []
-        for record in value if isinstance(value, list) else []:
-            if not isinstance(record, dict):
-                continue
-            try:
-                records.append(MapObject.model_validate(record))
-            except ValidationError:
-                logger.warning("Skipped an owner record of an attack pre-calculation that could not be read")
-        return records
+        return readable_list(
+            MapObject,
+            value,
+            accept=lambda record: isinstance(record, dict),
+            warn=logger,
+            what="owner records of an attack pre-calculation",
+        )
 
 
 class AttackInfoResponse(BaseResponse):
@@ -460,11 +448,7 @@ class AttackInfoResponse(BaseResponse):
         # The client builds no castellan from an empty entry
         if not value:
             return None
-        try:
-            return handler(value)
-        except ValidationError:
-            logger.warning("Could not parse the defending castellan from an attack pre-calculation")
-            return None
+        return read_or_none(handler, value, warn=logger, what="the defending castellan of an attack pre-calculation")
 
     @model_validator(mode="after")
     def _no_spy_report_without_an_army(self) -> "AttackInfoResponse":

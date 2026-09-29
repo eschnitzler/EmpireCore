@@ -13,12 +13,20 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from empire_core.utils.enums import DiplomacyStatus, HelpType, OnlineState
 
 from ..js import ClientInt, ParseInt, js_loose_equals, js_truthy
-from .base import BasePayload, BaseRequest, BaseResponse, enum_or_none, parse_chat_json_message
+from .base import (
+    BasePayload,
+    BaseRequest,
+    BaseResponse,
+    enum_or_none,
+    object_or_none,
+    parse_chat_json_message,
+    readable_list,
+)
 from .map import MapAreaItem, MapObject, parse_area_rows
 from .profile import PlayerProfileBase
 
@@ -611,7 +619,7 @@ class AllianceBookmark(BasePayload):
     @field_validator("owner", mode="before")
     @classmethod
     def _owner_needs_an_object(cls, value: Any) -> Any:
-        return value if isinstance(value, dict) else None
+        return object_or_none(value)
 
 
 class GetAllianceBookmarksResponse(BaseResponse):
@@ -700,19 +708,13 @@ class SearchAllianceResponse(BaseResponse, register=False):
     @classmethod
     def _rows(cls, value: Any) -> Any:
         # The client shifts fields off each row; one that is not a row is skipped instead of failing the reply
-        if not isinstance(value, list):
-            return []
-        rows = []
-        for row in value:
-            if not isinstance(row, list):
-                continue
-            try:
-                rows.append(AllianceSearchResult.model_validate(row))
-            except ValidationError:
-                continue
-        if len(rows) < len(value):
-            logger.warning(f"Skipped {len(value) - len(rows)}/{len(value)} malformed alliance search rows")
-        return rows
+        return readable_list(
+            AllianceSearchResult,
+            value,
+            accept=lambda row: isinstance(row, list),
+            warn=logger,
+            what="alliance search rows",
+        )
 
 
 __all__ = [

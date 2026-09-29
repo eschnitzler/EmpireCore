@@ -13,9 +13,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from pydantic import Field, ValidationError, field_validator
+from pydantic import Field, field_validator
 
-from .base import BasePayload
+from .base import BasePayload, object_or_none, readable_list
 from .movement import OwnerCastlePosition, OwnerCrest
 
 
@@ -95,7 +95,7 @@ class PlayerProfileBase(BasePayload):
     @classmethod
     def _crest_needs_an_object(cls, value: Any) -> Any:
         # CrestVO.loadFromParamObject reads keys off E; anything else leaves the default crest
-        return value if isinstance(value, dict) else None
+        return object_or_none(value)
 
     @field_validator("castle_positions", "village_positions", mode="before")
     @classmethod
@@ -109,15 +109,11 @@ class PlayerProfileBase(BasePayload):
         """
         if not isinstance(value, list):
             return []
-        rows = []
-        for entry in value:
-            if isinstance(entry, list) and len(entry) == 1 and isinstance(entry[0], list):
-                entry = entry[0]
-            try:
-                rows.append(OwnerCastlePosition.model_validate(entry))
-            except ValidationError:
-                continue
-        return rows
+        unwrapped = [
+            entry[0] if isinstance(entry, list) and len(entry) == 1 and isinstance(entry[0], list) else entry
+            for entry in value
+        ]
+        return readable_list(OwnerCastlePosition, unwrapped)
 
     @property
     def is_leader(self) -> bool:

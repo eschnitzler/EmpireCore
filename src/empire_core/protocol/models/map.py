@@ -18,7 +18,7 @@ from pydantic import ConfigDict, Field, ValidationError, ValidationInfo, field_v
 from empire_core.utils.enums import Kingdom, MapItemType
 
 from ..js import ClientInt, js_int
-from .base import BasePayload, BaseRequest, BaseResponse, Position
+from .base import BasePayload, BaseRequest, BaseResponse, Position, list_or_empty, object_or_none
 from .movement import OwnerCrest, OwnerFaction
 
 logger = logging.getLogger(__name__)
@@ -456,7 +456,7 @@ class AllianceCrest(BasePayload):
     @classmethod
     def _stored_raw(cls, value: Any) -> Any:
         # The client stores ACCS as it arrives, so a missing list is no colours
-        return value if isinstance(value, list) else []
+        return list_or_empty(value)
 
 
 class AllianceEmblem(BasePayload):
@@ -472,7 +472,7 @@ class AllianceEmblem(BasePayload):
     @field_validator("crest", mode="before")
     @classmethod
     def _crest_needs_an_object(cls, value: Any) -> Any:
-        return value if isinstance(value, dict) else None
+        return object_or_none(value)
 
 
 class MapObject(BasePayload):
@@ -521,7 +521,7 @@ class MapObject(BasePayload):
     @classmethod
     def _block_needs_an_object(cls, value: Any) -> Any:
         # The client only reads keys off these; anything that is not an object leaves its defaults
-        return value if isinstance(value, dict) else None
+        return object_or_none(value)
 
     @field_validator("area_positions", "village_positions", mode="before")
     @classmethod

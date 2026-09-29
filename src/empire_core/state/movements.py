@@ -6,8 +6,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from pydantic import ValidationError
-
+from empire_core.protocol.models.base import read_or_none, readable_list
 from empire_core.protocol.models.movement import MovementOwner, MovementWrapper
 from empire_core.state.base import MovementEventCallback, StateBase
 from empire_core.state.world_models import DAIMYO_TOWNSHIP_PLAYER_ID, Movement, MovementResources
@@ -190,14 +189,7 @@ class MovementState(StateBase):
 
         Client: ``CastleArmyData.parseMapMovementArray``.
         """
-        owner_info: dict[int, MovementOwner] = {}
-        for owner in owners if isinstance(owners, list) else []:
-            try:
-                record = MovementOwner.model_validate(owner)
-            except ValidationError:
-                logger.debug(f"Ignoring unreadable owner record: {owner!r}")
-                continue
-            owner_info[record.player_id] = record
+        owner_info = {record.player_id: record for record in readable_list(MovementOwner, owners)}
 
         stored = []
         for m_wrapper in wrappers if isinstance(wrappers, list) else []:
@@ -367,11 +359,7 @@ class MovementState(StateBase):
     @staticmethod
     def _wrapper_block(key: str, value: Any) -> MovementWrapper | None:
         """Validate one wrapper key on its own, so a drifted block costs only itself."""
-        try:
-            return MovementWrapper.model_validate({"M": {"MID": 0}, key: value})
-        except ValidationError:
-            logger.debug(f"Ignoring unreadable movement wrapper block {key}: {value!r}")
-            return None
+        return read_or_none(MovementWrapper.model_validate, {"M": {"MID": 0}, key: value})
 
     def _apply_wrapper_blocks(self, mov: Movement, m_wrapper: dict[str, Any]) -> None:
         """Copy the wrapper's army, wait, cargo and flags onto ``mov``.

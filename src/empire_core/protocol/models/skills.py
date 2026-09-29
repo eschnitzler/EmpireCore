@@ -11,10 +11,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from pydantic import Field, ValidationError, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from ..js import ClientInt, js_loose_equals
-from .base import BasePayload, BaseRequest, BaseResponse
+from .base import BasePayload, BaseRequest, BaseResponse, object_or_none, readable_list
 from .commanders import CommanderRoster
 
 if TYPE_CHECKING:
@@ -117,15 +117,7 @@ class General(BasePayload):
     @classmethod
     def _skip_malformed_slots(cls, value: Any) -> Any:
         # The client indexes each entry; one that is not a pair matches no slot and is ignored.
-        if not isinstance(value, list):
-            return []
-        slots = []
-        for entry in value:
-            try:
-                slots.append(SelectedAbility.model_validate(entry))
-            except ValidationError:
-                continue
-        return slots
+        return readable_list(SelectedAbility, value)
 
     @model_validator(mode="after")
     def _star_level_from_fixed_level(self) -> General:
@@ -321,13 +313,7 @@ class GetGeneralsResponse(BaseResponse):
     @field_validator("generals", mode="before")
     @classmethod
     def _readable_generals(cls, value: Any) -> Any:
-        generals = []
-        for entry in value if isinstance(value, list) else []:
-            try:
-                generals.append(General.model_validate(entry))
-            except ValidationError:
-                logger.warning(f"Skipped a general that could not be read: {entry!r}")
-        return generals
+        return readable_list(General, value, warn=logger, what="generals")
 
     def skill_ids(self, general_id: int) -> list[int]:
         """The skills one general has unlocked, empty when it is not listed."""
@@ -439,7 +425,7 @@ class ObjectUpdateEvent(BaseResponse):
     @classmethod
     def _no_skills(cls, value: Any) -> Any:
         # The client parses skl whenever it is truthy, an empty object included
-        return value if isinstance(value, dict) else None
+        return object_or_none(value)
 
 
 __all__ = [

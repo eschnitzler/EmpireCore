@@ -11,9 +11,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import Field, ValidationError, field_validator
+from pydantic import Field, field_validator
 
-from .base import BaseRequest, BaseResponse
+from .base import BaseRequest, BaseResponse, readable_list
 from .commanders import Equipment
 
 logger = logging.getLogger(__name__)
@@ -53,22 +53,14 @@ class GetEquipmentInventoryResponse(BaseResponse):
     @field_validator("items", mode="before")
     @classmethod
     def _readable_items(cls, value: Any) -> Any:
-        if not isinstance(value, list):
-            return []
-        items: list[Equipment] = []
-        for entry in value:
-            if isinstance(entry, Equipment):
-                items.append(entry)
-                continue
-            if not isinstance(entry, (list, tuple)):
-                continue
-            try:
-                items.append(Equipment.from_list(list(entry)))
-            except ValidationError:
-                continue
-        if skipped := len(value) - len(items):
-            logger.warning(f"Skipped {skipped}/{len(value)} unparseable gei entries")
-        return items
+        return readable_list(
+            Equipment,
+            value,
+            accept=lambda entry: isinstance(entry, (list, tuple)),
+            parse=lambda entry: Equipment.from_list(list(entry)),
+            warn=logger,
+            what="gei entries",
+        )
 
 
 class EquipEquipmentRequest(BaseRequest):
