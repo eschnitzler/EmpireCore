@@ -44,6 +44,7 @@ ENUMS = [getattr(ids, name) for name in ids.__all__ if isinstance(getattr(ids, n
 # Rows of the tables GameData does not model, as the items payload has them, from v786.03.
 IDS_PAYLOAD: dict[str, Any] = {
     **LOOKUP_PAYLOAD,
+    "effects": [{"effectID": "1", "name": "fameDefenseBonus", "effectTypeID": "0", "capID": "0", "sortOrder": "6.9.1"}],
     "buildings": [
         {"wodID": 171, "name": "Keep", "level": "1", "group": "Building", "type": "Level1"},
         {"wodID": 172, "name": "Keep", "level": "2", "group": "Building", "type": "Level2"},
@@ -418,6 +419,47 @@ class TestGenerator:
         assert gen.items_version(tmp_path / "items_v785.01.json", {}) == "785.01"
         with pytest.raises(SystemExit):
             gen.items_version(tmp_path / "items.json", {})
+
+
+class TestCheck:
+    @pytest.fixture
+    def items_file(self, tmp_path) -> Path:
+        path = tmp_path / "items_v786.03.json"
+        path.write_text(json.dumps(IDS_PAYLOAD))
+        return path
+
+    def run(self, items_file: Path, out: Path, *extra: str) -> int:
+        return gen.main(["--items", str(items_file), "--out", str(out), *extra])
+
+    def test_check_passes_on_what_it_would_write(self, items_file, tmp_path):
+        out = tmp_path / "ids"
+        assert self.run(items_file, out) == 0
+        written = {path.name: path.read_text() for path in out.glob("*.py")}
+        assert self.run(items_file, out, "--check") == 0
+        assert {path.name: path.read_text() for path in out.glob("*.py")} == written
+
+    @pytest.mark.parametrize("change", ["edit", "extra", "missing", "empty"])
+    def test_check_fails_on_any_difference(self, items_file, tmp_path, change):
+        out = tmp_path / "ids"
+        if change != "empty":
+            assert self.run(items_file, out) == 0
+        if change == "edit":
+            (out / "units.py").write_text("# edited\n")
+        elif change == "extra":
+            (out / "leftover.py").write_text("")
+        elif change == "missing":
+            (out / "events.py").unlink()
+        before = {path.name: path.read_text() for path in out.glob("*.py")} if out.exists() else {}
+        assert self.run(items_file, out, "--check") == 1
+        after = {path.name: path.read_text() for path in out.glob("*.py")} if out.exists() else {}
+        assert after == before
+
+    def test_the_committed_package_is_current(self):
+        path = os.environ.get("EMPIRE_CORE_ITEMS_JSON")
+        if not path:
+            pytest.skip("EMPIRE_CORE_ITEMS_JSON is not set")
+            return
+        assert gen.main(["--items", path, "--check"]) == 0
 
 
 class TestStaleness:

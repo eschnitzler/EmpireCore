@@ -342,7 +342,12 @@ regenerate from a checkout after a client update:
 ```bash
 uv run python scripts/generate_gamedata_ids.py                 # downloads the current items
 uv run python scripts/generate_gamedata_ids.py --items items_v786.03.json
+uv run python scripts/generate_gamedata_ids.py --check         # exit 1 if the ids are out of date
 ```
+
+A weekly workflow (`.github/workflows/gamedata-ids.yml`) compares the live items
+version with `ITEMS_VERSION` and, when they differ, opens a pull request with
+the regenerated ids.
 
 ## Game State
 

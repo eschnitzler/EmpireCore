@@ -3,6 +3,7 @@ Generate the ``empire_core.gamedata.ids`` enums from the items data.
 
     uv run python scripts/generate_gamedata_ids.py                  # the version GameData.load() fetches
     uv run python scripts/generate_gamedata_ids.py --items items_v786.03.json
+    uv run python scripts/generate_gamedata_ids.py --check          # exit 1 if the package is out of date
 
 Each table becomes one module. Member names come from the row's name columns,
 UPPER_SNAKE; names that still collide after that all get the row id appended,
@@ -662,6 +663,12 @@ def items_version(path: Path, payload: dict) -> str:
     raise SystemExit(f"cannot tell the items version of {path}; name it items_v<version>.json")
 
 
+def stale(files: dict[str, str], out: Path) -> list[str]:
+    """The files in ``out`` that writing ``files`` would change, add or remove."""
+    on_disk = {path.name: path.read_text() for path in out.glob("*.py")} if out.is_dir() else {}
+    return sorted(name for name in files.keys() | on_disk.keys() if files.get(name) != on_disk.get(name))
+
+
 def write(files: dict[str, str], out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     for stale in out.glob("*.py"):
@@ -677,6 +684,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--items", type=Path, help="a full items_v<version>.json (default: download the current one)")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="package directory to write")
+    parser.add_argument("--check", action="store_true", help="write nothing; exit 1 if the package would change")
     args = parser.parse_args(argv)
 
     if args.items:
@@ -692,6 +700,15 @@ def main(argv: list[str] | None = None) -> int:
     if empty:
         raise SystemExit(f"no rows for {', '.join(empty)}; is this the full items file?")
     files = render(data, payload)
+    if args.check:
+        changed = stale(files, args.out)
+        for name in changed:
+            print(f"out of date: {args.out / name}", file=sys.stderr)
+        if changed:
+            print(f"Regenerate for items {data.version}: uv run python {SCRIPT}", file=sys.stderr)
+            return 1
+        print(f"{args.out} is up to date with items {data.version}", file=sys.stderr)
+        return 0
     write(files, args.out)
     for t in table_list:
         print(f"{t.enum}: {len(t.rows)} members, {collided(t)} with an id suffix", file=sys.stderr)
