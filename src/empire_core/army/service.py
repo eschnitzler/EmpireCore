@@ -38,7 +38,7 @@ from empire_core.army.models.production import (
     ProductionList,
 )
 from empire_core.army.models.units import DismissUnitsRequest, GetUnitsRequest, GetUnitsResponse
-from empire_core.castle.models.castles import SelectCastleRequest, SelectCastleResponse
+from empire_core.castle.models.actions import SelectCastleRequest, SelectCastleResponse
 from empire_core.enums import Kingdom, ProductionListId, SlotType
 from empire_core.protocol.base import UnitCount
 from empire_core.services.base import BaseService, register_service

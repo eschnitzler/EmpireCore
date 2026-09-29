@@ -17,15 +17,9 @@ from empire_core.alliance.models.info import (
     AllianceStorage,
     GetAllianceInfoResponse,
 )
-from empire_core.castle.models.castles import (
-    CastleInfo,
-    GetCastlesResponse,
-    GetDetailedCastleResponse,
-    PlayerCastle,
-    RelocateCastleRequest,
-    RenameCastleRequest,
-    RenameCastleResponse,
-)
+from empire_core.castle.models.actions import RelocateCastleRequest, RenameCastleRequest, RenameCastleResponse
+from empire_core.castle.models.castles import CastleInfo, GetCastlesResponse, PlayerCastle
+from empire_core.castle.models.details import GetDetailedCastleResponse
 from empire_core.defense.models import GetSupportDefenseResponse
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.map.models.areas import GetMapAreaRequest, GetMapAreaResponse
@@ -1503,7 +1497,7 @@ def test_ain_parseint_fields_read_as_javascript_parseint():
 
 
 def test_rename_castle_sends_the_client_keys_and_encodes_the_name():
-    from empire_core.castle.models.castles import RenameCastleRequest
+    from empire_core.castle.models.actions import RenameCastleRequest
 
     payload = RenameCastleRequest(CID=5, N="100% 'mine'\tnow", AT=MapItemType.CASTLE, KID=Kingdom.ICE, P=1).to_payload()
     # C2SRenameCastleVO: CID, P, KID and AT are initialised before N

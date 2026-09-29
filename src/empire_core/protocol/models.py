@@ -115,6 +115,19 @@ from empire_core.attack.models.info import (
     SpyScreenInfoResponse,
     WaveFlank,
 )
+from empire_core.castle.models.actions import (
+    GetProductionRequest,
+    GetProductionResponse,
+    GetResourcesRequest,
+    GetResourcesResponse,
+    ProductionRates,
+    RelocateCastleRequest,
+    RelocateCastleResponse,
+    RenameCastleRequest,
+    RenameCastleResponse,
+    SelectCastleRequest,
+    SelectCastleResponse,
+)
 from empire_core.castle.models.buildings import (
     BuildRequest,
     BuildResponse,
@@ -141,28 +154,15 @@ from empire_core.castle.models.buildings import (
     UpgradeWallRequest,
     UpgradeWallResponse,
 )
-from empire_core.castle.models.castles import (
-    CastleInfo,
+from empire_core.castle.models.castles import CastleInfo, GetCastlesRequest, GetCastlesResponse
+from empire_core.castle.models.details import (
     CastleProductionArea,
     DetailedCastleInfo,
-    GetCastlesRequest,
-    GetCastlesResponse,
     GetDetailedCastleRequest,
     GetDetailedCastleResponse,
-    GetProductionRequest,
-    GetProductionResponse,
-    GetResourcesRequest,
-    GetResourcesResponse,
     ProductionBonus,
-    ProductionRates,
-    RelocateCastleRequest,
-    RelocateCastleResponse,
-    RenameCastleRequest,
-    RenameCastleResponse,
     ResourceProduction,
     SafeAmount,
-    SelectCastleRequest,
-    SelectCastleResponse,
     StorageCapacity,
 )
 from empire_core.castle.models.support import SendSupportRequest, SendSupportResponse

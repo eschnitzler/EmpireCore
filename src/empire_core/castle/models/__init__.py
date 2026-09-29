@@ -1,5 +1,18 @@
 """Castles: the castle list, castle details, buildings and castle actions: protocol models."""
 
+from .actions import (
+    GetProductionRequest,
+    GetProductionResponse,
+    GetResourcesRequest,
+    GetResourcesResponse,
+    ProductionRates,
+    RelocateCastleRequest,
+    RelocateCastleResponse,
+    RenameCastleRequest,
+    RenameCastleResponse,
+    SelectCastleRequest,
+    SelectCastleResponse,
+)
 from .buildings import (
     BuildRequest,
     BuildResponse,
@@ -26,34 +39,31 @@ from .buildings import (
     UpgradeWallRequest,
     UpgradeWallResponse,
 )
-from .castles import (
-    CastleInfo,
+from .castles import CastleInfo, GetCastlesRequest, GetCastlesResponse, PlayerCastle
+from .details import (
     CastleProductionArea,
     DetailedCastleInfo,
-    GetCastlesRequest,
-    GetCastlesResponse,
     GetDetailedCastleRequest,
     GetDetailedCastleResponse,
-    GetProductionRequest,
-    GetProductionResponse,
-    GetResourcesRequest,
-    GetResourcesResponse,
-    PlayerCastle,
     ProductionBonus,
-    ProductionRates,
-    RelocateCastleRequest,
-    RelocateCastleResponse,
-    RenameCastleRequest,
-    RenameCastleResponse,
     ResourceProduction,
     SafeAmount,
-    SelectCastleRequest,
-    SelectCastleResponse,
     StorageCapacity,
 )
 from .support import SendSupportRequest, SendSupportResponse
 
 __all__ = [
+    "SelectCastleRequest",
+    "SelectCastleResponse",
+    "RenameCastleRequest",
+    "RenameCastleResponse",
+    "RelocateCastleRequest",
+    "RelocateCastleResponse",
+    "GetResourcesRequest",
+    "GetResourcesResponse",
+    "GetProductionRequest",
+    "GetProductionResponse",
+    "ProductionRates",
     "BuildRequest",
     "BuildResponse",
     "UpgradeBuildingRequest",
@@ -90,17 +100,6 @@ __all__ = [
     "StorageCapacity",
     "ProductionBonus",
     "SafeAmount",
-    "SelectCastleRequest",
-    "SelectCastleResponse",
-    "RenameCastleRequest",
-    "RenameCastleResponse",
-    "RelocateCastleRequest",
-    "RelocateCastleResponse",
-    "GetResourcesRequest",
-    "GetResourcesResponse",
-    "GetProductionRequest",
-    "GetProductionResponse",
-    "ProductionRates",
     "SendSupportRequest",
     "SendSupportResponse",
 ]

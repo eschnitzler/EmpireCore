@@ -2,7 +2,7 @@ from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
-from empire_core.castle.models.castles import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
+from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
 from empire_core.enums import Kingdom
 from empire_core.protocol.js import js_parse_int
 
