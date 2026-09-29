@@ -256,7 +256,8 @@ def test_alien_equipment_gems_count_while_it_stands_in_for_eq():
         },
     )
     alien = Commander.model_validate({"ID": 1, "EQ": [], "AIE": [], "GEM": [333, "333", 999]})
-    assert [(b.effect_id, b.value) for b in commander_bonuses(game_data, alien)] == [(504, 20.0), (504, 20.0)]
+    # getGemVO looks the id up as sent in an int-keyed table, so "333" and 999 find nothing
+    assert [(b.effect_id, b.value) for b in commander_bonuses(game_data, alien)] == [(504, 20.0)]
     worn = Commander.model_validate({"ID": 1, "EQ": [[1, 1, 1, 1, 0, [], 0, -1, 0, -1, -1, 0]], "GEM": [333]})
     assert commander_bonuses(game_data, worn) == []
 
@@ -266,3 +267,21 @@ def test_equipment_bonuses_come_before_the_commanders_own():
     item = [1, 1, 1, 1, 0, [[37, [5]]], 0, -1, 0, -1, -1, 0]
     commander = Commander.model_validate({"ID": 1, "EQ": [item], "E": [[2111, [150]]]})
     assert [b.effect_id for b in commander_bonuses(game_data, commander)] == [37, 2111]
+
+
+def test_items_count_in_slot_order_and_one_per_slot():
+    game_data = GameData.parse("test", {})
+
+    def item(slot: int, effect_id: int) -> list:
+        return [slot * 10 + effect_id, slot, 1, 1, 0, [[effect_id, [1]]], 0, -1, 0, -1, -1, 0]
+
+    # Armor (1), then two helmets (3), then a slot the client has no place for (9)
+    commander = Commander.model_validate({"ID": 1, "EQ": [item(1, 11), item(3, 31), item(3, 32), item(9, 91)]})
+    # parseLord's slots run helmet, armor, weapon, ...; the second helmet replaces the first
+    assert [b.effect_id for b in commander_bonuses(game_data, commander)] == [32, 11]
+
+
+def test_unreadable_eq_rows_still_keep_aie_out():
+    commander = Commander.model_validate({"ID": 1, "EQ": [None], "AIE": [[37, [10]]]})
+    assert commander.equipment == []
+    assert not commander.uses_alien_equipment and commander.alien_bonuses == []

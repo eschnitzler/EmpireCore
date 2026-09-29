@@ -21,7 +21,6 @@ from pydantic import BaseModel, ConfigDict
 
 from empire_core.gamedata import EffectDef, GameData, GlobalEffectDef, ToolStats, parse_stacks
 from empire_core.protocol.models import Commander, CommanderEffect, Equipment
-from empire_core.protocol.models.base import client_int
 
 if TYPE_CHECKING:
     from .effects import AttackerFlankEffects
@@ -645,7 +644,7 @@ def commander_bonuses(
             they are used instead of the commander's own ``AE``
     """
     bonuses: list[Bonus] = []
-    for item in commander.equipment:
+    for item in commander.worn_items():
         if item.is_relic:
             rows = [[bonus.relic_effect_id, bonus.power, bonus.values] for bonus in item.relic_bonuses]
         else:
@@ -657,10 +656,11 @@ def commander_bonuses(
         [bonus.effect_id, bonus.values] for bonus in (*commander.alien_hero_bonuses, *commander.alien_bonuses)
     ]
     bonuses.extend(parse_bonus_entries(alien_rows, via_equipment=True))
-    if not commander.equipment and (commander.alien_equipment is not None or commander.temporary_equipment is not None):
-        # AlienLordEquipmentVO.parseGemBoniData (bundle line 67486) looks each GEM id up in the gem table
+    if commander.uses_alien_equipment:
+        # AlienLordEquipmentVO.parseGemBoniData (bundle line 67486) looks each GEM id up in the
+        # int-keyed gem table as sent, so only a number finds a gem
         for gem_id in commander.alien_gem_ids:
-            row = game_data.gems.get(client_int(gem_id))
+            row = game_data.gems.get(gem_id) if isinstance(gem_id, int) and not isinstance(gem_id, bool) else None
             if row is not None:
                 bonuses.extend(parse_effect_spec(row.raw_effects))
 

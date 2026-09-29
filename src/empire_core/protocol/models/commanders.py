@@ -15,12 +15,14 @@ from typing import Annotated, Any, TypeVar
 from pydantic import (
     BeforeValidator,
     Field,
+    PrivateAttr,
     ValidationError,
     ValidationInfo,
     ValidatorFunctionWrapHandler,
     field_validator,
     model_validator,
 )
+from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, client_int
 
@@ -202,6 +204,16 @@ class RelicInfo(BasePayload):
             return None
 
 
+_SLOT_ORDER = (
+    EquipmentSlot.HELMET,
+    EquipmentSlot.ARMOR,
+    EquipmentSlot.WEAPON,
+    EquipmentSlot.ARTIFACT,
+    EquipmentSlot.SKIN,
+    EquipmentSlot.HERO,
+)
+
+
 class Equipment(BasePayload):
     """
     An equipment item worn by a commander or castellan.
@@ -227,7 +239,7 @@ class Equipment(BasePayload):
     equipment_id: int = Field(default=0, description="Item id, row[0]")
     slot: int = Field(default=0, description="Slot type id, row[1]")
     wearer_type: int = Field(default=WearerType.ALL, description="Who can wear it (WearerType), row[2]")
-    rarity_id: ClientInt = Field(default=0, description="Rarity id, row[3], stored as sent")
+    rarity_id: ClientInt = Field(default=0, description="Rarity id, row[3], read through int()")
     graphic: int | str = Field(default=0, description="The client keeps row[4] as its graphic string")
     bonuses: Annotated[list[EquipmentBonus], _readable_rows(EquipmentBonus)] = Field(
         default_factory=list, description="Bonuses of an item that is not a relic; unreadable entries are skipped"
@@ -445,9 +457,40 @@ class LeaderBase(BasePayload):
     def _gem_list(cls, value: Any) -> Any:
         return value if isinstance(value, list) else []
 
+    _equipment_sent: bool = PrivateAttr(default=False)
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _note_raw_equipment(cls, data: Any, handler: ModelWrapValidatorHandler[LeaderBase]) -> LeaderBase:
+        # parseLord takes AIE/TAE only when !(e.EQ && e.EQ.length > 0), counting rows that do not parse
+        model = handler(data)
+        if isinstance(data, dict):
+            model._equipment_sent = isinstance(data.get("EQ"), list) and len(data["EQ"]) > 0
+        else:
+            model._equipment_sent = bool(model.equipment)
+        return model
+
+    @property
+    def uses_alien_equipment(self) -> bool:
+        """Whether ``AIE``/``TAE`` stand in for an empty ``EQ``, as ``LordVO.parseLord`` decides."""
+        block = self.alien_equipment if self.alien_equipment is not None else self.temporary_equipment
+        return block is not None and not self._equipment_sent
+
+    def worn_items(self) -> list[Equipment]:
+        """
+        The items the client puts in the commander's slots, in slot order.
+
+        ``LordVO.parseLord`` (bundle line 26451) creates the helmet, armor, weapon,
+        artifact, skin and hero slots in that order and puts each ``EQ`` item in
+        its slot by ``row[1]``, so a later item replaces an earlier one and an item
+        for any other slot is not worn.
+        """
+        by_slot = {item.slot: item for item in self.equipment if item.slot in _SLOT_ORDER}
+        return [by_slot[slot] for slot in _SLOT_ORDER if slot in by_slot]
+
     def _alien_rows(self) -> tuple[list[Any], list[Any]]:
         block = self.alien_equipment if self.alien_equipment is not None else self.temporary_equipment
-        if self.equipment or block is None:
+        if not self.uses_alien_equipment or block is None:
             return [], []
         if len(block) == 2 and all(
             isinstance(part, list) and (not part or isinstance(part[0], list)) for part in block
