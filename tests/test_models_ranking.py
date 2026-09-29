@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from empire_core.alliance.models.info import SearchAllianceRequest
+from empire_core.alliance.models.search import SearchAllianceRequest
 from empire_core.enums import RankingType
 from empire_core.protocol.models import GetHighscoreRequest, GetRankingListRequest
 from empire_core.ranking.models import GetHighscoreResponse, GetRankingListResponse

@@ -10,13 +10,8 @@ from empire_core.alliance.models.chat import (
     AllianceChatMessageRequest,
     AllianceChatMessageResponse,
 )
-from empire_core.alliance.models.info import (
-    AllianceInfo,
-    AllianceMember,
-    AllianceSearchResult,
-    AllianceStorage,
-    GetAllianceInfoResponse,
-)
+from empire_core.alliance.models.info import AllianceInfo, AllianceMember, AllianceStorage, GetAllianceInfoResponse
+from empire_core.alliance.models.search import AllianceSearchResult
 from empire_core.castle.models.actions import RelocateCastleRequest, RenameCastleRequest, RenameCastleResponse
 from empire_core.castle.models.castles import CastleInfo, GetCastlesResponse, PlayerCastle
 from empire_core.castle.models.details import GetDetailedCastleResponse
