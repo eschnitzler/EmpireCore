@@ -217,6 +217,15 @@ class _Target:
         return any(value is None for value in (self.row, self.spy_army, self.castellan, self.area_bonuses))
 
 
+def _merged(*inventories: dict[int, int]) -> dict[int, int]:
+    """Inventories added together, as ``AUnitInventory.addAll`` adds each unit's amount."""
+    total: dict[int, int] = {}
+    for inventory in inventories:
+        for wod_id, amount in inventory.items():
+            total[wod_id] = total.get(wod_id, 0) + amount
+    return total
+
+
 @register_service("attack")
 class AttackService(BaseService):
     """
@@ -649,8 +658,8 @@ class AttackService(BaseService):
         game_data = self.client.game_data
         if game_data is None:
             raise GameDataNotLoadedError("Reading an inventory needs the items payload: call load_game_data() first")
-        units = self.client.army.get_units(castle_id=castle_id, timeout=timeout)
-        return self._pool(game_data, {u.unit_id: u.count for u in units})
+        response = self.client.army.get_units_response(castle_id, timeout=timeout)
+        return self._pool(game_data, _merged(response.units, response.stronghold))
 
     @staticmethod
     def _pool(game_data: GameData, amounts: dict[int, int]) -> Inventory:
@@ -838,8 +847,9 @@ class AttackService(BaseService):
         if target.row is None:
             target.row = info.target_row() or None
         if "unit_inventory" in getattr(info, "model_fields_set", ()):
-            # CastleAttackInfoVO.fillFromParamObject fills the attack dialog's army from gui.I
-            target.inventory = info.inventory()
+            # CastleAttackInfoVO.fillFromParamObject fills gui.I and gui.SHI, and the dialog's
+            # AttackDialogUnitPicker adds the stronghold units into the same inventory it fills from
+            target.inventory = _merged(info.inventory(), info.stronghold_inventory())
         if target.spy_army is None:
             target.spy_army = info.spy_army()
         if target.castellan is None:
