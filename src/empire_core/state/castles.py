@@ -6,17 +6,17 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from empire_core.protocol.models.base import enum_or_none
-from empire_core.protocol.models.castle import (
+from empire_core.castle.models.castles import (
     DetailedCastleInfo,
     PlayerCastle,
     ResourceProduction,
     SafeAmount,
     StorageCapacity,
 )
+from empire_core.enums import Kingdom
+from empire_core.protocol.base import enum_or_none
 from empire_core.state.base import StateBase
 from empire_core.state.models import Castle, Resources
-from empire_core.utils.enums import Kingdom
 
 logger = logging.getLogger(__name__)
 

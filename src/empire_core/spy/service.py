@@ -7,13 +7,12 @@ from dataclasses import dataclass, field
 
 from pydantic import ValidationError
 
+from empire_core.army.spy_army import SpyArmy
+from empire_core.attack.models.info import SendSpyRequest, SpyScreenInfoRequest, SpyScreenInfoResponse
+from empire_core.commanders.models.roster import Castellan
+from empire_core.enums import Kingdom, SpyType
 from empire_core.exceptions import CommandError, EmpireError
-from empire_core.utils.enums import Kingdom, SpyType
-
-from ..protocol.models.attack import SendSpyRequest, SpyScreenInfoRequest, SpyScreenInfoResponse
-from ..protocol.models.base import parse_response
-from ..protocol.models.commanders import Castellan
-from ..protocol.models.messages import (
+from empire_core.messages.models import (
     BattleSpyDataRequest,
     BattleSpyDataResponse,
     ForwardSpyLogRequest,
@@ -21,9 +20,10 @@ from ..protocol.models.messages import (
     SpyCastleInfo,
     SystemNotificationEvent,
 )
-from .base import BaseService, register_service
-from .spy_army import SpyArmy
-from .spy_risk import MAX_ACCURACY, MAX_RISK_SPY, plan_mission
+from empire_core.protocol.base import parse_response
+from empire_core.services.base import BaseService, register_service
+
+from .risk import MAX_ACCURACY, MAX_RISK_SPY, plan_mission
 
 # Outcome codes from MessageConst in the game client. A spy log is a loss when
 # the attacker failed or the defender succeeded (AMessageSpyVO.isFailedSpyLog).
@@ -54,7 +54,7 @@ def _parse_spy_notification(message: MessageInfo) -> int | None:
 class SpyResult:
     """Outcome of an instant spy mission.
 
-    The payload fields mirror :class:`~empire_core.protocol.models.messages.BattleSpyDataResponse`
+    The payload fields mirror :class:`~empire_core.messages.models.BattleSpyDataResponse`
     and default to empty containers on failure, so callers can read them without
     a ``None`` check.
 

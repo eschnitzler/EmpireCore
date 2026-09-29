@@ -13,9 +13,10 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, field_validator, model_validator
 
-from ..js import ClientInt, js_loose_equals
-from .base import BasePayload, BaseRequest, BaseResponse, object_or_none, readable_list
-from .commanders import CommanderRoster
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none, readable_list
+from empire_core.protocol.js import ClientInt, js_loose_equals
+
+from .roster import CommanderRoster
 
 if TYPE_CHECKING:
     from empire_core.gamedata.models import GeneralDef

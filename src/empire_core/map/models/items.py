@@ -15,11 +15,18 @@ from typing import Any, cast
 
 from pydantic import ConfigDict, Field, ValidationError, ValidationInfo, field_validator
 
-from empire_core.utils.enums import Kingdom, MapItemType
-
-from ..js import ClientInt, js_int
-from .base import BasePayload, BaseRequest, BaseResponse, Position, enum_or_none, list_or_empty, object_or_none
-from .movement import OwnerCrest, OwnerFaction
+from empire_core.enums import Kingdom, MapItemType
+from empire_core.movements.models import OwnerCrest, OwnerFaction
+from empire_core.protocol.base import (
+    BasePayload,
+    BaseRequest,
+    BaseResponse,
+    Position,
+    enum_or_none,
+    list_or_empty,
+    object_or_none,
+)
+from empire_core.protocol.js import ClientInt, js_int
 
 logger = logging.getLogger(__name__)
 

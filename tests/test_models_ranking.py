@@ -4,10 +4,10 @@ import json
 
 import pytest
 
+from empire_core.alliance.models.info import SearchAllianceRequest
+from empire_core.enums import RankingType
 from empire_core.protocol.models import GetHighscoreRequest, GetRankingListRequest
-from empire_core.protocol.models.alliance import SearchAllianceRequest
-from empire_core.protocol.models.ranking import GetHighscoreResponse, GetRankingListResponse
-from empire_core.utils.enums import RankingType
+from empire_core.ranking.models import GetHighscoreResponse, GetRankingListResponse
 
 # Every list id in HighscoreConst (dll line 19438); the page sizes, point
 # values, sentinels and the PLAYER_BUILDINGS/ALLIANCE_BUILDINGS aliases are left out.

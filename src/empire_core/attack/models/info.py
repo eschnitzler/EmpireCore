@@ -30,18 +30,17 @@ from pydantic import (
 )
 from pydantic.functional_validators import ModelWrapValidatorHandler
 
-from empire_core.utils.enums import AttackType, AutoSkipCooldownType, Kingdom, LootPriority, SpyType
-
-from ..js import js_truthy
-from .army import SpyPositions, UnitInventory
-from .base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, read_or_none, readable_list
-from .commanders import Commander, CommanderEffects, CommanderRoster
-from .map import MapAreaItem, MapObject
-from .movement import MovementOwner, MovementWrapper
+from empire_core.army.models.production import SpyPositions, UnitInventory
+from empire_core.commanders.models.roster import Commander, CommanderEffects, CommanderRoster
+from empire_core.enums import AttackType, AutoSkipCooldownType, Kingdom, LootPriority, SpyType
+from empire_core.map.models.items import MapAreaItem, MapObject
+from empire_core.movements.models import MovementOwner, MovementWrapper
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, read_or_none, readable_list
+from empire_core.protocol.js import js_truthy
 
 if TYPE_CHECKING:
+    from empire_core.army.spy_army import SpyArmy
     from empire_core.combat import Bonus
-    from empire_core.services.spy_army import SpyArmy
 
 logger = logging.getLogger(__name__)
 
@@ -472,7 +471,7 @@ class AttackInfoResponse(BaseResponse):
         Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` fills the positions only
         when ``S`` is not empty (bundle line 30699).
         """
-        from empire_core.services.spy_army import SpyArmy
+        from empire_core.army.spy_army import SpyArmy
 
         if not self.spy_data:
             return None

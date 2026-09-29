@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from empire_core.enums import Kingdom
 from empire_core.protocol.js import js_int
 from empire_core.protocol.models import (
     ChangeKeepDefenseRequest,
@@ -19,7 +20,6 @@ from empire_core.protocol.models import (
     WallSectionSetup,
     parse_response,
 )
-from empire_core.utils.enums import Kingdom
 
 # Live capture, castle name scrubbed and PR/PM trimmed to three entries
 LIVE_DFC: dict[str, Any] = {

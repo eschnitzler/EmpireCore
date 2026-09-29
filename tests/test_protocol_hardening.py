@@ -12,18 +12,18 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from empire_core.alliance.models.info import AllianceInfo
+from empire_core.attack.models.info import AttackWave, CreateAttackResponse, WaveFlank
+from empire_core.commanders.models.roster import Equipment, GetCommandersResponse
+from empire_core.enums import DiplomacyStatus, Kingdom, MapItemType, OnlineState, Rareness
+from empire_core.map.models.items import GetMapAreaResponse, MapAreaItem
 from empire_core.network.connection import _summarize_frame
-from empire_core.protocol.models.alliance import AllianceInfo
-from empire_core.protocol.models.attack import AttackWave, CreateAttackResponse, WaveFlank
-from empire_core.protocol.models.commanders import Equipment, GetCommandersResponse
-from empire_core.protocol.models.map import GetMapAreaResponse, MapAreaItem
 from empire_core.protocol.packet import (
     MALFORMED_STATUS_CODE,
     MAX_FRAME_SIZE,
     MAX_XML_SIZE,
     Packet,
 )
-from empire_core.utils.enums import DiplomacyStatus, Kingdom, MapItemType, OnlineState, Rareness
 
 
 def _castle_entry(
@@ -505,7 +505,7 @@ class TestDriftedEquipmentEntries:
     """A drifted EQ entry must be skipped, not raised through the accessor."""
 
     def test_unparseable_entries_are_skipped_and_logged(self, caplog):
-        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.commanders"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.commanders.models.roster"):
             response = GetCommandersResponse.model_validate(
                 {"C": [{"ID": 91, "EQ": [{"nested": 1}, 5, [880, "not-a-slot"], [880, 2, 2]]}]}
             )

@@ -5,19 +5,19 @@ import logging
 import pytest
 from pydantic import Field, ValidationError
 
-from empire_core.protocol.models import parse_response
-from empire_core.protocol.models.alliance import (
+from empire_core.alliance.models.chat import (
+    AllianceChatLogResponse,
+    AllianceChatMessageRequest,
+    AllianceChatMessageResponse,
+)
+from empire_core.alliance.models.info import (
     AllianceInfo,
     AllianceMember,
     AllianceSearchResult,
     AllianceStorage,
     GetAllianceInfoResponse,
 )
-from empire_core.protocol.models.base import (
-    BaseResponse,
-    get_response_model,
-)
-from empire_core.protocol.models.castle import (
+from empire_core.castle.models.castles import (
     CastleInfo,
     GetCastlesResponse,
     GetDetailedCastleResponse,
@@ -26,17 +26,14 @@ from empire_core.protocol.models.castle import (
     RenameCastleRequest,
     RenameCastleResponse,
 )
-from empire_core.protocol.models.chat import (
-    AllianceChatLogResponse,
-    AllianceChatMessageRequest,
-    AllianceChatMessageResponse,
-)
-from empire_core.protocol.models.defense import GetSupportDefenseResponse
-from empire_core.protocol.models.map import GetMapAreaRequest, GetMapAreaResponse, MapAreaItem
-from empire_core.protocol.models.player import GetPlayerInfoResponse, SearchPlayerResponse
-from empire_core.protocol.models.ranking import GetHighscoreResponse, GetRankingListResponse, RankingEntry
+from empire_core.defense.models import GetSupportDefenseResponse
+from empire_core.enums import Kingdom, MapItemType
+from empire_core.map.models.items import GetMapAreaRequest, GetMapAreaResponse, MapAreaItem
+from empire_core.player.models.info import GetPlayerInfoResponse, SearchPlayerResponse
+from empire_core.protocol.base import BaseResponse, get_response_model
+from empire_core.protocol.models import parse_response
 from empire_core.protocol.text import decode_json_text, encode_json_text
-from empire_core.utils.enums import Kingdom, MapItemType
+from empire_core.ranking.models import GetHighscoreResponse, GetRankingListResponse, RankingEntry
 
 
 class TestRegistry:
@@ -124,7 +121,7 @@ class TestAllianceInfoMemberInfo:
         assert info.alliance_id == 1
 
     def test_malformed_ami_entry_is_logged(self, caplog):
-        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.alliance"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.alliance.models.info"):
             AllianceInfo.model_validate({"AID": 1, "AMI": [5]})
         assert [r for r in caplog.records if r.levelno >= logging.WARNING], "malformed AMI logged nothing"
 
@@ -1094,7 +1091,7 @@ class TestPositionalArrayParsers:
     def test_rows_that_name_no_castle_are_left_out_quietly(self, caplog):
         # FactionCapitalMapobjectVO has no object id; a faction camp of 3 fields is not on the map
         payload = {"C": [{"KID": 10, "AI": [[18, 50, 60, -600, [], -1, 40, 0, 12]]}, {"KID": 10, "AI": [[15, 1, 2]]}]}
-        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.castle"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.castle.models.castles"):
             response = GetCastlesResponse.model_validate(payload)
         assert response.castles == []
         assert caplog.text == ""
@@ -1182,13 +1179,13 @@ class TestRankingEntryDriftedLayouts:
 
     @pytest.mark.parametrize("raw", [[], [1, 2]])
     def test_unknown_layout_is_logged_and_left_unranked(self, raw, caplog):
-        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.ranking"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.ranking.models"):
             entry = RankingEntry(raw)
         assert entry.rank == -1
         assert "Unknown RankingEntry format" in caplog.text
 
     def test_a_layout_that_raises_internally_is_logged_as_an_error(self, caplog):
-        with caplog.at_level(logging.ERROR, logger="empire_core.protocol.models.ranking"):
+        with caplog.at_level(logging.ERROR, logger="empire_core.ranking.models"):
             # Deliberately not a list/dict: the point of the test is that an
             # unparseable layout degrades to rank -1 rather than raising.
             entry = RankingEntry(None)  # type: ignore[arg-type]
@@ -1236,7 +1233,7 @@ class TestMalformedNestedResponsePayloads:
         assert response.online_members == []
 
     def test_drifted_map_row_is_skipped_and_counted_at_parse_time(self, caplog):
-        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.map"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.map.models.items"):
             response = GetMapAreaResponse.model_validate({"KID": 1, "AI": [["?", "?", "?", "?"]]})
         assert response.kingdom == Kingdom.SANDS
         assert response.items == []
@@ -1246,7 +1243,7 @@ class TestMalformedNestedResponsePayloads:
 
     def test_map_rows_survive_a_drifted_neighbour(self, caplog):
         good_row = [1, 640, 655, 900, 4242]
-        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.map"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.map.models.items"):
             response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [["?", "?", "?", "?"], good_row, "junk"]})
         assert [(i.x, i.y, i.owner_id) for i in response.items] == [(640, 655, 4242)]
         assert response.items[0].raw_data == good_row
@@ -1274,7 +1271,7 @@ class TestDriftedPayloadsMustNotCrashAccessors:
         assert response.get_castles() == []
 
     def test_drifted_kingdom_entry_is_skipped_rather_than_crashing(self, caplog):
-        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.castle"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.castle.models.castles"):
             response = GetPlayerInfoResponse.model_validate(
                 {
                     "gcl": {
@@ -1315,7 +1312,7 @@ class TestDriftedPayloadsMustNotCrashAccessors:
 
     def test_clean_defense_payloads_log_nothing(self, caplog):
         response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[487, 100]]]})
-        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.defense"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.defense.models"):
             assert response.get_total_defenders() == 100
             assert response.get_units_by_position() == [{487: 100}]
         assert not [r for r in caplog.records if r.levelno == logging.WARNING]
@@ -1401,7 +1398,7 @@ class TestRelicInfo:
     ]  # fmt: skip
 
     def test_a_relic_carries_its_type_might_and_gem(self):
-        from empire_core.protocol.models.commanders import Equipment
+        from empire_core.commanders.models.roster import Equipment
 
         item = Equipment.model_validate(self.RELIC)
         assert item.is_relic and len(item.relic_bonuses) == 3
@@ -1414,7 +1411,7 @@ class TestRelicInfo:
         assert [b.relic_effect_id for b in info.gem.bonuses] == [302, 305, 307]
 
     def test_no_gem_and_ordinary_items(self):
-        from empire_core.protocol.models.commanders import Equipment
+        from empire_core.commanders.models.roster import Equipment
 
         assert Equipment.model_validate([*self.RELIC[:12], [1, 6, 2980, []]]).relic_info.gem is None  # type: ignore[union-attr]
         assert Equipment.model_validate([*self.RELIC[:12], "junk"]).relic_info is None
@@ -1444,7 +1441,7 @@ class TestMapAreaStructureLevels:
 
 class TestAllianceInfoFlags:
     def test_settings_read_as_alliance_info_vo_does(self):
-        from empire_core.protocol.models.alliance import AllianceInfo
+        from empire_core.alliance.models.info import AllianceInfo
 
         info = AllianceInfo.model_validate(
             {
@@ -1479,7 +1476,7 @@ class TestAllianceInfoFlags:
 
 class TestAllianceInfoText:
     def test_description_and_announcement_read_as_chat_text(self):
-        from empire_core.protocol.models.alliance import AllianceInfo
+        from empire_core.alliance.models.info import AllianceInfo
 
         info = AllianceInfo.model_validate({"D": "Say &quot;hi&quot;<br />now", "A": "", "RT": "30"})
         assert info.description == 'Say "hi"\nnow'
@@ -1490,7 +1487,7 @@ class TestAllianceInfoText:
         assert info.refresh_seconds == 30
 
     def test_forge_fields_are_read_only_with_mf_and_if(self):
-        from empire_core.protocol.models.alliance import AllianceInfo
+        from empire_core.alliance.models.info import AllianceInfo
 
         assert AllianceInfo.model_validate({"MF": 1, "SRFU": 4}).soft_relic_forge_uses == 0
         both = AllianceInfo.model_validate({"MF": 1, "IF": 0, "SRFU": 4})
@@ -1498,14 +1495,14 @@ class TestAllianceInfoText:
 
 
 def test_ain_parseint_fields_read_as_javascript_parseint():
-    from empire_core.protocol.models.alliance import AllianceInfo
+    from empire_core.alliance.models.info import AllianceInfo
 
     info = AllianceInfo.model_validate({"AID": "12abc", "MP": "1e3", "ML": None, "AA": 7.9})
     assert (info.alliance_id, info.might, info.external_member_level, info.application_count) == (12, 1, 0, 7)
 
 
 def test_rename_castle_sends_the_client_keys_and_encodes_the_name():
-    from empire_core.protocol.models.castle import RenameCastleRequest
+    from empire_core.castle.models.castles import RenameCastleRequest
 
     payload = RenameCastleRequest(CID=5, N="100% 'mine'\tnow", AT=MapItemType.CASTLE, KID=Kingdom.ICE, P=1).to_payload()
     # C2SRenameCastleVO: CID, P, KID and AT are initialised before N
@@ -1514,6 +1511,6 @@ def test_rename_castle_sends_the_client_keys_and_encodes_the_name():
 
 
 def test_gam_sends_no_castle():
-    from empire_core.protocol.models.movement import GetMovementsRequest
+    from empire_core.movements.models import GetMovementsRequest
 
     assert GetMovementsRequest().to_payload() == {}

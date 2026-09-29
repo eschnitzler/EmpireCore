@@ -13,11 +13,10 @@ from typing import Any, ClassVar
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
-from empire_core.utils.enums import RankingType
-
-from ..js import ClientInt, js_falsy, js_int
-from ..text import encode_json_text
-from .base import BasePayload, BaseRequest, BaseResponse, GGECommand
+from empire_core.enums import RankingType
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, GGECommand
+from empire_core.protocol.js import ClientInt, js_falsy, js_int
+from empire_core.protocol.text import encode_json_text
 
 logger = logging.getLogger(__name__)
 

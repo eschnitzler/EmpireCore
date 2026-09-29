@@ -8,7 +8,7 @@ support and reserve troops the game never counts together.
 
 import pytest
 
-from empire_core.services.spy_army import SpyArmy, UnitStack
+from empire_core.army.spy_army import SpyArmy, UnitStack
 
 
 def _army() -> list:

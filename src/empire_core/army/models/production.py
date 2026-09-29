@@ -24,10 +24,9 @@ from typing import Annotated, Any, ClassVar
 
 from pydantic import BeforeValidator, Field, model_validator
 
-from empire_core.utils.enums import Kingdom, ProductionListId, SlotType
-
-from ..js import ParseInt, js_int, js_loose_equals, js_number, js_truthy
-from .base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, UnitCount, object_or_none
+from empire_core.enums import Kingdom, ProductionListId, SlotType
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, UnitCount, object_or_none
+from empire_core.protocol.js import ParseInt, js_int, js_loose_equals, js_number, js_truthy
 
 BUY_UNIT_PACKAGE_SK = 73
 """``SK`` of every ``bup``: each client caller leaves ``C2SBuyUnitPackageVO``'s

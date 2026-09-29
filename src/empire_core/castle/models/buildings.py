@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from .base import BaseRequest, BaseResponse
+from empire_core.protocol.base import BaseRequest, BaseResponse
 
 # =============================================================================
 # EBU - Build (Erect Building)

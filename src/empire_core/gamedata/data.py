@@ -21,9 +21,9 @@ from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from empire_core.enums import Kingdom
 from empire_core.exceptions import AmbiguousLookupError, NetworkError
 from empire_core.protocol.js import js_falsy, js_parse_int
-from empire_core.utils.enums import Kingdom
 from empire_core.utils.troops import fetch_items_data, get_items_version
 
 from .models import (

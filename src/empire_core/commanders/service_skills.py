@@ -14,11 +14,10 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Iterable
 
-from empire_core.protocol.models import (
+from empire_core.commanders.models.skills import (
     AddGeneralXpRequest,
     AssignGeneralRequest,
     AssignGeneralResponse,
-    BaseResponse,
     GetGeneralsRequest,
     GetGeneralsResponse,
     GetSkillsRequest,
@@ -29,8 +28,8 @@ from empire_core.protocol.models import (
     SkillList,
     UnlockGeneralSkillRequest,
 )
-
-from .base import BaseService, register_service
+from empire_core.protocol.base import BaseResponse
+from empire_core.services.base import BaseService, register_service
 
 logger = logging.getLogger(__name__)
 

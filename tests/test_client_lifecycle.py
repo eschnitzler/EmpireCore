@@ -28,8 +28,8 @@ from empire_core.exceptions import (
     PacketError,
 )
 from empire_core.network.connection import ResponseWaiter
+from empire_core.player.models.info import GetPlayerInfoRequest, GetPlayerInfoResponse
 from empire_core.protocol.models import BaseResponse
-from empire_core.protocol.models.player import GetPlayerInfoRequest, GetPlayerInfoResponse
 from empire_core.protocol.packet import Packet
 
 

@@ -14,7 +14,7 @@ import sys
 import time
 
 from empire_core import EmpireClient, EmpireError
-from empire_core.protocol.models.chat import AllianceChatMessageResponse
+from empire_core.alliance.models.chat import AllianceChatMessageResponse
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logging.getLogger("websocket").setLevel(logging.WARNING)

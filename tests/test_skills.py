@@ -233,7 +233,7 @@ class TestGeneralCommands:
 
 
 def test_null_skill_lists_read_as_no_skills():
-    from empire_core.protocol.models.skills import GetGeneralsResponse, SkillList
+    from empire_core.commanders.models.skills import GetGeneralsResponse, SkillList
 
     response = GetGeneralsResponse.model_validate({"G": [{"GID": 1}, {"GID": 2, "SIDS": None}, "junk"]})
     assert [(g.general_id, g.skill_ids) for g in response.generals] == [(1, []), (2, [])]

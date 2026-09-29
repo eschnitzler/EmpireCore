@@ -8,14 +8,13 @@ from __future__ import annotations
 
 import logging
 
-from empire_core.protocol.models import (
+from empire_core.commanders.models.equipment import (
     EquipEquipmentRequest,
-    Equipment,
     GetEquipmentInventoryRequest,
     GetEquipmentInventoryResponse,
 )
-
-from .base import BaseService, register_service
+from empire_core.commanders.models.roster import Equipment
+from empire_core.services.base import BaseService, register_service
 
 logger = logging.getLogger(__name__)
 

@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from ..text import decode_json_text, encode_json_text
-from .base import BasePayload, BaseRequest, BaseResponse
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
+from empire_core.protocol.text import decode_json_text, encode_json_text
 
 # =============================================================================
 # ACM - Alliance Chat Message

@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from empire_core.protocol.models.army import wod_amount_pairs
+from empire_core.army.models.production import wod_amount_pairs
 
 # Order matters: it is the wire order the client relies on.
 SECTION_NAMES = ("left", "middle", "right", "keep", "stronghold", "support", "reserve")

@@ -4,15 +4,16 @@ Ranking service for GGE.
 
 import logging
 
-from empire_core.protocol.models import (
+from empire_core.enums import RankingType
+from empire_core.services.base import BaseService, register_service
+
+from .models import (
     GetHighscoreRequest,
     GetHighscoreResponse,
     GetRankingListRequest,
     GetRankingListResponse,
     RankingEntry,
 )
-from empire_core.services.base import BaseService, register_service
-from empire_core.utils.enums import RankingType
 
 logger = logging.getLogger(__name__)
 

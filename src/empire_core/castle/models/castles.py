@@ -19,11 +19,10 @@ from typing import Any
 
 from pydantic import ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
 
-from empire_core.utils.enums import Kingdom, MapItemType
-
-from ..js import js_int
-from ..text import encode_json_text
-from .base import BasePayload, BaseRequest, BaseResponse, Position, ResourceAmount, enum_or_none
+from empire_core.enums import Kingdom, MapItemType
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, Position, ResourceAmount, enum_or_none
+from empire_core.protocol.js import js_int
+from empire_core.protocol.text import encode_json_text
 
 logger = logging.getLogger(__name__)
 

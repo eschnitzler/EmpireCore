@@ -6,9 +6,9 @@ from typing import get_args, get_origin
 import pytest
 from pydantic import BaseModel
 
+from empire_core.enums import Kingdom
 from empire_core.exceptions import AmbiguousLookupError, NetworkError
 from empire_core.gamedata import GameData, ToolStats, UnitStats, parse_ids, parse_stacks
-from empire_core.utils.enums import Kingdom
 
 
 def _recording_fetch(fetches: list[str]):

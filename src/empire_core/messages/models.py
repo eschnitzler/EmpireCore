@@ -12,10 +12,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from ..js import ClientInt, js_int, js_loose_equals
-from .army import SpyPositions
-from .base import BasePayload, BaseRequest, BaseResponse, read_or_none, readable_list
-from .commanders import Castellan
+from empire_core.army.models.production import SpyPositions
+from empire_core.commanders.models.roster import Castellan
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, read_or_none, readable_list
+from empire_core.protocol.js import ClientInt, js_int, js_loose_equals
 
 # =============================================================================
 # SNE - System Notification Event

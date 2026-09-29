@@ -19,7 +19,7 @@ from typing import Any, get_type_hints
 import pytest
 
 import empire_core
-from empire_core.utils.enums import Kingdom
+from empire_core.enums import Kingdom
 
 # ---------------------------------------------------------------------------
 # Top-level exports (findings 1 & 2)
@@ -33,17 +33,17 @@ _DE_FACTO_PUBLIC_SURFACE = [
     ("AccountPool", "empire_core.pool"),
     ("Account", "empire_core.accounts"),
     ("accounts", "empire_core.accounts"),
-    ("Kingdom", "empire_core.utils.enums"),
-    ("MapItemType", "empire_core.utils.enums"),
-    ("MapAreaItem", "empire_core.protocol.models.map"),
+    ("Kingdom", "empire_core.enums"),
+    ("MapItemType", "empire_core.enums"),
+    ("MapAreaItem", "empire_core.map.models.items"),
     ("ScanResult", "empire_core.client.map_scanner"),
-    ("SpyService", "empire_core.services.spy"),
-    ("SpyResult", "empire_core.services.spy"),
+    ("SpyService", "empire_core.spy.service"),
+    ("SpyResult", "empire_core.spy.service"),
     ("Packet", "empire_core.protocol.packet"),
     ("GGEError", "empire_core.protocol.errors"),
-    ("CastleInfo", "empire_core.protocol.models.castle"),
-    ("AllianceMember", "empire_core.protocol.models.alliance"),
-    ("RankingEntry", "empire_core.protocol.models.ranking"),
+    ("CastleInfo", "empire_core.castle.models.castles"),
+    ("AllianceMember", "empire_core.alliance.models.info"),
+    ("RankingEntry", "empire_core.ranking.models"),
     ("decode_json_text", "empire_core.protocol.text"),
     ("encode_json_text", "empire_core.protocol.text"),
     # The documented-preferred pool API raises this, and count_troops' docs
@@ -111,8 +111,8 @@ def test_top_level_movement_is_the_state_model_consumers_use() -> None:
 
 def test_each_id_space_has_one_enum() -> None:
     """Kingdom and MapItemType are the only kingdom and area-type enums; the old duplicates are gone."""
+    from empire_core import enums
     from empire_core.protocol import models
-    from empire_core.utils import enums
 
     assert models.Kingdom is enums.Kingdom and models.MapItemType is enums.MapItemType
     assert empire_core.MapItemType is enums.MapItemType
@@ -123,7 +123,7 @@ def test_each_id_space_has_one_enum() -> None:
 
 def test_npc_camps_resolve_through_map_item_type() -> None:
     """A robber baron camp is AREA_TYPE_DUNGEON (2) in the client's own table."""
-    from empire_core.utils.enums import MapItemType
+    from empire_core.enums import MapItemType
 
     assert MapItemType.DUNGEON == 2
     assert MapItemType(7) is MapItemType.TREASURE_DUNGEON
@@ -132,14 +132,14 @@ def test_npc_camps_resolve_through_map_item_type() -> None:
 
 def test_khan_camp_resolves_under_its_event_type() -> None:
     """The nomad khan camp is ALLIANCE_NOMAD_CAMP (35), not a type of its own."""
-    from empire_core.utils.enums import MapItemType
+    from empire_core.enums import MapItemType
 
     assert MapItemType(35) is MapItemType.ALLIANCE_NOMAD_CAMP
 
 
 def test_map_item_type_has_no_non_client_aliases() -> None:
     """WorldConst.AREA_TYPE_* (dll line 20003) names each id once."""
-    from empire_core.utils.enums import MapItemType
+    from empire_core.enums import MapItemType
 
     for gone in ("ROBBER_BARON", "EXTERNAL_KINGDOM", "KHAN_CAMP", "KHAN_TENT"):
         assert gone not in MapItemType.__members__
@@ -148,7 +148,7 @@ def test_map_item_type_has_no_non_client_aliases() -> None:
 
 def test_ruins_are_castles_not_a_map_item_type() -> None:
     """A ruin is a CASTLE entry flagged isRuin; the client has no ruin type."""
-    from empire_core.utils.enums import MapItemType
+    from empire_core.enums import MapItemType
 
     assert not hasattr(MapItemType, "RUIN")
     doc = MapItemType.__doc__ or ""
@@ -222,9 +222,9 @@ def test_command_error_does_not_mislabel_unknown_codes() -> None:
 
 
 def test_spy_result_payload_fields_are_typed() -> None:
-    from empire_core.protocol.models.commanders import Castellan
-    from empire_core.protocol.models.messages import SpyCastleInfo
-    from empire_core.services.spy import SpyResult
+    from empire_core.commanders.models.roster import Castellan
+    from empire_core.messages.models import SpyCastleInfo
+    from empire_core.spy.service import SpyResult
 
     hints = get_type_hints(SpyResult)
     assert hints["spy_data"] == list[list[list[int]]]
@@ -236,7 +236,7 @@ def test_spy_result_payload_fields_are_typed() -> None:
 
 
 def test_spy_result_payload_defaults_are_empty_not_none() -> None:
-    from empire_core.services.spy import SpyResult
+    from empire_core.spy.service import SpyResult
 
     result = SpyResult(success=False, reason="no_spies_available")
     assert result.spy_data == []
@@ -322,7 +322,7 @@ def test_state_models_expose_snake_case_aliases_for_wire_fields(model_name: str)
 
 def test_state_movement_points_at_the_protocol_models() -> None:
     """The protocol layer no longer has a Movement of its own; the state one says where the raw models are."""
-    from empire_core.protocol.models import map as protocol_map
+    from empire_core.map.models import items as protocol_map
     from empire_core.state.world_models import Movement as StateMovement
 
     assert not hasattr(protocol_map, "Movement")

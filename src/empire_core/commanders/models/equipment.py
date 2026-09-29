@@ -13,8 +13,9 @@ from typing import Any
 
 from pydantic import Field, field_validator
 
-from .base import BaseRequest, BaseResponse, readable_list
-from .commanders import Equipment
+from empire_core.protocol.base import BaseRequest, BaseResponse, readable_list
+
+from .roster import Equipment
 
 logger = logging.getLogger(__name__)
 

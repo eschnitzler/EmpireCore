@@ -20,13 +20,24 @@ from typing import Any, TypeVar, cast
 
 from pydantic import ValidationError
 
+from empire_core.alliance.models.chat import AllianceChatLogRequest, AllianceChatLogResponse
+from empire_core.alliance.models.info import GetAllianceInfoRequest, GetAllianceInfoResponse
+from empire_core.alliance.service import AllianceService
+from empire_core.army.service import ArmyService
+from empire_core.attack.service import AttackService
+from empire_core.castle.service import CastleService
 from empire_core.client.map_scanner import MapScanner, ScanResult
+from empire_core.commanders.service import CommandersService
+from empire_core.commanders.service_equipment import EquipmentService
+from empire_core.commanders.service_skills import SkillsService
 from empire_core.config import (
     LOGIN_DEFAULTS,
     EmpireConfig,
     ServerError,
     default_config,
 )
+from empire_core.defense.models import GetSupportDefenseRequest, GetSupportDefenseResponse
+from empire_core.enums import Kingdom, MapItemType
 from empire_core.exceptions import (
     CommandError,
     EmpireTimeoutError,
@@ -35,38 +46,21 @@ from empire_core.exceptions import (
     PacketError,
 )
 from empire_core.gamedata import GameData
+from empire_core.map.models.items import GetMapAreaRequest, GetMapAreaResponse
 from empire_core.network.connection import Connection
-from empire_core.protocol.models import AllianceChatMessageRequest, BaseRequest, BaseResponse, parse_response
-from empire_core.protocol.models.alliance import GetAllianceInfoRequest, GetAllianceInfoResponse
-from empire_core.protocol.models.chat import AllianceChatLogRequest, AllianceChatLogResponse
-from empire_core.protocol.models.defense import (
-    GetSupportDefenseRequest,
-    GetSupportDefenseResponse,
-)
-from empire_core.protocol.models.map import GetMapAreaRequest, GetMapAreaResponse
-from empire_core.protocol.models.player import (
+from empire_core.player.models.info import (
     GetPlayerInfoRequest,
     GetPlayerInfoResponse,
     SearchPlayerRequest,
     SearchPlayerResponse,
 )
+from empire_core.protocol.models import AllianceChatMessageRequest, BaseRequest, BaseResponse, parse_response
 from empire_core.protocol.packet import Packet
-from empire_core.services import (
-    AllianceService,
-    ArmyService,
-    AttackService,
-    BaseService,
-    CastleService,
-    CommandersService,
-    EquipmentService,
-    RankingService,
-    SkillsService,
-    SpyService,
-    get_registered_services,
-)
+from empire_core.ranking.service import RankingService
+from empire_core.services import BaseService, get_registered_services
+from empire_core.spy.service import SpyService
 from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
-from empire_core.utils.enums import Kingdom, MapItemType
 from empire_core.utils.events import GameEvent
 from empire_core.utils.events import get_active_events as _get_active_events
 

@@ -10,16 +10,14 @@ import threading
 
 import empire_core
 from empire_core import EmpireClient
-from empire_core.services import (
-    AllianceService,
-    ArmyService,
-    AttackService,
-    CastleService,
-    CommandersService,
-    RankingService,
-    SpyService,
-    get_registered_services,
-)
+from empire_core.alliance.service import AllianceService
+from empire_core.army.service import ArmyService
+from empire_core.attack.service import AttackService
+from empire_core.castle.service import CastleService
+from empire_core.commanders.service import CommandersService
+from empire_core.ranking.service import RankingService
+from empire_core.services import get_registered_services
+from empire_core.spy.service import SpyService
 
 SERVICE_TYPES = {
     "alliance": AllianceService,

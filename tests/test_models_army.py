@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 
+from empire_core.enums import Kingdom
 from empire_core.protocol.models import (
     BUY_UNIT_PACKAGE_SK,
     CancelHealRequest,
@@ -35,7 +36,6 @@ from empire_core.protocol.models import (
     SlotType,
     WoundedUnits,
 )
-from empire_core.utils.enums import Kingdom
 
 
 def wire(request: Any) -> str:
@@ -240,7 +240,7 @@ class TestReplies:
 
 def test_an_empty_or_zero_rut_array_reads_as_locked():
     # UnitPackageSlotVO: isLocked = 0 == secondsTillLocked, and 0 == [] and 0 == [0] in JavaScript
-    from empire_core.protocol.models.army import ProductionSlot
+    from empire_core.army.models.production import ProductionSlot
 
     for rut in ([], [0], "0", 0):
         assert ProductionSlot.model_validate({"SI": {"RUT": rut}}).is_locked, rut
@@ -248,7 +248,7 @@ def test_an_empty_or_zero_rut_array_reads_as_locked():
 
 
 def test_a_gcu_value_that_is_no_number_reads_as_none():
-    from empire_core.protocol.models.base import CurrencyTotals
+    from empire_core.protocol.base import CurrencyTotals
 
     totals = CurrencyTotals.model_validate({"C1": "abc", "C2": 30})
     assert (totals.coins, totals.rubies) == (None, 30)

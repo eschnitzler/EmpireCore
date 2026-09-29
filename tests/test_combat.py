@@ -4,6 +4,7 @@ from typing import ClassVar
 
 import pytest
 
+from empire_core.army.spy_army import SpyArmy
 from empire_core.combat import (
     AttackerFlankEffects,
     DefenderFlankEffects,
@@ -32,11 +33,10 @@ from empire_core.combat import (
     yard_capacity,
 )
 from empire_core.combat.capacity import OTHER_PLAYER_INFO_AREA_TYPES
+from empire_core.enums import Kingdom, MapItemType
 from empire_core.gamedata import GameData, UnitStats
+from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.models import AttackWave, Commander, WaveFlank
-from empire_core.protocol.models.map import MapAreaItem
-from empire_core.services.spy_army import SpyArmy
-from empire_core.utils.enums import Kingdom, MapItemType
 
 
 def placed(slots: list[list[int]]) -> list[list[int]]:

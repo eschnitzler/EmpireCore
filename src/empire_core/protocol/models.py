@@ -1,53 +1,21 @@
 """
-GGE Protocol Models - Pydantic models for Goodgame Empire protocol commands.
+GGE protocol models, all areas in one namespace.
 
-This package contains type-safe models for all GGE protocol commands.
-
-Structure:
-- base.py: Base classes and common types
-- auth.py: Authentication commands (lli, lre, vpn, vln, etc.)
-- chat.py: Alliance chat commands (acm, acl)
-- alliance.py: Alliance commands (ahc, aha, ahr)
-- castle.py: Castle commands (gcl, dcl, jca, arc, etc.)
-- map.py: Map commands (gaa, fnm, adi, etc.)
-- movement.py: Army movements (gam, and the abr/asr/mcm pushes)
-- attack.py: Attack/spy commands (cra, csm, gas, etc.)
-- building.py: Building commands (ebu, eup, emo, sbd, etc.)
-- army.py: Army/soldier/hospital commands (bup, spl, gui, hru, etc.)
-- defense.py: Defense commands (dfc, dfk, dfw, dfm)
-- equipment.py: Equipment inventory commands (gei, eeq)
-
-TODO (lower priority):
-- shop.py: Shop/purchase commands (sbp, gbc)
-- events.py: Event commands (sei, pep, hgh, sede)
-- gifts.py: Gift commands (clb, gpg)
-- quests.py: Quest commands (qsc, qdr, fcq)
-- account.py: Account commands (gpi, scp, vpm, cpne, etc.)
-- settings.py: Settings commands (ani, mvf, opt, hfl)
-- misc.py: Miscellaneous commands (txi, txs, txc, gbl, etc.)
+Importing this module imports every area's models, which fills the response
+registry in :mod:`empire_core.protocol.base`. The models live in their area
+packages (``empire_core.map.models``, ``empire_core.attack.models``, ...);
+library code imports them from there, never from here.
 """
 
-from empire_core.utils.enums import (
-    AttackType,
-    AutoSkipCooldownType,
-    DiplomacyStatus,
-    EquipmentSlot,
-    EquipmentType,
-    HelpType,
-    Kingdom,
-    LootPriority,
-    MapItemType,
-    OnlineState,
-    ProductionListId,
-    RankingType,
-    Rareness,
-    SCEItem,
-    SlotType,
-    SpyType,
-    WearerType,
+from empire_core.alliance.models.chat import (
+    AllianceChatLogRequest,
+    AllianceChatLogResponse,
+    AllianceChatMessageRequest,
+    AllianceChatMessageResponse,
+    ChatLogEntry,
+    ChatMessageData,
 )
-
-from .alliance import (
+from empire_core.alliance.models.info import (
     AllianceBookmark,
     AllianceBuilding,
     AllianceDiplomacyStatus,
@@ -70,7 +38,7 @@ from .alliance import (
     SearchAllianceRequest,
     SearchAllianceResponse,
 )
-from .army import (
+from empire_core.army.models.production import (
     BUY_UNIT_PACKAGE_SK,
     AddedUnit,
     CancelHealRequest,
@@ -105,7 +73,7 @@ from .army import (
     UnitInventory,
     WoundedUnits,
 )
-from .attack import (
+from empire_core.attack.models.info import (
     AttackInfoResponse,
     AttackPreset,
     AttackTargetArea,
@@ -145,34 +113,7 @@ from .attack import (
     SpyScreenInfoResponse,
     WaveFlank,
 )
-from .auth import (
-    CheckUsernameAvailableRequest,
-    CheckUsernameAvailableResponse,
-    CheckUsernameExistsRequest,
-    CheckUsernameExistsResponse,
-    LoginRequest,
-    LoginResponse,
-    PasswordRecoveryRequest,
-    PasswordRecoveryResponse,
-    PlayerData,
-    RegisterRequest,
-    RegisterResponse,
-)
-from .base import (
-    DEFAULT_ZONE,
-    BasePayload,
-    BaseRequest,
-    BaseResponse,
-    CurrencyTotals,
-    GGECommand,
-    PlayerInfo,
-    Position,
-    ResourceAmount,
-    UnitCount,
-    get_response_model,
-    parse_response,
-)
-from .building import (
+from empire_core.castle.models.buildings import (
     BuildRequest,
     BuildResponse,
     BuyExtensionRequest,
@@ -198,7 +139,7 @@ from .building import (
     UpgradeWallRequest,
     UpgradeWallResponse,
 )
-from .castle import (
+from empire_core.castle.models.castles import (
     CastleInfo,
     CastleProductionArea,
     DetailedCastleInfo,
@@ -222,15 +163,12 @@ from .castle import (
     SelectCastleResponse,
     StorageCapacity,
 )
-from .chat import (
-    AllianceChatLogRequest,
-    AllianceChatLogResponse,
-    AllianceChatMessageRequest,
-    AllianceChatMessageResponse,
-    ChatLogEntry,
-    ChatMessageData,
+from empire_core.commanders.models.equipment import (
+    EquipEquipmentRequest,
+    GetEquipmentInventoryRequest,
+    GetEquipmentInventoryResponse,
 )
-from .commanders import (
+from empire_core.commanders.models.roster import (
     Castellan,
     Commander,
     CommanderEffect,
@@ -243,74 +181,7 @@ from .commanders import (
     RenameCommanderRequest,
     RenameCommanderResponse,
 )
-from .defense import (
-    ChangeKeepDefenseRequest,
-    ChangeMoatDefenseRequest,
-    ChangeWallDefenseRequest,
-    GetDefenseRequest,
-    GetDefenseResponse,
-    GetSupportDefenseRequest,
-    GetSupportDefenseResponse,
-    KeepDefense,
-    MoatDefense,
-    WallDefense,
-    WallSection,
-    WallSectionSetup,
-)
-from .equipment import (
-    EquipEquipmentRequest,
-    GetEquipmentInventoryRequest,
-    GetEquipmentInventoryResponse,
-)
-from .map import (
-    AllianceCrest,
-    AllianceEmblem,
-    FindNPCRequest,
-    FindNPCResponse,
-    GetMapAreaRequest,
-    GetMapAreaResponse,
-    MapAreaItem,
-    MapObject,
-    NPCLocation,
-)
-from .messages import (
-    BattleSpyDataRequest,
-    BattleSpyDataResponse,
-    MessageInfo,
-    SystemNotificationEvent,
-)
-from .movement import (
-    GetMovementsRequest,
-    GetMovementsResponse,
-    MovementArea,
-    MovementArmy,
-    MovementMarket,
-    MovementOwner,
-    MovementRecord,
-    MovementSpy,
-    MovementUnitInfo,
-    MovementWrapper,
-    OwnerCastlePosition,
-    OwnerCrest,
-    OwnerFaction,
-)
-from .player import (
-    GetPlayerInfoRequest,
-    GetPlayerInfoResponse,
-    LocationCapture,
-    PlayerOwnerInfo,
-    SearchPlayerRequest,
-    SearchPlayerResponse,
-)
-from .ranking import (
-    GetHighscoreRequest,
-    GetHighscoreResponse,
-    GetRankingListRequest,
-    GetRankingListResponse,
-    LeaderboardScore,
-    RankingEntry,
-)
-from .skills import (
+from empire_core.commanders.models.skills import (
     ActivatingSceatSkill,
     AddGeneralXpRequest,
     AssignGeneralRequest,
@@ -326,6 +197,114 @@ from .skills import (
     SetGeneralAbilitiesRequest,
     SkillList,
     UnlockGeneralSkillRequest,
+)
+from empire_core.defense.models import (
+    ChangeKeepDefenseRequest,
+    ChangeMoatDefenseRequest,
+    ChangeWallDefenseRequest,
+    GetDefenseRequest,
+    GetDefenseResponse,
+    GetSupportDefenseRequest,
+    GetSupportDefenseResponse,
+    KeepDefense,
+    MoatDefense,
+    WallDefense,
+    WallSection,
+    WallSectionSetup,
+)
+from empire_core.enums import (
+    AttackType,
+    AutoSkipCooldownType,
+    DiplomacyStatus,
+    EquipmentSlot,
+    EquipmentType,
+    HelpType,
+    Kingdom,
+    LootPriority,
+    MapItemType,
+    OnlineState,
+    ProductionListId,
+    RankingType,
+    Rareness,
+    SCEItem,
+    SlotType,
+    SpyType,
+    WearerType,
+)
+from empire_core.map.models.items import (
+    AllianceCrest,
+    AllianceEmblem,
+    FindNPCRequest,
+    FindNPCResponse,
+    GetMapAreaRequest,
+    GetMapAreaResponse,
+    MapAreaItem,
+    MapObject,
+    NPCLocation,
+)
+from empire_core.messages.models import (
+    BattleSpyDataRequest,
+    BattleSpyDataResponse,
+    MessageInfo,
+    SystemNotificationEvent,
+)
+from empire_core.movements.models import (
+    GetMovementsRequest,
+    GetMovementsResponse,
+    MovementArea,
+    MovementArmy,
+    MovementMarket,
+    MovementOwner,
+    MovementRecord,
+    MovementSpy,
+    MovementUnitInfo,
+    MovementWrapper,
+    OwnerCastlePosition,
+    OwnerCrest,
+    OwnerFaction,
+)
+from empire_core.player.models.info import (
+    GetPlayerInfoRequest,
+    GetPlayerInfoResponse,
+    LocationCapture,
+    PlayerOwnerInfo,
+    SearchPlayerRequest,
+    SearchPlayerResponse,
+)
+from empire_core.protocol.auth import (
+    CheckUsernameAvailableRequest,
+    CheckUsernameAvailableResponse,
+    CheckUsernameExistsRequest,
+    CheckUsernameExistsResponse,
+    LoginRequest,
+    LoginResponse,
+    PasswordRecoveryRequest,
+    PasswordRecoveryResponse,
+    PlayerData,
+    RegisterRequest,
+    RegisterResponse,
+)
+from empire_core.protocol.base import (
+    DEFAULT_ZONE,
+    BasePayload,
+    BaseRequest,
+    BaseResponse,
+    CurrencyTotals,
+    GGECommand,
+    PlayerInfo,
+    Position,
+    ResourceAmount,
+    UnitCount,
+    get_response_model,
+    parse_response,
+)
+from empire_core.ranking.models import (
+    GetHighscoreRequest,
+    GetHighscoreResponse,
+    GetRankingListRequest,
+    GetRankingListResponse,
+    LeaderboardScore,
+    RankingEntry,
 )
 
 __all__ = [

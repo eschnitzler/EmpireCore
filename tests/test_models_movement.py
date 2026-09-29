@@ -5,9 +5,9 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from empire_core.enums import SpyType
+from empire_core.protocol.base import Position
 from empire_core.protocol.models import GetMovementsResponse, MovementArea, MovementSpy
-from empire_core.protocol.models.base import Position
-from empire_core.utils.enums import SpyType
 
 # Live capture, names scrubbed
 GOOD_MOVEMENT: dict[str, Any] = {

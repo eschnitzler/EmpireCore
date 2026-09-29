@@ -9,7 +9,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar
 
 from empire_core.exceptions import CommandError
-from empire_core.protocol.models import BaseRequest, BaseResponse
+from empire_core.protocol.base import BaseRequest, BaseResponse
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient

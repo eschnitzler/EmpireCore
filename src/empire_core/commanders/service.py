@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from empire_core.protocol.models import (
+from empire_core.commanders.models.roster import (
     Castellan,
     Commander,
     GetCommandersRequest,
@@ -16,8 +16,7 @@ from empire_core.protocol.models import (
     RenameCommanderRequest,
     RenameCommanderResponse,
 )
-
-from .base import BaseService, register_service
+from empire_core.services.base import BaseService, register_service
 
 logger = logging.getLogger(__name__)
 

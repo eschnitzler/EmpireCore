@@ -15,8 +15,8 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, NamedTuple, Protocol
 
+from empire_core.enums import CombatEffectType, MapItemType
 from empire_core.gamedata import GameData, ToolStats
-from empire_core.utils.enums import CombatEffectType, MapItemType
 
 from .bonuses import parse_effect_spec
 from .effects import AttackerFlankEffects, DefenderFlankEffects

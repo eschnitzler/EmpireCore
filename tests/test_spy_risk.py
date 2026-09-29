@@ -7,14 +7,7 @@ anything invented here.
 
 import pytest
 
-from empire_core.services.spy_risk import (
-    MAX_ACCURACY,
-    MAX_RISK_SPY,
-    MIN_ACCURACY,
-    MIN_RISK_SPY_PLAYER,
-    plan_mission,
-    spy_risk,
-)
+from empire_core.spy.risk import MAX_ACCURACY, MAX_RISK_SPY, MIN_ACCURACY, MIN_RISK_SPY_PLAYER, plan_mission, spy_risk
 
 
 class TestSpyRiskMatchesTheClient:

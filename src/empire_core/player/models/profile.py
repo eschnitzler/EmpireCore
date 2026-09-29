@@ -15,8 +15,8 @@ from typing import Any
 
 from pydantic import Field, field_validator
 
-from .base import BasePayload, object_or_none, readable_list
-from .movement import OwnerCastlePosition, OwnerCrest
+from empire_core.movements.models import OwnerCastlePosition, OwnerCrest
+from empire_core.protocol.base import BasePayload, object_or_none, readable_list
 
 
 class PlayerProfileBase(BasePayload):

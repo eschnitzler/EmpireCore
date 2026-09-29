@@ -12,16 +12,16 @@ import logging
 from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
+from empire_core.enums import CombatEffectType, Flank, Kingdom, MapItemType
 from empire_core.gamedata import GameData, NpcCampDefence, ToolStats
-from empire_core.protocol.models.map import MapAreaItem
-from empire_core.utils.enums import CombatEffectType, Flank, Kingdom, MapItemType
+from empire_core.map.models.items import MapAreaItem
 
 from .bonuses import Bonus, EffectResolver, commander_bonuses, parse_effect_spec
 from .effects import DefenderFlankEffects
 
 if TYPE_CHECKING:
-    from empire_core.protocol.models import Commander
-    from empire_core.services.spy_army import SpyArmy
+    from empire_core.army.spy_army import SpyArmy
+    from empire_core.commanders.models.roster import Commander
 
 logger = logging.getLogger(__name__)
 

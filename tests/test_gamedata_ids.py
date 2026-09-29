@@ -17,10 +17,10 @@ import pytest
 from pydantic import BaseModel
 
 from empire_core import gamedata
+from empire_core.commanders.models.skills import SetGeneralAbilitiesRequest
+from empire_core.enums import Kingdom
 from empire_core.gamedata import GameData, UnitStats, default_cache_dir, ids
 from empire_core.gamedata.data import CACHE_FILENAME_TEMPLATE, ROW_TABLES, rows_by_id
-from empire_core.protocol.models.skills import SetGeneralAbilitiesRequest
-from empire_core.utils.enums import Kingdom
 from tests.test_gamedata import LOOKUP_PAYLOAD, PAYLOAD
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -661,8 +661,8 @@ class TestStaleness:
 
 def test_every_combat_effect_type_is_a_generated_effect_type():
     # CombatEffectType keeps the client's EffectTypeEnum names; the generated enum is named from the table
+    from empire_core.enums import CombatEffectType
     from empire_core.gamedata.ids import EffectType
-    from empire_core.utils.enums import CombatEffectType
 
     missing = [member.name for member in CombatEffectType if member.value not in EffectType._value2member_map_]
     assert missing == []

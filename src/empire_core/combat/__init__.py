@@ -1,6 +1,6 @@
 """Combat maths ported from the game client."""
 
-from empire_core.utils.enums import CombatEffectType, Flank
+from empire_core.enums import CombatEffectType, Flank
 
 from .bonuses import (
     Bonus,

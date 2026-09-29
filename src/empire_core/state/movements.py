@@ -6,8 +6,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from empire_core.protocol.models.base import read_or_none, readable_list
-from empire_core.protocol.models.movement import MovementOwner, MovementWrapper
+from empire_core.movements.models import MovementOwner, MovementWrapper
+from empire_core.protocol.base import read_or_none, readable_list
 from empire_core.state.base import MovementEventCallback, StateBase
 from empire_core.state.world_models import DAIMYO_TOWNSHIP_PLAYER_ID, Movement, MovementResources
 

@@ -5,7 +5,8 @@ import logging
 import pytest
 from pydantic import Field
 
-from empire_core.protocol.models.base import (
+from empire_core.movements.models import MovementSpy, MovementWrapper
+from empire_core.protocol.base import (
     BasePayload,
     CurrencyTotals,
     list_or_empty,
@@ -13,7 +14,6 @@ from empire_core.protocol.models.base import (
     read_or_none,
     readable_list,
 )
-from empire_core.protocol.models.movement import MovementSpy, MovementWrapper
 
 logger = logging.getLogger("tests.readers")
 

@@ -14,17 +14,18 @@ from collections.abc import Callable
 
 from pydantic import ValidationError
 
-from empire_core.exceptions import CommandError, PacketError
-from empire_core.protocol.models import (
-    AllianceBookmark,
+from empire_core.alliance.models.chat import (
     AllianceChatLogRequest,
     AllianceChatLogResponse,
     AllianceChatMessageRequest,
     AllianceChatMessageResponse,
+    ChatLogEntry,
+)
+from empire_core.alliance.models.info import (
+    AllianceBookmark,
     AllianceMember,
     AllianceSearchResult,
     AskHelpRequest,
-    ChatLogEntry,
     GetAllianceBookmarksRequest,
     GetAllianceBookmarksResponse,
     GetAllianceInfoRequest,
@@ -35,8 +36,8 @@ from empire_core.protocol.models import (
     SearchAllianceRequest,
     SearchAllianceResponse,
 )
-
-from .base import BaseService, register_service
+from empire_core.exceptions import CommandError, PacketError
+from empire_core.services.base import BaseService, register_service
 
 logger = logging.getLogger(__name__)
 

@@ -23,10 +23,17 @@ from pydantic import (
 )
 from pydantic.functional_validators import ModelWrapValidatorHandler
 
-from empire_core.utils.enums import EquipmentSlot, EquipmentType, Kingdom, Rareness, WearerType
-
-from ..js import ClientInt, js_int
-from .base import BasePayload, BaseRequest, BaseResponse, enum_or_none, list_or_empty, read_or_none, readable_list
+from empire_core.enums import EquipmentSlot, EquipmentType, Kingdom, Rareness, WearerType
+from empire_core.protocol.base import (
+    BasePayload,
+    BaseRequest,
+    BaseResponse,
+    enum_or_none,
+    list_or_empty,
+    read_or_none,
+    readable_list,
+)
+from empire_core.protocol.js import ClientInt, js_int
 
 logger = logging.getLogger(__name__)
 

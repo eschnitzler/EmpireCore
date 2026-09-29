@@ -16,13 +16,12 @@ from typing import Any
 
 from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
-from empire_core.utils.enums import Kingdom
-
-from ..js import ClientInt, js_int
-from .army import SpyPositions, UnitInventory
-from .base import BasePayload, BaseRequest, BaseResponse, read_or_none
-from .commanders import Castellan, CommanderRoster
-from .movement import MovementArea
+from empire_core.army.models.production import SpyPositions, UnitInventory
+from empire_core.commanders.models.roster import Castellan, CommanderRoster
+from empire_core.enums import Kingdom
+from empire_core.movements.models import MovementArea
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, read_or_none
+from empire_core.protocol.js import ClientInt, js_int
 
 logger = logging.getLogger(__name__)
 

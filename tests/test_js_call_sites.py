@@ -2,10 +2,10 @@
 
 import pytest
 
+from empire_core.army.spy_army import SpyArmy, UnitStack
 from empire_core.gamedata.models import EquipmentEffectDef
+from empire_core.movements.models import MovementOwner
 from empire_core.protocol.models import AllianceInfo, General, MessageInfo
-from empire_core.protocol.models.movement import MovementOwner
-from empire_core.services.spy_army import SpyArmy, UnitStack
 from empire_core.state.models import Alliance
 
 

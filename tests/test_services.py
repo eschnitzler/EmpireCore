@@ -23,8 +23,14 @@ from typing import Any, ClassVar, cast
 import pytest
 from pydantic import ValidationError
 
+from empire_core.alliance.service import AllianceService
+from empire_core.army.service import ArmyService
+from empire_core.army.spy_army import SpyArmy
+from empire_core.castle.service import CastleService
 from empire_core.client.client import EmpireClient
+from empire_core.commanders.service import CommandersService
 from empire_core.config import EmpireConfig
+from empire_core.enums import Kingdom, RankingType
 from empire_core.exceptions import (
     CommandError,
     ConnectionClosedError,
@@ -54,19 +60,11 @@ from empire_core.protocol.models import (
     WearerType,
 )
 from empire_core.protocol.packet import Packet
-from empire_core.services import (
-    AllianceService,
-    ArmyService,
-    CastleService,
-    CommandersService,
-    RankingService,
-    SpyService,
-    get_registered_services,
-)
-from empire_core.services import spy as spy_module
-from empire_core.services.spy_army import SpyArmy
+from empire_core.ranking.service import RankingService
+from empire_core.services import get_registered_services
+from empire_core.spy import service as spy_module
+from empire_core.spy.service import SpyService
 from empire_core.state.models import Player
-from empire_core.utils.enums import Kingdom, RankingType
 
 
 def placed(slots: list[list[int]]) -> list[list[int]]:
@@ -701,7 +699,7 @@ class TestAllianceSearch:
         payload = {"L": [[1, 2, ["x", "y"]], self.GOLDEN_HGH["L"][0], 5]}
         client = make_client({"hgh": xt_packet("hgh", payload)})
 
-        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.alliance"):
+        with caplog.at_level(logging.WARNING, logger="empire_core.alliance.models.info"):
             results = client.alliance.search_alliances("HOPE")
 
         assert [(r.alliance_id, r.name) for r in results] == [(0, "y"), (190426, "Test Alliance")]
@@ -756,7 +754,7 @@ class TestAllianceChat:
         client.alliance.on_chat_message(boom)
         client.alliance.on_chat_message(lambda r: seen.append(r.player_name))
 
-        with caplog.at_level(logging.ERROR, logger="empire_core.services.alliance"):
+        with caplog.at_level(logging.ERROR, logger="empire_core.alliance.service"):
             client._on_packet(xt_packet("acm", {"CM": {"PN": "LeaderGuy", "MT": "hi", "PID": 7001}}))
 
         assert seen == ["LeaderGuy"]
@@ -814,7 +812,7 @@ class TestSkillListUpdates:
         client.skills.on_skill_list(boom)
         client.skills.on_skill_list(seen.append)
 
-        with caplog.at_level(logging.ERROR, logger="empire_core.services.skills"):
+        with caplog.at_level(logging.ERROR, logger="empire_core.commanders.service_skills"):
             client._on_packet(xt_packet("skl", {"SID": [3]}))
 
         assert len(seen) == 1
@@ -2912,7 +2910,7 @@ class TestFillAttack:
     def test_the_precalculation_supplies_the_defenders_legend_skills(self):
         from types import SimpleNamespace
 
-        from empire_core.services.attack import _Target
+        from empire_core.attack.service import _Target
 
         client = self.build([[601, 100_000]])
         army = SpyArmy.from_spy_data([[[601, 10]], [], [], [], [], [], []])
@@ -3063,7 +3061,7 @@ class TestFillAttack:
         assert scanned < reselected < inventory
 
     def test_a_failed_tile_scan_still_tries_the_pre_calculation_once(self):
-        from empire_core.services.attack import _Target
+        from empire_core.attack.service import _Target
 
         client = self.build([[601, 100_000]])
         conn(client).script["gaa"] = EmpireTimeoutError("no gaa")
@@ -3076,7 +3074,7 @@ class TestFillAttack:
         assert "aci" in sent
 
     def test_a_pre_calculation_without_a_row_leaves_the_map_to_supply_it(self):
-        from empire_core.services.attack import _Target
+        from empire_core.attack.service import _Target
 
         client = self.build([[601, 100_000]])
         outpost_row = [4, 700, 710, 55, 4242, 1, 1, 1, 0, 0, "outpost"]
@@ -3128,7 +3126,7 @@ class TestFillAttack:
     def test_an_invasion_camp_reports_protection_as_a_percentage(self):
         # Fields 9 to 11 are bonuses already, not building levels: read as
         # levels they would be looked up in the fortification table and lost.
-        from empire_core.protocol.models.map import MapAreaItem
+        from empire_core.map.models.items import MapAreaItem
 
         item = MapAreaItem.from_list([37, 700, 710, -1, 1, 0, 0, 15, -1, 110, 110, 0])
 
@@ -3188,7 +3186,7 @@ class TestFillAttack:
         assert "aci" not in sent and "gaa" not in sent
 
     def test_a_monument_is_sized_for_its_own_level(self):
-        from empire_core.utils.enums import MapItemType
+        from empire_core.enums import MapItemType
 
         client = self.build([[601, 100_000]])
 
@@ -3198,7 +3196,7 @@ class TestFillAttack:
         assert landmark.waves[0].unit_count() > low.waves[0].unit_count()
 
     def test_a_conquered_target_sizes_the_courtyard_from_the_area(self):
-        from empire_core.utils.enums import MapItemType
+        from empire_core.enums import MapItemType
 
         client = self.build([[601, 1_000_000]])
 

@@ -2,7 +2,7 @@
 
 import pytest
 
-from empire_core.protocol.models.ranking import GetHighscoreResponse, GetRankingListResponse, RankingEntry
+from empire_core.ranking.models import GetHighscoreResponse, GetRankingListResponse, RankingEntry
 
 
 def test_player_highscore_metadata():

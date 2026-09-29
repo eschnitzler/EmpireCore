@@ -8,11 +8,18 @@ from typing import Any
 
 from pydantic import Field, field_validator, model_validator
 
-from empire_core.utils.enums import MapItemType, SpyType
-
-from ..js import ClientInt, js_loose_equals, js_parse_int, js_parse_int_or_zero, js_truthy
-from .base import BasePayload, BaseRequest, BaseResponse, Position, enum_or_none, object_or_none, read_or_none
-from .commanders import Commander
+from empire_core.commanders.models.roster import Commander
+from empire_core.enums import MapItemType, SpyType
+from empire_core.protocol.base import (
+    BasePayload,
+    BaseRequest,
+    BaseResponse,
+    Position,
+    enum_or_none,
+    object_or_none,
+    read_or_none,
+)
+from empire_core.protocol.js import ClientInt, js_loose_equals, js_parse_int, js_parse_int_or_zero, js_truthy
 
 
 class GetMovementsRequest(BaseRequest):

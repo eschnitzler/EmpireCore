@@ -8,10 +8,10 @@ from unittest.mock import patch
 import pytest
 
 from empire_core.client.client import EmpireClient
-from empire_core.protocol.models.commanders import CommanderEffect
+from empire_core.commanders.models.roster import CommanderEffect
+from empire_core.enums import MapItemType, MovementType
 from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
-from empire_core.utils.enums import MapItemType, MovementType
 from tests.state_helpers import arrive, gam_payload, login, push_payload, wait_for
 
 

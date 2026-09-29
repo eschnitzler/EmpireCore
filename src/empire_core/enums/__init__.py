@@ -7,10 +7,9 @@ import nothing but :mod:`enum`, so any module can import them without a cycle.
 from .alliance import DiplomacyStatus, HelpType, OnlineState
 from .army import ProductionListId, SlotType
 from .combat import AttackType, AutoSkipCooldownType, CombatEffectType, Flank, LootPriority
-from .equipment import EquipmentSlot, EquipmentType, Rareness, WearerType
-from .inventory import SCEItem
+from .commanders import EquipmentSlot, EquipmentType, Rareness, SCEItem, WearerType
 from .map import Kingdom, MapItemType
-from .movement import MovementType
+from .movements import MovementType
 from .ranking import RankingType
 from .spy import SpyType
 
