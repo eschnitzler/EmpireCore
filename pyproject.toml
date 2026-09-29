@@ -56,10 +56,10 @@ select = ["E", "F", "I", "B"] # Pycodestyle, Pyflakes, Isort, Bugbear
 # 120 enforced for the rest of the tree instead of inert everywhere).
 
 [tool.ruff.lint.per-file-ignores]
-# TODO: one 169-char f-string in Movement.__repr__ (world_models.py:286) that
+# TODO: one 169-char f-string in Movement.__repr__ (movements/tracked.py:326) that
 # `ruff format` cannot split. Wrap it and delete this entry - it is the only
 # reason E501 is not simply on everywhere.
-"src/empire_core/state/world_models.py" = ["E501"]
+"src/empire_core/movements/tracked.py" = ["E501"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

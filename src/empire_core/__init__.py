@@ -39,6 +39,7 @@ from empire_core.gamedata import GameData, ToolStats, UnitStats
 from empire_core.map.models.areas import MapObject
 from empire_core.map.models.items import MapAreaItem
 from empire_core.messages.models import SpyCastleInfo
+from empire_core.movements.tracked import Movement, MovementResources
 from empire_core.pool import AccountPool, PoolExhaustedError
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import Packet
@@ -46,7 +47,6 @@ from empire_core.protocol.text import decode_json_text, encode_json_text
 from empire_core.ranking.models import RankingEntry
 from empire_core.spy.service import SpyResult, SpyService
 from empire_core.state.models import Alliance, Building, Castle, Player, Resources
-from empire_core.state.world_models import Movement, MovementResources
 from empire_core.utils.events import GameEvent
 from empire_core.utils.troops import get_troop_ids, troop_data_available
 

@@ -99,7 +99,7 @@ def test_all_entries_resolve_and_are_unique() -> None:
 
 def test_top_level_movement_is_the_state_model_consumers_use() -> None:
     """`empire_core.Movement` must stay the state model with the GGE field names."""
-    from empire_core.state.world_models import Movement as StateMovement
+    from empire_core.movements.tracked import Movement as StateMovement
 
     assert empire_core.Movement is StateMovement
 
@@ -323,7 +323,7 @@ def test_state_models_expose_snake_case_aliases_for_wire_fields(model_name: str)
 def test_state_movement_points_at_the_protocol_models() -> None:
     """The protocol layer no longer has a Movement of its own; the state one says where the raw models are."""
     from empire_core.map.models import items as protocol_map
-    from empire_core.state.world_models import Movement as StateMovement
+    from empire_core.movements.tracked import Movement as StateMovement
 
     assert not hasattr(protocol_map, "Movement")
     doc = StateMovement.__doc__ or ""

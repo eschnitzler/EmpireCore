@@ -34,6 +34,7 @@ from empire_core.enums import Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, LoginCooldownError, LoginError, PacketError
 from empire_core.gamedata import GameData
 from empire_core.map.models.areas import GetMapAreaRequest, GetMapAreaResponse
+from empire_core.movements.tracked import Movement
 from empire_core.network.connection import Connection
 from empire_core.player.models.info import (
     GetPlayerInfoRequest,
@@ -47,7 +48,6 @@ from empire_core.ranking.service import RankingService
 from empire_core.services import BaseService, get_registered_services
 from empire_core.spy.service import SpyService
 from empire_core.state.manager import GameState
-from empire_core.state.world_models import Movement
 from empire_core.utils.events import GameEvent
 from empire_core.utils.events import get_active_events as _get_active_events
 

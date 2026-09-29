@@ -10,8 +10,8 @@ import pytest
 from empire_core.client.client import EmpireClient
 from empire_core.commanders.models.roster import CommanderEffect
 from empire_core.enums import MapItemType, MovementType
+from empire_core.movements.tracked import Movement
 from empire_core.state.manager import GameState
-from empire_core.state.world_models import Movement
 from tests.state.state_helpers import arrive, gam_payload, login, push_payload, wait_for
 
 
@@ -358,7 +358,7 @@ class TestMovementTime:
         assert mov.has_arrived()
 
     def test_resources_total_includes_special(self):
-        from empire_core.state.world_models import MovementResources
+        from empire_core.movements.tracked import MovementResources
 
         res = MovementResources(MEAD=5, A=2, C=1, O=4)
         assert (res.aquamarine, res.coal, res.oil) == (2, 1, 4)

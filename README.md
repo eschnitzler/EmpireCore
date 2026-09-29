@@ -562,7 +562,7 @@ empire_core/
 ├── enums/           # Every game enum, one module per area
 ├── gamedata/        # Items data: units, tools, effects and the id enums
 ├── services/        # BaseService and the service registry
-├── state/           # Thread-safe game state and world models
+├── state/           # Thread-safe game state
 ├── storage/         # Experimental persistence (optional extra)
 └── utils/           # CDN-backed event and troop data
 ```

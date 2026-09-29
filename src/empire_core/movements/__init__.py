@@ -15,6 +15,7 @@ from .models import (
     MovementUnitInfo,
     MovementWrapper,
 )
+from .tracked import Movement, MovementResources
 
 __all__ = [
     "GetMovementsRequest",
@@ -28,5 +29,7 @@ __all__ = [
     "MovementSpy",
     "MovementUnitInfo",
     "MovementWrapper",
+    "Movement",
+    "MovementResources",
     "MovementType",
 ]

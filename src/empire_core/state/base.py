@@ -6,8 +6,8 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+from empire_core.movements.tracked import Movement
 from empire_core.state.models import Castle, Player
-from empire_core.state.world_models import Movement
 
 logger = logging.getLogger(__name__)
 
