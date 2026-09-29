@@ -93,7 +93,7 @@ _ATTACK_PRECALCULATION: dict[int, _Precalculation] = {
     # ACTION_TYPE_OUTPOSTATTACK: OutpostMapobjectVO, extended by CapitalMapobjectVO and MetropolMapobjectVO
     MapItemType.OUTPOST: _ACI,
     MapItemType.CAPITAL: _ACI,
-    MapItemType.METRO: _ACI,
+    MapItemType.METROPOL: _ACI,
     # ACTION_TYPE_DUNGEONATTACK
     MapItemType.DUNGEON: _ADI,
     MapItemType.EVENT_DUNGEON: _ADI,
@@ -105,7 +105,7 @@ _ATTACK_PRECALCULATION: dict[int, _Precalculation] = {
     MapItemType.FACTION_INVASION_CAMP: _ADI,
     MapItemType.ALLIANCE_NOMAD_CAMP: _ADI,
     MapItemType.DAIMYO_CASTLE: _ADI,
-    MapItemType.ABG_RESOURCE_TOWER: _ADI,
+    MapItemType.ALLIANCE_BATTLE_GROUND_RESOURCE_TOWER: _ADI,
     MapItemType.WOLF_KING: _ADI,
     MapItemType.ARE_PORTAL: _ADI,
     # ACTION_TYPE_BOSSDUNGEONATTACK
@@ -123,7 +123,7 @@ _ATTACK_PRECALCULATION: dict[int, _Precalculation] = {
 _CONQUER_PRECALCULATION: dict[int, _Precalculation] = {
     MapItemType.OUTPOST: (GetOutpostConquerInfoRequest, GetOutpostConquerInfoResponse),
     MapItemType.CAPITAL: (GetCapitalConquerInfoRequest, GetCapitalConquerInfoResponse),
-    MapItemType.METRO: (GetMetropolConquerInfoRequest, GetMetropolConquerInfoResponse),
+    MapItemType.METROPOL: (GetMetropolConquerInfoRequest, GetMetropolConquerInfoResponse),
 }
 
 

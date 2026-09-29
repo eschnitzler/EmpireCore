@@ -96,7 +96,7 @@ OWNED_AREA_TYPES = frozenset(
         MapItemType.VILLAGE,
         MapItemType.KINGDOM_CASTLE,
         MapItemType.FACTION_CAMP,
-        MapItemType.METRO,
+        MapItemType.METROPOL,
         MapItemType.KINGS_TOWER,
         MapItemType.ISLE_RESOURCE,
         MapItemType.MONUMENT,
@@ -121,7 +121,7 @@ FACTION_LANDMARK_TYPES = frozenset(
 _FLOORED_LEVEL_TYPES = frozenset(
     {MapItemType.CASTLE, MapItemType.OUTPOST, MapItemType.KINGDOM_CASTLE, MapItemType.FACTION_CAMP}
 )
-_RAW_LEVEL_TYPES = frozenset({MapItemType.CAPITAL, MapItemType.METRO})
+_RAW_LEVEL_TYPES = frozenset({MapItemType.CAPITAL, MapItemType.METROPOL})
 
 # The level of an upgradable landmark: MonumentMapobjectVO reads it at field 6,
 # LaboratoryMapobjectVO at field 5.
@@ -386,14 +386,14 @@ class MapAreaItem(BasePayload):
             MapItemType.CAPITAL,
             MapItemType.OUTPOST,
             MapItemType.KINGDOM_CASTLE,
-            MapItemType.METRO,
+            MapItemType.METROPOL,
         )
 
     @property
     def capturer_id(self) -> int:
         if self.item_type == MapItemType.OUTPOST:
             return self.raw_data[15] if len(self.raw_data) > 15 else -1
-        elif self.item_type in (MapItemType.CAPITAL, MapItemType.METRO):
+        elif self.item_type in (MapItemType.CAPITAL, MapItemType.METROPOL):
             return self.raw_data[14] if len(self.raw_data) > 14 else -1
         return -1
 

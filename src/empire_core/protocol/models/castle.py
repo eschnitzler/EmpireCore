@@ -37,7 +37,7 @@ LOCATION_TYPES: dict[int, str] = {
     MapItemType.TREASURE_DUNGEON: "Treasure Dungeon",
     MapItemType.KINGDOM_CASTLE: "Castle",
     MapItemType.FACTION_CAMP: "Camp",
-    MapItemType.METRO: "Metro",
+    MapItemType.METROPOL: "Metro",
     MapItemType.MONUMENT: "Monument",
     MapItemType.LABORATORY: "Laboratory",
 }
@@ -108,7 +108,7 @@ class PlayerCastle(BasePayload):
         # Capturer ID position depends on type
         if castle_type == MapItemType.OUTPOST:
             capturer_id = data[15] if len(data) > 15 else -1
-        elif castle_type in (MapItemType.CAPITAL, MapItemType.METRO):
+        elif castle_type in (MapItemType.CAPITAL, MapItemType.METROPOL):
             capturer_id = data[14] if len(data) > 14 else -1
         else:
             capturer_id = -1

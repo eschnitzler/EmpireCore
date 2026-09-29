@@ -362,7 +362,7 @@ class EffectResolver:
         """Absolute unit bonus to the courtyard wave."""
         return self.accumulate(
             bonuses,
-            CombatEffectType.REINFORCEMENT_BONUS,
+            CombatEffectType.ATTACK_UNIT_AMOUNT_REINFORCEMENT_BONUS,
             area_type=area_type,
             player_target=player_target,
         )
@@ -377,7 +377,7 @@ class EffectResolver:
         """Percentage boost to the courtyard wave, applied as a multiplier."""
         return self.accumulate(
             bonuses,
-            CombatEffectType.REINFORCEMENT_BOOST,
+            CombatEffectType.ATTACK_UNIT_AMOUNT_REINFORCEMENT_BOOST,
             area_type=area_type,
             player_target=player_target,
         )

@@ -45,7 +45,7 @@ _AREA_LAYOUTS: dict[int, tuple[int | None, int | None, int | None]] = {
     MapItemType.CAPITAL: (3, 4, 10),
     MapItemType.OUTPOST: (3, 4, 10),
     MapItemType.KINGDOM_CASTLE: (3, 4, 10),
-    MapItemType.METRO: (3, 4, 10),
+    MapItemType.METROPOL: (3, 4, 10),
     MapItemType.VILLAGE: (3, 4, None),
     MapItemType.FACTION_VILLAGE: (None, 3, None),
     MapItemType.FACTION_TOWER: (None, 3, None),
@@ -54,7 +54,7 @@ _AREA_LAYOUTS: dict[int, tuple[int | None, int | None, int | None]] = {
     MapItemType.ISLE_RESOURCE: (3, 4, 6),
     MapItemType.MONUMENT: (3, 4, 9),
     MapItemType.LABORATORY: (3, 4, 8),
-    MapItemType.ABG_TOWER: (3, None, 4),
+    MapItemType.ALLIANCE_BATTLE_GROUND_TOWER: (3, None, 4),
 }
 
 

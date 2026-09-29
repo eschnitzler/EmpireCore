@@ -865,7 +865,7 @@ class TestPositionalArrayParsers:
             MapItemType.OUTPOST,
             MapItemType.VILLAGE,
             MapItemType.KINGDOM_CASTLE,
-            MapItemType.METRO,
+            MapItemType.METROPOL,
             MapItemType.KINGS_TOWER,
             MapItemType.MONUMENT,
             MapItemType.LABORATORY,
@@ -956,7 +956,7 @@ class TestPositionalArrayParsers:
 
     @pytest.mark.parametrize(
         ("area_type", "capturer"),
-        [(MapItemType.OUTPOST, 77), (MapItemType.CAPITAL, 66), (MapItemType.METRO, 66), (MapItemType.CASTLE, -1)],
+        [(MapItemType.OUTPOST, 77), (MapItemType.CAPITAL, 66), (MapItemType.METROPOL, 66), (MapItemType.CASTLE, -1)],
     )
     def test_player_castle_capturer_depends_on_the_area_type(self, area_type, capturer):
         row = gdi_location_row(area_type, 640, 655, 12345, 4242, "Main", 0, capturer_capital=66, capturer_outpost=77)

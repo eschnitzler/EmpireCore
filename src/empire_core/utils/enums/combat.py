@@ -15,7 +15,7 @@ class AttackType(IntEnum):
     VILLAGE_CONQUER = 2
     CAPITAL_CONQUER = 3
     METROPOL_CONQUER = 5
-    KINGS_TOWER_CONQUER = 6
+    KINGTOWER_CONQUER = 6
     CONQUER = 7
     MONUMENT_CONQUER = 8
     LABORATORY_CONQUER = 9
@@ -81,10 +81,7 @@ class CombatEffectType(IntEnum):
     """
     Effect type ids the library reads: a subset of the client's effect types.
 
-    Names are the client's minus the ``EFFECT_TYPE_`` prefix, except
-    REINFORCEMENT_BONUS and REINFORCEMENT_BOOST
-    (``ATTACK_UNIT_AMOUNT_REINFORCEMENT_*``). Also checked against the items
-    ``effecttypes`` table.
+    Names are the client's minus the ``EFFECT_TYPE_`` prefix.
 
     Client: ``EffectTypeEnum`` (bundle line 1322)
     """
@@ -119,8 +116,8 @@ class CombatEffectType(IntEnum):
     ADDITIONAL_WAVE = 156
     CURRENCY_LOOT_BOOST = 168
     UNLOCK_ABILITY = 178
-    REINFORCEMENT_BONUS = 179
-    REINFORCEMENT_BOOST = 180
+    ATTACK_UNIT_AMOUNT_REINFORCEMENT_BONUS = 179
+    ATTACK_UNIT_AMOUNT_REINFORCEMENT_BOOST = 180
     CRAFTING_QUEUE_PRODUCTION_BOOST = 188
     RESERVE_UNIT_KILL = 208
     SPAWN_RESERVE_UNIT = 213
