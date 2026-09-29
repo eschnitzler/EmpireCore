@@ -475,11 +475,17 @@ class CurrencyTotals(BasePayload):
     """
 
     gold: int | float | None = Field(
-        alias="C1", default=None, description="Gold (C1), assigned as sent; None when the block leaves it out"
+        alias="C1", default=None, description="Gold (C1), assigned as sent; None when missing or not a number"
     )
     rubies: int | float | None = Field(
-        alias="C2", default=None, description="Rubies (C2), assigned as sent; None when the block leaves it out"
+        alias="C2", default=None, description="Rubies (C2), assigned as sent; None when missing or not a number"
     )
+
+    @field_validator("gold", "rubies", mode="before")
+    @classmethod
+    def _number_or_none(cls, value: Any) -> Any:
+        # parseGCU assigns the value as it comes; a value that is no number is not a total
+        return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
 def _currency_block(value: Any) -> Any:

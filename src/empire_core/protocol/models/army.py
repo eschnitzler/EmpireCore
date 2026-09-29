@@ -298,7 +298,10 @@ class ProductionSlot(BasePayload):
         if _js_truthy(info):
             get = info.get if isinstance(info, dict) else (lambda _key: None)
             rut = get("RUT")
-            if isinstance(rut, (list, dict)):
+            if isinstance(rut, list):
+                # 0 == [] and 0 == [0] hold in JavaScript: an array compares as its joined text
+                rut = ",".join("" if entry is None else str(entry) for entry in rut)
+            elif isinstance(rut, dict):
                 rut = None
             slot["seconds_till_locked"] = rut if slot["amount"] <= 0 else -1
             slot["is_vip"] = _js_truthy(get("VIP"))

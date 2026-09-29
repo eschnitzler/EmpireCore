@@ -151,6 +151,8 @@ class ArmyService(BaseService):
         Client: ``C2SBuyUnitPackageVO`` (bundle line 35277); the ruby path is
         ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35218)
         """
+        if list_id == ProductionListId.HOSPITAL:
+            raise ValueError("bup produces soldiers, tools or auxiliaries; the hospital list is healed with heal_units")
         kingdom_id = self._join_castle(castle_id, timeout)
         request = ProduceUnitsRequest(
             LID=list_id,

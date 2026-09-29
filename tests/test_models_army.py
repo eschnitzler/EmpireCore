@@ -231,3 +231,19 @@ class TestReplies:
     def test_bou_reply(self):
         reply = DoubleProductionSlotResponse.model_validate({"spl": {"LID": 0}, "gcu": {"C2": 10}})
         assert reply.production_list is not None and reply.production_list.list_id == 0
+
+
+def test_an_empty_or_zero_rut_array_reads_as_locked():
+    # UnitPackageSlotVO: isLocked = 0 == secondsTillLocked, and 0 == [] and 0 == [0] in JavaScript
+    from empire_core.protocol.models.army import ProductionSlot
+
+    for rut in ([], [0], "0", 0):
+        assert ProductionSlot.model_validate({"SI": {"RUT": rut}}).is_locked, rut
+    assert not ProductionSlot.model_validate({"SI": {"RUT": [5]}}).is_locked
+
+
+def test_a_gcu_value_that_is_no_number_reads_as_none():
+    from empire_core.protocol.models.base import CurrencyTotals
+
+    totals = CurrencyTotals.model_validate({"C1": "abc", "C2": 30})
+    assert (totals.gold, totals.rubies) == (None, 30)
