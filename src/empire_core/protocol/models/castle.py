@@ -28,18 +28,18 @@ logger = logging.getLogger(__name__)
 # Location Types
 # =============================================================================
 
-LOCATION_TYPES = {
-    0: "Empty",
-    1: "Castle",
-    2: "Dungeon",
-    3: "Capital",
-    4: "Outpost",
-    7: "Treasure Dungeon",
-    12: "Castle",  # Colored kingdom castle (KID 1-4)
-    15: "Camp",
-    22: "Metro",
-    26: "Monument",
-    28: "Laboratory",
+LOCATION_TYPES: dict[int, str] = {
+    MapItemType.EMPTY: "Empty",
+    MapItemType.CASTLE: "Castle",
+    MapItemType.DUNGEON: "Dungeon",
+    MapItemType.CAPITAL: "Capital",
+    MapItemType.OUTPOST: "Outpost",
+    MapItemType.TREASURE_DUNGEON: "Treasure Dungeon",
+    MapItemType.KINGDOM_CASTLE: "Castle",
+    MapItemType.FACTION_CAMP: "Camp",
+    MapItemType.METRO: "Metro",
+    MapItemType.MONUMENT: "Monument",
+    MapItemType.LABORATORY: "Laboratory",
 }
 
 
@@ -106,10 +106,9 @@ class PlayerCastle(BasePayload):
         name = data[10] if len(data) > 10 else ""
 
         # Capturer ID position depends on type
-        type_name = get_location_type_name(castle_type)
-        if type_name == "Outpost":
+        if castle_type == MapItemType.OUTPOST:
             capturer_id = data[15] if len(data) > 15 else -1
-        elif type_name in ("Capital", "Metro"):
+        elif castle_type in (MapItemType.CAPITAL, MapItemType.METRO):
             capturer_id = data[14] if len(data) > 14 else -1
         else:
             capturer_id = -1
@@ -631,7 +630,7 @@ class RelocateCastleRequest(BaseRequest):
     )
     x: int = Field(alias="X")
     y: int = Field(alias="Y")
-    kingdom_id: int = Field(alias="KID", default=0)
+    kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN)
 
 
 class RelocateCastleResponse(BaseResponse):

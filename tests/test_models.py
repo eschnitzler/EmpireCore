@@ -19,9 +19,11 @@ from empire_core.protocol.models.base import (
     get_response_model,
 )
 from empire_core.protocol.models.castle import (
+    LOCATION_TYPES,
     GetCastlesResponse,
     GetDetailedCastleResponse,
     PlayerCastle,
+    RelocateCastleRequest,
     RenameCastleRequest,
     RenameCastleResponse,
 )
@@ -951,6 +953,22 @@ class TestPositionalArrayParsers:
     def test_player_castle_row_kingdom_wins_when_present(self):
         row = gdi_location_row(1, 640, 655, 12345, 4242, "Main", 4)
         assert PlayerCastle.from_list(row, kingdom=0).kingdom == 4
+
+    @pytest.mark.parametrize(
+        ("area_type", "capturer"),
+        [(MapItemType.OUTPOST, 77), (MapItemType.CAPITAL, 66), (MapItemType.METRO, 66), (MapItemType.CASTLE, -1)],
+    )
+    def test_player_castle_capturer_depends_on_the_area_type(self, area_type, capturer):
+        row = gdi_location_row(area_type, 640, 655, 12345, 4242, "Main", 0, capturer_capital=66, capturer_outpost=77)
+        assert PlayerCastle.from_list(row).capturer_id == capturer
+
+    def test_location_labels_are_keyed_by_area_type(self):
+        assert all(isinstance(t, MapItemType) for t in LOCATION_TYPES)
+        assert LOCATION_TYPES[15] == "Camp" and MapItemType(15) is MapItemType.FACTION_CAMP
+
+    def test_relocate_takes_a_kingdom(self):
+        payload = RelocateCastleRequest(CID=5, X=10, Y=20, KID=Kingdom.ICE).to_payload()
+        assert payload == {"CID": 5, "X": 10, "Y": 20, "KID": 2}
 
     @pytest.mark.parametrize("data", [[1, "x", 3, 4], "abcd", [1, 2, 3, [4]]])
     def test_player_castle_rejects_wrong_types(self, data):

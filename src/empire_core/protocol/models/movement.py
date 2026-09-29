@@ -8,9 +8,9 @@ from typing import Any
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
-from empire_core.utils.enums import MapItemType
+from empire_core.utils.enums import MapItemType, SpyType
 
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, Position
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, Position, enum_or_none
 from .commanders import Commander
 
 
@@ -196,7 +196,7 @@ class MovementSpy(BasePayload):
     Client: ``SpyMapmovementVO.parseSpyInfo``.
     """
 
-    spy_type: int = Field(alias="ST", default=0, description="0 military, 1 eco, 2 sabotage, 3 plague")
+    spy_type: int = Field(alias="ST", default=0, description="SpyType value")
     accuracy_or_damage: int = Field(
         alias="SA", default=0, description="Accuracy percent, or damage percent for sabotage"
     )
@@ -204,8 +204,13 @@ class MovementSpy(BasePayload):
     risk: int = Field(alias="SR", default=0, description="Risk of being caught, percent")
 
     @property
+    def spy_type_enum(self) -> SpyType | None:
+        """``spy_type`` as a :class:`SpyType`, None for a value the client does not define."""
+        return enum_or_none(SpyType, self.spy_type)
+
+    @property
     def is_sabotage(self) -> bool:
-        return self.spy_type == 2
+        return self.spy_type == SpyType.SABOTAGE
 
 
 class MovementWrapper(BasePayload):

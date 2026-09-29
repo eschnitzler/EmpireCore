@@ -37,8 +37,8 @@ class AllianceMember(PlayerProfileBase):
     SA/VF/PF/RRD/TI/RPT/AID/AN/AP/VP/E) are inherited from PlayerProfileBase.
 
     Note: Activity status comes from the AMI array in AllianceInfo
-    (``AllianceMemberInfo.login_activity``), not the H field.
-    Activity tiers: 0=online, 1=<12hrs, 2=<48hrs, 3=<7days, 4=7+days offline.
+    (``AllianceMemberInfo.login_activity``), not the H field; its values are
+    :class:`OnlineState`.
     """
 
     name: str = Field(alias="N", default="Unknown")
@@ -48,20 +48,14 @@ class AllianceMember(PlayerProfileBase):
     is_in_ruins: bool = Field(alias="R", default=False)
 
     # Activity tier (populated from AMI array, not from server directly)
-    # None means unknown, 0-4 are the activity tiers from the server
+    # None means unknown, otherwise an OnlineState value
     _activity_tier: int | None = None
 
     @property
     def activity_tier(self) -> int | None:
         """
-        Get the member's activity tier from AMI array (index 4).
-
-        Activity tiers:
-        - 0: Online now
-        - 1: Offline < 12 hours
-        - 2: Offline < 48 hours
-        - 3: Offline < 7 days
-        - 4: Offline 7+ days
+        Get the member's activity tier from AMI array (index 4), an
+        :class:`OnlineState` value.
 
         Returns None if activity status is unknown.
         """
@@ -72,10 +66,10 @@ class AllianceMember(PlayerProfileBase):
         """
         Check if the member is currently online.
 
-        Returns True only if activity_tier == 0.
+        Returns True only if activity_tier is OnlineState.ONLINE.
         Returns False if offline or unknown.
         """
-        return self._activity_tier == 0
+        return self._activity_tier == OnlineState.ONLINE
 
 
 # =============================================================================

@@ -5,8 +5,9 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from empire_core.protocol.models import GetMovementsResponse, MovementArea
+from empire_core.protocol.models import GetMovementsResponse, MovementArea, MovementSpy
 from empire_core.protocol.models.base import Position
+from empire_core.utils.enums import SpyType
 
 # Live capture, names scrubbed
 GOOD_MOVEMENT: dict[str, Any] = {
@@ -115,6 +116,8 @@ class TestMalformedMovementBatch:
             {"M": [{**GOOD_MOVEMENT, "S": {"ST": 2, "SA": 40, "SC": 12, "SR": 5}}]}
         ).movements[0]
         assert spy.spy is not None and spy.spy.is_sabotage and spy.spy.accuracy_or_damage == 40
+        assert spy.spy.spy_type_enum is SpyType.SABOTAGE
+        assert MovementSpy(ST=9).spy_type_enum is None
         market = GetMovementsResponse.model_validate(
             {"M": [{**GOOD_MOVEMENT, "S": 0, "MM": {"C": 3, "G": [["W", 100], ["S", 50]]}}]}
         ).movements[0]
