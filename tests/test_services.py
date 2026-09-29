@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+from types import SimpleNamespace
 from typing import Any, ClassVar, cast
 
 import pytest
@@ -46,7 +47,9 @@ from empire_core.protocol.models import (
     GetAllianceInfoResponse,
     HelpType,
     MapItemType,
+    ProductionListId,
     SelectCastleRequest,
+    SlotType,
     WaveFlank,
     WearerType,
 )
@@ -1502,55 +1505,99 @@ class TestArmyService:
         assert [command for command, _ in conn(client).request_payloads] == ["jaa", "gui"]
         assert conn(client).request_payloads[-1] == ("gui", {})
 
-    def test_production_queue_parses(self):
-        payload = {"Q": [{"QID": 1, "UID": 487, "C": 50, "R": 20, "CT": 1712345678}]}
+    def test_production_list_joins_the_castle_and_reads_the_spl_block(self):
+        payload = {"LID": 1, "QS": [{"P": {"WID": 649, "TUA": 20}, "SI": {"RUT": -1}}], "PS": {}, "RM": 0, "TCT": 0}
         client = make_client({"spl": xt_packet("spl", payload)})
 
-        queue = client.army.get_production_queue(12345, 7, list_id=1)
+        production = client.army.get_production_list(12345, ProductionListId.TOOLS)
 
-        assert [(q.queue_id, q.unit_id, q.count, q.remaining) for q in queue] == [(1, 487, 50, 20)]
-        assert conn(client).request_payloads == [("spl", {"CID": 12345, "BID": 7, "LID": 1})]
-
-    def test_heal_all_reports_the_count(self):
-        client = make_client({"hra": xt_packet("hra", {"UH": 314, "CT": 1712345678})})
-        assert client.army.heal_all(12345) == 314
+        assert [(s.position, s.wod_id, s.amount) for s in production.queue] == [(0, 649, 20)]
+        assert production.current.is_free
+        assert conn(client).request_payloads == [("jaa", {"CID": 12345, "KID": 0}), ("spl", {"LID": 1})]
 
     @pytest.mark.parametrize(
         "call,command,expected",
         [
-            (lambda s: s.produce_units(1, 2, 3, 4), "bup", {"CID": 1, "BID": 2, "UID": 3, "C": 4, "LID": 0}),
-            (lambda s: s.delete_units(1, 2, 3), "dup", {"CID": 1, "UID": 2, "C": 3}),
-            (lambda s: s.cancel_production(1, 2, 3), "mcu", {"CID": 1, "BID": 2, "QID": 3}),
-            (lambda s: s.double_production_slot(1, 2, 3), "bou", {"CID": 1, "BID": 2, "QID": 3}),
-            (lambda s: s.heal_units(1, 2, 3), "hru", {"CID": 1, "UID": 2, "C": 3}),
-            (lambda s: s.cancel_heal(1, 2), "hcs", {"CID": 1, "QID": 2}),
-            (lambda s: s.skip_heal_time(1, 2), "hss", {"CID": 1, "QID": 2}),
-            (lambda s: s.delete_wounded(1, 2, 3), "hdu", {"CID": 1, "UID": 2, "C": 3}),
+            (
+                lambda s: s.produce_units(12345, ProductionListId.SOLDIERS, 620, 150),
+                "bup",
+                {"LID": 0, "WID": 620, "AMT": 150, "PO": -1, "PWR": 0, "SK": 73, "SID": 0, "AID": 12345},
+            ),
+            (
+                lambda s: s.produce_units(12345, ProductionListId.TOOLS, 649, 20, private_offer_id=88),
+                "bup",
+                {"LID": 1, "WID": 649, "AMT": 20, "PO": -1, "PWR": 0, "SK": 73, "SID": 0, "AID": 12345},
+            ),
+            (
+                lambda s: s.produce_units(
+                    12345, ProductionListId.TOOLS, 649, 20, pay_with_rubies=True, private_offer_id=88
+                ),
+                "bup",
+                {"LID": 1, "WID": 649, "AMT": 20, "PO": 88, "PWR": 1, "SK": 73, "SID": 0, "AID": 12345},
+            ),
+            (lambda s: s.dismiss_units(12345, 620, 30), "dup", {"WID": 620, "A": 30, "S": 0}),
+            (lambda s: s.dismiss_units(12345, 620, 30, from_stronghold=True), "dup", {"WID": 620, "A": 30, "S": 1}),
+            (
+                lambda s: s.cancel_production(12345, ProductionListId.SOLDIERS, SlotType.PRODUCTION, 0),
+                "mcu",
+                {"LID": 0, "S": 0, "ST": "production"},
+            ),
+            (
+                lambda s: s.double_production_slot(12345, ProductionListId.SOLDIERS, SlotType.QUEUE, 2),
+                "bou",
+                {"LID": 0, "S": 2, "AID": 12345, "SID": 0, "ST": "queue"},
+            ),
+            (lambda s: s.heal_units(12345, 620, 12), "hru", {"U": 620, "A": 12}),
+            (lambda s: s.cancel_heal(12345, 1), "hcs", {"S": 1}),
+            (lambda s: s.skip_heal(12345, 2), "hss", {"S": 2}),
+            (lambda s: s.dismiss_wounded(12345, 620, 5), "hdu", {"U": 620, "A": 5}),
+            (
+                lambda s: s.dismiss_wounded_units(12345, {620: 5, 621: 3}),
+                "hdu",
+                {"UT": [{"U": 620, "A": 5}, {"U": 621, "A": 3}]},
+            ),
+            (lambda s: s.heal_all(12345, 417), "hra", {"C2": 417}),
         ],
     )
-    def test_actions_send_the_documented_payload_and_report_acceptance(self, call, command, expected):
+    def test_actions_join_the_castle_then_send_the_client_payload(self, call, command, expected):
         client = make_client()
 
         assert call(client.army) is True
 
-        assert conn(client).request_payloads == [(command, expected)]
+        assert conn(client).request_payloads == [("jaa", {"CID": 12345, "KID": 0}), (command, expected)]
+        assert list(conn(client).request_payloads[-1][1]) == list(expected)
+
+    def test_the_castle_kingdom_goes_into_bup_and_bou(self):
+        state = StubState()
+        state.get_castles = lambda: [SimpleNamespace(id=12345, kingdom_id=2)]  # type: ignore[attr-defined]
+        client = make_client(state=state)
+
+        client.army.produce_units(12345, ProductionListId.SOLDIERS, 620, 1)
+        client.army.double_production_slot(12345, ProductionListId.SOLDIERS, SlotType.PRODUCTION, 0)
+
+        sent = conn(client).request_payloads
+        assert sent[0] == ("jaa", {"CID": 12345, "KID": 2})
+        assert (sent[1][1]["SID"], sent[3][1]["SID"]) == (2, 2)
 
     @pytest.mark.parametrize(
         "call,command",
         [
-            (lambda s: s.produce_units(1, 2, 3, 4), "bup"),
-            (lambda s: s.heal_units(1, 2, 3), "hru"),
-            (lambda s: s.delete_wounded(1, 2, 3), "hdu"),
+            (lambda s: s.produce_units(12345, ProductionListId.SOLDIERS, 620, 1), "bup"),
+            (lambda s: s.heal_units(12345, 620, 1), "hru"),
+            (lambda s: s.dismiss_wounded(12345, 620, 1), "hdu"),
+            (lambda s: s.heal_all(12345, 10), "hra"),
         ],
     )
     def test_rejected_actions_are_false(self, call, command):
         client = make_client({command: xt_packet(command, error_code=21)})
         assert call(client.army) is False
 
-    def test_heal_all_error_raises(self):
-        client = make_client({"hra": xt_packet("hra", error_code=21)})
+    def test_a_refused_join_sends_no_action(self):
+        client = make_client({"jaa": xt_packet("jaa", error_code=21)})
+
         with pytest.raises(CommandError):
-            client.army.heal_all(12345)
+            client.army.heal_units(12345, 620, 1)
+        assert [command for command, _ in conn(client).request_payloads] == ["jaa"]
 
 
 # =============================================================================

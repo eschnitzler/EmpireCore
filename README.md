@@ -117,7 +117,27 @@ if resources:
     print(f"Wood: {resources.wood}, Stone: {resources.stone}")
 ```
 
-Also available: `client.army`, `client.ranking` and `client.spy`.
+### `client.army`
+
+Every call joins the castle first; production and hospital commands act on the joined castle.
+
+```python
+from empire_core.protocol.models import ProductionListId, SlotType
+
+units = client.army.get_units(castle_id=12345)          # [UnitCount(unit_id=wod_id, count=...)]
+
+client.army.produce_units(12345, ProductionListId.SOLDIERS, wod_id=620, amount=50)
+production = client.army.get_production_list(12345, ProductionListId.SOLDIERS)
+for slot in production.queue:
+    print(slot.position, slot.wod_id, slot.amount)
+client.army.cancel_production(12345, ProductionListId.SOLDIERS, SlotType.QUEUE, position=0)
+
+hospital = client.army.get_production_list(12345, ProductionListId.HOSPITAL)
+client.army.heal_units(12345, wod_id=620, amount=10)
+client.army.cancel_heal(12345, position=hospital.hospital_slots[0].position)
+```
+
+Also available: `client.ranking` and `client.spy`.
 
 ### `client.commanders`
 

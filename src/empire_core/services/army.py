@@ -6,32 +6,42 @@ Provides high-level APIs for:
 - Unit inventory management
 - Hospital operations
 
+Every command here acts on the castle the session has joined, so each method
+joins the castle first (``jca``), as the client is inside a castle before it
+shows the recruit or hospital dialog.
+
 Action methods return True when the server accepted the action and False
 when it rejected it with an error code; transport failures (timeout,
-disconnect) raise. Query methods raise on any failure.
+disconnect) raise. Query methods raise on any failure. A refused join raises
+before anything is sent.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from empire_core.protocol.models import (
     CancelHealRequest,
     CancelProductionRequest,
-    DeleteUnitsRequest,
-    DeleteWoundedRequest,
-    DoubleProductionRequest,
-    GetProductionQueueRequest,
-    GetProductionQueueResponse,
+    DismissManyWoundedRequest,
+    DismissUnitsRequest,
+    DismissWoundedRequest,
+    DoubleProductionSlotRequest,
+    GetProductionListRequest,
+    GetProductionListResponse,
     GetUnitsRequest,
     GetUnitsResponse,
     HealAllRequest,
-    HealAllResponse,
     HealUnitsRequest,
     ProduceUnitsRequest,
-    ProductionQueueItem,
+    ProductionList,
+    ProductionListId,
     SelectCastleRequest,
     SelectCastleResponse,
     SkipHealRequest,
+    SlotType,
     UnitCount,
+    WoundedUnits,
 )
 
 from .base import BaseService, register_service
@@ -50,9 +60,22 @@ class ArmyService(BaseService):
         # Get units
         units = client.army.get_units(castle_id=123)
 
-        # Produce units
-        client.army.produce_units(castle_id=123, unit_id=5, count=10)
+        # Produce 50 of wod id 620 in the soldier list
+        client.army.produce_units(123, ProductionListId.SOLDIERS, wod_id=620, amount=50)
     """
+
+    def _join_castle(self, castle_id: int, timeout: float) -> int:
+        """
+        Join the castle and return its kingdom id.
+
+        Raises:
+            CommandError: The server refused to join the castle
+        """
+        castles = getattr(self.client.state, "get_castles", list)() or []
+        castle = next((c for c in castles if getattr(c, "id", None) == castle_id), None)
+        kingdom_id = castle.kingdom_id if castle is not None else 0
+        self.request(SelectCastleRequest(CID=castle_id, KID=kingdom_id), SelectCastleResponse, timeout=timeout)
+        return kingdom_id
 
     # =========================================================================
     # Unit Inventory
@@ -75,9 +98,6 @@ class ArmyService(BaseService):
         """
         Get every unit inventory a castle reports.
 
-        ``gui`` answers for the castle the session is in, so the castle is joined
-        first (``jca``), as the client enters a castle before it shows its army.
-
         Returns:
             The full gui response: available, in production, stronghold, hospital
 
@@ -85,85 +105,167 @@ class ArmyService(BaseService):
             CommandError: The server refused to join the castle, so ``gui`` would
                 have answered for another one
         """
-        castles = getattr(self.client.state, "get_castles", list)() or []
-        castle = next((c for c in castles if getattr(c, "id", None) == castle_id), None)
-        kingdom_id = castle.kingdom_id if castle is not None else 0
-        self.request(SelectCastleRequest(CID=castle_id, KID=kingdom_id), SelectCastleResponse, timeout=timeout)
+        self._join_castle(castle_id, timeout)
         return self.request(GetUnitsRequest(), GetUnitsResponse, timeout=timeout)
 
-    def delete_units(self, castle_id: int, unit_id: int, count: int, timeout: float = 5.0) -> bool:
-        """Delete units from inventory."""
-        return self.execute(DeleteUnitsRequest(CID=castle_id, UID=unit_id, C=count), timeout=timeout)
+    def dismiss_units(
+        self, castle_id: int, wod_id: int, amount: int, from_stronghold: bool = False, timeout: float = 5.0
+    ) -> bool:
+        """
+        Dismiss units of the castle, or of its stronghold.
+
+        Client: ``CastleRecruitDismissUnitsDialog.dismissUnits`` (bundle line 84330)
+        """
+        self._join_castle(castle_id, timeout)
+        request = DismissUnitsRequest(WID=wod_id, A=amount, S=1 if from_stronghold else 0)
+        return self.execute(request, timeout=timeout)
 
     # =========================================================================
     # Production
     # =========================================================================
 
     def produce_units(
-        self, castle_id: int, building_id: int, unit_id: int, count: int, list_id: int = 0, timeout: float = 5.0
+        self,
+        castle_id: int,
+        list_id: ProductionListId,
+        wod_id: int,
+        amount: int,
+        pay_with_rubies: bool = False,
+        private_offer_id: int = -1,
+        timeout: float = 5.0,
     ) -> bool:
         """
-        Start production of units or tools.
+        Produce units or tools.
 
         Args:
-            castle_id: The castle ID
-            building_id: The barracks/workshop ID
-            unit_id: Unit type ID to produce
-            count: Amount to produce
-            list_id: 0 for soldiers, 1 for tools (default: 0)
+            castle_id: The castle, from ``client.castle.get_all()``
+            list_id: SOLDIERS, TOOLS or AUXILIARIES
+            wod_id: Unit or tool wod id
+            amount: How many to produce
+            pay_with_rubies: Pay rubies for missing resources, as the client's
+                resource wait dialog does
+            private_offer_id: With ``pay_with_rubies``, the id of the active
+                resource merchant private offer; -1 when there is none
             timeout: Timeout in seconds
+
+        Client: ``C2SBuyUnitPackageVO`` (bundle line 35277); the ruby path is
+        ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35218)
         """
-        request = ProduceUnitsRequest(CID=castle_id, BID=building_id, UID=unit_id, C=count, LID=list_id)
+        kingdom_id = self._join_castle(castle_id, timeout)
+        request = ProduceUnitsRequest(
+            LID=list_id,
+            WID=wod_id,
+            AMT=amount,
+            PO=private_offer_id if pay_with_rubies else -1,
+            PWR=1 if pay_with_rubies else 0,
+            SID=kingdom_id,
+            AID=castle_id,
+        )
         return self.execute(request, timeout=timeout)
 
-    def get_production_queue(
-        self, castle_id: int, building_id: int, list_id: int = 0, timeout: float = 5.0
-    ) -> list[ProductionQueueItem]:
+    def get_production_list(self, castle_id: int, list_id: ProductionListId, timeout: float = 5.0) -> ProductionList:
         """
-        Get production queue for a building.
+        Get one production list of a castle: the slot producing now and the queue,
+        or the hospital slots for ``ProductionListId.HOSPITAL``.
+
+        Client: ``C2SShowPackageListVO`` (bundle line 22860)
+        """
+        self._join_castle(castle_id, timeout)
+        return self.request(GetProductionListRequest(LID=list_id), GetProductionListResponse, timeout=timeout)
+
+    def cancel_production(
+        self, castle_id: int, list_id: ProductionListId, slot_type: SlotType, position: int, timeout: float = 5.0
+    ) -> bool:
+        """
+        Cancel a production slot.
 
         Args:
-            castle_id: The castle ID
-            building_id: The barracks/workshop ID
-            list_id: 0 for soldiers, 1 for tools (default: 0)
-            timeout: Timeout in seconds
+            slot_type: PRODUCTION for the slot producing now, QUEUE for a queued one
+            position: 0 for the slot producing now, else the slot's
+                ``ProductionSlot.position``
+
+        Client: ``CastleRecruitDialogUnits.onCancelCurrentSlotConfirmed`` (bundle line 23655)
         """
-        request = GetProductionQueueRequest(CID=castle_id, BID=building_id, LID=list_id)
-        return self.request(request, GetProductionQueueResponse, timeout=timeout).queue
+        self._join_castle(castle_id, timeout)
+        request = CancelProductionRequest(LID=list_id, S=position, ST=slot_type)
+        return self.execute(request, timeout=timeout)
 
-    def cancel_production(self, castle_id: int, building_id: int, queue_id: int, timeout: float = 5.0) -> bool:
-        """Cancel a production queue item."""
-        return self.execute(CancelProductionRequest(CID=castle_id, BID=building_id, QID=queue_id), timeout=timeout)
+    def double_production_slot(
+        self, castle_id: int, list_id: ProductionListId, slot_type: SlotType, position: int, timeout: float = 5.0
+    ) -> bool:
+        """
+        Double the units of a production slot. Costs rubies.
 
-    def double_production_slot(self, castle_id: int, building_id: int, queue_id: int, timeout: float = 5.0) -> bool:
-        """Double a production slot (produce twice as fast). Costs rubies."""
-        return self.execute(DoubleProductionRequest(CID=castle_id, BID=building_id, QID=queue_id), timeout=timeout)
+        Args:
+            slot_type: PRODUCTION for the slot producing now, QUEUE for a queued one
+            position: 0 for the slot producing now, else the slot's
+                ``ProductionSlot.position``
+
+        Client: ``RecruitmentHelper.boostCurrentSlot`` (bundle line 23165)
+        """
+        kingdom_id = self._join_castle(castle_id, timeout)
+        request = DoubleProductionSlotRequest(LID=list_id, S=position, AID=castle_id, SID=kingdom_id, ST=slot_type)
+        return self.execute(request, timeout=timeout)
 
     # =========================================================================
     # Hospital
     # =========================================================================
 
-    def heal_units(self, castle_id: int, unit_id: int, count: int, timeout: float = 5.0) -> bool:
-        """Heal wounded units."""
-        return self.execute(HealUnitsRequest(CID=castle_id, UID=unit_id, C=count), timeout=timeout)
-
-    def heal_all(self, castle_id: int, timeout: float = 5.0) -> int:
+    def heal_units(self, castle_id: int, wod_id: int, amount: int, timeout: float = 5.0) -> bool:
         """
-        Heal all wounded units.
+        Queue wounded units for healing.
 
-        Returns:
-            Number of units healed
+        Client: ``CastleRecruitSelectedUnitComponent.onReviveClick`` (bundle line 51105)
         """
-        return self.request(HealAllRequest(CID=castle_id), HealAllResponse, timeout=timeout).units_healed
+        self._join_castle(castle_id, timeout)
+        return self.execute(HealUnitsRequest(U=wod_id, A=amount), timeout=timeout)
 
-    def cancel_heal(self, castle_id: int, queue_id: int, timeout: float = 5.0) -> bool:
-        """Cancel healing queue item."""
-        return self.execute(CancelHealRequest(CID=castle_id, QID=queue_id), timeout=timeout)
+    def heal_all(self, castle_id: int, ruby_cost: int, timeout: float = 5.0) -> bool:
+        """
+        Heal every wounded unit at once, for rubies.
 
-    def skip_heal_time(self, castle_id: int, queue_id: int, timeout: float = 5.0) -> bool:
-        """Skip healing time using rubies."""
-        return self.execute(SkipHealRequest(CID=castle_id, QID=queue_id), timeout=timeout)
+        Args:
+            ruby_cost: The price the client would show (see ``HealAllRequest``);
+                the server refuses a price that no longer matches the hospital
 
-    def delete_wounded(self, castle_id: int, unit_id: int, count: int, timeout: float = 5.0) -> bool:
-        """Delete wounded units (don't heal them)."""
-        return self.execute(DeleteWoundedRequest(CID=castle_id, UID=unit_id, C=count), timeout=timeout)
+        Client: ``CastleHospitalReviveAllDialog.reviveAll`` (bundle line 83667)
+        """
+        self._join_castle(castle_id, timeout)
+        return self.execute(HealAllRequest(C2=ruby_cost), timeout=timeout)
+
+    def cancel_heal(self, castle_id: int, position: int, timeout: float = 5.0) -> bool:
+        """
+        Cancel a hospital slot, by its ``HospitalSlot.position``.
+
+        Client: ``CastleRecruitDialogHospital.onCurrentSlotCancelled`` (bundle line 83508)
+        """
+        self._join_castle(castle_id, timeout)
+        return self.execute(CancelHealRequest(S=position), timeout=timeout)
+
+    def skip_heal(self, castle_id: int, position: int, timeout: float = 5.0) -> bool:
+        """
+        Finish a hospital slot now, by its ``HospitalSlot.position``. Costs rubies.
+
+        Client: ``CastleRecruitDialogHospital`` (bundle line 83504)
+        """
+        self._join_castle(castle_id, timeout)
+        return self.execute(SkipHealRequest(S=position), timeout=timeout)
+
+    def dismiss_wounded(self, castle_id: int, wod_id: int, amount: int, timeout: float = 5.0) -> bool:
+        """
+        Dismiss wounded units of one type instead of healing them.
+
+        Client: ``CastleHospitalDismissUnitsDialog.dismissUnits`` (bundle line 83737)
+        """
+        self._join_castle(castle_id, timeout)
+        return self.execute(DismissWoundedRequest(U=wod_id, A=amount), timeout=timeout)
+
+    def dismiss_wounded_units(self, castle_id: int, units: Mapping[int, int], timeout: float = 5.0) -> bool:
+        """
+        Dismiss wounded units of several types at once, as ``{wod_id: amount}``.
+
+        Client: ``CastleRecruitDialogHospital.onConfirmDeleteAll`` (bundle line 83498)
+        """
+        self._join_castle(castle_id, timeout)
+        entries = [WoundedUnits(U=wod_id, A=amount) for wod_id, amount in units.items()]
+        return self.execute(DismissManyWoundedRequest(UT=entries), timeout=timeout)
