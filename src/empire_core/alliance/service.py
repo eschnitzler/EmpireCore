@@ -19,7 +19,7 @@ from empire_core.alliance.models.chat import (
     AllianceChatLogResponse,
     AllianceChatMessageRequest,
     AllianceChatMessageResponse,
-    ChatLogEntry,
+    ChatMessageData,
 )
 from empire_core.alliance.models.help import AskHelpRequest, HelpAllRequest, HelpAllResponse, HelpMemberRequest
 from empire_core.alliance.models.info import AllianceMember, GetAllianceInfoRequest, GetAllianceInfoResponse
@@ -304,15 +304,18 @@ class AllianceService(BaseService):
         request = AllianceChatMessageRequest.create(message)
         self.send(request)
 
-    def get_chat_log(self, timeout: float = 5.0) -> list[ChatLogEntry]:
+    def get_chat_log(self, timeout: float = 5.0) -> list[ChatMessageData]:
         """
         Get alliance chat history.
+
+        The game client never asks for acl; it only reads the acl the server
+        sends, so whether the server answers this request is not known from it.
 
         Args:
             timeout: Timeout in seconds to wait for response
 
         Returns:
-            List of ChatLogEntry objects
+            The messages of the acl reply's ``CM`` list
 
         Example:
             history = client.alliance.get_chat_log()

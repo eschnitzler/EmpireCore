@@ -271,9 +271,9 @@ class TestAllianceChat:
 
     def test_get_chat_log_parses_entries(self):
         payload = {
-            "CL": [
-                {"PN": "LeaderGuy", "MT": "100&percnt; ready", "PID": 7001, "T": 1712345678},
-                {"PN": "OfficerGal", "MT": "on my way", "PID": 7002, "T": 1712345699},
+            "CM": [
+                {"PID": 7001, "PN": "LeaderGuy", "MT": "100&percnt; ready", "MA": 90},
+                {"PID": 7002, "PN": "OfficerGal", "MT": "on my way", "MA": 30},
             ]
         }
         client = make_client({"acl": xt_packet("acl", payload)})
@@ -282,7 +282,7 @@ class TestAllianceChat:
 
         assert [e.player_name for e in log] == ["LeaderGuy", "OfficerGal"]
         assert log[0].decoded_text == "100% ready"
-        assert log[0].timestamp == 1712345678
+        assert [e.age_seconds for e in log] == [90, 30]
 
     def test_subscribed_callback_receives_a_typed_response(self):
         client = make_client()

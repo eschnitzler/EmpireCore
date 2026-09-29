@@ -284,18 +284,24 @@ class TestPositionalArrayParsers:
 class TestMalformedNestedResponsePayloads:
     """One bad element inside a keyed batch, as the server would send it."""
 
-    def test_chat_message_missing_the_player_id_is_a_validation_error(self):
-        with pytest.raises(ValidationError):
-            AllianceChatMessageResponse.model_validate({"CM": {"PN": "a", "MT": "b"}})
+    def test_chat_message_missing_the_player_id_reads_it_as_zero(self):
+        response = AllianceChatMessageResponse.model_validate({"CM": {"PN": "a", "MT": "b"}})
+        assert response.player_id == 0
 
     def test_chat_message_with_a_non_dict_block_is_a_validation_error(self):
         with pytest.raises(ValidationError):
             AllianceChatMessageResponse.model_validate({"CM": "junk"})
 
-    def test_one_bad_chat_log_entry_discards_the_history(self):
-        payload = {"CL": [{"PN": "a", "MT": "b", "PID": 1}, {"PN": "c", "MT": "d"}]}
-        with pytest.raises(ValidationError):
-            AllianceChatLogResponse.model_validate(payload)
+    def test_one_bad_chat_log_entry_costs_only_itself(self, caplog):
+        payload = {"CM": [{"PID": 1, "PN": "a", "MT": "b"}, None, "junk", {"PID": 2, "PN": ["c"]}, {"PID": 3}]}
+        with caplog.at_level("WARNING", logger="empire_core.alliance.models.chat"):
+            response = AllianceChatLogResponse.model_validate(payload)
+        assert [e.player_id for e in response.chat_log] == [1, 3]
+        assert "Skipped 2/5 unreadable alliance chat messages" in caplog.text
+
+    @pytest.mark.parametrize("value", [None, "junk", {"PID": 1}, 5])
+    def test_a_chat_log_that_is_no_list_reads_as_empty(self, value):
+        assert AllianceChatLogResponse.model_validate({"CM": value}).chat_log == []
 
     def test_non_dict_alliance_member_is_a_validation_error(self):
         with pytest.raises(ValidationError):

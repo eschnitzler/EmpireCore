@@ -111,6 +111,14 @@ def js_number(value: Any) -> float:
     return 0.0 if math.isnan(number) or math.isinf(number) else number
 
 
+def js_number_or_none(value: Any) -> int | float | None:
+    """``Number(value)``, None read as ``undefined``; None where it gives NaN or an infinity, an int kept as is."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    number = _number(value)
+    return None if math.isnan(number) or math.isinf(number) else number
+
+
 def js_floor(value: Any) -> int:
     """``Math.floor(Number(value))``, NaN and infinities as 0."""
     return math.floor(js_number(value))
@@ -178,6 +186,7 @@ __all__ = [
     "js_falsy",
     "js_int",
     "js_loose_equals",
+    "js_number_or_none",
     "js_parse_int",
     "js_parse_int_or_zero",
     "js_truthy",

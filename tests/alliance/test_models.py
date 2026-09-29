@@ -178,16 +178,36 @@ class TestGoldenChatPayloads:
         assert (response.player_name, response.message_text, response.decoded_text) == ("", "", "")
         assert response.player_id == 0
 
-    def test_chat_log_entries_decode(self):
+    def test_chat_log_reads_the_cm_list(self):
         payload = {
-            "CL": [
-                {"PN": "LeaderGuy", "MT": "line&145;s one", "PID": 7001, "T": 1712345678},
-                {"PN": "OfficerGal", "MT": "two<br />lines", "PID": 7002},
+            "CM": [
+                {"PID": 7001, "PN": "LeaderGuy", "MT": "line&145;s one", "MA": 3600},
+                {"PID": "7002", "PN": "OfficerGal", "MT": "two<br />lines", "MA": "12"},
             ]
         }
         response = AllianceChatLogResponse.model_validate(payload)
         assert [e.decoded_text for e in response.chat_log] == ["line's one", "two\nlines"]
-        assert response.chat_log[1].timestamp is None
+        assert [e.player_id for e in response.chat_log] == [7001, 7002]
+        assert [e.age_seconds for e in response.chat_log] == [3600, 12]
+
+    def test_a_cl_list_is_not_the_chat_log(self):
+        payload = {"CL": [{"PID": 7001, "PN": "LeaderGuy", "MT": "hi", "MA": 5}]}
+        assert AllianceChatLogResponse.model_validate(payload).chat_log == []
+
+    def test_a_message_reads_missing_fields_as_parse_obj_does(self):
+        message = AllianceChatLogResponse.model_validate({"CM": [{}]}).chat_log[0]
+        assert (message.player_id, message.player_name, message.message_text, message.decoded_text) == (0, "", "", "")
+        assert message.age_seconds is None
+
+    def test_an_age_reads_as_the_client_multiplies_it(self):
+        response = AllianceChatLogResponse.model_validate({"CM": [{"MA": "soon"}, {"MA": None}, {"MA": "1.5"}]})
+        assert [e.age_seconds for e in response.chat_log] == [None, 0, 1.5]
+
+    def test_an_acm_push_carries_the_message_age(self):
+        payload = {"CM": {"PID": 7001, "PN": "LeaderGuy", "MT": "hi", "MA": 0}}
+        response = AllianceChatMessageResponse.model_validate(payload)
+        assert response.chat_message is not None
+        assert response.chat_message.age_seconds == 0
 
 
 class TestAllianceInfoFlags:

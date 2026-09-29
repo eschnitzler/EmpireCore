@@ -12,7 +12,6 @@ from empire_core.alliance.models.chat import (
     AllianceChatLogResponse,
     AllianceChatMessageRequest,
     AllianceChatMessageResponse,
-    ChatLogEntry,
     ChatMessageData,
 )
 from empire_core.alliance.models.help import (
@@ -346,7 +345,6 @@ __all__ = [
     "ChatMessageData",
     "AllianceChatLogRequest",
     "AllianceChatLogResponse",
-    "ChatLogEntry",
     # Alliance
     "AllianceMember",
     "AllianceInfo",

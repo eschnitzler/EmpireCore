@@ -19,6 +19,7 @@ from empire_core.protocol.js import (
     js_int,
     js_loose_equals,
     js_number,
+    js_number_or_none,
     js_parse_int,
     js_parse_int_or_zero,
     js_truthy,
@@ -189,6 +190,14 @@ def test_parse_int_reads_a_float_through_its_text(number, expected):
 )
 def test_js_number(value, expected):
     assert js_number(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [("0x10", 16.0), ("1.5", 1.5), ("x", None), (None, None), ("Infinity", None), ("", 0.0), (7, 7), (True, 1.0)],
+)
+def test_js_number_or_none(value, expected):
+    assert js_number_or_none(value) == expected
 
 
 def test_huge_int_compares_without_overflow():

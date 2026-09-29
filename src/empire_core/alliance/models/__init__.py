@@ -5,7 +5,6 @@ from .chat import (
     AllianceChatLogResponse,
     AllianceChatMessageRequest,
     AllianceChatMessageResponse,
-    ChatLogEntry,
     ChatMessageData,
 )
 from .help import (
@@ -35,7 +34,6 @@ __all__ = [
     "ChatMessageData",
     "AllianceChatLogRequest",
     "AllianceChatLogResponse",
-    "ChatLogEntry",
     "HelpMemberRequest",
     "HelpMemberResponse",
     "HelpAllRequest",
