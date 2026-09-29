@@ -25,6 +25,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from empire_core.gamedata import GameData
+from empire_core.protocol.js import js_falsy, js_parse_int
+from empire_core.utils.troops import fetch_items_data, get_items_version
 
 SCRIPT = "scripts/generate_gamedata_ids.py"
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "src" / "empire_core" / "gamedata" / "ids"
@@ -136,8 +138,61 @@ def info(model: str, lookup: str, what: str) -> Link:
     return Link("info", model, lookup, f"This {what}'s row in the loaded game data, or None if it has none.")
 
 
-def tables(data: GameData) -> list[Table]:
-    """Every table the ids package covers, named from ``data``."""
+def raw_rows(payload: dict, table: str, id_key: str) -> list[tuple[int, dict]]:
+    """
+    A table GameData does not model, as ``(id, row)``.
+
+    The id is ``parseInt`` of the column, as every parser below reads it; a
+    row whose id is not a number is skipped.
+    """
+    rows = []
+    for row in payload.get(table) or []:
+        if not isinstance(row, dict):
+            continue
+        value = row.get(id_key)
+        parsed = None if js_falsy(value) else js_parse_int(value)
+        if parsed is not None:
+            rows.append((parsed, row))
+    return rows
+
+
+def int_column(row: dict, key: str, default: int) -> int:
+    """``parseInt(getValueOrDefault(key, row, default))``, NaN read as the default."""
+    value = row.get(key)
+    parsed = None if js_falsy(value) else js_parse_int(value)
+    return default if parsed is None else parsed
+
+
+def str_column(row: dict, key: str) -> str:
+    """``getStringAttribute(key, row)``: a missing or empty value reads as ""."""
+    value = row.get(key)
+    return "" if js_falsy(value) else str(value)
+
+
+def building_name(name: str, building_type: str, level: int) -> str:
+    """Name plus level; a type other than ``Level<n>`` names the building too (``Deco`` rows)."""
+    base = to_snake(name)
+    if building_type and building_type != "Placeholder" and not re.fullmatch(r"Level\d+", building_type):
+        base += "_" + to_snake(building_type)
+    return base + level_suffix(level)
+
+
+def building_rows(payload: dict) -> list[Row]:
+    rows = []
+    for wod_id, row in raw_rows(payload, "buildings", "wodID"):
+        name, group = str_column(row, "name"), str_column(row, "group")
+        building_type = str_column(row, "type")
+        if building_type == "-":
+            building_type = ""
+        level = int_column(row, "level", -1)
+        rows.append(
+            Row(building_name(name, building_type, level), wod_id, str(wod_id), (name, group, building_type, level))
+        )
+    return rows
+
+
+def tables(data: GameData, payload: dict) -> list[Table]:
+    """Every table the ids package covers: ``data`` parsed from ``payload``, the items file."""
     general_names = {row.general_id: row.name for row in data.generals.values()}
 
     def general_of(general_id: int) -> str:
@@ -332,6 +387,135 @@ def tables(data: GameData) -> list[Table]:
             (ROW_NAME,),
             (info("GlobalEffectDef", "global_effects.get", "global effect"),),
         ),
+        Table(
+            "buildings",
+            "Building",
+            "B",
+            "Building ``wodID`` values from the ``buildings`` table, named name, type (for decorations) and level.",
+            "``AVisualVO.parseXmlNode`` (bundle line 17800), ``AShopVO.parseXmlNode`` (bundle line 31713)",
+            building_rows(payload),
+            (
+                ROW_NAME,
+                Attr("group", "str", "The ``group`` column, e.g. Building or Tower."),
+                Attr("building_type", "str", "The ``type`` column, e.g. Level3 or a decoration's own name."),
+                LEVEL,
+            ),
+            (
+                Link(
+                    "fortification",
+                    "FortificationDef",
+                    "fortifications.get",
+                    "The wall, gate or moat protection this building gives, or None if it gives none.",
+                ),
+            ),
+        ),
+        Table(
+            "researches",
+            "Research",
+            "R",
+            "Research ids from the ``researches`` table, named from the ``comment2`` note and level.",
+            "``AResearchVO.fillFromParamXML`` (bundle line 61502), which does not read ``comment2``",
+            [
+                Row(
+                    str_column(row, "comment2") + level_suffix(int_column(row, "level", -1)),
+                    research_id,
+                    str(research_id),
+                    (int_column(row, "groupID", -1), int_column(row, "level", -1)),
+                )
+                for research_id, row in raw_rows(payload, "researches", "researchID")
+            ],
+            (Attr("group_id", "int", "The group the research's levels share."), LEVEL),
+        ),
+        Table(
+            "construction_items",
+            "ConstructionItem",
+            "C",
+            "Construction item ids from the ``constructionItems`` table, named name and level.",
+            "``ConstructionItemVO.parseBasicValues`` (bundle line 47719)",
+            [
+                Row(
+                    to_snake(c.name) + level_suffix(c.level),
+                    c.construction_item_id,
+                    str(c.construction_item_id),
+                    (c.name, c.group_id, c.level, c.rareness_id),
+                )
+                for c in data.construction_items.values()
+            ],
+            (
+                ROW_NAME,
+                Attr("group_id", "int", "The ``constructionItemGroupID`` column."),
+                LEVEL,
+                Attr("rareness_id", "int", "The ``rarenessID`` column."),
+            ),
+            (info("ConstructionItemDef", "construction_items.get", "construction item"),),
+        ),
+        Table(
+            "events",
+            "Event",
+            "E",
+            "Event ids from the ``events`` table, named from ``eventType``.",
+            "``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle line 2959)",
+            [
+                Row(
+                    to_snake(str_column(row, "eventType")) or f"E{event_id}",
+                    event_id,
+                    str(event_id),
+                    (str_column(row, "eventType"),),
+                )
+                for event_id, row in raw_rows(payload, "events", "eventID")
+            ],
+            (Attr("event_type", "str", "The ``eventType`` column, e.g. Nomad."),),
+        ),
+        Table(
+            "loot_boxes",
+            "LootBox",
+            "L",
+            "Loot box ids from the ``lootBoxes`` table, named name and rarity.",
+            "``LootBoxVO.parseXML`` (bundle line 112502)",
+            [
+                Row(
+                    f"{to_snake(str_column(row, 'name'))}_R{int_column(row, 'rarity', 0)}",
+                    loot_box_id,
+                    str(loot_box_id),
+                    (str_column(row, "name"), int_column(row, "rarity", 0)),
+                )
+                for loot_box_id, row in raw_rows(payload, "lootBoxes", "lootBoxID")
+            ],
+            (ROW_NAME, Attr("rarity", "int", "The ``rarity`` column.")),
+        ),
+        Table(
+            "equipment_groups",
+            "EquipmentGroup",
+            "G",
+            "Equipment item group ids from the ``equipment_groups`` table, as equipment effects name them.",
+            "``XmlEquipmentGroupVO.parseXml`` (bundle line 144187)",
+            [
+                Row(
+                    to_snake(str_column(row, "name")),
+                    group_id,
+                    str(group_id),
+                    (str_column(row, "name"), int_column(row, "wearerID", -1), int_column(row, "slotID", -1)),
+                )
+                for group_id, row in raw_rows(payload, "equipment_groups", "itemGroupID")
+            ],
+            (
+                ROW_NAME,
+                Attr("wearer_id", "int", "Who wears it, a ``WearerType`` value."),
+                Attr("slot_id", "int", "The slot it goes in, an ``EquipmentSlot`` value."),
+            ),
+        ),
+        Table(
+            "difficulty_types",
+            "DifficultyType",
+            "D",
+            "Event difficulty type ids from the ``eventAutoScalingDifficultyTypes`` table.",
+            "``EventAutoScalingDifficultyTypeVO.parseXML`` (bundle line 38258)",
+            [
+                Row(to_snake(str_column(row, "name")), type_id, str(type_id), (str_column(row, "name"),))
+                for type_id, row in raw_rows(payload, "eventAutoScalingDifficultyTypes", "difficultyTypeID")
+            ],
+            (ROW_NAME,),
+        ),
     ]
 
 
@@ -417,9 +601,10 @@ other enums' ``info`` return the full row from
 :func:`is_current` says whether a loaded :class:`GameData` is that version. For
 anything newer, use the named lookups on :class:`GameData`.
 
-Gems, equipment and horses have no enum, as their rows have no name; look them
-up by id with ``GameData.gems``, ``GameData.equipment_effects`` and
-``GameData.get_horse``.
+Gems, equipment, horses, relic effects, alliance buffs and sceat skills have
+no enum, as their rows have no name; look them up by id on :class:`GameData`
+(``gems``, ``equipment_effects``, ``get_horse``, ``relic_effects``,
+``alliance_buffs``, ``sceat_skills``).
 
 Regenerate with ``uv run python scripts/generate_gamedata_ids.py``."""
 
@@ -448,9 +633,9 @@ def render_init(version: str, table_list: list[Table]) -> str:
     return "\n".join(out) + "\n"
 
 
-def render(data: GameData) -> dict[str, str]:
+def render(data: GameData, payload: dict) -> dict[str, str]:
     """File name -> contents for the whole package."""
-    table_list = tables(data)
+    table_list = tables(data, payload)
     by_module: dict[str, list[Table]] = defaultdict(list)
     for t in table_list:
         by_module[t.module].append(t)
@@ -496,16 +681,19 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.items:
         payload = json.loads(args.items.read_text())
-        data = GameData.parse(items_version(args.items, payload), payload)
+        version = items_version(args.items, payload)
     else:
-        data = GameData.load(refresh=True)
+        version = get_items_version()
+        payload = fetch_items_data(version)
+    data = GameData.parse(version, payload)
 
-    empty = [t.enum for t in tables(data) if not t.rows]
+    table_list = tables(data, payload)
+    empty = [t.enum for t in table_list if not t.rows]
     if empty:
         raise SystemExit(f"no rows for {', '.join(empty)}; is this the full items file?")
-    files = render(data)
+    files = render(data, payload)
     write(files, args.out)
-    for t in tables(data):
+    for t in table_list:
         print(f"{t.enum}: {len(t.rows)} members, {collided(t)} with an id suffix", file=sys.stderr)
     print(f"Wrote {len(files)} files for items {data.version} to {args.out}", file=sys.stderr)
     return 0

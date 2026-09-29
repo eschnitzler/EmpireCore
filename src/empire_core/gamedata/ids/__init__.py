@@ -19,9 +19,10 @@ other enums' ``info`` return the full row from
 :func:`is_current` says whether a loaded :class:`GameData` is that version. For
 anything newer, use the named lookups on :class:`GameData`.
 
-Gems, equipment and horses have no enum, as their rows have no name; look them
-up by id with ``GameData.gems``, ``GameData.equipment_effects`` and
-``GameData.get_horse``.
+Gems, equipment, horses, relic effects, alliance buffs and sceat skills have
+no enum, as their rows have no name; look them up by id on :class:`GameData`
+(``gems``, ``equipment_effects``, ``get_horse``, ``relic_effects``,
+``alliance_buffs``, ``sceat_skills``).
 
 Regenerate with ``uv run python scripts/generate_gamedata_ids.py``.
 """
@@ -30,15 +31,22 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .buildings import Building
+from .construction_items import ConstructionItem
 from .currencies import Currency, CurrencyId
+from .difficulty_types import DifficultyType
 from .effect_types import EffectType
 from .effects import Effect
+from .equipment_groups import EquipmentGroup
+from .events import Event
 from .general_abilities import GeneralAbility
 from .general_skills import GeneralSkill
 from .generals import General
 from .global_effects import GlobalEffect
 from .legend_skills import LegendSkill
+from .loot_boxes import LootBox
 from .raid_bosses import RaidBoss
+from .researches import Research
 from .tools import Tool
 from .units import Unit
 
@@ -55,17 +63,24 @@ def is_current(game_data: GameData) -> bool:
 
 
 __all__ = [
+    "Building",
+    "ConstructionItem",
     "Currency",
     "CurrencyId",
+    "DifficultyType",
     "Effect",
     "EffectType",
+    "EquipmentGroup",
+    "Event",
     "General",
     "GeneralAbility",
     "GeneralSkill",
     "GlobalEffect",
     "ITEMS_VERSION",
     "LegendSkill",
+    "LootBox",
     "RaidBoss",
+    "Research",
     "Tool",
     "Unit",
     "is_current",

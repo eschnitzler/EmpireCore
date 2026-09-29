@@ -41,8 +41,48 @@ gen = _load_script()
 
 ENUMS = [getattr(ids, name) for name in ids.__all__ if isinstance(getattr(ids, name), type)]
 
-# Which GameData table each enum's values index.
-TABLE_OF = {
+# Rows of the tables GameData does not model, as the items payload has them, from v786.03.
+IDS_PAYLOAD: dict[str, Any] = {
+    **LOOKUP_PAYLOAD,
+    "buildings": [
+        {"wodID": 171, "name": "Keep", "level": "1", "group": "Building", "type": "Level1"},
+        {"wodID": 172, "name": "Keep", "level": "2", "group": "Building", "type": "Level2"},
+        {"wodID": 301, "comment2": "Supplies1", "group": "Building", "type": "Supplies1", "name": "Deco", "level": "1"},
+        {"wodID": 401, "name": "Guard", "level": "0", "group": "Tower", "type": "Placeholder"},
+        {"wodID": 501, "name": "Castlewall", "level": "1", "group": "Defence", "type": "Level1", "wallBonus": "30"},
+    ],
+    "researches": [
+        {"researchID": "1", "comment2": "Rekrutierungsgeschw", "groupID": "1", "level": "1"},
+        {"researchID": "256", "comment2": "recruitment speed", "groupID": "41", "level": "1"},
+    ],
+    "events": [
+        {"eventID": "5", "comment2": "Herald of the Invasion", "eventType": "NomadInvasion"},
+        {"eventID": "6", "comment2": "Prime Day Special Offer", "eventType": "Paymentreward"},
+        {"eventID": "74", "eventType": "Paymentreward"},
+    ],
+    "lootBoxes": [{"lootBoxID": "1", "name": "MysteryBoxBronze", "rarity": "1"}],
+    "equipment_groups": [{"itemGroupID": "102", "name": "AttackPVP", "wearerID": "2", "slotID": "6"}],
+    "eventAutoScalingDifficultyTypes": [{"difficultyTypeID": "2", "name": "easyPlus"}],
+    "constructionItems": [
+        {
+            "constructionItemID": "1",
+            "name": "barracksCost",
+            "constructionItemGroupID": "1",
+            "level": "1",
+            "rarenessID": "1",
+        },
+    ],
+}
+
+# Which GameData table each enum's values index; None for a table GameData does not model.
+TABLE_OF: dict[str, str | None] = {
+    "Building": None,
+    "ConstructionItem": "construction_items",
+    "DifficultyType": None,
+    "EquipmentGroup": None,
+    "Event": None,
+    "LootBox": None,
+    "Research": None,
     "Unit": "units",
     "Tool": "tools",
     "Effect": "effects",
@@ -88,17 +128,17 @@ class TestPackage:
         assert ids.CurrencyId[ids.Currency.KT.name] == 1
 
     def test_the_suite_fixtures_name_the_same_ids(self):
-        payload: dict[str, Any] = dict(LOOKUP_PAYLOAD)
+        payload = dict(IDS_PAYLOAD)
         payload["units"] = [*payload["units"], *PAYLOAD["units"]]
         data = GameData.parse(ids.ITEMS_VERSION, payload)
         checked = 0
-        for table in gen.tables(data):
+        for table in gen.tables(data, payload):
             enum = getattr(ids, table.enum)
             for name, value in gen.members(table):
                 if name in enum.__members__:
                     assert enum[name].value == value, f"{table.enum}.{name}"
                     checked += 1
-        assert checked >= 10
+        assert checked >= 20
 
     def test_every_value_is_in_the_items_data(self):
         data = _cached_game_data()
@@ -110,7 +150,10 @@ class TestPackage:
                 keys = {row.json_key for row in data.currencies.values()}
                 assert {m.value for m in enum} <= keys
                 continue
-            table = getattr(data, TABLE_OF[enum.__name__])
+            name = TABLE_OF[enum.__name__]
+            if name is None:
+                continue
+            table = getattr(data, name)
             assert {m.value for m in enum} == set(table), enum.__name__
 
     def test_regenerating_from_the_same_items_changes_nothing(self):
@@ -124,13 +167,13 @@ class TestPackage:
         if data.version != ids.ITEMS_VERSION:
             pytest.skip(f"{path} is items v{data.version}, not v{ids.ITEMS_VERSION}")
         committed = {file.name: file.read_text() for file in IDS_DIR.glob("*.py")}
-        assert gen.render(data) == committed
+        assert gen.render(data, payload) == committed
 
 
 @pytest.fixture
 def lookup_data():
     """The lookup fixtures as the default game data, forgotten again afterwards."""
-    data = GameData.parse(ids.ITEMS_VERSION, LOOKUP_PAYLOAD)
+    data = GameData.parse(ids.ITEMS_VERSION, IDS_PAYLOAD)
     set_default_game_data(data)
     yield data
     set_default_game_data(None)
@@ -145,12 +188,26 @@ class TestMemberData:
         assert ids.GeneralSkill.TORIL_ASPECTOFTHE_DRAGON_L1.general_id == ids.General.TORIL
         assert ids.Currency.KT.currency_id == ids.CurrencyId.KT
         assert ids.CurrencyId.KT.json_key == ids.Currency.KT
+        keep = ids.Building.KEEP_L1
+        assert (keep.value, keep.row_name, keep.group, keep.building_type, keep.level) == (
+            171,
+            "Keep",
+            "Building",
+            "Level1",
+            1,
+        )
+        assert (ids.Event.NOMAD_INVASION.value, ids.Event.NOMAD_INVASION.event_type) == (5, "NomadInvasion")
+        assert (ids.Research.RECRUITMENT_SPEED_L1.group_id, ids.Research.RECRUITMENT_SPEED_L1.level) == (41, 1)
+        assert ids.ConstructionItem.BARRACKS_COST_L1.rareness_id == 1
+        assert (ids.EquipmentGroup.ATTACK_PVP.wearer_id, ids.EquipmentGroup.ATTACK_PVP.slot_id) == (2, 6)
+        assert ids.LootBox.MYSTERY_BOX_BRONZE_R1.rarity == 1
+        assert ids.DifficultyType.EASY_PLUS == 2
 
     def test_baked_columns_match_the_generated_rows(self):
-        payload: dict[str, Any] = dict(LOOKUP_PAYLOAD)
+        payload = dict(IDS_PAYLOAD)
         payload["units"] = [*payload["units"], *PAYLOAD["units"]]
         data = GameData.parse(ids.ITEMS_VERSION, payload)
-        for table in gen.tables(data):
+        for table in gen.tables(data, payload):
             enum = getattr(ids, table.enum)
             for row in table.rows:
                 member = enum._value2member_map_.get(row.value)
@@ -199,6 +256,9 @@ class TestLinks:
         assert ids.EffectType.FAME_DEFENSE_BONUS.info is lookup_data.effect_types[0]
         assert ids.RaidBoss.NECROMANCER.info is lookup_data.raid_bosses[1]
         assert ids.GlobalEffect.SPEED_BOOST_11.info is lookup_data.global_effects[11]
+        assert ids.ConstructionItem.BARRACKS_COST_L1.info is lookup_data.construction_items[1]
+        assert ids.Building.CASTLEWALL_L1.fortification is lookup_data.fortifications[501]
+        assert ids.Building.KEEP_L1.fortification is None
 
     def test_a_row_the_data_lacks_is_none(self, lookup_data):
         assert ids.Unit.VETERAN_SABERSLASHER.stats is None
@@ -234,11 +294,11 @@ class TestLinks:
 
 class TestGenerator:
     @pytest.fixture
-    def data(self) -> GameData:
-        return GameData.parse("786.03", LOOKUP_PAYLOAD)
+    def items(self) -> tuple[GameData, dict[str, Any]]:
+        return GameData.parse("786.03", IDS_PAYLOAD), IDS_PAYLOAD
 
-    def members(self, data: GameData, enum: str) -> dict[str, object]:
-        table = next(t for t in gen.tables(data) if t.enum == enum)
+    def members(self, items: tuple[GameData, dict[str, Any]], enum: str) -> dict[str, object]:
+        table = next(t for t in gen.tables(*items) if t.enum == enum)
         return dict(gen.members(table))
 
     @pytest.mark.parametrize(
@@ -259,44 +319,62 @@ class TestGenerator:
         assert gen.identifier("a-b  c", "U") == "A_B_C"
         assert gen.identifier("None", "U") == "NONE"
 
-    def test_units_carry_their_level_and_colliding_ones_their_id(self, data):
-        assert self.members(data, "Unit") == {
+    def test_units_carry_their_level_and_colliding_ones_their_id(self, items):
+        assert self.members(items, "Unit") == {
             "OGERMACE_7": 7,
             "OGERMACE_68": 68,
             "MEAD_RANGER_L6": 211,
             "MEAD_RANGER_L7": 212,
         }
-        assert self.members(data, "Tool") == {
+        assert self.members(items, "Tool") == {
             "ELITE_COMBO_RAM_113": 113,
             "ELITE_COMBO_RAM_564": 564,
             "PREMIUMSTAKES_L2": 646,
         }
 
-    def test_every_member_of_a_colliding_group_is_suffixed(self, data):
-        assert self.members(data, "GlobalEffect") == {
+    def test_every_member_of_a_colliding_group_is_suffixed(self, items):
+        assert self.members(items, "GlobalEffect") == {
             "COOLDOWN_REDUCTION_RBC": 1,
             "SPEED_BOOST_2": 2,
             "SPEED_BOOST_11": 11,
         }
 
-    def test_skills_name_their_general_and_level(self, data):
-        assert self.members(data, "GeneralSkill") == {
+    def test_skills_name_their_general_and_level(self, items):
+        assert self.members(items, "GeneralSkill") == {
             "TORIL_ASPECTOFTHE_DRAGON_L1": 10110201,
             "TORIL_ASPECTOFTHE_DRAGON_L2": 10110202,
             "G102_ASPECTOFTHE_DRAGON_L1": 10210201,
         }
-        assert self.members(data, "GeneralAbility") == {"POWER_SURGE_L1": 10011, "POWER_SURGE_L2": 10012}
-        assert self.members(data, "LegendSkill") == {"GATE_REDUCTION_T0_G1_L1": 1, "GATE_REDUCTION_T0_G1_L2": 2}
+        assert self.members(items, "GeneralAbility") == {"POWER_SURGE_L1": 10011, "POWER_SURGE_L2": 10012}
+        assert self.members(items, "LegendSkill") == {"GATE_REDUCTION_T0_G1_L1": 1, "GATE_REDUCTION_T0_G1_L2": 2}
 
-    def test_currencies_by_key_and_by_id_share_names(self, data):
-        assert self.members(data, "Currency") == {"KT": "KT", "DD": "DD"}
-        assert self.members(data, "CurrencyId") == {"KT": 1, "DD": 100000}
+    def test_new_tables_are_named_from_their_name_columns(self, items):
+        assert self.members(items, "Building") == {
+            "KEEP_L1": 171,
+            "KEEP_L2": 172,
+            "DECO_SUPPLIES1_L1": 301,
+            "GUARD_L0": 401,
+            "CASTLEWALL_L1": 501,
+        }
+        assert self.members(items, "Research") == {"REKRUTIERUNGSGESCHW_L1": 1, "RECRUITMENT_SPEED_L1": 256}
+        assert self.members(items, "Event") == {"NOMAD_INVASION": 5, "PAYMENTREWARD_6": 6, "PAYMENTREWARD_74": 74}
+        assert self.members(items, "LootBox") == {"MYSTERY_BOX_BRONZE_R1": 1}
+        assert self.members(items, "EquipmentGroup") == {"ATTACK_PVP": 102}
+        assert self.members(items, "DifficultyType") == {"EASY_PLUS": 2}
+        assert self.members(items, "ConstructionItem") == {"BARRACKS_COST_L1": 1}
 
-    def test_output_is_deterministic_and_importable(self, data, tmp_path, monkeypatch):
-        first = gen.render(data)
-        tables: dict[str, Any] = LOOKUP_PAYLOAD
-        reversed_payload = {key: list(reversed(rows)) for key, rows in tables.items()}
-        assert gen.render(GameData.parse("786.03", reversed_payload)) == first
+    def test_a_row_without_a_numeric_id_is_skipped(self):
+        payload = {"events": [{"eventID": "x", "eventType": "Nomad"}, "junk", {"eventID": "3", "eventType": "Faction"}]}
+        assert gen.raw_rows(payload, "events", "eventID") == [(3, {"eventID": "3", "eventType": "Faction"})]
+
+    def test_currencies_by_key_and_by_id_share_names(self, items):
+        assert self.members(items, "Currency") == {"KT": "KT", "DD": "DD"}
+        assert self.members(items, "CurrencyId") == {"KT": 1, "DD": 100000}
+
+    def test_output_is_deterministic_and_importable(self, items, tmp_path, monkeypatch):
+        first = gen.render(*items)
+        reversed_payload = {key: list(reversed(rows)) for key, rows in IDS_PAYLOAD.items()}
+        assert gen.render(GameData.parse("786.03", reversed_payload), reversed_payload) == first
 
         package = tmp_path / "fake_ids"
         gen.write(first, package)
@@ -311,12 +389,12 @@ class TestGenerator:
         assert issubclass(module.Currency, str) and issubclass(module.Currency, Enum)
         assert module.ITEMS_VERSION == "786.03"
 
-    def test_output_is_ruff_clean(self, data, tmp_path):
+    def test_output_is_ruff_clean(self, items, tmp_path):
         ruff = shutil.which("ruff")
         if ruff is None:
             pytest.skip("ruff is not installed")
             return
-        files = gen.render(data)
+        files = gen.render(*items)
         long_name = "A" * 90
         wide = gen.Table(
             "wide",

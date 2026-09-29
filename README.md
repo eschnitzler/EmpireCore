@@ -311,8 +311,11 @@ GeneralSkill.TORIL_ASPECTOFTHE_DRAGON_L1
 ```
 
 Units, tools, effects, effect types, currencies (`Currency` by key, `CurrencyId`
-by id), generals, general abilities and skills, legend skills, raid bosses and
-global effects each have one. Where two rows would get the same name, both carry
+by id), generals, general abilities and skills, legend skills, raid bosses,
+global effects, buildings, researches, construction items, events, loot boxes,
+equipment groups and event difficulty types each have one. Research names come
+from the items file's own notes, which are partly German and less settled than
+the other tables' names. Where two rows would get the same name, both carry
 their id (`GlobalEffect.SPEED_BOOST_2`, `GlobalEffect.SPEED_BOOST_11`).
 
 Members are plain ints (or strs), so they go straight into requests. Each also
