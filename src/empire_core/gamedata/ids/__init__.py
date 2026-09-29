@@ -8,8 +8,8 @@ where two rows would share a name, both carry their id (``SPEED_BOOST_2``).
 Members are plain ints (``Currency`` members plain strs), so they go on the
 wire and into models as their value.
 
-Most members also carry the fixed columns of their row that the name does not
-already say, e.g. ``Unit.MEAD_RANGER_L6.role`` or ``Tool.X.category``, so
+Most members also carry their row's fixed id and number columns, e.g.
+``Unit.MEAD_RANGER_L6.role`` and ``.level`` or ``Tool.X.category``, so
 ``[t for t in Tool if t.category == "Defence"]`` works without game data.
 Anything a balance patch can change is not baked in: for the full row, load a
 :class:`GameData` (nothing here downloads it) and ask

@@ -320,7 +320,7 @@ rows would get the same name, both carry their id (`GlobalEffect.SPEED_BOOST_2`,
 `GlobalEffect.SPEED_BOOST_11`).
 
 Members are plain ints (or strs), so they go straight into requests. Most also
-carry the fixed columns of their row that the name does not already say:
+carry their row's fixed id and number columns, to filter on:
 
 ```python
 Unit.MEAD_RANGER_L6.role             # "ranged"; also .level

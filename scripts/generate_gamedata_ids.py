@@ -9,8 +9,9 @@ Generate the ``empire_core.gamedata.ids`` enums from the items data.
 Each table becomes one module. Member names come from the row's name columns,
 UPPER_SNAKE; names that still collide after that all get the row id appended,
 so no member keeps a bare name another row also claims. Each member also
-carries the fixed columns its name does not already say (a unit's role, a
-tool's category); an enum with none is plain ``NAME = id``. Output is sorted
+carries its row's fixed id and number columns to filter on (a level, a unit's
+role, a tool's category), but not the name and type text its name is built
+from; an enum with none is plain ``NAME = id``. Output is sorted
 by id and formatted the way ``ruff format`` leaves it, so regenerating from the
 same data changes nothing.
 """
@@ -510,8 +511,8 @@ where two rows would share a name, both carry their id (``SPEED_BOOST_2``).
 Members are plain ints (``Currency`` members plain strs), so they go on the
 wire and into models as their value.
 
-Most members also carry the fixed columns of their row that the name does not
-already say, e.g. ``Unit.MEAD_RANGER_L6.role`` or ``Tool.X.category``, so
+Most members also carry their row's fixed id and number columns, e.g.
+``Unit.MEAD_RANGER_L6.role`` and ``.level`` or ``Tool.X.category``, so
 ``[t for t in Tool if t.category == "Defence"]`` works without game data.
 Anything a balance patch can change is not baked in: for the full row, load a
 :class:`GameData` (nothing here downloads it) and ask

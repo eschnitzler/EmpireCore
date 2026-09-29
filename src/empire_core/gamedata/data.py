@@ -4,8 +4,9 @@ Static game data from the GGE items payload.
 The client builds its combat maths from ``items_v{version}.json`` on the GGE
 CDN. That file is ~20 MB, so nothing here is fetched implicitly: call
 :meth:`GameData.load` (or :meth:`EmpireClient.load_game_data`) when you want it.
-What is parsed is trimmed to the combat-relevant tables and cached on disk per
-version, so the download happens once per game patch.
+What is parsed is trimmed to the combat-relevant tables, plus the raw rows
+that :meth:`GameData.record` returns for the id enums without a model, and
+cached on disk per version, so the download happens once per game patch.
 """
 
 from __future__ import annotations
