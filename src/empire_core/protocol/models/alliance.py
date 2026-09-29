@@ -13,12 +13,12 @@ from __future__ import annotations
 import logging
 from typing import Annotated, Any
 
-from pydantic import BeforeValidator, ConfigDict, Field, field_validator, model_validator
+from pydantic import BeforeValidator, ConfigDict, Field, field_serializer, field_validator, model_validator
 
-from empire_core.utils.enums import DiplomacyStatus, HelpType, OnlineState
+from empire_core.utils.enums import DiplomacyStatus, HelpType, OnlineState, RankingType
 
 from ..js import ClientInt, ParseInt, js_floor, js_loose_equals, js_truthy
-from ..text import decode_json_text
+from ..text import decode_json_text, encode_json_text
 from .base import (
     BasePayload,
     BaseRequest,
@@ -703,13 +703,27 @@ class SearchAllianceRequest(BaseRequest):
 
     Command: hgh
     Payload: {"LT": 11, "LID": 6, "SV": name_query}
+
+    Client: ``CastleHighscoreDialog.requestHighscoreData`` (bundle line 27636); 6 is
+    ``ClientConstHighscore.getLeagueIdByLevel`` of the level cap (bundle line 45331)
     """
 
     command = "hgh"
 
-    list_type: int = Field(alias="LT", default=11)  # 11 = Alliance Highscore
-    list_id: int = Field(alias="LID", default=6)  # 6 = Search?
-    search_value: str = Field(alias="SV")
+    list_type: RankingType = Field(
+        alias="LT", default=RankingType.ALLIANCE_MIGHT_POINTS, description="The highscore list searched"
+    )
+    league_type_id: int = Field(
+        alias="LID",
+        default=6,
+        description="The league to search in; 6 is the level 70 league",
+    )
+    search_value: str = Field(alias="SV", description="The alliance name to search for")
+
+    @field_serializer("search_value")
+    def _encoded_search_value(self, value: str) -> str:
+        # C2SGetHighscoreVO encodes SV as it encodes any text it sends
+        return encode_json_text(value)
 
     @classmethod
     def create(cls, query: str) -> "SearchAllianceRequest":

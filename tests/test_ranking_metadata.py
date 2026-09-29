@@ -30,7 +30,8 @@ def test_player_highscore_metadata():
             ],
         }
     )
-    assert (response.list_type, response.list_id, response.last_rank, response.search_value) == (6, 5, 120, "Player")
+    assert (response.list_type, response.league_type_id) == (6, 5)
+    assert (response.last_rank, response.search_value) == (120, "Player")
     entry = response.entries[0]
     assert (entry.entity_id, entry.name, entry.alliance_id, entry.alliance_name) == (42, "Player", 8, "Alliance")
     assert (entry.level, entry.legend_level, entry.honor, entry.might) == (70, 800, 2300, 900)
@@ -57,7 +58,7 @@ def test_global_list_paging_and_server_metadata():
             ],
         }
     )
-    assert (response.list_type, response.list_id, response.total) == (71, 6, 1200)
+    assert (response.list_type, response.league_type_id, response.total) == (71, 6, 1200)
     first, second = response.entries
     assert (first.instance_id, first.score_id, first.alliance_name) == (12, 456, "Alliance")
     assert (second.instance_id, second.score_id, second.alliance_name) == (13, 457, "")
@@ -82,7 +83,8 @@ def test_empty_highscore_retains_zero_last_rank_and_search():
 
 def test_missing_metadata_and_unranked_have_safe_defaults():
     assert GetHighscoreResponse.model_validate({}).last_rank is None
-    assert GetRankingListResponse.model_validate({}).list_id is None
+    assert GetRankingListResponse.model_validate({}).league_type_id is None
+    assert GetHighscoreResponse.model_validate({}).league_type_id == -1
     for entry in [RankingEntry({}), RankingEntry([1, 2, [3, "Name"]]), RankingEntry.unranked("Nobody")]:
         assert (entry.instance_id, entry.score_id) == (None, None)
         assert (entry.level, entry.legend_level, entry.honor, entry.might) == (0, 0, 0, 0)

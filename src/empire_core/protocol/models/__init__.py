@@ -39,7 +39,6 @@ from empire_core.utils.enums import (
     MapItemType,
     OnlineState,
     ProductionListId,
-    RankingCategory,
     RankingType,
     Rareness,
     SCEItem,
@@ -604,7 +603,6 @@ __all__ = [
     "SCEItem",
     # Ranking
     "RankingType",
-    "RankingCategory",
     "RankingEntry",
     "GetHighscoreRequest",
     "GetHighscoreResponse",

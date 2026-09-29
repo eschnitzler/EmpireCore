@@ -700,3 +700,47 @@ def test_a_cached_level_of_zero_stays_zero(tmp_path):
     data._write_cache(cache)
     again = GameData._read_cache(cache, "9.9")
     assert again is not None and again.units[205].level == 0
+
+
+class TestLeagueTypes:
+    # Rows of v786.03's leaguetypes table, as the payload has them
+    ROWS = [
+        {"comment2": "platin", "leaguetypeID": "6", "eventID": "-1", "minLevel": 70, "maxLevel": "1020"},
+        {"leaguetypeID": "1", "eventID": "71", "minLevel": 20, "maxLevel": "69"},
+        {"leaguetypeID": "1", "eventID": "71", "subType": "1", "minLevel": 70, "maxLevel": "1020"},
+        {"leaguetypeID": "1", "eventID": "80", "minLevel": 10, "maxLevel": "69", "countVictoryMin": "16"},
+    ]
+
+    @pytest.fixture
+    def data(self) -> GameData:
+        return GameData.parse("786.03", {"leaguetypes": self.ROWS})
+
+    def test_a_league_is_keyed_by_event_and_sub_type(self, data):
+        leagues = {
+            "no event": data.league_type(6),
+            "event": data.league_type(1, 71),
+            "sub type": data.league_type(1, 71, sub_type=1),
+            "other event": data.league_type(1, 80),
+        }
+        levels = {key: (row.min_level, row.max_level) for key, row in leagues.items() if row is not None}
+        assert levels == {"no event": (70, 1020), "event": (20, 69), "sub type": (70, 1020), "other event": (10, 69)}
+
+    def test_misses_return_none(self, data):
+        assert data.league_type(1) is None
+        assert data.league_type(2, 71) is None
+        assert data.league_type(1, 71, sub_type=2) is None
+
+    def test_values_are_read_with_parse_int(self):
+        data = GameData.parse("786.03", {"leaguetypes": [{"leaguetypeID": "3x", "eventID": "", "maxLevel": "9"}]})
+        league = data.league_type(3)
+        assert league is not None and (league.event_id, league.sub_type, league.max_level) == (-1, 0, 9)
+
+    def test_leagues_survive_the_cache(self, data, tmp_path):
+        cache = tmp_path / "items_v786.03.trimmed.json"
+        data._write_cache(cache)
+
+        cached = GameData._read_cache(cache, "786.03")
+
+        assert cached is not None
+        league = cached.league_type(1, 80)
+        assert league is not None and (league.min_level, league.max_level, league.victory_min) == (10, 69, 16)

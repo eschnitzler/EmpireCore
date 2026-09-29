@@ -11,7 +11,7 @@ from .equipment import EquipmentSlot, EquipmentType, Rareness, WearerType
 from .inventory import SCEItem
 from .map import Kingdom, MapItemType
 from .movement import MovementType
-from .ranking import RankingCategory, RankingType
+from .ranking import RankingType
 from .spy import SpyType
 
 __all__ = [
@@ -42,7 +42,6 @@ __all__ = [
     "HelpType",
     # Ranking
     "RankingType",
-    "RankingCategory",
     # Inventory
     "SCEItem",
 ]

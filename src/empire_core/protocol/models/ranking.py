@@ -2,10 +2,8 @@
 Ranking protocol models for GGE.
 
 Commands:
-- hgh: Get highscore/ranking for a specific entity (search by name/value)
-- llsp: Get large list ranking by position (global leaderboard)
-- llsw: Get large list ranking by ID (find specific rank)
-- slse: Search entity ID (used for season pass etc)
+- hgh: A page of a highscore list, around a rank or a searched name
+- llsp: A page of a global leaderboard, from a rank
 """
 
 from __future__ import annotations
@@ -13,9 +11,12 @@ from __future__ import annotations
 import logging
 from typing import Any, ClassVar
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_serializer, field_validator, model_validator
 
-from ..js import ClientInt
+from empire_core.utils.enums import RankingType
+
+from ..js import ClientInt, js_falsy, js_int
+from ..text import encode_json_text
 from .base import BasePayload, BaseRequest, BaseResponse, GGECommand
 
 logger = logging.getLogger(__name__)
@@ -124,23 +125,39 @@ class RankingEntry:
 
 class GetHighscoreRequest(BaseRequest):
     """
-    Get specific highscore entry (search).
+    A page of a highscore list, around a rank or a searched name.
 
-    Command: hgh
+    Payload: {"LT": list_type, "LID": league_type_id, "SV": search_value}
+
+    The keys follow the client's order: the constructor initialises LT and LID
+    before it sets SV, which it encodes as it encodes any text it sends.
+
+    Client: ``C2SGetHighscoreVO`` (bundle line 14674)
     """
 
     command: ClassVar[str] = GGECommand.HGH
 
-    list_type: int = Field(alias="LT")
-    list_id: int | None = Field(alias="LID", default=None)
-    search_value: str = Field(alias="SV")
+    list_type: RankingType = Field(alias="LT", description="The highscore list")
+    league_type_id: int = Field(
+        alias="LID",
+        default=-1,
+        description="League type id from the leaguetypes table (see GameData.league_type); -1 for none",
+    )
+    search_value: str = Field(
+        alias="SV", description='A name, or a rank as text; "-1" asks for the page around your own rank'
+    )
+
+    @field_serializer("search_value")
+    def _encoded_search_value(self, value: str) -> str:
+        return encode_json_text(value)
 
 
 class GetHighscoreResponse(BaseResponse):
     """
     Response for hgh command.
 
-    Client: ``CastleSingleplayerRankingItem.update`` (bundle line 91695),
+    Client: ``HGHCommand.executeCommand`` (bundle line 124377),
+    ``CastleSingleplayerRankingItem.update`` (bundle line 91695),
     ``CastleAllianceRankingItem.update`` (bundle line 91645),
     ``CastleEilandAllianceRankingItem.update`` (bundle line 98076)
     """
@@ -148,7 +165,7 @@ class GetHighscoreResponse(BaseResponse):
     command: ClassVar[str] = GGECommand.HGH
 
     list_type: int | None = Field(alias="LT", default=None)
-    list_id: int | None = Field(alias="LID", default=None)
+    league_type_id: int = Field(alias="LID", default=-1, description="League type id; -1 for none")
     last_rank: int | None = Field(alias="LR", default=None)
     search_value: str | None = Field(alias="SV", default=None)
     raw_list: list[Any] = Field(
@@ -161,6 +178,11 @@ class GetHighscoreResponse(BaseResponse):
         ),
     )
 
+    @field_validator("league_type_id", mode="before")
+    @classmethod
+    def _falsy_league_reads_as_minus_one(cls, value: Any) -> int:
+        return -1 if js_falsy(value) else js_int(value)
+
     @property
     def entries(self) -> list[RankingEntry]:
         return [RankingEntry(item) for item in self.raw_list]
@@ -168,16 +190,24 @@ class GetHighscoreResponse(BaseResponse):
 
 class GetRankingListRequest(BaseRequest):
     """
-    Get global ranking list by position/rank.
+    A page of a global leaderboard, starting at a rank.
 
-    Command: llsp
+    Payload: {"LT": list_type, "LID": league_type_id, "M": max_results, "R": rank}
+
+    Client: ``C2SListLeaderboardScoresPageVO`` (bundle line 76002), sent by
+    ``LeaderBoardDataProvider`` (bundle line 75933)
     """
 
     command: ClassVar[str] = "llsp"
 
-    list_type: int = Field(alias="LT")
-    list_id: int | None = Field(alias="LID", default=None)
-    rank: int = Field(alias="R")  # Start rank?
+    list_type: RankingType = Field(alias="LT", description="The highscore list")
+    league_type_id: int = Field(
+        alias="LID",
+        default=-1,
+        description="League type id from the leaguetypes table (see GameData.league_type); -1 for none",
+    )
+    max_results: int = Field(alias="M", description="Entries per page")
+    rank: int = Field(alias="R", default=1, description="The first rank on the page")
 
 
 def _guarded(value: Any, kind: type | tuple[type, ...]) -> Any:
@@ -227,9 +257,14 @@ class GetRankingListResponse(BaseResponse):
     command: ClassVar[str] = "llsp"
 
     list_type: int | None = Field(alias="LT", default=None)
-    list_id: int | None = Field(alias="LID", default=None)
+    league_type_id: int | None = Field(alias="LID", default=None, description="League type id; None for none")
     scores: list[LeaderboardScore] = Field(alias="L", default_factory=list, description="The page's entries")
     total: int = Field(alias="T", default=0, description="Number of scores on the whole list")
+
+    @field_validator("league_type_id", mode="before")
+    @classmethod
+    def _falsy_league_reads_as_none(cls, value: Any) -> int | None:
+        return None if js_falsy(value) else js_int(value)
 
     @field_validator("scores", mode="before")
     @classmethod

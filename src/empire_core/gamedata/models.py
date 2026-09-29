@@ -995,19 +995,32 @@ class EventCampDef(_Row):
 
 class LeagueBracketDef(_Row):
     """
-    The level band an event sorts a player into.
+    A league: the level band an event sorts a player into, a row of ``leaguetypes``.
 
-    An invasion camp's base level is the band's lower victory count, so this is
-    what says how hard the samurai camps are for a player of a given level.
+    Its ``league_type_id`` is the ``LID`` of the highscore commands. Ids repeat
+    across events, and within an event across sub types. An invasion camp's
+    base level is the band's lower victory count, so this is also what says how
+    hard the samurai camps are for a player of a given level.
+
+    Client: ``AScoreEventVO.generateLeagueLevelsList`` (bundle line 14971),
+    ``LeagueTypeVO.parseXML`` (bundle line 91460)
     """
 
-    league_id: int = Field(alias="leaguetypeID", default=0)
-    event_id: int = Field(alias="eventID", default=-1)
-    sub_type: int = Field(alias="subType", default=0)
-    min_level: int = Field(alias="minLevel", default=0)
-    max_level: int = Field(alias="maxLevel", default=0)
-    victory_min: int = Field(alias="countVictoryMin", default=0)
-    victory_max: int = Field(alias="countVictoryMax", default=0)
+    league_type_id: int = Field(alias="leaguetypeID", default=0, description="League type id")
+    event_id: int = Field(alias="eventID", default=-1, description="The event it belongs to; -1 for none")
+    sub_type: int = Field(alias="subType", default=0, description="The event's sub type, e.g. a Berimond faction")
+    min_level: int = Field(alias="minLevel", default=0, description="Lowest player level in the league")
+    max_level: int = Field(alias="maxLevel", default=0, description="Highest player level in the league")
+    victory_min: int = Field(alias="countVictoryMin", default=0, description="Lower victory count")
+    victory_max: int = Field(alias="countVictoryMax", default=0, description="Upper victory count")
+
+    @field_validator(
+        "league_type_id", "event_id", "sub_type", "min_level", "max_level", "victory_min", "victory_max", mode="before"
+    )
+    @classmethod
+    def _parse_int(cls, value: object, info: ValidationInfo) -> int:
+        # parseInt of each value; subType is read with getValueOrDefault("subType", row, "0")
+        return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
 
 
 __all__ = [

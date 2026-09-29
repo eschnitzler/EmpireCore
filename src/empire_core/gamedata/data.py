@@ -297,6 +297,26 @@ class GameData(BaseModel):
                 return bracket.victory_min
         return None
 
+    def league_type(self, league_type_id: int, event_id: int = -1, *, sub_type: int = 0) -> LeagueBracketDef | None:
+        """
+        A league by the ``LID`` a highscore reply names, within its event.
+
+        The same id is a different level band in every event, and within an
+        event in every sub type, so both are part of the key; ``event_id=-1``
+        finds the rows of no event.
+
+        Client: ``AScoreEventVO.generateLeagueLevelsList`` (bundle line 14971)
+        """
+        return _single(
+            f"league type {league_type_id} of event {event_id} sub type {sub_type}",
+            [
+                r
+                for r in self.league_brackets
+                if r.league_type_id == league_type_id and r.event_id == event_id and r.sub_type == sub_type
+            ],
+            lambda r: r.league_type_id,
+        )
+
     def resolve_relic_effect(self, relic_effect_id: int) -> EffectDef | None:
         """
         The plain effect a relic bonus id points at.
