@@ -8,12 +8,12 @@ where two rows would share a name, both carry their id (``SPEED_BOOST_2``).
 Members are plain ints (``Currency`` members plain strs), so they go on the
 wire and into models as their value.
 
-Each member also carries the columns that identify its row and do not change
-between patches, e.g. ``Unit.MEAD_RANGER_L6.unit_type``. Anything a balance
-patch can change is not baked in: ``Unit.X.stats``, ``Tool.X.stats`` and the
-other enums' ``info`` return the full row from
-:func:`~empire_core.gamedata.default_game_data`, the GameData loaded last
-(loading it on first use if none was).
+Most members also carry the fixed columns of their row that the name does not
+already say, e.g. ``Unit.MEAD_RANGER_L6.role`` or ``Tool.X.category``, so
+``[t for t in Tool if t.category == "Defence"]`` works without game data.
+Anything a balance patch can change is not baked in: for the full row, load a
+:class:`GameData` (nothing here downloads it) and ask
+``game_data.record(member)``, or ``game_data.records(members)`` for several.
 
 ``ITEMS_VERSION`` is the items version they were generated from, and
 :func:`is_current` says whether a loaded :class:`GameData` is that version. For

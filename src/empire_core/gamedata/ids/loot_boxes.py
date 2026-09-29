@@ -13,61 +13,58 @@ class LootBox(IntEnum):
     """
 
     _value_: int
-    row_name: str
-    """The row's name column."""
     rarity: int
     """The ``rarity`` column."""
 
-    def __new__(cls, value: int, row_name: str = "", rarity: int = 0) -> LootBox:
+    def __new__(cls, value: int, rarity: int = 0) -> LootBox:
         member = int.__new__(cls, value)
         member._value_ = value
-        member.row_name = row_name
         member.rarity = rarity
         return member
 
-    MYSTERY_BOX_BRONZE_R1 = 1, "MysteryBoxBronze", 1
-    MYSTERY_BOX_BRONZE_R2 = 2, "MysteryBoxBronze", 2
-    MYSTERY_BOX_BRONZE_R3 = 3, "MysteryBoxBronze", 3
-    MYSTERY_BOX_BRONZE_R4 = 4, "MysteryBoxBronze", 4
-    MYSTERY_BOX_SILVER_R1 = 5, "MysteryBoxSilver", 1
-    MYSTERY_BOX_SILVER_R2 = 6, "MysteryBoxSilver", 2
-    MYSTERY_BOX_SILVER_R3 = 7, "MysteryBoxSilver", 3
-    MYSTERY_BOX_SILVER_R4 = 8, "MysteryBoxSilver", 4
-    MYSTERY_BOX_GOLD_R1 = 9, "MysteryBoxGold", 1
-    MYSTERY_BOX_GOLD_R2 = 10, "MysteryBoxGold", 2
-    MYSTERY_BOX_GOLD_R3 = 11, "MysteryBoxGold", 3
-    MYSTERY_BOX_GOLD_R4 = 12, "MysteryBoxGold", 4
-    SUMMER_BOX2022_R1 = 13, "SummerBox2022", 1
-    SUMMER_BOX2022_R2 = 14, "SummerBox2022", 2
-    SUMMER_BOX2022_R3 = 15, "SummerBox2022", 3
-    SUMMER_BOX2022_R4 = 16, "SummerBox2022", 4
-    AUTUMN_BOX2022_R1 = 17, "AutumnBox2022", 1
-    AUTUMN_BOX2022_R2 = 18, "AutumnBox2022", 2
-    AUTUMN_BOX2022_R3 = 19, "AutumnBox2022", 3
-    AUTUMN_BOX2022_R4 = 20, "AutumnBox2022", 4
-    SALES_BOX2022_R1 = 21, "SalesBox2022", 1
-    SALES_BOX2022_R2 = 22, "SalesBox2022", 2
-    SALES_BOX2022_R3 = 23, "SalesBox2022", 3
-    SALES_BOX2022_R4 = 24, "SalesBox2022", 4
-    WINTER_BOX2022_R1 = 25, "WinterBox2022", 1
-    WINTER_BOX2022_R2 = 26, "WinterBox2022", 2
-    WINTER_BOX2022_R3 = 27, "WinterBox2022", 3
-    WINTER_BOX2022_R4 = 28, "WinterBox2022", 4
-    SPRING_BOX2023_R1 = 29, "SpringBox2023", 1
-    SPRING_BOX2023_R2 = 30, "SpringBox2023", 2
-    SPRING_BOX2023_R3 = 31, "SpringBox2023", 3
-    SPRING_BOX2023_R4 = 32, "SpringBox2023", 4
-    HO_L8_BOX_LITTLE_R1 = 33, "HoL8BoxLittle", 1
-    HO_L8_BOX_BIG_R4 = 34, "HoL8BoxBig", 4
-    ARE_BOX_BRONZE_R1_35 = 35, "AREBoxBronze", 1
-    ARE_BOX_SILVER_R1_36 = 36, "AREBoxSilver", 1
-    ARE_BOX_GOLD_R1_37 = 37, "AREBoxGold", 1
-    ARE_BOX_BRONZE_PREMIUM_R1 = 38, "AREBoxBronzePremium", 1
-    ARE_BOX_SILVER_PREMIUM_R1 = 39, "AREBoxSilverPremium", 1
-    ARE_BOX_GOLD_PREMIUM_R1 = 40, "AREBoxGoldPremium", 1
-    ARE_BOX_BRONZE_R1_41 = 41, "AREBoxBronze", 1
-    ARE_BOX_SILVER_R1_42 = 42, "AREBoxSilver", 1
-    ARE_BOX_GOLD_R1_43 = 43, "AREBoxGold", 1
-    ARE_BOX_BRONZE_R1_44 = 44, "AREBoxBronze", 1
-    ARE_BOX_SILVER_R1_45 = 45, "AREBoxSilver", 1
-    ARE_BOX_GOLD_R1_46 = 46, "AREBoxGold", 1
+    MYSTERY_BOX_BRONZE_R1 = 1, 1
+    MYSTERY_BOX_BRONZE_R2 = 2, 2
+    MYSTERY_BOX_BRONZE_R3 = 3, 3
+    MYSTERY_BOX_BRONZE_R4 = 4, 4
+    MYSTERY_BOX_SILVER_R1 = 5, 1
+    MYSTERY_BOX_SILVER_R2 = 6, 2
+    MYSTERY_BOX_SILVER_R3 = 7, 3
+    MYSTERY_BOX_SILVER_R4 = 8, 4
+    MYSTERY_BOX_GOLD_R1 = 9, 1
+    MYSTERY_BOX_GOLD_R2 = 10, 2
+    MYSTERY_BOX_GOLD_R3 = 11, 3
+    MYSTERY_BOX_GOLD_R4 = 12, 4
+    SUMMER_BOX2022_R1 = 13, 1
+    SUMMER_BOX2022_R2 = 14, 2
+    SUMMER_BOX2022_R3 = 15, 3
+    SUMMER_BOX2022_R4 = 16, 4
+    AUTUMN_BOX2022_R1 = 17, 1
+    AUTUMN_BOX2022_R2 = 18, 2
+    AUTUMN_BOX2022_R3 = 19, 3
+    AUTUMN_BOX2022_R4 = 20, 4
+    SALES_BOX2022_R1 = 21, 1
+    SALES_BOX2022_R2 = 22, 2
+    SALES_BOX2022_R3 = 23, 3
+    SALES_BOX2022_R4 = 24, 4
+    WINTER_BOX2022_R1 = 25, 1
+    WINTER_BOX2022_R2 = 26, 2
+    WINTER_BOX2022_R3 = 27, 3
+    WINTER_BOX2022_R4 = 28, 4
+    SPRING_BOX2023_R1 = 29, 1
+    SPRING_BOX2023_R2 = 30, 2
+    SPRING_BOX2023_R3 = 31, 3
+    SPRING_BOX2023_R4 = 32, 4
+    HO_L8_BOX_LITTLE_R1 = 33, 1
+    HO_L8_BOX_BIG_R4 = 34, 4
+    ARE_BOX_BRONZE_R1_35 = 35, 1
+    ARE_BOX_SILVER_R1_36 = 36, 1
+    ARE_BOX_GOLD_R1_37 = 37, 1
+    ARE_BOX_BRONZE_PREMIUM_R1 = 38, 1
+    ARE_BOX_SILVER_PREMIUM_R1 = 39, 1
+    ARE_BOX_GOLD_PREMIUM_R1 = 40, 1
+    ARE_BOX_BRONZE_R1_41 = 41, 1
+    ARE_BOX_SILVER_R1_42 = 42, 1
+    ARE_BOX_GOLD_R1_43 = 43, 1
+    ARE_BOX_BRONZE_R1_44 = 44, 1
+    ARE_BOX_SILVER_R1_45 = 45, 1
+    ARE_BOX_GOLD_R1_46 = 46, 1

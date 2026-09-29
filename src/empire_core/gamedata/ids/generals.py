@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from enum import IntEnum
 
-from empire_core.gamedata.data import default_game_data
-from empire_core.gamedata.models import GeneralDef
-
 
 class General(IntEnum):
     """
@@ -16,56 +13,48 @@ class General(IntEnum):
     """
 
     _value_: int
-    row_name: str
-    """The row's name column."""
     rarity_id: int
     """The ``generalRarityID`` column."""
 
-    def __new__(cls, value: int, row_name: str = "", rarity_id: int = 0) -> General:
+    def __new__(cls, value: int, rarity_id: int = 0) -> General:
         member = int.__new__(cls, value)
         member._value_ = value
-        member.row_name = row_name
         member.rarity_id = rarity_id
         return member
 
-    @property
-    def info(self) -> GeneralDef | None:
-        """This general's row in the loaded game data, or None if it has none."""
-        return default_game_data().generals.get(self)
-
-    TORIL = 101, "Toril", 4
-    LEO = 102, "Leo", 2
-    ALYSSA = 103, "Alyssa", 2
-    HORATIO = 104, "Horatio", 3
-    SASAKI = 105, "Sasaki", 4
-    WOLF_KING = 106, "WolfKing", 4
-    TOM = 107, "Tom", 1
-    ALICE = 108, "Alice", 1
-    USKHAL = 109, "Uskhal", 4
-    SAMURAI_GENERAL = 110, "SamuraiGeneral", 4
-    BABA_VARJUKA = 111, "BabaVarjuka", 4
-    ALIEN_GENERAL = 112, "AlienGeneral", 4
-    RED_GENERAL = 113, "RedGeneral", 4
-    BLUE_GENERAL = 114, "BlueGeneral", 4
-    ROBBER_BARON = 115, "RobberBaron", 4
-    SULTAN_AL_KILLAH = 116, "SultanAlKillah", 4
-    KING_OLAFSON = 117, "KingOlafson", 4
-    YIGRIS = 118, "Yigris", 4
-    TIZI = 119, "Tizi", 3
-    HASAN = 120, "Hasan", 2
-    DIANA = 121, "Diana", 3
-    VALENTA = 122, "Valenta", 2
-    GARRIK = 123, "Garrik", 1
-    ASHIRA = 124, "Ashira", 3
-    KAELRITH = 125, "Kaelrith", 4
-    EDRIC = 126, "Edric", 1
-    BARIN = 127, "Barin", 3
-    RAID_BOSS1_FULL = 128, "RaidBoss1Full", 2
-    RAID_BOSS1_MID = 129, "RaidBoss1Mid", 2
-    RAID_BOSS1_LOW = 130, "RaidBoss1Low", 2
-    RAID_BOSS2_FULL = 131, "RaidBoss2Full", 1
-    RAID_BOSS2_MID = 132, "RaidBoss2Mid", 1
-    RAID_BOSS2_LOW = 133, "RaidBoss2Low", 1
-    RAID_BOSS3_FULL = 134, "RaidBoss3Full", 4
-    RAID_BOSS3_MID = 135, "RaidBoss3Mid", 4
-    RAID_BOSS3_LOW = 136, "RaidBoss3Low", 4
+    TORIL = 101, 4
+    LEO = 102, 2
+    ALYSSA = 103, 2
+    HORATIO = 104, 3
+    SASAKI = 105, 4
+    WOLF_KING = 106, 4
+    TOM = 107, 1
+    ALICE = 108, 1
+    USKHAL = 109, 4
+    SAMURAI_GENERAL = 110, 4
+    BABA_VARJUKA = 111, 4
+    ALIEN_GENERAL = 112, 4
+    RED_GENERAL = 113, 4
+    BLUE_GENERAL = 114, 4
+    ROBBER_BARON = 115, 4
+    SULTAN_AL_KILLAH = 116, 4
+    KING_OLAFSON = 117, 4
+    YIGRIS = 118, 4
+    TIZI = 119, 3
+    HASAN = 120, 2
+    DIANA = 121, 3
+    VALENTA = 122, 2
+    GARRIK = 123, 1
+    ASHIRA = 124, 3
+    KAELRITH = 125, 4
+    EDRIC = 126, 1
+    BARIN = 127, 3
+    RAID_BOSS1_FULL = 128, 2
+    RAID_BOSS1_MID = 129, 2
+    RAID_BOSS1_LOW = 130, 2
+    RAID_BOSS2_FULL = 131, 1
+    RAID_BOSS2_MID = 132, 1
+    RAID_BOSS2_LOW = 133, 1
+    RAID_BOSS3_FULL = 134, 4
+    RAID_BOSS3_MID = 135, 4
+    RAID_BOSS3_LOW = 136, 4

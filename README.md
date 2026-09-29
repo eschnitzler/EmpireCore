@@ -315,24 +315,37 @@ by id), generals, general abilities and skills, legend skills, raid bosses,
 global effects, buildings, researches, construction items, events, loot boxes,
 equipment groups and event difficulty types each have one. Research names start
 with the items file's own note, which is partly German, and end in group and
-level (`Research.RECRUITMENT_SPEED_G41_L1`), which keep them unique. Where two rows would get the same name, both carry
-their id (`GlobalEffect.SPEED_BOOST_2`, `GlobalEffect.SPEED_BOOST_11`).
+level (`Research.RECRUITMENT_SPEED_G41_L1`), which keep them unique. Where two
+rows would get the same name, both carry their id (`GlobalEffect.SPEED_BOOST_2`,
+`GlobalEffect.SPEED_BOOST_11`).
 
-Members are plain ints (or strs), so they go straight into requests. Each also
-carries the columns that identify its row, and a property for the rest of the
-row, read from the loaded game data:
+Members are plain ints (or strs), so they go straight into requests. Most also
+carry the fixed columns of their row that the name does not already say:
 
 ```python
-Unit.MEAD_RANGER_L6.unit_type        # "MeadRanger"; also .level and .role
+Unit.MEAD_RANGER_L6.role             # "ranged"; also .level
 General.TORIL.rarity_id              # 4
-Unit.MEAD_RANGER_L6.stats            # UnitStats, from the loaded GameData
-General.TORIL.info                   # GeneralDef
+[t for t in Tool if t.category == "Defence"]
 ```
 
-Stats and costs are not baked in, as balance patches change them. The
-properties read `default_game_data()`: the GameData that `GameData.load()` (or
-`client.load_game_data()`) returned last, loaded on first use if there is none.
-`set_default_game_data(data)` picks another.
+Stats and costs are not baked in, as balance patches change them, and nothing
+here downloads the game data. For the full row, ask the `GameData` you loaded:
+
+```python
+data = client.load_game_data()
+data.record(Unit.MEAD_RANGER_L6)     # UnitStats
+data.record(General.TORIL)           # GeneralDef
+data.record(Research.RECRUITMENT_SPEED_G41_L1)  # the items row, as a dict
+data.records([Unit.MEAD_RANGER_L6, Building.KEEP_L1])  # a list, in order
+```
+
+Where GameData models the table, `record` returns the model (`UnitStats`,
+`ToolStats`, `EffectDef`, `EffectTypeDef`, `CurrencyDef`, `GeneralDef`,
+`GeneralAbilityDef`, `GeneralSkillDef`, `LegendSkillDef`, `RaidBossDef`,
+`GlobalEffectDef`, `ConstructionItemDef`). A wall, gate or moat `Building` gives
+its `FortificationDef`; other buildings, researches, events, loot boxes,
+equipment groups and difficulty types give the items row as a dict. An id the
+data lacks gives `None`.
 
 `ITEMS_VERSION` is the items version they came from; `is_current(game_data)` says
 whether loaded data matches it, and `GameData.load()` logs a warning when it does

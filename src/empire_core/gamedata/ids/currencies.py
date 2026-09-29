@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from enum import Enum, IntEnum
 
-from empire_core.gamedata.data import default_game_data
-from empire_core.gamedata.models import CurrencyDef
-
 
 class Currency(str, Enum):
     """
@@ -24,11 +21,6 @@ class Currency(str, Enum):
         member._value_ = value
         member.currency_id = currency_id
         return member
-
-    @property
-    def info(self) -> CurrencyDef | None:
-        """This currency's row in the loaded game data, or None if it has none."""
-        return default_game_data().currency(self)
 
     AC = "AC", 83
     ACO = "ACO", 50
@@ -317,11 +309,6 @@ class CurrencyId(IntEnum):
         member._value_ = value
         member.json_key = json_key
         return member
-
-    @property
-    def info(self) -> CurrencyDef | None:
-        """This currency's row in the loaded game data, or None if it has none."""
-        return default_game_data().currencies.get(self)
 
     KT = 1, "KT"
     TS = 2, "TS"

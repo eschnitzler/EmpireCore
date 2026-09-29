@@ -2,12 +2,10 @@
 Static game data from the GGE items payload.
 
 The client builds its combat maths from ``items_v{version}.json`` on the GGE
-CDN. That file is ~20 MB, so call :meth:`GameData.load` (or
-:meth:`EmpireClient.load_game_data`) when you want it. The one exception is
-:func:`default_game_data`, which the id enums' ``stats`` and ``info``
-properties read: it loads on first use if nothing has been loaded yet. What is
-parsed is trimmed to the combat-relevant tables and cached on disk per version,
-so the download happens once per game patch.
+CDN. That file is ~20 MB, so nothing here is fetched implicitly: call
+:meth:`GameData.load` (or :meth:`EmpireClient.load_game_data`) when you want it.
+What is parsed is trimmed to the combat-relevant tables and cached on disk per
+version, so the download happens once per game patch.
 """
 
 from __future__ import annotations
@@ -16,15 +14,14 @@ import hashlib
 import json
 import logging
 import os
-import threading
-import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from empire_core.exceptions import AmbiguousLookupError, NetworkError
+from empire_core.protocol.js import js_falsy, js_parse_int
 from empire_core.utils.enums import Kingdom
 from empire_core.utils.troops import fetch_items_data, get_items_version
 
@@ -58,6 +55,31 @@ from .models import (
     ToolStats,
     UnitStats,
 )
+
+if TYPE_CHECKING:
+    from enum import Enum
+
+    from .ids import (
+        Building,
+        ConstructionItem,
+        Currency,
+        CurrencyId,
+        DifficultyType,
+        Effect,
+        EffectType,
+        EquipmentGroup,
+        Event,
+        General,
+        GeneralAbility,
+        GeneralSkill,
+        GlobalEffect,
+        LegendSkill,
+        LootBox,
+        RaidBoss,
+        Research,
+        Tool,
+        Unit,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -103,10 +125,10 @@ def _schema_fingerprint() -> str:
     The cache holds parsed models keyed by field name, so a model that gains a
     column reads back the old file with that column at its default - silently,
     and wrongly, and a changed default leaves the old default in the file.
-    Fingerprinting the field names and defaults means any such change
-    invalidates the cache instead.
+    Fingerprinting the field names and defaults, and GameData's own tables,
+    means any such change invalidates the cache instead.
     """
-    tables = []
+    tables = [f"GameData:{','.join(sorted(GameData.model_fields))}", f"rows:{sorted(ROW_TABLES.items())}"]
     for model in _CACHED_MODELS:
         fields = ",".join(f"{name}={field.default!r}" for name, field in sorted(model.model_fields.items()))
         tables.append(f"{model.__name__}:{fields}")
@@ -137,7 +159,35 @@ RAW_TABLES = (
     "eventAutoScalingToolPairings",
 )
 
+ROW_TABLES = {
+    "buildings": ("buildings", "wodID"),
+    "researches": ("researches", "researchID"),
+    "events": ("events", "eventID"),
+    "loot_boxes": ("lootBoxes", "lootBoxID"),
+    "equipment_groups": ("equipment_groups", "itemGroupID"),
+    "difficulty_types": ("eventAutoScalingDifficultyTypes", "difficultyTypeID"),
+}
+"""GameData field -> (items table, id column) for the tables kept as raw rows, keyed by id."""
+
 R = TypeVar("R", bound=BaseModel)
+
+IdRecord = (
+    UnitStats
+    | ToolStats
+    | EffectDef
+    | EffectTypeDef
+    | CurrencyDef
+    | GeneralDef
+    | GeneralAbilityDef
+    | GeneralSkillDef
+    | LegendSkillDef
+    | RaidBossDef
+    | GlobalEffectDef
+    | ConstructionItemDef
+    | FortificationDef
+    | dict[str, Any]
+)
+"""What :meth:`GameData.record` returns for an id enum member, bar None."""
 
 
 _warned_versions: set[str] = set()
@@ -179,6 +229,25 @@ def _rows(entries: object, model: type[R]) -> list[R]:
     if skipped:
         logger.debug(f"Skipped {skipped} unparseable {model.__name__} rows")
     return parsed
+
+
+def rows_by_id(entries: object, id_key: str) -> dict[int, dict[str, Any]]:
+    """
+    A table GameData does not model, each row as the payload had it, keyed by ``parseInt`` of its id column.
+
+    A row whose id is missing or not a number is left out; of two rows with one id, the last is kept.
+    """
+    rows: dict[int, dict[str, Any]] = {}
+    if not isinstance(entries, list):
+        return rows
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        value = entry.get(id_key)
+        row_id = None if js_falsy(value) else js_parse_int(value)
+        if row_id is not None:
+            rows[row_id] = entry
+    return rows
 
 
 def _single(what: str, matches: list[R], id_of: Callable[[R], int]) -> R | None:
@@ -233,6 +302,13 @@ class GameData(BaseModel):
     event_camps: dict[str, dict[int, EventCampDef]] = Field(default_factory=dict)
     league_brackets: list[LeagueBracketDef] = Field(default_factory=list)
     raw_tables: dict[str, list] = Field(default_factory=dict)
+    buildings: dict[int, dict[str, Any]] = Field(default_factory=dict)
+    researches: dict[int, dict[str, Any]] = Field(default_factory=dict)
+    events: dict[int, dict[str, Any]] = Field(default_factory=dict)
+    loot_boxes: dict[int, dict[str, Any]] = Field(default_factory=dict)
+    equipment_groups: dict[int, dict[str, Any]] = Field(default_factory=dict)
+    difficulty_types: dict[int, dict[str, Any]] = Field(default_factory=dict)
+    """These six are raw items rows by id (see ROW_TABLES), for the id enums GameData has no model for."""
 
     # ------------------------------------------------------------------
     # Lookups
@@ -479,6 +555,102 @@ class GameData(BaseModel):
         )
 
     # ------------------------------------------------------------------
+    # Records by id enum member
+    # ------------------------------------------------------------------
+
+    @overload
+    def record(self, member: Unit) -> UnitStats | None: ...
+    @overload
+    def record(self, member: Tool) -> ToolStats | None: ...
+    @overload
+    def record(self, member: Effect) -> EffectDef | None: ...
+    @overload
+    def record(self, member: EffectType) -> EffectTypeDef | None: ...
+    @overload
+    def record(self, member: Currency | CurrencyId) -> CurrencyDef | None: ...
+    @overload
+    def record(self, member: General) -> GeneralDef | None: ...
+    @overload
+    def record(self, member: GeneralAbility) -> GeneralAbilityDef | None: ...
+    @overload
+    def record(self, member: GeneralSkill) -> GeneralSkillDef | None: ...
+    @overload
+    def record(self, member: LegendSkill) -> LegendSkillDef | None: ...
+    @overload
+    def record(self, member: RaidBoss) -> RaidBossDef | None: ...
+    @overload
+    def record(self, member: GlobalEffect) -> GlobalEffectDef | None: ...
+    @overload
+    def record(self, member: ConstructionItem) -> ConstructionItemDef | None: ...
+    @overload
+    def record(self, member: Building) -> FortificationDef | dict[str, Any] | None: ...
+    @overload
+    def record(self, member: Research | Event | LootBox | EquipmentGroup | DifficultyType) -> dict[str, Any] | None: ...
+
+    def record(self, member: Enum) -> IdRecord | None:
+        """
+        The full row for a member of one of the :mod:`~empire_core.gamedata.ids` enums, or None if this data lacks it.
+
+        Where GameData models the table, the row is its model: ``Unit`` gives
+        UnitStats, ``Tool`` ToolStats, ``Effect`` EffectDef, ``EffectType``
+        EffectTypeDef, ``Currency`` (by key) and ``CurrencyId`` CurrencyDef,
+        ``General`` GeneralDef, ``GeneralAbility`` GeneralAbilityDef,
+        ``GeneralSkill`` GeneralSkillDef, ``LegendSkill`` LegendSkillDef,
+        ``RaidBoss`` RaidBossDef, ``GlobalEffect`` GlobalEffectDef and
+        ``ConstructionItem`` ConstructionItemDef. A ``Building`` that is a wall,
+        gate or moat gives its FortificationDef. Anything else - other buildings,
+        and every ``Research``, ``Event``, ``LootBox``, ``EquipmentGroup`` and
+        ``DifficultyType`` - gives the items row as a dict, unparsed.
+
+        Raises:
+            TypeError: ``member`` is not a member of an id enum
+            AmbiguousLookupError: A ``Currency`` key names more than one row
+        """
+        return self.records([member])[0]
+
+    def records(self, members: Iterable[Enum]) -> list[IdRecord | None]:
+        """
+        :meth:`record` for each member, in order; the members may come from different enums.
+
+        A list rather than a dict, as members of two enums can share a value
+        (``Unit`` 171 and ``Building`` 171 are equal and hash alike).
+        """
+        from . import ids
+
+        def building(building_id: int) -> FortificationDef | dict[str, Any] | None:
+            fortification = self.fortifications.get(building_id)
+            return fortification if fortification is not None else self.buildings.get(building_id)
+
+        lookups: dict[type, Callable[[Any], IdRecord | None]] = {
+            ids.Unit: self.units.get,
+            ids.Tool: self.tools.get,
+            ids.Effect: self.effects.get,
+            ids.EffectType: self.effect_types.get,
+            ids.Currency: lambda member: self.currency(member.value),
+            ids.CurrencyId: self.currencies.get,
+            ids.General: self.generals.get,
+            ids.GeneralAbility: self.general_abilities.get,
+            ids.GeneralSkill: self.general_skills.get,
+            ids.LegendSkill: self.legend_skills.get,
+            ids.RaidBoss: self.raid_bosses.get,
+            ids.GlobalEffect: self.global_effects.get,
+            ids.ConstructionItem: self.construction_items.get,
+            ids.Building: building,
+            ids.Research: self.researches.get,
+            ids.Event: self.events.get,
+            ids.LootBox: self.loot_boxes.get,
+            ids.EquipmentGroup: self.equipment_groups.get,
+            ids.DifficultyType: self.difficulty_types.get,
+        }
+        found: list[IdRecord | None] = []
+        for member in members:
+            lookup = lookups.get(type(member))
+            if lookup is None:
+                raise TypeError(f"{member!r} is not a member of an empire_core.gamedata.ids enum")
+            found.append(lookup(member))
+        return found
+
+    # ------------------------------------------------------------------
     # Construction
     # ------------------------------------------------------------------
 
@@ -557,6 +729,7 @@ class GameData(BaseModel):
             },
             league_brackets=_rows(items_data.get("leaguetypes"), LeagueBracketDef),
             raw_tables={table: items_data[table] for table in RAW_TABLES if isinstance(items_data.get(table), list)},
+            **{field: rows_by_id(items_data.get(table), id_key) for field, (table, id_key) in ROW_TABLES.items()},
         )
 
     @classmethod
@@ -585,7 +758,6 @@ class GameData(BaseModel):
             cached = cls._read_cache(cache_file, version)
             if cached is not None:
                 _check_ids_version(version)
-                set_default_game_data(cached)
                 return cached
 
         try:
@@ -600,7 +772,6 @@ class GameData(BaseModel):
             f"{len(data.dungeons)} camp defenses (v{version})"
         )
         _check_ids_version(version)
-        set_default_game_data(data)
         return data
 
     @classmethod
@@ -634,51 +805,4 @@ class GameData(BaseModel):
             logger.warning(f"Could not cache game data to {cache_file}: {e}")
 
 
-_default: GameData | None = None
-_default_lock = threading.Lock()
-_default_failure: NetworkError | None = None
-_default_failed_at = 0.0
-
-_FAILURE_RETRY_INTERVAL = 300.0
-"""Seconds a failed first-use load is remembered before :func:`default_game_data` tries again."""
-
-
-def default_game_data() -> GameData:
-    """
-    The GameData the id enums' ``stats`` and ``info`` properties read.
-
-    That is the one :meth:`GameData.load` returned last, which includes
-    :meth:`EmpireClient.load_game_data`; it is shared by every client in the
-    process, so the last load wins. If nothing has been loaded, the first call
-    loads it (a download on a cache miss) and keeps it. Concurrent first calls
-    load once. A failed load raises its NetworkError again, without another
-    request, for ``_FAILURE_RETRY_INTERVAL`` seconds.
-
-    Raises:
-        NetworkError: The CDN could not be reached, now or within the retry interval
-    """
-    global _default_failure, _default_failed_at
-    data = _default
-    if data is not None:
-        return data
-    with _default_lock:
-        if _default is not None:
-            return _default
-        if _default_failure is not None and time.monotonic() - _default_failed_at < _FAILURE_RETRY_INTERVAL:
-            raise _default_failure.with_traceback(None)
-        try:
-            return GameData.load()
-        except NetworkError as e:
-            _default_failure, _default_failed_at = e, time.monotonic()
-            raise
-
-
-def set_default_game_data(data: GameData | None) -> None:
-    """Make ``data`` what :func:`default_game_data` returns; None forgets it, so the next call loads."""
-    global _default, _default_failure
-    # No lock: default_game_data holds it while GameData.load() calls this
-    _default = data
-    _default_failure = None
-
-
-__all__ = ["GameData", "default_cache_dir", "default_game_data", "set_default_game_data"]
+__all__ = ["GameData", "IdRecord", "ROW_TABLES", "default_cache_dir", "rows_by_id"]

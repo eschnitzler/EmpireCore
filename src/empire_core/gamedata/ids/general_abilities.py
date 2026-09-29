@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from enum import IntEnum
 
-from empire_core.gamedata.data import default_game_data
-from empire_core.gamedata.models import GeneralAbilityDef
-
 
 class GeneralAbility(IntEnum):
     """
@@ -16,110 +13,102 @@ class GeneralAbility(IntEnum):
     """
 
     _value_: int
-    row_name: str
-    """The row's name column."""
     ability_group_id: int
     """The group the ability's levels share."""
     level: int
     """Upgrade level; -1 when the row has none."""
 
-    def __new__(cls, value: int, row_name: str = "", ability_group_id: int = 0, level: int = 0) -> GeneralAbility:
+    def __new__(cls, value: int, ability_group_id: int = 0, level: int = 0) -> GeneralAbility:
         member = int.__new__(cls, value)
         member._value_ = value
-        member.row_name = row_name
         member.ability_group_id = ability_group_id
         member.level = level
         return member
 
-    @property
-    def info(self) -> GeneralAbilityDef | None:
-        """This ability's row in the loaded game data, or None if it has none."""
-        return default_game_data().general_abilities.get(self)
-
-    POWER_SURGE_L1 = 10011, "PowerSurge", 1001, 1
-    POWER_SURGE_L2 = 10012, "PowerSurge", 1001, 2
-    POWER_SURGE_L3 = 10013, "PowerSurge", 1001, 3
-    RISETOTHE_TASK_L1 = 10021, "RisetotheTask", 1002, 1
-    RISETOTHE_TASK_L2 = 10022, "RisetotheTask", 1002, 2
-    RISETOTHE_TASK_L3 = 10023, "RisetotheTask", 1002, 3
-    GIANT_SLAYER_L1 = 10031, "GiantSlayer", 1003, 1
-    GIANT_SLAYER_L2 = 10032, "GiantSlayer", 1003, 2
-    GIANT_SLAYER_L3 = 10033, "GiantSlayer", 1003, 3
-    INTIMIDATE_L1 = 10051, "Intimidate", 1005, 1
-    INTIMIDATE_L2 = 10052, "Intimidate", 1005, 2
-    INTIMIDATE_L3 = 10053, "Intimidate", 1005, 3
-    HORDEBREAKER_L1 = 10071, "Hordebreaker", 1007, 1
-    HORDEBREAKER_L2 = 10072, "Hordebreaker", 1007, 2
-    HORDEBREAKER_L3 = 10073, "Hordebreaker", 1007, 3
-    ENDLESS_PRACTICE_L1 = 10101, "EndlessPractice", 1010, 1
-    ENDLESS_PRACTICE_L2 = 10102, "EndlessPractice", 1010, 2
-    ENDLESS_PRACTICE_L3 = 10103, "EndlessPractice", 1010, 3
-    WAYOFTHE_SWORD_L1 = 10111, "WayoftheSword", 1011, 1
-    WAYOFTHE_SWORD_L2 = 10112, "WayoftheSword", 1011, 2
-    WAYOFTHE_SWORD_L3 = 10113, "WayoftheSword", 1011, 3
-    IRON_WILL_L1 = 10121, "IronWill", 1012, 1
-    IRON_WILL_L2 = 10122, "IronWill", 1012, 2
-    IRON_WILL_L3 = 10123, "IronWill", 1012, 3
-    SABOTAGE_L1 = 10131, "Sabotage", 1013, 1
-    SABOTAGE_L2 = 10132, "Sabotage", 1013, 2
-    SABOTAGE_L3 = 10133, "Sabotage", 1013, 3
-    HEARTOFA_WARRIOR_L1 = 10141, "HeartofaWarrior", 1014, 1
-    HEARTOFA_WARRIOR_L2 = 10142, "HeartofaWarrior", 1014, 2
-    HEARTOFA_WARRIOR_L3 = 10143, "HeartofaWarrior", 1014, 3
-    TOWERING_SHIELD_L1 = 10151, "ToweringShield", 1015, 1
-    TOWERING_SHIELD_L2 = 10152, "ToweringShield", 1015, 2
-    TOWERING_SHIELD_L3 = 10153, "ToweringShield", 1015, 3
-    WALL_AMOUNT_L1 = 10161, "WallAmount", 1016, 1
-    WALL_AMOUNT_L2 = 10162, "WallAmount", 1016, 2
-    WALL_AMOUNT_L3 = 10163, "WallAmount", 1016, 3
-    HEROIC_DEFENSE_L1 = 10181, "HeroicDefense", 1018, 1
-    HEROIC_DEFENSE_L2 = 10182, "HeroicDefense", 1018, 2
-    HEROIC_DEFENSE_L3 = 10183, "HeroicDefense", 1018, 3
-    MIND_CLARITY_L1 = 10191, "MindClarity", 1019, 1
-    MIND_CLARITY_L2 = 10192, "MindClarity", 1019, 2
-    MIND_CLARITY_L3 = 10193, "MindClarity", 1019, 3
-    ASPECTOFTHE_DRAGON_L1 = 10201, "AspectoftheDragon", 1020, 1
-    ASPECTOFTHE_DRAGON_L2 = 10202, "AspectoftheDragon", 1020, 2
-    ASPECTOFTHE_DRAGON_L3 = 10203, "AspectoftheDragon", 1020, 3
-    AYALA_FALCON_L1 = 10211, "Ayala(Falcon)", 1021, 1
-    AYALA_FALCON_L2 = 10212, "Ayala(Falcon)", 1021, 2
-    AYALA_FALCON_L3 = 10213, "Ayala(Falcon)", 1021, 3
-    AMBUSH_L1 = 10221, "Ambush", 1022, 1
-    AMBUSH_L2 = 10222, "Ambush", 1022, 2
-    AMBUSH_L3 = 10223, "Ambush", 1022, 3
-    LONGBOWS_L1 = 10231, "Longbows", 1023, 1
-    LONGBOWS_L2 = 10232, "Longbows", 1023, 2
-    LONGBOWS_L3 = 10233, "Longbows", 1023, 3
-    REINFORCED_ARROWS_L1 = 10251, "ReinforcedArrows", 1025, 1
-    REINFORCED_ARROWS_L2 = 10252, "ReinforcedArrows", 1025, 2
-    REINFORCED_ARROWS_L3 = 10253, "ReinforcedArrows", 1025, 3
-    PLUNDER_L1 = 10261, "Plunder", 1026, 1
-    PLUNDER_L2 = 10262, "Plunder", 1026, 2
-    PLUNDER_L3 = 10263, "Plunder", 1026, 3
-    YOUR_CUT_L1 = 10271, "YourCut", 1027, 1
-    YOUR_CUT_L2 = 10272, "YourCut", 1027, 2
-    YOUR_CUT_L3 = 10273, "YourCut", 1027, 3
-    HIDDEN_TREASURES_L1 = 10281, "HiddenTreasures", 1028, 1
-    HIDDEN_TREASURES_L2 = 10282, "HiddenTreasures", 1028, 2
-    HIDDEN_TREASURES_L3 = 10283, "HiddenTreasures", 1028, 3
-    THE_WAYOF_PERFECTION_L1 = 10291, "TheWayofPerfection", 1029, 1
-    THE_WAYOF_PERFECTION_L2 = 10292, "TheWayofPerfection", 1029, 2
-    THE_WAYOF_PERFECTION_L3 = 10293, "TheWayofPerfection", 1029, 3
-    VENGENCE_L1 = 10301, "Vengence", 1030, 1
-    VENGENCE_L2 = 10302, "Vengence", 1030, 2
-    VENGENCE_L3 = 10303, "Vengence", 1030, 3
-    WINGS_WHIRLWIND_L1 = 10331, "WingsWhirlwind", 1033, 1
-    WINGS_WHIRLWIND_L2 = 10332, "WingsWhirlwind", 1033, 2
-    WINGS_WHIRLWIND_L3 = 10333, "WingsWhirlwind", 1033, 3
-    TAILWHIP_L1 = 10341, "Tailwhip", 1034, 1
-    TAILWHIP_L2 = 10342, "Tailwhip", 1034, 2
-    TAILWHIP_L3 = 10343, "Tailwhip", 1034, 3
-    DRAGONSCALE_ARMOR_L1 = 10351, "DragonscaleArmor", 1035, 1
-    DRAGONSCALE_ARMOR_L2 = 10352, "DragonscaleArmor", 1035, 2
-    DRAGONSCALE_ARMOR_L3 = 10353, "DragonscaleArmor", 1035, 3
-    EXHALTED_L1 = 10381, "Exhalted", 1038, 1
-    EXHALTED_L2 = 10382, "Exhalted", 1038, 2
-    EXHALTED_L3 = 10383, "Exhalted", 1038, 3
-    LASTING_WOUNDS_L1 = 10391, "LastingWounds", 1039, 1
-    LASTING_WOUNDS_L2 = 10392, "LastingWounds", 1039, 2
-    LASTING_WOUNDS_L3 = 10393, "LastingWounds", 1039, 3
+    POWER_SURGE_L1 = 10011, 1001, 1
+    POWER_SURGE_L2 = 10012, 1001, 2
+    POWER_SURGE_L3 = 10013, 1001, 3
+    RISETOTHE_TASK_L1 = 10021, 1002, 1
+    RISETOTHE_TASK_L2 = 10022, 1002, 2
+    RISETOTHE_TASK_L3 = 10023, 1002, 3
+    GIANT_SLAYER_L1 = 10031, 1003, 1
+    GIANT_SLAYER_L2 = 10032, 1003, 2
+    GIANT_SLAYER_L3 = 10033, 1003, 3
+    INTIMIDATE_L1 = 10051, 1005, 1
+    INTIMIDATE_L2 = 10052, 1005, 2
+    INTIMIDATE_L3 = 10053, 1005, 3
+    HORDEBREAKER_L1 = 10071, 1007, 1
+    HORDEBREAKER_L2 = 10072, 1007, 2
+    HORDEBREAKER_L3 = 10073, 1007, 3
+    ENDLESS_PRACTICE_L1 = 10101, 1010, 1
+    ENDLESS_PRACTICE_L2 = 10102, 1010, 2
+    ENDLESS_PRACTICE_L3 = 10103, 1010, 3
+    WAYOFTHE_SWORD_L1 = 10111, 1011, 1
+    WAYOFTHE_SWORD_L2 = 10112, 1011, 2
+    WAYOFTHE_SWORD_L3 = 10113, 1011, 3
+    IRON_WILL_L1 = 10121, 1012, 1
+    IRON_WILL_L2 = 10122, 1012, 2
+    IRON_WILL_L3 = 10123, 1012, 3
+    SABOTAGE_L1 = 10131, 1013, 1
+    SABOTAGE_L2 = 10132, 1013, 2
+    SABOTAGE_L3 = 10133, 1013, 3
+    HEARTOFA_WARRIOR_L1 = 10141, 1014, 1
+    HEARTOFA_WARRIOR_L2 = 10142, 1014, 2
+    HEARTOFA_WARRIOR_L3 = 10143, 1014, 3
+    TOWERING_SHIELD_L1 = 10151, 1015, 1
+    TOWERING_SHIELD_L2 = 10152, 1015, 2
+    TOWERING_SHIELD_L3 = 10153, 1015, 3
+    WALL_AMOUNT_L1 = 10161, 1016, 1
+    WALL_AMOUNT_L2 = 10162, 1016, 2
+    WALL_AMOUNT_L3 = 10163, 1016, 3
+    HEROIC_DEFENSE_L1 = 10181, 1018, 1
+    HEROIC_DEFENSE_L2 = 10182, 1018, 2
+    HEROIC_DEFENSE_L3 = 10183, 1018, 3
+    MIND_CLARITY_L1 = 10191, 1019, 1
+    MIND_CLARITY_L2 = 10192, 1019, 2
+    MIND_CLARITY_L3 = 10193, 1019, 3
+    ASPECTOFTHE_DRAGON_L1 = 10201, 1020, 1
+    ASPECTOFTHE_DRAGON_L2 = 10202, 1020, 2
+    ASPECTOFTHE_DRAGON_L3 = 10203, 1020, 3
+    AYALA_FALCON_L1 = 10211, 1021, 1
+    AYALA_FALCON_L2 = 10212, 1021, 2
+    AYALA_FALCON_L3 = 10213, 1021, 3
+    AMBUSH_L1 = 10221, 1022, 1
+    AMBUSH_L2 = 10222, 1022, 2
+    AMBUSH_L3 = 10223, 1022, 3
+    LONGBOWS_L1 = 10231, 1023, 1
+    LONGBOWS_L2 = 10232, 1023, 2
+    LONGBOWS_L3 = 10233, 1023, 3
+    REINFORCED_ARROWS_L1 = 10251, 1025, 1
+    REINFORCED_ARROWS_L2 = 10252, 1025, 2
+    REINFORCED_ARROWS_L3 = 10253, 1025, 3
+    PLUNDER_L1 = 10261, 1026, 1
+    PLUNDER_L2 = 10262, 1026, 2
+    PLUNDER_L3 = 10263, 1026, 3
+    YOUR_CUT_L1 = 10271, 1027, 1
+    YOUR_CUT_L2 = 10272, 1027, 2
+    YOUR_CUT_L3 = 10273, 1027, 3
+    HIDDEN_TREASURES_L1 = 10281, 1028, 1
+    HIDDEN_TREASURES_L2 = 10282, 1028, 2
+    HIDDEN_TREASURES_L3 = 10283, 1028, 3
+    THE_WAYOF_PERFECTION_L1 = 10291, 1029, 1
+    THE_WAYOF_PERFECTION_L2 = 10292, 1029, 2
+    THE_WAYOF_PERFECTION_L3 = 10293, 1029, 3
+    VENGENCE_L1 = 10301, 1030, 1
+    VENGENCE_L2 = 10302, 1030, 2
+    VENGENCE_L3 = 10303, 1030, 3
+    WINGS_WHIRLWIND_L1 = 10331, 1033, 1
+    WINGS_WHIRLWIND_L2 = 10332, 1033, 2
+    WINGS_WHIRLWIND_L3 = 10333, 1033, 3
+    TAILWHIP_L1 = 10341, 1034, 1
+    TAILWHIP_L2 = 10342, 1034, 2
+    TAILWHIP_L3 = 10343, 1034, 3
+    DRAGONSCALE_ARMOR_L1 = 10351, 1035, 1
+    DRAGONSCALE_ARMOR_L2 = 10352, 1035, 2
+    DRAGONSCALE_ARMOR_L3 = 10353, 1035, 3
+    EXHALTED_L1 = 10381, 1038, 1
+    EXHALTED_L2 = 10382, 1038, 2
+    EXHALTED_L3 = 10383, 1038, 3
+    LASTING_WOUNDS_L1 = 10391, 1039, 1
+    LASTING_WOUNDS_L2 = 10392, 1039, 2
+    LASTING_WOUNDS_L3 = 10393, 1039, 3
