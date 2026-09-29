@@ -1082,7 +1082,22 @@ class TestPositionalArrayParsers:
         row = gdi_location_row(1, 640, 655, 12345, 4242, "Main", 0, capturer_outpost=occupier)
         assert PlayerCastle.from_list(row).is_being_captured is occupied
         entry = CastleInfo.from_entry({"AI": row})
-        assert entry.is_occupied is occupied
+        assert entry is not None and entry.is_occupied is occupied
+
+    def test_a_castle_without_a_name_is_kept(self):
+        # the client stores e[10] as sent, and its name getters handle null
+        row = gdi_location_row(4, 640, 655, 12345, 4242, "x", 0)
+        row[10] = None
+        entry = CastleInfo.from_entry({"AI": row})
+        assert entry is not None and (entry.castle_id, entry.castle_name) == (12345, "")
+
+    def test_rows_that_name_no_castle_are_left_out_quietly(self, caplog):
+        # FactionCapitalMapobjectVO has no object id; a faction camp of 3 fields is not on the map
+        payload = {"C": [{"KID": 10, "AI": [[18, 50, 60, -600, [], -1, 40, 0, 12]]}, {"KID": 10, "AI": [[15, 1, 2]]}]}
+        with caplog.at_level(logging.WARNING, logger="empire_core.protocol.models.castle"):
+            response = GetCastlesResponse.model_validate(payload)
+        assert response.castles == []
+        assert caplog.text == ""
 
     def test_player_castle_row_kingdom_wins_when_present(self):
         row = gdi_location_row(1, 640, 655, 12345, 4242, "Main", 4)

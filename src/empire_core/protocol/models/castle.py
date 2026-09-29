@@ -273,14 +273,22 @@ class CastleInfo(BasePayload):
         return Position(X=self.x, Y=self.y, KID=self.kingdom_id)
 
     @classmethod
-    def from_entry(cls, entry: dict[str, Any], kingdom: Kingdom = Kingdom.GREEN) -> CastleInfo:
-        """Parse a ``gcl.C[].AI[]`` entry; its ``AI`` row is read by its area type (see :class:`PlayerCastle`)."""
-        parsed = PlayerCastle.from_list(entry["AI"], kingdom)
-        if parsed.location_id is None or parsed.name is None:
-            raise ValueError(f"A {parsed.castle_type.name} row has no object id to list it by")
+    def from_entry(cls, entry: dict[str, Any], kingdom: Kingdom = Kingdom.GREEN) -> CastleInfo | None:
+        """
+        Parse a ``gcl.C[].AI[]`` entry; its ``AI`` row is read by its area type (see :class:`PlayerCastle`).
+
+        None for a row the client reads but that names no castle: a faction
+        capital, which has no object id, or a faction camp that is not on the map.
+        """
+        row = entry["AI"]
+        if isinstance(row, list) and row and row[0] == MapItemType.FACTION_CAMP and len(row) <= 3:
+            return None
+        parsed = PlayerCastle.from_list(row, kingdom)
+        if parsed.location_id is None:
+            return None
         fields: dict[str, Any] = {
             "castle_id": parsed.location_id,
-            "castle_name": parsed.name,
+            "castle_name": parsed.name or "",
             "x": parsed.x,
             "y": parsed.y,
             "kingdom_id": kingdom,
@@ -334,10 +342,13 @@ class GetCastlesResponse(BaseResponse):
         unparsed = 0
         for kid, entry in _kingdom_entries(section):
             try:
-                castles.append(CastleInfo.from_entry(entry, kid))
+                castle = CastleInfo.from_entry(entry, kid)
             except (ValidationError, TypeError, ValueError, KeyError) as e:
                 logger.debug(f"Skipping unreadable gcl row {entry!r}: {e}")
                 unparsed += 1
+                continue
+            if castle is not None:
+                castles.append(castle)
         if unparsed:
             logger.warning(f"Skipped {unparsed} gcl castle rows that could not be read")
         data["castles"] = castles
