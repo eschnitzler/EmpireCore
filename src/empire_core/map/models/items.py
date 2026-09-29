@@ -16,7 +16,6 @@ from typing import Any, cast
 from pydantic import ConfigDict, Field, ValidationError, ValidationInfo, field_validator
 
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.movements.models import OwnerCrest, OwnerFaction
 from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
@@ -27,6 +26,8 @@ from empire_core.protocol.base import (
     object_or_none,
 )
 from empire_core.protocol.js import ClientInt, js_int
+
+from .owners import OwnerCrest, OwnerFaction
 
 logger = logging.getLogger(__name__)
 

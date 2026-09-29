@@ -15,7 +15,7 @@ from typing import Any
 
 from pydantic import Field, field_validator
 
-from empire_core.movements.models import OwnerCastlePosition, OwnerCrest
+from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest
 from empire_core.protocol.base import BasePayload, object_or_none, readable_list
 
 

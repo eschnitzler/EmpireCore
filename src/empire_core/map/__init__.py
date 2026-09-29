@@ -12,6 +12,9 @@ from .models import (
     MapAreaItem,
     MapObject,
     NPCLocation,
+    OwnerCastlePosition,
+    OwnerCrest,
+    OwnerFaction,
     parse_area_rows,
 )
 
@@ -26,6 +29,9 @@ __all__ = [
     "FindNPCRequest",
     "FindNPCResponse",
     "NPCLocation",
+    "OwnerCastlePosition",
+    "OwnerCrest",
+    "OwnerFaction",
     "Kingdom",
     "MapItemType",
 ]

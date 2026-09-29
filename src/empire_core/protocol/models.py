@@ -242,6 +242,7 @@ from empire_core.map.models.items import (
     MapObject,
     NPCLocation,
 )
+from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest, OwnerFaction
 from empire_core.messages.models import (
     BattleSpyDataRequest,
     BattleSpyDataResponse,
@@ -259,9 +260,6 @@ from empire_core.movements.models import (
     MovementSpy,
     MovementUnitInfo,
     MovementWrapper,
-    OwnerCastlePosition,
-    OwnerCrest,
-    OwnerFaction,
 )
 from empire_core.player.models.info import (
     GetPlayerInfoRequest,

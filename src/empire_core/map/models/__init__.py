@@ -12,6 +12,7 @@ from .items import (
     NPCLocation,
     parse_area_rows,
 )
+from .owners import OwnerCastlePosition, OwnerCrest, OwnerFaction
 
 __all__ = [
     "GetMapAreaRequest",
@@ -24,4 +25,7 @@ __all__ = [
     "FindNPCRequest",
     "FindNPCResponse",
     "NPCLocation",
+    "OwnerCastlePosition",
+    "OwnerCrest",
+    "OwnerFaction",
 ]
