@@ -525,7 +525,11 @@ def header(version: str) -> str:
 
 
 def literal(value: Value) -> str:
-    return json.dumps(value, ensure_ascii=False)
+    """The literal ``ruff format`` keeps: double quotes, unless the text holds more of them than single ones."""
+    text = json.dumps(value, ensure_ascii=False)
+    if isinstance(value, str) and value.count('"') > value.count("'"):
+        return "'" + text[1:-1].replace('\\"', '"').replace("'", "\\'") + "'"
+    return text
 
 
 def member_lines(name: str, value: Value, attrs: tuple[Value, ...]) -> list[str]:

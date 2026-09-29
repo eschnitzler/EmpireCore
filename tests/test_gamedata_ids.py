@@ -403,12 +403,18 @@ class TestGenerator:
             "W",
             "Rows too long for one line.",
             "none",
-            [gen.Row(long_name, 1, "1", ("x" * 40, 2)), gen.Row("SHORT", 2, "2", ("y", 3))],
+            [
+                gen.Row(long_name, 1, "1", ("x" * 40, 2)),
+                gen.Row("SHORT", 2, "2", ("y", 3)),
+                gen.Row("QUOTED", 3, "3", ('say "hi" and \'bye\' "now"', 4)),
+                gen.Row("APOSTROPHE", 4, "4", ("it's a \\ path", 5)),
+            ],
             (gen.Attr("first_column_with_a_long_name", "str", "Long."), gen.Attr("second_long_column", "int", "Too.")),
             (gen.Link("info", "UnitStats", "get_unit", "Linked."),),
         )
         files["wide.py"] = gen.render_module("786.03", [(wide, gen.members(wide))])
         assert f"    {long_name} = (\n" in files["wide.py"] and "    SHORT = 2, " in files["wide.py"]
+        assert """    QUOTED = 3, 'say "hi" and \\'bye\\' "now"', 4\n""" in files["wide.py"]
         gen.write(files, tmp_path)
         subprocess.run([ruff, "format", "--check", "--config", str(ROOT / "pyproject.toml"), str(tmp_path)], check=True)
         subprocess.run([ruff, "check", "--config", str(ROOT / "pyproject.toml"), str(tmp_path)], check=True)
