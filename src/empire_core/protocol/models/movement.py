@@ -196,7 +196,7 @@ class MovementSpy(BasePayload):
     Client: ``SpyMapmovementVO.parseSpyInfo``.
     """
 
-    spy_type: int = Field(alias="ST", default=0, description="SpyType value")
+    spy_type: int = Field(alias="ST", default=0, description="Kind of spy mission, a SpyType value")
     accuracy_or_damage: int = Field(
         alias="SA", default=0, description="Accuracy percent, or damage percent for sabotage"
     )

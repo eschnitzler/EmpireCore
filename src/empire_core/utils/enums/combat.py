@@ -62,11 +62,11 @@ class Flank(IntEnum):
     """
     Battle flanks.
 
-    REINFORCEMENT_SUMMARY is not a flank troops stand on: the client uses it
-    only in the battle log (``CastleBattleLogDetailAdvancedDialog``, bundle
-    line 135711).
+    REINFORCEMENT_SUMMARY is not a flank troops stand on; it only appears in
+    the battle log.
 
-    Client: ``ClientConstCastle.FLANK_*`` (bundle line 1004)
+    Client: ``ClientConstCastle.FLANK_*`` (bundle line 1004), the summary used by
+    ``CastleBattleLogDetailAdvancedDialog`` (bundle line 135711)
     """
 
     LEFT = 0
