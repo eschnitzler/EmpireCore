@@ -251,3 +251,12 @@ class TestStaleness:
             load(ids.ITEMS_VERSION)
 
         assert self.stale_warnings(caplog) == []
+
+
+def test_every_combat_effect_type_is_a_generated_effect_type():
+    # CombatEffectType keeps the client's EffectTypeEnum names; the generated enum is named from the table
+    from empire_core.gamedata.ids import EffectType
+    from empire_core.utils.enums import CombatEffectType
+
+    missing = [member.name for member in CombatEffectType if member.value not in EffectType._value2member_map_]
+    assert missing == []
