@@ -2,45 +2,65 @@
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 import pytest
 
+from empire_core.client.client import EmpireClient
 from empire_core.enums import Kingdom
 from empire_core.exceptions import EmpireTimeoutError
+from empire_core.protocol.packet import Packet
+from empire_core.spy import service as spy_module
 from tests.service_helpers import conn, make_client, xt_packet
 from tests.spy.payloads import CSM_REPLY
 
+NPC_REPORT_HEADER = "1+0+2#0+-211+"
+"""A spy log header naming CSM_REPLY's target: a robber baron camp (area type 2) of owner -211 in kingdom 0."""
 
-def spy_script(
+
+def csm_reply(x: int = 700, y: int = 710) -> dict[str, Any]:
+    """The live csm reply, aimed at (x, y)."""
+    reply = copy.deepcopy(CSM_REPLY)
+    reply["A"]["M"]["TA"][1:3] = [x, y]
+    return reply
+
+
+def sne_packet(header: str = NPC_REPORT_HEADER, message_id: int = 9001, message_type: int = 4) -> Packet:
+    return xt_packet("sne", {"MSG": [[message_id, message_type, header, "", -1, 0, 0, 0, 0]]})
+
+
+def bsd_reply(message_id: int = 9001, x: int = 700, y: int = 710) -> Packet:
+    return xt_packet(
+        "bsd",
+        {
+            "MID": message_id,
+            "S": [[[487, 100]], [], [], [], [], []],
+            "B": {"ID": 2, "WID": 1, "VIS": 4, "N": "", "W": 3, "D": 1, "SPR": 0, "E": [[12, [5.0], "EQ"]]},
+            "AI": {"N": "Enemy Keep", "X": x, "Y": y, "K": 0},
+        },
+    )
+
+
+def spy_client(
     ssi: Any = None,
     csm: Any = None,
     sne: Any = None,
     bsd: Any = None,
-) -> dict[str, Any]:
-    return {
+) -> EmpireClient:
+    """A client whose server answers the spy round trip; ``sne`` is what it pushes after csm."""
+    script = {
         "ssi": ssi if ssi is not None else xt_packet("ssi", {"AS": 46, "GC": 0}),
-        "csm": csm if csm is not None else xt_packet("csm", CSM_REPLY),
-        "sne": sne
-        if sne is not None
-        else xt_packet("sne", {"MSG": [[9001, 3, "1+0+4#0+16324240+Enemy Keep", "", -1, 0, 0, 0, 0]]}),
-        "bsd": bsd
-        if bsd is not None
-        else xt_packet(
-            "bsd",
-            {
-                "MID": 9001,
-                "S": [[[487, 100]], [], [], [], [], []],
-                "B": {"ID": 2, "WID": 1, "VIS": 4, "N": "", "W": 3, "D": 1, "SPR": 0, "E": [[12, [5.0], "EQ"]]},
-                "AI": {"N": "Enemy Keep", "X": 700, "Y": 710, "K": 0},
-            },
-        ),
+        "csm": csm if csm is not None else xt_packet("csm", csm_reply()),
+        "bsd": bsd if bsd is not None else bsd_reply(),
     }
+    pushed = sne_packet() if sne is None else sne
+    return make_client(script, pushes={"csm": pushed if isinstance(pushed, list) else [pushed]})
 
 
 class TestSpySuccessPath:
     def test_successful_mission_returns_the_report(self, no_sleep):
-        client = make_client(spy_script())
+        client = spy_client()
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
@@ -57,7 +77,7 @@ class TestSpySuccessPath:
         # Sending the whole pool bought nothing: 6 spies already reach the 5%
         # floor against an unguarded castle, and draining the pool made the next
         # mission wait for spies to walk home.
-        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 46, "GC": 0})))
+        client = spy_client(ssi=xt_packet("ssi", {"AS": 46, "GC": 0}))
 
         client.spy.execute_instant_spy(12345, 700, 710, target_kingdom=Kingdom.ICE)
 
@@ -71,14 +91,14 @@ class TestSpySuccessPath:
         assert payloads["bsd"] == {"MID": 9001}
 
     def test_a_loose_ceiling_does_not_buy_a_riskier_mission(self, no_sleep):
-        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 46, "GC": 0})))
+        client = spy_client(ssi=xt_packet("ssi", {"AS": 46, "GC": 0}))
 
         client.spy.execute_instant_spy(12345, 700, 710, risk_tolerance=90)
 
         assert dict(conn(client).request_payloads)["csm"]["SC"] == 6
 
     def test_a_guarded_target_costs_more_spies(self, no_sleep):
-        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 200, "GC": 60})))
+        client = spy_client(ssi=xt_packet("ssi", {"AS": 200, "GC": 60}))
 
         client.spy.execute_instant_spy(12345, 700, 710)
 
@@ -87,7 +107,7 @@ class TestSpySuccessPath:
     def test_a_target_over_the_risk_ceiling_is_not_spied(self, no_sleep):
         # One spy against a fully guarded castle stays over a 10% ceiling at
         # every accuracy the game allows, so there is no mission to send.
-        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 1, "GC": 180})))
+        client = spy_client(ssi=xt_packet("ssi", {"AS": 1, "GC": 180}))
 
         result = client.spy.execute_instant_spy(12345, 700, 710, risk_tolerance=10)
 
@@ -96,27 +116,33 @@ class TestSpySuccessPath:
         assert "csm" not in dict(conn(client).request_payloads), "sent a mission over the ceiling"
 
     def test_a_thin_pool_still_spies_when_no_ceiling_is_set(self, no_sleep):
-        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 2, "GC": 0})))
+        client = spy_client(ssi=xt_packet("ssi", {"AS": 2, "GC": 0}))
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
         assert result.success is True
         assert dict(conn(client).request_payloads)["csm"]["SC"] == 2
 
-    def test_sne_waiter_is_created_before_the_spy_is_sent(self, no_sleep):
-        # sne arrives right after csm; registering the waiter afterwards races
-        # the notification.
-        client = make_client(spy_script())
+    def test_sne_is_subscribed_before_the_spy_is_sent(self, no_sleep):
+        # sne arrives after csm; subscribing afterwards races the notification.
+        client = spy_client()
 
         client.spy.execute_instant_spy(12345, 700, 710)
 
         events = conn(client).events
-        assert events.index("create_waiter:sne") < events.index("request:csm")
+        assert events.index("subscribe:sne") < events.index("request:csm")
 
-    def test_waiter_is_canceled_on_success(self, no_sleep):
-        client = make_client(spy_script())
+    def test_no_sne_waiter_is_taken_from_anyone_else(self, no_sleep):
+        client = spy_client()
+
         client.spy.execute_instant_spy(12345, 700, 710)
-        assert conn(client).waiters_canceled == ["sne"]
+
+        assert conn(client).waiters_created == []
+
+    def test_the_subscription_is_dropped_on_success(self, no_sleep):
+        client = spy_client()
+        client.spy.execute_instant_spy(12345, 700, 710)
+        assert conn(client).subscribers["sne"] == []
 
 
 class TestForwardingASpyReport:
@@ -146,32 +172,25 @@ class TestForwardingASpyReport:
 
 
 class TestSpyNotificationDecoding:
-    """sne carries the mission outcome in a '+'-delimited params string.
+    """sne carries the mission outcome in the spy log's header.
 
-    Format, from AMessageSpyVO and MessageConst in the client bundle:
+    Format, from MessageSpyPlayerVO / MessageSpyNpcVO.parseMessageHeader and
+    MessageConst in the client:
         subtypeSpy+subtypeResult+areaType#kingdomID+ownerID+areaName
     with ATTACKER_SUCCESS=0, DEFENDER_SUCCESS=1, ATTACKER_FAILED=2.
-
-    The old check read first_msg[1]/[2]/[3] as ints and compared a string to 2,
-    so it could never fire: every caught mission was recorded as a success, and
-    its empty report was published as a castle with no troops.
     """
 
-    def _sne(self, params: str) -> Any:
-        return xt_packet("sne", {"MSG": [[9001, 3, params, "", -1, 0, 0, 0, 0]]})
-
     def test_a_caught_mission_is_reported_as_caught(self, no_sleep):
-        client = make_client(
-            spy_script(sne=self._sne("1+2+12#3+16324240+Inheritor"), bsd=xt_packet("bsd", {"MID": 9001}))
-        )
+        client = spy_client(sne=sne_packet("1+2+2#0+-211+"))
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
         assert result.success is False
         assert result.reason == "spy_caught"
+        assert "bsd" not in conn(client).requested
 
     def test_a_successful_defense_for_the_target_is_also_a_loss(self, no_sleep):
-        client = make_client(spy_script(sne=self._sne("1+1+12#3+16324240+Inheritor")))
+        client = spy_client(sne=sne_packet("1+1+2#0+-211+"))
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
@@ -179,19 +198,97 @@ class TestSpyNotificationDecoding:
         assert result.reason == "spy_caught"
 
     def test_a_successful_mission_still_reads_as_success(self, no_sleep):
-        client = make_client(spy_script(sne=self._sne("1+0+4#0+16324240+Sanghelios")))
+        client = spy_client(sne=sne_packet("1+0+2#0+-211+"))
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
         assert result.success is True
 
-    def test_an_undecodable_params_string_is_not_a_success(self, no_sleep):
-        client = make_client(spy_script(sne=self._sne("garbage")))
+    def test_a_header_without_the_area_part_is_not_a_report(self, no_sleep):
+        client = spy_client(sne=sne_packet("garbage"))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, max_wait=0.01)
+
+        assert result.success is False
+        assert result.reason == "sne_timeout"
+        assert "bsd" not in conn(client).requested
+
+
+class TestOnlyThisMissionsReportCounts:
+    """sne has no mission id; a report counts only when it names this mission's target."""
+
+    def test_an_unrelated_sne_is_skipped_for_the_right_report(self, no_sleep):
+        other_target = sne_packet("1+0+1#0+777+Someone Else", message_id=8000, message_type=3)
+        client = spy_client(sne=[other_target, sne_packet()])
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
+        assert result.success is True
+        assert result.message_id == 9001
+        assert conn(client).request_payloads[-1] == ("bsd", {"MID": 9001})
+
+    def test_other_message_types_are_skipped(self, no_sleep):
+        # 1 is not a spy log; 68 is a cancelled spy mission, which the client reads another way
+        client = spy_client(sne=[sne_packet(message_type=1), sne_packet(message_type=68), sne_packet(message_id=9002)])
+
+        result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert result.message_id == 9002
+
+    def test_another_kingdom_is_not_this_target(self, no_sleep):
+        client = spy_client(sne=sne_packet("1+0+2#2+-211+"))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, max_wait=0.01)
+
+        assert result.reason == "sne_timeout"
+
+    def test_another_area_type_is_not_this_target(self, no_sleep):
+        client = spy_client(sne=sne_packet("1+0+4#0+-211+"))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, max_wait=0.01)
+
+        assert result.reason == "sne_timeout"
+
+    def test_a_castle_target_is_matched_by_owner_and_name(self, no_sleep):
+        reply = csm_reply()
+        reply["A"]["M"]["TA"] = [1, 700, 710, 2001, 1001, 2, 2, 2, 1, 0, "Spy Castle", 0, 0, -1, -1, -1, 0, 0, [], 0]
+        reply["A"]["M"]["TID"] = 1001
+        wrong_name = sne_packet("1+0+1#0+1001+Other Castle", message_id=8000, message_type=3)
+        right = sne_packet("1+0+1#0+1001+Spy Castle", message_type=3)
+        client = spy_client(csm=xt_packet("csm", reply), sne=[wrong_name, right])
+
+        result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert result.message_id == 9001
+
+    def test_a_report_for_another_position_keeps_the_wait_going(self, no_sleep):
+        # Robber barons share an owner id, so only the report's position tells them apart
+        client = spy_client(
+            sne=[sne_packet(message_id=8000), sne_packet(message_id=9001)],
+            bsd=[bsd_reply(8000, x=111, y=222), bsd_reply(9001)],
+        )
+
+        result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert result.success is True
+        assert result.message_id == 9001
+
+    def test_the_deadline_ends_the_wait(self, no_sleep):
+        client = spy_client(sne=[])
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, max_wait=0.05)
+
         assert result.success is False
-        assert result.reason == "invalid_sne_format"
+        assert result.reason == "sne_timeout"
+
+    def test_a_disconnect_ends_the_wait(self, no_sleep, monkeypatch):
+        monkeypatch.setattr(spy_module, "_POLL_SECONDS", 0.01)
+        client = spy_client(sne=[])
+        conn(client).connected = False
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, max_wait=5)
+
+        assert result.reason == "disconnected"
 
 
 class TestSpiedCastleDetail:
@@ -222,7 +319,7 @@ class TestSpiedCastleDetail:
                 },
             },
         )
-        client = make_client(spy_script(bsd=bsd))
+        client = spy_client(bsd=bsd)
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
@@ -235,7 +332,7 @@ class TestSpiedCastleDetail:
         assert result.target.area_type == 12
 
     def test_a_report_without_fortifications_still_parses(self, no_sleep):
-        client = make_client(spy_script())
+        client = spy_client()
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
@@ -253,9 +350,9 @@ class TestSpyReportIsCheckedAgainstTheTarget:
             "bsd",
             {"MID": 9001, "S": [[[487, 100]]], "AI": {"N": "Elsewhere", "X": 111, "Y": 222, "K": 0}},
         )
-        client = make_client(spy_script(bsd=bsd))
+        client = spy_client(bsd=bsd)
 
-        result = client.spy.execute_instant_spy(12345, 700, 710)
+        result = client.spy.execute_instant_spy(12345, 700, 710, max_wait=0.05)
 
         assert result.success is False
         assert result.reason == "report_target_mismatch"
@@ -265,7 +362,7 @@ class TestSpyReportIsCheckedAgainstTheTarget:
             "bsd",
             {"MID": 9001, "S": [[[487, 100]]], "AI": {"N": "Keep", "X": 700, "Y": 710, "K": 0}},
         )
-        client = make_client(spy_script(bsd=bsd))
+        client = spy_client(bsd=bsd)
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
@@ -277,7 +374,7 @@ class TestSpyReportIsCheckedAgainstTheTarget:
         # The caught mission's report had no S and no B at all. Reporting that
         # as zero troops publishes a castle nobody actually read.
         bsd = xt_packet("bsd", {"MID": 9001, "AI": {"N": "Keep", "X": 700, "Y": 710, "K": 0}})
-        client = make_client(spy_script(bsd=bsd))
+        client = spy_client(bsd=bsd)
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
@@ -287,7 +384,7 @@ class TestSpyReportIsCheckedAgainstTheTarget:
 
 class TestSpyFailurePaths:
     def test_no_spies_available_after_polling(self, no_sleep):
-        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 0})))
+        client = spy_client(ssi=xt_packet("ssi", {"AS": 0}))
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
@@ -298,8 +395,7 @@ class TestSpyFailurePaths:
         assert "csm" not in conn(client).requested
 
     def test_spies_returning_are_picked_up_on_a_later_poll(self, no_sleep):
-        script = spy_script(ssi=[xt_packet("ssi", {"AS": 0}), xt_packet("ssi", {"AS": 8})])
-        client = make_client(script)
+        client = spy_client(ssi=[xt_packet("ssi", {"AS": 0}), xt_packet("ssi", {"AS": 8})])
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
@@ -307,7 +403,7 @@ class TestSpyFailurePaths:
         assert conn(client).requested.count("ssi") == 2
 
     def test_ssi_error_code_is_tagged_with_the_code(self, no_sleep):
-        client = make_client(spy_script(ssi=xt_packet("ssi", error_code=21)))
+        client = spy_client(ssi=xt_packet("ssi", error_code=21))
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
@@ -315,24 +411,17 @@ class TestSpyFailurePaths:
         assert result.reason == "ssi_failed_21"
 
     def test_ssi_timeout_is_tagged_by_type(self, no_sleep):
-        client = make_client(spy_script(ssi=EmpireTimeoutError("no ssi")))
+        client = spy_client(ssi=EmpireTimeoutError("no ssi"))
         result = client.spy.execute_instant_spy(12345, 700, 710)
         assert result.reason == "ssi_failed_EmpireTimeoutError"
 
     def test_csm_rejection_is_tagged(self, no_sleep):
-        client = make_client(spy_script(csm=xt_packet("csm", error_code=21)))
+        client = spy_client(csm=xt_packet("csm", error_code=21))
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
         assert result.success is False
         assert result.reason == "csm_failed_21"
-
-    def test_sne_timeout_is_tagged(self, no_sleep):
-        client = make_client(spy_script(sne=EmpireTimeoutError("no sne")))
-
-        result = client.spy.execute_instant_spy(12345, 700, 710)
-
-        assert result.reason == "sne_timeout_or_error_EmpireTimeoutError"
 
     @pytest.mark.parametrize(
         "sne_payload",
@@ -342,36 +431,23 @@ class TestSpyFailurePaths:
             {"MSG": [[]]},  # empty first message
             {"MSG": "junk"},  # ValidationError inside parse_response
             {"MSG": [123]},  # entries of the wrong type
+            [1, 2, 3],  # not an object
         ],
     )
-    def test_unusable_sne_payloads_are_rejected(self, no_sleep, sne_payload):
-        client = make_client(spy_script(sne=xt_packet("sne", sne_payload)))
+    def test_unusable_sne_payloads_are_skipped(self, no_sleep, sne_payload):
+        client = spy_client(sne=[xt_packet("sne", sne_payload), sne_packet()])
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
-        assert result.success is False
-        assert result.reason == "invalid_sne_format"
+        assert result.success is True
 
-    def test_array_sne_payload_is_rejected(self, no_sleep):
-        client = make_client(spy_script(sne=xt_packet("sne", [1, 2, 3])))
-        result = client.spy.execute_instant_spy(12345, 700, 710)
-        assert result.reason == "invalid_sne_format"
+    def test_an_sne_error_is_skipped(self, no_sleep):
+        client = spy_client(sne=[xt_packet("sne", error_code=21), sne_packet()])
 
-    def test_caught_spy_is_reported_as_such(self, no_sleep):
-        # subtypeResult 2 is ATTACKER_FAILED: the mission was caught.
-        client = make_client(
-            spy_script(sne=xt_packet("sne", {"MSG": [[9001, 3, "1+2+12#3+16324240+Enemy Keep", "", -1, 0, 0, 0, 0]]}))
-        )
-
-        result = client.spy.execute_instant_spy(12345, 700, 710)
-
-        assert result.success is False
-        assert result.reason == "spy_caught"
-        # No point asking for the report of a mission that never landed.
-        assert "bsd" not in conn(client).requested
+        assert client.spy.execute_instant_spy(12345, 700, 710).success is True
 
     def test_bsd_failure_is_tagged(self, no_sleep):
-        client = make_client(spy_script(bsd=xt_packet("bsd", error_code=21)))
+        client = spy_client(bsd=xt_packet("bsd", error_code=21))
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
@@ -379,7 +455,7 @@ class TestSpyFailurePaths:
         assert result.reason == "bsd_failed_21"
 
     def test_failure_defaults_are_empty_containers(self, no_sleep):
-        client = make_client(spy_script(csm=xt_packet("csm", error_code=21)))
+        client = spy_client(csm=xt_packet("csm", error_code=21))
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
@@ -389,26 +465,27 @@ class TestSpyFailurePaths:
         assert result.message_id is None
 
     @pytest.mark.parametrize(
-        "script",
+        "kwargs",
         [
-            spy_script(csm=xt_packet("csm", error_code=21)),
-            spy_script(sne=EmpireTimeoutError("no sne")),
-            spy_script(bsd=xt_packet("bsd", error_code=21)),
+            {"csm": xt_packet("csm", error_code=21)},
+            {"sne": []},
+            {"bsd": xt_packet("bsd", error_code=21)},
         ],
     )
-    def test_waiter_is_always_canceled(self, no_sleep, script):
-        client = make_client(script)
+    def test_the_subscription_is_always_dropped(self, no_sleep, kwargs):
+        client = spy_client(**kwargs)
 
-        client.spy.execute_instant_spy(12345, 700, 710)
+        client.spy.execute_instant_spy(12345, 700, 710, max_wait=0.01)
 
-        assert conn(client).waiters_canceled == ["sne"]
+        assert conn(client).subscribers["sne"] == []
+        assert "unsubscribe:sne" in conn(client).events
 
 
 class TestPaying:
     """Nothing is paid for unless asked (CastlePostSpyDialog.spyCastle, C2SCreateSpyMovementVO)."""
 
     def test_by_default_no_horse_is_used_and_nothing_is_paid(self, no_sleep):
-        client = make_client(spy_script())
+        client = spy_client()
 
         client.spy.execute_instant_spy(12345, 700, 710)
 
@@ -416,40 +493,40 @@ class TestPaying:
         assert (sent["HBW"], sent["PTT"], sent["SD"]) == (-1, 0, 0)
 
     def test_feathers_send_no_horse_with_ptt(self, no_sleep):
-        client = make_client(spy_script())
+        client = spy_client()
 
-        client.spy.execute_instant_spy(12345, 700, 710, pay_with_feathers=True)
+        client.spy.execute_instant_spy(12345, 700, 710, feathers=True)
 
         sent = dict(conn(client).request_payloads)["csm"]
         assert (sent["HBW"], sent["PTT"]) == (-1, 1)
 
     def test_a_horse_is_sent_by_its_wod_id(self, no_sleep):
-        client = make_client(spy_script())
+        client = spy_client()
 
-        client.spy.execute_instant_spy(12345, 700, 710, horse_wod_id=1010)
+        client.spy.execute_instant_spy(12345, 700, 710, horses_type=1010)
 
         sent = dict(conn(client).request_payloads)["csm"]
         assert (sent["HBW"], sent["PTT"]) == (1010, 0)
 
     def test_feathers_win_over_a_horse(self, no_sleep):
-        client = make_client(spy_script())
+        client = spy_client()
 
-        client.spy.execute_instant_spy(12345, 700, 710, pay_with_feathers=True, horse_wod_id=1010)
+        client.spy.execute_instant_spy(12345, 700, 710, feathers=True, horses_type=1010)
 
         sent = dict(conn(client).request_payloads)["csm"]
         assert (sent["HBW"], sent["PTT"]) == (-1, 1)
 
     def test_the_slowdown_is_sent(self, no_sleep):
-        client = make_client(spy_script())
+        client = spy_client()
 
         client.spy.execute_instant_spy(12345, 700, 710, slowdown=30)
 
         assert dict(conn(client).request_payloads)["csm"]["SD"] == 30
 
     def test_the_keys_keep_the_client_order(self, no_sleep):
-        client = make_client(spy_script())
+        client = spy_client()
 
-        client.spy.execute_instant_spy(12345, 700, 710, horse_wod_id=1010)
+        client.spy.execute_instant_spy(12345, 700, 710, horses_type=1010)
 
         sent = dict(conn(client).request_payloads)["csm"]
         assert list(sent) == ["SID", "TX", "TY", "SC", "ST", "SE", "HBW", "KID", "PTT", "SD"]
@@ -459,40 +536,51 @@ class TestReportWait:
     """The report can only come once the spies arrive, TT - PT seconds after the csm reply."""
 
     @staticmethod
-    def _record_timeouts(client: Any, monkeypatch: pytest.MonkeyPatch) -> list[float]:
-        fake = conn(client)
-        timeouts: list[float] = []
-        original = fake.wait_for_result
+    def _record_deadline(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+        deadlines: list[float] = []
+        original = spy_module.SpyService._await_report
 
-        def wait_for_result(cmd_id: str, waiter: Any, timeout: float = 5.0) -> Any:
-            timeouts.append(timeout)
-            return original(cmd_id, waiter, timeout)
+        def record(self: Any, notifications: Any, deadline: float, *args: Any) -> Any:
+            deadlines.append(deadline - spy_module.time.monotonic())
+            return original(self, notifications, deadline, *args)
 
-        monkeypatch.setattr(fake, "wait_for_result", wait_for_result)
-        return timeouts
+        monkeypatch.setattr(spy_module.SpyService, "_await_report", record)
+        return deadlines
 
     def test_the_wait_covers_the_trip(self, no_sleep, monkeypatch):
-        client = make_client(spy_script())
-        timeouts = self._record_timeouts(client, monkeypatch)
+        deadlines = self._record_deadline(monkeypatch)
+        client = spy_client()
 
         assert client.spy.execute_instant_spy(12345, 700, 710).success is True
 
-        assert timeouts == [38 + 10.0]
+        assert deadlines[0] == pytest.approx(38 + 10.0, abs=0.5)
 
-    def test_a_reply_without_a_movement_waits_the_margin_only(self, no_sleep, monkeypatch):
-        client = make_client(spy_script(csm=xt_packet("csm", {})))
-        timeouts = self._record_timeouts(client, monkeypatch)
+    def test_max_wait_caps_the_wait(self, no_sleep, monkeypatch):
+        deadlines = self._record_deadline(monkeypatch)
+        client = spy_client()
 
-        client.spy.execute_instant_spy(12345, 700, 710)
+        client.spy.execute_instant_spy(12345, 700, 710, max_wait=5)
 
-        assert timeouts == [10.0]
+        assert deadlines[0] == pytest.approx(5, abs=0.5)
+
+    def test_a_reply_without_a_movement_waits_the_margin_and_warns(self, no_sleep, monkeypatch, caplog):
+        deadlines = self._record_deadline(monkeypatch)
+        client = spy_client(csm=xt_packet("csm", {}))
+
+        with caplog.at_level("WARNING", logger="empire_core.spy.service"):
+            result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert deadlines[0] == pytest.approx(10.0, abs=0.5)
+        assert "no readable movement" in caplog.text
+        # Only the kingdom can be matched, so the report's position decides
+        assert result.success is True
 
 
 class TestAccuracyIsTradedForRisk:
     """A guarded castle is spied at lower detail rather than not at all."""
 
     def test_the_planned_accuracy_is_what_gets_sent(self, no_sleep):
-        client = make_client(spy_script(ssi=xt_packet("ssi", {"AS": 46, "GC": 60})))
+        client = spy_client(ssi=xt_packet("ssi", {"AS": 46, "GC": 60}))
 
         client.spy.execute_instant_spy(12345, 700, 710, risk_tolerance=5)
 

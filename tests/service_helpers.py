@@ -83,10 +83,16 @@ class ScriptedConnection:
     or a list of either consumed one per call. Unscripted command ids get an
     empty successful packet, so an ``execute()`` call needs no scripting to
     succeed.
+
+    ``pushes`` maps a command id to packets the server pushes right after
+    answering it; they reach subscribers, as ``Connection._route_packet``
+    hands every packet to them.
     """
 
-    def __init__(self, script: dict[str, Any] | None = None):
+    def __init__(self, script: dict[str, Any] | None = None, pushes: dict[str, list[Packet]] | None = None):
         self.script = script or {}
+        self.pushes = pushes or {}
+        self.subscribers: dict[str, list[Any]] = {}
         self.connected = True
         self.sent: list[str] = []
         self.requested: list[str] = []
@@ -113,7 +119,11 @@ class ScriptedConnection:
         self.requested.append(cmd_id)
         self.request_payloads.append((cmd_id, request_payload(data)))
         self.events.append(f"request:{cmd_id}")
-        return self._resolve(cmd_id)
+        result = self._resolve(cmd_id)
+        for pushed in self.pushes.pop(cmd_id, []):
+            for callback in list(self.subscribers.get(pushed.command_id or "", [])):
+                callback(pushed)
+        return result
 
     def create_waiter(self, cmd_id: str) -> ResponseWaiter:
         self.waiters_created.append(cmd_id)
@@ -129,11 +139,14 @@ class ScriptedConnection:
         self.events.append(f"wait_for_result:{cmd_id}")
         return self._resolve(cmd_id)
 
-    def subscribe(self, cmd_id: str, callback: object) -> None:
-        pass
+    def subscribe(self, cmd_id: str, callback: Any) -> None:
+        self.subscribers.setdefault(cmd_id, []).append(callback)
+        self.events.append(f"subscribe:{cmd_id}")
 
-    def unsubscribe(self, cmd_id: str, callback: object) -> None:
-        pass
+    def unsubscribe(self, cmd_id: str, callback: Any) -> None:
+        if callback in self.subscribers.get(cmd_id, []):
+            self.subscribers[cmd_id].remove(callback)
+        self.events.append(f"unsubscribe:{cmd_id}")
 
     def disconnect(self) -> None:
         self.connected = False
@@ -176,13 +189,17 @@ class StubState:
         return list(self.movements)
 
 
-def make_client(script: dict[str, Any] | None = None, state: StubState | None = None) -> EmpireClient:
+def make_client(
+    script: dict[str, Any] | None = None,
+    state: StubState | None = None,
+    pushes: dict[str, list[Packet]] | None = None,
+) -> EmpireClient:
     """Build a client with every registered service attached, but no socket."""
     client = EmpireClient.__new__(EmpireClient)
     client.config = EmpireConfig()
     client.username = "tester"
     client.password = "secret"
-    client.connection = ScriptedConnection(script)  # type: ignore[assignment]
+    client.connection = ScriptedConnection(script, pushes)  # type: ignore[assignment]
     client.state = state or StubState()  # type: ignore[assignment]
     client.game_data = None
     client.is_logged_in = True

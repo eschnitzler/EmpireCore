@@ -2,6 +2,8 @@
 Spy service for high-level espionage operations.
 """
 
+import logging
+import queue
 import time
 from dataclasses import dataclass, field
 
@@ -19,36 +21,98 @@ from empire_core.messages.models import (
     SpyCastleInfo,
     SystemNotificationEvent,
 )
+from empire_core.movements.models import MovementRecord
 from empire_core.protocol.base import parse_response
+from empire_core.protocol.js import js_parse_int
+from empire_core.protocol.packet import Packet
 from empire_core.services.base import BaseService, register_service
 
 from .models import SendSpyRequest, SendSpyResponse, SpyScreenInfoRequest, SpyScreenInfoResponse
 from .risk import MAX_ACCURACY, MAX_RISK_SPY, plan_mission
 
-# Outcome codes from MessageConst in the game client. A spy log is a loss when
+logger = logging.getLogger(__name__)
+
+# MessageConst in the game client (dll line 19516). A spy log is a loss when
 # the attacker failed or the defender succeeded (AMessageSpyVO.isFailedSpyLog).
+_MESSAGE_TYPE_SPY_PLAYER = 3
+_MESSAGE_TYPE_SPY_NPC = 4
+_SUBTYPE_SPY_SABOTAGE = 0
+_SUBTYPE_SPY_PLAGUE_MONK = 3
 _SUBTYPE_ATTACKER_SUCCESS = 0
 _SUBTYPE_DEFENDER_SUCCESS = 1
 _SUBTYPE_ATTACKER_FAILED = 2
+_SUBTYPE_DEFENDER_FAILED = 3
 _LOST_SPY_RESULTS = frozenset({_SUBTYPE_DEFENDER_SUCCESS, _SUBTYPE_ATTACKER_FAILED})
 _REPORT_MARGIN = 10.0
+_POLL_SECONDS = 1.0
 
 
-def _parse_spy_notification(message: MessageInfo) -> int | None:
-    """The mission's result code from an ``sne`` message, or None if unreadable.
+@dataclass(frozen=True)
+class _SpyHeader:
+    """What a spy log's header names: ``subtypeSpy+subtypeResult+areaType#kingdomID+ownerID+areaName``."""
 
-    The header is ``subtypeSpy+subtypeResult+areaType#kingdomID+ownerID+
-    areaName``; only the result matters here. Returning None rather than
-    assuming success keeps an unrecognized shape from publishing a report the
-    mission may never have earned.
+    subtype_spy: int | None
+    result: int | None
+    area_type: int | None = None
+    kingdom_id: int | None = None
+    owner_id: int | None = None
+    area_name: str | None = None
+
+
+def _parse_spy_header(message: MessageInfo) -> _SpyHeader | None:
+    """The header of a spy log from an ``sne`` message, or None when the message is no readable spy log.
+
+    A sabotage or plague success names the area by name and id instead of
+    kingdom and owner; a military mission never gets that layout.
+
+    Client: ``CastleMessageFactory.parseMessage`` (bundle line 135102),
+    ``MessageSpyPlayerVO.parseMessageHeader`` (bundle line 137651),
+    ``MessageSpyNpcVO.parseMessageHeader`` (bundle line 137635)
     """
-    fields = message.header.split("+")
-    if len(fields) < 2:
+    message_type = message.message_type
+    if message_type not in (_MESSAGE_TYPE_SPY_PLAYER, _MESSAGE_TYPE_SPY_NPC):
         return None
-    try:
-        return int(fields[1])
-    except ValueError:
+    head, _, meta = message.header.partition("#")
+    if not meta:
+        # MessageSpyPlayerVO reads nothing without the part after '#'; MessageSpyNpcVO throws
         return None
+    subtypes = head.split("+")
+    area = meta.split("+")
+    subtype_spy = js_parse_int(subtypes[0])
+    result = js_parse_int(subtypes[1]) if len(subtypes) > 1 else None
+    area_type = js_parse_int(subtypes[2]) if len(subtypes) > 2 else None
+    if (
+        message_type == _MESSAGE_TYPE_SPY_PLAYER
+        and subtype_spy in (_SUBTYPE_SPY_SABOTAGE, _SUBTYPE_SPY_PLAGUE_MONK)
+        and result in (_SUBTYPE_ATTACKER_SUCCESS, _SUBTYPE_DEFENDER_FAILED)
+    ):
+        return _SpyHeader(subtype_spy, result, area_type, area_name=area[0])
+    return _SpyHeader(
+        subtype_spy,
+        result,
+        area_type,
+        kingdom_id=js_parse_int(area[0]),
+        owner_id=js_parse_int(area[1]) if len(area) > 1 else None,
+        area_name=area[2] if len(area) > 2 else None,
+    )
+
+
+def _names_target(header: _SpyHeader, target: MovementRecord | None, target_kingdom: Kingdom) -> bool:
+    """Whether a spy log's header names this mission's target.
+
+    Without the csm movement only the kingdom can be compared; the report's
+    position is checked once it is read.
+    """
+    if header.result is None or header.kingdom_id is None:
+        return False
+    if target is None:
+        return header.kingdom_id == target_kingdom
+    area = target.target_area
+    if header.kingdom_id != target.kingdom_id or header.owner_id != target.target_id:
+        return False
+    if area is not None and header.area_type is not None and header.area_type != area.area_type:
+        return False
+    return not (area is not None and area.name and header.area_name != area.name)
 
 
 @dataclass
@@ -113,21 +177,31 @@ class SpyService(BaseService):
         target_kingdom: Kingdom = Kingdom.GREEN,
         risk_tolerance: int | None = None,
         accuracy: int = MAX_ACCURACY,
-        pay_with_feathers: bool = False,
-        horse_wod_id: int = -1,
+        horses_type: int = -1,
+        feathers: bool = False,
         slowdown: int = 0,
+        max_wait: float | None = None,
     ) -> SpyResult:
         """
         Send a military spy mission and read its report.
 
         Nothing is paid unless asked: by default the spies travel without a
-        horse. ``pay_with_feathers`` uses the instant spy horse, paid with
-        feathers, which the client sends as ``HBW`` -1 with ``PTT`` 1 and
-        which wins over ``horse_wod_id``, as in the client.
+        horse. ``feathers`` uses the instant spy horse, paid with feathers,
+        which the client sends as ``HBW`` -1 with ``PTT`` 1 and which wins over
+        ``horses_type``, as in the client.
+
+        The report arrives as an ``sne`` push once the spies get there. Every
+        ``sne`` in the wait is looked at without being taken from other
+        listeners; only a spy log whose header names this mission's target
+        (kingdom, owner, area type and name, from the csm reply's movement)
+        and whose report is for the target's position counts, the rest are
+        skipped. ``sne`` carries no mission id, so two missions to the same
+        target at once cannot be told apart.
 
         Blocks the calling thread for up to ~10s while polling for spy
         availability, then until the spies arrive (the csm reply's travel
-        time) plus 10s for the report — do not call this from a state callback.
+        time) plus 10s for the report, or ``max_wait`` if that is shorter —
+        do not call this from a state callback.
 
         Args:
             source_castle_id: The castle the spies leave from, one of yours: ``CastleInfo.castle_id``
@@ -141,10 +215,12 @@ class SpyService(BaseService):
                 that stays above it is skipped rather than spied badly.
             accuracy: Spy accuracy (50-100). Lower values need fewer spies for
                 the same risk but return a less complete report.
-            pay_with_feathers: Use the instant spy horse and pay for it with feathers
-            horse_wod_id: A horse's wod id to speed the spies up, paid in coins or
-                rubies; -1 for none
+            horses_type: A horse's wod id to speed the spies up (-1 = none);
+                sent as -1 whenever feathers are used, as the client does
+            feathers: Use the instant spy horse and pay for it with feathers
             slowdown: Seconds to delay the arrival by
+            max_wait: Most seconds to wait for the report after the csm reply;
+                None waits for the trip plus 10s
 
         Client: ``CastlePostSpyDialog.spyCastle`` (bundle line 38457),
         ``C2SCreateSpyMovementVO`` (bundle line 100126),
@@ -153,7 +229,6 @@ class SpyService(BaseService):
         Returns:
             SpyResult with the spy report data or a failure reason.
         """
-        # 1. Get spy screen info, polling until spies are available (they may be returning)
         _SSI_POLL_ATTEMPTS = 5
         _SSI_POLL_DELAY = 2  # seconds between retries
 
@@ -196,91 +271,106 @@ class SpyService(BaseService):
             # Even the whole pool leaves this target above the risk ceiling.
             return SpyResult(success=False, reason="risk_over_budget")
 
-        spies_to_send = plan.spies
-        # The plan may have traded detail for risk; send what it settled on.
-        accuracy = plan.accuracy
-
         csm_req = SendSpyRequest(
             SID=source_castle_id,
             TX=target_x,
             TY=target_y,
             KID=target_kingdom,
-            SC=spies_to_send,
+            SC=plan.spies,
             ST=SpyType.MILITARY,
-            SE=accuracy,
-            HBW=-1 if pay_with_feathers else horse_wod_id,
-            PTT=1 if pay_with_feathers else 0,
+            # The plan may have traded detail for risk; send what it settled on.
+            SE=plan.accuracy,
+            HBW=-1 if feathers else horses_type,
+            PTT=1 if feathers else 0,
             SD=slowdown,
         )
 
-        # Register the sne waiter before sending csm so the notification
-        # can't slip past between the two calls. Note: sne is a generic
-        # system-notification channel; an unrelated notification arriving
-        # in this window would be misattributed (no correlation id exists).
-        sne_waiter = self.client.connection.create_waiter("sne")
-
+        # Subscribed before csm is sent so the report can't slip past; a
+        # subscriber sees every sne without taking it from anyone else.
+        notifications: queue.Queue[Packet] = queue.Queue()
+        connection = self.client.connection
+        connection.subscribe("sne", notifications.put)
         try:
             try:
                 csm_resp = self.request(csm_req, SendSpyResponse)
             except EmpireError as e:
                 return SpyResult(success=False, reason=f"csm_failed_{_error_tag(e)}")
 
-            travel = csm_resp.seconds_until_arrival or 0
-            try:
-                sne_packet = self.client.connection.wait_for_result("sne", sne_waiter, timeout=travel + _REPORT_MARGIN)
-            except EmpireError as e:
-                return SpyResult(success=False, reason=f"sne_timeout_or_error_{_error_tag(e)}")
-
-            if not isinstance(sne_packet.payload, dict):
-                return SpyResult(success=False, reason="invalid_sne_format")
-
-            try:
-                sne_event = parse_response("sne", sne_packet.payload)
-            except ValidationError:
-                # A drifted sne payload is a failed mission, not a crash out
-                # of the service layer.
-                return SpyResult(success=False, reason="invalid_sne_format")
-
-            if not isinstance(sne_event, SystemNotificationEvent):
-                return SpyResult(success=False, reason="invalid_sne_format")
-
-            if not sne_event.messages:
-                return SpyResult(success=False, reason="invalid_sne_format")
-
-            first_msg = sne_event.messages[0]
-            message_id = first_msg.message_id
-
-            outcome = _parse_spy_notification(first_msg)
-            if outcome is None:
-                return SpyResult(success=False, reason="invalid_sne_format")
-            if outcome in _LOST_SPY_RESULTS:
-                return SpyResult(success=False, reason="spy_caught")
-
-            try:
-                bsd_resp = self.request(BattleSpyDataRequest(MID=message_id), BattleSpyDataResponse)
-            except EmpireError as e:
-                return SpyResult(success=False, reason=f"bsd_failed_{_error_tag(e)}")
-
-            if not bsd_resp.spy_data:
-                # A report with no army block was never read: the castle is not
-                # empty, the mission just brought nothing back.
-                return SpyResult(success=False, reason="no_spy_data")
-
-            report_target = bsd_resp.target
-            if report_target is not None and report_target.x >= 0 and report_target.y >= 0:
-                if (report_target.x, report_target.y) != (target_x, target_y):
-                    return SpyResult(success=False, reason="report_target_mismatch")
-
-            return SpyResult(
-                success=True,
-                army=SpyArmy.from_spy_data(bsd_resp.spy_data),
-                message_id=message_id,
-                spy_data=bsd_resp.spy_data,
-                defending_castellan=bsd_resp.defending_castellan,
-                target=bsd_resp.target,
+            movement = csm_resp.spy_movement.movement if csm_resp.spy_movement else None
+            if movement is None:
+                logger.warning(
+                    "The csm reply has no readable movement; waiting only %ss for the report", _REPORT_MARGIN
+                )
+            wait = (csm_resp.seconds_until_arrival or 0) + _REPORT_MARGIN
+            if max_wait is not None:
+                wait = min(wait, max_wait)
+            return self._await_report(
+                notifications, time.monotonic() + wait, movement, target_x, target_y, target_kingdom
             )
         finally:
-            self.client.connection.cancel_waiter("sne", sne_waiter)
+            connection.unsubscribe("sne", notifications.put)
+
+    def _await_report(
+        self,
+        notifications: "queue.Queue[Packet]",
+        deadline: float,
+        target: MovementRecord | None,
+        target_x: int,
+        target_y: int,
+        target_kingdom: Kingdom,
+    ) -> SpyResult:
+        """Read ``sne`` pushes until one is this mission's report, or the deadline passes."""
+        missed = "sne_timeout"
+        while (remaining := deadline - time.monotonic()) > 0:
+            try:
+                packet = notifications.get(timeout=min(remaining, _POLL_SECONDS))
+            except queue.Empty:
+                if not self.client.connection.connected:
+                    return SpyResult(success=False, reason="disconnected")
+                continue
+            for message in _spy_messages(packet):
+                header = _parse_spy_header(message)
+                if header is None or not _names_target(header, target, target_kingdom):
+                    continue
+                if header.result in _LOST_SPY_RESULTS:
+                    return SpyResult(success=False, reason="spy_caught", message_id=message.message_id)
+                try:
+                    bsd_resp = self.request(BattleSpyDataRequest(MID=message.message_id), BattleSpyDataResponse)
+                except EmpireError as e:
+                    return SpyResult(success=False, reason=f"bsd_failed_{_error_tag(e)}")
+
+                report_target = bsd_resp.target
+                if report_target is not None and report_target.x >= 0 and report_target.y >= 0:
+                    if (report_target.x, report_target.y) != (target_x, target_y):
+                        # Another area with the same owner, e.g. one of many robber barons.
+                        missed = "report_target_mismatch"
+                        continue
+
+                if not bsd_resp.spy_data:
+                    # A report with no army block was never read: the castle is not
+                    # empty, the mission just brought nothing back.
+                    return SpyResult(success=False, reason="no_spy_data", message_id=message.message_id)
+
+                return SpyResult(
+                    success=True,
+                    army=SpyArmy.from_spy_data(bsd_resp.spy_data),
+                    message_id=message.message_id,
+                    spy_data=bsd_resp.spy_data,
+                    defending_castellan=bsd_resp.defending_castellan,
+                    target=bsd_resp.target,
+                )
+        return SpyResult(success=False, reason=missed)
+
+
+def _spy_messages(packet: Packet) -> list[MessageInfo]:
+    """The messages of an ``sne`` push; none when it cannot be read."""
+    if packet.error_code != 0 or not isinstance(packet.payload, dict):
+        return []
+    try:
+        event = parse_response("sne", packet.payload)
+    except ValidationError:
+        return []
+    return event.messages if isinstance(event, SystemNotificationEvent) else []
 
 
 def _error_tag(e: Exception) -> str:
