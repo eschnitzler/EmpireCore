@@ -688,3 +688,15 @@ def test_falsy_values_take_the_client_default():
     assert ToolStats.model_validate({"wodID": 2, "slotTypes": "1", "canBeUsedToAttackNPC": 0}).can_attack_npc is True
     assert GeneralAbilityDef.model_validate({"abilityID": "12abc"}).ability_id == 12
     assert CurrencyDef.model_validate({"currencyID": None}).currency_id == -1
+
+
+def test_a_cached_level_of_zero_stays_zero(tmp_path):
+    # The cache holds parsed ints, so 0 is a real level there, not a missing one
+    from empire_core.gamedata import GameData
+
+    data = GameData.parse("9.9", {"units": [{"wodID": "205", "type": "MeadRanger", "level": "0"}]})
+    assert data.units[205].level == 0
+    cache = tmp_path / "items.json"
+    data._write_cache(cache)
+    again = GameData._read_cache(cache, "9.9")
+    assert again is not None and again.units[205].level == 0

@@ -25,6 +25,7 @@ from empire_core.utils.troops import fetch_items_data, get_items_version
 
 from .ids import ITEMS_VERSION
 from .models import (
+    READING_CACHE,
     AllianceBuffDef,
     AttackSlotDef,
     ConstructionItemDef,
@@ -580,7 +581,11 @@ class GameData(BaseModel):
             return None
         try:
             payload = json.loads(cache_file.read_text())
-            data = cls.model_validate(payload)
+            token = READING_CACHE.set(True)
+            try:
+                data = cls.model_validate(payload)
+            finally:
+                READING_CACHE.reset(token)
         except (OSError, ValueError) as e:
             logger.warning(f"Ignoring unreadable game data cache {cache_file}: {e}")
             return None

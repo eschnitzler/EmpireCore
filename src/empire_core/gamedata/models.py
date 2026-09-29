@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 import re
+from contextvars import ContextVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -65,6 +66,10 @@ def _js_parse_int(value: object) -> int | None:
     return int(match.group(1)) if match else None
 
 
+READING_CACHE: ContextVar[bool] = ContextVar("reading_game_data_cache", default=False)
+"""True while GameData reads its own cache, whose ints are already parsed values."""
+
+
 def _js_falsy(value: object) -> bool:
     """JavaScript falsiness: undefined, null, false, 0, NaN and the empty string."""
     if value is None or value is False or value == "":
@@ -82,6 +87,8 @@ def _parse_int_or_default(value: object, default: int) -> int:
     leading integer is NaN to the client, which no int can hold; it reads as
     the default.
     """
+    if READING_CACHE.get() and isinstance(value, int) and not isinstance(value, bool):
+        return value
     if _js_falsy(value):
         return default
     parsed = _js_parse_int(value)
