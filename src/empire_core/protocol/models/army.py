@@ -476,7 +476,13 @@ class ProduceUnitsRequest(BaseRequest):
     pay_with_rubies: int = Field(alias="PWR", default=0, description="1 to pay rubies for missing resources")
     sk: int = Field(alias="SK", default=BUY_UNIT_PACKAGE_SK, description="Always 73; meaning not in the client")
     kingdom_id: Kingdom | int = Field(alias="SID", description="The joined castle's kingdom")
-    castle_id: int = Field(alias="AID", description="The joined castle")
+    castle_id: int = Field(
+        alias="AID",
+        description=(
+            "The castle joined with jca, as the client sends it; ArmyService joins it first. Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
 
 
 class AddedUnit(BasePayload):
@@ -576,7 +582,13 @@ class DoubleProductionSlotRequest(BaseRequest):
 
     list_id: ProductionListId = Field(alias="LID")
     position: int = Field(alias="S")
-    castle_id: int = Field(alias="AID", description="The joined castle")
+    castle_id: int = Field(
+        alias="AID",
+        description=(
+            "The castle joined with jca, as the client sends it; ArmyService joins it first. Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
     kingdom_id: Kingdom | int = Field(alias="SID", description="The joined castle's kingdom")
     slot_type: SlotType = Field(alias="ST")
 
@@ -922,10 +934,22 @@ class SendSupportRequest(BaseRequest):
 
     command = "cds"
 
-    source_castle_id: int = Field(alias="SID")
+    source_castle_id: int = Field(
+        alias="SID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
     target_x: int = Field(alias="TX")
     target_y: int = Field(alias="TY")
-    commander_id: int = Field(alias="LID", description="Commander id; 0 is the free starting commander")
+    commander_id: int = Field(
+        alias="LID",
+        description=(
+            "A Commander.commander_id from client.commanders.get_commanders(); "
+            "0 is the free starting commander, -14 the premium one"
+        ),
+    )
     wait_time: int = Field(alias="WT", default=12, ge=0, le=12)
     horses_type: int = Field(alias="HBW", default=-1)
     use_premium_commander: int = Field(alias="BPC", default=0, description="1 when the premium commander leads")

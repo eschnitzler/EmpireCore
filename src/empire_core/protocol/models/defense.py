@@ -47,7 +47,10 @@ class GetDefenseRequest(BaseRequest):
 
     castle_x: int = Field(alias="CX", description="Castle map x")
     castle_y: int = Field(alias="CY", description="Castle map y")
-    area_id: int = Field(alias="AID", description="The castle's area id")
+    area_id: int = Field(
+        alias="AID",
+        description="The castle's id (objectId): CastleInfo.castle_id from client.castle.get_all() or Castle.id",
+    )
     kingdom_id: Kingdom | int = Field(alias="KID", default=-1, description="Kingdom id; the client sends -1")
 
 
@@ -225,7 +228,10 @@ class ChangeKeepDefenseRequest(BaseRequest):
 
     castle_x: int = Field(alias="CX", description="Castle map x")
     castle_y: int = Field(alias="CY", description="Castle map y")
-    area_id: int = Field(alias="AID", description="The castle's area id")
+    area_id: int = Field(
+        alias="AID",
+        description="The castle's id (objectId): CastleInfo.castle_id from client.castle.get_all() or Castle.id",
+    )
     min_attacking_units_for_tools: int = Field(
         alias="MAUCT",
         default=0,
@@ -264,7 +270,10 @@ class ChangeWallDefenseRequest(BaseRequest):
 
     castle_x: int = Field(alias="CX", description="Castle map x")
     castle_y: int = Field(alias="CY", description="Castle map y")
-    area_id: int = Field(alias="AID", description="The castle's area id")
+    area_id: int = Field(
+        alias="AID",
+        description="The castle's id (objectId): CastleInfo.castle_id from client.castle.get_all() or Castle.id",
+    )
     left: WallSectionSetup = Field(alias="L", description="Left wall section")
     middle: WallSectionSetup = Field(alias="M", description="Middle wall section")
     right: WallSectionSetup = Field(alias="R", description="Right wall section")
@@ -285,7 +294,10 @@ class ChangeMoatDefenseRequest(BaseRequest):
 
     castle_x: int = Field(alias="CX", description="Castle map x")
     castle_y: int = Field(alias="CY", description="Castle map y")
-    area_id: int = Field(alias="AID", description="The castle's area id")
+    area_id: int = Field(
+        alias="AID",
+        description="The castle's id (objectId): CastleInfo.castle_id from client.castle.get_all() or Castle.id",
+    )
     left_slots: list[Slot] = Field(alias="LS", description="Left moat slots")
     middle_slots: list[Slot] = Field(alias="MS", description="Middle moat slots")
     right_slots: list[Slot] = Field(alias="RS", description="Right moat slots")

@@ -430,7 +430,13 @@ class GetAllianceInfoRequest(BaseRequest):
 
     command = "ain"
 
-    alliance_id: int = Field(alias="AID")
+    alliance_id: int = Field(
+        alias="AID",
+        description=(
+            "Your own is client.alliance.local_alliance_id; another is an AllianceSearchResult.alliance_id "
+            "from client.alliance.search_alliances()"
+        ),
+    )
 
 
 class GetAllianceInfoResponse(BaseResponse):
@@ -476,8 +482,10 @@ class HelpMemberRequest(BaseRequest):
 
     command = "ahc"
 
-    player_id: int = Field(alias="PID")
-    castle_id: int = Field(alias="CID")
+    player_id: int = Field(
+        alias="PID", description="The member who asked for help; the library does not read help requests yet"
+    )
+    castle_id: int = Field(alias="CID", description="The member's castle; the library does not read help requests yet")
     help_type: int = Field(alias="HT")
 
     @classmethod
@@ -556,9 +564,15 @@ class AskHelpRequest(BaseRequest):
 
     command = "ahr"
 
-    castle_id: int = Field(alias="CID")
+    castle_id: int = Field(
+        alias="CID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
     help_type: int = Field(alias="HT")
-    building_id: int | None = Field(alias="BID", default=None)
+    building_id: int | None = Field(alias="BID", default=None, description="The library does not read building ids yet")
 
     @classmethod
     def heal(cls, castle_id: int) -> "AskHelpRequest":

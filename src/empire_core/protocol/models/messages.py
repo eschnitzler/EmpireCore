@@ -119,7 +119,10 @@ class BattleSpyDataRequest(BaseRequest):
 
     command = "bsd"
 
-    message_id: int = Field(alias="MID")
+    message_id: int = Field(
+        alias="MID",
+        description="The report's message id: SpyResult.message_id, or a MessageInfo.message_id from an sne push",
+    )
 
 
 class ForwardSpyLogRequest(BaseRequest):
@@ -132,8 +135,17 @@ class ForwardSpyLogRequest(BaseRequest):
 
     command = "mfs"
 
-    player_ids: list[int] = Field(alias="PID")
-    message_id: int = Field(alias="MID")
+    player_ids: list[int] = Field(
+        alias="PID",
+        description=(
+            "Recipients; the client offers your alliance's other members, AllianceMember.player_id "
+            "from client.alliance.get_local_members()"
+        ),
+    )
+    message_id: int = Field(
+        alias="MID",
+        description="The report's message id: SpyResult.message_id, or a MessageInfo.message_id from an sne push",
+    )
 
 
 class SpyCastleInfo(BaseModel):

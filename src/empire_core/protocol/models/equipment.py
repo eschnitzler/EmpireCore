@@ -89,8 +89,17 @@ class EquipEquipmentRequest(BaseRequest):
 
     command = "eeq"
 
-    equipment_id: int = Field(alias="EID", description="The item's id, EQ index 0")
-    commander_id: int = Field(alias="LID", description="The commander's or castellan's gli ID")
+    equipment_id: int = Field(
+        alias="EID",
+        description=(
+            "Equipment.equipment_id (EQ index 0): of an inventory item from client.equipment.get_inventory() "
+            "to equip, of a worn one from client.commanders.get_all() to take off"
+        ),
+    )
+    commander_id: int = Field(
+        alias="LID",
+        description="The commander_id of a Commander or Castellan from client.commanders.get_all()",
+    )
     equip: int = Field(alias="E", description="1 puts the item on the leader, 0 takes it off")
 
     @field_validator("equip", mode="before")

@@ -37,7 +37,13 @@ class BuildRequest(BaseRequest):
 
     command = "ebu"
 
-    castle_id: int = Field(alias="CID")
+    castle_id: int = Field(
+        alias="CID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
     building_type: int = Field(alias="BT")
     x: int = Field(alias="X")
     y: int = Field(alias="Y")
@@ -71,8 +77,14 @@ class UpgradeBuildingRequest(BaseRequest):
 
     command = "eup"
 
-    castle_id: int = Field(alias="CID")
-    building_id: int = Field(alias="BID")
+    castle_id: int = Field(
+        alias="CID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
+    building_id: int = Field(alias="BID", description="The library does not read building ids yet")
 
 
 class UpgradeBuildingResponse(BaseResponse):
@@ -103,8 +115,14 @@ class MoveBuildingRequest(BaseRequest):
 
     command = "emo"
 
-    castle_id: int = Field(alias="CID")
-    building_id: int = Field(alias="BID")
+    castle_id: int = Field(
+        alias="CID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
+    building_id: int = Field(alias="BID", description="The library does not read building ids yet")
     x: int = Field(alias="X")
     y: int = Field(alias="Y")
 
@@ -134,8 +152,14 @@ class SellBuildingRequest(BaseRequest):
 
     command = "sbd"
 
-    castle_id: int = Field(alias="CID")
-    building_id: int = Field(alias="BID")
+    castle_id: int = Field(
+        alias="CID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
+    building_id: int = Field(alias="BID", description="The library does not read building ids yet")
 
 
 class SellBuildingResponse(BaseResponse):
@@ -165,8 +189,14 @@ class DestroyBuildingRequest(BaseRequest):
 
     command = "edo"
 
-    castle_id: int = Field(alias="CID")
-    building_id: int = Field(alias="BID")
+    castle_id: int = Field(
+        alias="CID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
+    building_id: int = Field(alias="BID", description="The library does not read building ids yet")
 
 
 class DestroyBuildingResponse(BaseResponse):
@@ -194,8 +224,14 @@ class FastCompleteRequest(BaseRequest):
 
     command = "fco"
 
-    castle_id: int = Field(alias="CID")
-    building_id: int = Field(alias="BID")
+    castle_id: int = Field(
+        alias="CID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
+    building_id: int = Field(alias="BID", description="The library does not read building ids yet")
 
 
 class FastCompleteResponse(BaseResponse):
@@ -225,8 +261,14 @@ class TimeSkipBuildingRequest(BaseRequest):
 
     command = "msb"
 
-    castle_id: int = Field(alias="CID")
-    building_id: int = Field(alias="BID")
+    castle_id: int = Field(
+        alias="CID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
+    building_id: int = Field(alias="BID", description="The library does not read building ids yet")
     item_id: int = Field(alias="IID")
 
 
@@ -257,7 +299,13 @@ class UpgradeWallRequest(BaseRequest):
 
     command = "eud"
 
-    castle_id: int = Field(alias="CID")
+    castle_id: int = Field(
+        alias="CID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
     wall_type: int = Field(alias="WT", default=0)
 
 
@@ -289,8 +337,14 @@ class RepairBuildingRequest(BaseRequest):
 
     command = "rbu"
 
-    castle_id: int = Field(alias="CID")
-    building_id: int = Field(alias="BID")
+    castle_id: int = Field(
+        alias="CID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
+    building_id: int = Field(alias="BID", description="The library does not read building ids yet")
 
 
 class RepairBuildingResponse(BaseResponse):
@@ -320,7 +374,13 @@ class RepairAllRequest(BaseRequest):
 
     command = "ira"
 
-    castle_id: int = Field(alias="CID")
+    castle_id: int = Field(
+        alias="CID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
 
 
 class RepairAllResponse(BaseResponse):
@@ -350,7 +410,13 @@ class BuyExtensionRequest(BaseRequest):
 
     command = "ebe"
 
-    castle_id: int = Field(alias="CID")
+    castle_id: int = Field(
+        alias="CID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
     extension_type: int = Field(alias="ET")
 
 
@@ -381,7 +447,13 @@ class CollectExtensionGiftRequest(BaseRequest):
 
     command = "etc"
 
-    castle_id: int = Field(alias="CID")
+    castle_id: int = Field(
+        alias="CID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
     extension_id: int = Field(alias="EID")
 
 

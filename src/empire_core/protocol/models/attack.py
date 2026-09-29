@@ -200,7 +200,14 @@ class CreateAttackRequest(BaseRequest):
     target_x: int = Field(alias="TX")
     target_y: int = Field(alias="TY")
     kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN)
-    commander_id: int = Field(alias="LID", default=0)
+    commander_id: int = Field(
+        alias="LID",
+        default=0,
+        description=(
+            "A Commander.commander_id from client.commanders.get_commanders(); "
+            "0 is the free starting commander, -14 the premium one"
+        ),
+    )
     wait_time: int = Field(alias="WT", default=0)
     horses_type: int = Field(alias="HBW", default=-1)
     use_premium_commander: int = Field(
@@ -933,7 +940,13 @@ class SendSpyRequest(BaseRequest):
 
     command = "csm"
 
-    castle_id: int = Field(alias="SID")
+    castle_id: int = Field(
+        alias="SID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
     target_x: int = Field(alias="TX")
     target_y: int = Field(alias="TY")
     target_kingdom: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN)

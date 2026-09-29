@@ -541,7 +541,11 @@ class SelectCastleRequest(BaseRequest):
     response_command = "jaa"
 
     castle_id: int = Field(
-        alias="CID", description="The castle to join, from client.castle.get_all(); the client names -1 MY_CASTLE"
+        alias="CID",
+        description=(
+            "The castle to join, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles(); the client names -1 MY_CASTLE"
+        ),
     )
     kingdom_id: Kingdom | int = Field(alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
 
@@ -576,7 +580,9 @@ class RenameCastleRequest(BaseRequest):
 
     command = "arc"
 
-    castle_id: int = Field(alias="CID", description="The castle to rename, from client.castle.get_all()")
+    castle_id: int = Field(
+        alias="CID", description="The castle to rename, a CastleInfo.castle_id from client.castle.get_all()"
+    )
     is_rename: int = Field(
         alias="P", default=1, description="1 to rename, 0 to name a newly acquired castle such as a monument"
     )
@@ -623,7 +629,13 @@ class RelocateCastleRequest(BaseRequest):
 
     command = "rst"
 
-    castle_id: int = Field(alias="CID")
+    castle_id: int = Field(
+        alias="CID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
     x: int = Field(alias="X")
     y: int = Field(alias="Y")
     kingdom_id: int = Field(alias="KID", default=0)
@@ -654,7 +666,13 @@ class GetResourcesRequest(BaseRequest):
 
     command = "grc"
 
-    castle_id: int = Field(alias="CID")
+    castle_id: int = Field(
+        alias="CID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
 
 
 class GetResourcesResponse(BaseResponse):
@@ -685,7 +703,13 @@ class GetProductionRequest(BaseRequest):
 
     command = "gpa"
 
-    castle_id: int = Field(alias="CID")
+    castle_id: int = Field(
+        alias="CID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
 
 
 class ProductionRates(BaseResponse):

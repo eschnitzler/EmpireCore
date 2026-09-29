@@ -78,7 +78,13 @@ class GetPlayerInfoRequest(BaseRequest):
 
     command = "gdi"
 
-    player_id: int = Field(alias="PID")
+    player_id: int = Field(
+        alias="PID",
+        description=(
+            "A player's id, e.g. MapObject.owner_id from a map scan or client.search_player_by_name(), "
+            "or AllianceMember.player_id"
+        ),
+    )
 
 
 class GetPlayerInfoResponse(BaseResponse):

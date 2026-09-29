@@ -696,7 +696,10 @@ class RenameCommanderRequest(BaseRequest):
 
     command = "arl"
 
-    commander_id: int = Field(alias="LID", description="ID of the commander or castellan")
+    commander_id: int = Field(
+        alias="LID",
+        description="The commander_id of a Commander or Castellan from client.commanders.get_all()",
+    )
     name: str = Field(alias="N", description="The new name; the game's dialog allows 3 to 15 characters")
 
 

@@ -186,8 +186,18 @@ class AssignGeneralRequest(BaseRequest):
 
     command = "gla"
 
-    commander_id: int = Field(alias="LID", description="The commander to give the general to")
-    general_id: int = Field(alias="GID", default=-1, description="-1 unassigns the commander's general")
+    commander_id: int = Field(
+        alias="LID",
+        description="The commander to give the general to, from client.commanders.get_commanders()",
+    )
+    general_id: int = Field(
+        alias="GID",
+        default=-1,
+        description=(
+            "The general, an owned general's General.general_id from client.skills.get_generals(); -1 unassigns the "
+            "commander's general"
+        ),
+    )
 
 
 class AssignGeneralResponse(BaseResponse):
@@ -223,7 +233,13 @@ class SetGeneralAbilitiesRequest(BaseRequest):
 
     command = "gaae"
 
-    general_id: int = Field(alias="GID", description="The general whose abilities are chosen")
+    general_id: int = Field(
+        alias="GID",
+        description=(
+            "The general whose abilities are chosen, an owned general's General.general_id from "
+            "client.skills.get_generals()"
+        ),
+    )
     abilities: list[list[int]] = Field(alias="SAIDS", description="[slot_id, ability_id] pairs, -1 for no ability")
 
 
@@ -258,7 +274,13 @@ class ResetGeneralSkillsRequest(BaseRequest):
 
     command = "grs"
 
-    general_id: int = Field(alias="GID", description="The general whose skills are reset")
+    general_id: int = Field(
+        alias="GID",
+        description=(
+            "The general whose skills are reset, an owned general's General.general_id from "
+            "client.skills.get_generals()"
+        ),
+    )
 
 
 class AddGeneralXpRequest(BaseRequest):
@@ -275,7 +297,12 @@ class AddGeneralXpRequest(BaseRequest):
 
     command = "gaxp"
 
-    general_id: int = Field(alias="GID", description="The general to give xp to")
+    general_id: int = Field(
+        alias="GID",
+        description=(
+            "The general to give xp to, an owned general's General.general_id from client.skills.get_generals()"
+        ),
+    )
     currency_id: int = Field(alias="CID", description="The xp item, a currency")
     amount: int = Field(alias="AMT", description="How many of the xp item to use")
 
