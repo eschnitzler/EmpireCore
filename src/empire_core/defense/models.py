@@ -6,7 +6,7 @@ Commands:
 - dfk: Set the keep's tools and unit settings
 - dfw: Set the wall's tools and unit split
 - dfm: Set the moat's tools
-- sdi: Defense info for an alliance member's castle
+- sdi: Defense of a castle you could send support to
 """
 
 from __future__ import annotations
@@ -317,28 +317,34 @@ class ChangeMoatDefenseRequest(BaseRequest):
 
 
 # =============================================================================
-# SDI - Support Defense Info (Alliance Member Castle Defense)
+# SDI - Support Defence Info
 # =============================================================================
 
 
 class GetSupportDefenseRequest(BaseRequest):
     """
-    Get defense info for an alliance member's castle.
+    Get the defense of a castle you could send support to, before sending it.
 
     Command: sdi
     Payload: {"TX": target_x, "TY": target_y, "SX": source_x, "SY": source_y}
 
-    Note: Can only query castles of players in the same alliance.
-    TX/TY = Target castle coordinates (the one being attacked)
-    SX/SY = Source castle coordinates (your castle sending support)
+    The client sends it from the Support button, which it shows for a castle
+    of another member of your alliance (and a few other areas, such as your
+    own outposts), never for your own castle; the server answers your own
+    castle with NO_SELF_DESTRUCTION (92). Read your own castle with ``dfc``.
+
+    Client: ``C2SSupportDefenceInfoVO`` (bundle line 72078), sent by
+    ``CastleStartAttackDialog.supportDefence`` (bundle line 14833);
+    ``CastleMapobjectVO.canBeSupported`` (bundle line 18918),
+    ``OutpostMapobjectVO.canBeSupported`` (bundle line 18820)
     """
 
     command = "sdi"
 
-    target_x: int = Field(alias="TX")
-    target_y: int = Field(alias="TY")
-    source_x: int = Field(alias="SX")
-    source_y: int = Field(alias="SY")
+    target_x: int = Field(alias="TX", description="Map x of the castle to support")
+    target_y: int = Field(alias="TY", description="Map y of the castle to support")
+    source_x: int = Field(alias="SX", description="Map x of your castle the support would leave from")
+    source_y: int = Field(alias="SY", description="Map y of your castle the support would leave from")
 
 
 class GetSupportDefenseResponse(BaseResponse):

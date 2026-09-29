@@ -1,12 +1,18 @@
 """
-Defense service: the defense of an alliance member's castle.
+Defense service: the defense of your own castles and of castles you could support.
 """
 
 from __future__ import annotations
 
 import logging
 
-from empire_core.defense.models import GetSupportDefenseRequest, GetSupportDefenseResponse
+from empire_core.defense.models import (
+    GetDefenseRequest,
+    GetDefenseResponse,
+    GetSupportDefenseRequest,
+    GetSupportDefenseResponse,
+)
+from empire_core.enums import Kingdom
 from empire_core.services.base import BaseService, register_service
 
 logger = logging.getLogger(__name__)
@@ -20,7 +26,38 @@ class DefenseService(BaseService):
     Accessible via client.defense after auto-registration.
     """
 
-    def get_castle_defense(
+    def get_own_defense(
+        self,
+        castle_x: int,
+        castle_y: int,
+        castle_id: int,
+        kingdom: Kingdom | None = None,
+        timeout: float = 5.0,
+    ) -> GetDefenseResponse:
+        """
+        Get the keep, wall and moat setup of one of your own castles.
+
+        Args:
+            castle_x: The castle's map x
+            castle_y: The castle's map y
+            castle_id: The castle's id: ``CastleInfo.castle_id`` from ``client.castle.get_all()``
+                or ``Castle.id`` from ``client.state.get_castles()``
+            kingdom: The castle's kingdom; None sends -1, as the client does
+            timeout: Timeout in seconds
+
+        Returns:
+            The ``dfc`` reply: units, wall, keep, moat, priorities and castellan.
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``C2SDefenceCompleteVO`` (bundle line 32769), sent by
+        ``CastleDefenceDialog.updateDefenceData`` (bundle line 15978)
+        """
+        request = GetDefenseRequest(CX=castle_x, CY=castle_y, AID=castle_id, KID=kingdom)
+        return self.request(request, GetDefenseResponse, timeout=timeout)
+
+    def get_support_defense_info(
         self,
         target_x: int,
         target_y: int,
@@ -29,17 +66,16 @@ class DefenseService(BaseService):
         timeout: float = 5.0,
     ) -> GetSupportDefenseResponse:
         """
-        Get defense info for an alliance member's castle.
+        Get the defense of another alliance member's castle, as the client asks before sending support.
 
-        Uses the SDI (Support Defense Info) command to query the total
-        troops defending a castle. Can only query castles of players
-        in the same alliance as the bot.
+        The server rejects your own castle with NO_SELF_DESTRUCTION (92); use
+        :meth:`get_own_defense` for that.
 
         Args:
-            target_x: Target castle X coordinate
-            target_y: Target castle Y coordinate
-            source_x: Source castle X coordinate (defaults to bot's main castle)
-            source_y: Source castle Y coordinate (defaults to bot's main castle)
+            target_x: Map x of the castle to support
+            target_y: Map y of the castle to support
+            source_x: Map x of your castle the support would leave from (defaults to your first castle)
+            source_y: Map y of your castle the support would leave from (defaults to your first castle)
             timeout: Timeout in seconds
 
         Returns:
@@ -49,8 +85,10 @@ class DefenseService(BaseService):
         Raises:
             ValueError: No source coordinates given and no own castle known
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``C2SSupportDefenceInfoVO`` (bundle line 72078), sent by
+        ``CastleStartAttackDialog.supportDefence`` (bundle line 14833)
         """
-        # Default to bot's main castle as source
         if source_x is None or source_y is None:
             main_castle = next(iter(self.client.state.get_castles()), None)
             if main_castle is None:
