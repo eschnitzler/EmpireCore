@@ -31,13 +31,7 @@ from empire_core.client.client import EmpireClient
 from empire_core.commanders.service import CommandersService
 from empire_core.config import EmpireConfig
 from empire_core.enums import Kingdom, RankingType
-from empire_core.exceptions import (
-    CommandError,
-    ConnectionClosedError,
-    EmpireTimeoutError,
-    NetworkError,
-    PacketError,
-)
+from empire_core.exceptions import CommandError, ConnectionClosedError, EmpireTimeoutError, NetworkError, PacketError
 from empire_core.network.connection import ResponseWaiter
 from empire_core.protocol.models import (
     AllianceChatMessageResponse,
@@ -812,7 +806,7 @@ class TestSkillListUpdates:
         client.skills.on_skill_list(boom)
         client.skills.on_skill_list(seen.append)
 
-        with caplog.at_level(logging.ERROR, logger="empire_core.commanders.service_skills"):
+        with caplog.at_level(logging.ERROR, logger="empire_core.commanders.service"):
             client._on_packet(xt_packet("skl", {"SID": [3]}))
 
         assert len(seen) == 1

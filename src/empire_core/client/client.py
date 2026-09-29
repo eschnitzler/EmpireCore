@@ -27,9 +27,7 @@ from empire_core.army.service import ArmyService
 from empire_core.attack.service import AttackService
 from empire_core.castle.service import CastleService
 from empire_core.client.map_scanner import MapScanner, ScanResult
-from empire_core.commanders.service import CommandersService
-from empire_core.commanders.service_equipment import EquipmentService
-from empire_core.commanders.service_skills import SkillsService
+from empire_core.commanders.service import CommandersService, EquipmentService, SkillsService
 from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, ServerError, default_config
 from empire_core.defense.models import GetSupportDefenseRequest, GetSupportDefenseResponse
 from empire_core.enums import Kingdom, MapItemType
