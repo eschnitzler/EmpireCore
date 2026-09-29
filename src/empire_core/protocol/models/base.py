@@ -414,21 +414,21 @@ def read_or_none(
 
 class CurrencyTotals(BasePayload):
     """
-    Gold and rubies after an action, the ``gcu`` block.
+    Coins and rubies after an action, the ``gcu`` block.
 
     Client: ``CurrencyData.parseGCU`` (bundle line 141191), which reads
     ``CollectableItemC1VO.SERVER_KEY`` "C1" (bundle line 7995) and
     ``CollectableItemC2VO.SERVER_KEY`` "C2" (bundle line 4876).
     """
 
-    gold: int | float | None = Field(
-        alias="C1", default=None, description="Gold; None when the reply has no number for it"
+    coins: int | float | None = Field(
+        alias="C1", default=None, description="Coins; None when the reply has no number for it"
     )
     rubies: int | float | None = Field(
         alias="C2", default=None, description="Rubies; None when the reply has no number for it"
     )
 
-    @field_validator("gold", "rubies", mode="before")
+    @field_validator("coins", "rubies", mode="before")
     @classmethod
     def _number_or_none(cls, value: Any) -> Any:
         # parseGCU assigns the value as it comes; a value that is no number is not a total

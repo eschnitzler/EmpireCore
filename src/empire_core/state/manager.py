@@ -50,7 +50,7 @@ class GameState(MovementState, CastleState, PlayerState):
     castle name/coords, castle list      ``gcl``, ``mir`` (pushed)    re-login
     castle resources/units/details       ``dcl``                      ``client.castle.get_details(id)``
     player identity/level/XP             ``gpi``/``gxp``/``glu``      re-login
-    player gold/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      re-login
+    player coins/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      re-login
     honor, beginner protection           ``gho``/``uap``              re-login
     special currencies                   ``sce`` (pushed)             --
     movements                            ``gam``, ``abr``/``asr``,    ``client.get_movements()``
@@ -164,7 +164,7 @@ class GameState(MovementState, CastleState, PlayerState):
         self._apply_movement_wrappers([data], [])
 
     def _apply_sent_movement(self, data: dict[str, Any], wrapper: Any) -> None:
-        """Apply a send reply's gold and rubies (``gcu``), then store its movement with the owner records (``O``).
+        """Apply a send reply's coins and rubies (``gcu``), then store its movement with the owner records (``O``).
 
         An error reply carries no movement, so it stores nothing.
         """

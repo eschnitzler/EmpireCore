@@ -464,7 +464,7 @@ class ProduceUnitsResponse(BaseResponse):
 
     production_list: ProductionListBlock = Field(alias="spl", default=None)
     resources: RawBlock = Field(alias="grc", default=None, description="The castle's resources, as a raw block")
-    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Gold and rubies after the change")
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after the change")
     unit_inventory: UnitInventoryBlock = Field(alias="gui", default=None)
     added_unit: Annotated[AddedUnit | None, BeforeValidator(object_or_none)] = Field(alias="O", default=None)
 
@@ -548,7 +548,7 @@ class DoubleProductionSlotResponse(BaseResponse):
     command = "bou"
 
     production_list: ProductionListBlock = Field(alias="spl", default=None)
-    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Gold and rubies after the change")
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after the change")
 
 
 # =============================================================================
@@ -662,7 +662,7 @@ class HealUnitsResponse(BaseResponse):
     command = "hru"
 
     production_list: ProductionListBlock = Field(alias="spl", default=None)
-    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Gold and rubies after the change")
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after the change")
     unit_inventory: UnitInventoryBlock = Field(alias="gui", default=None)
 
 
@@ -734,7 +734,7 @@ class SkipHealResponse(BaseResponse):
 
     command = "hss"
 
-    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Gold and rubies after the change")
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after the change")
 
 
 # =============================================================================
@@ -834,7 +834,7 @@ class HealAllResponse(BaseResponse):
 
     command = "hra"
 
-    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Gold and rubies after the change")
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after the change")
     unit_inventory: UnitInventoryBlock = Field(alias="gui", default=None)
     production_area: RawBlock = Field(
         alias="gpa", default=None, description="The castle's production and storage figures, as a raw block"

@@ -94,9 +94,9 @@ class TestLocalPlayerSnapshots:
             "gbd", {"gpi": {"PID": 7, "PN": "old"}, "gxp": {"LVL": 10, "XP": 100}, "gcu": {"C1": 50}}
         )
         player = state.local_player
-        watched = ("PN", "level", "xp", "gold")
-        before = {"PN": "old", "level": 10, "xp": 100, "gold": 50}
-        after = {"PN": "new", "level": 11, "xp": 200, "gold": 60}
+        watched = ("PN", "level", "xp", "coins")
+        before = {"PN": "old", "level": 10, "xp": 100, "coins": 50}
+        after = {"PN": "new", "level": 11, "xp": 200, "coins": 60}
 
         observed: list[dict] = []
         real_setattr = Player.__setattr__
@@ -129,7 +129,7 @@ class TestPartialSubPacketsPreserveState:
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcu": {"C1": 200}})
 
         player = state.get_local_player()
-        assert (player.gold, player.rubies) == (200, 5)
+        assert (player.coins, player.rubies) == (200, 5)
 
     def test_partial_vip_preserves_other_fields(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "vip": {"VP": 10, "VRL": 2, "VRS": 3600}})
@@ -275,7 +275,7 @@ class TestPlayerPushes:
     def test_live_login_sections(self, state):
         state.update_from_packet("gbd", LIVE_LOGIN)
         player = state.get_local_player()
-        assert (player.gold, player.rubies, player.level, player.xp) == (155600, 3098, 13, 5329)
+        assert (player.coins, player.rubies, player.level, player.xp) == (155600, 3098, 13, 5329)
         assert (player.honor, player.ranking) == (0, 93)
         assert player.beginner_protection == {0: False}
         assert state.get_last_packet_time("gho") is not None
@@ -284,7 +284,7 @@ class TestPlayerPushes:
         state.update_from_packet("gbd", LIVE_LOGIN)
         state.update_from_packet("gcu", {"C1": 150000, "C2": 3100})
         player = state.get_local_player()
-        assert (player.gold, player.rubies) == (150000, 3100)
+        assert (player.coins, player.rubies) == (150000, 3100)
         assert state.get_last_packet_time("gcu") is not None
 
     def test_gxp_push(self, state):
@@ -328,7 +328,7 @@ class TestPlayerPushes:
             "glu", {"gcu": {"C1": 160000, "C2": 3098}, "gxp": {"LVL": 14, "XP": 5880}, "L": 14, "LL": 0}
         )
         player = state.get_local_player()
-        assert (player.level, player.xp, player.gold) == (14, 5880, 160000)
+        assert (player.level, player.xp, player.coins) == (14, 5880, 160000)
         assert state.get_last_packet_time("glu") is not None
         assert state.get_last_packet_time("gxp") is not None
 
@@ -458,7 +458,7 @@ class TestLevelProgress:
         self._player_after(state, {"LVL": 13, "XP": 5329})
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gxp": {"LVL": bad, "XP": 5400}, "gcu": {"C1": 77}})
         player = state.get_local_player()
-        assert (player.level, player.xp, player.gold) == (13, 5400, 77)
+        assert (player.level, player.xp, player.coins) == (13, 5400, 77)
 
     def test_xp_progress_edges(self):
         assert Player().xp_progress == 0.0

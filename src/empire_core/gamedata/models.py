@@ -159,10 +159,10 @@ class UnitStats(_UnitRow):
         default=0,
         description="Food upkeep, before the global food-consumption effect",
     )
-    healing_cost_c1: int = Field(
+    healing_cost_coins: int = Field(
         alias="healingCostC1", default=0, description="Coin cost to heal one, before cost effects"
     )
-    healing_cost_c2: int = Field(alias="healingCostC2", default=0, description="Ruby cost to heal one")
+    healing_cost_rubies: int = Field(alias="healingCostC2", default=0, description="Ruby cost to heal one")
     hybrid: bool = Field(default=False, description="Fits either flank")
 
     @field_validator(
@@ -174,8 +174,8 @@ class UnitStats(_UnitRow):
         "mead_supply",
         "beef_supply",
         "food_supply",
-        "healing_cost_c1",
-        "healing_cost_c2",
+        "healing_cost_coins",
+        "healing_cost_rubies",
         mode="before",
     )
     @classmethod
@@ -745,8 +745,8 @@ class LegendSkillDef(_Row):
 class AttackSlotDef(_Row):
     """An attack-screen slot and what unlocking it costs."""
 
-    slot_id: int = Field(alias="slotID")
-    cost_c2: int = Field(alias="costC2", default=0)
+    slot_id: int = Field(alias="slotID", description="Attack slot id")
+    cost_rubies: int = Field(alias="costC2", default=0, description="Rubies to unlock the slot")
 
 
 class ToolCategoryDef(_Row):

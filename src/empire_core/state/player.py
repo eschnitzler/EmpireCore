@@ -122,9 +122,9 @@ class PlayerState(StateBase):
             updated |= {"level", "xp", "legendary_level", "xp_for_current_level", "xp_to_next_level"}
 
         if gcu := _section(data, "gcu"):
-            merged["gold"] = gcu.get("C1", merged["gold"])
+            merged["coins"] = gcu.get("C1", merged["coins"])
             merged["rubies"] = gcu.get("C2", merged["rubies"])
-            updated |= {"gold", "rubies"}
+            updated |= {"coins", "rubies"}
 
         if vip := _section(data, "vip"):
             merged["vip_points"] = vip.get("VP", merged["vip_points"])

@@ -219,7 +219,7 @@ class CreateAttackResponse(BaseResponse):
         alias="AAM", default=None, description="The created movement; None when there is none"
     )
     currencies: CurrencyBlock = Field(
-        alias="gcu", default=None, description="Gold and rubies after the send; None when the reply has none"
+        alias="gcu", default=None, description="Coins and rubies after the send; None when the reply has none"
     )
     owners: list[MovementOwner] = Field(
         alias="O",

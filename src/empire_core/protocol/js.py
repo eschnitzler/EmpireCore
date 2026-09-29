@@ -111,6 +111,11 @@ def js_number(value: Any) -> float:
     return 0.0 if math.isnan(number) or math.isinf(number) else number
 
 
+def js_floor(value: Any) -> int:
+    """``Math.floor(Number(value))``, NaN and infinities as 0."""
+    return math.floor(js_number(value))
+
+
 def js_parse_int(value: Any) -> int | None:
     """
     JavaScript's ``parseInt(value)``: the leading integer of ``String(value)``, None where it gives NaN.

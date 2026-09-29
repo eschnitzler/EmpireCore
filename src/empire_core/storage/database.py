@@ -46,7 +46,7 @@ class PlayerSnapshot(SQLModel, table=True):
     player_id: int = Field(index=True)
     timestamp: int = Field(default_factory=lambda: int(datetime.now().timestamp()))
     level: int
-    gold: int
+    coins: int
     rubies: int
 
 
@@ -227,7 +227,7 @@ class GameDatabase:
         snapshot = PlayerSnapshot(
             player_id=player.id,
             level=player.level,
-            gold=player.gold,
+            coins=player.coins,
             rubies=player.rubies,
         )
         await self._enqueue(("player_snapshot", snapshot))

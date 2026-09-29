@@ -438,7 +438,7 @@ class TestPickSoldierStack:
         inv = Inventory({601: 100, 700: 100})
 
         allowed = pick_soldier_stack(10, Inventory(inv.counts), game)
-        blocked = pick_soldier_stack(10, Inventory(inv.counts), game, options=FillOptions(allow_c2_cost=False))
+        blocked = pick_soldier_stack(10, Inventory(inv.counts), game, options=FillOptions(allow_ruby_cost=False))
 
         assert stack_of(allowed)[0] == 700
         assert stack_of(blocked)[0] == 601

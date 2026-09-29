@@ -18,7 +18,7 @@ Based on: https://goodgameempire.fandom.com/wiki/GoodGame_Empire_Wiki
 1. **Wood** - From Woodcutter
 2. **Stone** - From Quarry  
 3. **Food** - From Farm
-4. **Gold** - Taxed from population
+4. **Coins** - Taxed from population
 5. **Rubies** - Premium currency
 
 ### Buildings
@@ -396,7 +396,7 @@ def scrape_building_data():
     Target fields:
     - Building type
     - Level (1-70+)
-    - Cost (wood, stone, food, gold)
+    - Cost (wood, stone, food, coins)
     - Build time
     - Production rate (if applicable)
     """
@@ -491,7 +491,7 @@ From our `dcl` responses, we see:
         "wood": 10,
         "stone": 0,
         "food": 10,
-        "gold": 0
+        "coins": 0
     },
     "training_time": 30,  # seconds
     "speed": 5,  # tiles per hour

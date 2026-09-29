@@ -41,7 +41,7 @@ class FillOptions(BaseModel):
 
     Every filter defaults to allowed, matching the client's
     ``AutoFillOptions.createNewUnitFilter``. Turning one off excludes units that
-    carry that cost: ``allow_c2_cost=False`` keeps units whose healing costs
+    carry that cost: ``allow_ruby_cost=False`` keeps units whose healing costs
     rubies out of the wave, for instance.
     """
 
@@ -50,8 +50,8 @@ class FillOptions(BaseModel):
     fill_left: bool = True
     fill_middle: bool = True
     fill_right: bool = True
-    allow_c1_cost: bool = True
-    allow_c2_cost: bool = True
+    allow_coin_cost: bool = True
+    allow_ruby_cost: bool = True
     allow_mead: bool = True
     allow_beef: bool = True
     use_melee: bool = True
@@ -101,9 +101,9 @@ def _is_eligible(unit, options: FillOptions) -> bool:
     """The client's per-unit filter chain."""
     if not (unit.is_offensive or unit.is_allround):
         return False
-    if unit.healing_cost_c1 > 0 and not options.allow_c1_cost:
+    if unit.healing_cost_coins > 0 and not options.allow_coin_cost:
         return False
-    if unit.healing_cost_c2 > 0 and not options.allow_c2_cost:
+    if unit.healing_cost_rubies > 0 and not options.allow_ruby_cost:
         return False
     if unit.mead_supply > 0 and not options.allow_mead:
         return False

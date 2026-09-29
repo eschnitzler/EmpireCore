@@ -1163,7 +1163,7 @@ class TestCreateAttackReply:
         reply = CreateAttackResponse.model_validate(dict(self.LIVE, gcu={"C1": 1200, "C2": 30}))
 
         assert reply.currencies is not None
-        assert (reply.currencies.gold, reply.currencies.rubies) == (1200, 30)
+        assert (reply.currencies.coins, reply.currencies.rubies) == (1200, 30)
 
     def test_an_unreadable_owner_record_costs_only_itself(self):
         reply = CreateAttackResponse.model_validate({"O": ["junk", {"OID": 5, "L": "x"}, {"OID": 6}]})

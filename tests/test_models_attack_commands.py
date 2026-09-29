@@ -251,7 +251,7 @@ class TestReviewedLeniency:
         assert reply.attack_movement is None
         assert reply.movement_id == 9
         assert reply.leader is not None and reply.leader.commander_id == 3
-        assert reply.currencies is not None and reply.currencies.gold == 10.5
+        assert reply.currencies is not None and reply.currencies.coins == 10.5
 
     def test_equipment_effects_and_messages_the_client_still_reads(self):
         from empire_core.protocol.models import CommanderEffect, Equipment, SystemNotificationEvent
@@ -271,7 +271,7 @@ class TestInputEnums:
     def test_enum_values_match_the_client_constants(self):
         assert [m.value for m in LootPriority] == list(range(12))
         assert (LootPriority.NO, LootPriority.IRON, LootPriority.BEEF) == (0, 8, 11)
-        assert [(m.name, m.value) for m in AutoSkipCooldownType] == [("OFF", 0), ("MINUTE_SKIP", 1), ("C2", 2)]
+        assert [(m.name, m.value) for m in AutoSkipCooldownType] == [("OFF", 0), ("MINUTE_SKIP", 1), ("RUBIES", 2)]
         assert [(m.name, m.value) for m in SpyType] == [("MILITARY", 0), ("ECO", 1), ("SABOTAGE", 2), ("PLAGUE", 3)]
 
     def test_cra_sends_enum_inputs_as_their_numbers(self):

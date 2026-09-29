@@ -11,13 +11,13 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import BeforeValidator, ConfigDict, Field, field_validator, model_validator
 
 from empire_core.utils.enums import DiplomacyStatus, HelpType, OnlineState
 
-from ..js import ClientInt, ParseInt, js_loose_equals, js_truthy
+from ..js import ClientInt, ParseInt, js_floor, js_loose_equals, js_truthy
 from ..text import decode_json_text
 from .base import (
     BasePayload,
@@ -98,24 +98,50 @@ class AllianceBuilding(BasePayload):
 # Alliance Storage Model
 # =============================================================================
 
+StorageAmount = Annotated[int, BeforeValidator(js_floor)]
+
 
 class AllianceStorage(BasePayload):
-    """Alliance storage/treasury from STO object."""
+    """
+    The alliance treasury, the ``STO`` block.
 
-    stone: int = Field(alias="S", default=0)
-    wood: int = Field(alias="W", default=0)
-    food: int = Field(alias="O", default=0)  # O for food? might be oil
-    coins1: int = Field(alias="C1", default=0)
-    gold: int = Field(alias="G", default=0)
-    coins2: int = Field(alias="C2", default=0)
-    coins: int = Field(alias="C", default=0)
-    iron: int = Field(alias="I", default=0)
+    The client reads one key per ``allianceFundsDonatables`` row of the item
+    data, so a later items version can add keys; these are the rows of v786.03.
+    On an alliance battle ground server it reads the event's alliance currency
+    instead of ``AIN``; that key stays in the model's extra fields.
+
+    Client: ``AllianceInfoVO.parseStorageFromServer`` (bundle line 25940), each key from
+    ``CollectableHelper.getServerKeyByCollectable`` (bundle line 1646) over
+    ``AllianceFundsDonatableVO`` (bundle line 66532); amounts floored by
+    ``ACollectableItemVO.amount`` (bundle line 3575)
+    """
+
+    wood: StorageAmount = Field(alias="W", default=0, description="Wood")
+    stone: StorageAmount = Field(alias="S", default=0, description="Stone")
+    coins: StorageAmount = Field(alias="C1", default=0, description="Coins")
+    rubies: StorageAmount = Field(alias="C2", default=0, description="Rubies")
+    iron: StorageAmount = Field(alias="I", default=0, description="Iron")
+    oil: StorageAmount = Field(alias="O", default=0, description="Olive oil")
+    glass: StorageAmount = Field(alias="G", default=0, description="Glass")
+    coal: StorageAmount = Field(alias="C", default=0, description="Charcoal")
+    fury_doubloons: StorageAmount = Field(alias="FD", default=0, description="Fury doubloons")
+    time_doubloons: StorageAmount = Field(alias="TD", default=0, description="Time doubloons")
+    spirit_doubloons: StorageAmount = Field(alias="SD", default=0, description="Spirit doubloons")
+    vigor_doubloons: StorageAmount = Field(alias="VD", default=0, description="Vigor doubloons")
+    bastion_doubloons: StorageAmount = Field(alias="BD", default=0, description="Bastion doubloons")
+    rampart_doubloons: StorageAmount = Field(alias="RD", default=0, description="Rampart doubloons")
+    alliance_coins: StorageAmount = Field(alias="AC", default=0, description="Alliance coins")
+    rift_coins: StorageAmount = Field(alias="RC", default=0, description="Rift coins")
+    legendary_rift_coins: StorageAmount = Field(alias="LRC", default=0, description="Legendary rift coins")
+    alliance_influence: StorageAmount = Field(
+        alias="AIN", default=0, description="Alliance influence; only on alliance battle ground servers"
+    )
 
 
 _MEMBER_INFO_FIELDS = (
     "player_id",
-    "given_c1",
-    "given_c2",
+    "given_coins",
+    "given_rubies",
     "given_resources",
     "login_activity",
     "capital_count",
@@ -136,8 +162,8 @@ class AllianceMemberInfo(BasePayload):
     """
 
     player_id: ClientInt = Field(default=0, description="The member's player id")
-    given_c1: ClientInt = Field(default=0, description="Gold (C1) the member donated to the alliance")
-    given_c2: ClientInt = Field(default=0, description="Rubies (C2) the member donated to the alliance")
+    given_coins: ClientInt = Field(default=0, description="Coins the member donated to the alliance")
+    given_rubies: ClientInt = Field(default=0, description="Rubies the member donated to the alliance")
     given_resources: ClientInt = Field(default=0, description="Resources the member donated")
     login_activity: ClientInt = Field(
         default=0,

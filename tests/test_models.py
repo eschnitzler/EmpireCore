@@ -10,6 +10,7 @@ from empire_core.protocol.models.alliance import (
     AllianceInfo,
     AllianceMember,
     AllianceSearchResult,
+    AllianceStorage,
     GetAllianceInfoResponse,
 )
 from empire_core.protocol.models.base import (
@@ -425,8 +426,21 @@ class TestGoldenAllianceInfo:
         info = GetAllianceInfoResponse.model_validate(GOLDEN_AIN).alliance
         assert info is not None
         assert info.storage is not None
-        assert (info.storage.wood, info.storage.stone, info.storage.food) == (120000, 98000, 45000)
+        assert (info.storage.wood, info.storage.stone, info.storage.oil) == (120000, 98000, 45000)
         assert [(b.building_type, b.level, b.cooldown) for b in info.buildings] == [(1, 5, -1), (2, 3, 3600)]
+
+    def test_storage_reads_every_donatable_key(self):
+        storage = AllianceStorage.model_validate(
+            {"C1": 3000, "C2": 12, "O": 45000, "G": 7, "C": 9, "FD": 1, "AC": 2, "LRC": 3, "AIN": 4}
+        )
+        assert (storage.coins, storage.rubies, storage.oil, storage.glass, storage.coal) == (3000, 12, 45000, 7, 9)
+        assert (storage.fury_doubloons, storage.alliance_coins, storage.legendary_rift_coins) == (1, 2, 3)
+        assert storage.alliance_influence == 4
+
+    def test_storage_amounts_are_floored_and_default_to_zero(self):
+        # parseStorageFromServer reads STO[key] || 0; ACollectableItemVO.amount floors it
+        storage = AllianceStorage.model_validate({"W": 10.9, "S": None, "I": "abc", "C1": "25"})
+        assert (storage.wood, storage.stone, storage.iron, storage.coins, storage.rubies) == (10, 0, 0, 25, 0)
 
     def test_members_get_their_activity_tier_from_ami(self):
         response = GetAllianceInfoResponse.model_validate(GOLDEN_AIN)

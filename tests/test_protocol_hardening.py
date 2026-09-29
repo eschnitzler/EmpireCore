@@ -90,7 +90,7 @@ class TestAllianceMemberInfoGuard:
     def test_a_full_row(self):
         info = AllianceInfo.model_validate({"AMI": [[42, 1000, 5, 250000, 1, 1, 2, 0, 1, 3, 180]]})
         row = info.member_info[0]
-        assert (row.player_id, row.given_c1, row.given_c2, row.given_resources, row.login_activity) == (
+        assert (row.player_id, row.given_coins, row.given_rubies, row.given_resources, row.login_activity) == (
             42,
             1000,
             5,

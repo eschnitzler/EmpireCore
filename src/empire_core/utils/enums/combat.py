@@ -49,13 +49,15 @@ class AutoSkipCooldownType(IntEnum):
     """
     How the target's cooldown is skipped when the attack lands, the ASCT field.
 
+    RUBIES pays rubies to skip it.
+
     Client: ``AutoSkipCooldownConst`` (dll line 18836), picked in
     ``CastlePostAttackHorseDialog.selectAutoskipOption`` (bundle line 99902)
     """
 
     OFF = 0
     MINUTE_SKIP = 1
-    C2 = 2
+    RUBIES = 2
 
 
 class Flank(IntEnum):

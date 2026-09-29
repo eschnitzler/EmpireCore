@@ -230,7 +230,7 @@ class TestServerErrorCodeTable:
     @pytest.mark.parametrize("name", ["INVALID_CREDENTIALS", "SESSION_EXPIRED"])
     def test_codes_that_contradict_ggeerror_are_gone(self, name):
         # 401 was both ServerError.INVALID_CREDENTIALS and GGEError.REWARD_ID_NOT_FOUND;
-        # 440 was both SESSION_EXPIRED and C2_CONFIRMATION_REQUIRED. Keeping a second
+        # 440 was both SESSION_EXPIRED and RUBY_CONFIRMATION_REQUIRED. Keeping a second
         # name for the same number guarantees one of the two readings is a lie.
         assert not hasattr(ServerError, name)
 

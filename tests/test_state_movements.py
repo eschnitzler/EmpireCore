@@ -953,11 +953,11 @@ class TestSentMovements:
         state.update_from_packet("ldt", {"M": {"MID": 7, "T": 0, "TT": 60, "OID": self.ME}})
         assert [m.movement_id for m in state.get_outgoing_movements()] == [7]
 
-    def test_reply_gold_and_rubies_are_applied(self, state):
+    def test_reply_coins_and_rubies_are_applied(self, state):
         login(state, self.ME)
         state.update_from_packet("cra", {**SENT_ATTACK, "gcu": {"C1": 1200, "C2": 30}})
         assert state.local_player is not None
-        assert (state.local_player.gold, state.local_player.rubies) == (1200, 30)
+        assert (state.local_player.coins, state.local_player.rubies) == (1200, 30)
         assert state.get_last_packet_time("gcu") is not None
 
     def test_reply_without_gcu_keeps_gold(self, state):
@@ -965,7 +965,7 @@ class TestSentMovements:
         state.update_from_packet("gbd", {"gcu": {"C1": 500, "C2": 7}})
         state.update_from_packet("cra", SENT_ATTACK)
         assert state.local_player is not None
-        assert (state.local_player.gold, state.local_player.rubies) == (500, 7)
+        assert (state.local_player.coins, state.local_player.rubies) == (500, 7)
 
     def test_error_reply_stores_nothing(self, state):
         login(state, self.ME)

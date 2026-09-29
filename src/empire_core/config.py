@@ -25,7 +25,7 @@ class ServerError:
 
     - ``INVALID_CREDENTIALS = 401`` -- but ``GGEError.REWARD_ID_NOT_FOUND`` is
       also 401.
-    - ``SESSION_EXPIRED = 440`` -- but ``GGEError.C2_CONFIRMATION_REQUIRED`` is
+    - ``SESSION_EXPIRED = 440`` -- but ``GGEError.RUBY_CONFIRMATION_REQUIRED`` is
       also 440.
 
     Both were unused, and there is no evidence for which reading is right, so

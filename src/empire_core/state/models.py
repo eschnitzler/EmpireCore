@@ -225,8 +225,8 @@ class Player(BaseModel):
     )
 
     # Resources
-    gold: int = 0  # C1 from gcu
-    rubies: int = 0  # C2 from gcu
+    coins: int = Field(default=0, description="Coins")
+    rubies: int = Field(default=0, description="Rubies")
 
     special_currencies: dict[str, int] = Field(
         default_factory=dict,
