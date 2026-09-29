@@ -65,6 +65,13 @@ def _js_parse_int(value: object) -> int | None:
     return int(match.group(1)) if match else None
 
 
+def _js_falsy(value: object) -> bool:
+    """JavaScript falsiness: undefined, null, false, 0, NaN and the empty string."""
+    if value is None or value is False or value == "":
+        return True
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and (value == 0 or value != value)
+
+
 def _parse_int_or_default(value: object, default: int) -> int:
     """
     ``parseInt(CastleXMLUtils.getValueOrDefault(key, node, default))``.
@@ -75,7 +82,7 @@ def _parse_int_or_default(value: object, default: int) -> int:
     leading integer is NaN to the client, which no int can hold; it reads as
     the default.
     """
-    if value is None or value == "":
+    if _js_falsy(value):
         return default
     parsed = _js_parse_int(value)
     return default if parsed is None else parsed
@@ -111,7 +118,7 @@ class _UnitRow(_Row):
     def _int_attribute(cls, value: object) -> object:
         # CastleWodData.parseVOFromWODXml keys the row by parseInt(wodID); a row
         # with no such id fails here, so GameData.parse skips just that row.
-        parsed = None if value is None or value == "" else _js_parse_int(value)
+        parsed = None if _js_falsy(value) else _js_parse_int(value)
         if parsed is None:
             raise ValueError(f"wodID {value!r} has no leading integer")
         return parsed
@@ -806,14 +813,27 @@ class GeneralAbilityDef(_Row):
     ``abilityID`` in ``GeneralsData`` (bundle line 113021)
     """
 
-    ability_id: int = Field(alias="abilityID")
-    name: str = ""
-    ability_group_id: int = Field(alias="abilityGroupID", default=0)
-    level: int = 0
-    ability_trigger_id: int = Field(alias="abilityTriggerID", default=0)
-    trigger_per_wave: int = Field(alias="triggerPerWave", default=0)
-    ability_attack_effect_id: int = Field(alias="abilityAttackEffectID", default=0)
-    ability_defense_effect_id: int = Field(alias="abilityDefenseEffectID", default=0)
+    ability_id: int = Field(alias="abilityID", default=0, description="Ability id, the value set_abilities sends")
+    name: str = Field(default="", description="Ability name, unique per level")
+    ability_group_id: int = Field(alias="abilityGroupID", default=0, description="The group the levels share")
+    level: int = Field(default=0, description="Ability level")
+    ability_trigger_id: int = Field(alias="abilityTriggerID", default=0, description="What triggers the ability")
+    trigger_per_wave: int = Field(alias="triggerPerWave", default=0, description="Triggers per wave")
+    ability_attack_effect_id: int = Field(
+        alias="abilityAttackEffectID", default=0, description="Effect while attacking"
+    )
+    ability_defense_effect_id: int = Field(
+        alias="abilityDefenseEffectID", default=0, description="Effect while defending"
+    )
+
+    @field_validator(
+        "ability_id", "ability_group_id", "level", "ability_trigger_id", "trigger_per_wave",
+        "ability_attack_effect_id", "ability_defense_effect_id", mode="before",
+    )  # fmt: skip
+    @classmethod
+    def _parse_int(cls, value: object) -> int:
+        # fillFromParamXml reads each as parseInt(value || "0")
+        return _parse_int_or_default(value, 0)
 
 
 class CurrencyDef(_Row):
@@ -827,10 +847,15 @@ class CurrencyDef(_Row):
     ``currencies`` table by ``CurrencyData.parseXml`` (bundle line 141151)
     """
 
-    currency_id: int = Field(alias="currencyID", default=-1)
-    name: str = Field(alias="Name", default="")
-    json_key: str = Field(alias="JSONKey", default="")
-    asset_name: str = Field(alias="assetName", default="")
+    currency_id: int = Field(alias="currencyID", default=-1, description="Currency id; -1 when unset")
+    name: str = Field(alias="Name", default="", description="Internal name")
+    json_key: str = Field(alias="JSONKey", default="", description="The key the server uses for it, e.g. GXP1")
+    asset_name: str = Field(alias="assetName", default="", description="Icon asset name")
+
+    @field_validator("currency_id", mode="before")
+    @classmethod
+    def _parse_int(cls, value: object) -> int:
+        return _parse_int_or_default(value, -1)
 
 
 class RaidBossDef(_Row):
@@ -841,9 +866,14 @@ class RaidBossDef(_Row):
     ``raidBosses`` table by ``RaidBossData`` (bundle line 113671)
     """
 
-    raid_boss_id: int = Field(alias="raidBossID", default=0)
-    name: str = ""
-    rarity: int = 0
+    raid_boss_id: int = Field(alias="raidBossID", default=0, description="Raid boss id")
+    name: str = Field(default="", description="Internal name, unique")
+    rarity: int = Field(default=0, description="Rarity")
+
+    @field_validator("raid_boss_id", "rarity", mode="before")
+    @classmethod
+    def _parse_int(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
 
 
 class GeneralDef(_Row):

@@ -678,3 +678,13 @@ class TestNamedLookups:
         cached = {model for field in GameData.model_fields.values() for model in row_models(field.annotation)}
 
         assert cached == set(_CACHED_MODELS)
+
+
+def test_falsy_values_take_the_client_default():
+    # CastleXMLUtils.getValueOrDefault returns the default for any falsy value, 0 included
+    from empire_core.gamedata.models import CurrencyDef, GeneralAbilityDef, ToolStats, UnitStats
+
+    assert UnitStats.model_validate({"wodID": 1, "level": 0}).level == -1
+    assert ToolStats.model_validate({"wodID": 2, "slotTypes": "1", "canBeUsedToAttackNPC": 0}).can_attack_npc is True
+    assert GeneralAbilityDef.model_validate({"abilityID": "12abc"}).ability_id == 12
+    assert CurrencyDef.model_validate({"currencyID": None}).currency_id == -1
