@@ -8,7 +8,9 @@ from typing import Any
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, MapItemType, Position
+from empire_core.utils.enums import MapItemType
+
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, Position
 from .commanders import Commander
 
 

@@ -18,16 +18,9 @@ from typing import Any
 
 from pydantic import ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
 
-from .base import (
-    BasePayload,
-    BaseRequest,
-    BaseResponse,
-    Kingdom,
-    MapItemType,
-    Position,
-    ResourceAmount,
-    smartfox_json_text,
-)
+from empire_core.utils.enums import Kingdom, MapItemType
+
+from .base import BasePayload, BaseRequest, BaseResponse, Position, ResourceAmount, smartfox_json_text
 
 logger = logging.getLogger(__name__)
 

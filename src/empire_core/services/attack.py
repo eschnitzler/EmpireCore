@@ -13,12 +13,10 @@ from dataclasses import dataclass
 from empire_core.combat import (
     AttackerFlankEffects,
     Bonus,
-    CombatEffectType,
     DefenderFlankEffects,
     EffectResolver,
     FilledAttack,
     FillOptions,
-    Flank,
     Inventory,
     WaveCapacity,
     attack_dialog_bonuses,
@@ -47,7 +45,6 @@ from empire_core.gamedata import GameData, ToolStats
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import (
     AttackInfoResponse,
-    AttackType,
     AttackWave,
     Commander,
     CreateAttackRequest,
@@ -69,11 +66,11 @@ from empire_core.protocol.models import (
     GetOutpostConquerInfoResponse,
     GetVillageAttackInfoRequest,
     GetVillageAttackInfoResponse,
-    LootPriority,
 )
-from empire_core.protocol.models.base import BaseRequest, Kingdom
-from empire_core.protocol.models.map import GetMapAreaResponse, MapAreaItem, MapItemType, MapObject
+from empire_core.protocol.models.base import BaseRequest
+from empire_core.protocol.models.map import GetMapAreaResponse, MapAreaItem, MapObject
 from empire_core.services.spy_army import SpyArmy
+from empire_core.utils.enums import AttackType, CombatEffectType, Flank, Kingdom, LootPriority, MapItemType
 
 from .base import BaseService, register_service
 

@@ -32,8 +32,8 @@ _DE_FACTO_PUBLIC_SURFACE = [
     ("AccountPool", "empire_core.pool"),
     ("Account", "empire_core.accounts"),
     ("accounts", "empire_core.accounts"),
-    ("Kingdom", "empire_core.protocol.models.map"),
-    ("MapItemType", "empire_core.protocol.models.map"),
+    ("Kingdom", "empire_core.utils.enums"),
+    ("MapItemType", "empire_core.utils.enums"),
     ("MapAreaItem", "empire_core.protocol.models.map"),
     ("ScanResult", "empire_core.client.map_scanner"),
     ("SpyService", "empire_core.services.spy"),
@@ -110,11 +110,11 @@ def test_top_level_movement_is_the_state_model_consumers_use() -> None:
 
 def test_each_id_space_has_one_enum() -> None:
     """Kingdom and MapItemType are the only kingdom and area-type enums; the old duplicates are gone."""
-    from empire_core.protocol.models import base, map
+    from empire_core.protocol import models
     from empire_core.utils import enums
 
-    assert map.Kingdom is base.Kingdom and map.MapItemType is base.MapItemType
-    assert empire_core.MapItemType is base.MapItemType
+    assert models.Kingdom is enums.Kingdom and models.MapItemType is enums.MapItemType
+    assert empire_core.MapItemType is enums.MapItemType
     for gone in ("KingdomType", "MapObjectType"):
         assert not hasattr(enums, gone)
         assert not hasattr(empire_core, gone)
@@ -122,7 +122,7 @@ def test_each_id_space_has_one_enum() -> None:
 
 def test_npc_camps_resolve_through_map_item_type() -> None:
     """A robber baron camp is AREA_TYPE_DUNGEON (2) in the client's own table."""
-    from empire_core.protocol.models.map import MapItemType
+    from empire_core.utils.enums import MapItemType
 
     assert MapItemType.ROBBER_BARON is MapItemType.DUNGEON
     assert MapItemType.DUNGEON == 2
@@ -132,7 +132,7 @@ def test_npc_camps_resolve_through_map_item_type() -> None:
 
 def test_khan_camp_resolves_under_its_event_type() -> None:
     """The nomad khan camp is ALLIANCE_NOMAD_CAMP (35), not a type of its own."""
-    from empire_core.protocol.models.map import MapItemType
+    from empire_core.utils.enums import MapItemType
 
     assert MapItemType.KHAN_TENT is MapItemType.ALLIANCE_NOMAD_CAMP
     assert MapItemType.KHAN_CAMP is MapItemType.ALLIANCE_NOMAD_CAMP
@@ -141,7 +141,7 @@ def test_khan_camp_resolves_under_its_event_type() -> None:
 
 def test_ruins_are_castles_not_a_map_item_type() -> None:
     """A ruin is a CASTLE entry flagged isRuin; the client has no ruin type."""
-    from empire_core.protocol.models.map import MapItemType
+    from empire_core.utils.enums import MapItemType
 
     assert not hasattr(MapItemType, "RUIN")
     doc = MapItemType.__doc__ or ""

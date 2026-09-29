@@ -27,14 +27,10 @@ from empire_core.protocol.models.castle import (
 )
 from empire_core.protocol.models.chat import AllianceChatLogResponse, AllianceChatMessageResponse
 from empire_core.protocol.models.defense import GetSupportDefenseResponse
-from empire_core.protocol.models.map import (
-    GetMapAreaResponse,
-    Kingdom,
-    MapAreaItem,
-    MapItemType,
-)
+from empire_core.protocol.models.map import GetMapAreaResponse, MapAreaItem
 from empire_core.protocol.models.player import GetPlayerInfoResponse, SearchPlayerResponse
 from empire_core.protocol.models.ranking import GetHighscoreResponse, GetRankingListResponse, RankingEntry
+from empire_core.utils.enums import Kingdom, MapItemType
 
 
 class TestRegistry:

@@ -13,10 +13,11 @@ from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 from empire_core.gamedata import GameData, NpcCampDefence, ToolStats
-from empire_core.protocol.models.map import MapAreaItem, MapItemType
+from empire_core.protocol.models.map import MapAreaItem
+from empire_core.utils.enums import CombatEffectType, Flank, MapItemType
 
-from .bonuses import Bonus, CombatEffectType, EffectResolver, commander_bonuses, parse_effect_spec
-from .effects import DefenderFlankEffects, Flank
+from .bonuses import Bonus, EffectResolver, commander_bonuses, parse_effect_spec
+from .effects import DefenderFlankEffects
 
 if TYPE_CHECKING:
     from empire_core.protocol.models import Commander

@@ -12,17 +12,17 @@ from typing import Any
 import pytest
 
 from empire_core.network.connection import _summarize_frame
-from empire_core.protocol.models.alliance import AllianceInfo, DiplomacyStatus, OnlineState
+from empire_core.protocol.models.alliance import AllianceInfo
 from empire_core.protocol.models.attack import AttackWave, CreateAttackResponse, WaveFlank
-from empire_core.protocol.models.base import Kingdom
-from empire_core.protocol.models.commanders import Equipment, GetCommandersResponse, Rareness
-from empire_core.protocol.models.map import GetMapAreaResponse, MapAreaItem, MapItemType
+from empire_core.protocol.models.commanders import Equipment, GetCommandersResponse
+from empire_core.protocol.models.map import GetMapAreaResponse, MapAreaItem
 from empire_core.protocol.packet import (
     MALFORMED_STATUS_CODE,
     MAX_FRAME_SIZE,
     MAX_XML_SIZE,
     Packet,
 )
+from empire_core.utils.enums import DiplomacyStatus, Kingdom, MapItemType, OnlineState, Rareness
 
 
 def _castle_entry(

@@ -43,12 +43,7 @@ from empire_core.protocol.models.defense import (
     GetSupportDefenseRequest,
     GetSupportDefenseResponse,
 )
-from empire_core.protocol.models.map import (
-    GetMapAreaRequest,
-    GetMapAreaResponse,
-    Kingdom,
-    MapItemType,
-)
+from empire_core.protocol.models.map import GetMapAreaRequest, GetMapAreaResponse
 from empire_core.protocol.models.player import (
     GetPlayerInfoRequest,
     GetPlayerInfoResponse,
@@ -71,6 +66,7 @@ from empire_core.services import (
 )
 from empire_core.state.manager import GameState
 from empire_core.state.world_models import Movement
+from empire_core.utils.enums import Kingdom, MapItemType
 from empire_core.utils.events import GameEvent
 from empire_core.utils.events import get_active_events as _get_active_events
 

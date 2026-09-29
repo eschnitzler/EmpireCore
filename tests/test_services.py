@@ -3183,7 +3183,7 @@ class TestFillAttack:
         assert "aci" not in sent and "gaa" not in sent
 
     def test_a_monument_is_sized_for_its_own_level(self):
-        from empire_core.protocol.models.map import MapItemType
+        from empire_core.utils.enums import MapItemType
 
         client = self.build([[601, 100_000]])
 
@@ -3193,7 +3193,7 @@ class TestFillAttack:
         assert landmark.waves[0].unit_count() > low.waves[0].unit_count()
 
     def test_a_conquered_target_sizes_the_courtyard_from_the_area(self):
-        from empire_core.protocol.models.map import MapItemType
+        from empire_core.utils.enums import MapItemType
 
         client = self.build([[601, 1_000_000]])
 

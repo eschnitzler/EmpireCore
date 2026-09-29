@@ -1,8 +1,9 @@
 """Combat maths ported from the game client."""
 
+from empire_core.utils.enums import CombatEffectType, Flank
+
 from .bonuses import (
     Bonus,
-    CombatEffectType,
     EffectResolver,
     alliance_buff_bonuses,
     attack_dialog_bonuses,
@@ -53,7 +54,7 @@ from .defense import (
     spied_castle_defense,
     tool_defense_bonus,
 )
-from .effects import AttackerFlankEffects, DefenderFlankEffects, Flank
+from .effects import AttackerFlankEffects, DefenderFlankEffects
 from .solver import (
     FilledAttack,
     FillOptions,

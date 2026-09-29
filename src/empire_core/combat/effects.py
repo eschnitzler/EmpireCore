@@ -8,21 +8,9 @@ their inputs are aggregated, which lives in :mod:`empire_core.combat.defense`.
 
 from __future__ import annotations
 
-from enum import IntEnum
-
 from pydantic import BaseModel, ConfigDict
 
 from empire_core.gamedata import UnitStats
-
-
-class Flank(IntEnum):
-    """Attack-screen flanks (``ClientConstCastle.FLANK_*``)."""
-
-    LEFT = 0
-    MIDDLE = 1
-    RIGHT = 2
-    YARD = 3
-    REINFORCEMENT = 4
 
 
 class AttackerFlankEffects(BaseModel):
@@ -187,4 +175,4 @@ class DefenderFlankEffects(BaseModel):
         )
 
 
-__all__ = ["AttackerFlankEffects", "DefenderFlankEffects", "Flank"]
+__all__ = ["AttackerFlankEffects", "DefenderFlankEffects"]

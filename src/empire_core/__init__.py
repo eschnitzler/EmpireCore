@@ -33,23 +33,18 @@ from empire_core.gamedata import GameData, ToolStats, UnitStats
 from empire_core.pool import AccountPool, PoolExhaustedError
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models.alliance import AllianceInfo, AllianceMember
-from empire_core.protocol.models.attack import AttackType, AttackWave, LootPriority, SpyType, WaveFlank
+from empire_core.protocol.models.attack import AttackWave, WaveFlank
 from empire_core.protocol.models.castle import CastleInfo
 from empire_core.protocol.models.chat import decode_chat_text, encode_chat_text
-from empire_core.protocol.models.commanders import (
-    Castellan,
-    Commander,
-    Equipment,
-    EquipmentSlot,
-)
-from empire_core.protocol.models.map import Kingdom, MapAreaItem, MapItemType, MapObject
+from empire_core.protocol.models.commanders import Castellan, Commander, Equipment
+from empire_core.protocol.models.map import MapAreaItem, MapObject
 from empire_core.protocol.models.messages import SpyCastleInfo
 from empire_core.protocol.models.ranking import RankingEntry
 from empire_core.protocol.packet import Packet
 from empire_core.services.spy import SpyResult, SpyService
 from empire_core.state.models import Alliance, Building, Castle, Player, Resources
 from empire_core.state.world_models import Movement, MovementResources
-from empire_core.utils.enums import MovementType
+from empire_core.utils.enums import AttackType, EquipmentSlot, Kingdom, LootPriority, MapItemType, MovementType, SpyType
 from empire_core.utils.events import GameEvent
 from empire_core.utils.troops import get_troop_ids, troop_data_available
 

@@ -8,9 +8,10 @@ from dataclasses import dataclass, field
 from pydantic import ValidationError
 
 from empire_core.exceptions import CommandError, EmpireError
+from empire_core.utils.enums import Kingdom, SpyType
 
-from ..protocol.models.attack import SendSpyRequest, SpyScreenInfoRequest, SpyScreenInfoResponse, SpyType
-from ..protocol.models.base import Kingdom, parse_response
+from ..protocol.models.attack import SendSpyRequest, SpyScreenInfoRequest, SpyScreenInfoResponse
+from ..protocol.models.base import parse_response
 from ..protocol.models.commanders import Castellan
 from ..protocol.models.messages import (
     BattleSpyDataRequest,

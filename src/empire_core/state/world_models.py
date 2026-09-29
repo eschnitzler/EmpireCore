@@ -4,10 +4,10 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError, field_validator
 
-from empire_core.protocol.models.base import MapItemType, enum_or_none
+from empire_core.protocol.models.base import enum_or_none
 from empire_core.protocol.models.commanders import CommanderEffect, Equipment
 from empire_core.protocol.models.movement import MovementArea, MovementOwner
-from empire_core.utils.enums import MovementType
+from empire_core.utils.enums import MapItemType, MovementType
 from empire_core.utils.troops import count_troops
 
 logger = logging.getLogger(__name__)

@@ -14,13 +14,13 @@ from __future__ import annotations
 import logging
 import math
 from collections.abc import Iterable, Sequence
-from enum import IntEnum
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
 from empire_core.gamedata import EffectDef, GameData, GlobalEffectDef, ToolStats, parse_stacks
 from empire_core.protocol.models import Commander, CommanderEffect, Equipment
+from empire_core.utils.enums import CombatEffectType
 
 if TYPE_CHECKING:
     from .effects import AttackerFlankEffects
@@ -54,29 +54,6 @@ KEYED_EFFECT_TYPES = frozenset({47, 51, 70, 71, 72, 102, 148, 149, 150, 154, 168
 
 UNCAPPED_EQUIPMENT_CAP_ID = -1
 """``EquipmentBonusVO.capID`` of a bonus that overrides its cap (bundle line 20962)."""
-
-
-class CombatEffectType(IntEnum):
-    """
-    Effect type ids the attack path reads.
-
-    Verified against both the client's ``EffectTypeEnum`` and the items
-    ``effecttypes`` table.
-    """
-
-    MELEE_BONUS = 9
-    RANGE_BONUS = 10
-    WALL_REDUCTION = 19
-    GATE_REDUCTION = 20
-    MOAT_REDUCTION = 21
-    OFFENSIVE_MELEE_BONUS = 23
-    OFFENSIVE_RANGE_BONUS = 24
-    ATTACK_UNIT_AMOUNT_FLANK = 28
-    ATTACK_UNIT_AMOUNT_FRONT = 34
-    REINFORCEMENT_BONUS = 179
-    REINFORCEMENT_BOOST = 180
-    ATTACK_BONUS = 36
-    ADDITIONAL_WAVE = 156
 
 
 class Bonus(BaseModel):
@@ -840,7 +817,6 @@ def support_tool_waves(game_data: GameData, support_tools: Sequence[ToolStats]) 
 __all__ = [
     "Bonus",
     "attacker_flank_effects",
-    "CombatEffectType",
     "EffectResolver",
     "alliance_buff_bonuses",
     "attack_dialog_bonuses",

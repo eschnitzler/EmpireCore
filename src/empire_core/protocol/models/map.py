@@ -15,7 +15,9 @@ from typing import Any
 
 from pydantic import ConfigDict, Field, ValidationError, ValidationInfo, field_validator
 
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, Kingdom, MapItemType, Position, client_int
+from empire_core.utils.enums import Kingdom, MapItemType
+
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, Position, client_int
 from .movement import OwnerCrest, OwnerFaction
 
 logger = logging.getLogger(__name__)
@@ -647,10 +649,6 @@ class FindNPCResponse(BaseResponse):
 
 
 __all__ = [
-    # Kingdom
-    "Kingdom",
-    # Map Item Types
-    "MapItemType",
     # GAA - Map Area
     "GetMapAreaRequest",
     "GetMapAreaResponse",

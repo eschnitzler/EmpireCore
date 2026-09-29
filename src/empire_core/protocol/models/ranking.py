@@ -11,7 +11,6 @@ Commands:
 from __future__ import annotations
 
 import logging
-from enum import IntEnum
 from typing import Any, ClassVar
 
 from pydantic import Field, field_validator, model_validator
@@ -19,46 +18,6 @@ from pydantic import Field, field_validator, model_validator
 from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, GGECommand
 
 logger = logging.getLogger(__name__)
-
-
-class RankingType(IntEnum):
-    """
-    Known LT (List Type) values.
-    Corresponds to Event IDs or Metric IDs.
-    """
-
-    # Core Alliance Metrics
-    ALLIANCE_HONOR = 10
-    ALLIANCE_MIGHT = 11
-    DOMINION_POINTS = 12
-    CARGO_POINTS = 13
-
-    # Core Player Metrics
-    PLAYER_HONOR = 5
-    PLAYER_MIGHT = 6
-    LEGEND_LEVEL = 7
-    ACHIEVEMENTS = 1
-
-    # Events
-    FOREIGN_INVASION = 71
-    BLOODCROWS = 72
-    SAMURAI = 80
-    NOMAD = 85
-    BERIMOND = 113
-    SHAPESHIFTER = 60
-    HORIZON = 134
-    OUTER_REALMS = 63  # 601 in some contexts?
-
-
-class RankingCategory(IntEnum):
-    """
-    Common LID (List ID) values.
-    Corresponds to level brackets or sub-categories.
-    """
-
-    LEVEL_70 = 6  # Standard for most events (Level 70 bracket)
-    LEGENDARY_TOP = 5  # 950+ usually
-    GLOBAL = 1
 
 
 class RankingEntry:

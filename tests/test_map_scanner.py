@@ -9,8 +9,8 @@ import pytest
 
 from empire_core.client.map_scanner import MapScanner
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
-from empire_core.protocol.models.map import Kingdom, MapItemType
 from empire_core.protocol.packet import Packet
+from empire_core.utils.enums import Kingdom, MapItemType
 
 
 class TestChunkBounds:

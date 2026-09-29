@@ -1,14 +1,4 @@
-"""Game enumerations.
-
-One enum per server ID space, and the enum lives next to the packets that
-describe it:
-
-- kingdom ids: :class:`empire_core.protocol.models.base.Kingdom`,
-- area types, the first field of a map row (a scan's ``AI`` array and a
-  movement's ``TA``/``SA`` arrays):
-  :class:`empire_core.protocol.models.base.MapItemType`,
-- movement types: :class:`MovementType` below.
-"""
+"""Army movement types."""
 
 from enum import IntEnum
 

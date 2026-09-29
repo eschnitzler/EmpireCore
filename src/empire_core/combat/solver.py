@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from empire_core.gamedata import GameData
 from empire_core.protocol.models import AttackWave, WaveFlank
+from empire_core.utils.enums import Flank
 
 from .capacity import (
     TOOL_SLOT_LEVELS_FLANK,
@@ -28,7 +29,7 @@ from .capacity import (
     WaveCapacity,
     max_wave_count,
 )
-from .effects import AttackerFlankEffects, DefenderFlankEffects, Flank
+from .effects import AttackerFlankEffects, DefenderFlankEffects
 from .tools import TargetContext, check_flank, default_tool_strategies, fill_flank_with_tools
 
 logger = logging.getLogger(__name__)

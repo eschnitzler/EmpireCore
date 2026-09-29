@@ -35,14 +35,13 @@ from empire_core.protocol.models import (
     HealUnitsRequest,
     ProduceUnitsRequest,
     ProductionList,
-    ProductionListId,
     SelectCastleRequest,
     SelectCastleResponse,
     SkipHealRequest,
-    SlotType,
     UnitCount,
     WoundedUnits,
 )
+from empire_core.utils.enums import ProductionListId, SlotType
 
 from .base import BaseService, register_service
 

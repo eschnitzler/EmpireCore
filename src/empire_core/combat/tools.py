@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, NamedTuple, Protocol
 
 from empire_core.gamedata import GameData, ToolStats
-from empire_core.protocol.models.base import MapItemType
+from empire_core.utils.enums import MapItemType
 
 from .bonuses import parse_effect_spec
 from .effects import AttackerFlankEffects, DefenderFlankEffects

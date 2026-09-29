@@ -13,9 +13,7 @@ import math
 
 from pydantic import BaseModel, ConfigDict
 
-from empire_core.protocol.models.map import MapItemType
-
-from .effects import Flank
+from empire_core.utils.enums import Flank, MapItemType
 
 # Attackers per wave stops growing past level 69.
 MAX_ATTACKERS_ABOVE_69 = 320

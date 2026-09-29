@@ -14,9 +14,11 @@ from typing import Any
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from empire_core.utils.enums import Kingdom
+
 from .base import BasePayload, BaseRequest, BaseResponse
 from .castle import CastleInfo, GetCastlesResponse, get_location_type_name
-from .map import GetMapAreaResponse, Kingdom, MapObject
+from .map import GetMapAreaResponse, MapObject
 from .profile import PlayerProfileBase
 
 logger = logging.getLogger(__name__)

@@ -16,8 +16,10 @@ from typing import Any
 
 from pydantic import Field, ValidationError, ValidatorFunctionWrapHandler, field_validator, model_validator
 
+from empire_core.utils.enums import Kingdom
+
 from .army import SpyPositions, UnitInventory
-from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, Kingdom, client_int
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, client_int
 from .commanders import Castellan, CommanderRoster
 from .movement import MovementArea
 

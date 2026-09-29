@@ -1,3 +1,5 @@
+"""Special currency keys."""
+
 from enum import Enum
 
 

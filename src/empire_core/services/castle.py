@@ -30,7 +30,7 @@ from empire_core.protocol.models import (
     SelectCastleRequest,
     SendSupportRequest,
 )
-from empire_core.protocol.models.base import Kingdom
+from empire_core.utils.enums import Kingdom
 
 from .base import BaseService, register_service
 

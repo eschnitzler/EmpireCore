@@ -11,52 +11,17 @@ Commands:
 from __future__ import annotations
 
 import logging
-from enum import IntEnum
 from typing import Any
 
 from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
 
-from .base import (
-    BasePayload,
-    BaseRequest,
-    BaseResponse,
-    ClientInt,
-    HelpType,
-    ParseInt,
-    enum_or_none,
-    parse_chat_json_message,
-)
+from empire_core.utils.enums import DiplomacyStatus, HelpType, OnlineState
+
+from .base import BasePayload, BaseRequest, BaseResponse, ClientInt, ParseInt, enum_or_none, parse_chat_json_message
 from .map import MapAreaItem, MapObject, parse_area_rows
 from .profile import PlayerProfileBase
 
 logger = logging.getLogger(__name__)
-
-
-class DiplomacyStatus(IntEnum):
-    """
-    An alliance's standing with another alliance.
-
-    Client: ``AllianceConst.DIPLOMACY_*`` (dll line 18805)
-    """
-
-    IN_WAR = 0
-    NEUTRAL = 1
-    SOFT_ALLIED = 2
-    REAL_ALLIED = 3
-
-
-class OnlineState(IntEnum):
-    """
-    How recently an alliance member was online.
-
-    Client: ``AllianceConst.ONLINESTATE_*`` (dll line 18805)
-    """
-
-    ONLINE = 0
-    LAST_12_HOURS = 1
-    LAST_48_HOURS = 2
-    LAST_1_WEEK = 3
-    LONG_AGO = 4
 
 
 # =============================================================================
@@ -760,8 +725,6 @@ class SearchAllianceResponse(BaseResponse, register=False):
 
 
 __all__ = [
-    "DiplomacyStatus",
-    "OnlineState",
     # Alliance Member
     "AllianceMember",
     "AllianceInfo",
