@@ -292,9 +292,11 @@ class TestInputEnums:
         assert (sent["KID"], sent["ATT"], sent["LP"], sent["ASCT"]) == (2, 1, 8, 1)
 
     def test_cra_refuses_values_the_client_does_not_define(self):
+        base = {"LID": 0, "SX": 1, "SY": 2, "TX": 3, "TY": 4}
         for field, value in (("LP", 12), ("ATT", 4), ("ASCT", 3)):
             with pytest.raises(ValidationError):
-                CreateAttackRequest.model_validate({"SX": 1, "SY": 2, "TX": 3, "TY": 4, field: value})
+                CreateAttackRequest.model_validate({**base, field: value})
+        assert CreateAttackRequest.model_validate({**base, "LP": 5, "ATT": 3, "ASCT": 2}).to_payload()["LP"] == 5
 
     def test_a_kingdom_the_enum_lacks_is_still_sent(self):
         assert CreateAttackRequest(LID=0, SX=1, SY=2, TX=3, TY=4, KID=11).to_payload()["KID"] == 11
