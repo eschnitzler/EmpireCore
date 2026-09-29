@@ -1,7 +1,7 @@
 """Game data loading: classification, coercion, caching."""
 
 import json
-from typing import get_args
+from typing import get_args, get_origin
 
 import pytest
 from pydantic import BaseModel
@@ -565,7 +565,7 @@ class TestNamedLookups:
         from empire_core.gamedata.data import _CACHED_MODELS
 
         def row_models(annotation) -> set[type]:
-            if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            if get_origin(annotation) is None and isinstance(annotation, type) and issubclass(annotation, BaseModel):
                 return {annotation}
             return {model for arg in get_args(annotation) for model in row_models(arg)}
 
