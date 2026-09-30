@@ -470,6 +470,11 @@ long-running scans unless you know the server tolerates it.
 > Always check `failed_chunks`. A partial scan is not an empty kingdom, and
 > only this field tells them apart.
 
+Each item is a `MapAreaItem` read by its area type's layout, and carries the
+kingdom it came from (as does `result.kingdom`). A scan moves the session off
+the castle it had joined: `client.army` methods join their castle again
+themselves, anything else castle-scoped needs `client.castle.select()` first.
+
 **Re-scanning cheaply.** `result.content_chunks` lists the chunks that held
 items. Feed it back into `client.map.scan_chunks()` to re-scan a known region without
 paying for BFS discovery again (roughly a third fewer requests), and run a full

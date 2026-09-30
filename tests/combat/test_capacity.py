@@ -602,6 +602,14 @@ class TestInvasionCampLevel:
 
         assert self.level(data, row, 70) == 85
 
+    def test_a_nomad_camp_climbs_from_the_nomad_invasions_league(self, data):
+        # NomadCampMapObjectVO.dungeonLevel: the nomad invasion's (event 72) base camp level plus the victories
+        row = [27, 624, 240, -1, 4, 0, 0, 0, -1, 110, 110, 0]
+
+        assert self.level(data, row, 45) == 65
+        assert self.level(data, row, 70) is None
+        assert self.level(data, [27, 624, 240, -1, 4, 0, 0, 0, 3, 110, 110, 0], 45) == 70
+
     def test_a_daimyo_castle_rank_is_looked_up_not_counted_off(self, data):
         # Rank 3 is level 83, not two levels past rank 1 by arithmetic: the
         # level jumps at a rank boundary.

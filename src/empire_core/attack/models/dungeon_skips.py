@@ -18,6 +18,18 @@ from empire_core.protocol.base import BaseRequest, BaseResponse
 # =============================================================================
 
 
+def _row_or_none(value: object) -> MapAreaItem | None:
+    """The dungeon's map row, or None when there is none the client could read."""
+    if isinstance(value, MapAreaItem):
+        return value
+    if not isinstance(value, list):
+        return None
+    try:
+        return MapAreaItem.from_list(value)
+    except ValueError:
+        return None
+
+
 class MinuteSkipDungeonRequest(BaseRequest):
     """
     Shorten a dungeon's cooldown with a minute-skip item.
@@ -71,7 +83,7 @@ class MinuteSkipDungeonResponse(BaseResponse):
     @field_validator("area", mode="before")
     @classmethod
     def _parse_row(cls, value: object) -> object:
-        return MapAreaItem.from_list(value) if isinstance(value, list) else value
+        return _row_or_none(value)
 
 
 class SkipDungeonCooldownRequest(BaseRequest):
@@ -112,7 +124,7 @@ class SkipDungeonCooldownResponse(BaseResponse):
     @field_validator("area", mode="before")
     @classmethod
     def _parse_row(cls, value: object) -> object:
-        return MapAreaItem.from_list(value) if isinstance(value, list) else value
+        return _row_or_none(value)
 
 
 __all__ = [

@@ -382,5 +382,5 @@ class TestAllianceHelp:
         assert [b.name for b in bookmarks] == ["Enemy cluster", "Plot"]
         assert bookmarks[0].owner is not None
         assert bookmarks[0].owner.owner_id == 4242
-        assert bookmarks[0].owner.area_positions == [[0, 1, 640, 655, 1]]
+        assert [(p.area_id, p.x, p.y, p.area_type) for p in bookmarks[0].owner.castle_positions] == [(1, 640, 655, 1)]
         assert bookmarks[1].owner is None

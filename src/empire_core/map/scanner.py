@@ -9,22 +9,29 @@ from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkErro
 from empire_core.map.models.areas import GetMapAreaRequest, MapObject
 from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.errors import GGEError
+from empire_core.protocol.js import js_int, js_truthy
 from empire_core.protocol.packet import Packet
 
 logger = logging.getLogger(__name__)
 
 
-# Types with no owner by design: their field 3 is not an id, so the
-# "unowned means empty slot" filter must not apply to them.
 def _truncated_repr(value: object, limit: int = 200) -> str:
     """repr() capped at ``limit`` characters, for log-safe payload samples."""
     text = repr(value)
     return text if len(text) <= limit else text[:limit] + "...(truncated)"
 
 
+def _has_no_player(item: MapAreaItem) -> bool:
+    """A free castle plot, or a row whose owner is an NPC or nobody; a camp names no owner, so it is neither."""
+    if item.item_type in (MapItemType.CASTLE, MapItemType.KINGDOM_CASTLE) and len(item.raw_data) <= 4:
+        return not item.is_relocating
+    return item.owner_id is not None and not item.has_player_owner
+
+
 class ScanResult(NamedTuple):
     items: list[MapAreaItem]
     objects: dict[int, MapObject]
+    kingdom: Kingdom
     failed_chunks: tuple[tuple[int, int], ...] = ()
     # Chunks that responded successfully AND contained map items. Feed these
     # back into scan_chunks() to re-scan a known region without paying for
@@ -78,7 +85,7 @@ class _Client(Protocol):
 class MapScanner:
     """Utility class to scan kingdom maps with dynamic boundary detection."""
 
-    CHUNK_SIZE = 90  # Max allowed by GGE server
+    CHUNK_SIZE = 90  # Tiles a side; the client asks for at most 100 (GetMapAreaRequest)
     MAX_COORD = 20  # Max chunk coordinate (20 * 90 = 1800, well beyond any map)
 
     def __init__(self, client: _Client) -> None:
@@ -212,6 +219,9 @@ class MapScanner:
                 sample = raw_obj if sample is None else sample
                 logger.debug(f"Chunk ({cx}, {cy}): skipping malformed map object {raw_obj!r}")
                 continue
+            if not js_truthy(raw_obj.get("OID")):
+                # CastleOtherPlayerData.parseOwnerInfo reads no record without an OID
+                continue
             try:
                 obj = MapObject.model_validate(raw_obj)
             except Exception as e:
@@ -236,26 +246,22 @@ class MapScanner:
                 sample = raw_item if sample is None else sample
                 logger.debug(f"Chunk ({cx}, {cy}): skipping malformed map item {raw_item!r}")
                 continue
+            # filter_types is None only when the caller disabled filtering; rows of
+            # other types are not read at all
+            if filter_types is not None and js_int(raw_item[0]) not in filter_types:
+                continue
             try:
-                item = MapAreaItem.from_list(raw_item)
-            except Exception as e:
+                item = MapAreaItem.from_list(raw_item, kingdom)
+            except ValueError as e:
                 skipped_items += 1
                 sample = raw_item if sample is None else sample
                 logger.debug(f"Chunk ({cx}, {cy}): skipping invalid map item {raw_item!r}: {e}")
                 continue
 
-            # filter_types is None only when the caller disabled filtering
-            if filter_types is None or item.item_type in filter_types:
-                # Skip unowned items unless their type is explicitly included.
-                # A camp row has no owner field, so it is not "unowned" in
-                # that sense and passes.
-                if (
-                    item.owner_id == -1
-                    and item.has_owner_field
-                    and (include_unowned_types is None or item.item_type not in include_unowned_types)
-                ):
-                    continue
-                collected_items.append(item)
+            # Skip free plots and NPC-owned rows unless their type is explicitly included
+            if _has_no_player(item) and (include_unowned_types is None or item.item_type not in include_unowned_types):
+                continue
+            collected_items.append(item)
 
         if skipped_items or skipped_objects:
             parts = []
@@ -293,9 +299,16 @@ class MapScanner:
           filtering and collects every item type.
         - a non-empty list collects exactly those types.
 
-        In every case items with ``owner_id == -1`` (empty slots, unplaced
-        flags) are skipped, except types that never have an owner: an NPC
-        camp is always collected when its type passes the filter.
+        In every case free castle plots and rows whose owner is an NPC or
+        nobody (``owner_id`` not above 0, such as an unclaimed outpost) are
+        skipped unless their type is in ``include_unowned_types``. A castle on
+        the move (:attr:`MapAreaItem.is_relocating`) is kept, and so is a row
+        that names no owner at all, such as an NPC camp. Rows shorter than
+        ``[type, x, y, id]`` (placeholders, inactive event camps) are skipped.
+        Every item and ``ScanResult.kingdom`` carry the scanned kingdom.
+
+        A scan moves the session off the castle it had joined; see
+        :class:`~empire_core.map.service.MapService`.
 
         Chunks that fail even after a retry are reported in
         ``ScanResult.failed_chunks`` so callers can tell a partial scan
@@ -426,6 +439,7 @@ class MapScanner:
         return ScanResult(
             items=collected_items,
             objects=collected_objects,
+            kingdom=kingdom,
             failed_chunks=tuple(failed_chunks),
             content_chunks=tuple(content_chunks),
         )
@@ -454,7 +468,7 @@ class MapScanner:
         castles only, ``[]`` disables filtering and collects every type,
         and a non-empty list collects exactly those types.
         ``include_unowned_types`` also matches scan_kingdom(): types listed
-        there are collected even when unowned (owner -1).
+        there are collected even when they have no player owner.
 
         Chunks are deduplicated and out-of-range coordinates skipped.
         Unscanned chunks left over when ``timeout`` hits are reported in
@@ -515,6 +529,7 @@ class MapScanner:
         return ScanResult(
             items=collected_items,
             objects=collected_objects,
+            kingdom=kingdom,
             failed_chunks=tuple(failed_chunks),
             content_chunks=tuple(content_chunks),
         )

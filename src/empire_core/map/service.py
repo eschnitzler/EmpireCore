@@ -1,5 +1,10 @@
 """
 Map service: map areas and kingdom scans.
+
+Reading the map moves the session off the castle it had joined: a
+castle-scoped read after a scan fails with NOT_IN_OWNED_CASTLE until the
+castle is joined again. ``client.army`` methods join it themselves; anything
+else castle-scoped needs ``client.castle.select`` first.
 """
 
 from __future__ import annotations
@@ -30,6 +35,8 @@ class MapService(BaseService):
         """
         Scan a specific area of the map.
 
+        The session leaves the castle it had joined; see the module docstring.
+
         Args:
             x1: Left X coordinate
             y1: Top Y coordinate
@@ -53,7 +60,7 @@ class MapService(BaseService):
         chunk_delay: float = 0.2,
         include_unowned_types: set[MapItemType] | None = None,
     ) -> ScanResult:
-        """Scan a kingdom map. See MapScanner.scan_kingdom."""
+        """Scan a kingdom map. See MapScanner.scan_kingdom; the session leaves its castle."""
         return MapScanner(self.client).scan_kingdom(
             kingdom,
             item_types,
@@ -73,7 +80,7 @@ class MapService(BaseService):
         chunk_delay: float = 0.2,
         include_unowned_types: set[MapItemType] | None = None,
     ) -> ScanResult:
-        """Scan an explicit chunk list (no BFS). See MapScanner.scan_chunks."""
+        """Scan an explicit chunk list (no BFS). See MapScanner.scan_chunks; the session leaves its castle."""
         return MapScanner(self.client).scan_chunks(
             kingdom,
             chunks,

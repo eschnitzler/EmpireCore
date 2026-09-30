@@ -292,7 +292,7 @@ class TestMalformedResponses:
     def test_garbage_ai_entry_does_not_abort_scan(self):
         fake = _FakeClient(
             content_chunks=set(),
-            payloads={(1, 1): {"AI": [["?", "?", "?", "?"], [1, 95, 95, 900, 42]], "OI": []}},
+            payloads={(1, 1): {"AI": [[99, "?", "?", "?"], [1, 95, 95, 900, 42]], "OI": []}},
         )
         result = _make_scanner(fake).scan_chunks(
             kingdom=Kingdom.GREEN, chunks=[(1, 1), (2, 2)], item_types=[], chunk_delay=0
@@ -304,7 +304,7 @@ class TestMalformedResponses:
         assert fake.connection.requests == [(1, 1), (2, 2)]
 
     def test_garbage_ai_entry_is_logged(self, caplog):
-        fake = _FakeClient(content_chunks=set(), payloads={(1, 1): {"AI": [["?", "?", "?", "?"]], "OI": []}})
+        fake = _FakeClient(content_chunks=set(), payloads={(1, 1): {"AI": [[99, "?", "?", "?"]], "OI": []}})
         with caplog.at_level(logging.DEBUG, logger="empire_core.map.scanner"):
             _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
         assert "skipping invalid map item" in caplog.text
@@ -312,7 +312,7 @@ class TestMalformedResponses:
     def test_invalid_map_object_is_logged(self, caplog):
         fake = _FakeClient(
             content_chunks=set(),
-            payloads={(1, 1): {"AI": [], "OI": [{"OID": 7, "AP": "not-a-list"}]}},
+            payloads={(1, 1): {"AI": [], "OI": [{"OID": 7, "N": ["not", "a", "name"]}]}},
         )
         with caplog.at_level(logging.DEBUG, logger="empire_core.map.scanner"):
             result = _make_scanner(fake).scan_chunks(
@@ -372,7 +372,7 @@ class TestMalformedResponses:
         # must survive the fix above.
         fake = _FakeClient(
             content_chunks=set(),
-            payloads={(1, 1): {"AI": [["x", "y", "z", "w"], [31, 0, 996]], "OI": []}},
+            payloads={(1, 1): {"AI": [[14, "y", "z", "w"], [31, 0, 996]], "OI": []}},
         )
         with caplog.at_level(logging.WARNING, logger="empire_core.map.scanner"):
             _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
@@ -384,7 +384,7 @@ class TestMalformedResponses:
     def test_skipped_map_objects_counted_in_drift_warning(self, caplog):
         fake = _FakeClient(
             content_chunks=set(),
-            payloads={(1, 1): {"AI": [], "OI": [{"OID": 7, "AP": "not-a-list"}, "junk"]}},
+            payloads={(1, 1): {"AI": [], "OI": [{"OID": 7, "N": ["not", "a", "name"]}, "junk"]}},
         )
         with caplog.at_level(logging.WARNING, logger="empire_core.map.scanner"):
             _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
@@ -488,9 +488,52 @@ class TestItemTypeFiltering:
 
         result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
 
-        assert [i.item_type for i in result.items] == [int(MapItemType.NOMAD_CAMP)]
+        assert [i.item_type for i in result.items] == [MapItemType.NOMAD_CAMP]
 
     def test_empty_list_means_no_filtering(self):
         fake = _FakeClient(content_chunks=set(), payloads={(1, 1): self.ROBBER_BARON_AI})
         result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
-        assert [i.item_type for i in result.items] == [int(MapItemType.DUNGEON)]
+        assert [i.item_type for i in result.items] == [MapItemType.DUNGEON]
+
+
+class TestRelocatingCastles:
+    """CastleMapobjectVO.parseAreaInfo (bundle line 18910): a four-field castle row is a plot or a moving castle."""
+
+    def test_a_castle_on_the_move_is_kept_and_a_free_plot_is_not(self):
+        rows = [[1, 95, 95, 4242], [1, 96, 96, -1], [12, 97, 97, 4343]]
+        fake = _FakeClient(content_chunks=set(), payloads={(1, 1): {"AI": rows, "OI": []}})
+        result = _make_scanner(fake).scan_chunks(
+            kingdom=Kingdom.GREEN,
+            chunks=[(1, 1)],
+            item_types=[MapItemType.CASTLE, MapItemType.KINGDOM_CASTLE],
+            chunk_delay=0,
+        )
+        assert [(i.x, i.occupier_id, i.is_relocating) for i in result.items] == [(95, 4242, True), (97, 4343, True)]
+
+    def test_free_plots_can_be_included(self):
+        fake = _FakeClient(content_chunks=set(), payloads={(1, 1): {"AI": [[1, 96, 96, -1]], "OI": []}})
+        result = _make_scanner(fake).scan_chunks(
+            kingdom=Kingdom.GREEN, chunks=[(1, 1)], include_unowned_types={MapItemType.CASTLE}, chunk_delay=0
+        )
+        assert [(i.x, i.is_relocating) for i in result.items] == [(96, False)]
+
+
+class TestScanKingdom:
+    """Every item and the result carry the kingdom scanned."""
+
+    def test_items_and_the_result_carry_the_scanned_kingdom(self):
+        fake = _FakeClient(content_chunks={(1, 1)})
+        result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.ICE, chunks=[(1, 1)], chunk_delay=0)
+        assert result.kingdom is Kingdom.ICE
+        assert [i.kingdom for i in result.items] == [Kingdom.ICE]
+
+    def test_a_row_that_names_its_kingdom_keeps_it(self):
+        camp = [int(MapItemType.DUNGEON), 95, 95, -1, 3, 0, int(Kingdom.FIRE)]
+        fake = _FakeClient(content_chunks=set(), payloads={(1, 1): {"AI": [camp], "OI": []}})
+        result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
+        assert [i.kingdom for i in result.items] == [Kingdom.FIRE]
+
+    def test_owner_records_without_an_owner_id_are_left_out(self):
+        fake = _FakeClient(content_chunks=set(), payloads={(1, 1): {"AI": [], "OI": [{"N": "x"}, {"OID": 5}]}})
+        result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], chunk_delay=0)
+        assert list(result.objects) == [5]

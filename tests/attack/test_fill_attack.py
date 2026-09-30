@@ -838,6 +838,23 @@ class TestFillAttack:
         assert (item.base_wall_bonus, item.base_gate_bonus, item.base_moat_bonus) == (110.0, 110.0, 0.0)
         assert MapAreaItem.from_list([1, 700, 710, 900, 4242, 1, 1, 1, 0, 0]).base_wall_bonus is None
 
+    def test_an_invasion_camps_protection_is_divided_by_a_hundred(self):
+        # FightScreenHelper.getDefenceBonuses (bundle line 19148) takes baseWallBonus / 100,
+        # as fortification_bonuses does for a castle's buildings
+        from empire_core.attack.service import _Target
+        from empire_core.enums import Flank
+
+        client = self.build([[601, 100_000]])
+        assert client.game_data is not None
+        target = _Target(x=700, y=710, row=[27, 700, 710, -1, 4, 0, 0, 0, -1, 110, 120, 30])
+
+        defense = client.attack._target_defense(client.game_data, target)
+
+        assert defense is not None
+        left, middle = defense[Flank.LEFT], defense[Flank.MIDDLE]
+        assert (left.wall_bonus, left.gate_bonus, left.moat_bonus) == pytest.approx((1.1, 0.0, 0.3))
+        assert middle.gate_bonus == pytest.approx(1.2)
+
     def test_an_unknown_camp_rank_says_which_rank(self):
         client = self.build([[601, 100_000]])
         # Rank 99 is a daimyo castle the trimmed tables do not describe.

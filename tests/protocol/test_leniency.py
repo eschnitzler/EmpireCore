@@ -37,17 +37,15 @@ class TestPositionalArrayParsers:
     which is what the callers above them catch.
     """
 
-    @pytest.mark.parametrize("data", [[], [1], [1, 2], [1, 2, 3], [1, 2, 3, 4]])
+    @pytest.mark.parametrize("data", [[1], [1, 2], [1, 2, 3], [1, 2, 3, 4], [2, 1]])
     def test_map_area_item_tolerates_short_arrays(self, data):
         item = MapAreaItem.from_list(data)
         assert item.raw_data == data
-        assert item.is_relocating is False
+        assert item.is_relocating is (data == [1, 2, 3, 4])
 
-    def test_map_area_item_defaults_for_an_empty_array(self):
-        item = MapAreaItem.from_list([])
-        assert (item.item_type, item.x, item.y, item.owner_id) == (0, 0, 0, -1)
-        assert item.player_id == -1
-        assert item.type_name == "EMPTY"
+    def test_map_area_item_rejects_an_empty_array(self):
+        with pytest.raises(ValueError):
+            MapAreaItem.from_list([])
 
     @pytest.mark.parametrize(
         "item_type",
@@ -61,32 +59,31 @@ class TestPositionalArrayParsers:
             MapItemType.KINGS_TOWER,
             MapItemType.MONUMENT,
             MapItemType.LABORATORY,
+            MapItemType.ISLE_RESOURCE,
         ],
     )
     def test_map_area_item_owner_is_field_four_for_every_owned_type(self, item_type):
-        item = MapAreaItem.from_list([item_type, 1, 2, 900, 4242])
-        assert (item.location_id, item.owner_id, item.player_id) == (900, 4242, 4242)
-        assert item.has_owner_field
+        item = MapAreaItem.from_list([item_type, 1, 2, 900, 4242, 0])
+        assert (item.location_id, item.owner_id, item.has_player_owner) == (900, 4242, True)
 
     @pytest.mark.parametrize(
         "item_type", [MapItemType.FACTION_VILLAGE, MapItemType.FACTION_TOWER, MapItemType.FACTION_CAPITAL]
     )
     def test_map_area_item_faction_landmark_owner_is_field_three(self, item_type):
-        item = MapAreaItem.from_list([item_type, 1, 2, 4242, [], -1, 3])
-        assert (item.owner_id, item.location_id) == (4242, -1)
-        assert item.has_owner_field
+        item = MapAreaItem.from_list([item_type, 1, 2, 4242])
+        assert (item.owner_id, item.location_id) == (4242, None)
 
     def test_map_area_item_empty_castle_slot_has_no_owner(self):
         # A free plot comes as a four-field row: [1, x, y, -1].
         item = MapAreaItem.from_list([MapItemType.CASTLE, 632, 204, -1])
-        assert (item.location_id, item.owner_id) == (-1, -1)
+        assert (item.location_id, item.owner_id, item.occupier_id) == (None, None, -1)
 
-    def test_map_area_item_unclaimed_outpost_has_no_owner(self):
+    def test_map_area_item_unclaimed_outpost_has_an_npc_owner(self):
         # The client's OUTPOST_DEFAULT_OWNER_ID and OUTPOST_DEFAULT_AREA_ID are -300.
         unclaimed = MapAreaItem.from_list([MapItemType.OUTPOST, 630, 205, 14824223, -300, 1, 1, 1, 0, 0, ""])
-        assert (unclaimed.location_id, unclaimed.owner_id) == (14824223, -1)
+        assert (unclaimed.location_id, unclaimed.owner_id, unclaimed.has_player_owner) == (14824223, -300, False)
         bare = MapAreaItem.from_list([MapItemType.OUTPOST, 630, 180, -300, -300, 0, 0, 0, 0, 0, ""])
-        assert (bare.location_id, bare.owner_id) == (-1, -1)
+        assert (bare.location_id, bare.owner_id) == (-300, -300)
 
     @pytest.mark.parametrize(
         "row",
@@ -100,18 +97,23 @@ class TestPositionalArrayParsers:
     )
     def test_map_area_item_camp_rows_report_no_owner(self, row):
         item = MapAreaItem.from_list(row)
-        assert (item.owner_id, item.location_id) == (-1, -1)
-        assert not item.has_owner_field
+        assert (item.owner_id, item.location_id) == (None, None)
 
-    def test_map_area_item_unknown_type_name_is_labeled(self):
-        assert MapAreaItem.from_list([9999, 1, 2, 3]).type_name == "UNKNOWN_9999"
+    def test_map_area_item_unknown_type_is_unreadable(self):
+        with pytest.raises(ValueError, match="9999"):
+            MapAreaItem.from_list([9999, 1, 2, 3])
 
-    @pytest.mark.parametrize("data", [["?", "?", "?", "?"], [1, [2], 3, 4], [1, None, 2, 3]])
+    @pytest.mark.parametrize("data", [[1, 2, 3, 4, 5, 1, 1, 1, 0, 0, ["name"]], [10, 1, 2, "id", 5]])
     def test_map_area_item_rejects_wrong_types_as_validation_errors(self, data):
-        # The map scanner relies on this being a ValidationError to skip the
-        # row and carry on with the chunk.
+        # A value the client stores as sent must be of the field's kind; the
+        # callers catch ValueError, which ValidationError is.
         with pytest.raises(ValidationError):
             MapAreaItem.from_list(data)
+
+    def test_map_area_item_reads_what_the_client_reads_through_int(self):
+        # int("?") is 0: the empty tile, as WorldmapObjectFactory reads it
+        item = MapAreaItem.from_list(["?", "?", "?", "?"])
+        assert (item.item_type, item.x, item.y) == (MapItemType.EMPTY, 0, 0)
 
     @pytest.mark.parametrize("data", [[], [[]], [0], [0, 1], [0, 1, 2], ["a", "b", "c", "d", "e"], "abcde"])
     def test_castle_position_rows_that_do_not_fit_are_skipped(self, data):
@@ -121,7 +123,7 @@ class TestPositionalArrayParsers:
     def test_a_castle_position_without_its_area_type_is_kept(self):
         # MinWorldMapCastleInfoVO.fillFromParamObject reads row[4] raw, so a four-field row still counts
         member = AllianceMember.model_validate({"OID": 1, "AP": [[0, 12345, 640, 655]]})
-        assert [(c.area_id, c.area_type) for c in member.castle_positions] == [(12345, 0)]
+        assert [(c.area_id, c.area_type) for c in member.castle_positions] == [(12345, None)]
 
     def test_castle_positions_unwrap_a_doubly_nested_entry(self):
         member = AllianceMember.model_validate(
@@ -331,7 +333,7 @@ class TestMalformedNestedResponsePayloads:
 
     def test_drifted_map_row_is_skipped_and_counted_at_parse_time(self, caplog):
         with caplog.at_level(logging.WARNING, logger="empire_core.map.models.areas"):
-            response = GetMapAreaResponse.model_validate({"KID": 1, "AI": [["?", "?", "?", "?"]]})
+            response = GetMapAreaResponse.model_validate({"KID": 1, "AI": [[99, "?", "?", "?"]]})
         assert response.kingdom == Kingdom.SANDS
         assert response.items == []
         assert response.get_moving_flags() == {}
@@ -341,10 +343,10 @@ class TestMalformedNestedResponsePayloads:
     def test_map_rows_survive_a_drifted_neighbour(self, caplog):
         good_row = [1, 640, 655, 900, 4242]
         with caplog.at_level(logging.WARNING, logger="empire_core.map.models.areas"):
-            response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [["?", "?", "?", "?"], good_row, "junk"]})
+            response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [[99, "?", "?", "?"], good_row, "junk"]})
         assert [(i.x, i.y, i.owner_id) for i in response.items] == [(640, 655, 4242)]
         assert response.items[0].raw_data == good_row
-        assert "Skipped 1/3" in caplog.text
+        assert "Skipped 2/3" in caplog.text
 
     def test_a_map_area_without_a_row_list_has_no_items(self):
         assert GetMapAreaResponse.model_validate({"KID": 0, "AI": {"x": 1}}).items == []
@@ -445,11 +447,11 @@ class TestReplyEnumProperties:
             GetMapAreaResponse.model_validate({"KID": 11, "AI": []})
 
     def test_a_camp_row_in_a_kingdom_the_client_does_not_define_keeps_the_row(self):
-        # Rows carry their kingdom only in the raw fields, so an unknown one costs only camp_kingdom_id
+        # A kingdom the client does not define leaves the row in the reply's kingdom
         response = GetMapAreaResponse.model_validate(
             {"KID": 0, "AI": [[2, 630, 243, -1, 297, 5, 11], [2, 1, 2, -1, 3, 5, 2]]}
         )
-        assert [(item.victory_count, item.camp_kingdom_id) for item in response.items] == [
-            (297, None),
+        assert [(item.victory_count, item.kingdom) for item in response.items] == [
+            (297, Kingdom.GREEN),
             (3, Kingdom.ICE),
         ]

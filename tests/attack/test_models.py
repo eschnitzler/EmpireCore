@@ -242,7 +242,7 @@ class TestReviewedLeniency:
         from empire_core.protocol.models import GetAttackInfoResponse
 
         info = GetAttackInfoResponse.model_validate(
-            {"gaa": {"AI": [[1], 2, 3, 4], "OI": [{"OID": 5, "L": None}, {"OID": 6, "AP": "x"}]}}
+            {"gaa": {"AI": [[99], 2, 3, 4], "OI": [{"OID": 5, "L": None}, {"OID": 6, "N": ["x"]}]}}
         )
         assert info.target_area.area is None
         assert [(o.owner_id, o.level) for o in info.owner_records()] == [(5, 0)]

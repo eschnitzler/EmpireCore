@@ -334,7 +334,7 @@ class TestAllianceLandmarksAndDiplomacy:
 
     def test_an_unreadable_landmark_row_is_skipped(self, caplog):
         with caplog.at_level("WARNING"):
-            info = AllianceInfo.model_validate({"ACA": [["?", "?", "?", "?"], self.CAPITAL]})
+            info = AllianceInfo.model_validate({"ACA": [[99, "?", "?", "?"], self.CAPITAL]})
         assert [i.x for i in info.capitals] == [500]
         assert "alliance landmark rows" in caplog.text
 

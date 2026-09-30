@@ -276,7 +276,7 @@ class SearchPlayerResponse(BaseResponse):
         or its owner has no record, and None when there are no records.
         """
         at_position = next(
-            (item for item in self.area.items if (item.x, item.y) == (self.x, self.y) and item.owner_id >= 0),
+            (item for item in self.area.items if (item.x, item.y) == (self.x, self.y) and item.has_player_owner),
             None,
         )
         if at_position is not None:

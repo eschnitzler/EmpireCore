@@ -178,6 +178,16 @@ def _precalculation(area_type: int, conquer: bool) -> _Precalculation:
     return found
 
 
+def _row_item(row: list | None) -> MapAreaItem | None:
+    """A target's map row as the client reads it, or None when there is none it can read."""
+    if not row:
+        return None
+    try:
+        return MapAreaItem.from_list(row)
+    except ValueError:
+        return None
+
+
 @dataclass
 class _Target:
     """
@@ -686,7 +696,8 @@ class AttackService(BaseService):
             target.source_y = source.y if source is not None else 0
 
         if target.area_type is None and target.row:
-            target.area_type = MapAreaItem.from_list(target.row).item_type
+            row_item = _row_item(target.row)
+            target.area_type = row_item.item_type if row_item is not None else None
 
         area = None
         scanned = False
@@ -706,7 +717,7 @@ class AttackService(BaseService):
             area = self._scan_tile(target, timeout=timeout)
             self._take_scanned_row(target, area)
 
-        item = MapAreaItem.from_list(target.row) if target.row else None
+        item = _row_item(target.row)
         if item is None:
             self._return_to_castle(castle_id, home_kingdom, timeout, scanned=area is not None)
             return
@@ -717,8 +728,8 @@ class AttackService(BaseService):
             # row carries the count.
             if target.camp_victories is None:
                 target.camp_victories = item.victory_count
-            if target.camp_kingdom_id == Kingdom.GREEN and item.camp_kingdom_id is not None:
-                target.camp_kingdom_id = item.camp_kingdom_id
+            if target.camp_kingdom_id == Kingdom.GREEN:
+                target.camp_kingdom_id = item.kingdom
         elif item.is_invasion_camp:
             if target.level is None and self.client.game_data is not None:
                 player = self.client.state.get_local_player()
@@ -745,8 +756,9 @@ class AttackService(BaseService):
             (item.raw_data for item in area.items if (item.x, item.y) == (target.x, target.y)),
             None,
         )
-        if target.row and target.area_type is None:
-            target.area_type = MapAreaItem.from_list(target.row).item_type
+        row_item = _row_item(target.row)
+        if row_item is not None and target.area_type is None:
+            target.area_type = row_item.item_type
 
     def _return_to_castle(self, castle_id: int, kingdom_id: Kingdom, timeout: float, *, scanned: bool) -> None:
         """Scanning moves the client off the attacking castle; the reads that follow are castle-scoped."""
@@ -783,22 +795,21 @@ class AttackService(BaseService):
         """
         if target.camp_victories is not None:
             return npc_camp_defense(game_data, target.camp_victories, target.camp_kingdom_id)
-        if target.row is None:
+        item = _row_item(target.row)
+        if item is None:
             return None
-
-        item = MapAreaItem.from_list(target.row)
         if item.is_invasion_camp:
-            # An invasion camp's row reports its protection as a percentage
-            # already, so there is no building level to convert.
-            wall = item.base_wall_bonus or 0.0
-            gate = item.base_gate_bonus or 0.0
-            moat = item.base_moat_bonus or 0.0
+            # An invasion camp's row reports its protection as a percentage, which
+            # FightScreenHelper.getDefenceBonuses (bundle line 19148) divides by 100.
+            wall = (item.base_wall_bonus or 0.0) / 100
+            gate = (item.base_gate_bonus or 0.0) / 100
+            moat = (item.base_moat_bonus or 0.0) / 100
         else:
             wall, gate, moat = fortification_bonuses(
                 game_data,
-                wall_level=item.wall_level,
-                gate_level=item.gate_level,
-                moat_level=item.moat_level,
+                wall_level=item.wall_level or 0,
+                gate_level=item.gate_level or 0,
+                moat_level=item.moat_level or 0,
             )
         if target.spy_army is not None:
             return spied_castle_defense(
@@ -869,7 +880,9 @@ class AttackService(BaseService):
         if target.area_bonuses is None:
             target.area_bonuses = info.attacker_bonuses()
 
-    def _owner_record(self, area: GetMapAreaResponse | None, owner_id: int, target: "_Target") -> MapObject | None:
+    def _owner_record(
+        self, area: GetMapAreaResponse | None, owner_id: int | None, target: "_Target"
+    ) -> MapObject | None:
         """The owner record of whoever owns a tile, from the scan of that tile."""
         if area is None:
             return None
@@ -1036,13 +1049,12 @@ class AttackService(BaseService):
                         "Pass target_x and target_y to read the target, or target_level, "
                         "or camp_victories to derive the level from"
                     )
-                item = MapAreaItem.from_list(target.row) if target.row else None
+                item = _row_item(target.row)
                 if item is None:
                     reason = "neither the map nor a pre-calculation has a row for it"
                 elif item.is_invasion_camp:
-                    reason = (
-                        f"the items payload describes no camp {item.invasion_camp_field} for area type {item.item_type}"
-                    )
+                    camp = item.camp_id if item.camp_id is not None else item.victory_count
+                    reason = f"the items payload describes no camp {camp} for area type {int(item.item_type)}"
                 else:
                     reason = f"the map row for area type {target.area_type} carries no owner level"
                 raise ValueError(
@@ -1050,8 +1062,9 @@ class AttackService(BaseService):
                     "Pass target_level to fill it anyway"
                 )
             target.level = camp_level(target.camp_victories, target.camp_kingdom_id)
-        if target.row is not None and target.area_type is None:
-            target.area_type = MapAreaItem.from_list(target.row).item_type
+        if target.area_type is None:
+            row_item = _row_item(target.row)
+            target.area_type = row_item.item_type if row_item is not None else None
 
         defense = self._target_defense(game_data, target)
 

@@ -50,8 +50,11 @@ def camp_level(victories: int, kingdom_id: Kingdom = Kingdom.GREEN) -> int:
     return int(CAMP_LEVEL_FACTOR * abs(victories) ** CAMP_LEVEL_POWER) + offset
 
 
-# The samurai invasion, whose league bands set how hard its camps start.
+# The invasions whose league bands set how hard their camps start: a samurai camp is
+# SamuraiCampMapObjectVO (bundle line 76522) and a nomad camp NomadCampMapObjectVO
+# (bundle line 76411), whose event is EVENTTYPE_NOMADINVASION_ALLIANCE (bundle line 76414).
 SAMURAI_INVASION_EVENT_ID = 80
+NOMAD_INVASION_EVENT_ID = 72
 
 # The rank table a daimyo castle's map row indexes.
 DAIMYO_CASTLE_TABLE = "daimyoCastles"
@@ -61,18 +64,18 @@ def invasion_camp_level(game_data: GameData, item: MapAreaItem, player_level: in
     """
     The level an invasion event target is fought at, which its row does not carry.
 
-    The three types do not share a rule, because only two of them are camps:
+    The four types do not share a rule, because only three of them are camps:
 
-    - A samurai camp is one. It starts where the attacking player's league band
-      starts and climbs by one for every defeat it has taken.
-    - A daimyo castle is one too, but names a rank instead of a defeat count,
-      and the rank carries the level.
-    - A daimyo township is not. The game counts the attacking player as its
-      owner, so it is fought at that player's own level and its rank says
+    - A samurai or nomad camp starts where the attacking player's league band
+      in its event starts and climbs by one for every defeat it has taken.
+    - A daimyo castle names a rank instead of a defeat count, and the rank
+      carries the level.
+    - A daimyo township is not a camp. The game counts the attacking player as
+      its owner, so it is fought at that player's own level and its rank says
       nothing about it.
 
-    A row that names a difficulty scaling camp overrides the level of the two
-    that are camps, which is how a chosen difficulty raises them for one player.
+    A row that names a difficulty scaling camp overrides the level of the
+    camps, which is how a chosen difficulty raises them for one player.
 
     Args:
         game_data: Loaded items payload
@@ -81,7 +84,7 @@ def invasion_camp_level(game_data: GameData, item: MapAreaItem, player_level: in
 
     Returns:
         The level to size the wave at, or None when this is not one of the
-        three or the tables do not describe it
+        four or the tables do not describe it
     """
     if not item.is_invasion_camp:
         return None
@@ -89,7 +92,11 @@ def invasion_camp_level(game_data: GameData, item: MapAreaItem, player_level: in
     # A row too short to name its camp is one the game does not put on the map
     # either. Reading the missing field as a zero would make it a real camp at
     # the band's own base level.
-    field = item.invasion_camp_field
+    field = (
+        item.camp_id
+        if item.item_type in (MapItemType.DAIMYO_CASTLE, MapItemType.DAIMYO_TOWNSHIP)
+        else item.victory_count
+    )
     if field is None:
         return None
 
@@ -105,7 +112,8 @@ def invasion_camp_level(game_data: GameData, item: MapAreaItem, player_level: in
         rank = game_data.get_event_camp(DAIMYO_CASTLE_TABLE, field)
         return rank.level if rank is not None else None
 
-    base = game_data.event_base_camp_level(SAMURAI_INVASION_EVENT_ID, player_level)
+    event_id = NOMAD_INVASION_EVENT_ID if item.item_type == MapItemType.NOMAD_CAMP else SAMURAI_INVASION_EVENT_ID
+    base = game_data.event_base_camp_level(event_id, player_level)
     return None if base is None else base + field
 
 

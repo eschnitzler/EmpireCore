@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from pydantic import Field, PrivateAttr, ValidationError, ValidatorFunctionWrapHandler, field_validator, model_validator
+from pydantic import Field, PrivateAttr, ValidatorFunctionWrapHandler, field_validator, model_validator
 from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from empire_core.army.models.units import SpyPositions, UnitInventory
@@ -71,7 +71,7 @@ class AttackTargetArea(BasePayload):
             return None
         try:
             return MapAreaItem.from_list(value)
-        except (ValidationError, TypeError):
+        except ValueError:
             logger.warning("Could not read the target's map row from an attack pre-calculation")
             return None
 

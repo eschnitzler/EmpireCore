@@ -264,8 +264,6 @@ from empire_core.enums import (
     WearerType,
 )
 from empire_core.map.models.areas import (
-    AllianceCrest,
-    AllianceEmblem,
     FindNPCRequest,
     FindNPCResponse,
     GetMapAreaRequest,
@@ -274,7 +272,13 @@ from empire_core.map.models.areas import (
     NPCLocation,
 )
 from empire_core.map.models.items import MapAreaItem
-from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest, OwnerFaction
+from empire_core.map.models.owners import (
+    AllianceCrest,
+    AllianceEmblem,
+    OwnerCastlePosition,
+    OwnerCrest,
+    OwnerFaction,
+)
 from empire_core.messages.models import (
     ForwardSpyLogRequest,
     GetSpyReportRequest,

@@ -1,383 +1,588 @@
-"""Map area items: the rows of a map area, one per map object."""
+"""Map area items: the rows of a map area, one per map object, read by their area type's client parser."""
 
 from __future__ import annotations
 
-import warnings
-from typing import Any, cast
+from collections.abc import Callable
+from typing import Any
 
-from pydantic import Field, ValidationError
+from pydantic import Field
 
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.protocol.base import BasePayload, enum_or_none
-from empire_core.protocol.js import js_int
+from empire_core.protocol.js import js_int, js_loose_equals, js_truthy
 
-# Indices into an owned-location raw entry, from the client's
-# InteractiveMapobjectVO.parseAreaInfo:
-#   [type, x, y, object_id, player_id, keep, wall, gate, tower, moat, name,
-#    attack_cooldown, sabotage_cooldown, seconds_since_espionage,
-#    outpost_type, occupier_id, kingdom_id, ..., relocating_flag]
-# A free castle plot is the four-field row [1, x, y, -1].
-_LOCATION_ID_FIELD = 3
+from .owners import AllianceCrest
 
 
-_PLAYER_ID_FIELD = 4
+class _Row:
+    """A map row with the reads the client's parsers make: as sent, through ``int()``, or ``1 == value``."""
+
+    def __init__(self, data: list[Any]) -> None:
+        self.data = data
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def raw(self, index: int) -> Any:
+        return self.data[index] if len(self.data) > index else None
+
+    def as_int(self, index: int) -> int:
+        # int(undefined) is 0
+        return js_int(self.raw(index))
+
+    def one(self, index: int) -> bool:
+        return js_loose_equals(self.raw(index), 1)
 
 
-_RELOCATING_FIELD = 19  # 1 while the castle is in transit, 0 when settled
+def _sabotage_protection(row: _Row) -> bool:
+    return js_int(row.raw(19) if len(row) > 19 else 0) == 1
 
 
-# Indices into a gaa type-2 (DUNGEON) raw entry, from the client's
-# DungeonMapobjectVO.parseAreaInfo:
-#   [type, x, y, seconds_since_espionage, victory_count, cooldown_seconds, kingdom]
-# Indices into an owned-location row, from InteractiveMapobjectVO.parseAreaInfo.
-_KEEP_LEVEL_FIELD = 5
-
-
-_WALL_LEVEL_FIELD = 6
-
-
-_GATE_LEVEL_FIELD = 7
-
-
-_TOWER_LEVEL_FIELD = 8
-
-
-_MOAT_LEVEL_FIELD = 9
-
-
-_DUNGEON_ESPIONAGE_FIELD = 3
-
-
-_DUNGEON_VICTORY_FIELD = 4
-
-
-_DUNGEON_COOLDOWN_FIELD = 5
-
-
-_DUNGEON_KINGDOM_FIELD = 6
-
-
-# An invasion event's camps share one row shape, which is not the castle one:
-# field 4 names the camp, and fields 9 to 11 are fortification percentages
-# rather than building levels.
-_INVASION_CAMP_FIELD = 4
-
-
-_INVASION_SCALING_FIELD = 8
-
-
-_INVASION_WALL_BONUS_FIELD = 9
-
-
-_INVASION_GATE_BONUS_FIELD = 10
-
-
-_INVASION_MOAT_BONUS_FIELD = 11
-
-
-# Types whose row carries an object id at field 3 and the owner's player id
-# at field 4: every class that uses or mirrors InteractiveMapobjectVO.parseAreaInfo.
-OWNED_AREA_TYPES = frozenset(
-    {
-        MapItemType.CASTLE,
-        MapItemType.CAPITAL,
-        MapItemType.OUTPOST,
-        MapItemType.VILLAGE,
-        MapItemType.KINGDOM_CASTLE,
-        MapItemType.FACTION_CAMP,
-        MapItemType.METROPOL,
-        MapItemType.KINGS_TOWER,
-        MapItemType.ISLE_RESOURCE,
-        MapItemType.MONUMENT,
-        MapItemType.LABORATORY,
+def _interactive(row: _Row) -> dict[str, Any]:
+    """``InteractiveMapobjectVO.parseAreaInfo`` (bundle line 3631): castles, outposts and faction camps."""
+    return {
+        "location_id": row.raw(3),
+        "owner_id": row.as_int(4),
+        "keep_level": max(row.as_int(5), 1),
+        "wall_level": max(row.as_int(6), 1),
+        "gate_level": max(row.as_int(7), 1),
+        "tower_level": row.as_int(8),
+        "moat_level": row.as_int(9),
+        "name": row.raw(10),
+        "attack_cooldown_seconds": row.as_int(11),
+        "sabotage_cooldown_seconds": row.as_int(12),
+        "seconds_since_espionage": row.as_int(13),
+        "outpost_type": row.as_int(14),
+        "occupier_id": row.as_int(15),
+        "row_kingdom": row.raw(16),
+        "skin_id": row.as_int(17),
+        "has_sabotage_protection": _sabotage_protection(row),
     }
-)
 
 
-# Faction landmarks carry only the owner's player id, at field 3.
-FACTION_LANDMARK_TYPES = frozenset(
-    {
-        MapItemType.FACTION_VILLAGE,
-        MapItemType.FACTION_TOWER,
-        MapItemType.FACTION_CAPITAL,
+def _castle(row: _Row) -> dict[str, Any]:
+    """``CastleMapobjectVO.parseAreaInfo`` (bundle line 18910), which ``KingdomCastleMapobjectVO`` inherits."""
+    if len(row) <= 4:
+        # A free plot, or a castle on the move when the occupier is a player
+        return {"occupier_id": row.raw(3)}
+    fields = _interactive(row)
+    connection = row.raw(18)
+    if isinstance(connection, list):
+        fields["abg_tower_connection"] = connection
+    return fields
+
+
+def _faction_camp(row: _Row) -> dict[str, Any]:
+    """``FactionCampMapobjectVO.parseAreaInfo`` (bundle line 21526); a row of three fields is not on the map."""
+    if len(row) <= 3:
+        return {}
+    return {**_interactive(row), "is_destroyed": js_loose_equals(row.data[-1], 1)}
+
+
+def _capital(row: _Row) -> dict[str, Any]:
+    """``CapitalMapobjectVO.parseAreaInfo`` (bundle line 18729); levels, spy age, occupier and skin as sent."""
+    return {
+        "location_id": row.raw(3),
+        "owner_id": row.as_int(4),
+        "keep_level": row.raw(5),
+        "wall_level": row.raw(6),
+        "gate_level": row.raw(7),
+        "tower_level": row.raw(8),
+        "moat_level": row.raw(9),
+        "name": row.raw(10),
+        "attack_cooldown_seconds": row.as_int(11),
+        "sabotage_cooldown_seconds": row.as_int(12),
+        "seconds_since_espionage": row.raw(13),
+        "occupier_id": row.raw(14),
+        "skin_id": row.raw(15),
+        "row_kingdom": row.raw(16),
+        "has_sabotage_protection": _sabotage_protection(row),
     }
-)
 
 
-# Rows whose structure levels sit at fields 5 to 9. InteractiveMapobjectVO.parseAreaInfo
-# (bundle line 3631) reads them through int() and floors keep, wall and gate at 1;
-# CapitalMapobjectVO (18731) and MetropolMapobjectVO (21611) take them as sent.
-# Kings towers, monuments, laboratories, villages and isles parse their own rows
-# and leave the inherited levels at 0.
-_FLOORED_LEVEL_TYPES = frozenset(
-    {MapItemType.CASTLE, MapItemType.OUTPOST, MapItemType.KINGDOM_CASTLE, MapItemType.FACTION_CAMP}
-)
+def _metropol(row: _Row) -> dict[str, Any]:
+    """``MetropolMapobjectVO.parseAreaInfo`` (bundle line 21609): a capital's row, plus its ABG mine."""
+    fields = _capital(row)
+    if len(row) > 17:
+        fields.update(abg_mine_out_seconds=row.as_int(17), abg_max_influence_points=row.as_int(18))
+    return fields
 
 
-_RAW_LEVEL_TYPES = frozenset({MapItemType.CAPITAL, MapItemType.METROPOL})
+def _village(row: _Row) -> dict[str, Any]:
+    """``VillageMapobjectVO.parseAreaInfo`` (bundle line 22623)."""
+    return {
+        "location_id": row.raw(3),
+        "owner_id": row.as_int(4),
+        "village_type": row.as_int(5),
+        "row_kingdom": row.raw(6),
+        "seconds_since_espionage": row.raw(7),
+        "name": row.raw(8),
+    }
 
 
-# The level of an upgradable landmark: MonumentMapobjectVO reads it at field 6,
-# LaboratoryMapobjectVO at field 5.
-_LANDMARK_LEVEL_FIELDS: dict[MapItemType, int] = {MapItemType.MONUMENT: 6, MapItemType.LABORATORY: 5}
+def _resource_isle(row: _Row) -> dict[str, Any]:
+    """``ResourceIsleMapobjectVO.parseAreaInfo`` (bundle line 34603)."""
+    return {
+        "location_id": row.raw(3),
+        "owner_id": row.raw(4),
+        "row_kingdom": row.raw(5),
+        "name": row.raw(6),
+        "seconds_since_espionage": row.raw(7),
+        "isle_id": row.as_int(8),
+        "remaining_occupier_seconds": row.raw(9),
+    }
+
+
+def _kings_tower(row: _Row) -> dict[str, Any]:
+    """``KingstowerMapobjectVO.parseAreaInfo`` (bundle line 19055)."""
+    return {
+        "location_id": row.raw(3),
+        "owner_id": row.as_int(4),
+        "row_kingdom": row.raw(5),
+        "seconds_since_espionage": row.raw(6),
+        "name": row.raw(7),
+    }
+
+
+def _monument(row: _Row) -> dict[str, Any]:
+    """``MonumentMapobjectVO.parseAreaInfo`` (bundle line 21652)."""
+    return {
+        "location_id": row.raw(3),
+        "owner_id": row.raw(4),
+        "monument_type": row.as_int(5),
+        "landmark_level": row.raw(6),
+        "row_kingdom": row.raw(7),
+        "seconds_since_espionage": row.raw(8),
+        "name": row.raw(9),
+    }
+
+
+def _laboratory(row: _Row) -> dict[str, Any]:
+    """``LaboratoryMapobjectVO.parseAreaInfo`` (bundle line 25900)."""
+    return {
+        "location_id": row.raw(3),
+        "owner_id": row.raw(4),
+        "landmark_level": row.raw(5),
+        "row_kingdom": row.raw(6),
+        "seconds_since_espionage": row.raw(7),
+        "name": row.raw(8),
+    }
+
+
+def _faction_village(row: _Row) -> dict[str, Any]:
+    """``FactionVillageMapobjectVO.parseAreaInfo`` (bundle line 28486)."""
+    protectors = row.raw(4)
+    return {
+        "owner_id": row.raw(3),
+        "protector_positions": protectors if isinstance(protectors, list) else [],
+        "seconds_since_espionage": row.raw(5),
+        "dungeon_level": row.as_int(6),
+        "attack_cooldown_seconds": row.as_int(7),
+    }
+
+
+def _faction_tower(row: _Row) -> dict[str, Any]:
+    """``FactionTowerMapobjectVO.parseAreaInfo`` (bundle line 22810)."""
+    return {
+        "owner_id": row.raw(3),
+        "is_destroyed": row.one(4),
+        "protector_positions": row.raw(5),
+        "seconds_since_espionage": row.raw(6),
+        "dungeon_level": row.as_int(7),
+        "attacks_left": row.as_int(8),
+        "special_camp_id": row.raw(9),
+    }
+
+
+def _faction_capital(row: _Row) -> dict[str, Any]:
+    """``FactionCapitalMapobjectVO.parseAreaInfo`` (bundle line 22764)."""
+    return {
+        "owner_id": row.raw(3),
+        "protector_positions": row.raw(4),
+        "seconds_since_espionage": row.raw(5),
+        "dungeon_level": row.as_int(6),
+        "is_destroyed": row.one(7),
+        "special_camp_id": row.raw(8),
+    }
+
+
+def _dungeon(row: _Row) -> dict[str, Any]:
+    """``DungeonMapobjectVO.parseAreaInfo`` (bundle line 22057), which ``TreasureDungeonMapObjectVO`` inherits."""
+    return {
+        "seconds_since_espionage": row.raw(3),
+        "victory_count": row.as_int(4),
+        "attack_cooldown_seconds": row.raw(5),
+        "row_kingdom": row.raw(6),
+    }
+
+
+def _boss_dungeon(row: _Row) -> dict[str, Any]:
+    """``BossdungeonMapobjectVO.parseAreaInfo`` (bundle line 34441)."""
+    return {
+        "seconds_since_espionage": row.raw(3),
+        "dungeon_level": row.as_int(4),
+        "attack_cooldown_seconds": row.raw(5),
+        "defeater_player_id": row.as_int(6),
+        "row_kingdom": row.raw(7),
+    }
+
+
+def _event_dungeon(row: _Row) -> dict[str, Any]:
+    """``EventdungeonMapobjectVO.parseAreaInfo`` (bundle line 34488); a row of three fields is not on the map."""
+    if len(row) <= 3:
+        return {}
+    return {"seconds_since_espionage": row.raw(3), "dungeon_level": row.as_int(4), "is_defeated": row.one(5)}
+
+
+def _wolf_king(row: _Row) -> dict[str, Any]:
+    """``WolfkingCastleMapObjectVO.parseAreaInfo`` (bundle line 34409); a row of three fields is not on the map."""
+    if len(row) <= 3:
+        return {}
+    return {
+        **_event_dungeon(row),
+        "base_wall_bonus": row.raw(6),
+        "base_gate_bonus": row.raw(7),
+        "base_moat_bonus": row.raw(8),
+    }
+
+
+def _treasure_camp(row: _Row) -> dict[str, Any]:
+    """``EventCampMapobjectVO.parseAreaInfo`` (bundle line 26867): field 1 is the treasure map, 22 when unset."""
+    return {"map_id": row.raw(1) if js_truthy(row.raw(1)) else 22}
+
+
+def _attack_area(row: _Row) -> dict[str, Any]:
+    """``ShadowareaMapobjectVO`` (bundle line 76548) and ``PlagueareaMapobjectVO`` (bundle line 46016)."""
+    return {"attack_cooldown_seconds": row.raw(3), "seconds_since_espionage": row.raw(4)}
+
+
+def _alien_camp(row: _Row) -> dict[str, Any]:
+    """``AAlienInvasionMapobjectVO.parseAreaInfo`` (bundle line 41543); the rest follows only past field 4."""
+    fields: dict[str, Any] = {"dungeon_level": row.raw(3)}
+    if len(row) > 4:
+        fields.update(
+            seconds_since_espionage=row.raw(4),
+            has_peace_mode=row.one(5),
+            base_wall_bonus=row.raw(6),
+            base_gate_bonus=row.raw(7),
+            base_moat_bonus=row.raw(8),
+            already_rerolled=len(row) >= 10 and row.one(9),
+            scaling_camp_id=row.raw(10) if len(row) >= 11 else -1,
+        )
+    return fields
+
+
+def _isle_dungeon(row: _Row) -> dict[str, Any]:
+    """``DungeonIsleMapobjectVO.parseAreaInfo`` (bundle line 76288)."""
+    return {
+        "row_kingdom": row.raw(3),
+        "seconds_since_espionage": row.raw(4),
+        "isle_id": row.as_int(5),
+        "attack_cooldown_seconds": row.as_int(6),
+        "victory_count": row.raw(7),
+    }
+
+
+def _invasion_camp(row: _Row) -> dict[str, Any]:
+    """``SamuraiCampMapObjectVO`` (bundle line 76493) and ``NomadCampMapObjectVO`` (bundle line 76379)."""
+    if len(row) <= 3:
+        return {}
+    return {
+        "seconds_since_espionage": row.raw(3),
+        "victory_count": row.raw(4),
+        "attack_cooldown_seconds": row.raw(5),
+        "scaling_camp_id": row.raw(8),
+        "base_wall_bonus": row.raw(9),
+        "base_gate_bonus": row.raw(10),
+        "base_moat_bonus": row.raw(11),
+    }
+
+
+def _faction_invasion_camp(row: _Row) -> dict[str, Any]:
+    """``FactionInvasionCampMapObjectVO.parseAreaInfo`` (bundle line 76324)."""
+    if len(row) <= 3:
+        return {}
+    return {
+        "seconds_since_espionage": row.raw(3),
+        "victory_count": row.raw(4),
+        "attack_cooldown_seconds": row.raw(5),
+        "dungeon_type": row.as_int(7),
+    }
+
+
+def _daimyo(row: _Row) -> dict[str, Any]:
+    """``DaimyoCastleMapObjectVO`` (bundle line 19651) and ``DaimyoTownshipMapObjectVO`` (bundle line 21736)."""
+    if len(row) <= 3:
+        return {}
+    return {
+        "seconds_since_espionage": row.raw(3),
+        "camp_id": row.raw(4),
+        "attack_cooldown_seconds": row.raw(5),
+        "total_cooldown_seconds": row.as_int(6),
+        "skip_cost": row.as_int(7),
+        "scaling_camp_id": row.as_int(8),
+        "base_wall_bonus": row.raw(9),
+        "base_gate_bonus": row.raw(10),
+        "base_moat_bonus": row.raw(11),
+    }
+
+
+def _alliance_camp(row: _Row) -> dict[str, Any]:
+    """``AAllianceInvasionCampMapObjectVO.parseData`` (bundle line 47392): nomad khan camps, ABG resource towers."""
+    if len(row) <= 3:
+        return {}
+    return {
+        "seconds_since_espionage": row.raw(3),
+        "camp_id": row.as_int(4),
+        "attack_cooldown_seconds": row.raw(5),
+        "total_cooldown_seconds": row.as_int(6),
+        "skip_cost": row.as_int(7),
+        "victory_count": row.raw(8),
+        "scaling_camp_id": row.as_int(9),
+        "base_wall_bonus": row.raw(10),
+        "base_gate_bonus": row.raw(11),
+        "base_moat_bonus": row.raw(12),
+    }
+
+
+def _abg_tower(row: _Row) -> dict[str, Any]:
+    """``ABGAllianceTowerMapobjectVO.parseAreaInfo`` (bundle line 32279); an alliance, not a player, holds it."""
+    crest = row.raw(9)
+    return {
+        "location_id": row.raw(3),
+        "name": row.raw(4),
+        "is_attackable": js_truthy(row.raw(5)),
+        "victory_count": row.as_int(6),
+        "alliance_id": row.as_int(7),
+        "alliance_name": row.raw(8),
+        "alliance_crest": {"ACLI": crest[0], "ACCS": crest[1]} if isinstance(crest, list) and len(crest) > 1 else None,
+        "abg_connections": row.raw(10),
+    }
+
+
+def _position_only(row: _Row) -> dict[str, Any]:
+    """
+    ``DummyMapobjectVO`` (bundle line 43578), ``PlaceholderMapobjectVO`` (bundle line 76458) and
+    ``AllianceRaidEventPortalMapobjectVO`` (bundle line 41600) read only the position.
+    """
+    return {}
+
+
+# The area types WorldmapObjectFactory.mapObjectVOs (bundle line 5357) registers a map object for,
+# each with its parser. The factory returns null for any other type, so the client reads no such row.
+ROW_PARSERS: dict[MapItemType, Callable[[_Row], dict[str, Any]]] = {
+    MapItemType.EMPTY: _position_only,
+    MapItemType.CASTLE: _castle,
+    MapItemType.DUNGEON: _dungeon,
+    MapItemType.CAPITAL: _capital,
+    MapItemType.OUTPOST: _interactive,
+    MapItemType.TREASURE_DUNGEON: _dungeon,
+    MapItemType.TREASURE_CAMP: _treasure_camp,
+    MapItemType.SHADOW_AREA: _attack_area,
+    MapItemType.VILLAGE: _village,
+    MapItemType.BOSS_DUNGEON: _boss_dungeon,
+    MapItemType.KINGDOM_CASTLE: _castle,
+    MapItemType.EVENT_DUNGEON: _event_dungeon,
+    MapItemType.FACTION_CAMP: _faction_camp,
+    MapItemType.FACTION_VILLAGE: _faction_village,
+    MapItemType.FACTION_TOWER: _faction_tower,
+    MapItemType.FACTION_CAPITAL: _faction_capital,
+    MapItemType.PLAGUE_AREA: _attack_area,
+    MapItemType.ALIEN_CAMP: _alien_camp,
+    MapItemType.METROPOL: _metropol,
+    MapItemType.KINGS_TOWER: _kings_tower,
+    MapItemType.ISLE_RESOURCE: _resource_isle,
+    MapItemType.ISLE_DUNGEON: _isle_dungeon,
+    MapItemType.MONUMENT: _monument,
+    MapItemType.NOMAD_CAMP: _invasion_camp,
+    MapItemType.LABORATORY: _laboratory,
+    MapItemType.SAMURAI_CAMP: _invasion_camp,
+    MapItemType.FACTION_INVASION_CAMP: _faction_invasion_camp,
+    MapItemType.DYNAMIC: _position_only,
+    MapItemType.RED_ALIEN_CAMP: _alien_camp,
+    MapItemType.ALLIANCE_NOMAD_CAMP: _alliance_camp,
+    MapItemType.DAIMYO_CASTLE: _daimyo,
+    MapItemType.DAIMYO_TOWNSHIP: _daimyo,
+    MapItemType.ALLIANCE_BATTLE_GROUND_RESOURCE_TOWER: _alliance_camp,
+    MapItemType.ALLIANCE_BATTLE_GROUND_TOWER: _abg_tower,
+    MapItemType.WOLF_KING: _wolf_king,
+    MapItemType.ARE_PORTAL: _position_only,
+}
+
+
+# The castle map objects: a row of four fields or fewer is a free plot or a castle on the move.
+_CASTLE_TYPES = frozenset({MapItemType.CASTLE, MapItemType.KINGDOM_CASTLE})
 
 
 INVASION_AREA_TYPES = frozenset(
     {
         MapItemType.SAMURAI_CAMP,
+        MapItemType.NOMAD_CAMP,
         MapItemType.DAIMYO_CASTLE,
         MapItemType.DAIMYO_TOWNSHIP,
     }
 )
+"""Invasion event camps: their row gives the camp's own wall, gate and moat protection."""
 
 
 class MapAreaItem(BasePayload):
     """
-    A raw map area item from the AI array.
+    One map row, read field by field as its area type's client parser reads it.
 
-    AI array format: [[type, x, y, location_id, player_id, ...], ...]
+    Every row starts ``[area_type, x, y]``; what follows depends on the type
+    (see ``ROW_PARSERS``). A field the type's row does not carry is None. The
+    client reads some values through ``int()`` and stores the rest as sent;
+    so does this model, so a value of the wrong kind where the client stores
+    it as sent makes the row unreadable.
 
-    For every type in ``OWNED_AREA_TYPES``, field 3 is the location
-    (castle/outpost) id and field 4 the owning player's id -- see
-    ``location_id`` and ``owner_id``. A faction landmark carries only the
-    owner, at field 3. Every other row (an NPC camp, an event camp, a free
-    plot) has no owner field, so ``owner_id`` stays -1 and ``has_owner_field``
-    is False; a camp's own fields are exposed by ``victory_count`` and the
-    properties beside it.
-
-    Common types (see MapItemType enum):
-    - 1: Player main castle (``is_relocating`` tells you if it is in transit)
-    - 2: NPC camp (robber baron)
-    - 3: Capital
-    - 4: Outpost
-    - 22: Metropolis
-    - 26: Monument
-
-    Client: ``WorldmapObjectFactory.parseWorldMapArea`` (bundle line 5343)
+    Client: ``WorldmapObjectFactory.parseWorldMapArea`` (bundle line 5343);
+    ``CastleWorldmapData.parseAreaInfos`` (bundle line 18993) places each row
+    at ``int(row[1])``, ``int(row[2])``.
     """
 
-    item_type: int = 0
-    x: int = 0
-    y: int = 0
-    owner_id: int = -1
-    raw_data: list[Any] = Field(
-        default_factory=list,
-        description="The whole row; past [type, x, y] its layout depends on the area type",
+    item_type: MapItemType = Field(description="The row's area type")
+    x: int = Field(default=0, description="Map x")
+    y: int = Field(default=0, description="Map y")
+    kingdom: Kingdom = Field(
+        default=Kingdom.GREEN,
+        description="The kingdom the row names, else the kingdom of the reply it came in",
     )
+    location_id: int | None = Field(default=None, description="The map object's id; negative for an unclaimed plot")
+    owner_id: int | None = Field(
+        default=None,
+        description="Player id of the owner the row names; negative for an NPC owner such as an unclaimed outpost",
+    )
+    name: str | None = Field(default=None, description="The object's name")
+    keep_level: int | None = Field(default=None, description="Keep level")
+    wall_level: int | None = Field(default=None, description="Wall level")
+    gate_level: int | None = Field(default=None, description="Gate level")
+    tower_level: int | None = Field(default=None, description="Tower level")
+    moat_level: int | None = Field(default=None, description="Moat level")
+    attack_cooldown_seconds: int | None = Field(
+        default=None, description="Seconds until it can be attacked again; negative once that has passed"
+    )
+    sabotage_cooldown_seconds: int | None = Field(default=None, description="Seconds until it can be sabotaged again")
+    seconds_since_espionage: int | None = Field(
+        default=None, description="Seconds since it was last spied; negative when it never was"
+    )
+    outpost_type: int | None = Field(default=None, description="Outpost type")
+    occupier_id: int | None = Field(
+        default=None,
+        description="Player id of the occupier, -1 for none; on a four-field castle row, the player relocating there",
+    )
+    skin_id: int | None = Field(default=None, description="Unique id of the castle skin equipment it shows")
+    has_sabotage_protection: bool | None = Field(default=None, description="Temporary sabotage protection is on")
+    abg_tower_connection: list[Any] | None = Field(
+        default=None, description="On an alliance battle ground: the castle's tower connection"
+    )
+    abg_mine_out_seconds: int | None = Field(
+        default=None, description="Alliance battle ground: seconds until the metropolis is mined out"
+    )
+    abg_max_influence_points: int | None = Field(
+        default=None, description="Alliance battle ground: the metropolis's most influence points"
+    )
+    is_destroyed: bool | None = Field(default=None, description="The faction object is destroyed")
+    village_type: int | None = Field(default=None, description="Village type")
+    monument_type: int | None = Field(default=None, description="Monument type")
+    landmark_level: int | None = Field(default=None, description="A monument's or laboratory's level")
+    isle_id: int | None = Field(default=None, description="Isle blueprint id")
+    remaining_occupier_seconds: int | None = Field(default=None, description="Seconds left on the occupier's timer")
+    protector_positions: list[Any] | None = Field(
+        default=None, description="Positions of the faction object's protectors still standing"
+    )
+    dungeon_level: int | None = Field(default=None, description="The camp's level as its row gives it")
+    attacks_left: int | None = Field(default=None, description="Attacks the faction tower has left")
+    special_camp_id: int | None = Field(default=None, description="The faction event camp id")
+    victory_count: int | None = Field(default=None, description="How often the camp has been beaten")
+    defeater_player_id: int | None = Field(default=None, description="Player id of whoever defeated the boss dungeon")
+    is_defeated: bool | None = Field(default=None, description="The dungeon is defeated")
+    map_id: int | None = Field(default=None, description="The treasure map a treasure camp leads to")
+    has_peace_mode: bool | None = Field(default=None, description="The alien camp is in peace mode")
+    already_rerolled: bool | None = Field(default=None, description="The alien camp was already rerolled")
+    scaling_camp_id: int | None = Field(
+        default=None, description="The difficulty-scaling camp that sets the camp's level; -1 or 0 when none"
+    )
+    dungeon_type: int | None = Field(default=None, description="The faction king whose invasion camp this is")
+    camp_id: int | None = Field(
+        default=None, description="The camp's row in its event's camp table (a daimyo rank, an alliance camp)"
+    )
+    total_cooldown_seconds: int | None = Field(default=None, description="The camp's full cooldown")
+    skip_cost: int | None = Field(default=None, description="What skipping the cooldown costs")
+    base_wall_bonus: float | None = Field(default=None, description="The camp's wall protection, as a percentage")
+    base_gate_bonus: float | None = Field(default=None, description="The camp's gate protection, as a percentage")
+    base_moat_bonus: float | None = Field(default=None, description="The camp's moat protection, as a percentage")
+    is_attackable: bool | None = Field(default=None, description="The alliance tower can be attacked")
+    alliance_id: int | None = Field(default=None, description="Id of the alliance holding the tower")
+    alliance_name: str | None = Field(default=None, description="Name of the alliance holding the tower")
+    alliance_crest: AllianceCrest | None = Field(default=None, description="Crest of the alliance holding the tower")
+    abg_connections: list[Any] | None = Field(default=None, description="The alliance tower's connections")
+    raw_data: list[Any] = Field(default_factory=list, description="The whole row as sent")
 
     @classmethod
-    def from_list(cls, data: list) -> "MapAreaItem":
-        """Parse from AI array entry."""
-        item_type = data[0] if len(data) > 0 else 0
+    def from_list(cls, data: Any, kingdom: Kingdom = Kingdom.GREEN) -> MapAreaItem:
+        """
+        Read a map row; ``kingdom`` is the kingdom of the reply it came in.
 
-        if item_type in OWNED_AREA_TYPES and len(data) > _PLAYER_ID_FIELD:
-            owner_id = data[_PLAYER_ID_FIELD]
-        elif item_type in FACTION_LANDMARK_TYPES and len(data) > _LOCATION_ID_FIELD:
-            owner_id = data[_LOCATION_ID_FIELD]
-        else:
-            owner_id = -1
-        # An unclaimed outpost reports OUTPOST_DEFAULT_OWNER_ID (-300).
-        if isinstance(owner_id, int) and not isinstance(owner_id, bool) and owner_id < 0:
-            owner_id = -1
-
+        Raises:
+            ValueError: The row is not a list, is empty, or has an area type
+                the client reads no row of; ``ValidationError`` is one, for a
+                value of the wrong kind
+        """
+        if not isinstance(data, list) or not data:
+            raise ValueError(f"Not a map row: {data!r}")
+        area_type = enum_or_none(MapItemType, js_int(data[0]))
+        parser = ROW_PARSERS.get(area_type) if area_type is not None else None
+        if area_type is None or parser is None:
+            raise ValueError(f"The client reads no map row of area type {data[0]!r}")
+        row = _Row(data)
+        fields = parser(row)
+        row_kingdom = fields.pop("row_kingdom", None)
+        named = (
+            enum_or_none(Kingdom, row_kingdom)
+            if isinstance(row_kingdom, int) and not isinstance(row_kingdom, bool)
+            else None
+        )
         return cls(
-            item_type=item_type,
-            x=data[1] if len(data) > 1 else 0,
-            y=data[2] if len(data) > 2 else 0,
-            owner_id=owner_id,
+            item_type=area_type,
+            x=row.as_int(1),
+            y=row.as_int(2),
+            kingdom=kingdom if named is None else named,
             raw_data=data,
+            **fields,
         )
 
-    def _dungeon_field(self, index: int) -> int | None:
-        """An NPC camp field, or None when this is not a camp row."""
-        if self.item_type != MapItemType.DUNGEON or len(self.raw_data) <= index:
-            return None
-        value = self.raw_data[index]
-        if isinstance(value, bool) or not isinstance(value, int):
-            return None
-        return value
-
     @property
-    def victory_count(self) -> int | None:
-        """
-        How many times an NPC camp has been beaten, or None for other types.
-
-        This is what selects the camp's defenders: pass it to
-        ``GameData.dungeon_defense`` or
-        ``empire_core.combat.npc_camp_defense``.
-        """
-        return self._dungeon_field(_DUNGEON_VICTORY_FIELD)
-
-    @property
-    def seconds_since_espionage(self) -> int | None:
-        """How long ago an NPC camp was spied; -1 when it never was."""
-        return self._dungeon_field(_DUNGEON_ESPIONAGE_FIELD)
-
-    @property
-    def attack_cooldown_seconds(self) -> int | None:
-        """An NPC camp's remaining attack cooldown; negative once it expired."""
-        return self._dungeon_field(_DUNGEON_COOLDOWN_FIELD)
-
-    @property
-    def camp_kingdom_id(self) -> Kingdom | None:
-        """The kingdom an NPC camp sits in, as the camp row reports it; None for a kingdom id Kingdom lacks."""
-        value = self._dungeon_field(_DUNGEON_KINGDOM_FIELD)
-        return None if value is None else enum_or_none(Kingdom, value)
-
-    def _level_field(self, index: int, minimum: int = 0) -> int:
-        """A structure level, 0 for a row that carries none."""
-        if len(self.raw_data) <= index:
-            return 0
-        value = self.raw_data[index]
-        if self.item_type in _FLOORED_LEVEL_TYPES:
-            return max(js_int(value), minimum)
-        if self.item_type in _RAW_LEVEL_TYPES and isinstance(value, int) and not isinstance(value, bool):
-            return value
-        return 0
-
-    @property
-    def landmark_level(self) -> int | None:
-        """A monument's or laboratory's level, or None for other types."""
-        index = _LANDMARK_LEVEL_FIELDS.get(cast(MapItemType, self.item_type))
-        if index is None or len(self.raw_data) <= index:
-            return None
-        value = self.raw_data[index]
-        return value if isinstance(value, int) and not isinstance(value, bool) else None
-
-    @property
-    def keep_level(self) -> int:
-        """The defender's keep level; floored at 1 except on a capital or metropolis, 0 for a landmark."""
-        return self._level_field(_KEEP_LEVEL_FIELD, minimum=1)
-
-    @property
-    def wall_level(self) -> int:
-        """The defender's wall level, which decides its wall protection."""
-        return self._level_field(_WALL_LEVEL_FIELD, minimum=1)
-
-    @property
-    def gate_level(self) -> int:
-        """The defender's gate level."""
-        return self._level_field(_GATE_LEVEL_FIELD, minimum=1)
-
-    @property
-    def tower_level(self) -> int:
-        """The defender's tower level."""
-        return self._level_field(_TOWER_LEVEL_FIELD)
-
-    @property
-    def moat_level(self) -> int:
-        """The defender's moat level, 0 when it has none."""
-        return self._level_field(_MOAT_LEVEL_FIELD)
-
-    def _invasion_field(self, index: int) -> int | None:
-        """A field of an invasion event camp's row, or None for other types."""
-        if self.item_type not in INVASION_AREA_TYPES or len(self.raw_data) <= index:
-            return None
-        value = self.raw_data[index]
-        if isinstance(value, bool) or not isinstance(value, int):
-            return None
-        return value
-
-    @property
-    def is_invasion_camp(self) -> bool:
-        """Whether this row is an invasion event camp rather than a castle or an NPC camp."""
-        return self.item_type in INVASION_AREA_TYPES
-
-    @property
-    def invasion_camp_field(self) -> int | None:
-        """
-        Field 4 of an invasion camp's row.
-
-        The area type says what it means: a samurai camp counts its own defeats
-        here, while a daimyo castle or township names its rank in the matching
-        items table.
-        """
-        return self._invasion_field(_INVASION_CAMP_FIELD)
-
-    @property
-    def scaling_camp_id(self) -> int | None:
-        """
-        The difficulty-scaling camp this row points at, or -1 when unscaled.
-
-        Set when the player picked a difficulty for the event, and it then
-        decides the camp's level on its own.
-        """
-        return self._invasion_field(_INVASION_SCALING_FIELD)
-
-    @property
-    def base_wall_bonus(self) -> float | None:
-        """An invasion camp's wall protection, already a percentage."""
-        value = self._invasion_field(_INVASION_WALL_BONUS_FIELD)
-        return None if value is None else float(value)
-
-    @property
-    def base_gate_bonus(self) -> float | None:
-        """An invasion camp's gate protection, already a percentage."""
-        value = self._invasion_field(_INVASION_GATE_BONUS_FIELD)
-        return None if value is None else float(value)
-
-    @property
-    def base_moat_bonus(self) -> float | None:
-        """An invasion camp's moat protection, already a percentage."""
-        value = self._invasion_field(_INVASION_MOAT_BONUS_FIELD)
-        return None if value is None else float(value)
-
-    @property
-    def player_id(self) -> int:
-        """Id of the player who owns this location (raw field 4), or -1 if not reported."""
-        if len(self.raw_data) <= _PLAYER_ID_FIELD:
-            return -1
-        value = self.raw_data[_PLAYER_ID_FIELD]
-        return value if isinstance(value, int) and not isinstance(value, bool) else -1
-
-    @property
-    def location_id(self) -> int:
-        """The area id of an owned location (raw field 3), or -1 for a camp or a free plot."""
-        if self.item_type not in OWNED_AREA_TYPES or len(self.raw_data) <= _PLAYER_ID_FIELD:
-            return -1
-        value = self.raw_data[_LOCATION_ID_FIELD]
-        # A bare outpost plot reports OUTPOST_DEFAULT_AREA_ID (-300).
-        return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else -1
-
-    @property
-    def has_owner_field(self) -> bool:
-        """Whether rows of this type carry an owner at all; camps do not."""
-        return self.item_type in OWNED_AREA_TYPES or self.item_type in FACTION_LANDMARK_TYPES
+    def is_occupied(self) -> bool:
+        """Whether a player occupies it; the client's ``isOccupied`` is an occupier id above -1."""
+        return self.occupier_id is not None and self.occupier_id > -1
 
     @property
     def is_relocating(self) -> bool:
-        """True while this castle is in transit to a new position.
-
-        Raw field 19 is a per-castle relocation flag: 0 for a settled castle,
-        1 while it is moving. Only type-1 (CASTLE) entries carry it; anything
-        shorter than 20 fields predates the current server format and reports
-        no relocation state at all.
-
-        While relocating, ``(x, y)`` is the in-transit position the server
-        reports for the castle.
         """
-        if self.item_type != MapItemType.CASTLE or len(self.raw_data) <= _RELOCATING_FIELD:
-            return False
-        return bool(self.raw_data[_RELOCATING_FIELD])
+        Whether this is a castle on the move: a four-field castle row naming the relocating player.
+
+        ``occupier_id`` is that player; the owner record's ``remaining_relocation_time``
+        says when it arrives. ``[1, x, y, -1]`` is a free plot instead.
+
+        Client: ``CastleMapobjectVO.parseAreaInfo`` (bundle line 18910) queues such a row
+        as a relocation, and ``CastleWorldmapData.getExpiredRelocationObject`` (bundle
+        line 19023) ends it once that player's relocation time runs out.
+        """
+        return self.item_type in _CASTLE_TYPES and len(self.raw_data) <= 4 and self.is_occupied
 
     @property
-    def is_moving_flag(self) -> bool:
-        """Deprecated alias for :attr:`is_relocating`.
+    def has_player_owner(self) -> bool:
+        """Whether the row names a player as its owner, rather than an NPC or nobody."""
+        return self.owner_id is not None and self.owner_id > 0
 
-        Kept for callers written against the old name. It used to return True
-        for *every* owned type-1 entry, which made it useless for detecting
-        relocations; it now means what its name says.
-        """
-        warnings.warn(
-            "MapAreaItem.is_moving_flag is deprecated; use is_relocating instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.is_relocating
+    @property
+    def is_invasion_camp(self) -> bool:
+        """Whether this row is an invasion event camp, whose row gives its own protection."""
+        return self.item_type in INVASION_AREA_TYPES
 
     @property
     def is_castle(self) -> bool:
-        """Check if this is any player-owned location."""
+        """Whether this is a castle, capital, outpost, kingdom castle or metropolis."""
         return self.item_type in (
             MapItemType.CASTLE,
             MapItemType.CAPITAL,
@@ -386,34 +591,15 @@ class MapAreaItem(BasePayload):
             MapItemType.METROPOL,
         )
 
-    @property
-    def capturer_id(self) -> int:
-        if self.item_type == MapItemType.OUTPOST:
-            return self.raw_data[15] if len(self.raw_data) > 15 else -1
-        elif self.item_type in (MapItemType.CAPITAL, MapItemType.METROPOL):
-            return self.raw_data[14] if len(self.raw_data) > 14 else -1
-        return -1
 
-    @property
-    def is_being_captured(self) -> bool:
-        return self.capturer_id != -1
-
-    @property
-    def type_name(self) -> str:
-        """Get human-readable type name."""
-        try:
-            return MapItemType(self.item_type).name
-        except ValueError:
-            return f"UNKNOWN_{self.item_type}"
-
-
-def parse_area_rows(value: Any) -> tuple[list[MapAreaItem], int]:
+def parse_area_rows(value: Any, kingdom: Kingdom = Kingdom.GREEN) -> tuple[list[MapAreaItem], int]:
     """
     Map rows as :class:`MapAreaItem`, with how many rows could not be read.
 
-    A row shorter than ``[type, x, y, id]`` is dropped without counting, and a
-    row whose fields have the wrong types is counted and skipped, so one bad
-    row costs only itself.
+    ``kingdom`` is the kingdom of the reply the rows came in. A row that is not
+    a list, is empty, has an area type the client reads no row of, or has a
+    value of the wrong kind is counted and skipped, so one bad row costs only
+    itself. The client instead stops reading at an empty row.
 
     Client: ``CastleWorldmapData.parseAreaInfos`` (bundle line 18993) hands
     each row to ``WorldmapObjectFactory.parseWorldMapArea`` (bundle line 5343).
@@ -426,16 +612,16 @@ def parse_area_rows(value: Any) -> tuple[list[MapAreaItem], int]:
         if isinstance(row, MapAreaItem):
             items.append(row)
             continue
-        if not (isinstance(row, list) and len(row) >= 4):
-            continue
         try:
-            items.append(MapAreaItem.from_list(row))
-        except (ValidationError, TypeError):
+            items.append(MapAreaItem.from_list(row, kingdom))
+        except ValueError:
             skipped += 1
     return items, skipped
 
 
 __all__ = [
+    "INVASION_AREA_TYPES",
+    "ROW_PARSERS",
     "MapAreaItem",
     "parse_area_rows",
 ]
