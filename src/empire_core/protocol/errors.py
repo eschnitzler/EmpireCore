@@ -2,6 +2,15 @@ from enum import IntEnum
 
 
 class GGEError(IntEnum):
+    """
+    The status codes the server answers commands with.
+
+    Names are the client's, except that coins and rubies are named as such
+    where the client says currency 1 and 2 (C1, C2).
+
+    Client: ``ERROR`` enum (dll line 20067)
+    """
+
     ALL_OK = 0
     GENERAL_ERROR = 1
     INVALID_PARAMETER_VALUE = 2
@@ -403,7 +412,17 @@ class GGEError(IntEnum):
     PASSWORD_COOLDOWN = 450
     NOT_ENOUGH_TIME = 451
     NOT_SUPPORTED = 452
-    LOGIN_COOLDOWN = 453
+    LOGIN_COOLDOWN_ACTIVE = 453
+    QUEST_IN_PROGRESS = 454
+    QUEST_IN_COOLDOWN = 455
+    NOT_ENOUGH_QUEST_TRIES = 456
+    QUEST_NOT_IN_COOLDOWN = 457
+    INVALID_ALLIANCE_REWARD_ID = 458
+    QUEST_IN_PROGRESS_BY_OTHER_PLAYER = 459
+    RAID_BOSS_NOT_IN_POOL = 460
+    RAID_ALREADY_IN_PROGRESS = 461
+    RAID_BOSS_LOCKED = 462
+    RAID_NO_ACTIVE_BOSS = 463
     RESOURCE_PRODUCTION_CAP = 1001
     TOO_MANY_LEADERS = 1002
     QUICK_ATTACK_ENABLED = 1003
@@ -437,4 +456,4 @@ class GGEError(IntEnum):
 
     @property
     def is_cooldown(self) -> bool:
-        return self in (GGEError.COOLING_DOWN, GGEError.LOGIN_COOLDOWN)
+        return self in (GGEError.COOLING_DOWN, GGEError.LOGIN_COOLDOWN_ACTIVE)

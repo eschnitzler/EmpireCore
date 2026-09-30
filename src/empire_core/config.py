@@ -5,39 +5,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from empire_core.protocol.errors import GGEError
-
-# ============================================================
-# Constants
-# ============================================================
-
-
-class ServerError:
-    """Server error codes seen during the login handshake.
-
-    :class:`~empire_core.protocol.errors.GGEError` is the authoritative table;
-    the members here are aliases of it, kept only because the login code reads
-    better with a login-phase name. Never add a bare number to this class: two
-    tables disagreeing about what a code means is worse than one incomplete one.
-
-    Unresolved conflicts (settle these against live traffic before adding them
-    back). An earlier version of this class also declared:
-
-    - ``INVALID_CREDENTIALS = 401`` -- but ``GGEError.REWARD_ID_NOT_FOUND`` is
-      also 401.
-    - ``SESSION_EXPIRED = 440`` -- but ``GGEError.RUBY_CONFIRMATION_REQUIRED`` is
-      also 440.
-
-    Both were unused, and there is no evidence for which reading is right, so
-    they were dropped rather than guessed at. If 401/440 really do carry
-    login-phase-specific meanings, capture a real ``lli`` failure for each and
-    document it on the login handler (and, if it is genuinely a distinct code
-    space, say so explicitly here).
-    """
-
-    LOGIN_COOLDOWN = GGEError.LOGIN_COOLDOWN  # 453, and both tables agreed on it
-
-
 _AID_ENV_VAR = "EMPIRE_AID"
 # Width of the AID the browser client sends (matching the literal that used to be
 # hard-coded here): epoch-milliseconds plus six random digits.

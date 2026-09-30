@@ -22,7 +22,7 @@ from empire_core.army.service import ArmyService
 from empire_core.attack.service import AttackService
 from empire_core.castle.service import CastleService
 from empire_core.commanders.service import CommandersService, EquipmentService, SkillsService
-from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, ServerError, default_config
+from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, default_config
 from empire_core.defense.service import DefenseService
 from empire_core.events.service import EventsService
 from empire_core.exceptions import (
@@ -39,6 +39,7 @@ from empire_core.movements.models import GetMovementsRequest
 from empire_core.movements.service import MovementsService
 from empire_core.network.connection import NON_ERROR_COMMANDS, Connection
 from empire_core.player.service import PlayerService
+from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import BaseRequest, BaseResponse, parse_response
 from empire_core.protocol.packet import Packet
 from empire_core.ranking.service import RankingService
@@ -370,7 +371,7 @@ class EmpireClient:
                 raise EmpireTimeoutError("XT login timed out") from e
 
             if lli_response.error_code != 0:
-                if lli_response.error_code == ServerError.LOGIN_COOLDOWN:
+                if lli_response.error_code == GGEError.LOGIN_COOLDOWN_ACTIVE:
                     cooldown = 0
                     if isinstance(lli_response.payload, dict):
                         cooldown = int(lli_response.payload.get("CD", 0))

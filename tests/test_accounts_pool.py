@@ -11,10 +11,9 @@ import pytest
 from pydantic import ValidationError
 
 from empire_core.accounts import Account, AccountRegistry
-from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, ServerError, default_config, generate_aid, resolve_aid
+from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, default_config, generate_aid, resolve_aid
 from empire_core.exceptions import LoginCooldownError, LoginError
 from empire_core.pool import AccountPool, PoolExhaustedError
-from empire_core.protocol.errors import GGEError
 
 
 @pytest.fixture
@@ -218,24 +217,6 @@ class TestDefaultConfigIsNotSharedMutableState:
         cfg.default_zone = "EmpireEx_1"
         assert cfg.default_zone == "EmpireEx_1"
         assert default_config.default_zone != "EmpireEx_1"
-
-
-class TestServerErrorCodeTable:
-    """``config.ServerError`` used to be a second, contradictory error-code table."""
-
-    def test_login_cooldown_matches_the_authoritative_table(self):
-        assert ServerError.LOGIN_COOLDOWN == GGEError.LOGIN_COOLDOWN
-
-    @pytest.mark.parametrize("name", ["INVALID_CREDENTIALS", "SESSION_EXPIRED"])
-    def test_codes_that_contradict_ggeerror_are_gone(self, name):
-        # 401 was both ServerError.INVALID_CREDENTIALS and GGEError.REWARD_ID_NOT_FOUND;
-        # 440 was both SESSION_EXPIRED and RUBY_CONFIRMATION_REQUIRED. Keeping a second
-        # name for the same number guarantees one of the two readings is a lie.
-        assert not hasattr(ServerError, name)
-
-    def test_unresolved_conflicts_are_documented(self):
-        doc = ServerError.__doc__ or ""
-        assert "401" in doc and "440" in doc, "the unresolved code conflicts must stay written down"
 
 
 class TestLoginFingerprint:

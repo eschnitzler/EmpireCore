@@ -26,7 +26,7 @@ from typing import Any
 import pytest
 
 from empire_core.client.client import EmpireClient
-from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, ServerError
+from empire_core.config import LOGIN_DEFAULTS, EmpireConfig
 from empire_core.exceptions import (
     EmpireError,
     EmpireTimeoutError,
@@ -34,6 +34,7 @@ from empire_core.exceptions import (
     LoginError,
 )
 from empire_core.network.connection import ResponseWaiter
+from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import MALFORMED_STATUS_CODE, Packet
 
 # The full handshake in wire order: XML version check, XML zone login, XML
@@ -46,7 +47,7 @@ HANDSHAKE_STEPS = ["apiOK", "rlu", "joinOK", "roundTripRes", "lli"]
 # with unrelated GGEError codes, so the login path treats them as ordinary
 # rejections. These literals are here to pin that generic handling, not to
 # re-assert a meaning for them.
-LOGIN_COOLDOWN_CODE = int(ServerError.LOGIN_COOLDOWN)
+LOGIN_COOLDOWN_CODE = int(GGEError.LOGIN_COOLDOWN_ACTIVE)
 BAD_CREDENTIALS_CODE = 401
 SESSION_EXPIRED_CODE = 440
 
