@@ -69,7 +69,7 @@ class PlayerService(BaseService):
         self,
         player_ids: list[int],
         timeout: float = 5.0,
-        send_delay: float = 0.05,
+        send_delay: float = 0.0,
     ) -> PlayerDetailsBulkResult:
         """
         Get detailed info for several players, one gdi request after another.
@@ -83,9 +83,8 @@ class PlayerService(BaseService):
         Args:
             player_ids: Player ids to fetch, found as for :meth:`get_player_info`; repeats are fetched once
             timeout: Seconds to wait for each reply
-            send_delay: Seconds to wait between two requests. The server drops
-                connections that sustain high request rates (the same reason
-                MapScanner paces its chunks). Set to 0 to send without pacing.
+            send_delay: Seconds to wait between two requests; by default none, as
+                each already waits for the one before it to be answered
 
         Returns:
             Which players were found, which failed and why, and which timed out

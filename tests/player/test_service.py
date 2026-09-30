@@ -49,12 +49,12 @@ class TestBulkPlayerDetails:
 
         assert sleeps == [0.05, 0.05]
 
-    def test_zero_delay_does_not_sleep(self, monkeypatch):
+    def test_no_delay_by_default(self, monkeypatch):
         sleeps: list[float] = []
         monkeypatch.setattr(player_module.time, "sleep", sleeps.append)
         client = make_client({"gdi": [gdi(1), gdi(2)]})
 
-        client.player.get_player_details_bulk([1, 2], send_delay=0.0)
+        client.player.get_player_details_bulk([1, 2])
 
         assert sleeps == []
 
