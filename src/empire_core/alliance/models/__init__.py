@@ -22,7 +22,6 @@ from .diplomacy import (
 )
 from .help import (
     REPAIR_HELP_COOLDOWN_SECONDS,
-    AllianceHelpListRequest,
     AllianceHelpListResponse,
     AllianceHelpReceived,
     AllianceHelpRequest,
@@ -98,7 +97,6 @@ __all__ = [
     "BuildingHelpParams",
     "HelpParams",
     "AllianceHelpRequest",
-    "AllianceHelpListRequest",
     "AllianceHelpListResponse",
     "AllianceHelpRequestChanged",
     "AllianceHelpRequestRemoved",

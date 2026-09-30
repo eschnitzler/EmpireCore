@@ -113,7 +113,7 @@ Services are attached to the client automatically; there is nothing to wire up.
 client.alliance.send_chat("Hello!")
 client.alliance.help_all()
 
-# The alliance help list, kept current from the server's pushes. As the client
+# The alliance help list, filled from the login data and kept current from the pushes. As the client
 # lists them: skip requests you already helped, your own, and finished ones
 # (progress at the help type's maxHelpersCount in the items data's
 # alliancehelprequests: 3, or 5 for healing and 20 for loop recruiting in v786.03)

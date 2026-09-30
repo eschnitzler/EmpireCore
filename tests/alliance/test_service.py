@@ -441,14 +441,35 @@ class TestAllianceHelp:
 
         assert seen == []
 
-    def test_get_help_requests_sends_an_empty_ahl(self):
-        client = make_client({"ahl": xt_packet("ahl", {"AHL": [REPAIR_ENTRY], "TSL": 600})})
+    def test_the_login_data_fills_the_help_list(self):
+        client = make_client()
+        seen: list[Any] = []
+        client.alliance.on_help_update(seen.append)
+        gbd = {"gcu": {"C1": 10, "C2": 0}, "ahl": {"AHL": [REPAIR_ENTRY, HEAL_ENTRY], "TSL": 600}, "ain": {}}
 
-        reply = client.alliance.get_help_requests()
+        client._on_packet(xt_packet("gbd", gbd))
 
-        assert conn(client).request_payloads == [("ahl", {})]
-        assert [r.list_id for r in reply.requests] == [32]
-        assert reply.repair_help_cooldown_seconds == 10200
+        assert [r.list_id for r in client.alliance.help_requests] == [32, 31]
+        assert [type(u).__name__ for u in seen] == ["AllianceHelpListResponse"]
+        assert seen[0].repair_help_cooldown_seconds == 10200
+        assert conn(client).sent == []
+
+    def test_a_relogin_replaces_the_help_list(self):
+        client = make_client()
+        client._on_packet(xt_packet("gbd", {"ahl": {"AHL": [HEAL_ENTRY], "TSL": -1}}))
+
+        client._on_packet(xt_packet("gbd", {"ahl": {"AHL": [REPAIR_ENTRY], "TSL": -1}}))
+
+        assert [r.list_id for r in client.alliance.help_requests] == [32]
+
+    @pytest.mark.parametrize("gbd", [{"gcu": {"C1": 1}}, {"ahl": None}])
+    def test_login_data_without_a_help_list_keeps_it(self, gbd):
+        client = make_client()
+        client._on_packet(xt_packet("ahl", {"AHL": [HEAL_ENTRY], "TSL": -1}))
+
+        client._on_packet(xt_packet("gbd", gbd))
+
+        assert [r.list_id for r in client.alliance.help_requests] == [31]
 
 
 class TestAllianceBookmarks:

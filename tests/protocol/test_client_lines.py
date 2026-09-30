@@ -8,7 +8,6 @@ from empire_core.protocol.base import BaseRequest, BaseResponse
 # Models the client has no code for, each with why.
 CLIENT_LESS = {
     "AllianceChatLogRequest": "the client never sends acl; its C2S_ALLIANCE_CHAT_LOG constant is unused",
-    "AllianceHelpListRequest": "the client never sends ahl; it only reads the ahl the server sends",
 }
 
 

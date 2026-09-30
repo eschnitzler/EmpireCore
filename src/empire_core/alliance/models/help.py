@@ -155,29 +155,17 @@ def _help_requests(value: Any) -> list[AllianceHelpRequest]:
 # =============================================================================
 
 
-class AllianceHelpListRequest(BaseRequest):
-    """
-    Ask for the alliance help list.
-
-    Command: ahl
-    Payload: {}
-
-    The client never sends ahl: it has only the ``C2S_ALLIANCE_HELP_LIST``
-    constant (bundle line 71), no VO and no call site. It reads the ahl the
-    server sends, so this payload is not taken from the client.
-    """
-
-    command = "ahl"
-
-
 class AllianceHelpListResponse(BaseResponse):
     """
     The alliance help list.
 
-    Command: ahl
+    Command: ahl, as a login section of ``gbd`` and as a push. The client
+    never asks for it: ``C2S_ALLIANCE_HELP_LIST`` (bundle line 71) has no VO
+    and no call site.
 
     Client: ``AHLCommand.executeCommand`` (bundle line 121904),
-    ``AllianceHelpRequestData.parse_AHL`` (bundle line 133386)
+    ``AllianceHelpRequestData.parse_AHL`` (bundle line 133386), read from
+    ``gbd`` (bundle line 129381)
     """
 
     command = "ahl"
@@ -383,7 +371,6 @@ __all__ = [
     "BuildingHelpParams",
     "HelpParams",
     "AllianceHelpRequest",
-    "AllianceHelpListRequest",
     "AllianceHelpListResponse",
     "AllianceHelpRequestChanged",
     "AllianceHelpRequestRemoved",

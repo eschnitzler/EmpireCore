@@ -37,7 +37,6 @@ from empire_core.alliance.models.diplomacy import (
     SetAutoWarResponse,
 )
 from empire_core.alliance.models.help import (
-    AllianceHelpListRequest,
     AllianceHelpListResponse,
     AllianceHelpReceived,
     AllianceHelpRequest,
@@ -600,30 +599,26 @@ class AllianceService(BaseService):
     @property
     def help_requests(self) -> list[AllianceHelpRequest]:
         """
-        The alliance help list as the ahl, ahh and ahd pushes left it.
+        The alliance help list as the login data and the pushes since left it.
+
+        The login data's ``ahl`` section fills it, and so does an ahl push;
+        ahh replaces or adds a request by ``LID``, ahd removes one. The client
+        never asks the server for the list, and neither does this library.
+        The list is not emptied when the session drops, as the client keeps
+        it; the next login's ``ahl`` section replaces it.
 
         Client: ``AllianceHelpRequestData`` (bundle line 133359) keeps the list
-        the same way: ahl replaces it, ahh replaces or adds by ``LID``, ahd removes by ``LID``
+        the same way, from ``GBDCommand.exec`` (bundle line 129381) and the
+        ``AHL``/``AHH``/``AHD`` commands; it has no ``reset`` of its own
+        (``CastleBasicData.reset``, bundle line 2109, is empty)
         """
         with self._help_lock:
             return list(self._help_requests)
 
-    def get_help_requests(self, timeout: float = 5.0) -> AllianceHelpListResponse:
-        """
-        Ask the server for the alliance help list.
-
-        The game client never asks for ahl, it only reads the ahl the server
-        sends; whether the server answers this request is unverified. The
-        reply also refreshes :attr:`help_requests`.
-
-        Raises:
-            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
-        """
-        return self.request(AllianceHelpListRequest(), AllianceHelpListResponse, timeout=timeout)
-
     def on_help_update(self, callback: Callable[[AllianceHelpUpdate], None]) -> None:
         """
-        Call ``callback`` with each ahl, ahh, ahd and ahf the server sends, after :attr:`help_requests` is updated.
+        Call ``callback`` with the login data's ahl section and each ahl, ahh, ahd and ahf push,
+        after :attr:`help_requests` is updated.
 
         Detach it again with :meth:`remove_help_update_callback`.
         """

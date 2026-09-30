@@ -60,8 +60,9 @@ logger = logging.getLogger(__name__)
 LOBBY_ROOM_NAME = "Lobby"
 
 # Login data sections the client parses as it parses the push of the same name.
-# Client: GBDCommand.exec (bundle line 129381) hands n.sne to parse_SNE, as SNECommand does.
-LOGIN_SECTION_PUSHES = ("sne",)
+# Client: GBDCommand.exec (bundle line 129381) hands n.sne to parse_SNE and n.ahl to parse_AHL,
+# as SNECommand and AHLCommand do.
+LOGIN_SECTION_PUSHES = ("sne", "ahl")
 
 
 def _joined_room_id(join_ok: Packet) -> int:
