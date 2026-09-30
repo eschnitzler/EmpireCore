@@ -531,26 +531,51 @@ class TestRecvLoopResilience:
 
         assert disconnects == [True]
 
-    def test_an_unexpected_error_in_the_loop_still_runs_the_epilogue(self, live_conn, monkeypatch, caplog):
+    def test_an_unexpected_error_in_the_loop_still_runs_the_epilogue(self, live_conn, caplog):
         # Nothing in the loop is expected to raise outside recv(); if something does,
         # the connection must still end cleanly rather than look alive with a dead thread.
-        from empire_core.network import connection as connection_module
+        class Undecodable(bytes):
+            def decode(self, *args, **kwargs):
+                raise MemoryError("injected")
 
-        def broken_feed(self, message):
-            raise MemoryError("injected")
-
-        monkeypatch.setattr(connection_module.FrameBuffer, "feed", broken_feed)
         disconnects: list[int] = []
         live_conn.on_disconnect = disconnects.append
         waiter = live_conn.create_waiter("gam")
 
         with caplog.at_level("ERROR", logger="empire_core.network.connection"):
-            live_conn._recv_loop(FakeSocket([make_frame("gam"), make_frame("gam")]), 1)
+            live_conn._recv_loop(FakeSocket([Undecodable(make_frame("gam")), make_frame("gam")]), 1)
 
         assert live_conn._running is False
         assert isinstance(waiter.error, ConnectionClosedError)
         assert disconnects == [1]
         assert any(record.exc_info and "unexpected error" in record.getMessage() for record in caplog.records)
+
+    def test_a_framing_error_drops_the_buffer_but_keeps_the_session(self, live_conn, monkeypatch, caplog):
+        from empire_core.network import connection as connection_module
+
+        original = connection_module.FrameBuffer.feed
+        calls = {"n": 0}
+
+        def flaky_feed(self, message):
+            calls["n"] += 1
+            if calls["n"] == 2:
+                raise MemoryError("injected")
+            return original(self, message)
+
+        monkeypatch.setattr(connection_module.FrameBuffer, "feed", flaky_feed)
+        routed: list[str | None] = []
+        live_conn.on_packet = lambda p: routed.append(p.command_id)
+        disconnects: list[int] = []
+        live_conn.on_disconnect = disconnects.append
+        partial = make_frame("gaa")[:9]
+
+        with caplog.at_level("ERROR", logger="empire_core.network.connection"):
+            live_conn._recv_loop(FakeSocket([partial, make_frame("acm"), make_frame("gam")]), 1)
+
+        # The partial packet went with the dropped buffer; the next packet starts clean
+        assert routed == ["gam"]
+        assert disconnects == [1], "only the socket closing at the end ends the session"
+        assert any(record.exc_info and "could not be split" in record.getMessage() for record in caplog.records)
 
 
 class _ByteSocket:

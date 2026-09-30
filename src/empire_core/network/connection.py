@@ -675,7 +675,13 @@ class Connection:
             # session down forces a re-login that the game server rate-limits.
             # Drop the packet, keep the socket.
             text = data.decode("utf-8-sig", errors="replace") if isinstance(data, bytes) else data
-            for raw in frames.feed(text):
+            try:
+                raws = frames.feed(text)
+            except Exception:
+                logger.exception("Dropping buffered data that could not be split into packets")
+                frames = FrameBuffer()
+                continue
+            for raw in raws:
                 try:
                     self._route_packet(Packet.from_bytes(raw.encode("utf-8")))
                 except Exception:
