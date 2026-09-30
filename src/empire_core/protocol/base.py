@@ -155,6 +155,12 @@ class GGECommand:
 
     # Alliance
     AIN = "ain"  # Get alliance info (includes member list)
+    AKM = "akm"  # Kick a member
+    ARM = "arm"  # Change a member's rank
+    AIP = "aip"  # Invite a player
+    AAL = "aal"  # Alliance applications
+    AAA = "aaa"  # Answer an application
+    AQI = "aqi"  # Leave the alliance
     AHL = "ahl"  # Alliance help list
     AHH = "ahh"  # Help request added or changed (push)
     AHD = "ahd"  # Help request removed (push)

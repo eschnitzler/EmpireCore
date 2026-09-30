@@ -3,6 +3,7 @@ Alliance service for EmpireCore.
 
 Provides high-level APIs for:
 - Alliance members (get members, online status, last seen)
+- Member management (kick, rank, invite, applications, leave)
 - Alliance chat (send messages, get history)
 - Alliance help (the help list and its pushes, helping, asking for help)
 """
@@ -32,7 +33,23 @@ from empire_core.alliance.models.help import (
     HelpAllRequest,
     HelpMemberRequest,
 )
-from empire_core.alliance.models.info import AllianceMember, GetAllianceInfoRequest, GetAllianceInfoResponse
+from empire_core.alliance.models.info import (
+    AllianceInfo,
+    AllianceMember,
+    GetAllianceInfoRequest,
+    GetAllianceInfoResponse,
+)
+from empire_core.alliance.models.members import (
+    AllianceApplicationListRequest,
+    AllianceApplicationListResponse,
+    AnswerApplicationRequest,
+    InvitePlayerRequest,
+    KickMemberRequest,
+    KickMemberResponse,
+    QuitAllianceRequest,
+    RerankMemberRequest,
+    RerankMemberResponse,
+)
 from empire_core.alliance.models.search import (
     AllianceSearchResult,
     GetBookmarksRequest,
@@ -40,9 +57,10 @@ from empire_core.alliance.models.search import (
     SearchAllianceRequest,
     SearchAllianceResponse,
 )
-from empire_core.enums import HelpType
+from empire_core.enums import AllianceRank, HelpType
 from empire_core.exceptions import CommandError, PacketError
 from empire_core.protocol.base import BaseResponse
+from empire_core.protocol.errors import GGEError
 from empire_core.services.base import BaseService, register_service
 
 logger = logging.getLogger(__name__)
@@ -192,6 +210,93 @@ class AllianceService(BaseService):
             Dict mapping player_id to AllianceMember
         """
         return self._members.copy()
+
+    # =========================================================================
+    # Member Management
+    # =========================================================================
+
+    def kick_member(self, player_id: int, timeout: float = 5.0) -> AllianceInfo | None:
+        """
+        Remove a member from your alliance.
+
+        Args:
+            player_id: The member's ``AllianceMember.player_id``
+
+        Returns:
+            The alliance after the kick, None when the reply carries none
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        return self.request(KickMemberRequest(PID=player_id), KickMemberResponse, timeout=timeout).alliance
+
+    def set_rank(self, player_id: int, rank: AllianceRank, timeout: float = 5.0) -> AllianceInfo | None:
+        """
+        Give a member another rank; ``AllianceRank.LEADER`` hands over the leadership.
+
+        Error 15 (``NO_CHANGE``), which the client takes as nothing to do, returns None.
+
+        Args:
+            player_id: The member's ``AllianceMember.player_id``
+            rank: The new rank
+
+        Returns:
+            The alliance after the change, None when the reply carries none
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        try:
+            return self.request(
+                RerankMemberRequest(PID=player_id, R=rank), RerankMemberResponse, timeout=timeout
+            ).alliance
+        except CommandError as e:
+            if e.error is GGEError.NO_CHANGE:
+                return None
+            raise
+
+    def invite(self, player_id: int, timeout: float = 5.0) -> bool:
+        """
+        Invite a player to your alliance.
+
+        Args:
+            player_id: The player's id, e.g. ``PlayerOwnerInfo.player_id`` from ``client.player.get_player_info()``
+
+        Returns:
+            Whether the server accepted the invitation (error 65: no such player)
+        """
+        return self.execute(InvitePlayerRequest.for_player(player_id), timeout=timeout)
+
+    def get_applications(self, timeout: float = 5.0) -> AllianceApplicationListResponse:
+        """
+        Get your alliance's applications, nearest first, with the applicants' owner records.
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        return self.request(AllianceApplicationListRequest(), AllianceApplicationListResponse, timeout=timeout)
+
+    def answer_application(self, player_id: int, accept: bool, timeout: float = 5.0) -> bool:
+        """
+        Accept or refuse an application.
+
+        Args:
+            player_id: The applicant's ``AllianceApplication.player_id``
+            accept: True to accept, False to refuse
+
+        Returns:
+            Whether the server accepted the answer
+        """
+        return self.execute(AnswerApplicationRequest.create(player_id, accept), timeout=timeout)
+
+    def leave(self, timeout: float = 5.0) -> bool:
+        """
+        Leave your alliance.
+
+        Returns:
+            Whether the server accepted it
+        """
+        return self.execute(QuitAllianceRequest(), timeout=timeout)
 
     # =========================================================================
     # Search Operations

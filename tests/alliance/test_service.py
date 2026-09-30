@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from empire_core.alliance.models.search import GetBookmarksResponse
-from empire_core.enums import BookmarkType
+from empire_core.enums import AllianceRank, BookmarkType
 from empire_core.exceptions import CommandError
 from empire_core.protocol.models import AllianceChatMessageResponse, AllianceMember, HelpType
 from tests.service_helpers import StubPlayer, StubState, conn, make_client, request_payload, xt_packet
@@ -505,3 +505,85 @@ class TestAllianceBookmarks:
     def test_an_owner_record_without_an_oid_is_no_owner(self):
         reply = GetBookmarksResponse.model_validate({"BL": [{"OI": {"N": "x"}}, {"OI": {"OID": 0}}]})
         assert [b.owner for b in reply.own_bookmarks] == [None, None]
+
+
+class TestAllianceMemberManagement:
+    """Payloads as the C2SAlliance*VO constructors build them (bundle lines 70354-70364, 42819, 70138, 70244, 69639)."""
+
+    def test_kick_member(self):
+        client = make_client({"akm": xt_packet("akm", {"ain": GOLDEN_AIN})})
+
+        alliance = client.alliance.kick_member(7003)
+
+        assert conn(client).request_payloads == [("akm", {"PID": 7003})]
+        assert alliance is not None and alliance.alliance_id == 190426
+
+    def test_set_rank(self):
+        client = make_client({"arm": xt_packet("arm", {"ain": GOLDEN_AIN})})
+
+        alliance = client.alliance.set_rank(7002, AllianceRank.GENERAL)
+
+        (sent,) = conn(client).request_payloads
+        assert sent == ("arm", {"PID": 7002, "R": 6})
+        assert list(sent[1]) == ["PID", "R"]
+        assert alliance is not None
+
+    def test_an_unchanged_rank_is_not_an_error(self):
+        client = make_client({"arm": xt_packet("arm", error_code=15)})
+        assert client.alliance.set_rank(7002, AllianceRank.GENERAL) is None
+
+    def test_other_rank_errors_raise(self):
+        client = make_client({"arm": xt_packet("arm", error_code=110)})
+        with pytest.raises(CommandError):
+            client.alliance.set_rank(7002, AllianceRank.GENERAL)
+
+    def test_invite_sends_the_player_id_as_a_string(self):
+        client = make_client()
+
+        assert client.alliance.invite(4242) is True
+
+        assert conn(client).request_payloads == [("aip", {"SV": "4242"})]
+
+    def test_an_invitation_to_no_such_player_is_false(self):
+        client = make_client({"aip": xt_packet("aip", error_code=65)})
+        assert client.alliance.invite(4242) is False
+
+    def test_applications(self):
+        reply = {
+            "OI": [{"OID": 4242, "N": "Applicant", "L": 30}, {"OID": 4243, "N": "Other"}],
+            "AL": [
+                {"PID": 4243, "D": 90, "AT": "let me in", "AA": 60},
+                {"PID": 4242, "D": 12, "AT": "100&percnt; active", "AA": 3600},
+            ],
+        }
+        client = make_client({"aal": xt_packet("aal", reply)})
+
+        applications = client.alliance.get_applications()
+
+        assert conn(client).request_payloads == [("aal", {})]
+        nearest = applications.applications[0]
+        assert (nearest.player_id, nearest.distance, nearest.text, nearest.seconds_since_applied) == (
+            4242,
+            12,
+            "100% active",
+            3600,
+        )
+        owner = applications.owner_of(nearest)
+        assert owner is not None and owner.name == "Applicant"
+
+    @pytest.mark.parametrize(("accept", "answer"), [(True, 1), (False, 0)])
+    def test_answer_application(self, accept, answer):
+        client = make_client()
+
+        assert client.alliance.answer_application(4242, accept) is True
+
+        (sent,) = conn(client).request_payloads
+        assert sent == ("aaa", {"PID": 4242, "A": answer})
+        assert list(sent[1]) == ["PID", "A"]
+
+    def test_leave(self):
+        client = make_client()
+
+        assert client.alliance.leave() is True
+
+        assert conn(client).request_payloads == [("aqi", {})]
