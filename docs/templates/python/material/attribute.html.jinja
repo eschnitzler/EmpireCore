@@ -1,0 +1,13 @@
+{% extends "_base/attribute.html.jinja" %}
+
+{% block docstring scoped %}
+  {% set pydantic = attribute.extra.griffe_pydantic or {} %}
+  {% set constraints = pydantic.constraints or {} %}
+  {% if constraints.alias or constraints.validation_alias %}
+    <p class="ec-wire-key">
+      {% if constraints.alias %}Wire key <code>{{ constraints.alias | string | trim("'\"") }}</code>{% endif %}
+      {% if constraints.validation_alias %}Read from <code>{{ constraints.validation_alias | string }}</code>{% endif %}
+    </p>
+  {% endif %}
+  {{ super() }}
+{% endblock docstring %}

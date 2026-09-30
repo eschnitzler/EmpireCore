@@ -35,8 +35,8 @@ attack and alliance, and spy at the top); `tests/test_layers.py` enforces the
 order. Library code imports models from their area, never from
 `empire_core.protocol.models`.
 
-Design notes for the trickier layers live in [`docs/design/`](docs/design/) —
-read [`state_management.md`](docs/design/state_management.md) before touching
+Design notes for the trickier layers live in [`docs/design/`](https://eschnitzler.github.io/EmpireCore/internals/) —
+read [`state_management.md`](https://eschnitzler.github.io/EmpireCore/design/state_management/) before touching
 `state/`.
 
 ## Adding a New Protocol Command

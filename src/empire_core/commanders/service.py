@@ -67,7 +67,7 @@ class CommandersService(BaseService):
             The full gli response
 
         Raises:
-            CommandError / EmpireTimeoutError / ConnectionClosedError on failure
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
         return self.request(GetCommandersRequest(), GetCommandersResponse, timeout=timeout)
 
@@ -82,7 +82,7 @@ class CommandersService(BaseService):
             List of Commander objects
 
         Raises:
-            CommandError / EmpireTimeoutError / ConnectionClosedError on failure
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
         return self.get_all(timeout=timeout).commanders
 
@@ -97,7 +97,7 @@ class CommandersService(BaseService):
             List of Castellan objects
 
         Raises:
-            CommandError / EmpireTimeoutError / ConnectionClosedError on failure
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
         return self.get_all(timeout=timeout).castellans
 
@@ -115,7 +115,7 @@ class CommandersService(BaseService):
             The arl response, which carries the updated commander list
 
         Raises:
-            CommandError / EmpireTimeoutError / ConnectionClosedError on failure
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
         return self.request(RenameCommanderRequest(LID=commander_id, N=name), RenameCommanderResponse, timeout=timeout)
 
@@ -133,7 +133,7 @@ class EquipmentService(BaseService):
         The items in the player's inventory, the ones no leader wears.
 
         Raises:
-            CommandError / EmpireTimeoutError / ConnectionClosedError on failure
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
         return self.request(GetEquipmentInventoryRequest(), GetEquipmentInventoryResponse, timeout=timeout).items
 
@@ -200,7 +200,7 @@ class SkillsService(BaseService):
             The ``gie`` response
 
         Raises:
-            CommandError / EmpireTimeoutError / ConnectionClosedError on failure
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
         return self.request(GetGeneralsRequest(), GetGeneralsResponse, timeout=timeout)
 
@@ -219,7 +219,7 @@ class SkillsService(BaseService):
             The ``gla`` response, with the commander list after the change
 
         Raises:
-            CommandError / EmpireTimeoutError / ConnectionClosedError on failure
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
         return self.request(
             AssignGeneralRequest(LID=commander_id, GID=general_id),
@@ -305,7 +305,7 @@ class SkillsService(BaseService):
             The ``skl`` response
 
         Raises:
-            CommandError / EmpireTimeoutError / ConnectionClosedError on failure
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
         return self.request(GetSkillsRequest(), GetSkillsResponse, timeout=timeout)
 

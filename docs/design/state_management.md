@@ -162,16 +162,7 @@ when the callback runs, so the id alone cannot be resolved. `movement` is
 
 `on_incoming_attack` fires **once** per newly seen hostile attack (not on every
 `gam` refresh, and not for the local player's own outgoing attacks). Callbacks
-are dispatched on a thread pool, so a callback may make blocking calls (e.g.
-request more data) without stalling the receive loop. See
-[events.md](events.md) for the full event/callback model.
-
-## Persistence (Optional / Experimental)
-
-`empire_core.storage.database` provides an experimental async SQLite store for
-persisting discovered map objects and player snapshots across restarts. It is
-not yet wired into the client.
-
-Its dependencies (`sqlmodel`, `aiosqlite`) are not installed by default:
-importing `empire_core.storage` without the `storage` extra
-(`pip install empire-core[storage]`) raises an ImportError explaining this.
+run one at a time on a single callback thread, in packet order, never on the
+receive thread, so a callback may make blocking calls (e.g. request more data)
+without stalling the receive loop; everything queued behind it waits, though.
+See [Reacting to movements](../guides/movements.md) for examples.

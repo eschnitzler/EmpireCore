@@ -36,10 +36,11 @@ What the HTML5 client does (`BasicSmartfoxClient`, dll lines 7132-7240):
 6. **`lli`**: the account login, whose JSON payload carries the name (`NOM`)
    and password (`PW`).
 
-What the library does today (`EmpireClient._login_sequence`): `verChk`, then
-the zone login with `<CONM>%en%0` as the password, `autoJoin`, `roundTrip`, and
-`lli`. It sends no `vck` and pings from its own keepalive thread. Section 2
-lists where its `%xt%` messages differ too.
+The library (`EmpireClient._login_sequence`) runs the same steps in the same
+order: `verChk`, the zone login with the build number, `autoJoin`, then
+`roundTrip` and `vck` once it has joined the lobby, and `lli` with the measured
+connection and round-trip times. It then waits for `gbd`. Its `pin` goes out
+every 60 seconds from its own keepalive thread.
 
 ## 2. Extension messages
 
@@ -48,14 +49,13 @@ lists where its `%xt%` messages differ too.
 - **zone**: `EmpireEx_21` unless configured otherwise.
 - **command**: the command id, for example `gaa` or `cra`. The ids the client
   knows are in `tests/data/client_commands.json` (see `CONTRIBUTING.md`).
-- **room id**: the id from `joinOK`; `BaseRequest.to_packet` always sends `1`.
+- **room id**: the id from `joinOK`; `EmpireClient.frame` passes it to `BaseRequest.to_packet`.
 - **arguments**: nearly every command has one, `JSON.stringify` of its
   `C2S...VO` (`sendCommandVO`). A few, such as `vck` and `pin`, send plain
   `%`-separated arguments. Before sending, the client turns every `%` in a
   string argument into `&percnt;` and drops every `'`
-  (`sendMessage`, `TextValide.getValideSmartFoxText`, dll line 5816).
-  `BaseRequest.to_packet` does not, so a backslash in a text field, which
-  `encode_json_text` writes as `%5C`, goes out as a raw `%` inside the message.
+  (`sendMessage`, `TextValide.getValideSmartFoxText`, dll line 5816), and so
+  does `BaseRequest.to_packet` (`protocol.base.smartfox_text`).
 
 A reply is `%xt%<command>%<room id>%<error code>%<JSON>%`; an error code other
 than 0 is a failure.

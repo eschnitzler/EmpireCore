@@ -63,9 +63,11 @@ graph TD
     * Updated **passively** — `update_from_packet()` routes each tracked
       command (`gbd`, `gam`, `dcl`, `abr`/`asr`, `mcm`, `mrm`, `mfc`, `sce`, `sei`)
       to a handler that merges the data.
-    * Emits **callbacks** for attacks, arrivals, recalls and removals, dispatched on a
-      thread pool so a callback may itself make blocking calls.
-* See [state_management.md](state_management.md) and [events.md](events.md).
+    * Emits **callbacks** for attacks, arrivals, recalls and removals. They run
+      one at a time on a single callback thread, in packet order, never on the
+      receive thread, so a callback may itself make blocking calls.
+* See [state_management.md](state_management.md) and
+  [Reacting to movements](../guides/movements.md).
 
 ### 4. Public API (`empire_core.client`, `empire_core.services`)
 * **Responsibility**: the user-facing entry point.

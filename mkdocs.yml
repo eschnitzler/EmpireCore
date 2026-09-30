@@ -1,0 +1,214 @@
+site_name: EmpireCore
+site_description: A fully typed Python client for Goodgame Empire
+site_url: https://eschnitzler.github.io/EmpireCore/
+repo_url: https://github.com/eschnitzler/EmpireCore
+repo_name: eschnitzler/EmpireCore
+edit_uri: edit/master/docs/
+copyright: MIT licensed. Not affiliated with Goodgame Studios.
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+exclude_docs: |
+  hooks.py
+  griffe_extensions.py
+  templates/
+  design/combat_effects.md
+  design/fill_waves_spec.md
+  design/game_bundle_analysis.md
+  design/events.md
+
+hooks:
+  - docs/hooks.py
+
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/favicon.svg
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil-outline
+  font:
+    text: Inter
+    code: JetBrains Mono
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to system preference
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.action.edit
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/eschnitzler/EmpireCore
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/empire-core/
+
+plugins:
+  - search
+  - mkdocstrings:
+      custom_templates: docs/templates
+      handlers:
+        python:
+          paths: [src]
+          inventories:
+            - https://docs.python.org/3/objects.inv
+            - https://docs.pydantic.dev/latest/objects.inv
+          options:
+            docstring_style: google
+            docstring_options:
+              warn_missing_types: false
+            extensions:
+              - docs/griffe_extensions.py:FenceExamples
+              - griffe_pydantic:
+                  schema: false
+            filters: ["!^_"]
+            show_source: false
+            show_root_heading: false
+            show_root_toc_entry: false
+            heading_level: 3
+            members_order: source
+            group_by_category: true
+            show_category_heading: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            show_signature_annotations: true
+            separate_signature: true
+            signature_crossrefs: true
+            merge_init_into_class: true
+            show_if_no_docstring: true
+            show_labels: true
+            summary: true
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: [".", "docs"]
+      check_paths: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Guides:
+      - guides/index.md
+      - Services:
+          - Alliance: guides/alliance.md
+          - Messages: guides/messages.md
+          - Castle: guides/castle.md
+          - Army: guides/army.md
+          - Commanders: guides/commanders.md
+          - Skills and generals: guides/skills.md
+          - Equipment: guides/equipment.md
+          - Attack: guides/attack.md
+          - Filling waves: guides/filling-waves.md
+          - Spy: guides/spy.md
+          - Map scanning: guides/map-scanning.md
+      - Game state:
+          - State and freshness: guides/game-state.md
+          - Reacting to movements: guides/movements.md
+      - Game data:
+          - Lookups by name: guides/game-data.md
+          - Generated ids: guides/game-data-ids.md
+      - Beyond one client:
+          - Multiple accounts: guides/multiple-accounts.md
+          - Protocol models: guides/protocol-models.md
+          - Error handling: guides/errors.md
+  - API reference:
+      - reference/index.md
+      - Core:
+          - Client: reference/client.md
+          - State: reference/state.md
+          - Exceptions: reference/exceptions.md
+          - Enums: reference/enums.md
+          - Game data: reference/gamedata.md
+          - Protocol: reference/protocol.md
+          - Utilities: reference/utils.md
+      - Areas:
+          - Map: reference/map.md
+          - Ranking: reference/ranking.md
+          - Events: reference/events.md
+          - Commanders: reference/commanders.md
+          - Castle: reference/castle.md
+          - Army: reference/army.md
+          - Movements: reference/movements.md
+          - Messages: reference/messages.md
+          - Defense: reference/defense.md
+          - Combat: reference/combat.md
+          - Player: reference/player.md
+          - Attack: reference/attack.md
+          - Alliance: reference/alliance.md
+          - Spy: reference/spy.md
+  - Internals:
+      - internals/index.md
+      - Login and requests: internals/login-and-requests.md
+      - Architecture: design/architecture.md
+      - Protocol: design/protocol.md
+      - State management: design/state_management.md
+  - Changelog: changelog.md
+  - Contributing: contributing.md
