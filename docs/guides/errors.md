@@ -57,7 +57,7 @@ classDiagram
 | Error | When |
 |---|---|
 | `NetworkError` | `connect()` or a send failed, or a CDN-backed helper could not reach the CDN |
-| `ConnectionClosedError` | The connection dropped while a call waited |
+| `ConnectionClosedError` | The connection dropped while a call waited; the error that ended it is its `__cause__` and `client.connection.close_error` |
 | `EmpireTimeoutError` | No reply in time; also a builtin `TimeoutError` |
 | `CommandError` | The server answered with a non-zero error code |
 | `PacketError` | A reply could not be parsed |

@@ -163,6 +163,7 @@ class Connection:
 
         self._running = False
         self._closing = False
+        self._close_error: BaseException | None = None
         # Incremented on every connect; threads from a previous connection
         # notice the mismatch and exit without touching the new session.
         self._generation = 0
@@ -214,6 +215,11 @@ class Connection:
         ws = self.ws
         return ws is not None and ws.connected and self._running
 
+    @property
+    def close_error(self) -> BaseException | None:
+        """What ended the last connection, or None while connected or after a clean disconnect()."""
+        return self._close_error
+
     def connect(self, timeout: float = 10.0) -> None:
         """
         Connect to the WebSocket server.
@@ -256,6 +262,7 @@ class Connection:
                 self.ws = ws
                 self._running = True
                 self._closing = False
+                self._close_error = None
                 self.room_id = NO_ROOM
                 self._last_recv_at = time.monotonic()
                 self._generation += 1
@@ -625,8 +632,9 @@ class Connection:
         logger.debug("Receive loop started")
         try:
             self._receive(ws, generation)
-        except Exception:
+        except Exception as e:
             if self._running and generation == self._generation:
+                self._close_error = e
                 logger.exception("Receive loop stopped by an unexpected error")
         finally:
             self._end_receive_loop(generation)
@@ -651,18 +659,21 @@ class Connection:
                 opcode, data = ws.recv_data()
             except websocket.WebSocketTimeoutException:
                 continue  # Check _running and try again
-            except websocket.WebSocketConnectionClosedException:
+            except websocket.WebSocketConnectionClosedException as e:
                 if not self._closing:
+                    self._close_error = e
                     logger.warning("Connection closed by server")
                 break
-            except (OSError, websocket.WebSocketException):
+            except (OSError, websocket.WebSocketException) as e:
                 if self._running and generation == self._generation:
+                    self._close_error = e
                     logger.exception("Receive loop stopped by socket error")
                 break
-            except Exception:
+            except Exception as e:
                 # Nothing else is expected out of recv_data(); still fatal, but log
                 # it with the traceback so the cause is diagnosable.
                 if self._running and generation == self._generation:
+                    self._close_error = e
                     logger.exception("Unexpected error in receive loop")
                 break
 
@@ -699,7 +710,7 @@ class Connection:
 
             notify = not self._closing
             self._running = False
-            self._cancel_all_waiters()
+            self._cancel_all_waiters(self._close_error)
 
         # Callbacks run outside the lock: they commonly reconnect.
         if notify:
@@ -845,11 +856,14 @@ class Connection:
             except Exception:
                 logger.debug("Closing a dead session's socket failed", exc_info=True)
 
-    def _cancel_all_waiters(self) -> None:
-        """Cancel all pending waiters."""
+    def _cancel_all_waiters(self, cause: BaseException | None = None) -> None:
+        """Cancel all pending waiters, with the error that ended the connection as the cause."""
+        message = "Connection closed" if cause is None else f"Connection closed: {type(cause).__name__}: {cause}"
         with self._waiters_lock:
             for waiters in self._waiters.values():
                 for waiter in waiters:
-                    waiter.error = ConnectionClosedError("Connection closed")
+                    error = ConnectionClosedError(message)
+                    error.__cause__ = cause
+                    waiter.error = error
                     waiter.event.set()
             self._waiters.clear()

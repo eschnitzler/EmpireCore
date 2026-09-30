@@ -519,6 +519,18 @@ class TestRecvLoopResilience:
         assert disconnects == [True]
         assert live_conn._running is False
         assert isinstance(waiter.error, ConnectionClosedError)
+        assert isinstance(waiter.error.__cause__, OSError)
+        assert "socket died" in str(waiter.error)
+        assert live_conn.close_error is waiter.error.__cause__
+
+    def test_a_clean_disconnect_leaves_no_close_error(self, live_conn):
+        waiter = live_conn.create_waiter("gam")
+
+        live_conn.disconnect()
+
+        assert live_conn.close_error is None
+        assert str(waiter.error) == "Connection closed"
+        assert waiter.error.__cause__ is None
 
     def test_bad_frame_alone_does_not_fire_on_disconnect(self, live_conn):
         # Only the real socket close at the end of the frame list should
@@ -547,6 +559,9 @@ class TestRecvLoopResilience:
 
         assert live_conn._running is False
         assert isinstance(waiter.error, ConnectionClosedError)
+        assert isinstance(waiter.error.__cause__, MemoryError)
+        assert str(waiter.error) == "Connection closed: MemoryError: injected"
+        assert live_conn.close_error is waiter.error.__cause__
         assert disconnects == [1]
         assert any(record.exc_info and "unexpected error" in record.getMessage() for record in caplog.records)
 
