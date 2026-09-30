@@ -641,7 +641,7 @@ empire_core/
 ├── combat/          # Wave solver, capacity and bonus math
 ├── enums/           # Every game enum, one module per area
 ├── gamedata/        # Items data: units, tools, effects and the id enums
-├── services/        # BaseService and the service registry
+├── services/        # BaseService
 ├── state/           # Thread-safe game state
 └── utils/           # CDN-backed event and troop data
 ```

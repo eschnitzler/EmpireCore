@@ -51,7 +51,6 @@ from empire_core.protocol.js import js_number_or_none
 from empire_core.protocol.models import BaseRequest, BaseResponse, parse_response
 from empire_core.protocol.packet import Packet
 from empire_core.ranking.service import RankingService
-from empire_core.services import BaseService, get_registered_services
 from empire_core.spy.service import SpyService
 from empire_core.state.manager import GameState
 
@@ -175,28 +174,25 @@ class EmpireClient:
         self.connection.on_packet = self._on_packet
         self.connection.on_disconnect = self._on_disconnect
 
-        # Auto-attach registered services
-        self._services: dict[str, BaseService] = {}
-        for name, service_cls in get_registered_services().items():
-            service = service_cls(self)
-            self._services[name] = service
-            setattr(self, name, service)
+        self._attach_services()
 
-        self.alliance: AllianceService = cast(AllianceService, self._services["alliance"])
-        self.castle: CastleService = cast(CastleService, self._services["castle"])
-        self.army: ArmyService = cast(ArmyService, self._services["army"])
-        self.attack: AttackService = cast(AttackService, self._services["attack"])
-        self.commanders: CommandersService = cast(CommandersService, self._services["commanders"])
-        self.equipment: EquipmentService = cast(EquipmentService, self._services["equipment"])
-        self.skills: SkillsService = cast(SkillsService, self._services["skills"])
-        self.spy: SpyService = cast(SpyService, self._services["spy"])
-        self.ranking: RankingService = cast(RankingService, self._services["ranking"])
-        self.map: MapService = cast(MapService, self._services["map"])
-        self.messages: MessagesService = cast(MessagesService, self._services["messages"])
-        self.movements: MovementsService = cast(MovementsService, self._services["movements"])
-        self.defense: DefenseService = cast(DefenseService, self._services["defense"])
-        self.player: PlayerService = cast(PlayerService, self._services["player"])
-        self.events: EventsService = cast(EventsService, self._services["events"])
+    def _attach_services(self) -> None:
+        """Build one of each service; they register their packet handlers on the way."""
+        self.alliance = AllianceService(self)
+        self.castle = CastleService(self)
+        self.army = ArmyService(self)
+        self.attack = AttackService(self)
+        self.commanders = CommandersService(self)
+        self.equipment = EquipmentService(self)
+        self.skills = SkillsService(self)
+        self.spy = SpyService(self)
+        self.ranking = RankingService(self)
+        self.map = MapService(self)
+        self.messages = MessagesService(self)
+        self.movements = MovementsService(self)
+        self.defense = DefenseService(self)
+        self.player = PlayerService(self)
+        self.events = EventsService(self)
 
     def _register_handler(self, command: str, handler: Callable[[BaseResponse], None]) -> None:
         """

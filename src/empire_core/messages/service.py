@@ -29,14 +29,13 @@ from empire_core.messages.models import (
 )
 from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.errors import GGEError
-from empire_core.services.base import BaseService, register_service
+from empire_core.services.base import BaseService
 
 logger = logging.getLogger(__name__)
 
 _WHITESPACE = re.compile(r"\s")
 
 
-@register_service("messages")
 class MessagesService(BaseService):
     """
     The mailbox and mail.

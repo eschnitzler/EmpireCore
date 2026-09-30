@@ -23,7 +23,7 @@ src/empire_core/
 ├── combat/                # Wave solver, capacity and bonus math
 ├── enums/                 # Every game enum, one module per area
 ├── services/
-│   └── base.py            # BaseService, @register_service
+│   └── base.py            # BaseService
 ├── network/               # WebSocket connection, receive loop, redaction
 ├── state/                 # Thread-safe game state
 └── utils/                 # CDN-backed event and troop data
@@ -227,15 +227,14 @@ instead.
 from __future__ import annotations
 
 from empire_core.bookmarks.models import Bookmark, GetBookmarksRequest, GetBookmarksResponse
-from empire_core.services.base import BaseService, register_service
+from empire_core.services.base import BaseService
 
 
-@register_service("bookmarks")
 class BookmarksService(BaseService):
     """
     Service for bookmark operations.
 
-    Accessible via client.bookmarks after auto-registration.
+    Reached as client.bookmarks.
     """
 
     def get_all(self, timeout: float = 5.0) -> list[Bookmark]:
@@ -252,10 +251,10 @@ A new area also needs an `__init__.py` (re-exporting its models, never its
 service) and a row in the `RANK` table of `tests/test_layers.py`, ranked above
 every area it imports.
 
-### Step 2: Register Service
+### Step 2: Attach the Service
 
-Import the service in `client/client.py` (the import runs `@register_service`)
-and give the client a typed attribute next to the others:
+Import the service in `client/client.py`, annotate the attribute next to the
+others and build it in `_attach_services()`:
 
 ```python
 from empire_core.bookmarks.service import BookmarksService
@@ -263,12 +262,12 @@ from empire_core.bookmarks.service import BookmarksService
 class EmpireClient:
     bookmarks: BookmarksService
 
-    def __init__(self, ...):
+    def _attach_services(self) -> None:
         ...
-        self.bookmarks: BookmarksService = cast(BookmarksService, self._services["bookmarks"])
+        self.bookmarks = BookmarksService(self)
 ```
 
-Add it to `SERVICE_TYPES` in `tests/test_smoke.py` as well.
+Then add it to `SERVICE_TYPES` in `tests/test_smoke.py`.
 
 ### Service Patterns
 
@@ -489,10 +488,10 @@ uv run pre-commit run --all-files   # exactly what CI's lint job runs
 > `uv run mypy src` is **not** enough — the hook type-checks `tests/` and
 > `examples/` too, so run pre-commit before pushing.
 
-Verify the service registry still wires up:
+Verify the client still builds every service:
 
 ```bash
-uv run python -c "from empire_core.services import get_registered_services; print(get_registered_services())"
+uv run pytest tests/test_smoke.py
 ```
 
 ### What to test

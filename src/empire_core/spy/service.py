@@ -27,7 +27,7 @@ from empire_core.movements.models import MovementRecord
 from empire_core.protocol.base import parse_response
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import Packet
-from empire_core.services.base import BaseService, register_service
+from empire_core.services.base import BaseService
 
 from .models import (
     AutoSpyRequest,
@@ -161,7 +161,6 @@ def _names_target(
     return not (area is not None and area.name and header.area_name and header.area_name != area.name)
 
 
-@register_service("spy")
 class SpyService(BaseService):
     """Service for managing spy operations."""
 

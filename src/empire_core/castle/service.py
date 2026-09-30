@@ -63,15 +63,14 @@ from empire_core.castle.models.resources import (
 from empire_core.castle.models.support import SendSupportRequest
 from empire_core.castle.models.transfers import KingdomUnitTransferRequest
 from empire_core.enums import ExpansionType, Kingdom, ResourceCartType
-from empire_core.services.base import BaseService, register_service
+from empire_core.services.base import BaseService
 
 
-@register_service("castle")
 class CastleService(BaseService):
     """
     Service for castle operations.
 
-    Accessible via client.castle after auto-registration.
+    Reached as client.castle.
 
     Usage:
         client = EmpireClient(...)

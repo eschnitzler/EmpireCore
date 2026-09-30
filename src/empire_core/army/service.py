@@ -41,15 +41,14 @@ from empire_core.army.models.units import DismissUnitsRequest, GetUnitsRequest, 
 from empire_core.castle.models.actions import SelectCastleRequest, SelectCastleResponse
 from empire_core.enums import Kingdom, ProductionListId, SlotType
 from empire_core.protocol.base import UnitCount
-from empire_core.services.base import BaseService, register_service
+from empire_core.services.base import BaseService
 
 
-@register_service("army")
 class ArmyService(BaseService):
     """
     Service for army operations.
 
-    Accessible via client.army after auto-registration.
+    Reached as client.army.
 
     Each method joins the castle it is given first (``jca``), as the client acts
     on the castle it is in. It joins in that castle's ``Castle.kingdom_id`` from

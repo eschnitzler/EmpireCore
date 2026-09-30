@@ -70,7 +70,7 @@ from empire_core.map.models.areas import GetMapAreaResponse, MapObject
 from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.base import BaseRequest
 from empire_core.protocol.errors import GGEError
-from empire_core.services.base import BaseService, register_service
+from empire_core.services.base import BaseService
 
 logger = logging.getLogger(__name__)
 
@@ -242,12 +242,11 @@ def _merged(*inventories: dict[int, int]) -> dict[int, int]:
     return total
 
 
-@register_service("attack")
 class AttackService(BaseService):
     """
     Service for attack operations.
 
-    Accessible via client.attack after auto-registration.
+    Reached as client.attack.
     """
 
     def send_attack(

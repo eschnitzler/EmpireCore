@@ -1,5 +1,5 @@
 """
-Base service class and registration decorator.
+Base service class.
 """
 
 from __future__ import annotations
@@ -17,36 +17,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Registry of service classes
-_service_registry: dict[str, type["BaseService"]] = {}
-
-T = TypeVar("T", bound="BaseService")
 R = TypeVar("R", bound=BaseResponse)
-
-
-def register_service(name: str) -> Callable[[type[T]], type[T]]:
-    """
-    Decorator to register a service class.
-
-    Usage:
-        @register_service("alliance")
-        class AllianceService(BaseService):
-            ...
-
-    The service will be accessible as client.alliance
-    """
-
-    def decorator(cls: type[T]) -> type[T]:
-        _service_registry[name] = cls
-        cls._service_name = name
-        return cls
-
-    return decorator
-
-
-def get_registered_services() -> dict[str, type["BaseService"]]:
-    """Get all registered service classes."""
-    return _service_registry.copy()
 
 
 class BaseService:
@@ -54,10 +25,9 @@ class BaseService:
     Base class for all services.
 
     Services provide high-level APIs for game domains and use
-    protocol models for type-safe request/response handling.
+    protocol models for type-safe request/response handling. The client
+    builds one of each in ``EmpireClient.__init__``.
     """
-
-    _service_name: str = ""
 
     def __init__(self, client: "EmpireClient") -> None:
         self.client = client
@@ -125,8 +95,4 @@ class BaseService:
         self.client._register_handler(command, handler)
 
 
-__all__ = [
-    "BaseService",
-    "register_service",
-    "get_registered_services",
-]
+__all__ = ["BaseService"]

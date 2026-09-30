@@ -14,7 +14,7 @@ from empire_core.player.models.info import (
     SearchPlayerRequest,
     SearchPlayerResponse,
 )
-from empire_core.services.base import BaseService, register_service
+from empire_core.services.base import BaseService
 
 
 @dataclass
@@ -34,12 +34,11 @@ class PlayerDetailsBulkResult:
         return not self.failed and not self.timed_out
 
 
-@register_service("player")
 class PlayerService(BaseService):
     """
     Service for player info and search.
 
-    Accessible via client.player after auto-registration.
+    Reached as client.player.
     """
 
     def get_player_info(self, player_id: int, timeout: float = 5.0) -> GetPlayerInfoResponse:

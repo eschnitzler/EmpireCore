@@ -14,14 +14,15 @@ from empire_core.alliance.service import AllianceService
 from empire_core.army.service import ArmyService
 from empire_core.attack.service import AttackService
 from empire_core.castle.service import CastleService
-from empire_core.commanders.service import CommandersService
+from empire_core.commanders.service import CommandersService, EquipmentService, SkillsService
 from empire_core.defense.service import DefenseService
 from empire_core.events.service import EventsService
 from empire_core.map.service import MapService
+from empire_core.messages.service import MessagesService
 from empire_core.movements.service import MovementsService
 from empire_core.player.service import PlayerService
 from empire_core.ranking.service import RankingService
-from empire_core.services import get_registered_services
+from empire_core.services.base import BaseService
 from empire_core.spy.service import SpyService
 
 SERVICE_TYPES = {
@@ -30,9 +31,12 @@ SERVICE_TYPES = {
     "army": ArmyService,
     "attack": AttackService,
     "commanders": CommandersService,
+    "equipment": EquipmentService,
+    "skills": SkillsService,
     "spy": SpyService,
     "ranking": RankingService,
     "map": MapService,
+    "messages": MessagesService,
     "movements": MovementsService,
     "defense": DefenseService,
     "player": PlayerService,
@@ -70,17 +74,15 @@ def test_constructing_a_client_starts_no_threads() -> None:
         client.close()
 
 
-def test_every_registered_service_is_attached_to_a_real_client() -> None:
+def test_a_client_has_exactly_the_documented_services() -> None:
     client = EmpireClient(username="user", password="pass")
     try:
         for name, service_type in SERVICE_TYPES.items():
             service = getattr(client, name)
-            assert isinstance(service, service_type), name
+            assert type(service) is service_type, name
             assert service.client is client
-        # No registered service may go unattached, or client.<name> would be a
-        # silent AttributeError for consumers.
-        for name in get_registered_services():
-            assert hasattr(client, name), name
+        attached = {name for name, value in vars(client).items() if isinstance(value, BaseService)}
+        assert attached == set(SERVICE_TYPES)
     finally:
         client.close()
 

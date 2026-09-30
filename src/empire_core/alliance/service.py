@@ -75,7 +75,7 @@ from empire_core.enums import AllianceRank, DiplomacyStatus, HelpType, Kingdom
 from empire_core.exceptions import CommandError, PacketError
 from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.errors import GGEError
-from empire_core.services.base import BaseService, register_service
+from empire_core.services.base import BaseService
 
 logger = logging.getLogger(__name__)
 
@@ -84,12 +84,11 @@ AllianceHelpUpdate = (
 )
 
 
-@register_service("alliance")
 class AllianceService(BaseService):
     """
     Service for alliance operations.
 
-    Accessible via client.alliance after auto-registration.
+    Reached as client.alliance.
 
     Usage:
         client = EmpireClient(...)

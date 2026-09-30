@@ -13,17 +13,16 @@ from empire_core.defense.models import (
     GetSupportDefenseResponse,
 )
 from empire_core.enums import Kingdom
-from empire_core.services.base import BaseService, register_service
+from empire_core.services.base import BaseService
 
 logger = logging.getLogger(__name__)
 
 
-@register_service("defense")
 class DefenseService(BaseService):
     """
     Service for castle defense info.
 
-    Accessible via client.defense after auto-registration.
+    Reached as client.defense.
     """
 
     def get_own_defense(

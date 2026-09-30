@@ -5,7 +5,7 @@ Ranking service for GGE.
 import logging
 
 from empire_core.enums import RankingType
-from empire_core.services.base import BaseService, register_service
+from empire_core.services.base import BaseService
 
 from .models import (
     GetHighscoreRequest,
@@ -23,7 +23,6 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
-@register_service("ranking")
 class RankingService(BaseService):
     """
     Service for fetching rankings and highscores.

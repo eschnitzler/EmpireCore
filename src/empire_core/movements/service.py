@@ -7,15 +7,14 @@ from __future__ import annotations
 from empire_core.exceptions import CommandError
 from empire_core.movements.tracked import Movement
 from empire_core.protocol.packet import Packet
-from empire_core.services.base import BaseService, register_service
+from empire_core.services.base import BaseService
 
 
-@register_service("movements")
 class MovementsService(BaseService):
     """
     Service for army movements.
 
-    Accessible via client.movements after auto-registration.
+    Reached as client.movements.
     """
 
     def get_movements(self, wait: bool = True, timeout: float = 5.0) -> list[Movement]:

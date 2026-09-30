@@ -1,4 +1,4 @@
-"""Tests for the BaseService contracts and service registration."""
+"""Tests for the BaseService contracts and how services are wired to the client."""
 
 from __future__ import annotations
 
@@ -22,32 +22,15 @@ from empire_core.protocol.models import (
 )
 from empire_core.protocol.packet import Packet
 from empire_core.ranking.service import RankingService
-from empire_core.services import get_registered_services
 from empire_core.spy.service import SpyService
 from tests.service_helpers import GOLDEN_GCL, conn, make_client, xt_packet
 
 # =============================================================================
-# Registration / wiring
+# Wiring
 # =============================================================================
 
 
-class TestServiceRegistration:
-    def test_every_documented_service_is_registered(self):
-        registered = get_registered_services()
-        assert set(registered) >= {
-            "alliance",
-            "castle",
-            "army",
-            "commanders",
-            "spy",
-            "ranking",
-            "map",
-            "movements",
-            "defense",
-            "player",
-            "events",
-        }
-
+class TestServiceWiring:
     def test_services_attach_to_the_client_by_name(self):
         client = make_client()
         assert isinstance(client.alliance, AllianceService)

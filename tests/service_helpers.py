@@ -14,7 +14,6 @@ from empire_core.exceptions import EmpireTimeoutError
 from empire_core.network.connection import ResponseWaiter
 from empire_core.protocol.models import AttackWave, WaveFlank
 from empire_core.protocol.packet import Packet
-from empire_core.services import get_registered_services
 from empire_core.state.models import Player
 
 
@@ -230,7 +229,7 @@ def make_client(
     state: StubState | None = None,
     pushes: dict[str, list[Packet]] | None = None,
 ) -> EmpireClient:
-    """Build a client with every registered service attached, but no socket."""
+    """Build a client with every service attached, but no socket."""
     client = EmpireClient.__new__(EmpireClient)
     client.config = EmpireConfig()
     client.username = "tester"
@@ -241,11 +240,7 @@ def make_client(
     client.is_logged_in = True
     client._handlers = {}
     client._handlers_lock = threading.Lock()
-    client._services = {}
-    for name, service_cls in get_registered_services().items():
-        service = service_cls(client)
-        client._services[name] = service
-        setattr(client, name, service)
+    client._attach_services()
     return client
 
 

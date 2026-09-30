@@ -44,17 +44,16 @@ from empire_core.commanders.models.skills import (
     UnlockGeneralSkillRequest,
 )
 from empire_core.protocol.base import BaseResponse
-from empire_core.services.base import BaseService, register_service
+from empire_core.services.base import BaseService
 
 logger = logging.getLogger(__name__)
 
 
-@register_service("commanders")
 class CommandersService(BaseService):
     """
     Service for commander operations.
 
-    Accessible via client.commanders after auto-registration.
+    Reached as client.commanders.
     """
 
     def get_all(self, timeout: float = 5.0) -> GetCommandersResponse:
@@ -121,12 +120,11 @@ class CommandersService(BaseService):
         return self.request(RenameCommanderRequest(LID=commander_id, N=name), RenameCommanderResponse, timeout=timeout)
 
 
-@register_service("equipment")
 class EquipmentService(BaseService):
     """
     Service for equipment operations.
 
-    Accessible via client.equipment after auto-registration. What a leader
+    Reached as client.equipment. What a leader
     wears comes with ``client.commanders`` (``gli`` ``EQ``).
     """
 
@@ -178,12 +176,11 @@ class EquipmentService(BaseService):
         return self.execute(request, timeout=timeout)
 
 
-@register_service("skills")
 class SkillsService(BaseService):
     """
     Service for generals and player skills.
 
-    Accessible via client.skills after auto-registration.
+    Reached as client.skills.
     """
 
     def __init__(self, client) -> None:

@@ -21,15 +21,14 @@ from empire_core.map.models.areas import (
 from empire_core.map.models.items import parse_area_rows
 from empire_core.map.scanner import MapScanner, ScanResult
 from empire_core.protocol.errors import GGEError
-from empire_core.services.base import BaseService, register_service
+from empire_core.services.base import BaseService
 
 
-@register_service("map")
 class MapService(BaseService):
     """
     Service for reading the world map.
 
-    Accessible via client.map after auto-registration.
+    Reached as client.map.
     """
 
     def scan_map_area(

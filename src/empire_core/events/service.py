@@ -4,17 +4,16 @@ Events service: the server's currently active events.
 
 from __future__ import annotations
 
-from empire_core.services.base import BaseService, register_service
+from empire_core.services.base import BaseService
 from empire_core.utils.events import GameEvent
 from empire_core.utils.events import get_active_events as _get_active_events
 
 
-@register_service("events")
 class EventsService(BaseService):
     """
     Service for active event info.
 
-    Accessible via client.events after auto-registration.
+    Reached as client.events.
     """
 
     def get_active_event_ids(self) -> list[int]:
