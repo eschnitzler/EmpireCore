@@ -132,10 +132,17 @@ class TestReviewFollowUps:
         client = make_client()
         client._on_packet(xt_packet("sne", {"MSG": [ROW]}))
 
-        for listener in conn(client).disconnect_listeners:
-            listener()
+        client._on_disconnect(conn(client).generation)
 
         assert client.messages.mailbox == []
+
+    def test_a_late_drop_report_keeps_the_mailbox(self):
+        client = make_client()
+        client._on_packet(xt_packet("sne", {"MSG": [ROW]}))
+
+        client._on_disconnect(conn(client).generation - 1)
+
+        assert len(client.messages.mailbox) == 1
 
     def test_one_bad_delete_id_costs_only_itself(self):
         reply = DeleteMessagesResponse.model_validate({"MID": [7, "8", "x", 9.5, None, True]})

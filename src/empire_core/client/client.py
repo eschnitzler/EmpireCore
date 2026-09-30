@@ -325,6 +325,7 @@ class EmpireClient:
     def _forget_session(self) -> None:
         self.is_logged_in = False
         self.state.reset()
+        self.messages._reset()
 
     def on_disconnect(self, callback: Callable[[], None]) -> None:
         """Register a callback for the session dropping on its own; :meth:`close` does not fire it.

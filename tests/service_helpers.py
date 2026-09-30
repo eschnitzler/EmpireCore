@@ -169,6 +169,14 @@ class ScriptedConnection:
     def disconnect(self) -> None:
         self.connected = False
 
+    generation = 0
+
+    def run_if_current(self, generation: int, action: Any) -> bool:
+        if generation != self.generation:
+            return False
+        action()
+        return True
+
     def add_disconnect_listener(self, callback: Any) -> None:
         self.disconnect_listeners.append(callback)
 
@@ -212,6 +220,9 @@ class StubState:
     def get_all_movements(self) -> list:
         self.events.append("get_all_movements")
         return list(self.movements)
+
+    def reset(self) -> None:
+        self.events.append("reset")
 
 
 def make_client(

@@ -56,11 +56,10 @@ class MessagesService(BaseService):
         self.on_response("sne", self._handle_update)
         self.on_response("dms", self._handle_update)
         self.on_response("ams", self._handle_update)
-        client.connection.add_disconnect_listener(self._reset)
 
     def _reset(self) -> None:
         """
-        Empty the mailbox when the session drops; the server sends it again after a login.
+        Empty the mailbox; the client calls this when the session drops, and the server sends it again after a login.
 
         Client: ``CastleDestroyGameCommand`` (bundle line 120270) resets every model,
         and ``CastleMessageData.reset`` (bundle line 134889) empties the mailbox
