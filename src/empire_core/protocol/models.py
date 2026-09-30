@@ -283,9 +283,9 @@ from empire_core.protocol.auth import (
     CheckUsernameExistsResponse,
     LoginRequest,
     LoginResponse,
+    LoginTokenResponse,
     PasswordRecoveryRequest,
     PasswordRecoveryResponse,
-    PlayerData,
     RegisterRequest,
     RegisterResponse,
 )
@@ -330,7 +330,7 @@ __all__ = [
     # Auth
     "LoginRequest",
     "LoginResponse",
-    "PlayerData",
+    "LoginTokenResponse",
     "RegisterRequest",
     "RegisterResponse",
     "CheckUsernameAvailableRequest",
