@@ -4,7 +4,10 @@ Checked against client release: a4a25ae6
 
 Goodgame Empire speaks a SmartFoxServer dialect over a WebSocket
 (`wss://<host>:<port>`). The handshake is XML system messages; everything after
-it is `%xt%` extension messages. Every frame ends with a null byte.
+it is `%xt%` extension messages. Frames from the server end with a null byte;
+the client sends its own with none (`sendCommand` and `sendXMLMessage` pass the
+bare string to `socket.send`, dll lines 7198-7203), and so does the library
+(`Connection.send` strips a trailing null byte before sending).
 
 Line numbers below are `ggs.dll.split.js` lines (see the roadmap issue for how
 to fetch and split the client); search by the class name when they drift.
@@ -25,8 +28,11 @@ What the HTML5 client does (`BasicSmartfoxClient`, dll lines 7132-7240):
    every later `%xt%` message (`activeRoomId`).
 5. In the lobby room the client measures a `roundTrip` (answered by
    `roundTripRes`), starts a `pin` every 60 seconds (`onJoinRoom`) and sends
-   `vck` with the build number, `web-html5`, an empty string and the session
-   id (`BasicJoinedRoomCommand`, dll line 33011).
+   `vck` with the build number, `web-html5`, `<RoundHouseKick>` and the session
+   id (`BasicJoinedRoomCommand`, dll line 33011). `sendMessage` sends any
+   argument that is falsy but not `0` as `<RoundHouseKick>`, so the empty
+   string `vck` passes third goes out as that, and each `pin` is
+   `%xt%<zone>%pin%<room id>%<RoundHouseKick>%`.
 6. **`lli`**: the account login, whose JSON payload carries the name (`NOM`)
    and password (`PW`).
 
