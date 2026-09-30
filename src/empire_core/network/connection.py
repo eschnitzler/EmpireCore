@@ -23,6 +23,8 @@ from empire_core.protocol.packet import Packet
 
 logger = logging.getLogger(__name__)
 
+_DATA_OPCODES = frozenset({websocket.ABNF.OPCODE_TEXT, websocket.ABNF.OPCODE_BINARY})
+
 # Commands that use XT field 4 for data instead of error codes
 NON_ERROR_COMMANDS = {"rlu", "core_pol"}
 
@@ -236,7 +238,8 @@ class Connection:
 
             logger.debug(f"Connecting to {self.url}...")
 
-            ws = websocket.WebSocket()
+            # UTF-8 is checked where the message is decoded (see _receive), not per byte here.
+            ws = websocket.WebSocket(skip_utf8_validation=True)
             ws.settimeout(timeout)
 
             try:
@@ -608,13 +611,23 @@ class Connection:
             self._end_receive_loop(generation)
 
     def _receive(self, ws: websocket.WebSocket, generation: int) -> None:
+        """Read messages until the socket fails or the session ends.
+
+        Each message is decoded as UTF-8 with bad bytes replaced and a leading
+        byte order mark dropped, as the client's ``FileReader.readAsText(data,
+        "utf-8")`` decodes it. The client only reads binary messages; a text
+        message is decoded the same way, where a browser would fail the
+        connection on invalid UTF-8.
+
+        Client: ``BasicSmartfoxClient.handleSocketData`` (ggs.dll line 7208).
+        """
         frames = FrameBuffer()
 
         while self._running and generation == self._generation:
             # Only socket-level failures are fatal to this loop; everything
             # about handling a single frame is contained below.
             try:
-                data = ws.recv()
+                opcode, data = ws.recv_data()
             except websocket.WebSocketTimeoutException:
                 continue  # Check _running and try again
             except websocket.WebSocketConnectionClosedException:
@@ -626,13 +639,13 @@ class Connection:
                     logger.exception("Receive loop stopped by socket error")
                 break
             except Exception:
-                # Nothing else is expected out of recv(); still fatal, but log
+                # Nothing else is expected out of recv_data(); still fatal, but log
                 # it with the traceback so the cause is diagnosable.
                 if self._running and generation == self._generation:
                     logger.exception("Unexpected error in receive loop")
                 break
 
-            if not data:
+            if opcode not in _DATA_OPCODES or not data:
                 continue
 
             self._last_recv_at = time.monotonic()
@@ -640,7 +653,7 @@ class Connection:
             # A single bad packet must not cost us the connection: tearing the
             # session down forces a re-login that the game server rate-limits.
             # Drop the packet, keep the socket.
-            text = data.decode("utf-8", errors="replace") if isinstance(data, bytes) else data
+            text = data.decode("utf-8-sig", errors="replace") if isinstance(data, bytes) else data
             for raw in frames.feed(text):
                 try:
                     self._route_packet(Packet.from_bytes(raw.encode("utf-8")))

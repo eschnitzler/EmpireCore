@@ -22,22 +22,25 @@ def make_frame(command: str, payload: str = "{}") -> bytes:
 class FakeSocket:
     """Minimal stand-in for websocket.WebSocket for driving _recv_loop.
 
-    ``frames`` entries are returned from recv() in order; an Exception
-    instance is raised instead of returned. When the list is exhausted the
-    socket behaves like a closed one.
+    ``frames`` entries are returned from recv_data() in order, bytes as a
+    binary message, str as a text one and an (opcode, data) tuple as given;
+    an Exception instance is raised instead of returned. When the list is
+    exhausted the socket behaves like a closed one.
     """
 
     def __init__(self, frames):
         self.frames = list(frames)
         self.connected = True
 
-    def recv(self):
+    def recv_data(self):
         if not self.frames:
             raise websocket.WebSocketConnectionClosedException("no more frames")
         item = self.frames.pop(0)
         if isinstance(item, Exception):
             raise item
-        return item
+        if isinstance(item, tuple):
+            return item
+        return (websocket.ABNF.OPCODE_BINARY if isinstance(item, bytes) else websocket.ABNF.OPCODE_TEXT), item
 
 
 class RecordingSocket:
@@ -64,7 +67,7 @@ def make_ws_factory(created: list, gate: threading.Event | None = None):
     """
 
     class FakeWS:
-        def __init__(self):
+        def __init__(self, **_options):
             self.connected = False
             self.closed = False
             self.timeouts: list[float] = []
@@ -78,7 +81,7 @@ def make_ws_factory(created: list, gate: threading.Event | None = None):
                 assert gate.wait(timeout=5), "handshake gate never opened"
             self.connected = True
 
-        def recv(self):
+        def recv_data(self):
             time.sleep(0.005)
             raise websocket.WebSocketTimeoutException()
 
@@ -551,11 +554,79 @@ class TestRecvLoopResilience:
         assert any(record.exc_info and "unexpected error" in record.getMessage() for record in caplog.records)
 
 
+class _ByteSocket:
+    """Raw socket bytes for a real websocket.WebSocket; empty once read, which it sees as closed."""
+
+    def __init__(self, data: bytes):
+        self.data = memoryview(data)
+        self.pos = 0
+
+    def recv(self, n):
+        chunk = self.data[self.pos : self.pos + n].tobytes()
+        self.pos += len(chunk)
+        return chunk
+
+    def gettimeout(self):
+        return None
+
+    def settimeout(self, _timeout):
+        pass
+
+
+def _ws_frame(opcode: int, payload: bytes) -> bytes:
+    assert len(payload) < 126
+    return bytes([0x80 | opcode, len(payload)]) + payload
+
+
+class TestMessageDecoding:
+    """Messages decode as the client's FileReader.readAsText(data, "utf-8") decodes them."""
+
+    def _route(self, live_conn, *frames: bytes) -> list:
+        ws = websocket.WebSocket(skip_utf8_validation=True)
+        ws.sock = _ByteSocket(b"".join(frames))
+        ws.connected = True
+        routed: list = []
+        live_conn.on_packet = routed.append
+        live_conn._recv_loop(ws, 1)
+        return routed
+
+    def test_an_invalid_byte_is_replaced_in_binary_and_text_messages(self, live_conn):
+        bad = b'%xt%acm%1%0%{"CM":{"MT":"caf\xe9"}}%'
+        for opcode in (websocket.ABNF.OPCODE_BINARY, websocket.ABNF.OPCODE_TEXT):
+            live_conn._running = True
+            routed = self._route(live_conn, _ws_frame(opcode, bad), _ws_frame(opcode, make_frame("gam")))
+            assert [p.command_id for p in routed] == ["acm", "gam"]
+            assert routed[0].payload == {"CM": {"MT": "caf\ufffd"}}
+
+    def test_a_leading_byte_order_mark_is_dropped(self, live_conn):
+        routed = self._route(live_conn, _ws_frame(websocket.ABNF.OPCODE_BINARY, b"\xef\xbb\xbf" + make_frame("gam")))
+        assert [p.command_id for p in routed] == ["gam"]
+
+    def test_connect_leaves_utf8_to_the_decoder(self, conn, monkeypatch):
+        options: list[dict] = []
+        created: list = []
+        factory = make_ws_factory(created)
+
+        def recording(**kwargs):
+            options.append(kwargs)
+            return factory(**kwargs)
+
+        monkeypatch.setattr(websocket, "WebSocket", recording)
+        conn.connect()
+        try:
+            assert options == [{"skip_utf8_validation": True}]
+        finally:
+            conn.disconnect()
+
+
 class TestConnectErrors:
     def _patch_ws(self, monkeypatch, error: Exception):
         closed: list[bool] = []
 
         class FailingWS:
+            def __init__(self, **_options):
+                pass
+
             def settimeout(self, _timeout):
                 pass
 

@@ -28,13 +28,16 @@ def test_a_new_connection_has_joined_no_room(monkeypatch):
     class FakeWebSocket:
         connected = True
 
+        def __init__(self, **_options):
+            pass
+
         def settimeout(self, timeout):
             pass
 
         def connect(self, url):
             pass
 
-        def recv(self):
+        def recv_data(self):
             raise websocket.WebSocketTimeoutException()
 
         def close(self):

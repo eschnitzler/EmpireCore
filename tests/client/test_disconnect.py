@@ -21,7 +21,7 @@ class ClosingSocket:
 
     connected = True
 
-    def recv(self):
+    def recv_data(self):
         raise websocket.WebSocketConnectionClosedException("closed by server")
 
     def send(self, _data):
