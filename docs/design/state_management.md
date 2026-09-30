@@ -12,7 +12,7 @@ for every decision.
 class GameState:
     local_player: Player | None
     players: dict[int, Player]        # player_id -> Player (local player only)
-    castles: dict[int, Castle]        # castle_id -> Castle
+    castles: dict[CastleKey, Castle]  # (kingdom, castle_id) -> Castle
     movements: dict[int, Movement]    # movement_id -> Movement
     active_event_ids: list[int]
 ```

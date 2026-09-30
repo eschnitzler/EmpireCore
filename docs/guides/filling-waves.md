@@ -24,7 +24,6 @@ client.attack.send_attack(
     source_x=castle.x, source_y=castle.y,
     target_x=624, target_y=247,
     waves=attack.waves, yard_wave=attack.yard,
-    kingdom_id=castle.kingdom_id,
     commander_id=commander.commander_id,
     min_soldiers=attack.min_soldiers,
 )

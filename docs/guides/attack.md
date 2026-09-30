@@ -27,6 +27,11 @@ An `AttackWave` has a `left`, `middle` and `right` flank, and each
 `WaveFlank` holds `units` and `tools` as `[wod_id, amount]` pairs. The wire
 keys (`L`, `M`, `R`, `U`, `T`) are accepted as well. Waves go front to back.
 
+The attack is sent in the kingdom of your area at the source position, looked
+up in your castle list; pass `kingdom_id` to name it yourself. With no area of
+yours there it raises `UnknownCastleError`, and with areas of yours at that
+position in several kingdoms, `AmbiguousCastleError`.
+
 ## The commander
 
 `commander_id` is required. Every id `get_commanders()` returns leads an

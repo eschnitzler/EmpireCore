@@ -79,13 +79,12 @@ id, or `None` outside one.
 
 ```python
 from empire_core.alliance import AllianceDonation, AllianceRank
-from empire_core import Kingdom
 
 for application in client.alliance.get_applications().applications:
     client.alliance.answer_application(application.player_id, accept=True)
 
 client.alliance.set_rank(player_id, AllianceRank.SERGEANT)
-client.alliance.donate(castle_id, Kingdom.GREEN, AllianceDonation(wood=1000))
+client.alliance.donate(castle_id, AllianceDonation(wood=1000))   # the castle's kingdom is looked up
 ```
 
 Also on the service: `invite`, `kick_member`, `leave`, `change_diplomacy`,

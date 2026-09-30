@@ -111,14 +111,18 @@ visible where you call it.
 ## Read your castles
 
 ```python
-from empire_core import Kingdom
-
-for castle in client.castle.get_all():
+castles = client.castle.get_all()
+for castle in castles:
     print(castle.castle_id, castle.castle_name, castle.kingdom_id, (castle.x, castle.y))
 
-resources = client.castle.get_resources(castle_id=castle.castle_id, kingdom_id=Kingdom.GREEN)
+resources = client.castle.get_resources(castle_id=castles[0].castle_id)
 print(resources.wood, resources.stone)
 ```
+
+Methods that act on one of your castles take its id alone: the kingdom comes
+from the castle list the server sent at login. An id that is not one of your
+castles raises `UnknownCastleError`, and one listed in several of your kingdoms
+raises `AmbiguousCastleError`.
 
 `client.castle.get_all()` asks the server. What the login data already told the
 client is in `client.state`, readable without a request:

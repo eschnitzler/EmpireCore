@@ -5,7 +5,9 @@ description: Units, recruitment, production lists and the hospital.
 # Army
 
 Every `client.army` call joins its castle first, so you never need to select
-one yourself; production and hospital commands then act on that castle.
+one yourself; production and hospital commands then act on that castle. The
+castle's kingdom comes from your castle list, so a castle that is not yours
+raises `UnknownCastleError`.
 
 ## Units
 

@@ -34,6 +34,10 @@ Castles, buildings, resources and transfers behind `client.castle`.
 
 ::: empire_core.castle.models.objects
 
+## `castle.models.permanent`
+
+::: empire_core.castle.models.permanent
+
 ## `castle.models.resources`
 
 ::: empire_core.castle.models.resources

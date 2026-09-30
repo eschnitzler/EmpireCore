@@ -49,6 +49,9 @@ classDiagram
     EmpireError <|-- AmbiguousLookupError
     EmpireError <|-- ReceiveThreadError
     EmpireError <|-- PoolExhaustedError
+    EmpireError <|-- UnknownCastleError
+    EmpireError <|-- AmbiguousCastleError
+    EmpireError <|-- UnsendableGoodsError
 ```
 
 | Error | When |
@@ -65,6 +68,9 @@ classDiagram
 | `AttackBelowMinimumError` | An attack carries fewer units than the client allows |
 | `AttackInProgressError` | One of your attacks is already on its way to that target |
 | `PoolExhaustedError` | No account in the [pool](multiple-accounts.md) was free |
+| `UnknownCastleError` | A castle id, or a source position, is not one of your castles; also a `ValueError` |
+| `AmbiguousCastleError` | A castle id or position matches your castles in several kingdoms; also a `LookupError` |
+| `UnsendableGoodsError` | A [market send](castle.md#goods-one-tab-per-send) carries goods the client would not send; also a `ValueError` |
 
 The library does not leak `pydantic.ValidationError` or raw socket exceptions
 past its own API: catching `EmpireError` covers everything.

@@ -16,6 +16,8 @@ underneath you mid-iteration:
 ```python
 player = client.state.get_local_player()        # None until the login data arrives
 castles = client.state.get_castles()
+unlocks = client.state.get_permanent_castle(castle_id)      # the units and horses a castle has unlocked
+horse_ids = client.state.get_castle_horse_ids(castle_id)    # its horses' wod ids
 movements = client.state.get_all_movements()
 attacks = client.state.get_incoming_attacks()
 currencies = client.state.get_special_currencies()
@@ -24,7 +26,8 @@ currencies = client.state.get_special_currencies()
 The attributes behind them (`client.state.local_player`,
 `client.state.castles`, ...) stay readable, but they are live and unlocked.
 Prefer the accessors whenever you read several fields at once or iterate a
-container.
+container. `client.state.castles` is keyed by `(kingdom, castle_id)`, as the
+game keeps a castle list per kingdom.
 
 ## Where state comes from
 
