@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 import websocket
 
 from empire_core.exceptions import ConnectionClosedError, EmpireTimeoutError, NetworkError
+from empire_core.network.framing import FrameBuffer
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import Packet
 
@@ -489,6 +490,7 @@ class Connection:
     def _recv_loop(self, ws: websocket.WebSocket, generation: int) -> None:
         """Background thread that receives and routes messages."""
         logger.debug("Receive loop started")
+        frames = FrameBuffer()
 
         while self._running and generation == self._generation:
             # Only socket-level failures are fatal to this loop; everything
@@ -517,16 +519,15 @@ class Connection:
 
             self._last_recv_at = time.monotonic()
 
-            # A single bad frame must not cost us the connection: parsing can
-            # reject e.g. all-null or non-UTF-8 frames, and tearing the session
-            # down forces a re-login that the game server rate-limits. Drop the
-            # frame, keep the socket.
-            try:
-                raw = data if isinstance(data, bytes) else data.encode("utf-8")
-                self._route_packet(Packet.from_bytes(raw))
-            except Exception:
-                logger.exception("Dropping frame that could not be parsed or routed")
-                continue
+            # A single bad packet must not cost us the connection: tearing the
+            # session down forces a re-login that the game server rate-limits.
+            # Drop the packet, keep the socket.
+            text = data.decode("utf-8", errors="replace") if isinstance(data, bytes) else data
+            for raw in frames.feed(text):
+                try:
+                    self._route_packet(Packet.from_bytes(raw.encode("utf-8")))
+                except Exception:
+                    logger.exception("Dropping a packet that could not be parsed or routed")
 
         # If a newer connection took over, this thread must not touch shared
         # state - the new session owns it now. The check happens under the

@@ -296,6 +296,25 @@ class TestRecvLoopResilience:
         assert waiter.result is not None
         assert waiter.result.command_id == "gam"
 
+    def test_every_packet_of_a_batched_message_is_routed(self, live_conn):
+        routed: list[str | None] = []
+        live_conn.on_packet = lambda p: routed.append(p.command_id)
+        batched = make_frame("gam") + b"\x00" + make_frame("dcl") + b"\x00"
+        apiok = "<msg t='sys'><body action='apiOK' r='0'></body></msg>"
+
+        live_conn._recv_loop(FakeSocket([batched, apiok + "%xt%gaa%1%0%{}%"]), 1)
+
+        assert routed == ["gam", "dcl", "apiOK", "gaa"]
+
+    def test_a_packet_split_across_messages_is_routed_once_whole(self, live_conn):
+        waiter = live_conn.create_waiter("gam")
+        frame = make_frame("gam", '{"M": [], "O": []}')
+
+        live_conn._recv_loop(FakeSocket([frame[:9], frame[9:]]), 1)
+
+        assert waiter.result is not None
+        assert waiter.result.payload == {"M": [], "O": []}
+
     def test_socket_error_still_ends_the_loop(self, live_conn):
         # Socket-level failures are fatal: waiters are canceled and
         # on_disconnect fires so the client can re-login.
