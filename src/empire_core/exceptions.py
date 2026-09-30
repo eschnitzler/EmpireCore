@@ -27,7 +27,26 @@ class ConnectionClosedError(NetworkError):
 
 
 class LoginError(EmpireError):
-    """Raised when the login sequence fails."""
+    """
+    Raised when the login sequence fails.
+
+    Attributes:
+        code: the server's status code when the server refused the login, else None
+        error: the matching :class:`~empire_core.protocol.errors.GGEError` member,
+            or None for no code or a code this library does not know yet
+    """
+
+    def __init__(self, message: str, code: int | None = None):
+        self.code = code
+        self.error: GGEError | None = None
+        if code is not None:
+            try:
+                self.error = GGEError(code)
+            except ValueError:
+                self.error = None
+            name = self.error.name if self.error is not None else "UNKNOWN_ERROR"
+            message = f"{message}: {name} ({code})"
+        super().__init__(message)
 
 
 class LoginCooldownError(LoginError):
@@ -36,6 +55,8 @@ class LoginCooldownError(LoginError):
     def __init__(self, cooldown: int, message: str = "Login cooldown active"):
         self.cooldown = cooldown
         super().__init__(f"{message}: Retry in {cooldown}s")
+        self.code = GGEError.LOGIN_COOLDOWN_ACTIVE.value
+        self.error = GGEError.LOGIN_COOLDOWN_ACTIVE
 
 
 class AccountBannedError(LoginError):
@@ -54,6 +75,8 @@ class AccountBannedError(LoginError):
         self.deleted = deleted
         detail = "account deleted" if deleted else f"{remaining_seconds}s remaining"
         super().__init__(f"Account is banned ({detail})")
+        self.code = GGEError.IS_BANNED.value
+        self.error = GGEError.IS_BANNED
 
 
 class WrongServerError(LoginError):
@@ -70,6 +93,8 @@ class WrongServerError(LoginError):
     def __init__(self, instance_id: float | None):
         self.instance_id = instance_id
         super().__init__(f"Account is on another server (instance {instance_id})")
+        self.code = GGEError.EXISTING_MAPPING_WRONG_SERVER.value
+        self.error = GGEError.EXISTING_MAPPING_WRONG_SERVER
 
 
 class ClientVersionError(LoginError):

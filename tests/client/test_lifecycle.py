@@ -26,6 +26,7 @@ from empire_core.exceptions import (
 )
 from empire_core.network.connection import ResponseWaiter
 from empire_core.player.models.info import GetPlayerInfoRequest
+from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import BaseResponse
 from empire_core.protocol.packet import Packet
 
@@ -197,10 +198,29 @@ class TestLoginCleansUpOnFailure:
         conn = StubConnection({"lli": xt_packet("lli", error_code=21)})
         client = make_client(conn)
 
-        with pytest.raises(LoginError, match="Auth failed with code 21"):
+        with pytest.raises(LoginError, match=r"Auth failed: PLAYER_NOT_FOUND \(21\)") as exc_info:
             client.login()
 
+        assert (exc_info.value.code, exc_info.value.error) == (21, GGEError.PLAYER_NOT_FOUND)
         assert conn.disconnect_count == 1
+
+    def test_unknown_auth_code_keeps_the_raw_code(self):
+        conn = StubConnection({"lli": xt_packet("lli", error_code=99991)})
+        client = make_client(conn)
+
+        with pytest.raises(LoginError, match=r"Auth failed: UNKNOWN_ERROR \(99991\)") as exc_info:
+            client.login()
+
+        assert (exc_info.value.code, exc_info.value.error) == (99991, None)
+
+    def test_typed_login_refusals_carry_their_code(self):
+        conn = StubConnection({"lli": xt_packet("lli", '{"CD": 30}', error_code=453)})
+        client = make_client(conn)
+
+        with pytest.raises(LoginCooldownError) as exc_info:
+            client.login()
+
+        assert (exc_info.value.code, exc_info.value.error) == (453, GGEError.LOGIN_COOLDOWN_ACTIVE)
 
     def test_xt_login_timeout_closes_connection(self):
         conn = StubConnection({"lli": EmpireTimeoutError("no lli")})

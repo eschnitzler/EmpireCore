@@ -544,17 +544,19 @@ class EmpireClient:
         details = LoginResponse()
         if isinstance(lli.payload, dict):
             details = read_or_none(LoginResponse.model_validate, lli.payload) or details
-        if code == GGEError.LOGIN_COOLDOWN_ACTIVE:
-            raise LoginCooldownError(int(details.remaining_cooldown_seconds or 0))
-        if code == GGEError.IS_BANNED:
-            raise AccountBannedError(details.remaining_ban_seconds, details.account_deleted)
-        if code == GGEError.EXISTING_MAPPING_WRONG_SERVER:
-            raise WrongServerError(details.instance_id)
-        if code == GGEError.INVALID_LOGIN_TOKEN:
-            # The client forgets a token the server refused.
-            self.login_token = None
-            raise LoginError("The login token was refused")
-        raise LoginError(f"Auth failed with code {code}")
+        match code:
+            case GGEError.LOGIN_COOLDOWN_ACTIVE:
+                raise LoginCooldownError(int(details.remaining_cooldown_seconds or 0))
+            case GGEError.IS_BANNED:
+                raise AccountBannedError(details.remaining_ban_seconds, details.account_deleted)
+            case GGEError.EXISTING_MAPPING_WRONG_SERVER:
+                raise WrongServerError(details.instance_id)
+            case GGEError.INVALID_LOGIN_TOKEN:
+                # The client forgets a token the server refused.
+                self.login_token = None
+                raise LoginError("The login token was refused", code)
+            case _:
+                raise LoginError("Auth failed", code)
 
     def _close_after_failed_login(self) -> None:
         """Best-effort cleanup that must never mask the original failure."""
