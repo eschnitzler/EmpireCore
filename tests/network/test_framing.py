@@ -1,6 +1,9 @@
 """FrameBuffer: the server's message stream split into packets as the client splits it."""
 
 import logging
+import random
+import re
+import time
 
 from empire_core.network.framing import FrameBuffer
 
@@ -90,3 +93,55 @@ def test_a_large_packet_in_many_small_messages_comes_out_whole():
         out += frames.feed(packet[i : i + 7])
     assert out == [packet]
     assert frames.pending == ""
+
+
+class _WholeBufferFrames:
+    """The previous FrameBuffer, which read the whole pending buffer on every closing tag: the oracle."""
+
+    def __init__(self):
+        self.buffer = ""
+
+    def feed(self, text: str) -> list[str]:
+        tail = self.buffer[-5:]
+        self.buffer += text
+        if not text.endswith("%") and "</msg>" not in tail + text:
+            return []
+        packets = re.findall(r"<msg[\s\S]+?</msg>", self.buffer)
+        if packets:
+            self.buffer = re.sub(r"<msg[\s\S]+?</msg>", "", self.buffer)
+        if self.buffer.endswith("%"):
+            packets.extend("%xt" + piece for piece in self.buffer.split("%xt") if piece)
+            self.buffer = ""
+        return packets
+
+
+def test_reading_from_the_first_opening_tag_takes_what_reading_everything_takes():
+    rng = random.Random(7)
+    tokens = ["<msg", "</msg>", "<msg t='sys'>", "%xt%", "%", "ab", "<", ">", "/", "m", "sg", "{}", "%xt%gam%1%0%"]
+    for _ in range(3000):
+        stream = "".join(rng.choice(tokens) for _ in range(rng.randint(1, 30)))
+        cuts = sorted({rng.randint(1, len(stream)) for _ in range(rng.randint(0, 6))} | {len(stream)})
+        pieces, start = [], 0
+        for cut in cuts:
+            if cut - start >= 5 or cut == len(stream):
+                pieces.append(stream[start:cut])
+                start = cut
+        pieces = [piece for piece in pieces if piece]
+        frames, oracle = FrameBuffer(), _WholeBufferFrames()
+        for piece in pieces:
+            assert frames.feed(piece) == oracle.feed(piece), (stream, pieces)
+            assert frames.pending == oracle.buffer, (stream, pieces)
+
+
+def test_system_messages_between_pieces_of_a_large_packet_cost_linear_time():
+    packet = "%xt%gaa%1%0%{" + "x" * 2_000_000 + "}%"
+    frames = FrameBuffer()
+    out: list[str] = []
+    started = time.perf_counter()
+    for i in range(0, len(packet), 1024):
+        out += frames.feed(packet[i : i + 1024])
+        out += frames.feed(API_OK)
+    elapsed = time.perf_counter() - started
+    assert out.count(API_OK) == len(range(0, len(packet), 1024))
+    assert out[-2:] == [packet, API_OK]
+    assert elapsed < 1.0
