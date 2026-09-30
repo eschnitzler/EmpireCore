@@ -410,7 +410,7 @@ its travel time is up.
 State callbacks run one at a time on a single callback thread, in the order
 their packets arrived, so hand long work to another thread. When the
 connection drops, state is emptied until the next login refills it (the
-client asks for the movement list after the login data);
+server pushes the movement list shortly after the login data);
 `client.on_disconnect(callback)` tells you when that happens.
 
 > [!TIP]

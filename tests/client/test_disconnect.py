@@ -161,25 +161,25 @@ def sent_commands(socket: RecordingSocket) -> list[str]:
 
 
 class TestMovementsAfterLogin:
-    """The client asks for the movement list once the movement filter settings (mvf) arrive."""
+    """The server pushes gam after the login data; the client asks for it only after an mvf push."""
 
-    def test_the_login_data_is_followed_by_a_gam_request(self, client):
+    def test_the_login_data_asks_for_nothing(self, client):
         socket = new_session(client)
         arrive_packet(client, "gbd", {"gpi": {"PID": 1, "PN": "me"}, "mvf": {}})
-        assert sent_commands(socket) == ["gam"]
-        assert request_payload(socket.sent[0]) == {}
+        assert socket.sent == []
 
     def test_an_mvf_push_is_followed_by_a_gam_request(self, client):
         socket = new_session(client)
         arrive_packet(client, "mvf", {})
         assert sent_commands(socket) == ["gam"]
+        assert request_payload(socket.sent[0]) == {}
 
-    def test_a_refused_gbd_asks_for_nothing(self, client):
+    def test_a_refused_mvf_asks_for_nothing(self, client):
         socket = new_session(client)
-        arrive_packet(client, "gbd", {}, error_code=1)
+        arrive_packet(client, "mvf", {}, error_code=1)
         assert socket.sent == []
 
-    def test_a_reconnect_and_login_list_the_movements_again_by_themselves(self, client):
+    def test_a_reconnect_and_login_list_the_movements_again_from_the_pushed_gam(self, client):
         new_session(client)
         arrive_packet(client, "gbd", {"gpi": {"PID": 1, "PN": "me"}})
         arrive_packet(client, "gam", gam_payload(100))
@@ -188,9 +188,10 @@ class TestMovementsAfterLogin:
 
         socket = new_session(client)
         arrive_packet(client, "gbd", {"gpi": {"PID": 1, "PN": "me"}})
-        assert sent_commands(socket) == ["gam"]
+        # The server's own gam push after the login data.
         arrive_packet(client, "gam", gam_payload(100))
 
+        assert socket.sent == []
         assert [m.movement_id for m in client.state.get_all_movements()] == [100]
 
 

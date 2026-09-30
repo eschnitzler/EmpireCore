@@ -63,8 +63,8 @@ class GameState(MovementState, CastleState, PlayerState):
     Every player section above is sent inside the login gbd and again as a
     push of its own when it changes. When the connection is lost, or the
     client is closed, everything is reset (see :meth:`reset`). The next
-    login's gbd refills the player and castles, and the gam the client asks
-    for after it the movements; ``get_last_packet_time("gbd")`` and
+    login's gbd refills the player and castles, and the gam the server pushes
+    after it (seen live) the movements; ``get_last_packet_time("gbd")`` and
     ``get_last_packet_time("gam")`` say when.
 
     In practice a castle's ``resources`` often reflects login time and nothing

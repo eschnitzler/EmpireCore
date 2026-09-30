@@ -78,7 +78,7 @@ class StateBase:
         announced to :meth:`on_incoming_attack`. Fires no callback: a movement that is dropped
         here was not seen to arrive or be removed. The client resets its data
         the same way when the connection is lost; the next login's gbd, and the
-        gam the client asks for after it, rebuild it.
+        gam the server pushes after it (seen live), rebuild it.
 
         Client: ``CastleConnectionLostCommand.execute`` (bundle line 120254) runs
         ``CastleDestroyGameCommand``, whose ``destroyGameSpecificObjects``

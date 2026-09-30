@@ -48,8 +48,6 @@ from empire_core.state.manager import GameState
 
 logger = logging.getLogger(__name__)
 
-# Packets carrying the movement filter settings; each is followed by a gam request.
-MOVEMENT_FILTER_COMMANDS = frozenset({"gbd", "mvf"})
 
 T = TypeVar("T", bound=BaseResponse)
 
@@ -177,7 +175,7 @@ class EmpireClient:
 
         # Update internal state (always runs for state-tracked commands)
         self._update_state(cmd, payload)
-        if cmd in MOVEMENT_FILTER_COMMANDS and packet.error_code == 0:
+        if cmd == "mvf" and packet.error_code == 0:
             self._request_movements()
 
         # Client: CastleExtensionResponseCommand.execute (bundle line 110733) hands
@@ -213,17 +211,13 @@ class EmpireClient:
                     logger.exception(f"Handler error for command '{cmd}'")
 
     def _request_movements(self) -> None:
-        """Ask for the movement list (gam) once the movement filter settings (mvf) are known.
+        """Ask for the movement list (gam) after an mvf push changes the movement filter settings.
 
         Runs on the receive thread, so it sends without waiting; the reply reaches
-        state like any gam. The client sends it from ``MVFCommand.executeCommand``,
-        the handler of an mvf push. Its login data parser (``GBDCommand``) only
-        reads the gbd's mvf section, but a live login gets no mvf push, so the
-        library also asks after every gbd; nothing else would list the movements
-        after a login.
+        state like any gam. After a login nothing needs asking: the server pushes
+        gam by itself shortly after the login data (seen live).
 
-        Client: ``MVFCommand.executeCommand`` (bundle line 129703) and
-        ``GBDCommand.executeCommand`` (line 129381, ``parse_MVF(n.mvf)``).
+        Client: ``MVFCommand.executeCommand`` (bundle line 129703).
         """
         try:
             self.send(GetMovementsRequest())
@@ -243,7 +237,7 @@ class EmpireClient:
 
         State data is reset, as the game client resets it, so nothing from
         the lost session is reported after it. The next login's gbd rebuilds
-        the player and castles, and the gam asked for after it the movements.
+        the player and castles, and the gam the server pushes after it the movements.
         Registered callbacks and the callback executor stay, so they keep
         working after a re-login.
         """
