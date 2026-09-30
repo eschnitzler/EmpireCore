@@ -101,6 +101,7 @@ class GameState(MovementState, CastleState, PlayerState):
         "mfc": "_handle_mfc",
         "glu": "_handle_glu",
         "mir": "_handle_mir",
+        "fjf": "_handle_fjf",
         "sce": "_handle_sce",
         "sei": "_handle_sei",
     }
@@ -197,6 +198,14 @@ class GameState(MovementState, CastleState, PlayerState):
         if isinstance(data, dict) and data.get("gcl"):
             self._handle_gbd({"gcl": data["gcl"]})
 
+    def _handle_fjf(self, data: Any) -> None:
+        """Apply the castle list a faction join reply carries in its ``mir``.
+
+        Client: ``FJFCommand.executeCommand`` (bundle line 127783), ``i.mir&&parse_MIR(i.mir)``.
+        """
+        if isinstance(data, dict):
+            self._handle_mir(data.get("mir"))
+
     def _stamp_sections(self, data: dict[str, Any]) -> None:
         """Record when each section of a gbd/lli payload, or a section push, was applied.
 
@@ -218,7 +227,7 @@ class GameState(MovementState, CastleState, PlayerState):
         Accepts the wire ids this manager tracks — "gbd", "lli", "gam", "dcl",
         "abr", "asr", the send replies ("cra", "cam", "abgcam", "cds", "csm",
         "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm",
-        "mfc", "glu", "mir", "sce", "sei" — and the player sections "gpi",
+        "mfc", "glu", "mir", "fjf", "sce", "sei" — and the player sections "gpi",
         "gxp", "gcu", "vip", "gal", "gcl", "gho" and "uap", stamped whether
         they came inside a gbd or as a push of their own, plus "gac", which
         only comes inside a gbd. A send reply

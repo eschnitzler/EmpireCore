@@ -338,6 +338,17 @@ class TestPlayerPushes:
         state.update_from_packet("mir", {"gcl": gcl_payload([(1, "Main"), (3, "Taken")]), "CID": 3, "KID": 0})
         assert sorted(state.get_local_player().castles) == [(Kingdom.GREEN, 1), (Kingdom.GREEN, 3)]
 
+    def test_a_faction_join_applies_the_mir_it_carries(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
+        mir = {"gcl": {"C": [*gcl_payload([(1, "Main")])["C"], *gcl_payload([(9, "Camp")], kingdom=10)["C"]]}}
+        state.update_from_packet("fjf", {"FID": 1, "kpi": {}, "sei": {}, "mir": mir})
+        assert sorted(state.get_local_player().castles) == [(Kingdom.GREEN, 1), (Kingdom.BERIMOND, 9)]
+
+    def test_a_faction_join_without_a_mir_keeps_the_castles(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
+        state.update_from_packet("fjf", {"FID": 1, "kpi": {}, "sei": {}})
+        assert list(state.get_local_player().castles) == [(Kingdom.GREEN, 1)]
+
     def test_gho_push(self, state):
         state.update_from_packet("gbd", LIVE_LOGIN)
         state.update_from_packet("gho", {"H": 120, "RP": 95})
