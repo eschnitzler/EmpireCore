@@ -80,7 +80,7 @@ from .resources import (
     GetResourcesRequest,
     GetResourcesResponse,
 )
-from .support import SendSupportRequest, SendSupportResponse
+from .support import SendSupportRequest, SendSupportResponse, SendTroopsRequest, SendTroopsResponse
 from .transfers import KingdomUnitTransferRequest, KingdomUnitTransferResponse
 
 __all__ = [
@@ -157,4 +157,6 @@ __all__ = [
     "SafeAmount",
     "SendSupportRequest",
     "SendSupportResponse",
+    "SendTroopsRequest",
+    "SendTroopsResponse",
 ]

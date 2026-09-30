@@ -14,7 +14,7 @@ from empire_core.castle.models.market import (
     MarketInfoRequest,
     MarketInfoResponse,
 )
-from empire_core.castle.models.support import SendSupportResponse
+from empire_core.castle.models.support import SendSupportResponse, SendTroopsRequest, SendTroopsResponse
 from empire_core.castle.models.transfers import KingdomUnitTransferRequest, KingdomUnitTransferResponse
 from empire_core.enums import Kingdom, MarketScope, ResourceCartType
 from empire_core.protocol.models import parse_response
@@ -110,6 +110,97 @@ class TestKingdomUnitTransfer:
     def test_the_reply(self):
         reply = parse_response("kut", {"gcu": {"C1": 1}, "gui": {}, "kpi": {}})
         assert isinstance(reply, KingdomUnitTransferResponse) and reply.currencies is not None
+
+
+# =============================================================================
+# cat
+# =============================================================================
+
+
+class TestSendTroops:
+    def test_the_request_follows_the_client(self):
+        # C2SCreateArmyTravelMovementVO: SX to SD initialised, A set after them
+        payload = SendTroopsRequest(
+            SX=100, SY=200, TX=110, TY=205, KID=Kingdom.GREEN, LID=5, A=[[620, 10]]
+        ).to_payload()
+        assert list(payload) == ["SX", "SY", "TX", "TY", "KID", "LID", "WT", "HBW", "BPC", "PTT", "SD", "A"]
+        assert payload == {
+            "SX": 100,
+            "SY": 200,
+            "TX": 110,
+            "TY": 205,
+            "KID": 0,
+            "LID": 5,
+            "WT": 0,
+            "HBW": -1,
+            "BPC": 0,
+            "PTT": 0,
+            "SD": 0,
+            "A": [[620, 10]],
+        }
+
+    def test_send_troops_pays_nothing_by_default(self):
+        client = make_client()
+        assert client.castle.send_troops(100, 200, 110, 205, [[620, 10], [649, 2]], commander_id=5) is True
+        assert conn(client).request_payloads == [
+            (
+                "cat",
+                {
+                    "SX": 100,
+                    "SY": 200,
+                    "TX": 110,
+                    "TY": 205,
+                    "KID": 0,
+                    "LID": 5,
+                    "WT": 0,
+                    "HBW": -1,
+                    "BPC": 0,
+                    "PTT": 0,
+                    "SD": 0,
+                    "A": [[620, 10], [649, 2]],
+                },
+            )
+        ]
+
+    def test_feathers_send_no_horse(self):
+        client = make_client()
+        client.castle.send_troops(100, 200, 110, 205, [[620, 1]], commander_id=5, horses_type=3, feathers=True)
+        payload = conn(client).request_payloads[0][1]
+        assert (payload["HBW"], payload["PTT"]) == (-1, 1)
+
+    def test_the_options(self):
+        client = make_client()
+        client.castle.send_troops(
+            100,
+            200,
+            110,
+            205,
+            [[620, 1]],
+            commander_id=-14,
+            kingdom_id=Kingdom.ICE,
+            use_premium_commander=True,
+            horses_type=3,
+            slowdown=60,
+        )
+        payload = conn(client).request_payloads[0][1]
+        assert (payload["KID"], payload["LID"], payload["BPC"], payload["HBW"], payload["PTT"], payload["SD"]) == (
+            2,
+            -14,
+            1,
+            3,
+            0,
+            60,
+        )
+
+    def test_a_refusal_is_false(self):
+        client = make_client({"cat": xt_packet("cat", error_code=92)})
+        assert client.castle.send_troops(100, 200, 110, 205, [[620, 1]], commander_id=5) is False
+
+    def test_the_reply(self):
+        # CATCommand reads O, A and gcu
+        reply = parse_response("cat", {"O": [], "A": {"M": {"MID": 1}}, "gcu": {"C1": 900, "C2": 4}})
+        assert isinstance(reply, SendTroopsResponse)
+        assert reply.currencies is not None and (reply.currencies.coins, reply.currencies.rubies) == (900, 4)
 
 
 # =============================================================================

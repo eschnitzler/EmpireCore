@@ -65,6 +65,8 @@ from .models import (
     SellBuildingResponse,
     SendSupportRequest,
     SendSupportResponse,
+    SendTroopsRequest,
+    SendTroopsResponse,
     ShowConstructionListRequest,
     ShowConstructionListResponse,
     StorageCapacity,
@@ -150,4 +152,6 @@ __all__ = [
     "SafeAmount",
     "SendSupportRequest",
     "SendSupportResponse",
+    "SendTroopsRequest",
+    "SendTroopsResponse",
 ]

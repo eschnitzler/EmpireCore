@@ -65,7 +65,7 @@ from empire_core.castle.models.resources import (
     GetResourcesRequest,
     GetResourcesResponse,
 )
-from empire_core.castle.models.support import SendSupportRequest
+from empire_core.castle.models.support import SendSupportRequest, SendTroopsRequest
 from empire_core.castle.models.transfers import KingdomUnitTransferRequest
 from empire_core.enums import ExpansionType, Kingdom, ResourceCartType
 from empire_core.services.base import BaseService
@@ -480,6 +480,9 @@ class CastleService(BaseService):
         """
         Send support troops from a castle to a target location.
 
+        The server refuses a support to your own area with NO_SELF_DESTRUCTION
+        (92); move troops between your own areas with :meth:`send_troops`.
+
         Args:
             source_castle_id: The castle the troops leave from, one of yours: ``CastleInfo.castle_id``
                 from ``client.castle.get_all()`` or ``Castle.id`` from ``client.state.get_castles()``
@@ -512,6 +515,79 @@ class CastleService(BaseService):
             PTT=1 if feathers else 0,
             SD=slowdown,
             LID=commander_id,
+        )
+        return self.execute(request, timeout=timeout)
+
+    def send_troops(
+        self,
+        source_x: int,
+        source_y: int,
+        target_x: int,
+        target_y: int,
+        units: list[list[int]],
+        commander_id: int,
+        *,
+        kingdom_id: Kingdom = Kingdom.GREEN,
+        use_premium_commander: bool = False,
+        horses_type: int = -1,
+        feathers: bool = False,
+        slowdown: int = 0,
+        timeout: float = 5.0,
+    ) -> bool:
+        """
+        Send troops from one of your areas to another of your own, where they stay.
+
+        This is how the client moves troops between your own areas; a support
+        (:meth:`send_support`) to your own area is refused with
+        NO_SELF_DESTRUCTION (92). While the troops are heading out they can be
+        recalled with ``client.movements.recall``.
+
+        Targets the client offers: your castle (main or kingdom castle), your
+        outposts not under conquer control, your villages and resource isles,
+        your king's towers, monuments and laboratories, and your faction camps.
+        Sources: your castles and outposts (not occupied ones), villages,
+        resource isles, king's towers, monuments and laboratories. Both must
+        sit in the same kingdom; to move troops between kingdoms use
+        :meth:`transfer_units_to_kingdom`.
+
+        Client: ``CastleTroopSupportData.sendTroops`` (bundle line 38420); the
+        targets from the ``canBeTroupsSended`` overrides (``CastleMapobjectVO``
+        bundle line 18917, ``OutpostMapobjectVO`` 18819, ``KingstowerMapobjectVO``
+        19075, ``FactionCampMapobjectVO`` 21530, ``VillageMapobjectVO`` 22673,
+        ``UpgradableLandmarkMapobjectVO`` 42648), the sources from
+        ``CastleStartAttackDialog.fillCastleList`` (bundle line 14725)
+
+        Args:
+            source_x: Map x of the area the troops leave from
+            source_y: Map y of the area the troops leave from
+            target_x: Map x of the area they go to
+            target_y: Map y of the area they go to
+            units: The units, then any tools, as [wod_id, amount] pairs
+            commander_id: Commander to lead them, a ``Commander.commander_id``
+                from ``client.commanders.get_commanders()``; ``0`` is the free
+                starting one
+            kingdom_id: The kingdom both areas sit in
+            use_premium_commander: Lead with the premium commander (``commander_id``
+                -14). It uses one of your premium commanders, or costs rubies when
+                none are left; the client asks first, this does not
+            horses_type: The horse's wod id, -1 for none; sent as -1 whenever
+                feathers are used, as the client does
+            feathers: Pay for the horse with feathers
+            slowdown: Seconds to delay the arrival by
+            timeout: Timeout in seconds
+        """
+        request = SendTroopsRequest(
+            SX=source_x,
+            SY=source_y,
+            TX=target_x,
+            TY=target_y,
+            KID=kingdom_id,
+            LID=commander_id,
+            HBW=-1 if feathers else horses_type,
+            BPC=1 if use_premium_commander else 0,
+            PTT=1 if feathers else 0,
+            SD=slowdown,
+            A=units,
         )
         return self.execute(request, timeout=timeout)
 
