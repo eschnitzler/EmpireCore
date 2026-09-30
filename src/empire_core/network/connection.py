@@ -392,6 +392,10 @@ class Connection:
         self._refuse_receive_thread(cmd_id)
         deadline = time.monotonic() + timeout
         with self.command_lock(cmd_id, timeout=timeout):
+            if time.monotonic() >= deadline:
+                raise EmpireTimeoutError(
+                    f"Timeout waiting for '{cmd_id}': an earlier '{cmd_id}' request was still running"
+                )
             waiter = self.create_waiter(cmd_id, accepts)
             try:
                 self.send(data)
@@ -410,7 +414,9 @@ class Connection:
 
         Raises:
             EmpireTimeoutError: Another thread held it for all of ``timeout``
+            ReceiveThreadError: Called on the receive thread, where waiting for it would stall routing
         """
+        self._refuse_receive_thread(cmd_id)
         with self._command_locks_lock:
             lock = self._command_locks.get(cmd_id)
             if lock is None:

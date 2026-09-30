@@ -332,6 +332,18 @@ class TestOneRequestPerCommand:
             with sending_conn.command_lock("gdi", timeout=0):
                 pass
 
+    def test_no_time_left_after_the_lock_means_no_send(self, sending_conn):
+        with pytest.raises(EmpireTimeoutError):
+            sending_conn.request("%xt%EmpireEx_21%gdi%1%{}%", "gdi", timeout=0)
+        assert sent(sending_conn) == []
+        assert sending_conn._waiters == {}
+
+    def test_command_lock_is_refused_on_the_receive_thread(self, sending_conn):
+        sending_conn._recv_thread = threading.current_thread()
+        with pytest.raises(ReceiveThreadError):
+            with sending_conn.command_lock("gdi"):
+                pass
+
 
 class TestReplyChecks:
     def test_a_push_for_another_player_does_not_answer_the_request(self, conn):
