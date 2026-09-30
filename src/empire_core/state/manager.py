@@ -12,12 +12,12 @@ from empire_core.state.player import PlayerState
 
 __all__ = ["MOVEMENT_PARSE_WARN_INTERVAL", "GameState", "MovementEventCallback"]
 # gbd/lli sections stamped under their own id, whether they came in a gbd or as a push.
-_TRACKED_SECTIONS = ("gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce", "dcl", "sei")
+_TRACKED_SECTIONS = ("gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce", "dcl", "sei", "gpc")
 
 _PLAYER_SECTIONS = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce"})
 
 # Pushes whose payload is the body of the gbd section of the same name.
-_SECTION_PUSHES = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap"})
+_SECTION_PUSHES = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc"})
 
 
 class GameState(MovementState, CastleState, PlayerState):
@@ -51,6 +51,7 @@ class GameState(MovementState, CastleState, PlayerState):
     ===================================  ==========================  ======================================
     castle name/coords, castle list      ``gcl``, ``mir`` (pushed)    re-login
     castle resources/units/details       ``dcl``                      ``client.castle.get_details(id)``
+    castle unlocked units and horses     ``gpc`` (pushed)             re-login
     player identity/level/XP             ``gpi``/``gxp``/``glu``      re-login
     player coins/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      re-login
     honor, beginner protection           ``gho``/``uap``              re-login
@@ -129,12 +130,13 @@ class GameState(MovementState, CastleState, PlayerState):
 
         Client: ``GBDCommand.exec``; the pushes are ``GPICommand``, ``GXPCommand``,
         ``GCUCommand``, ``VIPCommand``, ``GALCommand``, ``GCLCommand``,
-        ``GHOCommand`` and ``UAPCommand``.
+        ``GHOCommand``, ``UAPCommand`` and ``GPCCommand``.
         """
         self._parse_player_sections(data)
         self._parse_special_currencies(data)
         self._parse_alliance_info(data)
         self._parse_castles(data)
+        self._parse_permanent_castles(data)
         if dcl := data.get("dcl"):
             self._handle_dcl(dcl)
         if sei := data.get("sei"):
@@ -227,8 +229,8 @@ class GameState(MovementState, CastleState, PlayerState):
         Accepts the wire ids this manager tracks — "gbd", "lli", "gam", "dcl",
         "abr", "asr", the send replies ("cra", "cam", "abgcam", "cds", "csm",
         "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm",
-        "mfc", "glu", "mir", "fjf", "sce", "sei" — and the player sections "gpi",
-        "gxp", "gcu", "vip", "gal", "gcl", "gho" and "uap", stamped whether
+        "mfc", "glu", "mir", "fjf", "sce", "sei" — and the login sections "gpi",
+        "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap" and "gpc", stamped whether
         they came inside a gbd or as a push of their own, plus "gac", which
         only comes inside a gbd. A send reply
         is stamped even when the server refused the send. ``None`` means none

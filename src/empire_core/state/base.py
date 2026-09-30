@@ -8,6 +8,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+from empire_core.castle.models.permanent import PermanentCastle
 from empire_core.movements.tracked import Movement
 from empire_core.state.models import Castle, CastleKey, Player
 
@@ -69,6 +70,8 @@ class StateBase:
         self.players: dict[int, Player] = {}
 
         self.castles: dict[CastleKey, Castle] = {}
+        # (kingdom, castle id) -> the castle's unlocked units and horses, from gpc
+        self.permanent_castles: dict[CastleKey, PermanentCastle] = {}
 
         # World State
         self.movements: dict[int, Movement] = {}  # MovementID -> Movement

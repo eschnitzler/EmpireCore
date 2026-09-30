@@ -176,7 +176,16 @@ queue = client.castle.get_build_queue()
 if castle.buildings:
     building = castle.buildings.buildings[0]
     client.castle.upgrade_building(building.object_id)
+
+# The horses a castle can send movements with, from the login data (needs
+# client.load_game_data()); client.state.get_castle_horse_ids(12345) gives the
+# bare wod ids without it.
+for horse in client.castle.get_horses(castle_id=12345) or []:
+    print(horse.wod_id, horse.unit_boost, horse.is_instant_spy_horse)
 ```
+
+An instant spy horse (`is_instant_spy_horse`) can be paid with rubies or, with
+`feathers=True`, with feathers.
 
 ### `client.army`
 
@@ -448,6 +457,7 @@ you mid-iteration.
 ```python
 player = client.state.get_local_player()      # None until login completes
 castles = client.state.get_castles()
+unlocks = client.state.get_permanent_castle(castle_id)  # units and horses a castle has unlocked
 attacks = client.state.get_incoming_attacks()
 currencies = client.state.get_special_currencies()
 ```

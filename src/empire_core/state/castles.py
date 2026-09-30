@@ -1,4 +1,4 @@
-"""Castle tracking: the castle list (gcl) and castle details (dcl)."""
+"""Castle tracking: the castle list (gcl), castle details (dcl) and unlocked units and horses (gpc)."""
 
 import logging
 import time
@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from empire_core.castle.models.castles import PlayerCastle
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
+from empire_core.castle.models.permanent import PermanentCastle, PermanentCastleDataResponse
 from empire_core.enums import Kingdom
 from empire_core.exceptions import AmbiguousCastleError
 from empire_core.protocol.base import enum_or_none
@@ -154,6 +155,47 @@ class CastleState(StateBase):
                     castle.units = info.units
                 castle.details = info
                 self._castle_details_at[key] = time.time()
+
+    def _parse_permanent_castles(self, data: dict[str, Any]) -> None:
+        """Apply a gpc section or push: each castle it names is replaced, the others kept.
+
+        Client: ``CastlePermanentCastleData.parseGPC`` (bundle line 139128), keyed
+        by ``getDicKey`` (bundle line 139147) as kingdom and castle id
+        """
+        gpc = data.get("gpc")
+        if not isinstance(gpc, dict):
+            return
+        castles = PermanentCastleDataResponse.model_validate(gpc).castles
+        if not castles:
+            return
+        merged = dict(self.permanent_castles)
+        for castle in castles:
+            merged[(castle.kingdom_id, castle.castle_id)] = castle
+        self.permanent_castles = merged
+
+    def get_permanent_castle(self, castle_id: int) -> PermanentCastle | None:
+        """One of your castles' unlocked units and horses, from the last gpc that named it.
+
+        The kingdom is the castle's own, from the castle list. ``None`` when the
+        castle is not in the castle list or no gpc named it.
+
+        Raises:
+            AmbiguousCastleError: the id repeats across your kingdoms
+
+        Client: ``CastlePermanentCastleData.getCastleByWorldAreaId`` (bundle line 139145)
+        """
+        with self._lock:
+            key = self._castle_key(castle_id)
+            return None if key is None else self.permanent_castles.get(key)
+
+    def get_castle_horse_ids(self, castle_id: int) -> list[int] | None:
+        """Wod ids of the horses one of your castles can send movements with, as gpc sent them.
+
+        Look each up with ``client.game_data.get_horse``, or use
+        ``client.castle.get_horses``. ``None`` when :meth:`get_permanent_castle` is.
+        """
+        permanent = self.get_permanent_castle(castle_id)
+        return None if permanent is None else list(permanent.horse_ids)
 
     def get_castles(self) -> list[Castle]:
         """Get a snapshot of the player's castles.

@@ -73,6 +73,7 @@ from .objects import (
     ShowConstructionListRequest,
     ShowConstructionListResponse,
 )
+from .permanent import CastleUnitUnlocks, PermanentCastle, PermanentCastleDataResponse
 from .resources import (
     CastleResources,
     GetProductionRequest,
@@ -155,6 +156,9 @@ __all__ = [
     "StorageCapacity",
     "ProductionBonus",
     "SafeAmount",
+    "CastleUnitUnlocks",
+    "PermanentCastle",
+    "PermanentCastleDataResponse",
     "SendSupportRequest",
     "SendSupportResponse",
     "SendTroopsRequest",

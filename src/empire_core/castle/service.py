@@ -73,7 +73,13 @@ from empire_core.castle.models.resources import (
 from empire_core.castle.models.support import SendSupportRequest, SendTroopsRequest
 from empire_core.castle.models.transfers import KingdomUnitTransferRequest
 from empire_core.enums import ExpansionType, Kingdom, Resource, ResourceCartType
-from empire_core.exceptions import AmbiguousCastleError, UnknownCastleError, UnsendableGoodsError
+from empire_core.exceptions import (
+    AmbiguousCastleError,
+    GameDataNotLoadedError,
+    UnknownCastleError,
+    UnsendableGoodsError,
+)
+from empire_core.gamedata import HorseStats
 from empire_core.services.base import BaseService
 
 _CLASSIC_GOODS = (Resource.WOOD.value, Resource.STONE.value, Resource.FOOD.value)
@@ -718,6 +724,39 @@ class CastleService(BaseService):
             A=units,
         )
         return self.execute(request, timeout=timeout)
+
+    def get_horses(self, castle_id: int) -> list[HorseStats] | None:
+        """
+        The horses one of your castles can send movements with, by wod id.
+
+        Read from the login data's ``gpc`` section and its pushes; nothing is
+        sent. A horse whose ``is_instant_spy_horse`` is set can be paid with
+        rubies or, sent as ``feathers=True``, with feathers; the client shows it
+        twice, once per payment. An id missing from the game data is left out,
+        as the client leaves it out.
+
+        Args:
+            castle_id: One of your castles, ``Castle.id`` from ``client.state.get_castles()``;
+                its kingdom is taken from the castle list
+
+        Returns:
+            The horses sorted by wod id, or None when the castle is not yours or no ``gpc`` named it
+
+        Raises:
+            GameDataNotLoadedError: ``client.load_game_data()`` has not been called
+            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
+
+        Client: ``CastleHorsesVO.parseParamObject`` (bundle line 139177),
+        ``CastlePermanentCastleData.getCastleByWorldAreaId`` (bundle line 139145)
+        """
+        game_data = self.client.game_data
+        if game_data is None:
+            raise GameDataNotLoadedError("Horse stats need the items payload: call client.load_game_data() first")
+        horse_ids = self.client.state.get_castle_horse_ids(castle_id)
+        if horse_ids is None:
+            return None
+        horses = [horse for wod_id in horse_ids if (horse := game_data.get_horse(wod_id)) is not None]
+        return sorted(horses, key=lambda horse: horse.wod_id)
 
 
 __all__ = ["CastleService"]

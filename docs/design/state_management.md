@@ -68,7 +68,7 @@ commands to handlers:
 | `mrm`        | server removed a movement                         |
 | `mfc`        | movement can be force-cancelled                   |
 | `dcl`        | detailed castle resources / units                 |
-| `gpi`, `gxp`, `gcu`, `vip`, `gal`, `gcl`, `gho`, `uap` | one login section, pushed when it changes |
+| `gpi`, `gxp`, `gcu`, `vip`, `gal`, `gcl`, `gho`, `uap`, `gpc` | one login section, pushed when it changes |
 | `glu`        | level up: its `gcu` and `gxp`                      |
 | `mir`        | castle list (`gcl`) after taking a castle          |
 | `sce`        | special currency update                            |
