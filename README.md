@@ -49,12 +49,6 @@
 uv add empire-core        # or: pip install empire-core
 ```
 
-The experimental persistence layer needs an extra:
-
-```bash
-pip install "empire-core[storage]"
-```
-
 <details>
 <summary><strong>Developing on the library itself</strong></summary>
 
@@ -571,7 +565,6 @@ empire_core/
 ├── gamedata/        # Items data: units, tools, effects and the id enums
 ├── services/        # BaseService and the service registry
 ├── state/           # Thread-safe game state
-├── storage/         # Experimental persistence (optional extra)
 └── utils/           # CDN-backed event and troop data
 ```
 

@@ -42,7 +42,7 @@ RANK = {
     "spy": 7,
 }
 PLUMBING = {"protocol", "enums", "gamedata", "exceptions", "config", "utils", "services"}
-ABOVE = {"client", "state", "storage", "network", "accounts", "pool"}
+ABOVE = {"client", "state", "network", "accounts", "pool"}
 AGGREGATOR = "empire_core.protocol.models"
 
 
@@ -178,8 +178,7 @@ import empire_core
 from empire_core.protocol import base
 first = dict(base._response_registry)
 for info in pkgutil.walk_packages(empire_core.__path__, "empire_core."):
-    if not info.name.startswith("empire_core.storage"):
-        importlib.import_module(info.name)
+    importlib.import_module(info.name)
 print(json.dumps({"first": sorted(first), "all": sorted(base._response_registry)}))
 """
 

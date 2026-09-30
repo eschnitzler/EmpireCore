@@ -26,7 +26,6 @@ src/empire_core/
 │   └── base.py            # BaseService, @register_service
 ├── network/               # WebSocket connection, receive loop, redaction
 ├── state/                 # Thread-safe game state
-├── storage/               # Experimental persistence (optional extra)
 └── utils/                 # CDN-backed event and troop data
 ```
 

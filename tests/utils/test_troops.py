@@ -1,12 +1,10 @@
-"""Tests for the CDN-backed metadata helpers and the experimental write queue.
+"""Tests for the CDN-backed metadata helpers.
 
 Every HTTP call is stubbed: the ``no_real_network`` fixture below replaces
 ``requests.get`` so an un-stubbed code path fails loudly instead of reaching
 the real GGS/GGE CDN.
 """
 
-import asyncio
-import contextlib
 import logging
 import threading
 import time
@@ -343,104 +341,3 @@ class TestCountTroops:
 
         warnings = [r for r in caplog.records if r.levelno == logging.WARNING and r.name == troops.__name__]
         assert len(warnings) == 1
-
-
-# ---------------------------------------------------------------------------
-# storage/database.py (experimental, optional extra)
-# ---------------------------------------------------------------------------
-
-database = pytest.importorskip("empire_core.storage.database", reason="requires the 'storage' extra")
-
-
-@contextlib.asynccontextmanager
-async def open_db(path: Any, **kwargs: Any) -> Any:
-    """Yield a GameDatabase and always tear it down.
-
-    A leaked engine keeps a live aiosqlite connection thread, which hangs the
-    interpreter at exit, so teardown must run even when the test body fails.
-    """
-    db = database.GameDatabase(db_path=str(path), **kwargs)
-    try:
-        yield db
-    finally:
-        db._running = False
-        task = db._writer_task
-        if task is not None:
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
-            db._writer_task = None
-        await db.engine.dispose()
-
-
-class TestWriteQueue:
-    """The storage module is async; these drive their own loop via asyncio.run."""
-
-    def test_queue_is_bounded(self, tmp_path: Any) -> None:
-        async def body() -> None:
-            async with open_db(tmp_path / "bounded.db") as db:
-                assert db._write_queue.maxsize > 0
-
-        asyncio.run(body())
-
-    def test_save_before_initialize_raises(self, tmp_path: Any) -> None:
-        async def body() -> None:
-            async with open_db(tmp_path / "early.db") as db:
-                with pytest.raises(RuntimeError):
-                    await db.mark_chunk_scanned(1, 0, 0)
-                assert db._write_queue.qsize() == 0
-
-        asyncio.run(body())
-
-    def test_save_after_close_raises(self, tmp_path: Any) -> None:
-        async def body() -> None:
-            async with open_db(tmp_path / "closed.db") as db:
-                await db.initialize()
-                await db.close()
-
-                with pytest.raises(RuntimeError):
-                    await db.mark_chunk_scanned(1, 0, 0)
-                assert db._write_queue.qsize() == 0
-
-        asyncio.run(body())
-
-    def test_writes_are_persisted(self, tmp_path: Any) -> None:
-        async def body() -> None:
-            async with open_db(tmp_path / "roundtrip.db") as db:
-                await db.initialize()
-                await db.mark_chunk_scanned(7, 1, 2)
-                await asyncio.wait_for(db._write_queue.join(), timeout=10)
-
-                assert await db.get_scanned_chunks(7) == {(1, 2)}
-                await db.close()
-
-        asyncio.run(body())
-
-    def test_failed_commit_retries_then_records_dropped_writes(
-        self, tmp_path: Any, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        commit_calls = Counter()
-
-        async def body() -> None:
-            async with open_db(tmp_path / "failing.db") as db:
-                await db.initialize()
-
-                async def always_fails(batch: list[Any]) -> None:
-                    commit_calls.bump()
-                    raise RuntimeError("database is locked")
-
-                monkeypatch.setattr(db, "_commit_batch", always_fails)
-                monkeypatch.setattr(database, "_COMMIT_RETRY_DELAY", 0.0)
-
-                await db.mark_chunk_scanned(7, 1, 2)
-                await asyncio.wait_for(db._write_queue.join(), timeout=10)
-
-                assert commit_calls.count >= 2, "the failed batch should be retried at least once"
-                assert db.failed_write_count == 1
-                assert isinstance(db.last_write_error, RuntimeError)
-                await db.close()
-
-        with caplog.at_level(logging.ERROR, logger="empire_core.storage.database"):
-            asyncio.run(body())
-
-        assert any(r.levelno >= logging.ERROR for r in caplog.records)
