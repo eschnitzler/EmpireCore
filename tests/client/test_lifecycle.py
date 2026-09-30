@@ -439,3 +439,17 @@ class TestHandlerRegistryIsLocked:
         client._on_packet(xt_packet("gam", '{"M": []}'))
 
         assert calls == ["called"]
+
+
+class TestCommandsCarryTheJoinedRoom:
+    """Every command after the login goes out in joinOK's room (BasicSmartfoxClient.sendMessage, dll line 7171)."""
+
+    def test_send_uses_the_room_the_login_joined(self):
+        join_ok = Packet.from_bytes(b"<msg t='sys'><body action='joinOK' r='5'><pid id='0'/></body></msg>")
+        conn = StubConnection({"joinOK": join_ok})
+        client = make_client(conn)
+        client.login()
+
+        client.send(GetPlayerInfoRequest(PID=1))
+
+        assert conn.sent[-1].startswith("%xt%EmpireEx_21%gdi%5%")
