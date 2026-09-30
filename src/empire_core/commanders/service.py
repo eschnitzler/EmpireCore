@@ -1,4 +1,4 @@
-"""Commander services for EmpireCore.
+"""Commanders and castellans, their equipment, and generals and skills.
 
 - CommandersService reads and renames the player's commanders and castellans.
 - EquipmentService reads the equipment inventory and moves items on and off
@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 class CommandersService(BaseService):
     """
-    Service for commander operations.
+    Your commanders and castellans, and renaming them.
 
     Reached as client.commanders.
     """
@@ -122,7 +122,7 @@ class CommandersService(BaseService):
 
 class EquipmentService(BaseService):
     """
-    Service for equipment operations.
+    The equipment inventory, and putting items on and off commanders and castellans.
 
     Reached as client.equipment. What a leader
     wears comes with ``client.commanders`` (``gli`` ``EQ``).
@@ -178,7 +178,7 @@ class EquipmentService(BaseService):
 
 class SkillsService(BaseService):
     """
-    Service for generals and player skills.
+    Generals, their abilities and skills, and the player's legend and sceat skills.
 
     Reached as client.skills.
     """

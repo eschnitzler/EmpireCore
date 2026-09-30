@@ -1,5 +1,5 @@
 """
-Account pool for managing multiple GGE client connections.
+A pool that leases one logged-in client per account.
 
 Provides lease/release semantics for account management, automatic cooldown
 handling, and tag-based filtering for different use cases (e.g., tracking,

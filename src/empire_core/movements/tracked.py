@@ -1,3 +1,5 @@
+"""A tracked army movement, with its timing and troops."""
+
 import logging
 import time
 from typing import Any

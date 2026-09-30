@@ -1,5 +1,5 @@
 """
-Active event resolver - maps live event IDs from the server to human-readable names.
+Names for the server's active event ids, from the game's CDN.
 
 Fetches static metadata from the GGS CDN (same pattern as troops.py) and cross-references
 the event IDs returned by the server's `sei` packet to produce typed GameEvent objects.

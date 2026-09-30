@@ -1,3 +1,5 @@
+"""Kingdom scans: breadth-first discovery and targeted re-scans of known chunks."""
+
 import logging
 import time
 from collections import deque

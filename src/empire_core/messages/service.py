@@ -1,5 +1,5 @@
 """
-Messages service: the mailbox and mail.
+The mailbox and mail.
 """
 
 from __future__ import annotations

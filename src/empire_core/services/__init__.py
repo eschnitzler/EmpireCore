@@ -1,7 +1,7 @@
 """
-Service layer for EmpireCore.
+The base class every service shares.
 
-Services provide high-level APIs for different game domains (alliance, castle, etc.).
+Services give each part of the game its own API (alliance, castle, ...).
 Each lives in its area package (``empire_core.alliance.service``, ...) and is built
 by ``EmpireClient.__init__``; this package holds only the base class.
 

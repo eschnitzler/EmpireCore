@@ -1,5 +1,5 @@
 """
-Events service: the server's currently active events.
+The server's currently active events.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from empire_core.utils.events import get_active_events as _get_active_events
 
 class EventsService(BaseService):
     """
-    Service for active event info.
+    The server's active events and your event leagues.
 
     Reached as client.events.
     """

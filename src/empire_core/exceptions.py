@@ -1,4 +1,4 @@
-"""Typed exceptions for EmpireCore.
+"""Every error the library raises; all derive from ``EmpireError``.
 
 Failure modes are kept distinct so callers can react to them individually:
 

@@ -1,10 +1,5 @@
 """
-Army service for EmpireCore.
-
-Provides high-level APIs for:
-- Unit production
-- Unit inventory management
-- Hospital operations
+Units, recruitment and the hospital of your castles.
 
 Every command here acts on the castle the session has joined, so each method
 joins the castle first (``jca``), as the client is inside a castle before it
@@ -46,7 +41,7 @@ from empire_core.services.base import BaseService
 
 class ArmyService(BaseService):
     """
-    Service for army operations.
+    Units, recruitment and the hospital of one of your castles.
 
     Reached as client.army.
 

@@ -1,3 +1,5 @@
+"""Client configuration and the game's server list."""
+
 import json
 import math
 import os

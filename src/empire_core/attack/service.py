@@ -1,7 +1,5 @@
 """
-Attack service for EmpireCore.
-
-Provides APIs for sending attacks.
+Sending attacks, and filling their waves the way the game's "Fill waves" button does.
 """
 
 from __future__ import annotations
@@ -251,7 +249,7 @@ def _merged(*inventories: dict[int, int]) -> dict[int, int]:
 
 class AttackService(BaseService):
     """
-    Service for attack operations.
+    Send attacks, fill their waves, and read the attack pre-calculation.
 
     Reached as client.attack.
     """

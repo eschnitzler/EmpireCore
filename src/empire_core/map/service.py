@@ -1,5 +1,5 @@
 """
-Map service: map areas, kingdom scans and finding map objects.
+Map areas, kingdom scans and finding map objects.
 
 Reading the map moves the session off the castle it had joined: a
 castle-scoped read after a scan fails with NOT_IN_OWNED_CASTLE until the
@@ -25,7 +25,7 @@ from empire_core.services.base import BaseService
 
 class MapService(BaseService):
     """
-    Service for reading the world map.
+    Read the world map: areas, kingdom scans and the nearest object of a type.
 
     Reached as client.map.
     """

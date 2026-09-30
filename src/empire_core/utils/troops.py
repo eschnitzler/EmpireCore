@@ -1,5 +1,5 @@
 """
-Troop metadata fetcher - gets valid troop IDs from GGE CDN.
+Troop ids from the game's CDN.
 
 Units with slotTypes are equipment, not troops.
 This filters to get only actual combat units.

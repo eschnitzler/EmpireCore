@@ -1,8 +1,8 @@
 """
-EmpireClient for EmpireCore.
+The client: logs in the way the game client does and carries every service.
 
-Uses a threaded Connection class, designed to work well with Discord.py
-by not competing for the event loop.
+The connection runs on its own threads, so the client never competes with a
+host event loop.
 """
 
 from __future__ import annotations

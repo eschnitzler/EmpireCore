@@ -1,5 +1,5 @@
 """
-Player service: other players' details and player search.
+Other players' details and player search.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ class PlayerDetailsBulkResult:
 
 class PlayerService(BaseService):
     """
-    Service for player info and search.
+    Other players' details, and finding a player by name.
 
     Reached as client.player.
     """

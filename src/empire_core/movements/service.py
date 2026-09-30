@@ -1,5 +1,5 @@
 """
-Movements service: the army movements the state tracks.
+The army movements the state tracks.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from empire_core.services.base import BaseService
 
 class MovementsService(BaseService):
     """
-    Service for army movements.
+    Army movements: listing them and recalling your own.
 
     Reached as client.movements.
     """

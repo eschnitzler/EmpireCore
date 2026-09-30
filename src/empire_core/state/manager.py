@@ -1,5 +1,5 @@
 """
-GameState - Tracks game state from server packets.
+The game state, kept current from server packets.
 """
 
 import time

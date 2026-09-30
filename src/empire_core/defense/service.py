@@ -1,5 +1,5 @@
 """
-Defense service: the defense of your own castles and of castles you could support.
+The defense of your own castles and of castles you could support.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class DefenseService(BaseService):
     """
-    Service for castle defense info.
+    The defense of your own castles and of castles you could support.
 
     Reached as client.defense.
     """

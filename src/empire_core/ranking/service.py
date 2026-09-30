@@ -1,5 +1,5 @@
 """
-Ranking service for GGE.
+Highscore lists and event leaderboards.
 """
 
 import logging
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class RankingService(BaseService):
     """
-    Service for fetching rankings and highscores.
+    Highscore lists and event leaderboards.
     """
 
     def get_highscore(

@@ -1,5 +1,5 @@
 """
-Spy service for high-level espionage operations.
+Espionage: spy missions, sabotage and spy reports.
 """
 
 from __future__ import annotations
@@ -123,7 +123,7 @@ def _names_target(
 
 
 class SpyService(BaseService):
-    """Service for managing spy operations."""
+    """Spy missions planned for risk, sabotage, and reading spy reports."""
 
     def forward_report(self, message_id: int, player_ids: list[int]) -> bool:
         """Share a spy report with other players in game.

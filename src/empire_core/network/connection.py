@@ -1,8 +1,8 @@
 """
-Synchronous WebSocket connection for EmpireCore.
+The connection: a receive thread routes each packet to its waiter, its subscribers and state.
 
-Uses websocket-client library with a dedicated receive thread.
-Designed to work well with Discord.py by not competing for the event loop.
+It uses websocket-client with its own receive and keepalive threads, so it
+never competes with a host event loop.
 """
 
 import logging

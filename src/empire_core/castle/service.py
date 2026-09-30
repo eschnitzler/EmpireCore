@@ -1,7 +1,8 @@
 """
-Castle service for EmpireCore.
+Your castles: resources, buildings, the construction queue, and sending goods and troops.
 
-Provides high-level APIs for:
+It covers:
+
 - Castle management (list, join, rename)
 - Resources and production
 - Buildings and the construction queue
@@ -92,7 +93,7 @@ _GOODS_TABS = (
 
 class CastleService(BaseService):
     """
-    Service for castle operations.
+    Your castles, their buildings and resources, and sending goods and troops.
 
     Reached as client.castle.
 

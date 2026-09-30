@@ -1,5 +1,5 @@
 """
-Base service class.
+The base every service builds on: typed requests and action results.
 """
 
 from __future__ import annotations

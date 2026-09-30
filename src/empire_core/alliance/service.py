@@ -1,7 +1,8 @@
 """
-Alliance service for EmpireCore.
+Your alliance and others: members, chat, help, diplomacy and the treasury.
 
-Provides high-level APIs for:
+It covers:
+
 - Alliance members (get members, online status, last seen)
 - Member management (kick, rank, invite, applications, leave)
 - Diplomacy, auto war, the newsletter and treasury donations
@@ -85,7 +86,7 @@ AllianceHelpUpdate = (
 
 class AllianceService(BaseService):
     """
-    Service for alliance operations.
+    Alliance chat, help, members, applications, diplomacy and the treasury.
 
     Reached as client.alliance.
 

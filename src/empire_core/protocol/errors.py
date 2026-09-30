@@ -1,3 +1,5 @@
+"""The server's error codes."""
+
 from enum import IntEnum
 
 

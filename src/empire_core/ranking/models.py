@@ -1,5 +1,5 @@
 """
-Ranking protocol models for GGE.
+Highscore and leaderboard models.
 
 Commands:
 - hgh: A page of a highscore list, around a rank or a searched name

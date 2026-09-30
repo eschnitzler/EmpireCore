@@ -1,5 +1,5 @@
 """
-Account management and configuration system.
+Accounts, loaded from a file and from the environment.
 Handles loading credentials from files, environment variables, and provides
 a robust interface for selecting accounts based on aliases or tags.
 """

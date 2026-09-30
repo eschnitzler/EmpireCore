@@ -1,3 +1,5 @@
+"""Parsing one server message, XML or ``%xt%``."""
+
 from __future__ import annotations
 
 import json
