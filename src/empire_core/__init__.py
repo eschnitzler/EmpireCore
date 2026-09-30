@@ -27,6 +27,7 @@ from empire_core.enums import (
     LootPriority,
     MapItemType,
     MovementType,
+    Resource,
     SpyOutcome,
     SpyStep,
     SpyType,
@@ -50,6 +51,7 @@ from empire_core.exceptions import (
     PacketError,
     ReceiveThreadError,
     UnknownCastleError,
+    UnsendableGoodsError,
     WrongServerError,
 )
 from empire_core.gamedata import GameData, ToolStats, UnitStats
@@ -103,6 +105,7 @@ __all__ = [
     "AmbiguousLookupError",
     "UnknownCastleError",
     "AmbiguousCastleError",
+    "UnsendableGoodsError",
     "GGEError",
     "PoolExhaustedError",
     "ReceiveThreadError",
@@ -146,6 +149,7 @@ __all__ = [
     "EquipmentSlot",
     "MapItemType",
     "MovementType",
+    "Resource",
     "GameEvent",
     # Helpers
     "decode_json_text",

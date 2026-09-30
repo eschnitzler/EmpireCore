@@ -1,6 +1,6 @@
-"""Castle buildings, resource carts and market scopes."""
+"""Castle buildings, resource carts, market goods and market scopes."""
 
-from enum import IntEnum
+from enum import Enum, IntEnum
 
 
 class BuildingState(IntEnum):
@@ -36,6 +36,31 @@ class ResourceCartType(IntEnum):
     WOOD = 0
     STONE = 1
     FOOD = 2
+
+
+class Resource(str, Enum):
+    """
+    A resource a market carriage can carry, by its wire key in ``G`` of ``crm``.
+
+    The send dialog offers these on three tabs: classic (wood, stone, food),
+    kingdom (coal, oil, glass, iron) and mead (honey, mead, beef). Aquamarine
+    (``A``) is a collectable too but on none of the tabs.
+
+    Client: ``CastleSendGoodsComponent.resCollectableEnums*`` (bundle line 44358),
+    each ``CollectableItem*VO.SERVER_KEY`` (bundle lines 10679, 10670, 16811,
+    23303, 23326, 23310, 23317, 23333, 19934, 17834)
+    """
+
+    WOOD = "W"
+    STONE = "S"
+    FOOD = "F"
+    COAL = "C"
+    OIL = "O"
+    GLASS = "G"
+    IRON = "I"
+    HONEY = "HONEY"
+    MEAD = "MEAD"
+    BEEF = "BEEF"
 
 
 class MarketScope(IntEnum):

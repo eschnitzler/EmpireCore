@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from empire_core.castle.models.collect import (
     CollectMineResourcesRequest,
     CollectMineResourcesResponse,
@@ -16,9 +18,10 @@ from empire_core.castle.models.market import (
 )
 from empire_core.castle.models.support import SendSupportResponse, SendTroopsRequest, SendTroopsResponse
 from empire_core.castle.models.transfers import KingdomUnitTransferRequest, KingdomUnitTransferResponse
-from empire_core.enums import Kingdom, MarketScope, ResourceCartType
+from empire_core.enums import Kingdom, MarketScope, Resource, ResourceCartType
+from empire_core.exceptions import UnsendableGoodsError
 from empire_core.protocol.models import parse_response
-from tests.service_helpers import conn, make_client, xt_packet
+from tests.service_helpers import StubPlayer, StubState, conn, make_client, xt_packet
 
 # =============================================================================
 # crm
@@ -36,7 +39,10 @@ class TestSendResources:
 
     def test_send_resources(self):
         client = make_client(castles=[(1234, Kingdom.ICE)])
-        assert client.castle.send_resources(1234, 10, 20, {"W": 100, "S": 50}, horse_booster_id=5) is True
+        assert (
+            client.castle.send_resources(1234, 10, 20, {Resource.WOOD: 100, Resource.STONE: 50}, horse_booster_id=5)
+            is True
+        )
         assert conn(client).request_payloads == [
             (
                 "crm",
@@ -46,9 +52,90 @@ class TestSendResources:
 
     def test_feathers_send_no_horse(self):
         client = make_client(castles=[(1234, Kingdom.GREEN)])
-        client.castle.send_resources(1234, 10, 20, {"W": 1}, horse_booster_id=5, feathers=True)
+        client.castle.send_resources(1234, 10, 20, {Resource.WOOD: 1}, horse_booster_id=5, feathers=True)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
+
+    def test_the_resources_are_the_client_server_keys(self):
+        # CollectableItem*VO.SERVER_KEY of the send dialog's three tabs
+        assert {r.name: r.value for r in Resource} == {
+            "WOOD": "W",
+            "STONE": "S",
+            "FOOD": "F",
+            "COAL": "C",
+            "OIL": "O",
+            "GLASS": "G",
+            "IRON": "I",
+            "HONEY": "HONEY",
+            "MEAD": "MEAD",
+            "BEEF": "BEEF",
+        }
+
+    @pytest.mark.parametrize(
+        ("goods", "sent"),
+        [
+            ({Resource.FOOD: 1, Resource.WOOD: 3}, [["F", 1], ["W", 3]]),
+            ({Resource.IRON: 2, Resource.COAL: 1}, [["I", 2], ["C", 1]]),
+            ({Resource.MEAD: 3, Resource.HONEY: 1}, [["MEAD", 3], ["HONEY", 1]]),
+        ],
+    )
+    def test_a_legend_sends_one_tab_in_the_given_order(self, goods, sent):
+        player = StubPlayer(level=70)
+        player.legendary_level = 5
+        client = make_client(state=StubState(local_player=player), castles=[(1234, Kingdom.FIRE)])
+        client.castle.send_resources(1234, 10, 20, goods)
+        assert conn(client).request_payloads[0][1]["G"] == sent
+
+    @pytest.mark.parametrize(
+        "goods",
+        [
+            {Resource.WOOD: 1, Resource.COAL: 1},
+            {Resource.COAL: 1, Resource.HONEY: 1},
+            {Resource.FOOD: 1, Resource.BEEF: 1},
+        ],
+    )
+    def test_goods_from_two_tabs_raise_and_send_nothing(self, goods):
+        # Live, the server refuses a crm mixing tabs with INVALID_PARAMETER_VALUE
+        player = StubPlayer(level=70)
+        player.legendary_level = 5
+        client = make_client(state=StubState(local_player=player), castles=[(1234, Kingdom.FIRE)])
+        with pytest.raises(UnsendableGoodsError, match="one tab"):
+            client.castle.send_resources(1234, 10, 20, goods)
+        assert conn(client).request_payloads == []
+
+    def test_goods_are_not_checked_by_level_before_the_player_is_known(self):
+        client = make_client(castles=[(1234, Kingdom.GREEN)])
+        client.castle.send_resources(1234, 10, 20, {Resource.COAL: 1})
+        assert conn(client).request_payloads[0][1]["G"] == [["C", 1]]
+
+    @pytest.mark.parametrize(
+        "goods",
+        [
+            {},
+            {Resource.WOOD: 0},
+            {Resource.WOOD: -5},
+            {Resource.WOOD: 1.5},
+            {Resource.WOOD: True},
+            {"A": 10},
+            {"X": 10},
+        ],
+    )
+    def test_unsendable_goods_raise_and_send_nothing(self, goods):
+        client = make_client(castles=[(1234, Kingdom.GREEN)])
+        with pytest.raises(UnsendableGoodsError) as raised:
+            client.castle.send_resources(1234, 10, 20, goods)
+        assert raised.value.goods is goods
+        assert conn(client).request_payloads == []
+
+    @pytest.mark.parametrize("resource", [Resource.COAL, Resource.IRON, Resource.HONEY, Resource.BEEF])
+    def test_below_legend_level_only_classic_goods_are_sent(self, resource):
+        client = make_client(state=StubState(local_player=StubPlayer(level=69)), castles=[(1234, Kingdom.GREEN)])
+        with pytest.raises(UnsendableGoodsError):
+            client.castle.send_resources(1234, 10, 20, {resource: 1})
+        assert conn(client).request_payloads == []
+
+        client.castle.send_resources(1234, 10, 20, {Resource.WOOD: 1, Resource.STONE: 2, Resource.FOOD: 3})
+        assert conn(client).request_payloads[0][1]["G"] == [["W", 1], ["S", 2], ["F", 3]]
 
     def test_the_reply(self):
         reply = parse_response("crm", {"gcu": {"C1": 5}, "grc": {"AID": 1234, "W": 900}, "O": [], "A": {}})

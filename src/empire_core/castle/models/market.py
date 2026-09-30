@@ -69,7 +69,7 @@ class CreateMarketMovementRequest(BaseRequest):
     feathers: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
     slowdown: int = Field(alias="SD", default=0, description="Seconds the arrival is delayed by")
     goods: list[list[Any]] = Field(
-        alias="G", description="The resources to send, as [resource key, amount] pairs such as ['W', 1000]"
+        alias="G", description="The resources to send, as [Resource value, amount] pairs such as ['W', 1000]"
     )
 
 

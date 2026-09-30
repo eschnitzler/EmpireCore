@@ -9,6 +9,7 @@ Failure modes are kept distinct so callers can react to them individually:
 - ``AmbiguousLookupError``: a game-data lookup matched more than one row.
 - ``UnknownCastleError``: a castle is not one of the logged-in player's castles.
 - ``AmbiguousCastleError``: a castle id or position matches castles in several kingdoms.
+- ``UnsendableGoodsError``: a market send carries goods the client would not send.
 """
 
 from typing import Any
@@ -273,6 +274,21 @@ class AttackBelowMinimumError(EmpireError, ValueError):
         self.minimum = minimum
         self.soldiers = soldiers
         self.attack = attack
+
+
+class UnsendableGoodsError(EmpireError, ValueError):
+    """A market send carries goods the client's send dialog would not send.
+
+    Attributes:
+        goods: the goods as given
+
+    Client: ``CastleSendGoodsDialog.sendGoodsCastle`` (bundle line 27202),
+    ``CastleSendGoodsComponent.setTabVisibility`` (bundle line 44260).
+    """
+
+    def __init__(self, message: str, goods: Any):
+        super().__init__(message)
+        self.goods = goods
 
 
 class ReceiveThreadError(EmpireError):

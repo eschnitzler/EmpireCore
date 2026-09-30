@@ -1,5 +1,7 @@
 """Castles: the castle list, castle details, buildings and castle actions."""
 
+from empire_core.enums import BuildingState, ExpansionType, MarketScope, Resource, ResourceCartType
+
 from .models import (
     FREE_SLOT,
     LOCKED_SLOT,
@@ -79,6 +81,11 @@ from .models import (
 )
 
 __all__ = [
+    "BuildingState",
+    "ExpansionType",
+    "MarketScope",
+    "Resource",
+    "ResourceCartType",
     "SelectCastleRequest",
     "SelectCastleResponse",
     "JoinAreaRequest",

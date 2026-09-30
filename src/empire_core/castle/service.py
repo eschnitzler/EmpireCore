@@ -72,9 +72,16 @@ from empire_core.castle.models.resources import (
 )
 from empire_core.castle.models.support import SendSupportRequest, SendTroopsRequest
 from empire_core.castle.models.transfers import KingdomUnitTransferRequest
-from empire_core.enums import ExpansionType, Kingdom, ResourceCartType
-from empire_core.exceptions import AmbiguousCastleError, UnknownCastleError
+from empire_core.enums import ExpansionType, Kingdom, Resource, ResourceCartType
+from empire_core.exceptions import AmbiguousCastleError, UnknownCastleError, UnsendableGoodsError
 from empire_core.services.base import BaseService
+
+_CLASSIC_GOODS = (Resource.WOOD.value, Resource.STONE.value, Resource.FOOD.value)
+_GOODS_TABS = (
+    _CLASSIC_GOODS,
+    (Resource.COAL.value, Resource.OIL.value, Resource.GLASS.value, Resource.IRON.value),
+    (Resource.HONEY.value, Resource.MEAD.value, Resource.BEEF.value),
+)
 
 
 class CastleService(BaseService):
@@ -441,7 +448,7 @@ class CastleService(BaseService):
         source_castle_id: int,
         target_x: int,
         target_y: int,
-        goods: dict[str, int],
+        goods: dict[Resource, int],
         *,
         horse_booster_id: int = -1,
         feathers: bool = False,
@@ -451,11 +458,27 @@ class CastleService(BaseService):
         """
         Send resources from one of your castles to a castle on the map, by carriage.
 
+        Nothing is sent when the goods fail a check the client makes before
+        sending: an amount that is not a positive int (the client drops zeros
+        and refuses a send of nothing; this raises on a zero instead), goods
+        from more than one of the dialog's tabs (classic, kingdom, mead), or,
+        once the player is known and has no legend level, anything but wood,
+        stone and food (the client then shows only that tab). The client sends
+        one tab's goods per send, and the server refuses a send that mixes tabs
+        with INVALID_PARAMETER_VALUE (seen live for wood with coal and coal
+        with honey).
+
+        Not checked, since they depend on the target or on data this call does
+        not have: the target owner's level for kingdom resources and legend
+        level for mead goods, at most 2 goods (wood and stone) to a monument
+        or laboratory, the carriage capacity and the castle's stock.
+
         Args:
             source_castle_id: The castle the carriages leave from, one of yours
             target_x: Map x of the target castle
             target_y: Map y of the target castle
-            goods: Amount per resource key, such as ``{"W": 1000, "S": 500}``
+            goods: Amount per resource, all from one tab, such as
+                ``{Resource.WOOD: 1000, Resource.STONE: 500}`` or ``{Resource.COAL: 500, Resource.OIL: 500}``
             horse_booster_id: The horse's wod id, -1 for none; sent as -1 whenever
                 feathers are used, as the client does
             feathers: Pay for the horse with feathers
@@ -463,12 +486,21 @@ class CastleService(BaseService):
             timeout: Timeout in seconds
 
         Raises:
+            UnsendableGoodsError: The goods fail one of the checks above
             UnknownCastleError: ``source_castle_id`` is not in your castle list
             AmbiguousCastleError: ``source_castle_id`` repeats across your kingdoms
 
-        Client: ``CastlePostSendGoodsDialog.sendGoods`` (bundle line 33378) sends
-        ``castleList.getKingdomIdByCastleId`` of the source castle as ``KID``
+        Client: ``CastlePostSendGoodsDialog.sendGoods`` (bundle line 33378), which
+        sends ``castleList.getKingdomIdByCastleId`` of the source castle as ``KID``;
+        ``CastleSendGoodsDialog.sendGoodsCastle`` (bundle line 27202), which refuses
+        a zero sum; ``CollectableParser._createGoodsList`` (bundle line 40530),
+        which drops zero amounts; ``CastleSendGoodsComponent.rewardList`` (bundle
+        line 44340), which sends one tab's goods, and ``setTabVisibility`` (bundle
+        line 44261), which shows the kingdom and mead tabs only to a legend. Not
+        mirrored: ``applySpecialLevelRestrictions`` (bundle line 44289) and
+        ``isBoosterArea`` (bundle line 44356).
         """
+        pairs = self._sendable_goods(goods)
         request = CreateMarketMovementRequest(
             KID=self._require_own_castle(source_castle_id).kingdom_id,
             SID=source_castle_id,
@@ -477,9 +509,38 @@ class CastleService(BaseService):
             HBW=-1 if feathers else horse_booster_id,
             PTT=1 if feathers else 0,
             SD=slowdown,
-            G=[[key, amount] for key, amount in goods.items()],
+            G=pairs,
         )
         return self.execute(request, timeout=timeout)
+
+    def _sendable_goods(self, goods: dict[Resource, int]) -> list[list[str | int]]:
+        if not goods:
+            raise UnsendableGoodsError("No goods to send", goods)
+        pairs: list[list[str | int]] = []
+        for key, amount in goods.items():
+            try:
+                resource = Resource(key)
+            except ValueError:
+                raise UnsendableGoodsError(f"{key!r} is not a resource the market sends", goods) from None
+            if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
+                raise UnsendableGoodsError(f"{resource.name} amount must be a positive int, got {amount!r}", goods)
+            pairs.append([resource.value, amount])
+        tabs = {index for key, _ in pairs for index, tab in enumerate(_GOODS_TABS) if key in tab}
+        if len(tabs) > 1:
+            raise UnsendableGoodsError(
+                "One send carries goods from one tab only: wood, stone and food; coal, oil, glass and iron;"
+                " or honey, mead and beef",
+                goods,
+            )
+        player = self.client.state.get_local_player()
+        if player is not None and player.level > 0 and player.legendary_level <= 0:
+            beyond = [key for key, _ in pairs if key not in _CLASSIC_GOODS]
+            if beyond:
+                raise UnsendableGoodsError(
+                    f"Only wood, stone and food can be sent below legend level, not {', '.join(map(str, beyond))}",
+                    goods,
+                )
+        return pairs
 
     def get_market_info(self, timeout: float = 5.0) -> list[MarketCastle]:
         """

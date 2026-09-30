@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from empire_core.enums import Kingdom
+from empire_core.enums import Kingdom, Resource
 from empire_core.exceptions import AmbiguousCastleError, UnknownCastleError
 from tests.service_helpers import GOLDEN_GCL, StubPlayer, StubState, conn, make_client, xt_packet
 
@@ -127,7 +127,7 @@ class TestCastleActions:
             lambda c: c.select(12345),
             lambda c: c.join(12345),
             lambda c: c.get_resources(12345),
-            lambda c: c.send_resources(12345, 10, 20, {"W": 1}),
+            lambda c: c.send_resources(12345, 10, 20, {Resource.WOOD: 1}),
             lambda c: c.transfer_units_to_kingdom(12345, Kingdom.ICE, [[620, 1]]),
         ],
     )
