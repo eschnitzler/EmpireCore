@@ -44,11 +44,6 @@ class _ChunkResult(NamedTuple):
     has_content: bool
 
 
-class _Config(Protocol):
-    @property
-    def default_zone(self) -> str: ...
-
-
 class _Connection(Protocol):
     @property
     def connected(self) -> bool: ...
@@ -75,9 +70,8 @@ class _Client(Protocol):
     """What the scanner uses of EmpireClient, which the map area can't import."""
 
     @property
-    def config(self) -> _Config: ...
-    @property
     def connection(self) -> _Connection: ...
+    def request_packet(self, request: GetMapAreaRequest, response_command: str, timeout: float = 5.0) -> Packet: ...
     @property
     def state(self) -> _State: ...
 
@@ -101,8 +95,7 @@ class MapScanner:
 
     def _request_chunk(self, request: GetMapAreaRequest, request_timeout: float) -> Packet:
         """Send a chunk request and wait for the matching gaa response."""
-        packet = request.to_packet(zone=self.client.config.default_zone, room_id=self.client.connection.room_id)
-        return self.client.connection.request(packet, "gaa", timeout=request_timeout)
+        return self.client.request_packet(request, "gaa", timeout=request_timeout)
 
     def _get_kingdom_start_position(self, kingdom: Kingdom) -> tuple[int, int]:
         """

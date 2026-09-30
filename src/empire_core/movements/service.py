@@ -5,9 +5,13 @@ Movements service: the army movements the state tracks.
 from __future__ import annotations
 
 from empire_core.exceptions import CommandError
-from empire_core.movements.models import CancelMovementRequest, CancelMovementResponse, MovementWrapper
+from empire_core.movements.models import (
+    CancelMovementRequest,
+    CancelMovementResponse,
+    GetMovementsRequest,
+    MovementWrapper,
+)
 from empire_core.movements.tracked import Movement
-from empire_core.protocol.packet import Packet
 from empire_core.services.base import BaseService
 
 
@@ -35,16 +39,14 @@ class MovementsService(BaseService):
             CommandError: ``wait=True`` and the server rejected 'gam'
             EmpireTimeoutError: ``wait=True`` and no response within ``timeout``
         """
-        packet = Packet.build_xt(self.zone, "gam", {}, room_id=self.client.connection.room_id)
-
         if wait:
-            response = self.client.connection.request(packet, "gam", timeout=timeout)
+            response = self.client.request_packet(GetMovementsRequest(), "gam", timeout=timeout)
             # Without this, a rejected request returns the previous (possibly
             # empty) movement list, indistinguishable from "no movements".
             if response.error_code != 0:
                 raise CommandError("gam", response.error_code)
         else:
-            self.client.connection.send(packet)
+            self.client.connection.send(self.client.frame(GetMovementsRequest()))
 
         return self.client.state.get_all_movements()
 

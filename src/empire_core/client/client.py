@@ -471,7 +471,7 @@ class EmpireClient:
             LT=None if self.password else self.login_token,
             RCT=recaptcha_token() if callable(recaptcha_token) else recaptcha_token,
         )
-        xt_packet = request.to_packet(zone=self.config.default_zone, room_id=self.connection.room_id)
+        xt_packet = self.frame(request)
 
         # Register the gbd waiter up front: it arrives right after a
         # successful lli and would otherwise race the lli handling below.
@@ -615,6 +615,20 @@ class EmpireClient:
         self.game_data = GameData.load(refresh=refresh, cache_dir=cache_dir)
         return self.game_data
 
+    def frame(self, request: BaseRequest) -> str:
+        """The request as this session sends it: in its zone and the room it joined."""
+        return request.to_packet(zone=self.config.default_zone, room_id=self.connection.room_id)
+
+    def request_packet(self, request: BaseRequest, response_command: str, timeout: float = 5.0) -> Packet:
+        """
+        Send a request and return the raw reply packet for ``response_command``.
+
+        For replies whose command id the response registry gives to another
+        model (``hgh`` answers both alliance search and highscores), or that a
+        caller reads itself. Raises as :meth:`Connection.request` does.
+        """
+        return self.connection.request(self.frame(request), response_command, timeout=timeout)
+
     def send(
         self,
         request: BaseRequest,
@@ -652,7 +666,7 @@ class EmpireClient:
             # Or wait for response:
             response = client.send(GetCastlesRequest(), wait=True)
         """
-        packet = request.to_packet(zone=self.config.default_zone, room_id=self.connection.room_id)
+        packet = self.frame(request)
 
         if not wait:
             self.connection.send(packet)

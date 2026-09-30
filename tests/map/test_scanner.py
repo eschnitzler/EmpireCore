@@ -108,6 +108,10 @@ class _FakeClient:
         self.config = _FakeConfig()
         self.state = _FakeState(start_chunk)
 
+    def request_packet(self, request: Any, response_command: str, timeout: float = 5.0) -> Any:
+        frame = request.to_packet(zone=self.config.default_zone, room_id=getattr(self.connection, "room_id", 1))
+        return self.connection.request(frame, response_command, timeout=timeout)
+
 
 class _FakeState:
     """One own castle in the green kingdom, inside ``start_chunk``."""

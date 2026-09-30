@@ -426,12 +426,9 @@ class AllianceService(BaseService):
         the protocol offers no way to correlate them.
         """
         request = SearchAllianceRequest.create(search_term)
-        packet = request.to_packet(zone=self.zone, room_id=self.client.connection.room_id)
-
-        # connection.request registers the waiter before sending (race-free).
-        # SearchAllianceResponse is instantiated manually because the 'hgh'
-        # registry entry is owned by GetHighscoreResponse.
-        response_packet = self.client.connection.request(packet, "hgh", timeout=timeout)
+        # SearchAllianceResponse is read here because the 'hgh' registry entry
+        # is owned by GetHighscoreResponse.
+        response_packet = self.client.request_packet(request, "hgh", timeout=timeout)
 
         # 114 = nothing found; a legitimate empty result
         if response_packet.error_code == 114:
