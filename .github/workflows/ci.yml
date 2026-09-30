@@ -37,8 +37,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     name: test (${{ matrix.python-version }})
+    env:
+      # Run every uv step on the matrix interpreter.
+      UV_PYTHON: ${{ matrix.python-version }}
     steps:
       - uses: actions/checkout@v6.0.2
 
@@ -54,4 +57,19 @@ jobs:
         run: uv sync --extra dev --locked
 
       - name: Run tests
+        if: matrix.python-version != '3.13'
         run: uv run --locked pytest -v
+
+      # Coverage on one entry only; no threshold until the baseline is known.
+      - name: Run tests with coverage
+        if: matrix.python-version == '3.13'
+        run: |
+          uv run --locked pytest -v --cov=empire_core --cov-report=term --cov-report=xml
+          uv run --locked coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        if: matrix.python-version == '3.13'
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: coverage-xml
+          path: coverage.xml
