@@ -53,6 +53,7 @@ def degraded_frame_counts() -> DegradedFrameCounts:
     """How many inbound frames degraded to a raw wrapper (see :class:`DegradedFrameCounts`)."""
     return DegradedFrameCounts(_degraded_frame_total, _degraded_frame_count)
 
+
 # Credential shapes to mask before any part of a frame is logged - packet.py
 # must never log raw credentials. Mirrors _SECRET_PATTERNS in
 # network/connection.py (which cannot be imported here: the network layer

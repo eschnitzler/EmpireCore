@@ -531,7 +531,6 @@ class TestRecvLoopResilience:
 
         assert disconnects == [True]
 
-
     def test_an_unexpected_error_in_the_loop_still_runs_the_epilogue(self, live_conn, monkeypatch, caplog):
         # Nothing in the loop is expected to raise outside recv(); if something does,
         # the connection must still end cleanly rather than look alive with a dead thread.
