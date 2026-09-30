@@ -285,9 +285,9 @@ class TestDegradedFrameWarnings:
 
 
 class TestRoundTrip:
-    def test_to_bytes_appends_the_wire_terminator(self):
+    def test_to_bytes_has_no_null_terminator_as_the_client_sends(self):
         packet = Packet.from_bytes(b'%xt%gam%1%0%{"M": []}%')
-        assert packet.to_bytes() == b'%xt%gam%1%0%{"M": []}%\x00'
+        assert packet.to_bytes() == b'%xt%gam%1%0%{"M": []}%'
 
     def test_reparsing_to_bytes_yields_the_same_packet(self):
         original = Packet.from_bytes(b'%xt%acm%1%0%{"CM": {"MT": "100% off"}}%')

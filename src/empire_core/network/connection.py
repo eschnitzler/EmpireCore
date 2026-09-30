@@ -345,7 +345,7 @@ class Connection:
         Raises:
             NetworkError: If not connected or the send fails
         """
-        # Remove null terminator if present (we'll add it)
+        # The client sends frames without a null terminator
         if data.endswith("\x00"):
             data = data[:-1]
 

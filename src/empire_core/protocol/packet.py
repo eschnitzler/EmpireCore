@@ -246,4 +246,9 @@ class Packet:
         )
 
     def to_bytes(self) -> bytes:
-        return (self.raw_data + "\x00").encode("utf-8")
+        """
+        The frame as it goes on the wire, with no trailing null byte.
+
+        Client: ``BasicSmartfoxClient.sendCommand`` and ``sendXMLMessage`` (dll line 7199, 7203)
+        """
+        return self.raw_data.encode("utf-8")
