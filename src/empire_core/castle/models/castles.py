@@ -139,7 +139,7 @@ class PlayerCastle(BasePayload):
     castle_type: MapItemType = Field(default=MapItemType.EMPTY, description="The row's area type")
     owner_id: int = Field(default=0, description="Player id of the owner")
     name: str | None = Field(default=None, description="The castle's name; None for a type with none")
-    capturer_id: int = Field(default=-1, description="Player id of the occupier, -1 when there is none")
+    occupier_id: int = Field(default=-1, description="Player id of the occupier, -1 when there is none")
     keep_level: int | None = Field(default=None, description="Keep level; None for a type with none")
     wall_level: int | None = Field(default=None, description="Wall level; None for a type with none")
     gate_level: int | None = Field(default=None, description="Gate level; None for a type with none")
@@ -165,9 +165,9 @@ class PlayerCastle(BasePayload):
     has_sabotage_protection: bool = Field(default=False, description="Whether a temporary sabotage protection is on")
 
     @property
-    def is_being_captured(self) -> bool:
+    def is_occupied(self) -> bool:
         """Whether someone occupies this castle; the client's ``isOccupied`` is an occupier id above -1."""
-        return self.capturer_id > -1
+        return self.occupier_id > -1
 
     @classmethod
     def from_list(cls, data: Any, kingdom: Kingdom = Kingdom.GREEN) -> "PlayerCastle":
@@ -220,7 +220,7 @@ class PlayerCastle(BasePayload):
             values["monument_type"] = js_int(optional(layout.monument_type))
         if layout.occupier is not None:
             occupier = data[layout.occupier] if len(data) > layout.occupier else -1
-            values["capturer_id"] = js_int(occupier) if through_int else occupier
+            values["occupier_id"] = js_int(occupier) if through_int else occupier
         if layout.cooldowns:
             values["attack_cooldown_seconds"] = js_int(optional(11))
             values["sabotage_cooldown_seconds"] = js_int(optional(12))
@@ -392,7 +392,7 @@ class CastleInfo(BasePayload):
             "kingdom_id": kingdom,
             "castle_type": parsed.castle_type,
             "owner_id": parsed.owner_id,
-            "occupier_id": parsed.capturer_id,
+            "occupier_id": parsed.occupier_id,
             "keep_level": parsed.keep_level,
             "wall_level": parsed.wall_level,
             "gate_level": parsed.gate_level,

@@ -226,12 +226,12 @@ class TestCastleListRowTimers:
             30,
             3600,
         )
-        assert (castle.outpost_type, castle.capturer_id, castle.equipment_skin_id) == (2, 77, 190426)
+        assert (castle.outpost_type, castle.occupier_id, castle.equipment_skin_id) == (2, 77, 190426)
         assert castle.has_sabotage_protection is True
 
     def test_a_main_castle_reads_its_occupier_from_15(self):
         castle = PlayerCastle.from_list(_castle_row(1, i15=77))
-        assert (castle.capturer_id, castle.is_being_captured) == (77, True)
+        assert (castle.occupier_id, castle.is_occupied) == (77, True)
 
     def test_protection_is_off_unless_19_is_1(self):
         assert PlayerCastle.from_list(_castle_row(1, i19=2)).has_sabotage_protection is False
@@ -247,7 +247,7 @@ class TestCastleListRowTimers:
         # CapitalMapobjectVO.parseAreaInfo: occupier 14, skin 15, no outpost type
         row = _castle_row(3, i11=5, i12=6, i13=7, i14=88, i15=190426, i19=1)
         capital = PlayerCastle.from_list(row)
-        assert (capital.capturer_id, capital.equipment_skin_id, capital.outpost_type) == (88, 190426, None)
+        assert (capital.occupier_id, capital.equipment_skin_id, capital.outpost_type) == (88, 190426, None)
         assert (capital.attack_cooldown_seconds, capital.seconds_since_spy, capital.has_sabotage_protection) == (
             5,
             7,

@@ -169,7 +169,7 @@ class TestPositionalArrayParsers:
         # KingstowerMapobjectVO: object 3, owner 4, kingdom 5, espionage 6, name 7
         castle = PlayerCastle.from_list([23, 50, 60, 888, 4242, 2, -1, "Tower"], kingdom=Kingdom.GREEN)
         assert (castle.location_id, castle.owner_id, castle.kingdom, castle.name) == (888, 4242, Kingdom.ICE, "Tower")
-        assert (castle.keep_level, castle.landmark_level, castle.capturer_id) == (None, None, -1)
+        assert (castle.keep_level, castle.landmark_level, castle.occupier_id) == (None, None, -1)
 
     def test_a_monument_row_has_its_own_layout(self):
         # MonumentMapobjectVO: object 3, owner 4, type 5, level 6, kingdom 7, espionage 8, name 9
@@ -206,7 +206,7 @@ class TestPositionalArrayParsers:
     def test_occupied_means_an_occupier_id_above_minus_one(self, occupier, occupied):
         # CastleMapobjectVO.isOccupied is _occupierID > -1
         row = gdi_location_row(1, 640, 655, 12345, 4242, "Main", 0, capturer_outpost=occupier)
-        assert PlayerCastle.from_list(row).is_being_captured is occupied
+        assert PlayerCastle.from_list(row).is_occupied is occupied
         entry = CastleInfo.from_entry({"AI": row})
         assert entry is not None and entry.is_occupied is occupied
 
@@ -242,7 +242,7 @@ class TestPositionalArrayParsers:
     def test_player_castle_capturer_depends_on_the_area_type(self, area_type, capturer):
         # InteractiveMapobjectVO.parseAreaInfo reads the occupier at 15; Capital and Metropol parsers at 14
         row = gdi_location_row(area_type, 640, 655, 12345, 4242, "Main", 0, capturer_capital=66, capturer_outpost=77)
-        assert PlayerCastle.from_list(row).capturer_id == capturer
+        assert PlayerCastle.from_list(row).occupier_id == capturer
 
     @pytest.mark.parametrize("area_type", [200, MapItemType.NO_LANDMARK, MapItemType.NO_OUTPOST, MapItemType.VILLAGE])
     def test_a_row_of_an_area_type_a_castle_list_does_not_hold_is_refused(self, area_type):
