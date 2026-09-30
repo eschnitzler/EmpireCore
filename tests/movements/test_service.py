@@ -11,7 +11,7 @@ from empire_core.client.client import EmpireClient
 from empire_core.exceptions import CommandError
 from empire_core.movements.service import MovementsService
 from tests.service_helpers import StubState, conn, make_client, xt_packet
-from tests.state.state_helpers import gam_payload
+from tests.state.state_helpers import gam_payload, push_payload
 
 
 class TestGetMovements:
@@ -79,3 +79,23 @@ class TestMovementHelpers:
         for t in threads:
             t.join()
         assert errors == []
+
+
+class TestRecall:
+    def test_sends_mcm_and_returns_the_movement_heading_home(self):
+        reply = {"A": push_payload(208, direction=1)["A"]}
+        client = make_client({"mcm": xt_packet("mcm", reply)})
+
+        movement = client.movements.recall(208)
+
+        assert conn(client).request_payloads == [("mcm", {"MID": 208})]
+        assert movement.movement.movement_id == 208
+        assert movement.movement.is_returning
+
+    def test_refusal_raises_command_error(self):
+        client = make_client({"mcm": xt_packet("mcm", error_code=189)})
+
+        with pytest.raises(CommandError) as exc_info:
+            client.movements.recall(208)
+
+        assert (exc_info.value.command, exc_info.value.code) == ("mcm", 189)

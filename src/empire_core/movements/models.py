@@ -1,5 +1,5 @@
 """
-Army movement models: the gam reply and the movement wrappers pushed with abr, asr and mcm.
+Army movement models: gam, the recall (mcm), and the movement wrappers pushed with abr and asr.
 """
 
 from __future__ import annotations
@@ -205,7 +205,7 @@ class MovementSpy(BasePayload):
 
 
 class MovementWrapper(BasePayload):
-    """One entry of ``gam``'s ``M`` list, and the ``A`` of an ``abr``/``asr``/``mcm`` push.
+    """One entry of ``gam``'s ``M`` list, and the ``A`` of an ``abr``/``asr`` push or an ``mcm`` reply.
 
     Which of the optional blocks are present depends on the movement type and
     on what the receiving player may see. Keys this model does not name are
@@ -315,7 +315,80 @@ class GetMovementsResponse(BaseResponse):
     )
 
 
+class CancelMovementRequest(BaseRequest):
+    """
+    Recall one of your movements, turning it back home.
+
+    Command: mcm
+    Payload: {"MID": movement_id}
+
+    The client sends it from its retreat dialog, from "send home" for your
+    supports stationed at an area (one per support), and from the attack
+    advisor's cancel dialog (one per advisor attack). The retreat button is
+    enabled only where the movement's class allows it:
+
+    - attacks (every attack type but alien attacks, which never): your own,
+      heading to the target, from level 5, and no more than 600 seconds after
+      leaving, unless the movement is force-cancelable (``FC``), attacks
+      nomads while the alliance nomad invasion is not running, or attacks a
+      faction tower
+    - supports: your own, in either direction
+    - travel between your areas: your own, heading to the target, from a
+      source area that is still yours
+    - spies, market transports and sieges: your own, heading to the target
+    - treasure hunts and plague monks: never
+
+    The movement list also disables it while the source area is under
+    conquer control. The advisor's overview cancels every advisor attack
+    that is not the series' last, returning ones too, without these checks.
+    The server's refusals include INVALID_STARTAREA_FOR_CANCEL_MOVEMENT
+    (189); the client handles none itself and shows its generic server error.
+
+    Client: ``C2SCancelMovementVO`` (bundle line 33049); sent by
+    ``CastleAskRetreatDialog.onClick`` (bundle line 33234),
+    ``SupportOverviewDialog.onClickRetreat`` (bundle line 33984) and
+    ``AdvisorAttackOverviewCancelDialog.cancelAttacks`` (bundle line 21965),
+    fed by ``AdvisorAttackOverviewDialog.getCancellableAdvisorMovements``
+    (bundle line 57303); ``canBeRetreated`` on ``ArmyAttackMapmovementVO``
+    (bundle line 14379), ``ArmyTravelMapMovementVO`` (bundle line 26818),
+    ``SupportDefenceMapmovementVO`` (bundle line 43782), ``SpyMapmovementVO``
+    (bundle line 43759), ``MarketMapmovementVO`` (bundle line 43707),
+    ``SiegeMapmovementVO`` (bundle line 33183) and the always-false ones
+    (bundle lines 33079, 43733, 43805); ``ArmyAttackMapmovementVO.tooLateToBeRetreated``
+    (bundle line 14382) with ``TravelConst.MAX_FALLBACK_TIME`` (ggs.dll line
+    19828); ``ClientConstLevelRestrictions.MIN_LEVEL_RETREAT_MOVEMENTS`` (bundle
+    line 2139) through ``CastleUserData.hasLevelFor`` (bundle line 10027);
+    ``AMovementRenderStrategy.initRetreatButton`` (bundle line 14347);
+    ``MapmovementFactory.parseMapMovement`` (bundle line 133793)
+    """
+
+    command = "mcm"
+
+    movement_id: int = Field(alias="MID", description="The movement to recall")
+
+
+class CancelMovementResponse(BaseResponse):
+    """
+    The reply to a recall: the movement as it now stands.
+
+    Command: mcm
+    Payload: {"A": wrapper}
+
+    ``A`` is read as one ``gam`` entry, replacing the tracked movement. The
+    client reads it unconditionally, so a reply without one is malformed.
+
+    Client: ``MCMCommand.executeCommand`` (bundle line 126041), which hands
+    ``[A]`` to ``CastleArmyData.parseMapMovementArray`` (bundle line 133626)
+    """
+
+    command = "mcm"
+
+    movement: MovementWrapper = Field(alias="A", description="The recalled movement")
+
+
 __all__ = [
+    "CancelMovementRequest",
+    "CancelMovementResponse",
     "GetMovementsRequest",
     "GetMovementsResponse",
     "MovementArea",

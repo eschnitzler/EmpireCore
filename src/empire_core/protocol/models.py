@@ -350,6 +350,8 @@ from empire_core.messages.models import (
     repair_header,
 )
 from empire_core.movements.models import (
+    CancelMovementRequest,
+    CancelMovementResponse,
     GetMovementsRequest,
     GetMovementsResponse,
     MovementArea,
@@ -513,6 +515,8 @@ __all__ = [
     "KingdomProtection",
     "AllianceCrest",
     "AllianceEmblem",
+    "CancelMovementRequest",
+    "CancelMovementResponse",
     "GetMovementsRequest",
     "GetMovementsResponse",
     "MovementArea",

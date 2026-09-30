@@ -197,7 +197,7 @@ client.army.cancel_heal(12345, position=hospital.hospital_slots[0].position)
 ```
 
 Also available: `client.ranking`, `client.spy`, `client.movements`
-(`get_movements()`, `get_incoming_attacks()`), `client.player`
+(`get_movements()`, `get_incoming_attacks()`, `recall(movement_id)`), `client.player`
 (`get_player_info()`, `search_player_by_name()`), `client.defense`
 (`get_own_defense()`, `get_support_defense_info()`) and `client.events` (`get_active_events()`).
 `client.map` is covered under [Map Scanning](#map-scanning).
