@@ -23,7 +23,7 @@ def _truncated_repr(value: object, limit: int = 200) -> str:
 
 def _has_no_player(item: MapAreaItem) -> bool:
     """A free castle plot, or a row whose owner is an NPC or nobody; a camp names no owner, so it is neither."""
-    if item.item_type in (MapItemType.CASTLE, MapItemType.KINGDOM_CASTLE) and len(item.raw_data) <= 4:
+    if item.is_plot_row:
         return not item.is_relocating
     return item.owner_id is not None and not item.has_player_owner
 

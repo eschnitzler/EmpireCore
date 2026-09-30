@@ -113,16 +113,21 @@ class TestOwnerRecordConversions:
         assert (owner.remaining_relocation_time, owner.alliance_id, owner.alliance_rank) == (300, None, 6)
 
     def test_flags_are_read_as_the_client_reads_them(self):
-        record = {"OID": 5, "DUM": "1", "R": "1x", "SA": "0", "PF": [], "VF": 0, "IRF": "2"}
+        record = {"OID": 5, "DUM": 0, "R": "1x", "SA": "0", "PF": [], "VF": 0, "IRF": "2"}
         owner = GetMapAreaResponse.model_validate({"OI": [record]}).owners[0]
-        # 1 == e.DUM, 1 == parseInt(e.R), !!e.SA, !!e.PF, !!e.VF, !!parseInt(e.IRF)
-        assert (owner.is_dummy, owner.is_ruin, owner.is_searching_alliance) == (True, True, True)
+        # 1 == parseInt(e.R), !!e.SA, !!e.PF, !!e.VF, !!parseInt(e.IRF)
+        assert (owner.is_dummy, owner.is_ruin, owner.is_searching_alliance) == (False, True, True)
         assert (owner.has_premium_flag, owner.has_vip_flag, owner.via_refer_a_friend) == (True, False, True)
 
-    def test_a_dummy_flag_that_is_not_one_is_not_a_dummy(self):
-        # The v0.41.0 model failed the whole record on DUM: 2
-        owner = GetMapAreaResponse.model_validate({"OI": [{"OID": 5, "DUM": 2}]}).owners[0]
-        assert owner.is_dummy is False
+    @pytest.mark.parametrize("flag", [1, 2, "1", True])
+    def test_a_dummy_keeps_only_its_id(self, flag):
+        # CastleOtherPlayerData.parseOwnerInfo (bundle line 139000) makes any record with a truthy DUM a
+        # dummy player (WorldMapOwnerInfoVO.createDummy) and reads nothing else off it; the v0.41.0
+        # model failed the whole record on DUM: 2
+        record = {"OID": "5", "DUM": flag, "N": "Name", "L": 70, "R": 1, "AP": [[0, 1, 2, 3, 1]]}
+        owner = GetMapAreaResponse.model_validate({"OI": [record]}).owners[0]
+        assert (owner.owner_id, owner.is_dummy, owner.owner_name, owner.level) == (5, True, "", 0)
+        assert (owner.is_ruin, owner.castle_positions) == (False, [])
 
     def test_an_empty_alliance_name_reads_as_empty(self):
         owner = GetMapAreaResponse.model_validate({"OI": [{"OID": 5, "AN": None}]}).owners[0]
@@ -307,6 +312,13 @@ class TestRelocatingCastles:
 
     def test_an_outpost_is_never_relocating(self):
         assert MapAreaItem.from_list([4, 5, 6, 4242]).is_relocating is False
+
+    def test_the_row_layout_is_kept_without_the_raw_row(self):
+        moving = MapAreaItem.from_list([1, 5, 6, 4242])
+        rebuilt = MapAreaItem.model_validate(moving.model_dump(exclude={"raw_data"}))
+        assert (rebuilt.raw_data, rebuilt.is_plot_row, rebuilt.is_relocating) == ([], True, True)
+        built = MapAreaItem(item_type=MapItemType.CASTLE, occupier_id=4242)
+        assert (built.is_plot_row, built.is_relocating) == (False, False)
 
     def test_get_moving_flags_keys_by_the_relocating_player(self):
         response = GetMapAreaResponse.model_validate(

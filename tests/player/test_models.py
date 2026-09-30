@@ -142,6 +142,12 @@ class TestSearchPlayer:
         )
         assert [(i.x, i.y, i.owner_id) for i in response.area.items] == [(640, 655, 4242)]
 
+    def test_the_gaa_block_is_the_map_area_fnm_reads(self):
+        # WSPCommand.executeCommand (bundle line 131619) reads gaa.OI and gaa.AI as FNMCommand does
+        from empire_core.map.models.areas import MapArea
+
+        assert isinstance(SearchPlayerResponse.model_validate({"gaa": {"AI": [], "OI": []}}).area, MapArea)
+
     def test_the_found_player_owns_the_area_at_x_y(self):
         # parseSearchInfos opens the area at X/Y, so a neighbour listed first is not the player
         payload = {

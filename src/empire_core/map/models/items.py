@@ -64,7 +64,7 @@ def _castle(row: _Row) -> dict[str, Any]:
     """``CastleMapobjectVO.parseAreaInfo`` (bundle line 18910), which ``KingdomCastleMapobjectVO`` inherits."""
     if len(row) <= 4:
         # A free plot, or a castle on the move when the occupier is a player
-        return {"occupier_id": row.raw(3)}
+        return {"is_plot_row": True, "occupier_id": row.raw(3)}
     fields = _interactive(row)
     connection = row.raw(18)
     if isinstance(connection, list):
@@ -410,10 +410,6 @@ ROW_PARSERS: dict[MapItemType, Callable[[_Row], dict[str, Any]]] = {
 }
 
 
-# The castle map objects: a row of four fields or fewer is a free plot or a castle on the move.
-_CASTLE_TYPES = frozenset({MapItemType.CASTLE, MapItemType.KINGDOM_CASTLE})
-
-
 INVASION_AREA_TYPES = frozenset(
     {
         MapItemType.SAMURAI_CAMP,
@@ -446,6 +442,10 @@ class MapAreaItem(BasePayload):
     kingdom: Kingdom = Field(
         default=Kingdom.GREEN,
         description="The kingdom the row names, else the kingdom of the reply it came in",
+    )
+    is_plot_row: bool = Field(
+        default=False,
+        description="A castle row of four fields or fewer: a free plot, or a castle on the move",
     )
     location_id: int | None = Field(default=None, description="The map object's id; negative for an unclaimed plot")
     owner_id: int | None = Field(
@@ -568,7 +568,7 @@ class MapAreaItem(BasePayload):
         as a relocation, and ``CastleWorldmapData.getExpiredRelocationObject`` (bundle
         line 19023) ends it once that player's relocation time runs out.
         """
-        return self.item_type in _CASTLE_TYPES and len(self.raw_data) <= 4 and self.is_occupied
+        return self.is_plot_row and self.is_occupied
 
     @property
     def has_player_owner(self) -> bool:

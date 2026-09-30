@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from empire_core.enums import Kingdom, MapItemType, PeaceModeStatus
 from empire_core.protocol.base import (
@@ -76,6 +76,16 @@ class MapObject(BasePayload):
 
     owner_id: int | None = Field(alias="OID", default=None, description="Player id; negative for an NPC")
     is_dummy: bool = Field(alias="DUM", default=False, description="The record stands in for a player not loaded")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _dummy_keeps_only_its_id(cls, data: Any) -> Any:
+        # CastleOtherPlayerData.parseOwnerInfo (bundle line 139000): a record with a truthy DUM becomes a
+        # dummy player with just its id, and fillFromParamObject never reads the rest
+        if isinstance(data, dict) and js_truthy(data.get("DUM")):
+            return {"OID": data.get("OID"), "N": "", "DUM": 1}
+        return data
+
     owner_name: str | None = Field(alias="N", default=None, description="Player name")
     emblem: OwnerCrest | None = Field(alias="E", default=None, description="The player's crest")
     level: ParseInt = Field(alias="L", default=0, description="Player level")
@@ -324,12 +334,17 @@ class FindNextMapObjectRequest(BaseRequest):
     Command: fnm
     Payload: {"T": area_type, "KID": kingdom, "LMIN": min_level, "LMAX": max_level, "NID": owner_id}
 
-    The client asks this for faction camps, invasion and nomad camps and the
-    alliance raid portal, naming the NPC owner of the camps it wants. The
-    server answers NO_PLAYER_FOUND (153) when nothing matches.
+    The client asks this for robber baron camps (DUNGEON with LMIN and LMAX 1,
+    bundle line 143000), alien camps (bundle lines 114204, 117711), faction
+    invasion, samurai and nomad camps and the alliance raid portal, naming the
+    NPC owner of the camps it wants (bundle lines 75451, 91575, 98463, 98544,
+    98951), and Berimond faction camps with LMIN -3 (bundle line 54675); quest
+    jumps default LMIN to -3 too (bundle line 97692). What LMIN -3 asks for is
+    not settled by the client. The server answers NO_PLAYER_FOUND (153) when
+    nothing matches.
 
     Client: ``C2SFindNextMapObjectVO`` (bundle line 8970), whose key order the
-    fields follow; callers at bundle lines 54675, 75451, 91575 and 98951
+    fields follow
     """
 
     command = "fnm"
