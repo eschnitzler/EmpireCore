@@ -54,6 +54,7 @@ class _FakeConnection:
     ):
         self.content_chunks = content_chunks
         self.error_codes = error_codes or {}
+        self.error_codes_once = False
         self.raises = raises or {}
         self.payloads = payloads or {}
         self.delay = delay
@@ -79,7 +80,7 @@ class _FakeConnection:
             raise pending.pop(0)
 
         error_code = self.error_codes.get((cx, cy), 0)
-        if error_code and getattr(self, "error_codes_once", False):
+        if error_code and self.error_codes_once:
             del self.error_codes[(cx, cy)]
         if error_code:
             if self.disconnect_on_failure:

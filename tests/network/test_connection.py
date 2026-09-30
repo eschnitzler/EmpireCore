@@ -582,7 +582,7 @@ class TestMessageDecoding:
 
     def _route(self, live_conn, *frames: bytes) -> list:
         ws = websocket.WebSocket(skip_utf8_validation=True)
-        ws.sock = _ByteSocket(b"".join(frames))
+        ws.sock = _ByteSocket(b"".join(frames))  # type: ignore[assignment]
         ws.connected = True
         routed: list = []
         live_conn.on_packet = routed.append
