@@ -62,6 +62,9 @@ class FrameBuffer:
         text = _STRIPPED_CHARS_RE.sub("", message)
         if not text:
             return []
+        if not self._chunks and text.endswith("%") and _SYSTEM_MESSAGE_START not in text:
+            # Whole extension packets with nothing pending: the common case
+            return ["%xt" + piece for piece in text.split("%xt") if piece]
         # A tag may straddle the previous message and this one.
         previous_tail = _tail(self._chunks, len(_SYSTEM_MESSAGE_END) - 1)
         before = self._size
