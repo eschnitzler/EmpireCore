@@ -10,38 +10,17 @@ from __future__ import annotations
 
 import math
 import re
-from decimal import Decimal
 from typing import Annotated, Any
 
 from pydantic import BeforeValidator
+
+from .base import js_number_text as _number_text
 
 _JS_WHITESPACE = "\t\n\v\f\r                  　﻿"
 _HEX_COLOR = re.compile(r"#[0-9A-Fa-f]{6}")
 _DECIMAL = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
 _RADIX_LITERAL = re.compile(r"0(?:([xX][0-9A-Fa-f]+)|([oO][0-7]+)|([bB][01]+))")
 _LEADING_INT = re.compile(r"([+-]?)(?:0[xX]([0-9A-Fa-f]*)|([0-9]+))")
-
-
-def _number_text(number: float) -> str:
-    """``String(number)``: the ECMAScript ``Number::toString`` layout of the shortest round-trip digits."""
-    if math.isnan(number):
-        return "NaN"
-    if math.isinf(number):
-        return "Infinity" if number > 0 else "-Infinity"
-    if number == 0:
-        return "0"
-    sign = "-" if number < 0 else ""
-    _, digit_tuple, exponent = Decimal(repr(abs(number))).normalize().as_tuple()
-    digits = "".join(map(str, digit_tuple))
-    k, n = len(digits), len(digits) + int(exponent)
-    if k <= n <= 21:
-        return sign + digits + "0" * (n - k)
-    if 0 < n <= 21:
-        return sign + digits[:n] + "." + digits[n:]
-    if -6 < n <= 0:
-        return sign + "0." + "0" * -n + digits
-    mantissa = digits[0] + ("." + digits[1:] if k > 1 else "")
-    return f"{sign}{mantissa}e{'+' if n - 1 >= 0 else '-'}{abs(n - 1)}"
 
 
 def _text(value: Any) -> str:

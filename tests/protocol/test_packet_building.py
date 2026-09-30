@@ -63,3 +63,37 @@ class TestJsonCommands:
         body = packet.split("%", 5)[5][:-1]
         assert "%" not in body
         assert json.loads(body)["M"] == "a&percnt;5Cb"
+
+
+class TestJsonTextNumbersAndStrings:
+    # Expected strings are node's JSON.stringify of the same values.
+
+    @pytest.mark.parametrize(
+        ("value", "text"), [(1.0, "1"), (1e-7, "1e-7"), (1e16, "10000000000000000"), (1e21, "1e+21"), (0.1, "0.1")]
+    )
+    def test_numbers(self, value, text):
+        assert json_text({"n": value}) == f'{{"n":{text}}}'
+
+    @pytest.mark.parametrize("value", [float("nan"), float("inf")])
+    def test_no_nan(self, value):
+        with pytest.raises(ValueError):
+            json_text({"n": value})
+
+    def test_a_lone_surrogate_is_escaped(self):
+        assert json_text("x\ud800y\U0001f600") == '"x\\ud800y\U0001f600"'
+
+
+class TestNonStringParams:
+    @pytest.mark.parametrize(
+        ("param", "wire"),
+        [(0.0, "0"), (False, "<RoundHouseKick>"), (True, "true"), (float("nan"), "<RoundHouseKick>"), (1.5, "1.5")],
+    )
+    def test_as_send_message_converts_them(self, param, wire):
+        assert build_command("Z", "c", [param]) == f"%xt%Z%c%-1%{wire}%"
+
+
+def test_int_enums_and_non_string_keys_are_written_as_numbers():
+    from empire_core.enums import Kingdom
+
+    assert json_text({"KID": Kingdom.ICE, 1: [Kingdom.ICE]}) == '{"KID":2,"1":[2]}'
+    assert build_command("Z", "c", [Kingdom.ICE]) == "%xt%Z%c%-1%2%"

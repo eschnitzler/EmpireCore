@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from collections.abc import Callable
+from decimal import Decimal
 from enum import IntEnum
 from typing import Annotated, Any, ClassVar, TypeVar
 
@@ -38,28 +40,100 @@ def smartfox_text(text: str) -> str:
     return text.replace("%", "&percnt;").replace("'", "")
 
 
+def js_number_text(number: float) -> str:
+    """``String(number)``: the ECMAScript ``Number::toString`` layout of the shortest round-trip digits."""
+    if math.isnan(number):
+        return "NaN"
+    if math.isinf(number):
+        return "Infinity" if number > 0 else "-Infinity"
+    if number == 0:
+        return "0"
+    sign = "-" if number < 0 else ""
+    _, digit_tuple, exponent = Decimal(repr(abs(number))).normalize().as_tuple()
+    digits = "".join(map(str, digit_tuple))
+    k, n = len(digits), len(digits) + int(exponent)
+    if k <= n <= 21:
+        return sign + digits + "0" * (n - k)
+    if 0 < n <= 21:
+        return sign + digits[:n] + "." + digits[n:]
+    if -6 < n <= 0:
+        return sign + "0." + "0" * -n + digits
+    mantissa = digits[0] + ("." + digits[1:] if k > 1 else "")
+    return f"{sign}{mantissa}e{'+' if n - 1 >= 0 else '-'}{abs(n - 1)}"
+
+
+def _json_number(number: int | float) -> str:
+    if isinstance(number, float):
+        if math.isnan(number) or math.isinf(number):
+            raise ValueError(f"{number!r} has no JSON form")
+        return js_number_text(number)
+    # int() first: str() of an IntEnum member is its name on Python 3.10
+    return str(int(number)) if abs(number) < 10**21 else js_number_text(float(number))
+
+
+def _json_string(text: str) -> str:
+    # Surrogate pairs become the character they encode; a lone surrogate is escaped, as JSON.stringify does.
+    text = text.encode("utf-16", "surrogatepass").decode("utf-16", "surrogatepass")
+    encoded = json.dumps(text, ensure_ascii=False)
+    return "".join(f"\\u{ord(c):04x}" if 0xD800 <= ord(c) <= 0xDFFF else c for c in encoded)
+
+
+def _json_key(key: Any) -> str:
+    if isinstance(key, str):
+        return _json_string(key)
+    return _json_string(json_text(key))
+
+
 def json_text(payload: Any) -> str:
-    """``payload`` as ``JSON.stringify`` writes it: no spaces, non-ASCII kept as is."""
-    return json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+    """
+    ``payload`` as ``JSON.stringify`` writes it: no spaces, non-ASCII kept as is, numbers as JavaScript writes them.
+
+    Raises:
+        ValueError: For NaN or an infinity, which have no JSON form
+        TypeError: For a value JSON has no form for
+    """
+    if payload is None:
+        return "null"
+    if isinstance(payload, bool):
+        return "true" if payload else "false"
+    if isinstance(payload, (int, float)):
+        return _json_number(payload)
+    if isinstance(payload, str):
+        return _json_string(payload)
+    if isinstance(payload, dict):
+        return "{" + ",".join(f"{_json_key(key)}:{json_text(value)}" for key, value in payload.items()) + "}"
+    if isinstance(payload, (list, tuple)):
+        return "[" + ",".join(json_text(value) for value in payload) + "]"
+    raise TypeError(f"{type(payload).__name__} has no JSON form")
 
 
-def build_command(zone: str, command: str, params: list[str | int | None], room_id: int = NO_ROOM) -> str:
+def _param_text(param: str | int | float | bool | None) -> str:
+    if isinstance(param, str):
+        return smartfox_text(param) if param else "<RoundHouseKick>"
+    if param is None or param is False:
+        return "<RoundHouseKick>"
+    if param is True:
+        return "true"
+    if param == 0:
+        return "0"
+    if isinstance(param, float) and math.isnan(param):
+        return "<RoundHouseKick>"
+    return str(int(param)) if isinstance(param, int) and abs(param) < 10**21 else js_number_text(float(param))
+
+
+def build_command(
+    zone: str, command: str, params: list[str | int | float | bool | None], room_id: int = NO_ROOM
+) -> str:
     """
     The frame for a command with these params, as the client puts it on the wire.
 
-    A 0 goes out as ``0``, any other empty param (``""``, None) as
-    ``<RoundHouseKick>``, and each string through :func:`smartfox_text`.
+    A 0 goes out as ``0``; any other falsy param (``""``, None, False, NaN)
+    as ``<RoundHouseKick>``; True as ``true``; other numbers as JavaScript
+    writes them; and each string through :func:`smartfox_text`.
 
     Client: ``BasicSmartfoxClient.sendMessage`` and ``sendCommand`` (dll line 7171, 7198)
     """
-    fields: list[str] = []
-    for param in params:
-        if isinstance(param, str):
-            fields.append(smartfox_text(param) if param else "<RoundHouseKick>")
-        elif param is None:
-            fields.append("<RoundHouseKick>")
-        else:
-            fields.append(str(param))
+    fields = [_param_text(param) for param in params]
     return "%".join(["", "xt", zone, command, str(room_id), *fields, ""])
 
 
