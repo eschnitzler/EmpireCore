@@ -113,6 +113,11 @@ Services are attached to the client automatically; there is nothing to wire up.
 client.alliance.send_chat("Hello!")
 client.alliance.help_all()
 
+# The alliance help list, kept current from the server's pushes
+for request in client.alliance.help_requests:
+    if not request.already_confirmed:
+        client.alliance.help_member(request)
+
 for entry in client.alliance.get_chat_log():
     print(f"{entry.player_name}: {entry.decoded_text}")
 

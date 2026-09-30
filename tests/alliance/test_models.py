@@ -6,8 +6,15 @@ import pytest
 from pydantic import ValidationError
 
 from empire_core.alliance.models.chat import AllianceChatLogResponse, AllianceChatMessageResponse
+from empire_core.alliance.models.help import (
+    AllianceHelpListResponse,
+    AllianceHelpRequestChanged,
+    BuildingHelpParams,
+    HealHelpParams,
+    RecruitHelpParams,
+)
 from empire_core.alliance.models.info import AllianceInfo, AllianceMember, AllianceStorage, GetAllianceInfoResponse
-from empire_core.enums import AllianceRank
+from empire_core.enums import AllianceRank, HelpType
 from empire_core.protocol.models import parse_response
 
 
@@ -371,3 +378,48 @@ class TestAllianceLandmarksAndDiplomacy:
             (55, "Other", 3, 1),
             (56, None, 0, 0),
         ]
+
+
+class TestAllianceHelpEntries:
+    """As AllianceHelpRequestData.parseHelpRequestEntry (bundle line 133416) reads them."""
+
+    def test_each_help_type_gets_its_params(self):
+        entries = AllianceHelpListResponse.model_validate(
+            {
+                "AHL": [
+                    {"LID": 1, "TID": 1, "OP": {"RID": 4, "AID": 5, "SID": 6, "RLID": 7}},
+                    {"LID": 2, "TID": 2, "OP": {"RID": 8, "T": 1, "AID": 5, "SID": 9}},
+                    {"LID": 3, "TID": 4, "OP": {"KID": 2, "AID": 5, "OID": 10}},
+                ],
+                "TSL": -1,
+            }
+        ).requests
+        assert isinstance(entries[0].params, RecruitHelpParams) and entries[0].params.recruitment_list_id == 7
+        assert isinstance(entries[1].params, HealHelpParams) and entries[1].params.hospital_list_id == 1
+        assert isinstance(entries[2].params, BuildingHelpParams) and entries[2].params.object_id == 10
+        assert [e.help_type_enum for e in entries] == [HelpType.RECRUITMENT, HelpType.HEAL_UNIT, HelpType.BUILD]
+
+    def test_an_entry_the_client_cannot_read_costs_only_itself(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            entries = AllianceHelpListResponse.model_validate(
+                {"AHL": [{"LID": 1, "TID": 9, "OP": {}}, {"LID": 2, "TID": 3}, {"LID": 3, "TID": 3, "OP": {}}]}
+            ).requests
+        assert [e.list_id for e in entries] == [3]
+        assert "2/3 unreadable alliance help requests" in caplog.text
+
+    @pytest.mark.parametrize(("rt", "expected"), [(90, 90), ("90", 90), (-1, -1), (-5, -1), (None, -1)])
+    def test_the_expiry_reads_as_rt_above_minus_one(self, rt, expected):
+        entry = AllianceHelpRequestChanged.model_validate({"LID": 1, "TID": 3, "OP": {}, "RT": rt}).request
+        assert entry is not None and entry.remaining_seconds == expected
+
+    def test_already_confirmed_is_truthy(self):
+        entry = AllianceHelpRequestChanged.model_validate({"LID": 1, "TID": 3, "OP": {}, "AC": 1}).request
+        assert entry is not None and entry.already_confirmed is True
+
+    def test_an_unreadable_push_has_no_request(self):
+        assert AllianceHelpRequestChanged.model_validate({"LID": 1, "TID": 99}).request is None
+
+    def test_the_repair_cooldown(self):
+        assert AllianceHelpListResponse.model_validate({"TSL": -1}).repair_help_cooldown_seconds == 0
+        assert AllianceHelpListResponse.model_validate({"TSL": 800}).repair_help_cooldown_seconds == 10000
+        assert AllianceHelpListResponse.model_validate({"TSL": 20000}).repair_help_cooldown_seconds == 0

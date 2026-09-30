@@ -155,9 +155,13 @@ class GGECommand:
 
     # Alliance
     AIN = "ain"  # Get alliance info (includes member list)
-    AHC = "ahc"  # Help member
-    AHA = "aha"  # Help all
-    AHR = "ahr"  # Ask for help (request)
+    AHL = "ahl"  # Alliance help list
+    AHH = "ahh"  # Help request added or changed (push)
+    AHD = "ahd"  # Help request removed (push)
+    AHF = "ahf"  # Someone helped your request (push)
+    AHC = "ahc"  # Help one request
+    AHA = "aha"  # Help every request
+    AHR = "ahr"  # Ask for help
 
     # Castle
     GCL = "gcl"  # Get castles list

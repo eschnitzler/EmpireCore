@@ -425,22 +425,21 @@ class AllianceChatMessageResponse(BaseResponse):
 Add `@classmethod` factory methods for common patterns:
 
 ```python
-class HelpMemberRequest(BaseRequest):
-    command = "ahc"
-    
-    player_id: int = Field(alias="PID")
-    castle_id: int = Field(alias="CID")
-    help_type: int = Field(alias="HT")
-    
+class AskHelpRequest(BaseRequest):
+    command = "ahr"
+
+    target_id: int = Field(alias="ID")
+    type_id: int = Field(alias="T")
+
     @classmethod
-    def heal(cls, player_id: int, castle_id: int) -> "HelpMemberRequest":
-        """Create a heal help request."""
-        return cls(PID=player_id, CID=castle_id, HT=HelpType.HEAL)
-    
+    def repair(cls, building_id: int) -> "AskHelpRequest":
+        """Ask for help repairing a building."""
+        return cls(ID=building_id, T=HelpType.REPAIR)
+
     @classmethod
-    def repair(cls, player_id: int, castle_id: int) -> "HelpMemberRequest":
-        """Create a repair help request."""
-        return cls(PID=player_id, CID=castle_id, HT=HelpType.REPAIR)
+    def build(cls, building_id: int) -> "AskHelpRequest":
+        """Ask for help building a building."""
+        return cls(ID=building_id, T=HelpType.BUILD)
 ```
 
 ## Development Setup

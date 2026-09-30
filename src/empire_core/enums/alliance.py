@@ -50,8 +50,15 @@ class OnlineState(IntEnum):
 
 
 class HelpType(IntEnum):
-    """Types of help requests in alliance."""
+    """
+    What an alliance help request asks for.
 
-    HEAL = 2  # Heal wounded soldiers
-    REPAIR = 3  # Repair building
-    RECRUIT = 6  # Recruit soldiers
+    Client: ``AllianceConst.ALLIANCE_HELP_*`` (dll line 18805)
+    """
+
+    RECRUITMENT = 1
+    HEAL_UNIT = 2
+    REPAIR = 3
+    BUILD = 4
+    LOOP_RECRUIT = 5
+    RECRUITMENT_LIST = 6

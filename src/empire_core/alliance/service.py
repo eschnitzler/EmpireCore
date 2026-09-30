@@ -4,7 +4,7 @@ Alliance service for EmpireCore.
 Provides high-level APIs for:
 - Alliance members (get members, online status, last seen)
 - Alliance chat (send messages, get history)
-- Alliance help (help members, help all, request help)
+- Alliance help (the help list and its pushes, helping, asking for help)
 """
 
 from __future__ import annotations
@@ -21,7 +21,17 @@ from empire_core.alliance.models.chat import (
     AllianceChatMessageResponse,
     ChatMessageData,
 )
-from empire_core.alliance.models.help import AskHelpRequest, HelpAllRequest, HelpAllResponse, HelpMemberRequest
+from empire_core.alliance.models.help import (
+    AllianceHelpListRequest,
+    AllianceHelpListResponse,
+    AllianceHelpReceived,
+    AllianceHelpRequest,
+    AllianceHelpRequestChanged,
+    AllianceHelpRequestRemoved,
+    AskHelpRequest,
+    HelpAllRequest,
+    HelpMemberRequest,
+)
 from empire_core.alliance.models.info import AllianceMember, GetAllianceInfoRequest, GetAllianceInfoResponse
 from empire_core.alliance.models.search import (
     AllianceBookmark,
@@ -31,10 +41,16 @@ from empire_core.alliance.models.search import (
     SearchAllianceRequest,
     SearchAllianceResponse,
 )
+from empire_core.enums import HelpType
 from empire_core.exceptions import CommandError, PacketError
+from empire_core.protocol.base import BaseResponse
 from empire_core.services.base import BaseService, register_service
 
 logger = logging.getLogger(__name__)
+
+AllianceHelpUpdate = (
+    AllianceHelpListResponse | AllianceHelpRequestChanged | AllianceHelpRequestRemoved | AllianceHelpReceived
+)
 
 
 @register_service("alliance")
@@ -51,7 +67,7 @@ class AllianceService(BaseService):
         # Send chat message
         client.alliance.send_chat("Hello alliance!")
 
-        # Help all members
+        # Help every request on the alliance help list
         client.alliance.help_all()
 
         # Subscribe to incoming messages
@@ -66,9 +82,12 @@ class AllianceService(BaseService):
         self._chat_callbacks: list[Callable[[AllianceChatMessageResponse], None]] = []
         self._members: dict[int, AllianceMember] = {}
         self._members_alliance_id: int | None = None
+        self._help_requests: list[AllianceHelpRequest] = []
+        self._help_callbacks: list[Callable[[AllianceHelpUpdate], None]] = []
 
-        # Register internal handler for chat messages
         self.on_response("acm", self._handle_chat_message)
+        for command in ("ahl", "ahh", "ahd", "ahf"):
+            self.on_response(command, self._handle_help_update)
 
     # =========================================================================
     # Member Operations
@@ -370,91 +389,133 @@ class AllianceService(BaseService):
     # Help Operations
     # =========================================================================
 
-    def help_all(self, timeout: float = 5.0) -> HelpAllResponse:
+    @property
+    def help_requests(self) -> list[AllianceHelpRequest]:
         """
-        Help all alliance members who need help.
+        The alliance help list as the ahl, ahh and ahd pushes left it.
 
-        Sends a single request that helps all pending help requests
-        (heal, repair, recruit).
+        Client: ``AllianceHelpRequestData`` (bundle line 133359) keeps the list
+        the same way: ahl replaces it, ahh replaces or adds by ``LID``, ahd removes by ``LID``
+        """
+        return list(self._help_requests)
+
+    def get_help_requests(self, timeout: float = 5.0) -> AllianceHelpListResponse:
+        """
+        Ask the server for the alliance help list.
+
+        The game client never asks for ahl, it only reads the ahl the server
+        sends; whether the server answers this request is unverified. The
+        reply also refreshes :attr:`help_requests`.
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        return self.request(AllianceHelpListRequest(), AllianceHelpListResponse, timeout=timeout)
+
+    def on_help_update(self, callback: Callable[[AllianceHelpUpdate], None]) -> None:
+        """
+        Call ``callback`` with each ahl, ahh, ahd and ahf the server sends, after :attr:`help_requests` is updated.
+
+        Detach it again with :meth:`remove_help_update_callback`.
+        """
+        self._help_callbacks.append(callback)
+
+    def remove_help_update_callback(self, callback: Callable[[AllianceHelpUpdate], None]) -> None:
+        """Remove a callback registered with :meth:`on_help_update`; a no-op if it is not registered."""
+        try:
+            self._help_callbacks.remove(callback)
+        except ValueError:
+            pass
+
+    def _handle_help_update(self, response: BaseResponse) -> None:
+        if isinstance(response, AllianceHelpListResponse):
+            self._help_requests = list(response.requests)
+        elif isinstance(response, AllianceHelpRequestChanged) and response.request is not None:
+            changed = response.request
+            index = next((i for i, r in enumerate(self._help_requests) if r.list_id == changed.list_id), None)
+            if index is None:
+                self._help_requests.append(changed)
+            else:
+                self._help_requests[index] = changed
+        elif isinstance(response, AllianceHelpRequestRemoved):
+            self._help_requests = [r for r in self._help_requests if r.list_id != response.list_id]
+        elif not isinstance(response, AllianceHelpReceived):
+            return
+        for callback in list(self._help_callbacks):
+            try:
+                callback(response)
+            except Exception:
+                logger.exception("Help update callback error")
+
+    def help_member(self, request: AllianceHelpRequest | int) -> None:
+        """
+        Help one request on the help list.
+
+        The client has no handler for an ahc answer, so none is waited for.
+
+        Args:
+            request: An :class:`AllianceHelpRequest` from :attr:`help_requests`, or its ``list_id``
+        """
+        list_id = request.list_id if isinstance(request, AllianceHelpRequest) else request
+        self.send(HelpMemberRequest(LID=list_id))
+
+    def help_all(self) -> None:
+        """
+        Help every request on the help list.
+
+        The client has no handler for an aha answer, so none is waited for.
+        """
+        self.send(HelpAllRequest())
+
+    def request_build_help(self, building_id: int, timeout: float = 5.0) -> bool:
+        """
+        Ask the alliance to help build a building.
+
+        Args:
+            building_id: The building's object id, e.g. ``BuildResponse.building_id``
 
         Returns:
-            HelpAllResponse with helped_count
-
-        Example:
-            response = client.alliance.help_all()
-            print(f"Helped {response.helped_count} members")
+            Whether the server accepted the request
         """
-        return self.request(HelpAllRequest(), HelpAllResponse, timeout=timeout)
+        return self.execute(AskHelpRequest.build(building_id), timeout=timeout)
 
-    def help_member_heal(self, player_id: int, castle_id: int) -> None:
+    def request_repair_help(self, building_id: int, timeout: float = 5.0) -> bool:
         """
-        Help heal a specific member's wounded soldiers.
+        Ask the alliance to help repair a building.
 
         Args:
-            player_id: The member who asked for help. The library does not read
-                help requests yet, so it has no source for this or ``castle_id``
-            castle_id: The member's castle with wounded soldiers
-        """
-        request = HelpMemberRequest.heal(player_id, castle_id)
-        self.send(request)
+            building_id: The damaged building's object id
 
-    def help_member_repair(self, player_id: int, castle_id: int) -> None:
+        Returns:
+            Whether the server accepted the request
         """
-        Help repair a specific member's building.
+        return self.execute(AskHelpRequest.repair(building_id), timeout=timeout)
 
-        Args:
-            player_id: The member who asked for help. The library does not read
-                help requests yet, so it has no source for this or ``castle_id``
-            castle_id: The member's castle with the damaged building
+    def request_recruit_help(self, recruit_id: int, help_type: HelpType, timeout: float = 5.0) -> bool:
         """
-        request = HelpMemberRequest.repair(player_id, castle_id)
-        self.send(request)
-
-    def help_member_recruit(self, player_id: int, castle_id: int) -> None:
-        """
-        Help a specific member with soldier recruitment.
+        Ask the alliance to help with a recruitment.
 
         Args:
-            player_id: The member who asked for help. The library does not read
-                help requests yet, so it has no source for this or ``castle_id``
-            castle_id: The member's castle recruiting soldiers
-        """
-        request = HelpMemberRequest.recruit(player_id, castle_id)
-        self.send(request)
+            recruit_id: The recruitment's id; the library does not read recruitment ids yet
+            help_type: ``HelpType.RECRUITMENT``, ``LOOP_RECRUIT`` or ``RECRUITMENT_LIST``
 
-    def request_heal_help(self, castle_id: int) -> None:
+        Returns:
+            Whether the server accepted the request
         """
-        Request heal help from alliance for a castle.
+        return self.execute(AskHelpRequest.recruit(recruit_id, help_type), timeout=timeout)
 
-        Args:
-            castle_id: One of your castles, from ``client.castle.get_all()``
-                (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
+    def request_heal_help(self, hospital_entry_id: int, hospital_list_id: int, timeout: float = 5.0) -> bool:
         """
-        request = AskHelpRequest.heal(castle_id)
-        self.send(request)
-
-    def request_repair_help(self, castle_id: int, building_id: int) -> None:
-        """
-        Request repair help from alliance for a building.
+        Ask the alliance to help heal wounded units.
 
         Args:
-            castle_id: One of your castles, from ``client.castle.get_all()``
-                (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
-            building_id: The building that needs repair; the library does not read building ids yet
-        """
-        request = AskHelpRequest.repair(castle_id, building_id)
-        self.send(request)
+            hospital_entry_id: The hospital entry; the library does not read hospital entry ids yet
+            hospital_list_id: The hospital list the entry is on
 
-    def request_recruit_help(self, castle_id: int) -> None:
+        Returns:
+            Whether the server accepted the request
         """
-        Request recruit help from alliance for a castle.
-
-        Args:
-            castle_id: One of your castles, from ``client.castle.get_all()``
-                (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
-        """
-        request = AskHelpRequest.recruit(castle_id)
-        self.send(request)
+        return self.execute(AskHelpRequest.heal(hospital_entry_id, hospital_list_id), timeout=timeout)
 
     # =========================================================================
     # Bookmark Operations
@@ -473,4 +534,4 @@ class AllianceService(BaseService):
         return self.request(GetAllianceBookmarksRequest(), GetAllianceBookmarksResponse, timeout=timeout).bookmarks
 
 
-__all__ = ["AllianceService"]
+__all__ = ["AllianceHelpUpdate", "AllianceService"]

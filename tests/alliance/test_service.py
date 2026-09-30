@@ -333,47 +333,122 @@ class TestAllianceChat:
         client.alliance.remove_chat_message_callback(lambda r: None)
 
 
-class TestAllianceHelp:
-    def test_help_all_reports_the_count(self):
-        client = make_client({"aha": xt_packet("aha", {"HC": 7})})
-        assert client.alliance.help_all().helped_count == 7
+HEAL_ENTRY: dict[str, Any] = {
+    "AC": 0,
+    "LID": 31,
+    "PN": "OfficerGal",
+    "P": 2,
+    "PID": 7002,
+    "TID": 2,
+    "OP": {"RID": 5, "T": 1, "AID": 12346, "SID": 7},
+    "RT": 3600,
+}
+REPAIR_ENTRY: dict[str, Any] = {
+    "AC": 1,
+    "LID": 32,
+    "PN": "AfkDude",
+    "P": 0,
+    "PID": 7003,
+    "TID": 3,
+    "OP": {"KID": 0, "AID": 12347, "OID": 88},
+    "RT": -1,
+}
 
-    def test_help_all_error_raises(self):
-        client = make_client({"aha": xt_packet("aha", error_code=21)})
-        with pytest.raises(CommandError):
-            client.alliance.help_all()
+
+class TestAllianceHelp:
+    """Payloads as C2SAllianceHelpConfirmedVO, C2SAllianceHelpAllRequestVO and C2SAllianceHelpRequestVO build them."""
+
+    def test_help_member_sends_the_list_id_and_kingdom_1(self):
+        client = make_client()
+        client._on_packet(xt_packet("ahl", {"AHL": [HEAL_ENTRY], "TSL": -1}))
+
+        client.alliance.help_member(client.alliance.help_requests[0])
+        client.alliance.help_member(32)
+
+        sent = [request_payload(p) for p in conn(client).sent]
+        assert sent == [{"LID": 31, "KID": 1}, {"LID": 32, "KID": 1}]
+        assert [list(p) for p in sent] == [["LID", "KID"], ["LID", "KID"]]
+
+    def test_help_all_sends_kingdom_15_without_waiting(self):
+        client = make_client()
+
+        client.alliance.help_all()
+
+        assert request_payload(conn(client).sent[0]) == {"KID": 15}
+        assert conn(client).requested == []
 
     @pytest.mark.parametrize(
-        "method,help_type",
+        ("call", "payload"),
         [
-            ("help_member_heal", HelpType.HEAL),
-            ("help_member_repair", HelpType.REPAIR),
-            ("help_member_recruit", HelpType.RECRUIT),
+            (lambda a: a.request_build_help(88), {"ID": 88, "T": 4}),
+            (lambda a: a.request_repair_help(88), {"ID": 88, "T": 3}),
+            (lambda a: a.request_recruit_help(9, HelpType.LOOP_RECRUIT), {"ID": 9, "T": 5}),
+            (lambda a: a.request_heal_help(5, 2), {"ID": 5, "T": 2}),
         ],
     )
-    def test_help_member_sends_the_right_help_type(self, method, help_type):
+    def test_asking_for_help(self, call, payload):
         client = make_client()
 
-        getattr(client.alliance, method)(7001, 12345)
+        assert call(client.alliance) is True
 
-        payload = request_payload(conn(client).sent[0])
-        assert payload == {"PID": 7001, "CID": 12345, "HT": int(help_type)}
+        (sent,) = conn(client).request_payloads
+        assert sent == ("ahr", payload)
+        assert list(sent[1]) == ["ID", "T"]
 
-    def test_request_repair_help_carries_the_building_id(self):
+    def test_a_refused_request_is_false(self):
+        client = make_client({"ahr": xt_packet("ahr", error_code=21)})
+        assert client.alliance.request_repair_help(88) is False
+
+    def test_recruit_help_needs_a_recruit_type(self):
         client = make_client()
+        with pytest.raises(ValueError):
+            client.alliance.request_recruit_help(9, HelpType.REPAIR)
 
-        client.alliance.request_repair_help(12345, 42)
-
-        payload = request_payload(conn(client).sent[0])
-        assert payload == {"CID": 12345, "HT": int(HelpType.REPAIR), "BID": 42}
-
-    def test_request_heal_help_omits_the_building_id(self):
+    def test_the_help_list_follows_the_pushes(self):
         client = make_client()
+        seen: list[Any] = []
+        client.alliance.on_help_update(seen.append)
 
-        client.alliance.request_heal_help(12345)
+        client._on_packet(xt_packet("ahl", {"AHL": [HEAL_ENTRY], "TSL": 60}))
+        client._on_packet(xt_packet("ahh", {**HEAL_ENTRY, "P": 3, "TSL": 60}))
+        client._on_packet(xt_packet("ahh", REPAIR_ENTRY))
+        assert [(r.list_id, r.progress) for r in client.alliance.help_requests] == [(31, 3), (32, 0)]
 
-        assert request_payload(conn(client).sent[0]) == {"CID": 12345, "HT": int(HelpType.HEAL)}
+        client._on_packet(xt_packet("ahd", {"LID": 31}))
+        assert [r.list_id for r in client.alliance.help_requests] == [32]
 
+        client._on_packet(xt_packet("ahf", {"PN": "LeaderGuy", "LID": 32, "WID": 101}))
+        assert [type(u).__name__ for u in seen] == [
+            "AllianceHelpListResponse",
+            "AllianceHelpRequestChanged",
+            "AllianceHelpRequestChanged",
+            "AllianceHelpRequestRemoved",
+            "AllianceHelpReceived",
+        ]
+        assert seen[-1].building_wod_id == 101
+
+    def test_a_removed_callback_hears_nothing(self):
+        client = make_client()
+        seen: list[Any] = []
+        client.alliance.on_help_update(seen.append)
+        client.alliance.remove_help_update_callback(seen.append)
+        client.alliance.remove_help_update_callback(seen.append)
+
+        client._on_packet(xt_packet("ahd", {"LID": 1}))
+
+        assert seen == []
+
+    def test_get_help_requests_sends_an_empty_ahl(self):
+        client = make_client({"ahl": xt_packet("ahl", {"AHL": [REPAIR_ENTRY], "TSL": 600})})
+
+        reply = client.alliance.get_help_requests()
+
+        assert conn(client).request_payloads == [("ahl", {})]
+        assert [r.list_id for r in reply.requests] == [32]
+        assert reply.repair_help_cooldown_seconds == 10200
+
+
+class TestAllianceBookmarks:
     def test_bookmarks_expose_their_positions(self):
         payload = {"ABL": [{"N": "Enemy cluster", "OI": {"OID": 4242, "AP": [[0, 1, 640, 655, 1]]}}, {"N": "Plot"}]}
         client = make_client({"gbl": xt_packet("gbl", payload)})
