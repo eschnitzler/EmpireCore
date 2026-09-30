@@ -64,7 +64,7 @@ class MapService(BaseService):
         item_types: list[MapItemType] | None = None,
         timeout: float = 300.0,
         request_timeout: float = 5.0,
-        chunk_delay: float = 0.2,
+        chunk_delay: float = 0.0,
         include_unowned_types: set[MapItemType] | None = None,
     ) -> ScanResult:
         """Scan a kingdom map. See MapScanner.scan_kingdom; the session leaves its castle."""
@@ -84,7 +84,7 @@ class MapService(BaseService):
         item_types: list[MapItemType] | None = None,
         timeout: float = 300.0,
         request_timeout: float = 5.0,
-        chunk_delay: float = 0.2,
+        chunk_delay: float = 0.0,
         include_unowned_types: set[MapItemType] | None = None,
     ) -> ScanResult:
         """Scan an explicit chunk list (no BFS). See MapScanner.scan_chunks; the session leaves its castle."""

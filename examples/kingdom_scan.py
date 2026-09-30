@@ -46,9 +46,7 @@ def main() -> int:
     try:
         client.login()
 
-        # chunk_delay paces the requests. The server drops connections that
-        # sustain a high request rate, so leave the default alone unless you
-        # have measured what this account tolerates.
+        # Requests go out back to back; pass chunk_delay to wait between them.
         discovery = client.map.scan_kingdom(KINGDOM, item_types=ITEM_TYPES)
         summarize("discovery scan", discovery)
 

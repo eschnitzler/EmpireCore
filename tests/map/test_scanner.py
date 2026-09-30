@@ -79,6 +79,8 @@ class _FakeConnection:
             raise pending.pop(0)
 
         error_code = self.error_codes.get((cx, cy), 0)
+        if error_code and getattr(self, "error_codes_once", False):
+            del self.error_codes[(cx, cy)]
         if error_code:
             if self.disconnect_on_failure:
                 self.connected = False
@@ -127,7 +129,9 @@ class _FakeState:
 
 
 def _make_scanner(fake: _FakeClient) -> MapScanner:
-    return MapScanner(fake)
+    scanner = MapScanner(fake)
+    scanner.RETRY_BACKOFF = 0.0
+    return scanner
 
 
 class TestScanChunks:
@@ -428,10 +432,31 @@ class TestChunkRetry:
     def test_transport_error_on_retry_marks_chunk_failed(self):
         fake = _FakeClient(
             content_chunks={(1, 1)},
-            raises={(1, 1): [EmpireTimeoutError("no answer"), NetworkError("still broken")]},
+            raises={
+                (1, 1): [EmpireTimeoutError("no answer"), NetworkError("still broken"), EmpireTimeoutError("again")]
+            },
         )
         result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
+        assert fake.connection.requests == [(1, 1)] * 3
         assert result.failed_chunks == ((1, 1),)
+
+    def test_retries_back_off(self, monkeypatch):
+        slept: list[float] = []
+        monkeypatch.setattr("empire_core.map.scanner.time.sleep", slept.append)
+        fake = _FakeClient(
+            content_chunks={(1, 1)},
+            raises={(1, 1): [EmpireTimeoutError("no answer"), EmpireTimeoutError("again")]},
+        )
+        result = MapScanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[])
+        assert slept == [0.5, 1.0], "no pacing by default, only the backoff"
+        assert result.failed_chunks == ()
+
+    def test_a_cooldown_refusal_is_retried(self):
+        fake = _FakeClient(content_chunks={(1, 1)}, error_codes={(1, 1): 95})
+        fake.connection.error_codes_once = True
+        result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
+        assert fake.connection.requests == [(1, 1), (1, 1)]
+        assert result.failed_chunks == ()
 
     def test_retry_does_not_swallow_programming_errors(self):
         fake = _FakeClient(
