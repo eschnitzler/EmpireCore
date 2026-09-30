@@ -12,13 +12,14 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_serializer, field_validator, model_validator
 
 from empire_core.castle.models.castles import CastleInfo, GetCastlesResponse
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.map.models.areas import MapArea, MapObject
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none
 from empire_core.protocol.js import js_int
+from empire_core.protocol.text import encode_json_text
 
 from .profile import PlayerProfileBase
 
@@ -81,6 +82,8 @@ class GetPlayerInfoRequest(BaseRequest):
     Payload: {"PID": player_id}
 
     Returns owner info (O) and castle list (gcl.C) with capture status.
+
+    Client: ``C2SGetDetailPlayerInfo`` (bundle line 27021)
     """
 
     command = "gdi"
@@ -234,9 +237,23 @@ class GetPlayerInfoResponse(BaseResponse):
 
 
 class SearchPlayerRequest(BaseRequest):
+    """
+    Find a player by name.
+
+    Command: wsp
+    Payload: {"PN": player_name}, the name encoded as chat text
+
+    Client: ``C2SSearchPlayerVO`` (bundle line 66000), sent by
+    ``CastleWorldmapData.searchPlayerByName`` (bundle line 19009)
+    """
+
     command = "wsp"
 
-    player_name: str = Field(alias="PN")
+    player_name: str = Field(alias="PN", description="The player's name, as typed")
+
+    @field_serializer("player_name")
+    def _encoded_name(self, value: str) -> str:
+        return encode_json_text(value)
 
 
 class SearchPlayerResponse(BaseResponse):

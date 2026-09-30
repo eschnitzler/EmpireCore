@@ -4,7 +4,12 @@ import pytest
 
 from empire_core.castle.models.castles import GetCastlesResponse
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.player.models.info import GetPlayerInfoResponse, PlayerOwnerInfo, SearchPlayerResponse
+from empire_core.player.models.info import (
+    GetPlayerInfoResponse,
+    PlayerOwnerInfo,
+    SearchPlayerRequest,
+    SearchPlayerResponse,
+)
 from empire_core.protocol.models import parse_response
 from tests.model_helpers import gdi_location_row
 
@@ -255,3 +260,10 @@ class TestOwnerRecord:
 
     def test_no_owner_is_no_alliance(self):
         assert GetPlayerInfoResponse.model_validate({}).alliance_id == -1
+
+
+def test_a_player_search_encodes_the_name_as_chat_text():
+    # C2SSearchPlayerVO runs PN through TextValide.getValideSmartFoxJSONTextMessage
+    request = SearchPlayerRequest(PN="O'Brien 100%")
+    assert request.to_payload() == {"PN": "O&145;Brien 100&percnt;"}
+    assert request.player_name == "O'Brien 100%"
