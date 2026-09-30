@@ -260,7 +260,7 @@ class SpyService(BaseService):
         spy_type: SpyType,
         spies: int,
         accuracy_or_damage: int,
-        horse_wod_id: int = -1,
+        horses_type: int = -1,
         feathers: bool = False,
         slowdown: int = 0,
     ) -> SendSpyResponse:
@@ -275,8 +275,8 @@ class SpyService(BaseService):
             spy_type: MILITARY, ECO or SABOTAGE; plague monks are not sent this way
             spies: How many spies to send
             accuracy_or_damage: Accuracy percent (50-100), or damage percent (10-50) for sabotage
-            horse_wod_id: A horse's wod id to speed the spies up (-1 = none)
-            feathers: Use the instant spy horse and pay for it with feathers; wins over ``horse_wod_id``
+            horses_type: A horse's wod id to speed the spies up (-1 = none)
+            feathers: Use the instant spy horse and pay for it with feathers; wins over ``horses_type``
             slowdown: Seconds to delay the arrival by
 
         Raises:
@@ -295,7 +295,7 @@ class SpyService(BaseService):
             SC=spies,
             ST=spy_type,
             SE=accuracy_or_damage,
-            HBW=horse_wod_id,
+            HBW=horses_type,
             KID=target_kingdom,
             PTT=1 if feathers else 0,
             SD=slowdown,
@@ -312,7 +312,7 @@ class SpyService(BaseService):
         accuracy: int = MAX_ACCURACY,
         *,
         spy_type: SpyType = SpyType.MILITARY,
-        horse_wod_id: int = -1,
+        horses_type: int = -1,
         feathers: bool = False,
         slowdown: int = 0,
         max_wait: float | None = None,
@@ -323,7 +323,7 @@ class SpyService(BaseService):
         Nothing is paid unless asked: by default the spies travel without a
         horse. ``feathers`` uses the instant spy horse, paid with feathers,
         which the client sends as ``HBW`` -1 with ``PTT`` 1 and which wins over
-        ``horse_wod_id``, as in the client.
+        ``horses_type``, as in the client.
 
         The mission is costed with the client's risk floor for the target:
         none for an NPC area such as a robber baron camp, 5% for a player's
@@ -358,7 +358,7 @@ class SpyService(BaseService):
                 the same risk but return a less complete report.
             spy_type: MILITARY for the army, ECO for the resources. The client
                 offers ECO only for castles and other players' outposts.
-            horse_wod_id: A horse's wod id to speed the spies up (-1 = none);
+            horses_type: A horse's wod id to speed the spies up (-1 = none);
                 sent as -1 whenever feathers are used, as the client does
             feathers: Use the instant spy horse and pay for it with feathers
             slowdown: Seconds to delay the arrival by
@@ -426,7 +426,7 @@ class SpyService(BaseService):
                     spies=plan.spies,
                     # The plan may have traded detail for risk; send what it settled on.
                     accuracy_or_damage=plan.accuracy,
-                    horse_wod_id=horse_wod_id,
+                    horses_type=horses_type,
                     feathers=feathers,
                     slowdown=slowdown,
                 )
@@ -463,7 +463,7 @@ class SpyService(BaseService):
         damage: int = MIN_DAMAGE,
         risk_tolerance: int | None = None,
         *,
-        horse_wod_id: int = -1,
+        horses_type: int = -1,
         feathers: bool = False,
         slowdown: int = 0,
     ) -> SpyResult:
@@ -484,7 +484,7 @@ class SpyService(BaseService):
             target_kingdom: Target kingdom
             damage: Damage percent, 10 up to ``max_sabotage_damage(owner_level)``
             risk_tolerance: Ceiling on the chance of being caught, as a percentage
-            horse_wod_id: A horse's wod id to speed the spies up (-1 = none)
+            horses_type: A horse's wod id to speed the spies up (-1 = none)
             feathers: Use the instant spy horse and pay for it with feathers
             slowdown: Seconds to delay the arrival by
 
@@ -517,7 +517,7 @@ class SpyService(BaseService):
                 spy_type=SpyType.SABOTAGE,
                 spies=plan.spies,
                 accuracy_or_damage=plan.damage,
-                horse_wod_id=horse_wod_id,
+                horses_type=horses_type,
                 feathers=feathers,
                 slowdown=slowdown,
             )

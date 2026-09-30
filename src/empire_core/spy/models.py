@@ -44,7 +44,7 @@ class SendSpyRequest(BaseRequest):
 
     Command: csm
     Payload: {"SID": castle_id, "TX": target_x, "TY": target_y, "SC": spy_count, "ST": spy_type,
-              "SE": accuracy_or_damage, "HBW": horse_wod_id, "KID": target_kingdom, "PTT": pay_to_travel,
+              "SE": accuracy_or_damage, "HBW": horses_type, "KID": target_kingdom, "PTT": pay_to_travel,
               "SD": slowdown}
 
     The keys follow the client's order. ``SE`` is the damage (10-50) for a
@@ -74,7 +74,7 @@ class SendSpyRequest(BaseRequest):
     accuracy_or_damage: int = Field(
         alias="SE", default=100, description="Damage percent for a sabotage mission, accuracy percent for any other"
     )
-    horse_wod_id: int = Field(alias="HBW", default=-1, description="The horse's wod id, -1 for none or for feathers")
+    horses_type: int = Field(alias="HBW", default=-1, description="The horse's wod id, -1 for none or for feathers")
     target_kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The target's kingdom")
     pay_to_travel: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
     slowdown: int = Field(alias="SD", default=0, description="Seconds to delay the arrival by")
@@ -83,7 +83,7 @@ class SendSpyRequest(BaseRequest):
     def _feathers_send_no_horse(self) -> SendSpyRequest:
         # Client: HBW=int(u?-1:l), PTT=int(u?1:0)
         if self.pay_to_travel:
-            self.horse_wod_id = -1
+            self.horses_type = -1
             self.pay_to_travel = 1
         return self
 
