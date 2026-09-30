@@ -300,7 +300,11 @@ class SpyReportArea(BasePayload):
     name: str = Field(alias="N", default="", description="The area's name; empty for an NPC area the game names")
     map_id: int | None = Field(alias="MID", default=None, description="Map id")
     skin_id: ClientInt = Field(alias="EID", default=0, description="Unique id of the castle skin item, 0 for none")
-    owner_id: int | None = Field(alias="DP", default=None, description="The owner's player id; below 0 for an NPC")
+    owner_id: int | None = Field(
+        alias="DP",
+        default=None,
+        description="The owner's player id, below 0 for an NPC; for a faction invasion camp, its dungeon type",
+    )
     level: int | None = Field(alias="DL", default=None, description="The NPC's level, when owner_id is below 0")
     keep_level: ClientInt = Field(alias="KL", default=0, description="Keep level")
     wall_level: ClientInt = Field(alias="WL", default=0, description="Wall level")
@@ -338,6 +342,11 @@ class SpyReportResponse(BaseResponse):
          "S": [left, middle, right, keep, stronghold, support, reserve], "AS": seconds_since_spy,
          "B": {castellan}, "LS": [legend_skill_id, ...], "R": [collectables], "RS": cooldown_seconds,
          "OI": {owner record}, "SO": {owner record}, "AI": {area}, "DAR": daimyo_rank}
+
+    An ``AI`` block whose ``AT``, ``X`` or ``Y`` is missing or not one the
+    library knows reads as ``area`` None, where the client builds an empty
+    map object or fails: deliberately more lenient, so the rest of the report
+    still parses.
 
     A report with no army lists no defenders because the mission brought
     none back, not because the area is empty. The server answers error 130

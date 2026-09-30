@@ -700,7 +700,7 @@ class TestTheRiskFloorFollowsTheTarget:
         assert dict(conn(client).request_payloads)["csm"]["SC"] == 7
 
     def test_a_target_whose_owner_is_not_known_keeps_the_player_floor(self, no_sleep):
-        # A treasure camp's owner is not traced; the higher floor can only cost spies
+        # A treasure camp's owner is not traced, so the player floor is kept
         client = spy_client(ssi=self.screen([8, 700, 710, 0, 0]))
 
         client.spy.execute_instant_spy(12345, 700, 710)
@@ -710,11 +710,12 @@ class TestTheRiskFloorFollowsTheTarget:
 
 class TestEconomyMissions:
     def test_an_economy_mission_is_sent_as_st_1(self, no_sleep):
-        client = spy_client()
+        client = spy_client(sne=sne_packet("2+0+2#0+-211+"))
 
-        client.spy.execute_instant_spy(12345, 700, 710, spy_type=SpyType.ECO)
+        result = client.spy.execute_instant_spy(12345, 700, 710, spy_type=SpyType.ECO)
 
         assert dict(conn(client).request_payloads)["csm"]["ST"] == 1
+        assert result.success is True
 
     def test_an_economy_report_needs_no_army(self, no_sleep):
         bsd = xt_packet("bsd", {"MID": 9001, "R": [["W", 500]], "AI": {"AT": 2, "X": 700, "Y": 710, "K": 0}})
@@ -861,3 +862,62 @@ class TestSpiesInUse:
         monkeypatch.setattr(client.state, "get_all_movements", lambda: [mine, returning, theirs, attack])
 
         assert client.spy.spies_in_use() == 8
+
+
+class TestTheLogMustBeForThisKindOfMission:
+    """A military mission's log is DEFENCE (1), an economy mission's is ECO (2)."""
+
+    def test_a_military_mission_skips_an_economy_log(self, no_sleep):
+        client = spy_client(sne=[sne_packet("2+0+2#0+-211+", message_id=8000), sne_packet(message_id=9001)])
+
+        result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert (result.success, result.message_id) == (True, 9001)
+        assert ("bsd", {"MID": 8000}) not in conn(client).request_payloads
+
+    def test_an_economy_mission_skips_a_military_log(self, no_sleep):
+        client = spy_client(sne=sne_packet("1+0+2#0+-211+"))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, spy_type=SpyType.ECO, max_wait=0.05)
+
+        assert result.outcome is SpyOutcome.TIMEOUT
+        assert "bsd" not in conn(client).requested
+
+    @pytest.mark.parametrize("header", ["0+0+2#0+-211+", "3+2+2#0+-211+"])
+    def test_sabotage_and_plague_logs_are_skipped(self, no_sleep, header):
+        client = spy_client(sne=sne_packet(header))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, max_wait=0.05)
+
+        assert result.outcome is SpyOutcome.TIMEOUT
+
+
+class TestNpcDungeonsHaveNoPlayerFloor:
+    """setSpyValues: these owners are fixed NPC ids below 0, so isDungeon and floor 0."""
+
+    @pytest.mark.parametrize(
+        "row",
+        [
+            [11, 700, 710, -1, 5, 0, -1, 1],  # boss dungeon: -230 minus the kingdom
+            [25, 700, 710, 4, -1, 1, 0, 0, 0],  # isle dungeon: NPC_ID_EILAND_DUNGEON
+            [42, 700, 710, -1, 5, 0, 0, 0, 0],  # wolf king: -1201
+        ],
+    )
+    def test_a_ceiling_under_the_player_floor_still_spies(self, no_sleep, row):
+        ssi = xt_packet("ssi", {"AS": 46, "GC": 0, "TX": 700, "TY": 710, "gaa": {"AI": [row]}})
+        client = spy_client(ssi=ssi)
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, risk_tolerance=2)
+
+        assert result.success is True
+        assert dict(conn(client).request_payloads)["csm"]["SC"] == 7
+
+
+class TestSabotageDamageRange:
+    @pytest.mark.parametrize("damage", [9, 51])
+    def test_damage_outside_the_slider_is_refused_before_anything_is_sent(self, damage):
+        client = make_client()
+
+        with pytest.raises(ValueError):
+            client.spy.send_sabotage(12345, 700, 710, damage=damage)
+        assert conn(client).requested == []

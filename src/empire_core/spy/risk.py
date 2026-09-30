@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from empire_core.combat import is_npc_pvp_player, owner_id_from_row
 from empire_core.enums import MapItemType
 from empire_core.messages.models import SPY_VALIDITY
+from empire_core.protocol.js import js_int
 
 MAX_GUARD = 180
 MAX_SPY = 15
@@ -58,13 +59,51 @@ metropolis subclasses (``WorldmapObjectFactory.mapObjectVOs``, bundle line 5357;
 ``CapitalMapobjectVO`` bundle line 18760, ``MetropolMapobjectVO`` 21637).
 """
 
-_NPC_CAMP_OWNERS = {int(MapItemType.NOMAD_CAMP): -601, int(MapItemType.SAMURAI_CAMP): -651}
+_NPC_OWNED_AREA_TYPES = frozenset(
+    {
+        int(MapItemType.DUNGEON),
+        int(MapItemType.BOSS_DUNGEON),
+        int(MapItemType.EVENT_DUNGEON),
+        int(MapItemType.ISLE_DUNGEON),
+        int(MapItemType.DAIMYO_CASTLE),
+        int(MapItemType.WOLF_KING),
+    }
+)
 """
-``DungeonConst.BASIC_NOMAD_CAMP_PLAYER_ID`` and ``BASIC_SAMURAI_CAMP_PLAYER_ID``
-(dll line 19157), the owners ``NomadCampMapObjectVO.parseAreaInfo`` and
-``SamuraiCampMapObjectVO.parseAreaInfo`` set for a row of more than three
-fields (bundle lines 76379, 76493).
+Area types whose map object always gets an NPC owner below 0 that the game
+does not fight like a player:
+
+- ``DUNGEON``: ``DungeonConst.DUNGEON_PLAYER_ID`` (-202) minus 0-12, or
+  ``KINGDOM_DUNGEON_PLAYER_ID`` (-220) minus the kingdom
+  (``WorldmapObjectFactory.initDungeonByXY``, bundle lines 5349-5354)
+- ``BOSS_DUNGEON``: ``KINGDOM_BOSS_DUNGEON_PLAYER_ID`` (-230) minus the kingdom
+  (``BossdungeonMapobjectVO.parseAreaInfo``, bundle line 34441)
+- ``EVENT_DUNGEON``: the running dungeon event's owner, -500 to -503 or
+  ``DungeonConst.INVALID`` (-1) (``EventdungeonMapobjectVO.parseAreaInfo``,
+  bundle lines 34488-34490; ``getEventDungeonOwnerIDBySkinID``, dll line 19123)
+- ``ISLE_DUNGEON``: ``NPC_ID_EILAND_DUNGEON``, -220 minus the storm islands
+  (``DungeonIsleMapobjectVO``, bundle lines 76287-76288)
+- ``DAIMYO_CASTLE``: ``BASIC_DAIMYO_CASTLE_PLAYER_ID`` (-811) (bundle line 19651)
+- ``WOLF_KING``: ``BASIC_WOLF_KING_PLAYER_ID`` (-1201) (bundle line 34409)
+
+Ids from ``DungeonConst`` (dll line 19157).
 """
+
+_NPC_CAMP_OWNERS = {
+    int(MapItemType.NOMAD_CAMP): -601,
+    int(MapItemType.SAMURAI_CAMP): -651,
+    int(MapItemType.ALLIANCE_NOMAD_CAMP): -801,
+}
+"""
+``DungeonConst.BASIC_NOMAD_CAMP_PLAYER_ID``, ``BASIC_SAMURAI_CAMP_PLAYER_ID`` and
+``BASIC_ALLIANCE_NOMAD_CAMP_PLAYER_ID`` (dll line 19157): the owners
+``NomadCampMapObjectVO.parseAreaInfo``, ``SamuraiCampMapObjectVO.parseAreaInfo`` and
+``NomadKhanCampMapObjectVO.parseData`` set for a row of more than three fields
+(bundle lines 76379, 76493, 76434 through 47391).
+"""
+
+_FACTION_INVASION_OWNER_FIELD = 7
+"""``FactionInvasionCampMapObjectVO.parseAreaInfo`` (bundle line 76324) owns the camp by ``int(e[7])``."""
 
 
 def _clamp(value: float, low: float, high: float) -> float:
@@ -189,33 +228,33 @@ def row_risk_flags(row: list | None) -> tuple[bool, bool] | None:
     """
     The client's ``(isDungeon, isPlayer)`` for a target's map row, or None where its owner is not traced here.
 
-    A robber baron camp (``DUNGEON``) is owned by a dungeon NPC whose id the
-    client picks from the position; every such id is below 0 and none is an
-    NPC the game fights like a player. Nomad and samurai camps have fixed NPC
-    owners; alien camps and the areas whose row names the owner are read with
-    :func:`~empire_core.combat.owner_id_from_row`.
+    NPC dungeons and camps have fixed owners below 0 that the game does not
+    fight like players; a faction invasion camp names its owner in the row;
+    alien camps and the areas whose row names the owner are read with
+    :func:`~empire_core.combat.owner_id_from_row`. Not traced: treasure
+    dungeons and camps, shadow areas (whose owner may be a collector) and any
+    other type; a samurai alien camp has no map object in the client.
 
     Args:
         row: The target's raw map row, e.g. ``SpyScreenInfoResponse.target_row().raw_data``
 
-    Client: ``WorldmapObjectFactory.parseWorldMapArea`` and ``initDungeonByXY``
-    (bundle lines 5343-5354)
+    Client: ``WorldmapObjectFactory.parseWorldMapArea`` (bundle line 5343) and the
+    ``parseAreaInfo`` of each map object
     """
     if not row:
         return None
     try:
         area_type = int(row[0])
+        if area_type in _NPC_OWNED_AREA_TYPES:
+            return True, True
+        if area_type in _NPC_CAMP_OWNERS:
+            owner_id = _NPC_CAMP_OWNERS[area_type] if len(row) > 3 else None
+        elif area_type == MapItemType.FACTION_INVASION_CAMP:
+            owner_id = js_int(row[_FACTION_INVASION_OWNER_FIELD]) if len(row) > _FACTION_INVASION_OWNER_FIELD else None
+        else:
+            owner_id = owner_id_from_row(row)
     except (TypeError, ValueError):
         return None
-    if area_type == MapItemType.DUNGEON:
-        return True, True
-    if area_type in _NPC_CAMP_OWNERS:
-        owner_id = _NPC_CAMP_OWNERS[area_type] if len(row) > 3 else None
-    else:
-        try:
-            owner_id = owner_id_from_row(row)
-        except (TypeError, ValueError):
-            return None
     if owner_id is None:
         return None
     return risk_target_flags(owner_id, area_type)

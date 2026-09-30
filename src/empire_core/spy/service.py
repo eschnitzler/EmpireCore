@@ -13,7 +13,7 @@ from enum import Enum
 from pydantic import ValidationError
 
 from empire_core.army.spy_army import SpyArmy
-from empire_core.enums import Kingdom, SpyType
+from empire_core.enums import Kingdom, SpyLogType, SpyType
 from empire_core.exceptions import CommandError, EmpireError
 from empire_core.messages.models import (
     ForwardSpyLogRequest,
@@ -39,6 +39,7 @@ from .models import (
 )
 from .risk import (
     MAX_ACCURACY,
+    MAX_DAMAGE,
     MAX_RISK_SABOTAGE,
     MAX_RISK_SPY,
     MIN_DAMAGE,
@@ -52,6 +53,10 @@ logger = logging.getLogger(__name__)
 # BSDCommand.executeCommand (bundle line 125223) shows "no spy data" for these
 _NO_REPORT_ERRORS = frozenset({GGEError.NO_SPY_DATA, GGEError.NO_SUCH_MESSAGE})
 _REPORT_MARGIN = 10.0
+# Mission types and log subtypes are numbered differently (ClientConstCastle.SPYTYPE_*, MessageConst.SUBTYPE_SPY_*).
+# A military log is DEFENCE: its success lists the army (hasDetailedSpyLog, bundle lines 137642, 137672),
+# and a live military mission's log header began "1+".
+_LOG_TYPE_OF_MISSION = {SpyType.MILITARY: SpyLogType.DEFENCE, SpyType.ECO: SpyLogType.ECO}
 _POLL_SECONDS = 1.0
 _SSI_POLL_ATTEMPTS = 5
 _SSI_POLL_DELAY = 2.0
@@ -130,9 +135,11 @@ class SpyResult:
         return self.report.army() if self.report is not None else None
 
 
-def _names_target(header: SpyLogHeader, target: MovementRecord | None, target_kingdom: Kingdom) -> bool:
+def _names_target(
+    header: SpyLogHeader, target: MovementRecord | None, target_kingdom: Kingdom, spy_type: SpyType
+) -> bool:
     """
-    Whether a spy log's header names this mission's target.
+    Whether a spy log's header is for this kind of mission and names its target.
 
     ``sne`` carries no mission id, so the header's kingdom, owner, area type
     and name are matched against the csm reply's movement; without the
@@ -142,7 +149,7 @@ def _names_target(header: SpyLogHeader, target: MovementRecord | None, target_ki
 
     Client: ``MessageSpyPlayerVO.parseSender`` (bundle line 137666)
     """
-    if header.result is None or header.kingdom_id is None:
+    if header.result is None or header.kingdom_id is None or header.log_type != _LOG_TYPE_OF_MISSION[spy_type]:
         return False
     if target is None:
         return header.kingdom_id == target_kingdom
@@ -328,8 +335,10 @@ class SpyService(BaseService):
         The mission is costed with the client's risk floor for the target:
         none for an NPC area such as a robber baron camp, 5% for a player's
         area and for NPCs the game fights like players. Where the ``ssi``
-        reply does not tell whose area it is, the 5% floor is kept, which can
-        only send more spies than needed.
+        reply does not tell whose area it is (see
+        :func:`~empire_core.spy.risk.row_risk_flags`), the 5% floor is kept:
+        the mission may then be planned at a higher risk than the client
+        shows, and a ``risk_tolerance`` under 5 skips it.
 
         The report arrives as an ``sne`` push once the spies get there. Every
         ``sne`` in the wait is looked at without being taken from other
@@ -449,7 +458,7 @@ class SpyService(BaseService):
                 target_x,
                 target_y,
                 target_kingdom,
-                needs_army=spy_type == SpyType.MILITARY,
+                spy_type=spy_type,
             )
         finally:
             connection.unsubscribe("sne", notifications.put)
@@ -495,6 +504,8 @@ class SpyService(BaseService):
         72203-72205), ``ACastleSpyDialogState.updateSliderForDamage`` (bundle line 34360),
         ``CastleStartSpyVO.setSabotageValues`` (bundle line 140006)
         """
+        if not MIN_DAMAGE <= damage <= MAX_DAMAGE:
+            raise ValueError(f"sabotage damage must be {MIN_DAMAGE}-{MAX_DAMAGE}, got {damage}")
         max_risk = risk_tolerance if risk_tolerance is not None else MAX_RISK_SABOTAGE
         try:
             screen = self.get_screen_info(target_x, target_y, target_kingdom)
@@ -535,7 +546,7 @@ class SpyService(BaseService):
         target_y: int,
         target_kingdom: Kingdom,
         *,
-        needs_army: bool,
+        spy_type: SpyType,
     ) -> SpyResult:
         """Read ``sne`` pushes until one is this mission's report, or the deadline passes."""
         missed = SpyOutcome.TIMEOUT
@@ -548,7 +559,7 @@ class SpyService(BaseService):
                 continue
             for message in _spy_messages(packet):
                 header = message.spy_log_header()
-                if header is None or not _names_target(header, target, target_kingdom):
+                if header is None or not _names_target(header, target, target_kingdom, spy_type):
                     continue
                 try:
                     report = self.request(GetSpyReportRequest(MID=message.message_id), SpyReportResponse)
@@ -574,7 +585,7 @@ class SpyService(BaseService):
                 result = SpyResult(SpyOutcome.SUCCESS, message_id=message.message_id, report=report, mission=mission)
                 if header.spies_lost:
                     result.outcome = SpyOutcome.SPY_CAUGHT
-                elif needs_army and not report.has_army:
+                elif spy_type == SpyType.MILITARY and not report.has_army:
                     result.outcome = SpyOutcome.NO_SPY_DATA
                 return result
         return SpyResult(missed, SpyStep.SNE, mission=mission)

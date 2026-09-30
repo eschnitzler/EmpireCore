@@ -187,12 +187,34 @@ class TestRiskTargetFlags:
             ([29, 1, 2, 0, 3, 0, 0, 0, 1, 0, 0, 0], (True, True)),  # samurai camp: -651
             ([1, 1, 2, 2001, 1001, 2, 2, 2, 1, 0, "Keep"], (False, True)),
             ([4, 1, 2, -300, -300, 1, 1, 1, 0, 0, ""], (True, False)),
+            ([11, 1, 2, -1, 5, 0, -1, 1], (True, True)),  # boss dungeon
+            ([13, 1, 2, -1, 5, 0], (True, True)),  # event dungeon
+            ([13, 1, 2], (True, True)),
+            ([25, 1, 2, 4, -1, 1, 0, 0, 0], (True, True)),  # isle dungeon
+            ([37, 1, 2], (True, True)),  # daimyo castle
+            ([42, 1, 2], (True, True)),  # wolf king
+            ([35, 1, 2, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0], (True, True)),  # nomad khan camp: -801
+            ([30, 1, 2, -1, 3, 0, 0, -401], (True, True)),  # faction invasion camp: its owner field
         ],
     )
     def test_row_flags(self, row, flags):
         assert row_risk_flags(row) == flags
 
-    @pytest.mark.parametrize("row", [None, [], [8, 1, 2, 0, 0], [27, 1, 2], ["x", 1, 2, 0]])
+    @pytest.mark.parametrize(
+        "row",
+        [
+            None,
+            [],
+            [8, 1, 2, 0, 0],
+            [7, 1, 2, 0, 0],
+            [9, 1, 2, 0, 0],
+            [33, 1, 2, 0],
+            [27, 1, 2],
+            [35, 1, 2],
+            [30, 1, 2],
+            ["x", 1, 2, 0],
+        ],
+    )
     def test_an_owner_not_traced_is_none(self, row):
         assert row_risk_flags(row) is None
 

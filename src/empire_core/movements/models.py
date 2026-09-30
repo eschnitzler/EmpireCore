@@ -20,7 +20,7 @@ from empire_core.protocol.base import (
     object_or_none,
     read_or_none,
 )
-from empire_core.protocol.js import js_loose_equals, js_parse_int, js_parse_int_or_zero, js_truthy
+from empire_core.protocol.js import ClientInt, js_loose_equals, js_parse_int, js_parse_int_or_zero, js_truthy
 
 
 class GetMovementsRequest(BaseRequest):
@@ -184,15 +184,15 @@ class MovementMarket(BasePayload):
 class MovementSpy(BasePayload):
     """A spy mission's details: a wrapper's ``S``.
 
-    Client: ``SpyMapmovementVO.parseSpyInfo``.
+    Client: ``SpyMapmovementVO.parseSpyInfo`` (bundle line 43748), which reads each through ``int()``.
     """
 
-    spy_type: int = Field(alias="ST", default=0, description="Kind of spy mission, a SpyType value")
-    accuracy_or_damage: int = Field(
+    spy_type: ClientInt = Field(alias="ST", default=0, description="Kind of spy mission, a SpyType value")
+    accuracy_or_damage: ClientInt = Field(
         alias="SA", default=0, description="Accuracy percent, or damage percent for sabotage"
     )
-    spy_count: int = Field(alias="SC", default=0, description="Spies sent")
-    risk: int = Field(alias="SR", default=0, description="Risk of being caught, percent")
+    spy_count: ClientInt = Field(alias="SC", default=0, description="Spies sent")
+    risk: ClientInt = Field(alias="SR", default=0, description="Risk of being caught, percent")
 
     @property
     def spy_type_enum(self) -> SpyType | None:
