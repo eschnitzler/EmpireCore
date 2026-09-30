@@ -72,6 +72,8 @@ class GGECommand:
     VPN = "vpn"  # Check username availability
     VLN = "vln"  # Check if user exists
     LPP = "lpp"  # Password recovery
+    VCK = "vck"  # Version check before the login
+    SLT = "slt"  # Login token push after a persistent login
 
     # Chat
     ACM = "acm"  # Alliance chat message (send/receive)

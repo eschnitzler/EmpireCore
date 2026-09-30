@@ -11,6 +11,7 @@ from empire_core.protocol.auth import (
     LoginRequest,
     LoginResponse,
     LoginTokenResponse,
+    PasswordRecoveryRequest,
     RegisterRequest,
     RegisterResponse,
     build_version_check,
@@ -114,3 +115,8 @@ class TestRegister:
         response = RegisterResponse.model_validate({"PID": 7, "NS": ["x"]})
         assert response.player_id == 7
         assert response.suggested_names == ["x"]
+
+
+def test_password_recovery_sends_the_email_as_mail():
+    # Client: BasicLostPasswordCommand.sendMessage builds {MAIL: text} (dll line 33056).
+    assert PasswordRecoveryRequest(MAIL="a@example.com").to_payload() == {"MAIL": "a@example.com"}

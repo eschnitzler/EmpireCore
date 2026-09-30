@@ -311,16 +311,13 @@ class PasswordRecoveryRequest(BaseRequest):
     """
     Ask for a password recovery email (``lpp``).
 
-    Unverified: the client names the command but never builds its request, so
-    these keys are not confirmed.
-
-    Client: ``BasicSmartfoxConstants.C2S_LOST_PASSWORD_EVENT`` (dll line 981)
+    Client: ``BasicLostPasswordCommand.sendMessage`` (dll line 33056), sent from
+    ``CastleLostPasswordDialog`` (bundle line 34746)
     """
 
     command = "lpp"
 
-    email: str | None = Field(alias="EM", default=None, description="Email address of the account")
-    username: str | None = Field(alias="NM", default=None, description="Name of the account")
+    email: str = Field(alias="MAIL", description="Email address of the account")
 
 
 class PasswordRecoveryResponse(BaseResponse):
