@@ -110,6 +110,12 @@ class Bookmark(BasePayload):
             data.pop("C", None)
         return data
 
+    @field_validator("name", mode="before")
+    @classmethod
+    def _name(cls, value: Any) -> Any:
+        # Stored as sent; a value that is not text reads as no name instead of losing the bookmark
+        return value if isinstance(value, str) else None
+
     @field_validator("area", mode="before")
     @classmethod
     def _area_row(cls, value: Any) -> Any:

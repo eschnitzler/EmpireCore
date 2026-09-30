@@ -125,3 +125,24 @@ class TestMail:
         client = make_client({"sms": xt_packet("sms", error_code=68)})
         with pytest.raises(CommandError):
             client.messages.send_message("Nobody", "s", "hello")
+
+
+class TestReviewFollowUps:
+    def test_a_dropped_session_empties_the_mailbox(self):
+        client = make_client()
+        client._on_packet(xt_packet("sne", {"MSG": [ROW]}))
+
+        for listener in conn(client).disconnect_listeners:
+            listener()
+
+        assert client.messages.mailbox == []
+
+    def test_one_bad_delete_id_costs_only_itself(self):
+        reply = DeleteMessagesResponse.model_validate({"MID": [7, "8", "x", 9.5, None, True]})
+        assert reply.message_ids == [7, 8]
+
+    def test_a_row_with_an_unreadable_age_is_kept(self):
+        client = make_client()
+        client._on_packet(xt_packet("sne", {"MSG": [[501, 1, "Hi", "S", 1, "soon", 0, 0, 0]]}))
+        (message,) = client.messages.mailbox
+        assert message.seconds_since_sent is None

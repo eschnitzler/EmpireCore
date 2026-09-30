@@ -31,7 +31,7 @@ from empire_core.protocol.base import (
     read_or_none,
     readable_list,
 )
-from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_parse_int, js_truthy
+from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_number_or_none, js_parse_int, js_truthy
 from empire_core.protocol.text import decode_json_text, encode_json_text
 
 if TYPE_CHECKING:
@@ -128,7 +128,9 @@ class MessageInfo(BasePayload):
     )
     sender_name: str = Field(default="", description="Sender's name")
     sender_id: ClientInt = Field(default=-1, description="Sender's player id")
-    seconds_since_sent: int | float = Field(default=0, description="Seconds since the message was sent")
+    seconds_since_sent: int | float | None = Field(
+        default=0, description="Seconds since the message was sent; None when the row has no number for it"
+    )
     is_read: bool = Field(default=False, description="The message has been read")
     is_archived: bool = Field(default=False, description="The message is archived")
     is_forwarded: bool = Field(default=False, description="The message was forwarded")
@@ -139,6 +141,12 @@ class MessageInfo(BasePayload):
         if isinstance(data, list) and len(data) >= 2:
             return dict(zip(_MESSAGE_ROW, data, strict=False))
         return data
+
+    @field_validator("seconds_since_sent", mode="before")
+    @classmethod
+    def _seconds(cls, value: Any) -> Any:
+        # The client keeps the row whatever this holds
+        return js_number_or_none(value)
 
     @field_validator("header", "sender_name", mode="before")
     @classmethod
@@ -697,9 +705,10 @@ class DeleteMessagesResponse(BaseResponse):
     @field_validator("message_ids", mode="before")
     @classmethod
     def _one_or_many(cls, value: Any) -> Any:
-        if value is None:
-            return []
-        return [v for v in value if v is not None] if isinstance(value, list) else [value]
+        # getMessageVOById compares loosely, so "5" finds message 5; an id that is no whole number finds none
+        entries = value if isinstance(value, list) else [value]
+        numbers = [js_number_or_none(v) for v in entries if v is not None and not isinstance(v, bool)]
+        return [int(n) for n in numbers if n is not None and n == int(n)]
 
 
 class SendMessageRequest(BaseRequest):

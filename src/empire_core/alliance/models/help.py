@@ -90,9 +90,12 @@ class AllianceHelpRequest(BasePayload):
     """
     One request on the alliance help list.
 
-    Client: ``AllianceHelpRequestData.parseHelpRequestEntry`` (bundle line 133416);
-    ``AllianceHelpRequestParamsFactory.parseParams`` (bundle line 133451) picks the
-    params by help type and throws for any other type, so such an entry is unreadable.
+    Deliberately more lenient than the client: ``AllianceHelpRequestParamsFactory.parseParams``
+    (bundle line 133451) switches on the raw ``TID`` and throws for any other type
+    or a missing ``OP``, losing the whole list; here such an entry is skipped
+    alone, and ``TID`` is read with ``int()``, so ``"3"`` counts as 3.
+
+    Client: ``AllianceHelpRequestData.parseHelpRequestEntry`` (bundle line 133416)
     """
 
     already_confirmed: bool = Field(alias="AC", default=False, description="You already helped this request")
@@ -118,6 +121,12 @@ class AllianceHelpRequest(BasePayload):
         if not isinstance(op, dict):
             raise ValueError("help params must be an object")
         return {**data, "OP": model.model_validate(op)}
+
+    @field_validator("player_name", mode="before")
+    @classmethod
+    def _name(cls, value: Any) -> Any:
+        # Stored as sent; a value that is not text reads as no name instead of losing the entry
+        return value if isinstance(value, str) else None
 
     @field_validator("already_confirmed", mode="before")
     @classmethod

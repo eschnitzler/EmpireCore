@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 from collections.abc import Callable
 
 from empire_core.exceptions import CommandError, MessageUnavailableError
@@ -50,15 +51,28 @@ class MessagesService(BaseService):
     def __init__(self, client) -> None:
         super().__init__(client)
         self._mailbox: dict[int, MessageInfo] = {}
+        self._mailbox_lock = threading.Lock()
         self._callbacks: list[Callable[[SystemNotificationEvent], None]] = []
         self.on_response("sne", self._handle_update)
         self.on_response("dms", self._handle_update)
         self.on_response("ams", self._handle_update)
+        client.connection.add_disconnect_listener(self._reset)
+
+    def _reset(self) -> None:
+        """
+        Empty the mailbox when the session drops; the server sends it again after a login.
+
+        Client: ``CastleDestroyGameCommand`` (bundle line 120270) resets every model,
+        and ``CastleMessageData.reset`` (bundle line 134889) empties the mailbox
+        """
+        with self._mailbox_lock:
+            self._mailbox.clear()
 
     @property
     def mailbox(self) -> list[MessageInfo]:
         """The messages the server has pushed so far, in the order they first arrived."""
-        return list(self._mailbox.values())
+        with self._mailbox_lock:
+            return list(self._mailbox.values())
 
     def on_new_messages(self, callback: Callable[[SystemNotificationEvent], None]) -> None:
         """Call ``callback`` with each sne push, after :attr:`mailbox` is updated."""
@@ -72,14 +86,19 @@ class MessagesService(BaseService):
             pass
 
     def _handle_update(self, response: BaseResponse) -> None:
+        with self._mailbox_lock:
+            self._apply_update(response)
         if isinstance(response, SystemNotificationEvent):
-            for message in response.messages:
-                self._mailbox[message.message_id] = message
             for callback in list(self._callbacks):
                 try:
                     callback(response)
                 except Exception:
                     logger.exception("New messages callback error")
+
+    def _apply_update(self, response: BaseResponse) -> None:
+        if isinstance(response, SystemNotificationEvent):
+            for message in response.messages:
+                self._mailbox[message.message_id] = message
         elif isinstance(response, DeleteMessagesResponse):
             for message_id in response.message_ids:
                 self._mailbox.pop(message_id, None)
@@ -114,9 +133,10 @@ class MessagesService(BaseService):
         The message in :attr:`mailbox` is marked read too, as the client marks its own copy.
         """
         self.send(MarkMessageReadRequest(MID=message_id))
-        message = self._mailbox.get(message_id)
-        if message is not None:
-            self._mailbox[message_id] = message.model_copy(update={"is_read": True})
+        with self._mailbox_lock:
+            message = self._mailbox.get(message_id)
+            if message is not None:
+                self._mailbox[message_id] = message.model_copy(update={"is_read": True})
 
     def archive(self, message_id: int, timeout: float = 5.0) -> ArchiveMessageResponse:
         """

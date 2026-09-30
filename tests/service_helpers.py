@@ -97,6 +97,7 @@ class ScriptedConnection:
         self.room_id = -1
         self.pushes = pushes or {}
         self.subscribers: dict[str, list[Any]] = {}
+        self.disconnect_listeners: list[Any] = []
         self.connected = True
         self.sent: list[str] = []
         self.requested: list[str] = []
@@ -167,6 +168,13 @@ class ScriptedConnection:
 
     def disconnect(self) -> None:
         self.connected = False
+
+    def add_disconnect_listener(self, callback: Any) -> None:
+        self.disconnect_listeners.append(callback)
+
+    def remove_disconnect_listener(self, callback: Any) -> None:
+        if callback in self.disconnect_listeners:
+            self.disconnect_listeners.remove(callback)
 
 
 class StubPlayer:

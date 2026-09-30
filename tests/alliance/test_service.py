@@ -660,3 +660,25 @@ class TestAllianceDiplomacy:
         with pytest.raises(ValueError):
             client.alliance.donate(12345, Kingdom.GREEN, AllianceDonation())
         assert conn(client).request_payloads == []
+
+
+class TestAllianceReviewFollowUps:
+    def test_a_bookmark_name_that_is_not_text_keeps_the_bookmark(self):
+        (bookmark,) = GetBookmarksResponse.model_validate({"BL": [{"N": 5, "X": 1}]}).own_bookmarks
+        assert (bookmark.name, bookmark.x) == (None, 1)
+
+    def test_leaving_empties_the_help_list(self):
+        client = make_client()
+        client._on_packet(xt_packet("ahl", {"AHL": [HEAL_ENTRY]}))
+
+        assert client.alliance.leave() is True
+
+        assert client.alliance.help_requests == []
+
+    def test_a_refused_leave_keeps_the_help_list(self):
+        client = make_client({"aqi": xt_packet("aqi", error_code=21)})
+        client._on_packet(xt_packet("ahl", {"AHL": [HEAL_ENTRY]}))
+
+        assert client.alliance.leave() is False
+
+        assert [r.list_id for r in client.alliance.help_requests] == [31]

@@ -237,6 +237,9 @@ class CrestLayout(BasePayload):
     """
     One crest layout the alliance holds: an entry of the ain block's ``ACLS``.
 
+    The client reads the colours from ``ACLCS``; live replies have been seen
+    carrying ``ACCS`` there instead, which stays in the extra fields.
+
     Client: ``AllianceInfoVO.fillFromParamObject`` (bundle line 25932)
     """
 
@@ -289,6 +292,17 @@ class AllianceCrests(BasePayload):
 # =============================================================================
 
 
+def _rank_order(member: AllianceMember) -> tuple[bool, int]:
+    """
+    ``AllianceInfoVO.sortOnRank`` (bundle line 25978): highest rank first.
+
+    A rank the client reads as NaN compares as neither above nor below any
+    other, so its order there depends on the browser's sort; here such
+    members go last, in the order they came.
+    """
+    return (member.alliance_rank is None, member.alliance_rank or 0)
+
+
 class AllianceInfo(BasePayload):
     """
     Full alliance information from ain response.
@@ -316,7 +330,7 @@ class AllianceInfo(BasePayload):
             warn=logger,
             what="alliance members",
         )
-        return sorted(members, key=lambda m: m.alliance_rank)
+        return sorted(members, key=_rank_order)
 
     fame_points: ClientInt = Field(alias="CF", default=0, description="Alliance fame points")
     highest_fame_points: ParseInt = Field(alias="HF", default=0, description="Highest fame points reached")

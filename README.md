@@ -113,9 +113,15 @@ Services are attached to the client automatically; there is nothing to wire up.
 client.alliance.send_chat("Hello!")
 client.alliance.help_all()
 
-# The alliance help list, kept current from the server's pushes
+# The alliance help list, kept current from the server's pushes. As the client
+# lists them: skip requests you already helped, your own, and finished ones
+# (progress at the help type's maxHelpersCount in the items data's
+# alliancehelprequests: 3, or 5 for healing and 20 for loop recruiting in v786.03)
+max_helpers = {1: 3, 2: 5, 3: 3, 4: 3, 5: 20, 6: 3}
+my_id = client.state.local_player.id
 for request in client.alliance.help_requests:
-    if not request.already_confirmed:
+    finished = request.progress >= max_helpers.get(request.help_type, 0)
+    if not (request.already_confirmed or finished or request.player_id == my_id):
         client.alliance.help_member(request)
 
 # Applications, ranks and the treasury

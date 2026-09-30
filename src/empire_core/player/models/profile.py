@@ -42,7 +42,9 @@ class PlayerProfileBase(BasePayload):
     top_ranking: ParseInt = Field(alias="TOPX", default=-1, description="Top ranking place")
     is_ruin: bool = Field(alias="R", default=False, description="The player's castle is a ruin")
     alliance_id: int = Field(alias="AID", default=-1, description="Alliance id; -1 when the player is in none")
-    alliance_rank: ParseInt = Field(alias="AR", default=0, description="Rank in the alliance, an AllianceRank value")
+    alliance_rank: int | None = Field(
+        alias="AR", default=None, description="Rank in the alliance, an AllianceRank value; None when unreadable"
+    )
     alliance_name: str = Field(alias="AN", default="", description="Alliance name")
     is_searching_alliance: bool = Field(alias="SA", default=False, description="The player is looking for an alliance")
     revenge_protection_seconds: ParseInt = Field(alias="RPT", default=0, description="Seconds of peace protection left")
@@ -63,15 +65,17 @@ class PlayerProfileBase(BasePayload):
     title_prefix: int | None = Field(alias="PRE", default=None, description="Prefix title id; None when unsent")
     via_refer_a_friend: bool = Field(alias="IRF", default=False, description="The player joined through a referral")
 
-    glory_points: int = Field(alias="CF", default=0, description="Glory points")
-    highest_glory_points: int = Field(alias="HF", default=0, description="Highest glory points reached")
-    title_index: int = Field(alias="TI", default=-1, description="Title index")
-
     @field_validator("name", "alliance_name", mode="before")
     @classmethod
     def _text_or_empty(cls, value: Any) -> Any:
         # AN reads as "" unless truthy; N is kept as sent
         return value if isinstance(value, str) else ""
+
+    @field_validator("alliance_rank", mode="before")
+    @classmethod
+    def _rank(cls, value: Any) -> int | None:
+        # parseInt; NaN equals no rank
+        return js_parse_int(value)
 
     @field_validator("alliance_id", mode="before")
     @classmethod
@@ -153,7 +157,7 @@ class PlayerProfileBase(BasePayload):
     @property
     def alliance_rank_enum(self) -> AllianceRank | None:
         """``alliance_rank`` as an :class:`AllianceRank`, None for a value the client does not define."""
-        return enum_or_none(AllianceRank, self.alliance_rank)
+        return None if self.alliance_rank is None else enum_or_none(AllianceRank, self.alliance_rank)
 
     @property
     def is_leader(self) -> bool:
@@ -167,7 +171,8 @@ class PlayerProfileBase(BasePayload):
     @property
     def is_officer(self) -> bool:
         """Whether the player holds a rank between leader and member."""
-        return self.is_in_alliance and AllianceRank.LEADER < self.alliance_rank < AllianceRank.MEMBER
+        rank = self.alliance_rank
+        return self.is_in_alliance and rank is not None and AllianceRank.LEADER < rank < AllianceRank.MEMBER
 
     @property
     def has_bird(self) -> bool:

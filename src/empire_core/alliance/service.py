@@ -12,6 +12,7 @@ Provides high-level APIs for:
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 
 from pydantic import ValidationError
@@ -113,6 +114,7 @@ class AllianceService(BaseService):
         self._members: dict[int, AllianceMember] = {}
         self._members_alliance_id: int | None = None
         self._help_requests: list[AllianceHelpRequest] = []
+        self._help_lock = threading.Lock()
         self._help_callbacks: list[Callable[[AllianceHelpUpdate], None]] = []
 
         self.on_response("acm", self._handle_chat_message)
@@ -304,12 +306,19 @@ class AllianceService(BaseService):
 
     def leave(self, timeout: float = 5.0) -> bool:
         """
-        Leave your alliance.
+        Leave your alliance. Once the server accepts, :attr:`help_requests` is emptied.
+
+        Client: ``AQICommand.executeCommand`` (bundle line 121556) calls
+        ``CastleAllianceData.resetMyAlliance`` (bundle line 11620), which cleans the help list
 
         Returns:
             Whether the server accepted it
         """
-        return self.execute(QuitAllianceRequest(), timeout=timeout)
+        left = self.execute(QuitAllianceRequest(), timeout=timeout)
+        if left:
+            with self._help_lock:
+                self._help_requests = []
+        return left
 
     # =========================================================================
     # Diplomacy, Newsletter and Donations
@@ -597,7 +606,8 @@ class AllianceService(BaseService):
         Client: ``AllianceHelpRequestData`` (bundle line 133359) keeps the list
         the same way: ahl replaces it, ahh replaces or adds by ``LID``, ahd removes by ``LID``
         """
-        return list(self._help_requests)
+        with self._help_lock:
+            return list(self._help_requests)
 
     def get_help_requests(self, timeout: float = 5.0) -> AllianceHelpListResponse:
         """
@@ -627,7 +637,7 @@ class AllianceService(BaseService):
         except ValueError:
             pass
 
-    def _handle_help_update(self, response: BaseResponse) -> None:
+    def _apply_help_update(self, response: BaseResponse) -> AllianceHelpUpdate | None:
         if isinstance(response, AllianceHelpListResponse):
             self._help_requests = list(response.requests)
         elif isinstance(response, AllianceHelpRequestChanged) and response.request is not None:
@@ -640,10 +650,17 @@ class AllianceService(BaseService):
         elif isinstance(response, AllianceHelpRequestRemoved):
             self._help_requests = [r for r in self._help_requests if r.list_id != response.list_id]
         elif not isinstance(response, AllianceHelpReceived):
+            return None
+        return response
+
+    def _handle_help_update(self, response: BaseResponse) -> None:
+        with self._help_lock:
+            update = self._apply_help_update(response)
+        if update is None:
             return
         for callback in list(self._help_callbacks):
             try:
-                callback(response)
+                callback(update)
             except Exception:
                 logger.exception("Help update callback error")
 

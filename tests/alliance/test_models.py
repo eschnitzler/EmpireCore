@@ -492,3 +492,35 @@ class TestAllianceHelpEntries:
         assert AllianceHelpListResponse.model_validate({"TSL": -1}).repair_help_cooldown_seconds == 0
         assert AllianceHelpListResponse.model_validate({"TSL": 800}).repair_help_cooldown_seconds == 10000
         assert AllianceHelpListResponse.model_validate({"TSL": 20000}).repair_help_cooldown_seconds == 0
+
+
+class TestReviewFollowUps:
+    def test_a_missing_or_garbage_rank_is_no_rank(self):
+        info = AllianceInfo.model_validate(
+            {"AID": 5, "M": [{"OID": 1, "AID": 5}, {"OID": 2, "AID": 5, "AR": "x"}, {"OID": 3, "AID": 5, "AR": 8}]}
+        )
+        # parseInt gives NaN, which never equals 0
+        assert [m.alliance_rank for m in info.members] == [8, None, None]
+        assert info.leader is None
+        assert not any(m.is_leader or m.is_officer for m in info.members)
+        assert all(m.alliance_rank_enum is None for m in info.members[1:])
+
+    def test_members_without_a_rank_go_last(self):
+        info = AllianceInfo.model_validate(
+            {"AID": 5, "M": [{"OID": 1, "AR": 4}, {"OID": 2, "AR": 0}, {"OID": 3}, {"OID": 4, "AR": 8}, {"OID": 5}]}
+        )
+        assert [m.player_id for m in info.members] == [2, 1, 4, 3, 5]
+
+    def test_the_owner_record_does_not_read_cf_hf_or_ti(self):
+        member = AllianceMember.model_validate({"OID": 1, "CF": 3, "HF": 9, "TI": 50})
+        assert not {"glory_points", "highest_glory_points", "title_index"} & set(AllianceMember.model_fields)
+        assert member.model_extra == {"CF": 3, "HF": 9, "TI": 50}
+
+    def test_live_acls_colours_under_accs_stay_extra(self):
+        (layout,) = AllianceInfo.model_validate({"AID": 1, "ACLS": [{"ACLI": 4, "ACCS": [1, 2]}]}).crest_layouts
+        assert layout.colors is None
+        assert layout.model_extra == {"ACCS": [1, 2]}
+
+    def test_a_help_entry_with_a_name_that_is_not_text_is_kept(self):
+        entry = AllianceHelpRequestChanged.model_validate({"LID": 1, "TID": 3, "OP": {}, "PN": 5}).request
+        assert entry is not None and entry.player_name is None
