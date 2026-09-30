@@ -1,7 +1,5 @@
 """MkDocs hooks for the documentation site."""
 
-import re
-
 from griffe_pydantic._internal import common, static
 
 # Two griffe-pydantic gaps, patched until it handles them itself.
@@ -22,12 +20,3 @@ def _process_annotated_attribute(attr, cls, **kwargs):
 
 common._process_function = _process_validator_of_known_fields
 static._process_attribute = _process_annotated_attribute
-
-# An old changelog entry names a private project; the site leaves that sentence out.
-_PRIVATE_NOTE = re.compile(r"\s*Neither has a consumer in [\w.-]+\.")
-
-
-def on_page_content(html, page, **kwargs):
-    if page.file.src_uri == "changelog.md":
-        return _PRIVATE_NOTE.sub("", html)
-    return html

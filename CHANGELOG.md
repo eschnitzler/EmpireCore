@@ -1781,7 +1781,7 @@
 ### Breaking Changes
 
 - **accounts,pool**: Lease() raising instead of returning None, and .env no longer being read at
-  import. Neither has a consumer in dreambot-v3.
+  import.
 
 - **connection,client**: Connect() raises NetworkError instead of leaking websocket-client/socket
   exceptions, and send(wait=True)/request() raise PacketError instead of pydantic ValidationError.

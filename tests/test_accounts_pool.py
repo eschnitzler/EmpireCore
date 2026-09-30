@@ -202,7 +202,7 @@ class TestDefaultConfigIsNotSharedMutableState:
         assert getattr(default_config, field) == original
 
     def test_user_constructed_config_stays_mutable(self):
-        # Consumers (dreambot's birder service) build a fresh EmpireConfig() and
+        # Callers build a fresh EmpireConfig() and
         # assign credentials onto it. Freezing the whole class would break them,
         # so only the shared default instance is frozen.
         cfg = EmpireConfig()
