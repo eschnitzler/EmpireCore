@@ -49,6 +49,7 @@ _COMMAND_ARGUMENTS = {
     "wait_for_result": (0, "server"),
     "request": (1, "server"),
     "build_xt": (1, "client"),
+    "build_command": (1, "client"),
 }
 _COMMAND_KEYWORDS = ("cmd_id", "command")
 # Constants whose keys or members are server command ids.
@@ -165,7 +166,7 @@ def raw_commands(root: Path = SOURCE_ROOT) -> list[tuple[str, str, str]]:
     Read from the source: the command argument of the methods in
     ``_COMMAND_ARGUMENTS``, the keys and members of the ``_COMMAND_TABLES``
     constants, strings compared with a ``cmd``/``cmd_id``/``command`` name, and
-    the command of an ``%xt%`` f-string.
+    the command of an ``%xt%`` f-string or a ``build_command`` call.
     """
     found: list[tuple[str, str, str]] = []
     for path in sorted(root.rglob("*.py")):

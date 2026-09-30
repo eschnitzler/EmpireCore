@@ -25,8 +25,6 @@ TABLES = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
 
 # Commands the library knows that the client has no constant for, each with why it stays.
 NOT_IN_CLIENT = {
-    ("server", "aha"): "HelpAllResponse: the client sends aha but registers no handler for a reply to it",
-    ("server", "ahc"): "HelpMemberResponse: the client sends ahc but registers no handler for a reply to it",
     ("client", "pin"): "the client sends pin under the name BasicSmartfoxClient.S2C_PING (activatePing, dll line 7168)",
     ("server", "apiOK"): "an XML system message action (handleSystemMessage), not an %xt% command",
     ("server", "joinOK"): "an XML system message action (handleSystemMessage), not an %xt% command",
@@ -72,8 +70,15 @@ def test_a_dropped_command_fails_the_check():
 def test_raw_commands_cover_the_code_outside_the_models():
     found = {(side, command) for side, command, _ in script.raw_commands()}
 
-    # state/manager.py's _DISPATCH and _SECTION_PUSHES, a waiter, a handler and the keepalive f-string
-    assert {("server", "abr"), ("server", "gxp"), ("server", "gbd"), ("server", "acm"), ("client", "pin")} <= found
+    # state/manager.py's _DISPATCH and _SECTION_PUSHES, a waiter, a handler, and the keepalive and vck frames
+    assert {
+        ("server", "abr"),
+        ("server", "gxp"),
+        ("server", "gbd"),
+        ("server", "acm"),
+        ("client", "pin"),
+        ("client", "vck"),
+    } <= found
 
 
 def test_raw_commands_read_each_kind_of_use(tmp_path):
