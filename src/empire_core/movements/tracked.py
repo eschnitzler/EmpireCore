@@ -82,7 +82,9 @@ class Movement(BaseModel):
     kingdom_id: int = Field(default=0, alias="KID", description="Kingdom id")
     source_id: int = Field(default=-1, alias="SID", description="Player id owning the source area")
     owner_id: int = Field(default=-1, alias="OID", description="Player id owning the movement")
-    horse_booster_id: int = Field(default=-1, alias="HBW", description="Horse booster item id, -1 for none")
+    horse_booster_id: int = Field(
+        alias="HBW", default=-1, description="The horse booster's wod id, -1 for none or when paid with feathers"
+    )
 
     target_area: MovementArea | None = Field(
         default=None, alias="TA", description="Target area row; None when there is none"

@@ -417,7 +417,7 @@ class CastleService(BaseService):
         goods: dict[str, int],
         *,
         kingdom_id: Kingdom = Kingdom.GREEN,
-        horses_type: int = -1,
+        horse_booster_id: int = -1,
         feathers: bool = False,
         slowdown: int = 0,
         timeout: float = 5.0,
@@ -431,7 +431,7 @@ class CastleService(BaseService):
             target_y: Map y of the target castle
             goods: Amount per resource key, such as ``{"W": 1000, "S": 500}``
             kingdom_id: The source castle's kingdom
-            horses_type: The horse's wod id, -1 for none; sent as -1 whenever
+            horse_booster_id: The horse's wod id, -1 for none; sent as -1 whenever
                 feathers are used, as the client does
             feathers: Pay for the horse with feathers
             slowdown: Seconds to delay the arrival by
@@ -442,7 +442,7 @@ class CastleService(BaseService):
             SID=source_castle_id,
             TX=target_x,
             TY=target_y,
-            HBW=-1 if feathers else horses_type,
+            HBW=-1 if feathers else horse_booster_id,
             PTT=1 if feathers else 0,
             SD=slowdown,
             G=[[key, amount] for key, amount in goods.items()],
@@ -472,7 +472,7 @@ class CastleService(BaseService):
         commander_id: int,
         wait_time: int = 12,
         use_premium_commander: bool = False,
-        horses_type: int = -1,
+        horse_booster_id: int = -1,
         feathers: bool = False,
         slowdown: int = 0,
         timeout: float = 5.0,
@@ -498,7 +498,7 @@ class CastleService(BaseService):
             use_premium_commander: Lead with the premium commander (``commander_id``
                 -14). It uses one of your premium commanders, or costs rubies when
                 none are left; the client asks first, this does not
-            horses_type: Type of horses for speed bonus (-1 = none, default: -1);
+            horse_booster_id: Type of horses for speed bonus (-1 = none, default: -1);
                 sent as -1 whenever feathers are used, as the client does
             feathers: Pay for the movement with feathers
             slowdown: Movement slowdown modifier (0 = none, default: 0)
@@ -511,7 +511,7 @@ class CastleService(BaseService):
             A=units,
             WT=wait_time,
             BPC=1 if use_premium_commander else 0,
-            HBW=-1 if feathers else horses_type,
+            HBW=-1 if feathers else horse_booster_id,
             PTT=1 if feathers else 0,
             SD=slowdown,
             LID=commander_id,
@@ -529,7 +529,7 @@ class CastleService(BaseService):
         *,
         kingdom_id: Kingdom = Kingdom.GREEN,
         use_premium_commander: bool = False,
-        horses_type: int = -1,
+        horse_booster_id: int = -1,
         feathers: bool = False,
         slowdown: int = 0,
         timeout: float = 5.0,
@@ -570,7 +570,7 @@ class CastleService(BaseService):
             use_premium_commander: Lead with the premium commander (``commander_id``
                 -14). It uses one of your premium commanders, or costs rubies when
                 none are left; the client asks first, this does not
-            horses_type: The horse's wod id, -1 for none; sent as -1 whenever
+            horse_booster_id: The horse's wod id, -1 for none; sent as -1 whenever
                 feathers are used, as the client does
             feathers: Pay for the horse with feathers
             slowdown: Seconds to delay the arrival by
@@ -583,7 +583,7 @@ class CastleService(BaseService):
             TY=target_y,
             KID=kingdom_id,
             LID=commander_id,
-            HBW=-1 if feathers else horses_type,
+            HBW=-1 if feathers else horse_booster_id,
             BPC=1 if use_premium_commander else 0,
             PTT=1 if feathers else 0,
             SD=slowdown,

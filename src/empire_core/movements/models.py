@@ -129,7 +129,9 @@ class MovementRecord(BasePayload):
     kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id")
     source_id: int = Field(alias="SID", default=-1, description="Player id owning the source area")
     owner_id: int = Field(alias="OID", default=-1, description="Player id owning the movement")
-    horse_booster_id: int = Field(alias="HBW", default=-1, description="Horse booster item id, -1 for none")
+    horse_booster_id: int = Field(
+        alias="HBW", default=-1, description="The horse booster's wod id, -1 for none or when paid with feathers"
+    )
     target_area: MovementArea | None = Field(alias="TA", default=None, description="Target area")
     source_area: MovementArea | None = Field(alias="SA", default=None, description="Source area")
 

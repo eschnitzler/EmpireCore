@@ -28,7 +28,7 @@ class CreateAttackRequest(BaseRequest):
 
     Command: cra
     Payload: {"SX": source_x, "SY": source_y, "TX": target_x, "TY": target_y, "KID": kingdom_id,
-              "LID": commander_id, "WT": wait_time, "HBW": horses_type, "BPC": use_premium_commander,
+              "LID": commander_id, "WT": wait_time, "HBW": horse_booster_id, "BPC": use_premium_commander,
               "ATT": attack_type, "AV": share_battle_view, "LP": loot_priority, "FC": send_anyway,
               "PTT": feathers, "SD": slowdown, "ICA": collector_attack, "CD": 99, "A": waves,
               "BKS": collector_booster, "AST": support_tools, "RW": yard_wave,
@@ -62,7 +62,9 @@ class CreateAttackRequest(BaseRequest):
         ),
     )
     wait_time: int = Field(alias="WT", default=0, description="Wait time the attack is sent with")
-    horses_type: int = Field(alias="HBW", default=-1, description="The horse's wod id, -1 for none or for feathers")
+    horse_booster_id: int = Field(
+        alias="HBW", default=-1, description="The horse booster's wod id, -1 for none or when paid with feathers"
+    )
     use_premium_commander: int = Field(
         alias="BPC",
         default=0,
@@ -80,7 +82,7 @@ class CreateAttackRequest(BaseRequest):
         description="1 to send although one of your attacks is already on its way there (after ATTACK_IN_PROGRESS)",
     )
     feathers: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
-    slowdown: int = Field(alias="SD", default=0, description="Slowdown offset in seconds")
+    slowdown: int = Field(alias="SD", default=0, description="Seconds the arrival is delayed by")
     collector_attack: int = Field(alias="ICA", default=0, description="1 for a collector event attack")
     countdown: int = Field(alias="CD", default=99, description="Always 99")
     waves: list[AttackWave] = Field(alias="A", default_factory=list, description="The attack waves, front to back")

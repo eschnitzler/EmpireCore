@@ -232,7 +232,7 @@ class TestAttackService:
     def test_feathers_force_the_horse_field_to_minus_one(self):
         client = make_client()
 
-        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3, horses_type=2, feathers=True)
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3, horse_booster_id=2, feathers=True)
 
         payload = conn(client).request_payloads[0][1]
         assert (payload["PTT"], payload["HBW"]) == (1, -1)
@@ -240,7 +240,7 @@ class TestAttackService:
     def test_horses_survive_without_feathers(self):
         client = make_client()
 
-        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3, horses_type=2, feathers=False)
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3, horse_booster_id=2, feathers=False)
 
         payload = conn(client).request_payloads[0][1]
         assert (payload["PTT"], payload["HBW"]) == (0, 2)

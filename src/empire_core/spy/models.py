@@ -44,13 +44,13 @@ class SendSpyRequest(BaseRequest):
 
     Command: csm
     Payload: {"SID": castle_id, "TX": target_x, "TY": target_y, "SC": spy_count, "ST": spy_type,
-              "SE": accuracy_or_damage, "HBW": horses_type, "KID": target_kingdom, "PTT": pay_to_travel,
+              "SE": accuracy_or_damage, "HBW": horse_booster_id, "KID": target_kingdom, "PTT": feathers,
               "SD": slowdown}
 
     The keys follow the client's order. ``SE`` is the damage (10-50) for a
     sabotage mission and the accuracy (50-100) for any other; the client
     sends the slider's value unrounded. A horse paid with feathers goes out as
-    ``HBW`` -1 with ``PTT`` 1: with ``pay_to_travel`` 1 the horse is sent as
+    ``HBW`` -1 with ``PTT`` 1: with ``feathers`` 1 the horse is sent as
     -1, as the client's constructor does. Plague monks are not sent with
     ``csm``.
 
@@ -74,17 +74,19 @@ class SendSpyRequest(BaseRequest):
     accuracy_or_damage: int = Field(
         alias="SE", default=100, description="Damage percent for a sabotage mission, accuracy percent for any other"
     )
-    horses_type: int = Field(alias="HBW", default=-1, description="The horse's wod id, -1 for none or for feathers")
+    horse_booster_id: int = Field(
+        alias="HBW", default=-1, description="The horse booster's wod id, -1 for none or when paid with feathers"
+    )
     target_kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The target's kingdom")
-    pay_to_travel: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
-    slowdown: int = Field(alias="SD", default=0, description="Seconds to delay the arrival by")
+    feathers: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
+    slowdown: int = Field(alias="SD", default=0, description="Seconds the arrival is delayed by")
 
     @model_validator(mode="after")
     def _feathers_send_no_horse(self) -> SendSpyRequest:
         # Client: HBW=int(u?-1:l), PTT=int(u?1:0)
-        if self.pay_to_travel:
-            self.horses_type = -1
-            self.pay_to_travel = 1
+        if self.feathers:
+            self.horse_booster_id = -1
+            self.feathers = 1
         return self
 
     def accepts_reply(self, payload: Any) -> bool:

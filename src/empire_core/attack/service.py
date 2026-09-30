@@ -267,7 +267,7 @@ class AttackService(BaseService):
         kingdom_id: Kingdom = Kingdom.GREEN,
         attack_type: AttackType = AttackType.ATTACK,
         wait_time: int = 0,
-        horses_type: int = -1,
+        horse_booster_id: int = -1,
         feathers: bool = False,
         use_premium_commander: bool = False,
         share_battle_view: bool = False,
@@ -309,7 +309,7 @@ class AttackService(BaseService):
                 ``client.commanders.get_commanders()``
             attack_type: See AttackType (default: a normal attack)
             wait_time: Wait time before the troops return
-            horses_type: Horse type for the speed bonus (-1 = none)
+            horse_booster_id: Horse type for the speed bonus (-1 = none)
             feathers: Use feathers for the speed boost
             use_premium_commander: Lead with the premium commander (``commander_id``
                 -14). It uses one of your premium commanders, or costs rubies when
@@ -317,7 +317,7 @@ class AttackService(BaseService):
             share_battle_view: Let others watch the battle
             loot_priority: Resource to loot first (``CombatConst.LOOT_PRIO_*``); the
                 client offers the choice from player level 20
-            slowdown: Slowdown offset in seconds
+            slowdown: Seconds the arrival is delayed by
             yard_wave: Courtyard wave as [unit_id, count] pairs
             capacity: The capacities these waves were sized against. Given one,
                 an overfull army, or one below the minimum for its level, is
@@ -377,7 +377,7 @@ class AttackService(BaseService):
             LID=commander_id,
             ATT=attack_type,
             WT=wait_time,
-            HBW=-1 if feathers else horses_type,
+            HBW=-1 if feathers else horse_booster_id,
             PTT=1 if feathers else 0,
             BPC=1 if use_premium_commander else 0,
             AV=1 if share_battle_view else 0,

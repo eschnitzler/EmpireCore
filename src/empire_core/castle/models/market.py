@@ -63,7 +63,9 @@ class CreateMarketMovementRequest(BaseRequest):
     )
     target_x: int = Field(alias="TX", description="Map x of the target castle")
     target_y: int = Field(alias="TY", description="Map y of the target castle")
-    horses_type: int = Field(alias="HBW", default=-1, description="The horse's wod id, -1 for none or for feathers")
+    horse_booster_id: int = Field(
+        alias="HBW", default=-1, description="The horse booster's wod id, -1 for none or when paid with feathers"
+    )
     feathers: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
     slowdown: int = Field(alias="SD", default=0, description="Seconds the arrival is delayed by")
     goods: list[list[Any]] = Field(

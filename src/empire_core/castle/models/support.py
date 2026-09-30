@@ -31,7 +31,7 @@ class SendSupportRequest(BaseRequest):
         "TY": target_y,
         "LID": commander_id,
         "WT": wait_time,
-        "HBW": horses_type (-1 when PTT is set),
+        "HBW": horse_booster_id (-1 when PTT is set),
         "BPC": use_premium_commander,
         "PTT": feathers,
         "SD": slowdown,
@@ -68,10 +68,12 @@ class SendSupportRequest(BaseRequest):
         ),
     )
     wait_time: int = Field(alias="WT", default=12, ge=0, le=12)
-    horses_type: int = Field(alias="HBW", default=-1)
+    horse_booster_id: int = Field(
+        alias="HBW", default=-1, description="The horse booster's wod id, -1 for none or when paid with feathers"
+    )
     use_premium_commander: int = Field(alias="BPC", default=0, description="1 when the premium commander leads")
-    feathers: int = Field(alias="PTT", default=0, description="1 to pay with feathers")
-    slowdown: int = Field(alias="SD", default=0)
+    feathers: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
+    slowdown: int = Field(alias="SD", default=0, description="Seconds the arrival is delayed by")
     units: list[list[int]] = Field(alias="A")
 
     def accepts_reply(self, payload: Any) -> bool:
@@ -119,7 +121,7 @@ class SendTroopsRequest(BaseRequest):
         "KID": kingdom_id,
         "LID": commander_id,
         "WT": 0,
-        "HBW": horses_type (-1 when PTT is set),
+        "HBW": horse_booster_id (-1 when PTT is set),
         "BPC": use_premium_commander,
         "PTT": feathers,
         "SD": slowdown,
@@ -155,10 +157,12 @@ class SendTroopsRequest(BaseRequest):
         ),
     )
     wait_time: int = Field(alias="WT", default=0, description="Wait time at the target")
-    horses_type: int = Field(alias="HBW", default=-1, description="The horse's wod id, -1 for none")
+    horse_booster_id: int = Field(
+        alias="HBW", default=-1, description="The horse booster's wod id, -1 for none or when paid with feathers"
+    )
     use_premium_commander: int = Field(alias="BPC", default=0, description="1 when the premium commander leads")
-    feathers: int = Field(alias="PTT", default=0, description="1 to pay with feathers")
-    slowdown: int = Field(alias="SD", default=0, description="Seconds to delay the arrival by")
+    feathers: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
+    slowdown: int = Field(alias="SD", default=0, description="Seconds the arrival is delayed by")
     units: list[list[int]] = Field(alias="A", description="The units and tools, as [wod_id, amount] pairs")
 
     def accepts_reply(self, payload: Any) -> bool:

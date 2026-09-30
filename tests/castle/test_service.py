@@ -195,13 +195,13 @@ class TestCastleActions:
 
     def test_send_support_with_feathers_sends_no_horses(self):
         client = make_client()
-        client.castle.send_support(12345, 700, 710, [[487, 1]], commander_id=5, horses_type=3, feathers=True)
+        client.castle.send_support(12345, 700, 710, [[487, 1]], commander_id=5, horse_booster_id=3, feathers=True)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
 
     def test_send_support_without_feathers_keeps_the_horses(self):
         client = make_client()
-        client.castle.send_support(12345, 700, 710, [[487, 1]], commander_id=5, horses_type=3)
+        client.castle.send_support(12345, 700, 710, [[487, 1]], commander_id=5, horse_booster_id=3)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (3, 0)
 

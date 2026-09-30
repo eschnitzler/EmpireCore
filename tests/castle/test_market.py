@@ -36,7 +36,7 @@ class TestSendResources:
 
     def test_send_resources(self):
         client = make_client()
-        assert client.castle.send_resources(1234, 10, 20, {"W": 100, "S": 50}, horses_type=5) is True
+        assert client.castle.send_resources(1234, 10, 20, {"W": 100, "S": 50}, horse_booster_id=5) is True
         assert conn(client).request_payloads == [
             (
                 "crm",
@@ -46,7 +46,7 @@ class TestSendResources:
 
     def test_feathers_send_no_horse(self):
         client = make_client()
-        client.castle.send_resources(1234, 10, 20, {"W": 1}, horses_type=5, feathers=True)
+        client.castle.send_resources(1234, 10, 20, {"W": 1}, horse_booster_id=5, feathers=True)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
 
@@ -164,7 +164,7 @@ class TestSendTroops:
 
     def test_feathers_send_no_horse(self):
         client = make_client()
-        client.castle.send_troops(100, 200, 110, 205, [[620, 1]], commander_id=5, horses_type=3, feathers=True)
+        client.castle.send_troops(100, 200, 110, 205, [[620, 1]], commander_id=5, horse_booster_id=3, feathers=True)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
 
@@ -179,7 +179,7 @@ class TestSendTroops:
             commander_id=-14,
             kingdom_id=Kingdom.ICE,
             use_premium_commander=True,
-            horses_type=3,
+            horse_booster_id=3,
             slowdown=60,
         )
         payload = conn(client).request_payloads[0][1]
