@@ -139,3 +139,13 @@ class TestNetworkXml:
         monkeypatch.setattr(config_module.requests, "get", get)
         with pytest.raises(NetworkError):
             fetch_network_instances(12, 1)
+
+
+def test_network_config_url_host_parts_and_test_servers():
+    # Client: LiveEnvironment.initPatterns (dll line 3894-3900).
+    assert network_config_url(1, 2, cdn_sub_domain="cdn", domain="example.com") == (
+        "https://cdn.example.com/games-netconf/1/2.xml"
+    )
+    assert network_config_url(1, 2, test_servers=True) == (
+        "https://files.goodgamestudios.com/games-netconf-test/1/2.xml"
+    )

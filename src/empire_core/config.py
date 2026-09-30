@@ -124,15 +124,29 @@ class NetworkInstance(BaseModel):
         return f"wss://{self.server}:443"
 
 
-def network_config_url(game_id: int, network_id: int) -> str:
+def network_config_url(
+    game_id: int,
+    network_id: int,
+    *,
+    test_servers: bool = False,
+    cdn_sub_domain: str = "content",
+    domain: str = "goodgamestudios.com",
+) -> str:
     """
     The URL of a network's ``network.xml``.
 
-    The ids come from the page the game is embedded in, not from the client.
+    ``https://{cdn_sub_domain}.{domain}/games-netconf/{game_id}/{network_id}.xml``,
+    or with ``test_servers`` (the client's ``forceToShowTestServers``)
+    ``https://files.{domain}/games-netconf-test/{game_id}/{network_id}.xml``.
+    The ids come from the page the game is embedded in, not from the client;
+    the host defaults are the client's.
 
-    Client: ``LiveEnvironment.initPatterns`` (dll line 3894)
+    Client: ``LiveEnvironment.initPatterns`` (dll line 3894-3900); ``cdnSubDomain``
+    and ``domain`` from ``BasicEnvironmentGlobals`` (dll line 34178, 34223)
     """
-    return f"https://content.goodgamestudios.com/games-netconf/{game_id}/{network_id}.xml"
+    if test_servers:
+        return f"https://files.{domain}/games-netconf-test/{game_id}/{network_id}.xml"
+    return f"https://{cdn_sub_domain}.{domain}/games-netconf/{game_id}/{network_id}.xml"
 
 
 def _first(node: ET.Element, tag: str) -> ET.Element | None:
@@ -206,16 +220,19 @@ def parse_network_instances(xml_text: str, include_test: bool = False) -> list[N
 
 
 def fetch_network_instances(
-    game_id: int, network_id: int, include_test: bool = False, timeout: float = 10.0
+    game_id: int, network_id: int, include_test: bool = False, timeout: float = 10.0, **url_parts: Any
 ) -> list[NetworkInstance]:
     """
     Download a network's ``network.xml`` and read its servers.
+
+    ``url_parts`` go to :func:`network_config_url` (``test_servers``,
+    ``cdn_sub_domain``, ``domain``).
 
     Raises:
         NetworkError: The file could not be downloaded
         ValueError: The file is not XML
     """
-    url = network_config_url(game_id, network_id)
+    url = network_config_url(game_id, network_id, **url_parts)
     try:
         response = requests.get(url, timeout=timeout)
         response.raise_for_status()
