@@ -7,8 +7,9 @@ from typing import Any
 
 import pytest
 
+from empire_core.alliance.models.diplomacy import AllianceDonation
 from empire_core.alliance.models.search import GetBookmarksResponse
-from empire_core.enums import AllianceRank, BookmarkType
+from empire_core.enums import AllianceRank, BookmarkType, DiplomacyStatus, Kingdom
 from empire_core.exceptions import CommandError
 from empire_core.protocol.models import AllianceChatMessageResponse, AllianceMember, HelpType
 from tests.service_helpers import StubPlayer, StubState, conn, make_client, request_payload, xt_packet
@@ -587,3 +588,75 @@ class TestAllianceMemberManagement:
         assert client.alliance.leave() is True
 
         assert conn(client).request_payloads == [("aqi", {})]
+
+
+class TestAllianceDiplomacy:
+    """Payloads as C2SAllianceChangeDiplomacyVO, C2SAllianceRefuseDiplomacyVO, C2SSetAutoWar,
+    C2SAllianceNewsletterVO and C2SAllianceDonateVO build them."""
+
+    def test_change_diplomacy_always_sends_a_tribute(self):
+        reply = {"ODR": 0, "NDR": 1, "S": 2, "AS": GOLDEN_AIN["A"], "AO": {"AID": 55, "N": "Other"}}
+        client = make_client({"adp": xt_packet("adp", reply)})
+
+        response = client.alliance.change_diplomacy(55, DiplomacyStatus.NEUTRAL)
+
+        (sent,) = conn(client).request_payloads
+        assert sent == ("adp", {"AID": 55, "NDR": 1, "T": 0})
+        assert list(sent[1]) == ["AID", "NDR", "T"]
+        assert (response.old_status, response.new_status, response.request_status) == (0, 1, 2)
+        assert response.own_alliance is not None and response.own_alliance.alliance_id == 190426
+        assert response.other_alliance is not None and response.other_alliance.name == "Other"
+
+    def test_accepting_a_demanded_peace_offer_sends_its_negative_tribute(self):
+        client = make_client()
+        client.alliance.change_diplomacy(55, DiplomacyStatus.NEUTRAL, tribute=-25)
+        assert conn(client).request_payloads == [("adp", {"AID": 55, "NDR": 1, "T": -25})]
+
+    def test_refuse_diplomacy(self):
+        client = make_client({"ard": xt_packet("ard", {"A": {"AID": 55, "N": "Other"}})})
+
+        alliance = client.alliance.refuse_diplomacy(55)
+
+        assert conn(client).request_payloads == [("ard", {"AID": 55})]
+        assert alliance is not None and alliance.alliance_id == 55
+
+    @pytest.mark.parametrize(("enabled", "aw"), [(True, 1), (False, 0)])
+    def test_set_auto_war(self, enabled, aw):
+        client = make_client({"saw": xt_packet("saw", {"AW": aw})})
+
+        assert client.alliance.set_auto_war(enabled) is enabled
+
+        assert conn(client).request_payloads == [("saw", {"AW": aw})]
+
+    def test_newsletter_encodes_both_parts(self):
+        client = make_client()
+
+        assert client.alliance.send_newsletter("Plan 100%", 'Say "go"\nnow') is True
+
+        (sent,) = conn(client).request_payloads
+        assert sent == ("anl", {"SJ": "Plan 100&percnt;", "TXT": "Say &quot;go&quot;<br />now"})
+        assert list(sent[1]) == ["SJ", "TXT"]
+
+    def test_an_empty_newsletter_is_not_sent(self):
+        client = make_client()
+        with pytest.raises(ValueError):
+            client.alliance.send_newsletter("Subject", "")
+        assert conn(client).request_payloads == []
+
+    def test_donate_sends_the_castle_and_only_amounts_above_zero(self):
+        reply = {"gcu": {"C1": 900, "C2": 10}, "grc": {"W": 1}, "ain": GOLDEN_AIN}
+        client = make_client({"ado": xt_packet("ado", reply)})
+
+        response = client.alliance.donate(12345, Kingdom.GREEN, AllianceDonation(wood=500, coins=100, rift_coins=2))
+
+        (sent,) = conn(client).request_payloads
+        assert sent == ("ado", {"AID": 12345, "KID": 0, "RV": {"W": 500, "C1": 100, "RC": 2}})
+        assert list(sent[1]) == ["AID", "KID", "RV"]
+        assert response.currency is not None and response.currency.coins == 900
+        assert response.alliance is not None and response.alliance.alliance_id == 190426
+
+    def test_an_empty_donation_is_not_sent(self):
+        client = make_client()
+        with pytest.raises(ValueError):
+            client.alliance.donate(12345, Kingdom.GREEN, AllianceDonation())
+        assert conn(client).request_payloads == []

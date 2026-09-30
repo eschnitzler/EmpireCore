@@ -1,4 +1,4 @@
-"""Alliances: info, members, help, bookmarks, search and chat."""
+"""Alliances: info, members, diplomacy, help, bookmarks, search and chat."""
 
 from empire_core.enums import AllianceRank, BookmarkType, DiplomacyStatus, HelpType, OnlineState
 
@@ -14,6 +14,7 @@ from .models import (
     AllianceChatMessageResponse,
     AllianceCrests,
     AllianceDiplomacyStatus,
+    AllianceDonation,
     AllianceHelpListRequest,
     AllianceHelpListResponse,
     AllianceHelpReceived,
@@ -32,8 +33,12 @@ from .models import (
     Bookmark,
     BookmarkAttackOrder,
     BuildingHelpParams,
+    ChangeDiplomacyRequest,
+    ChangeDiplomacyResponse,
     ChatMessageData,
     CrestLayout,
+    DonateRequest,
+    DonateResponse,
     GetAllianceInfoRequest,
     GetAllianceInfoResponse,
     GetBookmarksRequest,
@@ -50,10 +55,16 @@ from .models import (
     QuitAllianceRequest,
     QuitAllianceResponse,
     RecruitHelpParams,
+    RefuseDiplomacyRequest,
+    RefuseDiplomacyResponse,
     RerankMemberRequest,
     RerankMemberResponse,
     SearchAllianceRequest,
     SearchAllianceResponse,
+    SendNewsletterRequest,
+    SendNewsletterResponse,
+    SetAutoWarRequest,
+    SetAutoWarResponse,
 )
 
 __all__ = [
@@ -62,6 +73,17 @@ __all__ = [
     "ChatMessageData",
     "AllianceChatLogRequest",
     "AllianceChatLogResponse",
+    "ChangeDiplomacyRequest",
+    "ChangeDiplomacyResponse",
+    "RefuseDiplomacyRequest",
+    "RefuseDiplomacyResponse",
+    "SetAutoWarRequest",
+    "SetAutoWarResponse",
+    "SendNewsletterRequest",
+    "SendNewsletterResponse",
+    "AllianceDonation",
+    "DonateRequest",
+    "DonateResponse",
     "REPAIR_HELP_COOLDOWN_SECONDS",
     "RecruitHelpParams",
     "HealHelpParams",

@@ -118,6 +118,14 @@ for request in client.alliance.help_requests:
     if not request.already_confirmed:
         client.alliance.help_member(request)
 
+# Applications, ranks and the treasury
+from empire_core.protocol.models import AllianceDonation, AllianceRank, Kingdom
+
+for application in client.alliance.get_applications().applications:
+    client.alliance.answer_application(application.player_id, accept=True)
+client.alliance.set_rank(player_id, AllianceRank.SERGEANT)
+client.alliance.donate(castle_id, Kingdom.GREEN, AllianceDonation(wood=1000))
+
 for entry in client.alliance.get_chat_log():
     print(f"{entry.player_name}: {entry.decoded_text}")
 

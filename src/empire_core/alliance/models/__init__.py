@@ -1,4 +1,4 @@
-"""Alliances: info, members, help, bookmarks, search and chat: protocol models."""
+"""Alliances: info, members, diplomacy, help, bookmarks, search and chat: protocol models."""
 
 from .chat import (
     AllianceChatLogRequest,
@@ -6,6 +6,19 @@ from .chat import (
     AllianceChatMessageRequest,
     AllianceChatMessageResponse,
     ChatMessageData,
+)
+from .diplomacy import (
+    AllianceDonation,
+    ChangeDiplomacyRequest,
+    ChangeDiplomacyResponse,
+    DonateRequest,
+    DonateResponse,
+    RefuseDiplomacyRequest,
+    RefuseDiplomacyResponse,
+    SendNewsletterRequest,
+    SendNewsletterResponse,
+    SetAutoWarRequest,
+    SetAutoWarResponse,
 )
 from .help import (
     REPAIR_HELP_COOLDOWN_SECONDS,
@@ -68,6 +81,17 @@ __all__ = [
     "ChatMessageData",
     "AllianceChatLogRequest",
     "AllianceChatLogResponse",
+    "ChangeDiplomacyRequest",
+    "ChangeDiplomacyResponse",
+    "RefuseDiplomacyRequest",
+    "RefuseDiplomacyResponse",
+    "SetAutoWarRequest",
+    "SetAutoWarResponse",
+    "SendNewsletterRequest",
+    "SendNewsletterResponse",
+    "AllianceDonation",
+    "DonateRequest",
+    "DonateResponse",
     "REPAIR_HELP_COOLDOWN_SECONDS",
     "RecruitHelpParams",
     "HealHelpParams",

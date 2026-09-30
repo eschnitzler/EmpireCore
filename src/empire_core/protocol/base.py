@@ -161,6 +161,11 @@ class GGECommand:
     AAL = "aal"  # Alliance applications
     AAA = "aaa"  # Answer an application
     AQI = "aqi"  # Leave the alliance
+    ADP = "adp"  # Change a relation with another alliance
+    ARD = "ard"  # Refuse a diplomacy request
+    SAW = "saw"  # Set auto war
+    ANL = "anl"  # Send the alliance newsletter
+    ADO = "ado"  # Donate to the alliance treasury
     AHL = "ahl"  # Alliance help list
     AHH = "ahh"  # Help request added or changed (push)
     AHD = "ahd"  # Help request removed (push)

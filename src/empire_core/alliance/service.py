@@ -4,6 +4,7 @@ Alliance service for EmpireCore.
 Provides high-level APIs for:
 - Alliance members (get members, online status, last seen)
 - Member management (kick, rank, invite, applications, leave)
+- Diplomacy, auto war, the newsletter and treasury donations
 - Alliance chat (send messages, get history)
 - Alliance help (the help list and its pushes, helping, asking for help)
 """
@@ -21,6 +22,18 @@ from empire_core.alliance.models.chat import (
     AllianceChatMessageRequest,
     AllianceChatMessageResponse,
     ChatMessageData,
+)
+from empire_core.alliance.models.diplomacy import (
+    AllianceDonation,
+    ChangeDiplomacyRequest,
+    ChangeDiplomacyResponse,
+    DonateRequest,
+    DonateResponse,
+    RefuseDiplomacyRequest,
+    RefuseDiplomacyResponse,
+    SendNewsletterRequest,
+    SetAutoWarRequest,
+    SetAutoWarResponse,
 )
 from empire_core.alliance.models.help import (
     AllianceHelpListRequest,
@@ -57,7 +70,7 @@ from empire_core.alliance.models.search import (
     SearchAllianceRequest,
     SearchAllianceResponse,
 )
-from empire_core.enums import AllianceRank, HelpType
+from empire_core.enums import AllianceRank, DiplomacyStatus, HelpType, Kingdom
 from empire_core.exceptions import CommandError, PacketError
 from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.errors import GGEError
@@ -297,6 +310,89 @@ class AllianceService(BaseService):
             Whether the server accepted it
         """
         return self.execute(QuitAllianceRequest(), timeout=timeout)
+
+    # =========================================================================
+    # Diplomacy, Newsletter and Donations
+    # =========================================================================
+
+    def change_diplomacy(
+        self, alliance_id: int, new_status: DiplomacyStatus, tribute: int = 0, timeout: float = 5.0
+    ) -> ChangeDiplomacyResponse:
+        """
+        Change or propose your alliance's relation with another alliance.
+
+        Args:
+            alliance_id: The other alliance, e.g. ``AllianceDiplomacyStatus.alliance_id``
+            new_status: The relation to change to
+            tribute: Only to accept a peace offer: ``PeaceOffer.tribute`` as the offer states it
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        request = ChangeDiplomacyRequest(AID=alliance_id, NDR=new_status, T=tribute)
+        return self.request(request, ChangeDiplomacyResponse, timeout=timeout)
+
+    def refuse_diplomacy(self, alliance_id: int, timeout: float = 5.0) -> AllianceInfo | None:
+        """
+        Refuse another alliance's diplomacy request or peace offer.
+
+        Returns:
+            The other alliance after the refusal, None when the reply carries none
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        return self.request(RefuseDiplomacyRequest(AID=alliance_id), RefuseDiplomacyResponse, timeout=timeout).alliance
+
+    def set_auto_war(self, enabled: bool, timeout: float = 5.0) -> bool:
+        """
+        Turn auto war on or off.
+
+        Returns:
+            Whether auto war is on afterwards
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        return self.request(SetAutoWarRequest(AW=1 if enabled else 0), SetAutoWarResponse, timeout=timeout).auto_war
+
+    def send_newsletter(self, subject: str, text: str, timeout: float = 5.0) -> bool:
+        """
+        Send the alliance newsletter to every member.
+
+        Args:
+            subject: The subject (the client's field takes 20 characters)
+            text: The text; the client does not send an empty one
+
+        Returns:
+            Whether the server accepted it
+
+        Raises:
+            ValueError: ``text`` is empty
+        """
+        if not text:
+            raise ValueError("a newsletter needs text")
+        return self.execute(SendNewsletterRequest.create(subject, text), timeout=timeout)
+
+    def donate(
+        self, castle_id: int, kingdom: Kingdom, donation: AllianceDonation, timeout: float = 5.0
+    ) -> DonateResponse:
+        """
+        Donate resources from one of your castles to the alliance treasury.
+
+        Args:
+            castle_id: The donating castle, ``CastleInfo.castle_id`` from ``client.castle.get_all()``
+            kingdom: The castle's kingdom
+            donation: The amounts; the client sends nothing when every amount is 0
+
+        Raises:
+            ValueError: every amount is 0
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        request = DonateRequest.create(castle_id, kingdom, donation)
+        if not request.resources:
+            raise ValueError("a donation needs an amount above 0")
+        return self.request(request, DonateResponse, timeout=timeout)
 
     # =========================================================================
     # Search Operations

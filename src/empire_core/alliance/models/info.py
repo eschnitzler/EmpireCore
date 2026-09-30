@@ -507,6 +507,26 @@ class AllianceInfo(BasePayload):
         return next((m for m in self.members if m.alliance_rank == AllianceRank.LEADER), None)
 
 
+def alliance_block(value: Any) -> Any:
+    """
+    An alliance block to read, or None: one without an ``AID`` is not read.
+
+    Client: ``CastleAllianceData.parseAllianceInfo`` (bundle line 11605)
+    """
+    block = object_or_none(value)
+    return block if isinstance(block, dict) and block.get("AID") is not None else None
+
+
+def alliance_of_ain(value: Any) -> Any:
+    """
+    The alliance block of an ain reply nested in another reply, or None.
+
+    Client: ``CastleAllianceData.parse_AIN`` (bundle line 11560)
+    """
+    block = object_or_none(value)
+    return alliance_block(block.get("A")) if isinstance(block, dict) else None
+
+
 # =============================================================================
 # AIN - Get Alliance Info
 # =============================================================================
@@ -549,8 +569,7 @@ class GetAllianceInfoResponse(BaseResponse):
     @field_validator("alliance", mode="before")
     @classmethod
     def _needs_an_alliance_id(cls, value: Any) -> Any:
-        # CastleAllianceData.parseAllianceInfo (bundle line 11605) reads no block without an AID
-        return value if isinstance(value, dict) and value.get("AID") is not None else None
+        return alliance_block(value)
 
     @property
     def members(self) -> list[AllianceMember]:

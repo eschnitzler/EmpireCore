@@ -18,20 +18,13 @@ from pydantic import Field, field_validator
 
 from empire_core.enums import AllianceRank
 from empire_core.player.models.profile import PlayerProfileBase
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none, readable_list
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
 from empire_core.protocol.js import ClientInt, js_number_or_none, js_truthy
 from empire_core.protocol.text import decode_json_text
 
-from .info import AllianceInfo
+from .info import AllianceInfo, alliance_of_ain
 
 logger = logging.getLogger(__name__)
-
-
-def _ain_alliance(value: Any) -> Any:
-    """The alliance of a nested ain reply, read as ``CastleAllianceData.parse_AIN`` (bundle line 11560) reads it."""
-    block = object_or_none(value)
-    alliance = object_or_none(block.get("A")) if isinstance(block, dict) else None
-    return alliance if isinstance(alliance, dict) and alliance.get("AID") is not None else None
 
 
 class _AllianceEcho(BaseResponse):
@@ -42,7 +35,7 @@ class _AllianceEcho(BaseResponse):
     @field_validator("alliance", mode="before")
     @classmethod
     def _alliance(cls, value: Any) -> Any:
-        return _ain_alliance(value)
+        return alliance_of_ain(value)
 
 
 # =============================================================================
