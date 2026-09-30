@@ -11,7 +11,7 @@ from .commanders import EquipmentSlot, EquipmentType, Rareness, SCEItem, WearerT
 from .map import Kingdom, MapItemType
 from .movements import MovementType
 from .ranking import RankingType
-from .spy import SpyType
+from .spy import SpyLogResult, SpyLogType, SpyType
 
 __all__ = [
     # Map / kingdom
@@ -27,6 +27,8 @@ __all__ = [
     "CombatEffectType",
     # Spy
     "SpyType",
+    "SpyLogType",
+    "SpyLogResult",
     # Army
     "ProductionListId",
     "SlotType",

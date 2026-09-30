@@ -235,6 +235,8 @@ from empire_core.enums import (
     Rareness,
     SCEItem,
     SlotType,
+    SpyLogResult,
+    SpyLogType,
     SpyType,
     WearerType,
 )
@@ -251,9 +253,12 @@ from empire_core.map.models.areas import (
 from empire_core.map.models.items import MapAreaItem
 from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest, OwnerFaction
 from empire_core.messages.models import (
-    BattleSpyDataRequest,
-    BattleSpyDataResponse,
+    ForwardSpyLogRequest,
+    GetSpyReportRequest,
     MessageInfo,
+    SpyLogHeader,
+    SpyReportArea,
+    SpyReportResponse,
     SystemNotificationEvent,
 )
 from empire_core.movements.models import (
@@ -311,7 +316,17 @@ from empire_core.ranking.models import (
     LeaderboardScore,
     RankingEntry,
 )
-from empire_core.spy.models import SendSpyRequest, SendSpyResponse, SpyScreenInfoRequest, SpyScreenInfoResponse
+from empire_core.spy.models import (
+    AutoSpyRequest,
+    AutoSpyResponse,
+    MaxSpiesResponse,
+    SendSpyRequest,
+    SendSpyResponse,
+    SpyProtection,
+    SpyScreenInfoRequest,
+    SpyScreenInfoResponse,
+    SpyTargetArea,
+)
 
 __all__ = [
     # Base
@@ -454,10 +469,17 @@ __all__ = [
     "CreateAttackResponse",
     "CurrencyTotals",
     "SpyType",
+    "SpyLogType",
+    "SpyLogResult",
     "SendSpyRequest",
     "SendSpyResponse",
     "SpyScreenInfoRequest",
     "SpyScreenInfoResponse",
+    "SpyProtection",
+    "SpyTargetArea",
+    "AutoSpyRequest",
+    "AutoSpyResponse",
+    "MaxSpiesResponse",
     "GetPresetsRequest",
     "GetPresetsResponse",
     "AttackPreset",
@@ -471,8 +493,11 @@ __all__ = [
     # Messages
     "MessageInfo",
     "SystemNotificationEvent",
-    "BattleSpyDataRequest",
-    "BattleSpyDataResponse",
+    "ForwardSpyLogRequest",
+    "GetSpyReportRequest",
+    "SpyLogHeader",
+    "SpyReportArea",
+    "SpyReportResponse",
     # Defense
     "GetDefenseRequest",
     "GetDefenseResponse",

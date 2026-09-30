@@ -7,7 +7,20 @@ anything invented here.
 
 import pytest
 
-from empire_core.spy.risk import MAX_ACCURACY, MAX_RISK_SPY, MIN_ACCURACY, MIN_RISK_SPY_PLAYER, plan_mission, spy_risk
+from empire_core.spy.risk import (
+    MAX_ACCURACY,
+    MAX_RISK_SPY,
+    MIN_ACCURACY,
+    MIN_RISK_SPY_PLAYER,
+    max_damaged_buildings,
+    max_sabotage_damage,
+    plan_mission,
+    plan_sabotage,
+    risk_target_flags,
+    row_risk_flags,
+    sabotage_risk,
+    spy_risk,
+)
 
 
 class TestSpyRiskMatchesTheClient:
@@ -121,3 +134,123 @@ class TestPlanMission:
 
     def test_an_empty_pool_has_no_plan(self):
         assert plan_mission(guards=0, available=0) is None
+
+
+class TestTheLiveCampRisk:
+    def test_the_server_costed_the_live_camp_without_the_player_floor(self):
+        # The live csm reply for 2 spies at accuracy 100 against an unguarded camp said SR 26:
+        # getSpyRisk gives 26 with the dungeon floor and 28 with the player floor.
+        assert spy_risk(2, guards=0, accuracy=100, dungeon=True) == 26
+        assert spy_risk(2, guards=0, accuracy=100) == 28
+
+    @pytest.mark.parametrize(
+        "spies,dungeon_risk,player_risk",
+        # SpyConst.getSpyRisk(s, 0, 100, isDungeon, true) run in node
+        [(1, 32, 34), (3, 20, 22), (5, 8, 10), (6, 2, 5), (7, 0, 5), (10, 0, 5)],
+    )
+    def test_both_floors_match_the_client(self, spies, dungeon_risk, player_risk):
+        assert spy_risk(spies, 0, 100, dungeon=True) == dungeon_risk
+        assert spy_risk(spies, 0, 100) == player_risk
+
+    def test_a_non_player_target_has_no_floor(self):
+        # SpyConst.getSpyRisk(6, 0, 100, false, false) == 2
+        assert spy_risk(6, 0, 100, player_target=False) == 2
+
+
+class TestRiskTargetFlags:
+    """CastleStartSpyVO.setSpyValues: (isDungeon, isPlayer)."""
+
+    @pytest.mark.parametrize(
+        "owner_id,area_type,flags",
+        [
+            (1001, 1, (False, True)),  # a player's castle
+            (1001, 4, (False, True)),  # a player's outpost
+            (-300, 4, (True, False)),  # an unclaimed outpost
+            (-300, 3, (True, False)),  # capitals are outposts
+            (-300, 22, (True, False)),  # and so are metropolises
+            (-212, 2, (True, True)),  # a robber baron
+            (-1000, 21, (False, True)),  # an alien invasion fights like a player
+            (-1002, 34, (False, True)),
+            (-1103, 2, (False, True)),  # a collector
+            (-1108, 2, (True, True)),  # a collector isCollectorPlayer leaves out
+        ],
+    )
+    def test_flags(self, owner_id, area_type, flags):
+        assert risk_target_flags(owner_id, area_type) == flags
+
+    @pytest.mark.parametrize(
+        "row,flags",
+        [
+            ([2, 1, 2, -1, 0, -1, 0], (True, True)),  # robber baron: a dungeon NPC
+            ([21, 1, 2, -1, 0, -1, 0], (False, True)),  # alien camp: -1000
+            ([27, 1, 2, 0, 3, 0, 0, 0, 1, 0, 0, 0], (True, True)),  # nomad camp: -601
+            ([29, 1, 2, 0, 3, 0, 0, 0, 1, 0, 0, 0], (True, True)),  # samurai camp: -651
+            ([1, 1, 2, 2001, 1001, 2, 2, 2, 1, 0, "Keep"], (False, True)),
+            ([4, 1, 2, -300, -300, 1, 1, 1, 0, 0, ""], (True, False)),
+        ],
+    )
+    def test_row_flags(self, row, flags):
+        assert row_risk_flags(row) == flags
+
+    @pytest.mark.parametrize("row", [None, [], [8, 1, 2, 0, 0], [27, 1, 2], ["x", 1, 2, 0]])
+    def test_an_owner_not_traced_is_none(self, row):
+        assert row_risk_flags(row) is None
+
+
+class TestSabotageRisk:
+    @pytest.mark.parametrize(
+        "spies,guards,damage,expected",
+        # SpyConst.getSabotageRisk run in node
+        [
+            (1, 0, 10, 14),
+            (1, 0, 50, 34),
+            (5, 0, 10, 10),
+            (5, 60, 30, 50),
+            (10, 180, 50, 90),
+            (15, 180, 10, 30),
+            (3, 24, 20, 27),
+            (20, 0, 50, 10),
+            (2, 13, 25, 29),
+        ],
+    )
+    def test_matches_the_client(self, spies, guards, damage, expected):
+        assert sabotage_risk(spies, guards, damage) == expected
+
+    def test_needs_a_spy(self):
+        with pytest.raises(ValueError):
+            sabotage_risk(0, 0, 10)
+
+    @pytest.mark.parametrize(
+        "level,buildings",
+        # CombatConst.getMaxDamagedBuildings run in node
+        [(0, 0), (9, 0), (10, 1), (14, 1), (15, 2), (18, 3), (19, 4), (21, 5), (30, 32), (40, 231)],
+    )
+    def test_damaged_buildings_match_the_client(self, level, buildings):
+        assert max_damaged_buildings(level) == buildings
+
+    @pytest.mark.parametrize("level,damage", [(9, 0), (10, 10), (15, 20), (18, 30), (20, 40), (21, 50), (70, 50)])
+    def test_the_damage_cap(self, level, damage):
+        assert max_sabotage_damage(level) == damage
+
+
+class TestPlanSabotage:
+    def test_fewest_spies_for_the_pools_risk(self):
+        # getSabotageRisk(s, 30, 30) is 11 at 10 and 11 spies and 10 at 12
+        plan = plan_sabotage(guards=30, available=12, damage=30)
+
+        assert plan is not None
+        assert (plan.spies, plan.risk, plan.damage) == (12, 10, 30)
+
+    def test_extra_spies_are_left(self):
+        plan = plan_sabotage(guards=30, available=11, damage=30)
+
+        assert plan is not None
+        assert (plan.spies, plan.risk) == (10, 11)
+
+    def test_over_the_ceiling_is_none(self):
+        assert plan_sabotage(guards=30, available=3, damage=30, max_risk=20) is None
+
+    @pytest.mark.parametrize("damage", [9, 51])
+    def test_damage_outside_the_slider_is_refused(self, damage):
+        with pytest.raises(ValueError):
+            plan_sabotage(guards=0, available=5, damage=damage)

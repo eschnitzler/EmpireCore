@@ -65,3 +65,63 @@ CSM_REPLY: dict[str, Any] = {
         }
     ],
 }
+
+
+SPY_OWNER_RECORD: dict[str, Any] = CSM_REPLY["O"][0]
+"""The spy owner's record, as csm and bsd send it."""
+
+BSD_NPC_CAMP_REPORT: dict[str, Any] = {
+    "B": {
+        "DLID": -21,
+        "GID": 115,
+        "GEM": [],
+        "E": [[10, [15.0], "EQ"], [11, [15.0], "EQ"]],
+        "AE": [],
+        "GASAIDS": [],
+        "SIDS": [],
+    },
+    "S": [[[652, 1]], [[652, 1]], [[652, 1]], [[652, 1]], [], [], []],
+    "AS": 0,
+    "CID": -1,
+    "OI": {"OID": -211, "DUM": True, "RNP": -1},
+    "MID": 9001,
+    "SA": 100,
+    "SR": 26,
+    "GC": 0,
+    "SC": 2,
+    "PID": -211,
+    "SID": 1001,
+    "RS": -3023358,
+    "SO": SPY_OWNER_RECORD,
+    "AI": {
+        "N": "",
+        "DP": -211,
+        "AT": 2,
+        "K": 0,
+        "X": 501,
+        "Y": 297,
+        "DL": 2,
+        "KL": 0,
+        "WL": 0,
+        "GL": 0,
+        "TL": 0,
+        "ML": 0,
+        "RT": 0,
+        "MID": -1,
+        "NID": -1,
+        "EID": 0,
+        "SPC": -1,
+    },
+}
+"""A live bsd report for a robber baron camp spied with CSM_REPLY's mission."""
+
+SSI_NPC_CAMP: dict[str, Any] = {
+    "TX": 501.0,
+    "TY": 297.0,
+    "gaa": {"KID": 0, "uap": {"KID": 0, "NS": -1, "PMS": -1, "PMT": 0}, "OI": [], "AI": [[2, 501, 297, -1, 0, -1, 0]]},
+    "AS": 2,
+    "APM": 0,
+    "TPM": 0,
+    "GC": 0,
+}
+"""A live ssi reply for CSM_REPLY's robber baron camp."""

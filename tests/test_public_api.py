@@ -221,37 +221,30 @@ def test_command_error_does_not_mislabel_unknown_codes() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_spy_result_payload_fields_are_typed() -> None:
-    from empire_core.commanders.models.roster import Castellan
-    from empire_core.messages.models import SpyCastleInfo
-    from empire_core.spy.service import SpyResult
+def test_spy_result_fields_are_typed() -> None:
+    from empire_core.exceptions import EmpireError
+    from empire_core.messages.models import SpyReportResponse
+    from empire_core.spy.models import SendSpyResponse
+    from empire_core.spy.service import SpyOutcome, SpyResult, SpyStep
 
     hints = get_type_hints(SpyResult)
-    assert hints["spy_data"] == list[list[list[int]]]
-    assert hints["defending_castellan"] == Castellan | None
-    assert hints["target"] == SpyCastleInfo | None
+    assert hints["outcome"] == SpyOutcome
+    assert hints["step"] == SpyStep | None
+    assert hints["error"] == EmpireError | None
+    assert hints["report"] == SpyReportResponse | None
+    assert hints["mission"] == SendSpyResponse | None
 
     bare_any = [name for name, hint in hints.items() if hint is Any]
     assert not bare_any, f"untyped SpyResult fields: {bare_any}"
 
 
-def test_spy_result_payload_defaults_are_empty_not_none() -> None:
-    from empire_core.spy.service import SpyResult
+def test_spy_result_defaults_carry_no_report() -> None:
+    from empire_core.spy.service import SpyOutcome, SpyResult
 
-    result = SpyResult(success=False, reason="no_spies_available")
-    assert result.spy_data == []
-    assert result.defending_castellan is None
-    assert result.target is None
-    # Mutable defaults must not be shared between instances.
-    assert SpyResult(success=True).spy_data is not result.spy_data
-    assert {f.name for f in fields(SpyResult)} >= {
-        "success",
-        "reason",
-        "message_id",
-        "spy_data",
-        "defending_castellan",
-        "target",
-    }
+    result = SpyResult(SpyOutcome.NO_SPIES_AVAILABLE)
+    assert (result.success, result.step, result.error, result.report, result.army) == (False, None, None, None, None)
+    assert SpyResult(SpyOutcome.SUCCESS).success is True
+    assert {f.name for f in fields(SpyResult)} == {"outcome", "step", "error", "message_id", "report", "mission"}
 
 
 # ---------------------------------------------------------------------------

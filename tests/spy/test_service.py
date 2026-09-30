@@ -8,12 +8,15 @@ from typing import Any
 import pytest
 
 from empire_core.client.client import EmpireClient
-from empire_core.enums import Kingdom
-from empire_core.exceptions import EmpireTimeoutError
+from empire_core.enums import Kingdom, SpyType
+from empire_core.exceptions import CommandError, EmpireTimeoutError
+from empire_core.movements.models import MovementSpy
+from empire_core.movements.tracked import Movement
 from empire_core.protocol.packet import Packet
 from empire_core.spy import service as spy_module
+from empire_core.spy.service import SpyOutcome, SpyStep
 from tests.service_helpers import conn, make_client, xt_packet
-from tests.spy.payloads import CSM_REPLY
+from tests.spy.payloads import BSD_NPC_CAMP_REPORT, CSM_REPLY
 
 NPC_REPORT_HEADER = "1+0+2#0+-211+"
 """A spy log header naming CSM_REPLY's target: a robber baron camp (area type 2) of owner -211 in kingdom 0."""
@@ -37,14 +40,14 @@ def bsd_reply(message_id: int = 9001, x: int = 700, y: int = 710) -> Packet:
             "MID": message_id,
             "S": [[[487, 100]], [], [], [], [], []],
             "B": {"ID": 2, "WID": 1, "VIS": 4, "N": "", "W": 3, "D": 1, "SPR": 0, "E": [[12, [5.0], "EQ"]]},
-            "AI": {"N": "Enemy Keep", "X": x, "Y": y, "K": 0},
+            "AI": {"N": "Enemy Keep", "AT": 2, "X": x, "Y": y, "K": 0},
         },
     )
 
 
 def caught_bsd(message_id: int = 9001, x: int = 700, y: int = 710) -> Packet:
     """A caught mission's report: no army, but the spied area's position."""
-    return xt_packet("bsd", {"MID": message_id, "AI": {"N": "", "X": x, "Y": y, "K": 0}})
+    return xt_packet("bsd", {"MID": message_id, "AI": {"N": "", "AT": 2, "X": x, "Y": y, "K": 0}})
 
 
 def spy_client(
@@ -70,13 +73,19 @@ class TestSpySuccessPath:
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
         assert result.success is True
-        assert result.reason is None
+        assert (result.outcome, result.step, result.error) == (SpyOutcome.SUCCESS, None, None)
         assert result.message_id == 9001
-        assert result.spy_data == [[[487, 100]], [], [], [], [], []]
-        assert result.defending_castellan is not None
-        assert (result.defending_castellan.commander_id, result.defending_castellan.wins) == (2, 3)
-        assert result.target is not None
-        assert result.target.castle_name == "Enemy Keep"
+        report = result.report
+        assert report is not None
+        assert report.spy_data == [[[487, 100]], [], [], [], [], []]
+        assert report.defending_castellan is not None
+        assert (report.defending_castellan.commander_id, report.defending_castellan.wins) == (2, 3)
+        assert report.area is not None
+        assert report.area.name == "Enemy Keep"
+        assert result.army is not None
+        assert result.army.left[0].count == 100
+        assert result.mission is not None
+        assert result.mission.movement_id == 5001
 
     def test_only_the_spies_the_risk_budget_needs_are_sent(self, no_sleep):
         # Sending the whole pool bought nothing: 6 spies already reach the 5%
@@ -117,7 +126,7 @@ class TestSpySuccessPath:
         result = client.spy.execute_instant_spy(12345, 700, 710, risk_tolerance=10)
 
         assert result.success is False
-        assert result.reason == "risk_over_budget"
+        assert result.outcome is SpyOutcome.RISK_OVER_BUDGET
         assert "csm" not in dict(conn(client).request_payloads), "sent a mission over the ceiling"
 
     def test_a_thin_pool_still_spies_when_no_ceiling_is_set(self, no_sleep):
@@ -191,7 +200,7 @@ class TestSpyNotificationDecoding:
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
         assert result.success is False
-        assert result.reason == "spy_caught"
+        assert result.outcome is SpyOutcome.SPY_CAUGHT
         # A caught report's header is shared by sibling camps; its position decides
         assert conn(client).request_payloads[-1] == ("bsd", {"MID": 9001})
 
@@ -212,7 +221,7 @@ class TestSpyNotificationDecoding:
 
         result = client.spy.execute_instant_spy(12345, 700, 710, max_wait=0.05)
 
-        assert result.reason == "report_target_mismatch"
+        assert result.outcome is SpyOutcome.REPORT_TARGET_MISMATCH
 
     def test_a_successful_defense_for_the_target_is_also_a_loss(self, no_sleep):
         client = spy_client(sne=sne_packet("1+1+2#0+-211+"), bsd=caught_bsd())
@@ -220,7 +229,7 @@ class TestSpyNotificationDecoding:
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
         assert result.success is False
-        assert result.reason == "spy_caught"
+        assert result.outcome is SpyOutcome.SPY_CAUGHT
 
     def test_a_successful_mission_still_reads_as_success(self, no_sleep):
         client = spy_client(sne=sne_packet("1+0+2#0+-211+"))
@@ -235,7 +244,7 @@ class TestSpyNotificationDecoding:
         result = client.spy.execute_instant_spy(12345, 700, 710, max_wait=0.01)
 
         assert result.success is False
-        assert result.reason == "sne_timeout"
+        assert result.outcome is SpyOutcome.TIMEOUT
         assert "bsd" not in conn(client).requested
 
 
@@ -265,14 +274,14 @@ class TestOnlyThisMissionsReportCounts:
 
         result = client.spy.execute_instant_spy(12345, 700, 710, max_wait=0.01)
 
-        assert result.reason == "sne_timeout"
+        assert result.outcome is SpyOutcome.TIMEOUT
 
     def test_another_area_type_is_not_this_target(self, no_sleep):
         client = spy_client(sne=sne_packet("1+0+4#0+-211+"))
 
         result = client.spy.execute_instant_spy(12345, 700, 710, max_wait=0.01)
 
-        assert result.reason == "sne_timeout"
+        assert result.outcome is SpyOutcome.TIMEOUT
 
     def test_a_castle_target_is_matched_by_owner_and_name(self, no_sleep):
         reply = csm_reply()
@@ -319,7 +328,7 @@ class TestOnlyThisMissionsReportCounts:
         result = client.spy.execute_instant_spy(12345, 700, 710, max_wait=0.05)
 
         assert result.success is False
-        assert result.reason == "sne_timeout"
+        assert result.outcome is SpyOutcome.TIMEOUT
 
     def test_a_disconnect_ends_the_wait(self, no_sleep, monkeypatch):
         monkeypatch.setattr(spy_module, "_POLL_SECONDS", 0.01)
@@ -328,7 +337,7 @@ class TestOnlyThisMissionsReportCounts:
 
         result = client.spy.execute_instant_spy(12345, 700, 710, max_wait=5)
 
-        assert result.reason == "disconnected"
+        assert result.outcome is SpyOutcome.DISCONNECTED
 
 
 class TestSpiedCastleDetail:
@@ -363,13 +372,11 @@ class TestSpiedCastleDetail:
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
-        assert result.target is not None
-        assert result.target.keep_level == 5
-        assert result.target.wall_level == 4
-        assert result.target.gate_level == 3
-        assert result.target.tower_level == 2
-        assert result.target.moat_level == 1
-        assert result.target.area_type == 12
+        assert result.report is not None
+        area = result.report.area
+        assert area is not None
+        assert (area.keep_level, area.wall_level, area.gate_level, area.tower_level, area.moat_level) == (5, 4, 3, 2, 1)
+        assert area.area_type == 12
 
     def test_a_report_without_fortifications_still_parses(self, no_sleep):
         client = spy_client()
@@ -377,49 +384,52 @@ class TestSpiedCastleDetail:
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
         assert result.success is True
-        assert result.target is not None
-        assert result.target.keep_level == -1
+        assert result.report is not None
+        assert result.report.area is not None
+        # int(undefined) in parseAreaInfoBattleLog
+        assert result.report.area.keep_level == 0
 
 
 class TestSpyReportIsCheckedAgainstTheTarget:
-    """sne has no correlation id, so an unrelated notification arriving in the
-    window would hand us another castle's report to publish as this target's."""
+    """sne has no mission id, and robber barons share an owner, so a header naming
+    the target's owner can still be another area's report: its position decides."""
 
     def test_a_report_for_another_castle_is_rejected(self, no_sleep):
         bsd = xt_packet(
             "bsd",
-            {"MID": 9001, "S": [[[487, 100]]], "AI": {"N": "Elsewhere", "X": 111, "Y": 222, "K": 0}},
+            {"MID": 9001, "S": [[[487, 100]]], "AI": {"N": "Elsewhere", "AT": 2, "X": 111, "Y": 222, "K": 0}},
         )
         client = spy_client(bsd=bsd)
 
         result = client.spy.execute_instant_spy(12345, 700, 710, max_wait=0.05)
 
         assert result.success is False
-        assert result.reason == "report_target_mismatch"
+        assert result.outcome is SpyOutcome.REPORT_TARGET_MISMATCH
 
     def test_the_requested_castle_is_accepted(self, no_sleep):
         bsd = xt_packet(
             "bsd",
-            {"MID": 9001, "S": [[[487, 100]]], "AI": {"N": "Keep", "X": 700, "Y": 710, "K": 0}},
+            {"MID": 9001, "S": [[[487, 100]]], "AI": {"N": "Keep", "AT": 2, "X": 700, "Y": 710, "K": 0}},
         )
         client = spy_client(bsd=bsd)
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
         assert result.success is True
-        assert result.target is not None
-        assert (result.target.x, result.target.y) == (700, 710)
+        assert result.report is not None
+        assert result.report.area is not None
+        assert (result.report.area.x, result.report.area.y) == (700, 710)
 
     def test_a_report_with_no_army_block_is_not_an_empty_castle(self, no_sleep):
         # The caught mission's report had no S and no B at all. Reporting that
         # as zero troops publishes a castle nobody actually read.
-        bsd = xt_packet("bsd", {"MID": 9001, "AI": {"N": "Keep", "X": 700, "Y": 710, "K": 0}})
+        bsd = xt_packet("bsd", {"MID": 9001, "AI": {"N": "Keep", "AT": 2, "X": 700, "Y": 710, "K": 0}})
         client = spy_client(bsd=bsd)
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
         assert result.success is False
-        assert result.reason == "no_spy_data"
+        assert result.outcome is SpyOutcome.NO_SPY_DATA
 
 
 class TestSpyFailurePaths:
@@ -429,7 +439,7 @@ class TestSpyFailurePaths:
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
         assert result.success is False
-        assert result.reason == "no_spies_available"
+        assert result.outcome is SpyOutcome.NO_SPIES_AVAILABLE
         # Polled several times, then gave up without sending the mission.
         assert conn(client).requested.count("ssi") == 5
         assert "csm" not in conn(client).requested
@@ -447,21 +457,24 @@ class TestSpyFailurePaths:
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
-        assert result.success is False
-        assert result.reason == "ssi_failed_21"
+        assert (result.outcome, result.step) == (SpyOutcome.COMMAND_FAILED, SpyStep.SSI)
+        assert isinstance(result.error, CommandError)
+        assert result.error.code == 21
 
     def test_ssi_timeout_is_tagged_by_type(self, no_sleep):
         client = spy_client(ssi=EmpireTimeoutError("no ssi"))
         result = client.spy.execute_instant_spy(12345, 700, 710)
-        assert result.reason == "ssi_failed_EmpireTimeoutError"
+        assert (result.outcome, result.step) == (SpyOutcome.COMMAND_FAILED, SpyStep.SSI)
+        assert isinstance(result.error, EmpireTimeoutError)
 
     def test_csm_rejection_is_tagged(self, no_sleep):
         client = spy_client(csm=xt_packet("csm", error_code=21))
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
-        assert result.success is False
-        assert result.reason == "csm_failed_21"
+        assert (result.outcome, result.step) == (SpyOutcome.COMMAND_FAILED, SpyStep.CSM)
+        assert isinstance(result.error, CommandError)
+        assert result.error.code == 21
 
     @pytest.mark.parametrize(
         "sne_payload",
@@ -491,18 +504,29 @@ class TestSpyFailurePaths:
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
-        assert result.success is False
-        assert result.reason == "bsd_failed_21"
+        assert (result.outcome, result.step) == (SpyOutcome.COMMAND_FAILED, SpyStep.BSD)
+        assert isinstance(result.error, CommandError)
+        assert result.error.code == 21
+        assert result.mission is not None
 
-    def test_failure_defaults_are_empty_containers(self, no_sleep):
+    def test_a_failure_carries_no_report(self, no_sleep):
         client = spy_client(csm=xt_packet("csm", error_code=21))
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
-        assert result.spy_data == []
-        assert result.defending_castellan is None
-        assert result.target is None
-        assert result.message_id is None
+        assert (result.report, result.army, result.message_id, result.mission) == (None, None, None, None)
+
+    @pytest.mark.parametrize("code", [130, 66])
+    def test_a_bsd_without_a_report_is_no_spy_data(self, no_sleep, code):
+        # BSDCommand shows "no spy data" for NO_SPY_DATA and NO_SUCH_MESSAGE
+        client = spy_client(bsd=xt_packet("bsd", error_code=code))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert (result.outcome, result.step, result.message_id) == (SpyOutcome.NO_SPY_DATA, SpyStep.BSD, 9001)
+        assert isinstance(result.error, CommandError)
+        assert result.error.code == code
+        assert result.report is None
 
     @pytest.mark.parametrize(
         "kwargs",
@@ -543,7 +567,7 @@ class TestPaying:
     def test_a_horse_is_sent_by_its_wod_id(self, no_sleep):
         client = spy_client()
 
-        client.spy.execute_instant_spy(12345, 700, 710, horses_type=1010)
+        client.spy.execute_instant_spy(12345, 700, 710, horse_wod_id=1010)
 
         sent = dict(conn(client).request_payloads)["csm"]
         assert (sent["HBW"], sent["PTT"]) == (1010, 0)
@@ -551,7 +575,7 @@ class TestPaying:
     def test_feathers_win_over_a_horse(self, no_sleep):
         client = spy_client()
 
-        client.spy.execute_instant_spy(12345, 700, 710, feathers=True, horses_type=1010)
+        client.spy.execute_instant_spy(12345, 700, 710, feathers=True, horse_wod_id=1010)
 
         sent = dict(conn(client).request_payloads)["csm"]
         assert (sent["HBW"], sent["PTT"]) == (-1, 1)
@@ -566,7 +590,7 @@ class TestPaying:
     def test_the_keys_keep_the_client_order(self, no_sleep):
         client = spy_client()
 
-        client.spy.execute_instant_spy(12345, 700, 710, horses_type=1010)
+        client.spy.execute_instant_spy(12345, 700, 710, horse_wod_id=1010)
 
         sent = dict(conn(client).request_payloads)["csm"]
         assert list(sent) == ["SID", "TX", "TY", "SC", "ST", "SE", "HBW", "KID", "PTT", "SD"]
@@ -580,9 +604,9 @@ class TestReportWait:
         deadlines: list[float] = []
         original = spy_module.SpyService._await_report
 
-        def record(self: Any, notifications: Any, deadline: float, *args: Any) -> Any:
+        def record(self: Any, notifications: Any, deadline: float, *args: Any, **kwargs: Any) -> Any:
             deadlines.append(deadline - spy_module.time.monotonic())
-            return original(self, notifications, deadline, *args)
+            return original(self, notifications, deadline, *args, **kwargs)
 
         monkeypatch.setattr(spy_module.SpyService, "_await_report", record)
         return deadlines
@@ -627,3 +651,213 @@ class TestAccuracyIsTradedForRisk:
         sent = dict(conn(client).request_payloads)["csm"]
         assert sent["SE"] < 100, "sent full accuracy the risk ceiling could not afford"
         assert sent["SC"] > 0
+
+
+class TestTheRiskFloorFollowsTheTarget:
+    """CastleStartSpyVO.setSpyValues: no floor for a dungeon NPC, 5% for players and NPC-PvP owners."""
+
+    @staticmethod
+    def screen(row: list[Any], available: int = 46, owners: list[Any] | None = None) -> Packet:
+        return xt_packet(
+            "ssi",
+            {"AS": available, "GC": 0, "TX": 700, "TY": 710, "gaa": {"KID": 0, "OI": owners or [], "AI": [row]}},
+        )
+
+    def test_a_robber_baron_camp_is_costed_without_the_player_floor(self, no_sleep):
+        # 7 spies reach 0% against an unguarded camp; the player floor stopped at 6 for 5%
+        client = spy_client(ssi=self.screen([2, 700, 710, -1, 0, -1, 0]))
+
+        client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert dict(conn(client).request_payloads)["csm"]["SC"] == 7
+
+    def test_a_ceiling_under_the_player_floor_still_spies_a_camp(self, no_sleep):
+        client = spy_client(ssi=self.screen([2, 700, 710, -1, 0, -1, 0]))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, risk_tolerance=2)
+
+        assert result.success is True
+
+    def test_an_alien_camp_keeps_the_player_floor(self, no_sleep):
+        client = spy_client(ssi=self.screen([21, 700, 710, -1, 0, -1, 0]))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, risk_tolerance=2)
+
+        assert result.outcome is SpyOutcome.RISK_OVER_BUDGET
+
+    def test_a_player_castle_keeps_the_player_floor(self, no_sleep):
+        client = spy_client(ssi=self.screen([1, 700, 710, 2001, 1001, 2, 2, 2, 1, 0, "Keep"]))
+
+        client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert dict(conn(client).request_payloads)["csm"]["SC"] == 6
+
+    def test_an_unclaimed_outpost_has_no_floor(self, no_sleep):
+        client = spy_client(ssi=self.screen([4, 700, 710, -300, -300, 1, 1, 1, 0, 0, ""]))
+
+        client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert dict(conn(client).request_payloads)["csm"]["SC"] == 7
+
+    def test_a_target_whose_owner_is_not_known_keeps_the_player_floor(self, no_sleep):
+        # A treasure camp's owner is not traced; the higher floor can only cost spies
+        client = spy_client(ssi=self.screen([8, 700, 710, 0, 0]))
+
+        client.spy.execute_instant_spy(12345, 700, 710)
+
+        assert dict(conn(client).request_payloads)["csm"]["SC"] == 6
+
+
+class TestEconomyMissions:
+    def test_an_economy_mission_is_sent_as_st_1(self, no_sleep):
+        client = spy_client()
+
+        client.spy.execute_instant_spy(12345, 700, 710, spy_type=SpyType.ECO)
+
+        assert dict(conn(client).request_payloads)["csm"]["ST"] == 1
+
+    def test_an_economy_report_needs_no_army(self, no_sleep):
+        bsd = xt_packet("bsd", {"MID": 9001, "R": [["W", 500]], "AI": {"AT": 2, "X": 700, "Y": 710, "K": 0}})
+        client = spy_client(sne=sne_packet("2+0+2#0+-211+"), bsd=bsd)
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, spy_type=SpyType.ECO)
+
+        assert result.success is True
+        assert result.report is not None
+        assert result.report.resources == [["W", 500]]
+
+    @pytest.mark.parametrize("spy_type", [SpyType.SABOTAGE, SpyType.PLAGUE])
+    def test_other_mission_types_are_refused(self, no_sleep, spy_type):
+        client = spy_client()
+
+        with pytest.raises(ValueError):
+            client.spy.execute_instant_spy(12345, 700, 710, spy_type=spy_type)
+        assert "ssi" not in conn(client).requested
+
+
+class TestForwardingAlreadyShared:
+    def test_a_recipient_who_has_the_report_counts_as_done(self):
+        # MFSCommand treats ALREADY_HAS_SPY_REPORT like ALL_OK
+        client = make_client({"mfs": xt_packet("mfs", error_code=167)})
+
+        assert client.spy.forward_report(9001, [111]) is True
+
+
+class TestReadingAnyReport:
+    def test_a_report_is_read_by_its_message_id(self):
+        client = make_client({"bsd": bsd_reply(4242)})
+
+        report = client.spy.get_report(4242)
+
+        assert report is not None
+        assert report.message_id == 4242
+        assert dict(conn(client).request_payloads)["bsd"] == {"MID": 4242}
+
+    @pytest.mark.parametrize("code", [130, 66])
+    def test_no_report_is_none(self, code):
+        client = make_client({"bsd": xt_packet("bsd", error_code=code)})
+
+        assert client.spy.get_report(4242) is None
+
+    def test_another_refusal_raises(self):
+        client = make_client({"bsd": xt_packet("bsd", error_code=21)})
+
+        with pytest.raises(CommandError):
+            client.spy.get_report(4242)
+
+
+class TestAutoSpy:
+    def test_ssu_sends_the_position_and_reads_a_report(self):
+        client = make_client({"ssu": xt_packet("ssu", BSD_NPC_CAMP_REPORT)})
+
+        report = client.spy.auto_spy(501, 297)
+
+        assert dict(conn(client).request_payloads)["ssu"] == {"TX": 501, "TY": 297}
+        assert report.area is not None
+        assert (report.area.x, report.area.y) == (501, 297)
+        assert report.has_army
+
+
+class TestSendingAMissionAsGiven:
+    def test_the_values_are_sent_unplanned(self):
+        client = make_client({"csm": xt_packet("csm", csm_reply())})
+
+        mission = client.spy.send_spy_mission(
+            12345, 700, 710, Kingdom.SANDS, spy_type=SpyType.SABOTAGE, spies=4, accuracy_or_damage=30
+        )
+
+        assert mission.movement_id == 5001
+        assert dict(conn(client).request_payloads)["csm"] == {
+            "SID": 12345,
+            "TX": 700,
+            "TY": 710,
+            "SC": 4,
+            "ST": 2,
+            "SE": 30,
+            "HBW": -1,
+            "KID": 1,
+            "PTT": 0,
+            "SD": 0,
+        }
+        assert "ssi" not in conn(client).requested
+
+    def test_plague_monks_are_not_sent_with_csm(self):
+        client = make_client()
+
+        with pytest.raises(ValueError):
+            client.spy.send_spy_mission(12345, 700, 710, spy_type=SpyType.PLAGUE, spies=1, accuracy_or_damage=10)
+
+
+class TestSabotage:
+    @staticmethod
+    def screen(available: int = 12, guards: int = 30, level: int = 30) -> Packet:
+        owner = {"OID": 1001, "N": "Enemy", "L": level}
+        row = [1, 700, 710, 2001, 1001, 2, 2, 2, 1, 0, "Keep"]
+        return xt_packet(
+            "ssi", {"AS": available, "GC": guards, "TX": 700, "TY": 710, "gaa": {"OI": [owner], "AI": [row]}}
+        )
+
+    def test_the_fewest_spies_for_the_lowest_risk_are_sent(self):
+        # getSabotageRisk(s, 30, 30) falls to 10 at 12 spies
+        client = make_client({"ssi": self.screen(), "csm": xt_packet("csm", csm_reply())})
+
+        result = client.spy.send_sabotage(12345, 700, 710, damage=30)
+
+        assert result.outcome is SpyOutcome.SENT
+        assert result.mission is not None
+        sent = dict(conn(client).request_payloads)["csm"]
+        assert (sent["ST"], sent["SE"], sent["SC"]) == (2, 30, 12)
+
+    def test_a_ceiling_the_pool_cannot_reach_sends_nothing(self):
+        client = make_client({"ssi": self.screen(available=3)})
+
+        result = client.spy.send_sabotage(12345, 700, 710, damage=30, risk_tolerance=20)
+
+        assert result.outcome is SpyOutcome.RISK_OVER_BUDGET
+        assert "csm" not in conn(client).requested
+
+    def test_more_damage_than_the_owner_level_allows_is_refused(self):
+        # A level 15 owner can lose two buildings: 20 damage at most
+        client = make_client({"ssi": self.screen(level=15)})
+
+        with pytest.raises(ValueError):
+            client.spy.send_sabotage(12345, 700, 710, damage=30)
+        assert "csm" not in conn(client).requested
+
+    def test_no_free_spies_sends_nothing(self):
+        client = make_client({"ssi": self.screen(available=0)})
+
+        assert client.spy.send_sabotage(12345, 700, 710, damage=10).outcome is SpyOutcome.NO_SPIES_AVAILABLE
+
+
+class TestSpiesInUse:
+    def test_only_your_own_spy_movements_count(self, monkeypatch):
+        client = make_client()
+        spy = MovementSpy.model_validate({"ST": 0, "SA": 100, "SC": 4, "SR": 26})
+        mine = Movement(MID=1, OID=1001, local_player_id=1001, spy=spy)
+        returning = Movement(MID=2, OID=1001, D=1, local_player_id=1001, spy=spy)
+        theirs = Movement(MID=3, OID=2002, local_player_id=1001, spy=spy)
+        attack = Movement(MID=4, OID=1001, local_player_id=1001)
+        monkeypatch.setattr(client.state, "get_all_movements", lambda: [mine, returning, theirs, attack])
+
+        assert client.spy.spies_in_use() == 8
