@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from empire_core.alliance.models.chat import AllianceChatLogResponse, AllianceChatMessageResponse
 from empire_core.alliance.models.info import AllianceInfo, AllianceMember, AllianceStorage, GetAllianceInfoResponse
+from empire_core.enums import AllianceRank
 from empire_core.protocol.models import parse_response
 
 
@@ -82,13 +83,13 @@ GOLDEN_AIN = {
                 "N": "LeaderGuy",
                 "L": 70,
                 "LL": 812,
-                "AR": 8,
+                "AR": 0,
                 "MP": 1200000,
                 "RPT": 0,
                 "AP": [[0, 12345, 640, 655, 1], [2, 22222, 300, 400, 4]],
                 "E": {"BGT": 1, "BGC1": 2, "SPT": 3, "S1": 4, "IS": 1},
             },
-            {"OID": 7002, "N": "OfficerGal", "L": 70, "AR": 4, "RPT": 7200, "AP": [[0, 12346, 641, 656, 1]]},
+            {"OID": 7002, "N": "OfficerGal", "L": 70, "AR": 4, "AID": 190426, "RPT": 7200, "AP": [[0, 12346, 641, 656, 1]]},
         ],
         "AMI": [[7001, 0, 0, 0, 0], [7002, 0, 0, 0, 2]],
     }
@@ -154,6 +155,21 @@ class TestGoldenAllianceInfo:
         assert by_name["OfficerGal"].has_bird is True
         assert by_name["OfficerGal"].bird_end_time is not None
         assert by_name["LeaderGuy"].bird_end_time is None
+
+    @pytest.mark.parametrize(
+        ("rank", "leader", "officer", "enum"),
+        [
+            (0, True, False, AllianceRank.LEADER),
+            (1, False, True, AllianceRank.COLEADER),
+            (7, False, True, AllianceRank.SERGEANT),
+            (8, False, False, AllianceRank.MEMBER),
+            (9, False, False, AllianceRank.APPLICANT),
+            (12, False, False, None),
+        ],
+    )
+    def test_rank_zero_is_the_leader(self, rank, leader, officer, enum):
+        member = AllianceMember.model_validate({"OID": 1, "AID": 5, "AR": rank})
+        assert (member.is_leader, member.is_officer, member.alliance_rank_enum) == (leader, officer, enum)
 
     def test_typed_member_emblem(self):
         leader = GetAllianceInfoResponse.model_validate(GOLDEN_AIN).members[0]

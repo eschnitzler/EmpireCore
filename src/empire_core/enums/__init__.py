@@ -4,7 +4,7 @@ Every public enum lives in this package, one module per area. The modules
 import nothing but :mod:`enum`, so any module can import them without a cycle.
 """
 
-from .alliance import DiplomacyStatus, HelpType, OnlineState
+from .alliance import AllianceRank, DiplomacyStatus, HelpType, OnlineState
 from .army import ProductionListId, SlotType
 from .castle import BuildingState, ExpansionType, MarketScope, ResourceCartType
 from .combat import AttackType, AutoSkipCooldownType, CombatEffectType, Flank, LootPriority
@@ -45,6 +45,7 @@ __all__ = [
     "EquipmentType",
     "Rareness",
     # Alliance
+    "AllianceRank",
     "DiplomacyStatus",
     "OnlineState",
     "HelpType",

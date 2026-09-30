@@ -34,7 +34,7 @@ GOLDEN_AIN: dict[str, Any] = {
                 "N": "LeaderGuy",
                 "L": 70,
                 "LL": 812,
-                "AR": 8,
+                "AR": 0,
                 "MP": 1200000,
                 "CF": 3,
                 "HF": 9,
@@ -53,7 +53,7 @@ GOLDEN_AIN: dict[str, Any] = {
                 "RPT": 7200,
                 "AP": [[0, 12346, 641, 656, 1]],
             },
-            {"OID": 7003, "N": "AfkDude", "L": 55, "AR": 0, "MP": 100, "AP": []},
+            {"OID": 7003, "N": "AfkDude", "L": 55, "AR": 8, "AID": 190426, "MP": 100, "AP": []},
         ],
         # Positional activity array: [player_id, ?, ?, ?, activity_tier]
         "AMI": [[7001, 0, 0, 0, 0], [7002, 0, 0, 0, 2], [7003, 0, 0, 0, 4]],

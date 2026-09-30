@@ -15,8 +15,9 @@ from typing import Any
 
 from pydantic import Field, field_validator
 
+from empire_core.enums import AllianceRank
 from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest
-from empire_core.protocol.base import BasePayload, object_or_none, readable_list
+from empire_core.protocol.base import BasePayload, enum_or_none, object_or_none, readable_list
 
 
 class PlayerProfileBase(BasePayload):
@@ -116,14 +117,23 @@ class PlayerProfileBase(BasePayload):
         return readable_list(OwnerCastlePosition, unwrapped)
 
     @property
+    def alliance_rank_enum(self) -> AllianceRank | None:
+        """``alliance_rank`` as an :class:`AllianceRank`, None for a value the client does not define."""
+        return enum_or_none(AllianceRank, self.alliance_rank)
+
+    @property
     def is_leader(self) -> bool:
-        """Check if the player is alliance leader (AR=8)."""
-        return self.alliance_rank == 8
+        """
+        Whether the player leads their alliance: rank 0.
+
+        Client: ``AllianceInfoVO.allianceLeader`` (bundle line 25986) is the member whose ``allianceRank`` is 0
+        """
+        return self.alliance_id >= 0 and self.alliance_rank == AllianceRank.LEADER
 
     @property
     def is_officer(self) -> bool:
-        """Check if the player is an officer (AR > 0 and < 8)."""
-        return 0 < self.alliance_rank < 8
+        """Whether the player holds a rank between leader and member."""
+        return self.alliance_id >= 0 and AllianceRank.LEADER < self.alliance_rank < AllianceRank.MEMBER
 
     @property
     def has_bird(self) -> bool:

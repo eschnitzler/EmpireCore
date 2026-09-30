@@ -1,6 +1,6 @@
 """Alliances: info, help, bookmarks, search and chat."""
 
-from empire_core.enums import DiplomacyStatus, HelpType, OnlineState
+from empire_core.enums import AllianceRank, DiplomacyStatus, HelpType, OnlineState
 
 from .models import (
     AllianceBookmark,
@@ -52,6 +52,7 @@ __all__ = [
     "GetAllianceBookmarksRequest",
     "GetAllianceBookmarksResponse",
     "AllianceBookmark",
+    "AllianceRank",
     "DiplomacyStatus",
     "OnlineState",
     "HelpType",
