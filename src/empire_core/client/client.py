@@ -29,7 +29,7 @@ from empire_core.exceptions import CommandError, EmpireTimeoutError, LoginCooldo
 from empire_core.gamedata import GameData
 from empire_core.map.service import MapService
 from empire_core.movements.service import MovementsService
-from empire_core.network.connection import Connection
+from empire_core.network.connection import NON_ERROR_COMMANDS, Connection
 from empire_core.player.service import PlayerService
 from empire_core.protocol.models import BaseRequest, BaseResponse, parse_response
 from empire_core.protocol.packet import Packet
@@ -166,6 +166,11 @@ class EmpireClient:
 
         # Update internal state (always runs for state-tracked commands)
         self._update_state(cmd, payload)
+
+        # Client: CastleExtensionResponseCommand.execute (bundle line 110733) hands
+        # the status to each command, and the commands parse only on success.
+        if packet.error_code != 0 and cmd not in NON_ERROR_COMMANDS:
+            return
 
         # Only parse and dispatch if handlers are registered. The snapshot is
         # taken under the lock so a concurrent (un)register can neither be

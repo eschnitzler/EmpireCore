@@ -295,6 +295,21 @@ class TestOnPacketPayloadTypes:
         assert state.updates == [("sce", [["PTT", 123]])]
         assert seen == []
 
+    def test_an_error_reply_reaches_no_handler(self):
+        # Every client command parses only on success; a refused acm must not
+        # look like a chat message to the chat handler.
+        state = StubState()
+        client = make_client(state=state)
+        seen: list[object] = []
+        client._register_handler("acm", seen.append)
+
+        client._on_packet(xt_packet("acm", '{"CM": {"PN": "p", "MT": "hi"}}', error_code=114))
+        assert seen == []
+        assert [cmd for cmd, _ in state.updates] == ["acm"]
+
+        client._on_packet(xt_packet("acm", '{"CM": {"PN": "p", "MT": "hi"}}'))
+        assert len(seen) == 1
+
 
 class TestSendErrorSurfacing:
     def test_validation_error_becomes_packet_error(self, monkeypatch):
