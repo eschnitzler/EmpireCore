@@ -407,6 +407,11 @@ state before they run, so the id alone can no longer be resolved — prefer the
 two-argument form above. There is no arrival packet: a movement arrives when
 its travel time is up.
 
+State callbacks run one at a time on a single callback thread, in the order
+their packets arrived, so hand long work to another thread. When the
+connection drops, state is emptied until the next login refills it;
+`client.on_disconnect(callback)` tells you when that happens.
+
 > [!TIP]
 > [`docs/design/state_management.md`](docs/design/state_management.md) documents
 > the object-identity and freshness rules in full.
