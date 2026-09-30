@@ -1,4 +1,4 @@
-"""Alliance ranks, diplomacy, member presence and help requests."""
+"""Alliance ranks, diplomacy, member presence, help requests and bookmarks."""
 
 from enum import IntEnum
 
@@ -62,3 +62,17 @@ class HelpType(IntEnum):
     BUILD = 4
     LOOP_RECRUIT = 5
     RECRUITMENT_LIST = 6
+
+
+class BookmarkType(IntEnum):
+    """
+    What a map bookmark marks.
+
+    Client: ``AllianceConst.BOOKMARK_TYPE_*`` (dll line 18805)
+    """
+
+    PLAYER_ENEMY = 0
+    PLAYER_FRIEND = 1
+    ALLIANCE_FREE_ATTACK = 2
+    ALLIANCE_DEFEND = 3
+    ALLIANCE_ATTACK_ORDER = 4

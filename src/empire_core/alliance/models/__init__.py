@@ -32,7 +32,15 @@ from .info import (
     GetAllianceInfoRequest,
     GetAllianceInfoResponse,
 )
-from .search import AllianceBookmark, GetAllianceBookmarksRequest, GetAllianceBookmarksResponse
+from .search import (
+    AllianceSearchResult,
+    Bookmark,
+    BookmarkAttackOrder,
+    GetBookmarksRequest,
+    GetBookmarksResponse,
+    SearchAllianceRequest,
+    SearchAllianceResponse,
+)
 
 __all__ = [
     "AllianceChatMessageRequest",
@@ -61,7 +69,11 @@ __all__ = [
     "AllianceDiplomacyStatus",
     "GetAllianceInfoRequest",
     "GetAllianceInfoResponse",
-    "GetAllianceBookmarksRequest",
-    "GetAllianceBookmarksResponse",
-    "AllianceBookmark",
+    "GetBookmarksRequest",
+    "GetBookmarksResponse",
+    "Bookmark",
+    "BookmarkAttackOrder",
+    "AllianceSearchResult",
+    "SearchAllianceRequest",
+    "SearchAllianceResponse",
 ]

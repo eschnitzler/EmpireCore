@@ -7,6 +7,8 @@ from typing import Any
 
 import pytest
 
+from empire_core.alliance.models.search import GetBookmarksResponse
+from empire_core.enums import BookmarkType
 from empire_core.exceptions import CommandError
 from empire_core.protocol.models import AllianceChatMessageResponse, AllianceMember, HelpType
 from tests.service_helpers import StubPlayer, StubState, conn, make_client, request_payload, xt_packet
@@ -449,14 +451,57 @@ class TestAllianceHelp:
 
 
 class TestAllianceBookmarks:
-    def test_bookmarks_expose_their_positions(self):
-        payload = {"ABL": [{"N": "Enemy cluster", "OI": {"OID": 4242, "AP": [[0, 1, 640, 655, 1]]}}, {"N": "Plot"}]}
-        client = make_client({"gbl": xt_packet("gbl", payload)})
+    """As CastleBookmarkData.parse_GBL (bundle line 33453) and CastleWorldmapBookmarkVO.parseParamObject read them."""
 
-        bookmarks = client.alliance.get_bookmarks()
+    GBL: dict[str, Any] = {
+        "BL": [
+            {
+                "KID": 0,
+                "X": 640,
+                "Y": 655,
+                "AI": [1, 640, 655, 12345, 4242, 3],
+                "OI": {"OID": 4242, "N": "TargetPlayer", "AID": -1},
+                "N": "Farm",
+                "TY": 0,
+                "BID": 11,
+            }
+        ],
+        "ABL": [
+            {"K": 2, "X": 300, "Y": 400, "N": "Hit this", "TY": 4, "BID": 12, "C": 7001, "M": [7001, 7002], "TI": 900},
+            {"KID": 1, "X": 5, "Y": 6, "N": "Hold", "TY": "3", "BID": 13, "C": 0, "M": [7001]},
+        ],
+    }
 
-        assert [b.name for b in bookmarks] == ["Enemy cluster", "Plot"]
-        assert bookmarks[0].owner is not None
-        assert bookmarks[0].owner.owner_id == 4242
-        assert [(p.area_id, p.x, p.y, p.area_type) for p in bookmarks[0].owner.castle_positions] == [(1, 640, 655, 1)]
-        assert bookmarks[1].owner is None
+    def test_both_lists_are_read(self):
+        client = make_client({"gbl": xt_packet("gbl", self.GBL)})
+
+        reply = client.alliance.get_bookmarks()
+
+        assert conn(client).request_payloads == [("gbl", {})]
+        (own,) = reply.own_bookmarks
+        assert (own.kingdom, own.x, own.y, own.name, own.bookmark_id) == (0, 640, 655, "Farm", 11)
+        assert own.bookmark_type_enum is BookmarkType.PLAYER_ENEMY
+        assert own.area is not None and (own.area.item_type, own.area.owner_id) == (1, 4242)
+        assert own.owner is not None and own.owner.player_id == 4242
+        assert (own.creator_id, own.attack_order) == (0, None)
+
+    def test_an_attack_order_carries_its_attackers(self):
+        order, defend = GetBookmarksResponse.model_validate(self.GBL).alliance_bookmarks
+        assert (order.kingdom, order.creator_id, order.bookmark_type_enum) == (
+            2,
+            7001,
+            BookmarkType.ALLIANCE_ATTACK_ORDER,
+        )
+        assert order.attack_order is not None
+        assert (order.attack_order.assigned_attacker_ids, order.attack_order.attack_in_seconds) == ([7001, 7002], 900)
+        # No creator: the client reads neither C nor the attack order
+        assert (defend.kingdom, defend.bookmark_type, defend.creator_id, defend.attack_order) == (1, 3, 0, None)
+        assert (order.area, order.owner) == (None, None)
+
+    def test_a_bookmark_that_is_not_an_object_is_skipped(self):
+        reply = GetBookmarksResponse.model_validate({"ABL": [None, 5, {"N": "ok"}]})
+        assert [b.name for b in reply.alliance_bookmarks] == ["ok"]
+
+    def test_an_owner_record_without_an_oid_is_no_owner(self):
+        reply = GetBookmarksResponse.model_validate({"BL": [{"OI": {"N": "x"}}, {"OI": {"OID": 0}}]})
+        assert [b.owner for b in reply.own_bookmarks] == [None, None]

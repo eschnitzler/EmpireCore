@@ -34,10 +34,9 @@ from empire_core.alliance.models.help import (
 )
 from empire_core.alliance.models.info import AllianceMember, GetAllianceInfoRequest, GetAllianceInfoResponse
 from empire_core.alliance.models.search import (
-    AllianceBookmark,
     AllianceSearchResult,
-    GetAllianceBookmarksRequest,
-    GetAllianceBookmarksResponse,
+    GetBookmarksRequest,
+    GetBookmarksResponse,
     SearchAllianceRequest,
     SearchAllianceResponse,
 )
@@ -521,17 +520,17 @@ class AllianceService(BaseService):
     # Bookmark Operations
     # =========================================================================
 
-    def get_bookmarks(self, timeout: float = 5.0) -> list[AllianceBookmark]:
+    def get_bookmarks(self, timeout: float = 5.0) -> GetBookmarksResponse:
         """
-        Get alliance bookmarks.
-
-        Args:
-            timeout: Timeout in seconds to wait for response
+        Get your own and your alliance's map bookmarks.
 
         Returns:
-            List of AllianceBookmark objects
+            The gbl reply: ``own_bookmarks`` and ``alliance_bookmarks``
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        return self.request(GetAllianceBookmarksRequest(), GetAllianceBookmarksResponse, timeout=timeout).bookmarks
+        return self.request(GetBookmarksRequest(), GetBookmarksResponse, timeout=timeout)
 
 
 __all__ = ["AllianceHelpUpdate", "AllianceService"]

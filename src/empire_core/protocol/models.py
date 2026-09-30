@@ -42,10 +42,11 @@ from empire_core.alliance.models.info import (
     GetAllianceInfoResponse,
 )
 from empire_core.alliance.models.search import (
-    AllianceBookmark,
     AllianceSearchResult,
-    GetAllianceBookmarksRequest,
-    GetAllianceBookmarksResponse,
+    Bookmark,
+    BookmarkAttackOrder,
+    GetBookmarksRequest,
+    GetBookmarksResponse,
     SearchAllianceRequest,
     SearchAllianceResponse,
 )
@@ -403,14 +404,8 @@ __all__ = [
     "AllianceDiplomacyStatus",
     "DiplomacyStatus",
     "OnlineState",
-    "AllianceBookmark",
-    "GetAllianceBookmarksRequest",
-    "GetAllianceBookmarksResponse",
     "GetAllianceInfoRequest",
     "GetAllianceInfoResponse",
-    "SearchAllianceRequest",
-    "SearchAllianceResponse",
-    "AllianceSearchResult",
     # Castle
     "GetCastlesRequest",
     "GetCastlesResponse",
@@ -681,4 +676,11 @@ __all__ = [
     "HelpAllRequest",
     "AskHelpRequest",
     "AskHelpResponse",
+    "GetBookmarksRequest",
+    "GetBookmarksResponse",
+    "Bookmark",
+    "BookmarkAttackOrder",
+    "AllianceSearchResult",
+    "SearchAllianceRequest",
+    "SearchAllianceResponse",
 ]
