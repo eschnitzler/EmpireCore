@@ -616,7 +616,11 @@ class EmpireClient:
         return self.game_data
 
     def frame(self, request: BaseRequest) -> str:
-        """The request as this session sends it: in its zone and the room it joined."""
+        """
+        The request as this session sends it: in its zone and the room it joined.
+
+        Client: ``BasicSmartfoxClient.sendMessage`` and ``sendCommand`` (ggs.dll lines 7174 and 7198)
+        """
         return request.to_packet(zone=self.config.default_zone, room_id=self.connection.room_id)
 
     def request_packet(self, request: BaseRequest, response_command: str, timeout: float = 5.0) -> Packet:

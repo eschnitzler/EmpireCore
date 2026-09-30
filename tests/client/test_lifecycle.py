@@ -213,14 +213,23 @@ class TestLoginCleansUpOnFailure:
 
         assert (exc_info.value.code, exc_info.value.error) == (99991, None)
 
-    def test_typed_login_refusals_carry_their_code(self):
-        conn = StubConnection({"lli": xt_packet("lli", '{"CD": 30}', error_code=453)})
+    @pytest.mark.parametrize(
+        ("payload", "error"),
+        [
+            ('{"CD": 30}', GGEError.LOGIN_COOLDOWN_ACTIVE),
+            ('{"RS": 3600}', GGEError.IS_BANNED),
+            ('{"IID": 21}', GGEError.EXISTING_MAPPING_WRONG_SERVER),
+            ("{}", GGEError.INVALID_LOGIN_TOKEN),
+        ],
+    )
+    def test_typed_login_refusals_carry_their_code(self, payload: str, error: GGEError):
+        conn = StubConnection({"lli": xt_packet("lli", payload, error_code=int(error))})
         client = make_client(conn)
 
-        with pytest.raises(LoginCooldownError) as exc_info:
+        with pytest.raises(LoginError) as exc_info:
             client.login()
 
-        assert (exc_info.value.code, exc_info.value.error) == (453, GGEError.LOGIN_COOLDOWN_ACTIVE)
+        assert (exc_info.value.code, exc_info.value.error) == (int(error), error)
 
     def test_xt_login_timeout_closes_connection(self):
         conn = StubConnection({"lli": EmpireTimeoutError("no lli")})
