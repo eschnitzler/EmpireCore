@@ -18,7 +18,7 @@ from typing import Annotated, Any
 from pydantic import BeforeValidator, Field
 
 from .base import BaseRequest, BaseResponse, build_command, list_or_empty
-from .js import js_number_or_none, js_truthy
+from .js import js_number_or_none, js_string, js_truthy
 from .text import encode_json_text
 
 _Number = Annotated[int | float | None, BeforeValidator(js_number_or_none)]
@@ -152,7 +152,9 @@ class LoginTokenResponse(BaseResponse):
 
     command = "slt"
 
-    login_token: str | None = Field(alias="LT", default=None, description="The token")
+    login_token: Annotated[str | None, BeforeValidator(lambda value: None if value is None else js_string(value))] = (
+        Field(alias="LT", default=None, description="The token")
+    )
 
 
 # =============================================================================

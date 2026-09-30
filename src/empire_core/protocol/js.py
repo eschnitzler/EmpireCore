@@ -61,6 +61,11 @@ def _text(value: Any) -> str:
     return "[object Object]"
 
 
+def js_string(value: Any) -> str:
+    """``String(value)``: a number as JavaScript writes it, an object as ``[object Object]``."""
+    return _text(value)
+
+
 def _number(value: Any) -> float:
     """``Number(value)`` for a JSON value, None read as ``undefined`` (NaN)."""
     if value is None:

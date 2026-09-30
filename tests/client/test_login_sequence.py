@@ -822,3 +822,34 @@ class TestRefusalDetails:
         with pytest.raises(WrongServerError) as exc_info:
             make_client(conn).login()
         assert exc_info.value.instance_id == 21
+
+
+class TestLoginTokenPushShapes:
+    """SLTCommand stores ``JSON.parse(t[1]).LT`` whatever it is (bundle line 120936)."""
+
+    @pytest.mark.parametrize(("value", "stored"), [("abc", "abc"), (1234567890123, "1234567890123")])
+    def test_the_token_is_kept_as_the_client_would_send_it_back(self, value, stored):
+        client = make_client()
+        client._on_packet(Packet.from_bytes(f'%xt%slt%-1%0%{{"LT":{json.dumps(value)}}}%'.encode()))
+        assert client.login_token == stored
+
+    def test_a_push_during_the_login_is_kept(self):
+        # The server pushes slt between the lli reply and gbd.
+        client = make_client()
+
+        class PushingConnection(ScriptedConnection):
+            def wait_for_result(self, cmd_id, waiter, timeout=5.0):
+                if cmd_id == "gbd":
+                    client._on_packet(Packet.from_bytes(b'%xt%slt%-1%0%{"LT":"live-token"}%'))
+                return super().wait_for_result(cmd_id, waiter, timeout)
+
+        client.connection = PushingConnection()  # type: ignore[assignment]
+        client.login()
+        assert client.login_token == "live-token"
+
+    def test_a_push_without_a_token_is_reported(self, caplog):
+        client = make_client()
+        with caplog.at_level("WARNING", logger="empire_core.client.client"):
+            client._on_packet(xt_packet("slt", {}))
+        assert client.login_token is None
+        assert "slt" in caplog.text

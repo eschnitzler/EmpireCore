@@ -274,6 +274,8 @@ class EmpireClient:
         token = read_or_none(LoginTokenResponse.model_validate, payload)
         if token is not None and token.login_token:
             self.login_token = token.login_token
+        else:
+            logger.warning(f"slt push without a usable login token (keys: {sorted(payload)})")
 
     def _update_state(self, cmd: str, payload: dict[str, Any] | list[Any]) -> None:
         """Sync state update from packet - delegates to GameState.
