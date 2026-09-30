@@ -1,8 +1,9 @@
 """
-Message and report protocol models.
+Mailbox, mail and report protocol models.
 
 Commands:
-- sne: System notification event
+- sne: New or changed mailbox messages (push)
+- rms, mmr, ams, dms, sms: Read, mark read, archive, delete and send mail
 - bsd: Spy report (the client's S2C_SPY_LOG_DETAIL)
 - mfs: Forward a spy report
 """
@@ -31,7 +32,7 @@ from empire_core.protocol.base import (
     readable_list,
 )
 from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_parse_int, js_truthy
-from empire_core.protocol.text import decode_json_text
+from empire_core.protocol.text import decode_json_text, encode_json_text
 
 if TYPE_CHECKING:
     from empire_core.army.spy_army import SpyArmy
@@ -551,7 +552,206 @@ class SpyReportResponse(BaseResponse):
         return self.remaining_validity_seconds > 0
 
 
+# =============================================================================
+# Mail
+# =============================================================================
+
+MAX_SUBJECT_LENGTH = 20
+"""Characters the client's subject field takes. Client: ``MessageConst.MAX_LENGTH_SUBJECT`` (dll line 19516)"""
+MAX_TEXT_LENGTH = 1300
+"""Characters the client's text field takes. Client: ``MessageConst.MAX_LENGTH_TEXT`` (dll line 19516)"""
+MIN_TEXT_LENGTH = 3
+"""Non-whitespace characters a text needs. Client: ``ClientConstMessage.MINIMUM_LENGTH`` (bundle line 44219)"""
+
+
+class ReadMessageRequest(BaseRequest):
+    """
+    Read a message's body.
+
+    Command: rms
+    Payload: {"MID": message_id}
+
+    Client: ``C2SReadMessagesVO`` (bundle line 19620), sent by
+    ``CastleMessageData.getBodyForTextMessage`` (bundle line 134908)
+    """
+
+    command = "rms"
+
+    message_id: int = Field(alias="MID", description="The message's MessageInfo.message_id")
+
+
+class ReadMessageResponse(BaseResponse):
+    """
+    A message's body.
+
+    Command: rms
+
+    Client: ``RMSCommand.executeCommand`` (bundle line 125454) hands ``MTXT`` and
+    ``ABI`` on; ``CastleReadDialog.displayCurrentMessage`` (bundle line 138112)
+    decodes ``MTXT`` as chat text
+    """
+
+    command = "rms"
+
+    body: str | None = Field(alias="MTXT", default=None, description="The body, still encoded")
+    extra: Any = Field(alias="ABI", default=None, description="The type-specific block some messages carry, as sent")
+
+    @property
+    def decoded_body(self) -> str:
+        """The body decoded as chat text."""
+        return decode_json_text(self.body)
+
+
+class MarkMessageReadRequest(BaseRequest):
+    """
+    Mark a message read.
+
+    Command: mmr
+    Payload: {"MID": message_id}
+
+    The client has no handler for an mmr answer.
+
+    Client: ``C2SMarkMessageReadVO`` (bundle line 90970), sent when a message is opened (bundle line 90961)
+    """
+
+    command = "mmr"
+
+    message_id: int = Field(alias="MID", description="The message's MessageInfo.message_id")
+
+
+class ArchiveMessageRequest(BaseRequest):
+    """
+    Move a message to the archive.
+
+    Command: ams
+    Payload: {"MID": message_id}
+
+    Client: ``C2SArchiveMessageVO`` (bundle line 135032), sent by
+    ``CastleMessageData.archiveMessage`` (bundle line 134988)
+    """
+
+    command = "ams"
+
+    message_id: int = Field(alias="MID", description="The message's MessageInfo.message_id")
+
+
+class ArchiveMessageResponse(BaseResponse):
+    """
+    The archived message.
+
+    Command: ams
+
+    Client: ``AMSCommand.executeCommand`` (bundle line 125141), ``CastleMessageData.parseAMS`` (bundle line 134962)
+    """
+
+    command = "ams"
+
+    message_id: int | None = Field(alias="MID", default=None, description="The archived message")
+
+
+class DeleteMessageRequest(BaseRequest):
+    """
+    Delete one message.
+
+    Command: dms
+    Payload: {"MID": message_id}
+
+    Client: ``C2SDeleteMessageVO`` (bundle line 135068), sent by
+    ``CastleMessageData.deleteMessage`` (bundle line 134987)
+    """
+
+    command = "dms"
+
+    message_id: int = Field(alias="MID", description="The message's MessageInfo.message_id")
+
+
+class DeleteMessagesRequest(BaseRequest):
+    """
+    Delete several messages.
+
+    Command: dms
+    Payload: {"MIDS": [message_id, ...]}
+
+    Client: ``C2SDeleteMessagesVO`` (bundle line 106651), sent by the inbox's
+    delete-all (bundle line 39344)
+    """
+
+    command = "dms"
+
+    message_ids: list[int] = Field(alias="MIDS", description="The messages' MessageInfo.message_id values")
+
+
+class DeleteMessagesResponse(BaseResponse):
+    """
+    The deleted messages.
+
+    Command: dms
+
+    Client: ``DMSCommand.exec`` (bundle line 125282) reads ``MID`` as one id or a list of ids
+    """
+
+    command = "dms"
+
+    message_ids: list[int] = Field(alias="MID", default_factory=list, description="The deleted messages")
+
+    @field_validator("message_ids", mode="before")
+    @classmethod
+    def _one_or_many(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        return [v for v in value if v is not None] if isinstance(value, list) else [value]
+
+
+class SendMessageRequest(BaseRequest):
+    """
+    Send a message to a player.
+
+    Command: sms
+    Payload: {"RN": receiver_name, "MH": subject, "TXT": text}; subject and text encoded as chat text
+
+    Client: ``C2SSendMessageVO`` (bundle line 135085), sent by
+    ``CastleMessageData.sendNewMessage`` (bundle line 134986)
+    """
+
+    command = "sms"
+
+    receiver_name: str = Field(alias="RN", description="The receiving player's name")
+    subject: str = Field(alias="MH", description="The subject, encoded")
+    text: str = Field(alias="TXT", description="The text, encoded")
+
+    @classmethod
+    def create(cls, receiver_name: str, subject: str, text: str) -> SendMessageRequest:
+        """A message, subject and text encoded as ``C2SSendMessageVO`` encodes them."""
+        return cls(RN=receiver_name, MH=encode_json_text(subject), TXT=encode_json_text(text))
+
+
+class SendMessageResponse(BaseResponse):
+    """
+    The answer to sending a message.
+
+    Command: sms
+
+    Client: ``SMSCommand.executeCommand`` (bundle line 125470); on error 70
+    (``USAGE_OF_BADWORDS``) it reads the first bad word from ``BW``
+    """
+
+    command = "sms"
+
+
 __all__ = [
+    "MAX_SUBJECT_LENGTH",
+    "MAX_TEXT_LENGTH",
+    "MIN_TEXT_LENGTH",
+    "ReadMessageRequest",
+    "ReadMessageResponse",
+    "MarkMessageReadRequest",
+    "ArchiveMessageRequest",
+    "ArchiveMessageResponse",
+    "DeleteMessageRequest",
+    "DeleteMessagesRequest",
+    "DeleteMessagesResponse",
+    "SendMessageRequest",
+    "SendMessageResponse",
     "MAX_MAILBOX_SIZE",
     "MAX_MAILBOX_ARCHIVE_SIZE",
     "MAX_MAILBOX_BATTLE_AND_SPY_REPORTS",

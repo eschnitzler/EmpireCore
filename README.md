@@ -133,6 +133,19 @@ for entry in client.alliance.get_chat_log():
 client.alliance.on_chat_message(lambda msg: print(msg.decoded_text))
 ```
 
+### `client.messages`
+
+```python
+# The mailbox, kept current from the server's sne pushes
+for message in client.messages.mailbox:
+    if message.subject is not None and not message.is_read:
+        print(message.sender_name, message.subject, client.messages.read(message.message_id).decoded_body)
+        client.messages.mark_read(message.message_id)
+
+client.messages.send_message("SomePlayer", "Hello", "Want to trade?")
+client.messages.delete_many([m.message_id for m in client.messages.mailbox if m.is_read])
+```
+
 ### `client.castle`
 
 ```python

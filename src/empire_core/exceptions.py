@@ -189,3 +189,7 @@ class ReceiveThreadError(EmpireError):
     could only time out. Hand the work to another thread, or use a GameState
     callback, which runs on its own callback thread.
     """
+
+
+class MessageUnavailableError(CommandError):
+    """Raised when a message cannot be read: error 66 (no such message) or 225 (too old to read)."""

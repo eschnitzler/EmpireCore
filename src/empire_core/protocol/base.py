@@ -265,7 +265,12 @@ class GGECommand:
     SEDE = "sede"  # Select event difficulty
 
     # Messages / notifications
-    SNE = "sne"  # System notification event (push)
+    SNE = "sne"  # New or changed mailbox messages (push)
+    RMS = "rms"  # Read a message
+    MMR = "mmr"  # Mark a message read
+    AMS = "ams"  # Archive a message
+    DMS = "dms"  # Delete messages
+    SMS = "sms"  # Send a message
     BSD = "bsd"  # Battle/spy report data
 
     # Gifts

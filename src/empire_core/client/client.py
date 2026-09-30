@@ -39,6 +39,7 @@ from empire_core.exceptions import (
 )
 from empire_core.gamedata import GameData
 from empire_core.map.service import MapService
+from empire_core.messages.service import MessagesService
 from empire_core.movements.models import GetMovementsRequest
 from empire_core.movements.service import MovementsService
 from empire_core.network.connection import NON_ERROR_COMMANDS, Connection
@@ -134,6 +135,7 @@ class EmpireClient:
     spy: SpyService
     ranking: RankingService
     map: MapService
+    messages: MessagesService
     movements: MovementsService
     defense: DefenseService
     player: PlayerService
@@ -190,6 +192,7 @@ class EmpireClient:
         self.spy: SpyService = cast(SpyService, self._services["spy"])
         self.ranking: RankingService = cast(RankingService, self._services["ranking"])
         self.map: MapService = cast(MapService, self._services["map"])
+        self.messages: MessagesService = cast(MessagesService, self._services["messages"])
         self.movements: MovementsService = cast(MovementsService, self._services["movements"])
         self.defense: DefenseService = cast(DefenseService, self._services["defense"])
         self.player: PlayerService = cast(PlayerService, self._services["player"])
