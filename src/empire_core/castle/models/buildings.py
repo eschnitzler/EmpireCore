@@ -1,65 +1,126 @@
 """
-Building protocol models.
+Building commands.
+
+Every command acts on the castle joined with ``jca`` (``client.castle.select``)
+and names a building by its object id, a ``BuildingRow.object_id`` from the
+castle's ``CastleBuildings`` (``client.castle.join``).
 
 Commands:
-- ebu: Build (erect building)
-- eup: Upgrade building
-- emo: Move building
-- sbd: Sell building
-- edo: Destroy building
-- fco: Fast complete (skip construction with rubies)
-- msb: Time skip building
-- eud: Upgrade wall/defense
-- rbu: Repair building
-- ira: Repair all buildings
-- ebe: Buy castle extension
-- etc: Collect extension gift
+- ebu: Build
+- eup: Upgrade a building
+- emo: Move a building
+- sbd: Sell a decoration
+- edo: Take a building down
+- fco: Finish a construction at once
+- msb: Shorten a construction with a minute skip
+- eud: Upgrade the wall, gate or a tower
+- rbu: Repair a building
+- ira: Repair every building
+- ebe: Buy a castle expansion
+- etc: Open an expansion's treasure chest
 """
 
 from __future__ import annotations
 
-from pydantic import Field
+from typing import Any
 
-from empire_core.protocol.base import BaseRequest, BaseResponse
+from pydantic import Field, field_serializer, field_validator
+
+from empire_core.enums import ExpansionType
+from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, object_or_none
+from empire_core.protocol.js import js_int
+
+from .details import CastleProductionArea
+from .objects import BuildingRow, CastleBuildings, ConstructionList, building_or_none, building_rows
+from .resources import CastleResources
+
+_OBJECT_ID = "The building's object id, a BuildingRow.object_id from client.castle.join(...).buildings"
+_PRIVATE_OFFER = "The private offer the purchase uses, -1 for none"
+_PAY_WITH_RUBIES = "Pay the missing resources with rubies"
+
+
+class _BuildingReply(BaseResponse):
+    """The blocks building replies share."""
+
+    @field_validator("resources", "production_area", "castle_buildings", mode="before", check_fields=False)
+    @classmethod
+    def _block(cls, value: Any) -> Any:
+        return object_or_none(value)
+
+    @field_validator("construction_list", mode="before", check_fields=False)
+    @classmethod
+    def _construction_list(cls, value: Any) -> Any:
+        return value if isinstance(value, (dict, ConstructionList)) else None
+
+    @field_validator("building", mode="before", check_fields=False)
+    @classmethod
+    def _row(cls, value: Any) -> Any:
+        return building_or_none(value)
+
+    @field_validator("buildings", mode="before", check_fields=False)
+    @classmethod
+    def _rows(cls, value: Any) -> Any:
+        return building_rows(value)
+
 
 # =============================================================================
-# EBU - Build (Erect Building)
+# EBU - Build
 # =============================================================================
 
 
 class BuildRequest(BaseRequest):
     """
-    Build a new building.
+    Place a new building in the joined castle.
 
     Command: ebu
-    Payload: {"CID": castle_id, "BT": building_type, "X": x, "Y": y}
+    Payload: {"WID": wod_id, "X": x, "Y": y, "R": rotation, "PWR": 0 or 1, "PO": offer_id, "DOID": district_id}
+
+    Keys follow the client's order: the constructor initialises PWR before PO.
+    To place a building into a district the client sends X and Y as -1 and
+    the district's object id as DOID.
+
+    Client: ``C2SIsoBuyObjectVO`` (bundle line 31942), sent by
+    ``IsoServerCommands.buyObjectFromShop`` (bundle line 63766)
     """
 
     command = "ebu"
 
-    castle_id: int = Field(
-        alias="CID",
-        description=(
-            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
-            "client.state.get_castles()"
-        ),
+    wod_id: int = Field(alias="WID", description="The building type's wod id")
+    x: int = Field(alias="X", description="Castle grid x, -1 when placing into a district")
+    y: int = Field(alias="Y", description="Castle grid y, -1 when placing into a district")
+    rotation: int = Field(alias="R", default=0, description="Rotation")
+    pay_with_rubies: bool = Field(alias="PWR", default=False, description=_PAY_WITH_RUBIES)
+    private_offer_id: int = Field(alias="PO", default=-1, description=_PRIVATE_OFFER)
+    district_object_id: int = Field(
+        alias="DOID", default=-1, description="Object id of the district to place into, -1 for none"
     )
-    building_type: int = Field(alias="BT")
-    x: int = Field(alias="X")
-    y: int = Field(alias="Y")
+
+    @field_serializer("pay_with_rubies")
+    def _flag(self, value: bool) -> int:
+        return 1 if value else 0
 
 
-class BuildResponse(BaseResponse):
+class BuildResponse(_BuildingReply):
     """
-    Response to building construction.
+    The new building.
 
     Command: ebu
+    Payload: {"NO": row, "grc": {..}, "scl": {..}, "gcu": {..}, "sin": .., "fbe": ..}
+
+    ``sin`` and ``fbe`` are kept as sent.
+
+    Client: ``EBUCommand.executeCommand`` (bundle line 122760),
+    ``AreaDataUpdater.parseEBU`` (bundle line 131512)
     """
 
     command = "ebu"
 
-    building_id: int = Field(alias="BID", default=0)
-    completion_time: int = Field(alias="CT", default=0)  # Unix timestamp
+    building: BuildingRow | None = Field(alias="NO", default=None, description="The new building")
+    resources: CastleResources | None = Field(alias="grc", default=None, description="The castle's resources after")
+    construction_list: ConstructionList | None = Field(
+        alias="scl", default=None, description="The construction slots after"
+    )
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
@@ -69,35 +130,46 @@ class BuildResponse(BaseResponse):
 
 class UpgradeBuildingRequest(BaseRequest):
     """
-    Upgrade an existing building.
+    Upgrade a building in the joined castle.
 
     Command: eup
-    Payload: {"CID": castle_id, "BID": building_id}
+    Payload: {"OID": object_id, "PWR": 0 or 1, "PO": offer_id}
+
+    Keys follow the client's order: the constructor initialises PWR before PO.
+
+    Client: ``C2SIsoUpgradeObjectVO`` (bundle line 31971)
     """
 
     command = "eup"
 
-    castle_id: int = Field(
-        alias="CID",
-        description=(
-            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
-            "client.state.get_castles()"
-        ),
+    object_id: int = Field(alias="OID", description=_OBJECT_ID)
+    pay_with_rubies: bool = Field(alias="PWR", default=False, description=_PAY_WITH_RUBIES)
+    private_offer_id: int = Field(alias="PO", default=-1, description=_PRIVATE_OFFER)
+
+    @field_serializer("pay_with_rubies")
+    def _flag(self, value: bool) -> int:
+        return 1 if value else 0
+
+
+class UpgradeBuildingResponse(_BuildingReply):
+    """
+    The upgraded buildings.
+
+    Command: eup
+    Payload: {"O": [row, ...], "grc": {..}, "scl": {..}, "gcu": {..}}
+
+    Client: ``EUPCommand.executeCommand`` (bundle line 122860),
+    ``AreaDataUpdater.parseEUP`` (bundle line 131516)
+    """
+
+    command = "eup"
+
+    buildings: list[BuildingRow] = Field(alias="O", default_factory=list, description="The changed buildings")
+    resources: CastleResources | None = Field(alias="grc", default=None, description="The castle's resources after")
+    construction_list: ConstructionList | None = Field(
+        alias="scl", default=None, description="The construction slots after"
     )
-    building_id: int = Field(alias="BID", description="The building, e.g. from BuildResponse.building_id")
-
-
-class UpgradeBuildingResponse(BaseResponse):
-    """
-    Response to building upgrade.
-
-    Command: eup
-    """
-
-    command = "eup"
-
-    new_level: int = Field(alias="L", default=0)
-    completion_time: int = Field(alias="CT", default=0)
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
@@ -107,401 +179,459 @@ class UpgradeBuildingResponse(BaseResponse):
 
 class MoveBuildingRequest(BaseRequest):
     """
-    Move a building to a new position.
+    Move a building in the joined castle.
 
     Command: emo
-    Payload: {"CID": castle_id, "BID": building_id, "X": x, "Y": y}
+    Payload: {"OID": object_id, "X": x, "Y": y, "R": rotation}
+
+    Client: ``C2SIsoMoveObjectVO`` (bundle line 63796), sent by
+    ``IsoServerCommands.moveObject`` (bundle line 63776) for a building outside
+    a district
     """
 
     command = "emo"
 
-    castle_id: int = Field(
-        alias="CID",
-        description=(
-            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
-            "client.state.get_castles()"
-        ),
-    )
-    building_id: int = Field(alias="BID", description="The building, e.g. from BuildResponse.building_id")
-    x: int = Field(alias="X")
-    y: int = Field(alias="Y")
+    object_id: int = Field(alias="OID", description=_OBJECT_ID)
+    x: int = Field(alias="X", description="Castle grid x")
+    y: int = Field(alias="Y", description="Castle grid y")
+    rotation: int = Field(alias="R", default=0, description="Rotation")
 
 
-class MoveBuildingResponse(BaseResponse):
+class MoveBuildingResponse(_BuildingReply):
     """
-    Response to building move.
+    The moved building.
 
     Command: emo
+    Payload: {"MO": row}
+
+    Client: ``EMOCommand.executeCommand`` (bundle line 122815), which also
+    reads the reply to a failed move, ``AreaDataUpdater.parseEMO`` (bundle line 131518)
     """
 
     command = "emo"
+
+    building: BuildingRow | None = Field(alias="MO", default=None, description="The building where it now stands")
 
 
 # =============================================================================
-# SBD - Sell Building
+# SBD - Sell Decoration
 # =============================================================================
 
 
 class SellBuildingRequest(BaseRequest):
     """
-    Sell a building for resources.
+    Sell a decoration placed in the joined castle.
 
     Command: sbd
-    Payload: {"CID": castle_id, "BID": building_id}
+    Payload: {"OID": object_id}
+
+    Client: ``C2SellBuildingDeco`` (bundle line 77740), sent from the sell
+    dialog of a placed decoration (bundle line 28587)
     """
 
     command = "sbd"
 
-    castle_id: int = Field(
-        alias="CID",
-        description=(
-            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
-            "client.state.get_castles()"
-        ),
-    )
-    building_id: int = Field(alias="BID", description="The building, e.g. from BuildResponse.building_id")
+    object_id: int = Field(alias="OID", description=_OBJECT_ID)
 
 
-class SellBuildingResponse(BaseResponse):
+class SellBuildingResponse(_BuildingReply):
     """
-    Response to selling a building.
+    The sold decoration.
 
     Command: sbd
+    Payload: {"OID": object_id, "gcu": {..}}
+
+    Client: ``SBDCommand.executeCommand`` (bundle line 131722),
+    ``AreaDataUpdater.parseSBD`` (bundle line 131522)
     """
 
     command = "sbd"
 
-    resources_gained: int = Field(alias="RG", default=0)
+    object_id: int = Field(alias="OID", default=-1, description="Object id of the removed decoration")
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
-# EDO - Destroy Building
+# EDO - Take a Building Down
 # =============================================================================
 
 
 class DestroyBuildingRequest(BaseRequest):
     """
-    Destroy a building (no resources returned).
+    Start taking a building in the joined castle down.
 
     Command: edo
-    Payload: {"CID": castle_id, "BID": building_id}
+    Payload: {"OID": object_id}
+
+    Client: ``C2SIsoDisassembleObjectVO`` (bundle line 41065)
     """
 
     command = "edo"
 
-    castle_id: int = Field(
-        alias="CID",
-        description=(
-            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
-            "client.state.get_castles()"
-        ),
+    object_id: int = Field(alias="OID", description=_OBJECT_ID)
+
+
+class DestroyBuildingResponse(_BuildingReply):
+    """
+    The building being taken down.
+
+    Command: edo
+    Payload: {"O": row, "scl": {..}}
+
+    Client: ``EDOCommand.executeCommand`` (bundle line 122781),
+    ``AreaDataUpdater.parseEDO`` (bundle line 131513), which reads the reply
+    itself as the row
+    """
+
+    command = "edo"
+
+    building: BuildingRow | None = Field(alias="O", default=None, description="The building")
+    construction_list: ConstructionList | None = Field(
+        alias="scl", default=None, description="The construction slots after"
     )
-    building_id: int = Field(alias="BID", description="The building, e.g. from BuildResponse.building_id")
-
-
-class DestroyBuildingResponse(BaseResponse):
-    """
-    Response to destroying a building.
-
-    Command: edo
-    """
-
-    command = "edo"
 
 
 # =============================================================================
-# FCO - Fast Complete (Skip Construction)
+# FCO - Finish a Construction at Once
 # =============================================================================
 
 
 class FastCompleteRequest(BaseRequest):
     """
-    Complete construction instantly using rubies.
+    Finish a building's running construction at once, for rubies.
 
     Command: fco
-    Payload: {"CID": castle_id, "BID": building_id}
+    Payload: {"OID": object_id, "FS": 0 or 1}
+
+    Client: ``C2SIsoFastCompleteObjectVO`` (bundle line 31951), sent by
+    ``IsoServerCommands.fastCompleteBuilding`` (bundle line 63773)
     """
 
     command = "fco"
 
-    castle_id: int = Field(
-        alias="CID",
-        description=(
-            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
-            "client.state.get_castles()"
-        ),
-    )
-    building_id: int = Field(alias="BID", description="The building, e.g. from BuildResponse.building_id")
+    object_id: int = Field(alias="OID", description=_OBJECT_ID)
+    free_skip: bool = Field(alias="FS", default=False, description="Use an event's free skip")
+
+    @field_serializer("free_skip")
+    def _flag(self, value: bool) -> int:
+        return 1 if value else 0
 
 
-class FastCompleteResponse(BaseResponse):
+class FastCompleteResponse(_BuildingReply):
     """
-    Response to fast completion.
+    The finished building.
 
     Command: fco
+    Payload: {"O": row, "gcu": {..}}
+
+    Client: ``FCOCommand.executeCommand`` (bundle line 122908),
+    ``AreaDataUpdater.parseFCO`` (bundle line 131519)
     """
 
     command = "fco"
 
-    rubies_spent: int = Field(alias="RS", default=0)
+    building: BuildingRow | None = Field(alias="O", default=None, description="The building")
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
-# MSB - Time Skip Building
+# MSB - Minute Skip a Construction
 # =============================================================================
 
 
 class TimeSkipBuildingRequest(BaseRequest):
     """
-    Skip some construction time using an item.
+    Shorten a building's running construction with a minute skip.
 
     Command: msb
-    Payload: {"CID": castle_id, "BID": building_id, "IID": item_id}
+    Payload: {"OID": object_id, "MST": minute_skip}
+
+    Keys follow the client's order: the constructor initialises OID and sets
+    MST after it.
+
+    Client: ``C2SMinuteSkipBuildingVO`` (bundle line 81363), built by
+    ``BuildingMinuteSkipProperties.getMinuteSkipCommand`` (bundle line 50021);
+    ``CastleMinuteSkipDialog.onScrollItemClick`` passes the currency's
+    ``jsonKey`` (bundle line 7722)
     """
 
     command = "msb"
 
-    castle_id: int = Field(
-        alias="CID",
-        description=(
-            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
-            "client.state.get_castles()"
-        ),
+    object_id: int = Field(alias="OID", description=_OBJECT_ID)
+    minute_skip: str = Field(
+        alias="MST",
+        description="JSON key of the minute-skip currency used, MS1 to MS7 in the item data (see SCEItem)",
     )
-    building_id: int = Field(alias="BID", description="The building, e.g. from BuildResponse.building_id")
-    item_id: int = Field(alias="IID")
 
 
-class TimeSkipBuildingResponse(BaseResponse):
+class TimeSkipBuildingResponse(_BuildingReply):
     """
-    Response to time skip.
+    The construction slots after a minute skip.
 
     Command: msb
+    Payload: {"scl": {..}}
+
+    Client: ``MSBCommand.executeCommand`` (bundle line 125767)
     """
 
     command = "msb"
 
-    new_completion_time: int = Field(alias="CT", default=0)
+    construction_list: ConstructionList | None = Field(
+        alias="scl", default=None, description="The construction slots after"
+    )
 
 
 # =============================================================================
-# EUD - Upgrade Wall/Defense
+# EUD - Upgrade the Wall, Gate or a Tower
 # =============================================================================
 
 
 class UpgradeWallRequest(BaseRequest):
     """
-    Upgrade castle wall/defense level.
+    Upgrade the joined castle's wall, gate or one of its towers.
 
     Command: eud
-    Payload: {"CID": castle_id, "WT": wall_type}
+    Payload: {"OID": object_id, "PO": offer_id, "PWR": 0 or 1}
+
+    Client: ``C2SIsoUpgradeDefenceVO`` (bundle line 41075)
     """
 
     command = "eud"
 
-    castle_id: int = Field(
-        alias="CID",
-        description=(
-            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
-            "client.state.get_castles()"
-        ),
+    object_id: int = Field(
+        alias="OID",
+        description="Object id of the wall, gate or tower, a BuildingRow.object_id",
     )
-    wall_type: int = Field(alias="WT", default=0)
+    private_offer_id: int = Field(alias="PO", default=-1, description=_PRIVATE_OFFER)
+    pay_with_rubies: bool = Field(alias="PWR", default=False, description=_PAY_WITH_RUBIES)
+
+    @field_serializer("pay_with_rubies")
+    def _flag(self, value: bool) -> int:
+        return 1 if value else 0
 
 
-class UpgradeWallResponse(BaseResponse):
+class UpgradeWallResponse(_BuildingReply):
     """
-    Response to wall upgrade.
+    The upgraded wall, gate or tower.
 
     Command: eud
+    Payload: {"N": row, "grc": {..}, "gcu": {..}}
+
+    Client: ``EUDCommand.executeCommand`` (bundle line 122845),
+    ``AreaDataUpdater.parseEUD`` (bundle line 131515)
     """
 
     command = "eud"
 
-    new_level: int = Field(alias="L", default=0)
-    completion_time: int = Field(alias="CT", default=0)
+    building: BuildingRow | None = Field(alias="N", default=None, description="The upgraded object")
+    resources: CastleResources | None = Field(alias="grc", default=None, description="The castle's resources after")
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
-# RBU - Repair Building
+# RBU - Repair a Building
 # =============================================================================
 
 
 class RepairBuildingRequest(BaseRequest):
     """
-    Repair a damaged building.
+    Repair a damaged building in the joined castle.
 
     Command: rbu
-    Payload: {"CID": castle_id, "BID": building_id}
+    Payload: {"OID": object_id, "PO": offer_id, "PWR": 0 or 1}
+
+    Client: ``C2SIsoRepairBuildingVO`` (bundle line 31961)
     """
 
     command = "rbu"
 
-    castle_id: int = Field(
-        alias="CID",
-        description=(
-            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
-            "client.state.get_castles()"
-        ),
+    object_id: int = Field(alias="OID", description=_OBJECT_ID)
+    private_offer_id: int = Field(alias="PO", default=-1, description=_PRIVATE_OFFER)
+    pay_with_rubies: bool = Field(alias="PWR", default=False, description=_PAY_WITH_RUBIES)
+
+    @field_serializer("pay_with_rubies")
+    def _flag(self, value: bool) -> int:
+        return 1 if value else 0
+
+
+class RepairBuildingResponse(_BuildingReply):
+    """
+    The building being repaired.
+
+    Command: rbu
+    Payload: {"O": row, "scl": {..}, "grc": {..}, "gcu": {..}}
+
+    Client: ``RBUCommand.executeCommand`` (bundle line 123162),
+    ``AreaDataUpdater.parseRBU`` (bundle line 131507)
+    """
+
+    command = "rbu"
+
+    building: BuildingRow | None = Field(alias="O", default=None, description="The building")
+    construction_list: ConstructionList | None = Field(
+        alias="scl", default=None, description="The construction slots after"
     )
-    building_id: int = Field(alias="BID", description="The building, e.g. from BuildResponse.building_id")
-
-
-class RepairBuildingResponse(BaseResponse):
-    """
-    Response to building repair.
-
-    Command: rbu
-    """
-
-    command = "rbu"
-
-    completion_time: int = Field(alias="CT", default=0)
+    resources: CastleResources | None = Field(alias="grc", default=None, description="The castle's resources after")
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
-# IRA - Repair All Buildings
+# IRA - Repair Every Building
 # =============================================================================
 
 
 class RepairAllRequest(BaseRequest):
     """
-    Repair all damaged buildings in a castle.
+    Repair every damaged building in the joined castle at once.
 
     Command: ira
-    Payload: {"CID": castle_id}
+    Payload: {}
+
+    Client: ``C2SIsoRepairAllVO`` (bundle line 37983)
     """
 
     command = "ira"
 
-    castle_id: int = Field(
-        alias="CID",
-        description=(
-            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
-            "client.state.get_castles()"
-        ),
+
+class RepairAllResponse(_BuildingReply):
+    """
+    The repaired buildings.
+
+    Command: ira
+    Payload: {"gpa": {..}, "B": [row, ...], "gcu": {..}}
+
+    Client: ``IRACommand.executeCommand`` (bundle line 123079),
+    ``AreaDataUpdater.parseIRA`` (bundle line 131508)
+    """
+
+    command = "ira"
+
+    production_area: CastleProductionArea | None = Field(
+        alias="gpa", default=None, description="The castle's production area after"
     )
-
-
-class RepairAllResponse(BaseResponse):
-    """
-    Response to repairing all buildings.
-
-    Command: ira
-    """
-
-    command = "ira"
-
-    buildings_repaired: int = Field(alias="BR", default=0)
+    buildings: list[BuildingRow] = Field(alias="B", default_factory=list, description="The repaired buildings")
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
-# EBE - Buy Extension
+# EBE - Buy an Expansion
 # =============================================================================
 
 
 class BuyExtensionRequest(BaseRequest):
     """
-    Buy a castle extension (more building space).
+    Buy an expansion of the joined castle's grounds.
 
     Command: ebe
-    Payload: {"CID": castle_id, "ET": extension_type}
+    Payload: {"X": x, "Y": y, "R": rotation, "CT": expansion_type}
+
+    Client: ``C2SIsoBuyExpansionVO`` (bundle line 63787), sent by
+    ``IsoServerCommands.buyExpansion`` (bundle line 63769) with the
+    expansion's ``IsoExpansionEnum`` id
     """
 
     command = "ebe"
 
-    castle_id: int = Field(
-        alias="CID",
-        description=(
-            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
-            "client.state.get_castles()"
-        ),
+    x: int = Field(alias="X", description="Castle grid x of the expansion")
+    y: int = Field(alias="Y", description="Castle grid y of the expansion")
+    rotation: int = Field(alias="R", default=0, description="Rotation")
+    expansion_type: ExpansionType = Field(
+        alias="CT", default=ExpansionType.NORMAL, description="Pay with resources (NORMAL) or rubies (PREMIUM)"
     )
-    extension_type: int = Field(alias="ET")
 
 
-class BuyExtensionResponse(BaseResponse):
+class BuyExtensionResponse(_BuildingReply):
     """
-    Response to buying extension.
+    The castle after the expansion.
 
     Command: ebe
+    Payload: {"gca": {..}, "grc": {..}, "scl": {..}, "gcu": {..}, "sin": ..}
+
+    ``sin`` is kept as sent.
+
+    Client: ``EBECommand.executeCommand`` (bundle line 122743),
+    ``AreaDataUpdater.parseEBE`` (bundle line 131511)
     """
 
     command = "ebe"
 
-    rubies_spent: int = Field(alias="RS", default=0)
+    castle_buildings: CastleBuildings | None = Field(
+        alias="gca", default=None, description="The castle's buildings after"
+    )
+    resources: CastleResources | None = Field(alias="grc", default=None, description="The castle's resources after")
+    construction_list: ConstructionList | None = Field(
+        alias="scl", default=None, description="The construction slots after"
+    )
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
-# ETC - Collect Extension Gift
+# ETC - Open an Expansion's Treasure Chest
 # =============================================================================
 
 
 class CollectExtensionGiftRequest(BaseRequest):
     """
-    Collect gift from extension.
+    Open a treasure chest found on an expansion of the joined castle.
 
     Command: etc
-    Payload: {"CID": castle_id, "EID": extension_id}
+    Payload: {"OID": object_id}
+
+    Client: ``C2SExtensionTreasureChestVO`` (bundle line 86720), sent by
+    ``CastleTreasureChestBuildingDialog`` (bundle line 86704)
     """
 
     command = "etc"
 
-    castle_id: int = Field(
-        alias="CID",
-        description=(
-            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
-            "client.state.get_castles()"
-        ),
-    )
-    extension_id: int = Field(alias="EID")
+    object_id: int = Field(alias="OID", description="The treasure chest's object id")
 
 
-class CollectExtensionGiftResponse(BaseResponse):
+class CollectExtensionGiftResponse(_BuildingReply):
     """
-    Response to collecting extension gift.
+    The opened chest.
 
     Command: etc
+    Payload: {"RID": reward_id, "OID": object_id}
+
+    Client: ``AreaDataUpdater.parseETC`` (bundle line 131517);
+    ``CastleTreasureChestBuildingDialog.onEtcArrived`` (bundle line 86706)
+    reads ``RID`` through ``int()``
     """
 
     command = "etc"
+
+    reward_id: int = Field(alias="RID", default=0, description="The reward list the chest held")
+    object_id: int = Field(alias="OID", default=-1, description="Object id of the removed chest")
+
+    @field_validator("reward_id", mode="before")
+    @classmethod
+    def _int(cls, value: Any) -> int:
+        return js_int(value)
 
 
 __all__ = [
-    # EBU - Build
     "BuildRequest",
     "BuildResponse",
-    # EUP - Upgrade
     "UpgradeBuildingRequest",
     "UpgradeBuildingResponse",
-    # EMO - Move
     "MoveBuildingRequest",
     "MoveBuildingResponse",
-    # SBD - Sell
     "SellBuildingRequest",
     "SellBuildingResponse",
-    # EDO - Destroy
     "DestroyBuildingRequest",
     "DestroyBuildingResponse",
-    # FCO - Fast Complete
     "FastCompleteRequest",
     "FastCompleteResponse",
-    # MSB - Time Skip
     "TimeSkipBuildingRequest",
     "TimeSkipBuildingResponse",
-    # EUD - Upgrade Wall
     "UpgradeWallRequest",
     "UpgradeWallResponse",
-    # RBU - Repair
     "RepairBuildingRequest",
     "RepairBuildingResponse",
-    # IRA - Repair All
     "RepairAllRequest",
     "RepairAllResponse",
-    # EBE - Buy Extension
     "BuyExtensionRequest",
     "BuyExtensionResponse",
-    # ETC - Collect Extension Gift
     "CollectExtensionGiftRequest",
     "CollectExtensionGiftResponse",
 ]

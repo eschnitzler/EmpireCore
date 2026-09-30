@@ -275,13 +275,9 @@ def send_chat(self, message: str) -> None:
 #### Wait for response
 
 ```python
-def get_resources(self, castle_id: int) -> ResourceAmount | None:
-    request = GetResourcesRequest(CID=castle_id)
-    response = self.send(request, wait=True, timeout=5.0)
-    
-    if isinstance(response, GetResourcesResponse):
-        return response.resources
-    return None
+def get_resources(self, castle_id: int, kingdom_id: Kingdom = Kingdom.GREEN) -> CastleResources:
+    request = GetResourcesRequest(AID=castle_id, KID=kingdom_id)
+    return self.request(request, GetResourcesResponse, timeout=5.0)
 ```
 
 #### Subscribe to incoming messages
@@ -388,6 +384,11 @@ castle_name: str = Field(alias="CN")
 PID: int
 CN: str
 ```
+
+An alias names a wire key and nothing else. Values the server sends by
+position in a list (a castle list row, a building row) have no key: give
+those fields no alias, read the list in a `from_list` / `from_entry`
+classmethod, and list the positions in the class docstring.
 
 ### Optional Fields
 

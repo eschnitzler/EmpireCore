@@ -123,15 +123,25 @@ client.alliance.on_chat_message(lambda msg: print(msg.decoded_text))
 ### `client.castle`
 
 ```python
+from empire_core import Kingdom
+
 castles = client.castle.get_all()
 
 details = client.castle.get_details(castle_id=12345)
 if details:                       # None when the response omits the castle
     print(f"Wood: {details.wood}, units: {details.units}")
 
-resources = client.castle.get_resources(castle_id=12345)
-if resources:
-    print(f"Wood: {resources.wood}, Stone: {resources.stone}")
+resources = client.castle.get_resources(castle_id=12345, kingdom_id=Kingdom.GREEN)
+print(f"Wood: {resources.wood}, Stone: {resources.stone}")
+
+# Joining a castle returns its buildings, resources and production area;
+# production and building commands then act on the joined castle.
+castle = client.castle.join(castle_id=12345)
+area = client.castle.get_production()
+queue = client.castle.get_build_queue()
+if castle.buildings:
+    building = castle.buildings.buildings[0]
+    client.castle.upgrade_building(building.object_id)
 ```
 
 ### `client.army`

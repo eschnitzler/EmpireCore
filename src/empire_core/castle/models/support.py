@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from empire_core.protocol.base import BaseRequest, BaseResponse
+from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock
 
 # =============================================================================
 # CDS - Send Support (Create Deployment - Support)
@@ -72,12 +72,19 @@ class SendSupportRequest(BaseRequest):
 
 class SendSupportResponse(BaseResponse):
     """
-    Response to sending support.
+    The support on its way.
 
     Command: cds
+    Payload: {"gcu": {...}, "O": [owner, ...], "A": movement}
+
+    ``O`` (the owners involved) and ``A`` (the new movement) are kept as sent.
+
+    Client: ``CDSCommand.executeCommand`` (bundle line 125939)
     """
 
     command = "cds"
+
+    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after")
 
 
 __all__ = [

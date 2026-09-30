@@ -2,31 +2,67 @@
 Castle service for EmpireCore.
 
 Provides high-level APIs for:
-- Castle management (list, select, rename, relocate)
-- Resource information
-- Production rates
+- Castle management (list, join, rename)
+- Resources and production
+- Buildings and the construction queue
+- Sending resources, support and units
 
 Action methods return True when the server accepted the action and False
 when it rejected it with an error code; transport failures (timeout,
 disconnect) raise. Query methods raise on any failure.
+
+Building methods act on the castle joined last (:meth:`CastleService.join`)
+and name buildings by object id, a ``BuildingRow.object_id`` from
+``join(...).buildings``. Their typed replies (``BuildResponse`` and the
+others) can be read with ``client.request``.
 """
 
 from __future__ import annotations
 
-from empire_core.castle.models.actions import (
+from empire_core.castle.models.actions import RenameCastleRequest, SelectCastleRequest, SelectCastleResponse
+from empire_core.castle.models.buildings import (
+    BuildRequest,
+    BuyExtensionRequest,
+    CollectExtensionGiftRequest,
+    DestroyBuildingRequest,
+    FastCompleteRequest,
+    MoveBuildingRequest,
+    RepairAllRequest,
+    RepairBuildingRequest,
+    SellBuildingRequest,
+    TimeSkipBuildingRequest,
+    UpgradeBuildingRequest,
+    UpgradeWallRequest,
+)
+from empire_core.castle.models.castles import CastleInfo, GetCastlesRequest, GetCastlesResponse
+from empire_core.castle.models.collect import CollectMineResourcesRequest, CollectResourceCartRequest
+from empire_core.castle.models.details import (
+    CastleProductionArea,
+    DetailedCastleInfo,
+    GetDetailedCastleRequest,
+    GetDetailedCastleResponse,
+)
+from empire_core.castle.models.market import (
+    CreateMarketMovementRequest,
+    MarketCastle,
+    MarketInfoRequest,
+    MarketInfoResponse,
+)
+from empire_core.castle.models.objects import (
+    ConstructionList,
+    ShowConstructionListRequest,
+    ShowConstructionListResponse,
+)
+from empire_core.castle.models.resources import (
+    CastleResources,
     GetProductionRequest,
     GetProductionResponse,
     GetResourcesRequest,
     GetResourcesResponse,
-    ProductionRates,
-    RenameCastleRequest,
-    SelectCastleRequest,
 )
-from empire_core.castle.models.castles import CastleInfo, GetCastlesRequest, GetCastlesResponse
-from empire_core.castle.models.details import DetailedCastleInfo, GetDetailedCastleRequest, GetDetailedCastleResponse
 from empire_core.castle.models.support import SendSupportRequest
-from empire_core.enums import Kingdom
-from empire_core.protocol.base import ResourceAmount
+from empire_core.castle.models.transfers import KingdomUnitTransferRequest
+from empire_core.enums import ExpansionType, Kingdom, ResourceCartType
 from empire_core.services.base import BaseService, register_service
 
 
@@ -46,8 +82,8 @@ class CastleService(BaseService):
         for c in castles:
             print(f"{c.castle_name} at ({c.x}, {c.y})")
 
-        # Select a castle
-        client.castle.select(castle_id=12345)
+        # Join a castle and read its buildings
+        castle = client.castle.join(castle_id=12345)
 
         # Get resources
         resources = client.castle.get_resources(castle_id=12345)
@@ -61,12 +97,17 @@ class CastleService(BaseService):
         """
         Get list of all player's castles.
 
+        Sends the logged-in player's id, as the client does, once the state knows it.
+
         Example:
             castles = client.castle.get_all()
             for c in castles:
                 print(f"{c.castle_name} (ID: {c.castle_id}) at ({c.x}, {c.y})")
         """
-        return self.request(GetCastlesRequest(), GetCastlesResponse, timeout=timeout).castles
+        player = self.client.state.get_local_player()
+        player_id = getattr(player, "id", None)
+        request = GetCastlesRequest(PID=player_id if isinstance(player_id, int) and player_id > 0 else None)
+        return self.request(request, GetCastlesResponse, timeout=timeout).castles
 
     def get_details(self, castle_id: int, timeout: float = 5.0) -> DetailedCastleInfo | None:
         """
@@ -96,6 +137,8 @@ class CastleService(BaseService):
         """
         Select/jump to a castle (makes it the active castle).
 
+        Use :meth:`join` for the castle's state the server sends back.
+
         Args:
             castle_id: One of your castles, from ``client.castle.get_all()``
                 (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
@@ -107,6 +150,26 @@ class CastleService(BaseService):
                 print("Castle selected!")
         """
         return self.execute(SelectCastleRequest(CID=castle_id, KID=kingdom_id), timeout=timeout)
+
+    def join(self, castle_id: int, kingdom_id: Kingdom = Kingdom.GREEN, timeout: float = 5.0) -> SelectCastleResponse:
+        """
+        Join a castle, making it the active castle, and return its state.
+
+        Args:
+            castle_id: One of your castles, from ``client.castle.get_all()``
+                (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
+            kingdom_id: The castle's kingdom, its ``CastleInfo.kingdom_id``
+            timeout: Timeout in seconds
+
+        Raises:
+            CommandError: The server refused the join.
+
+        Example:
+            castle = client.castle.join(12345)
+            if castle.buildings:
+                print([b.wod_id for b in castle.buildings.buildings])
+        """
+        return self.request(SelectCastleRequest(CID=castle_id, KID=kingdom_id), SelectCastleResponse, timeout=timeout)
 
     # =========================================================================
     # Castle Modification
@@ -153,46 +216,219 @@ class CastleService(BaseService):
     # Resource Operations
     # =========================================================================
 
-    def get_resources(self, castle_id: int, timeout: float = 5.0) -> ResourceAmount | None:
+    def get_resources(
+        self, castle_id: int, kingdom_id: Kingdom = Kingdom.GREEN, timeout: float = 5.0
+    ) -> CastleResources:
         """
-        Get current resources for a castle.
+        Get one of your castles' resources.
 
         Args:
             castle_id: One of your castles, from ``client.castle.get_all()``
                 (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
+            kingdom_id: The castle's kingdom, its ``CastleInfo.kingdom_id``
             timeout: Timeout in seconds
 
         Example:
             resources = client.castle.get_resources(12345)
-            if resources:
-                print(f"Wood: {resources.wood}")
+            print(f"Wood: {resources.wood}")
         """
-        return self.request(GetResourcesRequest(CID=castle_id), GetResourcesResponse, timeout=timeout).resources
+        return self.request(GetResourcesRequest(AID=castle_id, KID=kingdom_id), GetResourcesResponse, timeout=timeout)
 
-    def get_production(
-        self, castle_id: int, timeout: float = 5.0
-    ) -> tuple[ProductionRates | None, ProductionRates | None]:
+    def get_production(self, timeout: float = 5.0) -> CastleProductionArea:
         """
-        Get production and consumption rates for a castle.
+        Get the joined castle's production area: production, storage, population and the rest.
 
-        Args:
-            castle_id: One of your castles, from ``client.castle.get_all()``
-                (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
-            timeout: Timeout in seconds
-
-        Returns:
-            Tuple of (production_rates, consumption_rates)
+        Join the castle first with :meth:`join`; the server answers for the joined castle.
 
         Example:
-            production, consumption = client.castle.get_production(12345)
-            if production:
-                print(f"Wood/hr: {production.wood}")
+            client.castle.join(12345)
+            area = client.castle.get_production()
+            print(f"Wood/hr: {area.production.wood}")
         """
-        response = self.request(GetProductionRequest(CID=castle_id), GetProductionResponse, timeout=timeout)
-        return response.production, response.consumption
+        return self.request(GetProductionRequest(), GetProductionResponse, timeout=timeout)
 
     # =========================================================================
-    # Support Operations
+    # Buildings
+    # =========================================================================
+
+    def get_build_queue(self, timeout: float = 5.0) -> ConstructionList:
+        """
+        Get the joined castle's construction slots.
+
+        Example:
+            queue = client.castle.get_build_queue()
+            print(queue.building_object_ids, queue.free_slots)
+        """
+        return self.request(ShowConstructionListRequest(), ShowConstructionListResponse, timeout=timeout)
+
+    def build(
+        self,
+        wod_id: int,
+        x: int,
+        y: int,
+        rotation: int = 0,
+        *,
+        pay_with_rubies: bool = False,
+        private_offer_id: int = -1,
+        district_object_id: int = -1,
+        timeout: float = 5.0,
+    ) -> bool:
+        """
+        Place a new building in the joined castle.
+
+        Args:
+            wod_id: The building type's wod id
+            x: Castle grid x, -1 when placing into a district
+            y: Castle grid y, -1 when placing into a district
+            rotation: Rotation
+            pay_with_rubies: Pay the missing resources with rubies
+            private_offer_id: The private offer the purchase uses, -1 for none
+            district_object_id: Object id of the district to place into, -1 for none
+            timeout: Timeout in seconds
+        """
+        request = BuildRequest(
+            WID=wod_id,
+            X=x,
+            Y=y,
+            R=rotation,
+            PWR=pay_with_rubies,
+            PO=private_offer_id,
+            DOID=district_object_id,
+        )
+        return self.execute(request, timeout=timeout)
+
+    def upgrade_building(
+        self, object_id: int, *, pay_with_rubies: bool = False, private_offer_id: int = -1, timeout: float = 5.0
+    ) -> bool:
+        """Upgrade a building in the joined castle."""
+        request = UpgradeBuildingRequest(OID=object_id, PWR=pay_with_rubies, PO=private_offer_id)
+        return self.execute(request, timeout=timeout)
+
+    def move_building(self, object_id: int, x: int, y: int, rotation: int = 0, timeout: float = 5.0) -> bool:
+        """Move a building in the joined castle."""
+        return self.execute(MoveBuildingRequest(OID=object_id, X=x, Y=y, R=rotation), timeout=timeout)
+
+    def sell_decoration(self, object_id: int, timeout: float = 5.0) -> bool:
+        """Sell a decoration placed in the joined castle."""
+        return self.execute(SellBuildingRequest(OID=object_id), timeout=timeout)
+
+    def destroy_building(self, object_id: int, timeout: float = 5.0) -> bool:
+        """Start taking a building in the joined castle down."""
+        return self.execute(DestroyBuildingRequest(OID=object_id), timeout=timeout)
+
+    def finish_construction(self, object_id: int, *, free_skip: bool = False, timeout: float = 5.0) -> bool:
+        """Finish a building's running construction at once, for rubies or with an event's free skip."""
+        return self.execute(FastCompleteRequest(OID=object_id, FS=free_skip), timeout=timeout)
+
+    def skip_construction_time(self, object_id: int, minute_skip: str, timeout: float = 5.0) -> bool:
+        """
+        Shorten a building's running construction with a minute skip.
+
+        Args:
+            object_id: The building's object id
+            minute_skip: JSON key of the minute-skip currency to use, MS1 to MS7
+                (``SCEItem.SKIP_1_MIN`` and the others)
+            timeout: Timeout in seconds
+        """
+        return self.execute(TimeSkipBuildingRequest(OID=object_id, MST=minute_skip), timeout=timeout)
+
+    def upgrade_defense(
+        self, object_id: int, *, pay_with_rubies: bool = False, private_offer_id: int = -1, timeout: float = 5.0
+    ) -> bool:
+        """Upgrade the joined castle's wall, gate or one of its towers, by its object id."""
+        request = UpgradeWallRequest(OID=object_id, PO=private_offer_id, PWR=pay_with_rubies)
+        return self.execute(request, timeout=timeout)
+
+    def repair_building(
+        self, object_id: int, *, pay_with_rubies: bool = False, private_offer_id: int = -1, timeout: float = 5.0
+    ) -> bool:
+        """Repair a damaged building in the joined castle."""
+        request = RepairBuildingRequest(OID=object_id, PO=private_offer_id, PWR=pay_with_rubies)
+        return self.execute(request, timeout=timeout)
+
+    def repair_all(self, timeout: float = 5.0) -> bool:
+        """Repair every damaged building in the joined castle at once."""
+        return self.execute(RepairAllRequest(), timeout=timeout)
+
+    def buy_expansion(
+        self,
+        x: int,
+        y: int,
+        rotation: int = 0,
+        expansion_type: ExpansionType = ExpansionType.NORMAL,
+        timeout: float = 5.0,
+    ) -> bool:
+        """Buy an expansion of the joined castle's grounds, with resources (NORMAL) or rubies (PREMIUM)."""
+        return self.execute(BuyExtensionRequest(X=x, Y=y, R=rotation, CT=expansion_type), timeout=timeout)
+
+    def open_treasure_chest(self, object_id: int, timeout: float = 5.0) -> bool:
+        """Open a treasure chest found on an expansion of the joined castle."""
+        return self.execute(CollectExtensionGiftRequest(OID=object_id), timeout=timeout)
+
+    def collect_mine(self, object_id: int, timeout: float = 5.0) -> bool:
+        """Collect what a mine in the joined castle has produced."""
+        return self.execute(CollectMineResourcesRequest(OID=object_id), timeout=timeout)
+
+    def collect_resource_cart(self, cart_type: ResourceCartType, timeout: float = 5.0) -> bool:
+        """Collect the joined castle's resource cart of one resource."""
+        return self.execute(CollectResourceCartRequest(RT=cart_type), timeout=timeout)
+
+    # =========================================================================
+    # Market
+    # =========================================================================
+
+    def send_resources(
+        self,
+        source_castle_id: int,
+        target_x: int,
+        target_y: int,
+        goods: dict[str, int],
+        *,
+        kingdom_id: Kingdom = Kingdom.GREEN,
+        horses_type: int = -1,
+        feathers: bool = False,
+        slowdown: int = 0,
+        timeout: float = 5.0,
+    ) -> bool:
+        """
+        Send resources from one of your castles to a castle on the map, by carriage.
+
+        Args:
+            source_castle_id: The castle the carriages leave from, one of yours
+            target_x: Map x of the target castle
+            target_y: Map y of the target castle
+            goods: Amount per resource key, such as ``{"W": 1000, "S": 500}``
+            kingdom_id: The source castle's kingdom
+            horses_type: The horse's wod id, -1 for none; sent as -1 whenever
+                feathers are used, as the client does
+            feathers: Pay for the horse with feathers
+            slowdown: Seconds to delay the arrival by
+            timeout: Timeout in seconds
+        """
+        request = CreateMarketMovementRequest(
+            KID=kingdom_id,
+            SID=source_castle_id,
+            TX=target_x,
+            TY=target_y,
+            HBW=-1 if feathers else horses_type,
+            PTT=1 if feathers else 0,
+            SD=slowdown,
+            G=[[key, amount] for key, amount in goods.items()],
+        )
+        return self.execute(request, timeout=timeout)
+
+    def get_market_info(self, timeout: float = 5.0) -> list[MarketCastle]:
+        """
+        List every castle's market carriages, those not on the road, and its resources.
+
+        Example:
+            for castle in client.castle.get_market_info():
+                print(castle.castle_id, castle.available_carriages, "/", castle.total_carriages)
+        """
+        return self.request(MarketInfoRequest(), MarketInfoResponse, timeout=timeout).castles
+
+    # =========================================================================
+    # Support and Transfers
     # =========================================================================
 
     def send_support(
@@ -244,6 +480,37 @@ class CastleService(BaseService):
             PTT=1 if feathers else 0,
             SD=slowdown,
             LID=commander_id,
+        )
+        return self.execute(request, timeout=timeout)
+
+    def transfer_units_to_kingdom(
+        self,
+        source_castle_id: int,
+        target_kingdom_id: Kingdom,
+        units: list[list[int]],
+        *,
+        source_kingdom_id: Kingdom = Kingdom.GREEN,
+        target_castle_id: int = -1,
+        timeout: float = 5.0,
+    ) -> bool:
+        """
+        Send units from one of your castles to another kingdom.
+
+        Args:
+            source_castle_id: The castle the units leave from, one of yours
+            target_kingdom_id: The kingdom to send them to
+            units: The units, as [wod id, amount] pairs
+            source_kingdom_id: The source castle's kingdom
+            target_castle_id: Object id of a picked target castle, -1 for none,
+                which is what the client sends
+            timeout: Timeout in seconds
+        """
+        request = KingdomUnitTransferRequest(
+            SCID=source_castle_id,
+            SKID=source_kingdom_id,
+            TKID=target_kingdom_id,
+            CID=target_castle_id,
+            A=units,
         )
         return self.execute(request, timeout=timeout)
 

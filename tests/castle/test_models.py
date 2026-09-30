@@ -1,8 +1,8 @@
 """Tests for the castle models."""
 
 from empire_core.castle.models.actions import RenameCastleRequest, RenameCastleResponse
-from empire_core.castle.models.castles import GetCastlesResponse
-from empire_core.castle.models.details import GetDetailedCastleResponse
+from empire_core.castle.models.castles import GetCastlesRequest, GetCastlesResponse, PlayerCastle
+from empire_core.castle.models.details import CastleProductionArea, DetailedCastleInfo, GetDetailedCastleResponse
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.protocol.models import parse_response
 from tests.model_helpers import gdi_location_row
@@ -87,7 +87,7 @@ GOLDEN_GCL = {
         {
             "KID": 0,
             "AI": [
-                {"AI": gdi_location_row(1, 632, 243, 16654596, 17743260, "Château Heimlin", 0), "AOT": -1, "TA": -1},
+                {"AI": gdi_location_row(1, 632, 243, 16654596, 17743260, "Château Nord", 0), "AOT": -1, "TA": -1},
                 {"AI": gdi_location_row(4, 630, 244, 16656989, 17743260, "OP1", 0), "TA": 0},
             ],
         },
@@ -101,7 +101,7 @@ class TestGoldenCastlePayloads:
         response = GetCastlesResponse.model_validate(GOLDEN_GCL)
         assert response.player_id == 17743260
         assert [(c.castle_id, c.castle_name, c.x, c.y, c.kingdom_id, c.castle_type) for c in response.castles] == [
-            (16654596, "Château Heimlin", 632, 243, 0, 1),
+            (16654596, "Château Nord", 632, 243, 0, 1),
             (16656989, "OP1", 630, 244, 0, 4),
             (16700000, "Sands", 100, 200, 2, 12),
         ]
@@ -110,7 +110,8 @@ class TestGoldenCastlePayloads:
         main, outpost = response.castles[0], response.castles[1]
         assert (main.keep_level, main.wall_level, main.gate_level, main.tower_level, main.moat_level) == (1, 1, 1, 0, 0)
         assert (main.abandon_outpost_seconds, main.no_abandon_seconds, main.open_gate_seconds) == (-1, -1, 0)
-        assert (outpost.no_abandon_seconds, outpost.abandon_outpost_seconds) == (0, -1)
+        # The client reads an absent AOT through int(), so as 0
+        assert (outpost.no_abandon_seconds, outpost.abandon_outpost_seconds) == (0, 0)
         assert outpost.occupier_id == -1
 
     def test_gcl_without_a_castle_section_is_empty(self):
@@ -200,3 +201,102 @@ def test_rename_castle_sends_the_client_keys_and_encodes_the_name():
     # C2SRenameCastleVO: CID, P, KID and AT are initialised before N
     assert list(payload) == ["CID", "P", "KID", "AT", "N"]
     assert payload["N"] == "100&percnt; &145;mine&145; now"
+
+
+# =============================================================================
+# gcl row fields 11 to 19
+# =============================================================================
+
+
+def _castle_row(area_type: int, **at: object) -> list:
+    """A 20-field castle list row; ``at`` overrides fields by index, as ``i11=...``."""
+    row: list = [area_type, 10, 20, 555, 42, 3, 2, 2, 1, 0, "Keep", 0, 0, -1, 0, -1, 0, 0, [], 0]
+    for key, value in at.items():
+        row[int(key[1:])] = value
+    return row
+
+
+class TestCastleListRowTimers:
+    def test_a_castle_row_reads_cooldowns_spy_age_outpost_type_skin_and_protection(self):
+        # InteractiveMapobjectVO.parseAreaInfo: 11 to 17 through int(), 19 on when 1
+        row = _castle_row(4, i11="120", i12=30, i13=3600, i14=2, i15=77, i17=190426, i19=1)
+        castle = PlayerCastle.from_list(row)
+        assert (castle.attack_cooldown_seconds, castle.sabotage_cooldown_seconds, castle.seconds_since_spy) == (
+            120,
+            30,
+            3600,
+        )
+        assert (castle.outpost_type, castle.capturer_id, castle.equipment_skin_id) == (2, 77, 190426)
+        assert castle.has_sabotage_protection is True
+
+    def test_a_main_castle_reads_its_occupier_from_15(self):
+        castle = PlayerCastle.from_list(_castle_row(1, i15=77))
+        assert (castle.capturer_id, castle.is_being_captured) == (77, True)
+
+    def test_protection_is_off_unless_19_is_1(self):
+        assert PlayerCastle.from_list(_castle_row(1, i19=2)).has_sabotage_protection is False
+        assert PlayerCastle.from_list(_castle_row(1)[:19]).has_sabotage_protection is False
+
+    def test_a_row_that_ends_early_reads_the_missing_timers_as_0(self):
+        castle = PlayerCastle.from_list(_castle_row(1)[:17])
+        assert (castle.equipment_skin_id, castle.has_sabotage_protection) == (0, False)
+        castle = PlayerCastle.from_list(_castle_row(1)[:11])
+        assert (castle.attack_cooldown_seconds, castle.seconds_since_spy, castle.outpost_type) == (0, 0, 0)
+
+    def test_a_capital_row_shifts_occupier_and_skin(self):
+        # CapitalMapobjectVO.parseAreaInfo: occupier 14, skin 15, no outpost type
+        row = _castle_row(3, i11=5, i12=6, i13=7, i14=88, i15=190426, i19=1)
+        capital = PlayerCastle.from_list(row)
+        assert (capital.capturer_id, capital.equipment_skin_id, capital.outpost_type) == (88, 190426, None)
+        assert (capital.attack_cooldown_seconds, capital.seconds_since_spy, capital.has_sabotage_protection) == (
+            5,
+            7,
+            True,
+        )
+
+    def test_landmarks_read_their_spy_age(self):
+        assert PlayerCastle.from_list([23, 50, 60, 888, 4242, 2, 900, "Tower"]).seconds_since_spy == 900
+        monument = PlayerCastle.from_list([26, 50, 60, 889, 4242, 3, 5, 0, 800, "Monument"])
+        assert (monument.monument_type, monument.landmark_level, monument.seconds_since_spy) == (3, 5, 800)
+        assert PlayerCastle.from_list([28, 50, 60, 890, 4242, 3, 1, 700, "Lab"]).seconds_since_spy == 700
+
+    def test_castle_info_carries_the_row_fields(self):
+        payload = {"C": [{"KID": 0, "AI": [{"AI": _castle_row(1, i11=9, i15=77, i17=5), "AOT": "12"}]}]}
+        castle = GetCastlesResponse.model_validate(payload).castles[0]
+        assert (castle.attack_cooldown_seconds, castle.occupier_id, castle.equipment_skin_id) == (9, 77, 5)
+        assert castle.abandon_outpost_seconds == 12
+
+    def test_castle_info_dumps_no_placeholder_keys(self):
+        castle = GetCastlesResponse.model_validate(GOLDEN_GCL).castles[0]
+        dumped = castle.model_dump(by_alias=True)
+        assert not [key for key in dumped if "[" in key]
+        assert {"KID", "OGT", "OGC", "AOT", "CAT", "TA"} <= set(dumped)
+
+
+class TestCastleListRequest:
+    def test_sends_the_player_id(self):
+        # C2SGetCastleListVO sends PID
+        assert GetCastlesRequest(PID=777).to_payload() == {"PID": 777}
+
+    def test_without_a_player_id_sends_nothing(self):
+        assert GetCastlesRequest().to_payload() == {}
+
+
+# =============================================================================
+# dcl / gpa
+# =============================================================================
+
+
+class TestProductionArea:
+    def test_the_faction_buff_is_read(self):
+        # AreaDataMorality.parseGPA: RFPPA as sent, a 0 to 1 balance
+        assert CastleProductionArea.model_validate({"RFPPA": 0.25}).faction_buff == 0.25
+        assert CastleProductionArea.model_validate({}).faction_buff == 0.0
+
+    def test_whole_numbers_go_through_int(self):
+        area = CastleProductionArea.model_validate({"P": "80", "R": 5.9, "GRD": None})
+        assert (area.population, area.riot, area.guards) == (80, 5, 0)
+
+    def test_dcl_flags_go_through_boolean(self):
+        info = DetailedCastleInfo.model_validate({"AID": "7", "B": 2, "WS": 0, "D": "57.5"})
+        assert (info.castle_id, info.has_barracks, info.has_siege_workshop, info.defense_value) == (7, True, False, 57)

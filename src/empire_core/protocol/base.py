@@ -165,8 +165,11 @@ class GGECommand:
     JCA = "jca"  # Jump to castle
     ARC = "arc"  # Rename castle
     RST = "rst"  # Relocate castle
-    GRC = "grc"  # Get resources
-    GPA = "gpa"  # Get production
+    GRC = "grc"  # Get a castle's resources
+    GPA = "gpa"  # Get the joined castle's production area
+    CRM = "crm"  # Send resources to a castle
+    CMI = "cmi"  # List your castles' carriages and resources
+    KUT = "kut"  # Transfer units to another kingdom
 
     # Map
     GAM = "gam"  # Get active movements
@@ -197,18 +200,21 @@ class GGECommand:
     CDS = "cds"  # Send support troops
 
     # Building
-    EBU = "ebu"  # Build (erect building)
-    EUP = "eup"  # Upgrade building
-    EMO = "emo"  # Move building
-    SBD = "sbd"  # Sell building
-    EDO = "edo"  # Destroy building
-    FCO = "fco"  # Fast complete (skip construction)
-    MSB = "msb"  # Time skip building
-    EUD = "eud"  # Upgrade wall/defense
-    RBU = "rbu"  # Repair building
-    IRA = "ira"  # Repair all
-    EBE = "ebe"  # Buy extension
-    ETC = "etc"  # Collect extension gift
+    EBU = "ebu"  # Build
+    EUP = "eup"  # Upgrade a building
+    EMO = "emo"  # Move a building
+    SBD = "sbd"  # Sell a decoration
+    EDO = "edo"  # Take a building down
+    FCO = "fco"  # Finish a construction at once
+    MSB = "msb"  # Shorten a construction with a minute skip
+    EUD = "eud"  # Upgrade the wall, gate or a tower
+    RBU = "rbu"  # Repair a building
+    IRA = "ira"  # Repair every building
+    EBE = "ebe"  # Buy a castle expansion
+    ETC = "etc"  # Open an expansion's treasure chest
+    SCL = "scl"  # Show the construction list
+    CMR = "cmr"  # Collect a mine
+    RCC = "rcc"  # Collect a resource cart
 
     # Army / Production
     BUP = "bup"  # Build units / produce
@@ -434,18 +440,6 @@ class Position(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
-class ResourceAmount(BaseModel):
-    """Resource amounts."""
-
-    wood: int = Field(alias="W", default=0)
-    stone: int = Field(alias="S", default=0)
-    food: int = Field(alias="F", default=0)
-    coins: int = Field(alias="C", default=0)
-    rubies: int = Field(alias="R", default=0)
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
 def object_or_none(value: Any) -> Any:
     """A reply block that is an object, else None: the client reads keys off it only when it is one."""
     return value if isinstance(value, (dict, BaseModel)) else None
@@ -593,7 +587,6 @@ __all__ = [
     "BaseResponse",
     # Common types
     "Position",
-    "ResourceAmount",
     "UnitCount",
     "PlayerInfo",
     # Utilities

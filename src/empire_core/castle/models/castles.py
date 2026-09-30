@@ -10,7 +10,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from pydantic import Field, ValidationError, model_validator
+from pydantic import Field, ValidationError, field_validator, model_validator
 
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, Position, enum_or_none
@@ -36,14 +36,43 @@ class _RowLayout:
     occupier: int | None = None
     levels: str | None = None
     landmark_level: int | None = None
+    cooldowns: bool = False
+    spy: int | None = None
+    outpost_type: int | None = None
+    skin: int | None = None
+    protection: bool = False
+    monument_type: int | None = None
 
 
 _INTERACTIVE_ROW = _RowLayout(
-    object_id=3, owner=4, owner_through_int=True, name=10, kingdom=16, occupier=15, levels="floored"
+    object_id=3,
+    owner=4,
+    owner_through_int=True,
+    name=10,
+    kingdom=16,
+    occupier=15,
+    levels="floored",
+    cooldowns=True,
+    spy=13,
+    outpost_type=14,
+    skin=17,
+    protection=True,
 )
 
 
-_CAPITAL_ROW = _RowLayout(object_id=3, owner=4, owner_through_int=True, name=10, kingdom=16, occupier=14, levels="raw")
+_CAPITAL_ROW = _RowLayout(
+    object_id=3,
+    owner=4,
+    owner_through_int=True,
+    name=10,
+    kingdom=16,
+    occupier=14,
+    levels="raw",
+    cooldowns=True,
+    spy=13,
+    skin=15,
+    protection=True,
+)
 
 
 # The area types a castle list can hold, each with its client parser's layout.
@@ -54,12 +83,12 @@ _ROW_LAYOUTS: dict[Any, _RowLayout] = {
     MapItemType.FACTION_CAMP: _INTERACTIVE_ROW,
     MapItemType.CAPITAL: _CAPITAL_ROW,
     MapItemType.METROPOL: _CAPITAL_ROW,
-    MapItemType.KINGS_TOWER: _RowLayout(object_id=3, owner=4, owner_through_int=True, name=7, kingdom=5),
+    MapItemType.KINGS_TOWER: _RowLayout(object_id=3, owner=4, owner_through_int=True, name=7, kingdom=5, spy=6),
     MapItemType.MONUMENT: _RowLayout(
-        object_id=3, owner=4, owner_through_int=False, name=9, kingdom=7, landmark_level=6
+        object_id=3, owner=4, owner_through_int=False, name=9, kingdom=7, landmark_level=6, spy=8, monument_type=5
     ),
     MapItemType.LABORATORY: _RowLayout(
-        object_id=3, owner=4, owner_through_int=False, name=8, kingdom=6, landmark_level=5
+        object_id=3, owner=4, owner_through_int=False, name=8, kingdom=6, landmark_level=5, spy=7
     ),
     MapItemType.FACTION_CAPITAL: _RowLayout(object_id=None, owner=3, owner_through_int=False, name=None, kingdom=None),
 }
@@ -73,16 +102,23 @@ class PlayerCastle(BasePayload):
     - Castles, outposts, kingdom castles and faction camps
       (``InteractiveMapobjectVO.parseAreaInfo``): object id 3, owner 4, keep,
       wall, gate, tower and moat 5 to 9 through ``int()`` with keep, wall and
-      gate at least 1, name 10, occupier 15, kingdom 16.
-    - Capitals and metropolises: as above, but the levels as sent and the
-      occupier at 14.
-    - Kings towers: object id 3, owner 4, kingdom 5, name 7.
-    - Monuments: object id 3, owner 4, level 6, kingdom 7, name 9.
-    - Laboratories: object id 3, owner 4, level 5, kingdom 6, name 8.
+      gate at least 1, name 10, attack cooldown 11, sabotage cooldown 12,
+      seconds since the last spy 13, outpost type 14, occupier 15, kingdom 16,
+      equipment skin 17 and temporary sabotage protection 19 (on when it is 1);
+      11 to 19 through ``int()``, so one the row lacks reads as 0.
+    - Capitals and metropolises: as above, but the levels as sent, 13 as sent,
+      the occupier at 14 and the skin at 15, both as sent, and no outpost type.
+    - Kings towers: object id 3, owner 4, kingdom 5, seconds since the last spy 6, name 7.
+    - Monuments: object id 3, owner 4, monument type 5, level 6, kingdom 7,
+      seconds since the last spy 8, name 9.
+    - Laboratories: object id 3, owner 4, level 5, kingdom 6, seconds since
+      the last spy 7, name 8.
     - Faction capitals: owner 3, and no object id, name or kingdom.
 
     The client stores the row's kingdom as sent; one that is not a Kingdom
-    reads as the kingdom the row is listed under.
+    reads as the kingdom the row is listed under. An occupier the row lacks
+    reads as -1 here, where the client's ``int()`` would read 0: a
+    deliberate leniency, so a short row does not look occupied.
 
     Client: ``WorldmapObjectFactory.parseWorldMapArea`` (bundle line 5343),
     ``InteractiveMapobjectVO.parseAreaInfo`` (bundle line 3631),
@@ -112,6 +148,21 @@ class PlayerCastle(BasePayload):
     landmark_level: int | None = Field(
         default=None, description="A monument's or laboratory's level; None for any other type"
     )
+    monument_type: int | None = Field(default=None, description="A monument's type; None for any other type")
+    attack_cooldown_seconds: int | None = Field(
+        default=None, description="Seconds until it can be attacked again; None for a type with none"
+    )
+    sabotage_cooldown_seconds: int | None = Field(
+        default=None, description="Seconds until it can be sabotaged again; None for a type with none"
+    )
+    seconds_since_spy: int | None = Field(
+        default=None, description="Seconds since it was last spied on; None for a type with none"
+    )
+    outpost_type: int | None = Field(default=None, description="The outpost type; None for a type with none")
+    equipment_skin_id: int | None = Field(
+        default=None, description="Unique id of the castle skin equipped; None for a type with none"
+    )
+    has_sabotage_protection: bool = Field(default=False, description="Whether a temporary sabotage protection is on")
 
     @property
     def is_being_captured(self) -> bool:
@@ -144,6 +195,10 @@ class PlayerCastle(BasePayload):
                 raise ValueError(f"Row too short for area type {area_type}: {data!r}")
             return data[index]
 
+        def optional(index: int | None) -> Any:
+            return data[index] if index is not None and len(data) > index else None
+
+        through_int = layout.levels == "floored"
         row_kingdom = field(layout.kingdom) if layout.kingdom is not None and len(data) > layout.kingdom else None
         read_kingdom = (
             enum_or_none(Kingdom, row_kingdom)
@@ -161,10 +216,25 @@ class PlayerCastle(BasePayload):
             "name": field(layout.name),
             "landmark_level": field(layout.landmark_level),
         }
+        if layout.monument_type is not None:
+            values["monument_type"] = js_int(optional(layout.monument_type))
         if layout.occupier is not None:
             occupier = data[layout.occupier] if len(data) > layout.occupier else -1
-            values["capturer_id"] = js_int(occupier) if layout.levels == "floored" else occupier
-        if layout.levels == "floored":
+            values["capturer_id"] = js_int(occupier) if through_int else occupier
+        if layout.cooldowns:
+            values["attack_cooldown_seconds"] = js_int(optional(11))
+            values["sabotage_cooldown_seconds"] = js_int(optional(12))
+        if layout.spy is not None:
+            spy = optional(layout.spy)
+            values["seconds_since_spy"] = js_int(spy) if through_int else spy
+        if layout.outpost_type is not None:
+            values["outpost_type"] = js_int(optional(layout.outpost_type))
+        if layout.skin is not None:
+            skin = optional(layout.skin)
+            values["equipment_skin_id"] = js_int(skin) if through_int else skin
+        if layout.protection:
+            values["has_sabotage_protection"] = js_int(data[19] if len(data) > 19 else 0) == 1
+        if through_int:
             keep, wall, gate, tower, moat = (js_int(field(i)) for i in range(5, 10))
             values.update(
                 keep_level=max(keep, 1),
@@ -199,13 +269,24 @@ def _kingdom_entries(section: Any) -> list[tuple[Any, dict[str, Any]]]:
 
 class GetCastlesRequest(BaseRequest):
     """
-    Get list of player's castles.
+    Get a player's castle list.
 
     Command: gcl
-    Payload: {} (the game client sends {"PID": own_player_id})
+    Payload: {"PID": player_id}
+
+    The client always sends the logged-in player's id. Without one the
+    payload is ``{}``, which the server answers with your castle list.
+
+    Client: ``C2SGetCastleListVO`` (bundle line 60768); its
+    ``MY_CASTLELIST`` is -1, but no caller sends it
     """
 
     command = "gcl"
+
+    player_id: int | None = Field(alias="PID", default=None, description="Your player id; None for none")
+
+
+_ENTRY_KEYS = ("OGT", "OGC", "AOT", "CAT", "TA")
 
 
 class CastleInfo(BasePayload):
@@ -214,48 +295,70 @@ class CastleInfo(BasePayload):
 
     Entry: {"AI": [row], "OGT": .., "OGC": .., "AOT": .., "CAT": .., "TA": ..}
 
-    The row is read by its area type's layout (see :class:`PlayerCastle`); an
-    ``AI[n]`` alias names the field a castle's row keeps the value in. The
-    other aliases are the entry's keys, and ``KID`` is the kingdom block the
-    entry is listed under. A faction capital's row carries no object id, so
-    it has no CastleInfo.
+    The row's values are read by its area type's layout, the field positions
+    :class:`PlayerCastle` lists. ``OGT``, ``OGC``, ``AOT``, ``CAT`` and ``TA``
+    are the entry's keys, read through ``int()`` (``OGT`` and ``OGC`` only when
+    they are not 0), so one the entry lacks reads as 0. ``KID`` is the kingdom
+    block the entry is listed under. A faction capital's row carries no object
+    id, so it has no CastleInfo.
 
     Client: ``CastleListVO.parseCastleList`` (bundle line 13698), which reads
-    the row with ``WorldmapObjectFactory.parseWorldMapArea`` and the entry's
-    ``OGT``, ``OGC``, ``AOT``, ``CAT`` and ``TA`` through ``int()``
+    the row with ``WorldmapObjectFactory.parseWorldMapArea``
     """
 
-    castle_id: int = Field(alias="AI[3]", default=0, description="The castle's object id")
-    castle_name: str = Field(alias="AI[10]", default="", description="The castle's name")
-    x: int = Field(alias="AI[1]", default=0, description="Map x")
-    y: int = Field(alias="AI[2]", default=0, description="Map y")
+    castle_id: int = Field(default=0, description="The castle's object id")
+    castle_name: str = Field(default="", description="The castle's name")
+    x: int = Field(default=0, description="Map x")
+    y: int = Field(default=0, description="Map y")
     kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom it is listed under")
-    castle_type: MapItemType = Field(alias="AI[0]", default=MapItemType.EMPTY, description="The castle's area type")
-    owner_id: int = Field(alias="AI[4]", default=0, description="Player id of the owner")
-    occupier_id: int = Field(
-        alias="AI[14|15]",
-        default=-1,
-        description="Player id of the occupier, -1 when there is none",
-    )
-    keep_level: int | None = Field(alias="AI[5]", default=None, description="Keep level; None for a type with none")
-    wall_level: int | None = Field(alias="AI[6]", default=None, description="Wall level; None for a type with none")
-    gate_level: int | None = Field(alias="AI[7]", default=None, description="Gate level; None for a type with none")
-    tower_level: int | None = Field(alias="AI[8]", default=None, description="Tower level; None for a type with none")
-    moat_level: int | None = Field(alias="AI[9]", default=None, description="Moat level; None for a type with none")
+    castle_type: MapItemType = Field(default=MapItemType.EMPTY, description="The castle's area type")
+    owner_id: int = Field(default=0, description="Player id of the owner")
+    occupier_id: int = Field(default=-1, description="Player id of the occupier, -1 when there is none")
+    keep_level: int | None = Field(default=None, description="Keep level; None for a type with none")
+    wall_level: int | None = Field(default=None, description="Wall level; None for a type with none")
+    gate_level: int | None = Field(default=None, description="Gate level; None for a type with none")
+    tower_level: int | None = Field(default=None, description="Tower level; None for a type with none")
+    moat_level: int | None = Field(default=None, description="Moat level; None for a type with none")
     landmark_level: int | None = Field(
         default=None, description="A monument's or laboratory's level; None for any other type"
     )
+    monument_type: int | None = Field(default=None, description="A monument's type; None for any other type")
+    attack_cooldown_seconds: int | None = Field(
+        default=None, description="Seconds until it can be attacked again; None for a type with none"
+    )
+    sabotage_cooldown_seconds: int | None = Field(
+        default=None, description="Seconds until it can be sabotaged again; None for a type with none"
+    )
+    seconds_since_spy: int | None = Field(
+        default=None, description="Seconds since it was last spied on; None for a type with none"
+    )
+    outpost_type: int | None = Field(default=None, description="The outpost type; None for a type with none")
+    equipment_skin_id: int | None = Field(
+        default=None, description="Unique id of the castle skin equipped; None for a type with none"
+    )
+    has_sabotage_protection: bool = Field(default=False, description="Whether a temporary sabotage protection is on")
     open_gate_seconds: int = Field(alias="OGT", default=0, description="Seconds the gate stays open")
     open_gate_counter: int = Field(alias="OGC", default=0, description="How often the gate has been opened")
     abandon_outpost_seconds: int = Field(
-        alias="AOT", default=-1, description="Seconds until the outpost is abandoned, -1 when it is not"
+        alias="AOT", default=0, description="Seconds until the outpost is abandoned; not positive when it is not"
     )
     cancel_abandon_seconds: int = Field(
-        alias="CAT", default=-1, description="Seconds left to cancel abandoning the outpost"
+        alias="CAT", default=0, description="Seconds left to cancel abandoning the outpost"
     )
     no_abandon_seconds: int = Field(
-        alias="TA", default=-1, description="Seconds before the outpost may be abandoned again"
+        alias="TA", default=0, description="Seconds before the outpost may be abandoned again"
     )
+
+    _entry_ints = field_validator(
+        *(
+            "open_gate_seconds",
+            "open_gate_counter",
+            "abandon_outpost_seconds",
+            "cancel_abandon_seconds",
+            "no_abandon_seconds",
+        ),
+        mode="before",
+    )(js_int)
 
     @property
     def is_occupied(self) -> bool:
@@ -296,8 +399,15 @@ class CastleInfo(BasePayload):
             "tower_level": parsed.tower_level,
             "moat_level": parsed.moat_level,
             "landmark_level": parsed.landmark_level,
+            "monument_type": parsed.monument_type,
+            "attack_cooldown_seconds": parsed.attack_cooldown_seconds,
+            "sabotage_cooldown_seconds": parsed.sabotage_cooldown_seconds,
+            "seconds_since_spy": parsed.seconds_since_spy,
+            "outpost_type": parsed.outpost_type,
+            "equipment_skin_id": parsed.equipment_skin_id,
+            "has_sabotage_protection": parsed.has_sabotage_protection,
         }
-        fields.update({key: entry[key] for key in ("OGT", "OGC", "AOT", "CAT", "TA") if key in entry})
+        fields.update({key: entry[key] for key in _ENTRY_KEYS if key in entry})
         return cls.model_validate(fields)
 
 

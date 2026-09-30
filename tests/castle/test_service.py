@@ -9,7 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from empire_core.enums import Kingdom
-from tests.service_helpers import GOLDEN_GCL, conn, make_client, xt_packet
+from tests.service_helpers import GOLDEN_GCL, StubPlayer, StubState, conn, make_client, xt_packet
 
 GOLDEN_DCL: dict[str, Any] = {
     "PID": 1001,
@@ -79,31 +79,37 @@ class TestCastleQueries:
         client = make_client({"dcl": xt_packet("dcl", {})})
         assert client.castle.get_details(12345) is None
 
-    def test_resources_are_parsed(self):
-        payload = {"R": {"W": 1, "S": 2, "F": 3, "C": 4, "R": 5}, "SC": {"W": 10}}
+    def test_gcl_sends_the_player_id_once_known(self):
+        player = StubPlayer()
+        player.id = 777  # type: ignore[attr-defined]
+        client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL)}, state=StubState(local_player=player))
+
+        client.castle.get_all()
+
+        assert conn(client).request_payloads == [("gcl", {"PID": 777})]
+
+    def test_resources_are_the_flat_grc_block(self):
+        # CastleResourcesVO.parseGRC: AID, KID and the 11 resources at the top level
+        payload = {"AID": 12345, "KID": 2, "W": 1.9, "S": 2, "F": 3, "C": 4, "O": 5, "HONEY": "6", "BEEF": 7}
         client = make_client({"grc": xt_packet("grc", payload)})
 
-        resources = client.castle.get_resources(12345)
+        resources = client.castle.get_resources(12345, kingdom_id=Kingdom.ICE)
 
-        assert resources is not None
-        assert (resources.wood, resources.stone, resources.food, resources.coins, resources.rubies) == (1, 2, 3, 4, 5)
+        assert conn(client).request_payloads == [("grc", {"AID": 12345, "KID": 2})]
+        assert (resources.castle_id, resources.kingdom_id) == (12345, 2)
+        assert (resources.wood, resources.stone, resources.food, resources.coal, resources.oil) == (1, 2, 3, 4, 5)
+        assert (resources.honey, resources.beef, resources.mead) == (6, 7, 0)
 
-    def test_missing_resources_are_none(self):
-        client = make_client({"grc": xt_packet("grc", {})})
-        assert client.castle.get_resources(12345) is None
-
-    def test_production_returns_both_rates(self):
-        payload = {"P": {"W": 1200.5, "S": 900.0}, "CO": {"F": 300.25}}
+    def test_production_is_the_joined_castles_gpa_block(self):
+        payload = {"P": 80, "DW": 2239, "MRW": 7000, "WM": 110.0, "RFPPA": 0.5, "RS1": 328.0}
         client = make_client({"gpa": xt_packet("gpa", payload)})
 
-        production, consumption = client.castle.get_production(12345)
+        area = client.castle.get_production()
 
-        assert production is not None and production.wood == 1200.5
-        assert consumption is not None and consumption.food == 300.25
-
-    def test_production_without_rates_is_a_none_pair(self):
-        client = make_client({"gpa": xt_packet("gpa", {})})
-        assert client.castle.get_production(12345) == (None, None)
+        # C2SGetCastleProductionDataVO sends no fields
+        assert conn(client).request_payloads == [("gpa", {})]
+        assert (area.population, area.production.wood, area.storage_capacity.wood) == (80, 223.9, 7000)
+        assert (area.production_bonus_percent.wood, area.faction_buff, area.barracks_speed) == (110.0, 0.5, 328.0)
 
 
 class TestCastleActions:

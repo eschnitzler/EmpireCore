@@ -1,20 +1,24 @@
-"""Castle actions and castle reads.
+"""Castle actions.
 
 Commands:
-- jca: Jump to / select castle
+- jca: Join a castle (answered as jaa)
 - arc: Rename castle
 - rst: Relocate castle
-- grc: Get resources
-- gpa: Get production rates
 """
 
 from __future__ import annotations
 
-from pydantic import ConfigDict, Field, field_serializer
+from typing import Any
+
+from pydantic import Field, field_serializer, field_validator
 
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.protocol.base import BaseRequest, BaseResponse, ResourceAmount
+from empire_core.protocol.base import BaseRequest, BaseResponse, enum_or_none, object_or_none
 from empire_core.protocol.text import encode_json_text
+
+from .details import CastleProductionArea
+from .objects import CastleBuildings
+from .resources import CastleResources
 
 # =============================================================================
 # JCA - Jump to Castle / Select Castle
@@ -48,12 +52,45 @@ class SelectCastleRequest(BaseRequest):
 
 class SelectCastleResponse(BaseResponse):
     """
-    Response to castle selection.
+    The joined castle's state, the ``jaa`` the server answers a join with.
 
     Command: jaa
+    Payload: {"KID": kingdom_id, "T": area_type, "gca": {...}, "grc": {...}, "gpa": {...}, ...}
+
+    The other blocks (``csl``, ``gab``, ``gsm``, ``spl0`` to ``spl3``,
+    ``gui``, ``uap``, ``hin``, ``sin``, ``rci``, ``abpi``, ``crai``) are kept as sent.
+
+    Client: ``JAACommand.executeCommand`` (bundle line 130190),
+    ``AreaDataUpdater.parseJAA`` (bundle line 131496)
     """
 
     command = "jaa"
+
+    kingdom_id: int = Field(alias="KID", default=0, description="The joined castle's kingdom")
+    area_type: MapItemType | None = Field(
+        alias="T", default=None, description="The joined area's type; None for one MapItemType lacks"
+    )
+    buildings: CastleBuildings | None = Field(
+        alias="gca", default=None, description="The castle's buildings; None when the reply has none"
+    )
+    resources: CastleResources | None = Field(
+        alias="grc", default=None, description="The castle's resources; None when the reply has none"
+    )
+    production_area: CastleProductionArea | None = Field(
+        alias="gpa", default=None, description="The castle's production area; None when the reply has none"
+    )
+
+    @field_validator("area_type", mode="before")
+    @classmethod
+    def _area_type(cls, value: Any) -> Any:
+        if isinstance(value, int) and not isinstance(value, bool):
+            return enum_or_none(MapItemType, value)
+        return None
+
+    @field_validator("buildings", "resources", "production_area", mode="before")
+    @classmethod
+    def _block(cls, value: Any) -> Any:
+        return object_or_none(value)
 
 
 # =============================================================================
@@ -144,91 +181,6 @@ class RelocateCastleResponse(BaseResponse):
     command = "rst"
 
 
-# =============================================================================
-# GRC - Get Resources
-# =============================================================================
-
-
-class GetResourcesRequest(BaseRequest):
-    """
-    Get current resources for a castle.
-
-    Command: grc
-    Payload: {"CID": castle_id}
-    """
-
-    command = "grc"
-
-    castle_id: int = Field(
-        alias="CID",
-        description=(
-            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
-            "client.state.get_castles()"
-        ),
-    )
-
-
-class GetResourcesResponse(BaseResponse):
-    """
-    Response containing castle resources.
-
-    Command: grc
-    """
-
-    command = "grc"
-
-    resources: ResourceAmount | None = Field(alias="R", default=None)
-    storage_capacity: ResourceAmount | None = Field(alias="SC", default=None)
-
-
-# =============================================================================
-# GPA - Get Production
-# =============================================================================
-
-
-class GetProductionRequest(BaseRequest):
-    """
-    Get production rates for a castle.
-
-    Command: gpa
-    Payload: {"CID": castle_id}
-    """
-
-    command = "gpa"
-
-    castle_id: int = Field(
-        alias="CID",
-        description=(
-            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
-            "client.state.get_castles()"
-        ),
-    )
-
-
-class ProductionRates(BaseResponse):
-    """Production rates per hour."""
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-    wood: float = Field(alias="W", default=0.0)
-    stone: float = Field(alias="S", default=0.0)
-    food: float = Field(alias="F", default=0.0)
-    coins: float = Field(alias="C", default=0.0)
-
-
-class GetProductionResponse(BaseResponse):
-    """
-    Response containing production rates.
-
-    Command: gpa
-    """
-
-    command = "gpa"
-
-    production: ProductionRates | None = Field(alias="P", default=None)
-    consumption: ProductionRates | None = Field(alias="CO", default=None)
-
-
 __all__ = [
     "SelectCastleRequest",
     "SelectCastleResponse",
@@ -236,9 +188,4 @@ __all__ = [
     "RenameCastleResponse",
     "RelocateCastleRequest",
     "RelocateCastleResponse",
-    "GetResourcesRequest",
-    "GetResourcesResponse",
-    "GetProductionRequest",
-    "GetProductionResponse",
-    "ProductionRates",
 ]

@@ -45,9 +45,9 @@ def main() -> int:
             )
 
         if castles:
-            resources = client.castle.get_resources(castle_id=castles[0].castle_id)
-            if resources is not None:
-                print(f"\nResources in {castles[0].castle_name!r}: {resources}")
+            first = castles[0]
+            resources = client.castle.get_resources(castle_id=first.castle_id, kingdom_id=first.kingdom_id)
+            print(f"\nResources in {first.castle_name!r}: {resources}")
 
         movements = client.movements.get_movements()
         print(f"\n{len(movements)} movement(s) in flight:")

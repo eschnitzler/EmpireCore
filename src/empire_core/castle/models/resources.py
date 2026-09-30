@@ -1,0 +1,131 @@
+"""A castle's resources and production.
+
+Commands:
+- grc: Get a castle's resources
+- gpa: Get the joined castle's production area
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from pydantic import Field, field_validator
+
+from empire_core.enums import Kingdom
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
+from empire_core.protocol.js import js_int
+
+from .details import _RESOURCE_KEYS, CastleProductionArea
+
+
+class CastleResources(BasePayload):
+    """
+    A castle's resources, the ``grc`` block.
+
+    Client: ``CastleResourcesVO.parseGRC`` (bundle line 131537), which reads
+    ``AID`` and ``KID`` through ``int()``; ``AreaDataStorageItem.parseGRC``
+    (bundle line 131382) reads each amount through ``int()``
+    """
+
+    castle_id: int = Field(alias="AID", default=0, description="The castle's object id")
+    kingdom_id: int = Field(alias="KID", default=0, description="The castle's kingdom")
+    wood: int = Field(alias="W", default=0, description="Wood in stock")
+    stone: int = Field(alias="S", default=0, description="Stone in stock")
+    food: int = Field(alias="F", default=0, description="Food in stock")
+    coal: int = Field(alias="C", default=0, description="Coal in stock")
+    oil: int = Field(alias="O", default=0, description="Oil in stock")
+    glass: int = Field(alias="G", default=0, description="Glass in stock")
+    iron: int = Field(alias="I", default=0, description="Iron in stock")
+    aquamarine: int = Field(alias="A", default=0, description="Aquamarine in stock")
+    honey: int = Field(alias="HONEY", default=0, description="Honey in stock")
+    mead: int = Field(alias="MEAD", default=0, description="Mead in stock")
+    beef: int = Field(alias="BEEF", default=0, description="Beef in stock")
+
+    @field_validator("castle_id", "kingdom_id", *_RESOURCE_KEYS, mode="before")
+    @classmethod
+    def _int(cls, value: Any) -> int:
+        return js_int(value)
+
+
+# =============================================================================
+# GRC - Get Castle Resources
+# =============================================================================
+
+
+class GetResourcesRequest(BaseRequest):
+    """
+    Get one of your castles' resources.
+
+    Command: grc
+    Payload: {"AID": castle_id, "KID": kingdom_id}
+
+    Client: ``C2SGetCastleResourcesVO`` (bundle line 19925), sent for a
+    castle picked in the resource transfer dialog (bundle line 38076)
+    """
+
+    command = "grc"
+
+    castle_id: int = Field(
+        alias="AID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
+
+
+class GetResourcesResponse(CastleResources, BaseResponse):
+    """
+    A castle's resources.
+
+    Command: grc
+    Payload: {"AID": castle_id, "KID": kingdom_id, "W": .., "S": .., "F": .., ...}
+
+    Client: ``GRCCommand.exec`` (bundle line 123063), which hands the reply to
+    ``AreaDataUpdater.parseGRC`` (bundle line 131501)
+    """
+
+    command = "grc"
+
+
+# =============================================================================
+# GPA - Get Production Area
+# =============================================================================
+
+
+class GetProductionRequest(BaseRequest):
+    """
+    Get the joined castle's production area.
+
+    Command: gpa
+    Payload: {}
+
+    The server answers for the castle joined with ``jca``.
+
+    Client: ``C2SGetCastleProductionDataVO`` (bundle line 25082)
+    """
+
+    command = "gpa"
+
+
+class GetProductionResponse(CastleProductionArea, BaseResponse):
+    """
+    The joined castle's production area.
+
+    Command: gpa
+
+    Client: ``GPACommand.exec`` (bundle line 123031), which hands the reply to
+    ``AreaDataUpdater.parseGPA`` (bundle line 131506)
+    """
+
+    command = "gpa"
+
+
+__all__ = [
+    "CastleResources",
+    "GetResourcesRequest",
+    "GetResourcesResponse",
+    "GetProductionRequest",
+    "GetProductionResponse",
+]

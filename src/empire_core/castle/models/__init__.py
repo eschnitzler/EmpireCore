@@ -1,11 +1,6 @@
 """Castles: the castle list, castle details, buildings and castle actions: protocol models."""
 
 from .actions import (
-    GetProductionRequest,
-    GetProductionResponse,
-    GetResourcesRequest,
-    GetResourcesResponse,
-    ProductionRates,
     RelocateCastleRequest,
     RelocateCastleResponse,
     RenameCastleRequest,
@@ -40,6 +35,16 @@ from .buildings import (
     UpgradeWallResponse,
 )
 from .castles import CastleInfo, GetCastlesRequest, GetCastlesResponse, PlayerCastle
+from .collect import (
+    CollectMineResourcesRequest,
+    CollectMineResourcesResponse,
+    CollectResourceCartRequest,
+    CollectResourceCartResponse,
+    MineStatus,
+    MineStatusList,
+    ResourceCart,
+    ResourceCartInfo,
+)
 from .details import (
     CastleProductionArea,
     DetailedCastleInfo,
@@ -50,7 +55,32 @@ from .details import (
     SafeAmount,
     StorageCapacity,
 )
+from .market import (
+    CreateMarketMovementRequest,
+    CreateMarketMovementResponse,
+    MarketCastle,
+    MarketInfoRequest,
+    MarketInfoResponse,
+)
+from .objects import (
+    FREE_SLOT,
+    LOCKED_SLOT,
+    BuildingRow,
+    CastleBuildings,
+    ConstructionList,
+    FieldEfficiency,
+    ShowConstructionListRequest,
+    ShowConstructionListResponse,
+)
+from .resources import (
+    CastleResources,
+    GetProductionRequest,
+    GetProductionResponse,
+    GetResourcesRequest,
+    GetResourcesResponse,
+)
 from .support import SendSupportRequest, SendSupportResponse
+from .transfers import KingdomUnitTransferRequest, KingdomUnitTransferResponse
 
 __all__ = [
     "SelectCastleRequest",
@@ -59,11 +89,19 @@ __all__ = [
     "RenameCastleResponse",
     "RelocateCastleRequest",
     "RelocateCastleResponse",
+    "CastleResources",
     "GetResourcesRequest",
     "GetResourcesResponse",
     "GetProductionRequest",
     "GetProductionResponse",
-    "ProductionRates",
+    "FREE_SLOT",
+    "LOCKED_SLOT",
+    "BuildingRow",
+    "CastleBuildings",
+    "ConstructionList",
+    "FieldEfficiency",
+    "ShowConstructionListRequest",
+    "ShowConstructionListResponse",
     "BuildRequest",
     "BuildResponse",
     "UpgradeBuildingRequest",
@@ -88,6 +126,21 @@ __all__ = [
     "BuyExtensionResponse",
     "CollectExtensionGiftRequest",
     "CollectExtensionGiftResponse",
+    "CollectMineResourcesRequest",
+    "CollectMineResourcesResponse",
+    "CollectResourceCartRequest",
+    "CollectResourceCartResponse",
+    "MineStatus",
+    "MineStatusList",
+    "ResourceCart",
+    "ResourceCartInfo",
+    "CreateMarketMovementRequest",
+    "CreateMarketMovementResponse",
+    "MarketCastle",
+    "MarketInfoRequest",
+    "MarketInfoResponse",
+    "KingdomUnitTransferRequest",
+    "KingdomUnitTransferResponse",
     "GetCastlesRequest",
     "GetCastlesResponse",
     "PlayerCastle",
