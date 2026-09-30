@@ -3,6 +3,7 @@
 import logging
 import math
 import threading
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -11,6 +12,11 @@ from empire_core.movements.tracked import Movement
 from empire_core.state.models import Castle, Player
 
 logger = logging.getLogger(__name__)
+
+# Callbacks are never dropped, so a slow one lets the queue grow without bound;
+# past this depth a warning says so, at most once per interval.
+CALLBACK_QUEUE_WARN_DEPTH = 1000
+CALLBACK_QUEUE_WARN_INTERVAL = 60.0
 
 # Arrival/recall listeners may take just the movement id (the original
 # signature) or the id plus the Movement that was removed from state. Which
@@ -38,6 +44,8 @@ class StateBase:
         # receive thread. Created lazily so it survives disconnect/reconnect.
         self._callback_executor: ThreadPoolExecutor | None = None
         self._executor_lock = threading.Lock()
+        self._callbacks_pending = 0
+        self._callback_queue_warn_at = 0.0
 
         # Attack movement id -> when it ends (wall clock), for every attack
         # on_incoming_attack announced. Kept across reset() so a reconnect does
@@ -103,6 +111,12 @@ class StateBase:
                 self._callback_executor.shutdown(wait=False)
                 self._callback_executor = None
 
+    @property
+    def callback_queue_depth(self) -> int:
+        """Callbacks queued on the callback thread and not finished yet, the running one included."""
+        with self._executor_lock:
+            return self._callbacks_pending
+
     def _dispatch_callback(self, callback: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         """Queue a callback on the callback thread, behind every callback queued before it."""
 
@@ -111,14 +125,29 @@ class StateBase:
                 callback(*args, **kwargs)
             except Exception:
                 logger.exception("Callback error")
+            finally:
+                with self._executor_lock:
+                    self._callbacks_pending -= 1
 
         with self._executor_lock:
             if self._callback_executor is None:
                 self._callback_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="gge_callback")
             executor = self._callback_executor
+            self._callbacks_pending += 1
+            depth = self._callbacks_pending
+            warn = depth > CALLBACK_QUEUE_WARN_DEPTH and time.monotonic() >= self._callback_queue_warn_at
+            if warn:
+                self._callback_queue_warn_at = time.monotonic() + CALLBACK_QUEUE_WARN_INTERVAL
+        if warn:
+            logger.warning(
+                f"{depth} state callbacks are waiting on the callback thread: a callback is slower than "
+                "the packets that queue them; none is dropped, so memory and delivery lag grow"
+            )
         try:
             executor.submit(wrapped)
         except RuntimeError:
+            with self._executor_lock:
+                self._callbacks_pending -= 1
             # Executor shut down concurrently; drop the callback but say so.
             logger.warning("Callback dropped: executor is shut down")
 

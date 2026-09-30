@@ -277,6 +277,18 @@ class TestDegradedFrameWarnings:
         assert len(warnings) == 2
         assert "1 further" in warnings[-1].getMessage()
 
+    def test_the_total_keeps_counting_across_warnings(self):
+        from empire_core.network.connection import Connection
+
+        before = packet_module.degraded_frame_counts().total
+        Packet.from_bytes(b"junk one")
+        Packet.from_bytes(b"junk two")
+        assert packet_module.degraded_frame_counts() == (before + 2, 1)
+        packet_module._degraded_frame_warn_at = 0.0
+        Packet.from_bytes(b"junk three")
+        assert packet_module.degraded_frame_counts() == (before + 3, 0)
+        assert Connection("wss://example.invalid/").degraded_frames.total == before + 3
+
     def test_malformed_xt_json_payload_is_logged_at_debug(self, caplog):
         with caplog.at_level(logging.DEBUG, logger="empire_core.protocol.packet"):
             packet = Packet.from_bytes(b"%xt%gam%1%0%{broken%")

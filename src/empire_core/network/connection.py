@@ -19,7 +19,7 @@ from empire_core.exceptions import ConnectionClosedError, EmpireTimeoutError, Ne
 from empire_core.network.framing import FrameBuffer
 from empire_core.protocol.base import NO_ROOM, build_command
 from empire_core.protocol.errors import GGEError
-from empire_core.protocol.packet import Packet
+from empire_core.protocol.packet import DegradedFrameCounts, Packet, degraded_frame_counts
 
 logger = logging.getLogger(__name__)
 
@@ -565,6 +565,15 @@ class Connection:
                 callback()
             except Exception:
                 logger.exception("Error in disconnect callback")
+
+    @property
+    def degraded_frames(self) -> DegradedFrameCounts:
+        """Inbound frames that degraded to a raw wrapper, which match no waiter and are dropped.
+
+        Counted for the whole process, not for this connection: frames are read
+        without knowing which connection they came in on.
+        """
+        return degraded_frame_counts()
 
     @property
     def generation(self) -> int:

@@ -1046,3 +1046,28 @@ class TestCallbackOrdering:
         assert wait_for(lambda: len(threads) == 2)
         assert len(set(threads)) == 1
         assert threads[0] != threading.current_thread().name
+
+
+class TestCallbackQueueDepth:
+    def test_depth_counts_queued_callbacks_and_warns_past_the_limit_without_dropping(self, state, monkeypatch, caplog):
+        import empire_core.state.base as base_module
+
+        monkeypatch.setattr(base_module, "CALLBACK_QUEUE_WARN_DEPTH", 3)
+        gate = threading.Event()
+        removed: list[int] = []
+
+        def slow(mid):
+            gate.wait(5)
+            removed.append(mid)
+
+        state.on_movement_removed(slow)
+        assert state.callback_queue_depth == 0
+        with caplog.at_level(logging.WARNING, logger="empire_core.state.base"):
+            for mid in range(700, 706):
+                state.update_from_packet("mrm", {"MID": mid})
+        assert state.callback_queue_depth == 6
+        warnings = [r for r in caplog.records if "callbacks are waiting" in r.getMessage()]
+        assert len(warnings) == 1, "warning not raised once past the limit"
+        gate.set()
+        assert wait_for(lambda: removed == list(range(700, 706)))
+        assert wait_for(lambda: state.callback_queue_depth == 0)

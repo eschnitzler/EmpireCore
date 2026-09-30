@@ -6,7 +6,7 @@ import re
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 from .base import NO_ROOM, build_command, json_text
 
@@ -37,6 +37,21 @@ DEGRADED_FRAME_WARN_INTERVAL = 60.0
 
 _degraded_frame_count = 0
 _degraded_frame_warn_at = 0.0
+_degraded_frame_total = 0
+
+
+class DegradedFrameCounts(NamedTuple):
+    """Inbound frames that degraded to a raw wrapper, counted for the whole process."""
+
+    total: int
+    """Every one since the process started."""
+    suppressed: int
+    """Those since the last warning, which no warning has reported yet."""
+
+
+def degraded_frame_counts() -> DegradedFrameCounts:
+    """How many inbound frames degraded to a raw wrapper (see :class:`DegradedFrameCounts`)."""
+    return DegradedFrameCounts(_degraded_frame_total, _degraded_frame_count)
 
 # Credential shapes to mask before any part of a frame is logged - packet.py
 # must never log raw credentials. Mirrors _SECRET_PATTERNS in
@@ -64,8 +79,9 @@ def _redacted_prefix(frame: str) -> str:
 
 def _warn_degraded_frame(reason: str, frame: str) -> None:
     """Report a non-empty frame degrading to a raw wrapper, rate-limited."""
-    global _degraded_frame_count, _degraded_frame_warn_at
+    global _degraded_frame_count, _degraded_frame_warn_at, _degraded_frame_total
     _degraded_frame_count += 1
+    _degraded_frame_total += 1
     now = time.time()
     if now < _degraded_frame_warn_at:
         logger.debug(f"Frame degraded to raw wrapper ({reason}; warning rate-limited): {_redacted_prefix(frame)}")
