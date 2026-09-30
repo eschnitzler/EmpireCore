@@ -224,8 +224,21 @@ def test_gam_sends_no_castle():
     assert GetMovementsRequest().to_payload() == {}
 
 
-# GOOD_MOVEMENT turned back, as an mcm reply's A
-RECALLED_MOVEMENT: dict[str, Any] = {**GOOD_MOVEMENT, "M": {**GOOD_MOVEMENT["M"], "PT": 0, "TT": 10, "D": 1}}
+# GOOD_MOVEMENT turned back, shaped like a live mcm reply's A: the server swaps the
+# target and source areas, sets T to 2 and D to 1, and counts PT/TT for the way home
+RECALLED_MOVEMENT: dict[str, Any] = {
+    **GOOD_MOVEMENT,
+    "M": {
+        **GOOD_MOVEMENT["M"],
+        "PT": 75,
+        "TT": 129,
+        "D": 1,
+        "T": 2,
+        "TID": GOOD_MOVEMENT["M"]["OID"],
+        "TA": GOOD_MOVEMENT["M"]["SA"],
+        "SA": GOOD_MOVEMENT["M"]["TA"],
+    },
+}
 
 
 class TestCancelMovement:
