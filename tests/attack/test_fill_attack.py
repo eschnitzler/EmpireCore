@@ -9,7 +9,7 @@ import pytest
 
 from empire_core.army.spy_army import SpyArmy
 from empire_core.enums import Kingdom
-from empire_core.exceptions import EmpireTimeoutError
+from empire_core.exceptions import AttackBelowMinimumError, EmpireTimeoutError
 from empire_core.protocol.models import Commander
 from tests.service_helpers import LIVE_ADI, conn, make_client, placed, stub_player, wave, xt_packet
 
@@ -83,6 +83,32 @@ class TestFillAttack:
 
         committed = result.unit_count()
         assert committed <= 100
+
+    def test_the_attack_carries_its_minimum(self):
+        client = self.build([[601, 100_000]])
+
+        result = client.attack.fill_attack(12345, target_level=16)
+
+        # getMinSoldiers(16): a tenth of the 88 a wave holds
+        assert result.min_soldiers == 8
+        assert result.wave_unit_count() >= 8
+
+    def test_too_few_units_to_attack_raise(self):
+        client = self.build([[601, 5]])
+
+        with pytest.raises(AttackBelowMinimumError) as caught:
+            client.attack.fill_attack(12345, target_level=16)
+
+        assert (caught.value.minimum, caught.value.soldiers) == (8, 5)
+        assert caught.value.attack.wave_unit_count() == 5
+
+    def test_a_monument_needs_the_level_70_minimum(self):
+        client = self.build([[601, 20]])
+
+        with pytest.raises(AttackBelowMinimumError) as caught:
+            client.attack.fill_attack(12345, target_level=12, area_type=26)
+
+        assert caught.value.minimum == 32
 
     def test_a_castle_row_supplies_fortification(self):
         client = self.build([[601, 100_000], [611, 500]])

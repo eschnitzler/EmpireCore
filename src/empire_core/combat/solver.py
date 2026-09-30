@@ -550,10 +550,15 @@ class FilledAttack(BaseModel):
 
     waves: list[AttackWave] = Field(default_factory=list)
     yard: list[list[int]] = Field(default_factory=list)
+    min_soldiers: int = Field(default=0, description="The fewest units the waves must carry together")
 
     def unit_count(self) -> int:
         """Units committed across every wave and the courtyard."""
         return sum(wave.unit_count() for wave in self.waves) + sum(count for _wod_id, count in self.yard)
+
+    def wave_unit_count(self) -> int:
+        """Units across the waves alone, which is what the minimum counts."""
+        return sum(wave.unit_count() for wave in self.waves)
 
 
 __all__ = [

@@ -51,6 +51,7 @@ from empire_core.combat import (
     is_npc_player,
     is_npc_pvp_player,
     legend_skill_value,
+    min_attack_soldiers,
     minimum_owner_level,
     npc_camp_defense,
     owner_id_from_row,
@@ -64,7 +65,13 @@ from empire_core.combat import fill_waves as solve_waves
 from empire_core.combat.capacity import ALIEN_INVASION_AREA_TYPES, OTHER_PLAYER_INFO_AREA_TYPES, LegendaryFight
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import AttackType, CombatEffectType, Flank, Kingdom, LootPriority, MapItemType
-from empire_core.exceptions import AttackInProgressError, CommandError, EmpireError, GameDataNotLoadedError
+from empire_core.exceptions import (
+    AttackBelowMinimumError,
+    AttackInProgressError,
+    CommandError,
+    EmpireError,
+    GameDataNotLoadedError,
+)
 from empire_core.gamedata import GameData, ToolStats
 from empire_core.map.models.areas import GetMapAreaResponse, MapObject
 from empire_core.map.models.items import MapAreaItem
@@ -272,6 +279,7 @@ class AttackService(BaseService):
         support_tools: list[int] | None = None,
         collector_booster: list[list[int]] | None = None,
         send_anyway: bool = False,
+        min_soldiers: int | None = None,
         timeout: float = 5.0,
     ) -> bool:
         """
@@ -312,22 +320,31 @@ class AttackService(BaseService):
             slowdown: Slowdown offset in seconds
             yard_wave: Courtyard wave as [unit_id, count] pairs
             capacity: The capacities these waves were sized against. Given one,
-                an overfull army is refused here rather than by the server
+                an overfull army, or one below the minimum for its level, is
+                refused here rather than by the server
             yard_capacity: The courtyard's capacity, checked the same way
             support_tools: Support tool WOD IDs
             collector_booster: Collector event boosters as [currency_id, amount];
                 the id is a ``currencyID``, e.g. ``client.game_data.currency("SMB")``
             send_anyway: Send although one of your attacks is already on its way
                 there (``FC`` 1), as the client's confirmation dialog does
+            min_soldiers: The fewest units the waves must carry together, such
+                as ``FilledAttack.min_soldiers`` or
+                ``combat.min_attack_soldiers(...)``; taken from ``capacity``
+                when not given. Without either nothing is checked
             timeout: Timeout in seconds
 
         Returns:
-            True when the server accepted the attack, False when it rejected it
+            True when the server accepted the attack, False when it rejected it,
+            such as with MOVEMENT_HAS_NO_UNITS (100) for too few units
 
         Raises:
             AttackInProgressError: One of your attacks is already on its way
                 there; it carries that attack's arrival time and size. Retry
                 with ``send_anyway=True`` to send regardless
+            AttackBelowMinimumError: The waves carry fewer units than
+                ``min_soldiers``, or than the minimum at ``capacity``'s level;
+                the client refuses such an attack
             ValueError: No wave carries any units, or a container is overfull
             EmpireTimeoutError / ConnectionClosedError / NetworkError: transport failures
         """
@@ -341,6 +358,14 @@ class AttackService(BaseService):
             problems = wave_limit_violations(filled_waves, capacity, yard=yard_wave, yard_capacity=yard_capacity)
             if problems:
                 raise ValueError("Attack exceeds what a wave may carry: " + "; ".join(problems))
+
+        if min_soldiers is None and capacity is not None:
+            min_soldiers = capacity.min_soldiers()
+        if min_soldiers is not None:
+            # Client: AttackDialogStartAttackCheck.onAttack (bundle line 56312)
+            soldiers = sum(w.unit_count() for w in filled_waves)
+            if soldiers < min_soldiers:
+                raise AttackBelowMinimumError(min_soldiers, soldiers)
 
         request = CreateAttackRequest(
             SX=source_x,
@@ -1031,7 +1056,14 @@ class AttackService(BaseService):
             timeout: Timeout for the inventory request
 
         Returns:
-            The waves and the courtyard wave, ready for :meth:`send_attack`
+            The waves and the courtyard wave, ready for :meth:`send_attack`,
+            with the minimum the waves had to reach
+
+        Raises:
+            AttackBelowMinimumError: The waves could not be filled with the
+                fewest units the client lets an attack on this target carry
+                (:func:`combat.min_attack_soldiers`); the fill is on the
+                error's ``attack``
         """
         game_data = self.client.game_data
         if game_data is None:
@@ -1155,4 +1187,17 @@ class AttackService(BaseService):
                 else None
             ),
         )
-        return FilledAttack(waves=waves, yard=yard)
+        # Client: CastleFightScreenVO.targetOwnerLevel (bundle line 30562)
+        owner_level = (
+            target.level
+            if under_conquer_control
+            else minimum_owner_level(target.level, target.area_type, landmark_min_level=landmark_min_level)
+        )
+        attack = FilledAttack(
+            waves=waves,
+            yard=yard,
+            min_soldiers=min_attack_soldiers(owner_level, target.area_type, landmark_min_level=landmark_min_level),
+        )
+        if attack.wave_unit_count() < attack.min_soldiers:
+            raise AttackBelowMinimumError(attack.min_soldiers, attack.wave_unit_count(), attack)
+        return attack

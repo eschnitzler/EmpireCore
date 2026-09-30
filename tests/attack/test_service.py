@@ -6,8 +6,9 @@ from typing import Any
 
 import pytest
 
+from empire_core.combat import WaveCapacity
 from empire_core.enums import Kingdom
-from empire_core.exceptions import CommandError
+from empire_core.exceptions import AttackBelowMinimumError, CommandError
 from empire_core.protocol.models import AttackType, Commander, CreateAttackRequest, CreateAttackResponse, MapItemType
 from tests.service_helpers import LIVE_ADI, conn, make_client, placed, stub_player, wave, xt_packet
 
@@ -191,6 +192,42 @@ class TestAttackService:
             client.attack.send_attack(500, 510, 700, 710, [wave()], 3)
 
         assert conn(client).requested == []
+
+    def test_too_few_units_are_refused_before_sending(self):
+        # Live: 1 unit on a level 16 castle came back as error 100 with MS 8
+        client = make_client()
+
+        with pytest.raises(AttackBelowMinimumError) as caught:
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3, min_soldiers=8)
+
+        assert (caught.value.minimum, caught.value.soldiers, caught.value.attack) == (8, 1, None)
+        assert conn(client).requested == []
+
+    def test_the_minimum_comes_from_the_capacity(self):
+        client = make_client()
+
+        with pytest.raises(AttackBelowMinimumError):
+            client.attack.send_attack(
+                500, 510, 700, 710, [wave(units=[[487, 7]])], 3, capacity=WaveCapacity.for_level(16)
+            )
+
+        assert conn(client).requested == []
+
+    def test_the_minimum_counts_every_wave_but_not_the_courtyard(self):
+        client = make_client()
+
+        with pytest.raises(AttackBelowMinimumError):
+            client.attack.send_attack(
+                500, 510, 700, 710, [wave(units=[[487, 7]])], 3, yard_wave=[[487, 50]], min_soldiers=8
+            )
+        assert client.attack.send_attack(
+            500, 510, 700, 710, [wave(units=[[487, 4]]), wave(units=[[487, 4]])], 3, min_soldiers=8
+        )
+
+    def test_the_servers_refusal_of_too_few_units_is_false(self):
+        client = make_client({"cra": xt_packet("cra", {"MS": 8}, error_code=100)})
+
+        assert client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3) is False
 
     def test_feathers_force_the_horse_field_to_minus_one(self):
         client = make_client()

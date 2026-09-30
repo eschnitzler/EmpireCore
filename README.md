@@ -299,8 +299,17 @@ client.attack.send_attack(
     target_x=624, target_y=247,
     waves=attack.waves, yard_wave=attack.yard,
     commander_id=commander.commander_id,
+    min_soldiers=attack.min_soldiers,
 )
 ```
+
+An attack's waves must carry at least a tenth of what one wave holds at the
+target's level (8 units against a level 16 castle, 32 from level 70), as the
+game client requires; the server refused fewer on a player's castle with
+MOVEMENT_HAS_NO_UNITS (100); whether it enforces this on NPC camps is not yet
+known. `fill_attack` raises `AttackBelowMinimumError` when the castle cannot
+reach it, and `send_attack` checks it before sending when given `min_soldiers`
+or a `capacity`. `combat.min_attack_soldiers` works it out for any target.
 
 Coordinates are enough. From them it reads the target's area type and
 structures, the defenders each flank holds and the castellan holding it, the

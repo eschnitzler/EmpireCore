@@ -249,6 +249,62 @@ def max_attackers(level: int) -> int:
     return MAX_ATTACKERS_ABOVE_69
 
 
+def min_soldiers(level: int) -> int:
+    """
+    The fewest units an attack must carry at this level (``CombatConst.getMinSoldiers``).
+
+    A tenth of what one wave holds, rounded down: 8 at level 16, 26 from
+    level 51 to 69, and 32 from level 70.
+
+    Client: ``CombatConst.getMinSoldiers`` (ggs.dll line 18895)
+    """
+    return int(0.1 * max_attackers(level))
+
+
+def min_attack_soldiers(
+    target_owner_level: int,
+    area_type: int | None = None,
+    *,
+    landmark_min_level: int = 0,
+) -> int:
+    """
+    The fewest units the waves of an attack on this target must carry together.
+
+    The client refuses to send fewer and shows ``errorCode_100`` with this
+    number. The server refused a player's castle below it with
+    MOVEMENT_HAS_NO_UNITS (100); whether it enforces it on NPC camps is
+    unverified. Only the waves' units count: not their tools, and not the
+    courtyard wave. The level is the target owner's; a capital or metropolis
+    uses its landmark's defense level when that is higher, and a king's
+    tower, monument or laboratory always 70. The result equals
+    :func:`min_soldiers` of the level the waves are sized by.
+
+    Client: ``AttackDialogStartAttackCheck.onAttack`` (bundle lines 56306-56313),
+    with ``CombatConst.getMinSoldiers`` (ggs.dll line 18895) and
+    ``OutpostConst``'s default levels (ggs.dll line 19549)
+
+    Args:
+        target_owner_level: The client's ``targetOwnerLevel``: the owner's
+            level when the target is under conquer control, otherwise the
+            area's own minimum owner level, which is its owner's level for a
+            castle or outpost and its level for a camp or dungeon
+        area_type: The target's area type
+        landmark_min_level: The capital's or metropolis's ``minDefenseLevel``,
+            which is not in the items payload
+
+    Returns:
+        The fewest units the waves must carry
+    """
+    if area_type in LANDMARK_FLOOR_AREA_TYPES:
+        level = int(max(landmark_min_level, target_owner_level))
+    elif area_type in AREA_TYPE_LEVEL_FLOORS:
+        # the same OutpostConst levels, taken as they are rather than as a floor
+        level = AREA_TYPE_LEVEL_FLOORS[area_type]
+    else:
+        level = int(target_owner_level)
+    return min_soldiers(level)
+
+
 def flank_soldier_capacity(level: int, bonus_percent: float = 0.0) -> int:
     """
     Units one side flank holds (``getAmountSoldiersFlank``).
@@ -523,6 +579,14 @@ class WaveCapacity(BaseModel):
         """Units the whole wave holds across its three flanks."""
         return 2 * self.flank_soldiers + self.middle_soldiers
 
+    def min_soldiers(self) -> int:
+        """
+        The fewest units an attack sized at this level must carry across its waves.
+
+        The level a wave is sized by is the one the client checks the minimum at.
+        """
+        return min_soldiers(self.level)
+
 
 __all__ = [
     "CONQUER_ADDITIONAL_WAVES",
@@ -555,6 +619,8 @@ __all__ = [
     "flank_tool_capacity",
     "max_attackers",
     "max_wave_count",
+    "min_attack_soldiers",
+    "min_soldiers",
     "middle_soldier_capacity",
     "middle_tool_capacity",
     "unlocked_slots",

@@ -181,6 +181,29 @@ class AttackInProgressError(CommandError):
         self.army_size: float | None = details.get("AS")
 
 
+class AttackBelowMinimumError(EmpireError, ValueError):
+    """An attack's waves carry fewer units than the client lets it send.
+
+    The client refuses such an attack with ``errorCode_100`` and the minimum.
+    The server refused one on a player's castle with MOVEMENT_HAS_NO_UNITS
+    (100); whether it enforces the minimum on NPC camps is unverified. Send
+    the error's ``attack`` anyway to find out.
+
+    Attributes:
+        minimum: the fewest units the waves must carry together
+        soldiers: the units they carry
+        attack: the filled attack, when ``fill_attack`` raised it, else None
+
+    Client: ``AttackDialogStartAttackCheck.onAttack`` (bundle line 56306).
+    """
+
+    def __init__(self, minimum: int, soldiers: int, attack: Any = None):
+        super().__init__(f"The waves carry {soldiers} units, fewer than the {minimum} an attack on this target needs")
+        self.minimum = minimum
+        self.soldiers = soldiers
+        self.attack = attack
+
+
 class ReceiveThreadError(EmpireError):
     """Raised when a call that waits for a reply is made on the receive thread.
 

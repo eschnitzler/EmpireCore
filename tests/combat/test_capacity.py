@@ -18,6 +18,8 @@ from empire_core.combat import (
     invasion_camp_level,
     max_attackers,
     max_wave_count,
+    min_attack_soldiers,
+    min_soldiers,
     minimum_owner_level,
     owner_id_from_row,
     spied_castle_defense,
@@ -35,6 +37,53 @@ from tests.combat.combat_helpers import SOLVER_PAYLOAD, placed, solver_data
 # =============================================================================
 # Wave capacity
 # =============================================================================
+
+
+class TestMinimumAttack:
+    # CombatConst.getMinSoldiers(level) for levels 0-120, run in node from ggs.dll
+    NODE_MIN: ClassVar[list[int]] = (
+        [0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13]
+        + [14, 14, 15, 15, 16, 16, 17, 17, 18, 18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 23, 24, 24, 25, 25]
+        + [26] * 19
+        + [32] * 51
+    )
+
+    def test_min_soldiers_matches_the_client_at_every_level(self):
+        assert [min_soldiers(level) for level in range(121)] == self.NODE_MIN
+
+    # The level ternary of AttackDialogStartAttackCheck.onAttack and getMinSoldiers,
+    # run in node: (target owner level, area type, landmark minDefenseLevel) -> minimum.
+    NODE_CASES: ClassVar[list] = [
+        pytest.param((16, 1, 0), 8, id="live: level 16 castle"),
+        pytest.param((16, 1, 75), 8, id="castle ignores the landmark level"),
+        pytest.param((70, 1, 0), 32, id="level 70 castle"),
+        pytest.param((1, 2, 0), 1, id="level 1 camp"),
+        pytest.param((2, 2, 0), 1, id="level 2 camp"),
+        pytest.param((3, 2, 0), 2, id="level 3 camp"),
+        pytest.param((0, 3, 50), 25, id="capital at its landmark level"),
+        pytest.param((13, 3, 30), 15, id="capital, landmark above the owner"),
+        pytest.param((40, 3, 30), 20, id="capital, owner above the landmark"),
+        pytest.param((40, 4, 0), 20, id="outpost"),
+        pytest.param((69, 10, 0), 26, id="level 69 village"),
+        pytest.param((16, 22, 75), 32, id="metropolis above 69"),
+        pytest.param((60, 22, 50), 26, id="metropolis at its owner"),
+        pytest.param((70, 22, 0), 32, id="metropolis at 70"),
+        pytest.param((3, 23, 0), 32, id="kings tower is 70"),
+        pytest.param((16, 26, 0), 32, id="monument is 70"),
+        pytest.param((0, 28, 0), 32, id="laboratory is 70"),
+    ]
+
+    @pytest.mark.parametrize(("case", "minimum"), NODE_CASES)
+    def test_min_attack_soldiers_matches_the_client(self, case, minimum):
+        owner_level, area_type, landmark = case
+        assert min_attack_soldiers(owner_level, area_type, landmark_min_level=landmark) == minimum
+
+    def test_no_area_type_uses_the_owner_level(self):
+        assert min_attack_soldiers(16) == 8
+
+    def test_a_wave_capacity_knows_its_minimum(self):
+        assert WaveCapacity.for_level(16).min_soldiers() == 8
+        assert WaveCapacity.for_level(70).min_soldiers() == 32
 
 
 class TestWaveCapacity:
