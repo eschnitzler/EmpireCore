@@ -35,15 +35,15 @@ class Resources(BaseModel):
     safe: SafeAmount = Field(default_factory=SafeAmount, description="Amount per resource safe from plunder")
 
     @property
-    def wood_cap(self) -> int:
+    def wood_cap(self) -> int | float:
         return self.capacity.wood
 
     @property
-    def stone_cap(self) -> int:
+    def stone_cap(self) -> int | float:
         return self.capacity.stone
 
     @property
-    def food_cap(self) -> int:
+    def food_cap(self) -> int | float:
         return self.capacity.food
 
     @property

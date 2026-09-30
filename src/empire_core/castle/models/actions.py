@@ -13,11 +13,12 @@ from typing import Any
 from pydantic import Field, field_serializer, field_validator
 
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.protocol.base import BaseRequest, BaseResponse, enum_or_none, object_or_none
+from empire_core.protocol.base import BaseRequest, BaseResponse, enum_or_none
+from empire_core.protocol.js import js_int
 from empire_core.protocol.text import encode_json_text
 
 from .details import CastleProductionArea
-from .objects import CastleBuildings
+from .objects import CastleBuildings, block_or_none
 from .resources import CastleResources
 
 # =============================================================================
@@ -57,8 +58,9 @@ class SelectCastleResponse(BaseResponse):
     Command: jaa
     Payload: {"KID": kingdom_id, "T": area_type, "gca": {...}, "grc": {...}, "gpa": {...}, ...}
 
-    The other blocks (``csl``, ``gab``, ``gsm``, ``spl0`` to ``spl3``,
-    ``gui``, ``uap``, ``hin``, ``sin``, ``rci``, ``abpi``, ``crai``) are kept as sent.
+    A block that cannot be read is None, so it does not cost the rest. The
+    other blocks (``csl``, ``gab``, ``gsm``, ``spl0`` to ``spl3``, ``gui``,
+    ``uap``, ``hin``, ``sin``, ``rci``, ``abpi``, ``crai``) are kept as sent.
 
     Client: ``JAACommand.executeCommand`` (bundle line 130190),
     ``AreaDataUpdater.parseJAA`` (bundle line 131496)
@@ -87,10 +89,22 @@ class SelectCastleResponse(BaseResponse):
             return enum_or_none(MapItemType, value)
         return None
 
-    @field_validator("buildings", "resources", "production_area", mode="before")
+    _kingdom = field_validator("kingdom_id", mode="before")(js_int)
+
+    @field_validator("buildings", mode="before")
     @classmethod
-    def _block(cls, value: Any) -> Any:
-        return object_or_none(value)
+    def _buildings(cls, value: Any) -> CastleBuildings | None:
+        return block_or_none(CastleBuildings, value)
+
+    @field_validator("resources", mode="before")
+    @classmethod
+    def _resources(cls, value: Any) -> CastleResources | None:
+        return block_or_none(CastleResources, value)
+
+    @field_validator("production_area", mode="before")
+    @classmethod
+    def _production_area(cls, value: Any) -> CastleProductionArea | None:
+        return block_or_none(CastleProductionArea, value)
 
 
 # =============================================================================

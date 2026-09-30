@@ -501,8 +501,7 @@ class CastleService(BaseService):
             target_kingdom_id: The kingdom to send them to
             units: The units, as [wod id, amount] pairs
             source_kingdom_id: The source castle's kingdom
-            target_castle_id: Object id of a picked target castle, -1 for none,
-                which is what the client sends
+            target_castle_id: Object id of a picked target castle, -1 for none
             timeout: Timeout in seconds
         """
         request = KingdomUnitTransferRequest(

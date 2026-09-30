@@ -6,14 +6,17 @@ Commands:
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
-from empire_core.protocol.js import js_int, js_number, js_truthy
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
+from empire_core.protocol.js import js_int, js_number, js_number_or_none, js_truthy
 
 from .castles import _kingdom_entries
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # DCL - Get Detailed Castle Info
@@ -77,24 +80,30 @@ class ResourceProduction(_ProductionAreaSection):
 
     @field_validator("*", mode="before")
     @classmethod
-    def _per_hour(cls, value: Any) -> Any:
-        return value / 10 if isinstance(value, (int, float)) and not isinstance(value, bool) else value
+    def _per_hour(cls, value: Any) -> float:
+        return js_number(value) / 10
 
 
 class StorageCapacity(_ProductionAreaSection):
-    """Storage capacity per resource (``MR<key>``)."""
+    """Storage capacity per resource (``MR<key>``), a number as sent; anything else reads as 0."""
 
-    wood: int = Field(alias="MRW", default=0)
-    stone: int = Field(alias="MRS", default=0)
-    food: int = Field(alias="MRF", default=0)
-    coal: int = Field(alias="MRC", default=0)
-    oil: int = Field(alias="MRO", default=0)
-    glass: int = Field(alias="MRG", default=0)
-    iron: int = Field(alias="MRI", default=0)
-    aquamarine: int = Field(alias="MRA", default=0)
-    honey: int = Field(alias="MRHONEY", default=0)
-    mead: int = Field(alias="MRMEAD", default=0)
-    beef: int = Field(alias="MRBEEF", default=0)
+    wood: int | float = Field(alias="MRW", default=0)
+    stone: int | float = Field(alias="MRS", default=0)
+    food: int | float = Field(alias="MRF", default=0)
+    coal: int | float = Field(alias="MRC", default=0)
+    oil: int | float = Field(alias="MRO", default=0)
+    glass: int | float = Field(alias="MRG", default=0)
+    iron: int | float = Field(alias="MRI", default=0)
+    aquamarine: int | float = Field(alias="MRA", default=0)
+    honey: int | float = Field(alias="MRHONEY", default=0)
+    mead: int | float = Field(alias="MRMEAD", default=0)
+    beef: int | float = Field(alias="MRBEEF", default=0)
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def _number(cls, value: Any) -> int | float:
+        number = js_number_or_none(value)
+        return 0 if number is None else number
 
 
 class ProductionBonus(_ProductionAreaSection):
@@ -111,6 +120,11 @@ class ProductionBonus(_ProductionAreaSection):
     honey: float = Field(alias="HONEYM", default=0.0)
     mead: float = Field(alias="MEADM", default=0.0)
     beef: float = Field(alias="BEEFM", default=0.0)
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def _number(cls, value: Any) -> float:
+        return js_number(value)
 
 
 class SafeAmount(_ProductionAreaSection):
@@ -132,6 +146,11 @@ class SafeAmount(_ProductionAreaSection):
     honey: float = Field(alias="SAFE_HONEY", default=0.0)
     mead: float = Field(alias="SAFE_MEAD", default=0.0)
     beef: float = Field(alias="SAFE_BEEF", default=0.0)
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def _number(cls, value: Any) -> float:
+        return js_number(value)
 
 
 _PRODUCTION_AREA_SECTIONS = ("production", "storage_capacity", "production_bonus_percent", "safe_amount")
@@ -158,7 +177,9 @@ class CastleProductionArea(BasePayload):
 
     The per-resource sections are aliased key by key and validated from the
     same block, so each wire key appears once in this module. The whole-number
-    fields are read through ``int()``, as the client reads them.
+    fields are read through ``int()``, as the client reads them; the other
+    numbers read anything that is not a number as 0, as the client's
+    arithmetic does (``MP`` is 0 unless it is truthy).
 
     Client: ``AreaDataUpdater.parseGPA`` (bundle line 131506),
     ``AreaDataCommonInfo.parseGPA`` (bundle line 130993),
@@ -211,10 +232,26 @@ class CastleProductionArea(BasePayload):
 
     _whole_numbers = field_validator(*_INT_AREA_KEYS, mode="before")(js_int)
 
-    @field_validator("faction_buff", mode="before")
+    @field_validator(
+        "faction_buff",
+        "food_consumption_delta",
+        "mead_consumption_delta",
+        "beef_consumption_delta",
+        "barracks_speed",
+        "workshop_speed",
+        "defense_workshop_speed",
+        "hospital_speed",
+        mode="before",
+    )
     @classmethod
     def _number(cls, value: Any) -> float:
         return js_number(value)
+
+    @field_validator("metropolis_food_bonus", mode="before")
+    @classmethod
+    def _truthy_number(cls, value: Any) -> float:
+        # e.MP ? e.MP : 0
+        return js_number(value) if js_truthy(value) else 0.0
 
     @model_validator(mode="before")
     @classmethod
@@ -287,9 +324,23 @@ class DetailedCastleInfo(BasePayload):
         alias="gpa", default=None, description="The castle's production area; None when the entry has none"
     )
 
-    _whole_numbers = field_validator("castle_id", "defense_value", "market_carriages", *_RESOURCE_KEYS, mode="before")(
-        js_int
-    )
+    _whole_numbers = field_validator(
+        "castle_id", "kingdom_id", "defense_value", "market_carriages", *_RESOURCE_KEYS, mode="before"
+    )(js_int)
+
+    @field_validator("raw_units", "raw_stronghold_units", "raw_hospital_units", "raw_travelling_units", mode="before")
+    @classmethod
+    def _wod_amounts(cls, value: Any) -> list[list[int]]:
+        # AUnitInventory.fillFromWodAmountArray: array entries only, each value through int()
+        if not isinstance(value, list):
+            return []
+        return [[js_int(v) for v in entry] for entry in value if isinstance(entry, list)]
+
+    @field_validator("production_area", mode="before")
+    @classmethod
+    def _area(cls, value: Any) -> Any:
+        return value if isinstance(value, (dict, CastleProductionArea)) else None
+
     _flags = field_validator(
         "has_barracks", "has_siege_workshop", "has_defense_workshop", "has_hospital", mode="before"
     )(js_truthy)
@@ -338,7 +389,8 @@ class GetDetailedCastleResponse(BaseResponse):
         if not isinstance(data, dict) or "C" not in data:
             return data
         data = dict(data)
-        data["castles"] = [{**entry, "KID": kid} for kid, entry in _kingdom_entries(data.pop("C"))]
+        entries = [{**entry, "KID": kid} for kid, entry in _kingdom_entries(data.pop("C"))]
+        data["castles"] = readable_list(DetailedCastleInfo, entries, warn=logger, what="dcl castles")
         return data
 
     def castle(self, castle_id: int) -> DetailedCastleInfo | None:

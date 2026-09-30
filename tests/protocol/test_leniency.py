@@ -309,15 +309,16 @@ class TestMalformedNestedResponsePayloads:
         with pytest.raises(ValidationError):
             AllianceInfo.model_validate({"AID": 1, "M": ["junk"]})
 
-    def test_drifted_unit_array_is_a_validation_error(self):
-        with pytest.raises(ValidationError):
-            GetDetailedCastleResponse.model_validate({"C": [{"AI": [{"AID": 1, "AC": "junk"}]}]})
-        with pytest.raises(ValidationError):
-            GetDetailedCastleResponse.model_validate({"C": [{"AI": [{"AID": 1, "AC": [[201, "x"]]}]}]})
+    def test_drifted_unit_array_reads_as_the_client_reads_it(self):
+        # AUnitInventory.fillFromWodAmountArray: array entries only, each value through int()
+        junk = GetDetailedCastleResponse.model_validate({"C": [{"AI": [{"AID": 1, "AC": "junk"}]}]})
+        assert junk.castles[0].raw_units == []
+        drifted = GetDetailedCastleResponse.model_validate({"C": [{"AI": [{"AID": 1, "AC": [[201, "x"]]}]}]})
+        assert drifted.castles[0].raw_units == [[201, 0]]
 
-    def test_dcl_castle_without_an_id_is_a_validation_error(self):
-        with pytest.raises(ValidationError):
-            GetDetailedCastleResponse.model_validate({"C": [{"AI": [{"W": 1.0}]}]})
+    def test_dcl_castle_without_an_id_is_skipped(self):
+        response = GetDetailedCastleResponse.model_validate({"C": [{"AI": [{"W": 1.0}, {"AID": 2}]}]})
+        assert [c.castle_id for c in response.castles] == [2]
 
     def test_drifted_defense_array_is_a_validation_error(self):
         with pytest.raises(ValidationError):

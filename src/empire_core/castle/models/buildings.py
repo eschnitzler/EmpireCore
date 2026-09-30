@@ -27,11 +27,11 @@ from typing import Any
 from pydantic import Field, field_serializer, field_validator
 
 from empire_core.enums import ExpansionType
-from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, object_or_none
+from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock
 from empire_core.protocol.js import js_int
 
 from .details import CastleProductionArea
-from .objects import BuildingRow, CastleBuildings, ConstructionList, building_or_none, building_rows
+from .objects import BuildingRow, CastleBuildings, ConstructionList, block_or_none, building_or_none, building_rows
 from .resources import CastleResources
 
 _OBJECT_ID = "The building's object id, a BuildingRow.object_id from client.castle.join(...).buildings"
@@ -40,17 +40,27 @@ _PAY_WITH_RUBIES = "Pay the missing resources with rubies"
 
 
 class _BuildingReply(BaseResponse):
-    """The blocks building replies share."""
+    """The blocks building replies share; one that cannot be read is None."""
 
-    @field_validator("resources", "production_area", "castle_buildings", mode="before", check_fields=False)
+    @field_validator("resources", mode="before", check_fields=False)
     @classmethod
-    def _block(cls, value: Any) -> Any:
-        return object_or_none(value)
+    def _resources(cls, value: Any) -> CastleResources | None:
+        return block_or_none(CastleResources, value)
+
+    @field_validator("production_area", mode="before", check_fields=False)
+    @classmethod
+    def _production_area(cls, value: Any) -> CastleProductionArea | None:
+        return block_or_none(CastleProductionArea, value)
+
+    @field_validator("castle_buildings", mode="before", check_fields=False)
+    @classmethod
+    def _castle_buildings(cls, value: Any) -> CastleBuildings | None:
+        return block_or_none(CastleBuildings, value)
 
     @field_validator("construction_list", mode="before", check_fields=False)
     @classmethod
-    def _construction_list(cls, value: Any) -> Any:
-        return value if isinstance(value, (dict, ConstructionList)) else None
+    def _construction_list(cls, value: Any) -> ConstructionList | None:
+        return block_or_none(ConstructionList, value)
 
     @field_validator("building", mode="before", check_fields=False)
     @classmethod
@@ -248,6 +258,8 @@ class SellBuildingResponse(_BuildingReply):
     command = "sbd"
 
     object_id: int = Field(alias="OID", default=-1, description="Object id of the removed decoration")
+
+    _object_id = field_validator("object_id", mode="before")(js_int)
     currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after")
 
 
@@ -603,7 +615,7 @@ class CollectExtensionGiftResponse(_BuildingReply):
     reward_id: int = Field(alias="RID", default=0, description="The reward list the chest held")
     object_id: int = Field(alias="OID", default=-1, description="Object id of the removed chest")
 
-    @field_validator("reward_id", mode="before")
+    @field_validator("reward_id", "object_id", mode="before")
     @classmethod
     def _int(cls, value: Any) -> int:
         return js_int(value)

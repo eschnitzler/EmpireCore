@@ -18,11 +18,11 @@ from empire_core.protocol.base import (
     BaseRequest,
     BaseResponse,
     CurrencyBlock,
-    object_or_none,
     readable_list,
 )
 from empire_core.protocol.js import js_int
 
+from .objects import block_or_none
 from .resources import CastleResources
 
 logger = logging.getLogger(__name__)
@@ -92,8 +92,8 @@ class CreateMarketMovementResponse(BaseResponse):
 
     @field_validator("resources", mode="before")
     @classmethod
-    def _block(cls, value: Any) -> Any:
-        return object_or_none(value)
+    def _block(cls, value: Any) -> CastleResources | None:
+        return block_or_none(CastleResources, value)
 
 
 # =============================================================================

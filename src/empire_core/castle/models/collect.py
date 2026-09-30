@@ -19,11 +19,11 @@ from empire_core.protocol.base import (
     BaseResponse,
     CurrencyBlock,
     enum_or_none,
-    object_or_none,
     readable_list,
 )
 from empire_core.protocol.js import js_int
 
+from .objects import block_or_none
 from .resources import CastleResources
 
 logger = logging.getLogger(__name__)
@@ -102,8 +102,8 @@ class CollectMineResourcesResponse(BaseResponse):
 
     @field_validator("mines", mode="before")
     @classmethod
-    def _block(cls, value: Any) -> Any:
-        return object_or_none(value)
+    def _block(cls, value: Any) -> MineStatusList | None:
+        return block_or_none(MineStatusList, value)
 
 
 # =============================================================================
@@ -186,10 +186,15 @@ class CollectResourceCartResponse(BaseResponse):
     _type = field_validator("cart_type", mode="before")(_cart_type)
     _amount = field_validator("amount", mode="before")(js_int)
 
-    @field_validator("resources", "carts", mode="before")
+    @field_validator("resources", mode="before")
     @classmethod
-    def _block(cls, value: Any) -> Any:
-        return object_or_none(value)
+    def _resources(cls, value: Any) -> CastleResources | None:
+        return block_or_none(CastleResources, value)
+
+    @field_validator("carts", mode="before")
+    @classmethod
+    def _carts(cls, value: Any) -> ResourceCartInfo | None:
+        return block_or_none(ResourceCartInfo, value)
 
 
 __all__ = [

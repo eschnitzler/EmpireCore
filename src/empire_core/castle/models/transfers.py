@@ -25,7 +25,8 @@ class KingdomUnitTransferRequest(BaseRequest):
               "A": [[wod_id, amount], ...]}
 
     Keys follow the client's order: the constructor initialises SCID, SKID,
-    TKID and CID before it sets A. The client's one caller sends ``CID`` -1.
+    TKID and CID before it sets A. ``CID`` is the picked target castle's
+    object id, -1 when none is picked.
 
     Client: ``C2SKingdomUnitTransferVO`` (bundle line 95305), built by
     ``CastleTransferTroopsToKingdomProperties.getUnitTransferCommand``

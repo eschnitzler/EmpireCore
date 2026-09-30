@@ -7,13 +7,13 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, TypeVar
 
-from pydantic import Field, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 from empire_core.enums import BuildingState
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
-from empire_core.protocol.js import js_int, js_number, js_truthy
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, read_or_none
+from empire_core.protocol.js import js_int, js_number, js_number_or_none, js_truthy
 
 from .details import _ProductionAreaSection
 
@@ -22,6 +22,18 @@ logger = logging.getLogger(__name__)
 # The row index the upgrade target sits at, past the wod id.
 _UPGRADE_TARGET_INDEX = 16
 _FIRST_BUILDING_INDEX = 5
+
+_B = TypeVar("_B", bound=BaseModel)
+
+
+def block_or_none(model: type[_B], value: Any) -> _B | None:
+    """A reply's block read as ``model``, or None when it is not an object or cannot be read."""
+    if isinstance(value, model):
+        return value
+    if not isinstance(value, dict):
+        return None
+    return read_or_none(model.model_validate, value, warn=logger, what=f"a {model.__name__} block")
+
 
 # ConstructionConst (dll line 18983)
 FREE_SLOT = -1
@@ -52,9 +64,12 @@ class BuildingRow(BasePayload):
     - 14 the district the building sits in, 15 its slot there
     - 16 the upgrade target's wod id, -1 when absent
 
-    A row may come wrapped as ``{"O": [...]}``. Fields 5 to 10 belong to
-    buildings; for a row that ends before them they are None. Where the
-    client reads an absent 1 to 4, 14 or 15 as 0, so does this.
+    A row may come wrapped as ``{"O": [...]}``. Where the client reads an
+    absent 1 to 4, 14 or 15 as 0, so does this. Fields 5 to 10 are read only
+    by the building classes (``ABasicBuildingVO``), which the client picks by
+    the wod id's group and name; this reads them whenever the row reaches
+    index 5 and leaves them None otherwise, which is not verified to match
+    the client's class for every wod id.
 
     Client: ``IsoHelperData.createIsoObjectVOByServer`` (bundle line 63049),
     ``AVisualVO.parseServerObject`` (bundle line 17801),
@@ -165,7 +180,7 @@ class ConstructionList(BasePayload):
     object_ids: list[int] = Field(
         alias="OIDL", default_factory=list, description="Per slot, the object id under construction there"
     )
-    slot_count: int = Field(alias="SSC", default=1, description="Number of construction slots")
+    slot_count: int | float = Field(alias="SSC", default=1, description="Number of construction slots")
 
     @field_validator("object_ids", mode="before")
     @classmethod
@@ -174,8 +189,10 @@ class ConstructionList(BasePayload):
 
     @field_validator("slot_count", mode="before")
     @classmethod
-    def _at_least_one(cls, value: Any) -> Any:
-        return value if js_truthy(value) else 1
+    def _at_least_one(cls, value: Any) -> int | float:
+        # e.SSC ? e.SSC : 1, kept as a number
+        number = js_number_or_none(value) if js_truthy(value) else None
+        return 1 if number is None else number
 
     @property
     def free_slots(self) -> int:
@@ -250,8 +267,8 @@ class CastleBuildings(BasePayload):
 
     @field_validator("construction_list", mode="before")
     @classmethod
-    def _object_or_none(cls, value: Any) -> Any:
-        return value if isinstance(value, (dict, ConstructionList)) else None
+    def _construction_list(cls, value: Any) -> ConstructionList | None:
+        return block_or_none(ConstructionList, value)
 
     @model_validator(mode="before")
     @classmethod
