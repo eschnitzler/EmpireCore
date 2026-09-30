@@ -380,6 +380,75 @@ class TestAllianceLandmarksAndDiplomacy:
         ]
 
 
+class TestAllianceInfoOffersAndCrests:
+    """AllianceInfoVO.fillFromParamObject's PO and ACLS, and parseAllianceCrestForAlliance's aee."""
+
+    def test_a_demanded_peace_offer(self):
+        info = AllianceInfo.model_validate({"AID": 1, "PO": {"T": -25, "TS": 3600}})
+        assert info.peace_offer is not None
+        assert (info.peace_offer.is_demanded, info.peace_offer.tribute_percentage) == (True, 25)
+        assert info.peace_offer.remaining_seconds == 3600
+
+    def test_an_offered_tribute(self):
+        offer = AllianceInfo.model_validate({"AID": 1, "PO": {"T": 10, "TS": 60}}).peace_offer
+        assert offer is not None and (offer.is_demanded, offer.tribute_percentage) == (False, 10)
+
+    def test_no_peace_offer(self):
+        assert AllianceInfo.model_validate({"AID": 1}).peace_offer is None
+        assert AllianceInfo.model_validate({"AID": 1, "PO": "x"}).peace_offer is None
+
+    def test_crest_layouts(self):
+        info = AllianceInfo.model_validate(
+            {"AID": 1, "ACLS": [{"ACLI": 4, "ACLET": 86400, "ACIA": 1, "ACLCS": [1, 2]}, {"ACLI": 5}, 7]}
+        )
+        assert [(c.layout_id, c.seconds_left, c.is_active, c.colors) for c in info.crest_layouts] == [
+            (4, 86400, True, [1, 2]),
+            (5, 0, False, None),
+        ]
+
+    def test_the_crest_and_its_fallback(self):
+        info = AllianceInfo.model_validate(
+            {"AID": 1, "aee": {"ACCA": {"ACLI": 3, "ACCS": [9, 8]}, "ACFB": {"ACLI": 1, "ACCS": [2]}}}
+        )
+        assert info.crests is not None and info.crests.crest is not None and info.crests.fallback_crest is not None
+        assert (info.crests.crest.layout_id, info.crests.crest.color_ids) == (3, [9, 8])
+        assert info.crests.fallback_crest.layout_id == 1
+
+    def test_a_fallback_needs_both_layout_and_colours(self):
+        crests = AllianceInfo.model_validate({"AID": 1, "aee": {"ACFB": {"ACLI": 1}}}).crests
+        assert crests is not None and (crests.crest, crests.fallback_crest) == (None, None)
+
+
+class TestAllianceInfoMembers:
+    def test_members_are_sorted_by_rank_and_carry_their_ami_row(self):
+        info = AllianceInfo.model_validate(
+            {
+                "AID": 5,
+                "M": [{"OID": 2, "AID": 5, "AR": 8}, {"OID": 1, "AID": 5, "AR": 0}, {"OID": 3, "AID": 5, "AR": 4}],
+                "AMI": [[1, 100, 2, 300, 0, 1, 0, 0, 0, 0, 50], [3, 0, 0, 0, 3]],
+            }
+        )
+        assert [m.player_id for m in info.members] == [1, 3, 2]
+        leader, officer, member = info.members
+        assert leader.member_info is not None and (leader.member_info.given_coins, leader.member_info.daily_fame) == (
+            100,
+            50,
+        )
+        assert (leader.activity_tier, officer.activity_tier, member.activity_tier) == (0, 3, None)
+        assert member.member_info is None
+        assert info.leader is leader
+
+    def test_no_leader(self):
+        assert AllianceInfo.model_validate({"AID": 5, "M": [{"OID": 2, "AID": 5, "AR": 8}]}).leader is None
+
+    def test_application_count_defaults_to_twelve(self):
+        assert AllianceInfo.model_validate({"AID": 1}).application_count == 12
+        assert AllianceInfo.model_validate({"AID": 1, "AA": None}).application_count == 12
+
+    def test_an_alliance_block_without_an_aid_is_none(self):
+        assert GetAllianceInfoResponse.model_validate({"A": {"N": "x"}}).alliance is None
+
+
 class TestAllianceHelpEntries:
     """As AllianceHelpRequestData.parseHelpRequestEntry (bundle line 133416) reads them."""
 

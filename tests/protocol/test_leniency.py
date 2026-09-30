@@ -307,9 +307,11 @@ class TestMalformedNestedResponsePayloads:
     def test_a_chat_log_that_is_no_list_reads_as_empty(self, value):
         assert AllianceChatLogResponse.model_validate({"CM": value}).chat_log == []
 
-    def test_non_dict_alliance_member_is_a_validation_error(self):
-        with pytest.raises(ValidationError):
-            AllianceInfo.model_validate({"AID": 1, "M": ["junk"]})
+    def test_an_unreadable_alliance_member_costs_only_itself(self):
+        # parseOwnerInfo gives null for a record without an OID, and parseMemberList's
+        # rank sort then throws on it; the library skips such entries instead, deliberately
+        info = AllianceInfo.model_validate({"AID": 1, "M": ["junk", {"N": "no id"}, {"OID": 0}, {"OID": 7, "AR": 8}]})
+        assert [m.player_id for m in info.members] == [7]
 
     def test_drifted_unit_array_reads_as_the_client_reads_it(self):
         # AUnitInventory.fillFromWodAmountArray: array entries only, each value through int()

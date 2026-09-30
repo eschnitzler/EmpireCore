@@ -33,13 +33,16 @@ from empire_core.alliance.models.help import (
 )
 from empire_core.alliance.models.info import (
     AllianceBuilding,
+    AllianceCrests,
     AllianceDiplomacyStatus,
     AllianceInfo,
     AllianceMember,
     AllianceMemberInfo,
     AllianceStorage,
+    CrestLayout,
     GetAllianceInfoRequest,
     GetAllianceInfoResponse,
+    PeaceOffer,
 )
 from empire_core.alliance.models.search import (
     AllianceSearchResult,
@@ -396,16 +399,8 @@ __all__ = [
     "AllianceChatLogRequest",
     "AllianceChatLogResponse",
     # Alliance
-    "AllianceMember",
-    "AllianceInfo",
-    "AllianceBuilding",
-    "AllianceStorage",
-    "AllianceMemberInfo",
-    "AllianceDiplomacyStatus",
     "DiplomacyStatus",
     "OnlineState",
-    "GetAllianceInfoRequest",
-    "GetAllianceInfoResponse",
     # Castle
     "GetCastlesRequest",
     "GetCastlesResponse",
@@ -683,4 +678,15 @@ __all__ = [
     "AllianceSearchResult",
     "SearchAllianceRequest",
     "SearchAllianceResponse",
+    "AllianceCrests",
+    "CrestLayout",
+    "PeaceOffer",
+    "AllianceMember",
+    "AllianceInfo",
+    "AllianceBuilding",
+    "AllianceStorage",
+    "AllianceMemberInfo",
+    "AllianceDiplomacyStatus",
+    "GetAllianceInfoRequest",
+    "GetAllianceInfoResponse",
 ]

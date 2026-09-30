@@ -9,13 +9,21 @@ from __future__ import annotations
 import logging
 from typing import Annotated, Any
 
-from pydantic import BeforeValidator, Field, field_validator, model_validator
+from pydantic import BeforeValidator, Field, PrivateAttr, field_validator, model_validator
 
-from empire_core.enums import DiplomacyStatus, OnlineState
+from empire_core.enums import AllianceRank, DiplomacyStatus, OnlineState
 from empire_core.map.models.items import MapAreaItem, parse_area_rows
+from empire_core.map.models.owners import AllianceCrest
 from empire_core.player.models.profile import PlayerProfileBase
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, enum_or_none
-from empire_core.protocol.js import ClientInt, ParseInt, js_floor, js_loose_equals, js_truthy
+from empire_core.protocol.base import (
+    BasePayload,
+    BaseRequest,
+    BaseResponse,
+    enum_or_none,
+    object_or_none,
+    readable_list,
+)
+from empire_core.protocol.js import ClientInt, ParseInt, js_floor, js_loose_equals, js_number_or_none, js_truthy
 from empire_core.protocol.text import decode_json_text
 
 logger = logging.getLogger(__name__)
@@ -37,29 +45,30 @@ class AllianceMember(PlayerProfileBase):
     entry with ``CastleOtherPlayerData.parseOwnerInfo`` (bundle line 138996)
     """
 
-    # Activity tier (populated from AMI array, not from server directly)
-    # None means unknown, otherwise an OnlineState value
-    _activity_tier: int | None = None
+    _member_info: Any = PrivateAttr(default=None)
+
+    @property
+    def member_info(self) -> AllianceMemberInfo | None:
+        """
+        The member's ``AMI`` row: donations, login activity and landmark counts; None when the reply has none.
+
+        Client: ``AllianceInfoVO.getAdditionalMemberInfos`` (bundle line 25979)
+        """
+        return self._member_info
 
     @property
     def activity_tier(self) -> int | None:
-        """
-        Get the member's activity tier from AMI array (index 4), an
-        :class:`OnlineState` value.
-
-        Returns None if activity status is unknown.
-        """
-        return self._activity_tier
+        """The member's login activity, an :class:`OnlineState` value; None when the reply has no ``AMI`` row."""
+        return self._member_info.login_activity if self._member_info is not None else None
 
     @property
     def is_online(self) -> bool:
         """
-        Check if the member is currently online.
+        Whether the member is online now.
 
-        Returns True only if activity_tier is OnlineState.ONLINE.
-        Returns False if offline or unknown.
+        Client: ``AllianceInfoVO.getOnlineUserList`` (bundle line 25980)
         """
-        return self._activity_tier == OnlineState.ONLINE
+        return self.activity_tier == OnlineState.ONLINE
 
 
 # =============================================================================
@@ -197,6 +206,84 @@ class AllianceDiplomacyStatus(BasePayload):
         return enum_or_none(DiplomacyStatus, self.status)
 
 
+class PeaceOffer(BasePayload):
+    """
+    An open peace offer between this alliance and yours: the ain block's ``PO``.
+
+    Client: ``AllianceInfoVO.fillFromParamObject`` (bundle line 25928) reads ``T``
+    and ``TS`` into a ``PeaceOfferVO`` (bundle line 42688)
+    """
+
+    tribute: ClientInt = Field(alias="T", default=0, description="The tribute percentage, negative when demanded")
+    remaining_seconds: int | float = Field(alias="TS", default=0, description="Seconds until the offer ends")
+
+    @field_validator("remaining_seconds", mode="before")
+    @classmethod
+    def _seconds(cls, value: Any) -> Any:
+        return js_number_or_none(value) or 0
+
+    @property
+    def is_demanded(self) -> bool:
+        """Whether the tribute is demanded rather than offered: a negative ``T``."""
+        return self.tribute < 0
+
+    @property
+    def tribute_percentage(self) -> int:
+        """The tribute offered or demanded, as a positive percentage."""
+        return abs(self.tribute)
+
+
+class CrestLayout(BasePayload):
+    """
+    One crest layout the alliance holds: an entry of the ain block's ``ACLS``.
+
+    Client: ``AllianceInfoVO.fillFromParamObject`` (bundle line 25932)
+    """
+
+    layout_id: Any = Field(alias="ACLI", default=None, description="Crest layout id")
+    seconds_left: int | float = Field(alias="ACLET", default=0, description="Seconds until the layout ends")
+    is_active: bool = Field(alias="ACIA", default=False, description="The layout is the one in use")
+    colors: Any = Field(alias="ACLCS", default=None, description="The layout's colours, as sent")
+
+    @field_validator("seconds_left", mode="before")
+    @classmethod
+    def _seconds(cls, value: Any) -> Any:
+        return js_number_or_none(value) or 0
+
+    @field_validator("is_active", mode="before")
+    @classmethod
+    def _one_flag(cls, value: Any) -> bool:
+        return js_loose_equals(value, 1)
+
+
+class AllianceCrests(BasePayload):
+    """
+    The alliance's crest and its fallback: the ain block's ``aee``.
+
+    Client: ``CastleAllianceData.parseAllianceCrestForAlliance`` (bundle line 11589);
+    ``AllianceInfoVO.parseFallbackCrest`` (bundle line 26146) keeps ``ACFB`` only
+    when it has both ``ACLI`` and ``ACCS``
+    """
+
+    crest: AllianceCrest | None = Field(
+        alias="ACCA",
+        default=None,
+        description="The current crest; None when unsent, where the client draws a random one",
+    )
+    fallback_crest: AllianceCrest | None = Field(alias="ACFB", default=None, description="The fallback crest")
+
+    @field_validator("crest", mode="before")
+    @classmethod
+    def _crest(cls, value: Any) -> Any:
+        return value if js_truthy(value) and isinstance(value, dict) else None
+
+    @field_validator("fallback_crest", mode="before")
+    @classmethod
+    def _fallback(cls, value: Any) -> Any:
+        ok = isinstance(value, dict) and js_truthy(value.get("ACLI")) and js_truthy(value.get("ACCS"))
+        return value if ok else None
+
+
 # =============================================================================
 # Alliance Info Model
 # =============================================================================
@@ -215,14 +302,24 @@ class AllianceInfo(BasePayload):
 
     alliance_id: ParseInt = Field(alias="AID", default=0, description="Alliance id")
     name: str = Field(alias="N", default="", description="Alliance name")
-    members: list[AllianceMember] = Field(
-        alias="M",
-        default_factory=list,
-        description="Members",
-    )
+    members: list[AllianceMember] = Field(alias="M", default_factory=list, description="Members, highest rank first")
+
+    @field_validator("members", mode="before")
+    @classmethod
+    def _member_records(cls, value: Any) -> Any:
+        # parseOwnerInfo reads no record without an OID; parseMemberList sorts by rank
+        members = readable_list(
+            AllianceMember,
+            value,
+            accept=lambda e: isinstance(e, dict),
+            keep=lambda e: js_truthy(e.get("OID")),
+            warn=logger,
+            what="alliance members",
+        )
+        return sorted(members, key=lambda m: m.alliance_rank)
 
     fame_points: ClientInt = Field(alias="CF", default=0, description="Alliance fame points")
-    highest_fame_points: ClientInt = Field(alias="HF", default=0, description="Highest fame points reached")
+    highest_fame_points: ParseInt = Field(alias="HF", default=0, description="Highest fame points reached")
     might: ParseInt = Field(alias="MP", default=0, description="Alliance might points")
     highest_alliance_might: ParseInt = Field(alias="HAMP", default=0, description="Highest might points reached")
     description: str = Field(alias="D", default="", description="The alliance's description, decoded as chat text")
@@ -236,7 +333,7 @@ class AllianceInfo(BasePayload):
     )
     is_searching_members: bool = Field(alias="IS", default=False, description="The alliance is looking for players")
     is_accepting_members: bool = Field(alias="IA", default=False, description="Players may apply to join")
-    application_count: ParseInt = Field(alias="AA", default=0, description="Pending applications")
+    application_count: ParseInt = Field(alias="AA", default=12, description="Pending applications")
     auto_war: bool = Field(alias="AW", default=False, description="Auto war is on")
     aqua_points: int | float = Field(alias="AP", default=0, description="Aqua points")
     free_renames: ClientInt = Field(alias="FR", default=0, description="Free alliance renames left")
@@ -252,6 +349,12 @@ class AllianceInfo(BasePayload):
         default=0,
         description="Seconds until the alliance should be requested again; 0 when none is set",
     )
+
+    @field_validator("application_count", mode="before")
+    @classmethod
+    def _applications(cls, value: Any) -> Any:
+        # fillFromParamObject keeps its 12 unless AA is sent
+        return 12 if value is None else value
 
     @field_validator("is_searching_members", "is_accepting_members", mode="before")
     @classmethod
@@ -284,6 +387,26 @@ class AllianceInfo(BasePayload):
     def _empty_announcement(cls, value: str) -> str:
         # fillFromParamObject turns an empty announcement into " "
         return value or " "
+
+    peace_offer: PeaceOffer | None = Field(
+        alias="PO", default=None, description="The open peace offer with your alliance; None when there is none"
+    )
+    crest_layouts: list[CrestLayout] = Field(
+        alias="ACLS", default_factory=list, description="The crest layouts the alliance holds"
+    )
+    crests: AllianceCrests | None = Field(alias="aee", default=None, description="The alliance's crest")
+
+    @field_validator("peace_offer", "crests", mode="before")
+    @classmethod
+    def _object_block(cls, value: Any) -> Any:
+        return object_or_none(value)
+
+    @field_validator("crest_layouts", mode="before")
+    @classmethod
+    def _crest_layouts(cls, value: Any) -> Any:
+        return readable_list(
+            CrestLayout, value, accept=lambda e: isinstance(e, dict), warn=logger, what="crest layouts"
+        )
 
     storage: AllianceStorage | None = Field(
         alias="STO",
@@ -364,21 +487,24 @@ class AllianceInfo(BasePayload):
             logger.warning(f"Skipped {skipped}/{len(value)} unparseable alliance landmark rows")
         return items
 
-    def model_post_init(self, __context) -> None:
-        """Populate member activity tier from AMI array after parsing."""
-        self._populate_activity_tier()
-
-    def _populate_activity_tier(self) -> None:
+    def model_post_init(self, __context: Any) -> None:
         """
-        Give each member the login activity of its AMI row.
+        Give each member its AMI row.
 
-        Client: ``AllianceInfoVO.parseAMI`` (bundle line 25947) keys the rows by
-        player id, and ``getOnlineUserList`` reads ``loginActivity`` from them.
+        Client: ``AllianceInfoVO.parseAMI`` (bundle line 25947) keys the rows by player id; a later row wins.
         """
-        activity_lookup = {info.player_id: info.login_activity for info in self.member_info}
+        rows = {info.player_id: info for info in self.member_info}
         for member in self.members:
-            if member.player_id in activity_lookup:
-                member._activity_tier = activity_lookup[member.player_id]
+            member._member_info = rows.get(member.player_id)
+
+    @property
+    def leader(self) -> AllianceMember | None:
+        """
+        The member with rank 0, None when there is none.
+
+        Client: ``AllianceInfoVO.allianceLeader`` (bundle line 25986)
+        """
+        return next((m for m in self.members if m.alliance_rank == AllianceRank.LEADER), None)
 
 
 # =============================================================================
@@ -418,7 +544,13 @@ class GetAllianceInfoResponse(BaseResponse):
 
     command = "ain"
 
-    alliance: AllianceInfo | None = Field(alias="A", default=None)
+    alliance: AllianceInfo | None = Field(alias="A", default=None, description="The alliance; None without an AID")
+
+    @field_validator("alliance", mode="before")
+    @classmethod
+    def _needs_an_alliance_id(cls, value: Any) -> Any:
+        # CastleAllianceData.parseAllianceInfo (bundle line 11605) reads no block without an AID
+        return value if isinstance(value, dict) and value.get("AID") is not None else None
 
     @property
     def members(self) -> list[AllianceMember]:
@@ -432,6 +564,9 @@ class GetAllianceInfoResponse(BaseResponse):
 
 
 __all__ = [
+    "AllianceCrests",
+    "CrestLayout",
+    "PeaceOffer",
     "AllianceMember",
     "AllianceInfo",
     "AllianceBuilding",
