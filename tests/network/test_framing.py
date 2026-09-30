@@ -73,3 +73,20 @@ def test_a_buffer_that_never_completes_is_dropped_at_the_limit(caplog):
     assert frames.pending == ""
     assert "never completed a packet" in caplog.text
     assert frames.feed(GAM) == [GAM]
+
+
+def test_a_closing_tag_split_across_messages_still_ends_the_system_message():
+    frames = FrameBuffer()
+    assert frames.feed(API_OK[:-3]) == []
+    assert frames.feed(API_OK[-3:]) == [API_OK]
+
+
+def test_a_large_packet_in_many_small_messages_comes_out_whole():
+    payload = '{"M": [' + ",".join(["1"] * 5000) + "]}"
+    packet = f"%xt%gam%1%0%{payload}%"
+    frames = FrameBuffer()
+    out: list[str] = []
+    for i in range(0, len(packet), 7):
+        out += frames.feed(packet[i : i + 7])
+    assert out == [packet]
+    assert frames.pending == ""

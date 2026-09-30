@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 _STRIPPED_CHARS_RE = re.compile("[\x00￾￿\ud800-\udfff]")
 
 _SYSTEM_MESSAGE_RE = re.compile(r"<msg[\s\S]+?</msg>")
+_SYSTEM_MESSAGE_END = "</msg>"
 
 
 class FrameBuffer:
@@ -29,7 +30,10 @@ class FrameBuffer:
     """
 
     def __init__(self, limit: int = MAX_FRAME_SIZE):
-        self._buffer = ""
+        # Pending data as the messages it came in, joined only when one of them
+        # can complete a packet, so a packet split over many messages costs linear time.
+        self._chunks: list[str] = []
+        self._size = 0
         self._limit = limit
 
     def feed(self, message: str) -> list[str]:
@@ -37,22 +41,37 @@ class FrameBuffer:
 
         Extension packets are returned with their ``%xt`` prefix, as ``Packet.from_bytes`` reads them.
         """
-        self._buffer += _STRIPPED_CHARS_RE.sub("", message)
-        packets = _SYSTEM_MESSAGE_RE.findall(self._buffer)
+        text = _STRIPPED_CHARS_RE.sub("", message)
+        if not text:
+            return []
+        # A closing tag may straddle the previous message and this one.
+        previous_tail = self._chunks[-1][-(len(_SYSTEM_MESSAGE_END) - 1) :] if self._chunks else ""
+        self._chunks.append(text)
+        self._size += len(text)
+        if not text.endswith("%") and _SYSTEM_MESSAGE_END not in previous_tail + text:
+            if self._size > self._limit:
+                self._drop()
+            return []
+
+        buffer = "".join(self._chunks)
+        packets = _SYSTEM_MESSAGE_RE.findall(buffer)
         if packets:
-            self._buffer = _SYSTEM_MESSAGE_RE.sub("", self._buffer)
-        if self._buffer.endswith("%"):
-            pieces = self._buffer.split("%xt")
-            self._buffer = ""
-            packets.extend("%xt" + piece for piece in pieces if piece)
-        elif len(self._buffer) > self._limit:
-            logger.warning(
-                f"Dropping {len(self._buffer)} buffered characters that never completed a packet (limit {self._limit})"
-            )
-            self._buffer = ""
+            buffer = _SYSTEM_MESSAGE_RE.sub("", buffer)
+        if buffer.endswith("%"):
+            packets.extend("%xt" + piece for piece in buffer.split("%xt") if piece)
+            buffer = ""
+        self._chunks = [buffer] if buffer else []
+        self._size = len(buffer)
+        if self._size > self._limit:
+            self._drop()
         return packets
+
+    def _drop(self) -> None:
+        logger.warning(f"Dropping {self._size} buffered characters that never completed a packet (limit {self._limit})")
+        self._chunks = []
+        self._size = 0
 
     @property
     def pending(self) -> str:
         """Data kept for the next message: the start of a packet still arriving."""
-        return self._buffer
+        return "".join(self._chunks)
