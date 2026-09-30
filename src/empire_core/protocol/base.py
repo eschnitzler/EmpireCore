@@ -262,6 +262,8 @@ class GGECommand:
     PEP = "pep"  # Get event points
     HGH = "hgh"  # Get ranking/highscore (also used by alliance search)
     LLSP = "llsp"  # Get ranking list by position
+    LLSW = "llsw"  # Get ranking list around a score
+    SLSE = "slse"  # Search an event leaderboard
     SEDE = "sede"  # Select event difficulty
 
     # Messages / notifications

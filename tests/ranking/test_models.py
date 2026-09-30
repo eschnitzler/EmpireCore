@@ -7,8 +7,17 @@ import pytest
 
 from empire_core.alliance.models.search import SearchAllianceRequest
 from empire_core.enums import RankingType
+from empire_core.protocol.base import get_response_model
 from empire_core.protocol.models import GetHighscoreRequest, GetRankingListRequest
-from empire_core.ranking.models import GetHighscoreResponse, GetRankingListResponse, RankingEntry
+from empire_core.ranking.models import (
+    GetHighscoreResponse,
+    GetRankingListResponse,
+    GetRankingWindowRequest,
+    GetRankingWindowResponse,
+    RankingEntry,
+    SearchRankingListRequest,
+    SearchRankingListResponse,
+)
 
 # Every list id in HighscoreConst (dll line 19438); the page sizes, point
 # values, sentinels and the PLAYER_BUILDINGS/ALLIANCE_BUILDINGS aliases are left out.
@@ -132,6 +141,111 @@ class TestRankingListRequest:
             "M": 10,
             "R": 1,
         }
+
+    def test_alliance_event_keys_follow_the_vo_keys(self):
+        # LeaderBoardDataProvider.sendCommand copies {SDI, EID} onto the VO after its constructor
+        request = GetRankingListRequest(LT=RankingType.ALLIANCE_MOBILISATION_EVENT, LID=4, M=10, R=11, SDI=7, EID=94)
+
+        assert list(request.to_payload().items()) == [
+            ("LT", 84),
+            ("LID", 4),
+            ("M", 10),
+            ("R", 11),
+            ("SDI", 7),
+            ("EID", 94),
+        ]
+
+
+class TestRankingWindowRequest:
+    def test_payload_follows_the_client_key_order(self):
+        # C2SListLeaderboardScoresWindowVO: LT, LID, M, SI
+        request = GetRankingWindowRequest(LT=RankingType.LONG_TERM_POINT_EVENT, LID=3, M=8, SI="1234")
+
+        assert list(request.to_payload().items()) == [("LT", 53), ("LID", 3), ("M", 8), ("SI", "1234")]
+
+    def test_own_page_sends_an_empty_score_id_and_no_league(self):
+        # getCurrentPlayerPage: new C2SListLeaderboardScoresWindowVO(LT, LID, M), SI defaults to ""
+        assert GetRankingWindowRequest(LT=RankingType.POINT_EVENT, M=8).to_payload() == {
+            "LT": 40,
+            "LID": -1,
+            "M": 8,
+            "SI": "",
+        }
+
+    def test_score_id_is_encoded_as_the_client_encodes_text(self):
+        request = GetRankingWindowRequest(LT=RankingType.POINT_EVENT, M=8, SI='a"b')
+
+        assert json.loads(request.to_packet().split("%", 5)[5][:-1])["SI"] == "a&quot;b"
+
+    def test_a_result_without_a_league_sends_none(self):
+        # getCurrentSearchPage passes the hit's LID as read; undefined is not serialised
+        request = GetRankingWindowRequest(LT=RankingType.POINT_EVENT, LID=None, M=8, SI="5")
+
+        assert request.to_payload() == {"LT": 40, "M": 8, "SI": "5"}
+
+    def test_alliance_event_keys_follow_the_vo_keys(self):
+        request = GetRankingWindowRequest(LT=RankingType.ALLIANCE_RAID_MOBILISATION_EVENT, M=10, EID=112)
+
+        assert list(request.to_payload()) == ["LT", "LID", "M", "SI", "EID"]
+
+
+class TestSearchRankingListRequest:
+    def test_payload_follows_the_client_key_order(self):
+        # C2SSearchLeaderboardScoresEventVO: LT, SV
+        request = SearchRankingListRequest(LT=RankingType.LONG_TERM_POINT_EVENT, SV="Someone")
+
+        assert list(request.to_payload().items()) == [("LT", 53), ("SV", "Someone")]
+
+    def test_search_value_is_encoded_as_the_client_encodes_text(self):
+        request = SearchRankingListRequest(LT=RankingType.POINT_EVENT, SV="50% o'clock")
+
+        assert json.loads(request.to_packet().split("%", 5)[5][:-1])["SV"] == "50&percnt; o&145;clock"
+
+    def test_alliance_event_keys_follow_the_vo_keys(self):
+        request = SearchRankingListRequest(LT=RankingType.ALLIANCE_MOBILISATION_EVENT, SV="x", SDI=2, EID=94)
+
+        assert list(request.to_payload()) == ["LT", "SV", "SDI", "EID"]
+
+
+class TestRankingWindowResponse:
+    def test_is_registered_for_llsw_and_reads_as_llsp(self):
+        # LLSWCommand dispatches LEADERBOARD_SCORE_DATA, as LLSPCommand does
+        assert get_response_model("llsw") is GetRankingWindowResponse
+        assert get_response_model("llsp") is GetRankingListResponse
+
+        response = GetRankingWindowResponse.model_validate(
+            {"LT": 53, "LID": 2, "T": 40, "L": [{"R": 17, "S": 900, "P": "Player", "A": "", "I": 3, "SI": 4501}]}
+        )
+
+        assert (response.list_type, response.league_type_id, response.total) == (53, 2, 40)
+        assert (response.scores[0].rank, response.scores[0].score_id) == (17, 4501)
+
+
+class TestSearchRankingListResponse:
+    def test_results_are_grouped_by_league(self):
+        # onSearchDataReceived: e.params.L.forEach(e => e.L.forEach(i => push({leagueTypeId: e.LID, scoreId: i})))
+        response = SearchRankingListResponse.model_validate(
+            {"LT": 53, "LID": 2, "L": [{"LID": 2, "L": ["4501", "4502"]}, {"LID": 3, "L": ["977"]}]}
+        )
+
+        assert get_response_model("slse") is SearchRankingListResponse
+        assert (response.list_type, response.league_type_id) == (53, 2)
+        assert [(r.league_type_id, r.score_ids) for r in response.results] == [(2, ["4501", "4502"]), (3, ["977"])]
+
+    @pytest.mark.parametrize(("lid", "expected"), [(4, 4), ("4", 4), (0, -1), (None, -1)])
+    def test_a_falsy_league_reads_as_minus_one(self, lid, expected):
+        # onSearchDataReceived compares against e.params.LID || -1
+        assert SearchRankingListResponse.model_validate({"LT": 53, "LID": lid, "L": []}).league_type_id == expected
+
+    def test_unreadable_results_cost_only_themselves(self):
+        response = SearchRankingListResponse.model_validate(
+            {"L": [None, "x", {"LID": 1, "L": [12, "13", None, {}]}, {"LID": 2, "L": "nope"}]}
+        )
+
+        assert [(r.league_type_id, r.score_ids) for r in response.results] == [(1, ["12", "13"]), (2, [])]
+
+    def test_no_results(self):
+        assert SearchRankingListResponse.model_validate({"LT": 53}).results == []
 
 
 class TestResponseLeague:

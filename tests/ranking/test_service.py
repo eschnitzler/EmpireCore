@@ -50,6 +50,58 @@ class TestRankingService:
         assert (entries[0].name, entries[0].alliance_name) == ("SomePlayer", "SomeAlliance")
         assert conn(client).request_payloads == [("llsp", {"LT": 53, "LID": -1, "M": 8, "R": 3})]
 
+    def test_ranking_list_sends_the_alliance_event_keys(self):
+        client = make_client({"llsp": xt_packet("llsp", {"L": [], "T": 0})})
+
+        client.ranking.get_ranking_list(
+            list_type=RankingType.ALLIANCE_MOBILISATION_EVENT, rank=1, max_results=10, league_type_id=4, event_id=94
+        )
+
+        assert conn(client).request_payloads == [("llsp", {"LT": 84, "LID": 4, "M": 10, "R": 1, "EID": 94})]
+
+    def test_own_ranking_page(self):
+        payload = {"LT": 53, "LID": 2, "T": 40, "L": [{"R": 17, "S": 900, "P": "Player", "A": "Alliance"}]}
+        client = make_client({"llsw": xt_packet("llsw", payload)})
+
+        entries = client.ranking.get_own_ranking_page(
+            list_type=RankingType.LONG_TERM_POINT_EVENT, max_results=8, league_type_id=2
+        )
+
+        assert (entries[0].rank, entries[0].name) == (17, "Player")
+        assert conn(client).request_payloads == [("llsw", {"LT": 53, "LID": 2, "M": 8, "SI": ""})]
+
+    def test_search_then_page_to_a_hit(self):
+        client = make_client(
+            {
+                "slse": xt_packet("slse", {"LT": 53, "LID": 2, "L": [{"LID": 3, "L": ["977"]}]}),
+                "llsw": xt_packet("llsw", {"LT": 53, "LID": 3, "T": 40, "L": [{"R": 5, "S": 10, "P": "Someone"}]}),
+            }
+        )
+
+        results = client.ranking.search_leaderboard(list_type=RankingType.LONG_TERM_POINT_EVENT, search_value="Some")
+        hit = results[0]
+        entries = client.ranking.get_ranking_window(
+            list_type=RankingType.LONG_TERM_POINT_EVENT,
+            score_id=hit.score_ids[0],
+            max_results=8,
+            league_type_id=hit.league_type_id,
+        )
+
+        assert entries[0].name == "Someone"
+        assert conn(client).request_payloads == [
+            ("slse", {"LT": 53, "SV": "Some"}),
+            ("llsw", {"LT": 53, "LID": 3, "M": 8, "SI": "977"}),
+        ]
+
+    def test_an_empty_search_is_not_sent(self):
+        # searchLeaderBoard: ""!=e&&null!=e&&this.sendCommand(...)
+        client = make_client({})
+
+        with pytest.raises(ValueError):
+            client.ranking.search_leaderboard(list_type=RankingType.LONG_TERM_POINT_EVENT, search_value="")
+
+        assert conn(client).request_payloads == []
+
     def test_error_raises(self):
         client = make_client({"hgh": xt_packet("hgh", error_code=21)})
         with pytest.raises(CommandError):

@@ -7,8 +7,13 @@ from .models import (
     GetHighscoreResponse,
     GetRankingListRequest,
     GetRankingListResponse,
+    GetRankingWindowRequest,
+    GetRankingWindowResponse,
     LeaderboardScore,
+    LeaderboardSearchResult,
     RankingEntry,
+    SearchRankingListRequest,
+    SearchRankingListResponse,
 )
 
 __all__ = [
@@ -18,5 +23,10 @@ __all__ = [
     "GetRankingListRequest",
     "LeaderboardScore",
     "GetRankingListResponse",
+    "GetRankingWindowRequest",
+    "GetRankingWindowResponse",
+    "SearchRankingListRequest",
+    "LeaderboardSearchResult",
+    "SearchRankingListResponse",
     "RankingType",
 ]

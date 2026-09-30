@@ -4,6 +4,8 @@ Ranking protocol models for GGE.
 Commands:
 - hgh: A page of a highscore list, around a rank or a searched name
 - llsp: A page of an event leaderboard, from a rank
+- llsw: A page of an event leaderboard, around a score or your own rank
+- slse: Search an event leaderboard for a name
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ from typing import Any, ClassVar
 from pydantic import Field, field_serializer, field_validator, model_validator
 
 from empire_core.enums import RankingType
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, GGECommand
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, GGECommand, list_or_empty, readable_list
 from empire_core.protocol.js import ClientInt, js_falsy, js_int
 from empire_core.protocol.text import encode_json_text
 
@@ -210,9 +212,16 @@ class GetRankingListRequest(BaseRequest):
     ``LongtermPointEventGlobalLeaderBoardDialog`` (``AGlobalLeaderBoardDialog.showLoaded``,
     bundle line 100442), ``AllianceMobilizationEventDialogLeaderboard.show``
     (bundle line 47278) and ``DonationEventDialogRanking`` (bundle line 115737)
+
+    The alliance mobilisation and raid leaderboards also send ``SDI`` and
+    ``EID``: ``LeaderBoardDataProvider.sendCommand`` (bundle line 75949) copies
+    the ``{SDI, EID}`` (subdivision tab) or ``{EID}`` (division tab) that
+    ``AllianceMobilizationEventDialogRanking.switchTab`` (bundle line 75910) and
+    ``AllianceRaidEventRankingDialog.switchTab`` (bundle line 75633) show the
+    leaderboard with onto every request, after the VO's own keys.
     """
 
-    command: ClassVar[str] = "llsp"
+    command: ClassVar[str] = GGECommand.LLSP
 
     list_type: RankingType = Field(alias="LT", description="The highscore list")
     league_type_id: int = Field(
@@ -222,6 +231,77 @@ class GetRankingListRequest(BaseRequest):
     )
     max_results: int = Field(alias="M", description="Entries per page")
     rank: int = Field(alias="R", default=1, description="The first rank on the page")
+    sub_division_id: int | None = Field(
+        alias="SDI", default=None, description="The alliance event subdivision, for its subdivision ranking"
+    )
+    event_id: int | None = Field(alias="EID", default=None, description="The alliance mobilisation or raid event")
+
+
+class GetRankingWindowRequest(BaseRequest):
+    """
+    A page of an event leaderboard around a score, or around your own rank.
+
+    Payload: {"LT": list_type, "LID": league_type_id, "M": max_results, "SI": score_id}
+
+    ``SI`` is a score id from a ``slse`` search result, or empty for the page
+    holding your own score; the client encodes it as it encodes any text it
+    sends. The reply is shaped like ``llsp``'s. ``SDI`` and ``EID`` are sent as
+    for ``llsp``.
+
+    Client: ``C2SListLeaderboardScoresWindowVO`` (bundle line 76012), sent by
+    ``LeaderBoardDataProvider.getCurrentPlayerPage`` (bundle line 75941) with no
+    score id and ``getCurrentSearchPage`` (bundle line 75943) with a search result's
+    league and score id
+    """
+
+    command: ClassVar[str] = GGECommand.LLSW
+
+    list_type: RankingType = Field(alias="LT", description="The highscore list")
+    league_type_id: int | None = Field(
+        alias="LID",
+        default=-1,
+        description="The event's league, a level band (see GameData.league_type); -1 for none",
+    )
+    max_results: int = Field(alias="M", description="Entries per page")
+    score_id: str = Field(
+        alias="SI", default="", description="The score to page around, from a search result; empty for your own"
+    )
+    sub_division_id: int | None = Field(
+        alias="SDI", default=None, description="The alliance event subdivision, for its subdivision ranking"
+    )
+    event_id: int | None = Field(alias="EID", default=None, description="The alliance mobilisation or raid event")
+
+    @field_serializer("score_id")
+    def _encoded_score_id(self, value: str) -> str:
+        return encode_json_text(value)
+
+
+class SearchRankingListRequest(BaseRequest):
+    """
+    Search an event leaderboard for a name.
+
+    Payload: {"LT": list_type, "SV": search_value}
+
+    The client encodes ``SV`` as it encodes any text it sends, and sends nothing
+    for an empty search. It then pages to the first hit with ``llsw``, or to
+    your own page when there is none. ``SDI`` and ``EID`` are sent as for ``llsp``.
+
+    Client: ``C2SSearchLeaderboardScoresEventVO`` (bundle line 76022), sent by
+    ``LeaderBoardDataProvider.searchLeaderBoard`` (bundle line 75942)
+    """
+
+    command: ClassVar[str] = GGECommand.SLSE
+
+    list_type: RankingType = Field(alias="LT", description="The highscore list")
+    search_value: str = Field(alias="SV", description="The name to search for")
+    sub_division_id: int | None = Field(
+        alias="SDI", default=None, description="The alliance event subdivision, for its subdivision ranking"
+    )
+    event_id: int | None = Field(alias="EID", default=None, description="The alliance mobilisation or raid event")
+
+    @field_serializer("search_value")
+    def _encoded_search_value(self, value: str) -> str:
+        return encode_json_text(value)
 
 
 def _guarded(value: Any, kind: type | tuple[type, ...]) -> Any:
@@ -262,13 +342,13 @@ class LeaderboardScore(BasePayload):
 
 class GetRankingListResponse(BaseResponse):
     """
-    Response for llsp command.
+    A page of an event leaderboard, the reply to ``llsp``.
 
     Client: ``LLSPCommand.executeCommand`` (bundle line 124397), ``LeaderBoardDataProvider.onScoreDataReceived``
     (bundle line 75957).
     """
 
-    command: ClassVar[str] = "llsp"
+    command: ClassVar[str] = GGECommand.LLSP
 
     list_type: int | None = Field(alias="LT", default=None)
     league_type_id: int | None = Field(alias="LID", default=None, description="League type id; None for none")
@@ -291,3 +371,67 @@ class GetRankingListResponse(BaseResponse):
     @property
     def entries(self) -> list[RankingEntry]:
         return [RankingEntry(score.model_dump(by_alias=True, exclude_none=True)) for score in self.scores]
+
+
+class GetRankingWindowResponse(GetRankingListResponse):
+    """
+    A page of an event leaderboard around a score, the reply to ``llsw``.
+
+    Client: ``LLSWCommand.executeCommand`` (bundle line 124411), which hands the
+    reply to ``LeaderBoardDataProvider.onScoreDataReceived`` (bundle line 75957)
+    as ``LLSPCommand`` does
+    """
+
+    command: ClassVar[str] = GGECommand.LLSW
+
+
+def _score_id_text(value: Any) -> Any:
+    # Numbers are read as text; the client passes a hit to llsw's text encoding, which needs text
+    return str(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else value
+
+
+class LeaderboardSearchResult(BasePayload):
+    """
+    The scores that matched a search in one league: an entry of ``slse``'s ``L``.
+
+    Client: ``LeaderBoardDataProvider.onSearchDataReceived`` (bundle line 75952)
+    """
+
+    league_type_id: int | None = Field(alias="LID", default=None, description="The league the scores are in")
+    score_ids: list[str] = Field(alias="L", default_factory=list, description="The matching scores' ids")
+
+    @field_validator("score_ids", mode="before")
+    @classmethod
+    def _readable_score_ids(cls, value: Any) -> list[Any]:
+        texts = (_score_id_text(item) for item in list_or_empty(value))
+        return [item for item in texts if isinstance(item, str)]
+
+
+class SearchRankingListResponse(BaseResponse):
+    """
+    The scores that matched a leaderboard search, the reply to ``slse``.
+
+    The client throws on a missing ``L`` or a result that is not an object; the
+    library reads those as no results, and a score id that is a number as text.
+
+    Client: ``SLSECommand.executeCommand`` (bundle line 124440),
+    ``LeaderBoardDataProvider.onSearchDataReceived`` (bundle line 75952)
+    """
+
+    command: ClassVar[str] = GGECommand.SLSE
+
+    list_type: int | None = Field(alias="LT", default=None)
+    league_type_id: int = Field(alias="LID", default=-1, description="League type id; -1 for none")
+    results: list[LeaderboardSearchResult] = Field(
+        alias="L", default_factory=list, description="The matches, grouped by league, in the client's order"
+    )
+
+    @field_validator("league_type_id", mode="before")
+    @classmethod
+    def _falsy_league_reads_as_minus_one(cls, value: Any) -> int:
+        return -1 if js_falsy(value) else js_int(value)
+
+    @field_validator("results", mode="before")
+    @classmethod
+    def _readable_results(cls, value: Any) -> list[LeaderboardSearchResult]:
+        return readable_list(LeaderboardSearchResult, value, accept=lambda row: isinstance(row, dict), warn=logger)

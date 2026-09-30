@@ -5,7 +5,7 @@ from enum import IntEnum
 
 class RankingType(IntEnum):
     """
-    A highscore list, the ``LT`` of ``hgh`` and ``llsp``.
+    A highscore list, the ``LT`` of ``hgh``, ``llsp``, ``llsw`` and ``slse``.
 
     The client's ``PLAYER_BUILDINGS`` (6) and ``ALLIANCE_BUILDINGS`` (11) are
     other names for ``PLAYER_MIGHT_POINTS`` and ``ALLIANCE_MIGHT_POINTS``.

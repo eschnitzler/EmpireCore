@@ -401,8 +401,13 @@ from empire_core.ranking.models import (
     GetHighscoreResponse,
     GetRankingListRequest,
     GetRankingListResponse,
+    GetRankingWindowRequest,
+    GetRankingWindowResponse,
     LeaderboardScore,
+    LeaderboardSearchResult,
     RankingEntry,
+    SearchRankingListRequest,
+    SearchRankingListResponse,
 )
 from empire_core.spy.models import (
     AutoSpyRequest,
@@ -781,4 +786,9 @@ __all__ = [
     "MAX_MAILBOX_ARCHIVE_SIZE",
     "MAX_MAILBOX_BATTLE_AND_SPY_REPORTS",
     "repair_header",
+    "GetRankingWindowRequest",
+    "GetRankingWindowResponse",
+    "SearchRankingListRequest",
+    "LeaderboardSearchResult",
+    "SearchRankingListResponse",
 ]
