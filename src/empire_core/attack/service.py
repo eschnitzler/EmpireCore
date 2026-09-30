@@ -178,6 +178,18 @@ def _precalculation(area_type: int, conquer: bool) -> _Precalculation:
     return found
 
 
+def _has_row_protection(item: MapAreaItem) -> bool:
+    """
+    Whether the row gives the target's own wall, gate and moat protection.
+
+    Alien, invasion, alliance and daimyo camps and the wolf king return the
+    row's value as their ``baseWallBonus``, ``baseGateBonus`` and
+    ``baseMoatBonus`` (e.g. ``AAlienInvasionMapobjectVO``, bundle lines
+    41571-41577); a castle-style row gives building levels instead.
+    """
+    return any(bonus is not None for bonus in (item.base_wall_bonus, item.base_gate_bonus, item.base_moat_bonus))
+
+
 def _row_item(row: list | None) -> MapAreaItem | None:
     """A target's map row as the client reads it, or None when there is none it can read."""
     if not row:
@@ -734,6 +746,12 @@ class AttackService(BaseService):
             if target.level is None and self.client.game_data is not None:
                 player = self.client.state.get_local_player()
                 target.level = invasion_camp_level(self.client.game_data, item, player.level if player else 0)
+        elif item.dungeon_level is not None and item.dungeon_level > 0:
+            # A camp whose row gives its level (an alien camp, the wolf king, an event
+            # or boss dungeon, a faction object) has an NPC owner and no record to read;
+            # an alien camp at level 0 or below is not on the map (bundle line 41545)
+            if target.level is None:
+                target.level = item.dungeon_level
         elif target.level is None or target.owner_legend_level is None:
             # A player's level is not in the row; it sits in the owner records a
             # scan returns beside it.
@@ -798,9 +816,9 @@ class AttackService(BaseService):
         item = _row_item(target.row)
         if item is None:
             return None
-        if item.is_invasion_camp:
-            # An invasion camp's row reports its protection as a percentage, which
-            # FightScreenHelper.getDefenceBonuses (bundle line 19148) divides by 100.
+        if _has_row_protection(item):
+            # FightScreenHelper.getDefenceBonuses (bundle line 19148) divides the target's
+            # baseWallBonus (and gate, moat) by 100; the camps whose row carries them return it as sent.
             wall = (item.base_wall_bonus or 0.0) / 100
             gate = (item.base_gate_bonus or 0.0) / 100
             moat = (item.base_moat_bonus or 0.0) / 100
