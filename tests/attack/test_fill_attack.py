@@ -694,9 +694,9 @@ class TestFillAttack:
         assert "gui" not in sent
         assert sum(w.unit_count() for w in waves) == 40
 
-    def test_the_attacking_castle_is_reselected_after_a_scan(self):
-        # Scanning moves the client off the castle, and the inventory read that
-        # follows is castle-scoped.
+    def test_the_attacking_castle_is_joined_once_for_the_inventory_after_a_scan(self):
+        # Scanning moves the client off the castle; only the inventory read is
+        # castle-scoped, and it joins the castle itself.
         client = self.build([[601, 100_000]])
         row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
         conn(client).script["aci"] = xt_packet("aci", {"gaa": {"AI": row}, "AE": [], "B": {}})
@@ -707,11 +707,23 @@ class TestFillAttack:
         client.attack.fill_attack(12345, target_x=700, target_y=710)
 
         # The select is acknowledged as jaa, which is what the client waits on.
-        order = [e for e in conn(client).events if any(c in e for c in ("gaa", "jaa", "gui"))]
-        scanned = next(i for i, e in enumerate(order) if "gaa" in e)
-        reselected = next(i for i, e in enumerate(order) if "jaa" in e)
-        inventory = next(i for i, e in enumerate(order) if "gui" in e)
-        assert scanned < reselected < inventory
+        sent = [command for command, _ in conn(client).request_payloads]
+        assert sent == ["gaa", "aci", "skl", "jaa", "gui"]
+
+    def test_a_pre_calculation_with_the_inventory_leaves_the_session_on_the_map(self):
+        # The attack is sent from the map, as the client sends it, so nothing rejoins the castle.
+        client = self.build([[601, 100_000]])
+        row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
+        conn(client).script["aci"] = xt_packet(
+            "aci", {"gaa": {"AI": row}, "gui": {"I": [[601, 100_000]]}, "AE": [], "B": {}}
+        )
+        conn(client).script["gaa"] = xt_packet(
+            "gaa", {"KID": 0, "AI": [row], "OI": [{"OID": 900, "PID": 4242, "L": 46}]}
+        )
+
+        client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+        assert [command for command, _ in conn(client).request_payloads] == ["gaa", "aci", "skl"]
 
     def test_a_camp_is_pre_calculated_with_adi(self):
         # aci on a camp is refused with INVALID_AREA; the client asks adi.

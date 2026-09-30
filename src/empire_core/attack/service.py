@@ -755,7 +755,6 @@ class AttackService(BaseService):
 
         item = _row_item(target.row)
         if item is None:
-            self._return_to_castle(castle_id, home_kingdom, timeout, scanned=area is not None)
             return
         if target.area_type is None:
             target.area_type = item.item_type
@@ -787,7 +786,6 @@ class AttackService(BaseService):
                 target.is_player = target.is_player or target.level is not None
             if target.owner_legend_level is None and owner is not None:
                 target.owner_legend_level = owner.legendary_level
-        self._return_to_castle(castle_id, home_kingdom, timeout, scanned=area is not None)
 
     @staticmethod
     def _take_scanned_row(target: "_Target", area: GetMapAreaResponse | None) -> None:
@@ -801,15 +799,6 @@ class AttackService(BaseService):
         row_item = _row_item(target.row)
         if row_item is not None and target.area_type is None:
             target.area_type = row_item.item_type
-
-    def _return_to_castle(self, castle_id: int, kingdom_id: Kingdom, timeout: float, *, scanned: bool) -> None:
-        """Scanning moves the client off the attacking castle; the reads that follow are castle-scoped."""
-        if not scanned:
-            return
-        try:
-            self.client.castle.select(castle_id, kingdom_id=kingdom_id, timeout=timeout)
-        except EmpireError as e:
-            logger.debug(f"Could not return to castle {castle_id} after scanning: {e}")
 
     def _scan_tile(self, target: "_Target", *, timeout: float) -> GetMapAreaResponse | None:
         """The map's own record of the target's tile."""
@@ -994,6 +983,11 @@ class AttackService(BaseService):
         Every one of those can be passed instead, which skips the request that
         would have found it. Pass no coordinates and nothing is read: then
         ``target_level`` or ``camp_victories`` is required, as before.
+
+        A scan of the target's tile, made when its area type is not known,
+        leaves the session on the map, as the client is when it attacks from
+        there: the castle is joined again only for the inventory read, and
+        only when the pre-calculation did not carry the inventory.
 
         Args:
             castle_id: Castle whose troops to draw from, one of yours: a ``Castle.id``
