@@ -5,6 +5,7 @@ Spy service for high-level espionage operations.
 from __future__ import annotations
 
 import logging
+import math
 import queue
 import time
 from dataclasses import dataclass
@@ -58,7 +59,6 @@ _REPORT_MARGIN = 10.0
 # and a live military mission's log header began "1+".
 _LOG_TYPE_OF_MISSION = {SpyType.MILITARY: SpyLogType.DEFENCE, SpyType.ECO: SpyLogType.ECO}
 _POLL_SECONDS = 1.0
-_SSI_POLL_ATTEMPTS = 5
 _SSI_POLL_DELAY = 2.0
 
 
@@ -322,6 +322,7 @@ class SpyService(BaseService):
         feathers: bool = False,
         slowdown: int = 0,
         max_wait: float | None = None,
+        wait_for_spies: float | None = None,
     ) -> SpyResult:
         """
         Send a military or economy spy mission and read its report.
@@ -347,10 +348,13 @@ class SpyService(BaseService):
         counts; the rest are skipped. ``sne`` carries no mission id, so two
         missions to the same target at once cannot be told apart.
 
-        Blocks the calling thread for up to ~10s while polling for spy
-        availability, then until the spies arrive (the csm reply's travel
-        time) plus 10s for the report, or ``max_wait`` if that is shorter —
-        do not call this from a state callback.
+        Asks ``ssi`` once: with no spy at home, or no mission within
+        ``risk_tolerance``, it returns at once, as the client's spy dialog
+        shows the pool as it is. ``wait_for_spies`` asks again every 2s for up
+        to that many seconds, for spies still on their way home. Then it
+        blocks until the spies arrive (the csm reply's travel time) plus 10s
+        for the report, or ``max_wait`` if that is shorter; do not call this
+        from a state callback.
 
         Args:
             source_castle_id: The castle the spies leave from, one of yours: ``CastleInfo.castle_id``
@@ -372,6 +376,8 @@ class SpyService(BaseService):
             slowdown: Seconds to delay the arrival by
             max_wait: Most seconds to wait for the report after the csm reply;
                 None waits for the trip plus 10s
+            wait_for_spies: Most seconds to keep asking ``ssi`` while no spy is at
+                home or the risk is over ``risk_tolerance``; None asks once
 
         Client: ``CastlePostSpyDialog.spyCastle`` (bundle line 38459),
         ``CastleStartSpyVO.setSpyValues`` (bundle line 140004),
@@ -387,7 +393,8 @@ class SpyService(BaseService):
 
         available = 0
         plan = None
-        for attempt in range(_SSI_POLL_ATTEMPTS):
+        attempts = 1 + (math.ceil(wait_for_spies / _SSI_POLL_DELAY) if wait_for_spies and wait_for_spies > 0 else 0)
+        for attempt in range(attempts):
             try:
                 screen = self.get_screen_info(target_x, target_y, target_kingdom)
             except EmpireError as e:
@@ -410,7 +417,7 @@ class SpyService(BaseService):
 
             # Spies still walking home. A fuller pool lowers the achievable
             # risk, so waiting can bring an over-budget target into range.
-            if attempt < _SSI_POLL_ATTEMPTS - 1:
+            if attempt < attempts - 1:
                 time.sleep(_SSI_POLL_DELAY)
 
         if available <= 0:

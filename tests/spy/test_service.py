@@ -433,21 +433,39 @@ class TestSpyReportIsCheckedAgainstTheTarget:
 
 
 class TestSpyFailurePaths:
-    def test_no_spies_available_after_polling(self, no_sleep):
+    def test_no_spies_available_asks_once_by_default(self, no_sleep):
         client = spy_client(ssi=xt_packet("ssi", {"AS": 0}))
 
         result = client.spy.execute_instant_spy(12345, 700, 710)
 
         assert result.success is False
         assert result.outcome is SpyOutcome.NO_SPIES_AVAILABLE
-        # Polled several times, then gave up without sending the mission.
-        assert conn(client).requested.count("ssi") == 5
+        assert conn(client).requested.count("ssi") == 1
         assert "csm" not in conn(client).requested
+
+    @pytest.mark.parametrize(("wait", "asks"), [(0.5, 2), (2, 2), (2.5, 3), (0, 1)])
+    def test_any_wait_for_spies_asks_again(self, no_sleep, wait, asks):
+        client = spy_client(ssi=xt_packet("ssi", {"AS": 0}))
+
+        client.spy.execute_instant_spy(12345, 700, 710, wait_for_spies=wait)
+
+        assert conn(client).requested.count("ssi") == asks
+
+    def test_waiting_for_spies_asks_again_until_the_limit(self, monkeypatch):
+        slept: list[float] = []
+        monkeypatch.setattr(spy_module.time, "sleep", slept.append)
+        client = spy_client(ssi=xt_packet("ssi", {"AS": 0}))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, wait_for_spies=8)
+
+        assert result.outcome is SpyOutcome.NO_SPIES_AVAILABLE
+        assert conn(client).requested.count("ssi") == 5
+        assert slept == [2.0] * 4
 
     def test_spies_returning_are_picked_up_on_a_later_poll(self, no_sleep):
         client = spy_client(ssi=[xt_packet("ssi", {"AS": 0}), xt_packet("ssi", {"AS": 8})])
 
-        result = client.spy.execute_instant_spy(12345, 700, 710)
+        result = client.spy.execute_instant_spy(12345, 700, 710, wait_for_spies=10)
 
         assert result.success is True
         assert conn(client).requested.count("ssi") == 2
