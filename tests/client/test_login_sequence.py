@@ -1,14 +1,14 @@
 """Tests for the EmpireClient login handshake (no real socket).
 
 The handshake is six steps over two wire formats (XML for the SmartFox
-handshake, XT for the game login) and it is the one code path every consumer
-runs before anything else. What is pinned here:
+handshake, XT for the version check and the game login) and it is the one code
+path every consumer runs before anything else. What is pinned here:
 
 * the step order and the exact packet each step puts on the wire,
 * the gbd waiter being registered *before* the lli request, since gbd arrives
   immediately after a successful login and would otherwise race it,
-* the error mapping for the server's login rejections (cooldown 453, bad
-  credentials 401, session 440, and a garbled status field),
+* the error mapping for the server's login rejections (cooldown 453, ban 27,
+  wrong server 368, refused token 409, other codes, and a garbled status field),
 * which steps are fatal and which are best-effort,
 * and that every failure path closes the connection and releases the state
   executor, so a failed login leaks neither a socket nor threads.
@@ -28,28 +28,30 @@ import pytest
 from empire_core.client.client import EmpireClient
 from empire_core.config import LOGIN_DEFAULTS, EmpireConfig
 from empire_core.exceptions import (
+    AccountBannedError,
+    ClientVersionError,
     EmpireError,
     EmpireTimeoutError,
     LoginCooldownError,
     LoginError,
+    WrongServerError,
 )
 from empire_core.network.connection import ResponseWaiter
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import MALFORMED_STATUS_CODE, Packet
 
-# The full handshake in wire order: XML version check, XML zone login, XML
-# autojoin, XML round trip, then the XT auth. gbd is awaited on a waiter, not
-# requested, so it is not in this list.
-HANDSHAKE_STEPS = ["apiOK", "rlu", "joinOK", "roundTripRes", "lli"]
+# The requests in wire order: XML version check, XML zone login, XML autojoin,
+# the XT version check, then the XT auth. The round trip is sent, not
+# requested, and gbd is awaited on a waiter, so neither is in this list.
+HANDSHAKE_STEPS = ["apiOK", "rlu", "joinOK", "vck", "lli"]
 
-# 453 comes from the config table (the login code branches on it). 401 and 440
-# are deliberately *not* named in ServerError - see its docstring: both collide
-# with unrelated GGEError codes, so the login path treats them as ordinary
-# rejections. These literals are here to pin that generic handling, not to
-# re-assert a meaning for them.
+# 453 is the one refusal the login treats as a cooldown. 401 and 440 have
+# unrelated meanings in GGEError; they pin that any other code is an ordinary
+# rejection.
 LOGIN_COOLDOWN_CODE = int(GGEError.LOGIN_COOLDOWN_ACTIVE)
 BAD_CREDENTIALS_CODE = 401
 SESSION_EXPIRED_CODE = 440
+SESSION_ID = "1.5e+300"
 
 
 def xt_packet(command: str, payload: Any = None, error_code: int = 0) -> Packet:
@@ -77,6 +79,8 @@ class ScriptedConnection:
         self.events: list[str] = []
         self.on_packet = None
         self.on_disconnect = None
+        self.sent: list[str] = []
+        self.subscribers: dict[str, list[Any]] = {}
 
     def _resolve(self, cmd_id: str) -> Packet:
         result = self.script.get(cmd_id, xt_packet(cmd_id))
@@ -94,7 +98,20 @@ class ScriptedConnection:
         self.events.append("disconnect")
 
     def send(self, data: str) -> None:
+        self.sent.append(data)
         self.events.append("send")
+        if "action='roundTrip'" in data and not isinstance(self.script.get("roundTripRes"), Exception):
+            answer = Packet.from_bytes(b"<msg t='sys'><body action='roundTripRes' r='1'></body></msg>")
+            for callback in list(self.subscribers.get("roundTripRes", [])):
+                callback(answer)
+
+    def subscribe(self, cmd_id: str, callback: Any) -> None:
+        self.subscribers.setdefault(cmd_id, []).append(callback)
+        self.events.append(f"subscribe:{cmd_id}")
+
+    def unsubscribe(self, cmd_id: str, callback: Any) -> None:
+        self.subscribers[cmd_id].remove(callback)
+        self.events.append(f"unsubscribe:{cmd_id}")
 
     def request(self, data: str, cmd_id: str, timeout: float = 5.0) -> Packet:
         self.requested.append(cmd_id)
@@ -139,6 +156,8 @@ def make_client(
     client.config = config or EmpireConfig(login_timeout=0.1, request_timeout=0.1, connection_timeout=0.1)
     client.username = "tester"
     client.password = "s3cr3t-pw"
+    client.login_token = None
+    client.session_id = SESSION_ID
     client.connection = connection or ScriptedConnection()  # type: ignore[assignment]
     client.state = state or StubState()  # type: ignore[assignment]
     client.is_logged_in = False
@@ -209,7 +228,13 @@ class TestHandshakeSequence:
 
         rlu = conn.request_data["rlu"]
         assert "<nick><![CDATA[]]></nick>" in rlu
-        assert f"<pword><![CDATA[{LOGIN_DEFAULTS['CONM']}%en%0]]></pword>" in rlu
+        # Client: the build number, language and distributor id (dll line 7230).
+        assert "<pword><![CDATA[1169011%en%0]]></pword>" in rlu
+
+    def test_zone_login_sends_the_configured_client_version(self):
+        conn = ScriptedConnection()
+        make_client(conn, config=EmpireConfig(client_version="1.2.3")).login()
+        assert "<pword><![CDATA[1002003%en%0]]></pword>" in conn.request_data["rlu"]
 
     def test_zone_login_never_carries_the_account_password(self):
         # The real password belongs to the XT login only; leaking it into the
@@ -231,13 +256,21 @@ class TestHandshakeSequence:
 
         assert conn.request_data["joinOK"] == "<msg t='sys'><body action='autoJoin' r='-1'></body></msg>"
 
-    def test_round_trip_step_is_sent(self):
-        conn = ScriptedConnection()
+    def test_round_trip_is_sent_in_the_joined_room_before_the_version_check(self):
+        conn = ScriptedConnection({"joinOK": join_ok("2")})
         client = make_client(conn)
 
         client.login()
 
-        assert conn.request_data["roundTripRes"] == "<msg t='sys'><body action='roundTrip' r='1'></body></msg>"
+        assert conn.sent == ["<msg t='sys'><body action='roundTrip' r='2'></body></msg>"]
+        assert conn.events.index("send") < conn.events.index("request:vck")
+        assert conn.subscribers["roundTripRes"] == []
+
+    def test_version_check_frame(self):
+        conn = ScriptedConnection({"joinOK": join_ok("2")})
+        make_client(conn).login()
+        # Client: BasicJoinedRoomCommand sends [build, "web-html5", "", sessionId] (dll line 33011).
+        assert conn.request_data["vck"] == f"%xt%EmpireEx_21%vck%2%1169011%web-html5%<RoundHouseKick>%{SESSION_ID}%"
 
     def test_xt_login_packet_shape(self):
         conn = ScriptedConnection()
@@ -257,8 +290,30 @@ class TestHandshakeSequence:
         payload = xt_login_payload(conn)
         assert payload["NOM"] == "tester"
         assert payload["PW"] == "s3cr3t-pw"
+        assert payload["LT"] is None
         for key, value in LOGIN_DEFAULTS.items():
             assert payload[key] == value
+
+    def test_xt_login_keys_are_in_the_client_order(self):
+        conn = ScriptedConnection()
+        make_client(conn).login()
+        # Client: JSON.stringify of C2SLoginVO (bundle line 131792), checked in node.
+        assert list(xt_login_payload(conn)) == [
+            "CONM", "RTM", "ID", "PL", "NOM", "PW", "LT", "LANG", "DID", "AID", "KID", "REF", "GCI", "SID", "PLFID",
+        ]  # fmt: skip
+
+    def test_name_and_password_are_encoded_as_the_login_screen_does(self):
+        conn = ScriptedConnection()
+        client = make_client(conn)
+        client.username = 'a"b'
+        client.password = "p%w'd\\"
+
+        client.login()
+
+        # Layer 1 (encode_json_text), then the frame turns its '%' into '&percnt;'.
+        payload = xt_login_payload(conn)
+        assert payload["NOM"] == "a&quot;b"
+        assert payload["PW"] == "p&percnt;w&145;d&percnt;5C"
 
     def test_login_defaults_are_not_mutated_by_a_login(self):
         # The XT payload is built from LOGIN_DEFAULTS; writing the credentials
@@ -343,12 +398,13 @@ class TestNonFatalSteps:
         assert conn.requested == HANDSHAKE_STEPS
         assert "disconnect" not in conn.events
 
-    def test_missing_round_trip_continues_the_login(self):
+    def test_missing_round_trip_continues_the_login_with_no_round_trip_time(self):
         conn = ScriptedConnection({"roundTripRes": EmpireTimeoutError("no roundTripRes")})
         client = make_client(conn)
 
         assert client.login() is True
         assert client.is_logged_in is True
+        assert xt_login_payload(conn)["RTM"] == 0
 
     def test_both_optional_steps_missing_is_still_a_login(self):
         conn = ScriptedConnection(
@@ -377,8 +433,9 @@ class TestFatalSteps:
     @pytest.mark.parametrize(
         "step,message",
         [
-            ("apiOK", "Version check timed out"),
+            ("apiOK", "API version check"),
             ("rlu", "Zone login timed out"),
+            ("vck", "Version check"),
             ("lli", "XT login timed out"),
         ],
     )
@@ -608,20 +665,21 @@ class TestSuccessfulLogin:
         client = make_client(conn)
         client.password = None
 
-        with pytest.raises(LoginError, match="Username and password are required"):
+        with pytest.raises(LoginError, match="Username and a password or login token are required"):
             client.login()
 
         assert conn.events == []
 
 
+def join_ok(room: str) -> Packet:
+    return Packet.from_bytes(f"<msg t='sys'><body action='joinOK' r='{room}'><pid id='0'/></body></msg>".encode())
+
+
 class TestJoinedRoom:
     """joinOK's ``r`` is the room every later command carries (dll line 7232)."""
 
-    def join_ok(self, room: str) -> Packet:
-        return Packet.from_bytes(f"<msg t='sys'><body action='joinOK' r='{room}'><pid id='0'/></body></msg>".encode())
-
     def test_the_room_id_from_join_ok_goes_into_lli(self):
-        conn = ScriptedConnection({"joinOK": self.join_ok("3")})
+        conn = ScriptedConnection({"joinOK": join_ok("3")})
         client = make_client(conn)
 
         client.login()
@@ -630,6 +688,137 @@ class TestJoinedRoom:
         assert conn.request_data["lli"].startswith("%xt%EmpireEx_21%lli%3%")
 
     def test_an_unreadable_room_id_is_no_room(self):
-        conn = ScriptedConnection({"joinOK": self.join_ok("x")})
+        conn = ScriptedConnection({"joinOK": join_ok("x")})
         make_client(conn).login()
         assert conn.room_id == -1
+
+
+class TestTimings:
+    """CONM runs from before the socket opens to apiOK, RTM from roundTrip to its answer (dll line 7130-7228)."""
+
+    def test_connection_and_round_trip_times_are_measured(self, monkeypatch):
+        ticks = iter([10.0, 10.25, 11.0, 11.5])
+        monkeypatch.setattr("empire_core.client.client.time.monotonic", lambda: next(ticks))
+        conn = ScriptedConnection()
+
+        make_client(conn).login()
+
+        payload = xt_login_payload(conn)
+        assert payload["CONM"] == 250
+        assert payload["RTM"] == 500
+
+
+class TestVersionCheck:
+    """The vck reply: 0 goes on, 1 too low, 2 too high (CastleVCKCommand, bundle line 120444)."""
+
+    @pytest.mark.parametrize("status", [1, 2])
+    def test_a_version_the_server_refuses_raises_with_its_build(self, status):
+        conn = ScriptedConnection({"vck": Packet.from_bytes(f"%xt%vck%1%{status}%1170001%".encode())})
+
+        with pytest.raises(ClientVersionError) as exc_info:
+            make_client(conn).login()
+
+        assert exc_info.value.status == status
+        assert exc_info.value.server_build == "1170001"
+        assert "lli" not in conn.requested
+        assert "disconnect" in conn.events
+
+    def test_another_status_is_a_login_error(self):
+        conn = ScriptedConnection({"vck": xt_packet("vck", error_code=1000)})
+        with pytest.raises(LoginError, match="1000"):
+            make_client(conn).login()
+
+    def test_ok_goes_on_to_the_login(self):
+        conn = ScriptedConnection({"vck": Packet.from_bytes(b"%xt%vck%1%0%1169011%")})
+        assert make_client(conn).login() is True
+
+
+class TestLoginToken:
+    """A persistent login's token (slt, bundle line 120936) logs in without the password."""
+
+    def test_login_by_token_sends_no_password(self):
+        conn = ScriptedConnection()
+        client = make_client(conn)
+        client.password = None
+        client.login_token = "tok-123"
+
+        client.login()
+
+        payload = xt_login_payload(conn)
+        assert "PW" not in payload
+        assert payload["LT"] == "tok-123"
+
+    def test_a_password_nulls_the_token(self):
+        conn = ScriptedConnection()
+        client = make_client(conn)
+        client.login_token = "tok-123"
+
+        client.login()
+
+        assert xt_login_payload(conn)["LT"] is None
+
+    def test_the_pushed_token_is_kept(self):
+        client = make_client()
+        client._on_packet(xt_packet("slt", {"LT": "fresh-token"}))
+        assert client.login_token == "fresh-token"
+
+    def test_a_refused_slt_keeps_the_old_token(self):
+        client = make_client()
+        client.login_token = "old"
+        client._on_packet(xt_packet("slt", {"LT": "x"}, error_code=1))
+        assert client.login_token == "old"
+
+    def test_a_refused_token_is_forgotten(self):
+        conn = ScriptedConnection({"lli": xt_packet("lli", error_code=int(GGEError.INVALID_LOGIN_TOKEN))})
+        client = make_client(conn)
+        client.password = None
+        client.login_token = "stale"
+
+        with pytest.raises(LoginError, match="token"):
+            client.login()
+
+        assert client.login_token is None
+
+
+class TestRecaptchaToken:
+    """The client attaches a reCAPTCHA token as RCT (bundle line 131780)."""
+
+    def test_no_token_sends_no_rct(self):
+        conn = ScriptedConnection()
+        make_client(conn).login()
+        assert "RCT" not in xt_login_payload(conn)
+
+    def test_a_token_is_sent_last(self):
+        conn = ScriptedConnection()
+        make_client(conn).login(recaptcha_token="captcha")
+        payload = xt_login_payload(conn)
+        assert list(payload)[-1] == "RCT"
+        assert payload["RCT"] == "captcha"
+
+    def test_a_token_function_is_called(self):
+        conn = ScriptedConnection()
+        make_client(conn).login(recaptcha_token=lambda: "from-callback")
+        assert xt_login_payload(conn)["RCT"] == "from-callback"
+
+
+class TestRefusalDetails:
+    """What LLICommand reads off a refused login (bundle line 120651)."""
+
+    def test_a_ban_carries_the_remaining_seconds(self):
+        conn = ScriptedConnection({"lli": xt_packet("lli", {"RS": 3600}, error_code=27)})
+        with pytest.raises(AccountBannedError) as exc_info:
+            make_client(conn).login()
+        assert exc_info.value.remaining_seconds == 3600
+        assert exc_info.value.deleted is False
+
+    def test_a_deleted_account(self):
+        conn = ScriptedConnection({"lli": xt_packet("lli", {"GDPR": 1}, error_code=27)})
+        with pytest.raises(AccountBannedError) as exc_info:
+            make_client(conn).login()
+        assert exc_info.value.deleted is True
+
+    def test_the_wrong_server_names_the_right_instance(self):
+        conn = ScriptedConnection({"lli": xt_packet("lli", {"IID": 21}, error_code=368)})
+        with pytest.raises(WrongServerError) as exc_info:
+            make_client(conn).login()
+        assert exc_info.value.instance_id == 21

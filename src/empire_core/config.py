@@ -1,26 +1,30 @@
+import math
 import os
-import secrets
+import random
+import sys
 import time
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 _AID_ENV_VAR = "EMPIRE_AID"
-# Width of the AID the browser client sends (matching the literal that used to be
-# hard-coded here): epoch-milliseconds plus six random digits.
-_AID_DIGITS = 19
+_random = random.SystemRandom()
+
+
+def _to_fixed(number: float) -> str:
+    """``number.toFixed()`` for a number that is not negative."""
+    return repr(number) if number >= 1e21 else str(math.floor(number + 0.5))
 
 
 def generate_aid() -> str:
-    """Build a fresh AID (the client's install/device id) in the format the game uses.
-
-    The browser client's value looks like epoch-milliseconds followed by six
-    random digits, so a generated one is indistinguishable in shape from a real
-    install.
     """
-    prefix = str(int(time.time() * 1000))
-    suffix_digits = max(_AID_DIGITS - len(prefix), 1)
-    return f"{prefix}{secrets.randbelow(10**suffix_digits):0{suffix_digits}d}"
+    A fresh account (install) id, made as the client makes one for a new install.
+
+    Epoch milliseconds followed by a random number below 999999, not padded.
+
+    Client: ``AccountCookie`` (dll line 9088)
+    """
+    return str(int(time.time() * 1000)) + _to_fixed(999999 * _random.random())
 
 
 def resolve_aid() -> str:
@@ -42,13 +46,32 @@ def resolve_aid() -> str:
 AID: str = resolve_aid()
 
 
-# Default login payload values
+def generate_session_id() -> str:
+    """
+    A session id as the client makes one per page load; the version check sends it.
+
+    Client: ``BasicEnvironmentGlobals.sessionId`` (dll line 34455)
+    """
+    return _to_fixed(_random.random() * sys.float_info.max)
+
+
+def build_number(version: str) -> str:
+    """
+    The build number of a client version: ``"1.169.11"`` is ``"1169011"``.
+
+    The minor and patch parts are padded to three digits; a patch suffix after
+    ``-`` is dropped.
+
+    Client: ``CastleVersionInformation.buildNumberGame`` (bundle line 10446)
+    """
+    major, minor, patch = version.split(".")[:3]
+    return major + minor.rjust(3, "0") + patch.split("-")[0].rjust(3, "0")
+
+
+# Default login payload values; CONM and RTM are measured during the login.
 LOGIN_DEFAULTS: dict[str, Any] = {
-    "CONM": 1150008,
-    "RTM": 24,
     "ID": 0,
     "PL": 1,
-    "LT": None,
     "LANG": "en",
     "DID": "0",
     # Install/tracking id. Per-process by default (see resolve_aid): a single
@@ -82,7 +105,10 @@ class EmpireConfig(BaseModel):
     # Connection
     game_url: str = "wss://ep-live-us1-game.goodgamestudios.com/"
     default_zone: str = "EmpireEx_21"
-    game_version: str = "166"
+    game_version: str = Field(default="166", description="SmartFox API version the verChk handshake sends")
+    client_version: str = Field(
+        default="1.169.11", description="Game client version whose build number the login and version check send"
+    )
 
     # Timeouts
     connection_timeout: float = 10.0
@@ -94,6 +120,11 @@ class EmpireConfig(BaseModel):
     # repr=False: keeps the secret out of repr()/str(), which reach logs and the
     # traceback locals captured by error reporters.
     password: str | None = Field(default=None, repr=False)
+
+    @property
+    def build_number(self) -> str:
+        """The build number of :attr:`client_version`."""
+        return build_number(self.client_version)
 
 
 class _FrozenEmpireConfig(EmpireConfig):

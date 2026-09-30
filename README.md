@@ -80,6 +80,18 @@ with EmpireClient(username="your_user", password="your_pass") as client:
 Without the `with` block, call `client.close()` yourself — skipping it leaks the
 receive thread and the state executor for the life of the process.
 
+### Logging in
+
+The login runs the game client's handshake, including its version check: set
+`EmpireConfig.client_version` to the current game client's version when the
+server raises `ClientVersionError`. After a login the server pushes a login
+token, kept in `client.login_token`; `EmpireClient(username=..., login_token=...)`
+logs in with it instead of the password.
+
+`login(recaptcha_token=...)` sends a reCAPTCHA v3 token (or calls a function for
+one) the way the browser does. The library cannot make one; logins work without
+it today.
+
 ## Services
 
 Services are attached to the client automatically; there is nothing to wire up.

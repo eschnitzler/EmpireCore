@@ -38,6 +38,60 @@ class LoginCooldownError(LoginError):
         super().__init__(f"{message}: Retry in {cooldown}s")
 
 
+class AccountBannedError(LoginError):
+    """
+    Raised when the server refuses the login because the account is banned (``IS_BANNED``, 27).
+
+    Attributes:
+        remaining_seconds: seconds until the ban ends (``RS``), or None
+        deleted: the account was deleted (``GDPR``)
+
+    Client: ``LLICommand.executeCommand`` (bundle line 120651)
+    """
+
+    def __init__(self, remaining_seconds: float | None, deleted: bool = False):
+        self.remaining_seconds = remaining_seconds
+        self.deleted = deleted
+        detail = "account deleted" if deleted else f"{remaining_seconds}s remaining"
+        super().__init__(f"Account is banned ({detail})")
+
+
+class WrongServerError(LoginError):
+    """
+    Raised when the account belongs to another server (``EXISTING_MAPPING_WRONG_SERVER``, 368).
+
+    Attributes:
+        instance_id: the instance id of the account's server (``IID``), or None;
+            ``NetworkInstance.instance_id`` in ``network.xml``
+
+    Client: ``LLICommand.executeCommand`` (bundle line 120651)
+    """
+
+    def __init__(self, instance_id: float | None):
+        self.instance_id = instance_id
+        super().__init__(f"Account is on another server (instance {instance_id})")
+
+
+class ClientVersionError(LoginError):
+    """
+    Raised when the version check (``vck``) says the client's version is too low (1) or too high (2).
+
+    Set ``EmpireConfig.client_version`` to the current game client's version.
+
+    Attributes:
+        status: 1 (too low) or 2 (too high)
+        server_build: the server's build number, or None when the reply had none
+
+    Client: ``CastleVCKCommand.executeCommand`` (bundle line 120444)
+    """
+
+    def __init__(self, status: int, server_build: str | None):
+        self.status = status
+        self.server_build = server_build
+        which = "too low" if status == 1 else "too high"
+        super().__init__(f"Client version {which} for the server (server build {server_build})")
+
+
 class PacketError(EmpireError):
     """Raised when packet parsing fails."""
 

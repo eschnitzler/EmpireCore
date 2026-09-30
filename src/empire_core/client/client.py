@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from pathlib import Path
@@ -22,16 +23,19 @@ from empire_core.army.service import ArmyService
 from empire_core.attack.service import AttackService
 from empire_core.castle.service import CastleService
 from empire_core.commanders.service import CommandersService, EquipmentService, SkillsService
-from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, default_config
+from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, default_config, generate_session_id
 from empire_core.defense.service import DefenseService
 from empire_core.events.service import EventsService
 from empire_core.exceptions import (
+    AccountBannedError,
+    ClientVersionError,
     CommandError,
     EmpireError,
     EmpireTimeoutError,
     LoginCooldownError,
     LoginError,
     PacketError,
+    WrongServerError,
 )
 from empire_core.gamedata import GameData
 from empire_core.map.service import MapService
@@ -39,7 +43,8 @@ from empire_core.movements.models import GetMovementsRequest
 from empire_core.movements.service import MovementsService
 from empire_core.network.connection import NON_ERROR_COMMANDS, Connection
 from empire_core.player.service import PlayerService
-from empire_core.protocol.base import NO_ROOM, build_command, json_text
+from empire_core.protocol.auth import LoginRequest, LoginResponse, LoginTokenResponse, build_version_check
+from empire_core.protocol.base import NO_ROOM, read_or_none
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import BaseRequest, BaseResponse, parse_response
 from empire_core.protocol.packet import Packet
@@ -62,6 +67,18 @@ def _joined_room_id(join_ok: Packet) -> int:
         return int(body.get("r", "")) if body is not None else NO_ROOM
     except ValueError:
         return NO_ROOM
+
+
+def _elapsed_ms(start: float, end: float | None = None) -> int:
+    """Whole milliseconds between two ``time.monotonic()`` readings, the second defaulting to now."""
+    return int(((time.monotonic() if end is None else end) - start) * 1000)
+
+
+def _first_field(packet: Packet) -> str | None:
+    """The first field after the status of a reply that is not JSON, or None when it has none."""
+    raw = packet.payload.get("raw") if isinstance(packet.payload, dict) else None
+    first = raw.split("%")[0] if isinstance(raw, str) else ""
+    return first or None
 
 
 T = TypeVar("T", bound=BaseResponse)
@@ -107,10 +124,16 @@ class EmpireClient:
         username: str | None = None,
         password: str | None = None,
         config: EmpireConfig | None = None,
+        login_token: str | None = None,
     ):
         self.config = config or default_config
         self.username = username or self.config.username
         self.password = password or self.config.password
+        # A persistent login's token: logs in without the password, and is
+        # replaced by the one the server pushes (slt) after each login.
+        self.login_token = login_token
+        # One per client, as the game client makes one per page load.
+        self.session_id = generate_session_id()
 
         self.connection = Connection(self.config.game_url, keepalive_zone=self.config.default_zone)
         self.state = GameState()
@@ -188,6 +211,9 @@ class EmpireClient:
         if not cmd or not isinstance(payload, (dict, list)):
             return
 
+        if cmd == "slt" and packet.error_code == 0 and isinstance(payload, dict):
+            self._store_login_token(payload)
+
         # Update internal state (always runs for state-tracked commands)
         self._update_state(cmd, payload)
         if cmd == "mvf" and packet.error_code == 0:
@@ -239,6 +265,16 @@ class EmpireClient:
         except EmpireError:
             logger.warning("Could not ask for the movement list after the login data", exc_info=True)
 
+    def _store_login_token(self, payload: dict[str, Any]) -> None:
+        """
+        Keep the login token the server pushed after a persistent login.
+
+        Client: ``SLTCommand.executeCommand`` (bundle line 120936)
+        """
+        token = read_or_none(LoginTokenResponse.model_validate, payload)
+        if token is not None and token.login_token:
+            self.login_token = token.login_token
+
     def _update_state(self, cmd: str, payload: dict[str, Any] | list[Any]) -> None:
         """Sync state update from packet - delegates to GameState.
 
@@ -278,15 +314,26 @@ class EmpireClient:
         """Remove a callback added with :meth:`on_disconnect`; unknown callbacks are ignored."""
         self.connection.remove_disconnect_listener(callback)
 
-    def login(self) -> bool:
+    def login(self, recaptcha_token: str | Callable[[], str] | None = None) -> bool:
         """
-        Perform the full login sequence:
-        1. Connect WebSocket
-        2. Version Check (XML)
-        3. Zone Login (XML)
-        4. AutoJoin Room (XML)
-        5. XT Version Check
-        6. XT Login (Auth)
+        Log in the way the game client does.
+
+        1. Connect the WebSocket
+        2. ``verChk``, answered by ``apiOK``
+        3. Zone login with the build number, answered by ``rlu``
+        4. ``autoJoin``, answered by ``joinOK`` with the room id
+        5. ``roundTrip`` and the version check ``vck``
+        6. ``lli``, with the measured connection and round-trip times
+
+        With :attr:`password` set it logs in by password; without one, by the
+        :attr:`login_token` an earlier login got. After a login the server
+        pushes a fresh token, kept in :attr:`login_token`.
+
+        Args:
+            recaptcha_token: A reCAPTCHA v3 token for the action ``login``, or
+                a function returning one, sent as ``RCT``. The game client
+                always attaches one; the library cannot make one itself, and
+                logins are accepted without it today.
 
         Returns:
             Always ``True``. Every failure path raises, so ``if not
@@ -297,27 +344,34 @@ class EmpireClient:
         Raises:
             NetworkError: The WebSocket connection could not be established
             EmpireTimeoutError: A required login step timed out
+            ClientVersionError: The version check says ``config.client_version`` is too low or too high
             LoginCooldownError: The server is rate-limiting this account
-            LoginError: Username or password missing, or the server rejected
-                the credentials
+            AccountBannedError: The account is banned or deleted
+            WrongServerError: The account is on another server
+            LoginError: Username and password or token missing, the version
+                check failed, or the server rejected the login
 
         Every failure mode is an ``EmpireError`` subclass, so
         ``except EmpireError`` catches all of them.
 
         On any of these, the connection and its background threads are closed
         before the error propagates, so a failed login leaks nothing.
+
+        Client: ``BasicSmartfoxClient`` (dll line 7130), ``BasicJoinedRoomCommand`` (dll line 33011),
+        ``CastleLoginCommand`` (bundle line 131762)
         """
-        if not self.username or not self.password:
-            raise LoginError("Username and password are required")
+        if not self.username or not (self.password or self.login_token):
+            raise LoginError("Username and a password or login token are required")
 
         logger.debug(f"Logging in as {self.username}...")
 
         try:
-            # Connect if not already connected
+            # The client times the connection from before it opens the socket.
+            started = time.monotonic()
             if not self.connection.connected:
                 self.connection.connect(timeout=self.config.connection_timeout)
 
-            return self._login_sequence()
+            return self._login_sequence(started, recaptcha_token)
         except Exception:
             # The documented cleanup call (close()) never runs on the raising
             # path, so without this a failed login leaves an open socket plus
@@ -326,25 +380,20 @@ class EmpireClient:
             self._close_after_failed_login()
             raise
 
-    def _login_sequence(self) -> bool:
+    def _login_sequence(self, started: float, recaptcha_token: str | Callable[[], str] | None) -> bool:
         """Run the handshake/auth exchange on an already-connected socket."""
-        # 1. Version Check
         ver_packet = f"<msg t='sys'><body action='verChk' r='0'><ver v='{self.config.game_version}' /></body></msg>"
         try:
             self.connection.request(ver_packet, "apiOK", timeout=self.config.request_timeout)
         except EmpireTimeoutError as e:
-            raise EmpireTimeoutError("Version check timed out") from e
+            raise EmpireTimeoutError("API version check (verChk) timed out") from e
+        connection_time = _elapsed_ms(started)
 
-        # Same client-version fingerprint the XT login sends below: a second
-        # hardcoded copy would silently drift on the next game-client bump.
-        conm_value = LOGIN_DEFAULTS["CONM"]
-
-        # 2. Zone Login (XML)
         login_packet = (
             f"<msg t='sys'><body action='login' r='0'>"
             f"<login z='{self.config.default_zone}'>"
             f"<nick><![CDATA[]]></nick>"
-            f"<pword><![CDATA[{conm_value}%en%0]]></pword>"
+            f"<pword><![CDATA[{self.config.build_number}%{LOGIN_DEFAULTS['LANG']}%{LOGIN_DEFAULTS['DID']}]]></pword>"
             f"</login></body></msg>"
         )
         try:
@@ -352,30 +401,27 @@ class EmpireClient:
         except EmpireTimeoutError as e:
             raise EmpireTimeoutError("Zone login timed out") from e
 
-        # 3. AutoJoin Room
         join_packet = "<msg t='sys'><body action='autoJoin' r='-1'></body></msg>"
         try:
             join_ok = self.connection.request(join_packet, "joinOK", timeout=self.config.request_timeout)
         except EmpireTimeoutError:
-            # The server does not always send joinOK; not fatal
+            # The server does not always send joinOK; not fatal, but no room is joined
             logger.debug("No joinOK received, continuing login")
         else:
             self.connection.room_id = _joined_room_id(join_ok)
 
-        roundtrip_packet = "<msg t='sys'><body action='roundTrip' r='1'></body></msg>"
-        try:
-            self.connection.request(roundtrip_packet, "roundTripRes", timeout=self.config.request_timeout)
-        except EmpireTimeoutError:
-            # roundTripRes is informational only; not fatal
-            logger.debug("No roundTripRes received, continuing login")
+        round_trip_time = self._version_check()
 
-        # 5. XT Login (Real Auth)
-        xt_payload = {
+        request = LoginRequest.create(
+            self.username or "",
+            self.password or None,
             **LOGIN_DEFAULTS,
-            "NOM": self.username,
-            "PW": self.password,
-        }
-        xt_packet = build_command(self.config.default_zone, "lli", [json_text(xt_payload)], self.connection.room_id)
+            CONM=connection_time,
+            RTM=round_trip_time,
+            LT=None if self.password else self.login_token,
+            RCT=recaptcha_token() if callable(recaptcha_token) else recaptcha_token,
+        )
+        xt_packet = request.to_packet(zone=self.config.default_zone, room_id=self.connection.room_id)
 
         # Register the gbd waiter up front: it arrives right after a
         # successful lli and would otherwise race the lli handling below.
@@ -387,13 +433,7 @@ class EmpireClient:
                 raise EmpireTimeoutError("XT login timed out") from e
 
             if lli_response.error_code != 0:
-                if lli_response.error_code == GGEError.LOGIN_COOLDOWN_ACTIVE:
-                    cooldown = 0
-                    if isinstance(lli_response.payload, dict):
-                        cooldown = int(lli_response.payload.get("CD", 0))
-                    raise LoginCooldownError(cooldown)
-
-                raise LoginError(f"Auth failed with code {lli_response.error_code}")
+                self._raise_login_refusal(lli_response)
 
             # Wait for gbd (Get Big Data) which contains player info, castles, etc.
             try:
@@ -406,6 +446,65 @@ class EmpireClient:
             return True
         finally:
             self.connection.cancel_waiter("gbd", gbd_waiter)
+
+    def _version_check(self) -> int:
+        """
+        Send ``roundTrip`` and ``vck`` back to back, as the client does on joining the lobby.
+
+        Returns the round trip in milliseconds, or 0 when its answer has not
+        come back by the time ``vck`` is answered: the client sends whatever
+        it has measured when it logs in.
+
+        Client: ``BasicSmartfoxClient.onJoinRoom`` (dll line 7163), ``BasicJoinedRoomCommand`` (dll line 33011),
+        ``CastleVCKCommand.executeCommand`` (bundle line 120444)
+        """
+        answered: list[float] = []
+
+        def on_round_trip(_packet: Packet) -> None:
+            answered.append(time.monotonic())
+
+        room_id = self.connection.room_id
+        self.connection.subscribe("roundTripRes", on_round_trip)
+        try:
+            sent = time.monotonic()
+            self.connection.send(f"<msg t='sys'><body action='roundTrip' r='{room_id}'></body></msg>")
+            vck_packet = build_version_check(
+                self.config.default_zone, self.config.build_number, self.session_id, room_id
+            )
+            try:
+                vck = self.connection.request(vck_packet, "vck", timeout=self.config.request_timeout)
+            except EmpireTimeoutError as e:
+                raise EmpireTimeoutError("Version check (vck) timed out") from e
+        finally:
+            self.connection.unsubscribe("roundTripRes", on_round_trip)
+
+        if vck.error_code in (1, 2):
+            raise ClientVersionError(vck.error_code, _first_field(vck))
+        if vck.error_code != 0:
+            raise LoginError(f"Version check failed with code {vck.error_code}")
+        return _elapsed_ms(sent, answered[0]) if answered else 0
+
+    def _raise_login_refusal(self, lli: Packet) -> None:
+        """
+        Raise the error for a refused ``lli``.
+
+        Client: ``LLICommand.executeCommand`` (bundle line 120651)
+        """
+        code = lli.error_code
+        details = LoginResponse()
+        if isinstance(lli.payload, dict):
+            details = read_or_none(LoginResponse.model_validate, lli.payload) or details
+        if code == GGEError.LOGIN_COOLDOWN_ACTIVE:
+            raise LoginCooldownError(int(details.remaining_cooldown_seconds or 0))
+        if code == GGEError.IS_BANNED:
+            raise AccountBannedError(details.remaining_ban_seconds, details.account_deleted)
+        if code == GGEError.EXISTING_MAPPING_WRONG_SERVER:
+            raise WrongServerError(details.instance_id)
+        if code == GGEError.INVALID_LOGIN_TOKEN:
+            # The client forgets a token the server refused.
+            self.login_token = None
+            raise LoginError("The login token was refused")
+        raise LoginError(f"Auth failed with code {code}")
 
     def _close_after_failed_login(self) -> None:
         """Best-effort cleanup that must never mask the original failure."""

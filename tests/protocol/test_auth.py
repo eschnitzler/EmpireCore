@@ -1,5 +1,7 @@
 """Auth models against the client's VOs and reply handlers."""
 
+from typing import Any
+
 import pytest
 
 from empire_core.protocol.auth import (
@@ -15,7 +17,7 @@ from empire_core.protocol.auth import (
 )
 from empire_core.protocol.base import json_text
 
-LOGIN_FIELDS = {
+LOGIN_FIELDS: dict[str, Any] = {
     "CONM": 812,
     "RTM": 37,
     "PL": 1,
@@ -82,10 +84,10 @@ def test_version_check_frame():
 
 class TestNameChecks:
     def test_vpn_sends_pn(self):
-        assert CheckUsernameAvailableRequest(username="x").to_payload() == {"PN": "x"}
+        assert CheckUsernameAvailableRequest(PN="x").to_payload() == {"PN": "x"}
 
     def test_vln_sends_nom(self):
-        assert CheckUsernameExistsRequest(username="x").to_payload() == {"NOM": "x"}
+        assert CheckUsernameExistsRequest(NOM="x").to_payload() == {"NOM": "x"}
 
     def test_a_refused_name_suggests_others(self):
         response = CheckUsernameAvailableResponse.model_validate({"NS": ["a1", 2, "a3"]})

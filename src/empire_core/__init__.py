@@ -22,8 +22,10 @@ from empire_core.commanders.models.roster import Castellan, Commander
 from empire_core.config import EmpireConfig
 from empire_core.enums import AttackType, EquipmentSlot, Kingdom, LootPriority, MapItemType, MovementType, SpyType
 from empire_core.exceptions import (
+    AccountBannedError,
     AmbiguousLookupError,
     AttackInProgressError,
+    ClientVersionError,
     CommandError,
     ConnectionClosedError,
     EmpireError,
@@ -34,6 +36,7 @@ from empire_core.exceptions import (
     NetworkError,
     PacketError,
     ReceiveThreadError,
+    WrongServerError,
 )
 from empire_core.gamedata import GameData, ToolStats, UnitStats
 from empire_core.map.models.areas import MapObject
@@ -70,6 +73,9 @@ __all__ = [
     "ConnectionClosedError",
     "LoginError",
     "LoginCooldownError",
+    "AccountBannedError",
+    "WrongServerError",
+    "ClientVersionError",
     "PacketError",
     "EmpireTimeoutError",
     "CommandError",

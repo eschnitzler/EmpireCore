@@ -233,7 +233,8 @@ class TestLoginFingerprint:
         aid = LOGIN_DEFAULTS["AID"]
         assert isinstance(aid, str)
         assert aid.isdigit()
-        assert len(aid) == len(self.LEAKED_LITERAL)
+        # Client: epoch milliseconds and an unpadded number below 999999 (dll line 9088).
+        assert 14 <= len(aid) <= len(self.LEAKED_LITERAL)
 
     def test_generated_ids_differ(self):
         assert len({generate_aid() for _ in range(5)}) > 1
