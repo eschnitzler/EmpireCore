@@ -120,3 +120,22 @@ class TestRegister:
 def test_password_recovery_sends_the_email_as_mail():
     # Client: BasicLostPasswordCommand.sendMessage builds {MAIL: text} (dll line 33056).
     assert PasswordRecoveryRequest(MAIL="a@example.com").to_payload() == {"MAIL": "a@example.com"}
+
+
+class TestSecretsStayOutOfRepr:
+    def test_login_request(self):
+        text = repr(LoginRequest.create("n", "hunter2", AID="1", LT="tok-secret", RCT="captcha-secret"))
+        assert "hunter2" not in text and "tok-secret" not in text and "captcha-secret" not in text
+
+    def test_register_and_token(self):
+        assert "hunter2" not in repr(RegisterRequest(PN="n", PW="hunter2", AID="1", NID=1, RCT="c-secret"))
+        assert "tok-secret" not in repr(LoginTokenResponse(LT="tok-secret"))
+
+
+def test_login_tokens_are_redacted_in_logged_frames():
+    from empire_core.network.connection import _summarize_frame
+    from empire_core.protocol.packet import _redacted_prefix
+
+    frame = '%xt%Z%xyz%1%{"LT":"tok-secret","RCT":"captcha-secret"}%'
+    for text in (_summarize_frame(frame), _redacted_prefix(frame)):
+        assert "tok-secret" not in text and "captcha-secret" not in text

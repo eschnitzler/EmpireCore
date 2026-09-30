@@ -53,8 +53,10 @@ class LoginRequest(BaseRequest):
         alias="PL", default=False, description="Stay logged in; the server then pushes a login token (slt)"
     )
     username: str = Field(alias="NOM", description="The login name, encoded")
-    password: str | None = Field(alias="PW", default=None, description="The password, encoded; None to log in by token")
-    login_token: str | None = Field(alias="LT", default=None, description="A persistent login's token")
+    password: str | None = Field(
+        alias="PW", default=None, repr=False, description="The password, encoded; None to log in by token"
+    )
+    login_token: str | None = Field(alias="LT", default=None, repr=False, description="A persistent login's token")
     language: str = Field(alias="LANG", default="en", description="Language code of the chosen country")
     distributor_id: str = Field(alias="DID", default="0", description="Distributor id of the install")
     account_id: str = Field(alias="AID", description="Account (install) id")
@@ -66,7 +68,7 @@ class LoginRequest(BaseRequest):
     store_id: int = Field(alias="SID", default=9, description="Store id: 9 for the web")
     platform_id: int = Field(alias="PLFID", default=1, description="Platform id: 1 for the web")
     recaptcha_token: str | None = Field(
-        alias="RCT", default=None, description="A reCAPTCHA v3 token for the action 'login'"
+        alias="RCT", default=None, repr=False, description="A reCAPTCHA v3 token for the action 'login'"
     )
 
     @classmethod
@@ -153,7 +155,7 @@ class LoginTokenResponse(BaseResponse):
     command = "slt"
 
     login_token: Annotated[str | None, BeforeValidator(lambda value: None if value is None else js_string(value))] = (
-        Field(alias="LT", default=None, description="The token")
+        Field(alias="LT", default=None, repr=False, description="The token")
     )
 
 
@@ -213,7 +215,7 @@ class RegisterRequest(BaseRequest):
     ad_id: int = Field(alias="adID", default=0, description="Campaign ad id")
     time_zone: int = Field(alias="timeZone", default=0, description="UTC offset in hours plus 13")
     username: str = Field(alias="PN", description="The new player's name")
-    password: str | None = Field(alias="PW", default=None, description="The new account's password")
+    password: str | None = Field(alias="PW", default=None, repr=False, description="The new account's password")
     referrer: str = Field(alias="REF", default="", description="The page the game was opened from")
     language: str = Field(alias="LANG", default="en", description="Language code of the chosen country")
     account_id: str = Field(alias="AID", description="Account (install) id")
@@ -222,7 +224,7 @@ class RegisterRequest(BaseRequest):
     platform_id: int = Field(alias="PLFID", default=1, description="Platform id: 1 for the web")
     network_id: int = Field(alias="NID", description="Network id of the install")
     recaptcha_token: str | None = Field(
-        alias="RCT", default=None, description="A reCAPTCHA v3 token for the action 'submit'"
+        alias="RCT", default=None, repr=False, description="A reCAPTCHA v3 token for the action 'submit'"
     )
 
 

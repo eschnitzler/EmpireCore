@@ -26,6 +26,9 @@ logger = logging.getLogger(__name__)
 # Commands that use XT field 4 for data instead of error codes
 NON_ERROR_COMMANDS = {"rlu", "core_pol"}
 
+# Replies whose refusals the login turns into typed errors; logged at debug only.
+LOGIN_REPLY_COMMANDS = frozenset({"lli", "vck"})
+
 # Commands whose payload carries credentials (login, registration, social
 # login). Their bodies are never logged - only the command id and frame size.
 AUTH_COMMANDS = frozenset({"lli", "core_reg", "scp"})
@@ -40,7 +43,7 @@ _SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     # escaped characters (\" and \\): with a plain [^"]* a password containing
     # a double-quote would leak its tail after the json.dumps-escaped \".
     (
-        re.compile(r'("(?:PW|PWD|PASS|PASSWORD|TOKEN|SECRET|AUTH)"\s*:\s*)"(?:\\.|[^"\\])*"', re.IGNORECASE),
+        re.compile(r'("(?:PW|PWD|PASS|PASSWORD|TOKEN|SECRET|AUTH|LT|RCT)"\s*:\s*)"(?:\\.|[^"\\])*"', re.IGNORECASE),
         r'\1"<redacted>"',
     ),
     # SmartFox XML handshake: <pword><![CDATA[...]]></pword>
@@ -663,16 +666,11 @@ class Connection:
         """
         cmd_id = packet.command_id
 
-        # Log server errors (but exclude commands that use field 4 for data)
-        # lli 453 is login cooldown, handled as exception in client
-        if (
-            not packet.is_xml
-            and packet.error_code != 0
-            and cmd_id not in NON_ERROR_COMMANDS
-            and not (cmd_id == "lli" and packet.error_code == 453)
-        ):
+        # Log server errors (but exclude commands that use field 4 for data).
+        # The login raises its own typed errors for lli and vck refusals.
+        if not packet.is_xml and packet.error_code != 0 and cmd_id not in NON_ERROR_COMMANDS:
             error_name = GGEError.from_code(packet.error_code).name
-            if packet.error_code == 21:
+            if packet.error_code == 21 or cmd_id in LOGIN_REPLY_COMMANDS:
                 logger.debug(f"Server error: {error_name} ({packet.error_code}) for command '{cmd_id}'")
             else:
                 logger.error(f"Server error: {error_name} ({packet.error_code}) for command '{cmd_id}'")

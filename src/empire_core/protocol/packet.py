@@ -43,7 +43,7 @@ _degraded_frame_warn_at = 0.0
 # network/connection.py (which cannot be imported here: the network layer
 # already imports the protocol layer).
 _SECRET_JSON_RE = re.compile(
-    r'("(?:PW|PWD|PASS|PASSWORD|TOKEN|SECRET|AUTH)"\s*:\s*)"(?:\\.|[^"\\])*"',
+    r'("(?:PW|PWD|PASS|PASSWORD|TOKEN|SECRET|AUTH|LT|RCT)"\s*:\s*)"(?:\\.|[^"\\])*"',
     re.IGNORECASE,
 )
 _SECRET_XML_RE = re.compile(r"(<pword>).*?(</pword>)", re.IGNORECASE | re.DOTALL)
