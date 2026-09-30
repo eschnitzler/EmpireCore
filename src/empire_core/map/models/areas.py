@@ -2,7 +2,8 @@
 
 Commands:
 - gaa: Get map area/chunk
-- fnm: Find NPC on map
+- fnm: Find the next map object of a type
+- jaa: Join a map area by its position
 """
 
 from __future__ import annotations
@@ -12,16 +13,9 @@ from typing import Any
 
 from pydantic import ConfigDict, Field, ValidationInfo, field_validator
 
-from empire_core.enums import Kingdom
-from empire_core.protocol.base import (
-    BasePayload,
-    BaseRequest,
-    BaseResponse,
-    Position,
-    object_or_none,
-    readable_list,
-)
-from empire_core.protocol.js import ParseInt, js_loose_equals, js_parse_int, js_truthy
+from empire_core.enums import Kingdom, MapItemType
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none, readable_list
+from empire_core.protocol.js import ClientInt, ParseInt, js_loose_equals, js_parse_int, js_truthy
 
 from .items import MapAreaItem, parse_area_rows
 from .owners import AllianceEmblem, OwnerCastlePosition, OwnerCrest, OwnerFaction
@@ -176,19 +170,63 @@ def _owner_records(value: Any) -> list[MapObject]:
     )
 
 
+class NoobProtection(BasePayload):
+    """
+    The player's beginner protection in one kingdom: a map reply's ``uap``.
+
+    Client: ``CastleUserData.parse_UAP`` (bundle line 9899), which keeps only whether ``NS`` is above 0.
+    """
+
+    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id")
+    noob_protection_seconds: ClientInt = Field(
+        alias="NS", default=0, description="Seconds of beginner protection left in that kingdom"
+    )
+
+    @property
+    def is_noob_protected(self) -> bool:
+        """Whether the player is still protected there."""
+        return self.noob_protection_seconds > 0
+
+
+class MapArea(BasePayload):
+    """
+    Map rows and the owner records of the players they name: the ``gaa`` block of a find reply.
+
+    Client: ``FNMCommand.executeCommand`` (bundle line 40185) reads ``gaa.OI``
+    with ``parseOwnerInfoArray`` and ``gaa.AI`` with ``parseAreaInfos``.
+    """
+
+    items: list[MapAreaItem] = Field(alias="AI", default_factory=list, description="The map rows")
+    owners: list[MapObject] = Field(alias="OI", default_factory=list, description="Owner records for the rows")
+
+    @field_validator("items", mode="before")
+    @classmethod
+    def _parse_rows(cls, value: Any) -> Any:
+        items, skipped = parse_area_rows(value)
+        if skipped:
+            logger.warning(f"Skipped {skipped}/{len(value)} unparseable map rows")
+        return items
+
+    @field_validator("owners", mode="before")
+    @classmethod
+    def _parse_owners(cls, value: Any) -> Any:
+        return _owner_records(value)
+
+
 class GetMapAreaResponse(BaseResponse):
     """
-    The map rows of a rectangle and the owner records of the players they name.
+    The map rows of a rectangle, the owner records of the players they name, and the player's beginner protection.
 
     Command: gaa
-    Response format: {"KID": 0, "AI": [[type, x, y, ...], ...], "OI": [{...}, ...]}
+    Response format: {"KID": 0, "AI": [[type, x, y, ...], ...], "OI": [{...}, ...], "uap": {"KID": .., "NS": ..}}
 
     Each row is read in the reply's kingdom (see :class:`MapAreaItem`). A scan
     moves the session off the castle it had joined, so castle-scoped reads
     after it must join the castle again (``client.army`` methods do).
 
-    Client: ``GAACommand.executeCommand`` (bundle line 130112) reads ``OI``
-    with ``parseOwnerInfoArray`` and ``AI`` with ``parseAreaInfos``.
+    Client: ``GAACommand.executeCommand`` (bundle line 130112) reads ``uap``
+    with ``parse_UAP``, ``OI`` with ``parseOwnerInfoArray`` and ``AI`` with
+    ``parseAreaInfos``.
     """
 
     command = "gaa"
@@ -199,6 +237,9 @@ class GetMapAreaResponse(BaseResponse):
     items: list[MapAreaItem] = Field(alias="AI", default_factory=list, description="The area's map rows")
     owners: list[MapObject] = Field(
         alias="OI", default_factory=list, description="Owner records for the players the rows name"
+    )
+    noob_protection: NoobProtection | None = Field(
+        alias="uap", default=None, description="The player's beginner protection in the kingdom"
     )
 
     @field_validator("items", mode="before")
@@ -217,6 +258,11 @@ class GetMapAreaResponse(BaseResponse):
     @classmethod
     def _parse_owners(cls, value: Any) -> Any:
         return _owner_records(value)
+
+    @field_validator("noob_protection", mode="before")
+    @classmethod
+    def _protection_needs_an_object(cls, value: Any) -> Any:
+        return object_or_none(value)
 
     def get_ruins(self) -> list[MapObject]:
         """Owner records flagged as ruins; their castles are in each record's ``castle_positions``."""
@@ -241,59 +287,96 @@ class GetMapAreaResponse(BaseResponse):
 
 
 # =============================================================================
-# FNM - Find NPC
+# FNM - Find the next map object
 # =============================================================================
 
 
-class FindNPCRequest(BaseRequest):
+class FindNextMapObjectRequest(BaseRequest):
     """
-    Find NPC targets on the map.
+    Find the nearest map object of one area type, as the client's "show me" and "jump to" buttons do.
 
     Command: fnm
-    Payload: {"NT": npc_type, "L": level, "KID": kingdom_id}
+    Payload: {"T": area_type, "KID": kingdom, "LMIN": min_level, "LMAX": max_level, "NID": owner_id}
 
-    NPC types vary by game version.
+    The client asks this for faction camps, invasion and nomad camps and the
+    alliance raid portal, naming the NPC owner of the camps it wants. The
+    server answers NO_PLAYER_FOUND (153) when nothing matches.
+
+    Client: ``C2SFindNextMapObjectVO`` (bundle line 8970), whose key order the
+    fields follow; callers at bundle lines 54675, 75451, 91575 and 98951
     """
 
     command = "fnm"
 
-    npc_type: int = Field(alias="NT")
-    level: int | None = Field(alias="L", default=None)
-    kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN)
+    area_type: MapItemType = Field(alias="T", description="The area type to look for")
+    kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom to look in")
+    min_level: int = Field(alias="LMIN", default=-1, description="Lowest level to match, -1 for any")
+    max_level: int = Field(alias="LMAX", default=-1, description="Highest level to match, -1 for any")
+    owner_id: int = Field(alias="NID", default=-1, description="The NPC owner to match, -1 for any")
 
 
-class NPCLocation(BasePayload):
-    """An NPC location on the map."""
-
-    x: int = Field(alias="X")
-    y: int = Field(alias="Y")
-    npc_type: int = Field(alias="NT")
-    level: int = Field(alias="L")
-    npc_id: int = Field(alias="NID", default=0)
-
-    @property
-    def position(self) -> Position:
-        """Get NPC position."""
-        return Position(X=self.x, Y=self.y)
-
-
-class FindNPCResponse(BaseResponse):
+class FindNextMapObjectResponse(BaseResponse):
     """
-    Response containing NPC locations.
+    Where the object found lies, with the map rows around it.
 
     Command: fnm
+    Payload: {"gaa": {"AI": [...], "OI": [...]}, "X": x, "Y": y}
+
+    Client: ``FNMCommand.executeCommand`` (bundle line 40185), which centres
+    the map on ``X``/``Y`` with ``CastleWorldmapData.parseSearchInfos``
+    (bundle line 19010).
     """
 
     command = "fnm"
 
-    npcs: list[NPCLocation] = Field(alias="N", default_factory=list)
+    x: int = Field(alias="X", default=0, description="Map x of the object found")
+    y: int = Field(alias="Y", default=0, description="Map y of the object found")
+    area: MapArea = Field(alias="gaa", default_factory=MapArea, description="The map rows around it")
+
+    @field_validator("area", mode="before")
+    @classmethod
+    def _area_needs_an_object(cls, value: Any) -> Any:
+        return value if isinstance(value, (dict, MapArea)) else {}
+
+    def found(self) -> MapAreaItem | None:
+        """The row at ``(x, y)``, when the reply includes it."""
+        return next((item for item in self.area.items if (item.x, item.y) == (self.x, self.y)), None)
+
+
+# =============================================================================
+# JAA - Join a map area
+# =============================================================================
+
+
+class JoinAreaRequest(BaseRequest):
+    """
+    Join the map object at a position, as the client does for any map object but a castle.
+
+    The client joins a castle or kingdom castle by id (``jca``) and anything
+    else, an outpost, capital or metropolis among them, by position. Which
+    objects the server lets a player join this way is not settled by the client.
+
+    Command: jaa
+    Payload: {"PX": x, "PY": y, "KID": kingdom}
+
+    Client: ``C2SJoinAreaVO`` (bundle line 56128), whose key order the fields
+    follow; sent at bundle line 100892
+    """
+
+    command = "jaa"
+
+    x: int = Field(alias="PX", description="Map x")
+    y: int = Field(alias="PY", description="Map y")
+    kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom it lies in")
 
 
 __all__ = [
     "GetMapAreaRequest",
     "GetMapAreaResponse",
+    "MapArea",
     "MapObject",
-    "FindNPCRequest",
-    "FindNPCResponse",
-    "NPCLocation",
+    "NoobProtection",
+    "FindNextMapObjectRequest",
+    "FindNextMapObjectResponse",
+    "JoinAreaRequest",
 ]

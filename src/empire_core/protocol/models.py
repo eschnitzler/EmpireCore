@@ -264,12 +264,14 @@ from empire_core.enums import (
     WearerType,
 )
 from empire_core.map.models.areas import (
-    FindNPCRequest,
-    FindNPCResponse,
+    FindNextMapObjectRequest,
+    FindNextMapObjectResponse,
     GetMapAreaRequest,
     GetMapAreaResponse,
+    JoinAreaRequest,
+    MapArea,
     MapObject,
-    NPCLocation,
+    NoobProtection,
 )
 from empire_core.map.models.items import MapAreaItem
 from empire_core.map.models.owners import (
@@ -478,9 +480,11 @@ __all__ = [
     "OwnerCastlePosition",
     "OwnerCrest",
     "OwnerFaction",
-    "FindNPCRequest",
-    "FindNPCResponse",
-    "NPCLocation",
+    "FindNextMapObjectRequest",
+    "FindNextMapObjectResponse",
+    "JoinAreaRequest",
+    "MapArea",
+    "NoobProtection",
     # Player
     "GetPlayerInfoRequest",
     "GetPlayerInfoResponse",

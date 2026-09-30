@@ -474,6 +474,8 @@ Each item is a `MapAreaItem` read by its area type's layout, and carries the
 kingdom it came from (as does `result.kingdom`). A scan moves the session off
 the castle it had joined: `client.army` methods join their castle again
 themselves, anything else castle-scoped needs `client.castle.select()` first.
+`client.map.find_next()` finds the nearest object of one area type, and
+`client.map.join_area()` joins a non-castle object by its position.
 
 **Re-scanning cheaply.** `result.content_chunks` lists the chunks that held
 items. Feed it back into `client.map.scan_chunks()` to re-scan a known region without

@@ -1,5 +1,5 @@
 """
-Map service: map areas and kingdom scans.
+Map service: map areas, kingdom scans, finding map objects and joining them.
 
 Reading the map moves the session off the castle it had joined: a
 castle-scoped read after a scan fails with NOT_IN_OWNED_CASTLE until the
@@ -10,8 +10,17 @@ else castle-scoped needs ``client.castle.select`` first.
 from __future__ import annotations
 
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.map.models.areas import GetMapAreaRequest, GetMapAreaResponse
+from empire_core.exceptions import CommandError
+from empire_core.map.models.areas import (
+    FindNextMapObjectRequest,
+    FindNextMapObjectResponse,
+    GetMapAreaRequest,
+    GetMapAreaResponse,
+    JoinAreaRequest,
+)
+from empire_core.map.models.items import parse_area_rows
 from empire_core.map.scanner import MapScanner, ScanResult
+from empire_core.protocol.errors import GGEError
 from empire_core.services.base import BaseService, register_service
 
 
@@ -90,3 +99,51 @@ class MapService(BaseService):
             chunk_delay,
             include_unowned_types=include_unowned_types,
         )
+
+    def find_next(
+        self,
+        area_type: MapItemType,
+        kingdom: Kingdom = Kingdom.GREEN,
+        *,
+        min_level: int = -1,
+        max_level: int = -1,
+        owner_id: int = -1,
+        timeout: float = 5.0,
+    ) -> FindNextMapObjectResponse | None:
+        """
+        Find the nearest map object of an area type, with the map rows around it.
+
+        Args:
+            area_type: The area type to look for
+            kingdom: The kingdom to look in
+            min_level: Lowest level to match, -1 for any
+            max_level: Highest level to match, -1 for any
+            owner_id: The NPC owner to match, -1 for any
+            timeout: Timeout in seconds
+
+        Returns:
+            The reply, its rows read in ``kingdom``; None when nothing matches (NO_PLAYER_FOUND)
+
+        Raises:
+            CommandError: The server refused for any other reason
+        """
+        request = FindNextMapObjectRequest(T=area_type, KID=kingdom, LMIN=min_level, LMAX=max_level, NID=owner_id)
+        try:
+            response = self.request(request, FindNextMapObjectResponse, timeout=timeout)
+        except CommandError as e:
+            if e.code == GGEError.NO_PLAYER_FOUND:
+                return None
+            raise
+        response.area.items = parse_area_rows([item.raw_data for item in response.area.items], kingdom)[0]
+        return response
+
+    def join_area(self, x: int, y: int, kingdom: Kingdom = Kingdom.GREEN, timeout: float = 5.0) -> bool:
+        """
+        Join the map object at a position, as the client does for anything but a castle (``jaa``).
+
+        Join a castle or kingdom castle with ``client.castle.select`` instead.
+
+        Returns:
+            True when the server accepted, False when it refused
+        """
+        return self.execute(JoinAreaRequest(PX=x, PY=y, KID=kingdom), timeout=timeout)

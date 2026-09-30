@@ -5,7 +5,13 @@ from typing import Any
 import pytest
 
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.map.models.areas import GetMapAreaRequest, GetMapAreaResponse
+from empire_core.map.models.areas import (
+    FindNextMapObjectRequest,
+    FindNextMapObjectResponse,
+    GetMapAreaRequest,
+    GetMapAreaResponse,
+    JoinAreaRequest,
+)
 from empire_core.map.models.items import ROW_PARSERS, MapAreaItem, parse_area_rows
 from empire_core.protocol.models import parse_response
 
@@ -522,6 +528,24 @@ class TestRowKingdom:
         assert MapAreaItem.from_list([31, 1, 2], Kingdom.STORM).kingdom is Kingdom.STORM
 
 
+class TestNoobProtection:
+    """GAACommand.executeCommand passes uap to CastleUserData.parse_UAP (bundle line 9899)."""
+
+    def test_uap_is_read(self):
+        response = GetMapAreaResponse.model_validate({"KID": 1, "uap": {"KID": 1, "NS": "3600"}})
+        assert response.noob_protection is not None
+        assert (response.noob_protection.kingdom_id, response.noob_protection.noob_protection_seconds) == (1, 3600)
+        assert response.noob_protection.is_noob_protected is True
+
+    def test_no_protection_left(self):
+        response = GetMapAreaResponse.model_validate({"uap": {"KID": 0, "NS": 0}})
+        assert response.noob_protection is not None and response.noob_protection.is_noob_protected is False
+
+    @pytest.mark.parametrize("payload", [{}, {"uap": None}, {"uap": 5}])
+    def test_a_reply_without_uap(self, payload):
+        assert GetMapAreaResponse.model_validate(payload).noob_protection is None
+
+
 class TestRuinFlag:
     """A ruin is an owner-record flag, not a map item type."""
 
@@ -551,3 +575,36 @@ class TestErrorCodeKeyCollision:
     def test_a_real_error_code_still_parses(self):
         assert GetMapAreaResponse.model_validate({"KID": 0, "E": 21}).error_code == 21
         assert not GetMapAreaResponse.model_validate({"KID": 0, "E": 21}).success
+
+
+class TestFindNextMapObject:
+    def test_request_keys_follow_the_client(self):
+        # C2SFindNextMapObjectVO sets T, KID, LMIN, LMAX, NID, defaulting the last three to -1
+        request = FindNextMapObjectRequest(T=MapItemType.NOMAD_CAMP, KID=Kingdom.GREEN, NID=-1500)
+        assert request.get_command() == "fnm"
+        assert list(request.to_payload().items()) == [("T", 27), ("KID", 0), ("LMIN", -1), ("LMAX", -1), ("NID", -1500)]
+
+    def test_reply_is_a_map_area_and_a_position(self):
+        payload = {
+            "gaa": {"AI": [[27, 700, 710, -1, 4, 100, 0, 0, -1, 110, 110, 0]], "OI": [{"OID": -1500, "N": ""}]},
+            "X": 700,
+            "Y": 710,
+        }
+        response = parse_response("fnm", payload)
+        assert isinstance(response, FindNextMapObjectResponse)
+        found = response.found()
+        assert found is not None and (found.item_type, found.victory_count) == (MapItemType.NOMAD_CAMP, 4)
+        assert [owner.owner_id for owner in response.area.owners] == [-1500]
+
+    def test_a_reply_without_a_map_area(self):
+        response = FindNextMapObjectResponse.model_validate({"X": 1, "Y": 2, "gaa": None})
+        assert (response.area.items, response.found()) == ([], None)
+
+
+class TestJoinArea:
+    def test_request_keys_follow_the_client(self):
+        # C2SJoinAreaVO sets PX, PY, KID
+        request = JoinAreaRequest(PX=5, PY=6, KID=Kingdom.ICE)
+        assert request.get_command() == "jaa"
+        assert request.get_response_command() == "jaa"
+        assert list(request.to_payload().items()) == [("PX", 5), ("PY", 6), ("KID", 2)]
