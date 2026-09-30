@@ -84,6 +84,8 @@ class YourRequest(BaseRequest):
     
     Command: xyz
     Payload: {"FID": field_id, "V": value}
+
+    Client: ``C2SYourVO`` (bundle line 12345)
     """
     
     command = "xyz"
@@ -93,6 +95,8 @@ class YourRequest(BaseRequest):
 ```
 
 **Key points:**
+- Name the client class that builds the payload in a `Client:` line (see
+  [Client reference](#client-reference))
 - Use `Field(alias="X")` to map Python names to wire format
 - Add `@classmethod` factory methods for common patterns
 - Document the command and payload format
@@ -112,6 +116,8 @@ class YourResponse(BaseResponse):
     
     Command: xyz
     Payload: {"R": result, "S": success}
+
+    Client: ``XYZCommand.executeCommand`` (bundle line 12345)
     """
     
     command = "xyz"  # Auto-registers in response registry
@@ -377,6 +383,25 @@ class BaseService:
 ```
 
 ## Protocol Model Conventions
+
+### Client reference
+
+The game client is the source of truth, so every model with a `command` names
+the client code it mirrors in a docstring line: the `C2S...VO` that builds a
+request, and the code that reads a reply (the `XXXCommand.executeCommand` or
+the parser it hands the reply to), with the bundle or dll line, for example:
+
+```
+Client: ``C2SIsoBuyObjectVO`` (bundle line 31940)
+Client: ``CastleAttackInfoVO.fillFromParamObject`` (bundle line 30620)
+```
+
+Line numbers drift between client releases; the class names do not.
+
+A new or changed model needs its `Client:` line, and a field the client does
+not read needs a note saying where it was observed instead.
+`tests/protocol/test_client_lines.py` fails for a model without one; a model the
+client has no code for goes in its `CLIENT_LESS` list with the reason.
 
 ### Field Naming
 

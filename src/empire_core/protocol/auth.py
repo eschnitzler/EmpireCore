@@ -189,7 +189,8 @@ class RegisterRequest(BaseRequest):
     """
     Register a new account (``lre``).
 
-    Only the keys ``initialize`` sets are modelled. The client's object also
+    Only the keys ``initialize`` sets and the reCAPTCHA token ``RCT`` are
+    modelled. The client's object also
     carries the helper properties it was filled from (``username``,
     ``password``, ``campaignVars`` and so on) and, when it has them, an
     inviter code ``IC`` and a Steam ticket ``STK``; whether the server needs
@@ -197,7 +198,8 @@ class RegisterRequest(BaseRequest):
 
     Client: ``C2SRegisterWithNameVO.initialize`` (bundle line 52392), filled by
     ``BasicRegisterUserCommand.composeRegisterUserVO`` (dll line 33134) and
-    sent by ``CastleRegisterUserCommand`` (bundle line 110800)
+    sent, with ``RCT`` last, by ``CastleRegisterUserCommand.sendRegisterUserCommandWithRecaptcha``
+    (bundle line 110800)
     """
 
     command = "lre"

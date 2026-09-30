@@ -190,6 +190,8 @@ class RelocateCastleResponse(BaseResponse):
     Response to castle relocation.
 
     Command: rst
+
+    Client: ``RSTCommand.executeCommand`` (bundle line 126817)
     """
 
     command = "rst"

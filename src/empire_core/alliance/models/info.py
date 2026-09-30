@@ -555,6 +555,8 @@ class GetAllianceInfoRequest(BaseRequest):
 
     Returns full alliance info with all members, their online status
     (via AMI array), level, rank, castle count, and might.
+
+    Client: ``C2SGetAllianceInfoVO`` (bundle line 9760)
     """
 
     command = "ain"
@@ -574,6 +576,8 @@ class GetAllianceInfoResponse(BaseResponse):
 
     Command: ain
     Payload: {"A": {"AID": ..., "N": ..., "M": [...], ...}}
+
+    Client: ``AINCommand.executeCommand`` (bundle line 121461)
     """
 
     command = "ain"

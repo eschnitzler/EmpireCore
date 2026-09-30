@@ -245,6 +245,8 @@ class SearchAllianceResponse(BaseResponse, register=False):
     entry; this model is instantiated manually by AllianceService.
 
     Not registered: see class docstring.
+
+    Client: ``HGHCommand.executeCommand`` (bundle line 124377)
     """
 
     command = "hgh"

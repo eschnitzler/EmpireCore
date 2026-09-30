@@ -376,6 +376,8 @@ class GetDetailedCastleResponse(BaseResponse):
 
     Command: dcl
     Payload: {"PID": player_id, "C": [{"KID": kingdom, "AI": [{"AID": castle_id, "W": .., "AC": [..], "gpa": {..}}]}]}
+
+    Client: ``DCLCommand.executeCommand`` (bundle line 129299)
     """
 
     command = "dcl"
