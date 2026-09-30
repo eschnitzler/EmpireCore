@@ -406,7 +406,8 @@ class MovementState(StateBase):
     @staticmethod
     def _wrapper_blocks(m_wrapper: dict[str, Any]) -> Callable[[str], MovementWrapper | None]:
         """The wrapper validated once; if that fails, each block on its own, so a drifted block costs only itself."""
-        whole = read_or_none(MovementWrapper.model_validate, m_wrapper)
+        # The record itself is read into the Movement, so it is not validated here too
+        whole = read_or_none(MovementWrapper.model_validate, {**m_wrapper, "M": {"MID": 0}})
         if whole is not None:
             return lambda key: whole if key in m_wrapper else None
         blocks = {
