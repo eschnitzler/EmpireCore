@@ -31,7 +31,7 @@ models.
     ```bash
     git clone https://github.com/eschnitzler/EmpireCore.git
     cd EmpireCore
-    uv sync --extra dev    # dev is an extra: a plain `uv sync` has no pytest, ruff or mypy
+    uv sync --extra dev    # a plain `uv sync` has no pytest, ruff or mypy
     uv run pytest
     ```
 
@@ -113,7 +113,7 @@ visible where you call it.
 ```python
 castles = client.castle.get_all()
 for castle in castles:
-    print(castle.castle_id, castle.castle_name, castle.kingdom_id, (castle.x, castle.y))
+    print(castle.castle_id, castle.castle_name, castle.kingdom_id)
 
 resources = client.castle.get_resources(castle_id=castles[0].castle_id)
 print(resources.wood, resources.stone)

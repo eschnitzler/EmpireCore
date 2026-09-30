@@ -19,8 +19,8 @@ for item in inventory:
 commander = client.commanders.get_commanders()[0]
 item = inventory[0]
 
-client.equipment.equip(equipment_id=item.equipment_id, commander_id=commander.commander_id)
-client.equipment.unequip(equipment_id=item.equipment_id, commander_id=commander.commander_id)
+client.equipment.equip(item.equipment_id, commander.commander_id)
+client.equipment.unequip(item.equipment_id, commander.commander_id)
 ```
 
 Both return `False` when the server refuses the move. Their replies carry no

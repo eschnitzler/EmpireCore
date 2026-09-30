@@ -14,10 +14,10 @@ Each accessor takes the state lock and returns a snapshot, so nothing changes
 underneath you mid-iteration:
 
 ```python
-player = client.state.get_local_player()        # None until the login data arrives
+player = client.state.get_local_player()    # None until the login data arrives
 castles = client.state.get_castles()
-unlocks = client.state.get_permanent_castle(castle_id)      # the units and horses a castle has unlocked
-horse_ids = client.state.get_castle_horse_ids(castle_id)    # its horses' wod ids
+unlocks = client.state.get_permanent_castle(castle_id)    # unlocked units, horses
+horse_ids = client.state.get_castle_horse_ids(castle_id)  # the horses' wod ids
 movements = client.state.get_all_movements()
 attacks = client.state.get_incoming_attacks()
 currencies = client.state.get_special_currencies()

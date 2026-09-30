@@ -9,7 +9,7 @@ description: Alliance chat, help requests, members, applications, ranks and the 
 ## Chat
 
 ```python
-client.alliance.send_chat("Hello alliance!")      # % and other special characters are encoded for you
+client.alliance.send_chat("Hello alliance!")   # special characters are encoded for you
 
 for entry in client.alliance.get_chat_log():
     print(f"{entry.player_name}: {entry.decoded_text}")
@@ -84,7 +84,7 @@ for application in client.alliance.get_applications().applications:
     client.alliance.answer_application(application.player_id, accept=True)
 
 client.alliance.set_rank(player_id, AllianceRank.SERGEANT)
-client.alliance.donate(castle_id, AllianceDonation(wood=1000))   # the castle's kingdom is looked up
+client.alliance.donate(castle_id, AllianceDonation(wood=1000))
 ```
 
 Also on the service: `invite`, `kick_member`, `leave`, `change_diplomacy`,

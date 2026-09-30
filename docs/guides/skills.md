@@ -46,7 +46,7 @@ The server sends the skill list again after every change. To follow it, register
 a callback; it runs for the reply to `get_skills()` too:
 
 ```python
-client.skills.on_skill_list(lambda skills: print("skills now", skills.sceat_skill_ids))
+client.skills.on_skill_list(lambda s: print("skills now", s.sceat_skill_ids))
 ```
 
 Remove it with `remove_skill_list_callback`.

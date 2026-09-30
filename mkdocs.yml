@@ -16,6 +16,7 @@ exclude_docs: |
   hooks.py
   griffe_extensions.py
   templates/
+  overrides/
   design/combat_effects.md
   design/fill_waves_spec.md
   design/game_bundle_analysis.md
@@ -26,9 +27,10 @@ hooks:
 
 theme:
   name: material
-  logo: assets/logo.svg
+  custom_dir: docs/overrides
   favicon: assets/favicon.svg
   icon:
+    logo: empirecore/mark
     repo: fontawesome/brands/github
     edit: material/pencil-outline
   font:
@@ -96,10 +98,10 @@ plugins:
             docstring_options:
               warn_missing_types: false
             extensions:
-              - docs/griffe_extensions.py:FenceExamples
+              - docs/griffe_extensions.py:MarkdownDocstrings
               - griffe_pydantic:
                   schema: false
-            filters: ["!^_"]
+            filters: ["!^_", "!^command$", "!^response_command$"]
             show_source: false
             show_root_heading: false
             show_root_toc_entry: false

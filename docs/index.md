@@ -8,113 +8,97 @@ hide:
 
 <div class="ec-hero" markdown>
 
+<div class="ec-hero__pitch" markdown>
+
 # EmpireCore
 
 A fully typed Python client for Goodgame Empire. Log in, read your castles,
-scan a kingdom, fill and send attacks, and react to incoming armies, all
-through typed models that are checked against the game's own client.
+scan the map and send attacks, with every request and reply checked against
+the game's own client.
 
 [Get started](getting-started.md){ .md-button .md-button--primary }
-[Browse the guides](guides/index.md){ .md-button }
-[API reference](reference/index.md){ .md-button }
+[Guides](guides/index.md){ .md-button }
 
+</div>
+
+<div class="ec-hero__code" markdown>
+
+```python
+from empire_core import EmpireClient, Kingdom, MapItemType
+
+with EmpireClient(username="you", password="...") as client:
+    client.login()
+
+    castles = client.castle.get_all()
+    print(f"{len(castles)} castle(s)")
+
+    scan = client.map.scan_kingdom(
+        Kingdom.GREEN, item_types=[MapItemType.CASTLE]
+    )
+    print(f"Green kingdom: {len(scan.items):,} castles")
+```
+
+<div class="ec-output" markdown>
+
+```text
+1 castle(s)
+Green kingdom: 8,862 castles
+```
+
+</div>
+
+</div>
+
+</div>
+
+<div class="ec-stats">
+  <div><strong>8,862 castles in 15 s</strong><span>a whole kingdom, one account</span></div>
+  <div><strong>15 services</strong><span>castle, army, attack, spy, map and more</span></div>
+  <div><strong>Python 3.10–3.14</strong><span>typed, with a <code>py.typed</code> marker</span></div>
 </div>
 
 <div class="grid cards" markdown>
 
--   :material-shield-check-outline:{ .lg .middle } **Typed end to end**
+-   :material-shield-check-outline:{ .lg } **[Typed end to end](guides/protocol-models.md)**
 
-    ---
+    Pydantic models for every request and reply, with readable field names,
+    so your editor and type checker know every field.
 
-    Pydantic v2 models for every command, snake_case fields over the game's
-    wire keys, and a `py.typed` marker so your type checker sees all of it.
+-   :material-source-branch-check:{ .lg } **[Follows the real client](internals/index.md)**
 
-    [:octicons-arrow-right-24: Protocol models](guides/protocol-models.md)
+    Requests are built the way the game client builds them, and each model
+    names the client code it mirrors.
 
--   :material-source-branch-check:{ .lg .middle } **Checked against the client**
+-   :material-alert-circle-outline:{ .lg } **[Clear errors](guides/errors.md)**
 
-    ---
+    One `EmpireError` base for everything the library raises. An empty list
+    always means there was nothing there.
 
-    Requests follow the game client's own command objects, key order
-    included, and models cite the client class they mirror.
+-   :material-radar:{ .lg } **[Fast map scans](guides/map-scanning.md)**
 
-    [:octicons-arrow-right-24: Internals](internals/index.md)
+    Scan a whole kingdom, then re-scan only the parts that held anything.
+    Every chunk that failed is reported.
 
--   :material-alert-octagon-outline:{ .lg .middle } **Honest failures**
+-   :material-sword-cross:{ .lg } **[Fills waves like the game](guides/filling-waves.md)**
 
-    ---
+    Give `fill_attack` a target's coordinates and it fills every wave the way
+    the game's own button does.
 
-    One `EmpireError` base for everything. No leaked pydantic or socket
-    errors, and no empty list that secretly means "the request failed".
+-   :material-sync:{ .lg } **[Live state](guides/game-state.md)**
 
-    [:octicons-arrow-right-24: Error handling](guides/errors.md)
-
--   :material-radar:{ .lg .middle } **Fast map scans**
-
-    ---
-
-    Breadth-first kingdom discovery, then cheap targeted re-scans of the
-    chunks that held anything, with every failed chunk reported.
-
-    [:octicons-arrow-right-24: Map scanning](guides/map-scanning.md)
-
--   :material-sword-cross:{ .lg .middle } **Fill waves like the game**
-
-    ---
-
-    `fill_attack` sizes and fills each wave from nothing but the target's
-    coordinates, tools first, then units, the way the game's button does.
-
-    [:octicons-arrow-right-24: Filling waves](guides/filling-waves.md)
-
--   :material-sync:{ .lg .middle } **Thread-safe live state**
-
-    ---
-
-    A background thread applies server pushes while your code reads
-    consistent snapshots and reacts to incoming attacks.
-
-    [:octicons-arrow-right-24: Game state](guides/game-state.md)
+    A background thread keeps your account's state current, with callbacks
+    for incoming attacks.
 
 </div>
 
 ## Install
 
-=== "uv"
-
-    ```bash
-    uv add empire-core
-    ```
-
-=== "pip"
-
-    ```bash
-    pip install empire-core
-    ```
-
-EmpireCore needs Python 3.10 or newer.
-
-!!! warning "Pre-1.0"
-
-    Every minor release may break the API; the [changelog](changelog.md) lists
-    each breaking change. Pin a minor line, for example
-    `empire-core>=0.41,<0.42`.
-
-## Quick start
-
-```python
-from empire_core import EmpireClient
-
-with EmpireClient(username="your_user", password="your_pass") as client:
-    client.login()
-
-    client.alliance.send_chat("Hello alliance!")
-
-    for castle in client.castle.get_all():
-        print(f"{castle.castle_name} at ({castle.x}, {castle.y})")
+```bash
+uv add empire-core        # or: pip install empire-core
 ```
 
-The `with` block closes the connection and stops the background threads on any
-exit. Next, [Getting started](getting-started.md) walks through logging in,
-reading castles, a first map scan and the errors to expect, and the
-[guides](guides/index.md) cover each part of the game in turn.
+EmpireCore is pre-1.0: a minor release may change the API, and the
+[changelog](changelog.md) lists every change that does. Pin a minor line, for
+example `empire-core>=0.42,<0.43`. Next, [Getting started](getting-started.md)
+walks through logging in, reading castles, a first map scan and the errors to
+expect.

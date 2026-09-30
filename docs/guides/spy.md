@@ -87,7 +87,7 @@ waited for: the outcome is `SENT` with the server's reply in `result.mission`.
 Any spy report in the mailbox can be read by its message id:
 
 ```python
-report = client.spy.get_report(message_id)      # None when the server has no report for it
+report = client.spy.get_report(message_id)  # None when the server has none
 client.spy.forward_report(message_id, [player_id])
 ```
 

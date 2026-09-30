@@ -25,7 +25,8 @@ client.messages.send_message("SomePlayer", "Hello", "Want to trade?")
 
 client.messages.archive(message_id)            # the archive holds 20
 client.messages.delete(message_id)
-client.messages.delete_many([m.message_id for m in client.messages.mailbox if m.is_read])
+read = [m.message_id for m in client.messages.mailbox if m.is_read]
+client.messages.delete_many(read)
 ```
 
 `send_message` raises `ValueError` for what the game client would not send: an

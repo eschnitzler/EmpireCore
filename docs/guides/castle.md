@@ -7,10 +7,10 @@ description: Castles, resources, buildings, the construction queue and moving go
 ## Your castles
 
 ```python
-castles = client.castle.get_all()                  # list[CastleInfo]
+castles = client.castle.get_all()    # list[CastleInfo]
 
 details = client.castle.get_details(castle_id=12345)
-if details:                                        # None when the reply leaves the castle out
+if details:                          # None when the reply leaves the castle out
     print(f"Wood: {details.wood}, units: {details.units}")
 
 resources = client.castle.get_resources(castle_id=12345)
@@ -45,7 +45,7 @@ and production commands then act on it:
 ```python
 castle = client.castle.join(castle_id=12345)
 
-area = client.castle.get_production()              # production, storage, population
+area = client.castle.get_production()    # production, storage, population
 queue = client.castle.get_build_queue()
 
 if castle.buildings:
@@ -74,14 +74,17 @@ The joined-castle commands are `build`, `upgrade_building`, `move_building`,
 ```python
 from empire_core import Resource
 
-client.castle.send_resources(source_castle_id, target_x, target_y, {Resource.WOOD: 1000, Resource.STONE: 500})
+goods = {Resource.WOOD: 1000, Resource.STONE: 500}
+client.castle.send_resources(source_castle_id, target_x, target_y, goods)
 
 commander = client.commanders.get_commanders()[0]
 client.castle.send_support(
-    source_castle_id, target_x, target_y, units=[[620, 50]], commander_id=commander.commander_id
+    source_castle_id, target_x, target_y,
+    units=[[620, 50]], commander_id=commander.commander_id,
 )
 client.castle.send_troops(
-    source_x, source_y, target_x, target_y, units=[[620, 50]], commander_id=commander.commander_id
+    source_x, source_y, target_x, target_y,
+    units=[[620, 50]], commander_id=commander.commander_id,
 )
 ```
 
@@ -123,7 +126,7 @@ castle that is not yours or that no `gpc` named:
 client.load_game_data()
 
 for horse in client.castle.get_horses(castle_id=12345) or []:
-    print(horse.wod_id, horse.unit_boost, horse.market_boost, horse.spy_boost, horse.is_instant_spy_horse)
+    print(horse.wod_id, horse.unit_boost, horse.market_boost, horse.spy_boost)
 ```
 
 Each row is a `HorseStats`: the speed bonus percent for troops

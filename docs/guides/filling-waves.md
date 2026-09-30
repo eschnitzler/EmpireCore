@@ -9,7 +9,7 @@ waves" button does. Give it your castle, a target and a commander; it reads
 everything else itself.
 
 ```python
-client.load_game_data()                  # explicit: the items data is a large download
+client.load_game_data()    # explicit: the items data is a large download
 
 castle = client.castle.get_all()[0]
 commander = client.commanders.get_commanders()[1]

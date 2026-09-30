@@ -12,7 +12,7 @@ raises `UnknownCastleError`.
 ## Units
 
 ```python
-units = client.army.get_units(castle_id=12345)     # [UnitCount(unit_id=wod_id, count=...)]
+units = client.army.get_units(castle_id=12345)     # list[UnitCount]
 for unit in units:
     print(unit.unit_id, unit.count)
 ```
@@ -33,7 +33,9 @@ production = client.army.get_production_list(12345, ProductionListId.SOLDIERS)
 for slot in production.queue:
     print(slot.position, slot.wod_id, slot.amount)
 
-client.army.cancel_production(12345, ProductionListId.SOLDIERS, SlotType.QUEUE, position=0)
+client.army.cancel_production(
+    12345, ProductionListId.SOLDIERS, SlotType.QUEUE, position=0
+)
 ```
 
 `double_production_slot` doubles a slot's units, for rubies.

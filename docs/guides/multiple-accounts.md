@@ -53,7 +53,7 @@ environment variable:
     # CSV: username,password,world
     export EMPIRE_ACCOUNT_MAIN='your_user,your_pass,EmpireEx_21'
     # or JSON, when the password contains a comma
-    export EMPIRE_ACCOUNT_ALT='{"username": "u", "password": "p", "world": "EmpireEx_21"}'
+    export EMPIRE_ACCOUNT_ALT='{"username": "u", "password": "p"}'
     ```
 
 A `.env` file is read only if you opt in with

@@ -12,7 +12,7 @@ interface and this library call them commanders and castellans.
 for commander in client.commanders.get_commanders():
     print(commander.commander_id, commander.name, commander.wins, commander.defeats)
     for item in commander.equipment:
-        print("  ", item.equipment_id, item.slot, item.enchantment_level, item.is_permanent)
+        print("  ", item.equipment_id, item.slot, item.enchantment_level)
 
 castellans = client.commanders.get_castellans()
 ```
