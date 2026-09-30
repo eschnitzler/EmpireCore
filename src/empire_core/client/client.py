@@ -411,12 +411,16 @@ class EmpireClient:
         Returns:
             The parsed response if wait=True, otherwise None
 
+        With ``wait=True``, requests for one command run one at a time across
+        threads, and the wait for an earlier one counts against ``timeout``.
+
         Raises:
             CommandError: The server answered with a non-zero error code
             PacketError: The response payload did not match the response model
             EmpireTimeoutError: No response within ``timeout``
             ConnectionClosedError: Connection dropped while waiting
             NetworkError: The send itself failed
+            ReceiveThreadError: Called with ``wait=True`` on the receive thread
 
         Example:
             from empire_core.protocol.models import AllianceChatMessageRequest
@@ -435,7 +439,14 @@ class EmpireClient:
 
         command = request.get_command()
         response_command = request.get_response_command()
-        response_packet = self.connection.request(packet, response_command, timeout=timeout)
+        # A request whose reply names what was asked for defines accepts_reply(payload).
+        accepts_reply = getattr(request, "accepts_reply", None)
+        response_packet = self.connection.request(
+            packet,
+            response_command,
+            timeout=timeout,
+            accepts=(lambda reply: accepts_reply(reply.payload)) if accepts_reply is not None else None,
+        )
 
         if response_packet.error_code != 0:
             # Reported under the command sent, which is what the caller asked for.

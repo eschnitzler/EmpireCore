@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import threading
+from typing import Any
 
 import pytest
 from pydantic import BaseModel
@@ -71,7 +72,7 @@ class StubConnection:
     def send(self, data: str) -> None:
         self.sent.append(data)
 
-    def request(self, data: str, cmd_id: str, timeout: float = 5.0) -> Packet:
+    def request(self, data: str, cmd_id: str, timeout: float = 5.0, accepts: Any = None) -> Packet:
         self.requested.append(cmd_id)
         self.request_data[cmd_id] = data
         return self._resolve(cmd_id)

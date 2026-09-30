@@ -74,6 +74,10 @@ class PlayerService(BaseService):
 
         Returns:
             Dict mapping player_id -> GetPlayerInfoResponse
+
+        Raises:
+            EmpireTimeoutError: Another thread's 'gdi' request kept the command
+                busy for all of ``timeout``
         """
         if not player_ids:
             return {}
@@ -85,30 +89,33 @@ class PlayerService(BaseService):
             if isinstance(response, GetPlayerInfoResponse):
                 response_queue.put(response)
 
-        # Register BEFORE sending to avoid dropping early responses
-        self.client._register_handler("gdi", capture_gdi)
+        # Held for the whole run, so no reply or error to these sends lands on a
+        # concurrent get_player_info().
+        with self.client.connection.command_lock("gdi", timeout=timeout):
+            # Register BEFORE sending to avoid dropping early responses
+            self.client._register_handler("gdi", capture_gdi)
 
-        try:
-            for index, pid in enumerate(unique_ids):
-                if index and send_delay > 0:
-                    time.sleep(send_delay)
-                request = GetPlayerInfoRequest(PID=pid)
-                self.client.send(request, wait=False)
+            try:
+                for index, pid in enumerate(unique_ids):
+                    if index and send_delay > 0:
+                        time.sleep(send_delay)
+                    request = GetPlayerInfoRequest(PID=pid)
+                    self.client.send(request, wait=False)
 
-            collected: dict[int, GetPlayerInfoResponse] = {}
-            deadline = time.time() + timeout
+                collected: dict[int, GetPlayerInfoResponse] = {}
+                deadline = time.time() + timeout
 
-            while len(collected) < len(unique_ids) and time.time() < deadline:
-                try:
-                    resp = response_queue.get(timeout=max(0.05, min(0.5, deadline - time.time())))
-                    if resp.player_id in unique_ids:
-                        collected[resp.player_id] = resp
-                except queue.Empty:
-                    continue
+                while len(collected) < len(unique_ids) and time.time() < deadline:
+                    try:
+                        resp = response_queue.get(timeout=max(0.05, min(0.5, deadline - time.time())))
+                        if resp.player_id in unique_ids:
+                            collected[resp.player_id] = resp
+                    except queue.Empty:
+                        continue
 
-            return collected
-        finally:
-            self.client._unregister_handler("gdi", capture_gdi)
+                return collected
+            finally:
+                self.client._unregister_handler("gdi", capture_gdi)
 
     def search_player_by_name(
         self,

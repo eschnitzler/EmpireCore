@@ -218,35 +218,168 @@ class TestSubscribers:
         assert len(seen) == 1
 
 
-class TestCorrelationIsFifo:
-    """Pinning tests for the documented FIFO-by-command-id correlation.
+def gdi_reply(player_id: int, error_code: int = 0) -> Packet:
+    return Packet.from_bytes(f'%xt%gdi%1%{error_code}%{{"O": {{"OID": {player_id}}}}}%'.encode())
 
-    Correlation has no payload-level matching, so these behaviors are
-    surprising but intentional for now. If a future change adds real
-    correlation, these tests should fail and be updated deliberately.
-    """
 
-    def test_unsolicited_push_consumes_pending_waiter(self, conn):
-        # A server push with the same command id as a pending request
-        # satisfies that request instead of being passed through only to
-        # subscribers.
+def about(player_id: int):
+    """The gdi reply check GetPlayerInfoRequest makes."""
+    return lambda packet: packet.payload["O"]["OID"] == player_id
+
+
+class Caller:
+    """Runs one Connection.request on its own thread and keeps the outcome."""
+
+    def __init__(self, conn: Connection, cmd_id: str, timeout: float = 5.0, accepts=None):
+        self.result: Packet | None = None
+        self.error: Exception | None = None
+
+        def run():
+            try:
+                self.result = conn.request(
+                    f"%xt%EmpireEx_21%{cmd_id}%1%{{}}%", cmd_id, timeout=timeout, accepts=accepts
+                )
+            except Exception as e:
+                self.error = e
+
+        self.thread = threading.Thread(target=run)
+        self.thread.start()
+
+    def join(self) -> "Caller":
+        self.thread.join(timeout=5)
+        assert not self.thread.is_alive()
+        return self
+
+    def answer(self) -> Packet:
+        """The reply the request returned."""
+        self.join()
+        assert self.result is not None, self.error
+        return self.result
+
+
+def sent(conn: Connection) -> list[str]:
+    return conn.ws.sent  # type: ignore[union-attr]
+
+
+class TestOneRequestPerCommand:
+    """The protocol has no request id, so request() runs one request per command id at a time."""
+
+    def test_a_second_caller_sends_only_once_the_first_is_answered(self, sending_conn):
+        first = Caller(sending_conn, "gdi", accepts=about(1))
+        assert wait_until(lambda: len(sent(sending_conn)) == 1)
+        second = Caller(sending_conn, "gdi", accepts=about(2))
+
+        # The second caller's answer arriving first is not the first caller's.
+        sending_conn._route_packet(gdi_reply(2))
+        assert len(sent(sending_conn)) == 1
+        sending_conn._route_packet(gdi_reply(1))
+        assert first.answer().payload == {"O": {"OID": 1}}
+
+        assert wait_until(lambda: len(sent(sending_conn)) == 2)
+        sending_conn._route_packet(gdi_reply(2))
+        assert second.answer().payload == {"O": {"OID": 2}}
+
+    def test_time_spent_queued_counts_against_the_timeout(self, sending_conn):
+        first = Caller(sending_conn, "gdi", accepts=about(1))
+        assert wait_until(lambda: len(sent(sending_conn)) == 1)
+
+        with pytest.raises(EmpireTimeoutError, match="still running"):
+            sending_conn.request("%xt%EmpireEx_21%gdi%1%{}%", "gdi", timeout=0.05, accepts=about(2))
+        assert len(sent(sending_conn)) == 1
+
+        sending_conn._route_packet(gdi_reply(1))
+        assert first.join().result is not None
+
+    def test_different_commands_run_in_parallel(self, sending_conn):
+        gdi = Caller(sending_conn, "gdi")
+        gaa = Caller(sending_conn, "gaa")
+        assert wait_until(lambda: len(sent(sending_conn)) == 2)
+        sending_conn._route_packet(make_packet("gaa"))
+        sending_conn._route_packet(make_packet("gdi"))
+        assert gdi.answer().command_id == "gdi"
+        assert gaa.answer().command_id == "gaa"
+
+    def test_an_error_reply_goes_to_the_caller_in_flight_not_to_the_one_queued(self, sending_conn):
+        first = Caller(sending_conn, "gdi", accepts=about(1))
+        assert wait_until(lambda: len(sent(sending_conn)) == 1)
+        second = Caller(sending_conn, "gdi", accepts=about(2))
+
+        sending_conn._route_packet(Packet.from_bytes(b"%xt%gdi%1%114%%"))
+        assert first.answer().error_code == 114
+
+        assert wait_until(lambda: len(sent(sending_conn)) == 2)
+        sending_conn._route_packet(gdi_reply(2))
+        assert second.answer().error_code == 0
+
+    def test_a_send_failure_releases_the_command(self, sending_conn):
+        sending_conn._running = False
+        with pytest.raises(NetworkError):
+            sending_conn.request("%xt%EmpireEx_21%gdi%1%{}%", "gdi", timeout=1)
+        sending_conn._running = True
+        caller = Caller(sending_conn, "gdi")
+        assert wait_until(lambda: len(sent(sending_conn)) == 1)
+        sending_conn._route_packet(make_packet("gdi"))
+        assert caller.join().result is not None
+
+    def test_command_lock_keeps_requests_for_that_command_out(self, sending_conn):
+        with sending_conn.command_lock("gdi"):
+            caller = Caller(sending_conn, "gdi", timeout=0.05).join()
+        assert isinstance(caller.error, EmpireTimeoutError)
+        assert sent(sending_conn) == []
+
+    def test_command_lock_is_reentrant_on_the_holding_thread(self, sending_conn):
+        with sending_conn.command_lock("gdi"):
+            with sending_conn.command_lock("gdi", timeout=0):
+                pass
+
+
+class TestReplyChecks:
+    def test_a_push_for_another_player_does_not_answer_the_request(self, conn):
+        seen: list[Packet] = []
+        conn.on_packet = seen.append
+        pushed: list[Packet] = []
+        conn.subscribe("gdi", pushed.append)
+        waiter = conn.create_waiter("gdi", about(1))
+
+        conn._route_packet(gdi_reply(9))
+        assert not waiter.event.is_set()
+        assert len(seen) == 1 and len(pushed) == 1
+
+        conn._route_packet(gdi_reply(1))
+        assert conn.wait_for_result("gdi", waiter, timeout=0.1).payload == {"O": {"OID": 1}}
+
+    def test_a_late_reply_to_a_timed_out_request_is_not_taken_by_the_next(self, sending_conn):
+        with pytest.raises(EmpireTimeoutError):
+            sending_conn.request("%xt%EmpireEx_21%gdi%1%{}%", "gdi", timeout=0.01, accepts=about(1))
+
+        caller = Caller(sending_conn, "gdi", accepts=about(2))
+        assert wait_until(lambda: len(sent(sending_conn)) == 2)
+        sending_conn._route_packet(gdi_reply(1))
+        sending_conn._route_packet(gdi_reply(2))
+        assert caller.answer().payload == {"O": {"OID": 2}}
+
+    def test_the_oldest_waiter_that_accepts_the_reply_takes_it(self, conn):
+        for_one = conn.create_waiter("gdi", about(1))
+        for_two = conn.create_waiter("gdi", about(2))
+        conn._route_packet(gdi_reply(2))
+        assert for_two.event.is_set() and not for_one.event.is_set()
+
+    def test_without_a_check_the_first_reply_is_taken(self, conn):
         waiter = conn.create_waiter("gam")
         push = make_packet("gam", '{"pushed": 1}')
         conn._route_packet(push)
         assert conn.wait_for_result("gam", waiter, timeout=0.1) is push
 
-    def test_identical_concurrent_commands_can_cross_deliver(self, conn):
-        # Two callers issuing the same command are answered in registration
-        # order, regardless of which response belongs to whom.
-        first = conn.create_waiter("gdi")
-        second = conn.create_waiter("gdi")
-        for_second = make_packet("gdi", '{"PID": 2}')
-        for_first = make_packet("gdi", '{"PID": 1}')
-        # Responses arrive out of order relative to registration.
-        conn._route_packet(for_second)
-        conn._route_packet(for_first)
-        assert conn.wait_for_result("gdi", first, timeout=0.1).payload == {"PID": 2}
-        assert conn.wait_for_result("gdi", second, timeout=0.1).payload == {"PID": 1}
+    def test_a_check_that_raises_takes_nothing_and_is_logged_once(self, conn, caplog):
+        def broken(_packet):
+            raise KeyError("O")
+
+        waiter = conn.create_waiter("gdi", broken)
+        with caplog.at_level("ERROR", logger="empire_core.network.connection"):
+            conn._route_packet(make_packet("gdi"))
+            conn._route_packet(make_packet("gdi"))
+        assert not waiter.event.is_set()
+        assert len([r for r in caplog.records if "Reply check" in r.getMessage()]) == 1
 
 
 class TestReceiveThreadGuard:

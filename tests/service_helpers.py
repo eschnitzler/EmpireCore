@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any, cast
 
 from empire_core.client.client import EmpireClient
@@ -100,6 +102,8 @@ class ScriptedConnection:
         self.waiters_created: list[str] = []
         self.waiters_canceled: list[str] = []
         self.waited_for: list[str] = []
+        self.accepts: list[Any] = []
+        self.locked: list[str] = []
         self.events: list[str] = []
         self.on_packet = None
         self.on_disconnect = None
@@ -115,8 +119,9 @@ class ScriptedConnection:
     def send(self, data: str) -> None:
         self.sent.append(data)
 
-    def request(self, data: str, cmd_id: str, timeout: float = 5.0) -> Packet:
+    def request(self, data: str, cmd_id: str, timeout: float = 5.0, accepts: Any = None) -> Packet:
         self.requested.append(cmd_id)
+        self.accepts.append(accepts)
         self.request_payloads.append((cmd_id, request_payload(data)))
         self.events.append(f"request:{cmd_id}")
         result = self._resolve(cmd_id)
@@ -147,6 +152,13 @@ class ScriptedConnection:
         if callback in self.subscribers.get(cmd_id, []):
             self.subscribers[cmd_id].remove(callback)
         self.events.append(f"unsubscribe:{cmd_id}")
+
+    @contextmanager
+    def command_lock(self, cmd_id: str, timeout: float = 5.0) -> Iterator[None]:
+        self.locked.append(cmd_id)
+        self.events.append(f"lock:{cmd_id}")
+        yield
+        self.events.append(f"unlock:{cmd_id}")
 
     def disconnect(self) -> None:
         self.connected = False

@@ -18,6 +18,7 @@ from empire_core.castle.models.castles import CastleInfo, GetCastlesResponse
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.map.models.areas import GetMapAreaResponse, MapObject
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none
+from empire_core.protocol.js import js_int
 
 from .profile import PlayerProfileBase
 
@@ -91,6 +92,16 @@ class GetPlayerInfoRequest(BaseRequest):
             "or AllianceMember.player_id"
         ),
     )
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a gdi reply is about this player: its owner record's ``OID`` is ``PID``.
+
+        Client: ``GDICommand.executeCommand`` (bundle line 129458) reads the player from
+        ``O.OID``; ``CastleSendGoodsDialog.handleCastlesList`` (line 27122) keeps only the reply
+        about the player it asked for.
+        """
+        owner = payload.get("O") if isinstance(payload, dict) else None
+        return isinstance(owner, dict) and js_int(owner.get("OID")) == self.player_id
 
 
 class GetPlayerInfoResponse(BaseResponse):
