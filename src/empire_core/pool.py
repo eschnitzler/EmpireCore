@@ -178,6 +178,7 @@ class AccountPool:
         while (account := self._reserve(username, tag, tried)) is not None:
             tried.add(account.username)
             client: EmpireClient | None = None
+            leased = False
 
             try:
                 client = account.get_client()
@@ -191,6 +192,7 @@ class AccountPool:
 
                 with self._lock:
                     self._clients[account.username] = client
+                leased = True
                 logger.info(f"AccountPool: Leased {account.username}")
                 return client
 
@@ -200,10 +202,12 @@ class AccountPool:
             except Exception as e:
                 logger.error(f"AccountPool: Failed to lease {account.username}: {e}")
                 last_error = e
-
-            self._safe_close(client)
-            with self._lock:
-                self._busy.discard(account.username)
+            finally:
+                # Also on KeyboardInterrupt/SystemExit: the account must not stay busy.
+                if not leased:
+                    self._safe_close(client)
+                    with self._lock:
+                        self._busy.discard(account.username)
 
         if not tried:
             logger.warning(f"AccountPool: No available accounts (user={username}, tag={tag})")

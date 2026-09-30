@@ -696,3 +696,22 @@ class TestConcurrentLeases:
             pool.lease()
         assert pool.busy_count == 0
         assert pool.lease() is not None
+
+    def test_an_interrupted_login_frees_the_account_and_closes_the_client(self, monkeypatch):
+        clients: list[FakeClient] = []
+
+        class InterruptedClient(FakeClient):
+            def login(self) -> bool:
+                raise KeyboardInterrupt
+
+        def make(account: Account) -> FakeClient:
+            clients.append(InterruptedClient(account.username))
+            return clients[-1]
+
+        monkeypatch.setattr(Account, "get_client", make)
+        pool = AccountPool(FakeRegistry([Account(username="alpha", password="p")]))
+
+        with pytest.raises(KeyboardInterrupt):
+            pool.lease()
+        assert pool.busy_count == 0
+        assert clients[0].closed
