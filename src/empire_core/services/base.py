@@ -115,6 +115,9 @@ class BaseService:
         Handlers are registered with the client for efficient routing.
         Only commands with registered handlers will be parsed.
 
+        Handlers run on the receive thread, which routes every reply: they must
+        not block, and a call that waits for a reply raises ``ReceiveThreadError``.
+
         Args:
             command: The command code to handle (e.g., "acm")
             handler: Callback function that receives the parsed response

@@ -125,3 +125,13 @@ class AttackInProgressError(CommandError):
         details = payload if isinstance(payload, dict) else {}
         self.arrival_seconds: float | None = details.get("TS")
         self.army_size: float | None = details.get("AS")
+
+
+class ReceiveThreadError(EmpireError):
+    """Raised when a call that waits for a reply is made on the receive thread.
+
+    Packet handlers, ``Connection.subscribe`` callbacks and service ``on_response``
+    handlers run on the thread that routes every reply, so a call there that waits
+    could only time out. Hand the work to another thread, or use a GameState
+    callback, which runs on its own callback thread.
+    """

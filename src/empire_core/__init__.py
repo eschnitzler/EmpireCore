@@ -33,6 +33,7 @@ from empire_core.exceptions import (
     LoginError,
     NetworkError,
     PacketError,
+    ReceiveThreadError,
 )
 from empire_core.gamedata import GameData, ToolStats, UnitStats
 from empire_core.map.models.areas import MapObject
@@ -77,6 +78,7 @@ __all__ = [
     "AmbiguousLookupError",
     "GGEError",
     "PoolExhaustedError",
+    "ReceiveThreadError",
     # State models (live game state for the logged-in account)
     "Player",
     "Castle",

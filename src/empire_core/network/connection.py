@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 import websocket
 
-from empire_core.exceptions import ConnectionClosedError, EmpireTimeoutError, NetworkError
+from empire_core.exceptions import ConnectionClosedError, EmpireTimeoutError, NetworkError, ReceiveThreadError
 from empire_core.network.framing import FrameBuffer
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import Packet
@@ -362,7 +362,9 @@ class Connection:
             EmpireTimeoutError: No response within ``timeout``
             ConnectionClosedError: Connection dropped while waiting
             NetworkError: The send itself failed
+            ReceiveThreadError: Called on the receive thread, which alone could route the reply
         """
+        self._refuse_receive_thread(cmd_id)
         waiter = self.create_waiter(cmd_id)
         try:
             self.send(data)
@@ -380,7 +382,14 @@ class Connection:
         return waiter
 
     def wait_for_result(self, cmd_id: str, waiter: ResponseWaiter, timeout: float = 5.0) -> Packet:
+        """Wait for the reply a waiter from :meth:`create_waiter` receives, then drop the waiter.
+
+        Raises:
+            EmpireTimeoutError / ConnectionClosedError: as :meth:`request`
+            ReceiveThreadError: Called on the receive thread
+        """
         try:
+            self._refuse_receive_thread(cmd_id)
             if waiter.event.wait(timeout=timeout):
                 if waiter.error:
                     raise waiter.error
@@ -391,6 +400,13 @@ class Connection:
                 raise EmpireTimeoutError(f"Timeout waiting for '{cmd_id}'")
         finally:
             self.cancel_waiter(cmd_id, waiter)
+
+    def _refuse_receive_thread(self, cmd_id: str) -> None:
+        if threading.current_thread() is self._recv_thread:
+            raise ReceiveThreadError(
+                f"Waiting for '{cmd_id}' on the receive thread would stall it until the timeout: "
+                "hand the call to another thread, or use a GameState callback"
+            )
 
     def cancel_waiter(self, cmd_id: str, waiter: ResponseWaiter) -> None:
         with self._waiters_lock:
@@ -413,7 +429,11 @@ class Connection:
         Note: only use this for server-pushed packets. For request/response
         round trips use :meth:`request`, which registers the waiter before
         sending.
+
+        Raises:
+            ReceiveThreadError: Called on the receive thread
         """
+        self._refuse_receive_thread(cmd_id)
         waiter = self.create_waiter(cmd_id)
         return self.wait_for_result(cmd_id, waiter, timeout)
 
@@ -423,6 +443,9 @@ class Connection:
 
         Unlike waiters, subscribers receive ALL matching packets
         and are not consumed.
+
+        Callbacks run on the receive thread, which routes every reply: they must
+        not block, and a call that waits for a reply raises ``ReceiveThreadError``.
 
         Args:
             cmd_id: Command ID to subscribe to

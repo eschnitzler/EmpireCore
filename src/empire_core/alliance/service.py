@@ -332,6 +332,9 @@ class AllianceService(BaseService):
         The callback will be called whenever a chat message is received,
         including messages from other players and confirmations of your own.
 
+        Callbacks run on the receive thread: they must not block, and a call
+        that waits for a reply raises ``ReceiveThreadError``.
+
         Args:
             callback: Function that receives AllianceChatMessageResponse
 

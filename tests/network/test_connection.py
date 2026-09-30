@@ -6,7 +6,7 @@ import time
 import pytest
 import websocket
 
-from empire_core.exceptions import ConnectionClosedError, EmpireTimeoutError, NetworkError
+from empire_core.exceptions import ConnectionClosedError, EmpireTimeoutError, NetworkError, ReceiveThreadError
 from empire_core.network.connection import SESSION_IDLE_TIMEOUT, Connection, _summarize_frame
 from empire_core.protocol.packet import Packet
 
@@ -247,6 +247,49 @@ class TestCorrelationIsFifo:
         conn._route_packet(for_first)
         assert conn.wait_for_result("gdi", first, timeout=0.1).payload == {"PID": 2}
         assert conn.wait_for_result("gdi", second, timeout=0.1).payload == {"PID": 1}
+
+
+class TestReceiveThreadGuard:
+    """A wait on the receive thread could only time out, stalling every other reply meanwhile."""
+
+    def test_a_subscriber_that_requests_fails_at_once_and_routing_goes_on(self, live_conn):
+        live_conn.ws = RecordingSocket()
+        live_conn._recv_thread = threading.current_thread()
+        errors: list[Exception] = []
+        routed: list[str | None] = []
+
+        def on_acm(_packet):
+            try:
+                live_conn.request("%xt%EmpireEx_21%gdi%1%{}%", "gdi", timeout=30)
+            except ReceiveThreadError as e:
+                errors.append(e)
+
+        live_conn.subscribe("acm", on_acm)
+        live_conn.on_packet = lambda p: routed.append(p.command_id)
+        started = time.monotonic()
+
+        live_conn._recv_loop(FakeSocket([make_frame("acm"), make_frame("gam")]), 1)
+
+        assert time.monotonic() - started < 5
+        assert len(errors) == 1
+        assert live_conn.ws.sent == []
+        assert routed == ["acm", "gam"]
+
+    @pytest.mark.parametrize("call", ["wait_for", "wait_for_result"])
+    def test_waiting_for_a_push_on_the_receive_thread_fails_at_once(self, conn, call):
+        conn._recv_thread = threading.current_thread()
+        with pytest.raises(ReceiveThreadError):
+            if call == "wait_for":
+                conn.wait_for("sne", timeout=30)
+            else:
+                conn.wait_for_result("sne", conn.create_waiter("sne"), timeout=30)
+        assert conn._waiters == {}
+
+    def test_other_threads_may_still_wait(self, conn):
+        conn._recv_thread = threading.Thread(target=lambda: None)
+        waiter = conn.create_waiter("gam")
+        conn._route_packet(make_packet("gam"))
+        assert conn.wait_for_result("gam", waiter, timeout=0.1).command_id == "gam"
 
 
 class TestRecvLoopResilience:
