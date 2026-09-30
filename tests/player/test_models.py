@@ -4,7 +4,7 @@ import pytest
 
 from empire_core.castle.models.castles import GetCastlesResponse
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.player.models.info import GetPlayerInfoResponse, SearchPlayerResponse
+from empire_core.player.models.info import GetPlayerInfoResponse, PlayerOwnerInfo, SearchPlayerResponse
 from empire_core.protocol.models import parse_response
 from tests.model_helpers import gdi_location_row
 
@@ -194,3 +194,64 @@ class TestPlayerInfoLandmarks:
         wrapped = {"AI": [gdi_location_row(1, 640, 655, 12345, 4242, "Main", 0)]}
         response = GetPlayerInfoResponse.model_validate({"gcl": {"C": [{"KID": 0, "AI": [wrapped]}]}})
         assert response.get_castles() == []
+
+
+class TestOwnerRecord:
+    """As WorldMapOwnerInfoVO.fillFromParamObject (bundle line 10794) reads it."""
+
+    def test_the_keys_the_client_reads(self):
+        owner = PlayerOwnerInfo.model_validate(
+            {
+                "OID": "4242",
+                "N": "TargetPlayer",
+                "RNP": 3600,
+                "R": "1",
+                "AID": 190426,
+                "AR": 8,
+                "SA": 1,
+                "PF": 1,
+                "VF": 0,
+                "DUM": "1",
+                "RRD": 120,
+                "FN": {"FID": 2, "PMS": 1, "PMT": 60, "TID": 3},
+                "SUF": 17,
+                "PRE": "4",
+                "IRF": "1",
+            }
+        )
+        assert owner.player_id == 4242
+        assert owner.beginner_protection_seconds == 3600
+        assert owner.is_ruin is True
+        assert owner.is_searching_alliance is True
+        assert (owner.has_premium_flag, owner.has_vip_flag, owner.is_dummy) == (True, False, True)
+        assert owner.relocation_remaining_seconds == 120
+        assert owner.faction is not None and (owner.faction.faction_id, owner.faction.title_id) == (2, 3)
+        assert (owner.title_suffix, owner.title_prefix) == (17, 4)
+        assert owner.via_refer_a_friend is True
+
+    def test_what_a_bare_record_reads_as(self):
+        owner = PlayerOwnerInfo.model_validate({"OID": 1})
+        assert (owner.alliance_id, owner.is_in_alliance, owner.is_leader) == (-1, False, False)
+        assert (owner.title_suffix, owner.title_prefix) == (None, None)
+        assert (owner.is_ruin, owner.is_searching_alliance, owner.via_refer_a_friend) == (False, False, False)
+        assert owner.faction is None
+
+    def test_a_negative_relocation_reads_as_none_left(self):
+        assert PlayerOwnerInfo.model_validate({"RRD": -5}).relocation_remaining_seconds == 0
+
+    def test_only_ruin_value_one_is_a_ruin(self):
+        assert PlayerOwnerInfo.model_validate({"R": 2}).is_ruin is False
+
+    def test_the_alliance_crest_is_read_only_inside_an_alliance(self):
+        aee = {"ACCA": {"ACLI": 3, "ACCS": [1, 2]}}
+        inside = PlayerOwnerInfo.model_validate({"AID": 5, "aee": aee})
+        assert inside.alliance_emblem is not None and inside.alliance_emblem.crest is not None
+        assert inside.alliance_emblem.crest.layout_id == 3
+        assert PlayerOwnerInfo.model_validate({"AID": -1, "aee": aee}).alliance_emblem is None
+        assert PlayerOwnerInfo.model_validate({"AID": 5, "aee": {}}).alliance_emblem is None
+
+    def test_a_player_outside_an_alliance_is_not_its_leader(self):
+        assert PlayerOwnerInfo.model_validate({"AR": 0}).is_leader is False
+
+    def test_no_owner_is_no_alliance(self):
+        assert GetPlayerInfoResponse.model_validate({}).alliance_id == -1

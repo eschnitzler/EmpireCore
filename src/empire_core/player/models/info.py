@@ -61,10 +61,10 @@ class LocationCapture(BasePayload):
 
 class PlayerOwnerInfo(PlayerProfileBase):
     """
-    Owner info from the gdi response's O object.
+    The gdi reply's ``O`` block: the player's owner record.
 
-    Common profile fields (OID/N/L/LL/H/AR/CF/HF/MP/DUM/AVP/PRE/SUF/TOPX/
-    SA/VF/PF/RRD/TI/RPT/AID/AN/AP/VP/E) are inherited from PlayerProfileBase.
+    Client: ``GDICommand.executeCommand`` (bundle line 129458) reads it with
+    ``CastleOtherPlayerData.parseOwnerInfo`` (bundle line 138996)
     """
 
 
@@ -174,8 +174,8 @@ class GetPlayerInfoResponse(BaseResponse):
 
     @property
     def alliance_id(self) -> int:
-        """Get alliance ID from owner info."""
-        return self.owner.alliance_id if self.owner else 0
+        """The player's alliance id, -1 when the player is in none or the reply has no owner."""
+        return self.owner.alliance_id if self.owner else -1
 
     @property
     def alliance_name(self) -> str:

@@ -49,6 +49,7 @@ GOLDEN_AIN: dict[str, Any] = {
                 "N": "OfficerGal",
                 "L": 70,
                 "AR": 4,
+                "AID": 190426,
                 "MP": 900000,
                 "RPT": 7200,
                 "AP": [[0, 12346, 641, 656, 1]],

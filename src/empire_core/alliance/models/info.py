@@ -28,21 +28,14 @@ logger = logging.getLogger(__name__)
 
 class AllianceMember(PlayerProfileBase):
     """
-    Alliance member information from ain response.
+    One member of an ain reply's ``M`` list: an owner record.
 
-    Common profile fields (OID/N/L/LL/H/AR/CF/HF/MP/DUM/AVP/PRE/SUF/TOPX/
-    SA/VF/PF/RRD/TI/RPT/AID/AN/AP/VP/E) are inherited from PlayerProfileBase.
+    The member's login activity comes from the alliance's ``AMI`` row for it
+    (``AllianceMemberInfo.login_activity``), an :class:`OnlineState` value.
 
-    Note: Activity status comes from the AMI array in AllianceInfo
-    (``AllianceMemberInfo.login_activity``), not the H field; its values are
-    :class:`OnlineState`.
+    Client: ``AllianceInfoVO.parseMemberList`` (bundle line 25968) reads each
+    entry with ``CastleOtherPlayerData.parseOwnerInfo`` (bundle line 138996)
     """
-
-    name: str = Field(alias="N", default="Unknown")
-
-    # The meaning of "R" is unverified: an earlier docstring called it "Global rank",
-    # while the field name says ruins. Kept as-is to preserve current behavior.
-    is_in_ruins: bool = Field(alias="R", default=False)
 
     # Activity tier (populated from AMI array, not from server directly)
     # None means unknown, otherwise an OnlineState value
