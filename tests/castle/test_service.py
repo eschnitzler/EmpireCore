@@ -47,10 +47,10 @@ class TestCastleQueries:
         castles = client.castle.get_all()
 
         assert [(c.castle_id, c.castle_name, c.x, c.y, c.castle_type) for c in castles] == [
-            (2001, "Main Castle", 632, 243, 1),
+            (2001, "Main Castle", 512, 256, 1),
             (2002, "Outpost North", 630, 244, 4),
         ]
-        assert castles[0].position.x == 632
+        assert castles[0].position.x == 512
         assert conn(client).request_payloads == [("gcl", {})]
 
     def test_golden_dcl_payload_parses_resources_and_units(self):

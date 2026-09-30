@@ -8,13 +8,13 @@ from empire_core.protocol.models import parse_response
 from tests.model_helpers import gdi_location_row
 
 GOLDEN_DCL = {
-    "PID": 17743260,
+    "PID": 1001,
     "C": [
         {
             "KID": 0,
             "AI": [
                 {
-                    "AID": 16654596,
+                    "AID": 2001,
                     "W": 7000.0,
                     "S": 6999.5,
                     "F": 7000.0,
@@ -74,7 +74,7 @@ GOLDEN_DCL = {
                     "OGT": 0,
                     "AOT": -1,
                 },
-                {"AID": 16656989, "W": 800.0, "S": 800.0, "F": 800.0, "AC": [[649, 18]], "B": 0},
+                {"AID": 2002, "W": 800.0, "S": 800.0, "F": 800.0, "AC": [[649, 18]], "B": 0},
             ],
         }
     ],
@@ -82,16 +82,16 @@ GOLDEN_DCL = {
 
 
 GOLDEN_GCL = {
-    "PID": 17743260,
+    "PID": 1001,
     "C": [
         {
             "KID": 0,
             "AI": [
-                {"AI": gdi_location_row(1, 632, 243, 16654596, 17743260, "Château Nord", 0), "AOT": -1, "TA": -1},
-                {"AI": gdi_location_row(4, 630, 244, 16656989, 17743260, "OP1", 0), "TA": 0},
+                {"AI": gdi_location_row(1, 512, 256, 2001, 1001, "Château Nord", 0), "AOT": -1, "TA": -1},
+                {"AI": gdi_location_row(4, 630, 244, 2002, 1001, "OP1", 0), "TA": 0},
             ],
         },
-        {"KID": 2, "AI": [{"AI": gdi_location_row(12, 100, 200, 16700000, 17743260, "Sands", 0)}]},
+        {"KID": 2, "AI": [{"AI": gdi_location_row(12, 100, 200, 16700000, 1001, "Sands", 0)}]},
     ],
 }
 
@@ -99,13 +99,13 @@ GOLDEN_GCL = {
 class TestGoldenCastlePayloads:
     def test_gcl_rows_are_flattened_across_kingdoms(self):
         response = GetCastlesResponse.model_validate(GOLDEN_GCL)
-        assert response.player_id == 17743260
+        assert response.player_id == 1001
         assert [(c.castle_id, c.castle_name, c.x, c.y, c.kingdom_id, c.castle_type) for c in response.castles] == [
-            (16654596, "Château Nord", 632, 243, 0, 1),
-            (16656989, "OP1", 630, 244, 0, 4),
+            (2001, "Château Nord", 512, 256, 0, 1),
+            (2002, "OP1", 630, 244, 0, 4),
             (16700000, "Sands", 100, 200, 2, 12),
         ]
-        assert response.castles[0].owner_id == 17743260
+        assert response.castles[0].owner_id == 1001
         assert response.castles[2].position.kingdom == 2
         main, outpost = response.castles[0], response.castles[1]
         assert (main.keep_level, main.wall_level, main.gate_level, main.tower_level, main.moat_level) == (1, 1, 1, 0, 0)
@@ -128,8 +128,8 @@ class TestGoldenCastlePayloads:
 
     def test_dcl_lists_every_castle_with_resources_and_units(self):
         response = GetDetailedCastleResponse.model_validate(GOLDEN_DCL)
-        assert response.player_id == 17743260
-        assert [c.castle_id for c in response.castles] == [16654596, 16656989]
+        assert response.player_id == 1001
+        assert [c.castle_id for c in response.castles] == [2001, 2002]
         main = response.castles[0]
         assert main.kingdom_id == 0
         # Fractional amounts are truncated, not rejected.
@@ -179,7 +179,7 @@ class TestGoldenCastlePayloads:
 
     def test_dcl_castle_lookup_by_id(self):
         response = GetDetailedCastleResponse.model_validate(GOLDEN_DCL)
-        outpost = response.castle(16656989)
+        outpost = response.castle(2002)
         assert outpost is not None
         assert outpost.units == {649: 18}
         assert response.castle(1) is None
