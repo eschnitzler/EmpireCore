@@ -2,6 +2,7 @@
 
 Commands:
 - jca: Join a castle (answered as jaa)
+- jaa: Join an area by its position
 - arc: Rename castle
 - rst: Relocate castle
 """
@@ -51,11 +52,51 @@ class SelectCastleRequest(BaseRequest):
     kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
 
 
-class SelectCastleResponse(BaseResponse):
+class JoinAreaRequest(BaseRequest):
     """
-    The joined castle's state, the ``jaa`` the server answers a join with.
+    Join an area by its position rather than by castle id.
 
     Command: jaa
+    Payload: {"PX": x, "PY": y, "KID": kingdom_id}
+
+    The client joins a map object this way only when it may visit it and it
+    is not a castle: ``JoinAreaAndSavePositionCommand`` sends ``jca`` for a
+    ``CastleMapobjectVO`` (main and kingdom castles) and ``jaa`` for anything
+    else. Its callers pass either your own areas from the castle lists or,
+    from a double click on the world map or the ring menu's visit button,
+    an object whose ``canBeVisited`` is true: outposts, capitals and
+    metropolises, and faction camps that are not destroyed. Every other
+    object (NPC camps, dungeons, kings towers, villages, monuments and the
+    rest) says false, and the client never joins it; a live server answered
+    INVALID_POSITION (6) for NPC camps and a kings tower. ``ARCCommand``
+    also joins a kingdom castle by position after its first naming, and a
+    live server accepted that too. Joining another
+    player's outpost is what the client allows; whether the server accepts it
+    is unverified.
+
+    Client: ``C2SJoinAreaVO`` (bundle line 56128), whose key order the fields
+    follow; sent by ``JoinAreaAndSavePositionCommand.execute`` (bundle line
+    100892) and ``ARCCommand.executeCommand`` (bundle line 124969);
+    ``CastleWorldMapScreen.onDoubleClickCastle`` (bundle line 39601) and
+    ``ButtonVisitCastleComponent`` (bundle line 110159) check
+    ``canBeVisited``, on ``InteractiveMapobjectVO`` (bundle line 3678),
+    ``OutpostMapobjectVO`` (bundle line 18829), ``CastleMapobjectVO``
+    (bundle line 18924) and ``FactionCampMapobjectVO`` (bundle line 21538)
+    """
+
+    command = "jaa"
+
+    x: int = Field(alias="PX", description="Map x")
+    y: int = Field(alias="PY", description="Map y")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom it lies in")
+
+
+class SelectCastleResponse(BaseResponse):
+    """
+    The joined area's state, the ``jaa`` the server answers a join with.
+
+    Command: jaa, the answer to both ``jca`` and a ``jaa`` by position; the
+    client reads both with the same code.
     Payload: {"KID": kingdom_id, "T": area_type, "gca": {...}, "grc": {...}, "gpa": {...}, ...}
 
     A block that cannot be read is None, so it does not cost the rest. The
@@ -68,18 +109,18 @@ class SelectCastleResponse(BaseResponse):
 
     command = "jaa"
 
-    kingdom_id: int = Field(alias="KID", default=0, description="The joined castle's kingdom")
+    kingdom_id: int = Field(alias="KID", default=0, description="The joined area's kingdom")
     area_type: MapItemType | None = Field(
         alias="T", default=None, description="The joined area's type; None for one MapItemType lacks"
     )
     buildings: CastleBuildings | None = Field(
-        alias="gca", default=None, description="The castle's buildings; None when the reply has none"
+        alias="gca", default=None, description="The area's buildings; None when the reply has none"
     )
     resources: CastleResources | None = Field(
-        alias="grc", default=None, description="The castle's resources; None when the reply has none"
+        alias="grc", default=None, description="The area's resources; None when the reply has none"
     )
     production_area: CastleProductionArea | None = Field(
-        alias="gpa", default=None, description="The castle's production area; None when the reply has none"
+        alias="gpa", default=None, description="The area's production area; None when the reply has none"
     )
 
     @field_validator("area_type", mode="before")
@@ -198,6 +239,7 @@ class RelocateCastleResponse(BaseResponse):
 
 
 __all__ = [
+    "JoinAreaRequest",
     "SelectCastleRequest",
     "SelectCastleResponse",
     "RenameCastleRequest",

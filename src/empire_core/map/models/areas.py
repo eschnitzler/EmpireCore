@@ -3,7 +3,6 @@
 Commands:
 - gaa: Get map area/chunk
 - fnm: Find the next map object of a type
-- jaa: Join a map area by its position
 """
 
 from __future__ import annotations
@@ -384,33 +383,6 @@ class FindNextMapObjectResponse(BaseResponse):
         return next((item for item in self.area.items if (item.x, item.y) == (self.x, self.y)), None)
 
 
-# =============================================================================
-# JAA - Join a map area
-# =============================================================================
-
-
-class JoinAreaRequest(BaseRequest):
-    """
-    Join the map object at a position, as the client does for any map object but a castle.
-
-    The client joins a castle or kingdom castle by id (``jca``) and anything
-    else, an outpost, capital or metropolis among them, by position. Which
-    objects the server lets a player join this way is not settled by the client.
-
-    Command: jaa
-    Payload: {"PX": x, "PY": y, "KID": kingdom}
-
-    Client: ``C2SJoinAreaVO`` (bundle line 56128), whose key order the fields
-    follow; sent at bundle line 100892
-    """
-
-    command = "jaa"
-
-    x: int = Field(alias="PX", description="Map x")
-    y: int = Field(alias="PY", description="Map y")
-    kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom it lies in")
-
-
 __all__ = [
     "GetMapAreaRequest",
     "GetMapAreaResponse",
@@ -419,5 +391,4 @@ __all__ = [
     "KingdomProtection",
     "FindNextMapObjectRequest",
     "FindNextMapObjectResponse",
-    "JoinAreaRequest",
 ]

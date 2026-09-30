@@ -1,5 +1,5 @@
 """
-Map service: map areas, kingdom scans, finding map objects and joining them.
+Map service: map areas, kingdom scans and finding map objects.
 
 Reading the map moves the session off the castle it had joined: a
 castle-scoped read after a scan fails with NOT_IN_OWNED_CASTLE until the
@@ -16,7 +16,6 @@ from empire_core.map.models.areas import (
     FindNextMapObjectResponse,
     GetMapAreaRequest,
     GetMapAreaResponse,
-    JoinAreaRequest,
 )
 from empire_core.map.models.items import parse_area_rows
 from empire_core.map.scanner import MapScanner, ScanResult
@@ -135,14 +134,3 @@ class MapService(BaseService):
             raise
         response.area.items = parse_area_rows([item.raw_data for item in response.area.items], kingdom)[0]
         return response
-
-    def join_area(self, x: int, y: int, kingdom: Kingdom = Kingdom.GREEN, timeout: float = 5.0) -> bool:
-        """
-        Join the map object at a position, as the client does for anything but a castle (``jaa``).
-
-        Join a castle or kingdom castle with ``client.castle.select`` instead.
-
-        Returns:
-            True when the server accepted, False when it refused
-        """
-        return self.execute(JoinAreaRequest(PX=x, PY=y, KID=kingdom), timeout=timeout)

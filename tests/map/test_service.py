@@ -52,14 +52,3 @@ class TestFindNext:
         client = make_client({"fnm": xt_packet("fnm", error_code=21)})
         with pytest.raises(CommandError):
             client.map.find_next(MapItemType.NOMAD_CAMP)
-
-
-class TestJoinArea:
-    def test_sends_the_position(self):
-        client = make_client({"jaa": xt_packet("jaa", {})})
-        assert client.map.join_area(5, 6, Kingdom.FIRE) is True
-        assert conn(client).request_payloads == [("jaa", {"PX": 5, "PY": 6, "KID": 3})]
-
-    def test_a_refusal_is_false(self):
-        client = make_client({"jaa": xt_packet("jaa", error_code=21)})
-        assert client.map.join_area(5, 6) is False

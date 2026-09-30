@@ -10,7 +10,6 @@ from empire_core.map.models.areas import (
     FindNextMapObjectResponse,
     GetMapAreaRequest,
     GetMapAreaResponse,
-    JoinAreaRequest,
 )
 from empire_core.map.models.items import ROW_PARSERS, MapAreaItem, parse_area_rows
 from empire_core.protocol.models import parse_response
@@ -629,12 +628,3 @@ class TestFindNextMapObject:
     def test_a_reply_without_a_map_area(self):
         response = FindNextMapObjectResponse.model_validate({"X": 1, "Y": 2, "gaa": None})
         assert (response.area.items, response.found()) == ([], None)
-
-
-class TestJoinArea:
-    def test_request_keys_follow_the_client(self):
-        # C2SJoinAreaVO sets PX, PY, KID
-        request = JoinAreaRequest(PX=5, PY=6, KID=Kingdom.ICE)
-        assert request.get_command() == "jaa"
-        assert request.get_response_command() == "jaa"
-        assert list(request.to_payload().items()) == [("PX", 5), ("PY", 6), ("KID", 2)]

@@ -1,6 +1,7 @@
 """Castles: the castle list, castle details, buildings and castle actions: protocol models."""
 
 from .actions import (
+    JoinAreaRequest,
     RelocateCastleRequest,
     RelocateCastleResponse,
     RenameCastleRequest,
@@ -85,6 +86,7 @@ from .transfers import KingdomUnitTransferRequest, KingdomUnitTransferResponse
 __all__ = [
     "SelectCastleRequest",
     "SelectCastleResponse",
+    "JoinAreaRequest",
     "RenameCastleRequest",
     "RenameCastleResponse",
     "RelocateCastleRequest",

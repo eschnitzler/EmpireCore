@@ -35,6 +35,7 @@ from .models import (
     GetProductionResponse,
     GetResourcesRequest,
     GetResourcesResponse,
+    JoinAreaRequest,
     KingdomUnitTransferRequest,
     KingdomUnitTransferResponse,
     MarketCastle,
@@ -78,6 +79,7 @@ from .models import (
 __all__ = [
     "SelectCastleRequest",
     "SelectCastleResponse",
+    "JoinAreaRequest",
     "RenameCastleRequest",
     "RenameCastleResponse",
     "RelocateCastleRequest",

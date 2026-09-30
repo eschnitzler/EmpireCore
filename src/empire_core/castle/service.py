@@ -19,7 +19,12 @@ others) can be read with ``client.request``.
 
 from __future__ import annotations
 
-from empire_core.castle.models.actions import RenameCastleRequest, SelectCastleRequest, SelectCastleResponse
+from empire_core.castle.models.actions import (
+    JoinAreaRequest,
+    RenameCastleRequest,
+    SelectCastleRequest,
+    SelectCastleResponse,
+)
 from empire_core.castle.models.buildings import (
     BuildRequest,
     BuyExtensionRequest,
@@ -169,6 +174,34 @@ class CastleService(BaseService):
                 print([b.wod_id for b in castle.buildings.buildings])
         """
         return self.request(SelectCastleRequest(CID=castle_id, KID=kingdom_id), SelectCastleResponse, timeout=timeout)
+
+    def join_area(
+        self, x: int, y: int, kingdom_id: Kingdom = Kingdom.GREEN, timeout: float = 5.0
+    ) -> SelectCastleResponse:
+        """
+        Join an area by its position (``jaa``), making it the active area, and return its state.
+
+        The client joins this way the objects it may visit that are not
+        castles: outposts, capitals, metropolises and faction camps that are
+        not destroyed, and a kingdom castle just after its first naming. It
+        joins main and kingdom castles otherwise by id, as :meth:`join` does.
+        It never joins anything else (see :class:`JoinAreaRequest`).
+
+        Args:
+            x: Map x of the area
+            y: Map y of the area
+            kingdom_id: The kingdom it lies in
+            timeout: Timeout in seconds
+
+        Raises:
+            CommandError: The server refused the join; a live server answered
+                INVALID_POSITION (6) for objects the client never joins, such as NPC camps
+                and kings towers
+
+        Client: ``JoinAreaAndSavePositionCommand.execute`` (bundle line 100892),
+        ``JAACommand.executeCommand`` (bundle line 130190)
+        """
+        return self.request(JoinAreaRequest(PX=x, PY=y, KID=kingdom_id), SelectCastleResponse, timeout=timeout)
 
     # =========================================================================
     # Castle Modification

@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from empire_core.castle.models.actions import SelectCastleResponse
+from empire_core.castle.models.actions import JoinAreaRequest, SelectCastleResponse
 from empire_core.castle.models.buildings import (
     BuildRequest,
     BuildResponse,
@@ -40,6 +40,7 @@ from empire_core.castle.models.objects import (
     ShowConstructionListRequest,
 )
 from empire_core.enums import BuildingState, ExpansionType, Kingdom, MapItemType
+from empire_core.exceptions import CommandError
 from empire_core.protocol.models import parse_response
 from tests.service_helpers import conn, make_client, xt_packet
 
@@ -200,6 +201,58 @@ class TestJoinCastle:
         joined = client.castle.join(555, kingdom_id=Kingdom.ICE)
         assert conn(client).request_payloads == [("jaa", {"CID": 555, "KID": 2})]
         assert joined.buildings is not None
+
+
+# The blocks a live server answered an own outpost's jaa by position with, values made up.
+OUTPOST_JAA: dict[str, Any] = {
+    "KID": 0,
+    "T": 4,
+    "gca": {**GCA, "O": {"OID": 1001}},
+    "grc": {"AID": 2002, "W": 800.0, "S": 800.0, "F": 1500.0, "C": 0.0, "KID": 0},
+    "gpa": {"P": 40, "DW": 900, "WM": 20.0, "RFPPA": 0.0},
+    "gui": {"I": [[277, 2]], "SHI": [], "HI": [], "TU": []},
+    "uap": {"KID": 0, "NS": -1, "PMS": -1, "PMT": 0},
+    "csl": {"SL": -1},
+    "gab": {"B": 0.0},
+    "hin": {"FB": 25, "WSR": -75},
+    "sin": [],
+    "abpi": [],
+    "crai": {"CAI": {"CBI": [], "CE": []}},
+    **{f"spl{i}": {"PS": {}, "QS": [], "RM": 0, "TCT": 0, "LID": i} for i in range(4)},
+}
+
+
+class TestJoinArea:
+    def test_request_keys_follow_the_client(self):
+        # C2SJoinAreaVO sets PX, PY, KID
+        request = JoinAreaRequest(PX=5, PY=6, KID=Kingdom.ICE)
+        assert (request.get_command(), request.get_response_command()) == ("jaa", "jaa")
+        assert list(request.to_payload().items()) == [("PX", 5), ("PY", 6), ("KID", 2)]
+
+    def test_join_area_returns_the_outposts_state(self):
+        client = make_client({"jaa": xt_packet("jaa", OUTPOST_JAA)})
+
+        joined = client.castle.join_area(512, 256)
+
+        assert conn(client).request_payloads == [("jaa", {"PX": 512, "PY": 256, "KID": 0})]
+        assert (joined.kingdom_id, joined.area_type) == (0, MapItemType.OUTPOST)
+        assert joined.buildings is not None and [b.object_id for b in joined.buildings.buildings] == [5, 6]
+        assert joined.resources is not None and (joined.resources.castle_id, joined.resources.food) == (2002, 1500)
+        assert joined.production_area is not None and joined.production_area.population == 40
+
+    def test_a_kingdom_castle_by_position(self):
+        client = make_client({"jaa": xt_packet("jaa", {**OUTPOST_JAA, "KID": 1, "T": 12})})
+
+        joined = client.castle.join_area(510, 257, Kingdom.SANDS)
+
+        assert conn(client).request_payloads == [("jaa", {"PX": 510, "PY": 257, "KID": 1})]
+        assert (joined.kingdom_id, joined.area_type) == (1, MapItemType.KINGDOM_CASTLE)
+
+    def test_an_object_the_client_never_joins_raises(self):
+        client = make_client({"jaa": xt_packet("jaa", error_code=6)})
+        with pytest.raises(CommandError) as raised:
+            client.castle.join_area(509, 255)
+        assert raised.value.code == 6
 
 
 # =============================================================================
