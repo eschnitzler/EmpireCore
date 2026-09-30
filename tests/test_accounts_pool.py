@@ -10,7 +10,6 @@ import time
 import pytest
 from pydantic import ValidationError
 
-import empire_core.pool as pool_module
 from empire_core.accounts import Account, AccountRegistry
 from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, ServerError, default_config, generate_aid, resolve_aid
 from empire_core.exceptions import LoginCooldownError, LoginError
@@ -405,15 +404,14 @@ def fake_accounts(monkeypatch):
         clients[self.username] = client
         return client
 
-    monkeypatch.setattr(pool_module, "accounts", FakeRegistry(accs))
     monkeypatch.setattr(Account, "get_client", fake_get_client)
-    return accs, clients
+    return accs, clients, FakeRegistry(accs)
 
 
 class TestAccountPool:
     def test_lease_and_release(self, fake_accounts):
-        _, clients = fake_accounts
-        pool = AccountPool()
+        _, clients, _ = fake_accounts
+        pool = AccountPool(fake_accounts[2])
         client = pool.lease()
         assert client is not None
         assert pool.busy_count == 1
@@ -425,8 +423,8 @@ class TestAccountPool:
     def test_release_closes_non_logged_in_client(self, fake_accounts):
         # A client leased with login=False must still be closed on release,
         # otherwise its websocket and receive thread leak.
-        _, clients = fake_accounts
-        pool = AccountPool()
+        _, clients, _ = fake_accounts
+        pool = AccountPool(fake_accounts[2])
         client = pool.lease(login=False)
         assert client is not None
         assert not client.is_logged_in
@@ -435,13 +433,13 @@ class TestAccountPool:
         assert clients[client.username].closed
 
     def test_tag_filter_case_insensitive(self, fake_accounts):
-        pool = AccountPool()
+        pool = AccountPool(fake_accounts[2])
         client = pool.lease(tag="farmer")
         assert client is not None
         assert client.username == "alpha"
 
     def test_busy_account_not_re_leased(self, fake_accounts):
-        pool = AccountPool()
+        pool = AccountPool(fake_accounts[2])
         first = pool.lease(username="alpha")
         assert first is not None
         second = pool.lease(username="alpha")
@@ -462,10 +460,26 @@ class TestAccountPool:
         assert pool_b.busy_count == 0
         assert pool_b.lease() is not None
 
-    def test_default_registry_is_the_global_singleton(self, fake_accounts):
-        # Backwards compatibility: no registry argument -> module-global registry.
-        pool = AccountPool()
-        assert [a.username for a in pool.all_accounts] == ["alpha", "beta"]
+    def test_a_registry_is_required(self):
+        with pytest.raises(TypeError):
+            AccountPool()  # type: ignore[call-arg]
+
+    def test_a_loaded_registry_never_reads_the_working_directory(self, tmp_path, monkeypatch, isolated_environ):
+        for key in [k for k in isolated_environ if k.startswith("EMPIRE_ACCOUNT_")]:
+            del isolated_environ[key]
+        chosen = tmp_path / "chosen.json"
+        chosen.write_text(json.dumps([{"username": "chosen", "password": "p"}]))
+        chosen.chmod(0o600)
+        cwd = tmp_path / "cwd"
+        cwd.mkdir()
+        (cwd / "accounts.json").write_text(json.dumps([{"username": "stray", "password": "p"}]))
+        monkeypatch.chdir(cwd)
+
+        registry = AccountRegistry()
+        registry.load(file_path=str(chosen))
+        pool = AccountPool(registry)
+
+        assert [a.username for a in pool.all_accounts] == ["chosen"]
 
     def test_get_client_failure_raises_and_does_not_crash(self, fake_accounts, monkeypatch):
         # account.get_client() raising must not blow up with UnboundLocalError,
@@ -474,7 +488,7 @@ class TestAccountPool:
             raise RuntimeError("cannot build client")
 
         monkeypatch.setattr(Account, "get_client", broken_get_client)
-        pool = AccountPool()
+        pool = AccountPool(fake_accounts[2])
         with pytest.raises(LoginError) as exc_info:
             pool.lease()
         # The underlying bug must stay reachable for debugging.
@@ -484,7 +498,7 @@ class TestAccountPool:
 
     def test_no_candidates_still_returns_none(self, fake_accounts):
         # 'nothing configured/available' stays distinguishable from 'everything failed'.
-        pool = AccountPool()
+        pool = AccountPool(fake_accounts[2])
         assert pool.lease(tag="nonexistent-tag") is None
         assert pool.lease(username="not-a-real-user") is None
         assert pool.busy_count == 0
@@ -494,7 +508,7 @@ class TestAccountPool:
             raise LoginCooldownError(cooldown=42)
 
         monkeypatch.setattr(Account, "get_client", cooldown_get_client)
-        pool = AccountPool()
+        pool = AccountPool(fake_accounts[2])
         with pytest.raises(LoginError) as exc_info:
             pool.lease()
         assert isinstance(exc_info.value.__cause__, LoginCooldownError)
@@ -566,8 +580,8 @@ class TestLeasedContextManager:
     the busy slot and a live connected client for the lifetime of the process."""
 
     def test_releases_on_normal_exit(self, fake_accounts):
-        _, clients = fake_accounts
-        pool = AccountPool()
+        _, clients, _ = fake_accounts
+        pool = AccountPool(fake_accounts[2])
         with pool.leased() as client:
             leased = client.username
             assert pool.busy_count == 1
@@ -575,8 +589,8 @@ class TestLeasedContextManager:
         assert clients[leased].closed
 
     def test_releases_when_the_caller_raises(self, fake_accounts):
-        _, clients = fake_accounts
-        pool = AccountPool()
+        _, clients, _ = fake_accounts
+        pool = AccountPool(fake_accounts[2])
         leased = None
         with pytest.raises(RuntimeError, match="caller blew up"):
             with pool.leased() as client:
@@ -588,7 +602,7 @@ class TestLeasedContextManager:
         assert clients[leased].closed, "the websocket and receive thread leaked"
 
     def test_account_becomes_leasable_again_after_a_failure(self, fake_accounts):
-        pool = AccountPool()
+        pool = AccountPool(fake_accounts[2])
         with pytest.raises(RuntimeError):
             with pool.leased(username="alpha"):
                 raise RuntimeError("boom")
@@ -597,7 +611,7 @@ class TestLeasedContextManager:
             assert client.username == "alpha"
 
     def test_no_available_account_raises_instead_of_yielding_none(self, fake_accounts):
-        pool = AccountPool()
+        pool = AccountPool(fake_accounts[2])
         with pytest.raises(PoolExhaustedError):
             with pool.leased(tag="nonexistent-tag"):
                 pass
@@ -607,3 +621,78 @@ class TestLeasedContextManager:
         from empire_core.exceptions import EmpireError
 
         assert issubclass(PoolExhaustedError, EmpireError)
+
+
+class TestConcurrentLeases:
+    def test_threads_leasing_at_once_never_share_an_account(self, monkeypatch):
+        count = 4
+        rounds = [threading.Barrier(count, timeout=5), threading.Barrier(count, timeout=5)]
+        logging_in = threading.Barrier(count, timeout=5)
+
+        class SameMomentRegistry(FakeRegistry):
+            """The leases read the account list together, each of their first two reads.
+
+            A lease that checks for a free account on one read and claims it on a
+            later one then claims what the others also saw as free.
+            """
+
+            def __init__(self, accounts: list[Account]):
+                super().__init__(accounts)
+                self.reads = 0
+                self.reads_lock = threading.Lock()
+
+            def get_all(self) -> list[Account]:
+                with self.reads_lock:
+                    self.reads += 1
+                    read = self.reads
+                if read <= len(rounds) * count:
+                    rounds[(read - 1) // count].wait()
+                return super().get_all()
+
+        class SlowLoginClient(FakeClient):
+            def login(self) -> bool:
+                # Every lease is mid-login at the same moment.
+                logging_in.wait()
+                return super().login()
+
+        monkeypatch.setattr(Account, "get_client", lambda self: SlowLoginClient(self.username))
+        pool = AccountPool(SameMomentRegistry([Account(username=f"user{i}", password="p") for i in range(count)]))
+        leased: list[str] = []
+        errors: list[BaseException] = []
+        lock = threading.Lock()
+
+        def lease() -> None:
+            try:
+                client = pool.lease()
+                assert client is not None
+                with lock:
+                    leased.append(str(client.username))
+            except BaseException as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=lease) for _ in range(count)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+
+        assert errors == []
+        assert sorted(leased) == sorted(f"user{i}" for i in range(count))
+        assert pool.busy_count == count
+
+    def test_a_failed_login_frees_the_account_for_the_next_lease(self, monkeypatch):
+        class FailOnceClient(FakeClient):
+            failures = [True]
+
+            def login(self) -> bool:
+                if self.failures and self.failures.pop():
+                    raise LoginError("bad credentials")
+                return super().login()
+
+        monkeypatch.setattr(Account, "get_client", lambda self: FailOnceClient(self.username))
+        pool = AccountPool(FakeRegistry([Account(username="alpha", password="p")]))
+
+        with pytest.raises(LoginError):
+            pool.lease()
+        assert pool.busy_count == 0
+        assert pool.lease() is not None

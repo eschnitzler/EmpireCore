@@ -7,10 +7,11 @@ scanning, alerts).
 """
 
 import logging
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from empire_core.accounts import Account, AccountRegistry, accounts
+from empire_core.accounts import Account, AccountRegistry
 from empire_core.client.client import EmpireClient
 from empire_core.exceptions import EmpireError, LoginCooldownError, LoginError
 
@@ -37,12 +38,9 @@ class AccountPool:
     operations simultaneously. Implements automatic cycling and cooldown handling.
 
     Usage:
-        pool = AccountPool()
-
-        # Or with an explicit account set, instead of the process-wide default
         registry = AccountRegistry()
         registry.load(file_path="farmers.json")
-        pool = AccountPool(registry=registry)
+        pool = AccountPool(registry)
 
         # Scoped lease: released even if the body raises (preferred)
         with pool.leased(tag="tracking") as client:
@@ -56,28 +54,22 @@ class AccountPool:
             pool.release(client)
 
     Thread Safety:
-        This class is NOT thread-safe. If using from multiple threads,
-        wrap calls with appropriate locking.
+        Every method may be called from any thread. An account is marked busy
+        before its login starts, so two concurrent leases never get the same
+        account; the login itself runs outside the pool's lock, so leases of
+        different accounts log in in parallel.
     """
 
-    def __init__(self, registry: AccountRegistry | None = None):
+    def __init__(self, registry: AccountRegistry):
         """
         Args:
-            registry: Account source for this pool. Defaults to the module-level
-                ``empire_core.accounts.accounts`` singleton, which lazily loads
-                credentials from the environment and the working directory.
+            registry: Where this pool's accounts come from.
         """
-        self._registry = registry
+        self.registry = registry
+        self._lock = threading.Lock()
         self._busy: set[str] = set()  # Usernames currently in use
         self._clients: dict[str, EmpireClient] = {}  # Active clients by username
         self._last_leased_index = -1  # For round-robin cycling
-
-    @property
-    def registry(self) -> AccountRegistry:
-        """The account source in use (the global singleton unless one was injected)."""
-        # Resolved per call rather than captured in __init__ so that replacing the
-        # module-level singleton keeps working for pools built before the swap.
-        return self._registry if self._registry is not None else accounts
 
     @property
     def all_accounts(self) -> list[Account]:
@@ -94,7 +86,11 @@ class AccountPool:
         Returns:
             List of available accounts, ordered for round-robin cycling.
         """
-        all_accs = self.all_accounts
+        with self._lock:
+            return self._available(self.all_accounts, tag)
+
+    def _available(self, all_accs: list[Account], tag: str | None) -> list[Account]:
+        """Free accounts in round-robin order; called under the lock."""
         if not all_accs:
             return []
 
@@ -115,6 +111,38 @@ class AccountPool:
             available.append(acc)
 
         return available
+
+    def _candidates(self, all_accs: list[Account], username: str | None, tag: str | None) -> list[Account]:
+        """The accounts a lease may try, in order; called under the lock.
+
+        The username branch applies the same filters as get_available() and
+        folds case the way AccountRegistry.get_by_username and has_tag do -
+        asking for an account by name must not be a way to bypass the active
+        flag or the tag filter.
+        """
+        if not username:
+            return self._available(all_accs, tag)
+        wanted = username.lower()
+        return [
+            acc
+            for acc in all_accs
+            if acc.username.lower() == wanted
+            and acc.username not in self._busy
+            and acc.active
+            and (not tag or acc.has_tag(tag))
+        ]
+
+    def _reserve(self, username: str | None, tag: str | None, tried: set[str]) -> Account | None:
+        """Mark the next untried free candidate busy and return it; None when none is left."""
+        all_accs = self.all_accounts
+        with self._lock:
+            for account in self._candidates(all_accs, username, tag):
+                if account.username in tried:
+                    continue
+                self._busy.add(account.username)
+                self._last_leased_index = next(i for i, acc in enumerate(all_accs) if acc.username == account.username)
+                return account
+        return None
 
     def lease(
         self,
@@ -143,44 +171,15 @@ class AccountPool:
                 cooldowns and outright bugs stay distinguishable instead of
                 collapsing into a None that means 'nothing configured'.
         """
-        # Build candidate list.
-        # The username branch applies the same filters as get_available() and
-        # folds case the way AccountRegistry.get_by_username and has_tag do -
-        # asking for an account by name must not be a way to bypass the active
-        # flag or the tag filter.
-        if username:
-            wanted = username.lower()
-            candidates = [
-                acc
-                for acc in self.all_accounts
-                if acc.username.lower() == wanted
-                and acc.username not in self._busy
-                and acc.active
-                and (not tag or acc.has_tag(tag))
-            ]
-        else:
-            candidates = self.get_available(tag)
-
-        if not candidates:
-            logger.warning(f"AccountPool: No available accounts (user={username}, tag={tag})")
-            return None
+        tried: set[str] = set()
+        last_error: Exception | None = None
 
         # Try each candidate until one succeeds
-        last_error: Exception | None = None
-        for account in candidates:
-            # Update round-robin index
-            all_accs = self.all_accounts
-            for i, acc in enumerate(all_accs):
-                if acc.username == account.username:
-                    self._last_leased_index = i
-                    break
-
-            # Mark as busy
-            self._busy.add(account.username)
+        while (account := self._reserve(username, tag, tried)) is not None:
+            tried.add(account.username)
             client: EmpireClient | None = None
 
             try:
-                # Create client
                 client = account.get_client()
 
                 if login:
@@ -190,31 +189,32 @@ class AccountPool:
                     # day that vestigial bool return becomes None.
                     client.login()
 
-                # Cache and return
-                self._clients[account.username] = client
+                with self._lock:
+                    self._clients[account.username] = client
                 logger.info(f"AccountPool: Leased {account.username}")
                 return client
 
             except LoginCooldownError as e:
                 logger.warning(f"AccountPool: {account.username} on cooldown ({e.cooldown}s), trying next...")
                 last_error = e
-                self._busy.discard(account.username)
-                self._safe_close(client)
-                continue
-
             except Exception as e:
                 logger.error(f"AccountPool: Failed to lease {account.username}: {e}")
                 last_error = e
+
+            self._safe_close(client)
+            with self._lock:
                 self._busy.discard(account.username)
-                self._safe_close(client)
-                continue
+
+        if not tried:
+            logger.warning(f"AccountPool: No available accounts (user={username}, tag={tag})")
+            return None
 
         # Candidates existed but none could be leased. Raising (rather than
         # returning None) keeps this distinct from 'no accounts available', and
         # the chained cause preserves the real reason.
         logger.error("AccountPool: All candidate accounts failed")
         raise LoginError(
-            f"All {len(candidates)} candidate account(s) failed to lease (user={username}, tag={tag})"
+            f"All {len(tried)} candidate account(s) failed to lease (user={username}, tag={tag})"
         ) from last_error
 
     @contextmanager
@@ -287,28 +287,28 @@ class AccountPool:
             except Exception as e:
                 logger.error(f"AccountPool: Error closing {username}: {e}")
 
-        # Remove from tracking
-        self._clients.pop(username, None)
-        self._busy.discard(username)
+        with self._lock:
+            self._clients.pop(username, None)
+            self._busy.discard(username)
         logger.info(f"AccountPool: Released {username}")
 
     def release_all(self, logout: bool = True) -> None:
         """Release all leased accounts."""
-        # Copy keys to avoid mutation during iteration
-        usernames = list(self._clients.keys())
-        for username in usernames:
-            client = self._clients.get(username)
-            if client:
-                self.release(client, logout=logout)
+        with self._lock:
+            clients = list(self._clients.values())
+        for client in clients:
+            self.release(client, logout=logout)
 
     def get_client(self, username: str) -> EmpireClient | None:
         """Get a leased client by username."""
-        return self._clients.get(username)
+        with self._lock:
+            return self._clients.get(username)
 
     @property
     def busy_count(self) -> int:
         """Number of currently leased accounts."""
-        return len(self._busy)
+        with self._lock:
+            return len(self._busy)
 
     @property
     def available_count(self) -> int:

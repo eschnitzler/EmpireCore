@@ -462,8 +462,11 @@ the client even if your code raises.
 
 ```python
 from empire_core import AccountPool, PoolExhaustedError
+from empire_core.accounts import AccountRegistry
 
-pool = AccountPool()
+registry = AccountRegistry()
+registry.load(file_path="accounts.json")
+pool = AccountPool(registry)
 try:
     with pool.leased(tag="scanning") as client:
         result = client.map.scan_kingdom()
@@ -471,10 +474,11 @@ except PoolExhaustedError:
     ...   # no candidate account was free
 ```
 
-Accounts come from `accounts.json` plus every `EMPIRE_ACCOUNT_*` environment
-variable. A `.env` file is read only if you opt in with
-`accounts.load(load_env_file=True)` — importing the library never mutates your
-environment. See [`examples/account_pool.py`](examples/account_pool.py).
+The pool takes its accounts from the registry you give it: `registry.load()`
+reads the file you name plus every `EMPIRE_ACCOUNT_*` environment variable. A
+`.env` file is read only if you opt in with `registry.load(load_env_file=True)`
+— importing the library never mutates your environment. The pool is safe to
+use from several threads. See [`examples/account_pool.py`](examples/account_pool.py).
 
 > [!CAUTION]
 > `accounts.json` holds passwords in plain text. Keep it out of version control

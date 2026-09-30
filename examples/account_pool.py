@@ -5,12 +5,11 @@ account to two callers at once. Prefer the ``leased()`` context manager: it
 releases the account (and closes the client) even if your code raises, which the
 manual lease/release pair only does if you write the ``try/finally`` yourself.
 
-Accounts come from an AccountRegistry. Either point one at a file explicitly, as
-below, or let the pool fall back to the process-wide default registry, which
-reads ``accounts.json`` from the working directory plus every
-``EMPIRE_ACCOUNT_*`` environment variable. A ``.env`` file is NOT read unless
-you opt in with ``registry.load(load_env_file=True)`` — importing empire_core
-no longer mutates the process environment as a side effect.
+Accounts come from the AccountRegistry the pool is given: ``registry.load()``
+reads the file you name plus every ``EMPIRE_ACCOUNT_*`` environment variable. A
+``.env`` file is NOT read unless you opt in with
+``registry.load(load_env_file=True)`` — importing empire_core never mutates the
+process environment as a side effect.
 
 ``accounts.json`` holds passwords in plain text: keep it out of version control
 and ``chmod 600`` it.
@@ -34,9 +33,9 @@ def main() -> int:
     registry = AccountRegistry()
     registry.load(file_path=accounts_file)
 
-    # Injecting the registry keeps this pool independent: a second pool can use a
-    # completely different account set in the same process.
-    pool = AccountPool(registry=registry)
+    # Each pool has its own registry: a second pool can use a completely
+    # different account set in the same process.
+    pool = AccountPool(registry)
     print(f"{len(pool)} account(s) configured, {pool.available_count} available")
     if not len(pool):
         print(f"No accounts found in {accounts_file!r} or the environment.", file=sys.stderr)
