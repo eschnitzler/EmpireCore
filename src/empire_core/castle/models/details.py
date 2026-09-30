@@ -25,15 +25,17 @@ class GetDetailedCastleRequest(BaseRequest):
     Get resources, units and production data for every castle the player owns.
 
     Command: dcl
-    Payload: {}
+    Payload: {"CD": 1}
 
-    The client sends ``{"CD": 1}``, or ``{"CD": 0}`` from some dialogs; what
-    ``CD`` selects is not traced. The server lists every castle for ``{}``.
+    The client's constructor defaults ``CD`` to 1, and some dialogs send 0;
+    what it selects is not traced, so this sends the default.
 
     Client: ``C2SGetDetailedCastleListVO`` (bundle line 7922)
     """
 
     command = "dcl"
+
+    cd: int = Field(alias="CD", default=1, description="The client's CD flag, 1 by default")
 
 
 # Server keys of ClientConstCollectable.GROUP_LIST_RESOURCES, by field name.

@@ -62,8 +62,8 @@ class TestCastleQueries:
         assert details.castle_id == 2002
         assert (details.wood, details.stone, details.food) == (800, 800, 800)
         assert details.units == {649: 18}
-        # The server ignores the payload and lists every castle; the id is matched client-side.
-        assert conn(client).request_payloads == [("dcl", {})]
+        # C2SGetDetailedCastleListVO defaults CD to 1; the id is matched client-side.
+        assert conn(client).request_payloads == [("dcl", {"CD": 1})]
 
     def test_short_unit_row_is_skipped(self):
         client = make_client({"dcl": xt_packet("dcl", GOLDEN_DCL)})
