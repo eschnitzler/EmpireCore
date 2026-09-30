@@ -222,10 +222,11 @@ def test_command_error_does_not_mislabel_unknown_codes() -> None:
 
 
 def test_spy_result_fields_are_typed() -> None:
+    from empire_core.enums import SpyOutcome, SpyStep
     from empire_core.exceptions import EmpireError
     from empire_core.messages.models import SpyReportResponse
     from empire_core.spy.models import SendSpyResponse
-    from empire_core.spy.service import SpyOutcome, SpyResult, SpyStep
+    from empire_core.spy.service import SpyResult
 
     hints = get_type_hints(SpyResult)
     assert hints["outcome"] == SpyOutcome
@@ -239,7 +240,8 @@ def test_spy_result_fields_are_typed() -> None:
 
 
 def test_spy_result_defaults_carry_no_report() -> None:
-    from empire_core.spy.service import SpyOutcome, SpyResult
+    from empire_core.enums import SpyOutcome
+    from empire_core.spy.service import SpyResult
 
     result = SpyResult(SpyOutcome.NO_SPIES_AVAILABLE)
     assert (result.success, result.step, result.error, result.report, result.army) == (False, None, None, None, None)

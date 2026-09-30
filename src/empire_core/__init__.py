@@ -20,7 +20,17 @@ from empire_core.client.client import EmpireClient
 from empire_core.commanders.models.equipment import Equipment
 from empire_core.commanders.models.roster import Castellan, Commander
 from empire_core.config import EmpireConfig, NetworkInstance, fetch_network_instances, parse_network_instances
-from empire_core.enums import AttackType, EquipmentSlot, Kingdom, LootPriority, MapItemType, MovementType, SpyType
+from empire_core.enums import (
+    AttackType,
+    EquipmentSlot,
+    Kingdom,
+    LootPriority,
+    MapItemType,
+    MovementType,
+    SpyOutcome,
+    SpyStep,
+    SpyType,
+)
 from empire_core.exceptions import (
     AccountBannedError,
     AmbiguousLookupError,
@@ -51,7 +61,7 @@ from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import Packet
 from empire_core.protocol.text import decode_json_text, encode_json_text
 from empire_core.ranking.models import RankingEntry
-from empire_core.spy.service import SpyOutcome, SpyResult, SpyService, SpyStep
+from empire_core.spy.service import SpyResult, SpyService
 from empire_core.state.models import Alliance, Building, Castle, Player, Resources
 from empire_core.utils.events import GameEvent
 from empire_core.utils.troops import get_troop_ids, troop_data_available

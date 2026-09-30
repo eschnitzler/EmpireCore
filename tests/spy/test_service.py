@@ -8,13 +8,12 @@ from typing import Any
 import pytest
 
 from empire_core.client.client import EmpireClient
-from empire_core.enums import Kingdom, SpyType
+from empire_core.enums import Kingdom, SpyOutcome, SpyStep, SpyType
 from empire_core.exceptions import CommandError, EmpireTimeoutError
 from empire_core.movements.models import MovementSpy
 from empire_core.movements.tracked import Movement
 from empire_core.protocol.packet import Packet
 from empire_core.spy import service as spy_module
-from empire_core.spy.service import SpyOutcome, SpyStep
 from tests.service_helpers import conn, make_client, xt_packet
 from tests.spy.payloads import BSD_NPC_CAMP_REPORT, CSM_REPLY
 

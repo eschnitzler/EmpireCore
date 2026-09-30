@@ -13,7 +13,7 @@ from .map import Kingdom, MapItemType, PeaceModeStatus
 from .messages import MessageType
 from .movements import MovementType
 from .ranking import RankingType
-from .spy import SpyLogResult, SpyLogType, SpyType
+from .spy import SpyLogResult, SpyLogType, SpyOutcome, SpyStep, SpyType
 
 __all__ = [
     # Map / kingdom
@@ -32,6 +32,8 @@ __all__ = [
     "SpyType",
     "SpyLogType",
     "SpyLogResult",
+    "SpyOutcome",
+    "SpyStep",
     # Army
     "ProductionListId",
     "SlotType",

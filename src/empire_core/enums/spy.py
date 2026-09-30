@@ -1,6 +1,6 @@
-"""Spy mission types and spy log subtypes."""
+"""Spy mission types, spy log subtypes and how a spy mission ended."""
 
-from enum import IntEnum
+from enum import Enum, IntEnum
 
 
 class SpyType(IntEnum):
@@ -52,3 +52,41 @@ class SpyLogResult(IntEnum):
     DEFENDER_SUCCESS = 1
     ATTACKER_FAILED = 2
     DEFENDER_FAILED = 3
+
+
+class SpyStep(str, Enum):
+    """The command a spy mission was at when it ended."""
+
+    SSI = "ssi"
+    CSM = "csm"
+    SNE = "sne"
+    BSD = "bsd"
+
+
+class SpyOutcome(str, Enum):
+    """How a spy mission ended."""
+
+    SUCCESS = "success"
+    """The report was read."""
+    SENT = "sent"
+    """The mission was sent; its report is not waited for."""
+    NO_SPIES_AVAILABLE = "no_spies_available"
+    """No spy was free, after polling ``ssi`` for returning spies."""
+    RISK_OVER_BUDGET = "risk_over_budget"
+    """Even the whole pool stays above the risk ceiling, so nothing was sent."""
+    COMMAND_FAILED = "command_failed"
+    """A request failed; ``SpyResult.error`` holds why and ``step`` which one."""
+    TIMEOUT = "timeout"
+    """No report for this mission arrived before the deadline."""
+    REPORT_TARGET_MISMATCH = "report_target_mismatch"
+    """Only reports for other areas of the target's owner arrived before the deadline."""
+    DISCONNECTED = "disconnected"
+    """The connection dropped while waiting for the report."""
+    SPY_CAUGHT = "spy_caught"
+    """The spies were caught or kept away."""
+    NO_SPY_DATA = "no_spy_data"
+    """
+    The mission brought no army back, or the server has no report (``bsd``
+    error 130 or 66, then in ``SpyResult.error``); the area is not known to
+    be empty.
+    """

@@ -9,12 +9,11 @@ import math
 import queue
 import time
 from dataclasses import dataclass
-from enum import Enum
 
 from pydantic import ValidationError
 
 from empire_core.army.spy_army import SpyArmy
-from empire_core.enums import Kingdom, SpyLogType, SpyType
+from empire_core.enums import Kingdom, SpyLogType, SpyOutcome, SpyStep, SpyType
 from empire_core.exceptions import CommandError, EmpireError
 from empire_core.messages.models import (
     ForwardSpyLogRequest,
@@ -60,44 +59,6 @@ _REPORT_MARGIN = 10.0
 _LOG_TYPE_OF_MISSION = {SpyType.MILITARY: SpyLogType.DEFENCE, SpyType.ECO: SpyLogType.ECO}
 _POLL_SECONDS = 1.0
 _SSI_POLL_DELAY = 2.0
-
-
-class SpyStep(str, Enum):
-    """The command a spy mission was at when it ended."""
-
-    SSI = "ssi"
-    CSM = "csm"
-    SNE = "sne"
-    BSD = "bsd"
-
-
-class SpyOutcome(str, Enum):
-    """How a spy mission ended."""
-
-    SUCCESS = "success"
-    """The report was read."""
-    SENT = "sent"
-    """The mission was sent; its report is not waited for."""
-    NO_SPIES_AVAILABLE = "no_spies_available"
-    """No spy was free, after polling ``ssi`` for returning spies."""
-    RISK_OVER_BUDGET = "risk_over_budget"
-    """Even the whole pool stays above the risk ceiling, so nothing was sent."""
-    COMMAND_FAILED = "command_failed"
-    """A request failed; ``SpyResult.error`` holds why and ``step`` which one."""
-    TIMEOUT = "timeout"
-    """No report for this mission arrived before the deadline."""
-    REPORT_TARGET_MISMATCH = "report_target_mismatch"
-    """Only reports for other areas of the target's owner arrived before the deadline."""
-    DISCONNECTED = "disconnected"
-    """The connection dropped while waiting for the report."""
-    SPY_CAUGHT = "spy_caught"
-    """The spies were caught or kept away."""
-    NO_SPY_DATA = "no_spy_data"
-    """
-    The mission brought no army back, or the server has no report (``bsd``
-    error 130 or 66, then in ``SpyResult.error``); the area is not known to
-    be empty.
-    """
 
 
 @dataclass
