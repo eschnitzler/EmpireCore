@@ -130,9 +130,9 @@ class TestCastellanAvailability:
         return Castellan.model_validate({**self.ENTRY, **keys})
 
     def test_a_castellan_locked_in_a_castle_is_not_available(self):
-        castellan = self.castellan(LICID=16654603)
+        castellan = self.castellan(LICID=2003)
 
-        assert castellan.locked_in_castle_id == 16654603
+        assert castellan.locked_in_castle_id == 2003
         assert castellan.is_locked_in_castle
         assert not castellan.is_available_for_movement(0)
 

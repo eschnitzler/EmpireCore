@@ -77,7 +77,7 @@ class TestAllianceInfoMemberInfo:
 
 GOLDEN_AIN = {
     "A": {
-        "AID": 190426,
+        "AID": 301,
         "N": "Test Alliance",
         "A": "Welcome to the alliance",
         "MP": 4213377,
@@ -91,7 +91,7 @@ GOLDEN_AIN = {
                 "L": 70,
                 "LL": 812,
                 "AR": 0,
-                "AID": 190426,
+                "AID": 301,
                 "MP": 1200000,
                 "RPT": 0,
                 "AP": [[0, 12345, 640, 655, 1], [2, 22222, 300, 400, 4]],
@@ -102,7 +102,7 @@ GOLDEN_AIN = {
                 "N": "OfficerGal",
                 "L": 70,
                 "AR": 4,
-                "AID": 190426,
+                "AID": 301,
                 "RPT": 7200,
                 "AP": [[0, 12346, 641, 656, 1]],
             },
@@ -121,7 +121,7 @@ class TestGoldenAllianceInfo:
     def test_alliance_header_fields(self):
         info = GetAllianceInfoResponse.model_validate(GOLDEN_AIN).alliance
         assert info is not None
-        assert info.alliance_id == 190426
+        assert info.alliance_id == 301
         assert info.name == "Test Alliance"
         assert info.announcement == "Welcome to the alliance"
         assert info.might == 4213377

@@ -225,15 +225,15 @@ class TestAttackService:
 
     def test_accepted_attack_reports_the_movement(self):
         # Shape captured from a live cra response.
-        payload = {"AAM": {"M": {"MID": 57520011, "TT": 132, "TA": [2, 630, 243, -1, 297, -17640552, 0]}}}
+        payload = {"AAM": {"M": {"MID": 5001, "TT": 132, "TA": [2, 510, 256, -1, 297, -900, 0]}}}
         client = make_client({"cra": xt_packet("cra", payload)})
 
         response = client.request(
             CreateAttackRequest(
-                SX=629,
-                SY=242,
-                TX=630,
-                TY=243,
+                SX=509,
+                SY=255,
+                TX=510,
+                TY=256,
                 KID=Kingdom.GREEN,
                 LID=1,
                 A=[wave(units=[[211, 5]])],
@@ -241,7 +241,7 @@ class TestAttackService:
             CreateAttackResponse,
         )
 
-        assert response.movement_id == 57520011
+        assert response.movement_id == 5001
 
     def test_response_without_a_movement_has_no_id(self):
         client = make_client({"cra": xt_packet("cra", {})})
@@ -371,14 +371,14 @@ class TestAttackInfo:
     """The aci pre-calculation, shaped as the live server sends it."""
 
     PAYLOAD = {
-        "SCID": 6277054,
-        "TX": 632,
-        "TY": 243,
+        "SCID": 2005,
+        "TX": 512,
+        "TY": 256,
         "KID": 0,
         "E": {"BGT": 0, "BGC1": 1644825, "IS": 1},
         "HAWL": 0,
         "AE": [[111, [40.0], "AB"], [66, [30.0], "CI"], [426, [10.0], "GE"]],
-        "gaa": {"KID": 0, "AI": [1, 632, 243, 16654596, 17743260, 2, 2, 2, 1, 0, "Château Heimlin"]},
+        "gaa": {"KID": 0, "AI": [1, 512, 256, 2001, 1001, 2, 2, 2, 1, 0, "Château Nord"]},
         "gui": {"I": [[211, 5323], [601, 100], [107, 0]]},
         "gli": {"C": [{"ID": 1, "GID": 101}], "B": [{"ID": 0}]},
     }
@@ -388,8 +388,8 @@ class TestAttackInfo:
 
         info = GetAttackInfoResponse.model_validate(self.PAYLOAD)
 
-        assert info.source_castle_id == 6277054
-        assert (info.target_x, info.target_y) == (632, 243)
+        assert info.source_castle_id == 2005
+        assert (info.target_x, info.target_y) == (512, 256)
         # The crest under "E" must not read as an error code.
         assert info.error_code == 0
 
@@ -398,7 +398,7 @@ class TestAttackInfo:
 
         info = GetAttackInfoResponse.model_validate(self.PAYLOAD)
 
-        assert info.target_row()[:3] == [1, 632, 243]
+        assert info.target_row()[:3] == [1, 512, 256]
         # Zero counts are dropped, as everywhere else.
         assert info.inventory() == {211: 5323, 601: 100}
 
@@ -421,7 +421,7 @@ class TestAttackInfo:
         assert info.inventory() == {}
 
     SPIED = {
-        "SCID": 6277054,
+        "SCID": 2005,
         "KID": 0,
         "AE": [],
         "S": [[[601, 50]], [], [], [], [], []],
@@ -431,7 +431,7 @@ class TestAttackInfo:
         "LS": [101, 102],
         "MB": 25,
         "KTB": 10,
-        "gaa": {"AI": [1, 632, 243, 900, 4242, 1, 1, 1, 0, 0, "small castle"], "OI": [{"OID": 4242, "L": 46}, {}]},
+        "gaa": {"AI": [1, 512, 256, 900, 4242, 1, 1, 1, 0, 0, "small castle"], "OI": [{"OID": 4242, "L": 46}, {}]},
         "gui": {"I": [[601, 100]], "SHI": [[620, 4], [620, 1], [621, 0]]},
     }
 
@@ -479,12 +479,12 @@ class TestAttackInfo:
     def test_service_sends_the_documented_payload(self):
         client = make_client()
 
-        client.attack.get_attack_info(632, 243, 629, 242, kingdom_id=Kingdom.GREEN)
+        client.attack.get_attack_info(512, 256, 509, 255, kingdom_id=Kingdom.GREEN)
 
         command, payload = conn(client).request_payloads[0]
         assert command == "aci"
-        assert (payload["TX"], payload["TY"]) == (632, 243)
-        assert (payload["SX"], payload["SY"]) == (629, 242)
+        assert (payload["TX"], payload["TY"]) == (512, 256)
+        assert (payload["SX"], payload["SY"]) == (509, 255)
 
 
 class TestTargetPrecalculation:

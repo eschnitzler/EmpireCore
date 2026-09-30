@@ -265,10 +265,10 @@ class TestResponseLeague:
 
 class TestGoldenRankingPayloads:
     def test_dict_details_layout(self):
-        payload = {"L": [[1, 999999, {"OID": 7001, "N": "LeaderGuy", "AID": 190426, "AN": "HOPE"}]]}
+        payload = {"L": [[1, 999999, {"OID": 7001, "N": "LeaderGuy", "AID": 301, "AN": "HOPE"}]]}
         entry = GetHighscoreResponse.model_validate(payload).entries[0]
         assert (entry.rank, entry.score, entry.entity_id, entry.name) == (1, 999999, 7001, "LeaderGuy")
-        assert (entry.alliance_id, entry.alliance_name) == (190426, "HOPE")
+        assert (entry.alliance_id, entry.alliance_name) == (301, "HOPE")
 
     def test_list_details_layout(self):
         payload = {"L": [[2, 888888, [7002, "OfficerGal"]]]}

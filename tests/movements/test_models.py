@@ -79,7 +79,7 @@ class TestMalformedMovementBatch:
             "MP": 1267,
             "TOPX": -1,
             "R": 0,
-            "AID": 190426,
+            "AID": 301,
             "AR": 8,
             "AN": "Clan",
             "SA": 0,
@@ -99,7 +99,7 @@ class TestMalformedMovementBatch:
         }
         record = GetMovementsResponse.model_validate({"M": [], "O": [owner]}).owners[0]
         assert (record.player_id, record.level, record.legend_level, record.honor) == (5, 70, 12, 250)
-        assert (record.alliance_id, record.alliance_rank, record.alliance_name) == (190426, 8, "Clan")
+        assert (record.alliance_id, record.alliance_rank, record.alliance_name) == (301, 8, "Clan")
         assert record.has_vip and not record.has_premium and not record.is_ruin and not record.is_searching_alliance
         assert record.crest is not None and record.crest.is_set and record.crest.background_color1 == 3
         assert record.castle_positions[0].model_dump() == {
@@ -179,11 +179,11 @@ class TestMalformedMovementBatch:
 
 
 class TestMovementAreaLayouts:
-    CASTLE = [1, 632, 243, 16654596, 17743260, 2, 2, 2, 1, 0, "Home", 0, 0, -1, -1, -1, 0, 0, [], 0]
+    CASTLE = [1, 512, 256, 2001, 1001, 2, 2, 2, 1, 0, "Home", 0, 0, -1, -1, -1, 0, 0, [], 0]
 
     def test_castle_family_reads_id_owner_and_name(self):
         area = MovementArea.model_validate(self.CASTLE)
-        assert (area.object_id, area.owner_id, area.name) == (16654596, 17743260, "Home")
+        assert (area.object_id, area.owner_id, area.name) == (2001, 1001, "Home")
 
     def test_kings_tower_name_is_at_seven(self):
         area = MovementArea.model_validate([23, 10, 20, 55, 7, 1, 30, "Tower"])
@@ -203,12 +203,12 @@ class TestMovementAreaLayouts:
 
     def test_npc_camp_reads_nothing_past_the_position(self):
         # Live capture of a robber baron camp
-        area = MovementArea.model_validate([2, 630, 243, -1, 0, -1, 0])
-        assert (area.x, area.y) == (630, 243)
+        area = MovementArea.model_validate([2, 510, 256, -1, 0, -1, 0])
+        assert (area.x, area.y) == (510, 256)
         assert (area.object_id, area.owner_id, area.name) == (None, None, "")
 
     def test_relocating_castle_row_reads_nothing(self):
-        area = MovementArea.model_validate([1, 10, 20, 17743260])
+        area = MovementArea.model_validate([1, 10, 20, 1001])
         assert (area.object_id, area.owner_id, area.name) == (None, None, "")
 
 

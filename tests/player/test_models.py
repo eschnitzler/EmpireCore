@@ -19,7 +19,7 @@ GOLDEN_GDI = {
         "N": "TargetPlayer",
         "L": 70,
         "LL": 500,
-        "AID": 190426,
+        "AID": 301,
         "AN": "Test Alliance",
         "RPT": 3600,
         "AP": [[0, 12345, 640, 655, 1]],
@@ -52,7 +52,7 @@ class TestGoldenPlayerInfo:
         response = GetPlayerInfoResponse.model_validate(GOLDEN_GDI)
         assert response.player_id == 4242
         assert response.player_name == "TargetPlayer"
-        assert response.alliance_id == 190426
+        assert response.alliance_id == 301
         assert response.alliance_name == "Test Alliance"
         assert response.has_bird is True
         assert response.bird_end_time is not None
@@ -133,7 +133,7 @@ class TestSearchPlayer:
             "Y": 655,
             "gaa": {
                 "AI": [[1, 640, 655, 12345, 4242, 5, 5, 5, 0, 0, "Main Castle"]],
-                "OI": [{"OID": 4242, "N": "TargetPlayer", "L": 70, "AID": 190426}],
+                "OI": [{"OID": 4242, "N": "TargetPlayer", "L": 70, "AID": 301}],
             },
         }
         response = SearchPlayerResponse.model_validate(payload)
@@ -143,7 +143,7 @@ class TestSearchPlayer:
             4242,
             "TargetPlayer",
             70,
-            190426,
+            301,
         )
         assert [(i.x, i.y, i.owner_id) for i in response.area.items] == [(640, 655, 4242)]
 
@@ -211,7 +211,7 @@ class TestOwnerRecord:
                 "N": "TargetPlayer",
                 "RNP": 3600,
                 "R": "1",
-                "AID": 190426,
+                "AID": 301,
                 "AR": 8,
                 "SA": 1,
                 "PF": 1,

@@ -103,7 +103,7 @@ class TestRequestSemantics:
     def test_server_error_code_raises_command_error(self):
         client = make_client({"ain": xt_packet("ain", error_code=21)})
         with pytest.raises(CommandError) as exc_info:
-            client.alliance.get_members(190426)
+            client.alliance.get_members(301)
         assert exc_info.value.command == "ain"
         assert exc_info.value.code == 21
 

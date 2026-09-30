@@ -148,11 +148,11 @@ class TestAllianceMembership:
 
     def test_live_gal_shape(self, state):
         # Live capture
-        gal = {"AID": 190426, "R": 1, "N": "H.O.P.E", "ACF": 22, "SA": 0}
+        gal = {"AID": 301, "R": 1, "N": "H.O.P.E", "ACF": 22, "SA": 0}
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": gal})
         alliance = state.get_local_player().alliance
         assert alliance is not None
-        assert (alliance.id, alliance.name, alliance.rank, alliance.current_fame) == (190426, "H.O.P.E", 1, 22)
+        assert (alliance.id, alliance.name, alliance.rank, alliance.current_fame) == (301, "H.O.P.E", 1, 22)
         assert alliance.is_searching is False
 
     def test_name_under_an_as_the_client_reads_it(self, state):
@@ -262,7 +262,7 @@ LIVE_LOGIN: dict = {
     "gxp": {"XP": 5329, "LVL": 13, "LL": 0, "XPFCL": 5070, "XPTNL": 5880},
     "gcu": {"C1": 155600, "C2": 3098},
     "vip": {"VP": 2, "VRL": 3, "VRS": 0, "UPG": 0},
-    "gal": {"AID": 190426, "R": 1, "N": "H.O.P.E", "ACF": 22, "SA": 0},
+    "gal": {"AID": 301, "R": 1, "N": "H.O.P.E", "ACF": 22, "SA": 0},
     "gho": {"H": 0, "RP": 93},
     "uap": {"KID": 0, "NS": -1, "PMS": -1, "PMT": 0},
     "gac": None,

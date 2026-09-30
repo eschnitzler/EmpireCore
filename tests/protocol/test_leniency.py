@@ -451,7 +451,7 @@ class TestReplyEnumProperties:
     def test_a_camp_row_in_a_kingdom_the_client_does_not_define_keeps_the_row(self):
         # A kingdom the client does not define leaves the row in the reply's kingdom
         response = GetMapAreaResponse.model_validate(
-            {"KID": 0, "AI": [[2, 630, 243, -1, 297, 5, 11], [2, 1, 2, -1, 3, 5, 2]]}
+            {"KID": 0, "AI": [[2, 510, 256, -1, 297, 5, 11], [2, 1, 2, -1, 3, 5, 2]]}
         )
         assert [(item.victory_count, item.kingdom) for item in response.items] == [
             (297, Kingdom.GREEN),

@@ -20,7 +20,7 @@ from tests.service_helpers import StubPlayer, StubState, conn, make_client, requ
 
 GOLDEN_AIN: dict[str, Any] = {
     "A": {
-        "AID": 190426,
+        "AID": 301,
         "N": "Test Alliance",
         "A": "HOPE",
         "D": "Recruiting active players",
@@ -41,7 +41,7 @@ GOLDEN_AIN: dict[str, Any] = {
                 "MP": 1200000,
                 "CF": 3,
                 "HF": 9,
-                "AID": 190426,
+                "AID": 301,
                 "AN": "Test Alliance",
                 "RPT": 0,
                 "AP": [[0, 12345, 640, 655, 1], [2, 22222, 300, 400, 4]],
@@ -52,12 +52,12 @@ GOLDEN_AIN: dict[str, Any] = {
                 "N": "OfficerGal",
                 "L": 70,
                 "AR": 4,
-                "AID": 190426,
+                "AID": 301,
                 "MP": 900000,
                 "RPT": 7200,
                 "AP": [[0, 12346, 641, 656, 1]],
             },
-            {"OID": 7003, "N": "AfkDude", "L": 55, "AR": 8, "AID": 190426, "MP": 100, "AP": []},
+            {"OID": 7003, "N": "AfkDude", "L": 55, "AR": 8, "AID": 301, "MP": 100, "AP": []},
         ],
         # Positional activity array: [player_id, ?, ?, ?, activity_tier]
         "AMI": [[7001, 0, 0, 0, 0], [7002, 0, 0, 0, 2], [7003, 0, 0, 0, 4]],
@@ -74,15 +74,15 @@ class TestAllianceMembers:
     def test_golden_ain_payload_parses_into_members(self):
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)})
 
-        members = client.alliance.get_members(190426)
+        members = client.alliance.get_members(301)
 
         assert [m.name for m in members] == ["LeaderGuy", "OfficerGal", "AfkDude"]
-        assert conn(client).request_payloads == [("ain", {"AID": 190426})]
+        assert conn(client).request_payloads == [("ain", {"AID": 301})]
 
     def test_activity_tiers_come_from_the_ami_array(self):
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)})
 
-        by_name = {m.name: m for m in client.alliance.get_members(190426)}
+        by_name = {m.name: m for m in client.alliance.get_members(301)}
 
         assert by_name["LeaderGuy"].activity_tier == 0
         assert by_name["LeaderGuy"].is_online is True
@@ -92,12 +92,12 @@ class TestAllianceMembers:
 
     def test_online_members_are_filtered(self):
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)})
-        online = client.alliance.get_online_members(190426)
+        online = client.alliance.get_online_members(301)
         assert [m.name for m in online] == ["LeaderGuy"]
 
     def test_member_profile_fields_survive_the_round_trip(self):
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)})
-        by_name = {m.name: m for m in client.alliance.get_members(190426)}
+        by_name = {m.name: m for m in client.alliance.get_members(301)}
 
         leader = by_name["LeaderGuy"]
         assert leader.player_id == 7001
@@ -110,7 +110,7 @@ class TestAllianceMembers:
 
     def test_member_castle_positions_parse_from_the_ap_array(self):
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)})
-        by_name = {m.name: m for m in client.alliance.get_members(190426)}
+        by_name = {m.name: m for m in client.alliance.get_members(301)}
 
         castles = by_name["LeaderGuy"].castle_positions
         assert [(c.kingdom_id, c.x, c.y, c.area_type) for c in castles] == [
@@ -121,14 +121,14 @@ class TestAllianceMembers:
 
     def test_typed_emblem_is_parsed(self):
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)})
-        leader = client.alliance.get_members(190426)[0]
+        leader = client.alliance.get_members(301)[0]
         assert leader.emblem is not None
         assert leader.emblem.background_type == 1
         assert leader.emblem.symbol1 == 4
 
     def test_members_are_cached_and_handed_out_as_a_copy(self):
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)})
-        client.alliance.get_members(190426)
+        client.alliance.get_members(301)
 
         cached = client.alliance.cached_members
         assert set(cached) == {7001, 7002, 7003}
@@ -137,7 +137,7 @@ class TestAllianceMembers:
 
     def test_get_member_reads_the_cache_without_a_request(self):
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)})
-        client.alliance.get_members(190426)
+        client.alliance.get_members(301)
         conn(client).requested.clear()
 
         member = client.alliance.get_member(7002)
@@ -151,32 +151,32 @@ class TestAllianceMembers:
         # cache was filled from another alliance.
         state = StubState(local_player=StubPlayer(alliance_id=999))
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)}, state=state)
-        client.alliance.get_members(190426)
+        client.alliance.get_members(301)
         conn(client).request_payloads.clear()
 
         client.alliance.get_member(7001, no_cache=True)
 
-        assert conn(client).request_payloads == [("ain", {"AID": 190426})]
+        assert conn(client).request_payloads == [("ain", {"AID": 301})]
 
     def test_get_member_no_cache_falls_back_to_the_local_alliance(self):
-        state = StubState(local_player=StubPlayer(alliance_id=190426))
+        state = StubState(local_player=StubPlayer(alliance_id=301))
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)}, state=state)
 
         member = client.alliance.get_member(7001, no_cache=True)
 
-        assert conn(client).request_payloads == [("ain", {"AID": 190426})]
+        assert conn(client).request_payloads == [("ain", {"AID": 301})]
         assert member is not None
 
     def test_unknown_member_is_none(self):
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)})
-        client.alliance.get_members(190426)
+        client.alliance.get_members(301)
         assert client.alliance.get_member(424242) is None
 
 
 class TestAllianceLocalHelpers:
     def test_local_alliance_id_comes_from_state(self):
-        client = make_client(state=StubState(local_player=StubPlayer(alliance_id=190426)))
-        assert client.alliance.local_alliance_id == 190426
+        client = make_client(state=StubState(local_player=StubPlayer(alliance_id=301)))
+        assert client.alliance.local_alliance_id == 301
 
     def test_local_alliance_id_is_none_without_a_local_player(self):
         client = make_client(state=StubState(local_player=None))
@@ -188,16 +188,16 @@ class TestAllianceLocalHelpers:
         assert conn(client).requested == []
 
     def test_local_members_uses_the_local_alliance_id(self):
-        state = StubState(local_player=StubPlayer(alliance_id=190426))
+        state = StubState(local_player=StubPlayer(alliance_id=301))
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)}, state=state)
 
         members = client.alliance.get_local_members()
 
         assert len(members) == 3
-        assert conn(client).request_payloads == [("ain", {"AID": 190426})]
+        assert conn(client).request_payloads == [("ain", {"AID": 301})]
 
     def test_local_online_members_filters(self):
-        state = StubState(local_player=StubPlayer(alliance_id=190426))
+        state = StubState(local_player=StubPlayer(alliance_id=301))
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)}, state=state)
         assert [m.name for m in client.alliance.get_local_online_members()] == ["LeaderGuy"]
 
@@ -208,7 +208,7 @@ class TestAllianceLocalHelpers:
 
 
 class TestAllianceSearch:
-    GOLDEN_HGH: dict[str, Any] = {"L": [[1, 4213377, [190426, "Test Alliance", 47, 1520300]]]}
+    GOLDEN_HGH: dict[str, Any] = {"L": [[1, 4213377, [301, "Test Alliance", 47, 1520300]]]}
 
     def test_search_parses_positional_results(self):
         client = make_client({"hgh": xt_packet("hgh", self.GOLDEN_HGH)})
@@ -216,7 +216,7 @@ class TestAllianceSearch:
         results = client.alliance.search_alliances("HOPE")
 
         assert len(results) == 1
-        assert results[0].alliance_id == 190426
+        assert results[0].alliance_id == 301
         assert results[0].name == "Test Alliance"
         assert results[0].member_count == 47
         assert (results[0].rank, results[0].score, results[0].fame_points) == (1, 4213377, 1520300)
@@ -259,7 +259,7 @@ class TestAllianceSearch:
         with caplog.at_level(logging.WARNING, logger="empire_core.alliance.models.info"):
             results = client.alliance.search_alliances("HOPE")
 
-        assert [(r.alliance_id, r.name) for r in results] == [(0, "y"), (190426, "Test Alliance")]
+        assert [(r.alliance_id, r.name) for r in results] == [(0, "y"), (301, "Test Alliance")]
         assert "Skipped 1/3" in caplog.text
 
 
@@ -517,7 +517,7 @@ class TestAllianceMemberManagement:
         alliance = client.alliance.kick_member(7003)
 
         assert conn(client).request_payloads == [("akm", {"PID": 7003})]
-        assert alliance is not None and alliance.alliance_id == 190426
+        assert alliance is not None and alliance.alliance_id == 301
 
     def test_set_rank(self):
         client = make_client({"arm": xt_packet("arm", {"ain": GOLDEN_AIN})})
@@ -604,7 +604,7 @@ class TestAllianceDiplomacy:
         assert sent == ("adp", {"AID": 55, "NDR": 1, "T": 0})
         assert list(sent[1]) == ["AID", "NDR", "T"]
         assert (response.old_status, response.new_status, response.request_status) == (0, 1, 2)
-        assert response.own_alliance is not None and response.own_alliance.alliance_id == 190426
+        assert response.own_alliance is not None and response.own_alliance.alliance_id == 301
         assert response.other_alliance is not None and response.other_alliance.name == "Other"
 
     def test_accepting_a_demanded_peace_offer_sends_its_negative_tribute(self):
@@ -653,7 +653,7 @@ class TestAllianceDiplomacy:
         assert sent == ("ado", {"AID": 12345, "KID": 0, "RV": {"W": 500, "C1": 100, "RC": 2}})
         assert list(sent[1]) == ["AID", "KID", "RV"]
         assert response.currency is not None and response.currency.coins == 900
-        assert response.alliance is not None and response.alliance.alliance_id == 190426
+        assert response.alliance is not None and response.alliance.alliance_id == 301
 
     def test_an_empty_donation_is_not_sent(self):
         client = make_client()

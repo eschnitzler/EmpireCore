@@ -716,10 +716,10 @@ class TestMovementAreas:
         assert (mov.target_type, mov.target_area_id, mov.target_name) == (23, 55, "Tower")
 
     def test_camp_target_has_no_id_or_name(self, state):
-        state.update_from_packet("gam", gam_payload(951, extra={"TA": [2, 630, 243, -1, 0, -1, 0]}))
+        state.update_from_packet("gam", gam_payload(951, extra={"TA": [2, 510, 256, -1, 0, -1, 0]}))
         mov = state.get_movement_by_id(951)
         assert mov is not None
-        assert (mov.target_x, mov.target_y, mov.target_area_id, mov.target_name) == (630, 243, -1, "")
+        assert (mov.target_x, mov.target_y, mov.target_area_id, mov.target_name) == (510, 256, -1, "")
 
     def test_area_row_is_typed(self, state):
         state.update_from_packet("gam", gam_payload(952, extra={"TA": [23, 10, 20, 55, 7, 1, 30, "Tower"]}))
@@ -735,7 +735,7 @@ class TestMovementAreas:
 
 
 class TestAllianceAttackAlerts:
-    ME, ALLY, ENEMY, OUTSIDER, CLAN = 1, 2, 3, 4, 190426
+    ME, ALLY, ENEMY, OUTSIDER, CLAN = 1, 2, 3, 4, 301
 
     def attack(self, state, mid: int, owner: int, target: int, owners: list[dict]) -> list[Movement]:
         fired: list[Movement] = []
@@ -813,10 +813,10 @@ SENT_ATTACK: dict = {
             "T": 0,
             "HBW": -1,
             "KID": 0,
-            "TA": [2, 630, 243, -1, 0, -1, 0],
-            "SID": 17743260,
-            "OID": 17743260,
-            "SA": [1, 632, 243, 16654596, 17743260, 2, 2, 2, 1, 0, "Home", 0, 0, -1, -1, -1, 0, 0, [], 0],
+            "TA": [2, 510, 256, -1, 0, -1, 0],
+            "SID": 1001,
+            "OID": 1001,
+            "SA": [1, 512, 256, 2001, 1001, 2, 2, 2, 1, 0, "Home", 0, 0, -1, -1, -1, 0, 0, [], 0],
         },
         "UM": {
             "PWD": 0,
@@ -842,7 +842,7 @@ SENT_ATTACK: dict = {
     },
     "O": [
         {
-            "OID": 17743260,
+            "OID": 1001,
             "DUM": False,
             "N": "me",
             "L": 13,
@@ -851,11 +851,11 @@ SENT_ATTACK: dict = {
             "AVP": 1490,
             "MP": 4442,
             "R": 0,
-            "AID": 190426,
+            "AID": 301,
             "AR": 1,
             "AN": "Clan",
             "RPT": 0,
-            "AP": [[0, 16654596, 632, 243, 1], [0, 16656989, 630, 244, 4]],
+            "AP": [[0, 2001, 512, 256, 1], [0, 2002, 510, 257, 4]],
             "VP": [],
             "SA": 0,
             "VF": 0,
@@ -868,7 +868,7 @@ SENT_ATTACK: dict = {
 
 
 class TestSentMovements:
-    ME = 17743260
+    ME = 1001
     MID = 93053681
 
     def test_attack_reply_is_stored_at_once(self, state):
@@ -877,7 +877,7 @@ class TestSentMovements:
         [mov] = state.get_outgoing_movements()
         assert mov.movement_id == self.MID
         assert mov.units == {656: 1, 640: 2}
-        assert (mov.target_x, mov.target_y, mov.target_id) == (630, 243, -202)
+        assert (mov.target_x, mov.target_y, mov.target_id) == (510, 256, -202)
         assert mov.source_name == "Home"
         [item] = mov.commander_equipment
         assert (item.equipment_id, item.slot, item.unique_id, item.equipment_type) == (6515210043, 6, 802, 1)

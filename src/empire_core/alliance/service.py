@@ -155,7 +155,7 @@ class AllianceService(BaseService):
             List of AllianceMember objects
 
         Example:
-            members = client.alliance.get_members(190426)
+            members = client.alliance.get_members(301)
             for member in members:
                 print(f"{member.name}: online={member.is_online}")
         """
@@ -182,7 +182,7 @@ class AllianceService(BaseService):
             List of online AllianceMember objects
 
         Example:
-            online = client.alliance.get_online_members(190426)
+            online = client.alliance.get_online_members(301)
             print(f"{len(online)} members online")
         """
         members = self.get_members(alliance_id, timeout=timeout)

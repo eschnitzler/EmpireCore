@@ -88,10 +88,10 @@ GOLDEN_GCL = {
             "KID": 0,
             "AI": [
                 {"AI": gdi_location_row(1, 512, 256, 2001, 1001, "Château Nord", 0), "AOT": -1, "TA": -1},
-                {"AI": gdi_location_row(4, 630, 244, 2002, 1001, "OP1", 0), "TA": 0},
+                {"AI": gdi_location_row(4, 510, 257, 2002, 1001, "OP1", 0), "TA": 0},
             ],
         },
-        {"KID": 2, "AI": [{"AI": gdi_location_row(12, 100, 200, 16700000, 1001, "Sands", 0)}]},
+        {"KID": 2, "AI": [{"AI": gdi_location_row(12, 100, 200, 2004, 1001, "Sands", 0)}]},
     ],
 }
 
@@ -102,8 +102,8 @@ class TestGoldenCastlePayloads:
         assert response.player_id == 1001
         assert [(c.castle_id, c.castle_name, c.x, c.y, c.kingdom_id, c.castle_type) for c in response.castles] == [
             (2001, "Château Nord", 512, 256, 0, 1),
-            (2002, "OP1", 630, 244, 0, 4),
-            (16700000, "Sands", 100, 200, 2, 12),
+            (2002, "OP1", 510, 257, 0, 4),
+            (2004, "Sands", 100, 200, 2, 12),
         ]
         assert response.castles[0].owner_id == 1001
         assert response.castles[2].position.kingdom == 2
@@ -219,14 +219,14 @@ def _castle_row(area_type: int, **at: object) -> list:
 class TestCastleListRowTimers:
     def test_a_castle_row_reads_cooldowns_spy_age_outpost_type_skin_and_protection(self):
         # InteractiveMapobjectVO.parseAreaInfo: 11 to 17 through int(), 19 on when 1
-        row = _castle_row(4, i11="120", i12=30, i13=3600, i14=2, i15=77, i17=190426, i19=1)
+        row = _castle_row(4, i11="120", i12=30, i13=3600, i14=2, i15=77, i17=301, i19=1)
         castle = PlayerCastle.from_list(row)
         assert (castle.attack_cooldown_seconds, castle.sabotage_cooldown_seconds, castle.seconds_since_spy) == (
             120,
             30,
             3600,
         )
-        assert (castle.outpost_type, castle.occupier_id, castle.equipment_skin_id) == (2, 77, 190426)
+        assert (castle.outpost_type, castle.occupier_id, castle.equipment_skin_id) == (2, 77, 301)
         assert castle.has_sabotage_protection is True
 
     def test_a_main_castle_reads_its_occupier_from_15(self):
@@ -245,9 +245,9 @@ class TestCastleListRowTimers:
 
     def test_a_capital_row_shifts_occupier_and_skin(self):
         # CapitalMapobjectVO.parseAreaInfo: occupier 14, skin 15, no outpost type
-        row = _castle_row(3, i11=5, i12=6, i13=7, i14=88, i15=190426, i19=1)
+        row = _castle_row(3, i11=5, i12=6, i13=7, i14=88, i15=301, i19=1)
         capital = PlayerCastle.from_list(row)
-        assert (capital.occupier_id, capital.equipment_skin_id, capital.outpost_type) == (88, 190426, None)
+        assert (capital.occupier_id, capital.equipment_skin_id, capital.outpost_type) == (88, 301, None)
         assert (capital.attack_cooldown_seconds, capital.seconds_since_spy, capital.has_sabotage_protection) == (
             5,
             7,
