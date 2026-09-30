@@ -49,8 +49,8 @@ class StateBase:
         self._movement_arrived_callbacks: list[tuple[MovementEventCallback, bool]] = []
         self._movement_removed_callbacks: list[tuple[MovementEventCallback, bool]] = []
 
-        # Thread pool for dispatching callbacks (avoids blocking receive loop).
-        # Created lazily so it survives disconnect/reconnect cycles.
+        # One worker, so callbacks run one at a time in packet order, off the
+        # receive thread. Created lazily so it survives disconnect/reconnect.
         self._callback_executor: ThreadPoolExecutor | None = None
         self._executor_lock = threading.Lock()
 
@@ -71,7 +71,7 @@ class StateBase:
                 self._callback_executor = None
 
     def _dispatch_callback(self, callback: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
-        """Dispatch a callback in the thread pool."""
+        """Queue a callback on the callback thread, behind every callback queued before it."""
 
         def wrapped():
             try:
@@ -81,7 +81,7 @@ class StateBase:
 
         with self._executor_lock:
             if self._callback_executor is None:
-                self._callback_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="gge_callback")
+                self._callback_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="gge_callback")
             executor = self._callback_executor
         try:
             executor.submit(wrapped)

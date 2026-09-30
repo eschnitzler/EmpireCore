@@ -939,3 +939,50 @@ class TestSentMovements:
         login(state, self.ME)
         state.update_from_packet("cra", {**SENT_ATTACK, "AAM": {**SENT_ATTACK["AAM"], "UM": "junk"}})
         assert [m.movement_id for m in state.get_outgoing_movements()] == [self.MID]
+
+
+class TestCallbackOrdering:
+    """Callbacks run one at a time, in the order their packets were applied."""
+
+    def test_an_attack_and_its_removal_arrive_in_order_and_never_at_once(self, state):
+        login(state)
+        gate = threading.Event()
+        events: list[str] = []
+        running: list[int] = []
+        overlapped: list[bool] = []
+
+        def track(name: str, block: bool):
+            def callback(*_args):
+                running.append(1)
+                overlapped.append(len(running) > 1)
+                if block:
+                    assert gate.wait(timeout=5)
+                events.append(name)
+                running.pop()
+
+            return callback
+
+        state.on_incoming_attack(track("incoming", block=True))
+        state.on_movement_removed(track("removed", block=False))
+
+        state.update_from_packet("gam", gam_payload(100))
+        state.update_from_packet("mrm", {"MID": 100})
+        # The removal is queued behind the blocked attack callback, not run beside it.
+        assert wait_for(lambda: running == [1])
+        assert events == []
+        gate.set()
+
+        assert wait_for(lambda: events == ["incoming", "removed"])
+        assert overlapped == [False, False]
+
+    def test_two_attacks_fire_on_one_thread(self, state):
+        login(state)
+        threads: list[str] = []
+        state.on_incoming_attack(lambda _mov: threads.append(threading.current_thread().name))
+
+        state.update_from_packet("gam", gam_payload(100))
+        state.update_from_packet("gam", gam_payload(101))
+
+        assert wait_for(lambda: len(threads) == 2)
+        assert len(set(threads)) == 1
+        assert threads[0] != threading.current_thread().name

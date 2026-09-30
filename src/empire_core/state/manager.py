@@ -34,9 +34,11 @@ class GameState(MovementState, CastleState, PlayerState):
     containers instead of editing them in place, so an unlocked reader that
     already holds one never sees it change underneath.
 
-    Callbacks are dispatched in a thread pool to avoid blocking the receive
-    loop. This allows callbacks to make blocking calls (like waiting for
-    responses).
+    Callbacks (the ``on_*`` registrations) run on one callback thread, never
+    on the receive thread: one at a time, in the order their packets were
+    applied, so two callbacks never run at once and the events for one
+    movement arrive in order. A callback may wait for a reply, but everything
+    queued behind it waits too, so hand long work to another thread.
 
     Freshness
     ---------

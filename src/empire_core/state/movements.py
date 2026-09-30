@@ -33,6 +33,8 @@ class MovementState(StateBase):
         is not on its way home and had not already landed when first seen.
         That covers attacks on you and every other attack the server shares
         with you, which includes your alliance members' own attacks (#58).
+
+        Runs on the callback thread, in packet order (see :class:`GameState`).
         """
         with self._lock:
             self._incoming_attack_callbacks.append(callback)
@@ -53,6 +55,8 @@ class MovementState(StateBase):
 
             def on_recalled(movement_id: int) -> None: ...
             def on_recalled(movement_id: int, movement: Movement | None) -> None: ...
+
+        Runs on the callback thread, in packet order (see :class:`GameState`).
         """
         entry = (callback, self._accepts_movement(callback))
         with self._lock:
@@ -85,6 +89,8 @@ class MovementState(StateBase):
             def on_arrived(movement_id: int, movement: Movement | None) -> None: ...
 
         Prefer the second form: the id alone says nothing about what arrived.
+
+        Runs on the callback thread, in packet order (see :class:`GameState`).
         """
         entry = (callback, self._accepts_movement(callback))
         with self._lock:
@@ -102,6 +108,8 @@ class MovementState(StateBase):
         support sent home all look the same. ``movement`` is ``None`` if state
         was not tracking it. Accepts either signature (see
         :meth:`on_movement_arrived`).
+
+        Runs on the callback thread, in packet order (see :class:`GameState`).
         """
         entry = (callback, self._accepts_movement(callback))
         with self._lock:
