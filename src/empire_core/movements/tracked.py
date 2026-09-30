@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
 from empire_core.commanders.models.equipment import Equipment
 from empire_core.commanders.models.roster import CommanderEffect
 from empire_core.enums import MapItemType, MovementType
-from empire_core.movements.models import MovementArea, MovementOwner
+from empire_core.movements.models import MovementArea, MovementOwner, MovementSpy
 from empire_core.protocol.base import enum_or_none, read_or_none
 from empire_core.utils.troops import count_troops
 
@@ -122,6 +122,9 @@ class Movement(BaseModel):
     wait_passed: int = Field(default=0, description="Seconds of that wait already passed")
 
     force_cancelable: bool = Field(default=False, description="The movement can be force-cancelled")
+    spy: MovementSpy | None = Field(
+        default=None, description="A spy mission's type, accuracy or damage, spy count and risk; None for any other"
+    )
 
     owner: MovementOwner | None = Field(default=None, description="Owner record of the movement's owner")
     target_owner: MovementOwner | None = Field(default=None, description="Owner record of the target's owner")

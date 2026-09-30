@@ -434,6 +434,15 @@ class TestMovementWrapperBlocks:
         assert mov.units == {1: 2} and mov.support_tool_ids == []
         assert wait_for(lambda: len(fired) == 1)
 
+    def test_the_spy_details_are_kept(self, state):
+        # SpyMapmovementVO.parseSpyInfo; the live csm reply's S block
+        mov = self.stored(state, S={"SC": 2, "ST": 0, "SA": 100, "SR": 26})
+        assert mov.spy is not None
+        assert (mov.spy.spy_type, mov.spy.accuracy_or_damage, mov.spy.spy_count, mov.spy.risk) == (0, 100, 2, 26)
+
+    def test_a_movement_without_spies_has_no_spy_details(self, state):
+        assert self.stored(state, GA={"M": [[1, 2]]}).spy is None
+
     def test_unreadable_commander_keeps_the_wait(self, state):
         mov = self.stored(state, UM={"PWD": 5, "TWD": 30, "L": {"EQ": "junk"}})
         assert (mov.wait_passed, mov.wait_total) == (5, 30)

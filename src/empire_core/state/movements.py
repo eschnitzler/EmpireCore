@@ -439,6 +439,9 @@ class MovementState(StateBase):
             mov.support_tool_ids = ast.support_tools
         if (asct := block("ASCT")) is not None:
             mov.auto_skip_cooldown_type = asct.auto_skip_cooldown_type
+        # Client: SpyMapmovementVO.parseSpyInfo (bundle line 43748)
+        if (spy := block("S")) is not None and spy.spy is not None:
+            mov.spy = spy.spy
 
     def _log_movement_parse_failure(self, mid: Any) -> None:
         """Report a dropped movement loudly, but at most once a minute.
