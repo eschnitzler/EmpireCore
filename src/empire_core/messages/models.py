@@ -39,12 +39,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-MESSAGE_TYPE_SPY_PLAYER = 3
-"""``MessageConst.MESSAGE_TYPE_SPY_PLAYER`` (dll line 19516): a spy log about a player's area."""
-
-MESSAGE_TYPE_SPY_NPC = 4
-"""``MessageConst.MESSAGE_TYPE_SPY_NPC`` (dll line 19516): a spy log about an NPC's area."""
-
 SPY_VALIDITY = 172800
 """``SpyConst.SPY_VALIDITY`` (dll line 19739): seconds a spy report's army stays current."""
 
@@ -189,8 +183,8 @@ class MessageInfo(BasePayload):
 
     @property
     def is_spy_log(self) -> bool:
-        """A spy log: a message of type 3 (a player's area) or 4 (an NPC's)."""
-        return self.message_type in (MESSAGE_TYPE_SPY_PLAYER, MESSAGE_TYPE_SPY_NPC)
+        """A spy log: a message about a player's area (SPY_PLAYER) or an NPC's (SPY_NPC)."""
+        return self.message_type in (MessageType.SPY_PLAYER, MessageType.SPY_NPC)
 
     def spy_log_header(self) -> SpyLogHeader | None:
         """This message's spy log header, or None when it is no readable spy log."""
@@ -207,6 +201,10 @@ class SpyLogHeader:
     success or the defender's failure. A number the header lacks, or that
     ``parseInt`` cannot read, is None; so is a subtype or result the client
     defines no constant for.
+
+    It is read from the header as :func:`repair_header` decodes it, as
+    ``AMessageVO.loadFromParamArray`` (bundle line 3809) decodes every header
+    before parsing it.
 
     Client: ``CastleMessageFactory.parseMessage`` (bundle line 135102),
     ``MessageSpyPlayerVO.parseMessageHeader`` (bundle lines 137651-137653),
@@ -231,7 +229,7 @@ class SpyLogHeader:
         """
         if not message.is_spy_log:
             return None
-        head, _, meta = message.header.partition("#")
+        head, _, meta = message.decoded_header.partition("#")
         if not meta:
             return None
         subtypes = head.split("+")
@@ -242,7 +240,7 @@ class SpyLogHeader:
         result = None if raw_result is None else enum_or_none(SpyLogResult, raw_result)
         area_type = js_parse_int(subtypes[2]) if len(subtypes) > 2 else None
         if (
-            message.message_type == MESSAGE_TYPE_SPY_PLAYER
+            message.message_type == MessageType.SPY_PLAYER
             and raw_type in (SpyLogType.SABOTAGE, SpyLogType.PLAGUE_MONK)
             and raw_result in (SpyLogResult.ATTACKER_SUCCESS, SpyLogResult.DEFENDER_FAILED)
         ):
@@ -767,8 +765,6 @@ __all__ = [
     "repair_header",
     "ForwardSpyLogRequest",
     "GetSpyReportRequest",
-    "MESSAGE_TYPE_SPY_NPC",
-    "MESSAGE_TYPE_SPY_PLAYER",
     "MessageInfo",
     "SPY_VALIDITY",
     "SpyLogHeader",

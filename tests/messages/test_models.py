@@ -214,6 +214,12 @@ class TestSpyLogHeader:
         assert header.spies_lost
         assert not header.has_army_report
 
+    def test_the_header_is_read_decoded(self):
+        header = MessageInfo.model_validate([9001, 3, "2+2+1#1+1001+100&percnt; &quot;Keep&quot;"]).spy_log_header()
+
+        assert header is not None
+        assert header.area_name == '100% "Keep"'
+
     @pytest.mark.parametrize("subtype", [SpyLogType.SABOTAGE, SpyLogType.PLAGUE_MONK])
     @pytest.mark.parametrize("result", [SpyLogResult.ATTACKER_SUCCESS, SpyLogResult.DEFENDER_FAILED])
     def test_a_sabotage_or_plague_success_names_the_area_by_name_and_id(self, subtype, result):
