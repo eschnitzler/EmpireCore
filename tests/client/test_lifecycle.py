@@ -43,6 +43,7 @@ class StubConnection:
 
     def __init__(self, script: dict[str, Packet | Exception] | None = None, events: list[str] | None = None):
         self.script = script or {}
+        self.room_id = -1
         self.events = events if events is not None else []
         self.connected = False
         self.sent: list[str] = []

@@ -8,6 +8,8 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Any
 
+from .base import NO_ROOM, build_command, json_text
+
 logger = logging.getLogger(__name__)
 
 # error_code used when an XT frame's status field is not an integer.
@@ -98,20 +100,19 @@ class Packet:
     payload: dict[str, Any] | list[Any] | ET.Element | None = None
 
     @staticmethod
-    def build_xt(zone: str, command: str, payload: dict[str, Any], request_id: int = 1) -> str:
+    def build_xt(zone: str, command: str, payload: dict[str, Any], room_id: int = NO_ROOM) -> str:
         """
-        Build an XT (Extended) packet string.
+        The frame for a JSON command, as :meth:`BaseRequest.to_packet` builds it.
 
         Args:
             zone: Game zone (e.g., "EmpireEx_21")
-            command: Command ID (e.g., "att", "tra", "bui")
-            payload: Dictionary payload to JSON encode
-            request_id: Request ID (default 1)
+            command: Command ID (e.g., "gam")
+            payload: The command's JSON object
+            room_id: The joined room's id (from ``joinOK``); -1 before one is joined
 
-        Returns:
-            Formatted XT packet string
+        Client: ``BasicSmartfoxClient.sendCommandVO`` (dll line 7177)
         """
-        return f"%xt%{zone}%{command}%{request_id}%{json.dumps(payload)}%"
+        return build_command(zone, command, [json_text(payload)], room_id)
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "Packet":

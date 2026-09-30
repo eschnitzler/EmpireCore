@@ -51,10 +51,13 @@ class TestXTParsing:
         assert packet.command_id == "gam"
 
     def test_build_xt_request_format(self):
-        # Requests use %xt%{zone}%{command}%{request_id}%{json}% — a
-        # different field layout than responses.
-        raw = Packet.build_xt("EmpireEx_21", "att", {"X": 1}, request_id=7)
-        assert raw == '%xt%EmpireEx_21%att%7%{"X": 1}%'
+        # Requests use %xt%{zone}%{command}%{room id}%{json}%, a different
+        # field layout than responses, and JSON as JSON.stringify writes it.
+        raw = Packet.build_xt("EmpireEx_21", "att", {"X": 1, "N": "ü"}, room_id=7)
+        assert raw == '%xt%EmpireEx_21%att%7%{"X":1,"N":"ü"}%'
+
+    def test_build_xt_defaults_to_no_room(self):
+        assert Packet.build_xt("EmpireEx_21", "gam", {}) == "%xt%EmpireEx_21%gam%-1%{}%"
 
 
 class TestStatusField:
@@ -296,7 +299,7 @@ class TestRoundTrip:
         # carries the command, so from_bytes reads a request's zone as the
         # command and its request id as the status. from_bytes is for inbound
         # frames only - this pins why.
-        raw = Packet.build_xt("EmpireEx_21", "acm", {"M": "100&percnt; off"}, request_id=1)
+        raw = Packet.build_xt("EmpireEx_21", "acm", {"M": "100&percnt; off"}, room_id=1)
         packet = Packet.from_bytes(raw.encode())
         assert packet.command_id == "EmpireEx_21"
         assert packet.error_code == 1

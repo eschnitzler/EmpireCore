@@ -66,6 +66,7 @@ class ScriptedConnection:
 
     def __init__(self, script: dict[str, Packet | Exception] | None = None, connected: bool = False):
         self.script = script or {}
+        self.room_id = -1
         self.connected = connected
         self.requested: list[str] = []
         self.request_data: dict[str, str] = {}
@@ -244,7 +245,7 @@ class TestHandshakeSequence:
 
         client.login()
 
-        assert conn.request_data["lli"].startswith("%xt%EmpireEx_99%lli%1%")
+        assert conn.request_data["lli"].startswith("%xt%EmpireEx_99%lli%-1%")
         assert conn.request_data["lli"].endswith("%")
 
     def test_xt_login_carries_credentials_and_the_login_defaults(self):
@@ -611,3 +612,24 @@ class TestSuccessfulLogin:
             client.login()
 
         assert conn.events == []
+
+
+class TestJoinedRoom:
+    """joinOK's ``r`` is the room every later command carries (dll line 7232)."""
+
+    def join_ok(self, room: str) -> Packet:
+        return Packet.from_bytes(f"<msg t='sys'><body action='joinOK' r='{room}'><pid id='0'/></body></msg>".encode())
+
+    def test_the_room_id_from_join_ok_goes_into_lli(self):
+        conn = ScriptedConnection({"joinOK": self.join_ok("3")})
+        client = make_client(conn)
+
+        client.login()
+
+        assert conn.room_id == 3
+        assert conn.request_data["lli"].startswith("%xt%EmpireEx_21%lli%3%")
+
+    def test_an_unreadable_room_id_is_no_room(self):
+        conn = ScriptedConnection({"joinOK": self.join_ok("x")})
+        make_client(conn).login()
+        assert conn.room_id == -1

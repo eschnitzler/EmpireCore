@@ -46,6 +46,8 @@ class _Connection(Protocol):
     @property
     def connected(self) -> bool: ...
 
+    room_id: int
+
     def request(self, data: str, cmd_id: str, timeout: float = 5.0) -> Packet: ...
 
 
@@ -92,7 +94,7 @@ class MapScanner:
 
     def _request_chunk(self, request: GetMapAreaRequest, request_timeout: float) -> Packet:
         """Send a chunk request and wait for the matching gaa response."""
-        packet = request.to_packet(zone=self.client.config.default_zone)
+        packet = request.to_packet(zone=self.client.config.default_zone, room_id=self.client.connection.room_id)
         return self.client.connection.request(packet, "gaa", timeout=request_timeout)
 
     def _get_kingdom_start_position(self, kingdom: Kingdom) -> tuple[int, int]:

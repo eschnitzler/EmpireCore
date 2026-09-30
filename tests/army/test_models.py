@@ -44,7 +44,7 @@ def wire(request: Any) -> str:
 
 
 def js(payload: dict[str, Any]) -> str:
-    return json.dumps(payload)
+    return json.dumps(payload, separators=(",", ":"))
 
 
 class TestRequests:

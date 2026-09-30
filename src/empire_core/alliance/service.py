@@ -200,7 +200,7 @@ class AllianceService(BaseService):
         the protocol offers no way to correlate them.
         """
         request = SearchAllianceRequest.create(search_term)
-        packet = request.to_packet(zone=self.zone)
+        packet = request.to_packet(zone=self.zone, room_id=self.client.connection.room_id)
 
         # connection.request registers the waiter before sending (race-free).
         # SearchAllianceResponse is instantiated manually because the 'hgh'

@@ -495,8 +495,8 @@ from empire_core.protocol.models import (
 )
 
 request = AllianceChatMessageRequest.create("Hello 100%!")
-packet = request.to_packet()
-# -> "%xt%EmpireEx_21%acm%1%{"M": "Hello 100&percnt;!"}%"
+packet = request.to_packet(room_id=client.connection.room_id)
+# -> "%xt%EmpireEx_21%acm%1%{"M":"Hello 100&percnt;!"}%" once the login has joined room 1
 
 client.send(request)                        # fire and forget
 response = client.send(GetCastlesRequest(), wait=True)   # or await the reply

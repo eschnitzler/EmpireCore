@@ -35,7 +35,7 @@ class MovementsService(BaseService):
             CommandError: ``wait=True`` and the server rejected 'gam'
             EmpireTimeoutError: ``wait=True`` and no response within ``timeout``
         """
-        packet = Packet.build_xt(self.zone, "gam", {})
+        packet = Packet.build_xt(self.zone, "gam", {}, room_id=self.client.connection.room_id)
 
         if wait:
             response = self.client.connection.request(packet, "gam", timeout=timeout)

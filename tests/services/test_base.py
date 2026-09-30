@@ -200,7 +200,7 @@ class TestOnResponse:
 class TestRequestBuilding:
     def test_select_castle_request_packet_shape(self):
         packet = SelectCastleRequest(CID=12345, KID=Kingdom.ICE).to_packet(zone="EmpireEx_21")
-        assert packet == '%xt%EmpireEx_21%jca%1%{"CID": 12345, "KID": 2}%'
+        assert packet == '%xt%EmpireEx_21%jca%-1%{"CID":12345,"KID":2}%'
 
     def test_alliance_info_request_requires_an_id(self):
         with pytest.raises(ValidationError):

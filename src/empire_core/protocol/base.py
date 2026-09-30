@@ -2,8 +2,8 @@
 Base classes and common types for GGE protocol models.
 
 GGE Protocol Format:
-- Request: %xt%{zone}%{command}%1%{json_payload}%
-- Response: %{command}%{zone}%{error_code}%{json_payload}%
+- Request: %xt%{zone}%{command}%{room id}%{params...}%, a JSON command's one param being its JSON
+- Response: %xt%{command}%{request id}%{status}%{payload}%
 """
 
 from __future__ import annotations
@@ -22,8 +22,45 @@ T = TypeVar("T")
 # Default zone for packet building
 DEFAULT_ZONE = "EmpireEx_21"
 
+# The room id a command carries before any room is joined
+NO_ROOM = -1
+
 # Registry mapping command -> response model class
 _response_registry: dict[str, type["BaseResponse"]] = {}
+
+
+def smartfox_text(text: str) -> str:
+    """
+    Escape a string command param as the client does: each ``%`` becomes ``&percnt;`` and each ``'`` is dropped.
+
+    Client: ``TextValide.getValideSmartFoxText`` (dll line 5816)
+    """
+    return text.replace("%", "&percnt;").replace("'", "")
+
+
+def json_text(payload: Any) -> str:
+    """``payload`` as ``JSON.stringify`` writes it: no spaces, non-ASCII kept as is."""
+    return json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+
+
+def build_command(zone: str, command: str, params: list[str | int | None], room_id: int = NO_ROOM) -> str:
+    """
+    The frame for a command with these params, as the client puts it on the wire.
+
+    A 0 goes out as ``0``, any other empty param (``""``, None) as
+    ``<RoundHouseKick>``, and each string through :func:`smartfox_text`.
+
+    Client: ``BasicSmartfoxClient.sendMessage`` and ``sendCommand`` (dll line 7171, 7198)
+    """
+    fields: list[str] = []
+    for param in params:
+        if isinstance(param, str):
+            fields.append(smartfox_text(param) if param else "<RoundHouseKick>")
+        elif param is None:
+            fields.append("<RoundHouseKick>")
+        else:
+            fields.append(str(param))
+    return "%".join(["", "xt", zone, command, str(room_id), *fields, ""])
 
 
 class GGECommand:
@@ -206,23 +243,17 @@ class BaseRequest(BasePayload):
     # the request command there times out on every call.
     response_command: ClassVar[str | None] = None
 
-    def to_packet(self, zone: str = DEFAULT_ZONE) -> str:
+    def to_packet(self, zone: str = DEFAULT_ZONE, room_id: int = NO_ROOM) -> str:
         """
-        Build the full XT packet string ready to send.
-
-        Format: %xt%{zone}%{command}%1%{json_payload}%
-
-        Note: The request ID is always 1 - GGE doesn't use it for
-        request/response matching.
+        The frame that sends this request: ``%xt%{zone}%{command}%{room id}%{json}%``.
 
         Args:
             zone: Game zone (default: EmpireEx_21)
+            room_id: The joined room's id (from ``joinOK``); -1 before one is joined
 
-        Returns:
-            The formatted packet string
+        Client: ``BasicSmartfoxClient.sendCommandVO`` (dll line 7177)
         """
-        payload = self.to_payload()
-        return f"%xt%{zone}%{self.command}%1%{json.dumps(payload)}%"
+        return build_command(zone, self.command, [json_text(self.to_payload())], room_id)
 
     @classmethod
     def get_command(cls) -> str:
@@ -473,6 +504,11 @@ __all__ = [
     "GGECommand",
     # Constants
     "DEFAULT_ZONE",
+    "NO_ROOM",
+    # Packet building
+    "build_command",
+    "json_text",
+    "smartfox_text",
     "CurrencyBlock",
     "CurrencyTotals",
     # Base classes

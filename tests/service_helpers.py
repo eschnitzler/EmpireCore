@@ -93,6 +93,7 @@ class ScriptedConnection:
 
     def __init__(self, script: dict[str, Any] | None = None, pushes: dict[str, list[Packet]] | None = None):
         self.script = script or {}
+        self.room_id = -1
         self.pushes = pushes or {}
         self.subscribers: dict[str, list[Any]] = {}
         self.connected = True

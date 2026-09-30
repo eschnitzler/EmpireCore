@@ -59,6 +59,7 @@ class _FakeConnection:
         self.delay = delay
         self.disconnect_on_failure = disconnect_on_failure
         self.connected = True
+        self.room_id = -1
         self.requests: list[tuple[int, int]] = []
 
     def request(self, data: str, cmd_id: str, timeout: float = 5.0) -> Packet:

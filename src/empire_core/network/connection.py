@@ -17,6 +17,7 @@ import websocket
 
 from empire_core.exceptions import ConnectionClosedError, EmpireTimeoutError, NetworkError, ReceiveThreadError
 from empire_core.network.framing import FrameBuffer
+from empire_core.protocol.base import NO_ROOM, build_command
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import Packet
 
@@ -151,6 +152,8 @@ class Connection:
     def __init__(self, url: str, keepalive_zone: str | None = None):
         self.url = url
         self.keepalive_zone = keepalive_zone
+        # The joined room's id, which every command carries; the login sets it from joinOK.
+        self.room_id = NO_ROOM
         self.ws: websocket.WebSocket | None = None
 
         self._running = False
@@ -247,6 +250,7 @@ class Connection:
                 self.ws = ws
                 self._running = True
                 self._closing = False
+                self.room_id = NO_ROOM
                 self._last_recv_at = time.monotonic()
                 self._generation += 1
                 generation = self._generation
@@ -749,7 +753,7 @@ class Connection:
                 break
 
             try:
-                self.send(f"%xt%{zone}%pin%1%<RoundHouseKick>%")
+                self.send(build_command(zone, "pin", [""], self.room_id))
                 logger.debug("Sent keepalive ping")
             except Exception as e:
                 if active():

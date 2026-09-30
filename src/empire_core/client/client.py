@@ -7,9 +7,9 @@ by not competing for the event loop.
 
 from __future__ import annotations
 
-import json
 import logging
 import threading
+import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from pathlib import Path
 from types import TracebackType
@@ -39,6 +39,7 @@ from empire_core.movements.models import GetMovementsRequest
 from empire_core.movements.service import MovementsService
 from empire_core.network.connection import NON_ERROR_COMMANDS, Connection
 from empire_core.player.service import PlayerService
+from empire_core.protocol.base import NO_ROOM, build_command, json_text
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import BaseRequest, BaseResponse, parse_response
 from empire_core.protocol.packet import Packet
@@ -48,6 +49,19 @@ from empire_core.spy.service import SpyService
 from empire_core.state.manager import GameState
 
 logger = logging.getLogger(__name__)
+
+
+def _joined_room_id(join_ok: Packet) -> int:
+    """
+    The room id in a ``joinOK``'s ``r`` attribute, or -1 when it has none that reads as a number.
+
+    Client: ``BasicSmartfoxClient.handleSystemMessage`` (dll line 7232)
+    """
+    body = join_ok.payload.find("body") if isinstance(join_ok.payload, ET.Element) else None
+    try:
+        return int(body.get("r", "")) if body is not None else NO_ROOM
+    except ValueError:
+        return NO_ROOM
 
 
 T = TypeVar("T", bound=BaseResponse)
@@ -341,10 +355,12 @@ class EmpireClient:
         # 3. AutoJoin Room
         join_packet = "<msg t='sys'><body action='autoJoin' r='-1'></body></msg>"
         try:
-            self.connection.request(join_packet, "joinOK", timeout=self.config.request_timeout)
+            join_ok = self.connection.request(join_packet, "joinOK", timeout=self.config.request_timeout)
         except EmpireTimeoutError:
             # The server does not always send joinOK; not fatal
             logger.debug("No joinOK received, continuing login")
+        else:
+            self.connection.room_id = _joined_room_id(join_ok)
 
         roundtrip_packet = "<msg t='sys'><body action='roundTrip' r='1'></body></msg>"
         try:
@@ -359,7 +375,7 @@ class EmpireClient:
             "NOM": self.username,
             "PW": self.password,
         }
-        xt_packet = f"%xt%{self.config.default_zone}%lli%1%{json.dumps(xt_payload)}%"
+        xt_packet = build_command(self.config.default_zone, "lli", [json_text(xt_payload)], self.connection.room_id)
 
         # Register the gbd waiter up front: it arrives right after a
         # successful lli and would otherwise race the lli handling below.
@@ -485,7 +501,7 @@ class EmpireClient:
             # Or wait for response:
             response = client.send(GetCastlesRequest(), wait=True)
         """
-        packet = request.to_packet(zone=self.config.default_zone)
+        packet = request.to_packet(zone=self.config.default_zone, room_id=self.connection.room_id)
 
         if not wait:
             self.connection.send(packet)
