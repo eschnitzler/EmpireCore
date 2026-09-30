@@ -156,7 +156,6 @@ class GGECommand:
     FCS = "fcs"  # Facebook connection status
 
     # Settings
-    ANI = "ani"  # Animation settings
     MVF = "mvf"  # Movement filter settings
     OPT = "opt"  # Misc options
     HFL = "hfl"  # Hospital filter settings
@@ -168,8 +167,6 @@ class GGECommand:
     GBL = "gbl"  # Get bookmarks list
     RUI = "rui"  # Ruin info
     RMB = "rmb"  # Ruin message
-    GFC = "gfc"  # Get friends/contacts
-    SEM = "sem"  # Send email/message
     GLI = "gli"  # Get commander info
     ARL = "arl"  # Rename a commander or castellan
     GEI = "gei"  # Get equipment inventory

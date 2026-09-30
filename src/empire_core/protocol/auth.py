@@ -177,30 +177,31 @@ class CheckUsernameExistsResponse(BaseResponse):
 
 class PasswordRecoveryRequest(BaseRequest):
     """
-    Request password recovery email.
+    Ask for a password recovery email (``lpp``).
 
-    Command: lpp
-    Payload: {"EM": "email"} or {"NM": "username"}
+    Unverified: the client names the command but never builds its request, so
+    these keys are not confirmed.
+
+    Client: ``BasicSmartfoxConstants.C2S_LOST_PASSWORD_EVENT`` (dll line 981)
     """
 
     command = "lpp"
 
-    email: str | None = Field(alias="EM", default=None)
-    username: str | None = Field(alias="NM", default=None)
+    email: str | None = Field(alias="EM", default=None, description="Email address of the account")
+    username: str | None = Field(alias="NM", default=None, description="Name of the account")
 
 
 class PasswordRecoveryResponse(BaseResponse):
     """
-    Response for password recovery request.
+    The reply to ``lpp``.
 
-    Command: lpp
+    Its status has its own codes, not ``GGEError``'s: 0 means sent, 1 a
+    general error and 2 that no such player exists.
+
+    Client: ``CastleLostPasswordCommand.execute`` (bundle line 131805)
     """
 
     command = "lpp"
-
-    # The old `success: bool = Field(alias="S")` field was removed: it shadowed the
-    # inherited `success` property. The server's "S" flag (if sent) remains readable
-    # via the extra="allow" attribute, and `success` now derives from error_code.
 
 
 __all__ = [

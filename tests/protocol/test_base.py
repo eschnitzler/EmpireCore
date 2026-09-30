@@ -3,7 +3,7 @@
 import pytest
 from pydantic import Field
 
-from empire_core.protocol.base import BaseResponse, get_response_model
+from empire_core.protocol.base import BaseResponse, GGECommand, get_response_model
 from empire_core.protocol.models import parse_response
 
 
@@ -63,3 +63,8 @@ class TestBaseResponse:
 
         response = AliasedResponse(CID=5)
         assert response.to_payload()["CID"] == 5
+
+
+@pytest.mark.parametrize("name", ["ANI", "GFC", "SEM"])
+def test_commands_the_client_does_not_have_are_gone(name):
+    assert not hasattr(GGECommand, name)
