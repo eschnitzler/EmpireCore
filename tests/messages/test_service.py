@@ -32,6 +32,40 @@ class TestMailbox:
 
         assert [(m.message_id, m.is_archived) for m in client.messages.mailbox] == [(502, True)]
 
+    def test_the_login_data_fills_it(self):
+        client = make_client()
+        seen: list = []
+        client.messages.on_new_messages(seen.append)
+        gbd = {"gcu": {"C1": 10, "C2": 0}, "sne": {"MSG": [ROW, [502, 6, "0+1", "", -1, 5, 0, 0, 0]]}, "mcd": {}}
+
+        client._on_packet(xt_packet("gbd", gbd))
+
+        assert [m.message_id for m in client.messages.mailbox] == [501, 502]
+        assert len(seen) == 1
+
+    def test_pushes_after_the_login_data_merge_into_it(self):
+        client = make_client()
+        client._on_packet(xt_packet("gbd", {"sne": {"MSG": [ROW]}}))
+        client._on_packet(xt_packet("sne", {"MSG": [[501, 1, "Hello", "Sender", 4242, 40, 1, 0, 0]]}))
+
+        assert [(m.message_id, m.is_read) for m in client.messages.mailbox] == [(501, True)]
+
+    def test_a_relogin_refills_it_after_the_reset(self):
+        client = make_client()
+        client._on_packet(xt_packet("gbd", {"sne": {"MSG": [ROW]}}))
+        client.messages._reset()
+        assert client.messages.mailbox == []
+
+        client._on_packet(xt_packet("gbd", {"sne": {"MSG": [ROW]}}))
+
+        assert [m.message_id for m in client.messages.mailbox] == [501]
+
+    @pytest.mark.parametrize(("gbd", "error_code"), [({"sne": {"MSG": [ROW]}}, 1), ({"gcu": {"C1": 1}}, 0)])
+    def test_a_failed_or_sne_less_login_data_leaves_it(self, gbd, error_code):
+        client = make_client()
+        client._on_packet(xt_packet("gbd", gbd, error_code=error_code))
+        assert client.messages.mailbox == []
+
     def test_a_removed_callback_hears_nothing(self):
         client = make_client()
         seen: list = []

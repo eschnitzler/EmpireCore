@@ -40,11 +40,13 @@ class MessagesService(BaseService):
     """
     The mailbox and mail.
 
-    Accessible via client.messages after auto-registration. The mailbox is kept
-    from the server's pushes as the client keeps it: each sne row replaces the
+    Accessible via client.messages. The mailbox is kept as the client keeps it:
+    the login data's ``sne`` section fills it, each sne push row replaces the
     message with its id or is added, and dms and ams answers remove or archive.
 
-    Client: ``CastleMessageData`` (bundle lines 134955-134991)
+    Client: ``CastleMessageData`` (bundle lines 134955-134991); ``GBDCommand.exec``
+    (bundle line 129381) and ``SNECommand.exec`` (bundle line 125499) both call
+    ``parse_SNE`` (bundle line 134961)
     """
 
     def __init__(self, client) -> None:
@@ -58,7 +60,7 @@ class MessagesService(BaseService):
 
     def _reset(self) -> None:
         """
-        Empty the mailbox; the client calls this when the session drops, and the server sends it again after a login.
+        Empty the mailbox; the client calls this when the session drops, and the next login's gbd refills it.
 
         Client: ``CastleDestroyGameCommand`` (bundle line 120270) resets every model,
         and ``CastleMessageData.reset`` (bundle line 134889) empties the mailbox
@@ -68,12 +70,12 @@ class MessagesService(BaseService):
 
     @property
     def mailbox(self) -> list[MessageInfo]:
-        """The messages the server has pushed so far, in the order they first arrived."""
+        """The messages from the login data and the pushes since, in the order they first arrived."""
         with self._mailbox_lock:
             return list(self._mailbox.values())
 
     def on_new_messages(self, callback: Callable[[SystemNotificationEvent], None]) -> None:
-        """Call ``callback`` with each sne push, after :attr:`mailbox` is updated."""
+        """Call ``callback`` with the login data's sne section and each sne push, after :attr:`mailbox` is updated."""
         self._callbacks.append(callback)
 
     def remove_new_messages_callback(self, callback: Callable[[SystemNotificationEvent], None]) -> None:
