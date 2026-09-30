@@ -20,7 +20,14 @@ from empire_core.protocol.base import (
     object_or_none,
     read_or_none,
 )
-from empire_core.protocol.js import ClientInt, js_loose_equals, js_parse_int, js_parse_int_or_zero, js_truthy
+from empire_core.protocol.js import (
+    ClientInt,
+    js_loose_equals,
+    js_parse_int,
+    js_parse_int_or_zero,
+    js_same_number,
+    js_truthy,
+)
 
 
 class GetMovementsRequest(BaseRequest):
@@ -370,6 +377,18 @@ class CancelMovementRequest(BaseRequest):
     command = "mcm"
 
     movement_id: int = Field(alias="MID", description="The movement to recall")
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether an mcm reply is the movement this recalled: its ``A.M.MID``, when sent, is ``MID``.
+
+        Client: ``MCMCommand.executeCommand`` (bundle line 126041) reads the recalled
+        movement from ``A``.
+        """
+        wrapper = payload.get("A") if isinstance(payload, dict) else None
+        movement = wrapper.get("M") if isinstance(wrapper, dict) else None
+        if not isinstance(movement, dict) or "MID" not in movement:
+            return True
+        return js_same_number(movement["MID"], self.movement_id)
 
 
 class CancelMovementResponse(BaseResponse):

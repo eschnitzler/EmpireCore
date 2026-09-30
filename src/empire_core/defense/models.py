@@ -21,7 +21,7 @@ from empire_core.commanders.models.roster import Castellan, CommanderRoster
 from empire_core.enums import Kingdom
 from empire_core.movements.models import MovementArea
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, read_or_none
-from empire_core.protocol.js import ClientInt, js_int
+from empire_core.protocol.js import ClientInt, js_int, row_is_at
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +70,15 @@ class GetDefenseRequest(BaseRequest):
         if self.kingdom_id is None:
             payload["KID"] = -1
         return payload
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a dfc reply is about this castle: its area row ``A``, when sent, lies at ``CX``/``CY``.
+
+        Client: ``DFCCommand`` (bundle line 123480) through ``parse_DFC`` (bundle line
+        134243), which reads the castle from ``A`` with ``parseWorldMapArea``.
+        """
+        row = payload.get("A") if isinstance(payload, dict) else None
+        return not isinstance(row, list) or row_is_at(row, self.castle_x, self.castle_y)
 
 
 class WallSection(BasePayload):

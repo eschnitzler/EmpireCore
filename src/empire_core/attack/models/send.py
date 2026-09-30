@@ -17,7 +17,7 @@ from empire_core.commanders.models.roster import Commander
 from empire_core.enums import AttackType, AutoSkipCooldownType, Kingdom, LootPriority
 from empire_core.movements.models import MovementOwner, MovementWrapper
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, read_or_none, readable_list
-from empire_core.protocol.js import js_truthy
+from empire_core.protocol.js import js_truthy, movement_targets
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +98,15 @@ class CreateAttackRequest(BaseRequest):
         default=AutoSkipCooldownType.OFF,
         description="How the target's cooldown is skipped when the attack lands",
     )
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a cra reply is the movement this sent: its target area (``AAM.M.TA``) is ``TX``/``TY``.
+
+        Client: ``CRACommand`` (bundle line 125954) reads the new movement from ``AAM``,
+        whose ``TA`` is the target area (``BasicMapmovementVO``). An army heading home
+        targets your own castle and is not taken.
+        """
+        return isinstance(payload, dict) and movement_targets(payload.get("AAM"), self.target_x, self.target_y)
 
 
 class CreateAttackResponse(BaseResponse):

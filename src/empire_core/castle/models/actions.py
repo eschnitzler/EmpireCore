@@ -15,7 +15,7 @@ from pydantic import Field, field_serializer, field_validator
 
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.protocol.base import BaseRequest, BaseResponse, enum_or_none
-from empire_core.protocol.js import js_int
+from empire_core.protocol.js import js_int, js_same_number, row_is_at
 from empire_core.protocol.text import encode_json_text
 
 from .details import CastleProductionArea
@@ -89,6 +89,29 @@ class JoinAreaRequest(BaseRequest):
     x: int = Field(alias="PX", description="Map x")
     y: int = Field(alias="PY", description="Map y")
     kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom it lies in")
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a jaa reply is for this area: its ``KID`` and, when sent, the joined area's row position.
+
+        Client: ``JAACommand`` (bundle line 130190) switches to the reply's ``KID``;
+        ``AreaFactory.parseAreaInfo`` (bundle line 130226) reads the area from
+        ``gca.A`` with ``WorldmapObjectFactory.parseWorldMapArea`` (bundle line
+        5343), whose parser for every area type takes the position from ``A[1]``
+        and ``A[2]`` (``BasicMapobjectVO``, ``InteractiveMapobjectVO``,
+        ``CapitalMapobjectVO``, ``MetropolMapobjectVO``, ``FactionCampMapobjectVO``
+        and the rest, bundle lines 3631-76548). A treasure camp (``T`` 8) is the
+        exception: its area is not read from ``A``, so its reply is not checked
+        for position.
+        """
+        if not isinstance(payload, dict):
+            return False
+        if "KID" in payload and not js_same_number(payload["KID"], self.kingdom_id):
+            return False
+        if js_same_number(payload.get("T"), MapItemType.TREASURE_CAMP):
+            return True
+        area = payload.get("gca")
+        row = area.get("A") if isinstance(area, dict) else None
+        return not isinstance(row, list) or row_is_at(row, self.x, self.y)
 
 
 class SelectCastleResponse(BaseResponse):

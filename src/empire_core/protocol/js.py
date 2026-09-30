@@ -103,6 +103,23 @@ def js_number_or_none(value: Any) -> int | float | None:
     return None if math.isnan(number) or math.isinf(number) else number
 
 
+def js_same_number(value: Any, expected: int) -> bool:
+    """Whether ``Number(value)`` is ``expected``; ``633.0`` is 633."""
+    return js_number_or_none(value) == expected
+
+
+def row_is_at(row: Any, x: int, y: int) -> bool:
+    """Whether a map row ``[area_type, x, y, ...]`` lies at ``(x, y)``."""
+    return isinstance(row, list) and len(row) >= 3 and js_same_number(row[1], x) and js_same_number(row[2], y)
+
+
+def movement_targets(wrapper: Any, x: int, y: int) -> bool:
+    """Whether a movement wrapper's target area row (``M.TA``), when it has one, lies at ``(x, y)``."""
+    movement = wrapper.get("M") if isinstance(wrapper, dict) else None
+    row = movement.get("TA") if isinstance(movement, dict) else None
+    return not (isinstance(row, list) and len(row) >= 3) or row_is_at(row, x, y)
+
+
 def js_floor(value: Any) -> int:
     """``Math.floor(Number(value))``, NaN and infinities as 0."""
     return math.floor(js_number(value))
@@ -171,6 +188,9 @@ __all__ = [
     "js_int",
     "js_loose_equals",
     "js_number_or_none",
+    "js_same_number",
+    "movement_targets",
+    "row_is_at",
     "js_parse_int",
     "js_parse_int_or_zero",
     "js_truthy",

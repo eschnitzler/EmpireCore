@@ -7,10 +7,13 @@ Commands:
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import Field
 
 from empire_core.enums import Kingdom
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock
+from empire_core.protocol.js import movement_targets
 
 # =============================================================================
 # CDS - Send Support (Create Deployment - Support)
@@ -70,6 +73,15 @@ class SendSupportRequest(BaseRequest):
     feathers: int = Field(alias="PTT", default=0, description="1 to pay with feathers")
     slowdown: int = Field(alias="SD", default=0)
     units: list[list[int]] = Field(alias="A")
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a cds reply is the movement this sent: its target area (``A.M.TA``) is ``TX``/``TY``.
+
+        Client: ``CDSCommand`` (bundle line 125939) reads the new movement from ``A``,
+        whose ``TA`` is the target area (``BasicMapmovementVO``). An army heading home
+        targets your own castle and is not taken.
+        """
+        return isinstance(payload, dict) and movement_targets(payload.get("A"), self.target_x, self.target_y)
 
 
 class SendSupportResponse(BaseResponse):
@@ -148,6 +160,15 @@ class SendTroopsRequest(BaseRequest):
     feathers: int = Field(alias="PTT", default=0, description="1 to pay with feathers")
     slowdown: int = Field(alias="SD", default=0, description="Seconds to delay the arrival by")
     units: list[list[int]] = Field(alias="A", description="The units and tools, as [wod_id, amount] pairs")
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a cat reply is the movement this sent: its target area (``A.M.TA``) is ``TX``/``TY``.
+
+        Client: ``CATCommand`` (bundle line 125924) reads the new movement from ``A``,
+        whose ``TA`` is the target area (``BasicMapmovementVO``). An army heading home
+        targets its source and is not taken.
+        """
+        return isinstance(payload, dict) and movement_targets(payload.get("A"), self.target_x, self.target_y)
 
 
 class SendTroopsResponse(BaseResponse):

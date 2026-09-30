@@ -393,6 +393,18 @@ class Connection:
                 replies it rejects still reach state and subscribers. Error
                 replies carry nothing to check, so they are always taken.
 
+        ``EmpireClient.send`` and ``request_packet`` pass the check of a request
+        model that defines ``accepts_reply`` (gaa, ssi, ain, grc, dfc, mcm, jaa by
+        position, csm, cra, cds, cat): those replies name what was asked for. Most
+        commands' replies do not (gam, gcl, dcl, gli, gui, hgh, jca, ranking pages,
+        the attack-info family, chat and every write), so without a check a reply
+        cannot be told from another one under the same command: after one
+        request times out, its late reply is taken by the next request for that
+        command, whose own reply then goes to the one after, until a request
+        times out with nothing arriving. A server push under that command id is
+        taken the same way. An error reply for a checked command still goes to
+        the oldest waiter.
+
         Raises:
             EmpireTimeoutError: No response within ``timeout``
             ConnectionClosedError: Connection dropped while waiting

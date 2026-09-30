@@ -207,7 +207,7 @@ class TestJoinCastle:
 OUTPOST_JAA: dict[str, Any] = {
     "KID": 0,
     "T": 4,
-    "gca": {**GCA, "O": {"OID": 1001}},
+    "gca": {**GCA, "O": {"OID": 1001}, "A": [4, 512, 256, 2002]},
     "grc": {"AID": 2002, "W": 800.0, "S": 800.0, "F": 1500.0, "C": 0.0, "KID": 0},
     "gpa": {"P": 40, "DW": 900, "WM": 20.0, "RFPPA": 0.0},
     "gui": {"I": [[277, 2]], "SHI": [], "HI": [], "TU": []},
@@ -241,7 +241,9 @@ class TestJoinArea:
         assert joined.production_area is not None and joined.production_area.population == 40
 
     def test_a_kingdom_castle_by_position(self):
-        client = make_client({"jaa": xt_packet("jaa", {**OUTPOST_JAA, "KID": 1, "T": 12})})
+        client = make_client(
+            {"jaa": xt_packet("jaa", {**OUTPOST_JAA, "KID": 1, "T": 12, "gca": {**GCA, "A": [12, 510, 257, 2003]}})}
+        )
 
         joined = client.castle.join_area(510, 257, Kingdom.SANDS)
 

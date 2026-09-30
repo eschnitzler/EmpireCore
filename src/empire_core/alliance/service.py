@@ -421,9 +421,11 @@ class AllianceService(BaseService):
             for alliance in results:
                 print(f"{alliance.name} (ID: {alliance.alliance_id}, {alliance.member_count} members)")
 
-        Note: 'hgh' is shared with the highscore command, so a concurrent
-        get_highscore() call can receive this response (and vice versa) —
-        the protocol offers no way to correlate them.
+        Note: 'hgh' is shared with the highscore command. Requests for it run
+        one at a time, but after one times out its late reply can be taken by
+        the next, a get_highscore() call included. Replies echo ``LT``, yet a
+        live server once answered an LT 7 request with LT 5, so no reply is
+        refused on it.
         """
         request = SearchAllianceRequest.create(search_term)
         # SearchAllianceResponse is read here because the 'hgh' registry entry

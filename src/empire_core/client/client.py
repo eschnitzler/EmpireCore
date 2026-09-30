@@ -627,7 +627,15 @@ class EmpireClient:
         model (``hgh`` answers both alliance search and highscores), or that a
         caller reads itself. Raises as :meth:`Connection.request` does.
         """
-        return self.connection.request(self.frame(request), response_command, timeout=timeout)
+        return self.connection.request(
+            self.frame(request), response_command, timeout=timeout, accepts=self._reply_check(request)
+        )
+
+    @staticmethod
+    def _reply_check(request: BaseRequest) -> Callable[[Packet], bool] | None:
+        """The waiter check of a request whose reply names what was asked for (it defines ``accepts_reply``)."""
+        accepts_reply = getattr(request, "accepts_reply", None)
+        return (lambda reply: bool(accepts_reply(reply.payload))) if accepts_reply is not None else None
 
     def send(
         self,
@@ -674,13 +682,8 @@ class EmpireClient:
 
         command = request.get_command()
         response_command = request.get_response_command()
-        # A request whose reply names what was asked for defines accepts_reply(payload).
-        accepts_reply = getattr(request, "accepts_reply", None)
         response_packet = self.connection.request(
-            packet,
-            response_command,
-            timeout=timeout,
-            accepts=(lambda reply: accepts_reply(reply.payload)) if accepts_reply is not None else None,
+            packet, response_command, timeout=timeout, accepts=self._reply_check(request)
         )
 
         if response_packet.error_code != 0:

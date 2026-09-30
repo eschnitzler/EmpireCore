@@ -23,7 +23,15 @@ from empire_core.protocol.base import (
     object_or_none,
     readable_list,
 )
-from empire_core.protocol.js import ClientInt, ParseInt, js_floor, js_loose_equals, js_number_or_none, js_truthy
+from empire_core.protocol.js import (
+    ClientInt,
+    ParseInt,
+    js_floor,
+    js_int,
+    js_loose_equals,
+    js_number_or_none,
+    js_truthy,
+)
 from empire_core.protocol.text import decode_json_text
 
 logger = logging.getLogger(__name__)
@@ -568,6 +576,18 @@ class GetAllianceInfoRequest(BaseRequest):
             "from client.alliance.search_alliances()"
         ),
     )
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether an ain reply is about this alliance: its ``A.AID``, when sent, is ``AID``.
+
+        Client: ``AINCommand`` (bundle line 121461) hands ``A`` to
+        ``CastleAllianceData.parseAllianceInfo`` (bundle line 11605), which keys it
+        by ``int(A.AID)`` and reads nothing without one.
+        """
+        alliance = payload.get("A") if isinstance(payload, dict) else None
+        if not isinstance(alliance, dict) or "AID" not in alliance:
+            return True
+        return js_int(alliance["AID"]) == self.alliance_id
 
 
 class GetAllianceInfoResponse(BaseResponse):

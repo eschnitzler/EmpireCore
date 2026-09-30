@@ -50,22 +50,22 @@ class TestGetOwnDefense:
     def test_dfc_is_sent_for_the_castle_with_no_kingdom(self):
         client = make_client({"dfc": xt_packet("dfc", LIVE_DFC)})
 
-        response = client.defense.get_own_defense(500, 300, 2001)
+        response = client.defense.get_own_defense(635, 242, 16655114)
 
         assert isinstance(response, GetDefenseResponse)
-        assert conn(client).request_payloads == [("dfc", {"CX": 500, "CY": 300, "AID": 2001, "KID": -1})]
+        assert conn(client).request_payloads == [("dfc", {"CX": 635, "CY": 242, "AID": 16655114, "KID": -1})]
         assert response.wall is not None
         assert response.keep is not None
 
     def test_a_given_kingdom_is_sent(self):
         client = make_client({"dfc": xt_packet("dfc", LIVE_DFC)})
 
-        client.defense.get_own_defense(500, 300, 2001, kingdom=Kingdom.ICE)
+        client.defense.get_own_defense(635, 242, 16655114, kingdom=Kingdom.ICE)
 
-        assert conn(client).request_payloads == [("dfc", {"CX": 500, "CY": 300, "AID": 2001, "KID": 2})]
+        assert conn(client).request_payloads == [("dfc", {"CX": 635, "CY": 242, "AID": 16655114, "KID": 2})]
 
     def test_a_rejection_raises(self):
         client = make_client({"dfc": xt_packet("dfc", error_code=92)})
 
         with pytest.raises(CommandError):
-            client.defense.get_own_defense(500, 300, 2001)
+            client.defense.get_own_defense(635, 242, 16655114)

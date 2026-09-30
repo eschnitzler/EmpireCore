@@ -21,7 +21,15 @@ from empire_core.protocol.base import (
     object_or_none,
     readable_list,
 )
-from empire_core.protocol.js import ClientInt, ParseInt, js_loose_equals, js_parse_int, js_truthy
+from empire_core.protocol.js import (
+    ClientInt,
+    ParseInt,
+    js_loose_equals,
+    js_number_or_none,
+    js_parse_int,
+    js_same_number,
+    js_truthy,
+)
 
 from .items import MapAreaItem, parse_area_rows
 from .owners import AllianceEmblem, OwnerCastlePosition, OwnerCrest, OwnerFaction, owner_positions
@@ -55,6 +63,37 @@ class GetMapAreaRequest(BaseRequest):
     y1: int = Field(alias="AY1", description="First corner's map y")
     x2: int = Field(alias="AX2", description="Second corner's map x")
     y2: int = Field(alias="AY2", description="Second corner's map y")
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a gaa reply is about this rectangle: this ``KID`` and no row outside it.
+
+        ``GAACommand.executeCommand`` (bundle line 130112) drops a reply whose ``KID``
+        is not the kingdom on screen, and reads one without ``KID`` as that kingdom's;
+        that every row lies inside the rectangle asked for is how the server answers
+        (seen live), not something the client checks. Every reply to a request seen
+        live carried ``KID``, ``OI`` and ``uap``; the one-row gaa the server pushes by
+        itself carried only ``AI``. So a reply without ``KID`` is taken only when it
+        has no rows, whose shape was not seen live. Two requests for one kingdom are
+        told apart only by their rows, so a reply with none matches either.
+        """
+        if not isinstance(payload, dict):
+            return False
+        rows = payload.get("AI")
+        if "KID" not in payload:
+            return not rows
+        if not js_same_number(payload["KID"], self.kingdom):
+            return False
+        if not isinstance(rows, list):
+            return True
+        low_x, high_x = sorted((self.x1, self.x2))
+        low_y, high_y = sorted((self.y1, self.y2))
+        for row in rows:
+            if not isinstance(row, list) or len(row) < 3:
+                continue
+            x, y = js_number_or_none(row[1]), js_number_or_none(row[2])
+            if x is None or y is None or not (low_x <= x <= high_x and low_y <= y <= high_y):
+                return False
+        return True
 
 
 class MapObject(BasePayload):

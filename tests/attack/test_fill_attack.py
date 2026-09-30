@@ -311,7 +311,7 @@ class TestFillAttack:
             },
         )
         conn(client).script["gaa"] = xt_packet(
-            "gaa", {"AI": [row], "OI": [{"OID": 900, "PID": 4242, "PN": "dweller", "L": 46}]}
+            "gaa", {"KID": 0, "AI": [row], "OI": [{"OID": 900, "PID": 4242, "PN": "dweller", "L": 46}]}
         )
 
         result = client.attack.fill_attack(12345, target_x=700, target_y=710)
@@ -354,7 +354,7 @@ class TestFillAttack:
             cast(Any, client.state.local_player).legendary_level = 1
             conn(client).script["aci"] = xt_packet("aci", {"gaa": {"AI": row}, "S": [], "AE": [], "B": {}})
             conn(client).script["gaa"] = xt_packet(
-                "gaa", {"AI": [row], "OI": [{"OID": 4242, "N": "owner", "L": 70, "LL": legend_level}]}
+                "gaa", {"KID": 0, "AI": [row], "OI": [{"OID": 4242, "N": "owner", "L": 70, "LL": legend_level}]}
             )
             result = client.attack.fill_attack(
                 12345, target_x=700, target_y=710, legend_skill_ids=[901], general_skill_ids=[]
@@ -547,7 +547,9 @@ class TestFillAttack:
             client = self.build([[601, 100_000], [613, 500]])
             client.game_data = GameData.parse("test", payload)
             conn(client).script["aci"] = xt_packet("aci", {"gaa": {"AI": row}, "AE": [], "B": {}})
-            conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": [{"OID": 900, "PID": 4242, "L": 13}]})
+            conn(client).script["gaa"] = xt_packet(
+                "gaa", {"KID": kingdom_id, "AI": [row], "OI": [{"OID": 900, "PID": 4242, "L": 13}]}
+            )
             result = client.attack.fill_attack(
                 12345, target_x=700, target_y=710, kingdom_id=kingdom_id, target_is_player=True
             )
@@ -698,7 +700,9 @@ class TestFillAttack:
         client = self.build([[601, 100_000]])
         row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
         conn(client).script["aci"] = xt_packet("aci", {"gaa": {"AI": row}, "AE": [], "B": {}})
-        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": [{"OID": 900, "PID": 4242, "L": 46}]})
+        conn(client).script["gaa"] = xt_packet(
+            "gaa", {"KID": 0, "AI": [row], "OI": [{"OID": 900, "PID": 4242, "L": 46}]}
+        )
 
         client.attack.fill_attack(12345, target_x=700, target_y=710)
 
@@ -714,7 +718,7 @@ class TestFillAttack:
         client = self.build([[601, 100_000]])
         # Type 2 is a camp; field 3 is the espionage age and field 6 the count.
         camp_row = [2, 700, 710, -1, 0, -1, -299]
-        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [camp_row], "OI": []})
+        conn(client).script["gaa"] = xt_packet("gaa", {"KID": 0, "AI": [camp_row], "OI": []})
         conn(client).script["adi"] = xt_packet("adi", dict(LIVE_ADI, gaa={"AI": camp_row}, gui={"I": [[601, 100_000]]}))
 
         result = client.attack.fill_attack(12345, target_x=700, target_y=710, kingdom_id=0, source_x=5, source_y=6)
@@ -778,7 +782,7 @@ class TestFillAttack:
         client = self.build([[601, 100_000]])
         camp_row = [2, 700, 710, -1, 0, -1, -299]
         conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
-        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [camp_row], "OI": []})
+        conn(client).script["gaa"] = xt_packet("gaa", {"KID": 0, "AI": [camp_row], "OI": []})
 
         result = client.attack.fill_attack(12345, target_x=700, target_y=710)
 
@@ -809,7 +813,7 @@ class TestFillAttack:
         client = self.build([[601, 100_000]])
         outpost_row = [4, 700, 710, 55, 4242, 1, 1, 1, 0, 0, "outpost"]
         conn(client).script["coi"] = xt_packet("coi", {"AB": 1, "MB": 2})
-        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [outpost_row], "OI": []})
+        conn(client).script["gaa"] = xt_packet("gaa", {"KID": 0, "AI": [outpost_row], "OI": []})
         target = _Target(x=700, y=710, area_type=4, conquer=True)
 
         client.attack._read_target(target, castle_id=12345, timeout=1.0)
@@ -822,7 +826,7 @@ class TestFillAttack:
         client = self.build([[601, 100_000]])
         row = [29, 700, 710, -1, 4, 0, 0, 0, -1, 110, 110, 0]
         conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
-        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": []})
+        conn(client).script["gaa"] = xt_packet("gaa", {"KID": 0, "AI": [row], "OI": []})
 
         result = client.attack.fill_attack(12345, target_x=700, target_y=710)
 
@@ -836,7 +840,7 @@ class TestFillAttack:
         # Field 4 is the rank, not a victory count: rank 1 is level 81.
         row = [37, 700, 710, -1, 1, 0, 0, 0, -1, 110, 110, 0]
         conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
-        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": []})
+        conn(client).script["gaa"] = xt_packet("gaa", {"KID": 0, "AI": [row], "OI": []})
 
         result = client.attack.fill_attack(12345, target_x=700, target_y=710)
 
@@ -847,7 +851,7 @@ class TestFillAttack:
         # Field 8 names a difficulty scaling camp, which overrides the rank.
         row = [37, 700, 710, -1, 1, 0, 0, 0, 3, 110, 110, 0]
         conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
-        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": []})
+        conn(client).script["gaa"] = xt_packet("gaa", {"KID": 0, "AI": [row], "OI": []})
 
         result = client.attack.fill_attack(12345, target_x=700, target_y=710)
 
@@ -898,7 +902,7 @@ class TestFillAttack:
         assert (left.wall_bonus, middle.gate_bonus, left.moat_bonus) == pytest.approx((1.2, 1.2, 0.45))
 
         conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
-        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [row], "OI": []})
+        conn(client).script["gaa"] = xt_packet("gaa", {"KID": 0, "AI": [row], "OI": []})
         read = _Target(x=619, y=242)
         client.attack._read_target(read, castle_id=12345, timeout=1.0)
         assert (read.row, read.level) == (row, 70)
@@ -925,7 +929,7 @@ class TestFillAttack:
         # Rank 99 is a daimyo castle the trimmed tables do not describe.
         conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
         conn(client).script["gaa"] = xt_packet(
-            "gaa", {"AI": [[37, 700, 710, -1, 99, 0, 0, 0, -1, 110, 110, 0]], "OI": []}
+            "gaa", {"KID": 0, "AI": [[37, 700, 710, -1, 99, 0, 0, 0, -1, 110, 110, 0]], "OI": []}
         )
 
         with pytest.raises(ValueError, match="no camp 99 for area type 37"):
@@ -933,7 +937,7 @@ class TestFillAttack:
 
     def test_a_tile_the_map_does_not_describe_says_so(self):
         client = self.build([[601, 100_000]])
-        conn(client).script["gaa"] = xt_packet("gaa", {"AI": [], "OI": []})
+        conn(client).script["gaa"] = xt_packet("gaa", {"KID": 0, "AI": [], "OI": []})
 
         with pytest.raises(ValueError, match="neither the map nor a pre-calculation has a row for it"):
             client.attack.fill_attack(12345, target_x=700, target_y=710)
@@ -944,7 +948,7 @@ class TestFillAttack:
         # carries a level for it either.
         conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
         conn(client).script["gaa"] = xt_packet(
-            "gaa", {"AI": [[21, 700, 710, -1, 0, -1, 0, 0, -1, 110, 110, 0]], "OI": []}
+            "gaa", {"KID": 0, "AI": [[21, 700, 710, -1, 0, -1, 0, 0, -1, 110, 110, 0]], "OI": []}
         )
 
         with pytest.raises(ValueError, match="no owner level"):

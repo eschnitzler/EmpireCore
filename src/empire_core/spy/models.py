@@ -27,7 +27,7 @@ from empire_core.protocol.base import (
     read_or_none,
     readable_list,
 )
-from empire_core.protocol.js import ClientInt, js_truthy
+from empire_core.protocol.js import ClientInt, js_same_number, js_truthy, movement_targets
 
 from .risk import row_risk_flags
 
@@ -86,6 +86,16 @@ class SendSpyRequest(BaseRequest):
             self.horses_type = -1
             self.pay_to_travel = 1
         return self
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a csm reply is the movement this sent: its target area (``A.M.TA``) is ``TX``/``TY``.
+
+        Client: ``CSMCommand`` (bundle line 125996) reads the new movement from ``A``,
+        whose ``TA`` is the target area (``BasicMapmovementVO``). The spies' way home,
+        which the server pushes as a csm too (seen live), targets your own castle and
+        is not taken.
+        """
+        return isinstance(payload, dict) and movement_targets(payload.get("A"), self.target_x, self.target_y)
 
 
 class SendSpyResponse(BaseResponse):
@@ -182,6 +192,21 @@ class SpyScreenInfoRequest(BaseRequest):
     target_x: int = Field(alias="TX", description="Target map x")
     target_y: int = Field(alias="TY", description="Target map y")
     target_kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The target's kingdom")
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether an ssi reply is about this target: its ``TX``/``TY``, when both are set, are the ones asked for.
+
+        Client: ``CastleSpyData.parse_SSI`` (bundle line 139962) passes the reply's
+        position only when ``TX`` and ``TY`` are both truthy, and
+        ``CastleSpyDialog.onPreSpyInfoUpdate`` (bundle line 16398) ignores a reply
+        whose position is not the target's.
+        """
+        if not isinstance(payload, dict):
+            return False
+        x, y = payload.get("TX"), payload.get("TY")
+        if not (js_truthy(x) and js_truthy(y)):
+            return True
+        return js_same_number(x, self.target_x) and js_same_number(y, self.target_y)
 
 
 class SpyTargetArea(BasePayload):

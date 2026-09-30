@@ -13,7 +13,7 @@ from pydantic import Field, field_validator
 
 from empire_core.enums import Kingdom
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
-from empire_core.protocol.js import js_int
+from empire_core.protocol.js import js_int, js_same_number
 
 from .details import _RESOURCE_KEYS, CastleProductionArea
 
@@ -73,6 +73,17 @@ class GetResourcesRequest(BaseRequest):
         ),
     )
     kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a grc reply is about this castle: its ``AID``, when sent, is the one asked for.
+
+        Client: ``GRCCommand.exec`` (bundle line 123063) through
+        ``AreaDataUpdater.parseGRC`` (bundle line 131501), which applies a reply only
+        to the area whose id is its ``AID``.
+        """
+        if not isinstance(payload, dict) or "AID" not in payload:
+            return True
+        return js_same_number(payload["AID"], self.castle_id)
 
 
 class GetResourcesResponse(CastleResources, BaseResponse):
