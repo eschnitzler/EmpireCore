@@ -84,9 +84,19 @@ receive thread and the state executor for the life of the process.
 
 The login runs the game client's handshake, including its version check: set
 `EmpireConfig.client_version` to the current game client's version when the
-server raises `ClientVersionError`. After a login the server pushes a login
-token, kept in `client.login_token`; `EmpireClient(username=..., login_token=...)`
-logs in with it instead of the password.
+server raises `ClientVersionError`. Pick another server from its network's
+`network.xml`; the game and network ids come from the page the game runs in:
+
+```python
+from empire_core import EmpireClient, EmpireConfig, fetch_network_instances
+
+servers = fetch_network_instances(game_id=GAME_ID, network_id=NETWORK_ID)  # ids from the game page
+config = EmpireConfig.for_instance(servers[0], client_version="1.169.11")
+
+client = EmpireClient(username="your_user", password="your_pass", config=config)
+client.login()
+token = client.login_token  # pushed by the server; log in later with EmpireClient(username=..., login_token=token)
+```
 
 `login(recaptcha_token=...)` sends a reCAPTCHA v3 token (or calls a function for
 one) the way the browser does. The library cannot make one; logins work without

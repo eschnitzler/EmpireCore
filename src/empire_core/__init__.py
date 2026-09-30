@@ -19,7 +19,7 @@ from empire_core.castle.models.castles import CastleInfo
 from empire_core.client.client import EmpireClient
 from empire_core.commanders.models.equipment import Equipment
 from empire_core.commanders.models.roster import Castellan, Commander
-from empire_core.config import EmpireConfig
+from empire_core.config import EmpireConfig, NetworkInstance, fetch_network_instances, parse_network_instances
 from empire_core.enums import AttackType, EquipmentSlot, Kingdom, LootPriority, MapItemType, MovementType, SpyType
 from empire_core.exceptions import (
     AccountBannedError,
@@ -64,6 +64,9 @@ except PackageNotFoundError:  # pragma: no cover - exercised in tests via monkey
 __all__ = [
     "EmpireClient",
     "EmpireConfig",
+    "NetworkInstance",
+    "fetch_network_instances",
+    "parse_network_instances",
     "AccountPool",
     "Account",
     "accounts",

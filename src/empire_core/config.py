@@ -1,11 +1,17 @@
+import json
 import math
 import os
 import random
 import sys
 import time
+import xml.etree.ElementTree as ET
 from typing import Any
 
+import requests
 from pydantic import BaseModel, ConfigDict, Field
+
+from empire_core.exceptions import NetworkError
+from empire_core.protocol.js import js_number
 
 _AID_ENV_VAR = "EMPIRE_AID"
 _random = random.SystemRandom()
@@ -87,6 +93,138 @@ LOGIN_DEFAULTS: dict[str, Any] = {
 
 
 # ============================================================
+# Server list (network.xml)
+# ============================================================
+
+
+class NetworkInstance(BaseModel):
+    """
+    One game server (world) of a network, as ``network.xml`` lists it.
+
+    Client: ``NetworkXMLParser`` (dll line 20264)
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    instance_id: int = Field(description="The instance's id")
+    server: str = Field(description="Host name of the game server")
+    port: int = Field(description="Port of the game server")
+    zone: str = Field(description="Zone the login and every command name")
+    zone_id: int = Field(description="The zone's id")
+    instance_number: int = Field(description="Number of the world within its network")
+    is_international: bool = Field(description="The world is open to every country")
+    is_favorite: bool = Field(description="The world is marked as a favourite")
+    default_country: str = Field(description="Code of the world's default country")
+    instance_loca_id: str = Field(description="Localization key of the world's name")
+    countries: list[str] = Field(description="Codes of the countries the world is for")
+
+    @property
+    def game_url(self) -> str:
+        """The WebSocket URL of this server; the client always connects on port 443."""
+        return f"wss://{self.server}:443"
+
+
+def network_config_url(game_id: int, network_id: int) -> str:
+    """
+    The URL of a network's ``network.xml``.
+
+    The ids come from the page the game is embedded in, not from the client.
+
+    Client: ``LiveEnvironment.initPatterns`` (dll line 3894)
+    """
+    return f"https://content.goodgamestudios.com/games-netconf/{game_id}/{network_id}.xml"
+
+
+def _first(node: ET.Element, tag: str) -> ET.Element | None:
+    return next((child for child in node.iter(tag) if child is not node), None)
+
+
+def _text(node: ET.Element, tag: str) -> str:
+    found = _first(node, tag)
+    return (found.text or "") if found is not None else ""
+
+
+def _number(node: ET.Element, tag: str) -> int:
+    found = _first(node, tag)
+    return int(js_number(found.text or "")) if found is not None else 0
+
+
+def _countries(text: str) -> list[str]:
+    if not text or text == "null" or len(text) < 6:
+        return []
+    try:
+        codes = json.loads(text)
+    except ValueError:
+        return []
+    return [code for code in codes if isinstance(code, str)] if isinstance(codes, list) else []
+
+
+def _instance(node: ET.Element) -> NetworkInstance:
+    return NetworkInstance(
+        instance_id=int(js_number(node.get("value", ""))) if node.get("value") is not None else 0,
+        server=_text(node, "server"),
+        port=_number(node, "port"),
+        zone=_text(node, "zone"),
+        zone_id=_number(node, "zoneId"),
+        instance_number=_number(node, "instanceName"),
+        is_international=_text(node, "isInternational") == "1",
+        is_favorite=_text(node, "isFavorite") == "1",
+        default_country=_text(node, "defaultcountry"),
+        instance_loca_id=_text(node, "instanceLocaId"),
+        countries=_countries(_text(node, "countries")),
+    )
+
+
+def parse_network_instances(xml_text: str, include_test: bool = False) -> list[NetworkInstance]:
+    """
+    The servers a ``network.xml`` lists under ``instances``, and under ``test-instances`` too with ``include_test``.
+
+    Country codes are kept as the file gives them (the client also drops the
+    ones it has no country for), and a countries list that is not JSON reads
+    as none, where the client would fail the whole file.
+
+    Raises:
+        ValueError: The text is not XML, or declares a DTD
+
+    Client: ``NetworkXMLParser.parseInstances`` and ``parseTestInstances`` (dll line 20254),
+    ``NetworkInstancesController.loadNetworkInstances`` (dll line 20233)
+    """
+    lowered = xml_text.lower()
+    if "<!doctype" in lowered or "<!entity" in lowered:
+        raise ValueError("network.xml must not declare a DTD")
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError as e:
+        raise ValueError(f"network.xml is not XML: {e}") from e
+    tags = ["instances", "test-instances"] if include_test else ["instances"]
+    instances: list[NetworkInstance] = []
+    for tag in tags:
+        section = next(root.iter(tag), None)
+        if section is not None:
+            instances.extend(_instance(child) for child in section)
+    return instances
+
+
+def fetch_network_instances(
+    game_id: int, network_id: int, include_test: bool = False, timeout: float = 10.0
+) -> list[NetworkInstance]:
+    """
+    Download a network's ``network.xml`` and read its servers.
+
+    Raises:
+        NetworkError: The file could not be downloaded
+        ValueError: The file is not XML
+    """
+    url = network_config_url(game_id, network_id)
+    try:
+        response = requests.get(url, timeout=timeout)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        raise NetworkError(f"Could not load {url}: {e}") from e
+    return parse_network_instances(response.text, include_test=include_test)
+
+
+# ============================================================
 # Configuration
 # ============================================================
 
@@ -125,6 +263,11 @@ class EmpireConfig(BaseModel):
     def build_number(self) -> str:
         """The build number of :attr:`client_version`."""
         return build_number(self.client_version)
+
+    @classmethod
+    def for_instance(cls, instance: NetworkInstance, **fields: Any) -> "EmpireConfig":
+        """A config for one server of ``network.xml``: its URL and zone, and ``fields`` for the rest."""
+        return cls(game_url=instance.game_url, default_zone=instance.zone, **fields)
 
 
 class _FrozenEmpireConfig(EmpireConfig):
