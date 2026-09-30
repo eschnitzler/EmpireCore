@@ -59,7 +59,7 @@ class RankingService(BaseService):
         list_type: RankingType,
         rank: int,
         max_results: int,
-        league_type_id: int = -1,
+        league_type_id: int,
         sub_division_id: int | None = None,
         event_id: int | None = None,
         timeout: float = 5.0,
@@ -76,7 +76,12 @@ class RankingService(BaseService):
             list_type: The event's highscore list (LT), e.g. ``RankingType.LONG_TERM_POINT_EVENT``
             rank: The first rank on the page
             max_results: Entries per page (M)
-            league_type_id: The event's league (LID), or -1 for none, as the donation ranking sends
+            league_type_id: The league (LID): the league of the event whose leaderboard it is, as its
+                sei entry names it (``client.events.get_league_id(event_id)``), or another of its
+                leagues 1 to its league count; -1 only for the donation ranking. The client pairs
+                ``RankingType.LONG_TERM_POINT_EVENT`` (53) with event 83
+                (``LongtermPointEventGlobalLeaderBoardDialog``, bundle line 100411); the other
+                dialogs are given their event
             sub_division_id: The alliance event subdivision (SDI), for an alliance event's subdivision ranking
             event_id: The alliance mobilisation or raid event (EID), for those events' rankings
             timeout: Timeout in seconds
@@ -99,7 +104,7 @@ class RankingService(BaseService):
         self,
         list_type: RankingType,
         max_results: int,
-        league_type_id: int = -1,
+        league_type_id: int,
         sub_division_id: int | None = None,
         event_id: int | None = None,
         timeout: float = 5.0,
@@ -110,13 +115,18 @@ class RankingService(BaseService):
         Args:
             list_type: The event's highscore list (LT)
             max_results: Entries per page (M)
-            league_type_id: The event's league (LID), or -1 for none
+            league_type_id: The league (LID), as for :meth:`get_ranking_list`: the event's league,
+                ``client.events.get_league_id(event_id)``
             sub_division_id: The alliance event subdivision (SDI), as for :meth:`get_ranking_list`
             event_id: The alliance mobilisation or raid event (EID), as for :meth:`get_ranking_list`
             timeout: Timeout in seconds
 
         Returns:
             The entries on your page
+
+        Raises:
+            CommandError: a live server refused a long-term point list's own page with
+                league -1 (GENERAL_ERROR, 1) and answered it with the event's league
 
         Client: ``LeaderBoardDataProvider.getCurrentPlayerPage`` (bundle line 75941)
         """
@@ -135,7 +145,7 @@ class RankingService(BaseService):
         list_type: RankingType,
         score_id: str,
         max_results: int,
-        league_type_id: int | None = -1,
+        league_type_id: int | None,
         sub_division_id: int | None = None,
         event_id: int | None = None,
         timeout: float = 5.0,
@@ -147,7 +157,8 @@ class RankingService(BaseService):
             list_type: The event's highscore list (LT)
             score_id: A score id from :meth:`search_leaderboard` (SI); empty for your own page
             max_results: Entries per page (M)
-            league_type_id: The league the score is in (LID), the search result's ``league_type_id``
+            league_type_id: The league the score is in (LID): the search result's ``league_type_id``,
+                or for your own page (empty ``score_id``) the event's league, as for :meth:`get_ranking_list`
             sub_division_id: The alliance event subdivision (SDI), as for :meth:`get_ranking_list`
             event_id: The alliance mobilisation or raid event (EID), as for :meth:`get_ranking_list`
             timeout: Timeout in seconds
@@ -175,7 +186,9 @@ class RankingService(BaseService):
 
         Page to a hit with :meth:`get_ranking_window`, passing its
         ``league_type_id`` and one of its ``score_ids``; the client pages to
-        the first hit, or to your own page when there is none.
+        the first hit, or to your own page when there is none. The search
+        itself takes no league: ``C2SSearchLeaderboardScoresEventVO`` sends
+        only ``LT`` and ``SV``, and the answer groups the hits by league.
 
         Args:
             list_type: The event's highscore list (LT)

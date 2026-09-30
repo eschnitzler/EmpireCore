@@ -65,6 +65,7 @@ class StateBase:
 
         # Active Events
         self.active_event_ids: list[int] = []
+        self.event_league_ids: dict[int, int] = {}
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}

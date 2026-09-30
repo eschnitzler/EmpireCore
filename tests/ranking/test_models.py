@@ -4,6 +4,7 @@ import json
 import logging
 
 import pytest
+from pydantic import ValidationError
 
 from empire_core.alliance.models.search import SearchAllianceRequest
 from empire_core.enums import RankingType
@@ -134,13 +135,18 @@ class TestRankingListRequest:
         assert list(request.to_payload().items()) == [("LT", 53), ("LID", 2), ("M", 8), ("R", 41)]
 
     def test_defaults_match_the_client(self):
-        # C2SListLeaderboardScoresPageVO: LID=-1, R=1; M has no default
-        assert GetRankingListRequest(LT=RankingType.ALLIANCE_MOBILISATION_EVENT, M=10).to_payload() == {
+        # C2SListLeaderboardScoresPageVO: R=1; M has no default
+        assert GetRankingListRequest(LT=RankingType.ALLIANCE_MOBILISATION_EVENT, LID=4, M=10).to_payload() == {
             "LT": 84,
-            "LID": -1,
+            "LID": 4,
             "M": 10,
             "R": 1,
         }
+
+    def test_the_league_is_required(self):
+        # LeaderBoardDataProvider sends the league it was built with on every page
+        with pytest.raises(ValidationError):
+            GetRankingListRequest(LT=RankingType.LONG_TERM_POINT_EVENT, M=10)  # type: ignore[call-arg]
 
     def test_alliance_event_keys_follow_the_vo_keys(self):
         # LeaderBoardDataProvider.sendCommand copies {SDI, EID} onto the VO after its constructor
@@ -163,17 +169,21 @@ class TestRankingWindowRequest:
 
         assert list(request.to_payload().items()) == [("LT", 53), ("LID", 3), ("M", 8), ("SI", "1234")]
 
-    def test_own_page_sends_an_empty_score_id_and_no_league(self):
+    def test_own_page_sends_an_empty_score_id_and_the_league(self):
         # getCurrentPlayerPage: new C2SListLeaderboardScoresWindowVO(LT, LID, M), SI defaults to ""
-        assert GetRankingWindowRequest(LT=RankingType.POINT_EVENT, M=8).to_payload() == {
+        assert GetRankingWindowRequest(LT=RankingType.POINT_EVENT, LID=2, M=8).to_payload() == {
             "LT": 40,
-            "LID": -1,
+            "LID": 2,
             "M": 8,
             "SI": "",
         }
 
+    def test_the_league_is_required(self):
+        with pytest.raises(ValidationError):
+            GetRankingWindowRequest(LT=RankingType.POINT_EVENT, M=8)  # type: ignore[call-arg]
+
     def test_score_id_is_encoded_as_the_client_encodes_text(self):
-        request = GetRankingWindowRequest(LT=RankingType.POINT_EVENT, M=8, SI='a"b')
+        request = GetRankingWindowRequest(LT=RankingType.POINT_EVENT, LID=1, M=8, SI='a"b')
 
         assert json.loads(request.to_packet().split("%", 5)[5][:-1])["SI"] == "a&quot;b"
 
@@ -184,7 +194,7 @@ class TestRankingWindowRequest:
         assert request.to_payload() == {"LT": 40, "M": 8, "SI": "5"}
 
     def test_alliance_event_keys_follow_the_vo_keys(self):
-        request = GetRankingWindowRequest(LT=RankingType.ALLIANCE_RAID_MOBILISATION_EVENT, M=10, EID=112)
+        request = GetRankingWindowRequest(LT=RankingType.ALLIANCE_RAID_MOBILISATION_EVENT, LID=1, M=10, EID=112)
 
         assert list(request.to_payload()) == ["LT", "LID", "M", "SI", "EID"]
 

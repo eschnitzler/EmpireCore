@@ -44,11 +44,21 @@ class TestRankingService:
         payload = {"L": [{"R": 3, "S": 500, "P": "SomePlayer", "A": "SomeAlliance"}], "T": 1000}
         client = make_client({"llsp": xt_packet("llsp", payload)})
 
-        entries = client.ranking.get_ranking_list(list_type=RankingType.LONG_TERM_POINT_EVENT, rank=3, max_results=8)
+        entries = client.ranking.get_ranking_list(
+            list_type=RankingType.LONG_TERM_POINT_EVENT, rank=3, max_results=8, league_type_id=3
+        )
 
         assert (entries[0].rank, entries[0].score) == (3, 500)
         assert (entries[0].name, entries[0].alliance_name) == ("SomePlayer", "SomeAlliance")
-        assert conn(client).request_payloads == [("llsp", {"LT": 53, "LID": -1, "M": 8, "R": 3})]
+        assert conn(client).request_payloads == [("llsp", {"LT": 53, "LID": 3, "M": 8, "R": 3})]
+
+    def test_the_donation_ranking_sends_no_league(self):
+        # DonationEventDialogRanking: GlobalLeaderBoardComponent.init(highscoreID), so LID -1
+        client = make_client({"llsp": xt_packet("llsp", {"L": [], "T": 0})})
+
+        client.ranking.get_ranking_list(RankingType.LONG_TERM_POINT_EVENT, 1, 10, -1)
+
+        assert conn(client).request_payloads == [("llsp", {"LT": 53, "LID": -1, "M": 10, "R": 1})]
 
     def test_ranking_list_sends_the_alliance_event_keys(self):
         client = make_client({"llsp": xt_packet("llsp", {"L": [], "T": 0})})

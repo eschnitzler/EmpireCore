@@ -196,14 +196,17 @@ class GetRankingListRequest(BaseRequest):
     Payload: {"LT": list_type, "LID": league_type_id, "M": max_results, "R": rank}
 
     The client pages only event leaderboards this way (score, long-term
-    point, alliance mobilisation/raid and donation events). ``LID`` is the
-    event's league, or -1: the score and long-term point dialogs start at the
-    event's league and page through leagues 1 to the event's league count
-    (``GlobalLeaderBoardLeagueComponent``, bundle line 100470), the alliance
-    mobilisation dialog passes the event's league, and the donation ranking
-    passes none, so -1. A live server answered NO_EVENT
-    (145) for every list with no event running, the regular highscore
-    lists included; read those with ``hgh``.
+    point, alliance mobilisation/raid and donation events), and always with
+    a league: ``LeaderBoardDataProvider`` sends the league it was built with
+    on every page. The score and long-term point dialogs build it with the
+    event's league, the ``LID`` of the event's sei entry, and page through
+    leagues 1 to the event's league count (``GlobalLeaderBoardLeagueComponent``,
+    bundle line 100470; ``AScoreEventVO.parseBasicsFromParamObject``, bundle
+    line 14967); the alliance mobilisation dialog passes the event's league
+    (bundle line 47284); only the donation ranking passes none, so -1 (bundle
+    line 115740). A live server answered NO_EVENT (145) for every list with
+    no event running, the regular highscore lists included; read those with
+    ``hgh``.
 
     Client: ``C2SListLeaderboardScoresPageVO`` (bundle line 76002), sent by
     ``LeaderBoardDataProvider`` (bundle line 75933), which only
@@ -226,8 +229,7 @@ class GetRankingListRequest(BaseRequest):
     list_type: RankingType = Field(alias="LT", description="The highscore list")
     league_type_id: int = Field(
         alias="LID",
-        default=-1,
-        description="The event's league, a level band (see GameData.league_type); -1 for none",
+        description="The event's league, a level band (see GameData.league_type); -1 for the donation ranking",
     )
     max_results: int = Field(alias="M", description="Entries per page")
     rank: int = Field(alias="R", default=1, description="The first rank on the page")
@@ -245,8 +247,11 @@ class GetRankingWindowRequest(BaseRequest):
 
     ``SI`` is a score id from a ``slse`` search result, or empty for the page
     holding your own score; the client encodes it as it encodes any text it
-    sends. The reply is shaped like ``llsp``'s. ``SDI`` and ``EID`` are sent as
-    for ``llsp``.
+    sends. The reply is shaped like ``llsp``'s. ``LID``, ``SDI`` and ``EID``
+    are sent as for ``llsp``: your own page goes with the event's league,
+    a search hit's page with the hit's league. A live server refused a
+    long-term point list's own page with league -1 (GENERAL_ERROR, 1) and
+    answered it with the event's league.
 
     Client: ``C2SListLeaderboardScoresWindowVO`` (bundle line 76012), sent by
     ``LeaderBoardDataProvider.getCurrentPlayerPage`` (bundle line 75941) with no
@@ -259,8 +264,10 @@ class GetRankingWindowRequest(BaseRequest):
     list_type: RankingType = Field(alias="LT", description="The highscore list")
     league_type_id: int | None = Field(
         alias="LID",
-        default=-1,
-        description="The event's league, a level band (see GameData.league_type); -1 for none",
+        description=(
+            "The event's league, or a search hit's, a level band (see GameData.league_type); "
+            "-1 for the donation ranking, None for a hit without one"
+        ),
     )
     max_results: int = Field(alias="M", description="Entries per page")
     score_id: str = Field(

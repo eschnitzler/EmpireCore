@@ -26,6 +26,22 @@ class EventsService(BaseService):
         """
         return list(self.client.state.active_event_ids)  # Return copy, not reference
 
+    def get_league_id(self, event_id: int) -> int | None:
+        """
+        Get the league your score is in for an event, the ``LID`` of its sei entry.
+
+        Pass it as ``league_type_id`` to ``client.ranking.get_ranking_list``,
+        ``get_own_ranking_page`` and ``get_ranking_window``, as the client's
+        leaderboard dialogs do.
+
+        Returns:
+            The league, or None when no sei entry for the event gave one
+
+        Client: ``AScoreEventVO.parseBasicsFromParamObject`` (bundle line 14967),
+        read by ``GlobalLeaderBoardLeagueComponent`` (bundle line 100470)
+        """
+        return self.client.state.get_event_league_id(event_id)
+
     def get_active_events(
         self,
         lang: str = "en",

@@ -5,6 +5,7 @@ import math
 import time
 from typing import Any
 
+from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase
 from empire_core.state.models import Alliance, Player
 
@@ -244,19 +245,36 @@ class PlayerState(StateBase):
             logger.debug(f"Updated {len(entries)} special currencies from sce")
 
     def _handle_sei(self, data: dict[str, Any]) -> None:
-        """Handle 'Send Event Information' packet."""
+        """Handle 'Send Event Information' packet.
+
+        An entry's ``LID``, when truthy, becomes its event's league; an entry
+        without one leaves the league the event had.
+
+        Client: ``CastleSpecialEventData.parse_SEI`` (bundle line 139800) updates
+        the event it already has or adds it; ``AScoreEventVO.parseBasicsFromParamObject``
+        (bundle line 14967) reads ``t.LID&&(this._leagueID=int(t.LID))``
+        """
         events = data.get("E", [])
         if not isinstance(events, list):
             return
 
         active_ids: list[int] = []
+        leagues = dict(self.event_league_ids)
         for event in events:
             if isinstance(event, dict):
                 eid = event.get("EID")
                 if isinstance(eid, int):
                     active_ids.append(eid)
+                    if js_truthy(league := event.get("LID")):
+                        leagues[eid] = js_int(league)
 
         self.active_event_ids = active_ids
+        self.event_league_ids = leagues
+
+    def get_event_league_id(self, event_id: int) -> int | None:
+        """The league (``LID``) the sei packets last gave an event, or None when they never gave one."""
+        with self._lock:
+            return self.event_league_ids.get(event_id)
 
     def get_local_player(self) -> Player | None:
         """Get a snapshot of the local player, or None before login.
