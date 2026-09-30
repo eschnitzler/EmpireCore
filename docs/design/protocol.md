@@ -1,65 +1,73 @@
-# Protocol Specification
+Checked against client release: a4a25ae6
 
-Goodgame Empire uses a custom implementation of the SmartFoxServer (SFS) 2.X protocol. It operates over TCP or WebSockets and involves a mix of XML (for handshake) and a custom delimited string format (for gameplay).
+# Protocol
 
-## 1. Connection Phase
+Goodgame Empire speaks a SmartFoxServer dialect over a WebSocket
+(`wss://<host>:<port>`). The handshake is XML system messages; everything after
+it is `%xt%` extension messages. Every frame ends with a null byte.
 
-The connection follows a strict sequence:
+Line numbers below are `ggs.dll.split.js` lines (see the roadmap issue for how
+to fetch and split the client); search by the class name when they drift.
 
-1.  **Policy Request**: The client requests `cross-domain-policy`.
-2.  **Version Check (`verChk`)**: Client sends XML to verify client version.
-    *   Format: `<msg t='sys'><body action='verChk' r='0'><ver v='166' /></body></msg>`
-3.  **Zone Login (`login`)**: Client joins the zone with an empty nick and a
-    connection token (not the real credentials).
-    *   Format: `<msg t='sys'><body action='login' r='0'><login z='EmpireEx_21'><nick><![CDATA[]]></nick><pword><![CDATA[{CONM}%en%0]]></pword></login></body></msg>`
-4.  **Room Join (`autoJoin`)**: Client requests to join the default server room.
-5.  **Account Login (`lli`)**: The real authentication — an `%xt%` packet whose
-    JSON payload carries the username (`NOM`) and password (`PW`).
+## 1. Handshake
 
-## 2. Command Format (Extension Requests)
+What the HTML5 client does (`BasicSmartfoxClient`, dll lines 7132-7240):
 
-Once logged in, communication switches to the `%xt%` format.
+1. **`verChk`**, sent as soon as the socket opens (there is no policy request):
+   `<msg t='sys'><body action='verChk' r='0'><ver v='166' /></body></msg>`
+2. **`apiOK`** comes back. The client then logs in to the zone with an empty
+   nick and `<build date>%<language>%<distributor id>` as the password
+   (`handleSystemMessage`, `login`):
+   `<msg t='sys'><body action='login' r='0'><login z='EmpireEx_21'><nick><![CDATA[]]></nick><pword><![CDATA[...]]></pword></login></body></msg>`
+3. **`rlu`** (room list, an `%xt%` message) comes back; the client sends
+   `autoJoin` once: `<msg t='sys'><body action='autoJoin' r='-1'></body></msg>`.
+4. **`joinOK`** comes back. Its `r` attribute is the room id the client sends in
+   every later `%xt%` message (`activeRoomId`).
+5. In the lobby room the client measures a `roundTrip` (answered by
+   `roundTripRes`), starts a `pin` every 60 seconds (`onJoinRoom`) and sends
+   `vck` with the build number, `web-html5`, an empty string and the session
+   id (`BasicJoinedRoomCommand`, dll line 33011).
+6. **`lli`**: the account login, whose JSON payload carries the name (`NOM`)
+   and password (`PW`).
 
-### Structure
-`%xt%{ZoneName}%{CommandName}%{RequestId}%{Payload}%`
+What the library does today (`EmpireClient._login_sequence`): `verChk`, then
+the zone login with `<CONM>%en%0` as the password, `autoJoin`, `roundTrip`, and
+`lli`. It sends no `vck` and pings from its own keepalive thread. Section 2
+lists where its `%xt%` messages differ too.
 
-*   `xt`: Extension header.
-*   `ZoneName`: Usually `EmpireEx_21`.
-*   `CommandName`: Short code for the action (e.g., `lli` for Load Login Info, `gam` for Game Map).
-*   `RequestId`: Incremental integer (client-side tracking).
-*   `Payload`: Often a JSON string, but sometimes delimited arguments.
+## 2. Extension messages
 
-### Example: Sending an Attack
-To send an attack, the client constructs a JSON payload describing the army and target, then wraps it:
+`%xt%<zone>%<command>%<room id>%<argument>%...%`
 
-```python
-payload = {
-    "K": 0,   # Kingdom ID
-    "T": 123, # Target Castle ID
-    "U": [...] # Unit List
-}
-packet = f"%xt%EmpireEx_21%att%1%{json.dumps(payload)}%"
+- **zone**: `EmpireEx_21` unless configured otherwise.
+- **command**: the command id, for example `gaa` or `cra`. The ids the client
+  knows are in `tests/data/client_commands.json` (see `CONTRIBUTING.md`).
+- **room id**: the id from `joinOK`; `BaseRequest.to_packet` always sends `1`.
+- **arguments**: nearly every command has one, `JSON.stringify` of its
+  `C2S...VO` (`sendCommandVO`). A few, such as `vck` and `pin`, send plain
+  `%`-separated arguments. Before sending, the client turns every `%` in a
+  string argument into `&percnt;` and drops every `'`
+  (`sendMessage`, `TextValide.getValideSmartFoxText`, dll line 5816).
+  `BaseRequest.to_packet` does not, so a backslash in a text field, which
+  `encode_json_text` writes as `%5C`, goes out as a raw `%` inside the message.
+
+A reply is `%xt%<command>%<room id>%<error code>%<JSON>%`; an error code other
+than 0 is a failure.
+
+Example, a `gaa` map request as the client builds it (`C2SGetAreasVO`, bundle line 65991):
+
+```
+%xt%EmpireEx_21%gaa%<room id>%{"KID":0,"AX1":0,"AY1":0,"AX2":12,"AY2":12}%
 ```
 
-## 3. Packet Handling Strategy
+## 3. In the library
 
-### Inbound Parsing
-1.  **Splitter**: The stream buffer is split by the null byte `\x00` or specific delimiters.
-2.  **Router**: The `CommandName` (3rd token) is extracted.
-3.  **Decoder**:
-    *   If the payload looks like JSON (`{...}`), it is parsed as JSON.
-    *   If it looks like CSV, it is split by `%`.
-4.  **Dispatcher**: The parsed data is sent to the relevant `Handler` (e.g., `AttackHandler`).
-
-### Outbound Serialization
-We will use `dataclasses` to define packet structures, which are then serialized by the `NetworkLayer`.
-
-```python
-@dataclass
-class LoginPacket:
-    username: str
-    password_hash: str
-    
-    def to_sfs(self) -> str:
-        return f"<msg...><pword>{self.password_hash}</pword>...</msg>"
-```
+- `protocol/packet.py`: `Packet.iter_from_bytes` splits a frame on null bytes
+  and `Packet.from_bytes` parses one message, XML or `%xt%`, splitting at most
+  five times so a `%` in the JSON survives.
+- `protocol/base.py`: each command's request model subclasses `BaseRequest`
+  (`to_payload`, `to_packet`); each reply model subclasses `BaseResponse` and
+  registers itself for its command, so `parse_response(command, payload)` finds
+  it.
+- `network/connection.py`: the receive loop and the waiters that
+  `EmpireClient.send` / `request` block on; see [architecture.md](architecture.md).
