@@ -1,0 +1,35 @@
+name: Client commands
+
+# Weekly: extract the command tables from the live game client and fail when
+# they differ from tests/data/client_commands.json, which happens on every new
+# client release as well as when a command is dropped or renamed. The log lists
+# every change and any command the library registers that the client lacks.
+# Regenerate with scripts/extract_client_commands.py --download and commit.
+
+on:
+  schedule:
+    - cron: "41 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --extra dev --locked
+
+      - name: Compare with the live client
+        run: uv run --locked python scripts/extract_client_commands.py --download --check
