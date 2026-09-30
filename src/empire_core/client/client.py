@@ -211,6 +211,19 @@ class EmpireClient:
         self.is_logged_in = False
         logger.warning(f"Client {self.username} disconnected unexpectedly")
 
+    def on_disconnect(self, callback: Callable[[], None]) -> None:
+        """Register a callback for the session dropping on its own; :meth:`close` does not fire it.
+
+        Runs on the receive thread as it shuts down, after ``is_logged_in`` is
+        cleared, and fires once per dropped session. Keep it short and hand a
+        re-login to another thread. Registering the same callback twice is a no-op.
+        """
+        self.connection.add_disconnect_listener(callback)
+
+    def remove_disconnect_callback(self, callback: Callable[[], None]) -> None:
+        """Remove a callback added with :meth:`on_disconnect`; unknown callbacks are ignored."""
+        self.connection.remove_disconnect_listener(callback)
+
     def login(self) -> bool:
         """
         Perform the full login sequence:
