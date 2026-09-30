@@ -1,11 +1,3 @@
-<p align="center">
-  <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/pydantic-v2-purple.svg" alt="Pydantic v2">
-  <img src="https://img.shields.io/badge/typed-py.typed-brightgreen.svg" alt="PEP 561 typed">
-  <img src="https://img.shields.io/badge/tool-uv-orange.svg" alt="UV">
-  <img src="https://img.shields.io/badge/status-WIP-red.svg" alt="Work in Progress">
-</p>
-
 <h1 align="center">EmpireCore</h1>
 
 <p align="center">
@@ -13,669 +5,123 @@
 </p>
 
 <p align="center">
-  <a href="#installation">Installation</a> •
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#services">Services</a> •
-  <a href="#game-state">Game State</a> •
-  <a href="#map-scanning">Map Scanning</a> •
-  <a href="#error-handling">Errors</a> •
-  <a href="#contributing">Contributing</a> •
-  <a href="#contact">Contact</a>
+  <a href="https://pypi.org/project/empire-core/"><img src="https://img.shields.io/pypi/v/empire-core.svg" alt="PyPI"></a>
+  <a href="https://pypi.org/project/empire-core/"><img src="https://img.shields.io/pypi/pyversions/empire-core.svg" alt="Python versions"></a>
+  <a href="https://github.com/eschnitzler/EmpireCore/actions/workflows/ci.yml"><img src="https://github.com/eschnitzler/EmpireCore/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://eschnitzler.github.io/EmpireCore/"><img src="https://github.com/eschnitzler/EmpireCore/actions/workflows/docs.yml/badge.svg" alt="Docs"></a>
+  <img src="https://img.shields.io/badge/typed-py.typed-brightgreen.svg" alt="PEP 561 typed">
+  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT licence">
+</p>
+
+<p align="center">
+  <a href="https://eschnitzler.github.io/EmpireCore/"><strong>Documentation</strong></a> ·
+  <a href="https://eschnitzler.github.io/EmpireCore/getting-started/">Getting started</a> ·
+  <a href="https://eschnitzler.github.io/EmpireCore/guides/">Guides</a> ·
+  <a href="https://eschnitzler.github.io/EmpireCore/reference/">API reference</a> ·
+  <a href="https://github.com/eschnitzler/EmpireCore/blob/master/CHANGELOG.md">Changelog</a>
 </p>
 
 ---
 
-> [!WARNING]
-> **Work in progress.** This is a `0.x` library: every **minor** release may
-> break API, and breaking changes are called out in
-> [CHANGELOG.md](CHANGELOG.md). Pin a minor line (`empire-core>=0.30,<0.31`).
+EmpireCore logs in to Goodgame Empire the way the game's own client does, then
+gives you typed services for your castles, army, commanders, alliance, mail,
+spies and the world map. Every request and reply is a pydantic model written
+against the game client's code, every failure is a typed exception, and a
+background thread keeps a thread-safe picture of your account current while
+your code runs.
 
----
+> [!WARNING]
+> **Pre-1.0.** Every minor release may break the API, and the
+> [changelog](https://github.com/eschnitzler/EmpireCore/blob/master/CHANGELOG.md)
+> lists each breaking change. Pin a minor line, such as `empire-core>=0.41,<0.42`.
 
 ## What you get
 
-| | |
-|---|---|
-| **Typed end to end** | Pydantic v2 models for every command, and a `py.typed` marker so your type checker actually sees them |
-| **Honest failures** | Typed exceptions from a single `EmpireError` base — no leaked pydantic or socket errors, and no empty list that secretly means "the request failed" |
-| **Thread-safe state** | A background thread applies server pushes while your code reads consistent snapshots |
-| **High-level services** | `client.alliance`, `client.attack`, `client.castle`, `client.army`, `client.commanders`, `client.equipment`, `client.skills`, `client.ranking`, `client.spy`, `client.map`, `client.movements`, `client.player`, `client.defense`, `client.events` |
-| **Map scanning** | BFS kingdom discovery with cheap, targeted re-scans |
-| **Multi-account** | A pool that leases one logged-in client per account |
+- **Services for the whole game**: `client.alliance`, `castle`, `army`,
+  `attack`, `commanders`, `equipment`, `skills`, `spy`, `map`, `movements`,
+  `messages`, `player`, `defense`, `ranking` and `events`.
+- **Typed end to end**: pydantic v2 models with snake_case fields over the wire
+  keys, and a `py.typed` marker so your type checker sees them.
+- **Honest failures**: one `EmpireError` base, no leaked pydantic or socket
+  errors, and no empty list that secretly means "the request failed".
+- **Live, thread-safe state** with callbacks for incoming attacks, arrivals and
+  recalls.
+- **Wave filling** from nothing but a target's coordinates, the way the game's
+  "Fill waves" button does it.
+- **Fast map scans** and an **account pool** for running many accounts.
 
-## Installation
+## Install
 
 ```bash
 uv add empire-core        # or: pip install empire-core
 ```
 
-<details>
-<summary><strong>Developing on the library itself</strong></summary>
+Python 3.10 or newer.
+
+## Quick start
+
+```python
+from empire_core import EmpireClient, Kingdom, MapItemType
+
+with EmpireClient(username="your_user", password="your_pass") as client:
+    client.login()
+
+    for castle in client.castle.get_all():
+        print(f"{castle.castle_name} at ({castle.x}, {castle.y})")
+
+    scan = client.map.scan_kingdom(Kingdom.GREEN, item_types=[MapItemType.CASTLE])
+    print(f"{len(scan.items)} castles, {len(scan.failed_chunks)} chunks failed")
+
+    client.state.on_incoming_attack(lambda m: print("incoming from", m.source_player_name))
+```
+
+The [getting started guide](https://eschnitzler.github.io/EmpireCore/getting-started/)
+covers choosing a server, login tokens, reading state and handling errors.
+
+## Highlights
+
+- **Checked against the game client.** Requests follow the client's own
+  command objects, key order included; models cite the client class and line
+  they mirror; and the command ids are checked weekly against the live client.
+- **Live-verified where the code can't tell.** Where the client's code cannot
+  settle what the server does, the library goes by what a live server did and
+  says so, and the docs mark what is still unknown.
+- **Fast scans.** Map requests go out back to back, as the client sends them:
+  a live scan of 289 chunks ran at about 17 requests a second without a
+  refusal. Re-scanning only the chunks that held anything takes roughly a third
+  fewer requests.
+
+## Documentation
+
+Everything else lives at **<https://eschnitzler.github.io/EmpireCore/>**: a
+guide for each part of the game, diagrams of the login and request flow, and an
+API reference generated from the source with every model's fields, wire keys
+and descriptions. Runnable scripts are in
+[`examples/`](https://github.com/eschnitzler/EmpireCore/tree/master/examples).
+
+## Contributing
+
+Contributions are welcome. See
+[CONTRIBUTING.md](https://github.com/eschnitzler/EmpireCore/blob/master/CONTRIBUTING.md)
+for adding protocol commands and services, the model conventions and the tests.
 
 ```bash
 git clone https://github.com/eschnitzler/EmpireCore.git
 cd EmpireCore
-uv sync --extra dev     # `dev` is an extra, not a default group:
-                        # a plain `uv sync` leaves you without pytest/ruff/mypy
+uv sync --extra dev
 uv run pytest
 ```
-
-</details>
-
-## Quick Start
-
-```python
-from empire_core import EmpireClient
-
-# The context manager disconnects and shuts the state worker down on any exit.
-with EmpireClient(username="your_user", password="your_pass") as client:
-    client.login()
-
-    client.alliance.send_chat("Hello alliance!")
-
-    for castle in client.castle.get_all():
-        print(f"{castle.castle_name} at ({castle.x}, {castle.y})")
-```
-
-Without the `with` block, call `client.close()` yourself — skipping it leaks the
-receive thread and the state executor for the life of the process.
-
-### Logging in
-
-The login runs the game client's handshake, including its version check: set
-`EmpireConfig.client_version` to the current game client's version when the
-server raises `ClientVersionError`. Pick another server from its network's
-`network.xml`; the game and network ids come from the page the game runs in:
-
-```python
-from empire_core import EmpireClient, EmpireConfig, fetch_network_instances
-
-servers = fetch_network_instances(game_id=GAME_ID, network_id=NETWORK_ID)  # ids from the game page
-config = EmpireConfig.for_instance(servers[0], client_version="1.169.11")
-
-client = EmpireClient(username="your_user", password="your_pass", config=config)
-client.login()
-# The server pushes the token just after gbd, so it is set shortly after login() returns.
-token = client.login_token  # log in later with EmpireClient(username=..., login_token=token)
-```
-
-`login(recaptcha_token=...)` sends a reCAPTCHA v3 token (or calls a function for
-one) the way the browser does. The library cannot make one; logins work without
-it today.
-
-## Services
-
-Services are attached to the client automatically; there is nothing to wire up.
-
-### `client.alliance`
-
-```python
-client.alliance.send_chat("Hello!")
-client.alliance.help_all()
-
-# The alliance help list, filled from the login data and kept current from the pushes. As the client
-# lists them: skip requests you already helped, your own, and finished ones
-# (progress at the help type's maxHelpersCount in the items data's
-# alliancehelprequests: 3, or 5 for healing and 20 for loop recruiting in v786.03)
-max_helpers = {1: 3, 2: 5, 3: 3, 4: 3, 5: 20, 6: 3}
-my_id = client.state.local_player.id
-for request in client.alliance.help_requests:
-    finished = request.progress >= max_helpers.get(request.help_type, 0)
-    if not (request.already_confirmed or finished or request.player_id == my_id):
-        client.alliance.help_member(request)
-
-# Applications, ranks and the treasury
-from empire_core.protocol.models import AllianceDonation, AllianceRank
-
-for application in client.alliance.get_applications().applications:
-    client.alliance.answer_application(application.player_id, accept=True)
-client.alliance.set_rank(player_id, AllianceRank.SERGEANT)
-client.alliance.donate(castle_id, AllianceDonation(wood=1000))
-
-for entry in client.alliance.get_chat_log():
-    print(f"{entry.player_name}: {entry.decoded_text}")
-
-# Typed push subscription (detach again with remove_chat_message_callback)
-client.alliance.on_chat_message(lambda msg: print(msg.decoded_text))
-```
-
-### `client.messages`
-
-```python
-# The mailbox, filled from the login data and kept current from the server's sne pushes
-for message in client.messages.mailbox:
-    if message.subject is not None and not message.is_read:
-        print(message.sender_name, message.subject, client.messages.read(message.message_id).decoded_body)
-        client.messages.mark_read(message.message_id)
-
-client.messages.send_message("SomePlayer", "Hello", "Want to trade?")
-client.messages.delete_many([m.message_id for m in client.messages.mailbox if m.is_read])
-```
-
-### `client.castle`
-
-```python
-castles = client.castle.get_all()
-
-details = client.castle.get_details(castle_id=12345)
-if details:                       # None when the response omits the castle
-    print(f"Wood: {details.wood}, units: {details.units}")
-
-# Methods taking one of your castles send its kingdom from the castle list the
-# server sent at login (client.state.get_castles()); an id not in it raises
-# UnknownCastleError, and one listed in several of your kingdoms raises
-# AmbiguousCastleError.
-resources = client.castle.get_resources(castle_id=12345)
-print(f"Wood: {resources.wood}, Stone: {resources.stone}")
-
-# Joining a castle returns its buildings, resources and production area;
-# production and building commands then act on the joined castle.
-castle = client.castle.join(castle_id=12345)
-area = client.castle.get_production()
-queue = client.castle.get_build_queue()
-if castle.buildings:
-    building = castle.buildings.buildings[0]
-    client.castle.upgrade_building(building.object_id)
-
-# The horses a castle can send movements with, from the login data (needs
-# client.load_game_data()); client.state.get_castle_horse_ids(12345) gives the
-# bare wod ids without it.
-for horse in client.castle.get_horses(castle_id=12345) or []:
-    print(horse.wod_id, horse.unit_boost, horse.is_instant_spy_horse)
-```
-
-An instant spy horse (`is_instant_spy_horse`) can be paid with rubies or, with
-`feathers=True`, with feathers.
-
-### `client.army`
-
-Every call joins the castle first; production and hospital commands act on the joined castle.
-
-```python
-from empire_core.protocol.models import ProductionListId, SlotType
-
-units = client.army.get_units(castle_id=12345)          # [UnitCount(unit_id=wod_id, count=...)]
-
-client.army.produce_units(12345, ProductionListId.SOLDIERS, wod_id=620, amount=50)
-production = client.army.get_production_list(12345, ProductionListId.SOLDIERS)
-for slot in production.queue:
-    print(slot.position, slot.wod_id, slot.amount)
-client.army.cancel_production(12345, ProductionListId.SOLDIERS, SlotType.QUEUE, position=0)
-
-hospital = client.army.get_production_list(12345, ProductionListId.HOSPITAL)
-client.army.heal_units(12345, wod_id=620, amount=10)
-client.army.cancel_heal(12345, position=hospital.hospital_slots[0].position)
-```
-
-Also available: `client.ranking`, `client.spy`, `client.movements`
-(`get_movements()`, `get_incoming_attacks()`, `recall(movement_id)`), `client.player`
-(`get_player_info()`, `search_player_by_name()`), `client.defense`
-(`get_own_defense()`, `get_support_defense_info()`) and `client.events` (`get_active_events()`).
-`client.map` is covered under [Map Scanning](#map-scanning).
-
-### `client.commanders`
-
-```python
-for commander in client.commanders.get_commanders():
-    print(commander.commander_id, commander.name, commander.wins, commander.defeats)
-    for item in commander.equipment:
-        print("  ", item.equipment_id, item.slot, item.enchantment_level, item.is_permanent)
-
-# The defensive counterparts come back from the same command.
-castellans = client.commanders.get_castellans()
-
-# Rename either kind; the reply carries the updated list.
-client.commanders.rename(castellans[0].commander_id, "farm-1")
-```
-
-The server calls both kinds "lords" (command `gli`, field `LID`); the game UI
-calls them commanders and castellans, and so does this library.
-
-### `client.skills`
-
-```python
-generals = client.skills.get_generals()
-for general in generals.generals:
-    print(general.general_id, general.star_level, general.ability_ids)
-
-# Give a commander a general (-1 takes it off), then choose its abilities as (slot_id, ability_id) pairs.
-client.skills.assign_general(commander_id=3, general_id=101)
-client.skills.set_abilities(101, [(1, 12), (2, 15)])
-
-skills = client.skills.get_skills()
-print(skills.legend_skill_ids, skills.total_points, skills.reset_count)
-
-# Called with the skill list whenever the server sends one, as it does after a change.
-client.skills.on_skill_list(lambda skills: print("skills now", skills.sceat_skill_ids))
-```
-
-`unlock_skill`, `reset_skills` and `add_xp` change a general the same way.
-
-### `client.equipment`
-
-```python
-inventory = client.equipment.get_inventory()
-for item in inventory:
-    print(item.equipment_id, item.slot, item.rarity_id)
-
-commander = client.commanders.get_commanders()[0]
-item = inventory[0]
-client.equipment.equip(equipment_id=item.equipment_id, commander_id=commander.commander_id)
-client.equipment.unequip(equipment_id=item.equipment_id, commander_id=commander.commander_id)
-```
-
-Both return False when the server rejects the move.
-
-### `client.attack`
-
-```python
-from empire_core import AttackWave, WaveFlank
-
-commanders = client.commanders.get_commanders()
-
-client.attack.send_attack(
-    source_x=500,
-    source_y=510,
-    target_x=700,
-    target_y=710,
-    waves=[AttackWave(L=WaveFlank(U=[[487, 100]], T=[[301, 5]]))],
-    commander_id=commanders[0].commander_id,
-)
-```
-
-`commander_id` is required: every id `get_commanders()` returns leads an
-attack, `0` included, so there is no value that means "no commander". The
-server echoes the chosen one back, so `CreateAttackResponse.leader` says which
-commander it actually flew with. `KID` is the source area's kingdom, read
-from your castle list by the source position unless `kingdom_id` is given.
-
-Waves without units are dropped before sending, as the game client does, and
-passing `feathers=True` forces the horse field to -1 exactly as the client
-does. See [`examples/commanders_and_attack.py`](examples/commanders_and_attack.py)
-for a runnable version that dry-runs by default.
-
-### Filling waves
-
-```python
-client.load_game_data()          # explicit: the items payload is a large download
-
-commander = client.commanders.get_commanders()[1]
-attack = client.attack.fill_attack(
-    castle_id,
-    target_x=624, target_y=247,  # a target is all it needs
-    commander=commander,
-)
-
-client.attack.send_attack(
-    source_x=castle.x, source_y=castle.y,
-    target_x=624, target_y=247,
-    waves=attack.waves, yard_wave=attack.yard,
-    commander_id=commander.commander_id,
-    min_soldiers=attack.min_soldiers,
-)
-```
-
-An attack's waves must carry at least a tenth of what one wave holds at the
-target's level (8 units against a level 16 castle, 32 from level 70), as the
-game client requires; the server refused fewer on a player's castle with
-MOVEMENT_HAS_NO_UNITS (100); whether it enforces this on NPC camps is not yet
-known. `fill_attack` raises `AttackBelowMinimumError` when the castle cannot
-reach it, and `send_attack` checks it before sending when given `min_soldiers`
-or a `capacity`. `combat.min_attack_soldiers` works it out for any target.
-
-Coordinates are enough. From them it reads the target's area type and
-structures, the defenders each flank holds and the castellan holding it, the
-area effects that widen your flanks, your general's skills and your own legend
-and Hall of Legends skills. A camp's level comes from the victory count in its
-map row; a player's from the owner records beside it. Every one of those can be
-passed instead, and passing one skips the request that would have found it.
-
-Each wave is sized the way the game sizes it, which is by the *target owner's*
-level rather than the attacker's: a level 13 castle holds far fewer troops than
-a level 70 one, whatever the attacker's level. Some targets defend at a level of
-their own - a monument is built for level 70 however low its owner is. On top
-come the commander's own equipment, its general's unit-limit skills, the Hall of
-Legends skills, and the legend skills when both sides are at the level cap.
-
-Each flank takes tools first and then units, because a placed tool reduces the
-defense the units are then chosen against. Units are picked to counter whichever
-of the target's defenses is proportionally weaker; tools are picked to cancel
-the target's wall, gate, moat and defender bonuses in as few units as possible,
-and are skipped entirely where the commander's own reductions already erase
-them. A flank that ends up with tools but no units gives the tools back.
-
-Fortification is per flank, not per castle: a defending tool raises only the
-flank it stands on, and only the middle flank meets the gate at all. Tools are
-also filtered by the target - many may only be carried against particular
-kingdoms and area types, or not against camps.
-
-See [`examples/fill_waves.py`](examples/fill_waves.py) for the whole path.
-
-Alongside the waves comes the courtyard wave, the final assault that rides in
-the same request. It holds units only, is sized from both levels rather than the
-target's alone, and is filled against the defenders of the keep.
-
-### Looking up game data
-
-Game-data ids (generals, skills, currencies, effects, units and tools) change
-from one client release to the next, so look them up by the key that names them:
-
-```python
-data = client.load_game_data()
-
-toril = data.general("Toril")
-client.skills.assign_general(commander_id=3, general_id=toril.general_id)
-surge = data.general_ability("PowerSurge", 1)
-skill = data.general_skill(toril.general_id, "AspectoftheDragon", 1)
-tablets = data.currency("KT")            # by JSONKey
-boss = data.raid_boss("Necromancer")
-data.legend_skill(0, 1, 1)               # tree, group, level
-data.effect_type("fameDefenseBonus")
-data.unit("MeadRanger", 6)               # type and level
-```
-
-A miss returns `None`. A key that matches several rows raises
-`AmbiguousLookupError`, whose `ids` lists them: `global_effect("SpeedBoost")`
-does, as two global effects share that name, and so do units and tools, which
-have no unique name. Their type repeats across levels, and event variants share
-a type with no level to tell them apart. Horses have no named lookup yet; use
-`get_horse` by id.
-
-### Game-data ids
-
-For autocomplete, the ids of one items version are also generated as enums:
-
-```python
-from empire_core.gamedata import Building, Currency, General, GeneralSkill, Research, Tool, Unit
-
-General.TORIL                        # 101
-Currency.GXP1                        # "GXP1", the key the server uses
-Unit.MEAD_RANGER_L6                  # 211: type plus level
-GeneralSkill.TORIL_ASPECTOFTHE_DRAGON_L1
-```
-
-Units, tools, effects, effect types, currencies (`Currency` by key, `CurrencyId`
-by id), generals, general abilities and skills, legend skills, raid bosses,
-global effects, buildings, researches, construction items, events, loot boxes,
-equipment groups and event difficulty types each have one. Research names start
-with the items file's own note, which is partly German, and end in group and
-level (`Research.RECRUITMENT_SPEED_G41_L1`), which keep them unique. Where two
-rows would get the same name, both carry their id (`GlobalEffect.SPEED_BOOST_2`,
-`GlobalEffect.SPEED_BOOST_11`).
-
-Members are plain ints (or strs), so they go straight into requests. Most also
-carry their row's fixed id and number columns, to filter on:
-
-```python
-Unit.MEAD_RANGER_L6.role             # "ranged"; also .level
-General.TORIL.rarity_id              # 4
-[t for t in Tool if t.category == "Defence"]
-```
-
-Stats and costs are not baked in, as balance patches change them, and nothing
-here downloads the game data. For the full row, ask the `GameData` you loaded:
-
-```python
-data = client.load_game_data()
-data.record(Unit.MEAD_RANGER_L6)     # UnitStats
-data.record(General.TORIL)           # GeneralDef
-data.record(Research.RECRUITMENT_SPEED_G41_L1)  # the items row, as a dict
-data.records([Unit.MEAD_RANGER_L6, Building.KEEP_L1])  # a list, in order
-```
-
-Where GameData models the table, `record` returns the model (`UnitStats`,
-`ToolStats`, `EffectDef`, `EffectTypeDef`, `CurrencyDef`, `GeneralDef`,
-`GeneralAbilityDef`, `GeneralSkillDef`, `LegendSkillDef`, `RaidBossDef`,
-`GlobalEffectDef`, `ConstructionItemDef`). A wall, gate or moat `Building` gives
-its `FortificationDef`; other buildings, researches, events, loot boxes,
-equipment groups and difficulty types give the items row as a dict. An id the
-data lacks gives `None`.
-
-`ITEMS_VERSION` is the items version they came from; `is_current(game_data)` says
-whether loaded data matches it, and `GameData.load()` logs a warning when it does
-not. Ids added since are not in the enums; the lookups above cover them. To
-regenerate from a checkout after a client update:
-
-```bash
-uv run python scripts/generate_gamedata_ids.py                 # downloads the current items
-uv run python scripts/generate_gamedata_ids.py --items items_v786.03.json
-uv run python scripts/generate_gamedata_ids.py --check         # exit 1 if the ids are out of date
-```
-
-A weekly workflow (`.github/workflows/gamedata-ids.yml`) compares the live items
-version with `ITEMS_VERSION` and, when they differ, opens a pull request with
-the regenerated ids, listing every member renamed, removed or added
-(`--diff-names names.md` writes the same list locally).
-
-## Game State
-
-A background thread applies server pushes to `client.state` while your code
-reads it. Read through the accessors rather than touching the containers: each
-one takes the state lock and returns a snapshot, so nothing changes underneath
-you mid-iteration.
-
-```python
-player = client.state.get_local_player()      # None until login completes
-castles = client.state.get_castles()
-unlocks = client.state.get_permanent_castle(castle_id)  # units and horses a castle has unlocked
-attacks = client.state.get_incoming_attacks()
-currencies = client.state.get_special_currencies()
-```
-
-### Knowing whether state is fresh
-
-Not every field is refreshed by every packet. Castle resources and units are
-often populated once at login and never again unless you ask — so state can be
-stale without being wrong. Check before trusting it:
-
-```python
-if client.state.get_castle_last_updated(castle_id) is None:
-    # Never refreshed: resources and units are defaults, not measurements.
-    client.castle.get_details(castle_id)
-```
-
-### Reacting to movements
-
-```python
-def on_attack(movement):
-    print(f"{movement.troop_count} troops from {movement.source_player_name}, "
-          f"{movement.time_remaining}s out")
-
-def on_arrived(movement_id, movement):
-    print(f"{movement_id} arrived: {movement}")
-
-client.state.on_incoming_attack(on_attack)
-client.state.on_movement_arrived(on_arrived)
-```
-
-Arrival, recall and removal callbacks also accept a single-argument
-`(movement_id)` form, but an arrived or removed movement is usually gone from
-state before they run, so the id alone can no longer be resolved — prefer the
-two-argument form above. There is no arrival packet: a movement arrives when
-its travel time is up.
-
-State callbacks run one at a time on a single callback thread, in the order
-their packets arrived, so hand long work to another thread. When the
-connection drops, state is emptied until the next login refills it (the
-server pushes the movement list shortly after the login data);
-`client.on_disconnect(callback)` tells you when that happens.
-
-> [!TIP]
-> [`docs/design/state_management.md`](docs/design/state_management.md) documents
-> the object-identity and freshness rules in full.
-
-## Map Scanning
-
-Scan a kingdom for castles, outposts and capitals. A full scan uses BFS
-discovery from your castle's position and can take a few minutes:
-
-```python
-from empire_core import Kingdom, MapItemType
-
-result = client.map.scan_kingdom(Kingdom.GREEN, item_types=[MapItemType.CASTLE])
-print(f"{len(result.items)} items, {len(result.failed_chunks)} failed chunks")
-```
-
-Requests go out back to back, as the client sends its map requests; a
-live scan of 289 chunks at about 17 requests a second ran without a refusal.
-A chunk that times out or is refused with a cooldown is retried after a short
-backoff, and `chunk_delay` adds a fixed wait before every request if you want
-one.
-
-> [!IMPORTANT]
-> Always check `failed_chunks`. A partial scan is not an empty kingdom, and
-> only this field tells them apart.
-
-Each item is a `MapAreaItem` read by its area type's layout, and carries the
-kingdom it came from (as does `result.kingdom`). A scan moves the session off
-the castle it had joined: `client.army` methods join their castle again
-themselves, anything else castle-scoped needs `client.castle.select()` first.
-`client.map.find_next()` finds the nearest object of one area type, and
-`client.castle.join_area()` joins an outpost, capital, metropolis or faction
-camp by its position, as the client does for the objects it may visit that are
-not castles.
-
-**Re-scanning cheaply.** `result.content_chunks` lists the chunks that held
-items. Feed it back into `client.map.scan_chunks()` to re-scan a known region without
-paying for BFS discovery again (roughly a third fewer requests), and run a full
-`client.map.scan_kingdom()` periodically to pick up content in previously-empty chunks:
-
-```python
-discovery = client.map.scan_kingdom(Kingdom.GREEN, item_types=[MapItemType.CASTLE])
-
-fresh = client.map.scan_chunks(
-    Kingdom.GREEN, list(discovery.content_chunks), item_types=[MapItemType.CASTLE]
-)
-```
-
-For very frequent scans, split `content_chunks` across several logged-in
-accounts (interleaved slices `chunks[i::n]`) and run the `client.map.scan_chunks()` calls
-concurrently — per-account request rate is what the server limits.
-
-## Multiple Accounts
-
-`AccountPool` hands out one logged-in client per account and refuses to lease
-the same account twice. Prefer `leased()`: it releases the account and closes
-the client even if your code raises.
-
-```python
-from empire_core import AccountPool, PoolExhaustedError
-from empire_core.accounts import AccountRegistry
-
-registry = AccountRegistry()
-registry.load(file_path="accounts.json")
-pool = AccountPool(registry)
-try:
-    with pool.leased(tag="scanning") as client:
-        result = client.map.scan_kingdom()
-except PoolExhaustedError:
-    ...   # no candidate account was free
-```
-
-The pool takes its accounts from the registry you give it: `registry.load()`
-reads the file you name plus every `EMPIRE_ACCOUNT_*` environment variable. A
-`.env` file is read only if you opt in with `registry.load(load_env_file=True)`
-— importing the library never mutates your environment. The pool is safe to
-use from several threads. See [`examples/account_pool.py`](examples/account_pool.py).
-
-> [!CAUTION]
-> `accounts.json` holds passwords in plain text. Keep it out of version control
-> and `chmod 600` it; the library warns when it is group- or world-readable.
-
-## Protocol Models
-
-For lower-level access, use the protocol models directly:
-
-```python
-from empire_core.protocol.models import (
-    AllianceChatMessageRequest,
-    GetCastlesRequest,
-)
-
-request = AllianceChatMessageRequest.create("Hello 100%!")
-packet = request.to_packet(room_id=client.connection.room_id)
-# -> "%xt%EmpireEx_21%acm%1%{"M":"Hello 100&percnt;!"}%" once the login has joined room 1
-
-client.send(request)                        # fire and forget
-response = client.send(GetCastlesRequest(), wait=True)   # or await the reply
-```
-
-## Error Handling
-
-Calls that wait for a response raise typed exceptions instead of returning
-`None`, so a timeout, a dropped connection and a server-side rejection are
-distinguishable. All inherit from `EmpireError`.
-
-```python
-from empire_core import CommandError, ConnectionClosedError, EmpireTimeoutError
-
-try:
-    castles = client.castle.get_all()
-except CommandError as e:
-    print(f"rejected: {e.command} code {e.code}")   # non-zero server error code
-except EmpireTimeoutError:
-    ...                                             # no response in time
-except ConnectionClosedError:
-    ...                                             # dropped while waiting
-```
-
-`EmpireTimeoutError` also subclasses the builtin `TimeoutError`. Action helpers
-(e.g. `client.castle.select()`) return `bool` — `False` means the server
-rejected the action, while transport failures still raise.
-
-Two more you will meet: **`NetworkError`** from `connect()` and the CDN-backed
-helpers, and **`PacketError`** when a response cannot be parsed. Catching
-`EmpireError` covers every one of them — the library does not leak
-`pydantic.ValidationError` or raw socket exceptions past its own API.
-
-An empty collection therefore always means "nothing there", never "the lookup
-failed": `client.events.get_active_events()` and `get_troop_ids()` raise on a CDN outage
-rather than return empty. Where an exact answer depends on data that may be
-missing, ask first:
-
-```python
-from empire_core import troop_data_available
-
-if not troop_data_available():
-    ...   # troop counts would include equipment; treat them as approximate
-```
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for adding protocol commands and
-services, model conventions, and testing guidelines.
 
 ## Contact
 
 - 📧 Email: [colossusdynamis@gmail.com](mailto:colossusdynamis@gmail.com)
 - 💬 Discord: `colossus1`
 
-Bugs and feature requests are best filed as [issues](https://github.com/eschnitzler/EmpireCore/issues).
-
-## Architecture
-
-```
-empire_core/
-├── client/          # EmpireClient — main entry point
-├── network/         # WebSocket connection, receive loop, redaction
-├── protocol/        # Base models and the response registry, packets, errors;
-│                    # protocol.models re-exports every area's models
-├── map/ commanders/ castle/ army/ movements/ messages/ defense/
-├── player/ attack/ spy/ alliance/ ranking/ events/
-│                    # Game areas: each has its models, and a service.py where
-│                    # the client has one (client.castle, client.map, ...)
-├── combat/          # Wave solver, capacity and bonus math
-├── enums/           # Every game enum, one module per area
-├── gamedata/        # Items data: units, tools, effects and the id enums
-├── services/        # BaseService
-├── state/           # Thread-safe game state
-└── utils/           # CDN-backed event and troop data
-```
-
-Design notes live in [`docs/design/`](docs/design/).
+Bugs and feature requests are best filed as
+[issues](https://github.com/eschnitzler/EmpireCore/issues).
 
 ---
 
 <p align="center">
-  <sub>For educational purposes only. Use responsibly.</sub>
+  <sub>MIT licensed. Not affiliated with Goodgame Studios. For educational purposes only; use responsibly.</sub>
 </p>
