@@ -205,10 +205,13 @@ class EmpireClient:
     def _on_disconnect(self) -> None:
         """Handle unexpected connection loss.
 
-        State (including its callback executor) is intentionally left
-        running so registered callbacks keep working after a re-login.
+        State data is reset, as the game client resets it, so nothing from
+        the lost session is reported after it; the next login rebuilds it.
+        Registered callbacks and the callback executor stay, so they keep
+        working after a re-login.
         """
         self.is_logged_in = False
+        self.state.reset()
         logger.warning(f"Client {self.username} disconnected unexpectedly")
 
     def on_disconnect(self, callback: Callable[[], None]) -> None:
@@ -369,6 +372,7 @@ class EmpireClient:
         # thread pool nobody owns any more.
         self.connection.disconnect()
         self.state.shutdown()
+        self.state.reset()
 
     def __enter__(self) -> EmpireClient:
         """Enter a context that closes the client on exit.

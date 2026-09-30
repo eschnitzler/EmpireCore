@@ -23,23 +23,7 @@ class StateBase:
 
     def __init__(self):
         self._lock = threading.RLock()
-
-        self.local_player: Player | None = None
-
-        # player id -> Player. Despite the type, this only ever holds the
-        # local player: nothing in the library records other players here.
-        # Kept because it is part of the public surface — do not iterate it
-        # expecting opponents or alliance members. Use the alliance service
-        # (ain) or the commander/profile services for other players.
-        self.players: dict[int, Player] = {}
-
-        self.castles: dict[int, Castle] = {}
-
-        # World State
-        self.movements: dict[int, Movement] = {}  # MovementID -> Movement
-
-        # Active Events
-        self.active_event_ids: list[int] = []
+        self._set_empty_session()
 
         # Callbacks for specific events — support multiple listeners.
         # Arrival/recall listeners are stored with a flag saying whether they
@@ -58,10 +42,44 @@ class StateBase:
         self._movement_parse_warn_at = 0.0
         self._movement_parse_failures = 0
 
+    def _set_empty_session(self) -> None:
+        """Start the session data over: nothing received yet."""
+        self.local_player: Player | None = None
+
+        # player id -> Player. Despite the type, this only ever holds the
+        # local player: nothing in the library records other players here.
+        # Kept because it is part of the public surface — do not iterate it
+        # expecting opponents or alliance members. Use the alliance service
+        # (ain) or the commander/profile services for other players.
+        self.players: dict[int, Player] = {}
+
+        self.castles: dict[int, Castle] = {}
+
+        # World State
+        self.movements: dict[int, Movement] = {}  # MovementID -> Movement
+
+        # Active Events
+        self.active_event_ids: list[int] = []
+
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}
         self._castle_details_at: dict[int, float] = {}
         self._player_updated_at: float | None = None
+
+    def reset(self) -> None:
+        """Forget everything the session sent: player, castles, movements, events and their timestamps.
+
+        Registered callbacks stay. Fires no callback: a movement that is dropped
+        here was not seen to arrive or be removed. The client resets its data
+        the same way when the connection is lost, and the next login rebuilds it.
+
+        Client: ``CastleConnectionLostCommand.execute`` (bundle line 120254) runs
+        ``CastleDestroyGameCommand``, whose ``destroyGameSpecificObjects``
+        (line 120270) calls ``CastleModel.resetModels``; ``CastleArmyData.reset``
+        (line 133620) starts the movement map over.
+        """
+        with self._lock:
+            self._set_empty_session()
 
     def shutdown(self) -> None:
         """Shutdown the callback executor. Call when done with the client."""

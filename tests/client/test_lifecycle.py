@@ -111,6 +111,9 @@ class StubState:
         self.shutdown_count += 1
         self.events.append("state_shutdown")
 
+    def reset(self) -> None:
+        self.events.append("state_reset")
+
 
 def make_client(connection: StubConnection | None = None, state: StubState | None = None) -> EmpireClient:
     client = EmpireClient.__new__(EmpireClient)
@@ -321,7 +324,7 @@ class TestCloseAndContextManager:
 
         client.close()
 
-        assert events == ["disconnect", "state_shutdown"]
+        assert events == ["disconnect", "state_shutdown", "state_reset"]
 
     def test_context_manager_closes_on_exit(self):
         conn = StubConnection()

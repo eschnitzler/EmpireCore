@@ -8,6 +8,7 @@ import pytest
 import websocket
 
 from empire_core.client.client import EmpireClient
+from tests.state.state_helpers import gam_payload, gcl_payload, login, wait_for
 
 
 class ClosingSocket:
@@ -79,3 +80,43 @@ class TestDisconnectCallbacks:
         drop(client)
 
         assert calls == ["fired"]
+
+
+class TestStateAfterADrop:
+    """The game client forgets the lost session's data; the next login rebuilds it."""
+
+    def test_the_lost_sessions_data_is_forgotten(self, client):
+        login(client.state)
+        client.state.update_from_packet("gbd", {"gcl": gcl_payload([(5, "Home")], owner_id=1)})
+        client.state.update_from_packet("gam", gam_payload(100))
+        assert client.state.movements and client.state.castles
+
+        drop(client)
+
+        assert client.state.local_player is None
+        assert client.state.castles == {}
+        assert client.state.get_all_movements() == []
+        assert client.state.get_packet_times() == {}
+
+    def test_callbacks_survive_and_the_drop_fires_none(self, client):
+        fired: list[int] = []
+        removed: list[int] = []
+        client.state.on_incoming_attack(lambda mov: fired.append(mov.movement_id))
+        client.state.on_movement_removed(lambda mid: removed.append(mid))
+        login(client.state)
+        client.state.update_from_packet("gam", gam_payload(100))
+        assert wait_for(lambda: fired == [100])
+
+        drop(client)
+        # A re-login's movement list: nothing from before the drop is left to merge into.
+        login(client.state)
+        client.state.update_from_packet("gam", gam_payload(101))
+
+        assert wait_for(lambda: fired == [100, 101])
+        assert removed == []
+        assert [m.movement_id for m in client.state.get_all_movements()] == [101]
+
+    def test_close_forgets_the_session_too(self, client):
+        login(client.state)
+        client.close()
+        assert client.state.local_player is None
