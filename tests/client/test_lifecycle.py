@@ -42,7 +42,11 @@ class StubConnection:
     """
 
     def __init__(self, script: dict[str, Packet | Exception] | None = None, events: list[str] | None = None):
-        self.script = script or {}
+        self.script = {
+            "rlu": Packet.from_bytes(b"%xt%rlu%-1%1%B%A%A%Lobby%"),
+            "joinOK": Packet.from_bytes(b"<msg t='sys'><body action='joinOK' r='1'><pid id='0'/></body></msg>"),
+            **(script or {}),
+        }
         self.room_id = -1
         self.events = events if events is not None else []
         self.connected = False
@@ -446,7 +450,7 @@ class TestCommandsCarryTheJoinedRoom:
 
     def test_send_uses_the_room_the_login_joined(self):
         join_ok = Packet.from_bytes(b"<msg t='sys'><body action='joinOK' r='5'><pid id='0'/></body></msg>")
-        conn = StubConnection({"joinOK": join_ok})
+        conn = StubConnection({"joinOK": join_ok, "rlu": Packet.from_bytes(b"%xt%rlu%-1%5%B%A%A%Lobby%")})
         client = make_client(conn)
         client.login()
 

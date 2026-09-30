@@ -46,6 +46,7 @@ from empire_core.player.service import PlayerService
 from empire_core.protocol.auth import LoginRequest, LoginResponse, LoginTokenResponse, build_version_check
 from empire_core.protocol.base import NO_ROOM, read_or_none
 from empire_core.protocol.errors import GGEError
+from empire_core.protocol.js import js_number_or_none
 from empire_core.protocol.models import BaseRequest, BaseResponse, parse_response
 from empire_core.protocol.packet import Packet
 from empire_core.ranking.service import RankingService
@@ -56,17 +57,36 @@ from empire_core.state.manager import GameState
 logger = logging.getLogger(__name__)
 
 
+LOBBY_ROOM_NAME = "Lobby"
+
+
 def _joined_room_id(join_ok: Packet) -> int:
     """
-    The room id in a ``joinOK``'s ``r`` attribute, or -1 when it has none that reads as a number.
+    The room id in a ``joinOK``'s ``r`` attribute, read with ``Number()``.
+
+    Where the client would get NaN, this reads -1 (no room).
 
     Client: ``BasicSmartfoxClient.handleSystemMessage`` (dll line 7232)
     """
     body = join_ok.payload.find("body") if isinstance(join_ok.payload, ET.Element) else None
-    try:
-        return int(body.get("r", "")) if body is not None else NO_ROOM
-    except ValueError:
+    if body is None:
         return NO_ROOM
+    number = js_number_or_none(body.get("r", ""))
+    return NO_ROOM if number is None else int(number)
+
+
+def _room_entry(packet: Packet) -> tuple[int, str] | None:
+    """
+    The room id and name one ``rlu`` message lists, or None when it has no name.
+
+    ``%xt%rlu%-1%{id}%{a}%{b}%{flags}%{name}%``: the id lands in the status
+    field and the name is the fourth field after it.
+
+    Client: ``BasicSmartfoxClient.setRoomList`` (dll line 7155)
+    """
+    raw = packet.payload.get("raw") if isinstance(packet.payload, dict) else None
+    fields = raw.split("%") if isinstance(raw, str) else []
+    return (packet.error_code, fields[3]) if len(fields) > 3 else None
 
 
 def _elapsed_ms(start: float, end: float | None = None) -> int:
@@ -399,25 +419,39 @@ class EmpireClient:
             f"<pword><![CDATA[{self.config.build_number}%{LOGIN_DEFAULTS['LANG']}%{LOGIN_DEFAULTS['DID']}]]></pword>"
             f"</login></body></msg>"
         )
-        try:
-            self.connection.request(login_packet, "rlu", timeout=self.config.login_timeout)
-        except EmpireTimeoutError as e:
-            raise EmpireTimeoutError("Zone login timed out") from e
+        rooms: dict[int, str] = {}
 
-        join_packet = "<msg t='sys'><body action='autoJoin' r='-1'></body></msg>"
+        def on_room(packet: Packet) -> None:
+            entry = _room_entry(packet)
+            if entry is not None:
+                rooms[entry[0]] = entry[1]
+
+        self.connection.subscribe("rlu", on_room)
         try:
-            join_ok = self.connection.request(join_packet, "joinOK", timeout=self.config.request_timeout)
-        except EmpireTimeoutError:
-            # The server does not always send joinOK; not fatal, but no room is joined
-            logger.debug("No joinOK received, continuing login")
-        else:
-            self.connection.room_id = _joined_room_id(join_ok)
+            try:
+                on_room(self.connection.request(login_packet, "rlu", timeout=self.config.login_timeout))
+            except EmpireTimeoutError as e:
+                raise EmpireTimeoutError("Zone login timed out") from e
+
+            join_packet = "<msg t='sys'><body action='autoJoin' r='-1'></body></msg>"
+            try:
+                join_ok = self.connection.request(join_packet, "joinOK", timeout=self.config.request_timeout)
+            except EmpireTimeoutError as e:
+                raise EmpireTimeoutError("Room join (joinOK) timed out") from e
+        finally:
+            self.connection.unsubscribe("rlu", on_room)
+
+        room_id = _joined_room_id(join_ok)
+        self.connection.room_id = room_id
+        # The client sends roundTrip and vck only once it has joined the lobby (dll line 7163, 33011).
+        if rooms.get(room_id) != LOBBY_ROOM_NAME:
+            raise LoginError(f"Joined room {room_id} ({rooms.get(room_id, 'not in the room list')}) is not the lobby")
 
         round_trip_time = self._version_check()
 
         request = LoginRequest.create(
             self.username or "",
-            self.password or None,
+            self.password,
             **LOGIN_DEFAULTS,
             CONM=connection_time,
             RTM=round_trip_time,

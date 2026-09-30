@@ -59,6 +59,19 @@ def xt_packet(command: str, payload: Any = None, error_code: int = 0) -> Packet:
     return Packet.from_bytes(f"%xt%{command}%1%{error_code}%{body}%".encode())
 
 
+def room_list(room: str, name: str = "Lobby") -> Packet:
+    """One rlu message: t[1] the room id, t[5] its name (BasicSmartfoxClient.setRoomList, dll line 7155)."""
+    return Packet.from_bytes(f"%xt%rlu%-1%{room}%B%A%A%{name}%".encode())
+
+
+def join_ok(room: str) -> Packet:
+    return Packet.from_bytes(f"<msg t='sys'><body action='joinOK' r='{room}'><pid id='0'/></body></msg>".encode())
+
+
+def lobby(room: str) -> dict[str, Packet | Exception]:
+    return {"rlu": room_list(room), "joinOK": join_ok(room)}
+
+
 class ScriptedConnection:
     """Scripted stand-in for Connection that records the whole exchange.
 
@@ -67,7 +80,7 @@ class ScriptedConnection:
     """
 
     def __init__(self, script: dict[str, Packet | Exception] | None = None, connected: bool = False):
-        self.script = script or {}
+        self.script = {**lobby("1"), **(script or {})}
         self.room_id = -1
         self.connected = connected
         self.requested: list[str] = []
@@ -257,7 +270,7 @@ class TestHandshakeSequence:
         assert conn.request_data["joinOK"] == "<msg t='sys'><body action='autoJoin' r='-1'></body></msg>"
 
     def test_round_trip_is_sent_in_the_joined_room_before_the_version_check(self):
-        conn = ScriptedConnection({"joinOK": join_ok("2")})
+        conn = ScriptedConnection(lobby("2"))
         client = make_client(conn)
 
         client.login()
@@ -267,7 +280,7 @@ class TestHandshakeSequence:
         assert conn.subscribers["roundTripRes"] == []
 
     def test_version_check_frame(self):
-        conn = ScriptedConnection({"joinOK": join_ok("2")})
+        conn = ScriptedConnection(lobby("2"))
         make_client(conn).login()
         # Client: BasicJoinedRoomCommand sends [build, "web-html5", "", sessionId] (dll line 33011).
         assert conn.request_data["vck"] == f"%xt%EmpireEx_21%vck%2%1169011%web-html5%<RoundHouseKick>%{SESSION_ID}%"
@@ -278,7 +291,7 @@ class TestHandshakeSequence:
 
         client.login()
 
-        assert conn.request_data["lli"].startswith("%xt%EmpireEx_99%lli%-1%")
+        assert conn.request_data["lli"].startswith("%xt%EmpireEx_99%lli%1%")
         assert conn.request_data["lli"].endswith("%")
 
     def test_xt_login_carries_credentials_and_the_login_defaults(self):
@@ -389,15 +402,6 @@ class TestGbdWaiterRace:
 
 
 class TestNonFatalSteps:
-    def test_missing_join_ok_continues_the_login(self):
-        # The server does not always answer autoJoin.
-        conn = ScriptedConnection({"joinOK": EmpireTimeoutError("no joinOK")})
-        client = make_client(conn)
-
-        assert client.login() is True
-        assert conn.requested == HANDSHAKE_STEPS
-        assert "disconnect" not in conn.events
-
     def test_missing_round_trip_continues_the_login_with_no_round_trip_time(self):
         conn = ScriptedConnection({"roundTripRes": EmpireTimeoutError("no roundTripRes")})
         client = make_client(conn)
@@ -409,7 +413,6 @@ class TestNonFatalSteps:
     def test_both_optional_steps_missing_is_still_a_login(self):
         conn = ScriptedConnection(
             {
-                "joinOK": EmpireTimeoutError("no joinOK"),
                 "roundTripRes": EmpireTimeoutError("no roundTripRes"),
                 "gbd": EmpireTimeoutError("no gbd"),
             }
@@ -435,6 +438,7 @@ class TestFatalSteps:
         [
             ("apiOK", "API version check"),
             ("rlu", "Zone login timed out"),
+            ("joinOK", "Room join"),
             ("vck", "Version check"),
             ("lli", "XT login timed out"),
         ],
@@ -671,15 +675,11 @@ class TestSuccessfulLogin:
         assert conn.events == []
 
 
-def join_ok(room: str) -> Packet:
-    return Packet.from_bytes(f"<msg t='sys'><body action='joinOK' r='{room}'><pid id='0'/></body></msg>".encode())
-
-
 class TestJoinedRoom:
     """joinOK's ``r`` is the room every later command carries (dll line 7232)."""
 
     def test_the_room_id_from_join_ok_goes_into_lli(self):
-        conn = ScriptedConnection({"joinOK": join_ok("3")})
+        conn = ScriptedConnection(lobby("3"))
         client = make_client(conn)
 
         client.login()
@@ -687,10 +687,66 @@ class TestJoinedRoom:
         assert conn.room_id == 3
         assert conn.request_data["lli"].startswith("%xt%EmpireEx_21%lli%3%")
 
-    def test_an_unreadable_room_id_is_no_room(self):
-        conn = ScriptedConnection({"joinOK": join_ok("x")})
+    @pytest.mark.parametrize(("attribute", "room"), [("3.0", 3), ("", 0), (" 4 ", 4), ("x", -1)])
+    def test_the_room_id_is_read_with_number(self, attribute, room):
+        conn = ScriptedConnection({"rlu": room_list(str(room)), "joinOK": join_ok(attribute)})
         make_client(conn).login()
-        assert conn.room_id == -1
+        assert conn.room_id == room
+
+    def test_a_missing_join_ok_fails_the_login(self):
+        # The client sends vck only from the Lobby join (dll line 7163, 33011).
+        conn = ScriptedConnection({"joinOK": EmpireTimeoutError("no joinOK")})
+
+        with pytest.raises(EmpireTimeoutError, match="joinOK"):
+            make_client(conn).login()
+
+        assert "vck" not in conn.requested
+        assert "disconnect" in conn.events
+
+    def test_a_room_that_is_not_the_lobby_fails_the_login(self):
+        conn = ScriptedConnection({"rlu": room_list("1", "Other"), "joinOK": join_ok("1")})
+
+        with pytest.raises(LoginError, match="not the lobby"):
+            make_client(conn).login()
+
+        assert conn.sent == []
+        assert "vck" not in conn.requested
+
+    def test_a_room_missing_from_the_room_list_fails_the_login(self):
+        conn = ScriptedConnection({"joinOK": join_ok("7")})
+        with pytest.raises(LoginError, match="not in the room list"):
+            make_client(conn).login()
+
+    def test_room_lists_pushed_besides_the_first_are_read(self):
+        conn = ScriptedConnection({"rlu": room_list("1", "Other"), "joinOK": join_ok("2")})
+        original = conn.request
+
+        def request(data, cmd_id, timeout=5.0):
+            result = original(data, cmd_id, timeout)
+            if cmd_id == "rlu":
+                for callback in list(conn.subscribers.get("rlu", [])):
+                    callback(room_list("2"))
+            return result
+
+        conn.request = request  # type: ignore[method-assign]
+        make_client(conn).login()
+        assert conn.room_id == 2
+        assert conn.subscribers["rlu"] == []
+
+
+class TestTokenWithEmptyPassword:
+    def test_an_empty_password_is_sent_with_the_token(self):
+        # C2SLoginVO nulls LT only for a non-empty password (bundle line 131792).
+        conn = ScriptedConnection()
+        client = make_client(conn)
+        client.password = ""
+        client.login_token = "tok"
+
+        client.login()
+
+        payload = xt_login_payload(conn)
+        assert payload["PW"] == ""
+        assert payload["LT"] == "tok"
 
 
 class TestTimings:
