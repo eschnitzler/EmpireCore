@@ -49,7 +49,7 @@ def request_payload(data: str) -> dict[str, Any]:
 LIVE_ADI: dict[str, Any] = {
     "KID": 0,
     "HAWL": 1,
-    "SCID": 16654603,
+    "SCID": 2003,
     "gaa": {"AI": [2, 620, 231, -1, 0, -1, 0]},
     "gui": {
         "I": [[10, 10], [614, 2], [611, 1], [651, 300], [649, 300], [648, 300]],
@@ -58,7 +58,7 @@ LIVE_ADI: dict[str, Any] = {
         "TU": [],
     },
     "gli": {
-        "B": [{"ID": 1, "WID": 1, "VIS": 0, "LICID": 16654603, "N": "", "GID": -1, "W": 2, "D": 9, "SPR": 1, "EQ": []}],
+        "B": [{"ID": 1, "WID": 1, "VIS": 0, "LICID": 2003, "N": "", "GID": -1, "W": 2, "D": 9, "SPR": 1, "EQ": []}],
         "C": [
             {
                 "ID": 0,
@@ -231,7 +231,7 @@ def conn(client: EmpireClient) -> ScriptedConnection:
 
 
 GOLDEN_GCL: dict[str, Any] = {
-    "PID": 17743260,
+    "PID": 1001,
     "C": [
         {
             "KID": 0,
@@ -241,8 +241,8 @@ GOLDEN_GCL: dict[str, Any] = {
                         1,
                         632,
                         243,
-                        16654596,
-                        17743260,
+                        2001,
+                        1001,
                         2,
                         2,
                         2,
@@ -267,8 +267,8 @@ GOLDEN_GCL: dict[str, Any] = {
                         4,
                         630,
                         244,
-                        16656989,
-                        17743260,
+                        2002,
+                        1001,
                         1,
                         1,
                         1,

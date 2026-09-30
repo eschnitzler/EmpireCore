@@ -551,7 +551,7 @@ class TestTargetPrecalculation:
         info = client.attack.get_attack_info(620, 231, 620, 233, area_type=MapItemType.DUNGEON)
 
         assert isinstance(info, GetDungeonAttackInfoResponse)
-        assert info.source_castle_id == 16654603
+        assert info.source_castle_id == 2003
         assert info.home_workshop_level == 1
         assert info.target_row() == [2, 620, 231, -1, 0, -1, 0]
         assert info.inventory() == {10: 10, 614: 2, 611: 1, 651: 300, 649: 300, 648: 300}

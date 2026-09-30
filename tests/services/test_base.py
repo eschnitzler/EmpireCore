@@ -168,7 +168,7 @@ class TestOnResponse:
         client._on_packet(xt_packet("gcl", GOLDEN_GCL))
 
         assert len(seen) == 1
-        assert [c.castle_id for c in seen[0].castles] == [16654596, 16656989]  # type: ignore[attr-defined]
+        assert [c.castle_id for c in seen[0].castles] == [2001, 2002]  # type: ignore[attr-defined]
 
     def test_unparseable_push_does_not_reach_the_handler(self, caplog):
         client = make_client()

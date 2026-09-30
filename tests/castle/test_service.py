@@ -12,13 +12,13 @@ from empire_core.enums import Kingdom
 from tests.service_helpers import GOLDEN_GCL, conn, make_client, xt_packet
 
 GOLDEN_DCL: dict[str, Any] = {
-    "PID": 17743260,
+    "PID": 1001,
     "C": [
         {
             "KID": 0,
             "AI": [
                 {
-                    "AID": 16654596,
+                    "AID": 2001,
                     "W": 7000.0,
                     "S": 7000.0,
                     "F": 7000.0,
@@ -28,7 +28,7 @@ GOLDEN_DCL: dict[str, Any] = {
                     "AC": [[656, 1], [650, 213], [999]],
                     "B": 1,
                 },
-                {"AID": 16656989, "W": 800.0, "S": 800.0, "F": 800.0, "AC": [[649, 18]], "B": 0},
+                {"AID": 2002, "W": 800.0, "S": 800.0, "F": 800.0, "AC": [[649, 18]], "B": 0},
             ],
         }
     ],
@@ -47,8 +47,8 @@ class TestCastleQueries:
         castles = client.castle.get_all()
 
         assert [(c.castle_id, c.castle_name, c.x, c.y, c.castle_type) for c in castles] == [
-            (16654596, "Main Castle", 632, 243, 1),
-            (16656989, "Outpost North", 630, 244, 4),
+            (2001, "Main Castle", 632, 243, 1),
+            (2002, "Outpost North", 630, 244, 4),
         ]
         assert castles[0].position.x == 632
         assert conn(client).request_payloads == [("gcl", {})]
@@ -56,10 +56,10 @@ class TestCastleQueries:
     def test_golden_dcl_payload_parses_resources_and_units(self):
         client = make_client({"dcl": xt_packet("dcl", GOLDEN_DCL)})
 
-        details = client.castle.get_details(16656989)
+        details = client.castle.get_details(2002)
 
         assert details is not None
-        assert details.castle_id == 16656989
+        assert details.castle_id == 2002
         assert (details.wood, details.stone, details.food) == (800, 800, 800)
         assert details.units == {649: 18}
         # The server ignores the payload and lists every castle; the id is matched client-side.
@@ -67,7 +67,7 @@ class TestCastleQueries:
 
     def test_short_unit_row_is_skipped(self):
         client = make_client({"dcl": xt_packet("dcl", GOLDEN_DCL)})
-        details = client.castle.get_details(16654596)
+        details = client.castle.get_details(2001)
         assert details is not None
         assert details.units == {656: 1, 650: 213}
 
@@ -139,32 +139,32 @@ class TestCastleActions:
         client = make_client(
             {
                 "gcl": xt_packet("gcl", GOLDEN_GCL),
-                "arc": xt_packet("arc", {"CID": 16654596, "KID": 0, "P": 1}),
+                "arc": xt_packet("arc", {"CID": 2001, "KID": 0, "P": 1}),
             }
         )
 
-        assert client.castle.rename(16654596, "My Fortress") is True
+        assert client.castle.rename(2001, "My Fortress") is True
 
         assert conn(client).request_payloads[-1] == (
             "arc",
-            {"CID": 16654596, "N": "My Fortress", "AT": 1, "KID": 0, "P": 1},
+            {"CID": 2001, "N": "My Fortress", "AT": 1, "KID": 0, "P": 1},
         )
 
     def test_naming_a_new_castle_sends_p_0(self):
         client = make_client(
             {
                 "gcl": xt_packet("gcl", GOLDEN_GCL),
-                "arc": xt_packet("arc", {"CID": 16654596, "KID": 0, "P": 0}),
+                "arc": xt_packet("arc", {"CID": 2001, "KID": 0, "P": 0}),
             }
         )
 
-        assert client.castle.rename(16654596, "My Fortress", is_initial_name=True) is True
+        assert client.castle.rename(2001, "My Fortress", is_initial_name=True) is True
 
         assert conn(client).request_payloads[-1][1]["P"] == 0
 
     def test_rejected_rename_is_false(self):
         client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL), "arc": xt_packet("arc", error_code=21)})
-        assert client.castle.rename(16654596, "nope") is False
+        assert client.castle.rename(2001, "nope") is False
 
     def test_renaming_a_castle_you_do_not_own_raises(self):
         client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL)})

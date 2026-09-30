@@ -45,7 +45,7 @@ def gdi_location_row(
         capturer_capital,
         capturer_outpost,
         kingdom,
-        190426,
+        301,
         [],
         0,
     ]
