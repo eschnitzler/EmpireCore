@@ -22,6 +22,8 @@ snapshot, offline.
 from __future__ import annotations
 
 import argparse
+import ast
+import functools
 import json
 import re
 import sys
@@ -33,6 +35,26 @@ from typing import Any
 SCRIPT = "scripts/extract_client_commands.py"
 BASE_URL = "https://empire-html5.goodgamestudios.com/default"
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "tests" / "data" / "client_commands.json"
+SOURCE_ROOT = Path(__file__).resolve().parents[1] / "src" / "empire_core"
+
+# Methods taking a command id, with the argument it is in and the direction of that command.
+_COMMAND_ARGUMENTS = {
+    "on_response": (0, "server"),
+    "_register_handler": (0, "server"),
+    "_unregister_handler": (0, "server"),
+    "subscribe": (0, "server"),
+    "unsubscribe": (0, "server"),
+    "create_waiter": (0, "server"),
+    "cancel_waiter": (0, "server"),
+    "wait_for_result": (0, "server"),
+    "request": (1, "server"),
+    "build_xt": (1, "client"),
+}
+_COMMAND_KEYWORDS = ("cmd_id", "command")
+# Constants whose keys or members are server command ids.
+_COMMAND_TABLES = {"_DISPATCH", "_SECTION_PUSHES"}
+_COMMAND_NAMES = {"cmd", "cmd_id", "command"}
+_XT_COMMAND = re.compile(r"^%xt%\{[^}]*\}%([A-Za-z]+)%")
 
 _ASSIGNMENT = re.compile(r"([A-Za-z_$][\w$]*)\.((?:C2S|S2C)_[A-Z0-9_]+)=\"([^\"]*)\"")
 # A minified holder: var f=function(){return function ConstantsSmartFox(){}}()
@@ -78,13 +100,14 @@ def snapshot(bundle: str, dll: str, bundle_release: str, dll_release: str) -> di
     }
 
 
+@functools.lru_cache(maxsize=1)
 def library_commands() -> dict[str, dict[str, list[str]]]:
     """
     The commands the library registers, as ``{"client"|"server"|"either": {id: [where, ...]}}``.
 
     Requests (``command``) are client commands; replies (``response_command``, and
     every registered response model) are server commands; ``GGECommand`` values
-    are either.
+    are either; plain strings the code uses are those :func:`raw_commands` finds.
     """
     import empire_core.protocol.models  # noqa: F401  imports every area's models
     from empire_core.protocol.base import BaseRequest, BaseResponse, GGECommand
@@ -113,7 +136,63 @@ def library_commands() -> dict[str, dict[str, list[str]]]:
     for name, value in vars(GGECommand).items():
         if name.isupper() and isinstance(value, str):
             found["either"][value].add(f"GGECommand.{name}")
+    for side, command, where in raw_commands():
+        found[side][command].add(where)
     return {side: {command: sorted(names) for command, names in sorted(table.items())} for side, table in found.items()}
+
+
+def _text(node: ast.AST | None) -> str | None:
+    return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
+
+
+def _call_command(node: ast.Call) -> tuple[str, str] | None:
+    func = node.func
+    name = func.attr if isinstance(func, ast.Attribute) else func.id if isinstance(func, ast.Name) else None
+    if name not in _COMMAND_ARGUMENTS:
+        return None
+    index, side = _COMMAND_ARGUMENTS[name]
+    value = node.args[index] if len(node.args) > index else None
+    if value is None:
+        value = next((k.value for k in node.keywords if k.arg in _COMMAND_KEYWORDS), None)
+    command = _text(value)
+    return (side, command) if command is not None else None
+
+
+def raw_commands(root: Path = SOURCE_ROOT) -> list[tuple[str, str, str]]:
+    """
+    Command ids the library's code uses as plain strings, as ``(side, command, "file:line")``.
+
+    Read from the source: the command argument of the methods in
+    ``_COMMAND_ARGUMENTS``, the keys and members of the ``_COMMAND_TABLES``
+    constants, strings compared with a ``cmd``/``cmd_id``/``command`` name, and
+    the command of an ``%xt%`` f-string.
+    """
+    found: list[tuple[str, str, str]] = []
+    for path in sorted(root.rglob("*.py")):
+        rel = path.relative_to(root.parent).as_posix()
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            where = f"{rel}:{getattr(node, 'lineno', 0)}"
+            if isinstance(node, ast.Call):
+                hit = _call_command(node)
+                if hit is not None:
+                    found.append((*hit, where))
+            elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                if node.value is not None and any(isinstance(t, ast.Name) and t.id in _COMMAND_TABLES for t in targets):
+                    value = node.value
+                    if isinstance(value, ast.Call) and value.args:
+                        value = value.args[0]
+                    items = value.keys if isinstance(value, ast.Dict) else getattr(value, "elts", [])
+                    found += [("server", text, where) for text in map(_text, items) if text is not None]
+            elif isinstance(node, ast.Compare):
+                operands = [node.left, *node.comparators]
+                if any(isinstance(o, ast.Name) and o.id in _COMMAND_NAMES for o in operands):
+                    found += [("server", text, where) for text in map(_text, operands) if text is not None]
+            elif isinstance(node, ast.JoinedStr):
+                match = _XT_COMMAND.match(ast.unparse(node)[2:-1])
+                if match:
+                    found.append(("client", match.group(1), where))
+    return found
 
 
 def missing_commands(tables: dict[str, Any]) -> list[tuple[str, str, list[str]]]:

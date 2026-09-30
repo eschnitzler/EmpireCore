@@ -27,6 +27,10 @@ TABLES = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
 NOT_IN_CLIENT = {
     ("server", "aha"): "HelpAllResponse: the client sends aha but registers no handler for a reply to it",
     ("server", "ahc"): "HelpMemberResponse: the client sends ahc but registers no handler for a reply to it",
+    ("client", "pin"): "the client sends pin under the name BasicSmartfoxClient.S2C_PING (activatePing, dll line 7168)",
+    ("server", "apiOK"): "an XML system message action (handleSystemMessage), not an %xt% command",
+    ("server", "joinOK"): "an XML system message action (handleSystemMessage), not an %xt% command",
+    ("server", "roundTripRes"): "an XML system message action (handleSystemMessage), not an %xt% command",
 }
 
 
@@ -62,6 +66,40 @@ def test_a_dropped_command_fails_the_check():
     assert ("client", "gaa") in [(side, command) for side, command, _ in script.missing_commands(tables)]
     assert script.changes(TABLES, tables) == [
         "client dropped gaa (ClientConstSF.C2S_GET_AREAS, ConstantsSmartFox.C2S_GET_AREAS)"
+    ]
+
+
+def test_raw_commands_cover_the_code_outside_the_models():
+    found = {(side, command) for side, command, _ in script.raw_commands()}
+
+    # state/manager.py's _DISPATCH and _SECTION_PUSHES, a waiter, a handler and the keepalive f-string
+    assert {("server", "abr"), ("server", "gxp"), ("server", "gbd"), ("server", "acm"), ("client", "pin")} <= found
+
+
+def test_raw_commands_read_each_kind_of_use(tmp_path):
+    package = tmp_path / "empire_core"
+    package.mkdir()
+    (package / "mod.py").write_text(
+        "_DISPATCH = {'aaa': 'h'}\n"
+        "_SECTION_PUSHES = frozenset({'bbb'})\n"
+        "client.on_response('ccc', f)\n"
+        "connection.request(packet, 'ddd', timeout=1)\n"
+        "connection.wait_for_result(cmd_id='eee', waiter=w)\n"
+        "Packet.build_xt(zone, 'fff', {})\n"
+        "if cmd_id == 'ggg': pass\n"
+        "send(f'%xt%{zone}%hhh%1%{body}%')\n"
+        "log('iii')\n"
+    )
+
+    assert sorted(script.raw_commands(package)) == [
+        ("client", "fff", "empire_core/mod.py:6"),
+        ("client", "hhh", "empire_core/mod.py:8"),
+        ("server", "aaa", "empire_core/mod.py:1"),
+        ("server", "bbb", "empire_core/mod.py:2"),
+        ("server", "ccc", "empire_core/mod.py:3"),
+        ("server", "ddd", "empire_core/mod.py:4"),
+        ("server", "eee", "empire_core/mod.py:5"),
+        ("server", "ggg", "empire_core/mod.py:7"),
     ]
 
 
