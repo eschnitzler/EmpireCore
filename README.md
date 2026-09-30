@@ -95,7 +95,8 @@ config = EmpireConfig.for_instance(servers[0], client_version="1.169.11")
 
 client = EmpireClient(username="your_user", password="your_pass", config=config)
 client.login()
-token = client.login_token  # pushed by the server; log in later with EmpireClient(username=..., login_token=token)
+# The server pushes the token just after gbd, so it is set shortly after login() returns.
+token = client.login_token  # log in later with EmpireClient(username=..., login_token=token)
 ```
 
 `login(recaptcha_token=...)` sends a reCAPTCHA v3 token (or calls a function for

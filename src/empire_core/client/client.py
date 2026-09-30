@@ -130,7 +130,7 @@ class EmpireClient:
         self.username = username or self.config.username
         self.password = password or self.config.password
         # A persistent login's token: logs in without the password, and is
-        # replaced by the one the server pushes (slt) after each login.
+        # replaced by the one the server pushes (slt) after each login, just after gbd.
         self.login_token = login_token
         # One per client, as the game client makes one per page load.
         self.session_id = generate_session_id()
@@ -329,7 +329,8 @@ class EmpireClient:
 
         With :attr:`password` set it logs in by password; without one, by the
         :attr:`login_token` an earlier login got. After a login the server
-        pushes a fresh token, kept in :attr:`login_token`.
+        pushes a fresh token, kept in :attr:`login_token`; the push comes after
+        ``gbd``, so it lands shortly after this method returns.
 
         Args:
             recaptcha_token: A reCAPTCHA v3 token for the action ``login``, or
