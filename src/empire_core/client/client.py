@@ -25,9 +25,17 @@ from empire_core.commanders.service import CommandersService, EquipmentService, 
 from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, ServerError, default_config
 from empire_core.defense.service import DefenseService
 from empire_core.events.service import EventsService
-from empire_core.exceptions import CommandError, EmpireTimeoutError, LoginCooldownError, LoginError, PacketError
+from empire_core.exceptions import (
+    CommandError,
+    EmpireError,
+    EmpireTimeoutError,
+    LoginCooldownError,
+    LoginError,
+    PacketError,
+)
 from empire_core.gamedata import GameData
 from empire_core.map.service import MapService
+from empire_core.movements.models import GetMovementsRequest
 from empire_core.movements.service import MovementsService
 from empire_core.network.connection import NON_ERROR_COMMANDS, Connection
 from empire_core.player.service import PlayerService
@@ -39,6 +47,9 @@ from empire_core.spy.service import SpyService
 from empire_core.state.manager import GameState
 
 logger = logging.getLogger(__name__)
+
+# Packets carrying the movement filter settings; each is followed by a gam request.
+MOVEMENT_FILTER_COMMANDS = frozenset({"gbd", "mvf"})
 
 T = TypeVar("T", bound=BaseResponse)
 
@@ -166,6 +177,8 @@ class EmpireClient:
 
         # Update internal state (always runs for state-tracked commands)
         self._update_state(cmd, payload)
+        if cmd in MOVEMENT_FILTER_COMMANDS and packet.error_code == 0:
+            self._request_movements()
 
         # Client: CastleExtensionResponseCommand.execute (bundle line 110733) hands
         # the status to each command, and the commands parse only on success.
@@ -199,6 +212,24 @@ class EmpireClient:
                 except Exception:
                     logger.exception(f"Handler error for command '{cmd}'")
 
+    def _request_movements(self) -> None:
+        """Ask for the movement list (gam) once the movement filter settings (mvf) are known.
+
+        Runs on the receive thread, so it sends without waiting; the reply reaches
+        state like any gam. The client sends it from ``MVFCommand.executeCommand``,
+        the handler of an mvf push. Its login data parser (``GBDCommand``) only
+        reads the gbd's mvf section, but a live login gets no mvf push, so the
+        library also asks after every gbd; nothing else would list the movements
+        after a login.
+
+        Client: ``MVFCommand.executeCommand`` (bundle line 129703) and
+        ``GBDCommand.executeCommand`` (line 129381, ``parse_MVF(n.mvf)``).
+        """
+        try:
+            self.send(GetMovementsRequest())
+        except EmpireError:
+            logger.warning("Could not ask for the movement list after the login data", exc_info=True)
+
     def _update_state(self, cmd: str, payload: dict[str, Any] | list[Any]) -> None:
         """Sync state update from packet - delegates to GameState.
 
@@ -207,17 +238,23 @@ class EmpireClient:
         """
         self.state.update_from_packet(cmd, cast(dict[str, Any], payload))
 
-    def _on_disconnect(self) -> None:
-        """Handle unexpected connection loss.
+    def _on_disconnect(self, generation: int) -> None:
+        """Handle unexpected connection loss of the session ``generation``; a newer session is left alone.
 
         State data is reset, as the game client resets it, so nothing from
-        the lost session is reported after it; the next login rebuilds it.
+        the lost session is reported after it. The next login's gbd rebuilds
+        the player and castles, and the gam asked for after it the movements.
         Registered callbacks and the callback executor stay, so they keep
         working after a re-login.
         """
+        if not self.connection.run_if_current(generation, self._forget_session):
+            logger.debug(f"Client {self.username}: drop of an earlier session reported late, ignored")
+            return
+        logger.warning(f"Client {self.username} disconnected unexpectedly")
+
+    def _forget_session(self) -> None:
         self.is_logged_in = False
         self.state.reset()
-        logger.warning(f"Client {self.username} disconnected unexpectedly")
 
     def on_disconnect(self, callback: Callable[[], None]) -> None:
         """Register a callback for the session dropping on its own; :meth:`close` does not fire it.

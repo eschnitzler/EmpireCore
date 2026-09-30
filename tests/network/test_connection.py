@@ -507,7 +507,7 @@ class TestRecvLoopResilience:
         # Socket-level failures are fatal: waiters are canceled and
         # on_disconnect fires so the client can re-login.
         disconnects: list[bool] = []
-        live_conn.on_disconnect = lambda: disconnects.append(True)
+        live_conn.on_disconnect = lambda _generation: disconnects.append(True)
         waiter = live_conn.create_waiter("gam")
         ws = FakeSocket([OSError("socket died")])
 
@@ -521,7 +521,7 @@ class TestRecvLoopResilience:
         # Only the real socket close at the end of the frame list should
         # trigger the disconnect callback - and exactly once.
         disconnects: list[bool] = []
-        live_conn.on_disconnect = lambda: disconnects.append(True)
+        live_conn.on_disconnect = lambda _generation: disconnects.append(True)
         ws = FakeSocket([b"\x00", b"\xff\xfe"])
 
         live_conn._recv_loop(ws, 1)
@@ -804,7 +804,7 @@ class TestDisconnectListeners:
         # The client claims on_disconnect for itself, so consumers currently
         # monkey-patch it. Listeners must coexist with it.
         calls: list[str] = []
-        live_conn.on_disconnect = lambda: calls.append("attribute")
+        live_conn.on_disconnect = lambda _generation: calls.append("attribute")
         live_conn.add_disconnect_listener(lambda: calls.append("listener"))
 
         live_conn._recv_loop(FakeSocket([]), 1)

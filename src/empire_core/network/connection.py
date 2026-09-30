@@ -187,11 +187,11 @@ class Connection:
         # Global packet handler (for state updates, etc.)
         self.on_packet: Callable[[Packet], None] | None = None
 
-        # Called only on unexpected connection loss, not on disconnect().
-        # Single slot, kept for backwards compatibility (EmpireClient uses it
-        # for its own bookkeeping); additional observers should register via
-        # add_disconnect_listener instead of overwriting this.
-        self.on_disconnect: Callable[[], None] | None = None
+        # Called only on unexpected connection loss, not on disconnect(), with
+        # the generation of the session that dropped (see run_if_current).
+        # Single slot, claimed by EmpireClient for its own bookkeeping; other
+        # observers register via add_disconnect_listener.
+        self.on_disconnect: Callable[[int], None] | None = None
 
         self._disconnect_listeners: list[Callable[[], None]] = []
         self._disconnect_lock = threading.Lock()
@@ -541,19 +541,37 @@ class Connection:
             except ValueError:
                 pass
 
-    def _notify_disconnect(self) -> None:
-        """Fire the legacy attribute and every registered listener."""
-        callbacks: list[Callable[[], None]] = []
+    def _notify_disconnect(self, generation: int) -> None:
+        """Fire the on_disconnect slot, then every registered listener."""
         if self.on_disconnect is not None:
-            callbacks.append(self.on_disconnect)
+            try:
+                self.on_disconnect(generation)
+            except Exception:
+                logger.exception("Error in disconnect callback")
         with self._disconnect_lock:
-            callbacks.extend(self._disconnect_listeners)
-
+            callbacks = list(self._disconnect_listeners)
         for callback in callbacks:
             try:
                 callback()
             except Exception:
                 logger.exception("Error in disconnect callback")
+
+    @property
+    def generation(self) -> int:
+        """Counts the sessions: :meth:`connect` starts a new one."""
+        return self._generation
+
+    def run_if_current(self, generation: int, action: Callable[[], None]) -> bool:
+        """Run ``action`` unless a newer session has started since ``generation``; say whether it ran.
+
+        Holds the lifecycle lock while it runs, so no :meth:`connect` can start a
+        session in between: cleanup for a dropped session cannot touch its successor.
+        """
+        with self._lifecycle_lock:
+            if generation != self._generation:
+                return False
+            action()
+            return True
 
     def unsubscribe(self, cmd_id: str, callback: Callable[[Packet], None]) -> None:
         """Remove a subscriber."""
@@ -623,7 +641,7 @@ class Connection:
 
         # Callbacks run outside the lock: they commonly reconnect.
         if notify:
-            self._notify_disconnect()
+            self._notify_disconnect(generation)
 
         logger.debug("Receive loop ended")
 

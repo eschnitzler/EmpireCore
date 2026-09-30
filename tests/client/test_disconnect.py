@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import json
+import threading
 from collections.abc import Iterator
 
 import pytest
 import websocket
 
 from empire_core.client.client import EmpireClient
-from tests.state.state_helpers import gam_payload, gcl_payload, login, wait_for
+from empire_core.exceptions import ReceiveThreadError
+from empire_core.protocol.packet import Packet
+from tests.service_helpers import request_payload
+from tests.state.state_helpers import arrive, gam_payload, gcl_payload, login, wait_for
 
 
 class ClosingSocket:
@@ -120,3 +125,138 @@ class TestStateAfterADrop:
         login(client.state)
         client.close()
         assert client.state.local_player is None
+
+
+class RecordingSocket:
+    connected = True
+
+    def __init__(self) -> None:
+        self.sent: list[str] = []
+
+    def send(self, data: str) -> None:
+        self.sent.append(data)
+
+    def close(self) -> None:
+        self.connected = False
+
+
+def new_session(client: EmpireClient) -> RecordingSocket:
+    """Stand up a fresh live session, as a (re)connect does, that records what it sends."""
+    socket = RecordingSocket()
+    connection = client.connection
+    connection.ws = socket  # type: ignore[assignment]
+    connection._running = True
+    connection._closing = False
+    connection._generation += 1
+    return socket
+
+
+def arrive_packet(client: EmpireClient, command: str, payload: object, error_code: int = 0) -> None:
+    frame = f"%xt%{command}%1%{error_code}%{json.dumps(payload)}%"
+    client.connection._route_packet(Packet.from_bytes(frame.encode()))
+
+
+def sent_commands(socket: RecordingSocket) -> list[str]:
+    return [frame.split("%")[3] for frame in socket.sent]
+
+
+class TestMovementsAfterLogin:
+    """The client asks for the movement list once the movement filter settings (mvf) arrive."""
+
+    def test_the_login_data_is_followed_by_a_gam_request(self, client):
+        socket = new_session(client)
+        arrive_packet(client, "gbd", {"gpi": {"PID": 1, "PN": "me"}, "mvf": {}})
+        assert sent_commands(socket) == ["gam"]
+        assert request_payload(socket.sent[0]) == {}
+
+    def test_an_mvf_push_is_followed_by_a_gam_request(self, client):
+        socket = new_session(client)
+        arrive_packet(client, "mvf", {})
+        assert sent_commands(socket) == ["gam"]
+
+    def test_a_refused_gbd_asks_for_nothing(self, client):
+        socket = new_session(client)
+        arrive_packet(client, "gbd", {}, error_code=1)
+        assert socket.sent == []
+
+    def test_a_reconnect_and_login_list_the_movements_again_by_themselves(self, client):
+        new_session(client)
+        arrive_packet(client, "gbd", {"gpi": {"PID": 1, "PN": "me"}})
+        arrive_packet(client, "gam", gam_payload(100))
+        drop(client)
+        assert client.state.get_all_movements() == []
+
+        socket = new_session(client)
+        arrive_packet(client, "gbd", {"gpi": {"PID": 1, "PN": "me"}})
+        assert sent_commands(socket) == ["gam"]
+        arrive_packet(client, "gam", gam_payload(100))
+
+        assert [m.movement_id for m in client.state.get_all_movements()] == [100]
+
+
+class TestAttacksAcrossAReconnect:
+    def test_an_attack_still_on_its_way_is_announced_once(self, client):
+        fired: list[int] = []
+        client.state.on_incoming_attack(lambda mov: fired.append(mov.movement_id))
+        new_session(client)
+        arrive_packet(client, "gbd", {"gpi": {"PID": 1, "PN": "me"}})
+        arrive_packet(client, "gam", gam_payload(100))
+        assert wait_for(lambda: fired == [100])
+
+        drop(client)
+        new_session(client)
+        arrive_packet(client, "gbd", {"gpi": {"PID": 1, "PN": "me"}})
+        arrive_packet(client, "gam", gam_payload(100))
+        arrive_packet(client, "gam", gam_payload(101))
+
+        assert wait_for(lambda: fired == [100, 101])
+        assert [m.movement_id for m in client.state.get_all_movements()] == [100, 101]
+
+    def test_a_removed_attack_is_forgotten(self, client):
+        fired: list[int] = []
+        client.state.on_incoming_attack(lambda mov: fired.append(mov.movement_id))
+        login(client.state)
+        client.state.update_from_packet("gam", gam_payload(100))
+        client.state.update_from_packet("mrm", {"MID": 100})
+        client.state.update_from_packet("gam", gam_payload(100))
+        assert wait_for(lambda: fired == [100, 100])
+
+    def test_an_arrived_attack_is_forgotten(self, client):
+        login(client.state)
+        client.state.update_from_packet("gam", gam_payload(100))
+        assert 100 in client.state._announced_attacks
+        arrive(client.state, 100)
+        assert 100 not in client.state._announced_attacks
+
+
+class TestLateDropReport:
+    def test_a_drop_reported_after_a_new_session_started_leaves_it_alone(self, client):
+        new_session(client)
+        stale = client.connection.generation
+        new_session(client)
+        client.is_logged_in = True
+        login(client.state)
+
+        client._on_disconnect(stale)
+
+        assert client.is_logged_in
+        assert client.state.local_player is not None
+
+    def test_a_drop_of_the_current_session_resets_it(self, client):
+        new_session(client)
+        client.is_logged_in = True
+        login(client.state)
+
+        client._on_disconnect(client.connection.generation)
+
+        assert not client.is_logged_in
+        assert client.state.local_player is None
+
+
+class TestBulkLookupOnTheReceiveThread:
+    def test_is_refused(self, client):
+        socket = new_session(client)
+        client.connection._recv_thread = threading.current_thread()
+        with pytest.raises(ReceiveThreadError):
+            client.player.get_player_details_bulk([1, 2])
+        assert socket.sent == []

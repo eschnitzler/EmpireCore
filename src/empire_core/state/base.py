@@ -38,6 +38,11 @@ class StateBase:
         self._callback_executor: ThreadPoolExecutor | None = None
         self._executor_lock = threading.Lock()
 
+        # Attack movement id -> when it ends (wall clock), for every attack
+        # on_incoming_attack announced. Kept across reset() so a reconnect does
+        # not announce the same attack again.
+        self._announced_attacks: dict[int, float] = {}
+
         # Rate-limit state for movement parse failure warnings
         self._movement_parse_warn_at = 0.0
         self._movement_parse_failures = 0
@@ -69,9 +74,11 @@ class StateBase:
     def reset(self) -> None:
         """Forget everything the session sent: player, castles, movements, events and their timestamps.
 
-        Registered callbacks stay. Fires no callback: a movement that is dropped
+        Registered callbacks stay, and so does the record of attacks already
+        announced to :meth:`on_incoming_attack`. Fires no callback: a movement that is dropped
         here was not seen to arrive or be removed. The client resets its data
-        the same way when the connection is lost, and the next login rebuilds it.
+        the same way when the connection is lost; the next login's gbd, and the
+        gam the client asks for after it, rebuild it.
 
         Client: ``CastleConnectionLostCommand.execute`` (bundle line 120254) runs
         ``CastleDestroyGameCommand``, whose ``destroyGameSpecificObjects``
