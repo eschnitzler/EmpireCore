@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from empire_core.movements.models import MovementOwner, MovementWrapper
+from empire_core.movements.models import MovementArea, MovementOwner, MovementWrapper
 from empire_core.movements.tracked import DAIMYO_TOWNSHIP_PLAYER_ID, Movement, MovementResources
 from empire_core.protocol.base import read_or_none, readable_list
 from empire_core.state.base import MovementEventCallback, StateBase
@@ -360,31 +360,43 @@ class MovementState(StateBase):
         m_wrapper: dict[str, Any] | None = None,
         owner_info: dict[int, MovementOwner] | None = None,
     ) -> Movement | None:
-        """Parse a Movement from packet data."""
+        """Parse a Movement from packet data, built in one validation."""
         mid = m_data.get("MID")
         if mid is None:
             return None
 
         try:
-            mov = Movement(**m_data)
-            mov.last_updated = time.time()
+            data: dict[str, Any] = dict(m_data)
+            data["last_updated"] = time.time()
             if self.local_player is not None:
-                mov.local_player_id = self.local_player.PID
-
-            self._apply_areas(mov)
-
+                data["local_player_id"] = self.local_player.PID
+            for key, side in (("TA", "target"), ("SA", "source")):
+                area = read_or_none(MovementArea.model_validate, data[key]) if data.get(key) else None
+                data[key] = area
+                if area is None:
+                    continue
+                data[f"{side}_x"] = area.x
+                data[f"{side}_y"] = area.y
+                data[f"{side}_area_id"] = area.object_id if area.object_id is not None else -1
+                data[f"{side}_name"] = area.name
+                if side == "target":
+                    data["target_type"] = area.area_type
             if m_wrapper:
-                self._apply_wrapper_blocks(mov, m_wrapper)
+                data.update(self._wrapper_fields(m_wrapper))
+            mov = Movement.model_validate(data)
 
             if owner_info:
+                names: dict[str, Any] = {}
                 if (owner := owner_info.get(mov.owner_id)) is not None:
-                    mov.owner = owner
-                    mov.source_player_name = owner.name
-                    mov.source_alliance_name = owner.alliance_name
+                    names.update(owner=owner, source_player_name=owner.name, source_alliance_name=owner.alliance_name)
                 if (target := owner_info.get(mov.target_id)) is not None:
-                    mov.target_owner = target
-                    mov.target_player_name = target.name
-                    mov.target_alliance_name = target.alliance_name
+                    names.update(
+                        target_owner=target, target_player_name=target.name, target_alliance_name=target.alliance_name
+                    )
+                if names:
+                    # Already-validated values, set as pydantic's own __setattr__ would
+                    mov.__dict__.update(names)
+                    mov.__pydantic_fields_set__.update(names)
 
             return mov
         except Exception:
@@ -392,33 +404,26 @@ class MovementState(StateBase):
             return None
 
     @staticmethod
-    def _apply_areas(mov: Movement) -> None:
-        """Read type, position, object id and name from the TA and SA rows."""
-        for side, area in (("target", mov.target_area), ("source", mov.source_area)):
-            if area is None:
-                continue
-            setattr(mov, f"{side}_x", area.x)
-            setattr(mov, f"{side}_y", area.y)
-            setattr(mov, f"{side}_area_id", area.object_id if area.object_id is not None else -1)
-            setattr(mov, f"{side}_name", area.name)
-            if side == "target":
-                mov.target_type = area.area_type
+    def _wrapper_blocks(m_wrapper: dict[str, Any]) -> Callable[[str], MovementWrapper | None]:
+        """The wrapper validated once; if that fails, each block on its own, so a drifted block costs only itself."""
+        whole = read_or_none(MovementWrapper.model_validate, m_wrapper)
+        if whole is not None:
+            return lambda key: whole if key in m_wrapper else None
+        blocks = {
+            key: read_or_none(MovementWrapper.model_validate, {"M": {"MID": 0}, key: value})
+            for key, value in m_wrapper.items()
+            if key != "M"
+        }
+        return blocks.get
 
-    @staticmethod
-    def _wrapper_block(key: str, value: Any) -> MovementWrapper | None:
-        """Validate one wrapper key on its own, so a drifted block costs only itself."""
-        return read_or_none(MovementWrapper.model_validate, {"M": {"MID": 0}, key: value})
-
-    def _apply_wrapper_blocks(self, mov: Movement, m_wrapper: dict[str, Any]) -> None:
-        """Copy the wrapper's army, wait, cargo and flags onto ``mov``.
+    def _wrapper_fields(self, m_wrapper: dict[str, Any]) -> dict[str, Any]:
+        """The Movement fields the wrapper's army, wait, cargo and flags give.
 
         Client: ``ArmyAttackMapmovementVO.loadFromParamObject``, ``parseUnitMovement``,
         ``ArmyTravelMapMovementVO`` and ``MarketMapmovementVO``.
         """
-        blocks = {key: self._wrapper_block(key, value) for key, value in m_wrapper.items() if key != "M"}
-
-        def block(key: str) -> MovementWrapper | None:
-            return blocks.get(key)
+        block = self._wrapper_blocks(m_wrapper)
+        fields: dict[str, Any] = {}
 
         army = next((b.visible_army for b in (block("FA"), block("GA")) if b and b.visible_army), None)
         if army is not None:
@@ -431,47 +436,51 @@ class MovementState(StateBase):
         for pair in pairs:
             if len(pair) >= 2:
                 units[pair[0]] = units.get(pair[0], 0) + pair[1]
-        mov.units = units
+        fields["units"] = units
 
         if (gs := block("GS")) is not None and gs.army_size is not None:
-            mov.estimated_size = gs.army_size
+            fields["estimated_size"] = gs.army_size
 
         if (um := block("UM")) is not None and um.unit_info is not None:
             info = um.unit_info
-            mov.wait_total = info.wait_total
-            mov.wait_passed = info.wait_passed
-            mov.advisor_type = info.advisor_type
-            mov.advisor_movement_count = info.advisor_movement_count
-            mov.advisor_movement_number = info.advisor_movement_number
-            mov.advisor_is_last = info.advisor_is_last == 1
+            fields.update(
+                wait_total=info.wait_total,
+                wait_passed=info.wait_passed,
+                advisor_type=info.advisor_type,
+                advisor_movement_count=info.advisor_movement_count,
+                advisor_movement_number=info.advisor_movement_number,
+                advisor_is_last=info.advisor_is_last == 1,
+            )
             if info.commander is not None:
-                mov.commander_equipment = list(info.commander.equipment)
-                mov.commander_effects = list(info.commander.area_effects)
+                fields["commander_equipment"] = list(info.commander.equipment)
+                fields["commander_effects"] = list(info.commander.area_effects)
 
+        goods: Any = []
         if (mm := block("MM")) is not None and mm.market is not None:
-            mov.market_carriages = mm.market.carriages
-            mov.goods = mm.market.goods
+            fields["market_carriages"] = mm.market.carriages
+            goods = fields["goods"] = mm.market.goods
         elif (loot := block("G")) is not None:
-            mov.goods = loot.travel_goods
+            goods = fields["goods"] = loot.travel_goods
         amounts: dict[str, int] = {}
-        for entry in mov.goods:
+        for entry in goods:
             if isinstance(entry, tuple) and isinstance(entry[0], str):
                 amounts[entry[0]] = amounts.get(entry[0], 0) + entry[1]
-        mov.resources = MovementResources.model_validate(amounts)
+        fields["resources"] = MovementResources.model_validate(amounts)
 
         if (att := block("ATT")) is not None:
-            mov.attack_type = att.attack_type
+            fields["attack_type"] = att.attack_type
         if (sm := block("SM")) is not None:
-            mov.is_shadow = sm.is_shadow
+            fields["is_shadow"] = sm.is_shadow
         if (fc := block("FC")) is not None:
-            mov.force_cancelable = fc.force_cancelable
+            fields["force_cancelable"] = fc.force_cancelable
         if (ast := block("AST")) is not None:
-            mov.support_tool_ids = ast.support_tools
+            fields["support_tool_ids"] = ast.support_tools
         if (asct := block("ASCT")) is not None:
-            mov.auto_skip_cooldown_type = asct.auto_skip_cooldown_type
+            fields["auto_skip_cooldown_type"] = asct.auto_skip_cooldown_type
         # Client: SpyMapmovementVO.parseSpyInfo (bundle line 43748)
         if (spy := block("S")) is not None and spy.spy is not None:
-            mov.spy = spy.spy
+            fields["spy"] = spy.spy
+        return fields
 
     def _log_movement_parse_failure(self, mid: Any) -> None:
         """Report a dropped movement loudly, but at most once a minute.
