@@ -15,7 +15,7 @@ from typing import Any
 from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
 from empire_core.enums import Kingdom, SpyType
-from empire_core.map.models import MapAreaItem, MapObject, parse_area_rows
+from empire_core.map.models import KingdomProtection, MapAreaItem, MapObject, parse_area_rows
 from empire_core.messages.models import SpyReportResponse
 from empire_core.movements.models import MovementOwner, MovementSpy, MovementWrapper
 from empire_core.protocol.base import (
@@ -184,28 +184,6 @@ class SpyScreenInfoRequest(BaseRequest):
     target_kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The target's kingdom")
 
 
-class SpyProtection(BasePayload):
-    """
-    Your own beginner and faction protection in one kingdom, a ``uap`` block.
-
-    Client: ``CastleUserData.parse_UAP`` (bundle line 9899), and
-    ``FactionEventVO.parse_uap`` (bundle line 7366) for Berimond's ``PMS``/``PMT``
-    """
-
-    kingdom_id: int | None = Field(alias="KID", default=None, description="The kingdom this protection is for")
-    beginner_protection_seconds: ClientInt = Field(
-        alias="NS", default=0, description="Seconds of beginner protection left; protected when above 0"
-    )
-    faction_protection_status: ClientInt = Field(alias="PMS", default=0, description="Berimond protection status")
-    faction_protection_seconds: int | None = Field(
-        alias="PMT", default=None, description="Seconds of Berimond protection left"
-    )
-
-    @property
-    def is_beginner_protected(self) -> bool:
-        return self.beginner_protection_seconds > 0
-
-
 class SpyTargetArea(BasePayload):
     """
     The target's map rows and owner records, and your own protection: the ``gaa`` block of ``ssi``.
@@ -216,7 +194,7 @@ class SpyTargetArea(BasePayload):
     """
 
     kingdom_id: int | None = Field(alias="KID", default=None, description="The target's kingdom")
-    protection: SpyProtection | None = Field(alias="uap", default=None, description="Your own protection")
+    protection: KingdomProtection | None = Field(alias="uap", default=None, description="Your own protection")
     owners: list[MapObject] = Field(alias="OI", default_factory=list, description="Owner records of the rows")
     rows: list[MapAreaItem] = Field(alias="AI", default_factory=list, description="The target's map rows")
 
@@ -305,7 +283,7 @@ class SpyScreenInfoResponse(BaseResponse):
     def target_owner(self, x: int | None = None, y: int | None = None) -> MapObject | None:
         """The owner record of the target's owner, when the target row names a player that has one."""
         row = self.target_row(x, y)
-        if row is None or row.owner_id < 0:
+        if row is None or row.owner_id is None or row.owner_id < 0:
             return None
         return next((owner for owner in self.target_area.owners if owner.owner_id == row.owner_id), None)
 
@@ -391,7 +369,6 @@ __all__ = [
     "MaxSpiesResponse",
     "SendSpyRequest",
     "SendSpyResponse",
-    "SpyProtection",
     "SpyScreenInfoRequest",
     "SpyScreenInfoResponse",
     "SpyTargetArea",

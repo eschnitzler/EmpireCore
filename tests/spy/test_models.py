@@ -140,8 +140,8 @@ class TestSpyScreenInfoResponse:
         area = screen.target_area
         assert area.kingdom_id == 0
         assert area.protection is not None
-        assert (area.protection.beginner_protection_seconds, area.protection.is_beginner_protected) == (-1, False)
-        assert area.protection.faction_protection_status == -1
+        assert (area.protection.noob_protection_seconds, area.protection.is_noob_protected) == (-1, False)
+        assert area.protection.protection_status == -1
         assert area.owners == []
         row = screen.target_row()
         assert row is not None
