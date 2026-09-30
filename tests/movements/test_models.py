@@ -108,7 +108,7 @@ class TestMalformedMovementBatch:
         assert (record.alliance_id, record.alliance_rank, record.alliance_name) == (301, 8, "Clan")
         assert record.has_vip and not record.has_premium and not record.is_ruin and not record.is_searching_alliance
         assert record.crest is not None and record.crest.is_set and record.crest.background_color1 == 3
-        assert record.castle_positions[0].model_dump() == {
+        assert record.castle_positions[0]._asdict() == {
             "kingdom_id": 0,
             "area_id": 16655119,
             "x": 633,

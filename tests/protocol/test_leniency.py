@@ -125,6 +125,17 @@ class TestPositionalArrayParsers:
         member = AllianceMember.model_validate({"OID": 1, "AP": [[0, 12345, 640, 655]]})
         assert [(c.area_id, c.area_type) for c in member.castle_positions] == [(12345, None)]
 
+    def test_a_movement_owner_reads_its_positions_as_every_owner_record_does(self):
+        from empire_core.map.models.owners import OwnerCastlePosition
+        from empire_core.movements.models import MovementOwner
+
+        owner = MovementOwner.model_validate(
+            {"OID": 1, "AP": [[[0, "12345", 640, 655, 1, 99]], [0, 1, "x", 2], [0, 1]], "VP": None}
+        )
+        assert owner.castle_positions == [OwnerCastlePosition(0, 12345, 640, 655, 1)]
+        assert isinstance(owner.castle_positions[0], tuple)
+        assert owner.village_positions == []
+
     def test_castle_positions_unwrap_a_doubly_nested_entry(self):
         member = AllianceMember.model_validate(
             {"OID": 1, "AP": [[[0, 12345, 640, 655, 1]]], "VP": [[[0, 6, 3, 4, 10]]]}
@@ -457,3 +468,18 @@ class TestReplyEnumProperties:
             (297, Kingdom.GREEN),
             (3, Kingdom.ICE),
         ]
+
+
+@pytest.mark.parametrize("dump", [{"by_alias": True}, {"by_alias": True, "mode": "json"}])
+def test_owner_positions_survive_a_dump_and_validate_round_trip(dump):
+    from empire_core.map.models.areas import MapObject
+    from empire_core.movements.models import MovementOwner
+    from empire_core.player.models.info import PlayerOwnerInfo
+
+    record = {"OID": 5, "N": "p", "AP": [[0, 12345, 640, 655, 1]], "VP": [[0, 6, 3, 4, 10]]}
+    for model in (MapObject, MovementOwner, PlayerOwnerInfo):
+        first = model.model_validate(record)
+        again = model.model_validate(first.model_dump(**dump))
+        assert again.castle_positions == first.castle_positions == [(0, 12345, 640, 655, 1)], model
+        assert again.village_positions == first.village_positions == [(0, 6, 3, 4, 10)], model
+        assert model.model_validate(first.to_payload()).castle_positions == first.castle_positions, model

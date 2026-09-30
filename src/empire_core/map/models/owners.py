@@ -5,9 +5,9 @@ A player's crest, faction standing, castle positions and alliance crest.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, NamedTuple
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, TypeAdapter, ValidationError, field_validator
 
 from empire_core.protocol.base import BasePayload, list_or_empty, object_or_none
 from empire_core.protocol.js import ClientInt, ParseInt, js_truthy
@@ -50,24 +50,49 @@ class OwnerFaction(BasePayload):
     title_id: ParseInt = Field(alias="TID", default=0, description="Faction title id")
 
 
-class OwnerCastlePosition(BasePayload):
+class OwnerCastlePosition(NamedTuple):
     """One of an owner's castles or villages: an entry of ``AP`` or ``VP``, ``[kingdom_id, area_id, x, y, area_type]``.
+
+    A plain named tuple rather than a model: a kingdom scan keeps tens of thousands.
+    ``kingdom_id`` and ``area_id`` are read through the client's ``int()``; ``area_type``
+    is None when the entry has none.
 
     Client: ``MinWorldMapCastleInfoVO.fillFromParamObject`` (bundle line 18459).
     """
 
-    kingdom_id: ClientInt = Field(description="Kingdom id")
-    area_id: ClientInt = Field(description="Area id")
-    x: int = Field(description="Map x")
-    y: int = Field(description="Map y")
-    area_type: int | None = Field(default=None, description="Area type; None when the entry has none")
+    kingdom_id: ClientInt
+    area_id: ClientInt
+    x: int
+    y: int
+    area_type: int | None = None
 
-    @model_validator(mode="before")
-    @classmethod
-    def _from_row(cls, data: Any) -> Any:
-        if isinstance(data, list) and len(data) >= 4:
-            return dict(zip(("kingdom_id", "area_id", "x", "y", "area_type"), data[:5], strict=False))
-        return data
+
+_POSITION = TypeAdapter(OwnerCastlePosition)
+
+
+def owner_positions(value: Any) -> list[OwnerCastlePosition]:
+    """
+    An owner record's ``AP`` or ``VP`` rows, as ``WorldMapOwnerInfoVO.parsePosList`` (bundle line 10795) reads them.
+
+    Only the first five entries of a row are read. A row the server wraps in one
+    extra list (seen on AP in Berimond) is unwrapped, which the client does not do;
+    a row that still cannot be read (fewer than four entries, or a position that is
+    not a number) is skipped instead of failing the record.
+    """
+    if not isinstance(value, list):
+        return []
+    positions: list[OwnerCastlePosition] = []
+    for entry in value:
+        if isinstance(entry, (list, tuple)) and len(entry) == 1 and isinstance(entry[0], (list, tuple)):
+            entry = entry[0]
+        if isinstance(entry, OwnerCastlePosition):
+            positions.append(entry)
+        elif isinstance(entry, (list, tuple)) and len(entry) >= 4:
+            try:
+                positions.append(_POSITION.validate_python(entry[:5]))
+            except ValidationError:
+                continue
+    return positions
 
 
 class AllianceCrest(BasePayload):
@@ -112,4 +137,5 @@ __all__ = [
     "OwnerCastlePosition",
     "OwnerCrest",
     "OwnerFaction",
+    "owner_positions",
 ]

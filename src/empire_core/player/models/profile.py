@@ -14,8 +14,8 @@ from pydantic import Field, field_validator, model_validator
 
 from empire_core.enums import AllianceRank
 from empire_core.map.models.areas import AllianceEmblem
-from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest, OwnerFaction
-from empire_core.protocol.base import BasePayload, enum_or_none, object_or_none, readable_list
+from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest, OwnerFaction, owner_positions
+from empire_core.protocol.base import BasePayload, enum_or_none, object_or_none
 from empire_core.protocol.js import ParseInt, js_loose_equals, js_parse_int, js_parse_int_or_zero, js_truthy
 
 
@@ -123,20 +123,7 @@ class PlayerProfileBase(BasePayload):
     @field_validator("castle_positions", "village_positions", mode="before")
     @classmethod
     def _position_rows(cls, value: Any) -> Any:
-        """
-        Rows as ``MinWorldMapCastleInfoVO.fillFromParamObject`` (bundle line 18459) reads them.
-
-        A row the server wraps in one extra list (seen on AP in Berimond) is
-        unwrapped, which the client does not do; a row that still is not five
-        numbers is skipped instead of failing the reply.
-        """
-        if not isinstance(value, list):
-            return []
-        unwrapped = [
-            entry[0] if isinstance(entry, list) and len(entry) == 1 and isinstance(entry[0], list) else entry
-            for entry in value
-        ]
-        return readable_list(OwnerCastlePosition, unwrapped)
+        return owner_positions(value)
 
     @model_validator(mode="after")
     def _alliance_crest_only_in_an_alliance(self) -> PlayerProfileBase:

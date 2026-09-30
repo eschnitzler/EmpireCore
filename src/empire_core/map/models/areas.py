@@ -24,7 +24,7 @@ from empire_core.protocol.base import (
 from empire_core.protocol.js import ClientInt, ParseInt, js_loose_equals, js_parse_int, js_truthy
 
 from .items import MapAreaItem, parse_area_rows
-from .owners import AllianceEmblem, OwnerCastlePosition, OwnerCrest, OwnerFaction
+from .owners import AllianceEmblem, OwnerCastlePosition, OwnerCrest, OwnerFaction, owner_positions
 
 logger = logging.getLogger(__name__)
 
@@ -158,20 +158,7 @@ class MapObject(BasePayload):
     @field_validator("castle_positions", "village_positions", mode="before")
     @classmethod
     def _position_rows(cls, value: Any) -> Any:
-        """
-        Rows as ``WorldMapOwnerInfoVO.parsePosList`` (bundle line 10795) reads them.
-
-        A row the server wraps in one extra list (seen on AP in Berimond) is
-        unwrapped, which the client does not do; a row that still cannot be
-        read is skipped instead of failing the record.
-        """
-        if not isinstance(value, list):
-            return []
-        unwrapped = [
-            entry[0] if isinstance(entry, list) and len(entry) == 1 and isinstance(entry[0], list) else entry
-            for entry in value
-        ]
-        return readable_list(OwnerCastlePosition, unwrapped)
+        return owner_positions(value)
 
 
 def _owner_records(value: Any) -> list[MapObject]:

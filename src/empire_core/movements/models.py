@@ -10,7 +10,7 @@ from pydantic import Field, field_validator, model_validator
 
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import MapItemType, SpyType
-from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest, OwnerFaction
+from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest, OwnerFaction, owner_positions
 from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
@@ -285,6 +285,11 @@ class MovementOwner(BasePayload):
     @classmethod
     def _parsed_one_flag(cls, value: Any) -> bool:
         return js_parse_int(value) == 1
+
+    @field_validator("castle_positions", "village_positions", mode="before")
+    @classmethod
+    def _position_rows(cls, value: Any) -> Any:
+        return owner_positions(value)
 
     @field_validator("is_dummy", mode="before")
     @classmethod
