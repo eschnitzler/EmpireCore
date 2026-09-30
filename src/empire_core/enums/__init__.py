@@ -10,6 +10,7 @@ from .castle import BuildingState, ExpansionType, MarketScope, ResourceCartType
 from .combat import AttackType, AutoSkipCooldownType, CombatEffectType, Flank, LootPriority
 from .commanders import EquipmentSlot, EquipmentType, Rareness, SCEItem, WearerType
 from .map import Kingdom, MapItemType, PeaceModeStatus
+from .messages import MessageType
 from .movements import MovementType
 from .ranking import RankingType
 from .spy import SpyLogResult, SpyLogType, SpyType
@@ -50,6 +51,8 @@ __all__ = [
     "DiplomacyStatus",
     "OnlineState",
     "HelpType",
+    # Messages
+    "MessageType",
     # Ranking
     "RankingType",
     # Inventory

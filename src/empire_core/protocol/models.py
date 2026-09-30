@@ -294,6 +294,7 @@ from empire_core.enums import (
     Kingdom,
     LootPriority,
     MapItemType,
+    MessageType,
     OnlineState,
     ProductionListId,
     RankingType,
@@ -324,6 +325,9 @@ from empire_core.map.models.owners import (
     OwnerFaction,
 )
 from empire_core.messages.models import (
+    MAX_MAILBOX_ARCHIVE_SIZE,
+    MAX_MAILBOX_BATTLE_AND_SPY_REPORTS,
+    MAX_MAILBOX_SIZE,
     ForwardSpyLogRequest,
     GetSpyReportRequest,
     MessageInfo,
@@ -331,6 +335,7 @@ from empire_core.messages.models import (
     SpyReportArea,
     SpyReportResponse,
     SystemNotificationEvent,
+    repair_header,
 )
 from empire_core.movements.models import (
     GetMovementsRequest,
@@ -402,6 +407,7 @@ __all__ = [
     "GGECommand",
     "DEFAULT_ZONE",
     "HelpType",
+    "MessageType",
     "AllianceRank",
     "BookmarkType",
     "BasePayload",
@@ -745,4 +751,8 @@ __all__ = [
     "AllianceDiplomacyStatus",
     "GetAllianceInfoRequest",
     "GetAllianceInfoResponse",
+    "MAX_MAILBOX_SIZE",
+    "MAX_MAILBOX_ARCHIVE_SIZE",
+    "MAX_MAILBOX_BATTLE_AND_SPY_REPORTS",
+    "repair_header",
 ]

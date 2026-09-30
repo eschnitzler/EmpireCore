@@ -10,6 +10,7 @@ Commands:
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -17,7 +18,7 @@ from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model
 
 from empire_core.army.models.units import SpyPositions
 from empire_core.commanders.models.roster import Castellan
-from empire_core.enums import Kingdom, MapItemType, SpyLogResult, SpyLogType
+from empire_core.enums import Kingdom, MapItemType, MessageType, SpyLogResult, SpyLogType
 from empire_core.map.models import MapObject
 from empire_core.protocol.base import (
     BasePayload,
@@ -30,6 +31,7 @@ from empire_core.protocol.base import (
     readable_list,
 )
 from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_parse_int, js_truthy
+from empire_core.protocol.text import decode_json_text
 
 if TYPE_CHECKING:
     from empire_core.army.spy_army import SpyArmy
@@ -48,6 +50,53 @@ SPY_VALIDITY = 172800
 # =============================================================================
 # SNE - System Notification Event
 # =============================================================================
+
+MAX_MAILBOX_SIZE = 50
+"""Messages the mailbox holds. Client: ``MessageConst.MAX_MAILBOX_SIZE`` (dll line 19516)"""
+MAX_MAILBOX_ARCHIVE_SIZE = 20
+"""Archived messages the mailbox holds. Client: ``MessageConst.MAX_MAILBOX_ARCHIVE_SIZE`` (dll line 19516)"""
+MAX_MAILBOX_BATTLE_AND_SPY_REPORTS = 25
+"""Battle and spy reports the mailbox holds. Client: ``MAX_MAILBOX_BATTLE_AND_SPY_REPORTS`` (dll line 19516)"""
+
+# CastleMessageFactory.parseMessage (bundle line 135102) reads these types, and any it has no case for,
+# as a MessageUserVO, whose subject is the whole header
+_TYPES_WITH_OWN_HEADERS = frozenset(
+    {
+        MessageType.PLAYER_GIFT, MessageType.ATTACK_COUNT_THRESHOLD, MessageType.SPY_PLAYER, MessageType.PATCH_NOTES,
+        MessageType.SPY_NPC, MessageType.CONQUERABLE_AREA, MessageType.BATTLE_LOG, MessageType.ALLIANCE_REQUEST,
+        MessageType.ALLIANCE_WAR, MessageType.ALLIANCE_BOOKMARK, MessageType.ATTACK_CANCELLED,
+        MessageType.SPY_CANCELLED, MessageType.STARVE_INFO, MessageType.STARVE_VILLAGE_LOST,
+        MessageType.STARVE_ISLE_RESOURCE_LOST, MessageType.BUILDING_DISABLED, MessageType.MARKET_CARRIAGE_ARRIVED,
+        MessageType.ABO, MessageType.PAYMENT_DOPPLER, MessageType.REBUY, MessageType.SPECIAL_EVENT,
+        MessageType.TOURNAMENT_OVER, MessageType.ISLAND_KINGDOM_TITLE, MessageType.ISLAND_KINGDOM_REWARD,
+        MessageType.RUIN_INFO, MessageType.THANK_YOU_PACKAGE, MessageType.HIGHSCORE_BONUS, MessageType.PRIVATE_OFFER,
+        MessageType.EVENT_ANNOUNCEMENT, MessageType.USER_SURVEY, MessageType.TEXT_ID, MessageType.SUBSCRIPTION,
+        MessageType.SYSTEM, MessageType.POPUP, MessageType.DOWNTIME_STATUS, MessageType.ATTACK_ADVISOR_FAILURE,
+        MessageType.ATTACK_ADVISOR_SUMMARY, MessageType.DIVISION_CHANGE,
+    }
+)  # fmt: skip
+
+# AMessageVO.repairSpecialCharacters: a header cut off inside an encoded character ends in "..."
+_CUT_ENCODINGS = (
+    (re.compile(r"&p.*\.\.\."), "%..."),
+    (re.compile(r"&q.*\.\.\."), '"...'),
+    (re.compile(r"&1.*\.\.\."), "'..."),
+    (re.compile(r"<b.*\.\.\."), "..."),
+    (re.compile(r"%5.*\.\.\."), "\\..."),
+)
+
+
+def repair_header(header: str | None) -> str:
+    """
+    A message header decoded as the client decodes it before reading it.
+
+    Client: ``AMessageVO.repairSpecialCharacters`` (bundle line 3820): chat text
+    decoding, then a character cut off mid-encoding at the end of a shortened header
+    """
+    text = decode_json_text(header)
+    for pattern, replacement in _CUT_ENCODINGS:
+        text = pattern.sub(replacement.replace("\\", "\\\\"), text)
+    return text
 
 
 _MESSAGE_ROW = (
@@ -104,6 +153,30 @@ class MessageInfo(BasePayload):
     @classmethod
     def _int_one_flag(cls, value: Any) -> bool:
         return js_int(value) == 1
+
+    @property
+    def message_type_enum(self) -> MessageType | None:
+        """``message_type`` as a :class:`MessageType`, None for a type the client does not define."""
+        return enum_or_none(MessageType, self.message_type)
+
+    @property
+    def decoded_header(self) -> str:
+        """``header`` decoded as the client decodes it before reading it; see :func:`repair_header`."""
+        return repair_header(self.header)
+
+    @property
+    def subject(self) -> str | None:
+        """
+        The subject of player mail, the alliance newsletter and every type the client reads as mail.
+
+        None for the types whose header has a layout of its own (reports, notices, offers).
+
+        Client: ``MessageUserVO.parseMessageHeader`` and ``parseSubject`` (bundle line 61340)
+        turn the decoded header's carriage returns and newlines into spaces
+        """
+        if self.message_type in _TYPES_WITH_OWN_HEADERS:
+            return None
+        return self.decoded_header.replace("\r", " ").replace("\n", " ")
 
     @property
     def is_spy_log(self) -> bool:
@@ -479,6 +552,10 @@ class SpyReportResponse(BaseResponse):
 
 
 __all__ = [
+    "MAX_MAILBOX_SIZE",
+    "MAX_MAILBOX_ARCHIVE_SIZE",
+    "MAX_MAILBOX_BATTLE_AND_SPY_REPORTS",
+    "repair_header",
     "ForwardSpyLogRequest",
     "GetSpyReportRequest",
     "MESSAGE_TYPE_SPY_NPC",
