@@ -592,8 +592,22 @@ class Connection:
                     pass
 
     def _recv_loop(self, ws: websocket.WebSocket, generation: int) -> None:
-        """Background thread that receives and routes messages."""
+        """Background thread that receives and routes messages.
+
+        However the loop ends, even by an error nothing inside it expects, the
+        epilogue runs: waiters are cancelled, the connection is marked down
+        and, unless :meth:`disconnect` ended it, the disconnect listeners run.
+        """
         logger.debug("Receive loop started")
+        try:
+            self._receive(ws, generation)
+        except Exception:
+            if self._running and generation == self._generation:
+                logger.exception("Receive loop stopped by an unexpected error")
+        finally:
+            self._end_receive_loop(generation)
+
+    def _receive(self, ws: websocket.WebSocket, generation: int) -> None:
         frames = FrameBuffer()
 
         while self._running and generation == self._generation:
@@ -633,6 +647,7 @@ class Connection:
                 except Exception:
                     logger.exception("Dropping a packet that could not be parsed or routed")
 
+    def _end_receive_loop(self, generation: int) -> None:
         # If a newer connection took over, this thread must not touch shared
         # state - the new session owns it now. The check happens under the
         # lifecycle lock so a connect() cannot slip in between the check and
