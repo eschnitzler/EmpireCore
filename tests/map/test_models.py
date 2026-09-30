@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from empire_core.enums import Kingdom, MapItemType
+from empire_core.enums import Kingdom, MapItemType, PeaceModeStatus
 from empire_core.map.models.areas import (
     FindNextMapObjectRequest,
     FindNextMapObjectResponse,
@@ -528,22 +528,40 @@ class TestRowKingdom:
         assert MapAreaItem.from_list([31, 1, 2], Kingdom.STORM).kingdom is Kingdom.STORM
 
 
-class TestNoobProtection:
-    """GAACommand.executeCommand passes uap to CastleUserData.parse_UAP (bundle line 9899)."""
+class TestKingdomProtection:
+    """GAACommand.executeCommand passes uap to CastleUserData.parse_UAP (bundle lines 9899-9906)."""
 
     def test_uap_is_read(self):
-        response = GetMapAreaResponse.model_validate({"KID": 1, "uap": {"KID": 1, "NS": "3600"}})
-        assert response.noob_protection is not None
-        assert (response.noob_protection.kingdom_id, response.noob_protection.noob_protection_seconds) == (1, 3600)
-        assert response.noob_protection.is_noob_protected is True
+        uap = {"KID": 1, "NS": "3600", "PMS": 1, "PMT": "7200"}
+        protection = GetMapAreaResponse.model_validate({"KID": 1, "uap": uap}).protection
+        assert protection is not None
+        assert (protection.kingdom_id, protection.noob_protection_seconds, protection.is_noob_protected) == (
+            1,
+            3600,
+            True,
+        )
+        assert (protection.protection_status, protection.protection_seconds) == (1, 7200)
+        assert protection.peace_mode_status is PeaceModeStatus.PEACETIME
 
     def test_no_protection_left(self):
-        response = GetMapAreaResponse.model_validate({"uap": {"KID": 0, "NS": 0}})
-        assert response.noob_protection is not None and response.noob_protection.is_noob_protected is False
+        protection = GetMapAreaResponse.model_validate({"uap": {"KID": 0, "NS": 0, "PMS": -1}}).protection
+        assert protection is not None and protection.is_noob_protected is False
+        assert protection.peace_mode_status is PeaceModeStatus.OFF
+
+    def test_missing_keys_read_as_int_of_nothing(self):
+        protection = GetMapAreaResponse.model_validate({"uap": {}}).protection
+        assert protection is not None
+        assert (protection.kingdom_id, protection.protection_status, protection.protection_seconds) == (None, 0, 0)
+
+    def test_a_berimond_status_the_peace_mode_does_not_define(self):
+        # In Berimond PMS is the faction protection status (FactionEventVO.parse_uap, bundle line 7366)
+        protection = GetMapAreaResponse.model_validate({"uap": {"KID": 10, "PMS": 5, "PMT": 60}}).protection
+        assert protection is not None
+        assert (protection.protection_status, protection.peace_mode_status) == (5, None)
 
     @pytest.mark.parametrize("payload", [{}, {"uap": None}, {"uap": 5}])
     def test_a_reply_without_uap(self, payload):
-        assert GetMapAreaResponse.model_validate(payload).noob_protection is None
+        assert GetMapAreaResponse.model_validate(payload).protection is None
 
 
 class TestRuinFlag:

@@ -6,9 +6,9 @@ from .areas import (
     GetMapAreaRequest,
     GetMapAreaResponse,
     JoinAreaRequest,
+    KingdomProtection,
     MapArea,
     MapObject,
-    NoobProtection,
 )
 from .items import INVASION_AREA_TYPES, ROW_PARSERS, MapAreaItem, parse_area_rows
 from .owners import AllianceCrest, AllianceEmblem, OwnerCastlePosition, OwnerCrest, OwnerFaction
@@ -18,7 +18,7 @@ __all__ = [
     "GetMapAreaResponse",
     "MapArea",
     "MapObject",
-    "NoobProtection",
+    "KingdomProtection",
     "AllianceCrest",
     "AllianceEmblem",
     "FindNextMapObjectRequest",

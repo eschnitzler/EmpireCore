@@ -86,3 +86,16 @@ class MapItemType(IntEnum):
     WOLF_KING = 42
     ARE_PORTAL = 43
     NO_OUTPOST = 99
+
+
+class PeaceModeStatus(IntEnum):
+    """
+    Where the player's peace mode stands, a ``uap`` block's ``PMS`` outside Berimond.
+
+    Client: ``CastleUserData.PEACEMODE_STATUS_*`` (bundle line 10188)
+    """
+
+    OFF = -1
+    PRETIME = 0
+    PEACETIME = 1
+    POSTTIME = 2

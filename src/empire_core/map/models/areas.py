@@ -13,8 +13,15 @@ from typing import Any
 
 from pydantic import ConfigDict, Field, ValidationInfo, field_validator
 
-from empire_core.enums import Kingdom, MapItemType
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none, readable_list
+from empire_core.enums import Kingdom, MapItemType, PeaceModeStatus
+from empire_core.protocol.base import (
+    BasePayload,
+    BaseRequest,
+    BaseResponse,
+    enum_or_none,
+    object_or_none,
+    readable_list,
+)
 from empire_core.protocol.js import ClientInt, ParseInt, js_loose_equals, js_parse_int, js_truthy
 
 from .items import MapAreaItem, parse_area_rows
@@ -170,22 +177,40 @@ def _owner_records(value: Any) -> list[MapObject]:
     )
 
 
-class NoobProtection(BasePayload):
+class KingdomProtection(BasePayload):
     """
-    The player's beginner protection in one kingdom: a map reply's ``uap``.
+    The player's own protection in one kingdom: a ``uap`` block.
 
-    Client: ``CastleUserData.parse_UAP`` (bundle line 9899), which keeps only whether ``NS`` is above 0.
+    ``PMS`` and ``PMT`` mean the peace mode outside Berimond and the faction
+    protection in Berimond, as the client reads them. The client acts on the
+    block only for the kingdom it is in.
+
+    Client: ``CastleUserData.parse_UAP`` (bundle lines 9899-9906), which hands a
+    Berimond block to ``FactionEventVO.parse_uap`` (bundle line 7366)
     """
 
-    kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id")
+    kingdom_id: int | None = Field(alias="KID", default=None, description="The kingdom this protection is for")
     noob_protection_seconds: ClientInt = Field(
         alias="NS", default=0, description="Seconds of beginner protection left in that kingdom"
+    )
+    protection_status: ClientInt = Field(
+        alias="PMS",
+        default=0,
+        description="Peace mode status (see peace_mode_status), or in Berimond the faction protection status",
+    )
+    protection_seconds: ClientInt = Field(
+        alias="PMT", default=0, description="Seconds left of the peace mode stage, or in Berimond of faction protection"
     )
 
     @property
     def is_noob_protected(self) -> bool:
-        """Whether the player is still protected there."""
+        """Whether the player still has beginner protection there."""
         return self.noob_protection_seconds > 0
+
+    @property
+    def peace_mode_status(self) -> PeaceModeStatus | None:
+        """``protection_status`` as a peace mode stage; None for a value the client does not define."""
+        return enum_or_none(PeaceModeStatus, self.protection_status)
 
 
 class MapArea(BasePayload):
@@ -215,10 +240,11 @@ class MapArea(BasePayload):
 
 class GetMapAreaResponse(BaseResponse):
     """
-    The map rows of a rectangle, the owner records of the players they name, and the player's beginner protection.
+    The map rows of a rectangle, the owner records of the players they name, and the player's own protection.
 
     Command: gaa
-    Response format: {"KID": 0, "AI": [[type, x, y, ...], ...], "OI": [{...}, ...], "uap": {"KID": .., "NS": ..}}
+    Response format: {"KID": 0, "AI": [[type, x, y, ...], ...], "OI": [{...}, ...],
+    "uap": {"KID": .., "NS": .., "PMS": .., "PMT": ..}}
 
     Each row is read in the reply's kingdom (see :class:`MapAreaItem`). A scan
     moves the session off the castle it had joined, so castle-scoped reads
@@ -238,8 +264,8 @@ class GetMapAreaResponse(BaseResponse):
     owners: list[MapObject] = Field(
         alias="OI", default_factory=list, description="Owner records for the players the rows name"
     )
-    noob_protection: NoobProtection | None = Field(
-        alias="uap", default=None, description="The player's beginner protection in the kingdom"
+    protection: KingdomProtection | None = Field(
+        alias="uap", default=None, description="The player's own protection in the kingdom"
     )
 
     @field_validator("items", mode="before")
@@ -259,7 +285,7 @@ class GetMapAreaResponse(BaseResponse):
     def _parse_owners(cls, value: Any) -> Any:
         return _owner_records(value)
 
-    @field_validator("noob_protection", mode="before")
+    @field_validator("protection", mode="before")
     @classmethod
     def _protection_needs_an_object(cls, value: Any) -> Any:
         return object_or_none(value)
@@ -375,7 +401,7 @@ __all__ = [
     "GetMapAreaResponse",
     "MapArea",
     "MapObject",
-    "NoobProtection",
+    "KingdomProtection",
     "FindNextMapObjectRequest",
     "FindNextMapObjectResponse",
     "JoinAreaRequest",

@@ -269,9 +269,9 @@ from empire_core.map.models.areas import (
     GetMapAreaRequest,
     GetMapAreaResponse,
     JoinAreaRequest,
+    KingdomProtection,
     MapArea,
     MapObject,
-    NoobProtection,
 )
 from empire_core.map.models.items import MapAreaItem
 from empire_core.map.models.owners import (
@@ -465,6 +465,7 @@ __all__ = [
     "GetMapAreaRequest",
     "GetMapAreaResponse",
     "MapObject",
+    "KingdomProtection",
     "AllianceCrest",
     "AllianceEmblem",
     "GetMovementsRequest",
@@ -484,7 +485,6 @@ __all__ = [
     "FindNextMapObjectResponse",
     "JoinAreaRequest",
     "MapArea",
-    "NoobProtection",
     # Player
     "GetPlayerInfoRequest",
     "GetPlayerInfoResponse",
