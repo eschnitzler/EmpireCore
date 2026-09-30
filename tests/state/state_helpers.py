@@ -1,6 +1,9 @@
 """Payload builders shared by the GameState tests."""
 
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from unittest.mock import patch
 
 from empire_core.state.manager import GameState
 
@@ -33,11 +36,18 @@ def push_payload(mid: int, movement_type: int = 0, oid: int = 999, tt: int = 600
     }
 
 
+@contextmanager
+def later(seconds: float) -> Iterator[None]:
+    """Run the block ``seconds`` from now, as far as the wall clock goes."""
+    with patch("time.time", return_value=time.time() + seconds):
+        yield
+
+
 def arrive(state: GameState, mid: int) -> None:
     """Let a tracked movement's travel time run out, then let state notice."""
     mov = state.movements[mid]
-    mov.last_updated = time.time() - (mov.total_time - mov.progress_time) - 1
-    state.get_all_movements()
+    with later(mov.estimated_arrival - time.time() + 1):
+        state.get_all_movements()
 
 
 def gcl_payload(castles: list[tuple[int, str]], owner_id: int = 7, kingdom: int = 0, x: int = 10, y: int = 20) -> dict:

@@ -1,6 +1,7 @@
 """State shared by the GameState mixins: the lock, tracked data and callback dispatch."""
 
 import logging
+import math
 import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -42,6 +43,7 @@ class StateBase:
         # on_incoming_attack announced. Kept across reset() so a reconnect does
         # not announce the same attack again.
         self._announced_attacks: dict[int, float] = {}
+        self._announced_prune_at = math.inf
 
         # Rate-limit state for movement parse failure warnings
         self._movement_parse_warn_at = 0.0
@@ -62,6 +64,11 @@ class StateBase:
 
         # World State
         self.movements: dict[int, Movement] = {}  # MovementID -> Movement
+        # Arrival and end (wall clock) of each movement, taken when it is stored;
+        # the ids whose arrival is behind them; the earliest time one is due.
+        self._movement_times: dict[int, tuple[float, float]] = {}
+        self._arrival_dispatched: set[int] = set()
+        self._next_movement_due = math.inf
 
         # Active Events
         self.active_event_ids: list[int] = []

@@ -2,7 +2,7 @@ import logging
 import time
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from empire_core.commanders.models.equipment import Equipment
 from empire_core.commanders.models.roster import CommanderEffect
@@ -141,8 +141,6 @@ class Movement(BaseModel):
     goods: list[tuple[str | int, int]] | list[int] = Field(
         default_factory=list, description="Goods or loot pairs, kept raw"
     )
-
-    _arrival_dispatched: bool = PrivateAttr(default=False)
 
     @field_validator("target_area", "source_area", mode="before")
     @classmethod

@@ -11,7 +11,7 @@ from empire_core.commanders.models.roster import CommanderEffect
 from empire_core.enums import MapItemType, MovementType
 from empire_core.movements.tracked import Movement
 from empire_core.state.manager import GameState
-from tests.state.state_helpers import arrive, gam_payload, login, push_payload, wait_for
+from tests.state.state_helpers import arrive, gam_payload, later, login, push_payload, wait_for
 
 
 class TestAttackCallbacks:
@@ -217,9 +217,9 @@ class TestMovementLifecycle:
         arrived: list[int] = []
         state.on_movement_arrived(arrived.append)
         state.update_from_packet("gam", gam_payload(207))
-        state.movements[207].last_updated = time.time() - 601
         # A packet state has no handler for still drives arrivals
-        state.update_from_packet("xyz", {})
+        with later(601):
+            state.update_from_packet("xyz", {})
         assert 207 not in state.movements
         assert wait_for(lambda: arrived == [207])
 
@@ -258,9 +258,8 @@ class TestMovementLifecycle:
 
     def test_missed_arrival_dropped_on_next_packet(self, state):
         state.update_from_packet("gam", gam_payload(203))
-        state.movements[203].last_updated = time.time() - 10_000
-
-        state.update_from_packet("gam", gam_payload(204))
+        with later(10_000):
+            state.update_from_packet("gam", gam_payload(204))
         assert state.get_movement_by_id(203) is None
         assert state.get_movement_by_id(204) is not None
 
@@ -308,8 +307,9 @@ class TestStationedMovements:
         arrive(state, 220)
         assert wait_for(lambda: arrived == [220])
 
-        mov = state.get_movement_by_id(220)
-        assert mov is not None and mov.is_stationed
+        with later(301):
+            mov = state.get_movement_by_id(220)
+            assert mov is not None and mov.is_stationed
 
         # Later polls list it with PT past TT; that is not a new arrival
         state.update_from_packet("gam", self.stationed_gam(220, pt=364, tt=300, pwd=64))
@@ -330,8 +330,8 @@ class TestStationedMovements:
 
     def test_stationed_support_leaves_state_when_its_wait_is_over(self, state):
         state.update_from_packet("gam", self.stationed_gam(222, pt=325, tt=261, pwd=64))
-        state.movements[222].last_updated = time.time() - 3600
-        assert state.get_movement_by_id(222) is None
+        with later(3600):
+            assert state.get_movement_by_id(222) is None
 
     def test_attack_first_seen_after_landing_does_not_alert(self, state):
         fired: list[Movement] = []
@@ -453,16 +453,11 @@ class TestStaleMovementPruning:
     """Arrival packets get missed (socket errors, disconnect windows), so every
     mutation and query path must prune — not just the gam handler."""
 
-    @staticmethod
-    def _make_stale(state: GameState, mid: int) -> None:
-        # Arrival was due long ago
-        state.movements[mid].last_updated = time.time() - 10_000
-
     def test_pruned_on_pushed_mov_packet(self, state):
         state.update_from_packet("abr", push_payload(300, tt=1))
-        self._make_stale(state, 300)
 
-        state.update_from_packet("abr", push_payload(301))
+        with later(10_000):
+            state.update_from_packet("abr", push_payload(301))
         assert 300 not in state.movements
         assert 301 in state.movements
 
@@ -470,13 +465,13 @@ class TestStaleMovementPruning:
         # A consumer driven purely by push callbacks never calls gam
         state.update_from_packet("gbd", {"gpi": {"PID": 1, "PN": "me"}})
         state.update_from_packet("abr", push_payload(302, tt=1))
-        self._make_stale(state, 302)
 
-        assert state.get_incoming_attacks() == []
-        assert state.get_all_movements() == []
-        assert state.get_incoming_movements() == []
-        assert state.get_outgoing_movements() == []
-        assert state.get_movement_by_id(302) is None
+        with later(10_000):
+            assert state.get_incoming_attacks() == []
+            assert state.get_all_movements() == []
+            assert state.get_incoming_movements() == []
+            assert state.get_outgoing_movements() == []
+            assert state.get_movement_by_id(302) is None
         assert state.movements == {}, "movements dict grows without bound"
 
     def test_refreshed_movement_is_not_resurrected_as_new(self, state):
@@ -485,12 +480,12 @@ class TestStaleMovementPruning:
         state.on_incoming_attack(fired.append)
         state.update_from_packet("abr", push_payload(304, tt=1))
         assert wait_for(lambda: len(fired) == 1)
-        self._make_stale(state, 304)
 
         # The server pushes a fresh update for the same movement (it was
         # overdue, not gone). Pruning must not drop it just before the update
         # is stored, or the consumer gets a duplicate attack alert.
-        state.update_from_packet("abr", push_payload(304, tt=900))
+        with later(10_000):
+            state.update_from_packet("abr", push_payload(304, tt=900))
 
         time.sleep(0.15)
         assert len(fired) == 1, "stale-then-refreshed movement re-alerted as new"
@@ -500,10 +495,66 @@ class TestStaleMovementPruning:
         # There is no arrival packet to wait for: once travel time is up the
         # movement has arrived.
         state.update_from_packet("abr", push_payload(303, tt=1))
-        state.movements[303].last_updated = time.time() - 10
 
-        assert state.get_movement_by_id(303) is None
-        assert state.get_all_movements() == []
+        with later(10):
+            assert state.get_movement_by_id(303) is None
+            assert state.get_all_movements() == []
+
+
+class _CountingDict(dict):
+    scans = 0
+
+    def items(self):
+        type(self).scans += 1
+        return super().items()
+
+
+class TestArrivalScheduling:
+    """Movements are scanned only once one is due, and then in the order state first saw them."""
+
+    def test_a_packet_with_nothing_due_does_not_scan_the_movements(self, state):
+        for mid in range(400, 450):
+            state.update_from_packet("abr", push_payload(mid, tt=600))
+        state.movements = _CountingDict(state.movements)
+        _CountingDict.scans = 0
+        for _ in range(20):
+            state.update_from_packet("sne", {"MSG": []})
+        state.get_all_movements()
+        assert _CountingDict.scans == 0
+        with later(601):
+            state.update_from_packet("sne", {"MSG": []})
+        assert _CountingDict.scans == 1
+        assert state.movements == {}
+
+    def test_arrivals_fire_in_the_order_the_movements_were_first_seen(self, state):
+        arrived: list[int] = []
+        state.on_movement_arrived(arrived.append)
+        state.update_from_packet("abr", push_payload(460, tt=300))
+        state.update_from_packet("abr", push_payload(461, tt=100))
+        state.update_from_packet("abr", push_payload(462, tt=200))
+        with later(301):
+            state.update_from_packet("sne", {"MSG": []})
+        assert wait_for(lambda: len(arrived) == 3)
+        assert arrived == [460, 461, 462]
+
+    def test_an_update_that_brings_the_arrival_forward_is_seen(self, state):
+        arrived: list[int] = []
+        state.on_movement_arrived(arrived.append)
+        state.update_from_packet("abr", push_payload(463, tt=900))
+        state.update_from_packet("abr", push_payload(463, tt=10))
+        with later(11):
+            state.update_from_packet("sne", {"MSG": []})
+        assert wait_for(lambda: arrived == [463])
+
+    def test_a_removed_movement_seen_again_can_arrive(self, state):
+        arrived: list[int] = []
+        state.on_movement_arrived(arrived.append)
+        # Stationed when first seen, so its arrival is behind it; then removed and sent again
+        state.update_from_packet("gam", TestStationedMovements.stationed_gam(464, pt=325, tt=261, pwd=64))
+        state.update_from_packet("mrm", {"MID": 464})
+        state.update_from_packet("gam", TestStationedMovements.stationed_gam(464, pt=0, tt=300, pwd=0))
+        arrive(state, 464)
+        assert wait_for(lambda: arrived == [464])
 
 
 class TestMovementParseFailures:
@@ -615,7 +666,7 @@ class TestArrivalCallbackPayload:
         state.on_movement_removed(removed.append)
 
         state.update_from_packet("gam", gam_payload(602))
-        state.update_from_packet("gam", gam_payload(603))
+        state.update_from_packet("gam", gam_payload(603, extra={"TT": 1200}))
         arrive(state, 602)
         state.update_from_packet("mrm", {"MID": 603})
 

@@ -2,6 +2,7 @@
 
 import inspect
 import logging
+import math
 import time
 from collections.abc import Callable
 from typing import Any
@@ -230,7 +231,7 @@ class MovementState(StateBase):
         list is matched through the target's owner record, whose alliance id
         comes with every movement.
         """
-        if not mov.is_attack or mov.is_mine or mov.is_returning or mov._arrival_dispatched:
+        if not mov.is_attack or mov.is_mine or mov.is_returning or mov.movement_id in self._arrival_dispatched:
             return False
         me = mov.local_player_id
         if me == -1:
@@ -251,9 +252,12 @@ class MovementState(StateBase):
             mov.created_at = time.time()
             # Arrived before we saw it (a stationed support after login):
             # there is no arrival to report.
-            mov._arrival_dispatched = mov.estimated_arrival <= mov.created_at
+            if mov.estimated_arrival <= mov.created_at:
+                self._arrival_dispatched.add(mid)
             if self._is_attack_on_us(mov) and mid not in self._announced_attacks:
-                self._announced_attacks[mid] = mov.estimated_end
+                end = mov.estimated_end
+                self._announced_attacks[mid] = end
+                self._announced_prune_at = min(self._announced_prune_at, end)
                 with self._lock:
                     attack_callbacks = list(self._incoming_attack_callbacks)
                 for cb in attack_callbacks:
@@ -261,7 +265,6 @@ class MovementState(StateBase):
         else:
             # Preserve metadata that later packets may not include
             mov.created_at = existing.created_at
-            mov._arrival_dispatched = existing._arrival_dispatched
             mov.force_cancelable = mov.force_cancelable or existing.force_cancelable
             mov.source_player_name = mov.source_player_name or existing.source_player_name
             mov.source_alliance_name = mov.source_alliance_name or existing.source_alliance_name
@@ -273,29 +276,54 @@ class MovementState(StateBase):
                 mov.units = existing.units
 
         self.movements[mid] = mov
+        self._schedule_movement(mid, mov)
+
+    def _schedule_movement(self, mid: int, mov: Movement) -> tuple[float, float]:
+        """Take the movement's arrival and end now, so a packet with nothing due costs no scan."""
+        times = self._movement_times[mid] = (mov.estimated_arrival, mov.estimated_end)
+        due = times[1] if mid in self._arrival_dispatched else times[0]
+        if due < self._next_movement_due:
+            self._next_movement_due = due
+        return times
 
     def _advance_movements(self) -> None:
         """Fire arrivals whose travel time is up and drop movements that are over.
 
         Runs under the lock on every packet and every movement query. A
         movement leaves state at ``estimated_end``, which for anything but a
-        stationed army is its arrival.
+        stationed army is its arrival. Arrival and end are taken when the
+        movement is stored, so the movements are scanned only once one of
+        them is due; the scan then goes through them in the order they were
+        first seen, as the client's does.
 
         Client: ``CastleArmyData.updateMapmovements``.
         """
         now = time.time()
-        if self._announced_attacks:
+        if now >= self._announced_prune_at:
             self._announced_attacks = {mid: end for mid, end in self._announced_attacks.items() if now < end}
-        if not self.movements:
+            self._announced_prune_at = min(self._announced_attacks.values(), default=math.inf)
+        if now < self._next_movement_due:
             return
         arrived = []
+        next_due = math.inf
+        dispatched = self._arrival_dispatched
         for mid, mov in list(self.movements.items()):
-            if not mov._arrival_dispatched and now >= mov.estimated_arrival:
-                mov._arrival_dispatched = True
+            times = self._movement_times.get(mid)
+            if times is None:
+                times = self._schedule_movement(mid, mov)
+            if mid not in dispatched and now >= times[0]:
+                dispatched.add(mid)
                 self._announced_attacks.pop(mid, None)
                 arrived.append(mov)
-            if now >= mov.estimated_end:
+            if now >= times[1]:
                 del self.movements[mid]
+                del self._movement_times[mid]
+                dispatched.discard(mid)
+            else:
+                due = times[1] if mid in dispatched else times[0]
+                if due < next_due:
+                    next_due = due
+        self._next_movement_due = next_due
         for mov in arrived:
             self._dispatch_movement_event(self._movement_arrived_callbacks, mov.movement_id, mov)
 
@@ -311,6 +339,8 @@ class MovementState(StateBase):
         if mid is None:
             return
         mov = self.movements.pop(mid, None)
+        self._movement_times.pop(mid, None)
+        self._arrival_dispatched.discard(mid)
         self._announced_attacks.pop(mid, None)
         self._dispatch_movement_event(self._movement_removed_callbacks, mid, mov)
 
