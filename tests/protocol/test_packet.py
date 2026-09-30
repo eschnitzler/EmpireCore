@@ -197,9 +197,8 @@ class TestBatchedFrameHandling:
     """from_bytes is a single-packet parser by contract."""
 
     def test_from_bytes_swallows_a_second_packet_into_the_payload(self):
-        # Pinned deliberately: iter_from_bytes is the batch-aware entry point,
-        # and the receive loop still calls from_bytes. If this ever changes,
-        # every caller of from_bytes needs revisiting.
+        # Pinned deliberately: splitting the stream into messages happens
+        # before from_bytes. If this ever changes, every caller needs revisiting.
         frame = b'%xt%gam%1%0%{"M": []}%\x00%xt%acm%1%0%{"A": 1}%\x00'
         packet = Packet.from_bytes(frame)
         assert packet.command_id == "gam"

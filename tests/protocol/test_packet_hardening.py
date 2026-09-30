@@ -5,32 +5,8 @@ import xml.etree.ElementTree as ET
 from empire_core.protocol.packet import MALFORMED_STATUS_CODE, MAX_FRAME_SIZE, MAX_XML_SIZE, Packet
 
 
-class TestFrameDebatching:
-    """Finding 3: a WS frame may carry several null-delimited packets."""
-
-    def test_iter_from_bytes_splits_batched_frame(self):
-        frame = b'%xt%gam%1%0%{"M": []}%\x00%xt%acm%1%0%{"A": 1}%\x00'
-        packets = Packet.iter_from_bytes(frame)
-        assert [p.command_id for p in packets] == ["gam", "acm"]
-        assert packets[0].payload == {"M": []}
-        assert packets[1].payload == {"A": 1}
-
-    def test_iter_from_bytes_single_packet_matches_from_bytes(self):
-        frame = b'%xt%gam%1%0%{"M": []}%\x00'
-        packets = Packet.iter_from_bytes(frame)
-        assert len(packets) == 1
-        assert packets[0] == Packet.from_bytes(frame)
-
-    def test_iter_from_bytes_skips_padding_segments(self):
-        assert Packet.iter_from_bytes(b"\x00\x00\x00") == []
-        assert Packet.iter_from_bytes(b"") == []
-
-    def test_iter_from_bytes_keeps_xml_handshake(self):
-        frame = b"<msg t='sys'><body action='verChk' r='0'></body></msg>\x00"
-        packets = Packet.iter_from_bytes(frame)
-        assert len(packets) == 1
-        assert packets[0].is_xml
-        assert packets[0].command_id == "verChk"
+class TestSingleMessage:
+    """from_bytes reads one message."""
 
     def test_from_bytes_unchanged_for_single_packet(self):
         # from_bytes must stay a single-packet parser: the receive loop still
@@ -75,7 +51,6 @@ class TestTotalParsing:
         for data in hostile:
             packet = Packet.from_bytes(data)
             assert isinstance(packet, Packet)
-            assert Packet.iter_from_bytes(data) is not None
 
     def test_deeply_nested_payload_degrades_to_raw(self):
         packet = Packet.from_bytes(b"%xt%gam%1%0%" + b"[" * 5000 + b"%")
@@ -117,10 +92,6 @@ class TestFrameSizeBound:
         assert len(data) < MAX_FRAME_SIZE
         packet = Packet.from_bytes(data)
         assert packet.command_id == "gam"
-
-    def test_oversized_batched_frame_is_dropped(self):
-        frame = b'%xt%gam%1%0%{"M": []}%\x00' + b"x" * MAX_FRAME_SIZE
-        assert Packet.iter_from_bytes(frame) == []
 
 
 class TestXMLHardening:
