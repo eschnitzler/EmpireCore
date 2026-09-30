@@ -10,6 +10,7 @@ from typing import Any, cast
 
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
+from empire_core.exceptions import EmpireTimeoutError
 from empire_core.network.connection import ResponseWaiter
 from empire_core.protocol.models import AttackWave, WaveFlank
 from empire_core.protocol.packet import Packet
@@ -129,6 +130,9 @@ class ScriptedConnection:
         for pushed in self.pushes.pop(cmd_id, []):
             for callback in list(self.subscribers.get(pushed.command_id or "", [])):
                 callback(pushed)
+        if accepts is not None and result.error_code == 0 and not accepts(result):
+            # Connection leaves a reply the check refuses to other waiters, so this one runs out
+            raise EmpireTimeoutError(f"No {cmd_id} reply accepted")
         return result
 
     def create_waiter(self, cmd_id: str) -> ResponseWaiter:

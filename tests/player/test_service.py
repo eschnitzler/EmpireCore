@@ -2,67 +2,61 @@
 
 from __future__ import annotations
 
+from empire_core.exceptions import CommandError, EmpireTimeoutError
 from empire_core.player import service as player_module
-from empire_core.player.models.info import GetPlayerInfoRequest, GetPlayerInfoResponse
+from empire_core.player.models.info import GetPlayerInfoRequest
 from tests.service_helpers import conn, make_client, xt_packet
 
 
-class TestBulkPlayerDetailsPacing:
-    """The server drops connections that sustain high request rates."""
+def gdi(pid: int):
+    return xt_packet("gdi", {"O": {"OID": pid, "N": f"p{pid}"}})
 
-    def test_sends_are_paced(self, monkeypatch):
+
+class TestBulkPlayerDetails:
+    def test_each_player_lands_in_one_group(self, monkeypatch):
+        monkeypatch.setattr(player_module.time, "sleep", lambda _: None)
+        script = {"gdi": [gdi(1), xt_packet("gdi", error_code=65), EmpireTimeoutError("slow"), gdi(9), gdi(5)]}
+        client = make_client(script)
+
+        result = client.player.get_player_details_bulk([1, 2, 3, 4, 5, 1])
+
+        assert conn(client).request_payloads == [("gdi", {"PID": pid}) for pid in (1, 2, 3, 4, 5)]
+        assert sorted(result.found) == [1, 5]
+        assert result.found[5].player_name == "p5"
+        assert isinstance(result.failed[2], CommandError) and result.failed[2].code == 65
+        # A reply about another player is not taken, so player 4's request runs out
+        assert 4 not in result.found and 4 not in result.failed
+        assert result.timed_out == [3, 4]
+        assert result.complete is False
+
+    def test_all_found_is_complete(self):
+        client = make_client({"gdi": [gdi(1), gdi(2)]})
+        result = client.player.get_player_details_bulk([1, 2], send_delay=0)
+        assert result.complete is True and sorted(result.found) == [1, 2]
+
+    def test_nothing_asked_is_nothing_sent(self):
+        client = make_client()
+        result = client.player.get_player_details_bulk([])
+        assert (result.found, result.failed, result.timed_out) == ({}, {}, [])
+        assert conn(client).request_payloads == []
+
+    def test_requests_are_paced(self, monkeypatch):
         sleeps: list[float] = []
         monkeypatch.setattr(player_module.time, "sleep", sleeps.append)
-        client = make_client()
+        client = make_client({"gdi": [gdi(1), gdi(2), gdi(3)]})
 
-        client.player.get_player_details_bulk([1, 2, 3], timeout=0.0, send_delay=0.05)
+        client.player.get_player_details_bulk([1, 2, 3], send_delay=0.05)
 
-        assert len(conn(client).sent) == 3
-        # Paced between sends only - no leading or trailing sleep.
         assert sleeps == [0.05, 0.05]
 
-    def test_zero_delay_keeps_the_old_burst_behavior(self, monkeypatch):
+    def test_zero_delay_does_not_sleep(self, monkeypatch):
         sleeps: list[float] = []
         monkeypatch.setattr(player_module.time, "sleep", sleeps.append)
-        client = make_client()
+        client = make_client({"gdi": [gdi(1), gdi(2)]})
 
-        client.player.get_player_details_bulk([1, 2, 3], timeout=0.0, send_delay=0.0)
-
-        assert sleeps == []
-
-    def test_single_id_is_not_delayed(self, monkeypatch):
-        sleeps: list[float] = []
-        monkeypatch.setattr(player_module.time, "sleep", sleeps.append)
-        client = make_client()
-
-        client.player.get_player_details_bulk([7], timeout=0.0)
+        client.player.get_player_details_bulk([1, 2], send_delay=0.0)
 
         assert sleeps == []
-
-    def test_handler_is_removed_afterwards(self):
-        client = make_client()
-
-        client.player.get_player_details_bulk([1, 2], timeout=0.0, send_delay=0.0)
-
-        assert client._handlers.get("gdi", []) == []
-
-    def test_pacing_does_not_break_response_collection(self):
-        client = make_client()
-        original_send = client.send
-
-        def send_and_answer(request, wait=False, timeout=5.0):
-            result = original_send(request, wait=wait, timeout=timeout)
-            # Simulate the server answering immediately on the recv thread.
-            client._on_packet(xt_packet("gdi", {"O": {"OID": request.player_id, "N": "p"}}))
-            return result
-
-        client.send = send_and_answer  # type: ignore[method-assign]
-        collected: dict[int, GetPlayerInfoResponse] = client.player.get_player_details_bulk(
-            [1, 2], timeout=1.0, send_delay=0.01
-        )
-
-        assert sorted(collected) == [1, 2]
-        assert all(isinstance(r, GetPlayerInfoResponse) for r in collected.values())
 
 
 class TestGdiReplyMatching:
@@ -93,11 +87,12 @@ class TestGdiReplyMatching:
 
         assert conn(client).accepts == [None]
 
-    def test_bulk_lookup_holds_gdi_for_its_whole_run(self):
-        client = make_client()
+    def test_bulk_lookup_checks_each_reply(self):
+        client = make_client({"gdi": [gdi(1), gdi(2)]})
 
-        client.player.get_player_details_bulk([1, 2], timeout=0.0, send_delay=0.0)
+        client.player.get_player_details_bulk([1, 2], send_delay=0.0)
 
-        assert conn(client).events[0] == "lock:gdi"
-        assert conn(client).events[-1] == "unlock:gdi"
-        assert len(conn(client).sent) == 2
+        checks = conn(client).accepts
+        assert len(checks) == 2
+        assert checks[0](gdi(1)) and not checks[0](gdi(2))
+        assert checks[1](gdi(2)) and not checks[1](gdi(1))

@@ -164,7 +164,7 @@ class EmpireClient:
 
         # Command -> handlers mapping for efficient dispatch
         # Only commands with handlers will be parsed.
-        # Written from caller threads (services, client.player.get_player_details_bulk) and
+        # Written from caller threads (services registering handlers) and
         # read by the receive thread, so every access goes through the lock -
         # CPython's per-op atomicity is not a guarantee to build on and does
         # not hold on free-threaded builds.

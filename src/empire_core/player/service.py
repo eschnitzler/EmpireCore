@@ -4,17 +4,34 @@ Player service: other players' details and player search.
 
 from __future__ import annotations
 
-import queue
 import time
+from dataclasses import dataclass, field
 
+from empire_core.exceptions import CommandError, EmpireTimeoutError, PacketError
 from empire_core.player.models.info import (
     GetPlayerInfoRequest,
     GetPlayerInfoResponse,
     SearchPlayerRequest,
     SearchPlayerResponse,
 )
-from empire_core.protocol.base import BaseResponse
 from empire_core.services.base import BaseService, register_service
+
+
+@dataclass
+class PlayerDetailsBulkResult:
+    """What :meth:`PlayerService.get_player_details_bulk` got for each player."""
+
+    found: dict[int, GetPlayerInfoResponse] = field(default_factory=dict)
+    """The replies, by player id."""
+    failed: dict[int, CommandError | PacketError] = field(default_factory=dict)
+    """Players whose request the server refused, or whose reply could not be read."""
+    timed_out: list[int] = field(default_factory=list)
+    """Players whose reply did not come in time."""
+
+    @property
+    def complete(self) -> bool:
+        """Whether every player was found."""
+        return not self.failed and not self.timed_out
 
 
 @register_service("player")
@@ -52,70 +69,46 @@ class PlayerService(BaseService):
     def get_player_details_bulk(
         self,
         player_ids: list[int],
-        timeout: float = 10.0,
+        timeout: float = 5.0,
         send_delay: float = 0.05,
-    ) -> dict[int, GetPlayerInfoResponse]:
+    ) -> PlayerDetailsBulkResult:
         """
-        Get detailed info for multiple players in parallel.
+        Get detailed info for several players, one gdi request after another.
 
-        Registers a handler first, then sends all requests (paced by
-        ``send_delay``), and collects responses via a thread-safe queue.
+        Each request waits for its own reply before the next goes out: a gdi
+        error reply names no player, so only one request in flight at a time
+        tells which player it belongs to. Each runs as :meth:`get_player_info`
+        does, under the gdi command lock and taking only a reply whose
+        ``O.OID`` is the player asked for.
 
         Args:
-            player_ids: Player ids to fetch, found as for :meth:`get_player_info`
-            timeout: Max time to wait for all responses. The pacing sleeps are
-                not charged against it - the clock starts once all requests
-                are out.
-            send_delay: Seconds to wait between consecutive 'gdi' sends. The
-                server drops connections that sustain high request rates (the
-                same reason MapScanner paces its chunks), and a large id list
-                would otherwise go out as one burst on a connection other
-                callers share. Set to 0 to send without pacing.
+            player_ids: Player ids to fetch, found as for :meth:`get_player_info`; repeats are fetched once
+            timeout: Seconds to wait for each reply
+            send_delay: Seconds to wait between two requests. The server drops
+                connections that sustain high request rates (the same reason
+                MapScanner paces its chunks). Set to 0 to send without pacing.
 
         Returns:
-            Dict mapping player_id -> GetPlayerInfoResponse
+            Which players were found, which failed and why, and which timed out
 
         Raises:
-            EmpireTimeoutError: Another thread's 'gdi' request kept the command
-                busy for all of ``timeout``
+            ConnectionClosedError / NetworkError: the connection failed; the players fetched so far are lost
+            ReceiveThreadError: called on the receive thread
         """
-        if not player_ids:
-            return {}
-
-        unique_ids = set(player_ids)
-        response_queue: queue.Queue[GetPlayerInfoResponse] = queue.Queue()
-
-        def capture_gdi(response: BaseResponse) -> None:
-            if isinstance(response, GetPlayerInfoResponse):
-                response_queue.put(response)
-
-        # Held for the whole run, so no reply or error to these sends lands on a
-        # concurrent get_player_info().
-        with self.client.connection.command_lock("gdi", timeout=timeout):
-            # Register BEFORE sending to avoid dropping early responses
-            self.client._register_handler("gdi", capture_gdi)
-
+        result = PlayerDetailsBulkResult()
+        for index, pid in enumerate(dict.fromkeys(player_ids)):
+            if index and send_delay > 0:
+                time.sleep(send_delay)
             try:
-                for index, pid in enumerate(unique_ids):
-                    if index and send_delay > 0:
-                        time.sleep(send_delay)
-                    request = GetPlayerInfoRequest(PID=pid)
-                    self.client.send(request, wait=False)
-
-                collected: dict[int, GetPlayerInfoResponse] = {}
-                deadline = time.time() + timeout
-
-                while len(collected) < len(unique_ids) and time.time() < deadline:
-                    try:
-                        resp = response_queue.get(timeout=max(0.05, min(0.5, deadline - time.time())))
-                        if resp.player_id in unique_ids:
-                            collected[resp.player_id] = resp
-                    except queue.Empty:
-                        continue
-
-                return collected
-            finally:
-                self.client._unregister_handler("gdi", capture_gdi)
+                response = self.get_player_info(pid, timeout=timeout)
+            except EmpireTimeoutError:
+                result.timed_out.append(pid)
+                continue
+            except (CommandError, PacketError) as e:
+                result.failed[pid] = e
+                continue
+            result.found[pid] = response
+        return result
 
     def search_player_by_name(
         self,
@@ -123,3 +116,6 @@ class PlayerService(BaseService):
         timeout: float = 5.0,
     ) -> SearchPlayerResponse:
         return self.request(SearchPlayerRequest(PN=player_name), SearchPlayerResponse, timeout=timeout)
+
+
+__all__ = ["PlayerDetailsBulkResult", "PlayerService"]
