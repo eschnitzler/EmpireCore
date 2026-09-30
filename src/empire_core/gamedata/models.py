@@ -13,7 +13,7 @@ from contextvars import ContextVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
-from empire_core.protocol.js import js_falsy, js_parse_int
+from empire_core.protocol.js import js_falsy, js_number, js_parse_int
 
 # BasicUnitVO.FIGHTTYPE_OFF / FIGHTTYPE_DEF (bundle line 19345)
 FIGHT_TYPE_OFFENSIVE = 0
@@ -126,7 +126,6 @@ class _UnitRow(_Row):
 
     @staticmethod
     def _type_attribute(value: object) -> object:
-        # AVisualVO.parseXmlNode: "-" is read as no type
         value = value or ""
         return "" if value == "-" else value
 
@@ -762,15 +761,66 @@ class HorseStats(_Row):
 
     There is no lookup by name: what tells the horse variants apart is not
     traced yet, so look one up by id with ``GameData.get_horse``.
+
+    Client: ``HorseTravelboosterVO.parseXmlNode`` (bundle line 118814) after
+    ``AVisualVO.parseXmlNode`` (bundle line 17800), read from the ``horses`` table
     """
 
-    wod_id: int = Field(alias="wodID")
-    source: str = Field(alias="name", default="")
-    label: str = Field(alias="comment2", default="")
-    horse_type: str = Field(alias="type", default="")
-    unit_boost: float = Field(alias="unitBoost", default=0)
-    market_boost: float = Field(alias="marketBoost", default=0)
-    spy_boost: float = Field(alias="spyBoost", default=0)
+    wod_id: int = Field(alias="wodID", description="The horse's wod id, the value sent as HBW")
+    source: str = Field(alias="name", default="", description="The row's name, Horse for every row")
+    group: str = Field(default="", description="The row's group, Travelbooster for every row")
+    label: str = Field(
+        alias="comment2", default="", description="Designer label the game does not read, e.g. Warhorse or Fast Ship"
+    )
+    horse_type: str = Field(alias="type", default="", description="The horse's type within its building")
+    unit_boost: int = Field(alias="unitBoost", default=0, description="Travel speed bonus percent for troops")
+    market_boost: int = Field(alias="marketBoost", default=0, description="Travel speed bonus percent for traders")
+    spy_boost: int = Field(alias="spyBoost", default=0, description="Travel speed bonus percent for spies")
+    cost_factor_c1: float = Field(
+        alias="costFactorC1", default=0, description="Coin cost multiplier; 0 when not paid in coins"
+    )
+    cost_factor_c2: float = Field(
+        alias="costFactorC2", default=0, description="Ruby cost multiplier; 0 when not paid in rubies"
+    )
+    is_instant_spy_horse: bool = Field(
+        alias="isInstantSpyHorse",
+        default=False,
+        description="Can be paid with feathers as well as rubies",
+    )
+
+    @field_validator("wod_id", mode="before")
+    @classmethod
+    def _wod_id(cls, value: object) -> object:
+        parsed = None if js_falsy(value) else js_parse_int(value)
+        if parsed is None:
+            raise ValueError(f"wodID {value!r} has no leading integer")
+        return parsed
+
+    @field_validator("source", "group", "label", mode="before")
+    @classmethod
+    def _string_attribute(cls, value: object) -> object:
+        return value or ""
+
+    @field_validator("horse_type", mode="before")
+    @classmethod
+    def _type(cls, value: object) -> object:
+        value = value or ""
+        return "" if value == "-" else value
+
+    @field_validator("unit_boost", "market_boost", "spy_boost", mode="before")
+    @classmethod
+    def _boost(cls, value: object) -> object:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("cost_factor_c1", "cost_factor_c2", mode="before")
+    @classmethod
+    def _cost_factor(cls, value: object) -> object:
+        return js_number(value or "")
+
+    @field_validator("is_instant_spy_horse", mode="before")
+    @classmethod
+    def _instant_spy(cls, value: object) -> object:
+        return value if isinstance(value, bool) else _parse_int_or_default(value, 0) != 0
 
 
 class DefaultLordDef(_Row):

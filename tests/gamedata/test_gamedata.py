@@ -355,6 +355,28 @@ class TestCombatTables:
         assert horse is not None
         assert horse.unit_boost == 6
 
+    def test_horse_rows_read_what_the_travel_booster_reads(self):
+        # HorseTravelboosterVO.parseXmlNode: parseInt boosts, Number cost factors, !!parseInt(isInstantSpyHorse)
+        row = {"wodID": 1003, "name": "Horse", "group": "Travelbooster", "type": "3", "unitBoost": "16",
+               "marketBoost": "27", "spyBoost": "27", "costFactorC1": "0", "costFactorC2": "2.1",
+               "isInstantSpyHorse": "1"}  # fmt: skip
+        horse = GameData.parse("783.01", {"horses": [row]}).get_horse(1003)
+
+        assert horse is not None
+        assert (horse.group, horse.horse_type, horse.unit_boost, horse.market_boost, horse.spy_boost) == (
+            "Travelbooster", "3", 16, 27, 27
+        )  # fmt: skip
+        assert (horse.cost_factor_c1, horse.cost_factor_c2, horse.is_instant_spy_horse) == (0, 2.1, True)
+
+    def test_horse_columns_left_out_read_as_the_client_reads_them(self):
+        horse = GameData.parse("783.01", {"horses": [{"wodID": 1001, "unitBoost": "6.9x", "type": "-"}]}).get_horse(
+            1001
+        )
+
+        assert horse is not None
+        assert (horse.unit_boost, horse.spy_boost, horse.horse_type) == (6, 0, "")
+        assert (horse.cost_factor_c1, horse.cost_factor_c2, horse.is_instant_spy_horse) == (0, 0, False)
+
     def test_default_lords_explain_the_lid_sentinels(self):
         lord = GameData.parse("783.01", FULL_PAYLOAD).get_default_lord(-12)
         assert lord is not None
