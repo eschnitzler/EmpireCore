@@ -10,6 +10,7 @@ from empire_core.castle.models.actions import SelectCastleResponse
 from empire_core.castle.models.buildings import BuildResponse, CollectExtensionGiftResponse, SellBuildingResponse
 from empire_core.castle.models.details import CastleProductionArea, GetDetailedCastleResponse
 from empire_core.castle.models.objects import ConstructionList
+from empire_core.enums import Kingdom
 from tests.service_helpers import conn, make_client, xt_packet
 
 
@@ -60,7 +61,8 @@ class TestJoinLeniency:
         assert joined.production_area is None
 
     def test_join_still_answers_with_a_broken_block(self):
-        client = make_client({"jaa": xt_packet("jaa", {"KID": 0, "T": 1, "gpa": {"P": None, "MRW": 1.5}})})
+        jaa = xt_packet("jaa", {"KID": 0, "T": 1, "gpa": {"P": None, "MRW": 1.5}})
+        client = make_client({"jaa": jaa}, castles=[(1, Kingdom.GREEN)])
         joined = client.castle.join(1)
         assert conn(client).requested == ["jaa"]
         assert joined.production_area is not None and joined.production_area.storage_capacity.wood == 1.5

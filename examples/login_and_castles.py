@@ -46,7 +46,7 @@ def main() -> int:
 
         if castles:
             first = castles[0]
-            resources = client.castle.get_resources(castle_id=first.castle_id, kingdom_id=first.kingdom_id)
+            resources = client.castle.get_resources(castle_id=first.castle_id)
             print(f"\nResources in {first.castle_name!r}: {resources}")
 
         movements = client.movements.get_movements()

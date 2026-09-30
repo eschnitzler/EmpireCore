@@ -52,7 +52,8 @@ class ArmyService(BaseService):
 
     Each method joins the castle it is given first (``jca``), as the client acts
     on the castle it is in. It joins in that castle's ``Castle.kingdom_id`` from
-    ``client.state.get_castles()``, or in ``Kingdom.GREEN`` when the castle is not listed there.
+    ``client.state.get_castles()``, and raises ``UnknownCastleError`` for a castle not listed there.
+    A castle id listed in several of your kingdoms raises ``AmbiguousCastleError``.
 
     Usage:
         client = EmpireClient(...)
@@ -69,10 +70,10 @@ class ArmyService(BaseService):
         Join the castle and return its kingdom id.
 
         Raises:
+            UnknownCastleError: ``castle_id`` is not in your castle list
             CommandError: The server refused to join the castle
         """
-        castle = self._own_castle(castle_id)
-        kingdom_id = castle.kingdom_id if castle is not None else Kingdom.GREEN
+        kingdom_id = self._require_own_castle(castle_id).kingdom_id
         self.request(SelectCastleRequest(CID=castle_id, KID=kingdom_id), SelectCastleResponse, timeout=timeout)
         return kingdom_id
 
@@ -116,7 +117,12 @@ class ArmyService(BaseService):
         return self.request(GetUnitsRequest(), GetUnitsResponse, timeout=timeout)
 
     def dismiss_units(
-        self, castle_id: int, wod_id: int, amount: int, from_stronghold: bool = False, timeout: float = 5.0
+        self,
+        castle_id: int,
+        wod_id: int,
+        amount: int,
+        from_stronghold: bool = False,
+        timeout: float = 5.0,
     ) -> bool:
         """
         Dismiss units of the castle, or of its stronghold.
@@ -189,7 +195,12 @@ class ArmyService(BaseService):
         return self.request(GetProductionListRequest(LID=list_id), GetProductionListResponse, timeout=timeout)
 
     def cancel_production(
-        self, castle_id: int, list_id: ProductionListId, slot_type: SlotType, position: int, timeout: float = 5.0
+        self,
+        castle_id: int,
+        list_id: ProductionListId,
+        slot_type: SlotType,
+        position: int,
+        timeout: float = 5.0,
     ) -> bool:
         """
         Cancel a production slot.
@@ -207,7 +218,12 @@ class ArmyService(BaseService):
         return self.execute(request, timeout=timeout)
 
     def double_production_slot(
-        self, castle_id: int, list_id: ProductionListId, slot_type: SlotType, position: int, timeout: float = 5.0
+        self,
+        castle_id: int,
+        list_id: ProductionListId,
+        slot_type: SlotType,
+        position: int,
+        timeout: float = 5.0,
     ) -> bool:
         """
         Double the units of a production slot. Costs rubies.

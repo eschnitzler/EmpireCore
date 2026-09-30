@@ -9,9 +9,16 @@ import pytest
 
 from empire_core.army.spy_army import SpyArmy
 from empire_core.enums import Kingdom
-from empire_core.exceptions import AttackBelowMinimumError, EmpireTimeoutError
+from empire_core.exceptions import (
+    AmbiguousCastleError,
+    AttackBelowMinimumError,
+    EmpireTimeoutError,
+    UnknownCastleError,
+)
 from empire_core.protocol.models import Commander
-from tests.service_helpers import LIVE_ADI, conn, make_client, placed, stub_player, wave, xt_packet
+from tests.service_helpers import LIVE_ADI, conn, gcl_castles, make_client, placed, stub_player, wave, xt_packet
+
+OWN = [(12345, Kingdom.GREEN)]
 
 
 class TestFillAttack:
@@ -58,7 +65,7 @@ class TestFillAttack:
     def build(self, inventory):
         from empire_core.gamedata import GameData
 
-        client = make_client({"gui": xt_packet("gui", {"I": inventory})})
+        client = make_client({"gui": xt_packet("gui", {"I": inventory})}, castles=OWN)
         client.game_data = GameData.parse("test", self.UNITS)
         client.state.local_player = stub_player(level=70)
         return client
@@ -740,6 +747,37 @@ class TestFillAttack:
         assert sent["adi"] == {"KID": 0, "SX": 5, "SY": 6, "TX": 700, "TY": 710}
         assert result.waves
 
+    def test_the_source_kingdom_and_position_come_from_the_castle_list(self):
+        client = self.build([[601, 100_000]])
+        client.state.castles = gcl_castles((777, Kingdom.GREEN), (12345, Kingdom.ICE, 5, 6))  # type: ignore[attr-defined]
+        camp_row = [2, 700, 710, -1, 0, -1, -299]
+        conn(client).script["gaa"] = xt_packet("gaa", {"KID": 2, "AI": [camp_row], "OI": []})
+        conn(client).script["adi"] = xt_packet("adi", dict(LIVE_ADI, gaa={"AI": camp_row}, gui={"I": [[601, 100_000]]}))
+
+        client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+        sent = dict(conn(client).request_payloads)
+        assert sent["gaa"]["KID"] == 2
+        assert sent["adi"] == {"KID": 2, "SX": 5, "SY": 6, "TX": 700, "TY": 710}
+
+    def test_a_castle_not_in_the_castle_list_raises_before_reading_the_target(self):
+        client = self.build([[601, 100_000]])
+        client.state.castles = gcl_castles((777, Kingdom.ICE))  # type: ignore[attr-defined]
+
+        with pytest.raises(UnknownCastleError):
+            client.attack.fill_attack(12345, target_x=700, target_y=710)
+
+        assert conn(client).request_payloads == []
+
+    def test_an_id_repeated_across_your_kingdoms_raises_before_joining(self):
+        client = self.build([[601, 100_000]])
+        client.state.castles = gcl_castles((12345, Kingdom.STORM, 5, 6), (12345, Kingdom.BERIMOND, 7, 8))  # type: ignore[attr-defined]
+
+        with pytest.raises(AmbiguousCastleError):
+            client.attack.fill_attack(12345, target_level=13)
+
+        assert "jaa" not in [command for command, _ in conn(client).request_payloads]
+
     def test_the_stronghold_units_join_the_army(self):
         # AttackDialogUnitPicker adds gui.SHI into the inventory the dialog fills from
         client = self.build([])
@@ -1067,7 +1105,7 @@ class TestFillAttack:
     def test_no_game_data_is_an_error(self):
         from empire_core.exceptions import GameDataNotLoadedError
 
-        client = make_client()
+        client = make_client(castles=OWN)
         with pytest.raises(GameDataNotLoadedError):
             client.attack.fill_attack(12345, target_level=13)
 
@@ -1077,7 +1115,7 @@ class TestFillAttackLevelDerivation:
         from empire_core.combat import camp_level
         from empire_core.gamedata import GameData
 
-        client = make_client({"gui": xt_packet("gui", {"I": [[601, 10_000]]})})
+        client = make_client({"gui": xt_packet("gui", {"I": [[601, 10_000]]})}, castles=OWN)
         client.game_data = GameData.parse(
             "test",
             {
@@ -1101,7 +1139,7 @@ class TestFillAttackLevelDerivation:
     def test_neither_level_nor_victories_is_an_error(self):
         from empire_core.gamedata import GameData
 
-        client = make_client()
+        client = make_client(castles=OWN)
         client.game_data = GameData.parse("test", {"units": []})
 
         with pytest.raises(ValueError, match="target_level"):

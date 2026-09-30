@@ -11,6 +11,7 @@ from typing import Any
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from empire_core.exceptions import AmbiguousCastleError
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
 from empire_core.protocol.js import js_int, js_number, js_number_or_none, js_truthy
 
@@ -396,8 +397,16 @@ class GetDetailedCastleResponse(BaseResponse):
         return data
 
     def castle(self, castle_id: int) -> DetailedCastleInfo | None:
-        """The listed castle with this id, or None."""
-        return next((c for c in self.castles if c.castle_id == castle_id), None)
+        """
+        The listed castle with this id, or None.
+
+        Raises:
+            AmbiguousCastleError: the id is listed in several kingdoms
+        """
+        matches = [c for c in self.castles if c.castle_id == castle_id]
+        if len(matches) > 1:
+            raise AmbiguousCastleError(castle_id, [c.kingdom_id for c in matches])
+        return matches[0] if matches else None
 
 
 __all__ = [

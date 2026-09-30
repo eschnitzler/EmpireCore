@@ -125,12 +125,12 @@ for request in client.alliance.help_requests:
         client.alliance.help_member(request)
 
 # Applications, ranks and the treasury
-from empire_core.protocol.models import AllianceDonation, AllianceRank, Kingdom
+from empire_core.protocol.models import AllianceDonation, AllianceRank
 
 for application in client.alliance.get_applications().applications:
     client.alliance.answer_application(application.player_id, accept=True)
 client.alliance.set_rank(player_id, AllianceRank.SERGEANT)
-client.alliance.donate(castle_id, Kingdom.GREEN, AllianceDonation(wood=1000))
+client.alliance.donate(castle_id, AllianceDonation(wood=1000))
 
 for entry in client.alliance.get_chat_log():
     print(f"{entry.player_name}: {entry.decoded_text}")
@@ -155,15 +155,17 @@ client.messages.delete_many([m.message_id for m in client.messages.mailbox if m.
 ### `client.castle`
 
 ```python
-from empire_core import Kingdom
-
 castles = client.castle.get_all()
 
 details = client.castle.get_details(castle_id=12345)
 if details:                       # None when the response omits the castle
     print(f"Wood: {details.wood}, units: {details.units}")
 
-resources = client.castle.get_resources(castle_id=12345, kingdom_id=Kingdom.GREEN)
+# Methods taking one of your castles send its kingdom from the castle list the
+# server sent at login (client.state.get_castles()); an id not in it raises
+# UnknownCastleError, and one listed in several of your kingdoms raises
+# AmbiguousCastleError.
+resources = client.castle.get_resources(castle_id=12345)
 print(f"Wood: {resources.wood}, Stone: {resources.stone}")
 
 # Joining a castle returns its buildings, resources and production area;
@@ -275,7 +277,8 @@ client.attack.send_attack(
 `commander_id` is required: every id `get_commanders()` returns leads an
 attack, `0` included, so there is no value that means "no commander". The
 server echoes the chosen one back, so `CreateAttackResponse.leader` says which
-commander it actually flew with.
+commander it actually flew with. `KID` is the source area's kingdom, read
+from your castle list by the source position unless `kingdom_id` is given.
 
 Waves without units are dropped before sending, as the game client does, and
 passing `feathers=True` forces the horse field to -1 exactly as the client

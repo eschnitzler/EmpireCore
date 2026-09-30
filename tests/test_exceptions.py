@@ -8,6 +8,7 @@ from empire_core.exceptions import (
     EmpireError,
     EmpireTimeoutError,
     NetworkError,
+    UnknownCastleError,
 )
 
 
@@ -30,3 +31,10 @@ def test_command_error_carries_code_and_command():
     assert err.command == "gam"
     assert "21" in str(err)
     assert "gam" in str(err)
+
+
+def test_unknown_castle_error_is_a_value_error_naming_the_castle():
+    err = UnknownCastleError(12345)
+    assert isinstance(err, ValueError) and isinstance(err, EmpireError)
+    assert err.castle_id == 12345
+    assert "12345" in str(err)

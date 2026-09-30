@@ -183,9 +183,10 @@ class TestOwnerRecordLeniency:
     def test_a_gcl_row_in_a_kingdom_the_client_does_not_define_costs_only_itself(self):
         from empire_core.protocol.models import GetCastlesResponse
 
-        row = [1, 30, 40, 100, 5, 1, 1, 1, 1, 1, "Home", 0, 0, 0, 77, 0, 0]
+        row = [1, 30, 40, 100, 5, 1, 1, 1, 1, 1, "Home", 0, 0, 0, 77, 0, 2]
+        odd = [*row[:3], 99, *row[4:16], 11]
         response = GetCastlesResponse.model_validate(
-            {"C": [{"KID": 11, "AI": [{"AI": [*row[:3], 99, *row[4:]]}]}, {"KID": 2, "AI": [{"AI": row}]}]}
+            {"C": [{"KID": 11, "AI": [{"AI": odd}]}, {"KID": 2, "AI": [{"AI": row}]}]}
         )
         assert [(castle.castle_id, castle.kingdom_id) for castle in response.castles] == [(100, Kingdom.ICE)]
 

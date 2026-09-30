@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
+from empire_core.enums import Kingdom
 from empire_core.state.models import Player
 from tests.state.state_helpers import gam_payload, gcl_payload
 
@@ -54,7 +55,7 @@ class TestLocalPlayerSnapshots:
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(2, "Second")])})
 
         assert snapshot.special_currencies == {"A": 1}, "snapshot currencies mutated by receive thread"
-        assert list(snapshot.castles) == [1], "snapshot castles mutated by receive thread"
+        assert list(snapshot.castles) == [(Kingdom.GREEN, 1)], "snapshot castles mutated by receive thread"
 
     def test_get_special_currencies_returns_copy(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": [["A", 1]]})
@@ -82,8 +83,8 @@ class TestLocalPlayerSnapshots:
 
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main"), (2, "Outpost")])})
 
-        assert list(reader_view) == [1], "receive thread mutated a dict a reader already holds"
-        assert sorted(state.local_player.castles) == [1, 2]
+        assert list(reader_view) == [(Kingdom.GREEN, 1)], "receive thread mutated a dict a reader already holds"
+        assert sorted(state.local_player.castles) == [(Kingdom.GREEN, 1), (Kingdom.GREEN, 2)]
 
     def test_relogin_merge_has_no_observable_intermediate_state(self, state):
         # Identity in gpi, level/XP in gxp, currency in gcu — the sections a
@@ -316,7 +317,7 @@ class TestPlayerPushes:
     def test_gcl_push(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
         state.update_from_packet("gcl", gcl_payload([(1, "Main"), (2, "Outpost")]))
-        assert sorted(state.get_local_player().castles) == [1, 2]
+        assert sorted(state.get_local_player().castles) == [(Kingdom.GREEN, 1), (Kingdom.GREEN, 2)]
 
     def test_gcl_push_before_login_is_ignored(self, state):
         state.update_from_packet("gcl", gcl_payload([(1, "Main")]))
@@ -335,7 +336,7 @@ class TestPlayerPushes:
     def test_mir_applies_its_castle_list(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
         state.update_from_packet("mir", {"gcl": gcl_payload([(1, "Main"), (3, "Taken")]), "CID": 3, "KID": 0})
-        assert sorted(state.get_local_player().castles) == [1, 3]
+        assert sorted(state.get_local_player().castles) == [(Kingdom.GREEN, 1), (Kingdom.GREEN, 3)]
 
     def test_gho_push(self, state):
         state.update_from_packet("gbd", LIVE_LOGIN)

@@ -33,6 +33,7 @@ from empire_core.enums import (
 )
 from empire_core.exceptions import (
     AccountBannedError,
+    AmbiguousCastleError,
     AmbiguousLookupError,
     AttackBelowMinimumError,
     AttackInProgressError,
@@ -48,6 +49,7 @@ from empire_core.exceptions import (
     NetworkError,
     PacketError,
     ReceiveThreadError,
+    UnknownCastleError,
     WrongServerError,
 )
 from empire_core.gamedata import GameData, ToolStats, UnitStats
@@ -99,6 +101,8 @@ __all__ = [
     "MessageUnavailableError",
     "GameDataNotLoadedError",
     "AmbiguousLookupError",
+    "UnknownCastleError",
+    "AmbiguousCastleError",
     "GGEError",
     "PoolExhaustedError",
     "ReceiveThreadError",

@@ -264,7 +264,7 @@ class AttackService(BaseService):
         target_y: int,
         waves: list[AttackWave],
         commander_id: int,
-        kingdom_id: Kingdom = Kingdom.GREEN,
+        kingdom_id: Kingdom | None = None,
         attack_type: AttackType = AttackType.ATTACK,
         wait_time: int = 0,
         horse_booster_id: int = -1,
@@ -304,7 +304,8 @@ class AttackService(BaseService):
             target_x: Target absolute X coordinate
             target_y: Target absolute Y coordinate
             waves: Attack waves, front to back
-            kingdom_id: Source kingdom
+            kingdom_id: The source area's kingdom; read from your castle list by
+                the source position when not given
             commander_id: Commander to lead the attack, a ``Commander.commander_id`` from
                 ``client.commanders.get_commanders()``
             attack_type: See AttackType (default: a normal attack)
@@ -346,7 +347,14 @@ class AttackService(BaseService):
                 ``min_soldiers``, or than the minimum at ``capacity``'s level;
                 the client refuses such an attack
             ValueError: No wave carries any units, or a container is overfull
+            UnknownCastleError: No ``kingdom_id`` given and no area of yours in
+                the castle list is at the source position
+            AmbiguousCastleError: No ``kingdom_id`` given and areas of yours sit
+                at the source position in several kingdoms
             EmpireTimeoutError / ConnectionClosedError / NetworkError: transport failures
+
+        Client: ``CastleAttackData.sendAttack`` (bundle line 133852) sends the
+        source area's ``kingdomID`` as ``KID``
         """
         filled_waves = [w for w in waves if w.is_complete()]
         if not filled_waves:
@@ -367,6 +375,7 @@ class AttackService(BaseService):
             if soldiers < min_soldiers:
                 raise AttackBelowMinimumError(min_soldiers, soldiers)
 
+        kingdom_id = self._own_area_kingdom(source_x, source_y, kingdom_id)
         request = CreateAttackRequest(
             SX=source_x,
             SY=source_y,
@@ -561,6 +570,8 @@ class AttackService(BaseService):
         Raises:
             GameDataNotLoadedError: ``client.load_game_data()`` has not been called
             ValueError: No level was given and none is known for the player
+            UnknownCastleError: No ``inventory`` given and ``castle_id`` is not in your castle list
+            AmbiguousCastleError: No ``inventory`` given and ``castle_id`` repeats across your kingdoms
         """
         game_data = self.client.game_data
         if game_data is None:
@@ -701,6 +712,10 @@ class AttackService(BaseService):
 
         Returns:
             An :class:`Inventory` the fill methods deduct from as they place
+
+        Raises:
+            UnknownCastleError: ``castle_id`` is not in your castle list
+            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
         """
         game_data = self.client.game_data
         if game_data is None:
@@ -721,15 +736,19 @@ class AttackService(BaseService):
 
         Each request is made only when something it would answer is still
         missing, so a fully specified target costs nothing.
+
+        Raises:
+            UnknownCastleError: The kingdom or source position is missing and
+                ``castle_id`` is not in your castle list
         """
-        source = self._own_castle(castle_id)
-        home_kingdom = source.kingdom_id if source is not None else Kingdom.GREEN
-        if target.kingdom_id is None:
-            target.kingdom_id = home_kingdom
-        if target.source_x is None:
-            target.source_x = source.x if source is not None else 0
-        if target.source_y is None:
-            target.source_y = source.y if source is not None else 0
+        if target.kingdom_id is None or target.source_x is None or target.source_y is None:
+            source = self._require_own_castle(castle_id)
+            if target.kingdom_id is None:
+                target.kingdom_id = source.kingdom_id
+            if target.source_x is None:
+                target.source_x = source.x
+            if target.source_y is None:
+                target.source_y = source.y
 
         if target.area_type is None and target.row:
             row_item = _row_item(target.row)
@@ -1058,6 +1077,9 @@ class AttackService(BaseService):
                 fewest units the client lets an attack on this target carry
                 (:func:`combat.min_attack_soldiers`); the fill is on the
                 error's ``attack``
+            UnknownCastleError: ``castle_id`` is not in your castle list and
+                its kingdom, position or inventory had to be read from it
+            AmbiguousCastleError: So, and ``castle_id`` repeats across your kingdoms
         """
         game_data = self.client.game_data
         if game_data is None:

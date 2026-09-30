@@ -197,8 +197,8 @@ class TestJoinCastle:
         )
 
     def test_join_returns_the_castle_state(self):
-        client = make_client({"jaa": xt_packet("jaa", JAA)})
-        joined = client.castle.join(555, kingdom_id=Kingdom.ICE)
+        client = make_client({"jaa": xt_packet("jaa", JAA)}, castles=[(555, Kingdom.ICE)])
+        joined = client.castle.join(555)
         assert conn(client).request_payloads == [("jaa", {"CID": 555, "KID": 2})]
         assert joined.buildings is not None
 

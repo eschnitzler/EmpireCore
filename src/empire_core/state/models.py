@@ -107,6 +107,10 @@ class Alliance(BaseModel):
         return js_parse_int(value) == 1
 
 
+CastleKey = tuple[Kingdom, int]
+"""A castle's (kingdom, object id): ids repeat across kingdoms, as the client's castle list is kept per kingdom."""
+
+
 class Castle(BaseModel):
     """A castle, outpost or metropolis owned by the logged-in player.
 
@@ -284,7 +288,9 @@ class Player(BaseModel):
             return 0.0
         return min(100.0, max(0.0, (self.xp - self.xp_for_current_level) / span * 100))
 
-    castles: dict[int, Castle] = Field(default_factory=dict)
+    castles: dict[CastleKey, Castle] = Field(
+        default_factory=dict, description="The player's castles by (kingdom, castle id)"
+    )
 
     E: str | None = Field(default=None)
 

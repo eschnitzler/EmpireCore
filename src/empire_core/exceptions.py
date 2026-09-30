@@ -7,10 +7,13 @@ Failure modes are kept distinct so callers can react to them individually:
 - ``CommandError``: the server answered with a non-zero error code.
 - ``GameDataNotLoadedError``: an API needed the items payload; load it first.
 - ``AmbiguousLookupError``: a game-data lookup matched more than one row.
+- ``UnknownCastleError``: a castle is not one of the logged-in player's castles.
+- ``AmbiguousCastleError``: a castle id or position matches castles in several kingdoms.
 """
 
 from typing import Any
 
+from empire_core.enums import Kingdom
 from empire_core.protocol.errors import GGEError
 
 
@@ -149,6 +152,49 @@ class AmbiguousLookupError(EmpireError, LookupError):
     def __init__(self, message: str, ids: list[int]):
         self.ids = ids
         super().__init__(f"{message}: matches ids {ids}")
+
+
+class UnknownCastleError(EmpireError, ValueError):
+    """
+    Raised when a castle is not in the logged-in player's castle list (``gcl``).
+
+    Methods acting on one of your areas send its kingdom, read from the list;
+    the client only offers areas from it.
+
+    Attributes:
+        castle_id: the castle id looked for, or None when looked for by position
+        position: the (x, y) looked for, or None when looked for by id
+    """
+
+    def __init__(self, castle_id: int | None, *, position: tuple[int, int] | None = None):
+        self.castle_id = castle_id
+        self.position = position
+        what = f"castle {castle_id}" if position is None else f"position {position[0]}:{position[1]}"
+        super().__init__(f"{what} is not one of your castles")
+
+
+class AmbiguousCastleError(EmpireError, LookupError):
+    """
+    Raised when a castle id or position matches your castles in several kingdoms.
+
+    The client keeps its castle list per kingdom, so an id could repeat across
+    them; the library then cannot tell which castle is meant.
+
+    Attributes:
+        castle_id: the castle id looked for, or None when looked for by position
+        position: the (x, y) looked for, or None when looked for by id
+        kingdoms: the kingdom id of every match
+    """
+
+    def __init__(self, castle_id: int | None, kingdoms: list[int], *, position: tuple[int, int] | None = None):
+        self.castle_id = castle_id
+        self.position = position
+        self.kingdoms = kingdoms
+        what = f"castle {castle_id}" if position is None else f"position {position[0]}:{position[1]}"
+        names = ", ".join(Kingdom(k).name if k in Kingdom._value2member_map_ else str(k) for k in kingdoms)
+        super().__init__(
+            f"{what} repeats across your kingdoms ({names}); the library cannot tell which castle is meant"
+        )
 
 
 class CommandError(EmpireError):

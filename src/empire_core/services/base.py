@@ -8,7 +8,8 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar
 
-from empire_core.exceptions import CommandError
+from empire_core.enums import Kingdom
+from empire_core.exceptions import AmbiguousCastleError, CommandError, UnknownCastleError
 from empire_core.protocol.base import BaseRequest, BaseResponse
 
 if TYPE_CHECKING:
@@ -37,10 +38,55 @@ class BaseService:
         """Get the game zone from client config."""
         return self.client.config.default_zone
 
+    def _own_castles(self) -> list[Castle]:
+        """The player's castles as the state knows them."""
+        return list(getattr(self.client.state, "get_castles", list)() or [])
+
     def _own_castle(self, castle_id: int) -> Castle | None:
-        """One of the player's castles as the state knows it, or None when the state has no such castle."""
-        castles = getattr(self.client.state, "get_castles", list)() or []
-        return next((c for c in castles if getattr(c, "id", None) == castle_id), None)
+        """
+        One of the player's castles as the state knows it, or None when the state has no such castle.
+
+        Raises:
+            AmbiguousCastleError: The id is listed in several of your kingdoms
+        """
+        matches = [c for c in self._own_castles() if c.id == castle_id]
+        if len(matches) > 1:
+            raise AmbiguousCastleError(castle_id, sorted(c.kingdom_id for c in matches))
+        return matches[0] if matches else None
+
+    def _require_own_castle(self, castle_id: int) -> Castle:
+        """
+        One of the player's castles from the castle list the server sent (``gcl``).
+
+        The client keeps its list per kingdom (``CastleListVO.parseCastleList``,
+        bundle line 13698), so an id could repeat across kingdoms; the id alone
+        then names no single castle.
+
+        Raises:
+            UnknownCastleError: The list has no such castle
+            AmbiguousCastleError: The id is listed in several of your kingdoms
+        """
+        castle = self._own_castle(castle_id)
+        if castle is None:
+            raise UnknownCastleError(castle_id)
+        return castle
+
+    def _own_area_kingdom(self, x: int, y: int, kingdom: Kingdom | None = None) -> Kingdom:
+        """
+        The kingdom of your area at (x, y): ``kingdom`` when given, else read from the castle list.
+
+        Raises:
+            UnknownCastleError: No area of yours in the list is at (x, y)
+            AmbiguousCastleError: Areas of yours sit at (x, y) in several kingdoms
+        """
+        if kingdom is not None:
+            return kingdom
+        kingdoms = sorted({c.kingdom_id for c in self._own_castles() if (c.x, c.y) == (x, y)})
+        if not kingdoms:
+            raise UnknownCastleError(None, position=(x, y))
+        if len(kingdoms) > 1:
+            raise AmbiguousCastleError(None, list(kingdoms), position=(x, y))
+        return kingdoms[0]
 
     def send(self, request: BaseRequest, wait: bool = False, timeout: float = 5.0) -> BaseResponse | None:
         """

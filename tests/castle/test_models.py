@@ -91,7 +91,7 @@ GOLDEN_GCL = {
                 {"AI": gdi_location_row(4, 510, 257, 2002, 1001, "OP1", 0), "TA": 0},
             ],
         },
-        {"KID": 2, "AI": [{"AI": gdi_location_row(12, 100, 200, 2004, 1001, "Sands", 0)}]},
+        {"KID": 2, "AI": [{"AI": gdi_location_row(12, 100, 200, 2004, 1001, "Sands", 2)}]},
     ],
 }
 
@@ -113,6 +113,11 @@ class TestGoldenCastlePayloads:
         # The client reads an absent AOT through int(), so as 0
         assert (outpost.no_abandon_seconds, outpost.abandon_outpost_seconds) == (0, 0)
         assert outpost.occupier_id == -1
+
+    def test_a_rows_own_kingdom_wins_over_its_block(self):
+        # InteractiveMapobjectVO.parseAreaInfo (bundle line 3637) reads field 16
+        payload = {"C": [{"KID": 0, "AI": [{"AI": gdi_location_row(1, 1, 2, 5, 9, "Ice", 2)}]}]}
+        assert GetCastlesResponse.model_validate(payload).castles[0].kingdom_id is Kingdom.ICE
 
     def test_gcl_without_a_castle_section_is_empty(self):
         assert GetCastlesResponse.model_validate({"PID": 1}).castles == []

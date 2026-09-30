@@ -8,9 +8,11 @@ import pytest
 
 from empire_core.combat import WaveCapacity
 from empire_core.enums import Kingdom
-from empire_core.exceptions import AttackBelowMinimumError, CommandError
+from empire_core.exceptions import AmbiguousCastleError, AttackBelowMinimumError, CommandError, UnknownCastleError
 from empire_core.protocol.models import AttackType, Commander, CreateAttackRequest, CreateAttackResponse, MapItemType
 from tests.service_helpers import LIVE_ADI, conn, make_client, placed, stub_player, wave, xt_packet
+
+OWN = [(12345, Kingdom.GREEN, 500, 510)]
 
 # Live capture of an ali reply for a kings tower, owner record trimmed and scrubbed.
 LIVE_ALI: dict[str, Any] = dict(
@@ -86,7 +88,7 @@ class TestCreateAttackReply:
         from empire_core.protocol.errors import GGEError
         from empire_core.protocol.models import CreateAttackRequest
 
-        client = make_client({"cra": xt_packet("cra", {"TS": 95, "AS": 40}, error_code=234)})
+        client = make_client({"cra": xt_packet("cra", {"TS": 95, "AS": 40}, error_code=234)}, castles=OWN)
         request = CreateAttackRequest(LID=0, SX=1, SY=2, TX=3, TY=4, A=[wave(units=[[487, 1]])])
 
         with pytest.raises(CommandError) as raised:
@@ -101,7 +103,7 @@ class TestAttackService:
     def test_an_attack_already_on_its_way_raises_with_its_details(self):
         from empire_core import AttackInProgressError
 
-        client = make_client({"cra": xt_packet("cra", {"TS": 95, "AS": 120}, error_code=234)})
+        client = make_client({"cra": xt_packet("cra", {"TS": 95, "AS": 120}, error_code=234)}, castles=OWN)
 
         with pytest.raises(AttackInProgressError) as caught:
             client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91)
@@ -110,19 +112,55 @@ class TestAttackService:
         assert conn(client).request_payloads[0][1]["FC"] == 0
 
     def test_send_anyway_sets_fc(self):
-        client = make_client()
+        client = make_client(castles=OWN)
 
         client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, send_anyway=True)
 
         assert conn(client).request_payloads[0][1]["FC"] == 1
 
+    def test_the_source_kingdom_is_read_from_the_castle_at_the_source_position(self):
+        client = make_client(castles=[(12345, Kingdom.GREEN, 1, 2), (1, Kingdom.ICE, 500, 510)])
+
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91)
+
+        assert conn(client).request_payloads[0][1]["KID"] == Kingdom.ICE
+
+    def test_a_source_position_not_yours_raises_and_sends_nothing(self):
+        client = make_client(castles=[(12345, Kingdom.GREEN, 1, 2)])
+
+        with pytest.raises(UnknownCastleError) as raised:
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91)
+
+        assert raised.value.position == (500, 510)
+        assert conn(client).request_payloads == []
+
+    def test_a_source_position_yours_in_two_kingdoms_needs_the_kingdom(self):
+        client = make_client(castles=[(1, Kingdom.GREEN, 500, 510), (1, Kingdom.STORM, 500, 510)])
+        args = (500, 510, 700, 710, [wave(units=[[487, 1]])])
+
+        with pytest.raises(AmbiguousCastleError) as raised:
+            client.attack.send_attack(*args, commander_id=91)
+        client.attack.send_attack(*args, commander_id=91, kingdom_id=Kingdom.STORM)
+
+        assert raised.value.kingdoms == [Kingdom.GREEN, Kingdom.STORM]
+        assert [payload["KID"] for _, payload in conn(client).request_payloads] == [Kingdom.STORM]
+
+    def test_a_given_source_kingdom_needs_no_castle_list(self):
+        client = make_client(castles=[])
+
+        client.attack.send_attack(
+            500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, kingdom_id=Kingdom.SANDS
+        )
+
+        assert conn(client).request_payloads[0][1]["KID"] == Kingdom.SANDS
+
     def test_other_rejections_still_return_false(self):
-        client = make_client({"cra": xt_packet("cra", None, error_code=219)})
+        client = make_client({"cra": xt_packet("cra", None, error_code=219)}, castles=OWN)
 
         assert client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91) is False
 
     def test_send_attack_builds_the_client_payload(self):
-        client = make_client()
+        client = make_client(castles=OWN)
 
         sent = client.attack.send_attack(
             source_x=500,
@@ -148,7 +186,7 @@ class TestAttackService:
         assert payload["ATT"] == AttackType.ATTACK
 
     def test_the_courtyard_wave_rides_in_rw(self):
-        client = make_client()
+        client = make_client(castles=OWN)
         yard = [[487, 300], [601, 200]] + [[-1, 0]] * 6
 
         client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 0, yard_wave=yard)
@@ -157,7 +195,7 @@ class TestAttackService:
         assert conn(client).request_payloads[0][1]["RW"] == yard
 
     def test_no_courtyard_wave_sends_an_empty_rw(self):
-        client = make_client()
+        client = make_client(castles=OWN)
 
         client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 0)
 
@@ -166,17 +204,17 @@ class TestAttackService:
     def test_commander_must_be_chosen_explicitly(self):
         # Every id gli reports leads an attack, 0 included, so there is no safe
         # value to default to.
-        client = make_client()
+        client = make_client(castles=OWN)
         with pytest.raises(TypeError):
             client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])])  # type: ignore[call-arg]
 
     def test_commander_is_sent_as_lid(self):
-        client = make_client()
+        client = make_client(castles=OWN)
         client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 0)
         assert conn(client).request_payloads[0][1]["LID"] == 0
 
     def test_empty_waves_are_dropped_like_the_client_does(self):
-        client = make_client()
+        client = make_client(castles=OWN)
 
         client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]]), wave(tools=[[301, 5]]), wave()], 3)
 
@@ -186,7 +224,7 @@ class TestAttackService:
         ]
 
     def test_attack_without_any_units_is_rejected_before_sending(self):
-        client = make_client()
+        client = make_client(castles=OWN)
 
         with pytest.raises(ValueError, match="no units"):
             client.attack.send_attack(500, 510, 700, 710, [wave()], 3)
@@ -195,7 +233,7 @@ class TestAttackService:
 
     def test_too_few_units_are_refused_before_sending(self):
         # Live: 1 unit on a level 16 castle came back as error 100 with MS 8
-        client = make_client()
+        client = make_client(castles=OWN)
 
         with pytest.raises(AttackBelowMinimumError) as caught:
             client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3, min_soldiers=8)
@@ -204,7 +242,7 @@ class TestAttackService:
         assert conn(client).requested == []
 
     def test_the_minimum_comes_from_the_capacity(self):
-        client = make_client()
+        client = make_client(castles=OWN)
 
         with pytest.raises(AttackBelowMinimumError):
             client.attack.send_attack(
@@ -214,7 +252,7 @@ class TestAttackService:
         assert conn(client).requested == []
 
     def test_the_minimum_counts_every_wave_but_not_the_courtyard(self):
-        client = make_client()
+        client = make_client(castles=OWN)
 
         with pytest.raises(AttackBelowMinimumError):
             client.attack.send_attack(
@@ -225,12 +263,12 @@ class TestAttackService:
         )
 
     def test_the_servers_refusal_of_too_few_units_is_false(self):
-        client = make_client({"cra": xt_packet("cra", {"MS": 8}, error_code=100)})
+        client = make_client({"cra": xt_packet("cra", {"MS": 8}, error_code=100)}, castles=OWN)
 
         assert client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3) is False
 
     def test_feathers_force_the_horse_field_to_minus_one(self):
-        client = make_client()
+        client = make_client(castles=OWN)
 
         client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3, horse_booster_id=2, feathers=True)
 
@@ -238,7 +276,7 @@ class TestAttackService:
         assert (payload["PTT"], payload["HBW"]) == (1, -1)
 
     def test_horses_survive_without_feathers(self):
-        client = make_client()
+        client = make_client(castles=OWN)
 
         client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3, horse_booster_id=2, feathers=False)
 
@@ -246,7 +284,7 @@ class TestAttackService:
         assert (payload["PTT"], payload["HBW"]) == (0, 2)
 
     def test_conquer_attack_type(self):
-        client = make_client()
+        client = make_client(castles=OWN)
 
         client.attack.send_attack(
             500,
@@ -263,7 +301,7 @@ class TestAttackService:
     def test_accepted_attack_reports_the_movement(self):
         # Shape captured from a live cra response.
         payload = {"AAM": {"M": {"MID": 5001, "TT": 132, "TA": [2, 510, 256, -1, 297, -900, 0]}}}
-        client = make_client({"cra": xt_packet("cra", payload)})
+        client = make_client({"cra": xt_packet("cra", payload)}, castles=OWN)
 
         response = client.request(
             CreateAttackRequest(
@@ -281,7 +319,7 @@ class TestAttackService:
         assert response.movement_id == 5001
 
     def test_response_without_a_movement_has_no_id(self):
-        client = make_client({"cra": xt_packet("cra", {})})
+        client = make_client({"cra": xt_packet("cra", {})}, castles=OWN)
         response = client.request(
             CreateAttackRequest(LID=0, SX=1, SY=1, TX=2, TY=2, A=[wave(units=[[211, 1]])]),
             CreateAttackResponse,
@@ -291,7 +329,7 @@ class TestAttackService:
     def test_fill_waves_needs_game_data(self):
         from empire_core.exceptions import GameDataNotLoadedError
 
-        client = make_client()
+        client = make_client(castles=OWN)
 
         with pytest.raises(GameDataNotLoadedError):
             client.attack.fill_waves(12345)
@@ -322,7 +360,7 @@ class TestAttackService:
                 },
             ]
         }
-        client = make_client({"gui": xt_packet("gui", {"I": [[601, 5000], [611, 500]]})})
+        client = make_client({"gui": xt_packet("gui", {"I": [[601, 5000], [611, 500]]})}, castles=OWN)
         client.game_data = GameData.parse("test", payload)
         client.state.local_player = stub_player(level=70)
 
@@ -346,7 +384,7 @@ class TestAttackService:
             "effecttypes": [{"effectTypeID": "28", "name": "attackUnitAmountFlank"}],
             "effects": [{"effectID": "500", "name": "flankUnits", "effectTypeID": "28", "capID": "99"}],
         }
-        client = make_client({"gui": xt_packet("gui", {"I": [[601, 100_000]]})})
+        client = make_client({"gui": xt_packet("gui", {"I": [[601, 100_000]]})}, castles=OWN)
         client.game_data = GameData.parse("test", payload)
         client.state.local_player = stub_player(level=70)
         # An equipped item worth +30% units on each side flank.
@@ -368,7 +406,7 @@ class TestAttackService:
             "units": [{"wodID": 601, "name": "Barracks", "type": "Swordsman", "role": "melee", "meleeAttack": "100"}]
         }
         inventory = {"I": [[601, 10_000], [107, 50]], "U": [], "T": []}
-        client = make_client({"gui": xt_packet("gui", inventory)})
+        client = make_client({"gui": xt_packet("gui", inventory)}, castles=OWN)
         client.game_data = GameData.parse("test", payload)
         # Level 13 unlocks a second wave and 73 attackers per wave.
         client.state.local_player = stub_player(level=70)
@@ -392,7 +430,7 @@ class TestAttackService:
         # default to fall back on.
         from empire_core.gamedata import GameData
 
-        client = make_client({"gui": xt_packet("gui", {"I": [[601, 10]]})})
+        client = make_client({"gui": xt_packet("gui", {"I": [[601, 10]]})}, castles=OWN)
         client.game_data = GameData.parse("test", {"units": []})
         client.state.local_player = stub_player(level=70)
 
@@ -400,7 +438,7 @@ class TestAttackService:
             client.attack.fill_waves(12345)
 
     def test_rejected_attack_is_false(self):
-        client = make_client({"cra": xt_packet("cra", error_code=21)})
+        client = make_client({"cra": xt_packet("cra", error_code=21)}, castles=OWN)
         assert client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3) is False
 
 
@@ -514,7 +552,7 @@ class TestAttackInfo:
         assert GetAttackInfoResponse.model_validate({}).kings_tower_bonus == 0
 
     def test_service_sends_the_documented_payload(self):
-        client = make_client()
+        client = make_client(castles=OWN)
 
         client.attack.get_attack_info(512, 256, 509, 255, kingdom_id=Kingdom.GREEN)
 
@@ -550,7 +588,7 @@ class TestTargetPrecalculation:
         ],
     )
     def test_the_command_follows_the_area_type(self, area_type, command, keys):
-        client = make_client()
+        client = make_client(castles=OWN)
 
         client.attack.get_attack_info(700, 710, 5, 6, kingdom_id=Kingdom.SANDS, area_type=area_type)
 
@@ -561,7 +599,7 @@ class TestTargetPrecalculation:
 
     @pytest.mark.parametrize(("area_type", "command"), [(4, "coi"), (3, "cci"), (22, "cti")])
     def test_a_conquest_asks_the_conquer_info(self, area_type, command):
-        client = make_client()
+        client = make_client(castles=OWN)
 
         client.attack.get_attack_info(700, 710, 5, 6, kingdom_id=Kingdom.GREEN, area_type=area_type, conquer=True)
 
@@ -573,7 +611,7 @@ class TestTargetPrecalculation:
         [(41, False), (14, False), (0, False), (9, False), (15, False), (1, True), (7, False)],
     )
     def test_an_unmodelled_target_is_refused_before_sending(self, area_type, conquer):
-        client = make_client()
+        client = make_client(castles=OWN)
 
         with pytest.raises(ValueError, match=f"area type {area_type}"):
             client.attack.get_attack_info(700, 710, 5, 6, area_type=area_type, conquer=conquer)
@@ -583,7 +621,7 @@ class TestTargetPrecalculation:
     def test_the_live_adi_reply(self):
         from empire_core.protocol.models import GetDungeonAttackInfoResponse
 
-        client = make_client({"adi": xt_packet("adi", LIVE_ADI)})
+        client = make_client({"adi": xt_packet("adi", LIVE_ADI)}, castles=OWN)
 
         info = client.attack.get_attack_info(620, 231, 620, 233, area_type=MapItemType.DUNGEON)
 

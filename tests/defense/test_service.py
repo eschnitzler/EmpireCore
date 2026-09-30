@@ -2,30 +2,19 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 
 from empire_core.defense.models import GetDefenseResponse, GetSupportDefenseResponse
 from empire_core.enums import Kingdom
 from empire_core.exceptions import CommandError
 from tests.defense.test_models import LIVE_DFC
-from tests.service_helpers import StubState, conn, make_client, xt_packet
-
-
-class _CastleState(StubState):
-    def __init__(self, castles: list[SimpleNamespace]):
-        super().__init__()
-        self.castles = castles
-
-    def get_castles(self) -> list[SimpleNamespace]:
-        return self.castles
+from tests.service_helpers import conn, make_client, xt_packet
 
 
 class TestGetSupportDefenseInfo:
     def test_source_defaults_to_the_first_own_castle(self):
-        state = _CastleState([SimpleNamespace(x=100, y=200), SimpleNamespace(x=300, y=400)])
-        client = make_client({"sdi": xt_packet("sdi", {"S": []})}, state)
+        castles = [(1, Kingdom.GREEN, 100, 200), (2, Kingdom.GREEN, 300, 400)]
+        client = make_client({"sdi": xt_packet("sdi", {"S": []})}, castles=castles)
 
         response = client.defense.get_support_defense_info(640, 655)
 
@@ -33,14 +22,14 @@ class TestGetSupportDefenseInfo:
         assert conn(client).request_payloads == [("sdi", {"TX": 640, "TY": 655, "SX": 100, "SY": 200})]
 
     def test_explicit_source_is_sent_as_given(self):
-        client = make_client({"sdi": xt_packet("sdi", {"S": []})}, _CastleState([]))
+        client = make_client({"sdi": xt_packet("sdi", {"S": []})}, castles=[])
 
         client.defense.get_support_defense_info(640, 655, source_x=1, source_y=2)
 
         assert conn(client).request_payloads == [("sdi", {"TX": 640, "TY": 655, "SX": 1, "SY": 2})]
 
     def test_no_source_and_no_castle_raises(self):
-        client = make_client(state=_CastleState([]))
+        client = make_client(castles=[])
 
         with pytest.raises(ValueError):
             client.defense.get_support_defense_info(640, 655)

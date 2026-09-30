@@ -11,6 +11,11 @@ Action methods return True when the server accepted the action and False
 when it rejected it with an error code; transport failures (timeout,
 disconnect) raise. Query methods raise on any failure.
 
+Methods that take one of your castles send its kingdom from the castle
+list the server sent at login (``client.state.get_castles()``), as the
+client does, and raise ``UnknownCastleError`` for an id not in it, or
+``AmbiguousCastleError`` for an id listed in several of your kingdoms.
+
 Building methods act on the castle joined last (:meth:`CastleService.join`)
 and name buildings by object id, a ``BuildingRow.object_id`` from
 ``join(...).buildings``. Their typed replies (``BuildResponse`` and the
@@ -68,6 +73,7 @@ from empire_core.castle.models.resources import (
 from empire_core.castle.models.support import SendSupportRequest, SendTroopsRequest
 from empire_core.castle.models.transfers import KingdomUnitTransferRequest
 from empire_core.enums import ExpansionType, Kingdom, ResourceCartType
+from empire_core.exceptions import AmbiguousCastleError, UnknownCastleError
 from empire_core.services.base import BaseService
 
 
@@ -125,6 +131,9 @@ class CastleService(BaseService):
                 (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
             timeout: Timeout in seconds
 
+        Raises:
+            AmbiguousCastleError: The reply lists the id in several kingdoms
+
         Example:
             details = client.castle.get_details(12345)
             if details:
@@ -137,42 +146,52 @@ class CastleService(BaseService):
     # Castle Selection
     # =========================================================================
 
-    def select(self, castle_id: int, kingdom_id: Kingdom = Kingdom.GREEN, timeout: float = 5.0) -> bool:
+    def select(self, castle_id: int, timeout: float = 5.0) -> bool:
         """
         Select/jump to a castle (makes it the active castle).
 
         Use :meth:`join` for the castle's state the server sends back.
 
         Args:
-            castle_id: One of your castles, from ``client.castle.get_all()``
-                (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
-            kingdom_id: The castle's kingdom, its ``CastleInfo.kingdom_id``
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
             timeout: Timeout in seconds
 
+        Raises:
+            UnknownCastleError: ``castle_id`` is not in your castle list
+            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
+
+        Client: ``C2SJoinCastleVO`` sent with the castle's ``objectId`` and
+        ``kingdomID`` (``JoinAreaAndSavePositionCommand.execute``, bundle line 100892)
+
         Example:
-            if client.castle.select(12345, kingdom_id=Kingdom.ICE):
+            if client.castle.select(12345):
                 print("Castle selected!")
         """
+        kingdom_id = self._require_own_castle(castle_id).kingdom_id
         return self.execute(SelectCastleRequest(CID=castle_id, KID=kingdom_id), timeout=timeout)
 
-    def join(self, castle_id: int, kingdom_id: Kingdom = Kingdom.GREEN, timeout: float = 5.0) -> SelectCastleResponse:
+    def join(self, castle_id: int, timeout: float = 5.0) -> SelectCastleResponse:
         """
         Join a castle, making it the active castle, and return its state.
 
         Args:
-            castle_id: One of your castles, from ``client.castle.get_all()``
-                (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
-            kingdom_id: The castle's kingdom, its ``CastleInfo.kingdom_id``
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
             timeout: Timeout in seconds
 
         Raises:
+            UnknownCastleError: ``castle_id`` is not in your castle list
+            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
             CommandError: The server refused the join.
+
+        Client: ``C2SJoinCastleVO`` sent with the castle's ``objectId`` and
+        ``kingdomID`` (``JoinAreaAndSavePositionCommand.execute``, bundle line 100892)
 
         Example:
             castle = client.castle.join(12345)
             if castle.buildings:
                 print([b.wod_id for b in castle.buildings.buildings])
         """
+        kingdom_id = self._require_own_castle(castle_id).kingdom_id
         return self.request(SelectCastleRequest(CID=castle_id, KID=kingdom_id), SelectCastleResponse, timeout=timeout)
 
     def join_area(
@@ -224,15 +243,19 @@ class CastleService(BaseService):
             timeout: Timeout in seconds
 
         Raises:
-            ValueError: ``castle_id`` is not one of your castles.
+            UnknownCastleError: ``castle_id`` is not one of your castles.
+            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
 
         Example:
             if client.castle.rename(12345, "My Fortress"):
                 print("Castle renamed!")
         """
-        castle = next((c for c in self.get_all(timeout=timeout) if c.castle_id == castle_id), None)
-        if castle is None:
-            raise ValueError(f"castle {castle_id} is not one of your castles")
+        matches = [c for c in self.get_all(timeout=timeout) if c.castle_id == castle_id]
+        if len(matches) > 1:
+            raise AmbiguousCastleError(castle_id, [c.kingdom_id for c in matches])
+        if not matches:
+            raise UnknownCastleError(castle_id)
+        castle = matches[0]
         return self.execute(
             RenameCastleRequest(
                 CID=castle_id,
@@ -248,22 +271,26 @@ class CastleService(BaseService):
     # Resource Operations
     # =========================================================================
 
-    def get_resources(
-        self, castle_id: int, kingdom_id: Kingdom = Kingdom.GREEN, timeout: float = 5.0
-    ) -> CastleResources:
+    def get_resources(self, castle_id: int, timeout: float = 5.0) -> CastleResources:
         """
         Get one of your castles' resources.
 
         Args:
-            castle_id: One of your castles, from ``client.castle.get_all()``
-                (``CastleInfo.castle_id``) or ``client.state.get_castles()`` (``Castle.id``)
-            kingdom_id: The castle's kingdom, its ``CastleInfo.kingdom_id``
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
             timeout: Timeout in seconds
+
+        Raises:
+            UnknownCastleError: ``castle_id`` is not in your castle list
+            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
+
+        Client: ``C2SGetCastleResourcesVO`` sent with the castle's ``objectId`` and
+        ``kingdomID`` (``CastleTransferResourcesDialog.onSelectCastle``, bundle line 38076)
 
         Example:
             resources = client.castle.get_resources(12345)
             print(f"Wood: {resources.wood}")
         """
+        kingdom_id = self._require_own_castle(castle_id).kingdom_id
         return self.request(GetResourcesRequest(AID=castle_id, KID=kingdom_id), GetResourcesResponse, timeout=timeout)
 
     def get_production(self, timeout: float = 5.0) -> CastleProductionArea:
@@ -416,7 +443,6 @@ class CastleService(BaseService):
         target_y: int,
         goods: dict[str, int],
         *,
-        kingdom_id: Kingdom = Kingdom.GREEN,
         horse_booster_id: int = -1,
         feathers: bool = False,
         slowdown: int = 0,
@@ -430,15 +456,21 @@ class CastleService(BaseService):
             target_x: Map x of the target castle
             target_y: Map y of the target castle
             goods: Amount per resource key, such as ``{"W": 1000, "S": 500}``
-            kingdom_id: The source castle's kingdom
             horse_booster_id: The horse's wod id, -1 for none; sent as -1 whenever
                 feathers are used, as the client does
             feathers: Pay for the horse with feathers
             slowdown: Seconds to delay the arrival by
             timeout: Timeout in seconds
+
+        Raises:
+            UnknownCastleError: ``source_castle_id`` is not in your castle list
+            AmbiguousCastleError: ``source_castle_id`` repeats across your kingdoms
+
+        Client: ``CastlePostSendGoodsDialog.sendGoods`` (bundle line 33378) sends
+        ``castleList.getKingdomIdByCastleId`` of the source castle as ``KID``
         """
         request = CreateMarketMovementRequest(
-            KID=kingdom_id,
+            KID=self._require_own_castle(source_castle_id).kingdom_id,
             SID=source_castle_id,
             TX=target_x,
             TY=target_y,
@@ -597,7 +629,6 @@ class CastleService(BaseService):
         target_kingdom_id: Kingdom,
         units: list[list[int]],
         *,
-        source_kingdom_id: Kingdom = Kingdom.GREEN,
         target_castle_id: int = -1,
         timeout: float = 5.0,
     ) -> bool:
@@ -608,13 +639,19 @@ class CastleService(BaseService):
             source_castle_id: The castle the units leave from, one of yours
             target_kingdom_id: The kingdom to send them to
             units: The units, as [wod id, amount] pairs
-            source_kingdom_id: The source castle's kingdom
             target_castle_id: Object id of a picked target castle, -1 for none
             timeout: Timeout in seconds
+
+        Raises:
+            UnknownCastleError: ``source_castle_id`` is not in your castle list
+            AmbiguousCastleError: ``source_castle_id`` repeats across your kingdoms
+
+        Client: ``CastleTransferTroopsToKingdomProperties.getUnitTransferCommand``
+        (bundle line 37448) sends the source castle's ``kingdomID`` as ``SKID``
         """
         request = KingdomUnitTransferRequest(
             SCID=source_castle_id,
-            SKID=source_kingdom_id,
+            SKID=self._require_own_castle(source_castle_id).kingdom_id,
             TKID=target_kingdom_id,
             CID=target_castle_id,
             A=units,

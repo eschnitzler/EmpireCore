@@ -9,9 +9,10 @@ from pydantic import ValidationError
 from empire_core.castle.models.castles import PlayerCastle
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
 from empire_core.enums import Kingdom
+from empire_core.exceptions import AmbiguousCastleError
 from empire_core.protocol.base import enum_or_none
 from empire_core.state.base import StateBase
-from empire_core.state.models import Castle, Resources
+from empire_core.state.models import Castle, CastleKey, Resources
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,13 @@ class CastleState(StateBase):
         exception: a section whose entries were *all* skipped as malformed is
         a payload we could not read, not evidence of ownership loss — it is
         reported at WARNING and the existing castle list is kept.
+
+        Castles are keyed by (kingdom, id): ids repeat across kingdoms. A
+        row's own kingdom field wins over the block's ``KID``.
+
+        Client: ``CastleListVO.parseCastleList`` (bundle line 13698) keeps a
+        list per ``KID``; ``InteractiveMapobjectVO.parseAreaInfo`` (bundle
+        line 3637) reads the row's kingdom from field 16
         """
         gcl = data.get("gcl")
         if not isinstance(gcl, dict) or self.local_player is None:
@@ -35,7 +43,7 @@ class CastleState(StateBase):
         if not isinstance(kingdoms, list):
             return
 
-        owned: dict[int, Castle] = {}
+        owned: dict[CastleKey, Castle] = {}
         entries = 0
         skipped = 0
         for k_data in kingdoms:
@@ -44,19 +52,16 @@ class CastleState(StateBase):
                 skipped += 1
                 logger.debug(f"Skipping malformed gcl kingdom entry: {k_data!r}")
                 continue
-            kid = enum_or_none(Kingdom, k_data.get("KID", 0))
+            block_kid = k_data.get("KID", 0)
             for area_entry in k_data.get("AI", []):
                 entries += 1
-                if kid is None:
-                    skipped += 1
-                    logger.debug(f"Skipping gcl entry in a kingdom Kingdom lacks: {k_data.get('KID')!r}")
-                    continue
                 if not isinstance(area_entry, dict):
                     skipped += 1
                     logger.debug(f"Skipping malformed gcl area entry: {area_entry!r}")
                     continue
                 try:
-                    row = PlayerCastle.from_list(area_entry.get("AI"), kid)
+                    # A block KID Kingdom lacks fails validation unless the row names its own kingdom
+                    row = PlayerCastle.from_list(area_entry.get("AI"), block_kid)
                 except (ValueError, TypeError) as e:
                     skipped += 1
                     logger.debug(f"Skipping unreadable gcl area entry {area_entry!r}: {e}")
@@ -64,19 +69,20 @@ class CastleState(StateBase):
                 if row.location_id is None or row.owner_id != self.local_player.id:
                     # A castle is tracked by its object id; a faction capital's row has none
                     continue
-                x, y, area_id, name = row.x, row.y, row.location_id, row.name or ""
-                existing = self.castles.get(area_id)
+                x, y, area_id, name, kingdom = row.x, row.y, row.location_id, row.name or "", row.kingdom
+                key = (kingdom, area_id)
+                existing = self.castles.get(key)
                 if existing is not None:
                     # Identity preserved for user-held references, but the
                     # fields land in one swap (see _swap_model_fields):
                     # written one at a time, a castle mid-relocation would
                     # be observably at (new_x, old_y).
                     merged = dict(existing.__dict__)
-                    merged.update({"name": name, "kingdom_id": kid, "x": x, "y": y})
-                    self._swap_model_fields(existing, merged, {"name", "kingdom_id", "x", "y"})
-                    owned[area_id] = existing
+                    merged.update({"name": name, "x": x, "y": y})
+                    self._swap_model_fields(existing, merged, {"name", "x", "y"})
+                    owned[key] = existing
                 else:
-                    owned[area_id] = Castle(OID=area_id, N=name, KID=kid, X=x, Y=y)
+                    owned[key] = Castle(OID=area_id, N=name, KID=kingdom, X=x, Y=y)
 
         if skipped and skipped == entries:
             logger.warning(
@@ -86,9 +92,9 @@ class CastleState(StateBase):
             return
 
         # Drop castles no longer owned (lost/traded since the last update)
-        for stale_id in set(self.castles) - set(owned):
+        for stale_key in set(self.castles) - set(owned):
             # A re-acquired castle must not inherit the old freshness stamp
-            self._castle_details_at.pop(stale_id, None)
+            self._castle_details_at.pop(stale_key, None)
         # Swap, don't mutate: user threads hold state.castles and
         # local_player.castles unlocked, and a reader holding the old dict
         # must keep seeing a consistent snapshot.
@@ -109,17 +115,19 @@ class CastleState(StateBase):
         for k_data in data.get("C", []):
             if not isinstance(k_data, dict):
                 continue
+            kid = enum_or_none(Kingdom, k_data.get("KID", 0))
+            if kid is None:
+                continue
             for castle_data in k_data.get("AI", []):
                 if not isinstance(castle_data, dict):
                     continue
                 aid = castle_data.get("AID")
-                if aid is None or aid not in self.castles:
+                if not isinstance(aid, int) or (kid, aid) not in self.castles:
                     continue
-                castle = self.castles[aid]
+                key: CastleKey = (kid, aid)
+                castle = self.castles[key]
                 try:
-                    info = DetailedCastleInfo.model_validate(
-                        {**castle_data, "KID": k_data.get("KID", castle.kingdom_id)}
-                    )
+                    info = DetailedCastleInfo.model_validate({**castle_data, "KID": kid})
                 except ValidationError as e:
                     # One malformed castle entry must not abort the rest
                     logger.debug(f"Skipping malformed dcl entry for castle {aid}: {e}")
@@ -145,7 +153,7 @@ class CastleState(StateBase):
                 if info.raw_units:
                     castle.units = info.units
                 castle.details = info
-                self._castle_details_at[aid] = time.time()
+                self._castle_details_at[key] = time.time()
 
     def get_castles(self) -> list[Castle]:
         """Get a snapshot of the player's castles.
@@ -159,6 +167,13 @@ class CastleState(StateBase):
         with self._lock:
             return list(self.castles.values())
 
+    def _castle_key(self, castle_id: int) -> CastleKey | None:
+        """The key of one of your castles, or None when there is none. Call under the lock."""
+        keys = [key for key in self.castles if key[1] == castle_id]
+        if len(keys) > 1:
+            raise AmbiguousCastleError(castle_id, sorted(key[0] for key in keys))
+        return keys[0] if keys else None
+
     def get_castle_last_updated(self, castle_id: int) -> float | None:
         """When this castle's detail data (resources, units) was last refreshed.
 
@@ -166,9 +181,13 @@ class CastleState(StateBase):
         packet ever refreshed this castle — in which case ``resources`` and
         ``units`` are defaults, not measurements. Refresh with
         ``client.castle.get_details(castle_id)``.
+
+        Raises:
+            AmbiguousCastleError: the id is listed in several of your kingdoms
         """
         with self._lock:
-            return self._castle_details_at.get(castle_id)
+            key = self._castle_key(castle_id)
+            return None if key is None else self._castle_details_at.get(key)
 
     def get_castle_age(self, castle_id: int) -> float | None:
         """Seconds since this castle's detail data was refreshed, or ``None``.
@@ -177,7 +196,8 @@ class CastleState(StateBase):
         so treat it as infinitely stale rather than as zero.
         """
         with self._lock:
-            stamp = self._castle_details_at.get(castle_id)
+            key = self._castle_key(castle_id)
+            stamp = None if key is None else self._castle_details_at.get(key)
         if stamp is None:
             return None
         return max(0.0, time.time() - stamp)

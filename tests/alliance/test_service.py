@@ -10,7 +10,7 @@ import pytest
 from empire_core.alliance.models.diplomacy import AllianceDonation
 from empire_core.alliance.models.search import GetBookmarksResponse
 from empire_core.enums import AllianceRank, BookmarkType, DiplomacyStatus, Kingdom
-from empire_core.exceptions import CommandError
+from empire_core.exceptions import AmbiguousCastleError, CommandError, UnknownCastleError
 from empire_core.protocol.models import AllianceChatMessageResponse, AllianceMember, HelpType
 from tests.service_helpers import StubPlayer, StubState, conn, make_client, request_payload, xt_packet
 
@@ -666,20 +666,34 @@ class TestAllianceDiplomacy:
 
     def test_donate_sends_the_castle_and_only_amounts_above_zero(self):
         reply = {"gcu": {"C1": 900, "C2": 10}, "grc": {"W": 1}, "ain": GOLDEN_AIN}
-        client = make_client({"ado": xt_packet("ado", reply)})
+        client = make_client({"ado": xt_packet("ado", reply)}, castles=[(12345, Kingdom.ICE)])
 
-        response = client.alliance.donate(12345, Kingdom.GREEN, AllianceDonation(wood=500, coins=100, rift_coins=2))
+        response = client.alliance.donate(12345, AllianceDonation(wood=500, coins=100, rift_coins=2))
 
         (sent,) = conn(client).request_payloads
-        assert sent == ("ado", {"AID": 12345, "KID": 0, "RV": {"W": 500, "C1": 100, "RC": 2}})
+        assert sent == ("ado", {"AID": 12345, "KID": 2, "RV": {"W": 500, "C1": 100, "RC": 2}})
         assert list(sent[1]) == ["AID", "KID", "RV"]
         assert response.currency is not None and response.currency.coins == 900
         assert response.alliance is not None and response.alliance.alliance_id == 301
 
     def test_an_empty_donation_is_not_sent(self):
-        client = make_client()
+        client = make_client(castles=[(12345, Kingdom.GREEN)])
         with pytest.raises(ValueError):
-            client.alliance.donate(12345, Kingdom.GREEN, AllianceDonation())
+            client.alliance.donate(12345, AllianceDonation())
+        assert conn(client).request_payloads == []
+
+    def test_a_donation_from_an_id_repeated_across_your_kingdoms_raises(self):
+        client = make_client(castles=[(1, Kingdom.STORM), (1, Kingdom.BERIMOND)])
+
+        with pytest.raises(AmbiguousCastleError):
+            client.alliance.donate(1, AllianceDonation(wood=1))
+
+        assert conn(client).request_payloads == []
+
+    def test_a_donation_from_a_castle_not_in_the_castle_list_raises(self):
+        client = make_client(castles=[(777, Kingdom.GREEN)])
+        with pytest.raises(UnknownCastleError):
+            client.alliance.donate(12345, AllianceDonation(wood=1))
         assert conn(client).request_payloads == []
 
 

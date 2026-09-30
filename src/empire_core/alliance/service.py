@@ -70,7 +70,7 @@ from empire_core.alliance.models.search import (
     SearchAllianceRequest,
     SearchAllianceResponse,
 )
-from empire_core.enums import AllianceRank, DiplomacyStatus, HelpType, Kingdom
+from empire_core.enums import AllianceRank, DiplomacyStatus, HelpType
 from empire_core.exceptions import CommandError, PacketError
 from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.errors import GGEError
@@ -381,22 +381,25 @@ class AllianceService(BaseService):
             raise ValueError("a newsletter needs text")
         return self.execute(SendNewsletterRequest.create(subject, text), timeout=timeout)
 
-    def donate(
-        self, castle_id: int, kingdom: Kingdom, donation: AllianceDonation, timeout: float = 5.0
-    ) -> DonateResponse:
+    def donate(self, castle_id: int, donation: AllianceDonation, timeout: float = 5.0) -> DonateResponse:
         """
         Donate resources from one of your castles to the alliance treasury.
 
         Args:
-            castle_id: The donating castle, ``CastleInfo.castle_id`` from ``client.castle.get_all()``
-            kingdom: The castle's kingdom
+            castle_id: The donating castle, a ``Castle.id`` from ``client.state.get_castles()``
             donation: The amounts; the client sends nothing when every amount is 0
+            timeout: Timeout in seconds
 
         Raises:
+            UnknownCastleError: ``castle_id`` is not in your castle list
+            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
             ValueError: every amount is 0
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleAllianceDonateDialog.onDonateForAlliance`` (bundle line 45576) sends
+        the picked castle's ``objectId`` and ``kingdomID``
         """
-        request = DonateRequest.create(castle_id, kingdom, donation)
+        request = DonateRequest.create(castle_id, self._require_own_castle(castle_id).kingdom_id, donation)
         if not request.resources:
             raise ValueError("a donation needs an amount above 0")
         return self.request(request, DonateResponse, timeout=timeout)

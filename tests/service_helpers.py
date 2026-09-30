@@ -4,17 +4,19 @@ from __future__ import annotations
 
 import json
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any, cast
 
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
+from empire_core.enums import Kingdom
 from empire_core.exceptions import EmpireTimeoutError
 from empire_core.network.connection import ResponseWaiter
 from empire_core.protocol.models import AttackWave, WaveFlank
 from empire_core.protocol.packet import Packet
-from empire_core.state.models import Player
+from empire_core.state.manager import GameState
+from empire_core.state.models import Castle, Player
 
 
 def placed(slots: list[list[int]]) -> list[list[int]]:
@@ -201,12 +203,42 @@ def stub_player(alliance_id: int = 0, level: int = 0) -> Player:
     return cast(Player, StubPlayer(alliance_id=alliance_id, level=level))
 
 
+OwnCastle = tuple[int, Kingdom] | tuple[int, Kingdom, int, int]
+
+
+def gcl_castles(*castles: OwnCastle, owner_id: int = 1001) -> list[Castle]:
+    """
+    The castles a login gcl lists, as GameState reads them.
+
+    Each castle is ``(castle_id, kingdom)`` or ``(castle_id, kingdom, x, y)``.
+    """
+    sections: dict[int, list[dict[str, Any]]] = {}
+    for castle in castles:
+        castle_id, kingdom = castle[0], castle[1]
+        x, y = (castle[2], castle[3]) if len(castle) == 4 else (10, 20)
+        row = [1, x, y, castle_id, owner_id, 1, 1, 1, 0, 0, f"Castle {castle_id}"]
+        sections.setdefault(int(kingdom), []).append({"AI": row})
+    gcl = {"C": [{"KID": kid, "AI": rows} for kid, rows in sections.items()]}
+    state = GameState()
+    try:
+        state.update_from_packet("gbd", {"gpi": {"PID": owner_id}, "gcl": gcl})
+        return state.get_castles()
+    finally:
+        state.shutdown()
+
+
 class StubState:
     """Only the members the services actually touch."""
 
-    def __init__(self, local_player: StubPlayer | None = None, movements: list | None = None):
+    def __init__(
+        self,
+        local_player: StubPlayer | None = None,
+        movements: list | None = None,
+        castles: list[Castle] | None = None,
+    ):
         self.local_player = local_player
         self.movements = movements if movements is not None else []
+        self.castles = castles if castles is not None else []
         self.events: list[str] = []
         self.updates: list[tuple[str, object]] = []
 
@@ -215,6 +247,9 @@ class StubState:
 
     def get_local_player(self) -> StubPlayer | None:
         return self.local_player
+
+    def get_castles(self) -> list[Castle]:
+        return list(self.castles)
 
     def get_all_movements(self) -> list:
         self.events.append("get_all_movements")
@@ -228,14 +263,22 @@ def make_client(
     script: dict[str, Any] | None = None,
     state: StubState | None = None,
     pushes: dict[str, list[Packet]] | None = None,
+    castles: Sequence[OwnCastle] | None = None,
 ) -> EmpireClient:
-    """Build a client with every service attached, but no socket."""
+    """
+    Build a client with every service attached, but no socket.
+
+    ``castles`` are the player's castles, read from a gcl as at login (see :func:`gcl_castles`).
+    """
     client = EmpireClient.__new__(EmpireClient)
     client.config = EmpireConfig()
     client.username = "tester"
     client.password = "secret"
     client.connection = ScriptedConnection(script, pushes)  # type: ignore[assignment]
-    client.state = state or StubState()  # type: ignore[assignment]
+    stub = state or StubState()
+    if castles is not None:
+        stub.castles = gcl_castles(*castles)
+    client.state = stub  # type: ignore[assignment]
     client.game_data = None
     client.is_logged_in = True
     client._handlers = {}

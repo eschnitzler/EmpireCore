@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from empire_core.movements.tracked import Movement
-from empire_core.state.models import Castle, Player
+from empire_core.state.models import Castle, CastleKey, Player
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class StateBase:
         # (ain) or the commander/profile services for other players.
         self.players: dict[int, Player] = {}
 
-        self.castles: dict[int, Castle] = {}
+        self.castles: dict[CastleKey, Castle] = {}
 
         # World State
         self.movements: dict[int, Movement] = {}  # MovementID -> Movement
@@ -84,7 +84,7 @@ class StateBase:
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}
-        self._castle_details_at: dict[int, float] = {}
+        self._castle_details_at: dict[CastleKey, float] = {}
         self._player_updated_at: float | None = None
 
     def reset(self) -> None:

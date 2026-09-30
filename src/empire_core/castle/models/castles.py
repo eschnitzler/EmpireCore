@@ -298,8 +298,9 @@ class CastleInfo(BasePayload):
     The row's values are read by its area type's layout, the field positions
     :class:`PlayerCastle` lists. ``OGT``, ``OGC``, ``AOT``, ``CAT`` and ``TA``
     are the entry's keys, read through ``int()`` (``OGT`` and ``OGC`` only when
-    they are not 0), so one the entry lacks reads as 0. ``KID`` is the kingdom
-    block the entry is listed under. A faction capital's row carries no object
+    they are not 0), so one the entry lacks reads as 0. ``KID`` is the row's own
+    kingdom when it carries one (``InteractiveMapobjectVO.parseAreaInfo``, bundle
+    line 3637), else the block the entry is listed under. A faction capital's row carries no object
     id, so it has no CastleInfo.
 
     Client: ``CastleListVO.parseCastleList`` (bundle line 13698), which reads
@@ -310,7 +311,11 @@ class CastleInfo(BasePayload):
     castle_name: str = Field(default="", description="The castle's name")
     x: int = Field(default=0, description="Map x")
     y: int = Field(default=0, description="Map y")
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom it is listed under")
+    kingdom_id: Kingdom = Field(
+        alias="KID",
+        default=Kingdom.GREEN,
+        description="The castle's kingdom: the row's own, else the block it is listed under",
+    )
     castle_type: MapItemType = Field(default=MapItemType.EMPTY, description="The castle's area type")
     owner_id: int = Field(default=0, description="Player id of the owner")
     occupier_id: int = Field(default=-1, description="Player id of the occupier, -1 when there is none")
@@ -389,7 +394,7 @@ class CastleInfo(BasePayload):
             "castle_name": parsed.name or "",
             "x": parsed.x,
             "y": parsed.y,
-            "kingdom_id": kingdom,
+            "kingdom_id": parsed.kingdom,
             "castle_type": parsed.castle_type,
             "owner_id": parsed.owner_id,
             "occupier_id": parsed.occupier_id,

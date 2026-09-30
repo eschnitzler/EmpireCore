@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 
-from empire_core.exceptions import CommandError
+from empire_core.enums import Kingdom
+from empire_core.exceptions import AmbiguousCastleError, CommandError, UnknownCastleError
 from empire_core.protocol.models import ProductionListId, SlotType
-from tests.service_helpers import StubState, conn, make_client, xt_packet
+from tests.service_helpers import conn, make_client, xt_packet
+
+OWN = [(12345, Kingdom.GREEN)]
 
 # =============================================================================
 # ArmyService
@@ -27,7 +28,7 @@ class TestArmyService:
             "SHI": [[646, 500]],
             "HI": [[627, 7]],
         }
-        client = make_client({"gui": xt_packet("gui", payload)})
+        client = make_client({"gui": xt_packet("gui", payload)}, castles=OWN)
 
         response = client.army.get_units_response(12345)
 
@@ -40,9 +41,8 @@ class TestArmyService:
         assert [(u.unit_id, u.count) for u in response.get_hospital()] == [(627, 7)]
 
     def test_a_refused_join_raises_instead_of_reading_another_castle(self):
-        from empire_core.exceptions import CommandError
-
-        client = make_client({"jaa": xt_packet("jaa", error_code=21), "gui": xt_packet("gui", {"I": [[1, 1]]})})
+        script = {"jaa": xt_packet("jaa", error_code=21), "gui": xt_packet("gui", {"I": [[1, 1]]})}
+        client = make_client(script, castles=OWN)
 
         with pytest.raises(CommandError):
             client.army.get_units(12345)
@@ -51,7 +51,7 @@ class TestArmyService:
     def test_get_units_joins_the_castle_and_reads_i(self):
         # parse_GUI reads I, TU, SHI and HI; U and T are not read
         payload = {"U": [{"UID": 1, "C": 1}], "I": [[487, 100], [488, 20], [301, 5]]}
-        client = make_client({"gui": xt_packet("gui", payload)})
+        client = make_client({"gui": xt_packet("gui", payload)}, castles=OWN)
 
         units = client.army.get_units(12345)
 
@@ -62,7 +62,7 @@ class TestArmyService:
 
     def test_production_list_joins_the_castle_and_reads_the_spl_block(self):
         payload = {"LID": 1, "QS": [{"P": {"WID": 649, "TUA": 20}, "SI": {"RUT": -1}}], "PS": {}, "RM": 0, "TCT": 0}
-        client = make_client({"spl": xt_packet("spl", payload)})
+        client = make_client({"spl": xt_packet("spl", payload)}, castles=OWN)
 
         production = client.army.get_production_list(12345, ProductionListId.TOOLS)
 
@@ -115,7 +115,7 @@ class TestArmyService:
         ],
     )
     def test_actions_join_the_castle_then_send_the_client_payload(self, call, command, expected):
-        client = make_client()
+        client = make_client(castles=OWN)
 
         assert call(client.army) is True
 
@@ -123,9 +123,7 @@ class TestArmyService:
         assert list(conn(client).request_payloads[-1][1]) == list(expected)
 
     def test_the_castle_kingdom_goes_into_bup_and_bou(self):
-        state = StubState()
-        state.get_castles = lambda: [SimpleNamespace(id=12345, kingdom_id=2)]  # type: ignore[attr-defined]
-        client = make_client(state=state)
+        client = make_client(castles=[(777, Kingdom.GREEN), (12345, Kingdom.ICE)])
 
         client.army.produce_units(12345, ProductionListId.SOLDIERS, 620, 1)
         client.army.double_production_slot(12345, ProductionListId.SOLDIERS, SlotType.PRODUCTION, 0)
@@ -144,11 +142,26 @@ class TestArmyService:
         ],
     )
     def test_rejected_actions_are_false(self, call, command):
-        client = make_client({command: xt_packet(command, error_code=21)})
+        client = make_client({command: xt_packet(command, error_code=21)}, castles=OWN)
         assert call(client.army) is False
 
+    def test_a_castle_not_in_the_castle_list_raises_before_joining(self):
+        client = make_client(castles=[(777, Kingdom.ICE)])
+
+        with pytest.raises(UnknownCastleError):
+            client.army.heal_units(12345, 620, 1)
+        assert conn(client).request_payloads == []
+
+    def test_an_id_repeated_across_your_kingdoms_raises_before_joining(self):
+        client = make_client(castles=[(12345, Kingdom.STORM), (12345, Kingdom.BERIMOND)])
+
+        with pytest.raises(AmbiguousCastleError):
+            client.army.produce_units(12345, ProductionListId.SOLDIERS, 620, 1)
+
+        assert conn(client).request_payloads == []
+
     def test_a_refused_join_sends_no_action(self):
-        client = make_client({"jaa": xt_packet("jaa", error_code=21)})
+        client = make_client({"jaa": xt_packet("jaa", error_code=21)}, castles=OWN)
 
         with pytest.raises(CommandError):
             client.army.heal_units(12345, 620, 1)

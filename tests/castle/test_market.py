@@ -35,17 +35,17 @@ class TestSendResources:
         assert list(payload) == ["KID", "SID", "TX", "TY", "HBW", "PTT", "SD", "G"]
 
     def test_send_resources(self):
-        client = make_client()
+        client = make_client(castles=[(1234, Kingdom.ICE)])
         assert client.castle.send_resources(1234, 10, 20, {"W": 100, "S": 50}, horse_booster_id=5) is True
         assert conn(client).request_payloads == [
             (
                 "crm",
-                {"KID": 0, "SID": 1234, "TX": 10, "TY": 20, "HBW": 5, "PTT": 0, "SD": 0, "G": [["W", 100], ["S", 50]]},
+                {"KID": 2, "SID": 1234, "TX": 10, "TY": 20, "HBW": 5, "PTT": 0, "SD": 0, "G": [["W", 100], ["S", 50]]},
             )
         ]
 
     def test_feathers_send_no_horse(self):
-        client = make_client()
+        client = make_client(castles=[(1234, Kingdom.GREEN)])
         client.castle.send_resources(1234, 10, 20, {"W": 1}, horse_booster_id=5, feathers=True)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
@@ -101,10 +101,10 @@ class TestKingdomUnitTransfer:
         assert list(payload) == ["SCID", "SKID", "TKID", "CID", "A"]
 
     def test_transfer_units_to_kingdom(self):
-        client = make_client()
+        client = make_client(castles=[(1234, Kingdom.ICE)])
         assert client.castle.transfer_units_to_kingdom(1234, Kingdom.FIRE, [[620, 10]]) is True
         assert conn(client).request_payloads == [
-            ("kut", {"SCID": 1234, "SKID": 0, "TKID": 3, "CID": -1, "A": [[620, 10]]})
+            ("kut", {"SCID": 1234, "SKID": 2, "TKID": 3, "CID": -1, "A": [[620, 10]]})
         ]
 
     def test_the_reply(self):

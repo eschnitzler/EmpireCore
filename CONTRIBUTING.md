@@ -288,8 +288,8 @@ def send_chat(self, message: str) -> None:
 #### Wait for response
 
 ```python
-def get_resources(self, castle_id: int, kingdom_id: Kingdom = Kingdom.GREEN) -> CastleResources:
-    request = GetResourcesRequest(AID=castle_id, KID=kingdom_id)
+def get_resources(self, castle_id: int) -> CastleResources:
+    request = GetResourcesRequest(AID=castle_id, KID=self._require_own_castle(castle_id).kingdom_id)
     return self.request(request, GetResourcesResponse, timeout=5.0)
 ```
 
