@@ -9,13 +9,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field
 
 from empire_core.enums import Kingdom
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
-from empire_core.protocol.js import js_int, js_same_number
+from empire_core.protocol.js import ClientInt, js_same_number
 
-from .details import _RESOURCE_KEYS, CastleProductionArea
+from .details import CastleProductionArea
 
 
 class CastleResources(BasePayload):
@@ -27,24 +27,19 @@ class CastleResources(BasePayload):
     (bundle line 131382) reads each amount through ``int()``
     """
 
-    castle_id: int = Field(alias="AID", default=0, description="The castle's object id")
-    kingdom_id: int = Field(alias="KID", default=0, description="The castle's kingdom")
-    wood: int = Field(alias="W", default=0, description="Wood in stock")
-    stone: int = Field(alias="S", default=0, description="Stone in stock")
-    food: int = Field(alias="F", default=0, description="Food in stock")
-    coal: int = Field(alias="C", default=0, description="Coal in stock")
-    oil: int = Field(alias="O", default=0, description="Oil in stock")
-    glass: int = Field(alias="G", default=0, description="Glass in stock")
-    iron: int = Field(alias="I", default=0, description="Iron in stock")
-    aquamarine: int = Field(alias="A", default=0, description="Aquamarine in stock")
-    honey: int = Field(alias="HONEY", default=0, description="Honey in stock")
-    mead: int = Field(alias="MEAD", default=0, description="Mead in stock")
-    beef: int = Field(alias="BEEF", default=0, description="Beef in stock")
-
-    @field_validator("castle_id", "kingdom_id", *_RESOURCE_KEYS, mode="before")
-    @classmethod
-    def _int(cls, value: Any) -> int:
-        return js_int(value)
+    castle_id: ClientInt = Field(alias="AID", default=0, description="The castle's object id")
+    kingdom_id: ClientInt = Field(alias="KID", default=0, description="The castle's kingdom")
+    wood: ClientInt = Field(alias="W", default=0, description="Wood in stock")
+    stone: ClientInt = Field(alias="S", default=0, description="Stone in stock")
+    food: ClientInt = Field(alias="F", default=0, description="Food in stock")
+    coal: ClientInt = Field(alias="C", default=0, description="Coal in stock")
+    oil: ClientInt = Field(alias="O", default=0, description="Oil in stock")
+    glass: ClientInt = Field(alias="G", default=0, description="Glass in stock")
+    iron: ClientInt = Field(alias="I", default=0, description="Iron in stock")
+    aquamarine: ClientInt = Field(alias="A", default=0, description="Aquamarine in stock")
+    honey: ClientInt = Field(alias="HONEY", default=0, description="Honey in stock")
+    mead: ClientInt = Field(alias="MEAD", default=0, description="Mead in stock")
+    beef: ClientInt = Field(alias="BEEF", default=0, description="Beef in stock")
 
 
 # =============================================================================

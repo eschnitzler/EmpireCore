@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator, model_v
 
 from empire_core.enums import BuildingState
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, read_or_none
-from empire_core.protocol.js import js_int, js_number, js_number_or_none, js_truthy
+from empire_core.protocol.js import ClientInt, js_int, js_number, js_number_or_none, js_truthy
 
 from .details import _ProductionAreaSection
 
@@ -208,22 +208,17 @@ class ConstructionList(BasePayload):
 class FieldEfficiency(_ProductionAreaSection):
     """Resource field efficiency per resource (``RA<key>``)."""
 
-    wood: int = Field(alias="RAW", default=0)
-    stone: int = Field(alias="RAS", default=0)
-    food: int = Field(alias="RAF", default=0)
-    coal: int = Field(alias="RAC", default=0)
-    oil: int = Field(alias="RAO", default=0)
-    glass: int = Field(alias="RAG", default=0)
-    iron: int = Field(alias="RAI", default=0)
-    aquamarine: int = Field(alias="RAA", default=0)
-    honey: int = Field(alias="RAHONEY", default=0)
-    mead: int = Field(alias="RAMEAD", default=0)
-    beef: int = Field(alias="RABEEF", default=0)
-
-    @field_validator("*", mode="before")
-    @classmethod
-    def _int(cls, value: Any) -> int:
-        return js_int(value)
+    wood: ClientInt = Field(alias="RAW", default=0)
+    stone: ClientInt = Field(alias="RAS", default=0)
+    food: ClientInt = Field(alias="RAF", default=0)
+    coal: ClientInt = Field(alias="RAC", default=0)
+    oil: ClientInt = Field(alias="RAO", default=0)
+    glass: ClientInt = Field(alias="RAG", default=0)
+    iron: ClientInt = Field(alias="RAI", default=0)
+    aquamarine: ClientInt = Field(alias="RAA", default=0)
+    honey: ClientInt = Field(alias="RAHONEY", default=0)
+    mead: ClientInt = Field(alias="RAMEAD", default=0)
+    beef: ClientInt = Field(alias="RABEEF", default=0)
 
 
 _BUILDING_GROUPS = ("BD", "D", "G", "T", "BG", "FP")

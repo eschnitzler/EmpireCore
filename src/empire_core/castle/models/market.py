@@ -20,7 +20,7 @@ from empire_core.protocol.base import (
     CurrencyBlock,
     readable_list,
 )
-from empire_core.protocol.js import js_int
+from empire_core.protocol.js import ClientInt
 
 from .objects import block_or_none
 from .resources import CastleResources
@@ -131,25 +131,20 @@ class MarketCastle(BasePayload):
     reads every number through ``int()``
     """
 
-    kingdom_id: int = Field(alias="KID", default=0, description="The castle's kingdom")
-    castle_id: int = Field(alias="CID", default=0, description="The castle's object id")
-    total_carriages: int = Field(alias="TC", default=0, description="The castle's market carriages")
-    available_carriages: int = Field(alias="AC", default=0, description="Carriages not on the road")
-    wood: int = Field(alias="W", default=0, description="Wood in stock")
-    stone: int = Field(alias="S", default=0, description="Stone in stock")
-    food: int = Field(alias="F", default=0, description="Food in stock")
-    coal: int = Field(alias="C", default=0, description="Coal in stock")
-    oil: int = Field(alias="O", default=0, description="Oil in stock")
-    glass: int = Field(alias="G", default=0, description="Glass in stock")
-    iron: int = Field(alias="I", default=0, description="Iron in stock")
-    honey: int = Field(alias="HONEY", default=0, description="Honey in stock")
-    mead: int = Field(alias="MEAD", default=0, description="Mead in stock")
-    beef: int = Field(alias="BEEF", default=0, description="Beef in stock")
-
-    @field_validator("*", mode="before")
-    @classmethod
-    def _int(cls, value: Any) -> int:
-        return js_int(value)
+    kingdom_id: ClientInt = Field(alias="KID", default=0, description="The castle's kingdom")
+    castle_id: ClientInt = Field(alias="CID", default=0, description="The castle's object id")
+    total_carriages: ClientInt = Field(alias="TC", default=0, description="The castle's market carriages")
+    available_carriages: ClientInt = Field(alias="AC", default=0, description="Carriages not on the road")
+    wood: ClientInt = Field(alias="W", default=0, description="Wood in stock")
+    stone: ClientInt = Field(alias="S", default=0, description="Stone in stock")
+    food: ClientInt = Field(alias="F", default=0, description="Food in stock")
+    coal: ClientInt = Field(alias="C", default=0, description="Coal in stock")
+    oil: ClientInt = Field(alias="O", default=0, description="Oil in stock")
+    glass: ClientInt = Field(alias="G", default=0, description="Glass in stock")
+    iron: ClientInt = Field(alias="I", default=0, description="Iron in stock")
+    honey: ClientInt = Field(alias="HONEY", default=0, description="Honey in stock")
+    mead: ClientInt = Field(alias="MEAD", default=0, description="Mead in stock")
+    beef: ClientInt = Field(alias="BEEF", default=0, description="Beef in stock")
 
 
 class MarketInfoResponse(BaseResponse):

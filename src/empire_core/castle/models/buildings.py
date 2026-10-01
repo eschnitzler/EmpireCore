@@ -28,7 +28,7 @@ from pydantic import Field, field_serializer, field_validator
 
 from empire_core.enums import ExpansionType
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock
-from empire_core.protocol.js import js_int
+from empire_core.protocol.js import ClientInt, js_int
 
 from .details import CastleProductionArea
 from .objects import BuildingRow, CastleBuildings, ConstructionList, block_or_none, building_or_none, building_rows
@@ -612,13 +612,8 @@ class CollectExtensionGiftResponse(_BuildingReply):
 
     command = "etc"
 
-    reward_id: int = Field(alias="RID", default=0, description="The reward list the chest held")
-    object_id: int = Field(alias="OID", default=-1, description="Object id of the removed chest")
-
-    @field_validator("reward_id", "object_id", mode="before")
-    @classmethod
-    def _int(cls, value: Any) -> int:
-        return js_int(value)
+    reward_id: ClientInt = Field(alias="RID", default=0, description="The reward list the chest held")
+    object_id: ClientInt = Field(alias="OID", default=-1, description="Object id of the removed chest")
 
 
 __all__ = [
