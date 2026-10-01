@@ -1,5 +1,7 @@
 # Architecture Overview
 
+Checked against client release: a4a25ae6
+
 EmpireCore is a layered library. Each layer has a single responsibility and
 depends only on the layers below it.
 
@@ -61,23 +63,26 @@ graph TD
       plain dicts, guarded by a lock (it is written by the receive thread and
       read from user threads).
     * Updated **passively** — `update_from_packet()` routes each tracked
-      command (`gbd`, `gam`, `dcl`, `abr`/`asr`, `mcm`, `mrm`, `mfc`, `sce`, `sei`)
-      to a handler that merges the data.
+      command (`gbd` and its section pushes, `gam`, `abr`/`asr`, the replies to
+      the movements you send, `mcm`, `mrm`, `mfc`, `dcl`, `sce`, `sei`, ...) to a
+      handler that merges the data; the full table is in
+      [state_management.md](state_management.md).
     * Emits **callbacks** for attacks, arrivals, recalls and removals. They run
       one at a time on a single callback thread, in packet order, never on the
       receive thread, so a callback may itself make blocking calls.
 * See [state_management.md](state_management.md) and
   [Reacting to movements](../guides/movements.md).
 
-### 4. Public API (`empire_core.client`, `empire_core.services`)
+### 4. Public API (`empire_core.client`, each area's `service.py`)
 * **Responsibility**: the user-facing entry point.
 * **Components**:
     * `EmpireClient`: the class users instantiate. Runs the login handshake,
       owns the `Connection` and `GameState`, and exposes `send()` / `request()`.
     * **Services** (`client.alliance`, `client.castle`, `client.army`, …):
-      high-level, domain-specific APIs, auto-attached at construction. They
-      build on `BaseService.request()` (typed response or raise) and
-      `execute()` (bool for action success).
+      high-level, domain-specific APIs, one per game area
+      (`empire_core.<area>.service`), attached at construction. They build on
+      `BaseService` (`empire_core.services.base`): `request()` (typed response
+      or raise) and `execute()` (bool for action success).
     * **Errors**: waiting calls raise typed exceptions from
       `empire_core.exceptions` (`CommandError`, `EmpireTimeoutError`,
       `ConnectionClosedError`, …) rather than returning `None`.

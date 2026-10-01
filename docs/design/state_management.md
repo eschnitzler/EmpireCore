@@ -1,5 +1,7 @@
 # State Management
 
+Checked against client release: a4a25ae6
+
 `GameState` keeps an in-memory snapshot of the game so bot logic can read the
 current player, castles, and troop movements without re-querying the server
 for every decision.
@@ -13,8 +15,10 @@ class GameState:
     local_player: Player | None
     players: dict[int, Player]        # player_id -> Player (local player only)
     castles: dict[CastleKey, Castle]  # (kingdom, castle_id) -> Castle
+    permanent_castles: dict[CastleKey, PermanentCastle]  # gpc: unlocked units and horses
     movements: dict[int, Movement]    # movement_id -> Movement
     active_event_ids: list[int]
+    event_league_ids: dict[int, int]  # event id -> league (sei LID)
 ```
 
 It is created and owned by `EmpireClient` as `client.state`.
@@ -42,7 +46,7 @@ client.state.get_special_currencies()        # dict copy: currency key -> amount
 ```
 
 * `get_local_player()` returns a `Player` copy taken under the lock, with
-  **detached** `special_currencies` and `castles` containers, so several fields can be
+  **detached** `special_currencies`, `castles` and `beginner_protection` containers, so several fields can be
   read consistently while the receive thread is applying an update. It returns
   `None` before login. The `Castle` objects inside the snapshot are the live
   ones, as with `get_castles()`.
@@ -61,20 +65,29 @@ commands to handlers:
 
 | Command      | Handler effect                                    |
 |--------------|---------------------------------------------------|
-| `gbd`, `lli` | initial login data: player, castles, currencies   |
+| `gbd`        | login data: player, castles, currencies, events   |
 | `gam`        | full movement list refresh                        |
 | `abr`, `asr` | one movement pushed as it nears its target        |
+| `cra`, `cam`, `abgcam` | the reply to an attack you send: its movement (`AAM`) and coins/rubies |
+| `cds`, `csm`, `cat`, `crm`, `css`, `tde`, `cdd`, `cpm` | the reply to another send: its movement (`A`) and coins/rubies |
+| `thm`, `ldt` | a treasure hunt you send (`TM`), a daimyo taunt attack |
 | `mcm`        | your recall: the movement, now heading home       |
 | `mrm`        | server removed a movement                         |
 | `mfc`        | movement can be force-cancelled                   |
 | `dcl`        | detailed castle resources / units                 |
 | `gpi`, `gxp`, `gcu`, `vip`, `gal`, `gcl`, `gho`, `uap`, `gpc` | one login section, pushed when it changes |
 | `glu`        | level up: its `gcu` and `gxp`                      |
-| `mir`        | castle list (`gcl`) after taking a castle          |
+| `mir`, `fjf` | castle list (`gcl`) after taking a castle, or in a faction join reply |
 | `sce`        | special currency update                            |
-| `sei`        | active event ids                                   |
+| `sei`        | active event ids and their leagues                |
 
-### Presence vs. Absence in `gbd`/`lli`
+`lli` is routed through the same handler as `gbd`, but in the client a
+successful `lli` carries no game data (`LLICommand.executeCommand`, bundle
+line 120647, only reads its payload on a refusal, for the ban time, cooldown,
+instance id or player id). The player, castles and the rest come in the `gbd`
+the server sends right after it.
+
+### Presence vs. Absence in `gbd` and the Section Pushes
 
 A section that is present but empty is a statement about the world; a section
 that is absent says nothing at all and leaves existing state alone:
@@ -85,14 +98,18 @@ that is absent says nothing at all and leaves existing state alone:
 * `gcl` carrying a castle section (`C`) is authoritative → castles it does not
   list are dropped, **including when it lists none at all** (the player just
   lost their last castle). A packet with no castle section leaves the castle
-  list untouched.
-* `gcu`, `vip`, and `gxp` are partial updates: a key they omit keeps its
+  list untouched, and so does a section whose entries were all unreadable.
+* `gcu`, `vip`, `gxp` and `gho` are partial updates: a key they omit keeps its
   previous value rather than resetting to zero.
+* `gpc` replaces the castles it names and keeps the others.
 
 ### Object Identity and Container Swaps
 
-On relogin, existing `Player`/`Castle` objects are updated in place (identity
-preserved) rather than replaced, so references held by user code stay live. The
+When a section push (or another `gbd`) updates the player or a castle already
+in state, the existing `Player`/`Castle` object is updated in place (identity
+preserved) rather than replaced, so references held by user code stay live.
+A lost connection is different: `reset()` forgets the whole session, as the
+game client does, and the next login's `gbd` builds new objects. The
 `Player` and `Castle` field merges are applied as a **single atomic swap** of
 the field mapping, so a reader can never observe a half-merged player (the new
 name against the old level) or a castle mid-relocation (the new X against the
@@ -100,8 +117,8 @@ old Y).
 
 The *containers* work the other way round — they are rebuilt and swapped, not
 mutated. Each update replaces `local_player.special_currencies` and
-`local_player.castles` with new dicts (likewise `castle.resources` and
-`castle.units` on `dcl`), so a reference to one of those objects held across an
+`local_player.castles` with new dicts (likewise `castle.resources`,
+`castle.units` and `castle.details` on `dcl`), so a reference to one of those objects held across an
 update goes **stale**: it keeps the contents it had when it was taken. That is
 deliberate — it is what stops an unlocked reader iterating the container from
 crashing with `dictionary changed size during iteration`. Re-read the attribute
@@ -160,8 +177,12 @@ when the callback runs, so the id alone cannot be resolved. `movement` is
   movement heading home.
 * `on_movement_removed`: the server sent `mrm`. It does not say why.
 
-`on_incoming_attack` fires **once** per newly seen hostile attack (not on every
-`gam` refresh, and not for the local player's own outgoing attacks). Callbacks
+`on_incoming_attack` fires **once** per newly seen attack movement id, also
+across a reconnect (not on every `gam` refresh). As in the client's
+`CastleArmyData.checkAllAttackMovements`, it covers attacks aimed at you (or
+your daimyo township) and player attacks aimed at a member of your alliance;
+not your own attacks, armies on their way home, or attacks that had already
+landed when first seen. Callbacks
 run one at a time on a single callback thread, in packet order, never on the
 receive thread, so a callback may make blocking calls (e.g. request more data)
 without stalling the receive loop; everything queued behind it waits, though.

@@ -19,8 +19,6 @@ exclude_docs: |
   overrides/
   design/combat_effects.md
   design/fill_waves_spec.md
-  design/game_bundle_analysis.md
-  design/events.md
 
 hooks:
   - docs/hooks.py
@@ -212,5 +210,6 @@ nav:
       - Architecture: design/architecture.md
       - Protocol: design/protocol.md
       - State management: design/state_management.md
+      - Client bundle notes: design/game_bundle_analysis.md
   - Changelog: changelog.md
   - Contributing: contributing.md

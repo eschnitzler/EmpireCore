@@ -1,10 +1,14 @@
 # Game Bundle Analysis
 
-**Source:** `Game.bundle.307655b0ef7378beb51b.js` (Empire HTML5 client), plus
-`dll/ggs.dll.baad44188cfd15e3936c.js` for the shared protocol key constants.
-**Date:** 2026-08-24
-**Where they come from:** `https://empire-html5.goodgamestudios.com/default/index.html`
-lists the current bundle hashes; they change on every client release.
+Checked against client release: a4a25ae6
+
+- **Source:** `Game.bundle.a4a25ae6d735e29092f6.js` (Empire HTML5 client), plus
+  `dll/ggs.dll.145565eddbcbe244aab0.js` for the shared protocol key constants.
+- **Line numbers:** "bundle line N" below is line N of the bundle split with
+  `sed 's/;/;\n/g; s/}/}\n/g'`. They drift with every release; search by name.
+- **Date:** 2026-10-01
+- **Where they come from:** `https://empire-html5.goodgamestudios.com/default/index.html`
+  lists the current bundle hashes; they change on every client release.
 
 The client uses SmartFoxServer (SFS) with a mix of XML (handshake) and
 JSON-over-string (extended protocol `%xt%`). Command IDs live in `ClientConstSF`
@@ -12,20 +16,20 @@ and payload key names in `CommKeys`.
 
 ## 1. Command IDs
 
-Extracted from `ClientConstSF`.
+Extracted from `ClientConstSF` (bundle line 71).
 
 | Category | Constant | Command | Description |
 |---|---|---|---|
 | Auth | `C2S_LOGIN` | `lli` | Login |
 | Auth | `C2S_VERSION_CHECK` | `vck` | Pre-login version check |
 | Attack | `C2S_CREATE_ARMY_ATTACK_MOVEMENT` | `cra` | Send attack |
-| Attack | `C2S_GET_ATTACK_INFO` | `gai` | Attack counter, not a pre-calculation - see combat_effects.md |
+| Attack | `C2S_GET_ATTACK_INFO` | `gai` | Attack counter, not a pre-calculation - see [combat_effects.md](https://github.com/eschnitzler/EmpireCore/blob/master/docs/design/combat_effects.md) |
 | Attack | `C2S_GET_ATTACK_CASTLE_INFOS` | `aci` | The real attack pre-calculation: target area, defender composition, wall/gate/moat bonuses |
 | Commanders | `C2S_GET_LORDS_INFO` | `gli` | Commander + baron list |
 | Commanders | `C2S_RENAME_LORD_EVENT` | `arl` | Rename a commander |
 | Generals | `C2S_GET_GENERALS_INFO` | `gie` | General list |
 | Generals | `C2S_GENERAL_ASSIGN_LORD` | `gla` | Assign a general to a commander |
-| Generals | `C2S_GENERALS_HUB_STATUS` | `gcs` | Generals hub status |
+| Generals | `C2S_GENERALS_HUB_STATUS` | `gcs` | Generals hub quest status, per character (`GeneralsData.parse_GCS`, bundle line 113080) |
 | Generals | `C2S_GENERALS_SET_ABILITIES` | `gaae` | Set general abilities |
 | Player | `C2S_GET_DETAILPLAYERINFO` | `gdi` | Player profile |
 | Player | `C2S_SEARCH_PLAYER` | `wsp` | Search player by name |
@@ -48,25 +52,29 @@ Three distinct things share the internal name "lord":
 - **Castellan** — `BaronVO extends LordVO`, `isBaron` in the client. Also returned
   by `gli`, under key `B`. The UI calls it a castellan
   (`CastleEquipmentDialog.CASTELLAN`, `isBaron ? "castellan" : "general"`).
-- **General** — a separate, newer system (`gie`, `gla`, `gcs`, `gaae`). A general
-  is *assigned to* a commander; the two are not interchangeable.
+- **General** — a separate, newer system (`gie` lists them, `gla` assigns one,
+  `gaae` sets its abilities). A general is *assigned to* a commander; the two
+  are not interchangeable. `gcs` belongs to the same screen but carries no
+  general: it is the generals hub's quest progress, one `CHR` entry per
+  character id (`CID`).
 
 EmpireCore names the Python API after the commander, and keeps the server's
 own key and command names (`gli`, `LID`, `ID`) on the wire.
 
 ## 3. `gli` — commander and castellan list
 
-`CastleLordData.parse_GLI` reads:
+`CastleLordData.parse_GLI` (bundle line 38553) reads:
 
 ```json
 {"B": [ ...castellans... ], "C": [ ...commanders... ]}
 ```
 
-Both entry kinds parse through `LordVO.parseLord`:
+Both entry kinds parse through `LordVO.parseLord` (bundle line 26451):
 
 | Key | Meaning |
 |---|---|
 | `ID` | Commander/castellan ID |
+| `N` | Name the player gave it. A commander shows it in `commander_index` ("Commander 2: name"); a castellan's `name` getter ignores it |
 | `E` | Raw effects (list) |
 | `AE` | Area effects (list) |
 | `W` | Wins |
@@ -76,12 +84,16 @@ Both entry kinds parse through `LordVO.parseLord`:
 | `VIS` | Portrait id (`picID`), read through `int()` |
 | `AIE` / `TAE` | Alien / temporary equipment, whichever is present, read only when `EQ` is empty: a list of `[effect_id, values]` rows, or `[hero_rows, equipment_rows]` |
 | `GEM` | Gem ids for the `AIE`/`TAE` equipment |
-| `ST`, `L` | Read by `GeneralVO.parseData` only when the entry doubles as its general (`GID` > 0 on a default commander) |
+| `GID` | The assigned general's id (`LordVO.parseGeneral`, bundle line 26480). For a `gli` entry the client looks it up among the player's generals (`generalsData.playerGenerals`) |
+| `ST`, `L`, `XP`, ... | Not read from a `gli` entry. `GeneralVO.parseData` reads them from the lord entry itself only when `parseLord`'s second argument is true, which `LordFactory.createLord` (bundle line 26401) passes for a default lord (negative id); `parse_GLI` never does |
 | `LICID` | Castellans only (`BaronVO.parseLord`): the castle it is locked in, read through `int()`; `>= 0` keeps it off movements |
 
 Commanders are sorted, then given `playerIndex = position + 1` for display.
 
 ## 4. `cra` — send attack
+
+`C2SCreateArmyAttackMovementVO` (bundle line 60851), built by
+`CastleAttackData.sendAttack` (bundle line 133852):
 
 `C2SCreateArmyAttackMovementVO(srcPos, tgtPos, armyData, waitTime, horses, bpc,
 attackType, av, lp, lordId, fc, kingdomId, ptt, sd, isCollector, collectorBooster,
@@ -139,8 +151,8 @@ where the bonus is the `ADDITIONAL_WAVE` legend skill.
 ## 5. Fill Waves
 
 The attack dialog's "Fill waves" button (`dialog_attack_autofill_fillWaves_button`)
-runs entirely on the client. `AttackDialogAutoFill.autoFillSelectedWaves` calls, per
-selected wave:
+runs entirely on the client. `AttackDialogAutoFill.autoFillSelectedWaves` (bundle
+line 101320) calls, per selected wave:
 
 ```
 new StrongestDefenceCounterWaveStrategy().fillWave(
@@ -156,7 +168,8 @@ writes the inventory back at the end. Options are `fillLeftFlank`,
 through `fillYardContainer` with the `FLANK_YARD` defender effects.
 
 Reproducing it needs unit and tool stats, which the client gets from its
-`items.xml`-derived config (`ITEM_XML_LOADER` → `CastleModel.xmlPropertyData`,
+`items.xml`-derived config (`ITEM_XML_LOADER`, read by `CastleGame.parseConfigXML`
+at bundle line 13426, → `CastleModel.xmlPropertyData`,
 built with `@goodgamestudios/itemsxml2json`). That blob's URL is injected through
 the loader parameters, not hardcoded in any bundle.
 
@@ -171,13 +184,14 @@ the loader parameters, not hardcoded in any bundle.
 4. **Resolve key constants** — `CommKeys.FOO` values live in `ggs.dll.js`
    (`grep -o 'FOO="[^"]*"' ggs.dll.js`).
 
-See [combat_effects.md](combat_effects.md) for the full effect and bonus
+See [combat_effects.md](https://github.com/eschnitzler/EmpireCore/blob/master/docs/design/combat_effects.md) in the repository for the full effect and bonus
 catalogue behind an attack.
 
 ## 7. Map object types
 
-`WorldConst.AREA_TYPE_*` gives the values; the client's area-type-to-map-object
-registration confirms what each one is:
+`WorldConst.AREA_TYPE_*` (in the dll) gives the values; the client's
+area-type-to-map-object registration (bundle line 5357) confirms what each one
+is. The table lists the common ones, not every type:
 
 | ID | Constant | Map object |
 |---|---|---|
@@ -194,13 +208,15 @@ registration confirms what each one is:
 
 Two things are not area types:
 
-- **Ruins.** No ruin map object is registered. `WorldMapOwnerInfoVO` sets
-  `isRuin` from `1 == parseInt(e.R)`, so the flag lives on the owner record: a
-  map scan reports it as `R` on the entries of its `OI` list. Confirmed live -
-  a sweep of 24 areas of the green kingdom returned 25 ruin-flagged owners out
-  of 347 records. Those records carry no coordinates (`X` and `Y` are 0), and
-  the `AI` castle rows in the same response were not observed to reference
-  their owner IDs, so a ruin cannot be placed on the map from a scan alone.
+- **Ruins.** No ruin map object is registered. `WorldMapOwnerInfoVO.fillFromParamObject`
+  (bundle line 10794) sets `isRuin` from `1 == parseInt(e.R)`, so the flag
+  lives on the owner record: a map scan reports it as `R` on the entries of
+  its `OI` list. An owner record has no `X`/`Y` keys. Its player's castles and
+  villages are listed under `AP` and `VP`, each entry
+  `[kingdom, object id, x, y, area type]` (`MinWorldMapCastleInfoVO.fillFromParamObject`,
+  bundle line 18459), so a ruin's castles are placed from those lists. In
+  EmpireCore they are `MapObject.is_ruin`, `castle_positions` and
+  `village_positions`.
 - **Khan camps.** They appear during the nomad event as
   `ALLIANCE_NOMAD_CAMP` (35), not under a type of their own.
 

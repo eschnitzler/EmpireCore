@@ -1,7 +1,11 @@
 # Fill-Waves Implementation Spec
 
-**Purpose:** enough detail to write the three pieces of attack auto-fill the
-port still lacks, in Python, without opening the client again.
+Checked against client release: a4a25ae6
+
+**Purpose:** the client's attack auto-fill in enough detail to port it to
+Python without opening the client again. It was written for the three pieces
+the port lacked; `empire_core.combat` now implements all three, and the
+[port deltas](#port-deltas-collected) at the end list where it still differs.
 
 1. Tool filling — the five strategies, slot matching, `checkFlank`, and the
    feedback into the attacker effects.
@@ -12,14 +16,16 @@ port still lacks, in Python, without opening the client again.
 
 | Short name | File | What it is |
 |---|---|---|
-| BUNDLE | `Game.bundle.<hash>.js` | the Empire HTML5 client |
-| DLL | `dll/ggs.dll.<hash>.js` | `CombatConst`, `ClientConst*`, `EffectConst` |
+| BUNDLE | `Game.bundle.a4a25ae6d735e29092f6.js` | the Empire HTML5 client |
+| DLL | `dll/ggs.dll.145565eddbcbe244aab0.js` | `CombatConst`, `ClientConst*`, `EffectConst` |
 | ITEMS | `items.json` | the game-data tables |
 
-Every formula names the client symbol or ITEMS table it came from. `@N` is a
-character offset into the named file. Claims that cannot be read from those
-files are marked **(inferred)**; where nothing could be established the entry
-says so rather than guessing.
+Every formula names the client symbol or ITEMS table it came from. "BUNDLE
+line N" and "DLL line N" are line numbers in the file split with
+`sed 's/;/;\n/g; s/}/}\n/g'`; they drift with every release, the symbol
+names do not. Claims that cannot be read from those files are marked
+**(inferred)**; where nothing could be established the entry says so rather
+than guessing.
 
 **Scope caveat.** All of this is the *client's* arrangement. The server resolves
 the real battle and its code is not in these files. The goal is to reproduce
@@ -27,7 +33,7 @@ which units and tools the client would place, which is decided entirely
 client-side.
 
 **Two helpers assumed present.** `int(x)` is the client's truncation
-(`ggs.dll.js` @2249491) — `math.trunc`, toward zero, **not** floor. JS
+(`int`, DLL line 16098) — `math.trunc`, toward zero, **not** floor. JS
 `Math.round` is `floor(x + 0.5)`, half **up**, which is not Python's `round`.
 
 ---
@@ -44,7 +50,7 @@ starts.
 
 ### 1.1 The strategy pool
 
-`AFillFlankStrategy.prototype.fillToolStrategyPool` (BUNDLE @6475247), verbatim:
+`AFillFlankStrategy.prototype.fillToolStrategyPool` (BUNDLE line 56195), verbatim:
 
 ```js
 this._toolStrategyPool=[],
@@ -58,23 +64,23 @@ this._toolStrategyPool.push(new ReduceWallBonusStrategy)
 Picks always read `pool[pool.length-1]` and `pool.pop()` on failure, so the
 effective priority is **wall → gate → melee → range → moat**.
 
-`AFillWaveStrategy.fillWave` (BUNDLE @11696519) calls `fillToolStrategyPool()`
+`AFillWaveStrategy.fillWave` (BUNDLE line 101369) calls `fillToolStrategyPool()`
 again before each of left, right and middle. **The pool resets per flank**;
-exhaustion never leaks across flanks. The port's
-`default_tool_strategies()` list must be rebuilt per flank, not shared.
+exhaustion never leaks across flanks. The port builds a fresh
+`default_tool_strategies()` list per flank (`combat/solver.py`, `fill_wave`).
 
 ### 1.2 The five strategies
 
 Each subclass supplies two methods; only range and melee override
 `pickToolByStrategy`, and only to add a precondition.
 
-| Strategy | BUNDLE | `getRelevantToolBonus(tool)` | `getRelevantDefenderBonus(att, def)` | Precondition |
+| Strategy | BUNDLE line | `getRelevantToolBonus(tool)` | `getRelevantDefenderBonus(att, def)` | Precondition |
 |---|---|---|---|---|
-| `ReduceWallBonusStrategy` | @11703928 | `tool.wallBonus` | `def.defenderWallBonus - att.attackerWallReduction` | — |
-| `ReduceGateBonusStrategy` | @11701000 | `tool.gateBonus` | `def.defenderGateBonus - att.attackerGateReduction` | — |
-| `ReduceMeleeBonusStrategy` | @11703067 | `tool.defMeleeBonus + getConditionedEffectBonus(tool, 215)` | `def.defenderMeleeBonus - att.defenderMeleeReduction` | `def.hasMeleeDefenders` |
-| `ReduceRangeBonusStrategy` | @11702198 | `tool.defRangeBonus + getConditionedEffectBonus(tool, 217)` | `def.defenderRangeBonus - att.defenderRangeReduction` | `def.hasRangeDefenders` |
-| `ReduceMoatBonusStrategy` | @11701595 | `tool.moatBonus` | `def.defenderMoatBonus - att.attackerMoatReduction` | — |
+| `ReduceWallBonusStrategy` | 101461 | `tool.wallBonus` | `def.defenderWallBonus - att.attackerWallReduction` | — |
+| `ReduceGateBonusStrategy` | 101423 | `tool.gateBonus` | `def.defenderGateBonus - att.attackerGateReduction` | — |
+| `ReduceMeleeBonusStrategy` | 101451 | `tool.defMeleeBonus + getConditionedEffectBonus(tool, 215)` | `def.defenderMeleeBonus - att.defenderMeleeReduction` | `def.hasMeleeDefenders` |
+| `ReduceRangeBonusStrategy` | 101441 | `tool.defRangeBonus + getConditionedEffectBonus(tool, 217)` | `def.defenderRangeBonus - att.defenderRangeReduction` | `def.hasRangeDefenders` |
+| `ReduceMoatBonusStrategy` | 101432 | `tool.moatBonus` | `def.defenderMoatBonus - att.attackerMoatReduction` | — |
 
 The range and melee overrides are `return i.hasRangeDefenders ? super(...) :
 null` and `return i.hasMeleeDefenders ? super(...) : null`, where `i` is the
@@ -90,16 +96,15 @@ already modeled as `DefenderFlankEffects.has_melee_defenders` /
 
 **The melee and range strategies are live in this ITEMS snapshot.** No
 `typ=="Attack"` row carries `defMeleeBonus`, but six do carry the effect rows
-that feed the conditioned term — see §1.9. The port's strategy table now adds it
-(`combat/tools.py:170` and `:177`, `malus_effect_type` plus
-`conditioned_effect_bonus`), so
-a strategy that reads the scalar column alone would silently score those six at
-zero.
+that feed the conditioned term — see §1.9. A strategy that read the scalar
+column alone would silently score those six at zero; the port's range and melee
+strategies add the term (`combat/tools.py`, `malus_effect_type` plus
+`conditioned_effect_bonus`).
 
 ### 1.3 `getConditionedEffectBonus`
 
 `AReduceDefenseBonusStrategy.prototype.getConditionedEffectBonus`
-(BUNDLE @2895560), verbatim:
+(BUNDLE line 24507), verbatim:
 
 ```js
 function(e,t){if(!e||!e.effects)return 0;
@@ -113,21 +118,32 @@ return i}
 `this._area` is assigned at the top of `pickToolByStrategy` from its sixth
 argument, the defender area.
 
-`EffectConditionHelper.isEffectApplicable(effect, area)`:
+`EffectConditionHelper.isEffectApplicable(effect, area)` (BUNDLE line 32867)
+checks the area and hands the raid-boss test to
+`EffectConditionHelper.isEffectForActiveRaidBoss` (BUNDLE line 32868):
 
 ```
-if not effect: return False
-if area and not effect.isForAreaType(area.areaType): return False
-if len(effect.raidBossIDs) > 0:
+def is_effect_applicable(effect, area):
+    if not effect: return False
+    if area and not effect.isForAreaType(area.areaType): return False
+    return is_effect_for_active_raid_boss(effect)
+
+def is_effect_for_active_raid_boss(effect):
+    if not effect: return False
+    if len(effect.raidBossIDs) == 0: return True
     ev = AllianceRaidbossEventEventVO.getActiveEventVO()
     if not ev or not ev.raidBossServerDataVO: return False
-    if not effect.isForRaidBoss(ev.raidBossServerDataVO.raidBossID): return False
-return True
+    return effect.isForRaidBoss(ev.raidBossServerDataVO.raidBossID)
 ```
 
 `isForAreaType(x)` is `len(areaTypes) == 0 or x in areaTypes`, from ITEMS
 `effects.areaTypeID` (comma list). `raidBossIDs` comes from
 `effects.raidBossID`.
+
+The port's `conditioned_effect_bonus` checks the area only. The raid-boss half
+is covered by the eligibility gate instead (§1.5): every attack tool with an
+effect tied to a raid boss has that one effect and no other in this ITEMS
+snapshot, so the gate already rejects it unless its boss is the active one.
 
 This is the **only** path on which a tool effect's conditions are honoured.
 `ToolUnitVO.getBonusByEffect` ignores them entirely (it passes
@@ -136,7 +152,7 @@ is documented in `combat_effects.md` §5.1 and is not changed here.
 
 ### 1.4 Candidate eligibility
 
-`AReduceDefenseBonusStrategy.prototype.pickToolByStrategy` (BUNDLE @2895880),
+`AReduceDefenseBonusStrategy.prototype.pickToolByStrategy` (BUNDLE line 24513),
 verbatim:
 
 ```js
@@ -177,13 +193,14 @@ There is **no slot-type filtering here**. Slot matching happens afterwards in
 
 ### 1.5 `canUseToolForAttackOnTarget`
 
-`AttackHelper.canUseToolForAttackOnTarget` (BUNDLE @1086773):
+`AttackHelper.canUseToolForAttackOnTarget` (BUNDLE line 8583):
 
 ```
 def can_use(area, tool, space_id):
     a = tool.canBeUsedToAttackNPC or area.hasOtherPlayerInfo \
         or isinstance(area, AAlienInvasionMapobjectVO)
     s = tool.isAllowedByAttackTarget(space_id, area.areaType)
+    if not is_tool_usable_against_active_raid_boss(tool): return False
     if a and s:
         r = castAs(tool, "EventtoolUnitVO")
         if not (r and len(r.usedForEvent) > 0 and r.inventoryAmount == 0):
@@ -192,6 +209,26 @@ def can_use(area, tool, space_id):
             if CastleModel.specialEventData.isEventActive(u): return True
     return False
 ```
+
+The raid-boss guard is `AttackHelper.isToolUsableAgainstActiveRaidBoss`
+(BUNDLE line 8593):
+
+```
+def is_tool_usable_against_active_raid_boss(tool):
+    if len(tool.effects) == 0: return True
+    tied = False
+    for b in tool.effects:
+        if b and b.effect:
+            if len(b.effect.raidBossIDs) == 0: return True
+            tied = True
+            if is_effect_for_active_raid_boss(b.effect): return True
+    return not tied
+```
+
+A tool passes when it has no effects, when any of its effects is tied to no
+raid boss, or when one is tied to the active boss. The port has both
+(`can_use_tool_on_target` and `is_tool_usable_against_active_raid_boss` in
+`combat/tools.py`).
 
 ```
 def is_allowed_by_attack_target(space_id, area_type, allowed):   # _allowedToAttack
@@ -209,9 +246,8 @@ Data facts a port needs:
 - `canBeUsedToAttackNPC` parses as `1 == parseInt(getValueOrDefault(..., "1"))`,
   so **absent means true**. It is present on exactly 50 of the 353 attack tools
   and every one of those 50 has the value `"0"` — in practice a pure opt-out
-  flag. The port's `ToolStats.can_attack_npc` defaults to `False`
-  (`gamedata/models.py:141`), which inverts this; fix the default or the gate
-  rejects almost every tool.
+  flag. The port's `ToolStats.can_attack_npc` defaults to `True` and parses
+  the column the same way.
 - `allowedToAttack` is `"spaceId+areaType#spaceId+areaType#..."`, parsed by
   `BasicUnitVO.parseSpaceIdAreaTypeValues`: split `#`, drop a leading empty
   entry, split `+`, `parseInt` both. Present on 185 attack tools. In this
@@ -219,11 +255,10 @@ Data facts a port needs:
   the two-field shape — so the sentinel and empty-entry branches are untested by
   the data. Most common values: `0+43` ×66, `0+29` ×41, `0+27#0+35` ×26.
 - The `EventtoolUnitVO` branch is unreachable from `pickToolByStrategy`: it
-  needs `inventoryAmount == 0`, which filter (5) already excludes. **Not
-  established:** which ITEMS `units` column feeds `usedForEvent`. Candidates
-  present on unit rows are `eventIDs`, `usageEventID` and `clientUsageEventID`
-  (135 rows). This blocks other callers of `canUseToolForAttackOnTarget`, not
-  this one.
+  needs `inventoryAmount == 0`, which filter (5) already excludes.
+  `usedForEvent` is the ITEMS `units` column `clientUsageEventID`, split on
+  `,` (`EventtoolUnitVO.parseXmlNode`, BUNDLE line 118878); a row without it
+  gets an empty list.
 
 ### 1.6 Required count, usable count, and selection
 
@@ -252,8 +287,8 @@ I = int(min(y.inventoryAmount, container.freeItems, D))
 - `ToolUnitVO.amountPerWave` getter is `return this.isOffenseSupportTool ? 1 :
   this._amountPerWave`, and `_amountPerWave` defaults to `-1` (unlimited).
   `isOffenseSupportTool` is `"10" in slotTypes`. The port's `ToolStats`
-  defaults `amount_per_wave` to `0`, which the `> 0` branch treats the same as
-  `-1`; that is accidentally correct but should be `-1` for clarity.
+  defaults `amount_per_wave` to `-1`, and `per_wave_limit` applies the
+  support-tool rule.
 - `CastleAttackWaveVO.getSumOfToolsByTool(e)` sums
   `container.getAmountOfToolInContainer(e)` over
   `[middleWall_tools, leftWall_tools, rightWall_tools]`, and
@@ -264,9 +299,9 @@ I = int(min(y.inventoryAmount, container.freeItems, D))
   **string** (e.g. `"SceatAttGateDefRange"`), so all upgrade levels of one tool
   share one budget and it is shared across all three flanks of the wave.
   Placement and merging (`getTotalAmountOfUntit`, `getAllSlotsWithUnit`) are
-  keyed by **wodId**. The port has neither: `combat/tools.py` scopes
-  `amount_per_wave` to a single flank and never consults the sibling
-  containers.
+  keyed by **wodId**. The port keeps one budget per `type` string for the
+  whole wave (`used_per_type`, shared by the three `fill_flank_with_tools`
+  calls).
 
   Wrinkle the client does not smooth over: within one `type` group the per-row
   `amountPerWave` values differ. 23 attack-tool type strings span several
@@ -320,11 +355,12 @@ The filtered inventory holds **references** to the player's real unit objects
 `AFillWaveStrategy.applyInventoryChanges` copies the surviving amounts back.
 The port defers deduction until after the slot-type check
 (`combat/tools.py`, `fill_flank_with_tools`), which is the correct-looking
-choice but is not what the client does — see §1.7.
+choice but is not what the client does — see §1.7. This is the one deliberate
+divergence left, and the function's docstring says so.
 
 ### 1.7 The slot loop
 
-`AFillFlankStrategy.prototype.fillFlankWithTools` (BUNDLE @6474036), verbatim:
+`AFillFlankStrategy.prototype.fillFlankWithTools` (BUNDLE line 56170), verbatim:
 
 ```js
 function(e,t,i,n,o,a,s){for(var r=0,l=e.items;r<l.length;r++){var c=l[r];
@@ -363,7 +399,7 @@ persists into the remaining flanks.
 
   It is **not** reachable via `ReduceGateBonusStrategy`.
   `FightScreenHelper.getDefenceBonuses` ends
-  `return t!=ClientConstCastle.FLANK_MIDDLE&&(n=0),[i,n,o]` (BUNDLE @2326975)
+  `return t!=ClientConstCastle.FLANK_MIDDLE&&(n=0),[i,n,o]` (`FightScreenHelper.getDefenceBonuses`, BUNDLE line 19148)
   where `n` is the gate component, and that value becomes
   `DefenderFlankEffectVO._defenderGateBonus` (8th ctor argument). So
   `defenderGateBonus` is structurally 0 on left, right and yard; the gate
@@ -371,8 +407,8 @@ persists into the remaining flanks.
   tools only ever matter on the middle container.
 
   **Not established** whether the discard is intended. It is reproducible from
-  the code as written. The port must decide explicitly: reproduce it, or return
-  the stack to the inventory before popping, and log which.
+  the code as written. The port does not reproduce it: it deducts only what it
+  places, and documents the divergence.
 
 **(b) A merge abandons the slot that triggered it.** On the merge branch `c` is
 reassigned to `getAllSlotsWithUnit(d)[0]`. `c` is a local copy of `l[r]`, so the
@@ -392,7 +428,7 @@ rather than aborting it.
 
 ### 1.8 Slot matching
 
-`ToolUnitVO.prototype.isToolForSlotType` (BUNDLE @876187):
+`ToolUnitVO.prototype.isToolForSlotType` (BUNDLE line 6541):
 
 ```js
 function(e){if(this.slotTypes!=null)for(n of this.slotTypes)if(n!==undefined&&n==e)return true;return false}
@@ -402,7 +438,7 @@ function(e){if(this.slotTypes!=null)for(n of this.slotTypes)if(n!==undefined&&n=
 array of **strings**. `slot.slotType` is an int. The comparison is JS loose
 `==`, so `"1" == 1` is true. **A Python port must int-cast both sides**; a
 strict compare never matches. The port's `ToolStats.slot_types` already parses
-to ints (`gamedata/models.py:193`), which is the right call.
+to ints (`ToolStats.fits_slot`), which is the right call.
 
 Contrast `isOffenseSupportTool` / `isDefenceSupportTool`, which use
 `slotTypes.indexOf(CONST.toString())` — a strict string match. Reproduce both
@@ -415,9 +451,9 @@ Slot-type constants (`ToolUnitVO`): `SOLDIER` 0, `TOOL_WALL` 1, `TOOL_GATE` 2,
 Wave tool containers (`CombatConst`, DLL):
 
 ```
-ITEMS_MIDDLEWALL_TOOLS = [1,1,1]   LEVELS_MIDDLEWALL_TOOLS = [0,11,37]   @2438479 / @2438660
-ITEMS_LEFTWALL_TOOLS   = [2,2]     LEVELS_LEFTWALL_TOOLS   = [0,37]      @2437785 / @2437956
-ITEMS_RIGHTWALL_TOOLS  = [2,2]     LEVELS_RIGHTWALL_TOOLS  = [0,37]      @2439699
+ITEMS_MIDDLEWALL_TOOLS = [1,1,1]   LEVELS_MIDDLEWALL_TOOLS = [0,11,37]   DLL lines 18868 / 18869
+ITEMS_LEFTWALL_TOOLS   = [2,2]     LEVELS_LEFTWALL_TOOLS   = [0,37]      DLL lines 18864 / 18865
+ITEMS_RIGHTWALL_TOOLS  = [2,2]     LEVELS_RIGHTWALL_TOOLS  = [0,37]      DLL lines 18874 / 18875
 ```
 
 **Middle slots are slot type 1 and flank slots are slot type 2.** The constant
@@ -466,7 +502,7 @@ left/right and `getTotalAmountToolsMiddle(level)` for middle, already ported in
 
 ### 1.9 The feedback into the attacker effects
 
-`AttackerFlankEffectVO.prototype.updateEffectsWithNewTool` (BUNDLE @4957221),
+`AttackerFlankEffectVO.prototype.updateEffectsWithNewTool` (BUNDLE line 43066),
 verbatim shape:
 
 ```
@@ -495,20 +531,18 @@ _attackerGateReduction, _attackerMoatReduction, _defenderRangeReduction)`.
 `_defenderMeleeReduction` takes no ctor argument, starts at 0 and is only ever
 grown here.
 
-The port's `AttackerFlankEffects.apply_tool` (`combat/effects.py:48`) covers the
-five scalar columns but **not** the 215/217 terms — so a tool picked *because* of
-its conditioned bonus (the pick side now reads it) contributes nothing back to
-the reductions, and the loop can re-pick it. The field it needs
-(`defender_melee_reduction`) already exists at `combat/effects.py:43`; only the
-two effect terms are missing. `apply_tool` also needs the area type, which
-`conditioned_effect_bonus` already threads through the pick side.
+The port's `AttackerFlankEffects.apply_tool` (`combat/effects.py`) adds the
+five scalar columns and takes the 215/217 terms as `range_malus` /
+`melee_malus`, which `fill_flank_with_tools` resolves with
+`conditioned_effect_bonus` for the target's area type — the same terms the
+pick scored the tool on.
 
 Only the `_YARD` siblings differ: 216 and 218 are **not** consulted by either
 this function or `getConditionedEffectBonus`.
 
 ### 1.10 `checkFlank`
 
-`AFillFlankStrategy.prototype.checkFlank` (BUNDLE @6474922), verbatim:
+`AFillFlankStrategy.prototype.checkFlank` (BUNDLE line 56188), verbatim:
 
 ```js
 function(e,t,i){if(0==t.sumOfItems){for(var n=0,o=e.items;n<o.length;n++){var a=o[n];
@@ -524,7 +558,7 @@ Already ported as `check_flank` (`combat/tools.py`).
 
 ### 1.11 Order of operations
 
-Per flank, from `AFillWaveStrategy.fillWave` (BUNDLE @11696519 — left, then
+Per flank, from `AFillWaveStrategy.fillWave` (BUNDLE line 101369 — left, then
 right, then middle):
 
 0. `fillToolStrategyPool()` → `[Moat, Range, Melee, Gate, Wall]`. Picks read the
@@ -664,7 +698,7 @@ and each is decidable from the client code above.
 
 ### 2.1 Capacity
 
-`CombatConst.getMaxUnitsInReinforcementWave` (DLL @2443526), verbatim:
+`CombatConst.getMaxUnitsInReinforcementWave` (DLL line 18902), verbatim:
 
 ```js
 CombatConst.getMaxUnitsInReinforcementWave=function(e,t,n,i){
@@ -680,12 +714,11 @@ def yard_capacity(my_level, target_level, bonus, boost_modifier):
 `Math.round` is `floor(x + 0.5)` — half **up** — and `0|` is `ToInt32`. There is
 no clamp to `>= 0` and no cap; the only floor is inside `boostToModifier`.
 
-**Porting trap, and a live bug.** `combat/capacity.py:144` is
-`int(round(base * boost_to_modifier(boost)))`. Python's `round` is banker's
-rounding and diverges at exactly `.5`, which is reachable whenever
-`boost_modifier != 1.0`. Replace with `math.floor(v + 0.5)`.
+**Porting trap.** Python's `round` is banker's rounding and diverges at
+exactly `.5`, which is reachable whenever `boost_modifier != 1.0`. The port's
+`yard_capacity` (`combat/capacity.py`) uses `math.floor(v + 0.5)`.
 
-Arguments, from `AttackDialogWaveHandler.initWaves` (BUNDLE @11855241):
+Arguments, from `AttackDialogWaveHandler.initWaves` (BUNDLE line 102525; the yard line is 102537):
 
 ```js
 attackInfoVO.yardWaveContainer.maxItems = CombatConst.getMaxUnitsInReinforcementWave(
@@ -704,7 +737,7 @@ true)` — the same PvP/PvE filter the flank code uses.
 
 ### 2.2 The bonus and the boost
 
-`CastleEffectsHelper.getUnitsOnTheYardWaveBonusForAreaType` (BUNDLE @563219):
+`CastleEffectsHelper.getUnitsOnTheYardWaveBonusForAreaType` (BUNDLE line 4163):
 
 ```python
 def yard_bonus(lord, target_area, strategy=None):
@@ -718,7 +751,7 @@ literal `true` fourth argument is load-bearing — it turns on the assigned
 general's passive skills, which is the only path by which the "+2,400 troop
 capacity for final assault" skill reaches this number.
 
-`getUnitsOnTheYardWaveBoostForAreaType` (BUNDLE @563493) is the same call with
+`getUnitsOnTheYardWaveBoostForAreaType` (BUNDLE line 4164) is the same call with
 type 180, wrapped in `EffectConst.boostToModifier` (DLL):
 
 ```js
@@ -730,7 +763,7 @@ EffectConst.boostToModifier=function(e){
 Already ported as `boost_to_modifier` (`combat/capacity.py:105`).
 
 Accumulation, `getAccumulatedEquipmentBonusByEffectTypeForArea`
-(BUNDLE @561054):
+(BUNDLE line 4136):
 
 ```js
 function(e,t,i,n,o){n=n??true;o=o??null;
@@ -742,7 +775,7 @@ Argument order is `(lord, effectType, areaType, useGeneral=true,
 strategy=null)`, forwarded as `getUniqueBoni(mergeFlag, effectType, areaType,
 strategy, useGeneral)` — note the reorder.
 
-`LordVO.getUniqueBoni` (BUNDLE @3177610) collects, in order, each filtered by
+`LordVO.getUniqueBoni` (BUNDLE line 26496) collects, in order, each filtered by
 `checkConditions(effectType, areaType, strategy)`:
 
 1. every equipped item's `boni`, plus `RelicEquipmentVO.relicInfoVO.relicBoni`,
@@ -775,7 +808,7 @@ total_180 = min(sum, 30)              → boost_modifier tops out at 1.30
 
 ### 2.3 The container
 
-`CastleAttackInfoVO.fillFromParamObject` (BUNDLE @3632313), verbatim:
+`CastleAttackInfoVO.fillFromParamObject` (BUNDLE line 30620; the yard container is built at 30633), verbatim:
 
 ```js
 this._yardWaveItemContainer=new CastleFightItemContainer([0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],0,1e4)
@@ -797,7 +830,7 @@ exceedsLimit  = freeItems < 0
 
 ### 2.4 Filling it
 
-`AFillWaveStrategy.prototype.fillYardContainer` (BUNDLE @11695962), verbatim:
+`AFillWaveStrategy.prototype.fillYardContainer` (BUNDLE line 101367), verbatim:
 
 ```js
 function(e,t,i,n){var a=this.createFilteredInventory(e.unitInventory,t);
@@ -823,11 +856,11 @@ Five differences from `fillWave`, all load-bearing:
    `StrongestDefenceCounterRatioConsideredFlankStrategy` — so the yard uses the
    **same** `pickSoldierStack`; only its inputs differ.
 
-The slot loop, `fillFlankWithSoldiers` (BUNDLE @6475148), re-evaluates
+The slot loop, `fillFlankWithSoldiers` (BUNDLE line 56180), re-evaluates
 `e.freeItems` each iteration (assigning `unitVO` changes `sumOfItems`), so the 8
 stacks together can never exceed `maxItems`.
 
-`pickSoldierStack` (BUNDLE @11699527), verbatim tail:
+`pickSoldierStack` (`StrongestDefenceCounterRatioConsideredFlankStrategy`, BUNDLE line 101397), verbatim tail:
 `h=c*m>=u*_?d:p`. In full:
 
 ```python
@@ -851,7 +884,7 @@ weighted by `m` (the **range**-defense share) and the range candidate by `_`
 keep whichever unit the inventory reached first.
 
 Per-unit score, with yard multipliers of 1.0
-(`getSoldierStackAttackValue`, BUNDLE @1519216):
+(`getSoldierStackAttackValue`, BUNDLE line 43054):
 
 ```
 melee: int(buffedMeleeAttack) * min(freeItems, inventoryAmount)
@@ -870,10 +903,10 @@ garrison), and `itemsSupport` is concatenated for **every** flank including the
 yard.
 
 Spy-report sections are **positional, not named**.
-`CastleSpyArmyInfoVO.parseArmyInfo` (BUNDLE @3639368) shifts one array in fixed
+`CastleSpyArmyInfoVO.parseArmyInfo` (BUNDLE line 30699) shifts one array in fixed
 order: `[0]` left, `[1]` middle, `[2]` right, `[3]` keep, `[4]` stronghold,
 `[5]` support, `[6]` reserve (optional). Index 4 is easy to miss. Already
-modeled correctly at `services/spy_army.py:21`.
+modeled correctly in `AttackInfoResponse` (`attack/models/info.py`).
 
 `getDefenceBonuses` is computed for the yard (it falls through to `default`) but
 the yard fill never reads wall/gate/moat, because no tools are placed. Note the
@@ -888,7 +921,7 @@ C = rangeDefUnits_rangeStr * defRangeBonus + meleeDefUnits_rangeStr * defMeleeBo
 
 ### 2.6 The `RW` payload field
 
-`CastleFightItemContainer.prototype.getSlotList` (BUNDLE @2470865):
+`CastleFightItemContainer.prototype.getSlotList` (BUNDLE line 20573):
 
 ```js
 function(e){e=e??false;var t=[],i=e?this._serverItems:this._items;
@@ -918,16 +951,14 @@ always carries all eight pairs. For the yard `_serverItems == _items` (all 8
 unlock at level 0), so the `true` makes no difference here; keep it anyway,
 because the flank containers do differ and share the accessor.
 
-The port emits a compacted list: `fill_yard_wave` (`combat/solver.py:319`)
-returns only the filled stacks and defaults `slots=1`. Both need fixing —
-`slots` should be 8 and the result padded to 8 pairs with `[-1, 0]`.
+The port's `fill_yard_wave` (`combat/solver.py`) defaults to `YARD_SLOTS`
+(8) and returns one pair per slot, `[-1, 0]` for an empty one.
 
 The inverse, `fillFromParamArray`: `for t, entry in enumerate(list): wodId =
 int(entry.shift()); amount = int(entry.shift()); if wodId != -1:
 addToItems(wodId, amount, t)`.
 
-The model already exists at `protocol/models/attack.py:131` as
-`yard_wave: list[list[int]] = Field(alias="RW", default_factory=list)`.
+The request model carries it as the `RW` field in `attack/models/send.py`.
 
 ### 2.7 Overflow
 
@@ -939,7 +970,7 @@ if (yardWaveContainer.maxItems < yardWaveContainer.sumOfItems)
     for (item of yardWaveContainer.items) if (item.unitVO) item.outline = 1   // OUTLINE_ORANGE
 ```
 
-On send (BUNDLE @6494749) the check is
+On send (`AttackDialogStartAttackCheck.onAttack`, BUNDLE line 56306) the check is
 `any(wave.exceedsUnitLimit() for wave in army.waves) or
 yardWaveContainer.exceedsLimit()`; if true the client shows a blocking
 `CastleStandardOkDialog` and sends nothing. A port must validate
@@ -960,7 +991,7 @@ port reproducing yard composition can ignore both.
    `ADDITIONAL_WAVE` waves and calls `updateMaxUnitCount` per flank wave, **then**
    sets `yardWaveContainer.maxItems`. Immediately after, if
    `maxItems < sumOfItems`, every filled slot gets `outline = 1`.
-2. Auto-fill → `AttackDialogAutoFill.autoFillYardWave` (BUNDLE @11689452)
+2. Auto-fill → `AttackDialogAutoFill.autoFillYardWave` (BUNDLE line 101326)
    constructs a fresh `StrongestDefenceCounterWaveStrategy` and calls
    `fillYardContainer(attackInfoVO, options, yardWaveContainer,
    FightScreenHelper.getDefenderEffectVO(attackInfoVO))`. The yard is selected
@@ -1029,7 +1060,7 @@ Other cases:
 
 1. **Half-up rounding.** `my_level = 1, target_level = 1, bonus = 0,
    boost_modifier = 1.05` → `a = 90`, `a*i = 94.5`. JS gives **95**; Python's
-   `round` gives 94. This is exactly the defect at `capacity.py:144`.
+   `round` gives 94.
 2. **`RW` shape.** A yard filled with two stacks emits 8 pairs — the two, then
    six `[-1, 0]`. Assert length 8 and slot order.
 3. **Capacity never exceeded by auto-fill.** With `maxItems = 100` and a huge
@@ -1068,7 +1099,7 @@ Other cases:
   would change the `20*sqrt(level)` term.
 - Whether attack **presets** also populate the yard container, and in what order,
   was not traced. `onAutoFillClearClicked` **does** clear the yard, via the
-  wave-name check; `combat_effects.md:1471` already records this.
+  wave-name check; `combat_effects.md` §5.6 already records this.
 - Whether the server re-validates the resulting wave the same way.
 
 ---
@@ -1077,7 +1108,7 @@ Other cases:
 
 ### 3.1 The two getters
 
-`SoldierUnitVO.prototype.buffedMeleeAttack` (BUNDLE @1519216), verbatim:
+`SoldierUnitVO.prototype.buffedMeleeAttack` (BUNDLE line 12578), verbatim:
 
 ```js
 {get:function(){var e=r.int(u.CastleModel.globalEffectData.getBonusByEffectType(
@@ -1085,7 +1116,7 @@ Other cases:
   return this._meleeAttack>0?this._meleeAttack+e:0}}
 ```
 
-`buffedRangeAttack` (@1519571) is identical with `_rangeAttack`. **Same effect
+`buffedRangeAttack` (BUNDLE line 12581) is identical with `_rangeAttack`. **Same effect
 type 148, same arguments.** There is no melee/range split on the effect side;
 which getter applies is decided purely by which raw column is non-zero. A wodId
 keyed in a 148 map on a unit with both columns non-zero would be buffed on both
@@ -1108,7 +1139,7 @@ stack size and of every flank/wave multiplier.
 
 ### 3.2 The feeder
 
-`GlobalEffectData.prototype.getBonusByEffectType` (BUNDLE @15672733):
+`GlobalEffectData.prototype.getBonusByEffectType` (BUNDLE line 143660):
 
 ```python
 def get_bonus_by_effect_type(self, effect_type, area_type=-1, space_id=-1, wod_id=-1):
@@ -1147,7 +1178,7 @@ so both `isFor*` tests always return true. A headless port must pick a
 convention: **evaluate against the attack target's `areaType`/`spaceId` and
 document the divergence** is the recommendation.
 
-`BonusVO.matchesConditions` (BUNDLE @776608):
+`BonusVO.matchesConditions` (BUNDLE line 5708):
 
 ```python
 def matches_conditions(self, effect_type, area_type=-1, space_id=-1, wod_id=-1, other_player=None):
@@ -1172,17 +1203,17 @@ The string is ITEMS `globalEffects.effects`, shape `"<effectID>&<valueString>"`.
 **273 is an ITEMS `effects` row id, not an effect type id.** Row 273 is
 `{"effectID":"273","name":"attackBonusUnit","effectTypeID":"148","capID":"99"}`,
 so 273 → type 148 → value class `EffectValueMap`
-(`new EffectTypeEnum(148, EffectValueMap)`, BUNDLE @211379), capID 99 =
+(`new EffectTypeEnum(148, EffectValueMap)`, BUNDLE line 1322), capID 99 =
 uncapped.
 
-`GlobalEffectVO.prototype.parseXml` (BUNDLE @15675298) splits on `&`, resolves
+`GlobalEffectVO.prototype.parseXml` (BUNDLE line 143690) splits on `&`, resolves
 the row, builds a `BonusVO`, and — when the value class is `EffectValueMap` —
 normalizes the `#`/`+` form to a flat comma list and re-parses. That re-parse is
 redundant belt-and-braces: `EffectValueMap.parseFromValueString` already handles
 `#`.
 
 ```python
-def parse_from_value_string(s):          # EffectValueMap, BUNDLE @3766254
+def parse_from_value_string(s):          # EffectValueMap, BUNDLE line 31617
     t = []
     if "#" in s:
         for part in s.split("#"):
@@ -1219,7 +1250,7 @@ is fine in JS and raises `TypeError` in Python. Coerce both with `int()`.
 
 ### 3.4 The server strength override, and why the first-value defect is invisible
 
-`GlobalEffectEventVO.prototype.parseParamObject` (BUNDLE @13357875):
+`GlobalEffectEventVO.prototype.parseParamObject` (BUNDLE line 116399):
 
 ```python
 def parse_param_object(self, t):
@@ -1257,7 +1288,7 @@ The booster path (`addBuffStrengthValue`, event type 612) compounds it:
 first key's value and stamps the result onto all keys. Uniform maps make this
 correct; a non-uniform map would be silently flattened.
 
-`EffectValueMap.strength` (BUNDLE @3767400), verbatim:
+`EffectValueMap.strength` (BUNDLE line 31649), verbatim:
 
 ```js
 {get:function(){var e=0;if(null!=this._map)for(var t=0,i=Array.from(this._map.values());t<i.length;t++){
@@ -1293,15 +1324,15 @@ lord/relic path they do not — see §3.6.
 There are exactly seven occurrences of `EFFECT_TYPE_ATTACK_BONUS_UNIT` in the
 bundle:
 
-| @ | Site | Effect |
+| BUNDLE line | Site | Effect |
 |---|---|---|
-| 211324 | enum definition, `new EffectTypeEnum(148, EffectValueMap)` | — |
-| 228598 | `.simpleEffectIconClass` | cosmetic |
-| 571740 | `CastleEffectsHelper.isAttackEffect` | UI tab classifier |
-| 1519332 | `SoldierUnitVO.buffedMeleeAttack` | **global path only** |
-| 1519626 | `SoldierUnitVO.buffedRangeAttack` | **global path only** |
-| 2472547 | `CastleFightItemContainer.getAttackRangeValue` | lord path, **display only** |
-| 2474282 | `CastleFightItemContainer.getAttackMeleeValue` | lord path, **display only** |
+| 1322 | enum definition, `new EffectTypeEnum(148, EffectValueMap)` | — |
+| 1323 | `.simpleEffectIconClass` | cosmetic |
+| 4217 | `CastleEffectsHelper.isAttackEffect` | UI tab classifier |
+| 12578 | `SoldierUnitVO.buffedMeleeAttack` | **global path only** |
+| 12581 | `SoldierUnitVO.buffedRangeAttack` | **global path only** |
+| 20609 | `CastleFightItemContainer.getAttackRangeValue` | lord path, **display only** |
+| 20619 | `CastleFightItemContainer.getAttackMeleeValue` | lord path, **display only** |
 
 The split is clean and total:
 
@@ -1321,7 +1352,7 @@ count.
 mead-unit relic changes the displayed strength and nothing about which stacks
 auto-fill picks.
 
-What auto-fill actually scores (`getSoldierStackAttackValue`, BUNDLE @4955179):
+What auto-fill actually scores (`getSoldierStackAttackValue`, BUNDLE line 43054):
 
 ```
 i = int(buffedMeleeAttack * _attackerMeleeBonus)   if melee
@@ -1332,12 +1363,13 @@ return i * min(count, unitVO.inventoryAmount)
 
 The `int()` is applied **before** the multiply by count, so the truncation error
 is multiplied by the stack size. Port the parenthesisation exactly. Already
-correct at `combat/effects.py:104`.
+correct in `AttackerFlankEffects.soldier_stack_attack_value`
+(`combat/effects.py`).
 
 ### 3.6 The lord path, for completeness
 
 `LordVO.getEffectValue(effectType, areaType=-1, spaceId=-1, wodId=-1,
-strategy=None)` (BUNDLE @3180760) collects equipment boni (including relic and
+strategy=None)` (BUNDLE line 26543) collects equipment boni (including relic and
 gem boni), equipment-set bonuses at reached thresholds, and the assigned
 general's passives; then `D = a[0].clone()`, merges the rest with
 `D.effectValue.add(...)`, and returns `D.effectValue.strength`. This is a
@@ -1356,16 +1388,13 @@ if two relics of different 148 effectIDs merge on one lord.
 `"195,196,197,…"`; ITEMS `units` 195 is a mead melee unit; and 195 is out of
 range for **every** 148 relic band (4-12, 20-60, 10-40, 5-20).
 
-**Likely live bug in the port.** `combat/bonuses.py`, `parse_bonus_entries`
-(line 87) with `_first_number` (line 74): for the relic triple
-`[20017, power, [195, 8, 196, 8, …]]` it takes the first number of the first
-nested sequence and stores `Bonus(effect_id=20017, value=195.0)` — the first
-wodId read as a strength. When `e[2]` is a plain scalar it instead falls back to
-`_first_number(entry[1])`, the `power` roll-quality field, which is also wrong.
-For map-valued types the port must parse `entry[2]` as pairs and keep the map.
+An earlier port read the first number of such a map as the bonus, so the
+relic triple `[20017, power, [195, 8, 196, 8, …]]` became a strength of 195.
+`combat/bonuses.py` now keeps the array it was sent and `Bonus.strength` reads
+the first key's value for the keyed effect types.
 
 A relic bonus arrives as the triple `[relicEffectId, power, value]`
-(`RelicBonusVO.parseRelicFromValueArray`, BUNDLE @5032758); `power` is roll
+(`RelicBonusVO.parseRelicFromValueArray`, BUNDLE line 45132); `power` is roll
 quality, **not** strength. Entry points: `RelicEquipmentVO.parseEquipFromArray`
 reads index `[5]`, `RelicGemVO.parseServerObject` reads `[4]`.
 
@@ -1439,7 +1468,7 @@ Siblings: type 149 one row (22006), type 150 five (22007-22011), type 154 one
 (285).
 
 Payload: `bie` at login (`CastleModel.globalEffectData.parse_GIE(n.bie)`,
-BUNDLE @14416881) and the `BIE` command, shape
+`GBDCommand`, BUNDLE line 129381) and the `BIE` command, shape
 
 ```
 { "SGE": [globalEffectID, ...],
@@ -1449,9 +1478,9 @@ BUNDLE @14416881) and the `BIE` command, shape
 The `strengthOverride` is the **live** strength; the ITEMS value is only the
 fallback when it is `-1`.
 
-The port's `global_unit_attack_bonuses` (`combat/bonuses.py:415`) takes only a
-list of effect **ids**, so it can never apply an override — it always uses the
-ITEMS value. Change the input to the `GE` triples.
+The port's `global_unit_attack_bonuses` (`combat/bonuses.py`) takes either
+plain ids or the `GE` triples, and a strength above `-1` in a triple replaces
+the ITEMS value.
 
 ### 3.10 Test cases
 
@@ -1500,8 +1529,8 @@ ITEMS value. Change the input to the `GE` triples.
   The value is `n[1]`, an array, and `EffectValueMap.parseFromValueArray`
   accepts it either flat (`[wodId, value, wodId, value]`, stepping by 2) or as
   nested pairs. Both `EffectValueMap.strength` and `EffectValueWodID.strength`
-  then return the first key's **value** — index 1 of the flat form. Ported at
-  `combat/bonuses.py`, `Bonus.strength`.
+  then return the first key's **value** — index 1 of the flat form. Ported as
+  `Bonus.strength` in `combat/bonuses.py`.
 - Which wodIds a relic keyed effect covers. The `relicEffects` rows carry an
   `effectValueKeys` column (e.g. row 20001, effect 22001, keys
   `672,664,686,687,75,76`), but `ClientConstItems.EFFECT_VALUE_KEYS` is defined
@@ -1516,19 +1545,13 @@ ITEMS value. Change the input to the `GE` triples.
 
 ## Port deltas, collected
 
-Checked against `ea42a90`. Two entries an earlier draft carried are already
-fixed there and are **not** listed: the range/melee strategies now add the
-conditioned 215/217 term (`combat/tools.py:170`, `:177`), and the strategy pool is
-rebuilt per flank (`combat/solver.py:285`).
+Checked against `empire_core.combat` and `empire_core.gamedata` on the branch
+that added the "Checked against client release" line. Every delta an earlier
+draft listed is fixed except the first row:
 
 | Where | What |
 |---|---|
-| `combat/capacity.py:144` | `int(round(...))` → `math.floor(v + 0.5)`; JS `Math.round` is half-up, Python's `round` is banker's |
-| `combat/effects.py:48` | `apply_tool` lacks the 215/217 additions, so a tool picked for its conditioned bonus feeds nothing back — asymmetric with the pick side, which now reads it |
-| `combat/tools.py` | no `canUseToolForAttackOnTarget` gate (neither `allowedToAttack` nor `canBeUsedToAttackNPC` is consulted) |
-| `combat/tools.py:137` | `amount_per_wave` is scoped to one flank and keyed by wodId; the client keys it by the ITEMS `type` string and sums across all three tool containers of the wave |
-| `combat/tools.py`, `fill_flank_with_tools` | deduction is deferred until after the slot-type check, so the client's deduct-then-discard cannot occur; slots are a count rather than a list, so merge-abandons-the-slot cannot either. Both are deliberate divergences — decide and log them |
-| `gamedata/models.py:141` | `can_attack_npc` defaults to `False`; the client's default is **true** (`1 == parseInt(..., "1")`) |
-| `combat/solver.py:324` | `fill_yard_wave` defaults `slots=1` (should be 8) and returns a compacted list (`RW` is always 8 pairs, `[-1, 0]` for empties) |
-| `combat/bonuses.py:415` | `global_unit_attack_bonuses` takes effect ids, so it cannot apply the `GE` `strengthOverride`; take the triples |
-| ~~`combat/bonuses.py:87`~~ | Fixed: `Bonus` keeps the array it was sent and `Bonus.strength` reads index 1 for the nine keyed effect types |
+| `combat/tools.py`, `fill_flank_with_tools` | **Open, deliberate.** Deduction is deferred until after the slot-type check, so the client's deduct-then-discard (§1.7(a)) cannot occur. The docstring records the divergence |
+| `combat/tools.py`, `conditioned_effect_bonus` | Checks the area type but not the raid-boss half of `isEffectApplicable`. Equivalent with this ITEMS snapshot, because the eligibility gate already rejects every raid-boss-tied tool whose boss is not active (§1.3) |
+| `combat/tools.py`, `fill_flank_with_tools` | Slots are a count rather than a list. A merge still uses up the slot it came from, as in the client (§1.7(b)), so the placed amounts match |
+| Fixed | `yard_capacity` rounds half up; `apply_tool` takes the 215/217 terms; `can_use_tool_on_target` and the raid-boss guard; `amount_per_wave` keyed by `type` across the wave; `can_attack_npc` defaults to true; `fill_yard_wave` sends 8 slots with `[-1, 0]` for empties; `global_unit_attack_bonuses` takes the `GE` triples; `Bonus.strength` reads keyed values |

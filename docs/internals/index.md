@@ -36,6 +36,13 @@ under a service call.
     Thread safety, passive updates, object identity and the movement
     lifecycle.
 
+-   :material-code-json:{ .lg .middle } **[Client bundle notes](../design/game_bundle_analysis.md)**
+
+    ---
+
+    Command ids, the commander/castellan/general split, the `gli` and `cra`
+    keys, map object types, and how to read the client bundle yourself.
+
 </div>
 
 ## The game client is the source of truth

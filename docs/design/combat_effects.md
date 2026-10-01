@@ -1,15 +1,25 @@
 # Combat Effects Reference
 
+Checked against client release: a4a25ae6, for every bundle and DLL line
+number and for §3.2's equipment row, §7.1's `ego` entry and §8 items 13 and 30.
+The rest of the catalogue was written against an earlier release; its line
+numbers were moved to a4a25ae6 by symbol name, but not every formula was
+re-read.
+
 **Purpose:** everything that can change the outcome — or the composition — of an
 attack in Goodgame Empire, catalogued for the attack auto-fill port.
 
-**Sources.** Three artifacts, all from the live client release:
+**Sources.** Three artifacts:
 
 | Short name | File | What it is |
 |---|---|---|
-| BUNDLE | `Game.bundle.<hash>.js` | the Empire HTML5 client |
-| DLL | `dll/ggs.dll.<hash>.js` | shared constants: `CombatConst`, `TravelConst`, `EffectConst`, `CommKeys` |
+| BUNDLE | `Game.bundle.a4a25ae6d735e29092f6.js` | the Empire HTML5 client |
+| DLL | `dll/ggs.dll.145565eddbcbe244aab0.js` | shared constants: `CombatConst`, `TravelConst`, `EffectConst`, `CommKeys` |
 | ITEMS | `items.json` | the game-data tables, ~233 top-level keys |
+
+"BUNDLE line N" and "DLL line N" are line numbers in the file split with
+`sed 's/;/;\n/g; s/}/}\n/g'`. They drift with every release; the symbol names
+do not, so search by name.
 
 Every claim below names the client symbol or the ITEMS table it came from.
 Claims that are not directly readable from those files are marked
@@ -51,7 +61,7 @@ Two more scope notes:
 Two independent additions on top of a level-driven base.
 
 **Base** — `CombatConst.getMaxWaveCount(userLevel, isConquerAttack)` (DLL
-@2444371):
+line 18911):
 
 ```
 n = 1
@@ -60,14 +70,14 @@ for i = len(WAVE_UNLOCK_LEVEL)-1 down to 0:
 if isConquerAttack: n += CONQUERATTACK_ADDITIONAL_WAVES
 ```
 
-with `CombatConst.WAVE_UNLOCK_LEVEL = [0, 13, 26, 51]` (DLL @2441005) and
-`CombatConst.CONQUERATTACK_ADDITIONAL_WAVES = 2` (DLL @2447724). So 1 wave below
+with `CombatConst.WAVE_UNLOCK_LEVEL = [0, 13, 26, 51]` (DLL line 18881) and
+`CombatConst.CONQUERATTACK_ADDITIONAL_WAVES = 2` (DLL line 18941). So 1 wave below
 level 13, 2 from 13, 3 from 26, 4 from 51; +2 for a conquer attack.
 `CombatConst.isConquerAttack(attackType)` returns true for
 `ATTACK_TYPE_CAPITAL_CONQUER`, `ATTACK_TYPE_OUTPOST_CONQUER`,
 `ATTACK_TYPE_VILLAGE_CONQUER`, `ATTACK_TYPE_KINGTOWER_CONQUER`.
 
-**Legend-skill wave** — `CastleAttackArmyVO.init` (BUNDLE @6436915) adds
+**Legend-skill wave** — `CastleAttackArmyVO.init` (BUNDLE line 55831) adds
 `CastleLegendSkillEffectsEnum.ADDITIONAL_WAVE` (id 22, ITEMS `legendskills`
 `effectType` = `additionalWave`) through
 `CombatConst.getMaxWaveCountWithBonus(userLevel, isConquer, legendBonus)`, but
@@ -79,7 +89,7 @@ only when **all** of these hold:
   **or** an `AAlienInvasionMapobjectVO`
 
 **Equipment / general waves and support-tool waves** —
-`AttackDialogWaveHandler.initWaves` (BUNDLE @11855241):
+`AttackDialogWaveHandler.initWaves` (BUNDLE line 102525):
 
 ```
 lordWaves = int(CastleEffectsHelper.getTotalEffectValue(
@@ -93,11 +103,11 @@ then waves are added or removed until the dialog's count matches.
 `strategy = LordEffectHelper.getFilterStrategyAttackOrDefence(targetArea.ownerInfo.playerID, true)`.
 
 The support-tool term is easy to miss: **support tools grant attack waves.**
-`ToolEffectType.ADDITIONAL_WAVE` (BUNDLE @1212883, constructed as
+`ToolEffectType.ADDITIONAL_WAVE` (BUNDLE line 9615, constructed as
 `new ToolEffectType(0, "additionalWaves", icon, true)`) is bound to effect type
 156 by `EffectTypeEnum.EFFECT_TYPE_ADDITIONAL_WAVE.mapToolEffectType(...)`
-(BUNDLE @887665). `CastleFightItemContainer.getTotalBonusByToolEffect` (BUNDLE
-@2481148) sums `getBonusByEffect(e)` over the container, multiplying by
+(`ToolUnitVO.createEffectMapping`, BUNDLE line 6651). `CastleFightItemContainer.getTotalBonusByToolEffect` (BUNDLE
+line 20719) sums `getBonusByEffect(e)` over the container, multiplying by
 `slot.getAmount()` for offensive tools and **not** multiplying for
 `isDefensive` tools.
 
@@ -108,7 +118,7 @@ support tools above) and `relicEffects` (1 row).
 
 ### 1.2 Per-flank unit capacity
 
-`AttackDialogWaveHandler.updateMaxUnitCount` (BUNDLE @11856140) sets the
+`AttackDialogWaveHandler.updateMaxUnitCount` (BUNDLE line 102539) sets the
 `maxItems` of each flank's unit container. The whole block is skipped when
 `controller.selectedLord` is falsy.
 
@@ -120,7 +130,7 @@ middle.maxItems = CombatConst.getAmountSoldiers(1, targetOwnerLevel, 0, frontBon
 right.maxItems  = same as left
 ```
 
-`CombatConst` (DLL @2442387), verbatim:
+`CombatConst` (DLL lines 18892–18900), verbatim:
 
 ```
 getMaxAttackers(level)          = level <= 69 ? min(260, 5*level + 8) : 320
@@ -135,7 +145,7 @@ getAmountSoldiers(which, l, flankB, midB) = which==1 ? getAmountSoldiersMiddle(l
 
 **The level argument is the *target owner's* level, not the attacker's.**
 
-The two bonus terms come from `CastleEffectsHelper` (BUNDLE @562371, @562795):
+The two bonus terms come from `CastleEffectsHelper` (BUNDLE lines 4157 and 4160):
 
 ```
 getUnitsOnTheFlankBonusForAreaType(lord, area, isLegendaryFight, strategy) =
@@ -155,7 +165,7 @@ any other account-wide source.
 
 ### 1.3 Courtyard (reinforcement / yard) wave capacity
 
-`AttackDialogWaveHandler.initWaves` (BUNDLE @11855241):
+`AttackDialogWaveHandler.initWaves` (BUNDLE line 102525):
 
 ```
 yardWaveContainer.maxItems = CombatConst.getMaxUnitsInReinforcementWave(
@@ -166,7 +176,7 @@ yardWaveContainer.maxItems = CombatConst.getMaxUnitsInReinforcementWave(
 ```
 
 `CombatConst.getMaxUnitsInReinforcementWave(myLevel, targetLevel, bonus, boost)`
-(DLL @2443526):
+(DLL line 18902):
 
 ```
 int(round((20*sqrt(myLevel) + 50 + 20*targetLevel + bonus) * boost))
@@ -174,7 +184,7 @@ int(round((20*sqrt(myLevel) + 50 + 20*targetLevel + bonus) * boost))
 
 `bonus` is effect type 179 (`attackUnitAmountReinforcementBonus`, nominal);
 `boost` is effect type 180 (`attackUnitAmountReinforcementBoost`) passed through
-`EffectConst.boostToModifier` (DLL @2537352):
+`EffectConst.boostToModifier` (DLL line 19159):
 
 ```
 boostToModifier(pct) = max((BASE_BOOST_PERCENTAGE + pct) * TO_MULTIPLIER_FACTOR, 0)
@@ -182,7 +192,7 @@ boostToModifier(pct) = max((BASE_BOOST_PERCENTAGE + pct) * TO_MULTIPLIER_FACTOR,
 ```
 
 so a boost of 0 yields the multiplier 1.0. (`EffectConst.BASE_BOOST_PERCENTAGE = 100`,
-`TO_MULTIPLIER_FACTOR = 0.01`, `DEFAULT_MODIFIER = 1` — DLL @2539546.)
+`TO_MULTIPLIER_FACTOR = 0.01`, `DEFAULT_MODIFIER = 1` — DLL line 19205.)
 
 ### 1.4 Per-flank tool capacity
 
@@ -195,7 +205,7 @@ built with `_army.init(this.targetOwnerLevel, ...)` and each wave added with
 `addAdditionalWave(this.targetOwnerLevel, ...)`. Only the wave *count* uses the
 attacker's own level, via `getMaxWaveCountWithBonus(userData.userLevel, ...)`.
 
-`CastleAttackWaveVO`'s constructor (BUNDLE ~@11520700):
+`CastleAttackWaveVO`'s constructor (BUNDLE line 99925):
 
 ```
 n = 0
@@ -210,7 +220,7 @@ if target.ownerInfo
 maxTools = int(CombatConst.getTotalAmountToolsFlank(level, n))
 ```
 
-`CombatConst.getTotalAmountTools(which, level, n)` (DLL @2443296), verbatim:
+`CombatConst.getTotalAmountTools(which, level, n)` (DLL line 18899), verbatim:
 
 ```
 which == 1 (middle):  level<11 ? 10 : level<37 ? 20 : level<50 ? 30 : level<69 ? 40 : 50
@@ -227,19 +237,19 @@ i.e. +2 per level to +10.
 
 Containers are built from `CombatConst.ITEMS_*` / `LEVELS_*` arrays. Examples
 read verbatim from the DLL: `ITEMS_MIDDLEWALL_TOOLS = [1,1,1]` with
-`LEVELS_MIDDLEWALL_TOOLS = [0,11,37]` (@2438660); `ITEMS_LEFTWALL_TOOLS = [2,2]`
-with `LEVELS_LEFTWALL_TOOLS = [0,37]` (@2437956). The `ITEMS_*` value is the
+`LEVELS_MIDDLEWALL_TOOLS = [0,11,37]` (DLL line 18869); `ITEMS_LEFTWALL_TOOLS = [2,2]`
+with `LEVELS_LEFTWALL_TOOLS = [0,37]` (DLL line 18865). The `ITEMS_*` value is the
 `slotType` the slot accepts; the `LEVELS_*` value is the level at which that
 slot unlocks.
 
-`CastleFightItemVO.isUnlocked` (BUNDLE @1510053):
+`CastleFightItemVO.isUnlocked` (BUNDLE line 12511):
 
 ```
 unlockLevel >= 0 ? unlockLevel >= itemLevel
                  : legendSkillData.isSkillActive(legendSkillData.getSkillByID(unlockSkillID))
 ```
 
-`CastleFightItemContainer.freeItems` (BUNDLE @2479106) is `maxItems - sumOfItems`,
+`CastleFightItemContainer.freeItems` (BUNDLE line 20680) is `maxItems - sumOfItems`,
 and every fill loop gates on `slot.isFree() && slot.isUnlocked()`.
 
 ### 1.6 Attacker melee / range multipliers
@@ -249,7 +259,7 @@ formula. Do not unify them.
 
 **(a) The auto-fill / fight-screen multiplier** —
 `FightScreenHelper.getAttackerFlankEffectVO(attackInfo, lord, isLegendaryFight, flank, attackInfoVO)`
-(BUNDLE @2327140). Verbatim structure:
+(BUNDLE line 19179). Verbatim structure:
 
 ```
 meleeMult = 1, rangeMult = 1
@@ -289,7 +299,7 @@ flank**, and the constructor is given only six arguments, so
 `_defenderMeleeReduction` starts at 0 on this path (see §5.4).
 
 `CastleEffectsHelper.getFullAttackBonusForLordByFlankAndAreaType(lord, areaType, flank, isMelee, strategy)`
-(BUNDLE @564608) is, verbatim:
+(BUNDLE line 4179) is, verbatim:
 
 ```
 ( equip(EFFECT_TYPE_ATTACK_BONUS /*36*/).strength
@@ -303,7 +313,7 @@ types 33 / 53 / 54 (yard / front / flank attack boosts) do **not** appear.
 
 **(b) The displayed army-strength aggregation** —
 `CastleFightItemContainer.getAttackMeleeValue` / `getAttackRangeValue`
-(BUNDLE @2472400–2475750). Per soldier stack:
+(BUNDLE lines 20605–20624). Per soldier stack:
 
 ```
 g = lordVO.getEffectValue(EFFECT_TYPE_ATTACK_BONUS_UNIT /*148*/, areaType, spaceID, wodId, strategy)
@@ -324,8 +334,8 @@ wrong.** Auto-fill uses path (a).
 
 ### 1.7 A unit's own attack value
 
-`SoldierUnitVO.buffedMeleeAttack` (BUNDLE @1519216) and `buffedRangeAttack`
-(@1519510):
+`SoldierUnitVO.buffedMeleeAttack` (BUNDLE line 12578) and `buffedRangeAttack`
+(BUNDLE line 12581):
 
 ```
 buffedMeleeAttack = _meleeAttack > 0
@@ -335,9 +345,9 @@ buffedMeleeAttack = _meleeAttack > 0
 ```
 
 `_meleeAttack` / `_rangeAttack` are the raw ITEMS `units` columns `meleeAttack`
-/ `rangeAttack` (`parseXmlNode` @1511500).
+/ `rangeAttack` (`parseXmlNode` line 12531).
 
-`GlobalEffectData.getBonusByEffectType` (BUNDLE @15672456) iterates **only**
+`GlobalEffectData.getBonusByEffectType` (BUNDLE line 143660) iterates **only**
 `specialEventData.getActiveEventByEventId(EventConst.EVENTTYPE_GLOBAL_EFFECTS).globalEffectData`.
 Research, buildings, alliance, VIP and subscription therefore do **not** feed
 `buffedMeleeAttack` / `buffedRangeAttack`, even though ITEMS `researches`,
@@ -364,7 +374,7 @@ There is **no** `buffedMeleeDefence` / `buffedRangeDefence`. Grepping
 ### 1.8 The stack score auto-fill actually ranks
 
 `AttackerFlankEffectVO.getSoldierStackAttackValue(unitVO, count)` (BUNDLE
-@4955179), verbatim:
+line 43054), verbatim:
 
 ```
 i = unitType == UNIT_TYPE_SOLDIER_MELEE ? int(buffedMeleeAttack * _attackerMeleeBonus)
@@ -374,34 +384,34 @@ return i * min(count, unitVO.inventoryAmount)
 ```
 
 The call site passes `count = container.freeItems`
-(`pickSoldierStack` @11700100). **This scores a stack, not a unit:** a
+(`pickSoldierStack` line 101409). **This scores a stack, not a unit:** a
 high-attack unit you own 3 of loses to a mediocre unit you own 200 of, and the
 winner changes as the flank fills up.
 
 `unitType` is a **string**: `ClientConstCastle.UNIT_TYPE_SOLDIER_MELEE =
 "soldierMelee"`, `UNIT_TYPE_SOLDIER_RANGE = "soldierRange"` (BUNDLE
-@149818–150528). `SoldierUnitVO.unitType` is derived from the ITEMS `units`
+line 1004). `SoldierUnitVO.unitType` is derived from the ITEMS `units`
 column `role` (`"melee"` / `"ranged"`).
 
 ### 1.9 Melee-vs-range choice, and the unit-candidacy gates
 
 `StrongestDefenceCounterRatioConsideredFlankStrategy.pickSoldierStack` (BUNDLE
-@11699042). A unit is a candidate only if it passes **all** of:
+line 101397). A unit is a candidate only if it passes **all** of:
 
 | Gate | Source |
 |---|---|
-| `isOffensive \|\| isAllround` | `BasicUnitVO` @2342309; `isAllround` = ITEMS `units` column `hybrid`; `isOffensive` = `fightType == FIGHTTYPE_OFF (0)` |
+| `isOffensive \|\| isAllround` | `BasicUnitVO` line 19316; `isAllround` = ITEMS `units` column `hybrid`; `isOffensive` = `fightType == FIGHTTYPE_OFF (0)` |
 | `healingCostC1 == 0` or filter `c1` on | ITEMS `units.healingCostC1` |
 | `healingCostC2 == 0` or filter `c2` on | ITEMS `units.healingCostC2` |
 | `meadSupply == 0` or filter `mead` on | ITEMS `units.meadSupply` |
 | `beefSupply == 0` or filter `beef` on | ITEMS `units.beefSupply` |
 | melee unit → filter `melee` on; range unit → filter `range` on | `AutoFillOptions.UNIT_FILTER_*` |
 
-`AutoFillOptions` (BUNDLE @3081127) defines
+`AutoFillOptions` (BUNDLE line 26311) defines
 `UNIT_FILTER_MELEE = "melee"`, `UNIT_FILTER_RANGE = "range"`,
 `UNIT_FILTER_C1 = "c1"`, `UNIT_FILTER_C2 = "c2"`, `UNIT_FILTER_MEAD = "mead"`,
 `UNIT_FILTER_BEEF = "beef"`. `AttackDialogAutoFill.autoFillSelectedWaves`
-(@11688652) calls `updateOptions()` (@11690900), which rewrites **only**
+(BUNDLE line 101320) calls `updateOptions()` (BUNDLE line 101334), which rewrites **only**
 `fillLeftFlank` / `fillMiddleFlank` / `fillRightFlank` — every unit and tool
 filter carries over from prior dialog state. A headless caller must set them
 explicitly.
@@ -426,10 +436,10 @@ reaches first.
 
 ### 1.10 The yard wave is scored differently
 
-`AttackDialogAutoFill.autoFillYardWave` (BUNDLE @11689452) calls
+`AttackDialogAutoFill.autoFillYardWave` (BUNDLE line 101326) calls
 `fillYardContainer` with **no attacker effect VO**; `AFillWaveStrategy.fillYardContainer`
-(@11695934) passes `null`, and `pickSoldierStack` then does `t || (t = new AttackerFlankEffectVO())`.
-The default constructor is `(e=1, t=1, i=0, n=0, o=0, a=0)` (BUNDLE @4955179),
+(BUNDLE line 101367) passes `null`, and `pickSoldierStack` then does `t || (t = new AttackerFlankEffectVO())`.
+The default constructor is `(e=1, t=1, i=0, n=0, o=0, a=0)` (BUNDLE line 43049),
 so the courtyard wave is filled on **raw `buffedMeleeAttack` / `buffedRangeAttack`
 with multipliers of exactly 1.0** and all reductions 0 — a different scoring
 basis from the three flanks.
@@ -483,8 +493,8 @@ side is stale is not established. The known mismatches are all abilities:
 ### 2.1 Combat-relevant effect types
 
 "Combat-relevant" here means: read by a combat or fill formula, or classified by
-the client's own `CastleEffectsHelper.isAttackEffect` (BUNDLE @570005) /
-`isDefenseEffect` (@568815). Those two classifiers are **UI classification only**
+the client's own `CastleEffectsHelper.isAttackEffect` (BUNDLE line 4217) /
+`isDefenseEffect` (BUNDLE line 4215). Those two classifiers are **UI classification only**
 — no combat math reads them.
 
 The classifiers additionally list these types, not tabulated below because no
@@ -712,7 +722,7 @@ than any individual source.
 essentially every combat formula calls.
 
 **`CastleEffectsHelper.getAccumulatedEffectValueForType(effectType, lord, conditionVO, extraSources=null)`**
-(BUNDLE @559850) — fuses the lord's boni with every account-wide source. Its
+(BUNDLE line 4128) — fuses the lord's boni with every account-wide source. Its
 source chain, in order:
 
 ```
@@ -738,12 +748,12 @@ accessors — e.g. `researchData.getResearchEffectValue` for honour,
 `globalEffectData.getBonusByEffectType` for effect 148,
 `allianceBuffData` for the temporary power boosts.
 
-### 3.2 Lord-attached sources (`LordVO.getUniqueBoni`, BUNDLE @3177610)
+### 3.2 Lord-attached sources (`LordVO.getUniqueBoni`, BUNDLE line 26496)
 
 | Source | Runtime symbol | ITEMS table with the values |
 |---|---|---|
 | Equipment | `CastleEquipmentSlotVO.equipmentVO.boni` | `equipments` (1575 rows, 1409 carry `effects`) |
-| Equipment magnitude rolls | — | `equipment_effects` (338), `equipment_effectstrengths` (409), `equipment_rarenesses` (10, `secondaryAttributes`), `equipment_slots` (6, per-slot `bonus`) |
+| Equipment effect metadata | `EquipmentXml.parseXml` (BUNDLE line 144121) → `XmlEquipmentEffectVO`: the effect an equipment effect id stands for (`getEquippableEffectByEquipmentEffect`), its `ignoreCap` (read by `EquipmentBonusVO.parseBasic`, line 20942) and enchantment factors; `XmlEquipmentRarenessVO` (line 144207, `secondaryAttributes`) | `equipment_effects` (338), `equipment_rarenesses` (10). `equipment_effectstrengths` (409) and `equipment_slots` (6, per-slot `bonus`) are read by no client code, so the client computes no bonus magnitudes from them |
 | Alien equipment string | — | `equipments.AlienHeroEffectString` (38 rows) |
 | Set bonuses | `LordVO.setCounts`, `equipData.equipmentXml.getEquipmentSet` | `equipment_sets` (678 rows, all carry `effects`) |
 | Gems | `CastleGemVO.boni`, `GemBonusVO.triggerChance` | `gems` (501 rows, all carry `effects` + `triggerChance`) |
@@ -770,7 +780,7 @@ Combat effect types actually present in each, joined `effects` → `effects` tab
 
 | Source | Runtime symbol | ITEMS table | Combat types it carries |
 |---|---|---|---|
-| Buildings and construction items on the area | `ABasicBuildingVO.getBonusVOsByType`; `parseEffects` / `parseAreaSpecificEffects` @2206764–2207514 | `buildings` — **no `effects` column at all**; the payload is `areaSpecificEffects` on 720 of 3962 rows | 181×80, 32×48, 183×46, 12×33, 33×33, 23×24, 24×24, 53×20, 54×20, 51×10, 28×5, 34×5, 19×4, 20×4, **156×3**, 182×1 |
+| Buildings and construction items on the area | `ABasicBuildingVO.getBonusVOsByType`; `parseEffects` / `parseAreaSpecificEffects` (lines 17851–17858) | `buildings` — **no `effects` column at all**; the payload is `areaSpecificEffects` on 720 of 3962 rows | 181×80, 32×48, 183×46, 12×33, 33×33, 23×24, 24×24, 53×20, 54×20, 51×10, 28×5, 34×5, 19×4, 20×4, **156×3**, 182×1 |
 | Construction items (decorations) | `CastleUserData.getGlobalConstructionItemEffectsByType` | `constructionItems` (2125 rows, 1204 carry `effects`) | 28×158, 33×140, 34×92, 194×89, 24×86, 49×70, 50×70, 23×68, 181×34, 179×29, 32×28, 9×16, 10×17, 36×16, **156×7**, 15, 16, 31, 180, 182 |
 | Titles | `CastleTitleSystemHelper.returnTitleEffectsByType` | `titles` (57 rows, 49 carry `effects`, 50 carry `titleEffectID`) | 13×5, 14×4, 75×3, 15×2, 33×2, 36×2, 82×1, 28×1, 34×1, 16×1 |
 | Research | `CastleResearchData.getResearchEffectsByType` / `getResearchEffectValue` | `researches` (1040 rows, 1037 carry `effects`) | 14×10, 40×10, 16×5, 103×5, 114×5, 102×1, 118×1 — mostly non-combat |
@@ -778,22 +788,22 @@ Combat effect types actually present in each, joined `effects` → `effects` tab
 | Subscriptions | `SubscriptionData.getSubscriptionEffectsByType` | `subscriptionsBuffs` (94 rows) | 75×9, 13×8, 0×4, 38×4, 39×4, 14×3, 36×1 |
 | Sceat (second legend tree) | `CastleLegendSkillData.getSceatSkillEffectsByType` | `sceatSkills` (333 rows) | **none** — only types 57, 79, 90, 169 |
 | Classic legend skills | `CastleLegendSkillData.getTotalValueOfLegendSkillEffect` — **flat ints, entirely outside the BonusVO/cap pipeline** | `legendskills` (353 rows; `effectType` is a *string*, not an effect-type id) | see §3.4 |
-| Player crest | `PremiumCrestSymbolVO.getEffectsByType` (@12910537); parsed by `CastleCrestSymbolData.parseXML` @12904050 | `crestsymbols` (82 rows, 44 carry `effects`) | 13×7 only (plus 22, 80, 92, 93, 164, 165) |
-| Alliance crest layout | `AllianceCrestLayoutVO.parseEffects` @12861413; read back via `AllianceInfoVO.getLayoutEffectsByType` @3068007 | `allianceCoatLayouts` (19 rows, 11 carry `effects`) | 33×3, 28×1, 34×1 (plus 86, 161) |
+| Player crest | `PremiumCrestSymbolVO.getEffectsByType` (line 111656); parsed by `CastleCrestSymbolData.parseXML` (line 111550) | `crestsymbols` (82 rows, 44 carry `effects`) | 13×7 only (plus 22, 80, 92, 93, 164, 165) |
+| Alliance crest layout | `AllianceCrestLayoutVO.parseEffects` (line 111025); read back via `AllianceInfoVO.getLayoutEffectsByType` (line 26153) | `allianceCoatLayouts` (19 rows, 11 carry `effects`) | 33×3, 28×1, 34×1 (plus 86, 161) |
 | Alliance buffs | `AllianceInfoVO.getTotalAllianceBuffEffectsByType`; `allianceBuffData.getAllianceBuffVoBySeriesIDAndLevel(...).getBonusVOsByType()` | `alliancebuffs` (261 rows, 213 carry `effects`) | 36×23, 44×21, 114×21, 31×6, 39×32, 13×1 |
 | Alliance temporary power boosts | `AllianceConst.TYPE_TEMP_ATTACK_POWER_BOOST` (type 36) / `TYPE_TEMP_DEFENSE_POWER_BOOST` (type 31) — applied **outside** `getUniqueBoni` as a separate multiplier | — | 36 / 31 |
 | Alliance Battleground tower buffs | `ABGAllianceTowerEffectVO` (a `RawLordEffectBonusVO`) | `allianceTowerEffects` (5 rows) → effect types **6, 7, 9, 10, 32**; every row `effectBasePrice`=100, `effectMaxLevel`=60, `effectStartValue`=1, `effectIncrease`=2, i.e. value = 1 + 2·(level−1), max 119 | 6, 7, 9, 10, 32 |
 | Officers school ("training program") | `OfficersSchoolData.getBonusByEffectType` — **defined but never called anywhere in the client** | `officersSchoolEffects` (5 rows, all effect type **148**) | 148 |
 | Private villages | raw lord effects | `privateVillages` (135 rows) | **none** — 92/93/80 only, economy |
-| VIP | `CastleVIPData.currentActiveVIPLevel.attackSpeedBonus`; `VIPLevelInfoVO.parseXML` @9024900 | `viplevels` (10 rows: `attackSpeedBoost`, `attackFameBoost`, `magicFindBoost`, …) | march speed — see §3.5 |
-| Horse / travel booster | `HorseTravelboosterVO.parseXmlNode` @13618344 | `horses` (33 rows: `unitBoost`, `marketBoost`, `spyBoost`, `isInstantSpyHorse`) | march speed |
+| VIP | `CastleVIPData.currentActiveVIPLevel.attackSpeedBonus`; `VIPLevelInfoVO.parseConfigXML` line 77271 | `viplevels` (10 rows: `attackSpeedBoost`, `attackFameBoost`, `magicFindBoost`, …) | march speed — see §3.5 |
+| Horse / travel booster | `HorseTravelboosterVO.parseXmlNode` line 118814 | `horses` (33 rows: `unitBoost`, `marketBoost`, `spyBoost`, `isInstantSpyHorse`) | march speed |
 | Return-speed booster | `boostData.returnSpeedBoosterVO.returnSpeedForCurrentLevel` | `levelBoosters` (73 rows, `boosterType` = `BoosterConst.RETURNING_SPEED`, `boostPercentage`) | return march |
 | Alliance monument | `_monumentBonus` on `CastleAttackInfoVO` (`aci`) | `monuments` (19 rows, `level` → `fameBoost`) | fame |
 | Kingstower | `_kingstowerBonus` on `CastleAttackInfoVO` (`aci` key `KTB`) | — | attack boost, server-resolved |
-| Per-battle title / morale boost | `BattleParticipantVO.highestFameTitleBonus`, `.moralBoost` (`BattleLogVO` PI-array @15238300: `i[7]`=kingstower, `i[9]`=highestFameTitle, `i[11]`=moralBoost) | — | server-resolved scalars |
+| Per-battle title / morale boost | `BattleParticipantVO.highestFameTitleBonus`, `.moralBoost` (`BattleLogVO.loadFromParamArrayPBI`, BUNDLE line 138313: `i[7]`=kingstower, `i[9]`=highestFameTitle, `i[11]`=moralBoost) | — | server-resolved scalars |
 | NPC lord effects | `DefaultLordVO.getUniqueBoni` | `lords` (92 rows, 81 carry `effects`) | 9×68, 10×68, 6×56, 7×50, 23×13, 24×13, 19×11, 8×11, 32×11, 20×7, 28×1, 34×1 |
 | Auto-scaling event NPC lord | difficulty-scaled | `eventAutoScalingLordEffects` (528 rows) | defender: 6, 7, 8, 9, 10, 12, 31, 32 (44 rows each); **attacker: 19, 20, 21, 23, 24, 33, 53, 54 (22 rows each)** |
-| Raid-boss stage effects | `AllianceRaidbossStageVO` @13059700 | `raidBossStages` (397 rows, six effect columns) | §6.5 |
+| Raid-boss stage effects | `AllianceRaidbossStageVO` (BUNDLE line 113770) | `raidBossStages` (397 rows, six effect columns) | §6.5 |
 
 **Verified negative:** `sceatSkills` carries no combat effect type. `privateVillages`
 carries no combat effect type. ITEMS `horses`, `viplevels`, `levelBoosters`,
@@ -805,7 +815,7 @@ carries no combat effect type. ITEMS `horses`, `viplevels`, `levelBoosters`,
 is in scalar columns (§6).
 
 **Known-broken:** `CastleUserData.getGlobalConstructionItemEffectsByType`
-(@1264890) returns `[]` unconditionally. Whether that is a live bug or dead code
+(BUNDLE line 10132) returns `[]` unconditionally. Whether that is a live bug or dead code
 is **not established**, so the runtime contribution of *global*
 construction-item effects is unknown. (Area-scoped construction items still
 arrive via the building path.)
@@ -836,14 +846,14 @@ their enum ids:
 | — | `WALL_REDUCTION` / `GATE_REDUCTION` / `MOAT_REDUCTION` | — | attacker reductions, gated on `isLegendaryFight` |
 | — | `ADDITIONAL_UNIT_AMOUNT_ON_FLANK` / `_ON_FRONT` / `_ON_WALL` | — | slot counts |
 
-`ClientConstLegendSkills.GROUP_ABSOLUTE_SKILLS` (@2194094) lists
+`ClientConstLegendSkills.GROUP_ABSOLUTE_SKILLS` (BUNDLE line 17689) lists
 `ADDITIONAL_WAVE`, `ADDITIONAL_ATTACK_TOOL_AMOUNT_FLANK`, `LOOT_CAPACITY_BONUS`,
 `SPY_AMOUNT_BONUS` as absolute (not percentage) values.
 
 ### 3.5 March timing
 
 Distinct from unit speed. `CastleAttackInfoVO.calculateTravelTime` (BUNDLE
-@3633500–3634300) assembles, in order:
+line 30640) assembles, in order:
 
 1. `TravelConst.TRAVEL_BOOST_TUTORIAL` when `lordID < 0`
 2. `CastleModel.boostData.returnSpeedBoosterVO.returnSpeedForCurrentLevel / 100`
@@ -851,20 +861,20 @@ Distinct from unit speed. `CastleAttackInfoVO.calculateTravelTime` (BUNDLE
    `TreasureMapsConst.CRUSADE_MAP_IDS.indexOf(targetArea.mapID) < 0 && (u += vipData.currentActiveVIPLevel.attackSpeedBonus)`
 4. `isLegend && (p += legendSkillData.getTotalValueOfLegendSkillEffect(TRAVEL_ATTACK_BOOST)/100)`
 5. `TravelConst.calculateLowLevelBoost(userData.userLevel, SpecialServerHelper.isOnSpecialServer)`
-   — DLL @2642822: `isSpecial || level >= MAX_LEVEL_FOR_LOW_LEVEL_TRAVEL_BOOST ? 0
+   — DLL line 19869: `isSpecial || level >= MAX_LEVEL_FOR_LOW_LEVEL_TRAVEL_BOOST ? 0
    : (100*max(0, -0.1667*level + 4.167) | 0) / 100`
 
 all handed to `TravelConst.getTravelTimeWithHorse` together with
 `getLowestTravelSpeed` and the horse boost. The horse term inside that function
-(DLL @2641674) is `1 + i/100/TravelConst.HORSE_BOOST_FIELDS * s`.
+(DLL line 19853) is `1 + i/100/TravelConst.HORSE_BOOST_FIELDS * s`.
 
 **Correction to the catalog:** "VIP levels — nothing on the combat path" is
 **wrong**. Item 3 above adds the VIP attack-speed bonus to every non-crusade
 attack. The value is ITEMS `viplevels.attackSpeedBoost`, parsed to
-`attackSpeedBonus` at @9025095. (`attackFameBoost` → `attackFameBonus` has no
+`attackSpeedBonus` at line 77271. (`attackFameBoost` → `attackFameBonus` has no
 client consumer; that it applies server-side is **(inferred)**.)
 
-`CastleFightScreenVO.getActionTravelTimeBonusForAreaType` (BUNDLE @3619278)
+`CastleFightScreenVO.getActionTravelTimeBonusForAreaType` (BUNDLE line 30504)
 always pushes `EFFECT_TYPE_SPEED_BONUS` (15) and then, by target action type:
 
 | Action type | Extra effect type |
@@ -881,16 +891,16 @@ targets, else `STRATEGY_ATTACK`. **Live oddity, reported as found:** the
 that same body are computed and then **discarded** — only the equipment sum is
 returned.
 
-Unit travel speed is a separate layer: `BasicUnitVO.unitSpeed` (@2341860) is the
+Unit travel speed is a separate layer: `BasicUnitVO.unitSpeed` (BUNDLE line 19311) is the
 raw `units` column plus research effect 102, and
-`CastleFightItemContainer.getLowestTravelSpeed` (@2478458) takes the minimum of
+`CastleFightItemContainer.getLowestTravelSpeed` (BUNDLE line 20669) takes the minimum of
 `ceil(unitSpeed * (100 + lordEffect149) / 100)` over the container, skipping
 `UNIT_CATEGORY_TOOLS` when `excludeTools`. Effect 149 reaches this from lord
 equipment only (3 references in the whole bundle: enum, icon, this call).
 
 ### 3.6 Morality
 
-`CombatConst.getMoralBonus(e)` (DLL @2444163), verbatim:
+`CombatConst.getMoralBonus(e)` (DLL line 18909), verbatim:
 
 ```
 e >= 0 ? 2 - 1/(1 + abs(e)/250)
@@ -899,17 +909,17 @@ e >= 0 ? 2 - 1/(1 + abs(e)/250)
 
 A multiplier bounded on (0, 2) with 250 as the half-scale. Inputs are
 `AEffectBuildingVO._morality` from the ITEMS `buildings` column `Moral`
-(@342400) and ITEMS `titles` rows carrying effect type 82 `moraleBoost`.
+(BUNDLE line 2412) and ITEMS `titles` rows carrying effect type 82 `moraleBoost`.
 
 Note the distinction: **effect type 82 feeds the morality *value*; `getMoralBonus`
 converts that value into a *multiplier*.** All client call sites of
-`getMoralBonus` are display (`ResourcePanelToolTipMorale` @10254963,
-`CastleResourcePanel_Season` @6549401, `CastleSeasonInventoryOverviewDialog`
-@12563066), each branching to `FactionConst.getMoraleModifier(...)` when
+`getMoralBonus` are display (`ResourcePanelToolTipMorale` line 89526,
+`CastleResourcePanel_Season` line 56774, `CastleSeasonInventoryOverviewDialog`
+line 108199), each branching to `FactionConst.getMoraleModifier(...)` when
 `activeKingdomID == FactionConst.KINGDOM_ID`. **That the server applies this as
 an attack multiplier is (inferred)** — no client fight-strength site reads it.
 The corroborating evidence is the battle log's per-participant `moralBoost`
-field (@15238300).
+field (BUNDLE line 138322).
 
 ---
 
@@ -918,7 +928,7 @@ field (@15238300).
 ### 4.1 The clamp
 
 `CastleEffectsHelper.getTotalEffectValue(boni, ignoreCap = false)` (BUNDLE
-@561285), verbatim:
+line 4139), verbatim:
 
 ```
 if boni.length == 0: return null
@@ -1201,7 +1211,7 @@ types of §2.1.
   depends on runtime source ordering (equipment slot order, `mergeBoni` output).
   The arithmetic is verified; the ordering is **not established**.
 - `EffectValueMap.strength` returns the **first** map value, not the value for
-  the requested `wodId`. Verified in the client (@3766203). Every shipped
+  the requested `wodId`. Verified in the client (BUNDLE line 31649). Every shipped
   type-148 global effect uses equal per-`wodId` strengths, so it is currently
   unobservable — treat it as a divergence risk.
 - Per-`add` semantics of the non-simple value classes (`EffectValueMindClarity`,
@@ -1229,7 +1239,7 @@ A tool is a `ToolUnitVO` parsed from an ITEMS `units` row. It carries bonuses in
 two forms.
 
 **Scalar columns**, parsed as `0.01 * parseInt(...)` in
-`ToolUnitVO.parseXmlNode` (BUNDLE @873404 ff) — so a column value of `40` means
+`ToolUnitVO.parseXmlNode` (BUNDLE line 6538 ff) — so a column value of `40` means
 `0.40`:
 
 | Column | `ToolUnitVO` field | Used as |
@@ -1251,7 +1261,7 @@ semantics for display.
 resolving to effect types 33×40, 32×40, 208×12, 172–177×10 each, 12×10, 31×10,
 36×4, **156×4**, 168×7, 209–212×6 each, 215×3, 217×3, 202×3.
 
-`ToolUnitVO.createEffectMapping` (BUNDLE @887665) binds `EffectTypeEnum` members
+`ToolUnitVO.createEffectMapping` (BUNDLE line 6651) binds `EffectTypeEnum` members
 to `ToolEffectType` members, which is what makes a numeric effect type reachable
 through `getBonusByEffect`. `ToolEffectType`'s first constructor argument is **0
 for roughly 30 members and is not a usable id**; the discriminator is the string
@@ -1272,7 +1282,7 @@ name (e.g. `"attackBonus"`, `"additionalWaves"`).
 | `ATTACK_BOOST_YARD` | `attackBoostYard` | 33 | |
 | `KILL_*_TROOPS_YARD` | — | 172–177 | no client math |
 
-Slot eligibility: `ToolUnitVO.isToolForSlotType(slotType)` (@876177) scans the
+Slot eligibility: `ToolUnitVO.isToolForSlotType(slotType)` (BUNDLE line 6541) scans the
 `slotTypes` column against `ToolUnitVO.SLOTTYPE_*` (0, 1, 2, 4, 5, 6, 10) and
 the container's `CombatConst.ITEMS_*` layout. **`slotType` 9 appears on 485 of
 527 tools, has no named constant anywhere in BUNDLE or DLL, and is referenced by
@@ -1283,7 +1293,7 @@ ITEMS `toolCategories` (5 rows) is **not** UI-only on the fill path — see §5.
 
 ### 5.2 Gates on placing a tool
 
-`AReduceDefenseBonusStrategy.pickToolByStrategy` (BUNDLE @2895880) accepts a
+`AReduceDefenseBonusStrategy.pickToolByStrategy` (BUNDLE line 24513) accepts a
 tool only if all hold:
 
 ```
@@ -1293,7 +1303,7 @@ this.getRelevantToolBonus(tool) > 0
 tool.inventoryAmount > 0
 ```
 
-`AttackHelper.canUseToolForAttackOnTarget` (@1086773):
+`AttackHelper.canUseToolForAttackOnTarget` (BUNDLE line 8583):
 
 ```
 a = tool.canBeUsedToAttackNPC or area.hasOtherPlayerInfo
@@ -1307,13 +1317,13 @@ return false
 ```
 
 Backing ITEMS `units` columns: `canBeUsedToAttackNPC`, `allowedToAttack`,
-`clientUsageEventID` (→ `EventtoolUnitVO.usedForEvent`, parsed @13623158),
+`clientUsageEventID` (→ `EventtoolUnitVO.usedForEvent`, parsed line 118878),
 `amountPerWave`. `isAllowedByAttackTarget` → `checkIfTargetIsInArray`
-(@2342771): an empty list allows all, and `BasicUnitVO.ALL_ALLOWED` (= −1) is a
+(BUNDLE line 19324): an empty list allows all, and `BasicUnitVO.ALL_ALLOWED` (= −1) is a
 wildcard on either `spaceId` or `areaType`.
 
 **`spaceID` is derived, not passed through.** `DefenderEffectVO`'s constructor
-(@7663495): `_spaceID = area.mapID > 0 ? area.mapID : area.kingdomID`. Compute
+(BUNDLE line 66681): `_spaceID = area.mapID > 0 ? area.mapID : area.kingdomID`. Compute
 it the same way or every kingdom- or event-restricted tool is misjudged.
 
 **Inventory filtering happens earlier.** `AFillWaveStrategy.createFilteredInventory`
@@ -1337,12 +1347,12 @@ D = tool.amountPerWave > 0 ? tool.amountPerWave - wave.getSumOfToolsByTool(tool)
 I = int(min(tool.inventoryAmount, freeItemsArg, D))
 ```
 
-`CastleAttackWaveVO.getSumOfToolsByTool` (@11523879) sums that tool across **all
+`CastleAttackWaveVO.getSumOfToolsByTool` (BUNDLE line 99962) sums that tool across **all
 three** flank tool containers of the wave.
 
 ### 5.3 Which tool gets picked
 
-Selection rule, verbatim (`pickToolByStrategy` @2895880):
+Selection rule, verbatim (`pickToolByStrategy`, BUNDLE line 24513):
 
 ```
 b = ceil(p / getRelevantToolBonus(tool) * 100 / 100)     // p = residual defender bonus
@@ -1355,31 +1365,31 @@ return C != -1 ? inventory.deductUnit(C, _) : (m != -1 ? inventory.deductUnit(m,
 Note `* 100 / 100` is a no-op — it does **not** round to whole percent.
 
 The five strategies live in a **LIFO pool with a destructive pop**.
-`AFillFlankStrategy.fillToolStrategyPool` (@6475119) pushes in the order
-`[Moat, Range, Melee, Gate, Wall]`, and `fillFlankWithTools` (@6474007) reads
+`AFillFlankStrategy.fillToolStrategyPool` (BUNDLE line 56195) pushes in the order
+`[Moat, Range, Melee, Gate, Wall]`, and `fillFlankWithTools` (BUNDLE line 56170) reads
 `pool[pool.length - 1]`. **Effective priority is therefore Wall > Gate > Melee >
 Range > Moat**, and a strategy that returns null is **popped for the rest of
 that flank**. The pool is recreated per flank
-(`AFillWaveStrategy.fillWave` @11696290 calls `fillToolStrategyPool()` before
+(`AFillWaveStrategy.fillWave` line 101369 calls `fillToolStrategyPool()` before
 each of left / right / middle).
 
 | Strategy | `getRelevantToolBonus(tool)` | `getRelevantDefenderBonus(attacker, defender)` | Extra gate |
 |---|---|---|---|
-| `ReduceWallBonusStrategy` @11704291 | `tool.wallBonus` | `defenderWallBonus − attackerWallReduction` | — |
-| `ReduceGateBonusStrategy` @11700900 | `tool.gateBonus` | `defenderGateBonus − attackerGateReduction` | inert off-middle (§5.5) |
-| `ReduceMeleeBonusStrategy` @11702826 | `tool.defMeleeBonus + getConditionedEffectBonus(tool, EFFECT_TYPE_MELEE_DEFENSE_MALUS /*215*/)` | `defenderMeleeBonus − attackerDefenderMeleeReduction` | returns null unless `defender.hasMeleeDefenders` |
-| `ReduceRangeBonusStrategy` @11701958 | `tool.defRangeBonus + getConditionedEffectBonus(tool, EFFECT_TYPE_RANGE_DEFENSE_MALUS /*217*/)` | `defenderRangeBonus − attackerDefenderRangeReduction` | returns null unless `defender.hasRangeDefenders` |
-| `ReduceMoatBonusStrategy` @11701363 | `tool.moatBonus` | `defenderMoatBonus − attackerMoatReduction` | reached last |
+| `ReduceWallBonusStrategy` line 101461 | `tool.wallBonus` | `defenderWallBonus − attackerWallReduction` | — |
+| `ReduceGateBonusStrategy` line 101423 | `tool.gateBonus` | `defenderGateBonus − attackerGateReduction` | inert off-middle (§5.5) |
+| `ReduceMeleeBonusStrategy` line 101451 | `tool.defMeleeBonus + getConditionedEffectBonus(tool, EFFECT_TYPE_MELEE_DEFENSE_MALUS /*215*/)` | `defenderMeleeBonus − attackerDefenderMeleeReduction` | returns null unless `defender.hasMeleeDefenders` |
+| `ReduceRangeBonusStrategy` line 101441 | `tool.defRangeBonus + getConditionedEffectBonus(tool, EFFECT_TYPE_RANGE_DEFENSE_MALUS /*217*/)` | `defenderRangeBonus − attackerDefenderRangeReduction` | returns null unless `defender.hasRangeDefenders` |
+| `ReduceMoatBonusStrategy` line 101432 | `tool.moatBonus` | `defenderMoatBonus − attackerMoatReduction` | reached last |
 
 The three wall/gate/moat strategies read **no effect types at all** — only the
 plain scalar columns. Only the melee/range pair consults effects 215/217.
 
-`hasMeleeDefenders` / `hasRangeDefenders` (`DefenderFlankEffectVO` @7664833) test
+`hasMeleeDefenders` / `hasRangeDefenders` (`DefenderFlankEffectVO`, BUNDLE line 66699) test
 the strength sums that `getDefendingUnitStrength` filled from spy data. **These
 are runtime inputs from the spy report, not from any effect table**, and they
 decide whether two of the five strategies survive their first attempt.
 
-`AReduceDefenseBonusStrategy.getConditionedEffectBonus` (@2895560):
+`AReduceDefenseBonusStrategy.getConditionedEffectBonus` (BUNDLE line 24507):
 
 ```
 if bonus.effect.effectType.type == t and EffectConditionHelper.isEffectApplicable(bonus.effect, this._area):
@@ -1394,7 +1404,7 @@ reduction depending on the target's area type and on live event state.
 
 ### 5.4 The feedback loop
 
-`AttackerFlankEffectVO.updateEffectsWithNewTool(tool, area)` (BUNDLE @4955179,
+`AttackerFlankEffectVO.updateEffectsWithNewTool(tool, area)` (BUNDLE line 43066,
 tail) is applied **incrementally during the fill**, not only in the drag-and-drop
 preview. `fillFlankWithTools` calls `t && t.updateEffectsWithNewTool(d, a)` after
 every placement:
@@ -1426,7 +1436,7 @@ but it is real.
 
 ### 5.5 Slot mechanics and the post-condition
 
-`AFillFlankStrategy.fillFlankWithTools` (@6474007):
+`AFillFlankStrategy.fillFlankWithTools` (BUNDLE line 56170):
 
 ```
 if slot and slot.isFree() and slot.isUnlocked() and inventory.getToolCount() > 0 and container.freeItems > 0:
@@ -1452,7 +1462,7 @@ gate term is zeroed off-middle (the moat term is **not**). So on left and right,
 `ReduceGateBonusStrategy` sees `p <= 0` on its very first attempt and is popped,
 which changes the pool state for every later strategy on that flank.
 
-**A flank's tools can be undone.** `AFillFlankStrategy.checkFlank` (@6474893):
+**A flank's tools can be undone.** `AFillFlankStrategy.checkFlank` (BUNDLE line 56188):
 
 ```
 if unitContainer.sumOfItems == 0:
@@ -1478,7 +1488,7 @@ fill branch. Whatever is already in the support container still:
 
 ### 5.7 What actually reaches the wire
 
-`CastleAttackData.sendAttack` (@14755979):
+`CastleAttackData.sendAttack` (BUNDLE line 133852):
 
 ```
 if attackInfoVO.isAttackComplete():
@@ -1487,13 +1497,13 @@ if attackInfoVO.isAttackComplete():
 ```
 
 - `isAttackComplete()` = `army.isAnyWaveComplete()`; `CastleAttackWaveVO.isWaveComplete`
-  (@11523247) = `getSumOfUnits() > 0` — **tools do not count**.
-- `CastleAttackArmyVO.getArmyData` (@6439828) **drops any wave with zero
+  (BUNDLE line 99943) = `getSumOfUnits() > 0` — **tools do not count**.
+- `CastleAttackArmyVO.getArmyData` (BUNDLE line 55877) **drops any wave with zero
   soldiers**, so wave indices in the `cra` payload do not match wave indices in
   the dialog.
 - Flank waves serialize `getSlotList()` → `_items`; the yard serializes
   `getSlotList(true)` → `_serverItems`. `CastleFightItemContainer.addItemstoList`
-  (@2469016) runs `addItemstoList(true, true)` then `addItemstoList(false)`, so
+  (BUNDLE line 20546) runs `addItemstoList(true, true)` then `addItemstoList(false)`, so
   `_serverItems` is natural slot order while `_items` is unlocked slots first
   followed by a second, distinct set of locked-slot VOs that the fill never
   touches.
@@ -1505,7 +1515,7 @@ if attackInfoVO.isAttackComplete():
 ### 6.1 Assembly
 
 `FightScreenHelper.getDefenderFlankEffectVO(attackInfo, flank)` (BUNDLE
-@2323398):
+line 19116):
 
 ```
 i = getDefendingUnitStrength(attackInfo, flank)   // 6 values
@@ -1513,7 +1523,7 @@ n = getDefenceBonuses(attackInfo, flank)          // 3 values
 return new DefenderFlankEffectVO(i[0], i[1], i[2], i[3], i[4], i[5], n[0], n[1], n[2])
 ```
 
-`DefenderFlankEffectVO`'s constructor (@7664833) maps them, in order:
+`DefenderFlankEffectVO`'s constructor (BUNDLE line 66699) maps them, in order:
 
 | # | Field | Default |
 |---|---|---|
@@ -1527,7 +1537,7 @@ return new DefenderFlankEffectVO(i[0], i[1], i[2], i[3], i[4], i[5], n[0], n[1],
 | 8 | `_defenderGateBonus` | 1 |
 | 9 | `_defenderMoatBonus` | 1 |
 
-Final values (@7666856):
+Final values (BUNDLE lines 66714–66715):
 
 ```
 getMeleeDefenceValue(e, t) = _meleeDefenceUnitsMeleeStrength * (_defenderMeleeBonus - e)
@@ -1538,7 +1548,7 @@ getRangeDefenceValue(e, t) = _rangeDefenceUnitsRangeStrength * (_defenderRangeBo
 
 ### 6.2 Unit strengths and defense multipliers
 
-`FightScreenHelper.getDefendingUnitStrength(attackInfo, flank)` (@2323634),
+`FightScreenHelper.getDefendingUnitStrength(attackInfo, flank)` (BUNDLE line 19118),
 verbatim structure. Units come from
 `spyInfo.itemsLeft` / `itemsMiddle` / `itemsRight` / `itemsKeep` by flank
 (`FLANK_YARD` and the default branch both use `itemsKeep`), **always
@@ -1574,7 +1584,7 @@ return [i, n, d, o, u, h]
 attacker's, which are.
 
 `CastleEffectsHelper.getFullDefenseBonusForLordByFlankAndAreaType(lord, areaType, flank, isMelee)`
-(@565250), verbatim:
+(BUNDLE line 4186), verbatim:
 
 ```
 o  = equip(EFFECT_TYPE_DEFENSE_BONUS /*31*/).strength
@@ -1591,7 +1601,7 @@ boost) is applied on `FLANK_MIDDLE` rather than `FLANK_YARD`, and it reads
 
 ### 6.3 Wall / gate / moat
 
-`FightScreenHelper.getDefenceBonuses(attackInfo, flank)` (@2325271):
+`FightScreenHelper.getDefenceBonuses(attackInfo, flank)` (BUNDLE line 19148):
 
 ```
 i = max(attackInfo.baseWallBonus, targetArea.baseWallBonus) / 100
@@ -1665,11 +1675,11 @@ column presence across all rows (not first-row sampling):
 
 **Base defender capacity** is not an effect type either. ITEMS `buildings`
 columns `unitWallCount` (14 rows) and `unitSize` (20 rows) are the flat base that
-the percentage effects multiply: `AEffectBuildingVO.parseXmlNode` (@342478) does
+the percentage effects multiply: `AEffectBuildingVO.parseXmlNode` (BUNDLE line 2412) does
 `_unitCapacity = int(getIntAttribute("unitSize", t))` and
 `_unitWallCount = int(getIntAttribute("unitWallCount", t))`, with
 `_morality` from `Moral`. Displayed as "unitCapacity" by
-`GuardTowerVO.createInfoPanelItems` (@5723262).
+`GuardTowerVO.createInfoPanelItems` (BUNDLE line 49407).
 
 The `dungeons` composition string format (`unitsM` = `"603+2#606+2#607+4"`,
 `toolM` = `"637+1#626+1"`) is **(inferred)** as `wodID+count` with `#`
@@ -1682,11 +1692,11 @@ is not verified.
 Base parameters, ITEMS `raidBossLevels` (60 rows): `raidBossLevelID`,
 `raidBossID`, `level`, `wallRegenerationTime`, `courtyardReserveUnits`,
 `courtyardMeleePercent`, `courtyardSize`, `minPointsForBossRewards`,
-`lootBoxTombolaID`, `rewardIDs`. Read by `AllianceRaidbossLevelVO` (@13055800);
-DLL `CommKeys` at @2713337 / @2713403 / @2713520.
+`lootBoxTombolaID`, `rewardIDs`. Read by `AllianceRaidbossLevelVO` (BUNDLE line 113717);
+The column names are the `RAID_BOSS_LEVEL_*` constants at DLL line 19912. `AllianceRaidbossLevelVO.parseXML` (BUNDLE line 113718) reads the melee share from a `courtyardMeleeRatio` attribute, which this ITEMS snapshot does not have (it has `courtyardMeleePercent`); what the client ends up with is **unverified**.
 
 Effect delivery, ITEMS `raidBossStages` (397 rows), parsed by
-`AllianceRaidbossStageVO` (@13059700). Six effect columns, joined to effect types:
+`AllianceRaidbossStageVO` (BUNDLE line 113770). Six effect columns, joined to effect types:
 
 | Column | rows | effect types |
 |---|---|---|
@@ -1757,29 +1767,29 @@ Alliance `TYPE_TEMP_DEFENSE_POWER_BOOST` and `TYPE_KHAN_DEFENSE_BOOST` exist in
 Which server command a bot reads each source from. Command ids are
 `ClientConstSF` constants; payload keys are `CommKeys`.
 
-`gbd` (`S2C_GET_BASIC_DATA`, BUNDLE @14413000–14417500) is the login mega-payload
+`gbd` (`S2C_GET_BASIC_DATA`, `GBDCommand.exec`, BUNDLE line 129376) is the login mega-payload
 and carries the initial snapshot of most of these as sub-keys:
 `gli rei vip bie gatp skl sei gai boi ain gls nec gpi kpi gxp vli uap uar ufa uht dcl gcl esl …`.
 A bot gets most values without extra round-trips.
 
 | Bonus source | Command | Payload / parse site |
 |---|---|---|
-| Commander + castellan equipment, gems, relics, sets, raw effects | `gli` | `LordVO.parseLord` @3172607: `ID E AE W D SPR EQ AIE`/`TAE VIS N GID`. `E`/`AE` entry = `[effectID, valueArray, extra]` → `parseRawEffects` @3175262. `EQ` entry array: 0 id, 1 slotTypeId, 2 lordTypeId, 3 rareID, 4 graphic, 5 boni, 6 uniqueID, 7 setID, 8 enchantLvl, 9 durationSec, 10 gemID, 11 equipmentTypeID (3 = RELIC) / alienString, 12 relic `[type, cat, might, gem]`. `boni` entry = `[effectID, value or valueArray]` |
-| Generals (star level, unlocked skills, selected abilities) | `gie` | `GeneralsData.parse_GIE` @13014149: `{G:[{GID,XP,ST,IN,LU,SIDS,GASAIDS,LEVEL,OLD_XP,WINS,DEFEATS}]}` |
+| Commander + castellan equipment, gems, relics, sets, raw effects | `gli` | `LordVO.parseLord` line 26451: `ID E AE W D SPR EQ AIE`/`TAE VIS N GID`. `E`/`AE` entry = `[effectID, valueArray, extra]` → `parseRawEffects` line 26483. `EQ` entry array: 0 id, 1 slotTypeId, 2 lordTypeId, 3 rareID, 4 graphic, 5 boni, 6 uniqueID, 7 setID, 8 enchantLvl, 9 durationSec, 10 gemID, 11 equipmentTypeID (3 = RELIC) / alienString, 12 relic `[type, cat, might, gem]`. `boni` entry = `[effectID, value or valueArray]` |
+| Generals (star level, unlocked skills, selected abilities) | `gie` | `GeneralsData.parse_GIE` line 113069: `{G:[{GID,XP,ST,IN,LU,SIDS,GASAIDS,LEVEL,OLD_XP,WINS,DEFEATS}]}` |
 | Assign general to a lord | `gla` | response re-delivers the whole `gli` list |
 | Set a general's abilities | `gaae` | C2S only (`GASAIDS`) |
 | Generals hub status | `gcs` | `{CHR:[{CID,…}]}` — **not** a combat-bonus carrier |
-| Which global effects are currently boosted | `bie` | `GlobalEffectData.parse_GIE` @15673466: `{GE:[globalEffectID]}` (`S2C_GLOBAL_EFFECT_BOOSTER_INFO_EVENT`) |
+| Which global effects are currently boosted | `bie` | `GlobalEffectData.parse_GIE` line 143676: `{GE:[globalEffectID]}` (`S2C_GLOBAL_EFFECT_BOOSTER_INFO_EVENT`) |
 | Legend skills + sceat skills | `skl` | `CastleLegendSkillData.parse_SKL`: `SID[] SIDS[] SP RS RC SSA[{ID,RS}]`. Also pushed via `ego` (`i.skl` branch) |
-| Research | `rei` | `CastleResearchData.parse_REI` @15315245: `BR[] ARID ARRT` |
-| Unequipped equipment (swap candidates) | `gei` | `CastleEquipmentData.parse_GEI` @15677703: `{I:[equipArray]}` |
-| **Attack pre-calculation** | `aci` | `CastleAttackData.parse_ACI` @14752091 → `CastleAttackInfoVO.fillFromParamObject` @3629428: `gaa.AI` (target area, incl. `baseWallBonus`/`baseGateBonus`/`baseMoatBonus`), `gui.I`, `gui.SHI`, `SCID`, `KID`, **`KTB`** (kingstower bonus), **`MB`** (monument bonus), `S`, `AS`, `abe`/`B`, `LS`, an embedded `gli`, `HAWL` |
-| Attack counter (**not** a pre-calculation) | `gai` | `AttackCounterVO.parseParamObject` @7599970: `AC ACTH ACGR` — carries no combat bonuses. Two `CommKeys.ATTACK_COUNT` definitions exist in the DLL (`"AAC"` and `"AC"`); which one `AttackCounterVO` binds is **not established** — tolerate both |
+| Research | `rei` | `CastleResearchData.parse_REI` line 139330: `BR[] ARID ARRT` |
+| Unequipped equipment (swap candidates) | `gei` | `CastleEquipmentData.parse_GEI` line 143731: `{I:[equipArray]}` |
+| **Attack pre-calculation** | `aci` | `CastleAttackData.parse_ACI` line 133821 → `CastleAttackInfoVO.fillFromParamObject` line 30620: `gaa.AI` (target area, incl. `baseWallBonus`/`baseGateBonus`/`baseMoatBonus`), `gui.I`, `gui.SHI`, `SCID`, `KID`, **`KTB`** (kingstower bonus), **`MB`** (monument bonus), `S`, `AS`, `abe`/`B`, `LS`, an embedded `gli`, `HAWL` |
+| Attack counter (**not** a pre-calculation) | `gai` | `AttackCounterVO.parseParamObject` line 65960: `AC ACTH ACGR` — carries no combat bonuses. Two `CommKeys.ATTACK_COUNT` definitions exist in the DLL (`"AAC"` and `"AC"`); which one `AttackCounterVO` binds is **not established** — tolerate both |
 | Own unit + stronghold inventory | `gui` | `{I, SHI}` (also embedded in `aci`) |
-| VIP level | `vip` | `CastleVIPData.parse_VIP` @5531044: `VP VRL UPG VRS` → `attackSpeedBonus` |
-| Boosters, premium account, horse | `boi` | `CastlePremiumBoostData.parse_BOI` @1871375: `BO[{ID,…}] PT SU[] ST[] bfs` |
+| VIP level | `vip` | `CastleVIPData.parse_VIP` line 47527: `VP VRL UPG VRS` → `attackSpeedBonus` |
+| Boosters, premium account, horse | `boi` | `CastlePremiumBoostData.parse_BOI` line 15202: `BO[{ID,…}] PT SU[] ST[] bfs` |
 | Subscriptions | `sie` | `SubscriptionData.parseSIE`: `{SP:[activePackage]}` |
-| Officers school, active effect | `gatp` | `OfficersSchoolData.parse_GATP` @15741084: `{S, E, RS}` |
+| Officers school, active effect | `gatp` | `OfficersSchoolData.parse_GATP` line 144606: `{S, E, RS}` |
 | Officers school, offer list | `gtp` | `{TP[], AT{TE,D}, PC, RCSC, RCHC, CT}` — per-entry field names inside `TP[]` **not dumped** |
 | Alliance info incl. buff list, landmarks | `ain` | `parseAllianceInfo(e.A)` → `fillFromParamObject`: `AID N M ML MP ABL[] ADL AMI STO …` |
 | Alliance buff levels | `abl` | `AllianceInfoVO.parseABL`: `{ABL:[{BT,L,CD}]}` → `getAllianceBuffVoBySeriesIDAndLevel(seriesId, level)` |
@@ -1789,8 +1799,8 @@ A bot gets most values without extra round-trips.
 | Titles | `uar` / `uht` / `ufa` / `apt` | `CastleTitleData.parseUAR`: `SFX PFX`; `uht` `{RS}`; `apt` `{TI}` |
 | Global / event effects | `sei` | `C2S/S2C_SPECIAL_EVENT_INFO` → `globalEffectData.getGlobalEffectsByType` |
 | Construction items | `nec` + `gca` `CI` | `S2C_GET_NEXT_EXPIRING_CONSTRUCTION_ITEM_EVENT`; the `CI` block arrives with the area |
-| Buildings / castle layout | `jaa` | `AreaDataUpdater.parseJAA` @14571795: `gca csl grc gpa gab`; `gca` → `scl`, `CI` |
-| Alliance crest layout | *(via `ain`)* | `AllianceInfoVO.getLayoutEffectsByType` @3068007 |
+| Buildings / castle layout | `jaa` | `AreaDataUpdater.parseJAA` line 131496: `gca csl grc gpa gab`; `gca` → `scl`, `CI` |
+| Alliance crest layout | *(via `ain`)* | `AllianceInfoVO.getLayoutEffectsByType` (line 26153) |
 
 ### 7.1 Sources with no protocol read path
 
@@ -1799,7 +1809,7 @@ A bot gets most values without extra round-trips.
   ITEMS columns**, not from the wire: `ABasicBuildingVO` stores
   `_effectsString` = `getStringAttribute("effects")` and `_areaEffectsString` =
   `getStringAttribute("areaSpecificEffects")`, and `parseEffects` /
-  `parseAreaSpecificEffects` (@2206813–2207514) split on `,` then `&`, resolve
+  `parseAreaSpecificEffects` (BUNDLE lines 17851–17858) split on `,` then `&`, resolve
   via `CastleModel.effectsData.getEffectByID` and build `BonusVO`s. (ITEMS
   `buildings` has **no `effects` column at all** — only `areaSpecificEffects`.)
 - **Officers school delivery.** `CommKeys.EFFECT_SOURCE_TRAINING = "TG"` maps to
@@ -1816,9 +1826,12 @@ A bot gets most values without extra round-trips.
   `CombatConst.getMoralBonus`; per-battle value arrives in the battle log
   (`moralBoost`). No pre-attack command exposing the resolved multiplier was
   found.
-- **`ego`** (`S2C_EDITOR_GLOBAL_OBJECT`) pushes `skl` updates outside a `skl`
-  request; its `ClientConstSF` constant string was not read, so its command id
-  is **unconfirmed**.
+- **`ego`** is `ClientConstSF.S2C_GET_OBJECT` (bundle line 71), a castle-object
+  update. `EGOCommand.executeCommand` (BUNDLE line 122800) applies it to the
+  active area (`parseEGO`) and, when it carries `skl`, hands that to
+  `legendSkillData.parse_SKL`, so legend-skill updates can arrive outside an
+  `skl` reply. EmpireCore reads it as `ObjectUpdateEvent`, and
+  `client.skills.on_skill_list` fires for one that carries `skl`.
 
 ---
 
@@ -1862,8 +1875,9 @@ Stated plainly; none of these are resolved by the three files.
     ITEMS carries `defMeleeBonus` and effects 489/491 are raid-boss-3 gated.
 12. The meaning of `slotType` 9 — present on 485 of 527 tools, no constant, no
     `ITEMS_*` reference (§5.1).
-13. The meaning of ITEMS `equipment_slots.bonus` (armor 100, weapon 90, …). Its
-    consumer was not traced; "slot-relative bonus scaling" is **(inferred)**.
+13. The meaning of ITEMS `equipment_slots.bonus` (armor 100, weapon 90, …). No
+    client code reads `equipment_slots`; a server-side "slot-relative bonus
+    scaling" is **(inferred)**.
 14. What ITEMS `levelBoosters.boosterType` values 19 (51 rows) and 11 (22 rows)
     target. **(inferred)** as production / collect boosters, not verified.
 15. `ToolEffectType`'s numeric constructor argument is 0 for ~30 members, so it
@@ -1908,9 +1922,14 @@ Stated plainly; none of these are resolved by the three files.
     application is **(inferred)**.
 29. Values of `TravelConst.CAPITAL_CONQUER_SPEED`, `METROPOL_CONQUER_SPEED`,
     `BARON_SPEED`, `TRAVEL_BOOST_TUTORIAL` were not dumped.
-30. `CastleSpyArmyInfoVO.parseArmyInfo`'s four `aci` arguments (`S`, `AS`,
-    `abe`/`B`, `LS`) were identified by position; their internal field layout —
-    the defender's actual unit and tool composition — was **not expanded**. This
-    is the largest remaining protocol gap for the auto-fill port, since
-    `hasMeleeDefenders` / `hasRangeDefenders` and all four unit-strength sums
-    come from it.
+30. **Resolved.** `CastleSpyArmyInfoVO.parseArmyInfo(S, AS, abe || B, LS)`
+    (BUNDLE line 30699, called from `CastleAttackInfoVO.fillFromParamObject`,
+    line 30633). `S` is a list of sections shifted off in fixed order: left,
+    middle, right, keep, stronghold, support, then an optional reserve. Each
+    section is a `[[wodId, amount], ...]` list (`AUnitInventory.fillFromWodAmountArray`,
+    line 42572) holding the defender's units and tools there. An empty or
+    missing `S` means the target was never spied (`_timeSinceSpying = -1`).
+    `AS` is the age of the spy report in seconds, `abe`/`B` the defending
+    castellan (`LordFactory.createLord(lord, true, true)`), and `LS` the
+    defender's legend skills. EmpireCore models it in `AttackInfoResponse`
+    (`attack/models/info.py`).
