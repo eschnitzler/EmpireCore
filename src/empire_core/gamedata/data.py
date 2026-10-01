@@ -311,6 +311,8 @@ class GameData(BaseModel):
     equipment_groups: dict[int, dict[str, Any]] = Field(default_factory=dict)
     difficulty_types: dict[int, dict[str, Any]] = Field(default_factory=dict)
     """These six are raw items rows by id (see ROW_TABLES), for the id enums GameData has no model for."""
+    titles: dict[int, dict[str, Any]] = Field(default_factory=dict)
+    """Raw ``titles`` rows by ``titleID``."""
 
     # ------------------------------------------------------------------
     # Lookups
@@ -732,6 +734,7 @@ class GameData(BaseModel):
             league_brackets=_rows(items_data.get("leaguetypes"), LeagueBracketDef),
             raw_tables={table: items_data[table] for table in RAW_TABLES if isinstance(items_data.get(table), list)},
             **{field: rows_by_id(items_data.get(table), id_key) for field, (table, id_key) in ROW_TABLES.items()},
+            titles=rows_by_id(items_data.get("titles"), "titleID"),
         )
 
     @classmethod

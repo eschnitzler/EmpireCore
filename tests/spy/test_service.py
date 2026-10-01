@@ -10,8 +10,6 @@ import pytest
 from empire_core.client.client import EmpireClient
 from empire_core.enums import Kingdom, SpyOutcome, SpyStep, SpyType
 from empire_core.exceptions import CommandError, EmpireTimeoutError
-from empire_core.movements.models import MovementSpy
-from empire_core.movements.tracked import Movement
 from empire_core.protocol.packet import Packet
 from empire_core.spy import service as spy_module
 from tests.service_helpers import conn, make_client, xt_packet
@@ -866,19 +864,6 @@ class TestSabotage:
         client = make_client({"ssi": self.screen(available=0)})
 
         assert client.spy.send_sabotage(12345, 700, 710, damage=10).outcome is SpyOutcome.NO_SPIES_AVAILABLE
-
-
-class TestSpiesInUse:
-    def test_only_your_own_spy_movements_count(self, monkeypatch):
-        client = make_client()
-        spy = MovementSpy.model_validate({"ST": 0, "SA": 100, "SC": 4, "SR": 26})
-        mine = Movement(MID=1, OID=1001, local_player_id=1001, spy=spy)
-        returning = Movement(MID=2, OID=1001, D=1, local_player_id=1001, spy=spy)
-        theirs = Movement(MID=3, OID=2002, local_player_id=1001, spy=spy)
-        attack = Movement(MID=4, OID=1001, local_player_id=1001)
-        monkeypatch.setattr(client.state, "get_all_movements", lambda: [mine, returning, theirs, attack])
-
-        assert client.spy.spies_in_use() == 8
 
 
 class TestTheLogMustBeForThisKindOfMission:

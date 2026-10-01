@@ -8,13 +8,14 @@ import logging
 import math
 import queue
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from pydantic import ValidationError
 
 from empire_core.army.spy_army import SpyArmy
 from empire_core.enums import Kingdom, SpyLogType, SpyOutcome, SpyStep, SpyType
-from empire_core.exceptions import CommandError, EmpireError
+from empire_core.exceptions import CommandError, EmpireError, GameDataNotLoadedError
 from empire_core.messages.models import (
     ForwardSpyLogRequest,
     GetSpyReportRequest,
@@ -37,6 +38,7 @@ from .models import (
     SpyScreenInfoRequest,
     SpyScreenInfoResponse,
 )
+from .pool import island_title_chain, legend_spy_bonus, research_spy_bonus, title_spy_percent, total_spies
 from .risk import (
     MAX_ACCURACY,
     MAX_DAMAGE,
@@ -207,15 +209,101 @@ class SpyService(BaseService):
 
     def spies_in_use(self) -> int:
         """
-        Spies on your own spy movements, as the state tracks them.
+        Spies on your own spy movements, out or on their way home, as the state tracks them.
 
-        The client counts free spies as all spies minus these; all spies are
-        ``MaxSpiesResponse.max_spies`` plus research, title and legend skill
-        boosts, which this library does not add up.
+        Client: ``CastleSpyData.getNumAvailableSpies`` (bundle line 139970), which counts the
+        ``spyCount`` of every ``SpyMapmovementVO`` you own
+        """
+        return sum(
+            m.spy.spy_count if m.spy is not None else 0
+            for m in self.client.state.get_all_movements()
+            if m.is_mine and m.is_spy
+        )
+
+    def total_spies(
+        self,
+        *,
+        research_ids: Iterable[int] = (),
+        legend_skill_ids: Iterable[int] = (),
+        title_ids: Iterable[int] = (),
+        island_title_id: int = -1,
+        legend_target: bool = False,
+    ) -> int | None:
+        """
+        All your spies, home or out, counted as the client does: the ``gms`` count plus boosts.
+
+        The count is for the whole account, not one castle. The state does
+        not carry your research, legend skills or titles, so pass the ones you
+        have; each left out counts as none. Any of them needs
+        ``client.load_game_data()``.
+
+        Args:
+            research_ids: Your finished research ids, the ``BR`` of the ``rei`` section
+            legend_skill_ids: ``SkillList.legend_skill_ids`` from ``client.skills.get_skills()``;
+                counted only with ``legend_target``
+            title_ids: Glory and nobility titles you hold
+            island_title_id: Your Storm Islands title, -1 for none; the titles below it count too
+            legend_target: The target's owner is a legend, as the client checks before adding
+                legend skills; True also for your own legend status, as the attack screen does
+
+        Returns:
+            The count, or None before the login gbd brought ``gms``
+
+        Raises:
+            GameDataNotLoadedError: A boost was passed and ``client.load_game_data()`` has not been called
+
+        Client: ``CastleSpyData.getNumAllSpies`` (bundle line 139976), called with the target's
+        ``ownerInfo.isLegend`` (bundle lines 34325, 34342, 127082) or ``userData.isLegend``
+        (bundle line 102169)
+        """
+        max_spies = self.client.state.get_max_spies()
+        if max_spies is None:
+            return None
+        research_ids, legend_skill_ids, title_ids = list(research_ids), list(legend_skill_ids), list(title_ids)
+        if not (research_ids or (legend_target and legend_skill_ids) or title_ids or island_title_id >= 0):
+            return total_spies(max_spies.max_spies)
+        game_data = self.client.game_data
+        if game_data is None:
+            raise GameDataNotLoadedError("Spy boosts need the items payload: call client.load_game_data() first")
+        titles = title_ids + island_title_chain(game_data, island_title_id)
+        return total_spies(
+            max_spies.max_spies,
+            research_bonus=research_spy_bonus(game_data, research_ids),
+            legend_bonus=legend_spy_bonus(game_data, legend_skill_ids) if legend_target else 0,
+            title_percent=title_spy_percent(game_data, titles),
+        )
+
+    def available_spies(
+        self,
+        *,
+        research_ids: Iterable[int] = (),
+        legend_skill_ids: Iterable[int] = (),
+        title_ids: Iterable[int] = (),
+        island_title_id: int = -1,
+        legend_target: bool = False,
+    ) -> int | None:
+        """
+        Spies at home: :meth:`total_spies` less :meth:`spies_in_use`, as the client counts them.
+
+        The client uses this count to offer the spy button. The spy dialog
+        itself sends with the ``ssi`` reply's ``available_spies``, as
+        :meth:`execute_instant_spy` does.
+
+        Takes the arguments of :meth:`total_spies`.
+
+        Returns:
+            The count, which can be negative as in the client, or None before ``gms`` arrived
 
         Client: ``CastleSpyData.getNumAvailableSpies`` (bundle line 139970)
         """
-        return sum(m.spy.spy_count for m in self.client.state.get_all_movements() if m.is_mine and m.spy is not None)
+        total = self.total_spies(
+            research_ids=research_ids,
+            legend_skill_ids=legend_skill_ids,
+            title_ids=title_ids,
+            island_title_id=island_title_id,
+            legend_target=legend_target,
+        )
+        return None if total is None else total - self.spies_in_use()
 
     def send_spy_mission(
         self,

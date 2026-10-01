@@ -1,4 +1,4 @@
-"""Local player tracking: gpi/gxp/gcu/vip/gho/uap, alliance (gal), special currencies (sce) and events (sei)."""
+"""Local player tracking: gpi/gxp/gcu/vip/gho/uap, alliance (gal), special currencies (sce), events and spies."""
 
 import logging
 import math
@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 from empire_core.protocol.js import js_int, js_truthy
+from empire_core.spy.models import MaxSpiesResponse
 from empire_core.state.base import StateBase
 from empire_core.state.models import Alliance, Player
 
@@ -232,6 +233,16 @@ class PlayerState(StateBase):
         merged["AID"] = aid if alliance is not None else None
         self._swap_model_fields(player, merged, {"alliance", "AID"})
 
+    def _parse_max_spies(self, data: dict[str, Any]) -> None:
+        """Apply a gbd's ``gms`` section, or a ``gms`` push.
+
+        Client: ``CastleSpyData.parse_GMS`` (bundle line 139979), which skips a falsy section
+        and reads ``MS`` and ``BS`` of anything else through ``int()``.
+        """
+        gms = data.get("gms")
+        if js_truthy(gms):
+            self.max_spies = MaxSpiesResponse.model_validate(gms if isinstance(gms, dict) else {})
+
     def _handle_sce(self, data: Any) -> None:
         """Handle a "get special currency" push: ``[[currency_key, amount], ...]``.
 
@@ -311,6 +322,15 @@ class PlayerState(StateBase):
             if self.local_player is None:
                 return {}
             return dict(self.local_player.special_currencies)
+
+    def get_max_spies(self) -> MaxSpiesResponse | None:
+        """The spies you own before boosts, from ``gms``; None until the login gbd brings it.
+
+        The model is replaced, never edited, on each ``gms``, so the one returned stays as it was.
+        ``client.spy.total_spies()`` adds the boosts.
+        """
+        with self._lock:
+            return self.max_spies
 
     def get_player_last_updated(self) -> float | None:
         """When any local-player field was last refreshed, or ``None``.

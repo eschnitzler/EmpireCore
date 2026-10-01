@@ -10,6 +10,7 @@ from typing import Any
 
 from empire_core.castle.models.permanent import PermanentCastle
 from empire_core.movements.tracked import Movement
+from empire_core.spy.models import MaxSpiesResponse
 from empire_core.state.models import Castle, CastleKey, Player
 
 logger = logging.getLogger(__name__)
@@ -81,6 +82,9 @@ class StateBase:
         self._arrival_dispatched: set[int] = set()
         self._next_movement_due = math.inf
 
+        # Spies owned before boosts, from gms
+        self.max_spies: MaxSpiesResponse | None = None
+
         # Active Events
         self.active_event_ids: list[int] = []
         self.event_league_ids: dict[int, int] = {}
@@ -91,7 +95,7 @@ class StateBase:
         self._player_updated_at: float | None = None
 
     def reset(self) -> None:
-        """Forget everything the session sent: player, castles, movements, events and their timestamps.
+        """Forget everything the session sent: player, castles, movements, spies, events and their timestamps.
 
         Registered callbacks stay, and so does the record of attacks already
         announced to :meth:`on_incoming_attack`. Fires no callback: a movement that is dropped

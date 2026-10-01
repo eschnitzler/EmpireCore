@@ -478,3 +478,53 @@ class TestLevelProgress:
         assert at_cap.xp_progress == 0.0
         just_past_70 = Player(LVL=70, XP=147000, LL=1, XPFCL=147250, XPTNL=151095)
         assert just_past_70.xp_progress == 0.0
+
+
+class TestMaxSpies:
+    """gms: the gbd section and the push, as CastleSpyData.parse_GMS reads them."""
+
+    def test_none_before_login(self, state):
+        assert state.get_max_spies() is None
+        assert state.get_last_packet_time("gms") is None
+
+    def test_read_from_the_login_gbd(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gms": {"MS": "12", "BS": 3}})
+
+        spies = state.get_max_spies()
+        assert spies is not None and (spies.max_spies, spies.bonus_spies) == (12, 3)
+        assert state.get_last_packet_time("gms") is not None
+
+    def test_a_push_replaces_the_count(self, state):
+        state.update_from_packet("gbd", {"gms": {"MS": 12, "BS": 0}})
+        before = state.get_max_spies()
+
+        state.update_from_packet("gms", {"MS": 13, "BS": 0})
+
+        assert state.get_max_spies().max_spies == 13
+        assert before.max_spies == 12
+
+    def test_a_falsy_section_keeps_the_count(self, state):
+        state.update_from_packet("gbd", {"gms": {"MS": 12}})
+        state.update_from_packet("gbd", {"gms": None})
+        state.update_from_packet("gbd", {"gms": 0})
+
+        assert state.get_max_spies().max_spies == 12
+
+    def test_an_unreadable_push_is_not_applied(self, state):
+        state.update_from_packet("gbd", {"gms": {"MS": 12}})
+        state.update_from_packet("gms", {"raw": "garbage"})
+
+        assert state.get_max_spies().max_spies == 12
+
+    def test_bad_numbers_read_as_zero(self, state):
+        state.update_from_packet("gms", {"MS": "lots"})
+
+        spies = state.get_max_spies()
+        assert (spies.max_spies, spies.bonus_spies) == (0, 0)
+
+    def test_reset_forgets_the_count(self, state):
+        state.update_from_packet("gbd", {"gms": {"MS": 12}})
+        state.reset()
+
+        assert state.get_max_spies() is None
+        assert state.get_last_packet_time("gms") is None

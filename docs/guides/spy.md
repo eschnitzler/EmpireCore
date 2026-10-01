@@ -73,6 +73,48 @@ result = client.spy.send_sabotage(castle.castle_id, 700, 710, damage=10)
 Sabotage spies travel at a ninth of a spy's speed, so the report is not
 waited for: the outcome is `SENT` with the server's reply in `result.mission`.
 
+## How many spies you have
+
+The login data carries how many spies you own before boosts, and the server
+pushes it again when it changes:
+
+```python
+owned = client.state.get_max_spies()  # None until the login data arrives
+print(owned.max_spies)
+```
+
+`client.spy.total_spies()` counts all your spies as the game does, and
+`available_spies()` takes off the spies on your own spy movements. Both are
+for the whole account, not one castle. The boosts are research, legend skills
+and titles:
+
+```
+total = int((owned + int(research) + int(legend skills)) * (1 + title percent / 100))
+```
+
+State does not carry your research, legend skills or titles, so pass the ones
+you have. Each one left out counts as none, and passing any of them needs
+`client.load_game_data()`:
+
+```python
+client.load_game_data()
+skills = client.skills.get_skills()
+
+free = client.spy.available_spies(
+    research_ids=[171, 172, 173],             # finished research, the rei section's BR
+    legend_skill_ids=skills.legend_skill_ids,
+    island_title_id=54,                       # your Storm Islands title, -1 for none
+    legend_target=True,                       # the target's owner is a legend
+)
+```
+
+The game adds legend skills only for a target whose owner is a legend, which
+is what `legend_target` says. Any Storm Islands title also holds every title
+below it, and the lowest one doubles your spies.
+
+The game uses this count to offer the spy button. The spy dialog sends with the
+free spies the `ssi` reply gives, and so does `execute_instant_spy`.
+
 ## Lower-level calls
 
 - `get_screen_info(target_x, target_y)`: what a mission would face, the
@@ -80,7 +122,8 @@ waited for: the outcome is `SENT` with the server's reply in `result.mission`.
 - `send_spy_mission(...)`: send one mission exactly as given, without planning
   or waiting.
 - `auto_spy(target_x, target_y)`: spy at once with the auto-spy subscription.
-- `spies_in_use()`: spies on your own spy movements, as state tracks them.
+- `spies_in_use()`: spies on your own spy movements, out or on their way
+  home, as state tracks them.
 
 ## Reports
 
@@ -92,4 +135,5 @@ client.spy.forward_report(message_id, [player_id])
 ```
 
 **API:** [`SpyService`](../reference/spy.md#empire_core.spy.service.SpyService),
-[`SpyResult`](../reference/spy.md#empire_core.spy.service.SpyResult)
+[`SpyResult`](../reference/spy.md#empire_core.spy.service.SpyResult),
+[`total_spies`](../reference/spy.md#empire_core.spy.pool.total_spies)
