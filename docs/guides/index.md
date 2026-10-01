@@ -85,6 +85,12 @@ client.defense      client.ranking     client.events
 
     Kingdom scans and cheap re-scans.
 
+-   :material-trophy-outline:{ .lg .middle } **[Events](events.md)**
+
+    ---
+
+    The running events and their scoreboards.
+
 </div>
 
 The smaller services have no guide of their own; their
@@ -98,7 +104,8 @@ The smaller services have no guide of their own; their
   leaderboards, `get_ranking_list`, `get_own_ranking_page`,
   `get_ranking_window` and `search_leaderboard`.
 - `client.events`: `get_active_events()`, with names from the game's CDN, and
-  `get_league_id(event_id)` for the leaderboards.
+  `get_league_id(event_id)` for the leaderboards; its scoreboards have a
+  [guide](events.md).
 
 ## Game state and data
 

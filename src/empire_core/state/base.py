@@ -86,8 +86,11 @@ class StateBase:
         self.max_spies: MaxSpiesResponse | None = None
 
         # Active Events
-        self.active_event_ids: list[int] = []
+        self._active_event_ids: list[int] = []
+        self.event_end_times: dict[int, float] = {}
         self.event_league_ids: dict[int, int] = {}
+        self.event_part_league_ids: dict[tuple[int, str], int] = {}
+        self.event_unlocked: dict[int, bool] = {}
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}

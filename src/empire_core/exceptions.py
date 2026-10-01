@@ -9,6 +9,8 @@ Failure modes are kept distinct so callers can react to them individually:
 - ``AmbiguousLookupError``: a game-data lookup matched more than one row.
 - ``UnknownCastleError``: a castle is not one of the logged-in player's castles.
 - ``AmbiguousCastleError``: a castle id or position matches castles in several kingdoms.
+- ``EventNotRunningError``: a call needs an event that is not running.
+- ``ReplyMismatchError``: a reply answers another list than the one asked for.
 - ``UnsendableGoodsError``: a market send carries goods the client would not send.
 """
 
@@ -125,6 +127,21 @@ class PacketError(EmpireError):
     """Raised when packet parsing fails."""
 
 
+class ReplyMismatchError(PacketError):
+    """
+    Raised when a reply answers another list than the one asked for, e.g. a late ``hgh`` reply.
+
+    Attributes:
+        expected: the list asked for
+        received: the list the reply names
+    """
+
+    def __init__(self, expected: int, received: int):
+        self.expected = expected
+        self.received = received
+        super().__init__(f"asked for list {expected}, the reply is for list {received}")
+
+
 class EmpireTimeoutError(EmpireError, TimeoutError):
     """Raised when an operation times out.
 
@@ -153,6 +170,19 @@ class AmbiguousLookupError(EmpireError, LookupError):
     def __init__(self, message: str, ids: list[int]):
         self.ids = ids
         super().__init__(f"{message}: matches ids {ids}")
+
+
+class EventNotRunningError(EmpireError, LookupError):
+    """
+    Raised when a call needs an event that is not running: no sei packet named it, or a see ended it.
+
+    Attributes:
+        event_id: the event looked for
+    """
+
+    def __init__(self, event_id: int):
+        self.event_id = event_id
+        super().__init__(f"event {event_id} is not running")
 
 
 class UnknownCastleError(EmpireError, ValueError):

@@ -169,6 +169,7 @@ nav:
           - Filling waves: guides/filling-waves.md
           - Spy: guides/spy.md
           - Map scanning: guides/map-scanning.md
+          - Events: guides/events.md
       - Game state:
           - State and freshness: guides/game-state.md
           - Reacting to movements: guides/movements.md

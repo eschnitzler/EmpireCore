@@ -5,7 +5,7 @@ import math
 import time
 from typing import Any
 
-from empire_core.protocol.js import js_int, js_truthy
+from empire_core.protocol.js import js_int, js_number, js_truthy
 from empire_core.spy.models import MaxSpiesResponse
 from empire_core.state.base import StateBase
 from empire_core.state.models import Alliance, Player
@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 LEVEL_CAP = 70
 LEGEND_LEVEL_CAP = 950
 _LEVEL_CAP_XP = LEVEL_CAP * LEVEL_CAP * 30
+# The parts an event's VO rebuilds on every sei, and those it rebuilds only when the entry has them
+_PARTS_ALWAYS_REBUILT = {80: ("SP", "A"), 85: ("FB", "FR", "A")}
+_PARTS_REBUILT_WHEN_SENT = {71: ("SP", "A"), 72: ("SP", "A"), 103: ("SP", "A")}
+_clock = time.monotonic
 
 
 def _section(data: dict[str, Any], key: str) -> dict[str, Any]:
@@ -258,34 +262,95 @@ class PlayerState(StateBase):
     def _handle_sei(self, data: dict[str, Any]) -> None:
         """Handle 'Send Event Information' packet.
 
-        An entry's ``LID``, when truthy, becomes its event's league; an entry
-        without one leaves the league the event had.
+        Each entry updates its event, or adds it: events the packet does not name
+        stay active until a see ends them or their time runs out. An entry's
+        ``RS`` (seconds left), when truthy, sets when the event ends; an event never
+        given an end has ended, as in the client. An entry's ``LID``, when truthy,
+        becomes its event's league. The invasions' boards take their league from a
+        part (``SP``, ``A``, ``FB``, ``FR``), rebuilt at league 1 and then given its
+        truthy ``LID``: the samurai and Berimond invasions rebuild every part on
+        every entry, the alien, red alien and nomad invasions only the parts the
+        entry has.
 
-        Client: ``CastleSpecialEventData.parse_SEI`` (bundle line 139800) updates
-        the event it already has or adds it; ``AScoreEventVO.parseBasicsFromParamObject``
-        (bundle line 14967) reads ``t.LID&&(this._leagueID=int(t.LID))``
+        Client: ``CastleSpecialEventData.parse_SEI`` (bundle line 139800) and
+        ``parseServerEventData`` (bundle line 139811);
+        ``ASpecialEventVO.parseBasicsFromParamObject`` (bundle line 2958) reads ``RS``;
+        ``AScoreEventVO.parseBasicsFromParamObject`` (bundle line 14967) reads
+        ``t.LID&&(this._leagueID=int(t.LID))`` over a default of 1 (bundle line 14965);
+        the parts: ``SamuraiInvasionEventVO.parseData`` (bundle line 55680),
+        ``FactionInvasionEventVO.parseData`` (bundle line 116044),
+        ``AAlienInvasionEventVO.parseData`` (bundle line 58910),
+        ``AllianceNomadInvasionEventVO.parseData`` (bundle line 114287);
+        ``FactionEventVO.parseParamObject`` (bundle line 7364) reads ``UL``
         """
-        events = data.get("E", [])
+        events = data.get("E", []) if isinstance(data, dict) else []
         if not isinstance(events, list):
             return
 
-        active_ids: list[int] = []
-        leagues = dict(self.event_league_ids)
+        now = _clock()
         for event in events:
-            if isinstance(event, dict):
-                eid = event.get("EID")
-                if isinstance(eid, int):
-                    active_ids.append(eid)
-                    if js_truthy(league := event.get("LID")):
-                        leagues[eid] = js_int(league)
+            if not isinstance(event, dict) or not isinstance(eid := event.get("EID"), int):
+                continue
+            if eid not in self._active_event_ids:
+                self._active_event_ids.append(eid)
+            if js_truthy(remaining := event.get("RS")) and math.isfinite(seconds := js_number(remaining)):
+                self.event_end_times[eid] = now + seconds
+            if js_truthy(league := event.get("LID")):
+                self.event_league_ids[eid] = js_int(league)
+            self.event_unlocked[eid] = js_truthy(event.get("UL"))
+            rebuilt = _PARTS_ALWAYS_REBUILT.get(eid, ())
+            sent = tuple(p for p in _PARTS_REBUILT_WHEN_SENT.get(eid, ()) if js_truthy(event.get(p)))
+            for part in (*rebuilt, *sent):
+                entry = event.get(part)
+                league = entry.get("LID") if isinstance(entry, dict) else None
+                self.event_part_league_ids[(eid, part)] = js_int(league) if js_truthy(league) else 1
+        self._drop_ended_events()
 
-        self.active_event_ids = active_ids
-        self.event_league_ids = leagues
+    def _handle_see(self, data: dict[str, Any]) -> None:
+        """Handle a 'special event end' push: the event it names has ended.
 
-    def get_event_league_id(self, event_id: int) -> int | None:
-        """The league (``LID``) the sei packets last gave an event, or None when they never gave one."""
+        Client: ``CastleSpecialEventData.parse_SEE`` (bundle line 139826), from ``SEECommand``
+        (bundle line 128364); ``removeEventById`` (bundle line 139838) destroys the event,
+        so one added again starts over
+        """
+        if isinstance(data, dict) and isinstance(eid := data.get("EID"), int):
+            self._forget_event(eid)
+
+    def _forget_event(self, eid: int) -> None:
+        self._active_event_ids = [e for e in self._active_event_ids if e != eid]
+        self.event_end_times.pop(eid, None)
+        self.event_league_ids.pop(eid, None)
+        self.event_unlocked.pop(eid, None)
+        for key in [key for key in self.event_part_league_ids if key[0] == eid]:
+            del self.event_part_league_ids[key]
+
+    def _drop_ended_events(self) -> None:
+        # CastleSpecialEventData.executeUpdateForEvents (bundle line 139833): remainingEventTimeInSeconds<=0
+        now = _clock()
+        for eid in [e for e in self._active_event_ids if self.event_end_times.get(e, 0.0) <= now]:
+            self._forget_event(eid)
+
+    @property
+    def active_event_ids(self) -> list[int]:
+        """The running events, in the order the sei packets named them; a copy."""
         with self._lock:
-            return self.event_league_ids.get(event_id)
+            self._drop_ended_events()
+            return list(self._active_event_ids)
+
+    def get_event_league_id(self, event_id: int, part: str | None = None) -> int | None:
+        """The league (``LID``) the sei packets last gave an event, or None when they never gave one.
+
+        ``part`` names one of the entry's parts instead: ``SP``, ``A``, ``FB`` or ``FR``.
+        """
+        with self._lock:
+            if part is None:
+                return self.event_league_ids.get(event_id)
+            return self.event_part_league_ids.get((event_id, part))
+
+    def is_event_unlocked(self, event_id: int) -> bool:
+        """Whether the event's last sei entry had a truthy ``UL``; Berimond is locked without it."""
+        with self._lock:
+            return self.event_unlocked.get(event_id, False)
 
     def get_local_player(self) -> Player | None:
         """Get a snapshot of the local player, or None before login.

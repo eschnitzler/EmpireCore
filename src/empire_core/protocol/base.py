@@ -259,6 +259,7 @@ class GGECommand:
 
     # Events
     SEI = "sei"  # Get events info
+    SEE = "see"  # An event ended
     PEP = "pep"  # Get event points
     HGH = "hgh"  # Get ranking/highscore (also used by alliance search)
     LLSP = "llsp"  # Get ranking list by position

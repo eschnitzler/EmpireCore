@@ -106,6 +106,7 @@ class GameState(MovementState, CastleState, PlayerState):
         "fjf": "_handle_fjf",
         "sce": "_handle_sce",
         "sei": "_handle_sei",
+        "see": "_handle_see",
     }
 
     def update_from_packet(self, cmd_id: str, payload: dict[str, Any]) -> None:
