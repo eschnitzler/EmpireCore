@@ -27,6 +27,7 @@ from empire_core.enums import (
     LootPriority,
     MapItemType,
     MovementType,
+    NPCOwner,
     Resource,
     SpyOutcome,
     SpyStep,
@@ -153,6 +154,7 @@ __all__ = [
     "EquipmentSlot",
     "MapItemType",
     "MovementType",
+    "NPCOwner",
     "Resource",
     "GameEvent",
     # Helpers

@@ -1,6 +1,6 @@
 """The world map: map areas, map objects and their owners."""
 
-from empire_core.enums import Kingdom, MapItemType
+from empire_core.enums import Kingdom, MapItemType, NPCOwner
 
 from .models import (
     INVASION_AREA_TYPES,
@@ -40,4 +40,5 @@ __all__ = [
     "OwnerFaction",
     "Kingdom",
     "MapItemType",
+    "NPCOwner",
 ]

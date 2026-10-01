@@ -9,7 +9,7 @@ from .army import ProductionListId, SlotType
 from .castle import BuildingState, ExpansionType, MarketScope, Resource, ResourceCartType
 from .combat import AttackType, AutoSkipCooldownType, CombatEffectType, Flank, LootPriority
 from .commanders import EquipmentSlot, EquipmentType, Rareness, SCEItem, WearerType
-from .map import Kingdom, MapItemType, PeaceModeStatus
+from .map import Kingdom, MapItemType, NPCOwner, PeaceModeStatus
 from .messages import MessageType
 from .movements import MovementType
 from .ranking import RankingType
@@ -19,6 +19,7 @@ __all__ = [
     # Map / kingdom
     "Kingdom",
     "MapItemType",
+    "NPCOwner",
     "PeaceModeStatus",
     # Movement
     "MovementType",

@@ -13,7 +13,7 @@ import math
 
 from pydantic import BaseModel, ConfigDict
 
-from empire_core.enums import Flank, MapItemType
+from empire_core.enums import Flank, MapItemType, NPCOwner
 
 # Attackers per wave stops growing past level 69.
 MAX_ATTACKERS_ABOVE_69 = 320
@@ -36,20 +36,25 @@ TOOL_SLOT_TYPE_FLANK = 2
 LEVEL_CAP = 70
 """``PlayerConst.LEVEL_CAP`` (dll line 19599)."""
 
-ALIEN_INVASION_PLAYER_IDS = frozenset({-1000, -1002})
-"""
-``PlayerHelper.isAlienInvasion`` (bundle line 4688): ``NPC_ID_USER_INVASION``
-and ``NPC_ID_RED_ALIEN_INVASION``, i.e. ``DungeonConst.BASIC_ALIEN_ID`` and
-``BASIC_RED_ALIEN_ID`` (dll line 19157).
-"""
+ALIEN_INVASION_PLAYER_IDS = frozenset({NPCOwner.ALIEN_INVASION, NPCOwner.RED_ALIEN_INVASION})
+"""``PlayerHelper.isAlienInvasion`` (bundle line 4688)."""
 
-COLLECTOR_PLAYER_IDS = frozenset({-1103, -1102, -1107, -1109, -1110, -1105, -1101, -1106, -1104})
+COLLECTOR_PLAYER_IDS = frozenset(
+    {
+        NPCOwner.COLLECTOR_CARNIVAL,
+        NPCOwner.COLLECTOR_CHRISTMAS,
+        NPCOwner.COLLECTOR_CHRISTMAS2,
+        NPCOwner.COLLECTOR_SUMMER,
+        NPCOwner.COLLECTOR_10TH_ANNIVERSARY,
+        NPCOwner.COLLECTOR_ELEMENTAL,
+        NPCOwner.COLLECTOR_HALLOWEEN,
+        NPCOwner.COLLECTOR_HALLOWEEN2,
+        NPCOwner.COLLECTOR_SPRING,
+    }
+)
 """
 The collector owners ``PlayerHelper.isCollectorPlayer`` (bundle line 4690)
-lists: carnival, christmas, christmas2, summer, 10th anniversary, elemental,
-halloween, halloween2 and spring, each ``BASIC_COLLECTOR_PLAYER_ID`` (-1100)
-minus its offset (``ClientConstNPCs``, bundle line 5046). The other five
-collector ids are not in its switch.
+lists. The other five collectors are not in its switch.
 """
 
 LANDMARK_AREA_TYPES = frozenset(
@@ -64,8 +69,8 @@ LANDMARK_AREA_TYPES = frozenset(
 """``MapObjectHelper.isLandmark`` (bundle line 38531)."""
 
 ALIEN_INVASION_AREA_TYPES: dict[int, int] = {
-    int(MapItemType.ALIEN_CAMP): -1000,
-    int(MapItemType.RED_ALIEN_CAMP): -1002,
+    int(MapItemType.ALIEN_CAMP): int(NPCOwner.ALIEN_INVASION),
+    int(MapItemType.RED_ALIEN_CAMP): int(NPCOwner.RED_ALIEN_INVASION),
 }
 """
 The area types built as an ``AAlienInvasionMapobjectVO`` (``WorldmapObjectFactory``,

@@ -50,7 +50,8 @@ stateDiagram-v2
   alliance nomad camp, and NPCs that are not dungeon owners (outpost, capital
   and metropolis owners, the plague monk, NPC ids the client does not know);
   robber barons, camps, event dungeons and other dungeon owners do not fire
-  it. An alliance member's attack on someone outside the alliance does not
+  it. `NPCOwner` names these NPC owner ids, e.g. `NPCOwner.DAIMYO_TOWNSHIP`
+  and `NPCOwner.ALLIANCE_NOMAD_CAMP`. An alliance member's attack on someone outside the alliance does not
   fire. An attack whose attacker's record comes in a later packet fires then.
   It does not fire again on later refreshes, nor when a reconnect lists the
   same attack again.

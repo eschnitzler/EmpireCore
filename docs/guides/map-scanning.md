@@ -32,6 +32,10 @@ A `ScanResult` holds:
 | `failed_chunks` | Chunks that still failed after their retries. |
 | `content_chunks` | Chunks that answered and held items. |
 
+An item's `owner_id` is below 0 for an NPC owner. `NPCOwner` (in
+`empire_core.enums`) names those ids, e.g. `NPCOwner.ROBBER_BARON` or
+`NPCOwner.OUTPOST` for an unclaimed outpost.
+
 Requests go out back to back, as the game client sends its map requests; a
 live scan of 289 chunks at about 17 requests a second ran without a refusal.
 A chunk that times out, or is refused with a cooldown, is retried after a short

@@ -22,7 +22,7 @@ import math
 from dataclasses import dataclass
 
 from empire_core.combat import is_npc_pvp_player, owner_id_from_row
-from empire_core.enums import MapItemType
+from empire_core.enums import MapItemType, NPCOwner
 from empire_core.messages.models import SPY_VALIDITY
 from empire_core.protocol.js import js_int
 
@@ -73,31 +73,28 @@ _NPC_OWNED_AREA_TYPES = frozenset(
 Area types whose map object always gets an NPC owner below 0 that the game
 does not fight like a player:
 
-- ``DUNGEON``: ``DungeonConst.DUNGEON_PLAYER_ID`` (-202) minus 0-12, or
-  ``KINGDOM_DUNGEON_PLAYER_ID`` (-220) minus the kingdom
-  (``WorldmapObjectFactory.initDungeonByXY``, bundle lines 5349-5354)
-- ``BOSS_DUNGEON``: ``KINGDOM_BOSS_DUNGEON_PLAYER_ID`` (-230) minus the kingdom
+- ``DUNGEON``: ``NPCOwner.ROBBER_BARON`` minus 0-12, or ``DESERT_DUNGEON``
+  minus the kingdom less one (``WorldmapObjectFactory.initDungeonByXY``,
+  bundle lines 5349-5354)
+- ``BOSS_DUNGEON``: ``DESERT_BOSS_DUNGEON`` minus the kingdom less one
   (``BossdungeonMapobjectVO.parseAreaInfo``, bundle line 34441)
-- ``EVENT_DUNGEON``: the running dungeon event's owner, -500 to -503 or
-  ``DungeonConst.INVALID`` (-1) (``EventdungeonMapobjectVO.parseAreaInfo``,
-  bundle lines 34488-34490; ``getEventDungeonOwnerIDBySkinID``, dll line 19123)
-- ``ISLE_DUNGEON``: ``NPC_ID_EILAND_DUNGEON``, -220 minus the storm islands
-  (``DungeonIsleMapobjectVO``, bundle lines 76287-76288)
-- ``DAIMYO_CASTLE``: ``BASIC_DAIMYO_CASTLE_PLAYER_ID`` (-811) (bundle line 19651)
-- ``WOLF_KING``: ``BASIC_WOLF_KING_PLAYER_ID`` (-1201) (bundle line 34409)
-
-Ids from ``DungeonConst`` (dll line 19157).
+- ``EVENT_DUNGEON``: the running dungeon event's owner, ``RANDOM_DUNGEON_EVENT``
+  to ``EASTER_DUNGEON_EVENT`` or ``DungeonConst.INVALID`` (-1)
+  (``EventdungeonMapobjectVO.parseAreaInfo``, bundle lines 34488-34490;
+  ``getEventDungeonOwnerIDBySkinID``, dll line 19123)
+- ``ISLE_DUNGEON``: ``ISLAND_DUNGEON`` (``DungeonIsleMapobjectVO``, bundle
+  lines 76287-76288)
+- ``DAIMYO_CASTLE``: ``DAIMYO_CASTLE`` (bundle line 19651)
+- ``WOLF_KING``: ``WOLF_KING`` (bundle line 34409)
 """
 
 _NPC_CAMP_OWNERS = {
-    int(MapItemType.NOMAD_CAMP): -601,
-    int(MapItemType.SAMURAI_CAMP): -651,
-    int(MapItemType.ALLIANCE_NOMAD_CAMP): -801,
+    int(MapItemType.NOMAD_CAMP): int(NPCOwner.NOMAD_CAMP),
+    int(MapItemType.SAMURAI_CAMP): int(NPCOwner.SAMURAI_CAMP),
+    int(MapItemType.ALLIANCE_NOMAD_CAMP): int(NPCOwner.ALLIANCE_NOMAD_CAMP),
 }
 """
-``DungeonConst.BASIC_NOMAD_CAMP_PLAYER_ID``, ``BASIC_SAMURAI_CAMP_PLAYER_ID`` and
-``BASIC_ALLIANCE_NOMAD_CAMP_PLAYER_ID`` (dll line 19157): the owners
-``NomadCampMapObjectVO.parseAreaInfo``, ``SamuraiCampMapObjectVO.parseAreaInfo`` and
+The owners ``NomadCampMapObjectVO.parseAreaInfo``, ``SamuraiCampMapObjectVO.parseAreaInfo`` and
 ``NomadKhanCampMapObjectVO.parseData`` set for a row of more than three fields
 (bundle lines 76379, 76493, 76434 through 47391).
 """

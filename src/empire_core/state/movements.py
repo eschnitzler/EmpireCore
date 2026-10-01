@@ -7,15 +7,9 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from empire_core.enums import MovementType
+from empire_core.enums import MovementType, NPCOwner
 from empire_core.movements.models import MovementArea, MovementOwner, MovementWrapper
-from empire_core.movements.tracked import (
-    ALLIANCE_NOMAD_CAMP_PLAYER_ID,
-    DAIMYO_TOWNSHIP_PLAYER_ID,
-    DUNGEON_OWNER_IDS,
-    Movement,
-    MovementResources,
-)
+from empire_core.movements.tracked import DUNGEON_OWNER_IDS, Movement, MovementResources
 from empire_core.protocol.base import read_or_none, readable_list
 from empire_core.state.base import MovementEventCallback, StateBase
 
@@ -266,12 +260,12 @@ class MovementState(StateBase):
         if me == -1:
             return False
         is_alien = mov.movement_type_enum is MovementType.ALIEN_ATTACK
-        if mov.target_id == me or (mov.target_id == DAIMYO_TOWNSHIP_PLAYER_ID and not is_alien):
+        if mov.target_id == me or (mov.target_id == NPCOwner.DAIMYO_TOWNSHIP and not is_alien):
             return True
         alliance = self.local_player.alliance if self.local_player else None
         if alliance is None or alliance.id <= 0 or mov.target_alliance_id != alliance.id:
             return False
-        if is_alien or mov.owner_id == ALLIANCE_NOMAD_CAMP_PLAYER_ID:
+        if is_alien or mov.owner_id == NPCOwner.ALLIANCE_NOMAD_CAMP:
             return True
         if "owner_id" not in mov.model_fields_set:
             return False
