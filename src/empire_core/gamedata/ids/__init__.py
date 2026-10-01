@@ -29,37 +29,75 @@ Regenerate with ``uv run python scripts/generate_gamedata_ids.py``.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from .buildings import Building
-from .construction_items import ConstructionItem
-from .currencies import Currency, CurrencyId
-from .difficulty_types import DifficultyType
-from .effect_types import EffectType
-from .effects import Effect
-from .equipment_groups import EquipmentGroup
-from .events import Event
-from .general_abilities import GeneralAbility
-from .general_skills import GeneralSkill
-from .generals import General
-from .global_effects import GlobalEffect
-from .legend_skills import LegendSkill
-from .loot_boxes import LootBox
-from .raid_bosses import RaidBoss
-from .researches import Research
-from .tools import Tool
-from .units import Unit
+import importlib
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from empire_core.gamedata.data import GameData
 
+    from .buildings import Building
+    from .construction_items import ConstructionItem
+    from .currencies import Currency, CurrencyId
+    from .difficulty_types import DifficultyType
+    from .effect_types import EffectType
+    from .effects import Effect
+    from .equipment_groups import EquipmentGroup
+    from .events import Event
+    from .general_abilities import GeneralAbility
+    from .general_skills import GeneralSkill
+    from .generals import General
+    from .global_effects import GlobalEffect
+    from .legend_skills import LegendSkill
+    from .loot_boxes import LootBox
+    from .raid_bosses import RaidBoss
+    from .researches import Research
+    from .tools import Tool
+    from .units import Unit
+
 ITEMS_VERSION = "786.03"
 """The items version these enums were generated from."""
+
+# Each enum's module, imported on first use: together they hold thousands of members
+_MODULES = {
+    "Building": "buildings",
+    "ConstructionItem": "construction_items",
+    "Currency": "currencies",
+    "CurrencyId": "currencies",
+    "DifficultyType": "difficulty_types",
+    "Effect": "effects",
+    "EffectType": "effect_types",
+    "EquipmentGroup": "equipment_groups",
+    "Event": "events",
+    "General": "generals",
+    "GeneralAbility": "general_abilities",
+    "GeneralSkill": "general_skills",
+    "GlobalEffect": "global_effects",
+    "LegendSkill": "legend_skills",
+    "LootBox": "loot_boxes",
+    "RaidBoss": "raid_bosses",
+    "Research": "researches",
+    "Tool": "tools",
+    "Unit": "units",
+}
 
 
 def is_current(game_data: GameData) -> bool:
     """Whether ``game_data`` is the items version these enums were generated from."""
     return game_data.version == ITEMS_VERSION
+
+
+if not TYPE_CHECKING:
+    # Hidden from type checkers, so they still flag a name the package lacks
+    def __getattr__(name: str) -> Any:
+        module = _MODULES.get(name)
+        if module is None:
+            raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+        value = getattr(importlib.import_module(f".{module}", __name__), name)
+        globals()[name] = value
+        return value
+
+    def __dir__() -> list[str]:
+        return sorted({*globals(), *__all__})
 
 
 __all__ = [

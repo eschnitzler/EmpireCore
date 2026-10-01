@@ -532,19 +532,39 @@ Regenerate with ``uv run python scripts/generate_gamedata_ids.py``."""
 
 def render_init(version: str, table_list: list[Table]) -> str:
     names = [t.enum for t in table_list]
+    module_of = {t.enum: t.module for t in table_list}
     out = [header(version), '"""', INIT_DOC, '"""', "", "from __future__ import annotations", ""]
-    out += ["from typing import TYPE_CHECKING", ""]
+    out += ["import importlib", "from typing import TYPE_CHECKING, Any", ""]
     by_module: dict[str, list[str]] = defaultdict(list)
     for t in table_list:
         by_module[t.module].append(t.enum)
+    out += ["if TYPE_CHECKING:", "    from empire_core.gamedata.data import GameData", ""]
     for module in sorted(by_module):
-        out.append(f"from .{module} import {', '.join(sorted(by_module[module]))}")
-    out += ["", "if TYPE_CHECKING:", "    from empire_core.gamedata.data import GameData", ""]
-    out += [f"ITEMS_VERSION = {literal(version)}", '"""The items version these enums were generated from."""', "", ""]
+        out.append(f"    from .{module} import {', '.join(sorted(by_module[module]))}")
+    out += ["", f"ITEMS_VERSION = {literal(version)}", '"""The items version these enums were generated from."""', ""]
+    out += ["# Each enum's module, imported on first use: together they hold thousands of members", "_MODULES = {"]
+    out += [f'    "{name}": "{module_of[name]}",' for name in sorted(names)]
     out += [
+        "}",
+        "",
+        "",
         "def is_current(game_data: GameData) -> bool:",
         '    """Whether ``game_data`` is the items version these enums were generated from."""',
         "    return game_data.version == ITEMS_VERSION",
+        "",
+        "",
+        "if not TYPE_CHECKING:",
+        "    # Hidden from type checkers, so they still flag a name the package lacks",
+        "    def __getattr__(name: str) -> Any:",
+        "        module = _MODULES.get(name)",
+        "        if module is None:",
+        '            raise AttributeError(f"module {__name__!r} has no attribute {name!r}")',
+        '        value = getattr(importlib.import_module(f".{module}", __name__), name)',
+        "        globals()[name] = value",
+        "        return value",
+        "",
+        "    def __dir__() -> list[str]:",
+        "        return sorted({*globals(), *__all__})",
         "",
         "",
         "__all__ = [",

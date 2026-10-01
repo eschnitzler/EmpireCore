@@ -257,11 +257,28 @@ class TestMemberData:
     def test_the_enums_load_lazily(self):
         code = (
             "import sys, empire_core, empire_core.gamedata as g\n"
-            "assert 'empire_core.gamedata.ids' not in sys.modules\n"
+            "heavy = [f'empire_core.gamedata.ids.{m}' for m in ('units', 'tools', 'effects', 'buildings')]\n"
+            "assert not any(m in sys.modules for m in heavy)\n"
+            "import empire_core.gamedata.ids.events\n"
+            "assert not any(m in sys.modules for m in heavy)\n"
             "g.Unit\n"
-            "assert 'empire_core.gamedata.ids' in sys.modules\n"
+            "assert 'empire_core.gamedata.ids.units' in sys.modules\n"
+            "assert 'empire_core.gamedata.ids.tools' not in sys.modules\n"
         )
         subprocess.run([sys.executable, "-c", code], check=True)
+
+    def test_the_package_init_is_what_the_generator_writes(self):
+        tables = gen.tables(GameData.parse(ids.ITEMS_VERSION, IDS_PAYLOAD))
+        assert (IDS_DIR / "__init__.py").read_text() == gen.render_init(ids.ITEMS_VERSION, tables)
+
+    def test_the_package_still_lists_and_imports_every_enum(self):
+        names = set(ids.__all__)
+        assert names <= set(dir(ids))
+        from empire_core.gamedata.ids import Tool, Unit
+
+        assert (ids.Unit, ids.Tool) == (Unit, Tool)
+        with pytest.raises(AttributeError):
+            ids.NotAnEnum  # type: ignore[attr-defined]  # noqa: B018
 
 
 class TestRecords:
