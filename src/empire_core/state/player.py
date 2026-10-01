@@ -5,7 +5,8 @@ import math
 import time
 from typing import Any
 
-from empire_core.protocol.js import js_int, js_number, js_truthy
+from empire_core.gamedata.ids.events import Event
+from empire_core.protocol.js import js_int, js_number, js_number_or_none, js_truthy
 from empire_core.spy.models import MaxSpiesResponse
 from empire_core.state.base import StateBase
 from empire_core.state.models import Alliance, Player
@@ -20,6 +21,21 @@ _LEVEL_CAP_XP = LEVEL_CAP * LEVEL_CAP * 30
 _PARTS_ALWAYS_REBUILT = {80: ("SP", "A"), 85: ("FB", "FR", "A")}
 _PARTS_REBUILT_WHEN_SENT = {71: ("SP", "A"), 72: ("SP", "A"), 103: ("SP", "A")}
 _clock = time.monotonic
+
+
+def _global_effects_end(effects: Any, now: float) -> float:
+    """When the last of a global effect event's effects ends, 0 for none.
+
+    ``GE`` holds ``[effect_id, seconds_left, strength]`` per effect.
+    """
+    end = 0.0
+    for effect in effects if isinstance(effects, list) else ():
+        if isinstance(effect, list) and len(effect) > 1:
+            # JavaScript's seconds * 1000: null counts as 0, NaN never wins
+            seconds = 0 if effect[1] is None else js_number_or_none(effect[1])
+            if seconds is not None:
+                end = max(end, now + seconds)
+    return end
 
 
 def _section(data: dict[str, Any], key: str) -> dict[str, Any]:
@@ -176,8 +192,10 @@ class PlayerState(StateBase):
         iterating a dict the receive thread is writing raises
         "dictionary changed size during iteration".
 
-        Client: ``CurrencyData.parseSCE``, which sets each amount on the
-        generic currency with that key in the item data.
+        Client: ``CurrencyData.parseSCE`` (bundle line 141182), which sets each
+        ``int(amount)`` on the generic currency with that key in the item data, so
+        an unreadable amount is 0 and ``"12.7"`` is 12. The library keeps keys the
+        item data lacks, which the client ignores.
 
         Returns:
             The number of special currencies known afterwards.
@@ -187,11 +205,8 @@ class PlayerState(StateBase):
             return 0
         updated = dict(player.special_currencies)
         for entry in entries:
-            if isinstance(entry, list) and len(entry) >= 2:
-                try:
-                    updated[str(entry[0])] = int(entry[1])
-                except (ValueError, TypeError):
-                    logger.debug(f"Skipping malformed special currency entry: {entry!r}")
+            if isinstance(entry, list) and entry:
+                updated[str(entry[0])] = js_int(entry[1] if len(entry) > 1 else None)
         player.special_currencies = updated
         return len(updated)
 
@@ -259,21 +274,23 @@ class PlayerState(StateBase):
             self._player_updated_at = time.time()
             logger.debug(f"Updated {len(entries)} special currencies from sce")
 
-    def _handle_sei(self, data: dict[str, Any]) -> None:
-        """Handle 'Send Event Information' packet.
+    def _handle_sei(self, data: Any) -> None:
+        """Handle 'Send Event Information': each entry updates its event, or adds it.
 
-        Each entry updates its event, or adds it: events the packet does not name
-        stay active until a see ends them or their time runs out. An entry's
-        ``RS`` (seconds left), when truthy, sets when the event ends; an event never
-        given an end has ended, as in the client. An entry's ``LID``, when truthy,
-        becomes its event's league. The invasions' boards take their league from a
-        part (``SP``, ``A``, ``FB``, ``FR``), rebuilt at league 1 and then given its
-        truthy ``LID``: the samurai and Berimond invasions rebuild every part on
-        every entry, the alien, red alien and nomad invasions only the parts the
-        entry has.
+        Events the packet does not name stay active until a see ends them or their
+        time runs out. An entry's ``RS`` (seconds left), when truthy, sets when the
+        event ends; an event never given an end has ended, as in the client, except
+        the kingdoms league and global effect events, whose end their own fields set
+        (see :meth:`_handle_tei`). An entry's ``LID``, when truthy, becomes its
+        event's league. The invasions' boards take their league from a part (``SP``,
+        ``A``, ``FB``, ``FR``), rebuilt at league 1 and then given its truthy
+        ``LID``: the samurai and Berimond invasions rebuild every part on every
+        entry, the alien, red alien and nomad invasions only the parts the entry has.
+        An entry whose ``EID`` reads as 0 or below is skipped; the client drops ids
+        its events table lacks, the library keeps every other id.
 
-        Client: ``CastleSpecialEventData.parse_SEI`` (bundle line 139800) and
-        ``parseServerEventData`` (bundle line 139811);
+        Client: ``CastleSpecialEventData.parse_SEI`` (bundle line 139800), which reads
+        ``int(a.EID)``, and ``parseServerEventData`` (bundle line 139811);
         ``ASpecialEventVO.parseBasicsFromParamObject`` (bundle line 2958) reads ``RS``;
         ``AScoreEventVO.parseBasicsFromParamObject`` (bundle line 14967) reads
         ``t.LID&&(this._leagueID=int(t.LID))`` over a default of 1 (bundle line 14965);
@@ -283,56 +300,139 @@ class PlayerState(StateBase):
         ``AllianceNomadInvasionEventVO.parseData`` (bundle line 114287);
         ``FactionEventVO.parseParamObject`` (bundle line 7364) reads ``UL``
         """
-        events = data.get("E", []) if isinstance(data, dict) else []
-        if not isinstance(events, list):
-            return
-
-        now = _clock()
-        for event in events:
-            if not isinstance(event, dict) or not isinstance(eid := event.get("EID"), int):
-                continue
-            if eid not in self._active_event_ids:
-                self._active_event_ids.append(eid)
-            if js_truthy(remaining := event.get("RS")) and math.isfinite(seconds := js_number(remaining)):
-                self.event_end_times[eid] = now + seconds
-            if js_truthy(league := event.get("LID")):
-                self.event_league_ids[eid] = js_int(league)
-            self.event_unlocked[eid] = js_truthy(event.get("UL"))
-            rebuilt = _PARTS_ALWAYS_REBUILT.get(eid, ())
-            sent = tuple(p for p in _PARTS_REBUILT_WHEN_SENT.get(eid, ()) if js_truthy(event.get(p)))
-            for part in (*rebuilt, *sent):
-                entry = event.get(part)
-                league = entry.get("LID") if isinstance(entry, dict) else None
-                self.event_part_league_ids[(eid, part)] = js_int(league) if js_truthy(league) else 1
+        events = data.get("E") if isinstance(data, dict) else None
+        if isinstance(events, list):
+            now = _clock()
+            for event in events:
+                if isinstance(event, dict):
+                    self._apply_event_entry(js_int(event.get("EID")), event, now)
         self._drop_ended_events()
 
-    def _handle_see(self, data: dict[str, Any]) -> None:
+    def _apply_sei(self, data: dict[str, Any]) -> None:
+        """Apply the ``sei`` a reply carries, stamped as a sei."""
+        if "sei" in data:
+            self._packet_times["sei"] = time.time()
+            self._handle_sei(data["sei"])
+
+    def _handle_tei(self, data: Any) -> None:
+        """Handle 'trigger event info': each ``TE`` entry updates or adds its event, keyed by ``TRID``.
+
+        The trigger events are the kingdoms league (601) and the global effect events
+        (610, 612); they join the same running events as the sei ones, and a see or a
+        tee ends them. They carry no ``RS``: the kingdoms league runs while ``KLRD``
+        (days left) is over 1, and with one day or less it ends with the running event
+        whose ``KL`` is set (or never, at one day, without one); a global effect event
+        ends with the last of its effects (``GE``), and the boost event (612) when the
+        global effect event (610) running as it arrives ends.
+
+        Client: ``TEICommand`` (bundle line 128410) and ``CastleSpecialEventData.parseTEI``
+        (bundle line 139905), which reads ``int(a.TRID)``; the gbd's ``tei`` is applied
+        before its ``sei`` (``GBDCommand.exec``, bundle line 129381);
+        ``ATriggerEventVO.parseBasicsFromParamObject`` (bundle line 39815);
+        ``SeasonLeagueEventVO.parseParamObject`` and ``endTimestamp`` (bundle lines
+        118059-118063); ``SeasonLeagueData.getActiveSeasonEventVO`` (bundle line 142582)
+        and ``SpecialEventSeasonLeagueComponent.parseServerData`` (bundle line 64551) for
+        ``KL``; ``GlobalEffectEventVO.parseParamObject`` (bundle lines 116399-116413);
+        ``GlobalEffectBuffEventVO.parseParamObject`` (bundle lines 116381-116383)
+        """
+        entries = data.get("TE") if isinstance(data, dict) else None
+        if not isinstance(entries, list) or not entries:
+            return
+        now = _clock()
+        for entry in entries:
+            if isinstance(entry, dict):
+                self._apply_event_entry(js_int(entry.get("TRID")), entry, now)
+        self._drop_ended_events()
+
+    def _handle_tee(self, data: Any) -> None:
+        """Handle 'trigger event end': the trigger event it names (``TRID``) has ended.
+
+        Client: ``TEECommand`` (bundle line 128395) and ``CastleSpecialEventData.parseTEE``
+        (bundle line 139915): ``int(e&&e.TRID?e.TRID:-1)``, removed when 0 or above
+        """
+        trid = data.get("TRID") if isinstance(data, dict) else None
+        eid = js_int(trid if js_truthy(trid) else -1)
+        if eid >= 0:
+            self._forget_event(eid)
+            self._drop_ended_events()
+
+    def _apply_event_entry(self, eid: int, event: dict[str, Any], now: float) -> None:
+        if eid <= 0:
+            return
+        if eid not in self._active_event_ids:
+            self._active_event_ids.append(eid)
+        if js_truthy(remaining := event.get("RS")) and math.isfinite(seconds := js_number(remaining)):
+            self.event_end_times[eid] = now + seconds
+        if eid == Event.SEASON_LEAGUE:
+            self._season_league_days[eid] = js_int(event.get("KLRD"))
+        elif eid == Event.GLOBAL_EFFECT:
+            self.event_end_times[eid] = _global_effects_end(event.get("GE"), now)
+        elif eid == Event.GLOBAL_EFFECT_BUFF:
+            effects = self.event_end_times.get(Event.GLOBAL_EFFECT, 0.0)
+            running = Event.GLOBAL_EFFECT in self._active_event_ids
+            self.event_end_times[eid] = max(effects, now) if running else 0.0
+        if js_truthy(event.get("KL")):
+            self._season_mode_events.add(eid)
+        else:
+            self._season_mode_events.discard(eid)
+        if js_truthy(league := event.get("LID")):
+            self.event_league_ids[eid] = js_int(league)
+        self.event_unlocked[eid] = js_truthy(event.get("UL"))
+        rebuilt = _PARTS_ALWAYS_REBUILT.get(eid, ())
+        sent = tuple(p for p in _PARTS_REBUILT_WHEN_SENT.get(eid, ()) if js_truthy(event.get(p)))
+        for part in (*rebuilt, *sent):
+            entry = event.get(part)
+            league = entry.get("LID") if isinstance(entry, dict) else None
+            self.event_part_league_ids[(eid, part)] = js_int(league) if js_truthy(league) else 1
+
+    def _handle_see(self, data: Any) -> None:
         """Handle a 'special event end' push: the event it names has ended.
 
         Client: ``CastleSpecialEventData.parse_SEE`` (bundle line 139826), from ``SEECommand``
-        (bundle line 128364); ``removeEventById`` (bundle line 139838) destroys the event,
-        so one added again starts over
+        (bundle line 128364), looks the ``EID`` up as sent; ``removeEventById`` (bundle line
+        139838) destroys the event, so one added again starts over
         """
-        if isinstance(data, dict) and isinstance(eid := data.get("EID"), int):
+        eid = data.get("EID") if isinstance(data, dict) else None
+        if isinstance(eid, (int, float)) and not isinstance(eid, bool):
             self._forget_event(eid)
+            self._drop_ended_events()
 
-    def _forget_event(self, eid: int) -> None:
+    def _forget_event(self, eid: float) -> None:
         self._active_event_ids = [e for e in self._active_event_ids if e != eid]
-        self.event_end_times.pop(eid, None)
-        self.event_league_ids.pop(eid, None)
-        self.event_unlocked.pop(eid, None)
+        self.event_end_times.pop(eid, None)  # type: ignore[call-overload]
+        self.event_league_ids.pop(eid, None)  # type: ignore[call-overload]
+        self.event_unlocked.pop(eid, None)  # type: ignore[call-overload]
+        self._season_league_days.pop(eid, None)  # type: ignore[call-overload]
+        self._season_mode_events.discard(eid)  # type: ignore[arg-type]
         for key in [key for key in self.event_part_league_ids if key[0] == eid]:
             del self.event_part_league_ids[key]
+
+    def _season_league_end(self, eid: int, now: float) -> float:
+        # SeasonLeagueEventVO.endTimestamp is read on demand: KLRD days from now, so it never
+        # counts down, or with a day or less the end of the running event whose KL is set
+        days = self._season_league_days.get(eid, 0)
+        if days > 1:
+            return math.inf
+        season = next((e for e in self._active_event_ids if e in self._season_mode_events and e != eid), None)
+        if season is not None:
+            return self.event_end_times.get(season, 0.0)
+        return math.inf if days == 1 else now + days * 86400
 
     def _drop_ended_events(self) -> None:
         # CastleSpecialEventData.executeUpdateForEvents (bundle line 139833): remainingEventTimeInSeconds<=0
         now = _clock()
-        for eid in [e for e in self._active_event_ids if self.event_end_times.get(e, 0.0) <= now]:
-            self._forget_event(eid)
+        while True:
+            for eid in self._season_league_days:
+                self.event_end_times[eid] = self._season_league_end(eid, now)
+            ended = [e for e in self._active_event_ids if self.event_end_times.get(e, 0.0) <= now]
+            if not ended:
+                return
+            for eid in ended:
+                self._forget_event(eid)
 
     @property
     def active_event_ids(self) -> list[int]:
-        """The running events, in the order the sei packets named them; a copy."""
+        """The running events, sei and trigger events alike, in the order they were first named; a copy."""
         with self._lock:
             self._drop_ended_events()
             return list(self._active_event_ids)

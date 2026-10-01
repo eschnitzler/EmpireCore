@@ -44,6 +44,7 @@ every value is as old as the last packet that carried it:
 | Honor, beginner protection | `gho`, `uap` | log in again |
 | Special currencies | `sce` (pushed) | none |
 | Spies owned, before boosts | `gms` (pushed) | log in again |
+| Running events, their ends and leagues | `sei`, `tei` (pushed), `see`, `tee`, the `fjf` and `bst` replies | log in again |
 | Movements | `gam`, `abr`/`asr`, your sends' replies | `client.movements.get_movements()` |
 
 Every player section is sent inside the login data (`gbd`) and again as a push

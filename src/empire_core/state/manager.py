@@ -12,7 +12,23 @@ from empire_core.state.player import PlayerState
 
 __all__ = ["MOVEMENT_PARSE_WARN_INTERVAL", "GameState", "MovementEventCallback"]
 # gbd/lli sections stamped under their own id, whether they came in a gbd or as a push.
-_TRACKED_SECTIONS = ("gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce", "dcl", "sei", "gpc", "gms")
+_TRACKED_SECTIONS = (
+    "gpi",
+    "gxp",
+    "gcu",
+    "vip",
+    "gal",
+    "gcl",
+    "gho",
+    "uap",
+    "gac",
+    "sce",
+    "dcl",
+    "tei",
+    "sei",
+    "gpc",
+    "gms",
+)
 
 _PLAYER_SECTIONS = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce"})
 
@@ -57,6 +73,9 @@ class GameState(MovementState, CastleState, PlayerState):
     honor, beginner protection           ``gho``/``uap``              re-login
     special currencies                   ``sce`` (pushed)             --
     spies owned, before boosts           ``gms`` (pushed)             re-login
+    running events, their ends/leagues   ``sei``/``tei`` (pushed),    re-login
+                                         ``see``/``tee``, ``fjf``,
+                                         ``bst``
     movements                            ``gam``, ``abr``/``asr``,    ``client.movements.get_movements()``
                                          your sends' replies
                                          (``cra``, ``cds``, ...)
@@ -107,6 +126,9 @@ class GameState(MovementState, CastleState, PlayerState):
         "sce": "_handle_sce",
         "sei": "_handle_sei",
         "see": "_handle_see",
+        "tei": "_handle_tei",
+        "tee": "_handle_tee",
+        "bst": "_handle_bst",
     }
 
     def update_from_packet(self, cmd_id: str, payload: dict[str, Any]) -> None:
@@ -132,7 +154,8 @@ class GameState(MovementState, CastleState, PlayerState):
 
         Client: ``GBDCommand.exec``; the pushes are ``GPICommand``, ``GXPCommand``,
         ``GCUCommand``, ``VIPCommand``, ``GALCommand``, ``GCLCommand``,
-        ``GHOCommand``, ``UAPCommand``, ``GPCCommand`` and ``GMSCommand`` (bundle line 120555).
+        ``GHOCommand``, ``UAPCommand``, ``GPCCommand`` and ``GMSCommand`` (bundle line 120555);
+        ``GBDCommand.exec`` (bundle line 129381) applies ``tei`` before ``sei``.
         """
         self._parse_player_sections(data)
         self._parse_special_currencies(data)
@@ -142,8 +165,10 @@ class GameState(MovementState, CastleState, PlayerState):
         self._parse_max_spies(data)
         if dcl := data.get("dcl"):
             self._handle_dcl(dcl)
-        if sei := data.get("sei"):
-            self._handle_sei(sei)
+        if "tei" in data:
+            self._handle_tei(data["tei"])
+        if "sei" in data:
+            self._handle_sei(data["sei"])
         self._stamp_sections(data)
 
     def _handle_attack_sent(self, data: dict[str, Any]) -> None:
@@ -204,12 +229,24 @@ class GameState(MovementState, CastleState, PlayerState):
             self._handle_gbd({"gcl": data["gcl"]})
 
     def _handle_fjf(self, data: Any) -> None:
-        """Apply the castle list a faction join reply carries in its ``mir``.
+        """Apply a faction join reply's events (``sei``), then the castle list in its ``mir``.
 
-        Client: ``FJFCommand.executeCommand`` (bundle line 127783), ``i.mir&&parse_MIR(i.mir)``.
+        Client: ``FJFCommand.executeCommand`` (bundle line 127783):
+        ``parse_SEI(i.sei),i.mir&&parse_MIR(i.mir)``.
         """
         if isinstance(data, dict):
+            self._apply_sei(data)
             self._handle_mir(data.get("mir"))
+
+    def _handle_bst(self, data: Any) -> None:
+        """Apply the reply to a bounty hunter target skip: its coins and rubies, then its ``sei``.
+
+        Client: ``BSTCommand.executeCommand`` (bundle line 127609)
+        """
+        if isinstance(data, dict):
+            if isinstance(gcu := data.get("gcu"), dict):
+                self._handle_gbd({"gcu": gcu})
+            self._apply_sei(data)
 
     def _stamp_sections(self, data: dict[str, Any]) -> None:
         """Record when each section of a gbd/lli payload, or a section push, was applied.
@@ -232,10 +269,11 @@ class GameState(MovementState, CastleState, PlayerState):
         Accepts the wire ids this manager tracks — "gbd", "lli", "gam", "dcl",
         "abr", "asr", the send replies ("cra", "cam", "abgcam", "cds", "csm",
         "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm",
-        "mfc", "glu", "mir", "fjf", "sce", "sei" — and the login sections "gpi",
-        "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc" and "gms", stamped whether
-        they came inside a gbd or as a push of their own, plus "gac", which
-        only comes inside a gbd. A send reply
+        "mfc", "glu", "mir", "fjf", "bst", "sce", "see", "tee" — and the login sections
+        "gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc", "gms", "sei" and
+        "tei", stamped whether they came inside a gbd or as a push of their own ("sei"
+        also when a fjf or bst reply carries one), plus "gac", which only comes inside
+        a gbd. A send reply
         is stamped even when the server refused the send. ``None`` means none
         was ever seen; packets this manager ignores are never recorded.
         """

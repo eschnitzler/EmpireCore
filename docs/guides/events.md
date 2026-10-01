@@ -112,7 +112,11 @@ answered.
 ## When an event is not running
 
 An event runs from the `sei` packet that names it until a `see` push ends it or
-its time (the entry's `RS`) runs out.
+its time (the entry's `RS`) runs out. The kingdoms league and the global effect
+events come in `tei` packets instead and end with a `tee` (or a `see`); they
+carry no `RS`: the kingdoms league runs while it has more than a day left, and
+on its last day ends with the season event, and a global effect event ends
+with the last of its effects.
 
 ```python
 from empire_core import EventNotRunningError

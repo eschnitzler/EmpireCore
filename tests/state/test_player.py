@@ -22,13 +22,11 @@ class TestPlayerParsing:
         assert player.PN == "new_name"
         assert player.level == 11
 
-    def test_malformed_special_currency_entry_skipped(self, state):
+    def test_special_currency_amounts_are_read_as_the_client_reads_them(self, state):
+        # CurrencyData.parseSCE: int(amount), so NaN is 0 and "12.7" is 12
         state.update_from_packet("gbd", {"gpi": {"PID": 7, "PN": "x"}})
-        state.update_from_packet("sce", [["GOOD", 5], ["BAD", "not-a-number"], ["ALSO_GOOD", 7]])
-        inv = state.local_player.special_currencies
-        assert inv["GOOD"] == 5
-        assert inv["ALSO_GOOD"] == 7
-        assert "BAD" not in inv
+        state.update_from_packet("sce", [["GOOD", 5], ["BAD", "not-a-number"], ["TEXT", "12.7"], ["NONE"], "x"])
+        assert state.local_player.special_currencies == {"GOOD": 5, "BAD": 0, "TEXT": 12, "NONE": 0}
 
 
 class TestLocalPlayerSnapshots:

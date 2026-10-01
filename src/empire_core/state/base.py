@@ -91,6 +91,9 @@ class StateBase:
         self.event_league_ids: dict[int, int] = {}
         self.event_part_league_ids: dict[tuple[int, str], int] = {}
         self.event_unlocked: dict[int, bool] = {}
+        # The kingdoms league's days left (KLRD), and the events whose last entry set KL
+        self._season_league_days: dict[int, int] = {}
+        self._season_mode_events: set[int] = set()
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}
