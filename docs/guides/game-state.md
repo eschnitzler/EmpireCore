@@ -5,7 +5,7 @@ description: What client.state holds, how to read it safely, and how to tell how
 # State and freshness
 
 `client.state` is an in-memory picture of your account: the player, castles,
-movements, special currencies and active events. A background thread applies
+movements, special currencies, your spy count and active events. A background thread applies
 the server's packets to it while your code reads it.
 
 ## Read through the accessors
@@ -21,6 +21,7 @@ horse_ids = client.state.get_castle_horse_ids(castle_id)  # the horses' wod ids
 movements = client.state.get_all_movements()
 attacks = client.state.get_incoming_attacks()
 currencies = client.state.get_special_currencies()
+spies = client.state.get_max_spies()        # spies owned, before boosts
 ```
 
 The attributes behind them (`client.state.local_player`,
@@ -42,6 +43,7 @@ every value is as old as the last packet that carried it:
 | Coins, rubies, VIP, alliance | `gcu`, `vip`, `gal` | log in again |
 | Honor, beginner protection | `gho`, `uap` | log in again |
 | Special currencies | `sce` (pushed) | none |
+| Spies owned, before boosts | `gms` (pushed) | log in again |
 | Movements | `gam`, `abr`/`asr`, your sends' replies | `client.movements.get_movements()` |
 
 Every player section is sent inside the login data (`gbd`) and again as a push

@@ -12,12 +12,12 @@ from empire_core.state.player import PlayerState
 
 __all__ = ["MOVEMENT_PARSE_WARN_INTERVAL", "GameState", "MovementEventCallback"]
 # gbd/lli sections stamped under their own id, whether they came in a gbd or as a push.
-_TRACKED_SECTIONS = ("gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce", "dcl", "sei", "gpc")
+_TRACKED_SECTIONS = ("gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce", "dcl", "sei", "gpc", "gms")
 
 _PLAYER_SECTIONS = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce"})
 
 # Pushes whose payload is the body of the gbd section of the same name.
-_SECTION_PUSHES = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc"})
+_SECTION_PUSHES = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc", "gms"})
 
 
 class GameState(MovementState, CastleState, PlayerState):
@@ -56,6 +56,7 @@ class GameState(MovementState, CastleState, PlayerState):
     player coins/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      re-login
     honor, beginner protection           ``gho``/``uap``              re-login
     special currencies                   ``sce`` (pushed)             --
+    spies owned, before boosts           ``gms`` (pushed)             re-login
     movements                            ``gam``, ``abr``/``asr``,    ``client.movements.get_movements()``
                                          your sends' replies
                                          (``cra``, ``cds``, ...)
@@ -130,13 +131,14 @@ class GameState(MovementState, CastleState, PlayerState):
 
         Client: ``GBDCommand.exec``; the pushes are ``GPICommand``, ``GXPCommand``,
         ``GCUCommand``, ``VIPCommand``, ``GALCommand``, ``GCLCommand``,
-        ``GHOCommand``, ``UAPCommand`` and ``GPCCommand``.
+        ``GHOCommand``, ``UAPCommand``, ``GPCCommand`` and ``GMSCommand`` (bundle line 120555).
         """
         self._parse_player_sections(data)
         self._parse_special_currencies(data)
         self._parse_alliance_info(data)
         self._parse_castles(data)
         self._parse_permanent_castles(data)
+        self._parse_max_spies(data)
         if dcl := data.get("dcl"):
             self._handle_dcl(dcl)
         if sei := data.get("sei"):
@@ -230,7 +232,7 @@ class GameState(MovementState, CastleState, PlayerState):
         "abr", "asr", the send replies ("cra", "cam", "abgcam", "cds", "csm",
         "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm",
         "mfc", "glu", "mir", "fjf", "sce", "sei" — and the login sections "gpi",
-        "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap" and "gpc", stamped whether
+        "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc" and "gms", stamped whether
         they came inside a gbd or as a push of their own, plus "gac", which
         only comes inside a gbd. A send reply
         is stamped even when the server refused the send. ``None`` means none

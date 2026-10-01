@@ -6,6 +6,10 @@ Spy missions, risk planning and reports behind `client.spy`.
 
 ::: empire_core.spy.service
 
+## `spy.pool`
+
+::: empire_core.spy.pool
+
 ## `spy.risk`
 
 ::: empire_core.spy.risk

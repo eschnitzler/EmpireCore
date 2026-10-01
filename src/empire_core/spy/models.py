@@ -385,9 +385,7 @@ class MaxSpiesResponse(BaseResponse):
     command = "gms"
 
     max_spies: ClientInt = Field(alias="MS", default=0, description="Spies owned, before boosts")
-    bonus_spies: ClientInt = Field(
-        alias="BS", default=0, description="Bonus spies; the client stores it but uses it nowhere"
-    )
+    bonus_spies: ClientInt = Field(alias="BS", default=0, description="Bonus spies, not part of the spy count")
 
 
 __all__ = [
