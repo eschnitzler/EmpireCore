@@ -402,9 +402,11 @@ class Connection:
 
         ``EmpireClient.send`` and ``request_packet`` pass the check of a request
         model that defines ``accepts_reply`` (gaa, ssi, ain, grc, dfc, mcm, jaa by
-        position, csm, cra, cds, cat): those replies name what was asked for. Most
-        commands' replies do not (gam, gcl, dcl, gli, gui, hgh, jca, ranking pages,
-        the attack-info family, chat and every write), so without a check a reply
+        position, csm, cra, cds, cat, and llsp, llsw and slse by list): those
+        replies name what was asked for. Most commands' replies do not (gam, gcl,
+        dcl, gli, gui, jca, the attack-info family, chat and every write), and hgh
+        replies name a list and league that need not be the ones asked for (see
+        ``GetHighscoreRequest``), so without a check a reply
         cannot be told from another one under the same command: after one
         request times out, its late reply is taken by the next request for that
         command, whose own reply then goes to the one after, until a request

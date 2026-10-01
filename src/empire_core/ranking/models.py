@@ -17,10 +17,27 @@ from pydantic import Field, field_serializer, field_validator, model_validator
 
 from empire_core.enums import RankingType
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, GGECommand, list_or_empty, readable_list
-from empire_core.protocol.js import ClientInt, js_falsy, js_int
+from empire_core.protocol.js import ClientInt, js_falsy, js_int, js_loose_equals
 from empire_core.protocol.text import encode_json_text
 
 logger = logging.getLogger(__name__)
+
+
+def _same_list(payload: Any, list_type: RankingType) -> bool:
+    # Lenient: a reply without LT is taken
+    if not isinstance(payload, dict) or "LT" not in payload:
+        return True
+    return js_loose_equals(payload["LT"], int(list_type))
+
+
+def _not_skipped(payload: Any, list_type: RankingType, league_type_id: int | None) -> bool:
+    # The client skips a reply only when its LT differs and its league, LID or -1, is the one asked for;
+    # a reply without LT is taken
+    if not isinstance(payload, dict) or "LT" not in payload or league_type_id is None:
+        return True
+    reply_league = -1 if js_falsy(payload.get("LID")) else payload.get("LID")
+    other_list = not js_loose_equals(payload["LT"], int(list_type))
+    return not (other_list and js_loose_equals(reply_league, league_type_id))
 
 
 class RankingEntry:
@@ -133,6 +150,15 @@ class GetHighscoreRequest(BaseRequest):
     The keys follow the client's order: the constructor initialises LT and LID
     before it sets SV, which it encodes as it encodes any text it sends.
 
+    The reply carries ``LT`` and ``LID``, but not always the ones asked for, so
+    no reply is refused on them: the highscore dialog switches to the list and
+    league the reply names (``CastleHighscoreDialog.onGetHighscoreData``, bundle
+    lines 27533-27535), and offers the legend list (7) only in the level-cap
+    league, falling back to honor (5) elsewhere (``setLeague``, bundle line
+    27482; ``switchOverallCategory``, bundle lines 27506-27519). A live server
+    answered LT 7 around your own rank ("-1", LID -1) for a league-1 player with
+    LT 5 and LID 1.
+
     Client: ``C2SGetHighscoreVO`` (bundle line 14674)
     """
 
@@ -238,6 +264,18 @@ class GetRankingListRequest(BaseRequest):
     )
     event_id: int | None = Field(alias="EID", default=None, description="The alliance mobilisation or raid event")
 
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a reply is for this request, as the client tells.
+
+        A reply is refused only when its ``LT`` is another list and its league
+        (``LID``, or -1 without one) is the one asked for; a reply for another
+        list in another league is taken, as the client takes it.
+
+        Client: ``LeaderBoardDataProvider.onScoreDataReceived`` (bundle line 75957),
+        which then adopts the reply's ``LID``
+        """
+        return _not_skipped(payload, self.list_type, self.league_type_id)
+
 
 class GetRankingWindowRequest(BaseRequest):
     """
@@ -282,6 +320,18 @@ class GetRankingWindowRequest(BaseRequest):
     def _encoded_score_id(self, value: str) -> str:
         return encode_json_text(value)
 
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a reply is for this request, as the client tells.
+
+        A reply is refused only when its ``LT`` is another list and its league
+        (``LID``, or -1 without one) is the one asked for; a reply for another
+        list in another league is taken, as the client takes it.
+
+        Client: ``LeaderBoardDataProvider.onScoreDataReceived`` (bundle line 75957),
+        which then adopts the reply's ``LID``
+        """
+        return _not_skipped(payload, self.list_type, self.league_type_id)
+
 
 class SearchRankingListRequest(BaseRequest):
     """
@@ -309,6 +359,16 @@ class SearchRankingListRequest(BaseRequest):
     @field_serializer("search_value")
     def _encoded_search_value(self, value: str) -> str:
         return encode_json_text(value)
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a reply is for this list: its ``LT``, when sent, is the one asked for.
+
+        Client: ``LeaderBoardDataProvider.onSearchDataReceived`` (bundle line 75953) skips a
+        reply only when its ``LT`` differs and the dialog's league is the reply's
+        ``LID`` or -1. The search sends no league, so the library cannot tell the
+        dialog's and refuses any other ``LT``.
+        """
+        return _same_list(payload, self.list_type)
 
 
 def _guarded(value: Any, kind: type | tuple[type, ...]) -> Any:
