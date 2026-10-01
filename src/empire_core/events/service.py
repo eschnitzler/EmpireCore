@@ -1,5 +1,5 @@
 """
-The server's currently active events, and their scoreboards.
+The running events, as the state keeps them, and their scoreboards.
 """
 
 from __future__ import annotations
@@ -18,10 +18,17 @@ from empire_core.ranking.models import (
     SearchRankingListResponse,
 )
 from empire_core.services.base import BaseService
-from empire_core.utils.events import GameEvent
-from empire_core.utils.events import get_active_events as _get_active_events
+from empire_core.utils.events import get_event_titles
 
-from .models import EVENT_SCOREBOARDS, BerimondEvent, EventScores, Scoreboard
+from .models import (
+    EVENT_SCOREBOARDS,
+    BerimondEvent,
+    EventScores,
+    GameEvent,
+    Scoreboard,
+    SpecialEvent,
+    SpecialEventInfoRequest,
+)
 
 # The part of an event's sei entry holding a board's league; other boards use the entry's own LID
 _LEAGUE_PART = {
@@ -45,14 +52,26 @@ class EventsService(BaseService):
     """
 
     def get_active_event_ids(self) -> list[int]:
-        """
-        Get list of currently active event IDs.
-
-        Returns:
-            List of event IDs (EID) from sei packet.
-            Empty list if no events are active or not yet logged in.
-        """
+        """The running events' ids, in the order they started; empty before login."""
         return list(self.client.state.get_events())
+
+    def refresh(self, timeout: float = 5.0) -> dict[int, SpecialEvent]:
+        """
+        Ask the server for the running events and return them once its ``sei`` is applied.
+
+        The server's answer updates the events as any ``sei`` does; events it does not
+        name keep running until a ``see`` or their time ends them. It asks for the ``sei``
+        events only: the trigger events (the kingdoms league, the global effects) come with
+        the login data's ``tei`` and the ``tei`` pushes.
+
+        Raises:
+            CommandError: The server refused the request
+            EmpireTimeoutError: No ``sei`` within ``timeout``
+
+        Client: ``C2SSpecialEventInfoVO`` (bundle line 37406)
+        """
+        self.send(SpecialEventInfoRequest(), wait=True, timeout=timeout)
+        return self.client.state.get_events()
 
     def get_league_id(self, event_id: int, part: str | None = None) -> int | None:
         """
@@ -84,8 +103,8 @@ class EventsService(BaseService):
         return league if isinstance(league, int) else 1
 
     def get_running_score_events(self) -> list[Event]:
-        """The running events that have a scoreboard, in the order the sei packets named them."""
-        return [Event(eid) for eid in self.get_active_event_ids() if eid in EVENT_SCOREBOARDS]
+        """The running events that have a scoreboard, in the order they started."""
+        return [Event(eid) for eid in self.client.state.get_events() if eid in EVENT_SCOREBOARDS]
 
     def scoreboard(self, event: Event) -> Scoreboard:
         """
@@ -167,7 +186,7 @@ class EventsService(BaseService):
             raise ValueError("rank starts at 1")
         if name is not None and not name:
             raise ValueError("name must not be empty")
-        if event not in self.get_active_event_ids():
+        if self.client.state.get_event(event) is None:
             raise EventNotRunningError(event)
         board = self._board(event, scoreboard, alliance, list_type)
         own_league = self._league(event, board)
@@ -233,36 +252,31 @@ class EventsService(BaseService):
         league = self.get_league_id(event, _LEAGUE_PART.get(board))
         return 1 if league is None else league
 
-    def get_active_events(
-        self,
-        lang: str = "en",
-        force_refresh: bool = False,
-    ) -> list[GameEvent]:
+    def get_active_events(self, lang: str = "en", force_refresh: bool = False) -> list[GameEvent]:
         """
-        Get currently active events with human-readable names resolved from the GGS CDN.
+        The running events with their in-game titles, in the order they started.
 
-        Combines ``get_active_event_ids()`` with a CDN lookup to produce typed
-        ``GameEvent`` objects. CDN data is cached after the first call.
+        The titles come from the game's language CDN (see
+        :func:`~empire_core.utils.events.get_event_titles`); without one, an event is
+        named by its ``Event`` member, or its id when the library does not know it.
+        An empty list means no event is running: a CDN outage only costs the titles.
 
         Args:
-            lang: Language code for display names (default: "en").
-            force_refresh: Force re-fetch of CDN data, bypassing the cache.
-
-        Returns:
-            List of GameEvent objects for currently active events. An empty
-            list always means "no events are active" — CDN failures raise.
-
-        Raises:
-            NetworkError: The CDN fetch failed and no cached data exists, so
-                the answer is unknown rather than empty.
+            lang: Language code for the titles (default: "en")
+            force_refresh: Fetch the titles again even when the cached ones are fresh
 
         Example:
-            events = client.events.get_active_events()
-            event_names = {e.internal_name for e in events}
-
-            if "Nomad" in event_names:
-                # handle nomad event ...
-                pass
+            for event in client.events.get_active_events():
+                print(event.display_name, round(event.details.remaining_seconds()))
         """
-        event_ids = self.get_active_event_ids()
-        return _get_active_events(event_ids, lang=lang, force_refresh=force_refresh)
+        events = self.client.state.get_events()
+        titles = get_event_titles(lang=lang, force_refresh=force_refresh) if events else {}
+        return [
+            GameEvent(
+                event_id=eid,
+                event=event.event,
+                display_name=titles.get(eid) or (event.event.name if event.event is not None else str(eid)),
+                details=event,
+            )
+            for eid, event in events.items()
+        ]

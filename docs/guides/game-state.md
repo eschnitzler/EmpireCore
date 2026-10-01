@@ -45,7 +45,7 @@ every value is as old as the last packet that carried it:
 | Honor, beginner protection | `gho`, `uap` | log in again |
 | Special currencies | `sce` (pushed) | none |
 | Spies owned, before boosts | `gms` (pushed) | log in again |
-| Running events, their scores and ends | `sei`, `tei` (pushed), `see`, `tee`, `pep`, the `fjf` and `bst` replies | log in again |
+| Running events, their scores and ends | `sei`, `tei` (pushed), `see`, `tee`, `pep`, the `fjf` and `bst` replies | `client.events.refresh()` |
 | Movements | `gam`, `abr`/`asr`, your sends' replies | `client.movements.get_movements()` |
 
 Every player section is sent inside the login data (`gbd`) and again as a push
@@ -98,7 +98,7 @@ snapshot stays as it was.
 `on_event_added`, `on_event_removed` and `on_events_updated` (and their
 `remove_*` counterparts) call you back on the callback thread when an event
 starts, ends, or a packet updates the events; `get_events_last_updated()` says
-when one last did.
+when one last did. The [events guide](events.md) lists the models.
 
 ## Disconnects
 

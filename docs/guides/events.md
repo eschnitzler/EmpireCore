@@ -1,14 +1,14 @@
 ---
-description: The running events and their scoreboards, by the event's name.
+description: The running events, their scores and leagues, and their scoreboards, by the event's name.
 ---
 
 # Events and their scoreboards
 
-`client.events` knows which events run (from the server's `sei` packets) and
-reads an event's scoreboard the way its dialog does: it picks the board, the
-command and your league for you.
+The state keeps every running event, as the server's `sei` and `tei` packets
+describe it, and `client.events` reads an event's scoreboard the way its dialog
+does: it picks the board, the command and your league for you.
 
-## An event's scores
+## The running events
 
 Events are named by the game data's `Event` enum, which uses the client's own
 names: Berimond is `Event.FACTION`.
@@ -16,6 +16,57 @@ names: Berimond is `Event.FACTION`.
 ```python
 from empire_core.gamedata.ids import Event
 
+for event_id, event in client.state.get_events().items():
+    print(event_id, type(event).__name__, round(event.remaining_seconds()))
+
+point = client.state.get_event(Event.POINT_EVENT)       # None when it is not running
+if point is not None:
+    print(point.league_id, point.own_rank, point.own_points)
+
+client.state.is_event_active(Event.SAMURAI_INVASION)
+```
+
+Each event is a model of its kind, with the fields its game dialog reads, and
+`raw` holding what the server sent:
+
+| Model | Events | What it adds |
+|---|---|---|
+| `ScoredEvent` | the score events below | `league_id`, `own_rank` (-1 unranked), `own_points`, `max_points`, `difficulty_id`, `parts` |
+| `PointEvent` | `POINT_EVENT` | `point_event_type` |
+| `BeggingKnightsEvent` | `BEGGING_KNIGHTS` | `reward_set_id`, `total_hours` |
+| `LongTermPointEvent` | `LONG_TERM_POINT_EVENT` | `reward_set_id`, `upcoming_event_ids` |
+| `GachaEvent` | the gacha events | `reward_set_id`, `free_chest_reset_time` |
+| `InvasionEvent` | the alien, red alien, nomad and samurai invasions, the Berimond invasion | your and your alliance's scores in `parts` (`SP` and `A`; `FB`, `FR` and `A` for the Berimond invasion; the nomads' khan camp in `AC`) |
+| `BerimondEvent` | `FACTION` | `league_id`, `unlocked`, `own_rank`, `own_points`, your faction |
+| `RaidBossEvent` | `ALLIANCE_RAIDBOSS_EVENT` | your `score`, the alliance's `league_id`, `alliance_points` and `alliance_rank`, `boss_level_points` |
+| `TempServerEvent` | `TEMP_SERVER` | `daily_reset_time`, `castle_bought` |
+| `DonationEvent` | `DONATION_EVENT` | `setting_id` |
+| `KingdomsLeagueEvent` | `SEASON_LEAGUE` | `remaining_days`, `original_days`, `has_alliance_ranking` |
+| `GlobalEffectEvent`, `GlobalEffectBuffEvent` | `GLOBAL_EFFECT`, `GLOBAL_EFFECT_BUFF` | the effects and their ends, the boosts |
+| `SpecialEvent` | any other | `event_id`, `event`, `end_time`, `raw` |
+
+Your points arrive in the server's `pep` pushes as you score. A later entry
+for a running event is read over it the way the game reads it: a field it
+leaves out mostly keeps its value, but the samurai and Berimond invasions build
+their scores anew from every entry, and Berimond's own rank and points start
+over with each one. The models never change: each packet replaces them.
+
+`client.events.refresh()` asks the server for the events again and returns
+them once its answer is applied. `client.events.get_active_events()` lists the
+running events with their in-game titles (from the game's language CDN, in the
+language you ask for; a CDN outage only costs the titles):
+
+```python
+for event in client.events.get_active_events(lang="de"):
+    print(event.display_name, event.details.remaining_seconds())
+```
+
+`client.state.on_event_added`, `on_event_removed` and `on_events_updated` call
+you back when an event starts, ends, or a packet updates the events.
+
+## An event's scores
+
+```python
 scores = client.events.get_scores(Event.FACTION)
 
 print(scores.league_id, scores.total)  # the league shown, and how many are ranked
@@ -84,16 +135,16 @@ for event in client.events.get_running_score_events():
 The nomad and samurai invasions have only an alliance board in the game. Events
 the game shows no board for are not listed: the lucky wheel and the gacha
 events show only your own rank, and the colossus uses a command of its own. The
-kingdoms league, the alliance mobilisation and raid events, the tournaments and
-the temporary-server and battle-ground boards are not covered yet; the
-`client.ranking` calls reach their lists directly.
+kingdoms league, the alliance mobilisation and raid boss events, the
+tournaments and the temporary-server and battle-ground boards are not covered
+yet; the `client.ranking` calls reach their lists directly.
 
 ## Leagues and pages
 
-Your league is the one the server's `sei` packet named for the event (for the
-invasions, the one for that board), and league 1 when it named none, as in the
-game; `client.events.get_league_id(event_id)` reads it. The donation board has
-no league.
+Your league is the one the event's model holds (for the invasions, the one of
+that board's part), and league 1 when the server named none, as in the game;
+`client.events.get_league_id(event_id, part)` reads it, and gives None only
+for an event that is not running. The donation board has no league.
 
 Most boards are `hgh` lists, and the server decides how long their pages are
 (8 rows, seen live); `rank` asks for the page around that rank. The two
@@ -112,11 +163,12 @@ answered.
 ## When an event is not running
 
 An event runs from the `sei` packet that names it until a `see` push ends it or
-its time (the entry's `RS`) runs out. The kingdoms league and the global effect
-events come in `tei` packets instead and end with a `tee` (or a `see`); they
-carry no `RS`: the kingdoms league runs while it has more than a day left, and
-on its last day ends with the season event, and a global effect event ends
-with the last of its effects.
+its time (the entry's `RS`) runs out; one never given a time has ended, as in
+the game. The kingdoms league and the global effect events come in `tei`
+packets instead and end with a `tee` (or a `see`); they carry no `RS`: the
+kingdoms league runs while it has more than a day left, and on its last day
+ends with the season event, and a global effect event ends with the last of its
+effects.
 
 ```python
 from empire_core import EventNotRunningError

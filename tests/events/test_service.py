@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from empire_core.events import service as events_module
+from empire_core.events.models import PointEvent, SpecialEventInfoRequest
+from empire_core.gamedata.ids.events import Event
 from empire_core.state.manager import GameState
-from tests.service_helpers import make_client, xt_packet
+from tests.service_helpers import conn, make_client, xt_packet
 
 
 def _client(state: GameState | None = None):
@@ -57,19 +59,56 @@ class TestActiveEvents:
 
         assert client.events.get_active_event_ids() == [11, 10]
 
-    def test_events_resolve_the_state_ids(self, monkeypatch):
-        calls = []
-
-        def fake_get_active_events(event_ids, lang="en", force_refresh=False):
-            calls.append((event_ids, lang, force_refresh))
-            return []
-
-        monkeypatch.setattr(events_module, "_get_active_events", fake_get_active_events)
+    def test_active_events_carry_their_titles(self, monkeypatch):
+        monkeypatch.setattr(events_module, "get_event_titles", lambda lang="en", force_refresh=False: {72: lang})
         client = _client()
-        client._on_packet(xt_packet("sei", {"E": [{"EID": 10, "RS": 60}]}))
+        client._on_packet(
+            xt_packet("sei", {"E": [{"EID": 72, "RS": 60}, {"EID": 60, "RS": 60}, {"EID": 999, "RS": 60}]})
+        )
 
-        assert client.events.get_active_events(lang="de", force_refresh=True) == []
-        assert calls == [([10], "de", True)]
+        events = client.events.get_active_events(lang="de")
+
+        assert [(e.event_id, e.event, e.display_name) for e in events] == [
+            (72, Event.ALLIANCE_NOMAD_INVASION, "de"),
+            (60, Event.POINT_EVENT, "POINT_EVENT"),
+            (999, None, "999"),
+        ]
+        assert events[0].details is client.state.get_event(72)
+
+    def test_a_dumped_event_keeps_its_own_fields(self, monkeypatch):
+        monkeypatch.setattr(events_module, "get_event_titles", lambda lang="en", force_refresh=False: {})
+        client = _client()
+        client._on_packet(xt_packet("sei", {"E": [{"EID": 60, "RS": 60, "LID": 4, "PET": 15}]}))
+
+        dumped = client.events.get_active_events()[0].model_dump()
+
+        assert (dumped["details"]["league_id"], dumped["details"]["point_event_type"]) == (4, 15)
+
+    def test_no_running_event_asks_for_no_titles(self, monkeypatch):
+        def no_titles(lang="en", force_refresh=False):
+            raise AssertionError("fetched titles")
+
+        monkeypatch.setattr(events_module, "get_event_titles", no_titles)
+
+        assert _client().events.get_active_events() == []
+
+
+class TestRefresh:
+    def test_the_request_has_no_fields(self):
+        # C2SSpecialEventInfoVO has no fields
+        assert SpecialEventInfoRequest().to_payload() == {}
+        assert SpecialEventInfoRequest.get_response_command() == "sei"
+
+    def test_refresh_sends_sei_and_returns_the_events_it_brings(self):
+        reply = xt_packet("sei", {"E": [{"EID": 60, "RS": 60, "LID": 4}]})
+        client = make_client({"sei": reply}, state=GameState())  # type: ignore[arg-type]
+        conn(client).on_packet = client._on_packet
+
+        events = client.events.refresh()
+
+        assert conn(client).request_payloads == [("sei", {})]
+        point = events[60]
+        assert isinstance(point, PointEvent) and point.league_id == 4
 
 
 class TestRefusedReplies:

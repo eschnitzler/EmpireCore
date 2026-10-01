@@ -74,7 +74,7 @@ class GameState(MovementState, CastleState, PlayerState, EventState):
     honor, beginner protection           ``gho``/``uap``              re-login
     special currencies                   ``sce`` (pushed)             --
     spies owned, before boosts           ``gms`` (pushed)             re-login
-    running events, scores, ends         ``sei``/``tei`` (pushed),    re-login
+    running events, scores, ends         ``sei``/``tei`` (pushed),    ``client.events.refresh()``
                                          ``see``/``tee``, ``pep``,
                                          ``fjf``, ``bst``
     movements                            ``gam``, ``abr``/``asr``,    ``client.movements.get_movements()``

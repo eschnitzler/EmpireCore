@@ -26,7 +26,7 @@ src/empire_core/
 │   └── base.py            # BaseService
 ├── network/               # WebSocket connection, receive loop, redaction
 ├── state/                 # Thread-safe game state
-└── utils/                 # CDN-backed event and troop data
+└── utils/                 # event titles and troop data from the CDN
 ```
 
 Areas import only areas below them (map, ranking and events at the bottom, then

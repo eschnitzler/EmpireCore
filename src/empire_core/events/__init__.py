@@ -1,4 +1,4 @@
-"""Running server events and their scoreboards. The event name lookups live in ``empire_core.utils.events``."""
+"""Running server events and their scoreboards. The event titles come from ``empire_core.utils.events``."""
 
 from .models import (
     EVENT_CLASSES,
@@ -12,6 +12,7 @@ from .models import (
     EventScores,
     FactionInvasionEvent,
     GachaEvent,
+    GameEvent,
     GlobalEffectBoost,
     GlobalEffectBuffEvent,
     GlobalEffectEvent,
@@ -27,6 +28,7 @@ from .models import (
     Scoreboard,
     ScoredEvent,
     SpecialEvent,
+    SpecialEventInfoRequest,
     TempServerEvent,
 )
 
@@ -42,6 +44,7 @@ __all__ = [
     "EventScores",
     "FactionInvasionEvent",
     "GachaEvent",
+    "GameEvent",
     "GlobalEffectBoost",
     "GlobalEffectBuffEvent",
     "GlobalEffectEvent",
@@ -57,5 +60,6 @@ __all__ = [
     "Scoreboard",
     "ScoredEvent",
     "SpecialEvent",
+    "SpecialEventInfoRequest",
     "TempServerEvent",
 ]

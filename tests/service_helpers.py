@@ -109,7 +109,7 @@ class ScriptedConnection:
         self.accepts: list[Any] = []
         self.locked: list[str] = []
         self.events: list[str] = []
-        self.on_packet = None
+        self.on_packet: Any = None
         self.on_disconnect = None
 
     def _resolve(self, cmd_id: str) -> Packet:
@@ -135,6 +135,9 @@ class ScriptedConnection:
         if accepts is not None and result.error_code == 0 and not accepts(result):
             # Connection leaves a reply the check refuses to other waiters, so this one runs out
             raise EmpireTimeoutError(f"No {cmd_id} reply accepted")
+        if self.on_packet is not None:
+            # Connection feeds the state before it wakes the waiter
+            self.on_packet(result)
         return result
 
     def create_waiter(self, cmd_id: str) -> ResponseWaiter:

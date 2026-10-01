@@ -1,37 +1,19 @@
 """
-Names for the server's active event ids, from the game's CDN.
-
-Fetches static metadata from the GGS CDN (same pattern as troops.py) and cross-references
-the event IDs returned by the server's `sei` packet to produce typed GameEvent objects.
+The in-game titles of the server's events, from the game's language CDN.
 
 Usage:
-    # Get raw IDs from the live server connection
-    event_ids = client.events.get_active_event_ids()
+    titles = get_event_titles("de")
+    titles.get(83)  # the long-term point event's title
 
-    # Resolve to named events (fetches CDN data, cached after first call)
-    events = get_active_events(event_ids)
-
-    # Branch on event type
-    event_names = {e.internal_name for e in events}
-    if "Nomad" in event_names:
-        # run nomad tasks ...
-        ...
-
-A CDN outage raises :class:`~empire_core.exceptions.NetworkError` rather than
-returning an empty list, so callers can tell "metadata unavailable" apart from
-"no events are running".
+The titles are cosmetic: a CDN outage gives the titles last fetched, or none, and is
+retried after a pause.
 """
 
 import logging
 import threading
 import time
-from dataclasses import dataclass
-from typing import Any
 
 import requests
-
-from empire_core.exceptions import NetworkError
-from empire_core.utils.troops import fetch_items_data, get_items_version
 
 logger = logging.getLogger(__name__)
 
@@ -39,36 +21,21 @@ logger = logging.getLogger(__name__)
 _LANG_META_URL = "https://langserv.public.ggs-ep.com/12/fr/@metadata"
 _LANG_DATA_URL = "https://langserv.public.ggs-ep.com/12@{version}/{lang}/*"
 
-# Module-level caches shared by every thread that resolves events. Reads and
-# writes happen under _fetch_lock: unsynchronized check-then-fetch let two
-# callers on a cold cache both run the multi-second CDN download.
+# Shared by every thread that asks; reads and writes happen under _fetch_lock, so
+# two callers on a cold cache do not both run the multi-second download.
 _fetch_lock = threading.Lock()
-_cached_events_index: dict[int, dict[str, Any]] | None = None  # event_id -> raw event dict
 _cached_translations: dict[str, dict[str, str]] = {}  # lang -> translations
 
-# Wall-clock stamp (time.time(), as in troops.py) of the last successful fetch.
-_events_index_fetched_at: float = 0.0
+# Wall-clock stamp (time.time()) of the last successful fetch per language.
 _translations_fetched_at: dict[str, float] = {}
-# Cached CDN data is refreshed after this long, so a long-running process
-# eventually sees events added to the CDN after it started.
+# Cached translations are refreshed after this long.
 _CACHE_TTL = 86400.0
 
-# After a failed fetch, don't retry the CDN for this many seconds - the same
-# guard troops.py uses. Without it every call re-issues blocking HTTP requests
-# (10s + 30s timeouts) from whatever thread happens to ask.
+# After a failed fetch, the CDN is not asked again for this many seconds.
 _FAILURE_RETRY_INTERVAL = 300.0
-_last_index_failure_at: float = 0.0
 _last_translations_failure_at: dict[str, float] = {}
 
-
-@dataclass
-class GameEvent:
-    """A resolved active game event with human-readable names."""
-
-    id: int
-    internal_name: str  # Internal type name, e.g. "Nomad", "AllianceBattleGround"
-    display_name: str  # Localized in-game title, e.g. "Nomad Invasion"
-    description: str  # Developer comment / short description
+_TITLE_PREFIX = "event_title_"
 
 
 def _is_recent(stamp: float, interval: float) -> bool:
@@ -88,71 +55,12 @@ def _fetch_translations(lang: str = "en") -> dict[str, str]:
     return lang_res.json()
 
 
-def _build_events_index(force_refresh: bool = False) -> dict[int, dict[str, Any]]:
-    """
-    Build and cache an index of event_id -> raw event dict from the GGS CDN.
-
-    Args:
-        force_refresh: Fetch from the CDN even when the cached index is fresh.
-
-    Returns:
-        Dict mapping event ID (int) to the raw event entry from items data.
-        The index is cached for ``_CACHE_TTL`` seconds; if refreshing it fails
-        while an older index is cached, that stale index is returned and a
-        warning is logged.
-
-    Raises:
-        NetworkError: The CDN fetch failed and no index has ever been cached.
-            Also raised, without touching the network, while the post-failure
-            backoff window (``_FAILURE_RETRY_INTERVAL``) is still open.
-    """
-    global _cached_events_index, _events_index_fetched_at, _last_index_failure_at
-
-    with _fetch_lock:
-        cached = _cached_events_index
-        if not force_refresh and cached is not None and _is_recent(_events_index_fetched_at, _CACHE_TTL):
-            return cached
-
-        if not force_refresh and _is_recent(_last_index_failure_at, _FAILURE_RETRY_INTERVAL):
-            if cached is not None:
-                return cached
-            raise NetworkError(
-                "GGS CDN event metadata is unavailable: the last fetch failed less than "
-                f"{_FAILURE_RETRY_INTERVAL:.0f}s ago and is not retried yet"
-            )
-
-        try:
-            version = get_items_version()
-            items_data = fetch_items_data(version)
-        except Exception as e:
-            _last_index_failure_at = time.time()
-            if cached is not None:
-                logger.warning(f"Failed to refresh event metadata from GGS CDN, serving cached index: {e}")
-                return cached
-            raise NetworkError(f"Failed to fetch event metadata from GGS CDN: {e}") from e
-
-        index: dict[int, dict[str, Any]] = {}
-        for event in items_data.get("events", []):
-            try:
-                event_id = int(event["eventID"])
-                index[event_id] = event
-            except (KeyError, TypeError, ValueError):
-                continue
-
-        _cached_events_index = index
-        _events_index_fetched_at = time.time()
-        _last_index_failure_at = 0.0
-        logger.info(f"Built events index with {len(index)} entries from GGS CDN (v{version})")
-        return index
-
-
 def _get_translations(lang: str = "en", force_refresh: bool = False) -> dict[str, str]:
     """
     Fetch and cache the GGS translation dictionary.
 
-    Display names are cosmetic, so unlike the events index a translation
-    failure is not fatal: an empty dict is returned (callers fall back to
-    internal names), a warning is logged, and the CDN is not retried for
+    A failure is not fatal: the last cached dict (or an empty one) is
+    returned, a warning is logged, and the CDN is not retried for
     ``_FAILURE_RETRY_INTERVAL`` seconds.
 
     Args:
@@ -177,7 +85,7 @@ def _get_translations(lang: str = "en", force_refresh: bool = False) -> dict[str
             translations = _fetch_translations(lang=lang)
         except Exception as e:
             _last_translations_failure_at[lang] = time.time()
-            logger.warning(f"Failed to fetch translations, display names will fall back to internal names: {e}")
+            logger.warning(f"Failed to fetch translations, event titles fall back to the event names: {e}")
             return cached if cached is not None else {}
 
         _cached_translations[lang] = translations
@@ -187,80 +95,27 @@ def _get_translations(lang: str = "en", force_refresh: bool = False) -> dict[str
         return translations
 
 
-def get_active_events(
-    event_ids: list[int],
-    lang: str = "en",
-    force_refresh: bool = False,
-) -> list[GameEvent]:
+def get_event_titles(lang: str = "en", force_refresh: bool = False) -> dict[int, str]:
     """
-    Resolve a list of active event IDs to typed GameEvent objects.
+    The in-game title of every event, by event id, in ``lang``.
 
-    Fetches event metadata and translations from the GGS CDN (results are
-    cached for 24h and refreshed afterwards). Pass the IDs from
-    ``client.events.get_active_event_ids()``.
+    Fetched from the GGS language CDN and cached for 24 hours. A failed fetch
+    gives the titles last fetched, or an empty dict, and is not retried for
+    five minutes.
 
     Args:
-        event_ids: List of active event IDs from the server's sei packet.
-        lang: Language code for display names (default: "en").
-        force_refresh: Force re-fetch of CDN data, bypassing the cache.
+        lang: Language code (default: "en")
+        force_refresh: Fetch from the CDN even when the cached titles are fresh
 
-    Returns:
-        List of GameEvent objects for the given IDs. An empty list means
-        ``event_ids`` was empty or none of the IDs appear in the CDN data - it
-        never means "the CDN was unreachable", which raises instead. IDs not
-        found in the CDN data are skipped with a debug log.
-
-        A failure to fetch *translations* is not fatal: display names then fall
-        back to the internal event names.
-
-    Raises:
-        NetworkError: Event metadata could not be fetched from the CDN and no
-            previously fetched metadata is cached. During the retry backoff
-            window this is raised without issuing another request, so callers
-            polling in a loop do not hammer the CDN.
-
-    Example:
-        event_ids = client.events.get_active_event_ids()
-        try:
-            events = get_active_events(event_ids)
-        except NetworkError:
-            # metadata unavailable - do not treat this as "no events active"
-            raise
-
-        event_names = {e.internal_name for e in events}
-        if "Nomad" in event_names:
-            # handle nomad event ...
-            pass
+    Client: the event dialogs show ``"event_title_"+eventId`` (``ASeasonEventVO.seasonNameString``,
+    bundle line 31389)
     """
-    if not event_ids:
-        return []
-
-    index = _build_events_index(force_refresh=force_refresh)
     translations = _get_translations(lang=lang, force_refresh=force_refresh)
-
-    results: list[GameEvent] = []
-    for eid in event_ids:
-        raw = index.get(eid)
-        if raw is None:
-            logger.debug(f"Event ID {eid} not found in CDN data, skipping")
-            continue
-
-        internal_name = str(raw.get("eventType") or "Unknown")
-        description = str(raw.get("comment1", "") or "").strip() or str(raw.get("comment2", "") or "").strip() or ""
-
-        title_key = f"event_title_{eid}"
-        display_name = translations.get(title_key) or internal_name
-
-        results.append(
-            GameEvent(
-                id=eid,
-                internal_name=internal_name,
-                display_name=display_name,
-                description=description,
-            )
-        )
-
-    return results
+    titles: dict[int, str] = {}
+    for key, text in translations.items():
+        if key.startswith(_TITLE_PREFIX) and key[len(_TITLE_PREFIX) :].isdigit():
+            titles[int(key[len(_TITLE_PREFIX) :])] = text
+    return titles
 
 
-__all__ = ["GameEvent", "get_active_events"]
+__all__ = ["get_event_titles"]

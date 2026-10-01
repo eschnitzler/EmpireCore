@@ -1,6 +1,6 @@
 # Utilities
 
-CDN-backed event and troop data.
+Event titles and troop data from the game's CDN.
 
 ## `utils.events`
 

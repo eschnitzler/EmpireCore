@@ -85,9 +85,8 @@ problem is never mistaken for a game-rule refusal.
 ## An empty result means nothing there
 
 An empty collection always means "nothing there", never "the lookup failed".
-`client.events.get_active_events()` and `get_troop_ids()` raise on a CDN outage
-rather than return an empty list. Where an exact answer depends on data that
-may be missing, ask first:
+`get_troop_ids()` raises on a CDN outage rather than return an empty list.
+Where an exact answer depends on data that may be missing, ask first:
 
 ```python
 from empire_core import troop_data_available

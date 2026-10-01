@@ -10,11 +10,12 @@ import time
 from collections.abc import Mapping
 from typing import Annotated, Any, ClassVar, NoReturn, TypeVar
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, SerializeAsAny
 
 from empire_core.enums import RankingType
 from empire_core.exceptions import ReplyMismatchError
 from empire_core.gamedata.ids.events import Event
+from empire_core.protocol.base import BaseRequest
 from empire_core.protocol.js import (
     js_int,
     js_loose_equals,
@@ -997,3 +998,32 @@ event's ``eventType``
 def event_class(event_id: int) -> type[SpecialEvent]:
     """The model an event's entries are read into."""
     return EVENT_CLASSES.get(_EVENT_IDS.get(event_id), SpecialEvent)  # type: ignore[arg-type]
+
+
+class SpecialEventInfoRequest(BaseRequest):
+    """
+    Ask for the running events; the server answers with a ``sei``.
+
+    Command: sei
+    Payload: {}
+
+    Client: ``C2SSpecialEventInfoVO`` (bundle lines 37406-37407), which has no fields; sent
+    after a temporary server castle is bought (bundle line 24305)
+    """
+
+    command = "sei"
+
+
+class GameEvent(BaseModel):
+    """A running event with its in-game title."""
+
+    model_config = ConfigDict(frozen=True)
+
+    event_id: int = Field(description="The event's id")
+    event: Event | None = Field(default=None, description="The event, None for an id the event table lacks")
+    display_name: str = Field(
+        description="The in-game title; without one, the event's Event name, or its id for an unknown event"
+    )
+    details: SerializeAsAny[SpecialEvent] = Field(
+        description="The running event, as client.state.get_event() gives it, dumped with its own fields"
+    )
