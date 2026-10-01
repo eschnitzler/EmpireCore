@@ -65,6 +65,12 @@ LOBBY_ROOM_NAME = "Lobby"
 LOGIN_SECTION_PUSHES = ("sne", "ahl")
 
 
+# Commands whose state the client applies only from a successful reply: SEICommand, SEECommand,
+# TEICommand, TEECommand, PEPCommand, FJFCommand and BSTCommand (bundle lines 128379, 128364,
+# 128409, 128394, 128214, 127782, 127608)
+_EVENT_STATE_COMMANDS = frozenset({"sei", "see", "tei", "tee", "pep", "fjf", "bst"})
+
+
 def _joined_room_id(join_ok: Packet) -> int:
     """
     The room id in a ``joinOK``'s ``r`` attribute, read with ``Number()``.
@@ -238,8 +244,10 @@ class EmpireClient:
         if cmd == "slt" and packet.error_code == 0 and isinstance(payload, dict):
             self._store_login_token(payload)
 
-        # Update internal state (always runs for state-tracked commands)
-        self._update_state(cmd, payload)
+        # Update internal state (always runs for state-tracked commands, but the event
+        # commands the client parses only on ALL_OK, e.g. SEICommand, bundle line 128379)
+        if packet.error_code == 0 or cmd not in _EVENT_STATE_COMMANDS:
+            self._update_state(cmd, payload)
         if cmd == "mvf" and packet.error_code == 0:
             self._request_movements()
 

@@ -7,10 +7,11 @@ from typing import Any
 
 from empire_core.state.base import MovementEventCallback
 from empire_core.state.castles import CastleState
+from empire_core.state.events import EventCallback, EventsCallback, EventState
 from empire_core.state.movements import MOVEMENT_PARSE_WARN_INTERVAL, MovementState
 from empire_core.state.player import PlayerState
 
-__all__ = ["MOVEMENT_PARSE_WARN_INTERVAL", "GameState", "MovementEventCallback"]
+__all__ = ["MOVEMENT_PARSE_WARN_INTERVAL", "EventCallback", "EventsCallback", "GameState", "MovementEventCallback"]
 # gbd/lli sections stamped under their own id, whether they came in a gbd or as a push.
 _TRACKED_SECTIONS = (
     "gpi",
@@ -36,7 +37,7 @@ _PLAYER_SECTIONS = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "
 _SECTION_PUSHES = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc", "gms"})
 
 
-class GameState(MovementState, CastleState, PlayerState):
+class GameState(MovementState, CastleState, PlayerState, EventState):
     """
     Manages game state parsed from server packets.
 
@@ -46,7 +47,7 @@ class GameState(MovementState, CastleState, PlayerState):
     The public attributes stay readable directly, but callers that read
     several fields at once (or iterate a container) should use the snapshot
     accessors — ``get_local_player()``, ``get_special_currencies()``, ``get_castles()``,
-    ``get_all_movements()`` — which copy under the lock. Mutation paths swap
+    ``get_all_movements()``, ``get_events()`` — which copy under the lock. Mutation paths swap
     containers instead of editing them in place, so an unlocked reader that
     already holds one never sees it change underneath.
 
@@ -73,9 +74,9 @@ class GameState(MovementState, CastleState, PlayerState):
     honor, beginner protection           ``gho``/``uap``              re-login
     special currencies                   ``sce`` (pushed)             --
     spies owned, before boosts           ``gms`` (pushed)             re-login
-    running events, their ends/leagues   ``sei``/``tei`` (pushed),    re-login
-                                         ``see``/``tee``, ``fjf``,
-                                         ``bst``
+    running events, scores, ends         ``sei``/``tei`` (pushed),    re-login
+                                         ``see``/``tee``, ``pep``,
+                                         ``fjf``, ``bst``
     movements                            ``gam``, ``abr``/``asr``,    ``client.movements.get_movements()``
                                          your sends' replies
                                          (``cra``, ``cds``, ...)
@@ -91,7 +92,7 @@ class GameState(MovementState, CastleState, PlayerState):
     In practice a castle's ``resources`` often reflects login time and nothing
     else, so use the freshness accessors before trusting them:
     :meth:`get_castle_last_updated` / :meth:`get_castle_age`,
-    :meth:`get_player_last_updated`, and :meth:`get_last_packet_time` /
+    :meth:`get_player_last_updated`, :meth:`get_events_last_updated`, and :meth:`get_last_packet_time` /
     :meth:`get_packet_times` for per-packet timestamps. All timestamps are
     wall-clock (``time.time()``) seconds, and ``None`` means "never seen",
     which is different from "seen and empty".
@@ -128,6 +129,7 @@ class GameState(MovementState, CastleState, PlayerState):
         "see": "_handle_see",
         "tei": "_handle_tei",
         "tee": "_handle_tee",
+        "pep": "_handle_pep",
         "bst": "_handle_bst",
     }
 
@@ -148,6 +150,7 @@ class GameState(MovementState, CastleState, PlayerState):
                 self._packet_times[cmd_id] = time.time()
                 getattr(self, handler_name)(payload)
             self._advance_movements()
+            self._expire_events()
 
     def _handle_gbd(self, data: dict[str, Any]) -> None:
         """Apply the login data, or the one section a push wraps in the same shape.
@@ -269,7 +272,7 @@ class GameState(MovementState, CastleState, PlayerState):
         Accepts the wire ids this manager tracks — "gbd", "lli", "gam", "dcl",
         "abr", "asr", the send replies ("cra", "cam", "abgcam", "cds", "csm",
         "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm",
-        "mfc", "glu", "mir", "fjf", "bst", "sce", "see", "tee" — and the login sections
+        "mfc", "glu", "mir", "fjf", "bst", "sce", "see", "tee", "pep" — and the login sections
         "gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc", "gms", "sei" and
         "tei", stamped whether they came inside a gbd or as a push of their own ("sei"
         also when a fjf or bst reply carries one), plus "gac", which only comes inside

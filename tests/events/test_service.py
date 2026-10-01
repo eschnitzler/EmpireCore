@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from empire_core.events import service as events_module
 from empire_core.state.manager import GameState
-from tests.service_helpers import StubState, make_client, xt_packet
+from tests.service_helpers import make_client, xt_packet
 
 
 def _client(state: GameState | None = None):
@@ -17,7 +17,9 @@ class TestEventLeagues:
 
         client._on_packet(xt_packet("sei", {"E": [{"EID": 83, "RS": 60, "LID": 3, "OP": [0]}, {"EID": 7, "RS": 60}]}))
 
-        assert (client.events.get_league_id(83), client.events.get_league_id(7)) == (3, None)
+        # A running event without a league is in league 1, the client's default; one not running has none
+        leagues = [client.events.get_league_id(event) for event in (83, 7, 60)]
+        assert leagues == [3, 1, None]
 
     def test_a_later_entry_without_a_league_keeps_it(self):
         # AScoreEventVO: t.LID&&(this._leagueID=int(t.LID))
@@ -46,15 +48,14 @@ class TestEventLeagues:
 
 
 class TestActiveEvents:
-    def test_ids_are_a_copy_of_the_state_list(self):
-        state = StubState()
-        state.active_event_ids = [10, 11]  # type: ignore[attr-defined]
-        client = make_client(state=state)
+    def test_ids_are_the_running_events_in_order_and_a_copy(self):
+        client = _client()
+        client._on_packet(xt_packet("sei", {"E": [{"EID": 11, "RS": 60}, {"EID": 10, "RS": 60}]}))
 
         ids = client.events.get_active_event_ids()
         ids.append(99)
 
-        assert client.events.get_active_event_ids() == [10, 11]
+        assert client.events.get_active_event_ids() == [11, 10]
 
     def test_events_resolve_the_state_ids(self, monkeypatch):
         calls = []
@@ -64,12 +65,26 @@ class TestActiveEvents:
             return []
 
         monkeypatch.setattr(events_module, "_get_active_events", fake_get_active_events)
-        state = StubState()
-        state.active_event_ids = [10]  # type: ignore[attr-defined]
-        client = make_client(state=state)
+        client = _client()
+        client._on_packet(xt_packet("sei", {"E": [{"EID": 10, "RS": 60}]}))
 
         assert client.events.get_active_events(lang="de", force_refresh=True) == []
         assert calls == [([10], "de", True)]
+
+
+class TestRefusedReplies:
+    def test_a_refused_event_reply_is_not_applied(self):
+        # SEICommand, PEPCommand, FJFCommand, ... parse only on ALL_OK
+        client = _client()
+        client._on_packet(xt_packet("sei", {"E": [{"EID": 60, "RS": 60}]}))
+
+        client._on_packet(xt_packet("sei", {"E": [{"EID": 83, "RS": 60}]}, error_code=1))
+        client._on_packet(xt_packet("pep", {"EID": 60, "OR": [1], "OP": [5]}, error_code=1))
+        client._on_packet(xt_packet("see", {"EID": 60}, error_code=1))
+        client._on_packet(xt_packet("fjf", {"sei": {"E": [{"EID": 3, "RS": 60}]}}, error_code=1))
+
+        assert client.events.get_active_event_ids() == [60]
+        assert client.state.get_event(60).own_points == 0  # type: ignore[union-attr]
 
 
 class TestEventUpdates:
@@ -101,5 +116,6 @@ class TestEventUpdates:
 
         client._on_packet(xt_packet("sei", {"E": [{"EID": 85, "RS": 60, "FB": {"LID": 0}, "SP": "x"}]}))
 
-        assert before == [None, 2, 3, 1, None]
-        assert [client.events.get_league_id(85, part) for part in parts] == [None, 1, 1, 1, None]
+        # SP is not one of its parts, so it reads as the default league
+        assert before == [1, 2, 3, 1, 1]
+        assert [client.events.get_league_id(85, part) for part in parts] == [1, 1, 1, 1, 1]

@@ -22,6 +22,7 @@ movements = client.state.get_all_movements()
 attacks = client.state.get_incoming_attacks()
 currencies = client.state.get_special_currencies()
 spies = client.state.get_max_spies()        # spies owned, before boosts
+events = client.state.get_events()          # the running events, by id
 ```
 
 The attributes behind them (`client.state.local_player`,
@@ -44,7 +45,7 @@ every value is as old as the last packet that carried it:
 | Honor, beginner protection | `gho`, `uap` | log in again |
 | Special currencies | `sce` (pushed) | none |
 | Spies owned, before boosts | `gms` (pushed) | log in again |
-| Running events, their ends and leagues | `sei`, `tei` (pushed), `see`, `tee`, the `fjf` and `bst` replies | log in again |
+| Running events, their scores and ends | `sei`, `tei` (pushed), `see`, `tee`, `pep`, the `fjf` and `bst` replies | log in again |
 | Movements | `gam`, `abr`/`asr`, your sends' replies | `client.movements.get_movements()` |
 
 Every player section is sent inside the login data (`gbd`) and again as a push
@@ -66,6 +67,38 @@ The freshness accessors are `get_castle_last_updated` and `get_castle_age`,
 `get_player_last_updated`, and `get_last_packet_time` or `get_packet_times`
 for each command. They return wall-clock `time.time()` seconds, and `None`
 means never seen, which is different from seen and empty.
+
+## Running events
+
+`client.state.get_events()` maps each running event's id to a model of its kind
+(the ones in `empire_core.events.EVENT_CLASSES`, such as `InvasionEvent` or
+`KingdomsLeagueEvent`), or a plain `SpecialEvent` for the rest. Each keeps the
+fields its game dialog reads, the entries the server sent in `raw`, and when it
+ends (`end_time`, in `time.monotonic()` seconds; `remaining_seconds()` and
+`is_active()` read it):
+
+```python
+from empire_core.gamedata.ids import Event
+
+for event_id, event in client.state.get_events().items():
+    print(event_id, type(event).__name__, round(event.remaining_seconds()))
+
+samurai = client.state.get_event(Event.SAMURAI_INVASION)
+if samurai is not None:
+    print(samurai.parts["A"].league_id, samurai.parts["A"].own_points)
+```
+
+An event starts with the `sei` (or, for the kingdoms league and the global
+effects, `tei`) entry that names it, and later entries are read over it the way
+the game reads them: a field the entry leaves out mostly keeps its value. It
+ends with a `see` or `tee`, or when its time runs out. Your points come with
+the `pep` pushes. The models never change; a later packet replaces them, so a
+snapshot stays as it was.
+
+`on_event_added`, `on_event_removed` and `on_events_updated` (and their
+`remove_*` counterparts) call you back on the callback thread when an event
+starts, ends, or a packet updates the events; `get_events_last_updated()` says
+when one last did.
 
 ## Disconnects
 

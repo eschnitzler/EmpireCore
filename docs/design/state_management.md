@@ -17,8 +17,7 @@ class GameState:
     castles: dict[CastleKey, Castle]  # (kingdom, castle_id) -> Castle
     permanent_castles: dict[CastleKey, PermanentCastle]  # gpc: unlocked units and horses
     movements: dict[int, Movement]    # movement_id -> Movement
-    active_event_ids: list[int]
-    event_league_ids: dict[int, int]  # event id -> league (sei LID)
+    events: dict[int, SpecialEvent]  # event id -> its model (sei/tei), in start order
 ```
 
 It is created and owned by `EmpireClient` as `client.state`.
@@ -79,7 +78,9 @@ commands to handlers:
 | `glu`        | level up: its `gcu` and `gxp`                      |
 | `mir`, `fjf` | castle list (`gcl`) after taking a castle, or in a faction join reply |
 | `sce`        | special currency update                            |
-| `sei`        | active event ids and their leagues                |
+| `sei`, `tei` | running events, read into their models (also the `sei` in `fjf` and `bst` replies) |
+| `see`, `tee` | an event ended                                    |
+| `pep`        | your points and rank in a running event           |
 
 `lli` is routed through the same handler as `gbd`, but in the client a
 successful `lli` carries no game data (`LLICommand.executeCommand`, bundle

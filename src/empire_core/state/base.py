@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from empire_core.castle.models.permanent import PermanentCastle
+from empire_core.events.models import SpecialEvent
 from empire_core.movements.tracked import Movement
 from empire_core.spy.models import MaxSpiesResponse
 from empire_core.state.models import Castle, CastleKey, Player
@@ -41,6 +42,9 @@ class StateBase:
         self._movement_recalled_callbacks: list[tuple[MovementEventCallback, bool]] = []
         self._movement_arrived_callbacks: list[tuple[MovementEventCallback, bool]] = []
         self._movement_removed_callbacks: list[tuple[MovementEventCallback, bool]] = []
+        self._event_added_callbacks: list[Callable[[SpecialEvent], Any]] = []
+        self._event_removed_callbacks: list[Callable[[SpecialEvent], Any]] = []
+        self._events_updated_callbacks: list[Callable[[dict[int, SpecialEvent]], Any]] = []
 
         # One worker, so callbacks run one at a time in packet order, off the
         # receive thread. Created lazily so it survives disconnect/reconnect.
@@ -85,15 +89,9 @@ class StateBase:
         # Spies owned before boosts, from gms
         self.max_spies: MaxSpiesResponse | None = None
 
-        # Active Events
-        self._active_event_ids: list[int] = []
-        self.event_end_times: dict[int, float] = {}
-        self.event_league_ids: dict[int, int] = {}
-        self.event_part_league_ids: dict[tuple[int, str], int] = {}
-        self.event_unlocked: dict[int, bool] = {}
-        # The kingdoms league's days left (KLRD), and the events whose last entry set KL
-        self._season_league_days: dict[int, int] = {}
-        self._season_mode_events: set[int] = set()
+        # Running events by id, in the order they started; swapped, never edited
+        self.events: dict[int, SpecialEvent] = {}
+        self._events_updated_at: float | None = None
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}

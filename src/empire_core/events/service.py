@@ -21,7 +21,7 @@ from empire_core.services.base import BaseService
 from empire_core.utils.events import GameEvent
 from empire_core.utils.events import get_active_events as _get_active_events
 
-from .models import EVENT_SCOREBOARDS, EventScores, Scoreboard
+from .models import EVENT_SCOREBOARDS, BerimondEvent, EventScores, Scoreboard
 
 # The part of an event's sei entry holding a board's league; other boards use the entry's own LID
 _LEAGUE_PART = {
@@ -52,7 +52,7 @@ class EventsService(BaseService):
             List of event IDs (EID) from sei packet.
             Empty list if no events are active or not yet logged in.
         """
-        return list(self.client.state.active_event_ids)  # Return copy, not reference
+        return list(self.client.state.get_events())
 
     def get_league_id(self, event_id: int, part: str | None = None) -> int | None:
         """
@@ -68,12 +68,20 @@ class EventsService(BaseService):
                 ``A`` (alliances), ``FB`` or ``FR`` (Berimond invasion's blue and red players)
 
         Returns:
-            The league, or None when no sei entry for the event gave one
+            The league, 1 (the client's default) for a running event or part without one,
+            or None when the event is not running
 
-        Client: ``AScoreEventVO.parseBasicsFromParamObject`` (bundle line 14967),
-        read by ``GlobalLeaderBoardLeagueComponent`` (bundle line 100470)
+        Client: ``AScoreEventVO.parseBasicsFromParamObject`` (bundle line 14967), defaults at
+        bundle line 14965, read by ``GlobalLeaderBoardLeagueComponent`` (bundle line 100470)
         """
-        return self.client.state.get_event_league_id(event_id, part)
+        found = self.client.state.get_event(event_id)
+        if found is None:
+            return None
+        if part is not None:
+            parts = getattr(found, "parts", {})
+            return parts[part].league_id if part in parts else 1
+        league = getattr(found, "league_id", None)
+        return league if isinstance(league, int) else 1
 
     def get_running_score_events(self) -> list[Event]:
         """The running events that have a scoreboard, in the order the sei packets named them."""
@@ -163,7 +171,8 @@ class EventsService(BaseService):
             raise EventNotRunningError(event)
         board = self._board(event, scoreboard, alliance, list_type)
         own_league = self._league(event, board)
-        locked = event is Event.FACTION and not self.client.state.is_event_unlocked(event)
+        berimond = self.client.state.get_event(event)
+        locked = isinstance(berimond, BerimondEvent) and not berimond.unlocked
         own_page = not locked if league_id is None else league_id == own_league
         if league_id is None:
             league_id = 1 if locked else own_league
@@ -221,7 +230,7 @@ class EventsService(BaseService):
         # AScoreEventVO (bundle line 14965) and FactionEventVO (bundle line 7353) start at league 1
         if event == 123:  # Event.DONATION_EVENT
             return -1
-        league = self.client.state.get_event_league_id(event, _LEAGUE_PART.get(board))
+        league = self.get_league_id(event, _LEAGUE_PART.get(board))
         return 1 if league is None else league
 
     def get_active_events(

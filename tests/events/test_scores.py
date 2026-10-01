@@ -10,7 +10,7 @@ from empire_core.enums import RankingType
 from empire_core.events import EVENT_SCOREBOARDS, EventScore, EventScores
 from empire_core.exceptions import CommandError, EventNotRunningError, ReplyMismatchError
 from empire_core.gamedata.ids import Event
-from empire_core.state import player as player_state
+from empire_core.state import events as event_state
 from empire_core.state.manager import GameState
 from tests.service_helpers import conn, make_client, xt_packet
 
@@ -303,7 +303,7 @@ class TestClientDivergencesFixed:
     def test_an_event_whose_time_ran_out_is_not_running(self, monkeypatch):
         # CastleSpecialEventData.executeUpdateForEvents removes it at remainingEventTimeInSeconds<=0
         now = [1000.0]
-        monkeypatch.setattr(player_state, "_clock", lambda: now[0])
+        monkeypatch.setattr(event_state, "_clock", lambda: now[0])
         client = _running(None, {"EID": 3, "RS": 60, "LID": 2}, {"EID": 60, "RS": 600})
 
         now[0] += 61
@@ -336,7 +336,8 @@ class TestClientDivergencesFixed:
         client._on_packet(xt_packet("see", {"EID": 71}))
         client._on_packet(xt_packet("sei", {"E": [{"EID": 71, "RS": 60}]}))
 
-        assert (client.events.get_league_id(71), client.events.get_league_id(71, "SP")) == (None, None)
+        assert (client.events.get_league_id(71), client.events.get_league_id(71, "SP")) == (1, 1)
+        assert client.state.get_event(71).parts == {}
 
     def test_rank_starts_at_one(self):
         client = _running(None, {"EID": 3})

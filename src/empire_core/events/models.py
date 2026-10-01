@@ -1,17 +1,29 @@
 """
-The events that have a scoreboard, and a page of one as ``client.events.get_scores`` returns it.
+The running events as the state keeps them, the events that have a scoreboard, and a page of one
+as ``client.events.get_scores`` returns it.
 """
 
 from __future__ import annotations
 
-from typing import Any
+import math
+import time
+from collections.abc import Mapping
+from typing import Annotated, Any, ClassVar, NoReturn, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from empire_core.enums import RankingType
 from empire_core.exceptions import ReplyMismatchError
 from empire_core.gamedata.ids.events import Event
-from empire_core.protocol.js import js_int, js_parse_int_or_zero, js_string
+from empire_core.protocol.js import (
+    js_int,
+    js_loose_equals,
+    js_number,
+    js_number_or_none,
+    js_parse_int_or_zero,
+    js_string,
+    js_truthy,
+)
 from empire_core.ranking.models import GetHighscoreResponse, GetRankingListResponse, LeaderboardScore
 
 
@@ -208,3 +220,780 @@ class EventScores(BaseModel):
             total=reply.total,
             scores=[EventScore.from_leaderboard(score) for score in reply.scores],
         )
+
+
+# The running events, as client.state.get_events() holds them
+
+_DAY = 86400.0
+
+
+_K = TypeVar("_K")
+_V = TypeVar("_V")
+
+
+class ReadOnlyDict(dict[_K, _V]):
+    """A dict that refuses changes, so an event model handed out never changes."""
+
+    def _refuse(self, *args: Any, **kwargs: Any) -> NoReturn:
+        raise TypeError("an event's mappings are read-only; the state replaces the event instead")
+
+    __setitem__ = __delitem__ = clear = pop = popitem = setdefault = update = __ior__ = _refuse  # type: ignore[assignment]
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        return (type(self), (dict(self),))
+
+    def __copy__(self) -> ReadOnlyDict[_K, _V]:
+        return self
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> ReadOnlyDict[_K, _V]:
+        return self
+
+
+def _frozen(value: Any) -> Any:
+    """A read-only copy: dicts as ReadOnlyDict, lists as tuples, all the way down."""
+    if isinstance(value, dict):
+        return ReadOnlyDict({key: _frozen(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_frozen(item) for item in value)
+    return value
+
+
+_Raw = Annotated[dict[str, Any], AfterValidator(_frozen)]
+_Parts = Annotated[dict[str, "EventPart"], AfterValidator(ReadOnlyDict)]
+
+
+def _now(now: float | None) -> float:
+    return time.monotonic() if now is None else now
+
+
+def _dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _read_score(values: dict[str, Any], entry: dict[str, Any]) -> None:
+    for key, field in (("LID", "league_id"), ("OR", "own_rank"), ("ST", "sub_type"), ("OP", "own_points")):
+        if js_truthy(entry.get(key)):
+            values[field] = js_int(entry[key])
+    if js_truthy(entry.get("SC")):
+        values["point_scale"] = js_int(entry["SC"])
+    if js_truthy(entry.get("LRSI")):
+        values["leaderboard_reward_set_id"] = js_int(entry["LRSI"])
+
+
+def _first(values: Any, index: int) -> Any:
+    return values[index] if isinstance(values, list) and len(values) > index else None
+
+
+def _with_points(model: Any, ranks: Any, points: Any, maxima: Any, index: int = 0) -> Any:
+    update: dict[str, Any] = {}
+    if (rank := _first(ranks, index)) is not None:
+        update["own_rank"] = js_int(rank)
+    if (point := _first(points, index)) is not None:
+        update["own_points"] = js_int(point)
+    if (most := _first(maxima, index)) is not None:
+        update["max_points"] = js_int(most)
+    return model.model_copy(update=update) if update else model
+
+
+class _ScoreFields(BaseModel):
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
+
+    league_id: int = Field(default=1, alias="LID", description="Your league")
+    own_rank: int = Field(default=-1, alias="OR", description="Your rank, -1 while unranked")
+    own_points: int = Field(default=0, alias="OP", description="Your points")
+    max_points: int = Field(default=0, description="The most points the event counts, from the pep pushes")
+    sub_type: int = Field(default=0, alias="ST", description="The score's sub type")
+    point_scale: int = Field(
+        default=1, alias="SC", description="The factor the reward thresholds after the first scale by"
+    )
+    leaderboard_reward_set_id: int = Field(default=0, alias="LRSI", description="The leaderboard's reward set")
+
+
+class EventPart(_ScoreFields):
+    """
+    One score of an event with several: an invasion's player or alliance score, or a raid's own score.
+
+    Client: ``ALeagueTypeScoreEventVO.parseBasicsFromParamObject`` (bundle line 10260) over
+    ``AScoreEventVO.parseBasicsFromParamObject`` (bundle line 14967), defaults at bundle line 14965;
+    ``AScoreEventVO.setRankAndPoints`` (bundle line 15044) for a ``pep``
+    """
+
+    reward_set_id: int = Field(default=0, alias="RSID", description="The reward set")
+
+    @classmethod
+    def parse(cls, entry: Any, previous: EventPart | None = None, sub_type: int = 0) -> EventPart:
+        """A part read from its entry, over ``previous`` when the client keeps the part."""
+        entry = _dict(entry)
+        values: dict[str, Any] = dict(previous) if previous is not None else {"sub_type": sub_type}
+        _read_score(values, entry)
+        values["reward_set_id"] = js_int(entry.get("RSID"))
+        return cls(**values)
+
+
+class SpecialEvent(BaseModel):
+    """
+    A running event, as its ``sei`` (or ``tei``) entries left it.
+
+    Events the library has no class for keep only these fields and the entries in ``raw``.
+
+    Client: ``ASpecialEventVO`` (bundle lines 2953-3049): ``parseBasicsFromParamObject`` (bundle
+    line 2958) sets the end from ``RS`` when it is truthy, ``isActive`` (bundle line 3039);
+    ``SpecialEventSeasonLeagueComponent.parseServerData`` (bundle line 64551) reads ``KL``
+    """
+
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
+
+    # Whether the class's parseParamObject reaches ASpecialEventVO's, which reads KL
+    _reads_kl: ClassVar[bool] = True
+    # The parts the class rebuilds from every entry, so a part an entry lacks is gone
+    _rebuilt_parts: ClassVar[tuple[str, ...]] = ()
+    is_trigger: ClassVar[bool] = False
+    """Whether the event is a trigger event (``tei``): the kingdoms league or a global effect event."""
+
+    event_id: int = Field(alias="EID", description="The event's id")
+    event: Event | None = Field(default=None, description="The event, None for an id the event table lacks")
+    end_time: float = Field(
+        default=0.0, description="When the event ends, in time.monotonic() seconds; inf while it has no end"
+    )
+    updated_at: float = Field(default=0.0, description="When an entry for the event was last applied, wall clock")
+    kingdoms_league_mode: bool = Field(
+        default=False, alias="KL", description="Whether the event runs in the kingdoms league's season mode"
+    )
+    raw: _Raw = Field(
+        default_factory=ReadOnlyDict,
+        description="The event's entries merged, the last one's keys winning; read-only, lists as tuples",
+    )
+
+    def remaining_seconds(self, now: float | None = None) -> float:
+        """Seconds until the event ends, 0 once it has."""
+        return max(0.0, self.end_time - _now(now))
+
+    def is_active(self, now: float | None = None) -> bool:
+        """Whether the event has not ended yet."""
+        return self.end_time > _now(now)
+
+    @classmethod
+    def from_entry(
+        cls,
+        event_id: int,
+        entry: dict[str, Any],
+        previous: SpecialEvent | None,
+        now: float,
+        events: Mapping[int, SpecialEvent],
+    ) -> SpecialEvent:
+        """
+        The event an entry makes of ``previous``, or of nothing for a new event.
+
+        Fields the entry reads only when it has them keep their value from ``previous``;
+        ``events`` are the other running events.
+        """
+        values: dict[str, Any] = dict(previous) if previous is not None else {}
+        values.update(event_id=event_id, event=_EVENT_IDS.get(event_id))
+        cls._read(values, entry, now, events)
+        raw = {**previous.raw, **entry} if previous is not None else dict(entry)
+        for part in cls._rebuilt_parts:
+            if part not in entry:
+                raw.pop(part, None)
+        values.update(raw=raw, updated_at=time.time())
+        return cls(**values)
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        if js_truthy(remaining := entry.get("RS")) and (seconds := js_number_or_none(remaining)) is not None:
+            values["end_time"] = now + seconds
+        if cls._reads_kl:
+            values["kingdoms_league_mode"] = js_truthy(entry.get("KL"))
+
+    @classmethod
+    def accepts(cls, entry: dict[str, Any]) -> bool:
+        """Whether the client reads the entry at all, rather than failing on it and leaving the event as it was."""
+        return True
+
+    def with_points(self, ranks: Any, points: Any, maxima: Any) -> SpecialEvent:
+        """The event after a ``pep`` with these ``OR``, ``OP`` and ``PT``; unchanged for an event without a score."""
+        return self
+
+
+class ScoredEvent(SpecialEvent, _ScoreFields):
+    """
+    An event with a score of your own.
+
+    Client: ``AScoreEventVO.parseBasicsFromParamObject`` (bundle line 14967), defaults at bundle line
+    14965; ``setRankAndPoints`` (bundle line 15044) for a ``pep``
+    """
+
+    difficulty_id: int = Field(
+        default=-1, alias="EDID", description="The difficulty chosen, -1 before one is; 0 without difficulty scaling"
+    )
+    difficulty_scaling: bool = Field(default=False, alias="EASE", description="Whether the event scales its difficulty")
+    parts: _Parts = Field(default_factory=ReadOnlyDict, description="The event's scores by their entry key; read-only")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        if entry.get("EDID") is not None:
+            values["difficulty_id"] = js_int(entry["EDID"])
+        scaling = entry.get("EASE") is not None and js_int(entry["EASE"]) == 1
+        values["difficulty_scaling"] = scaling
+        if not scaling:
+            values["difficulty_id"] = 0
+        _read_score(values, entry)
+
+    def with_points(self, ranks: Any, points: Any, maxima: Any) -> SpecialEvent:
+        return _with_points(self, ranks, points, maxima)  # type: ignore[no-any-return]
+
+
+class PointEvent(ScoredEvent):
+    """
+    The nobility contest.
+
+    Client: ``APointEventTypeScoreEventVO.parseBasicsFromParamObject`` (bundle line 59997)
+    """
+
+    point_event_type: int = Field(default=-1, alias="PET", description="Which contest it is")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        if js_truthy(entry.get("PET")):
+            values["point_event_type"] = js_int(entry["PET"])
+
+
+class LeagueScoredEvent(ScoredEvent):
+    """
+    A score event whose rewards come from a reward set.
+
+    Client: ``ALeagueTypeScoreEventVO.parseBasicsFromParamObject`` (bundle line 10260)
+    """
+
+    reward_set_id: int = Field(default=0, alias="RSID", description="The reward set")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values["reward_set_id"] = js_int(entry.get("RSID"))
+
+
+class BeggingKnightsEvent(LeagueScoredEvent):
+    """
+    The marauders' contest.
+
+    Client: ``BeggingKnightsEventVO.parseBasicsFromParamObject`` (bundle line 114780)
+    """
+
+    total_hours: int = Field(default=0, alias="TH", description="The contest's length in hours")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values["total_hours"] = js_int(entry.get("TH"))
+
+
+class LongTermPointEvent(LeagueScoredEvent):
+    """
+    The grand nobility prize.
+
+    Client: ``LongTermPointEventEventVO.parseParamObject`` (bundle line 116555)
+    """
+
+    upcoming_event_ids: tuple[int, ...] = Field(
+        default=(), alias="UE", description="The events whose points count towards it"
+    )
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        if js_truthy(upcoming := entry.get("UE")) and isinstance(upcoming, list):
+            values["upcoming_event_ids"] = [js_int(eid) for eid in upcoming]
+
+
+class GachaEvent(LeagueScoredEvent):
+    """
+    A gacha event.
+
+    Client: ``AGachaEventVO.parseGachaEvent`` (bundle line 15371)
+    """
+
+    free_chest_reset_time: float = Field(
+        default=0.0, alias="FCRT", description="When the free chest comes back, in time.monotonic() seconds"
+    )
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        if js_truthy(reset := entry.get("FCRT")) and (seconds := js_number_or_none(reset)) is not None:
+            values["free_chest_reset_time"] = now + seconds
+
+
+class InvasionEvent(ScoredEvent):
+    """
+    An invasion: its player and alliance scores are its ``parts``.
+
+    Client: ``SamuraiInvasionEventVO.parseData`` (bundle line 55680) and ``FactionInvasionEventVO.parseData``
+    (bundle line 116044) rebuild every part from every entry; ``setRankAndPoints`` (bundle lines 55701,
+    116056) give a ``pep``'s first rank and points to the first part, and so on
+    """
+
+    # Each part's key and sub type, in the order a pep counts them
+    _parts: ClassVar[tuple[tuple[str, int], ...]] = (("SP", 0), ("A", 1))
+    _pep_reads_maxima: ClassVar[bool] = False
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values["parts"] = cls._read_parts(dict(values.get("parts") or {}), entry)
+
+    @classmethod
+    def _read_parts(cls, parts: dict[str, EventPart], entry: dict[str, Any]) -> dict[str, EventPart]:
+        return {key: EventPart.parse(entry.get(key), sub_type=sub_type) for key, sub_type in cls._parts}
+
+    def with_points(self, ranks: Any, points: Any, maxima: Any) -> SpecialEvent:
+        parts = dict(self.parts)
+        for index, (key, _) in enumerate(self._parts):
+            if key in parts:
+                parts[key] = _with_points(parts[key], ranks, points, maxima if self._pep_reads_maxima else None, index)
+        return self.model_copy(update={"parts": ReadOnlyDict(parts)})
+
+
+class SamuraiInvasionEvent(InvasionEvent):
+    """The samurai invasion. Client: ``SamuraiInvasionEventVO.parseData`` (bundle line 55680)"""
+
+    _rebuilt_parts = ("SP", "A")
+
+
+class FactionInvasionEvent(InvasionEvent):
+    """
+    The Berimond invasion: ``FB`` and ``FR`` are the blue and red players' scores, ``A`` the alliance's.
+
+    Client: ``FactionInvasionEventVO.parseData`` (bundle line 116044), ``setRankAndPoints`` (bundle line 116056)
+    """
+
+    _parts = (("FB", 2), ("FR", 3), ("A", 1))
+    _rebuilt_parts = ("FB", "FR", "A")
+    _pep_reads_maxima = True
+
+
+class AlienInvasionEvent(InvasionEvent):
+    """
+    The war of the realms (71) and the Bloodcrow invasion (103); a part is rebuilt only from an entry that has it.
+
+    Client: ``AAlienInvasionEventVO.parseData`` and ``parseParamObject`` (bundle lines 58910, 58918),
+    ``setRankAndPoints`` (bundle line 58926)
+    """
+
+    target_zone_id: int = Field(default=0, alias="TZID", description="The zone the invasion targets")
+    source_zone_id: int = Field(default=0, alias="SZID", description="The zone the invasion comes from")
+    use_reroll: bool = Field(default=False, alias="CRE", description="Whether camps can be rerolled")
+    reroll_currency_keys: tuple[str, ...] = Field(default=(), alias="RCKS", description="The currencies a reroll costs")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values["use_reroll"] = js_loose_equals(entry.get("CRE"), 1)
+        if js_truthy(keys := entry.get("RCKS")) and isinstance(keys, list):
+            values["reroll_currency_keys"] = [js_string(key) for key in keys]
+        values["target_zone_id"] = js_int(entry.get("TZID"))
+        values["source_zone_id"] = js_int(entry.get("SZID"))
+
+    @classmethod
+    def _read_parts(cls, parts: dict[str, EventPart], entry: dict[str, Any]) -> dict[str, EventPart]:
+        for key, sub_type in cls._parts:
+            if js_truthy(entry.get(key)):
+                parts[key] = EventPart.parse(entry[key], sub_type=sub_type)
+        return parts
+
+
+class NomadInvasionEvent(InvasionEvent):
+    """
+    The nomad invasion: ``SP`` and ``A`` (rebuilt from an entry that has them) and, while the khan
+    camp runs (``ACE``), the camp's score ``AC``.
+
+    The client shows the khan camp's level (from the items' ``allianceInvasionCamps`` row of
+    ``khan_camp_id``) as that part's points; the state has no game data, so ``parts["AC"]``
+    keeps the points the entry sent.
+
+    Client: ``AllianceNomadInvasionEventVO.parseData`` (bundle lines 114287-114288), whose constructor
+    (bundle line 114286) starts both scores; ``setRankAndPoints`` (bundle line 114310)
+    """
+
+    alliance_rage: int = Field(default=0, description="The khan camp's alliance rage")
+    player_rage: int = Field(default=0, description="Your current rage points on the khan camp")
+    player_total_rage: int = Field(default=0, description="Your total rage points on the khan camp")
+    khan_camp_id: int | None = Field(default=None, description="The khan camp, None before one is sent")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        camp = entry.get("AC")
+        if js_loose_equals(entry.get("ACE"), 1) and js_truthy(camp):
+            camp = _dict(camp)
+            values["alliance_rage"] = js_int(camp.get("AR"))
+            values["player_rage"] = js_int(camp.get("PCRP"))
+            values["player_total_rage"] = js_int(camp.get("PTRP"))
+            values["khan_camp_id"] = js_int(camp.get("ACID"))
+
+    @classmethod
+    def _read_parts(cls, parts: dict[str, EventPart], entry: dict[str, Any]) -> dict[str, EventPart]:
+        for key, sub_type in cls._parts:
+            if js_truthy(entry.get(key)):
+                parts[key] = EventPart.parse(entry[key], sub_type=sub_type)
+            else:
+                parts.setdefault(key, EventPart())
+        if js_loose_equals(entry.get("ACE"), 1):
+            camp = entry.get("AC")
+            source = camp if js_truthy(camp) else {"LID": 1, "RSID": entry.get("RSID")}
+            parts["AC"] = EventPart.parse(source, sub_type=16)
+        return parts
+
+
+class BerimondEvent(SpecialEvent):
+    """
+    Battle for Berimond. Your rank and points come only from ``pep`` pushes and start over with each entry.
+
+    Client: ``FactionEventVO.parseData`` (bundle line 7354) builds the league scores anew,
+    ``parseParamObject`` and ``loadFactionDataFromParamObject`` (bundle lines 7364-7365), the
+    defaults at bundle line 7353; ``setRankAndPoints`` (bundle line 7461)
+    """
+
+    league_id: int = Field(default=1, alias="LID", description="Your league")
+    unlocked: bool = Field(default=False, alias="UL", description="Whether Berimond is open to you")
+    reward_set_id: int = Field(default=0, alias="RSID", description="The reward set")
+    own_rank: int = Field(default=-1, description="Your rank, -1 while unranked; from the pep pushes")
+    own_points: int = Field(default=0, description="Your points, from the pep pushes")
+    faction_id: int = Field(default=0, description="Your faction")
+    main_camp_id: int = Field(default=0, description="Your faction's main camp")
+    faction_protection_status: int = Field(default=0, description="Your faction protection's status")
+    faction_protection_end: float | None = Field(
+        default=0.0, description="When your faction protection ends, in time.monotonic() seconds"
+    )
+    beginner_protection_end: float = Field(
+        default=0.0, description="When your beginner protection ends, in time.monotonic() seconds"
+    )
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values["own_rank"], values["own_points"] = -1, 0
+        values["reward_set_id"] = js_int(entry.get("RSID"))
+        values["unlocked"] = js_truthy(entry.get("UL"))
+        if js_truthy(faction := entry.get("FN")):
+            faction = _dict(faction)
+            values["faction_id"] = js_int(faction.get("FID"))
+            values["main_camp_id"] = js_int(faction.get("MC"))
+            protection = 0 if faction.get("PMT") is None else js_number_or_none(faction["PMT"])
+            values["faction_protection_end"] = None if protection is None else now + protection
+            values["faction_protection_status"] = js_int(faction.get("PMS"))
+            if js_truthy(beginner := faction.get("NS")) and (seconds := js_number_or_none(beginner)) is not None:
+                values["beginner_protection_end"] = now + seconds
+        if js_truthy(entry.get("LID")):
+            values["league_id"] = js_int(entry["LID"])
+
+    def with_points(self, ranks: Any, points: Any, maxima: Any) -> SpecialEvent:
+        return _with_points(self, ranks, points, None)  # type: ignore[no-any-return]
+
+
+class RaidBossEvent(SpecialEvent):
+    """
+    The alliance raid boss: ``score`` is your own score, the alliance's is in ``alliance_points``.
+
+    Client: ``AllianceRaidbossEventEventVO.parseData`` and ``parseParamObject`` (bundle lines 9109-9110),
+    defaults at bundle line 9108; ``setRankAndPoints`` (bundle line 9117); ``PEPCommand.exec`` (bundle
+    lines 128215-128216) for ``BLPP``
+    """
+
+    _reads_kl = False
+
+    score: EventPart = Field(default_factory=EventPart, description="Your score; its points are the entry's SP.OP")
+    league_id: int = Field(default=0, description="Your alliance's league, from the entry's A")
+    alliance_points: int = Field(default=0, description="Your alliance's points, from the entry's A and the pep pushes")
+    alliance_rank: int = Field(default=0, description="Your alliance's rank, from the pep pushes")
+    subdivision_id: int = Field(default=0, description="Your alliance's subdivision, from the entry's A")
+    division_round_id: int = Field(default=0, alias="DRI", description="The division round")
+    raid_boss_ids: tuple[int, ...] = Field(default=(), alias="RBIDS", description="The bosses that can be fought")
+    boss_level_points: int = Field(default=0, alias="BLPP", description="The points on the current boss level")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        ids = entry.get("RBIDS")
+        values["raid_boss_ids"] = [js_int(boss) for boss in ids] if isinstance(ids, list) else []
+        if entry.get("BLPP") is not None:
+            values["boss_level_points"] = js_int(entry["BLPP"])
+        own = {**entry, "OP": _dict(entry.get("SP")).get("OP")}
+        values["score"] = EventPart.parse(own, values.get("score"))
+        if js_truthy(alliance := entry.get("A")):
+            alliance = _dict(alliance)
+            values["alliance_points"] = js_int(alliance.get("OP"))
+            values["league_id"] = js_int(alliance.get("LID"))
+            values["subdivision_id"] = js_int(alliance.get("SDI"))
+        values["division_round_id"] = js_int(entry.get("DRI"))
+
+    def with_points(self, ranks: Any, points: Any, maxima: Any) -> SpecialEvent:
+        update: dict[str, Any] = {"score": _with_points(self.score, ranks, points, None)}
+        if isinstance(points, list) and len(points) > 1:
+            update["alliance_points"] = js_int(points[1])
+            update["alliance_rank"] = js_int(_first(ranks, 1))
+        return self.model_copy(update=update)
+
+
+class TempServerEvent(SpecialEvent):
+    """
+    A temporary server.
+
+    Client: ``TempServerEventVO.parseParamObject`` (bundle line 118162), defaults at bundle line 118161
+    """
+
+    _reads_kl = False
+
+    daily_reset_time: float = Field(
+        default=0.0, alias="RD", description="When the daily scores reset, in time.monotonic() seconds"
+    )
+    setting_id: int | None = Field(default=None, alias="TSID", description="The server's settings")
+    castle_bought: bool = Field(default=False, alias="IPS", description="Whether you have a castle there")
+    is_cross_play: bool = Field(default=False, alias="ICSE", description="Whether the server is a cross-play one")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        if js_truthy(reset := entry.get("RD")) and (seconds := js_number_or_none(reset)) is not None:
+            values["daily_reset_time"] = now + seconds
+        if js_truthy(entry.get("TSID")):
+            values["setting_id"] = js_int(entry["TSID"])
+        values["castle_bought"] = js_loose_equals(entry["IPS"], 1) if entry.get("IPS") is not None else True
+        if js_truthy(entry.get("ICSE")):
+            values["is_cross_play"] = js_loose_equals(entry["ICSE"], 1)
+
+
+class DonationEvent(SpecialEvent):
+    """
+    Imperial patronage.
+
+    Client: ``DonationEventEventVO.parseParamObject`` (bundle line 115502)
+    """
+
+    _reads_kl = False
+
+    setting_id: int | None = Field(default=None, alias="DSI", description="The donation settings")
+    leaderboard_reward_set_id: int | None = Field(
+        default=None, alias="LRSI", description="The leaderboard's reward set"
+    )
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values["setting_id"] = None if entry.get("DSI") is None else js_int(entry["DSI"])
+        values["leaderboard_reward_set_id"] = None if entry.get("LRSI") is None else js_int(entry["LRSI"])
+
+
+class KingdomsLeagueEvent(SpecialEvent):
+    """
+    The kingdoms league, a trigger event. It runs while it has more than a day left; on its last
+    day it ends with the season event (the running event with ``kingdoms_league_mode``), and
+    without one it runs on at one day and has ended at none.
+
+    Client: ``SeasonLeagueEventVO.parseParamObject`` and ``endTimestamp`` (bundle lines 118059-118063),
+    ``SeasonLeagueData.getActiveSeasonEventVO`` (bundle line 142582)
+    """
+
+    is_trigger = True
+
+    remaining_days: int = Field(default=0, alias="KLRD", description="Days left")
+    original_days: int = Field(default=0, alias="KLRT", description="The league's length in days")
+    reward_set_id: int = Field(default=0, alias="RSID", description="The reward set")
+    has_alliance_ranking: bool = Field(default=False, alias="KLARE", description="Whether alliances are ranked too")
+    league_type_id: int = Field(default=0, alias="KLLID", description="The league type")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values["remaining_days"] = js_int(entry.get("KLRD"))
+        values["original_days"] = js_int(entry.get("KLRT"))
+        values["reward_set_id"] = js_int(entry.get("RSID"))
+        values["has_alliance_ranking"] = js_loose_equals(entry.get("KLARE"), 1)
+        values["league_type_id"] = js_int(entry.get("KLLID") or 0)
+        values["end_time"] = cls._end(values["remaining_days"], events, now, values.get("event_id"))
+
+    @staticmethod
+    def _end(days: int, events: Mapping[int, SpecialEvent], now: float, own_id: int | None) -> float:
+        if days > 1:
+            return math.inf
+        season = next((e for e in events.values() if e.kingdoms_league_mode and e.event_id != own_id), None)
+        if season is not None:
+            return season.end_time
+        return math.inf if days == 1 else now + days * _DAY
+
+    def end_with(self, events: Mapping[int, SpecialEvent], now: float) -> float:
+        """When the league ends while ``events`` run."""
+        return self._end(self.remaining_days, events, now, self.event_id)
+
+    def remaining_seconds(self, now: float | None = None) -> float:
+        """Seconds until the league ends; its days left while it has no end."""
+        if math.isinf(self.end_time):
+            return max(0.0, self.remaining_days * _DAY)
+        return super().remaining_seconds(now)
+
+
+class GlobalEffectTimer(BaseModel):
+    """One global effect of a global effect event."""
+
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
+
+    effect_id: int = Field(description="The global effect")
+    end_time: float = Field(description="When it ends, in time.monotonic() seconds")
+    strength: int = Field(description="Its strength, -1 for the effect's own")
+    seen: bool = Field(description="Whether you have seen it")
+
+
+class GlobalEffectEvent(SpecialEvent):
+    """
+    The global effects running, a trigger event that ends with the last of them.
+
+    Client: ``GlobalEffectEventVO.parseParamObject`` (bundle lines 116399-116413)
+    """
+
+    is_trigger = True
+
+    effects: tuple[GlobalEffectTimer, ...] = Field(default=(), alias="GE", description="The effects")
+    seen_effect_ids: tuple[int, ...] = Field(default=(), alias="SGE", description="The effects you have seen")
+
+    @classmethod
+    def accepts(cls, entry: dict[str, Any]) -> bool:
+        # parseParamObject reads SGE.indexOf and each effect's [0] as it goes, so an effect
+        # without an SGE list, or a null effect, throws and parseServerEventData drops the entry
+        effects = entry.get("GE")
+        if not isinstance(effects, list) or not effects:
+            return True
+        return isinstance(entry.get("SGE"), (list, str)) and all(effect is not None for effect in effects)
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        seen = entry.get("SGE")
+        seen_ids = [js_int(effect) for effect in seen] if isinstance(seen, list) else []
+        effects, end = [], 0.0
+        listed = entry.get("GE")
+        for effect in listed if isinstance(listed, list) else ():
+            if not isinstance(effect, list) or len(effect) < 2:
+                continue
+            # seconds * 1000 in JavaScript: null counts as 0, NaN never wins
+            seconds = 0 if effect[1] is None else js_number_or_none(effect[1])
+            if seconds is None:
+                continue
+            effect_id = js_int(effect[0])
+            strength = js_int(effect[2] if len(effect) > 2 else None)
+            effects.append(
+                GlobalEffectTimer(
+                    effect_id=effect_id, end_time=now + seconds, strength=strength, seen=effect_id in seen_ids
+                )
+            )
+            end = max(end, now + seconds)
+        values.update(effects=effects, seen_effect_ids=seen_ids, end_time=end)
+
+
+class GlobalEffectBoost(BaseModel):
+    """A global effect a boost event can strengthen."""
+
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
+
+    effect_id: int = Field(alias="GEID", description="The global effect")
+    boost_value: float = Field(alias="BV", description="How much the boost adds")
+    cost: int = Field(alias="C2", description="The boost's price in rubies")
+
+
+class GlobalEffectBuffEvent(SpecialEvent):
+    """
+    The global effect boost, a trigger event that ends when the global effect event running as it
+    arrived ends (at once without one).
+
+    Client: ``GlobalEffectBuffEventVO.parseParamObject`` (bundle lines 116381-116383),
+    ``getBoostValues`` (bundle line 116384)
+    """
+
+    is_trigger = True
+
+    boosts: tuple[GlobalEffectBoost, ...] = Field(default=(), alias="GEB", description="The effects it boosts")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        boosts = entry.get("GEB")
+        values["boosts"] = [
+            GlobalEffectBoost(GEID=js_int(b.get("GEID")), BV=js_number(b.get("BV")), C2=js_int(b.get("C2")))
+            for b in (boosts if isinstance(boosts, list) else ())
+            if isinstance(b, dict)
+        ]
+        effects = events.get(Event.GLOBAL_EFFECT)
+        values["end_time"] = max(effects.end_time, now) if effects is not None else 0.0
+
+
+_EVENT_IDS: dict[int, Event] = {int(e): e for e in Event}
+
+EVENT_CLASSES: dict[Event, type[SpecialEvent]] = {
+    Event.FACTION: BerimondEvent,
+    Event.POINT_EVENT: PointEvent,
+    Event.BEGGING_KNIGHTS: BeggingKnightsEvent,
+    Event.LONG_TERM_POINT_EVENT: LongTermPointEvent,
+    Event.ALLIANCE_ALIEN_INVASION: AlienInvasionEvent,
+    Event.RED_ALLIANCE_ALIEN_INVASION: AlienInvasionEvent,
+    Event.ALLIANCE_NOMAD_INVASION: NomadInvasionEvent,
+    Event.SAMURAI_INVASION: SamuraiInvasionEvent,
+    Event.FACTION_INVASION: FactionInvasionEvent,
+    Event.ALLIANCE_RAIDBOSS_EVENT: RaidBossEvent,
+    Event.TEMP_SERVER: TempServerEvent,
+    Event.DONATION_EVENT: DonationEvent,
+    Event.GACHA_DECO2X2: GachaEvent,
+    Event.CHRISTMAS_GACHA: GachaEvent,
+    Event.EASTER_GACHA: GachaEvent,
+    Event.SUMMER_GACHA: GachaEvent,
+    Event.ANNIVERSARY_GACHA: GachaEvent,
+    Event.HALLOWEEN_GACHA: GachaEvent,
+    Event.BLACK_FRIDAY_GACHA: GachaEvent,
+    Event.CARNIVAL_GACHA: GachaEvent,
+    Event.SEASON_LEAGUE: KingdomsLeagueEvent,
+    Event.GLOBAL_EFFECT: GlobalEffectEvent,
+    Event.GLOBAL_EFFECT_BUFF: GlobalEffectBuffEvent,
+}
+"""The model each event's entries are read into; any other event is a plain :class:`SpecialEvent`.
+
+Client: ``CastleSpecialEventFactory.createByEventType`` (bundle line 61602) picks the class from the
+event's ``eventType``
+"""
+
+
+def event_class(event_id: int) -> type[SpecialEvent]:
+    """The model an event's entries are read into."""
+    return EVENT_CLASSES.get(_EVENT_IDS.get(event_id), SpecialEvent)  # type: ignore[arg-type]
