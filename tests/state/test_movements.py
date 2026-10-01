@@ -788,10 +788,12 @@ class TestMovementAreas:
 class TestAllianceAttackAlerts:
     ME, ALLY, ENEMY, OUTSIDER, CLAN = 1, 2, 3, 4, 301
 
-    def attack(self, state, mid: int, owner: int, target: int, owners: list[dict]) -> list[Movement]:
+    def attack(
+        self, state, mid: int, owner: int, target: int, owners: list[dict], movement_type: int = 0
+    ) -> list[Movement]:
         fired: list[Movement] = []
         state.on_incoming_attack(fired.append)
-        payload = gam_payload(mid, oid=owner, tid=target)
+        payload = gam_payload(mid, movement_type=movement_type, oid=owner, tid=target)
         payload["O"] = owners
         state.update_from_packet("gam", payload)
         time.sleep(0.15)
@@ -812,6 +814,73 @@ class TestAllianceAttackAlerts:
         login(state, self.ME, self.CLAN)
         owners = [{"OID": self.ALLY, "AID": self.CLAN, "N": "ally"}]
         assert self.attack(state, 8, -202, self.ALLY, owners) == []
+
+    @pytest.mark.parametrize("owner", [-801, -300, -432, -440, -334, -366, -1001, -9999])
+    def test_attack_on_an_alliance_member_by_a_non_dungeon_npc_fires(self, state, owner):
+        # Client: showAsAllianceAttackWarning (bundle lines 14420, 19456); an unknown NPC id gets a dummy owner
+        login(state, self.ME, self.CLAN)
+        owners = [{"OID": self.ALLY, "AID": self.CLAN, "N": "ally"}]
+        assert len(self.attack(state, 11, owner, self.ALLY, owners)) == 1
+
+    @pytest.mark.parametrize("owner", [-202, -214, -220, -230, -399, -410, -450, -460, -470, -500, -601, -705, -1000])
+    def test_attack_on_an_alliance_member_by_a_dungeon_owner_does_not_fire(self, state, owner):
+        login(state, self.ME, self.CLAN)
+        owners = [{"OID": self.ALLY, "AID": self.CLAN, "N": "ally"}]
+        assert self.attack(state, 12, owner, self.ALLY, owners) == []
+
+    def test_alien_attack_on_an_alliance_member_fires(self, state):
+        # Client: AlienAttackMovementVO.showAsAllianceAttackWarning is always true (bundle line 33091)
+        login(state, self.ME, self.CLAN)
+        owners = [{"OID": self.ALLY, "AID": self.CLAN, "N": "ally"}]
+        fired = self.attack(state, 13, -1000, self.ALLY, owners, movement_type=MovementType.ALIEN_ATTACK)
+        assert len(fired) == 1
+
+    def test_alien_attack_on_the_daimyo_township_does_not_fire(self, state):
+        # Client: AlienAttackMovementVO.isAttackingMovement counts only you (bundle line 33073)
+        login(state, self.ME, self.CLAN)
+        assert self.attack(state, 14, -1000, -815, [], movement_type=MovementType.ALIEN_ATTACK) == []
+        assert len(self.attack(state, 15, -1000, self.ME, [], movement_type=MovementType.ALIEN_ATTACK)) == 1
+
+    def test_an_owner_record_in_a_later_packet_fires_once(self, state):
+        # checkAllAttackMovements counts warnings anew; getOwnerInfoVO keeps the owners seen
+        login(state, self.ME, self.CLAN)
+        fired: list[Movement] = []
+        state.on_incoming_attack(fired.append)
+        ally = {"OID": self.ALLY, "AID": self.CLAN, "N": "ally"}
+        first = gam_payload(16, oid=self.ENEMY, tid=self.ALLY)
+        first["O"] = [ally]
+        state.update_from_packet("gam", first)
+        time.sleep(0.1)
+        assert fired == []
+
+        later = gam_payload(16, oid=self.ENEMY, tid=self.ALLY)
+        later["O"] = [{"OID": self.ENEMY, "AID": 0, "N": "enemy"}]
+        state.update_from_packet("gam", later)
+        state.update_from_packet("gam", later)
+        time.sleep(0.15)
+
+        assert [m.movement_id for m in fired] == [16]
+        assert state.movements[16].target_owner is not None
+
+    def test_a_movement_without_an_owner_id_is_no_npc_attack(self, state):
+        # The client reads a missing OID as 0: no owner, so no alliance warning
+        login(state, self.ME, self.CLAN)
+        fired: list[Movement] = []
+        state.on_incoming_attack(fired.append)
+        payload = gam_payload(17, tid=self.ALLY)
+        del payload["M"][0]["M"]["OID"]
+        payload["O"] = [{"OID": self.ALLY, "AID": self.CLAN, "N": "ally"}]
+        state.update_from_packet("gam", payload)
+        time.sleep(0.15)
+
+        assert fired == []
+
+    def test_an_alien_attack_on_the_daimyo_township_is_not_incoming(self, state):
+        login(state, self.ME, self.CLAN)
+        state.update_from_packet("gam", gam_payload(18, movement_type=MovementType.ALIEN_ATTACK, oid=-1000, tid=-815))
+        state.update_from_packet("gam", gam_payload(19, oid=-202, tid=-815))
+
+        assert (state.movements[18].is_incoming, state.movements[19].is_incoming) == (False, True)
 
     def test_npc_attack_on_me_fires(self, state):
         login(state, self.ME, self.CLAN)

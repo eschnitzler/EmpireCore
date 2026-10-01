@@ -19,6 +19,40 @@ logger = logging.getLogger(__name__)
 # the local player's own record, so the daimyo township counts as yours.
 DAIMYO_TOWNSHIP_PLAYER_ID = -815
 
+# Client: DungeonConst.BASIC_ALLIANCE_NOMAD_CAMP_PLAYER_ID (dll line 19157).
+ALLIANCE_NOMAD_CAMP_PLAYER_ID = -801
+
+# Client: the NPC owners CastleNPCOwnerFactory marks isDungeonOwner (bundle lines
+# 14461-14618): its standard owner list, and every id CastleNPCOwnerFactory.getOwner
+# knows (14496). Ids from DungeonConst (dll 19130-19157), OutpostConst (19540-19549),
+# VillageConst (19893-19897) and ClientConstNPCs (bundle 5046-5047).
+DUNGEON_OWNER_IDS = frozenset(
+    {
+        *range(-214, -201),  # robber barons
+        *range(-224, -219),  # kingdom dungeons
+        *range(-232, -229),  # kingdom boss dungeons
+        *range(-403, -398),  # villages
+        -410,  # blue faction king
+        -411,  # red faction king
+        -450,  # king's tower
+        -460,  # monument
+        *range(-473, -469),  # laboratories
+        *range(-503, -499),  # event dungeons
+        *range(-604, -600),  # nomad camps
+        -651,  # samurai invasion
+        -666,  # tutorial dungeon
+        *range(-707, -699),  # crusade and treasure hunt dungeons
+        -801,  # alliance nomad camp
+        -811,  # daimyo castle
+        -1000,  # alien invasion
+        -1002,  # red alien invasion
+        *range(-1114, -1100),  # collectors
+        -1201,  # wolf king
+        -1202,  # ARE portal
+        -1234,  # unknown event owner
+    }
+)
+
 
 class MovementResources(BaseModel):
     """Resources a movement carries: market goods or travel loot.
@@ -245,15 +279,17 @@ class Movement(BaseModel):
     def is_incoming(self) -> bool:
         """Another player's army heading to one of the local player's areas.
 
-        The daimyo township counts as yours, as in the client. Armies moving
-        between your own areas count as outgoing, not incoming.
+        The daimyo township counts as yours, as in the client, except for an
+        alien attack, which comes only at you. Armies moving between your own
+        areas count as outgoing, not incoming.
+
+        Client: ``ArmyAttackMapmovementVO.isAttackingMovement`` (bundle line 14389),
+        ``AlienAttackMovementVO.isAttackingMovement`` (bundle line 33073)
         """
-        return (
-            self.local_player_id != -1
-            and self.target_id in (self.local_player_id, DAIMYO_TOWNSHIP_PLAYER_ID)
-            and not self.is_mine
-            and not self.is_returning
-        )
+        if self.local_player_id == -1 or self.is_mine or self.is_returning:
+            return False
+        township = self.movement_type_enum is not MovementType.ALIEN_ATTACK
+        return self.target_id == self.local_player_id or (township and self.target_id == DAIMYO_TOWNSHIP_PLAYER_ID)
 
     @property
     def is_attack(self) -> bool:

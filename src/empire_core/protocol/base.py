@@ -255,7 +255,7 @@ class GGECommand:
 
     # Shop
     SBP = "sbp"  # Buy package
-    GBC = "gbc"  # Set buying castle
+    GBC = "gbc"  # Get package buy counts
 
     # Events
     SEI = "sei"  # Get events info
@@ -293,7 +293,7 @@ class GGECommand:
     CPNE = "cpne"  # Change username
     SCP = "scp"  # Change password
     RMC = "rmc"  # Request email change
-    MNS = "mns"  # Email change status
+    MNS = "mns"  # Newsletter subscription status
     CMC = "cmc"  # Cancel email change
     FCS = "fcs"  # Facebook connection status
 
@@ -308,13 +308,13 @@ class GGECommand:
     TXC = "txc"  # Collect tax
     GBL = "gbl"  # Get bookmarks list
     RUI = "rui"  # Ruin info
-    RMB = "rmb"  # Ruin message
+    RMB = "rmb"  # Remember a ruin
     GLI = "gli"  # Get commander info
     ARL = "arl"  # Rename a commander or castellan
     GEI = "gei"  # Get equipment inventory
     EEQ = "eeq"  # Equip or unequip an item
     GCS = "gcs"  # Generals hub quest status
-    SCT = "sct"  # Make offering
+    SCT = "sct"  # Spin the character tombola
     SIN = "sin"  # Building inventory
     SOB = "sob"  # Store building
     SDS = "sds"  # Sell from inventory

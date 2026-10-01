@@ -45,10 +45,15 @@ stateDiagram-v2
 - **Incoming attacks.** `on_incoming_attack` fires once per attack movement
   that is not your own, is not on its way home and had not already landed when
   first seen, and that is aimed at you or the daimyo township (whoever sends
-  it) or, when a player rather than an NPC sends it, at another member of your
-  alliance. An alliance member's attack on someone outside the alliance does
-  not fire. It does not fire again
-  on later refreshes, nor when a reconnect lists the same attack again.
+  it; an alien attack only at you) or at another member of your alliance. On
+  an alliance member it fires for a player's attack, an alien attack, the
+  alliance nomad camp, and NPCs that are not dungeon owners (outpost, capital
+  and metropolis owners, the plague monk, NPC ids the client does not know);
+  robber barons, camps, event dungeons and other dungeon owners do not fire
+  it. An alliance member's attack on someone outside the alliance does not
+  fire. An attack whose attacker's record comes in a later packet fires then.
+  It does not fire again on later refreshes, nor when a reconnect lists the
+  same attack again.
 - **Arrival.** The server sends no arrival packet: as in the game client, a
   movement arrives once its travel time is up. The check runs on every packet
   and every movement query, so the callback fires with the first of those

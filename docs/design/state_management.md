@@ -178,7 +178,8 @@ when the callback runs, so the id alone cannot be resolved. `movement` is
   movement heading home.
 * `on_movement_removed`: the server sent `mrm`. It does not say why.
 
-`on_incoming_attack` fires **once** per newly seen attack movement id, also
+`on_incoming_attack` fires **once** per attack movement id (judged again on
+every packet that carries it, so an attacker's record that comes later counts), also
 across a reconnect (not on every `gam` refresh). As in the client's
 `CastleArmyData.checkAllAttackMovements`, it covers attacks aimed at you (or
 your daimyo township) and player attacks aimed at a member of your alliance;

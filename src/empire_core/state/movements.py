@@ -7,8 +7,15 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from empire_core.enums import MovementType
 from empire_core.movements.models import MovementArea, MovementOwner, MovementWrapper
-from empire_core.movements.tracked import DAIMYO_TOWNSHIP_PLAYER_ID, Movement, MovementResources
+from empire_core.movements.tracked import (
+    ALLIANCE_NOMAD_CAMP_PLAYER_ID,
+    DAIMYO_TOWNSHIP_PLAYER_ID,
+    DUNGEON_OWNER_IDS,
+    Movement,
+    MovementResources,
+)
 from empire_core.protocol.base import read_or_none, readable_list
 from empire_core.state.base import MovementEventCallback, StateBase
 
@@ -32,10 +39,17 @@ class MovementState(StateBase):
 
         Fires once per newly seen attack that is not the local player's own,
         is not on its way home and had not already landed when first seen, and
-        is aimed at you or the daimyo township, whoever sends it, or, when a
-        player rather than an NPC sends it and the movement names that
-        player, at another member of your alliance. An alliance member's
-        attack on someone outside the alliance does not fire.
+        is aimed at you or the daimyo township (an alien attack only at you),
+        whoever sends it, or at another member of your alliance. An attack on
+        an alliance member fires when a player the movement names sends it,
+        when an alien attack or the alliance nomad camp does, or when an NPC
+        that is not a dungeon owner does (an outpost, capital or metropolis
+        owner, the plague monk, or an NPC id the client does not know); robber
+        barons, camps, event dungeons and the other dungeon owners do not fire
+        it. An alliance member's attack on someone outside the alliance does
+        not fire. Each packet that carries an attack judges it again, with the
+        owner records seen so far, so one whose attacker's record comes later
+        fires then.
 
         Fires once per attack movement id, also across a reconnect: an attack
         still on its way when the connection drops is not announced again when
@@ -203,9 +217,16 @@ class MovementState(StateBase):
     def _apply_movement_wrappers(self, wrappers: Any, owners: Any) -> list[Movement]:
         """Parse and store ``gam``-style movement wrappers; return the ones stored.
 
+        The owner records (``O``) are kept for the session, so a movement whose
+        owner came in an earlier packet still finds it, as the client's owner list
+        does (``CastleOtherPlayerData.getOwnerInfoVO``, bundle line 138994).
+
         Client: ``CastleArmyData.parseMapMovementArray``.
         """
-        owner_info = {record.player_id: record for record in readable_list(MovementOwner, owners)}
+        sent = {record.player_id: record for record in readable_list(MovementOwner, owners)}
+        if sent:
+            self._owner_records = {**self._owner_records, **sent}
+        owner_info = self._owner_records
 
         stored = []
         for m_wrapper in wrappers if isinstance(wrappers, list) else []:
@@ -223,30 +244,48 @@ class MovementState(StateBase):
     def _is_attack_on_us(self, mov: Movement) -> bool:
         """A new attack aimed at the local player or at a member of their alliance.
 
-        Client: ``CastleArmyData.checkAllAttackMovements``. An attack on you
-        (``isAttackingMovement``: the target is you, or the daimyo township,
-        which the client files under your own owner record) counts whoever
-        sends it. An attack on an alliance member other than you
-        (``isAllyAttackingMovement``) counts only when
-        ``showAsAllianceAttackWarning`` holds: the attacker is a player
-        (``isNPCPlayer`` is ``id < 0``) whose owner record is known. The member
-        list is matched through the target's owner record, whose alliance id
-        comes with every movement.
+        Client: ``CastleArmyData.checkAllAttackMovements`` (bundle line 133659).
+        An attack on you (``isAttackingMovement``, 14389: the target is you, or
+        the daimyo township, which the client files under your own owner
+        record; an alien attack only counts on you, 33073) counts whoever sends
+        it. An attack on an alliance member other than you
+        (``isAllyAttackingMovement``, 14392) counts only when
+        ``showAsAllianceAttackWarning`` holds: always for an alien attack
+        (33091) and for the alliance nomad camp (14420), else when the attacker
+        has owner info and is not a dungeon owner (19456). An NPC always has
+        owner info (``getOwnerInfoVO``, 138994; an id the client does not know
+        gets a dummy that is not a dungeon owner); a player needs an owner
+        record, which is never a dungeon owner, and a movement without an owner
+        id (``OID``, which the client reads as 0) has none. The member list is
+        matched through the target's owner record, whose alliance id comes with
+        every movement.
         """
         if not mov.is_attack or mov.is_mine or mov.is_returning or mov.movement_id in self._arrival_dispatched:
             return False
         me = mov.local_player_id
         if me == -1:
             return False
-        if mov.target_id in (me, DAIMYO_TOWNSHIP_PLAYER_ID):
+        is_alien = mov.movement_type_enum is MovementType.ALIEN_ATTACK
+        if mov.target_id == me or (mov.target_id == DAIMYO_TOWNSHIP_PLAYER_ID and not is_alien):
             return True
-        if mov.owner is None or mov.owner_id < 0:
-            return False
         alliance = self.local_player.alliance if self.local_player else None
-        return alliance is not None and alliance.id > 0 and mov.target_alliance_id == alliance.id
+        if alliance is None or alliance.id <= 0 or mov.target_alliance_id != alliance.id:
+            return False
+        if is_alien or mov.owner_id == ALLIANCE_NOMAD_CAMP_PLAYER_ID:
+            return True
+        if "owner_id" not in mov.model_fields_set:
+            return False
+        if mov.owner_id < 0:
+            return mov.owner_id not in DUNGEON_OWNER_IDS
+        return mov.owner is not None
 
     def _store_movement(self, mov: Movement) -> None:
-        """Insert or merge a parsed movement; fire callbacks for new attacks."""
+        """Insert or merge a parsed movement; fire callbacks for attacks that now count.
+
+        An attack is judged on every packet that carries it, as the client counts
+        its attack warnings anew (``CastleArmyData.checkAllAttackMovements``, bundle
+        line 133659), so one whose owner record comes later still fires, once.
+        """
         mid = mov.movement_id
         existing = self.movements.get(mid)
 
@@ -256,14 +295,6 @@ class MovementState(StateBase):
             # there is no arrival to report.
             if mov.estimated_arrival <= mov.created_at:
                 self._arrival_dispatched.add(mid)
-            if self._is_attack_on_us(mov) and mid not in self._announced_attacks:
-                end = mov.estimated_end
-                self._announced_attacks[mid] = end
-                self._announced_prune_at = min(self._announced_prune_at, end)
-                with self._lock:
-                    attack_callbacks = list(self._incoming_attack_callbacks)
-                for cb in attack_callbacks:
-                    self._dispatch_callback(cb, mov)
         else:
             # Preserve metadata that later packets may not include
             mov.created_at = existing.created_at
@@ -277,6 +308,14 @@ class MovementState(StateBase):
             if not mov.units and existing.units:
                 mov.units = existing.units
 
+        if mid not in self._announced_attacks and self._is_attack_on_us(mov):
+            end = mov.estimated_end
+            self._announced_attacks[mid] = end
+            self._announced_prune_at = min(self._announced_prune_at, end)
+            with self._lock:
+                attack_callbacks = list(self._incoming_attack_callbacks)
+            for cb in attack_callbacks:
+                self._dispatch_callback(cb, mov)
         self.movements[mid] = mov
         self._schedule_movement(mid, mov)
 
