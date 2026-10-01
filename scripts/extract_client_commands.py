@@ -13,6 +13,12 @@ it handles ``S2C_<NAME>``, as static fields of its constant classes
 maps each command id to the constants that hold it, so a renamed constant shows
 in a diff as well as a dropped id. The release is the hash in each file's name.
 
+Two kinds of message the constant tables alone miss are added as well: the
+SmartFox system messages ``BasicSmartfoxClient.handleSystemMessage`` switches
+on (``apiOK``, ``joinOK``, ``roundTripRes``), as server messages, and every
+constant the client passes to ``sendMessage``, as a client command, since the
+keepalive is sent under ``S2C_PING``.
+
 ``--check`` exits 1 when the snapshot would change. Both modes also list every
 command the library registers that the fresh tables lack;
 ``tests/protocol/test_client_commands.py`` fails on those against the committed
@@ -60,6 +66,11 @@ _XT_COMMAND = re.compile(r"^%xt%\{[^}]*\}%([A-Za-z]+)%")
 _ASSIGNMENT = re.compile(r"([A-Za-z_$][\w$]*)\.((?:C2S|S2C)_[A-Z0-9_]+)=\"([^\"]*)\"")
 # A minified holder: var f=function(){return function ConstantsSmartFox(){}}()
 _HOLDER = re.compile(r"\b([A-Za-z_$][\w$]*)=function\(\)\{return function ([A-Za-z_$][\w$]*)\(")
+# BasicSmartfoxClient.handleSystemMessage=function(e){...switch(n){case"apiOK":...default:
+_SYSTEM_HANDLER = re.compile(r"\.handleSystemMessage=function\(.*?\bdefault:", re.S)
+_SYSTEM_CASE = re.compile(r"case\"([A-Za-z]+)\":")
+# t.sendMessage(BasicSmartfoxClient.S2C_PING,[""])
+_SENT = re.compile(r"\.sendMessage\(([A-Za-z_$][\w$]*)\.(S2C_[A-Z0-9_]+)\b")
 _BUNDLE_NAME = re.compile(r"Game\.bundle\.([0-9a-f]+)\.js")
 _DLL_NAME = re.compile(r"ggs\.dll\.([0-9a-f]+)\.js")
 
@@ -75,10 +86,19 @@ def extract(source: str) -> dict[str, dict[str, list[str]]]:
         return names[-1] if names else var
 
     tables: dict[str, dict[str, set[str]]] = {"client": defaultdict(set), "server": defaultdict(set)}
+    values: dict[tuple[str, str], str] = {}
     for match in _ASSIGNMENT.finditer(source):
         var, constant, command = match.groups()
         side = "client" if constant.startswith("C2S_") else "server"
         tables[side][command].add(f"{holder_name(var, match.start())}.{constant}")
+        values[(var, constant)] = command
+    for match in _SENT.finditer(source):
+        var, constant = match.groups()
+        if (var, constant) in values:
+            tables["client"][values[(var, constant)]].add(f"{holder_name(var, match.start())}.{constant} (sent)")
+    for handler in _SYSTEM_HANDLER.finditer(source):
+        for case in _SYSTEM_CASE.finditer(handler.group(0)):
+            tables["server"][case.group(1)].add("BasicSmartfoxClient.handleSystemMessage")
     return {
         side: {command: sorted(names) for command, names in sorted(table.items())} for side, table in tables.items()
     }
