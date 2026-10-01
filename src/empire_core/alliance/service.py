@@ -427,9 +427,10 @@ class AllianceService(BaseService):
 
         Note: 'hgh' is shared with the highscore command. Requests for it run
         one at a time, but after one times out its late reply can be taken by
-        the next, a get_highscore() call included. Replies echo ``LT``, yet a
-        live server once answered an LT 7 request with LT 5, so no reply is
-        refused on it.
+        the next, a get_highscore() call included. Replies carry ``LT`` and
+        ``LID``, but the client takes the list and league a reply names rather
+        than the ones it asked for, so no reply is refused on them (see
+        ``GetHighscoreRequest``).
         """
         request = SearchAllianceRequest.create(search_term)
         # SearchAllianceResponse is read here because the 'hgh' registry entry

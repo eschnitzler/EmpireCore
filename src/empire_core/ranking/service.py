@@ -47,9 +47,11 @@ class RankingService(BaseService):
         Returns:
             List of matching entries
 
-        Note: 'hgh' is shared with the alliance-search command, so a
-        concurrent search_alliances() call can receive this response (and
-        vice versa) — the protocol offers no way to correlate them.
+        Note: 'hgh' is shared with the alliance-search command. Requests for it
+        run one at a time, but after one times out its late reply can be taken
+        by the next, a search_alliances() call included: the reply's ``LT`` and
+        ``LID`` need not be the ones asked for, so no reply is refused on them
+        (see ``GetHighscoreRequest``).
         """
         request = GetHighscoreRequest(LT=list_type, LID=league_type_id, SV=search_value)
         return self.request(request, GetHighscoreResponse, timeout=timeout).entries

@@ -8,10 +8,16 @@ from empire_core.castle.models.actions import JoinAreaRequest, SelectCastleReque
 from empire_core.castle.models.resources import GetResourcesRequest
 from empire_core.castle.models.support import SendSupportRequest, SendTroopsRequest
 from empire_core.defense.models import GetDefenseRequest
-from empire_core.enums import Kingdom
+from empire_core.enums import Kingdom, RankingType
 from empire_core.exceptions import EmpireTimeoutError
 from empire_core.map.models.areas import GetMapAreaRequest
 from empire_core.movements.models import CancelMovementRequest
+from empire_core.ranking.models import (
+    GetHighscoreRequest,
+    GetRankingListRequest,
+    GetRankingWindowRequest,
+    SearchRankingListRequest,
+)
 from empire_core.spy.models import SendSpyRequest, SpyScreenInfoRequest
 from tests.service_helpers import conn, make_client, xt_packet
 
@@ -117,6 +123,58 @@ class TestIdEchoes:
         assert not area.accepts_reply({"KID": 0, "gca": {"A": [12, 424, 894]}})
         # A treasure camp's area is not read from gca.A
         assert area.accepts_reply({"KID": 1, "T": 8, "gca": {"A": [8, 22]}})
+
+
+class TestLeaderboards:
+    page = GetRankingListRequest(LT=RankingType.LONG_TERM_POINT_EVENT, LID=3, M=8, R=1)
+    window = GetRankingWindowRequest(LT=RankingType.LONG_TERM_POINT_EVENT, LID=3, M=8)
+    search = SearchRankingListRequest(LT=RankingType.LONG_TERM_POINT_EVENT, SV="name")
+
+    def test_a_reply_for_the_list_asked_for(self):
+        for request in (self.page, self.window, self.search):
+            assert request.accepts_reply({"LT": 53, "LID": 3, "L": [], "T": 0})
+            assert request.accepts_reply({"LT": "53", "L": []})
+
+    def test_a_reply_for_another_list_is_not_taken(self):
+        for request in (self.page, self.window, self.search):
+            assert not request.accepts_reply({"LT": 40, "LID": 3, "L": []})
+
+    def test_another_league_is_taken_as_the_client_adopts_it(self):
+        for request in (self.page, self.window, self.search):
+            assert request.accepts_reply({"LT": 53, "LID": 5, "L": []})
+
+    def test_a_reply_without_a_list_is_taken(self):
+        for request in (self.page, self.window, self.search):
+            assert request.accepts_reply({"L": [], "T": 0})
+            assert request.accepts_reply({})
+
+    def test_highscores_check_nothing(self):
+        # The highscore dialog switches to the list and league a reply names
+        assert not hasattr(GetHighscoreRequest(LT=RankingType.PLAYER_LEGEND, SV="-1"), "accepts_reply")
+
+
+def test_a_leaderboard_page_for_another_list_does_not_take_the_waiter():
+    from empire_core.network.connection import Connection
+    from empire_core.protocol.packet import Packet
+
+    conn = Connection("wss://example.invalid/")
+    request = GetRankingListRequest(LT=RankingType.LONG_TERM_POINT_EVENT, LID=3, M=8, R=1)
+    waiter = conn.create_waiter("llsp", lambda reply: request.accepts_reply(reply.payload))
+    conn._route_packet(Packet.from_bytes(b'%xt%llsp%1%0%{"LT":40,"LID":3,"L":[],"T":0}%'))
+    assert waiter.result is None
+    conn._route_packet(Packet.from_bytes(b'%xt%llsp%1%0%{"LT":53,"LID":3,"L":[{"R":1,"S":9}],"T":1}%'))
+    assert waiter.result is not None and waiter.result.payload["LT"] == 53
+
+
+def test_a_leaderboard_error_goes_to_the_waiter():
+    from empire_core.network.connection import Connection
+    from empire_core.protocol.packet import Packet
+
+    conn = Connection("wss://example.invalid/")
+    request = GetRankingListRequest(LT=RankingType.LONG_TERM_POINT_EVENT, LID=3, M=8, R=1)
+    waiter = conn.create_waiter("llsp", lambda reply: request.accepts_reply(reply.payload))
+    conn._route_packet(Packet.from_bytes(b"%xt%llsp%1%145%%"))
+    assert waiter.result is not None and waiter.result.error_code == 145
 
 
 def test_request_packet_passes_the_request_s_check_on():
