@@ -12,7 +12,7 @@ from empire_core.state.movements import MOVEMENT_PARSE_WARN_INTERVAL, MovementSt
 from empire_core.state.player import PlayerState
 
 __all__ = ["MOVEMENT_PARSE_WARN_INTERVAL", "EventCallback", "EventsCallback", "GameState", "MovementEventCallback"]
-# gbd/lli sections stamped under their own id, whether they came in a gbd or as a push.
+# gbd sections stamped under their own id, whether they came in a gbd or as a push.
 _TRACKED_SECTIONS = (
     "gpi",
     "gxp",
@@ -100,7 +100,6 @@ class GameState(MovementState, CastleState, PlayerState, EventState):
 
     _DISPATCH: dict[str, str] = {
         "gbd": "_handle_gbd",
-        "lli": "_handle_gbd",
         "gam": "_handle_gam",
         "dcl": "_handle_dcl",
         "abr": "_handle_movement_push",
@@ -252,7 +251,7 @@ class GameState(MovementState, CastleState, PlayerState, EventState):
             self._apply_sei(data)
 
     def _stamp_sections(self, data: dict[str, Any]) -> None:
-        """Record when each section of a gbd/lli payload, or a section push, was applied.
+        """Record when each section of a gbd payload, or a section push, was applied.
 
         A section present but null still counts as applied: "gal": None means
         "you are in no alliance", which is information, not absence of it.
@@ -269,7 +268,7 @@ class GameState(MovementState, CastleState, PlayerState, EventState):
     def get_last_packet_time(self, cmd_id: str) -> float | None:
         """When a packet (or gbd sub-packet) of this kind was last applied.
 
-        Accepts the wire ids this manager tracks — "gbd", "lli", "gam", "dcl",
+        Accepts the wire ids this manager tracks — "gbd", "gam", "dcl",
         "abr", "asr", the send replies ("cra", "cam", "abgcam", "cds", "csm",
         "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm",
         "mfc", "glu", "mir", "fjf", "bst", "sce", "see", "tee", "pep" — and the login sections

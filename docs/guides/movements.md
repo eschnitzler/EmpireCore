@@ -44,8 +44,10 @@ stateDiagram-v2
 
 - **Incoming attacks.** `on_incoming_attack` fires once per attack movement
   that is not your own, is not on its way home and had not already landed when
-  first seen. That covers attacks on you and every other attack the server
-  shares with you, your alliance members' own included. It does not fire again
+  first seen, and that is aimed at you or the daimyo township (whoever sends
+  it) or, when a player rather than an NPC sends it, at another member of your
+  alliance. An alliance member's attack on someone outside the alliance does
+  not fire. It does not fire again
   on later refreshes, nor when a reconnect lists the same attack again.
 - **Arrival.** The server sends no arrival packet: as in the game client, a
   movement arrives once its travel time is up. The check runs on every packet

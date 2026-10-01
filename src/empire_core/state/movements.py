@@ -31,9 +31,11 @@ class MovementState(StateBase):
         """Register a callback for new hostile attack movements.
 
         Fires once per newly seen attack that is not the local player's own,
-        is not on its way home and had not already landed when first seen.
-        That covers attacks on you and every other attack the server shares
-        with you, which includes your alliance members' own attacks (#58).
+        is not on its way home and had not already landed when first seen, and
+        is aimed at you or the daimyo township, whoever sends it, or, when a
+        player rather than an NPC sends it and the movement names that
+        player, at another member of your alliance. An alliance member's
+        attack on someone outside the alliance does not fire.
 
         Fires once per attack movement id, also across a reconnect: an attack
         still on its way when the connection drops is not announced again when

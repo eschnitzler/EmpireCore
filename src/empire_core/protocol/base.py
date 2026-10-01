@@ -313,7 +313,7 @@ class GGECommand:
     ARL = "arl"  # Rename a commander or castellan
     GEI = "gei"  # Get equipment inventory
     EEQ = "eeq"  # Equip or unequip an item
-    GCS = "gcs"  # Get tavern offerings
+    GCS = "gcs"  # Generals hub quest status
     SCT = "sct"  # Make offering
     SIN = "sin"  # Building inventory
     SOB = "sob"  # Store building

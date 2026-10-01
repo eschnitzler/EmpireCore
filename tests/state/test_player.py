@@ -230,6 +230,13 @@ class TestFreshnessMetadata:
         assert state.get_last_packet_time("dcl") is None, "unseen packet reported as applied"
         assert state.get_last_packet_time("nope") is None
 
+    def test_lli_reply_is_not_read_as_login_data(self, state):
+        # Client: LLICommand.executeCommand (bundle line 120647) reads the payload only on a refusal
+        state.update_from_packet("lli", {"gpi": {"PID": 7}, "gcu": {"C1": 5, "C2": 1}})
+
+        assert state.local_player is None
+        assert state.get_packet_times() == {}
+
     def test_packet_times_snapshot_is_detached(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}})
         snapshot = state.get_packet_times()
