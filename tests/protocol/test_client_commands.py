@@ -24,12 +24,7 @@ script = _load_script()
 TABLES = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
 
 # Commands the library knows that the client has no constant for, each with why it stays.
-NOT_IN_CLIENT = {
-    ("client", "pin"): "the client sends pin under the name BasicSmartfoxClient.S2C_PING (activatePing, dll line 7168)",
-    ("server", "apiOK"): "an XML system message action (handleSystemMessage), not an %xt% command",
-    ("server", "joinOK"): "an XML system message action (handleSystemMessage), not an %xt% command",
-    ("server", "roundTripRes"): "an XML system message action (handleSystemMessage), not an %xt% command",
-}
+NOT_IN_CLIENT: dict[tuple[str, str], str] = {}
 
 
 def test_every_registered_command_is_in_the_client():
@@ -126,6 +121,27 @@ class TestExtract:
                 "lli": ["ClientConstSF.S2C_LOGIN"],
                 "pin": ["OtherConstants.S2C_PING"],
             },
+        }
+
+    def test_system_messages_and_sent_server_constants(self):
+        # BasicSmartfoxClient.handleSystemMessage and activatePing (dll lines 7228, 7168)
+        source = (
+            'BasicSmartfoxClient.S2C_PING="pin",BasicSmartfoxClient.C2S_A="a";'
+            't.sendMessage(BasicSmartfoxClient.S2C_PING,[""]);t.sendMessage(BasicSmartfoxClient.C2S_A,[]);'
+            "BasicSmartfoxClient.prototype.handleSystemMessage=function(e){switch(n){"
+            'case"apiOK":x();break;case"joinOK":y();break;default:z()}};switch(k){case"notSystem":}'
+        )
+
+        tables = script.extract(source)
+
+        assert tables["client"] == {
+            "a": ["BasicSmartfoxClient.C2S_A"],
+            "pin": ["BasicSmartfoxClient.S2C_PING (sent)"],
+        }
+        assert tables["server"] == {
+            "apiOK": ["BasicSmartfoxClient.handleSystemMessage"],
+            "joinOK": ["BasicSmartfoxClient.handleSystemMessage"],
+            "pin": ["BasicSmartfoxClient.S2C_PING"],
         }
 
     def test_snapshot_merges_the_bundle_and_dll(self):
