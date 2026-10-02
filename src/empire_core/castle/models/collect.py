@@ -1,8 +1,10 @@
-"""Collecting from mines and resource carts.
+"""Mines and resource carts, and collecting from them.
 
 Commands:
 - cmr: Collect a mine
+- gsm: The joined castle's mines (pushed)
 - rcc: Collect a resource cart
+- rci: The joined castle's resource carts (pushed)
 """
 
 from __future__ import annotations
@@ -10,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import Field, field_serializer, field_validator
+from pydantic import ConfigDict, Field, field_serializer, field_validator
 
 from empire_core.enums import ResourceCartType
 from empire_core.protocol.base import (
@@ -65,6 +67,8 @@ class MineStatus(BasePayload):
     ``triggerInfoFlash`` (bundle line 50371)
     """
 
+    model_config = ConfigDict(frozen=True)
+
     object_id: int = Field(alias="OID", default=-1, description="The mine's object id")
     remaining_collection_amount: int = Field(alias="RC", default=0, description="What is left to collect")
     next_collect_seconds: int = Field(
@@ -74,8 +78,19 @@ class MineStatus(BasePayload):
     rubies: int | None = Field(alias="C2", default=None, description="Rubies just collected; None for none")
 
 
-class MineStatusList(BasePayload):
-    """The ``gsm`` block: every mine in the castle."""
+class MineStatusList(BaseResponse):
+    """
+    The joined castle's mines: the ``gsm`` push, and the block of that name in
+    the ``cmr`` and ``jaa`` replies.
+
+    Command: gsm
+    Payload: {"M": [{"OID": .., "RC": .., "NC": ..}, ...]}
+
+    Client: ``GSMCommand.executeCommand`` (bundle line 125752),
+    ``CastleMineData.parse_GSM`` (bundle line 50363)
+    """
+
+    command = "gsm"
 
     mines: list[MineStatus] = Field(alias="M", default_factory=list, description="Each mine")
 
@@ -138,6 +153,8 @@ class ResourceCart(BasePayload):
     Client: ``ResourceCartData.parseRciItem`` (bundle line 81053)
     """
 
+    model_config = ConfigDict(frozen=True)
+
     cart_type: ResourceCartType | None = Field(
         alias="RT", default=None, description="The cart's resource; None for an unknown index"
     )
@@ -150,8 +167,21 @@ class ResourceCart(BasePayload):
     _amount = field_validator("amount", mode="before")(js_int)
 
 
-class ResourceCartInfo(BasePayload):
-    """The ``rci`` block: the castle's resource carts, wood, stone and food."""
+class ResourceCartInfo(BaseResponse):
+    """
+    The joined castle's resource carts, wood, stone and food: the ``rci`` push,
+    and the block of that name in the ``rcc`` and ``jaa`` replies.
+
+    Command: rci
+    Payload: {"RC": [{"RT": .., "A": .., "RS": ..}, ...]}
+
+    The client reads the first three entries, one cart each.
+
+    Client: ``RCICommand.executeCommand`` (bundle line 123196),
+    ``CastleResourceCartsData.parse_RCI`` (bundle line 28798)
+    """
+
+    command = "rci"
 
     carts: list[ResourceCart] = Field(alias="RC", default_factory=list, description="Each cart")
 

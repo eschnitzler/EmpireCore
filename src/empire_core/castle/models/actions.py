@@ -18,9 +18,11 @@ from empire_core.protocol.base import BaseRequest, BaseResponse, enum_or_none
 from empire_core.protocol.js import js_int, js_same_number, row_is_at
 from empire_core.protocol.text import encode_json_text
 
+from .collect import MineStatusList, ResourceCartInfo
 from .details import CastleProductionArea
 from .objects import CastleBuildings, block_or_none
 from .resources import CastleResources
+from .updates import AreaBooster, SlumLevel
 
 # =============================================================================
 # JCA - Jump to Castle / Select Castle
@@ -123,8 +125,8 @@ class SelectCastleResponse(BaseResponse):
     Payload: {"KID": kingdom_id, "T": area_type, "gca": {...}, "grc": {...}, "gpa": {...}, ...}
 
     A block that cannot be read is None, so it does not cost the rest. The
-    other blocks (``csl``, ``gab``, ``gsm``, ``spl0`` to ``spl3``, ``gui``,
-    ``uap``, ``hin``, ``sin``, ``rci``, ``abpi``, ``crai``) are kept as sent.
+    other blocks (``spl0`` to ``spl3``, ``gui``, ``uap``, ``hin``, ``sin``,
+    ``abpi``, ``crai``) are kept as sent.
 
     Client: ``JAACommand.executeCommand`` (bundle line 130190),
     ``AreaDataUpdater.parseJAA`` (bundle line 131496)
@@ -144,6 +146,18 @@ class SelectCastleResponse(BaseResponse):
     )
     production_area: CastleProductionArea | None = Field(
         alias="gpa", default=None, description="The area's production area; None when the reply has none"
+    )
+    slum_level: SlumLevel | None = Field(
+        alias="csl", default=None, description="The area's slum level; None when the reply has none"
+    )
+    area_booster: AreaBooster | None = Field(
+        alias="gab", default=None, description="The area's builder discount; None when the reply has none"
+    )
+    mines: MineStatusList | None = Field(
+        alias="gsm", default=None, description="The area's mines; None when the reply has none"
+    )
+    resource_carts: ResourceCartInfo | None = Field(
+        alias="rci", default=None, description="The area's resource carts; None when the reply has none"
     )
 
     @field_validator("area_type", mode="before")
@@ -169,6 +183,26 @@ class SelectCastleResponse(BaseResponse):
     @classmethod
     def _production_area(cls, value: Any) -> CastleProductionArea | None:
         return block_or_none(CastleProductionArea, value)
+
+    @field_validator("slum_level", mode="before")
+    @classmethod
+    def _slum_level(cls, value: Any) -> SlumLevel | None:
+        return block_or_none(SlumLevel, value)
+
+    @field_validator("area_booster", mode="before")
+    @classmethod
+    def _area_booster(cls, value: Any) -> AreaBooster | None:
+        return block_or_none(AreaBooster, value)
+
+    @field_validator("mines", mode="before")
+    @classmethod
+    def _mines(cls, value: Any) -> MineStatusList | None:
+        return block_or_none(MineStatusList, value)
+
+    @field_validator("resource_carts", mode="before")
+    @classmethod
+    def _resource_carts(cls, value: Any) -> ResourceCartInfo | None:
+        return block_or_none(ResourceCartInfo, value)
 
 
 # =============================================================================

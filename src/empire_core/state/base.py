@@ -10,7 +10,9 @@ from typing import Any
 
 from empire_core.alliance.models.chat import ChatMessageData
 from empire_core.alliance.models.info import AllianceInfo
+from empire_core.castle.models.collect import MineStatus, ResourceCart
 from empire_core.castle.models.permanent import PermanentCastle
+from empire_core.castle.models.updates import BuildingFinished, BuildingXP, DamagedBuildings
 from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.commanders.models.skills import SkillList
 from empire_core.events.models import SpecialEvent
@@ -27,7 +29,7 @@ from empire_core.player.models.progress import (
     TitleRanksResponse,
 )
 from empire_core.spy.models import MaxSpiesResponse, PlagueMonkInfoResponse
-from empire_core.state.models import Castle, CastleKey, Player
+from empire_core.state.models import Castle, CastleKey, JoinedArea, Player
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +62,9 @@ class StateBase:
         self._event_added_callbacks: list[Callable[[SpecialEvent], Any]] = []
         self._event_removed_callbacks: list[Callable[[SpecialEvent], Any]] = []
         self._events_updated_callbacks: list[Callable[[dict[int, SpecialEvent]], Any]] = []
+        self._building_finished_callbacks: list[Callable[[BuildingFinished], Any]] = []
+        self._building_xp_callbacks: list[Callable[[BuildingXP], Any]] = []
+        self._buildings_changed_callbacks: list[Callable[[DamagedBuildings], Any]] = []
 
         # One worker, so callbacks run one at a time in packet order, off the
         # receive thread. Created lazily so it survives disconnect/reconnect.
@@ -106,6 +111,11 @@ class StateBase:
         # Owner records (O) from every movement packet so far, by player id
         self._owner_records: dict[int, MovementOwner] = {}
 
+        # The last joined area, and the mines and resource carts last sent for it; swapped, never edited
+        self.joined_area: JoinedArea | None = None
+        self.mines: dict[int, MineStatus] = {}
+        self.resource_carts: list[ResourceCart] = []
+
         # Running events by id, in the order they started; swapped, never edited
         self.events: dict[int, SpecialEvent] = {}
         self._events_updated_at: float | None = None
@@ -133,7 +143,7 @@ class StateBase:
         self._player_updated_at: float | None = None
 
     def reset(self) -> None:
-        """Forget everything the session sent: player, castles, movements, events, login sections, timestamps.
+        """Forget all the session sent: player, castles, joined area, movements, events, login sections, timestamps.
 
         Registered callbacks stay, and so does the record of attacks already
         announced to :meth:`on_incoming_attack`. Fires no callback: a movement that is dropped

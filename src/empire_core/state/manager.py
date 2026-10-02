@@ -7,6 +7,7 @@ from collections.abc import Set as AbstractSet
 from typing import Any
 
 from empire_core.state.alliance import AllianceState
+from empire_core.state.area import AreaState
 from empire_core.state.base import MovementEventCallback
 from empire_core.state.castles import CastleState
 from empire_core.state.commanders import CommanderState
@@ -94,15 +95,21 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
 # Commands whose state the client applies only from a successful reply: SEICommand, SEECommand,
 # TEICommand, TEECommand, PEPCommand, FJFCommand, BSTCommand (bundle lines 128379, 128364,
 # 128409, 128394, 128214, 127782, 127608), ACMCommand, AQICommand, UFPCommand, BFSCommand (bundle
-# lines 121317, 121557, 121010, 122569) and the section replies above; a cpm error reply still
-# reaches the movement handler, its cpi only a successful one
+# lines 121317, 121557, 121010, 122569), the section replies above; a cpm error reply still
+# reaches the movement handler, its cpi only a successful one. Also the castle pushes and replies:
+# RUECommand, KIKCommand, GSMCommand, RCICommand, CMRCommand, RCCCommand, JAACommand, FBECommand,
+# CBXCommand, GDBCommand, GCBCommand, CSLCommand and GABCommand (bundle lines 125647, 123114,
+# 125752, 123196, 125737, 123181, 130190, 122880, 123345, 122998, 122968, 122715, 122923)
 _SUCCESS_ONLY = frozenset(
     {"sei", "see", "tei", "tee", "pep", "fjf", "bst", "acm", "aqi", "ufp", "bfs", *_WHOLE_SECTIONS}
     | (set(_NESTED_SECTIONS) - {"cpm"})
+    | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "fbe", "cbx", "gdb", "gcb", "csl", "gab"}
 )
 
 
-class GameState(MovementState, CastleState, PlayerState, EventState, CommanderState, AllianceState, ProgressState):
+class GameState(
+    MovementState, CastleState, AreaState, PlayerState, EventState, CommanderState, AllianceState, ProgressState
+):
     """
     Manages game state parsed from server packets.
 
@@ -135,7 +142,15 @@ class GameState(MovementState, CastleState, PlayerState, EventState, CommanderSt
     ===================================  ==========================  ======================================
     castle name/coords, castle list      ``gcl``, ``mir`` (pushed)    re-login
     castle resources/units/details       ``dcl``                      ``client.castle.get_details(id)``
+    castle units (also)                  ``rue`` (pushed)             ``client.castle.get_details(id)``
+    castle open-gate counter             ``gcl``, ``kik`` (pushed)    re-login
     castle unlocked units and horses     ``gpc`` (pushed)             re-login
+    joined area, slum level, discount    ``jaa``, ``csl``/``gab``     ``client.castle.join(id)``
+                                         (pushed)
+    joined castle's mines                ``gsm`` (pushed), ``jaa``,   ``client.castle.join(id)``
+                                         ``cmr``
+    joined castle's resource carts       ``rci`` (pushed), ``jaa``,   ``client.castle.join(id)``
+                                         ``rcc``
     player identity/level/XP             ``gpi``/``gxp``/``glu``      re-login
     player coins/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      re-login
     honor, beginner protection           ``gho``/``uap``              re-login
@@ -217,6 +232,22 @@ class GameState(MovementState, CastleState, PlayerState, EventState, CommanderSt
         "aqi": "_handle_aqi",
         "ufp": "_handle_ufp",
         "bfs": "_handle_bfs",
+        # Castle pushes and the joined area
+        "rue": "_handle_rue",
+        "kik": "_handle_kik",
+        "jaa": "_handle_jaa",
+        "gsm": "_handle_gsm",
+        "cmr": "_handle_cmr",
+        "rci": "_handle_rci",
+        "rcc": "_handle_rcc",
+        "csl": "_handle_csl",
+        "gab": "_handle_gab",
+        "fbe": "_handle_fbe",
+        "cbx": "_handle_cbx",
+        "gdb": "_handle_gdb",
+        "gcb": "_handle_gcb",
+        # Any map read leaves the joined castle, refused or not
+        "gaa": "_handle_gaa",
     }
 
     def update_from_packet(self, cmd_id: str, payload: dict[str, Any], error_code: int = 0) -> None:
@@ -389,19 +420,20 @@ class GameState(MovementState, CastleState, PlayerState, EventState, CommanderSt
     def get_last_packet_time(self, cmd_id: str) -> float | None:
         """When a packet (or gbd sub-packet) of this kind was last applied.
 
-        Accepts the wire ids this manager tracks — "gbd", "gam", "dcl",
-        "abr", "asr", the send replies ("cra", "cam", "abgcam", "cds", "csm",
-        "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm",
-        "mfc", "glu", "mir", "fjf", "bst", "sce", "see", "tee", "pep", "acm", "aqi", "acn", "cal",
-        "ufp", "bfs" — and the login sections "gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap",
-        "gpc", "gms", "sei", "tei", "gli", "skl", "ain", "acl", "rei", "boi", "gmu", "ufa", "uar",
-        "vli", "gri" and "cpi", stamped whether they came inside a gbd, as a push of their own or
-        inside a reply that carries one ("sei" from a fjf or bst, "gli" from an arl, "ain" from an
-        akm, "rei" from a res, ...), plus "gac", which only comes inside a gbd.
-        A send reply is stamped even when the server refused the send; the commands the
-        client reads only from a successful reply (the event ones, the login section ones,
-        "acm", "aqi", "ufp" and "bfs") are not, nor is a login section that was not applied:
-        unreadable, not valid, or another alliance's "ain". ``None`` means none was ever seen;
+        Accepts the wire ids this manager tracks — "gbd", "gam", "dcl", "abr", "asr", the send replies ("cra",
+        "cam", "abgcam", "cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm",
+        "mfc", "glu", "mir", "fjf", "bst", "sce", "see", "tee", "pep", "acm", "aqi", "acn", "cal", "ufp", "bfs",
+        the castle pushes "rue", "kik", "fbe", "cbx", "gdb", "gcb", the joined area's "jaa", "cmr", "rcc" and
+        the map read "gaa" (refused too) — and the login sections "gpi", "gxp", "gcu", "vip", "gal", "gcl",
+        "gho", "uap", "gpc", "gms", "sei", "tei", "gli", "skl", "ain", "acl", "rei", "boi", "gmu", "ufa", "uar",
+        "vli", "gri" and "cpi", stamped whether they came inside a gbd, as a push of their own or inside a reply
+        that carries one ("sei" from a fjf or bst, "gli" from an arl, "ain" from an akm, "rei" from a res, ...),
+        plus "gac", which only comes inside a gbd. "gsm" and "rci" are stamped whenever mines or resource carts
+        are applied, from their push or a jaa, cmr or rcc reply; "csl" and "gab" from their push or a jaa, the
+        push even when no area was joined to apply it to. A send reply is stamped even when the server refused
+        the send; the commands the client reads only from a successful reply (the event ones, the login section
+        ones, the castle ones, "acm", "aqi", "ufp" and "bfs") are not, nor is a login section that was not
+        applied: unreadable, not valid, or another alliance's "ain". ``None`` means none was ever seen;
         packets this manager ignores are never recorded.
         """
         with self._lock:

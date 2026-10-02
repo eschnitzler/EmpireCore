@@ -168,7 +168,11 @@ from empire_core.attack.models.target_info import (
 from empire_core.castle.models import (
     FREE_SLOT,
     LOCKED_SLOT,
+    AreaBooster,
+    BuildingEfficiencyChanged,
+    BuildingFinished,
     BuildingRow,
+    BuildingXP,
     BuildRequest,
     BuildResponse,
     BuyExtensionRequest,
@@ -187,6 +191,7 @@ from empire_core.castle.models import (
     ConstructionList,
     CreateMarketMovementRequest,
     CreateMarketMovementResponse,
+    DamagedBuildings,
     DestroyBuildingRequest,
     DestroyBuildingResponse,
     DetailedCastleInfo,
@@ -237,9 +242,11 @@ from empire_core.castle.models import (
     SendTroopsResponse,
     ShowConstructionListRequest,
     ShowConstructionListResponse,
+    SlumLevel,
     StorageCapacity,
     TimeSkipBuildingRequest,
     TimeSkipBuildingResponse,
+    UnitsReceived,
     UpgradeBuildingRequest,
     UpgradeBuildingResponse,
     UpgradeWallRequest,
@@ -445,6 +452,13 @@ from empire_core.spy.models import (
 )
 
 __all__ = [
+    "AreaBooster",
+    "BuildingEfficiencyChanged",
+    "BuildingFinished",
+    "BuildingXP",
+    "DamagedBuildings",
+    "SlumLevel",
+    "UnitsReceived",
     # Base
     "GGECommand",
     "DEFAULT_ZONE",

@@ -1,4 +1,5 @@
-"""Castle tracking: the castle list (gcl), castle details (dcl) and unlocked units and horses (gpc)."""
+"""Castle tracking: the castle list (gcl), castle details (dcl), units received (rue), the open-gate
+counter reset (kik) and unlocked units and horses (gpc)."""
 
 import logging
 import time
@@ -9,13 +10,18 @@ from pydantic import ValidationError
 from empire_core.castle.models.castles import PlayerCastle
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
 from empire_core.castle.models.permanent import PermanentCastle, PermanentCastleDataResponse
+from empire_core.castle.models.updates import UnitsReceived
 from empire_core.enums import Kingdom
 from empire_core.exceptions import AmbiguousCastleError
-from empire_core.protocol.base import enum_or_none
+from empire_core.protocol.base import enum_or_none, read_or_none
+from empire_core.protocol.js import js_int, js_loose_equals, js_truthy
 from empire_core.state.base import StateBase
 from empire_core.state.models import Castle, CastleKey, Resources
 
 logger = logging.getLogger(__name__)
+
+# TimeConst.MONDAY (ggs.dll line 19802)
+_MONDAY = 2
 
 
 class CastleState(StateBase):
@@ -34,8 +40,9 @@ class CastleState(StateBase):
         row's own kingdom field wins over the block's ``KID``.
 
         Client: ``CastleListVO.parseCastleList`` (bundle line 13698) keeps a
-        list per ``KID``; ``InteractiveMapobjectVO.parseAreaInfo`` (bundle
-        line 3637) reads the row's kingdom from field 16
+        list per ``KID`` and reads the entry's ``OGC`` through ``int()`` when it is
+        truthy; ``InteractiveMapobjectVO.parseAreaInfo`` (bundle line 3637) reads
+        the row's kingdom from field 16
         """
         gcl = data.get("gcl")
         if not isinstance(gcl, dict) or self.local_player is None:
@@ -71,6 +78,8 @@ class CastleState(StateBase):
                     # A castle is tracked by its object id; a faction capital's row has none
                     continue
                 x, y, area_id, name, kingdom = row.x, row.y, row.location_id, row.name or "", row.kingdom
+                gate_count = area_entry.get("OGC")
+                open_gates = js_int(gate_count) if js_truthy(gate_count) else 0
                 key = (kingdom, area_id)
                 existing = self.castles.get(key)
                 if existing is not None:
@@ -79,11 +88,11 @@ class CastleState(StateBase):
                     # written one at a time, a castle mid-relocation would
                     # be observably at (new_x, old_y).
                     merged = dict(existing.__dict__)
-                    merged.update({"name": name, "x": x, "y": y})
-                    self._swap_model_fields(existing, merged, {"name", "x", "y"})
+                    merged.update({"name": name, "x": x, "y": y, "open_gate_counter": open_gates})
+                    self._swap_model_fields(existing, merged, {"name", "x", "y", "open_gate_counter"})
                     owned[key] = existing
                 else:
-                    owned[key] = Castle(OID=area_id, N=name, KID=kingdom, X=x, Y=y)
+                    owned[key] = Castle(OID=area_id, N=name, KID=kingdom, X=x, Y=y, OGC=open_gates)
 
         if skipped and skipped == entries:
             logger.warning(
@@ -155,6 +164,44 @@ class CastleState(StateBase):
                     castle.units = info.units
                 castle.details = info
                 self._castle_details_at[key] = time.time()
+
+    def _handle_rue(self, data: Any) -> None:
+        """Apply units received: the castle's new count of one unit, which drops it at 0 or below.
+
+        ``SID`` is the castle's kingdom. A castle not in the castle list is left
+        alone; the client also leaves one it has no dcl for, the library does not.
+
+        Client: ``CastleUserCastleListDetailed.parse_rue`` (bundle line 140918),
+        ``UnitInventoryDictionary.setUnit`` (bundle line 5538)
+        """
+        if not isinstance(data, dict):
+            return
+        received = read_or_none(UnitsReceived.model_validate, data, warn=logger, what="a rue push")
+        if received is None:
+            return
+        kingdom = enum_or_none(Kingdom, received.kingdom_id)
+        castle = None if kingdom is None else self.castles.get((kingdom, received.castle_id))
+        if castle is None:
+            return
+        units = dict(castle.units)
+        if received.amount <= 0:
+            units.pop(received.wod_id, None)
+        else:
+            units[received.wod_id] = received.amount
+        castle.units = units
+
+    def _handle_kik(self, data: Any) -> None:
+        """On a Monday's ``kik``, set every castle's open-gate counter to 0.
+
+        Client: ``KIKCommand.executeCommand`` (bundle line 123113), ``DOW == TimeConst.MONDAY``;
+        ``CastleListVO.resetOpenGateCounter`` (bundle line 13728)
+        """
+        if not isinstance(data, dict) or not js_loose_equals(data.get("DOW"), _MONDAY):
+            return
+        for castle in self.castles.values():
+            if castle.open_gate_counter:
+                merged = {**castle.__dict__, "open_gate_counter": 0}
+                self._swap_model_fields(castle, merged, {"open_gate_counter"})
 
     def _parse_permanent_castles(self, data: dict[str, Any]) -> None:
         """Apply a gpc section or push: each castle it names is replaced, the others kept.
