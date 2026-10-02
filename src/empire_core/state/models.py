@@ -116,9 +116,15 @@ CastleKey = tuple[Kingdom, int]
 class Castle(BaseModel):
     """A castle, outpost or metropolis owned by the logged-in player.
 
-    Name, position and kingdom come from the castle list (``gcl``); everything
-    else from the castle's ``dcl`` entry, kept whole as ``details`` and
-    ``None`` until one has been received.
+    Name, position, kingdom and the open-gate counter come from the castle
+    list (``gcl``); everything else from the castle's ``dcl`` entry, kept
+    whole as ``details`` and ``None`` until one has been received. ``units``
+    also follows each ``rue`` push (units received), which ``details`` does
+    not; a ``kik`` push on a Monday sets every ``open_gate_counter`` to 0.
+
+    Client: ``CastleListVO.parseCastleList`` (bundle line 13698),
+    ``DetailedCastleVO.parseData``, ``CastleUserCastleListDetailed.parse_rue``
+    (bundle line 140918), ``CastleListVO.resetOpenGateCounter`` (bundle line 13728)
 
     Not to be confused with :class:`empire_core.castle.models.castles.CastleInfo`,
     which is the parsed *protocol* model for another player's castle.
@@ -134,7 +140,10 @@ class Castle(BaseModel):
 
     resources: Resources = Field(default_factory=Resources, description="The castle's resources")
     buildings: list[Building] = Field(default_factory=list)
-    units: dict[int, int] = Field(default_factory=dict, description="Units stationed here")
+    units: dict[int, int] = Field(default_factory=dict, description="Units stationed here, by wod id")
+    open_gate_counter: int = Field(
+        default=0, alias="OGC", description="How often the gate has been opened since the last Monday reset"
+    )
     details: DetailedCastleInfo | None = Field(
         default=None, description="The castle's latest details; None until they arrive"
     )
@@ -304,3 +313,24 @@ class Player(BaseModel):
     def is_premium(self) -> bool:
         """Check if user has active VIP time."""
         return self.vip_time_left > 0
+
+
+class JoinedArea(BaseModel):
+    """
+    The castle or area last joined (``jaa``, the reply to ``client.castle.join``), and the
+    slum level and builder discount it was sent with or pushed since (``csl``, ``gab``).
+
+    Client: ``JAACommand.executeCommand`` (bundle line 130190),
+    ``AreaFactory.parseAreaInfo`` (bundle line 130226), ``AreaDataUpdater.parseJAA``
+    (bundle line 131496), ``AreaDataSlum`` (bundle line 131303), ``AreaDataCommonInfo.parseGAB``
+    (bundle line 130992)
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    kingdom_id: Kingdom | None = Field(description="The area's kingdom; None for one Kingdom lacks")
+    castle_id: int | None = Field(
+        default=None, description="The area's object id; None when its map row is not one of a castle list's"
+    )
+    slum_level: int = Field(default=-1, description="The slum level, -1 for none")
+    builder_discount: int | float = Field(default=0, description="The builder discount")

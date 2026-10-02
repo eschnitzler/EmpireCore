@@ -49,3 +49,7 @@ Castles, buildings, resources and transfers behind `client.castle`.
 ## `castle.models.transfers`
 
 ::: empire_core.castle.models.transfers
+
+## `castle.models.updates`
+
+::: empire_core.castle.models.updates

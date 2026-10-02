@@ -5,10 +5,11 @@ description: What client.state holds, how to read it safely, and how to tell how
 # State and freshness
 
 `client.state` is an in-memory picture of your account: the player, castles,
-movements, special currencies, your spy count, active events, your commanders and
-skills, your alliance and its chat, and your progress: research, boosters,
-might, titles, achievements, relocation and plague monks. A background thread applies
-the server's packets to it while your code reads it.
+the castle you joined with its mines and resource carts, movements, special
+currencies, your spy count, active events, your commanders and skills, your
+alliance and its chat, and your progress: research, boosters, might, titles,
+achievements, relocation and plague monks. A background thread applies the
+server's packets to it while your code reads it.
 
 ## Read through the accessors
 
@@ -38,6 +39,9 @@ ranks = client.state.get_title_ranks()      # top-X ranks, Storm Islands title
 achievements = client.state.get_achievements()
 relocation = client.state.get_relocation()
 monks = client.state.get_plague_monks()
+area = client.state.get_joined_area()       # None until a castle is joined
+mines = client.state.get_mines()            # the joined castle's mines, by object id
+carts = client.state.get_resource_carts()   # its wood, stone and food carts
 ```
 
 The commanders, skills and alliance accessors return copies, and the chat
@@ -62,6 +66,11 @@ every value is as old as the last packet that carried it:
 |---|---|---|
 | Castle names, positions, the castle list | `gcl`, `mir` (pushed) | log in again |
 | Castle resources, units and details | `dcl` | `client.castle.get_details(castle_id)` |
+| Castle units, as new ones arrive | `rue` (pushed) | `client.castle.get_details(castle_id)` |
+| Castle open-gate counter | `gcl`, `kik` (pushed, resets it on Mondays) | log in again |
+| Joined castle, slum level, builder discount | `jaa` (the join reply), `csl`, `gab` (pushed) | `client.castle.join(castle_id)` |
+| Joined castle's mines | `gsm` (pushed), the `jaa` and `cmr` replies | `client.castle.join(castle_id)` |
+| Joined castle's resource carts | `rci` (pushed), the `jaa` and `rcc` replies | `client.castle.join(castle_id)` |
 | Player identity, level and XP | `gpi`, `gxp`, `glu` | log in again |
 | Coins, rubies, VIP, alliance | `gcu`, `vip`, `gal` | log in again |
 | Honor, beginner protection | `gho`, `uap` | log in again |
@@ -110,6 +119,33 @@ The freshness accessors are `get_castle_last_updated` and `get_castle_age`,
 `get_player_last_updated`, and `get_last_packet_time` or `get_packet_times`
 for each command. They return wall-clock `time.time()` seconds, and `None`
 means never seen, which is different from seen and empty.
+
+## The joined castle
+
+Logging in joins no castle; `client.castle.join(castle_id)` does, and its reply
+fills `get_joined_area()` (the castle's kingdom and id, slum level and builder
+discount) and, when the server sends them, the mines and resource carts. Their
+pushes keep them current while you stay. A map read (`gaa`, as every
+[scan](map-scanning.md) sends) drops the mines, as the game drops them on the
+world map; `get_joined_area()` and the resource carts stay, as the game keeps
+them, even though the session is no longer in the castle. Mines and carts are
+read-only. A mine's `next_collect_seconds` and a
+cart's `remaining_seconds` count down from when they arrived, as in the game:
+
+```python
+import time
+
+client.castle.join(castle_id)
+sent_at = client.state.get_last_packet_time("gsm")
+for object_id, mine in client.state.get_mines().items():
+    if mine.next_collect_seconds >= 0 and mine.next_collect_seconds <= time.time() - sent_at:
+        client.castle.collect_mine(object_id)
+```
+
+The joined castle's buildings are not kept in state. `on_building_finished`
+(`fbe`), `on_building_xp` (`cbx`) and `on_buildings_changed` (`gdb` damaged
+buildings, `gcb` changed efficiency), with their `remove_*` counterparts, call
+you back on the callback thread instead.
 
 ## Running events
 

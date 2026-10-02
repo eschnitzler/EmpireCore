@@ -18,6 +18,10 @@ The thread-safe game state that server pushes keep current.
 
 ::: empire_core.state.castles
 
+## `state.area`
+
+::: empire_core.state.area
+
 ## `state.player`
 
 ::: empire_core.state.player

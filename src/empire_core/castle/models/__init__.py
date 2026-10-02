@@ -83,6 +83,15 @@ from .resources import (
 )
 from .support import SendSupportRequest, SendSupportResponse, SendTroopsRequest, SendTroopsResponse
 from .transfers import KingdomUnitTransferRequest, KingdomUnitTransferResponse
+from .updates import (
+    AreaBooster,
+    BuildingEfficiencyChanged,
+    BuildingFinished,
+    BuildingXP,
+    DamagedBuildings,
+    SlumLevel,
+    UnitsReceived,
+)
 
 __all__ = [
     "SelectCastleRequest",
@@ -163,4 +172,11 @@ __all__ = [
     "SendSupportResponse",
     "SendTroopsRequest",
     "SendTroopsResponse",
+    "AreaBooster",
+    "BuildingEfficiencyChanged",
+    "BuildingFinished",
+    "BuildingXP",
+    "DamagedBuildings",
+    "SlumLevel",
+    "UnitsReceived",
 ]

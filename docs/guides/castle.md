@@ -69,6 +69,23 @@ The joined-castle commands are `build`, `upgrade_building`, `move_building`,
 `buy_expansion`, `open_treasure_chest`, `collect_mine` and
 `collect_resource_cart`. Each returns `True` when the server accepts it.
 
+The join also fills [state](game-state.md#the-joined-castle) with the castle's
+mines and resource carts, and their pushes keep them current, so you can see
+what is ready before you collect it:
+
+```python
+from empire_core.enums import ResourceCartType
+
+client.castle.join(castle_id)
+mines = client.state.get_mines()        # object id -> MineStatus
+wood = client.state.get_resource_cart(ResourceCartType.WOOD)
+if wood is not None and wood.amount > 0:
+    client.castle.collect_resource_cart(ResourceCartType.WOOD)
+```
+
+Units that finish arrive as `rue` pushes, which update that castle's `units`
+in state.
+
 ## Moving goods and troops
 
 ```python

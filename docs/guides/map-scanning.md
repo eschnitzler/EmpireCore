@@ -70,7 +70,9 @@ calls at the same time. The server limits the request rate per account; see
 
 ## The session leaves its castle
 
-A scan moves the session off the castle it had joined. `client.army` methods
+A scan moves the session off the castle it had joined and drops
+`client.state.get_mines()`; `get_joined_area()` still names the castle, as the
+game keeps it. `client.army` methods
 join their castle again themselves; anything else castle-scoped needs
 `client.castle.select()` first.
 
