@@ -5,8 +5,8 @@ import logging
 import pytest
 from pydantic import ValidationError
 
-from empire_core.alliance.models.actions import AllianceActionListResponse, AllianceSubscriberCountResponse
 from empire_core.alliance.models.chat import AllianceChatLogResponse, AllianceChatMessageResponse
+from empire_core.alliance.models.chronicle import AllianceChronicleResponse, AllianceSubscriberCountResponse
 from empire_core.alliance.models.help import (
     AllianceHelpListResponse,
     AllianceHelpRequestChanged,
@@ -15,7 +15,7 @@ from empire_core.alliance.models.help import (
     RecruitHelpParams,
 )
 from empire_core.alliance.models.info import AllianceInfo, AllianceMember, AllianceStorage, GetAllianceInfoResponse
-from empire_core.enums import AllianceActionType, AllianceRank, HelpType
+from empire_core.enums import AllianceChronicleAction, AllianceRank, HelpType
 from empire_core.protocol.models import parse_response
 
 
@@ -527,7 +527,7 @@ class TestReviewFollowUps:
         assert entry is not None and entry.player_name is None
 
 
-class TestAllianceActionList:
+class TestAllianceChronicle:
     # Expected values from AllianceInfoVO.parseActionList run in node on the same AL.
     AL = [
         {"PID": 11, "PN": "Old", "MA": 7200, "A": 0, "AV": []},
@@ -538,25 +538,25 @@ class TestAllianceActionList:
     def test_entries_are_read_as_the_client_does_newest_first(self):
         response = parse_response("all", {"AID": 301, "AL": self.AL})
 
-        assert isinstance(response, AllianceActionListResponse)
+        assert isinstance(response, AllianceChronicleResponse)
         assert response.alliance_id == 301
-        assert [(a.player_id, a.player_name, a.action, a.action_values, a.seconds_ago) for a in response.actions] == [
+        assert [(a.player_id, a.player_name, a.action, a.action_values, a.seconds_ago) for a in response.entries] == [
             (13, "New", 99, ["x"], 5),
             (12, "Donor", 8, [1, 500], 60),
             (11, "Old", 0, [], 7200),
         ]
 
     def test_action_type(self):
-        new, donor, old = AllianceActionListResponse.model_validate({"AL": self.AL}).actions
+        new, donor, old = AllianceChronicleResponse.model_validate({"AL": self.AL}).entries
 
-        assert donor.action_type is AllianceActionType.MEMBER_DONATE_RES
-        assert old.action_type is AllianceActionType.MEMBER_JOIN
+        assert donor.action_type is AllianceChronicleAction.MEMBER_DONATE_RESOURCES
+        assert old.action_type is AllianceChronicleAction.MEMBER_JOIN
         assert new.action_type is None
 
     def test_an_unreadable_entry_costs_only_itself(self):
-        response = AllianceActionListResponse.model_validate({"AL": [5, {"PID": 1, "PN": "Kept", "A": 1}]})
+        response = AllianceChronicleResponse.model_validate({"AL": [5, {"PID": 1, "PN": "Kept", "A": 1}]})
 
-        assert [a.player_name for a in response.actions] == ["Kept"]
+        assert [a.player_name for a in response.entries] == ["Kept"]
 
 
 class TestAllianceSubscriberCount:

@@ -206,19 +206,19 @@ class TestAllianceLocalHelpers:
         assert client.alliance.get_local_online_members() == []
         assert conn(client).requested == []
 
-    def test_action_list(self):
+    def test_chronicle(self):
         reply = {"AID": 301, "AL": [{"PID": 1, "PN": "First", "MA": 90, "A": 0, "AV": []}, {"PID": 2, "PN": "Last"}]}
         client = make_client({"all": xt_packet("all", reply)})
 
-        actions = client.alliance.get_action_list()
+        actions = client.alliance.get_chronicle()
 
         assert conn(client).request_payloads == [("all", {})]
         assert [a.player_name for a in actions] == ["Last", "First"]
 
-    def test_action_list_without_an_alliance_raises(self):
+    def test_chronicle_without_an_alliance_raises(self):
         client = make_client({"all": xt_packet("all", error_code=114)})
         with pytest.raises(CommandError) as exc_info:
-            client.alliance.get_action_list()
+            client.alliance.get_chronicle()
         assert exc_info.value.code == 114
 
     def test_subscriber_count(self):

@@ -1,12 +1,16 @@
-"""Alliances: info, members, diplomacy, help, bookmarks, search, chat and the action list."""
+"""Alliances: info, members, diplomacy, help, bookmarks, search, chat and the chronicle."""
 
-from empire_core.enums import AllianceActionType, AllianceRank, BookmarkType, DiplomacyStatus, HelpType, OnlineState
+from empire_core.enums import (
+    AllianceChronicleAction,
+    AllianceRank,
+    BookmarkType,
+    DiplomacyStatus,
+    HelpType,
+    OnlineState,
+)
 
 from .models import (
     REPAIR_HELP_COOLDOWN_SECONDS,
-    AllianceActionListItem,
-    AllianceActionListRequest,
-    AllianceActionListResponse,
     AllianceApplication,
     AllianceApplicationListRequest,
     AllianceApplicationListResponse,
@@ -15,6 +19,9 @@ from .models import (
     AllianceChatLogResponse,
     AllianceChatMessageRequest,
     AllianceChatMessageResponse,
+    AllianceChronicleEntry,
+    AllianceChronicleRequest,
+    AllianceChronicleResponse,
     AllianceCrests,
     AllianceDiplomacyStatus,
     AllianceDonation,
@@ -133,12 +140,12 @@ __all__ = [
     "AllianceSearchResult",
     "SearchAllianceRequest",
     "SearchAllianceResponse",
-    "AllianceActionListRequest",
-    "AllianceActionListItem",
-    "AllianceActionListResponse",
+    "AllianceChronicleRequest",
+    "AllianceChronicleEntry",
+    "AllianceChronicleResponse",
     "AllianceSubscriberCountRequest",
     "AllianceSubscriberCountResponse",
-    "AllianceActionType",
+    "AllianceChronicleAction",
     "AllianceRank",
     "BookmarkType",
     "DiplomacyStatus",

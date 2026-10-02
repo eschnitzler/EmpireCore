@@ -1,7 +1,7 @@
-"""Alliance action list and subscriber count.
+"""Alliance chronicle and subscriber count.
 
 Commands:
-- all: Your alliance's action list (the log on the alliance overview)
+- all: Your alliance's chronicle, the log on the alliance overview
 - asc: How many of your alliance's members have a subscription
 """
 
@@ -12,7 +12,7 @@ from typing import Any
 
 from pydantic import Field, field_validator
 
-from empire_core.enums import AllianceActionType
+from empire_core.enums import AllianceChronicleAction
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, enum_or_none, readable_list
 from empire_core.protocol.js import ClientInt
 
@@ -20,13 +20,13 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# ALL - Action list
+# ALL - Chronicle
 # =============================================================================
 
 
-class AllianceActionListRequest(BaseRequest):
+class AllianceChronicleRequest(BaseRequest):
     """
-    Ask for your alliance's action list.
+    Ask for your alliance's chronicle.
 
     Command: all
     Payload: {}
@@ -37,9 +37,9 @@ class AllianceActionListRequest(BaseRequest):
     command = "all"
 
 
-class AllianceActionListItem(BasePayload):
+class AllianceChronicleEntry(BasePayload):
     """
-    One entry of your alliance's action list.
+    One entry of your alliance's chronicle.
 
     Client: ``AllianceActionListItemVO.parseActionListItem`` (bundle line 66338)
     """
@@ -47,7 +47,7 @@ class AllianceActionListItem(BasePayload):
     player_id: ClientInt = Field(alias="PID", default=0, description="The player the entry is about")
     player_name: str | None = Field(alias="PN", default=None, description="The player's name")
     seconds_ago: ClientInt = Field(alias="MA", default=0, description="Seconds since the action")
-    action: ClientInt = Field(alias="A", default=0, description="What happened, an AllianceActionType value")
+    action: ClientInt = Field(alias="A", default=0, description="What happened, an AllianceChronicleAction value")
     action_values: list[Any] = Field(
         alias="AV", default_factory=list, description="The action's details; their meaning depends on the action"
     )
@@ -63,14 +63,14 @@ class AllianceActionListItem(BasePayload):
         return value if isinstance(value, list) else []
 
     @property
-    def action_type(self) -> AllianceActionType | None:
-        """``action`` as an :class:`AllianceActionType`, None for an action the client does not define."""
-        return enum_or_none(AllianceActionType, self.action)
+    def action_type(self) -> AllianceChronicleAction | None:
+        """``action`` as an :class:`AllianceChronicleAction`, None for an action the client does not define."""
+        return enum_or_none(AllianceChronicleAction, self.action)
 
 
-class AllianceActionListResponse(BaseResponse):
+class AllianceChronicleResponse(BaseResponse):
     """
-    Your alliance's action list.
+    Your alliance's chronicle.
 
     Command: all
 
@@ -82,15 +82,15 @@ class AllianceActionListResponse(BaseResponse):
     command = "all"
 
     alliance_id: ClientInt = Field(alias="AID", default=0, description="Your alliance's id")
-    actions: list[AllianceActionListItem] = Field(
+    entries: list[AllianceChronicleEntry] = Field(
         alias="AL", default_factory=list, description="The entries, newest first"
     )
 
-    @field_validator("actions", mode="before")
+    @field_validator("entries", mode="before")
     @classmethod
-    def _actions(cls, value: Any) -> Any:
+    def _entries(cls, value: Any) -> Any:
         rows = readable_list(
-            AllianceActionListItem, value, accept=lambda e: isinstance(e, dict), warn=logger, what="action list entries"
+            AllianceChronicleEntry, value, accept=lambda e: isinstance(e, dict), warn=logger, what="chronicle entries"
         )
         return rows[::-1]
 
@@ -133,9 +133,9 @@ class AllianceSubscriberCountResponse(BaseResponse):
 
 
 __all__ = [
-    "AllianceActionListRequest",
-    "AllianceActionListItem",
-    "AllianceActionListResponse",
+    "AllianceChronicleRequest",
+    "AllianceChronicleEntry",
+    "AllianceChronicleResponse",
     "AllianceSubscriberCountRequest",
     "AllianceSubscriberCountResponse",
 ]

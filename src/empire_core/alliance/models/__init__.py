@@ -1,18 +1,18 @@
-"""Alliances: info, members, diplomacy, help, bookmarks, search, chat and the action list: protocol models."""
+"""Alliances: info, members, diplomacy, help, bookmarks, search, chat and the chronicle: protocol models."""
 
-from .actions import (
-    AllianceActionListItem,
-    AllianceActionListRequest,
-    AllianceActionListResponse,
-    AllianceSubscriberCountRequest,
-    AllianceSubscriberCountResponse,
-)
 from .chat import (
     AllianceChatLogRequest,
     AllianceChatLogResponse,
     AllianceChatMessageRequest,
     AllianceChatMessageResponse,
     ChatMessageData,
+)
+from .chronicle import (
+    AllianceChronicleEntry,
+    AllianceChronicleRequest,
+    AllianceChronicleResponse,
+    AllianceSubscriberCountRequest,
+    AllianceSubscriberCountResponse,
 )
 from .diplomacy import (
     AllianceDonation,
@@ -143,9 +143,9 @@ __all__ = [
     "AllianceSearchResult",
     "SearchAllianceRequest",
     "SearchAllianceResponse",
-    "AllianceActionListRequest",
-    "AllianceActionListItem",
-    "AllianceActionListResponse",
+    "AllianceChronicleRequest",
+    "AllianceChronicleEntry",
+    "AllianceChronicleResponse",
     "AllianceSubscriberCountRequest",
     "AllianceSubscriberCountResponse",
 ]

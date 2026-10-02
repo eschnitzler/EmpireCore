@@ -6,9 +6,9 @@ Alliance info, members, chat and help behind `client.alliance`.
 
 ::: empire_core.alliance.service
 
-## `alliance.models.actions`
+## `alliance.models.chronicle`
 
-::: empire_core.alliance.models.actions
+::: empire_core.alliance.models.chronicle
 
 ## `alliance.models.chat`
 

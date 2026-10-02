@@ -1,4 +1,4 @@
-"""Alliance ranks, diplomacy, member presence, help requests, bookmarks and the action list."""
+"""Alliance ranks, diplomacy, member presence, help requests, bookmarks and the chronicle."""
 
 from enum import IntEnum
 
@@ -78,9 +78,12 @@ class BookmarkType(IntEnum):
     ALLIANCE_ATTACK_ORDER = 4
 
 
-class AllianceActionType(IntEnum):
+class AllianceChronicleAction(IntEnum):
     """
-    What an entry of the alliance action list records.
+    What an entry of the alliance chronicle records.
+
+    Names follow ``AllianceConst`` with its abbreviations spelled out
+    (C1 coins, C2 rubies, RES resources, TRIBUT tribute, METROPOL metropolis).
 
     Client: ``AllianceConst`` action values (dll line 18805)
     """
@@ -91,9 +94,9 @@ class AllianceActionType(IntEnum):
     MEMBER_NEW_LEADER = 3
     MEMBER_DEMOTE = 4
     MEMBER_PROMOTE = 5
-    MEMBER_DONATE_C1 = 6
-    MEMBER_DONATE_C2 = 7
-    MEMBER_DONATE_RES = 8
+    MEMBER_DONATE_COINS = 6
+    MEMBER_DONATE_RUBIES = 7
+    MEMBER_DONATE_RESOURCES = 8
     CHANGE_NAME = 9
     CHANGE_ANNOUNCEMENT = 10
     CHANGE_DESCRIPTION = 11
@@ -104,42 +107,42 @@ class AllianceActionType(IntEnum):
     REFUSE_DIPLOMACY = 16
     LEVEL_UP = 17
     LEVEL_DOWN = 18
-    DONATE_C1_BY_LEVELUP = 19
-    DONATE_C2_BY_LEVELUP = 20
-    DONATE_RES_BY_LEVELUP = 21
+    DONATE_COINS_BY_LEVEL_UP = 19
+    DONATE_RUBIES_BY_LEVEL_UP = 20
+    DONATE_RESOURCES_BY_LEVEL_UP = 21
     MEMBER_EARN_FAME = 22
     CONQUERED_CAPITAL = 23
     LOST_CAPITAL = 24
-    LOOSING_CAPITAL = 25
-    TOURNAMENTREWARD = 26
-    TOURNAMENTRANK = 27
-    CONQUERED_METROPOL = 28
-    LOST_METROPOL = 29
-    LOOSING_METROPOL = 30
+    LOSING_CAPITAL = 25
+    TOURNAMENT_REWARD = 26
+    TOURNAMENT_RANK = 27
+    CONQUERED_METROPOLIS = 28
+    LOST_METROPOLIS = 29
+    LOSING_METROPOLIS = 30
     MEMBER_INACTIVE_KICK = 31
     ALLIANCE_RANK_OF_LAST_ROUND = 32
     NEW_KINGS_NAME = 33
-    PRIZE_C1_OF_LAST_ROUND = 35
-    PRIZE_C2_OF_LAST_ROUND = 36
+    PRIZE_COINS_OF_LAST_ROUND = 35
+    PRIZE_RUBIES_OF_LAST_ROUND = 36
     STORM_ISLAND_ENDED = 37
-    TRIBUT_PAY_C1 = 38
-    TRIBUT_PAY_C2 = 39
-    TRIBUT_PAY_RES = 40
-    TRIBUT_GET_C1 = 41
-    TRIBUT_GET_C2 = 42
-    TRIBUT_GET_RES = 43
+    TRIBUTE_PAY_COINS = 38
+    TRIBUTE_PAY_RUBIES = 39
+    TRIBUTE_PAY_RESOURCES = 40
+    TRIBUTE_GET_COINS = 41
+    TRIBUTE_GET_RUBIES = 42
+    TRIBUTE_GET_RESOURCES = 43
     ACTIVATE_TEMP_BUFF = 44
     EXTEND_TEMP_BUFF = 45
     ABANDONED_CAPITAL = 46
-    ABANDONED_METROPOL = 47
+    ABANDONED_METROPOLIS = 47
     ALLIANCE_FOUNDED = 48
     FOUNDED_NOBLE_HOUSE = 49
     SET_EMBLEM = 50
-    KING_CONFERED_ISLAND_TITLE = 56
+    KING_CONFERRED_ISLAND_TITLE = 56
     CAPITAL_OWNER_JOINED = 57
     METROPOLIS_OWNER_JOINED = 58
-    REWARD_C1 = 59
-    REWARD_C2 = 60
+    REWARD_COINS = 59
+    REWARD_RUBIES = 60
     ALLIANCE_BATTLE_GROUND_OWNED_TOWER_DEFEATED = 61
     ALLIANCE_BATTLE_GROUND_MALUS_INCREASED = 62
     ALLIANCE_BATTLE_GROUND_POINTS_GAINED = 63

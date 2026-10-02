@@ -8,7 +8,7 @@ It covers:
 - Diplomacy, auto war, the newsletter and treasury donations
 - Alliance chat (send messages, get history)
 - Alliance help (the help list and its pushes, helping, asking for help)
-- Your alliance's action list and subscriber count
+- Your alliance's chronicle and subscriber count
 """
 
 from __future__ import annotations
@@ -19,19 +19,19 @@ from collections.abc import Callable
 
 from pydantic import ValidationError
 
-from empire_core.alliance.models.actions import (
-    AllianceActionListItem,
-    AllianceActionListRequest,
-    AllianceActionListResponse,
-    AllianceSubscriberCountRequest,
-    AllianceSubscriberCountResponse,
-)
 from empire_core.alliance.models.chat import (
     AllianceChatLogRequest,
     AllianceChatLogResponse,
     AllianceChatMessageRequest,
     AllianceChatMessageResponse,
     ChatMessageData,
+)
+from empire_core.alliance.models.chronicle import (
+    AllianceChronicleEntry,
+    AllianceChronicleRequest,
+    AllianceChronicleResponse,
+    AllianceSubscriberCountRequest,
+    AllianceSubscriberCountResponse,
 )
 from empire_core.alliance.models.diplomacy import (
     AllianceDonation,
@@ -524,15 +524,15 @@ class AllianceService(BaseService):
             return []
         return self.get_online_members(alliance_id, timeout=timeout)
 
-    def get_action_list(self, timeout: float = 5.0) -> list[AllianceActionListItem]:
+    def get_chronicle(self, timeout: float = 5.0) -> list[AllianceChronicleEntry]:
         """
-        Get your alliance's action list, newest first.
+        Get your alliance's chronicle, newest first.
 
         Raises:
             CommandError: error 114 when you are in no alliance
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        return self.request(AllianceActionListRequest(), AllianceActionListResponse, timeout=timeout).actions
+        return self.request(AllianceChronicleRequest(), AllianceChronicleResponse, timeout=timeout).entries
 
     def get_subscriber_count(self, timeout: float = 5.0) -> int:
         """
