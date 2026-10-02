@@ -67,8 +67,7 @@ class Inventory:
     """
 
     def __init__(self, stacks: Mapping[int, int] | Iterable[tuple[int, int]]) -> None:
-        pairs = stacks.items() if isinstance(stacks, Mapping) else stacks
-        self.counts: dict[int, int] = {wod_id: count for wod_id, count in pairs if count > 0}
+        self.counts: dict[int, int] = {wod_id: count for wod_id, count in dict(stacks).items() if count > 0}
 
     def available(self, wod_id: int) -> int:
         return self.counts.get(wod_id, 0)
