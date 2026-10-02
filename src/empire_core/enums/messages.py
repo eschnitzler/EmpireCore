@@ -1,4 +1,4 @@
-"""Mailbox message types."""
+"""Mailbox message types and the subtypes of spy and battle logs."""
 
 from enum import IntEnum
 
@@ -52,3 +52,34 @@ class MessageType(IntEnum):
     PATCH_NOTES = 125
     PRIVATE_OFFER = 126
     TEXT_ID = 127
+
+
+class LogResult(IntEnum):
+    """
+    How the mission or battle a spy log or battle log reports ended.
+
+    The second number of a spy log's header, the third of a battle log's.
+    A spy log's spies were lost when the attacker failed or the defender succeeded.
+
+    Client: ``MessageConst.SUBTYPE_ATTACKER_*`` and ``SUBTYPE_DEFENDER_*`` (dll line 19516),
+    ``AMessageSpyVO.isFailedSpyLog`` (bundle line 40204)
+    """
+
+    ATTACKER_SUCCESS = 0
+    DEFENDER_SUCCESS = 1
+    ATTACKER_FAILED = 2
+    DEFENDER_FAILED = 3
+
+
+class BattleLogAttackType(IntEnum):
+    """
+    The kind of attack a battle log reports: the second number of its header.
+
+    Client: ``MessageConst.SUBTYPE_ATTACK_NORMAL`` to ``SUBTYPE_ATTACK_SHADOW`` (dll line 19516)
+    """
+
+    NORMAL = 0
+    CONQUER = 1
+    NPC = 2
+    OCCUPY = 3
+    SHADOW = 4

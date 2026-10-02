@@ -4,7 +4,7 @@ import copy
 
 import pytest
 
-from empire_core.enums import Kingdom, MapItemType, MessageType, SpyLogResult, SpyLogType
+from empire_core.enums import Kingdom, LogResult, MapItemType, MessageType, SpyLogType
 from empire_core.messages.models import SPY_VALIDITY, SpyLogHeader, repair_header
 from empire_core.protocol.base import parse_response
 from empire_core.protocol.models import (
@@ -200,7 +200,7 @@ class TestSpyLogHeader:
         header = MessageInfo.model_validate([9001, 4, "1+0+2#0+-211+", "", -1, 0, 0, 0, 0]).spy_log_header()
 
         assert header == SpyLogHeader(
-            SpyLogType.DEFENCE, SpyLogResult.ATTACKER_SUCCESS, 2, kingdom_id=0, owner_id=-211, area_name=""
+            SpyLogType.DEFENCE, LogResult.ATTACKER_SUCCESS, 2, kingdom_id=0, owner_id=-211, area_name=""
         )
         assert header.has_army_report
         assert not header.spies_lost
@@ -209,7 +209,7 @@ class TestSpyLogHeader:
         header = MessageInfo.model_validate([9001, 3, "2+2+1#1+1001+Enemy Keep"]).spy_log_header()
 
         assert header == SpyLogHeader(
-            SpyLogType.ECO, SpyLogResult.ATTACKER_FAILED, 1, kingdom_id=1, owner_id=1001, area_name="Enemy Keep"
+            SpyLogType.ECO, LogResult.ATTACKER_FAILED, 1, kingdom_id=1, owner_id=1001, area_name="Enemy Keep"
         )
         assert header.spies_lost
         assert not header.has_army_report
@@ -221,7 +221,7 @@ class TestSpyLogHeader:
         assert header.area_name == '100% "Keep"'
 
     @pytest.mark.parametrize("subtype", [SpyLogType.SABOTAGE, SpyLogType.PLAGUE_MONK])
-    @pytest.mark.parametrize("result", [SpyLogResult.ATTACKER_SUCCESS, SpyLogResult.DEFENDER_FAILED])
+    @pytest.mark.parametrize("result", [LogResult.ATTACKER_SUCCESS, LogResult.DEFENDER_FAILED])
     def test_a_sabotage_or_plague_success_names_the_area_by_name_and_id(self, subtype, result):
         header = MessageInfo.model_validate(
             [9001, 3, f"{int(subtype)}+{int(result)}+1#Enemy Keep+2001"]

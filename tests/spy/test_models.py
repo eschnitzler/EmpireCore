@@ -6,7 +6,7 @@ import copy
 
 import pytest
 
-from empire_core.enums import Kingdom, MapItemType, SpyLogResult, SpyLogType, SpyType
+from empire_core.enums import Kingdom, LogResult, MapItemType, SpyLogType, SpyType
 from empire_core.protocol.base import parse_response
 from empire_core.spy.models import (
     AutoSpyRequest,
@@ -127,7 +127,7 @@ class TestSpyTypeValues:
             2,
             3,
         ]
-        assert [int(r) for r in SpyLogResult] == [0, 1, 2, 3]
+        assert [int(r) for r in LogResult] == [0, 1, 2, 3]
 
 
 class TestSpyScreenInfoResponse:

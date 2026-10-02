@@ -1,4 +1,4 @@
-"""Spy mission types, spy log subtypes and how a spy mission ended."""
+"""Spy mission types and spy log subtypes."""
 
 from enum import Enum, IntEnum
 
@@ -36,22 +36,6 @@ class SpyLogType(IntEnum):
     DEFENCE = 1
     ECO = 2
     PLAGUE_MONK = 3
-
-
-class SpyLogResult(IntEnum):
-    """
-    How a spy mission ended, the second number of a spy log's header.
-
-    The spies were lost when the attacker failed or the defender succeeded.
-
-    Client: ``MessageConst.SUBTYPE_ATTACKER_*`` and ``SUBTYPE_DEFENDER_*`` (dll line 19516),
-    ``AMessageSpyVO.isFailedSpyLog`` (bundle line 40204)
-    """
-
-    ATTACKER_SUCCESS = 0
-    DEFENDER_SUCCESS = 1
-    ATTACKER_FAILED = 2
-    DEFENDER_FAILED = 3
 
 
 class SpyStep(str, Enum):

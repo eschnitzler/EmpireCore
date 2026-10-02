@@ -19,7 +19,7 @@ from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model
 
 from empire_core.army.models.units import SpyPositions
 from empire_core.commanders.models.roster import Castellan
-from empire_core.enums import Kingdom, MapItemType, MessageType, SpyLogResult, SpyLogType
+from empire_core.enums import Kingdom, LogResult, MapItemType, MessageType, SpyLogType
 from empire_core.map.models import MapObject
 from empire_core.protocol.base import (
     BasePayload,
@@ -212,7 +212,7 @@ class SpyLogHeader:
     """
 
     log_type: SpyLogType | None
-    result: SpyLogResult | None
+    result: LogResult | None
     area_type: int | None = None
     kingdom_id: int | None = None
     owner_id: int | None = None
@@ -237,12 +237,12 @@ class SpyLogHeader:
         raw_type = js_parse_int(subtypes[0])
         raw_result = js_parse_int(subtypes[1]) if len(subtypes) > 1 else None
         log_type = None if raw_type is None else enum_or_none(SpyLogType, raw_type)
-        result = None if raw_result is None else enum_or_none(SpyLogResult, raw_result)
+        result = None if raw_result is None else enum_or_none(LogResult, raw_result)
         area_type = js_parse_int(subtypes[2]) if len(subtypes) > 2 else None
         if (
             message.message_type == MessageType.SPY_PLAYER
             and raw_type in (SpyLogType.SABOTAGE, SpyLogType.PLAGUE_MONK)
-            and raw_result in (SpyLogResult.ATTACKER_SUCCESS, SpyLogResult.DEFENDER_FAILED)
+            and raw_result in (LogResult.ATTACKER_SUCCESS, LogResult.DEFENDER_FAILED)
         ):
             return cls(
                 log_type,
@@ -267,7 +267,7 @@ class SpyLogHeader:
 
         Client: ``AMessageSpyVO.isFailedSpyLog`` (bundle line 40204)
         """
-        return self.result in (SpyLogResult.ATTACKER_FAILED, SpyLogResult.DEFENDER_SUCCESS)
+        return self.result in (LogResult.ATTACKER_FAILED, LogResult.DEFENDER_SUCCESS)
 
     @property
     def has_army_report(self) -> bool:
@@ -277,7 +277,7 @@ class SpyLogHeader:
         Client: ``MessageSpyPlayerVO.hasDetailedSpyLog`` (bundle line 137672),
         ``MessageSpyNpcVO.hasDetailedSpyLog`` (bundle line 137642)
         """
-        return self.log_type == SpyLogType.DEFENCE and self.result == SpyLogResult.ATTACKER_SUCCESS
+        return self.log_type == SpyLogType.DEFENCE and self.result == LogResult.ATTACKER_SUCCESS
 
 
 class SystemNotificationEvent(BaseResponse):
