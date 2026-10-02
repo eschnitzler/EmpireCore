@@ -373,7 +373,7 @@ class CastleInfo(BasePayload):
     @property
     def position(self) -> Position:
         """Get castle position as Position object."""
-        return Position(X=self.x, Y=self.y, KID=self.kingdom_id)
+        return Position(x=self.x, y=self.y, kingdom=self.kingdom_id)
 
     @classmethod
     def from_entry(cls, entry: dict[str, Any], kingdom: Kingdom = Kingdom.GREEN) -> CastleInfo | None:

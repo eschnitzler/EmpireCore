@@ -32,11 +32,13 @@ class TestReadableList:
         assert [row.row_id for row in rows] == [1, 3]
 
     def test_a_model_instance_is_kept(self):
-        row = Row(ID=2)
+        row = Row(row_id=2)
         assert readable_list(Row, [row]) == [row]
 
     def test_accept_and_parse(self):
-        rows = readable_list(Row, [[4], {"ID": 5}], accept=lambda e: isinstance(e, list), parse=lambda e: Row(ID=e[0]))
+        rows = readable_list(
+            Row, [[4], {"ID": 5}], accept=lambda e: isinstance(e, list), parse=lambda e: Row(row_id=e[0])
+        )
         assert [row.row_id for row in rows] == [4]
 
     def test_unreadable_entries_are_counted_once_with_the_first_shown(self, caplog):
@@ -81,7 +83,7 @@ class TestBlockGuards:
         assert object_or_none(value) == expected
 
     def test_object_or_none_keeps_a_model(self):
-        totals = CurrencyTotals(C1=5)
+        totals = CurrencyTotals(coins=5)
         assert object_or_none(totals) is totals
 
     def test_a_block_built_by_name_is_kept(self):

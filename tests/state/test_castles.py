@@ -16,7 +16,7 @@ class TestCastleUpdatesAreAtomic:
     """get_castles() hands out live Castle objects, so dcl must swap, not mutate."""
 
     def test_dcl_swaps_unit_dict_instead_of_clearing_in_place(self, state):
-        state.castles[(Kingdom.GREEN, 42)] = Castle(OID=42, units={7: 100})
+        state.castles[(Kingdom.GREEN, 42)] = Castle(id=42, units={7: 100})
         reader_view = state.get_castles()[0].units
 
         state.update_from_packet("dcl", {"C": [{"AI": [{"AID": 42, "AC": [[8, 5]]}]}]})
@@ -25,7 +25,7 @@ class TestCastleUpdatesAreAtomic:
         assert state.get_castles()[0].units == {8: 5}
 
     def test_dcl_replaces_resources_instead_of_writing_field_by_field(self, state):
-        state.castles[(Kingdom.GREEN, 42)] = Castle(OID=42)
+        state.castles[(Kingdom.GREEN, 42)] = Castle(id=42)
         res_before = state.get_castles()[0].resources
 
         state.update_from_packet("dcl", {"C": [{"AI": [{"AID": 42, "W": 10, "S": 20, "F": 30}]}]})

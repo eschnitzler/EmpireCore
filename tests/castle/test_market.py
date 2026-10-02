@@ -32,7 +32,14 @@ class TestSendResources:
     def test_the_request_follows_the_client(self):
         # C2SCreateMarketMovementVO: KID to SD initialised, G set after them
         payload = CreateMarketMovementRequest(
-            KID=Kingdom.ICE, SID=1234, TX=10, TY=20, HBW=-1, PTT=1, SD=30, G=[["W", 100]]
+            kingdom_id=Kingdom.ICE,
+            source_castle_id=1234,
+            target_x=10,
+            target_y=20,
+            horse_booster_id=-1,
+            feathers=1,
+            slowdown=30,
+            goods=[["W", 100]],
         ).to_payload()
         assert payload == {"KID": 2, "SID": 1234, "TX": 10, "TY": 20, "HBW": -1, "PTT": 1, "SD": 30, "G": [["W", 100]]}
         assert list(payload) == ["KID", "SID", "TX", "TY", "HBW", "PTT", "SD", "G"]
@@ -183,7 +190,9 @@ class TestMarketInfo:
 class TestKingdomUnitTransfer:
     def test_the_request_follows_the_client(self):
         # C2SKingdomUnitTransferVO: SCID, SKID, TKID and CID initialised, A set after them
-        payload = KingdomUnitTransferRequest(SCID=1234, SKID=Kingdom.GREEN, TKID=Kingdom.ICE, A=[[1, 5]]).to_payload()
+        payload = KingdomUnitTransferRequest(
+            source_castle_id=1234, source_kingdom_id=Kingdom.GREEN, target_kingdom_id=Kingdom.ICE, units=[[1, 5]]
+        ).to_payload()
         assert payload == {"SCID": 1234, "SKID": 0, "TKID": 2, "CID": -1, "A": [[1, 5]]}
         assert list(payload) == ["SCID", "SKID", "TKID", "CID", "A"]
 
@@ -208,7 +217,13 @@ class TestSendTroops:
     def test_the_request_follows_the_client(self):
         # C2SCreateArmyTravelMovementVO: SX to SD initialised, A set after them
         payload = SendTroopsRequest(
-            SX=100, SY=200, TX=110, TY=205, KID=Kingdom.GREEN, LID=5, A=[[620, 10]]
+            source_x=100,
+            source_y=200,
+            target_x=110,
+            target_y=205,
+            kingdom_id=Kingdom.GREEN,
+            commander_id=5,
+            units=[[620, 10]],
         ).to_payload()
         assert list(payload) == ["SX", "SY", "TX", "TY", "KID", "LID", "WT", "HBW", "BPC", "PTT", "SD", "A"]
         assert payload == {
@@ -297,7 +312,7 @@ class TestSendTroops:
 
 class TestCollect:
     def test_collect_mine(self):
-        assert CollectMineResourcesRequest(OID=42).to_payload() == {"OID": 42}
+        assert CollectMineResourcesRequest(object_id=42).to_payload() == {"OID": 42}
         client = make_client()
         assert client.castle.collect_mine(42) is True
         assert conn(client).request_payloads == [("cmr", {"OID": 42})]
@@ -320,7 +335,7 @@ class TestCollect:
 
     def test_collect_resource_cart(self):
         # C2SIsoResourceCartCollectVO: RT is the cart's index, wood 0, stone 1, food 2
-        assert CollectResourceCartRequest(RT=ResourceCartType.FOOD).to_payload() == {"RT": 2}
+        assert CollectResourceCartRequest(cart_type=ResourceCartType.FOOD).to_payload() == {"RT": 2}
         client = make_client()
         assert client.castle.collect_resource_cart(ResourceCartType.STONE) is True
         assert conn(client).request_payloads == [("rcc", {"RT": 1})]

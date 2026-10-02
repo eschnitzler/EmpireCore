@@ -132,7 +132,7 @@ class GetUnitsResponse(BaseResponse, UnitInventory):
 
     @staticmethod
     def _as_counts(amounts: dict[int, int]) -> list[UnitCount]:
-        return [UnitCount(UID=wod_id, C=amount) for wod_id, amount in amounts.items()]
+        return [UnitCount(unit_id=wod_id, count=amount) for wod_id, amount in amounts.items()]
 
     def get_inventory(self) -> list[UnitCount]:
         """Available units and tools."""

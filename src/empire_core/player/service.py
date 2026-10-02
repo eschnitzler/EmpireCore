@@ -55,7 +55,7 @@ class PlayerService(BaseService):
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        return self.request(GetPlayerInfoRequest(PID=player_id), GetPlayerInfoResponse, timeout=timeout)
+        return self.request(GetPlayerInfoRequest(player_id=player_id), GetPlayerInfoResponse, timeout=timeout)
 
     def get_player_details(
         self,
@@ -113,7 +113,7 @@ class PlayerService(BaseService):
         player_name: str,
         timeout: float = 5.0,
     ) -> SearchPlayerResponse:
-        return self.request(SearchPlayerRequest(PN=player_name), SearchPlayerResponse, timeout=timeout)
+        return self.request(SearchPlayerRequest(player_name=player_name), SearchPlayerResponse, timeout=timeout)
 
 
 __all__ = ["PlayerDetailsBulkResult", "PlayerService"]

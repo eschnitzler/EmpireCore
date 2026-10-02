@@ -85,10 +85,10 @@ def test_version_check_frame():
 
 class TestNameChecks:
     def test_vpn_sends_pn(self):
-        assert CheckUsernameAvailableRequest(PN="x").to_payload() == {"PN": "x"}
+        assert CheckUsernameAvailableRequest(username="x").to_payload() == {"PN": "x"}
 
     def test_vln_sends_nom(self):
-        assert CheckUsernameExistsRequest(NOM="x").to_payload() == {"NOM": "x"}
+        assert CheckUsernameExistsRequest(username="x").to_payload() == {"NOM": "x"}
 
     def test_a_refused_name_suggests_others(self):
         response = CheckUsernameAvailableResponse.model_validate({"NS": ["a1", 2, "a3"]})
@@ -102,14 +102,14 @@ class TestNameChecks:
 class TestRegister:
     def test_keys_in_the_client_order(self):
         # C2SRegisterWithNameVO: the constructor's keys first, then initialize()'s.
-        request = RegisterRequest(PN="new", PW="pw", AID="1", NID=1, RCT="c")
+        request = RegisterRequest(username="new", password="pw", account_id="1", network_id=1, recaptcha_token="c")
         assert list(request.to_payload()) == [
             "DID", "CONM", "RTM", "campainPId", "campainCr", "campainLP", "adID", "timeZone",
             "PN", "PW", "REF", "LANG", "AID", "GCI", "SID", "PLFID", "NID", "RCT",
         ]  # fmt: skip
 
     def test_no_email(self):
-        assert "EM" not in RegisterRequest(PN="new", AID="1", NID=1).to_payload()
+        assert "EM" not in RegisterRequest(username="new", account_id="1", network_id=1).to_payload()
 
     def test_reply(self):
         response = RegisterResponse.model_validate({"PID": 7, "NS": ["x"]})
@@ -119,7 +119,7 @@ class TestRegister:
 
 def test_password_recovery_sends_the_email_as_mail():
     # Client: BasicLostPasswordCommand.sendMessage builds {MAIL: text} (dll line 33056).
-    assert PasswordRecoveryRequest(MAIL="a@example.com").to_payload() == {"MAIL": "a@example.com"}
+    assert PasswordRecoveryRequest(email="a@example.com").to_payload() == {"MAIL": "a@example.com"}
 
 
 class TestSecretsStayOutOfRepr:
@@ -128,8 +128,10 @@ class TestSecretsStayOutOfRepr:
         assert "hunter2" not in text and "tok-secret" not in text and "captcha-secret" not in text
 
     def test_register_and_token(self):
-        assert "hunter2" not in repr(RegisterRequest(PN="n", PW="hunter2", AID="1", NID=1, RCT="c-secret"))
-        assert "tok-secret" not in repr(LoginTokenResponse(LT="tok-secret"))
+        assert "hunter2" not in repr(
+            RegisterRequest(username="n", password="hunter2", account_id="1", network_id=1, recaptcha_token="c-secret")
+        )
+        assert "tok-secret" not in repr(LoginTokenResponse(login_token="tok-secret"))
 
 
 def test_login_tokens_are_redacted_in_logged_frames():

@@ -120,7 +120,7 @@ class MessagesService(BaseService):
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
         try:
-            return self.request(ReadMessageRequest(MID=message_id), ReadMessageResponse, timeout=timeout)
+            return self.request(ReadMessageRequest(message_id=message_id), ReadMessageResponse, timeout=timeout)
         except CommandError as e:
             if e.error in (GGEError.NO_SUCH_MESSAGE, GGEError.MESSAGEDATA_TOO_OLD):
                 raise MessageUnavailableError(e.command, e.code, e.payload) from e
@@ -132,7 +132,7 @@ class MessagesService(BaseService):
 
         The message in :attr:`mailbox` is marked read too, as the client marks its own copy.
         """
-        self.send(MarkMessageReadRequest(MID=message_id))
+        self.send(MarkMessageReadRequest(message_id=message_id))
         with self._mailbox_lock:
             message = self._mailbox.get(message_id)
             if message is not None:
@@ -145,7 +145,7 @@ class MessagesService(BaseService):
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        return self.request(ArchiveMessageRequest(MID=message_id), ArchiveMessageResponse, timeout=timeout)
+        return self.request(ArchiveMessageRequest(message_id=message_id), ArchiveMessageResponse, timeout=timeout)
 
     def delete(self, message_id: int, timeout: float = 5.0) -> list[int]:
         """
@@ -157,7 +157,9 @@ class MessagesService(BaseService):
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        return self.request(DeleteMessageRequest(MID=message_id), DeleteMessagesResponse, timeout=timeout).message_ids
+        return self.request(
+            DeleteMessageRequest(message_id=message_id), DeleteMessagesResponse, timeout=timeout
+        ).message_ids
 
     def delete_many(self, message_ids: list[int], timeout: float = 5.0) -> list[int]:
         """
@@ -169,7 +171,7 @@ class MessagesService(BaseService):
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        request = DeleteMessagesRequest(MIDS=list(message_ids))
+        request = DeleteMessagesRequest(message_ids=list(message_ids))
         return self.request(request, DeleteMessagesResponse, timeout=timeout).message_ids
 
     def send_message(self, receiver_name: str, subject: str, text: str, timeout: float = 5.0) -> None:

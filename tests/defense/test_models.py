@@ -66,12 +66,12 @@ LIVE_DFC: dict[str, Any] = {
 
 class TestDefenseRequests:
     def test_dfc_addresses_the_castle_by_position_and_area(self):
-        request = GetDefenseRequest(CX=635, CY=242, AID=16655114)
+        request = GetDefenseRequest(castle_x=635, castle_y=242, area_id=16655114)
         assert list(request.to_payload().items()) == [("CX", 635), ("CY", 242), ("AID", 16655114), ("KID", -1)]
 
     def test_dfc_sends_a_given_kingdom_in_place_of_the_client_default(self):
         # C2SDefenceCompleteVO defaults KID to -1; a kingdom takes the same place
-        request = GetDefenseRequest(CX=635, CY=242, AID=16655114, KID=Kingdom.ICE)
+        request = GetDefenseRequest(castle_x=635, castle_y=242, area_id=16655114, kingdom_id=Kingdom.ICE)
         assert list(request.to_payload().items()) == [("CX", 635), ("CY", 242), ("AID", 16655114), ("KID", 2)]
         assert json.loads(request.to_packet().split("%")[5])["KID"] == 2
 
@@ -83,7 +83,7 @@ class TestDefenseRequests:
             GetDefenseRequest.model_validate({"CX": 1, "CY": 2, "AID": 3, "KID": 11})
 
     def test_dfk_keys_and_defaults_follow_the_client(self):
-        request = ChangeKeepDefenseRequest(CX=1, CY=2, AID=3, S=[[-1, 0]] * 3)
+        request = ChangeKeepDefenseRequest(castle_x=1, castle_y=2, area_id=3, slots=[[-1, 0]] * 3)
         assert list(request.to_payload().items()) == [
             ("CX", 1),
             ("CY", 2),
@@ -95,8 +95,10 @@ class TestDefenseRequests:
         ]
 
     def test_dfw_nests_each_wall_section(self):
-        section = WallSectionSetup(S=[[-1, 0]], UP=50, UC=50)
-        request = ChangeWallDefenseRequest(CX=1, CY=2, AID=3, L=section, M=section, R=section)
+        section = WallSectionSetup(slots=[[-1, 0]], unit_percent=50, unit_composition=50)
+        request = ChangeWallDefenseRequest(
+            castle_x=1, castle_y=2, area_id=3, left=section, middle=section, right=section
+        )
         payload = request.to_payload()
         assert list(payload) == ["CX", "CY", "AID", "L", "M", "R"]
         assert payload["M"] == {"S": [[-1, 0]], "UP": 50, "UC": 50}
@@ -110,11 +112,13 @@ class TestDefenseRequests:
             WallSectionSetup.model_validate({"S": [[-1, 0]]})
 
     def test_dfm_sends_three_slot_lists(self):
-        request = ChangeMoatDefenseRequest(CX=1, CY=2, AID=3, LS=[[-1, 0]], MS=[[-1, 0]], RS=[[-1, 0]])
+        request = ChangeMoatDefenseRequest(
+            castle_x=1, castle_y=2, area_id=3, left_slots=[[-1, 0]], middle_slots=[[-1, 0]], right_slots=[[-1, 0]]
+        )
         assert request.to_payload() == {"CX": 1, "CY": 2, "AID": 3, "LS": [[-1, 0]], "MS": [[-1, 0]], "RS": [[-1, 0]]}
 
     def test_no_request_sends_a_castle_id(self):
-        assert "CID" not in GetDefenseRequest(CX=1, CY=2, AID=3).to_payload()
+        assert "CID" not in GetDefenseRequest(castle_x=1, castle_y=2, area_id=3).to_payload()
 
 
 class TestLiveDefenseReply:

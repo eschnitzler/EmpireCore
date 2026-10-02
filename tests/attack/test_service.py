@@ -89,7 +89,9 @@ class TestCreateAttackReply:
         from empire_core.protocol.models import CreateAttackRequest
 
         client = make_client({"cra": xt_packet("cra", {"TS": 95, "AS": 40}, error_code=234)}, castles=OWN)
-        request = CreateAttackRequest(LID=0, SX=1, SY=2, TX=3, TY=4, A=[wave(units=[[487, 1]])])
+        request = CreateAttackRequest(
+            commander_id=0, source_x=1, source_y=2, target_x=3, target_y=4, waves=[wave(units=[[487, 1]])]
+        )
 
         with pytest.raises(CommandError) as raised:
             client.send(request, wait=True)
@@ -305,13 +307,13 @@ class TestAttackService:
 
         response = client.request(
             CreateAttackRequest(
-                SX=509,
-                SY=255,
-                TX=510,
-                TY=256,
-                KID=Kingdom.GREEN,
-                LID=1,
-                A=[wave(units=[[211, 5]])],
+                source_x=509,
+                source_y=255,
+                target_x=510,
+                target_y=256,
+                kingdom_id=Kingdom.GREEN,
+                commander_id=1,
+                waves=[wave(units=[[211, 5]])],
             ),
             CreateAttackResponse,
         )
@@ -321,7 +323,9 @@ class TestAttackService:
     def test_response_without_a_movement_has_no_id(self):
         client = make_client({"cra": xt_packet("cra", {})}, castles=OWN)
         response = client.request(
-            CreateAttackRequest(LID=0, SX=1, SY=1, TX=2, TY=2, A=[wave(units=[[211, 1]])]),
+            CreateAttackRequest(
+                commander_id=0, source_x=1, source_y=1, target_x=2, target_y=2, waves=[wave(units=[[211, 1]])]
+            ),
             CreateAttackResponse,
         )
         assert response.movement_id is None

@@ -61,7 +61,7 @@ class TestBaseResponse:
             command = "test_alias_cmd"
             castle_id: int = Field(alias="CID", default=0)
 
-        response = AliasedResponse(CID=5)
+        response = AliasedResponse(castle_id=5)
         assert response.to_payload()["CID"] == 5
 
 

@@ -235,7 +235,9 @@ class TestMemberData:
         assert ids.Unit(211) is unit and ids.Currency("KT") is currency and ids.Event(5) is event
 
     def test_members_go_on_the_wire_as_plain_values(self):
-        request = SetGeneralAbilitiesRequest(GID=ids.General.TORIL, SAIDS=[[0, ids.GeneralAbility.POWER_SURGE_L1]])
+        request = SetGeneralAbilitiesRequest(
+            general_id=ids.General.TORIL, abilities=[[0, ids.GeneralAbility.POWER_SURGE_L1]]
+        )
         payload = request.to_payload()
         assert payload == {"GID": 101, "SAIDS": [[0, 10011]]}
         assert type(payload["GID"]) is int and type(payload["SAIDS"][0][1]) is int

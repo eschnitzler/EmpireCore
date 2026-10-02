@@ -264,6 +264,6 @@ class TestOwnerRecord:
 
 def test_a_player_search_encodes_the_name_as_chat_text():
     # C2SSearchPlayerVO runs PN through TextValide.getValideSmartFoxJSONTextMessage
-    request = SearchPlayerRequest(PN="O'Brien 100%")
+    request = SearchPlayerRequest(player_name="O'Brien 100%")
     assert request.to_payload() == {"PN": "O&145;Brien 100&percnt;"}
     assert request.player_name == "O'Brien 100%"

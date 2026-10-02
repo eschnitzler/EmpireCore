@@ -341,7 +341,7 @@ def castellan_fortification(
     ``getDefenceBonuses`` adds these on top of the structures' own protection,
     as fractions.
     """
-    return tuple(  # type: ignore[return-value]
+    wall, gate, moat = (
         resolver.accumulate(bonuses, effect_type, area_type=area_type) / 100
         for effect_type in (
             CombatEffectType.WALL_BONUS,
@@ -349,6 +349,7 @@ def castellan_fortification(
             CombatEffectType.MOAT_BONUS,
         )
     )
+    return wall, gate, moat
 
 
 # CastleLegendSkillEffectsEnum names of the defender legend skills the fight

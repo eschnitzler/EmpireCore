@@ -270,7 +270,7 @@ class TestPositionalArrayParsers:
 
     def test_relocate_sends_only_the_position(self):
         # C2SStartRelocationVO(posX, posY) declares PX and PY and nothing else
-        assert list(RelocateCastleRequest(PX=10, PY=20).to_payload().items()) == [("PX", 10), ("PY", 20)]
+        assert list(RelocateCastleRequest(x=10, y=20).to_payload().items()) == [("PX", 10), ("PY", 20)]
 
     @pytest.mark.parametrize("field", [1, 3, 10])
     def test_player_castle_rejects_wrong_types(self, field):

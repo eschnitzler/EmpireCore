@@ -55,7 +55,7 @@ class MapService(BaseService):
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        request = GetMapAreaRequest(KID=kingdom, AX1=x1, AY1=y1, AX2=x2, AY2=y2)
+        request = GetMapAreaRequest(kingdom=kingdom, x1=x1, y1=y1, x2=x2, y2=y2)
         return self.request(request, GetMapAreaResponse, timeout=timeout)
 
     def scan_kingdom(
@@ -125,7 +125,9 @@ class MapService(BaseService):
         Raises:
             CommandError: The server refused for any other reason
         """
-        request = FindNextMapObjectRequest(T=area_type, KID=kingdom, LMIN=min_level, LMAX=max_level, NID=owner_id)
+        request = FindNextMapObjectRequest(
+            area_type=area_type, kingdom=kingdom, min_level=min_level, max_level=max_level, owner_id=owner_id
+        )
         try:
             response = self.request(request, FindNextMapObjectResponse, timeout=timeout)
         except CommandError as e:

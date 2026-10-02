@@ -58,18 +58,18 @@ class TestGetEquipmentInventory:
 class TestEquipEquipment:
     def test_equip_payload_matches_the_client(self):
         # C2SEquipEquipmentVO: EID, LID, then E as int(n?1:0)
-        payload = EquipEquipmentRequest(EID=6515211559, LID=91, E=True).to_payload()
+        payload = EquipEquipmentRequest(equipment_id=6515211559, commander_id=91, equip=True).to_payload()
 
         assert payload == {"EID": 6515211559, "LID": 91, "E": 1}
         assert list(payload) == ["EID", "LID", "E"]
 
     def test_unequip_sends_zero(self):
-        payload = EquipEquipmentRequest(EID=880, LID=1005, E=False).to_payload()
+        payload = EquipEquipmentRequest(equipment_id=880, commander_id=1005, equip=False).to_payload()
 
         assert payload == {"EID": 880, "LID": 1005, "E": 0}
 
     def test_the_flag_is_sent_as_an_int(self):
-        request = EquipEquipmentRequest(EID=880, LID=91, E=5)
+        request = EquipEquipmentRequest(equipment_id=880, commander_id=91, equip=5)
 
         assert json.loads(request.to_packet().split("%")[5]) == {"EID": 880, "LID": 91, "E": 1}
 

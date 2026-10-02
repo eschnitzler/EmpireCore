@@ -234,7 +234,7 @@ class SearchAllianceRequest(BaseRequest):
 
     @classmethod
     def create(cls, query: str) -> "SearchAllianceRequest":
-        return cls(SV=query)
+        return cls(search_value=query)
 
 
 class SearchAllianceResponse(BaseResponse, register=False):

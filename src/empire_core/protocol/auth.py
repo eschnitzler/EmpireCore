@@ -75,8 +75,8 @@ class LoginRequest(BaseRequest):
     def create(cls, username: str, password: str | None = None, **fields: Any) -> LoginRequest:
         """A login request with the name and password encoded as the login screen encodes them."""
         return cls(
-            NOM=encode_json_text(username),
-            PW=None if password is None else encode_json_text(password),
+            username=encode_json_text(username),
+            password=None if password is None else encode_json_text(password),
             **fields,
         )
 

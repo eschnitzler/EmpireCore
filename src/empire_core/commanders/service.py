@@ -117,7 +117,9 @@ class CommandersService(BaseService):
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
-        return self.request(RenameCommanderRequest(LID=commander_id, N=name), RenameCommanderResponse, timeout=timeout)
+        return self.request(
+            RenameCommanderRequest(commander_id=commander_id, name=name), RenameCommanderResponse, timeout=timeout
+        )
 
 
 class EquipmentService(BaseService):
@@ -155,7 +157,7 @@ class EquipmentService(BaseService):
         Returns:
             False when the server rejects the request
         """
-        request = EquipEquipmentRequest(EID=equipment_id, LID=commander_id, E=1)
+        request = EquipEquipmentRequest(equipment_id=equipment_id, commander_id=commander_id, equip=1)
         return self.execute(request, timeout=timeout)
 
     def unequip(self, equipment_id: int, commander_id: int, timeout: float = 5.0) -> bool:
@@ -172,7 +174,7 @@ class EquipmentService(BaseService):
         Returns:
             False when the server rejects the request
         """
-        request = EquipEquipmentRequest(EID=equipment_id, LID=commander_id, E=0)
+        request = EquipEquipmentRequest(equipment_id=equipment_id, commander_id=commander_id, equip=0)
         return self.execute(request, timeout=timeout)
 
 
@@ -222,7 +224,7 @@ class SkillsService(BaseService):
             CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
         return self.request(
-            AssignGeneralRequest(LID=commander_id, GID=general_id),
+            AssignGeneralRequest(commander_id=commander_id, general_id=general_id),
             AssignGeneralResponse,
             timeout=timeout,
         )
@@ -243,7 +245,7 @@ class SkillsService(BaseService):
             True if the server accepted the change
         """
         pairs = [[slot_id, ability_id] for slot_id, ability_id in abilities]
-        return self.execute(SetGeneralAbilitiesRequest(GID=general_id, SAIDS=pairs), timeout=timeout)
+        return self.execute(SetGeneralAbilitiesRequest(general_id=general_id, abilities=pairs), timeout=timeout)
 
     def unlock_skill(self, skill_id: int, timeout: float = 5.0) -> bool:
         """
@@ -260,7 +262,7 @@ class SkillsService(BaseService):
         Returns:
             True if the server accepted the unlock
         """
-        return self.execute(UnlockGeneralSkillRequest(ID=skill_id), timeout=timeout)
+        return self.execute(UnlockGeneralSkillRequest(skill_id=skill_id), timeout=timeout)
 
     def reset_skills(self, general_id: int, timeout: float = 5.0) -> bool:
         """
@@ -274,7 +276,7 @@ class SkillsService(BaseService):
         Returns:
             True if the server accepted the reset
         """
-        return self.execute(ResetGeneralSkillsRequest(GID=general_id), timeout=timeout)
+        return self.execute(ResetGeneralSkillsRequest(general_id=general_id), timeout=timeout)
 
     def add_xp(self, general_id: int, currency_id: int, amount: int, timeout: float = 5.0) -> bool:
         """
@@ -292,7 +294,9 @@ class SkillsService(BaseService):
         Returns:
             True if the server accepted the items
         """
-        return self.execute(AddGeneralXpRequest(GID=general_id, CID=currency_id, AMT=amount), timeout=timeout)
+        return self.execute(
+            AddGeneralXpRequest(general_id=general_id, currency_id=currency_id, amount=amount), timeout=timeout
+        )
 
     def get_skills(self, timeout: float = 5.0) -> GetSkillsResponse:
         """

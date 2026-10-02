@@ -203,25 +203,27 @@ class EventsService(BaseService):
                 search = str(rank)
             else:
                 search = "-1" if own_page else "1"
-            highscore = GetHighscoreRequest(LT=board, LID=league_id, SV=search)
+            highscore = GetHighscoreRequest(list_type=board, league_type_id=league_id, search_value=search)
             return EventScores.from_highscore(
                 event, board, self.request(highscore, GetHighscoreResponse, timeout=timeout)
             )
 
         page: GetRankingListResponse
         if rank is not None:
-            request = GetRankingListRequest(LT=board, LID=league_id, M=page_size, R=rank)
+            request = GetRankingListRequest(list_type=board, league_type_id=league_id, max_results=page_size, rank=rank)
             page = self.request(request, GetRankingListResponse, timeout=timeout)
         elif name is not None:
-            search_request = SearchRankingListRequest(LT=board, SV=name)
+            search_request = SearchRankingListRequest(list_type=board, search_value=name)
             found = self.request(search_request, SearchRankingListResponse, timeout=timeout)
             hit = next((result for result in found.results if result.score_ids), None)
             if hit is None:
                 return EventScores(event=event, list_type=board, league_id=None)
-            window = GetRankingWindowRequest(LT=board, LID=hit.league_type_id, M=page_size, SI=hit.score_ids[0])
+            window = GetRankingWindowRequest(
+                list_type=board, league_type_id=hit.league_type_id, max_results=page_size, score_id=hit.score_ids[0]
+            )
             page = self.request(window, GetRankingWindowResponse, timeout=timeout)
         else:
-            own = GetRankingWindowRequest(LT=board, LID=league_id, M=page_size, SI="")
+            own = GetRankingWindowRequest(list_type=board, league_type_id=league_id, max_results=page_size, score_id="")
             page = self.request(own, GetRankingWindowResponse, timeout=timeout)
         return EventScores.from_leaderboard(event, board, page)
 
