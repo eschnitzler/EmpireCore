@@ -30,7 +30,9 @@ logger = logging.getLogger(__name__)
 
 
 def _section(section: WallSection) -> WallSectionSetup:
-    return WallSectionSetup(S=section.slots, UP=section.unit_percent, UC=section.unit_composition)
+    return WallSectionSetup(
+        slots=section.slots, unit_percent=section.unit_percent, unit_composition=section.unit_composition
+    )
 
 
 class DefenseService(BaseService):
@@ -68,7 +70,7 @@ class DefenseService(BaseService):
         Client: ``C2SDefenceCompleteVO`` (bundle line 32769), sent by
         ``CastleDefenceDialog.updateDefenceData`` (bundle line 15978)
         """
-        request = GetDefenseRequest(CX=castle_x, CY=castle_y, AID=castle_id, KID=kingdom)
+        request = GetDefenseRequest(castle_x=castle_x, castle_y=castle_y, area_id=castle_id, kingdom_id=kingdom)
         return self.request(request, GetDefenseResponse, timeout=timeout)
 
     def set_keep(
@@ -98,13 +100,13 @@ class DefenseService(BaseService):
         (bundle line 123495)
         """
         request = ChangeKeepDefenseRequest(
-            CX=castle_x,
-            CY=castle_y,
-            AID=castle_id,
-            MAUCT=keep.min_attacking_units_for_tools,
-            UC=keep.unit_composition,
-            S=keep.slots,
-            STS=keep.support_tool_slots,
+            castle_x=castle_x,
+            castle_y=castle_y,
+            area_id=castle_id,
+            min_attacking_units_for_tools=keep.min_attacking_units_for_tools,
+            unit_composition=keep.unit_composition,
+            slots=keep.slots,
+            support_tool_slots=keep.support_tool_slots,
         )
         return self.request(request, KeepDefense, timeout=timeout)
 
@@ -135,12 +137,12 @@ class DefenseService(BaseService):
         ``calcUnitPercentArray`` (bundle line 15985); ``DFWCommand`` (bundle line 123525)
         """
         request = ChangeWallDefenseRequest(
-            CX=castle_x,
-            CY=castle_y,
-            AID=castle_id,
-            L=_section(wall.left),
-            M=_section(wall.middle),
-            R=_section(wall.right),
+            castle_x=castle_x,
+            castle_y=castle_y,
+            area_id=castle_id,
+            left=_section(wall.left),
+            middle=_section(wall.middle),
+            right=_section(wall.right),
         )
         return self.request(request, WallDefense, timeout=timeout)
 
@@ -168,12 +170,12 @@ class DefenseService(BaseService):
         (bundle line 123510)
         """
         request = ChangeMoatDefenseRequest(
-            CX=castle_x,
-            CY=castle_y,
-            AID=castle_id,
-            LS=moat.left_slots,
-            MS=moat.middle_slots,
-            RS=moat.right_slots,
+            castle_x=castle_x,
+            castle_y=castle_y,
+            area_id=castle_id,
+            left_slots=moat.left_slots,
+            middle_slots=moat.middle_slots,
+            right_slots=moat.right_slots,
         )
         return self.request(request, MoatDefense, timeout=timeout)
 
@@ -217,5 +219,5 @@ class DefenseService(BaseService):
             source_y = main_castle.y
             logger.debug(f"SDI: Using source castle at {source_x}:{source_y}")
 
-        request = GetSupportDefenseRequest(TX=target_x, TY=target_y, SX=source_x, SY=source_y)
+        request = GetSupportDefenseRequest(target_x=target_x, target_y=target_y, source_x=source_x, source_y=source_y)
         return self.request(request, GetSupportDefenseResponse, timeout=timeout)

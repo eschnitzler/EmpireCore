@@ -183,11 +183,11 @@ class TestSpyReportResponse:
 
 class TestSpyReportRequests:
     def test_bsd_sends_the_message_id(self):
-        assert GetSpyReportRequest(MID=9001).to_payload() == {"MID": 9001}
+        assert GetSpyReportRequest(message_id=9001).to_payload() == {"MID": 9001}
 
     def test_mfs_sends_the_message_id_before_the_recipients(self):
         # C2SForwardSpyLogVO sets MID before PID
-        payload = ForwardSpyLogRequest(PID=[111, 222], MID=9001).to_payload()
+        payload = ForwardSpyLogRequest(player_ids=[111, 222], message_id=9001).to_payload()
 
         assert list(payload) == ["MID", "PID"]
         assert payload == {"MID": 9001, "PID": [111, 222]}

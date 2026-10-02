@@ -201,17 +201,17 @@ class TestGeneralCommands:
     @pytest.mark.parametrize(
         ("request_", "command", "wire"),
         [
-            (AssignGeneralRequest(LID=7, GID=103), "gla", '{"LID": 7, "GID": 103}'),
-            (AssignGeneralRequest(LID=7), "gla", '{"LID": 7, "GID": -1}'),
+            (AssignGeneralRequest(commander_id=7, general_id=103), "gla", '{"LID": 7, "GID": 103}'),
+            (AssignGeneralRequest(commander_id=7), "gla", '{"LID": 7, "GID": -1}'),
             (
-                SetGeneralAbilitiesRequest(GID=103, SAIDS=[[101031, 10073], [101033, -1]]),
+                SetGeneralAbilitiesRequest(general_id=103, abilities=[[101031, 10073], [101033, -1]]),
                 "gaae",
                 '{"GID": 103, "SAIDS": [[101031, 10073], [101033, -1]]}',
             ),
-            (UnlockGeneralSkillRequest(ID=10317), "guse", '{"ID": 10317}'),
-            (ResetGeneralSkillsRequest(GID=103), "grs", '{"GID": 103}'),
+            (UnlockGeneralSkillRequest(skill_id=10317), "guse", '{"ID": 10317}'),
+            (ResetGeneralSkillsRequest(general_id=103), "grs", '{"GID": 103}'),
             (
-                AddGeneralXpRequest(GID=103, CID=7001, AMT=5),
+                AddGeneralXpRequest(general_id=103, currency_id=7001, amount=5),
                 "gaxp",
                 '{"GID": 103, "CID": 7001, "AMT": 5}',
             ),

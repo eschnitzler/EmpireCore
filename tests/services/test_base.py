@@ -118,7 +118,10 @@ class TestRequestSemantics:
         client = make_client({"arc": xt_packet("arc", {"N": "no id here"})})
         with pytest.raises(PacketError) as exc_info:
             client.request(
-                RenameCastleRequest(CID=1, N="x", AT=MapItemType.CASTLE, KID=Kingdom.GREEN, P=1), RenameCastleResponse
+                RenameCastleRequest(
+                    castle_id=1, castle_name="x", castle_type=MapItemType.CASTLE, kingdom_id=Kingdom.GREEN, is_rename=1
+                ),
+                RenameCastleResponse,
             )
         assert "arc" in str(exc_info.value)
 
@@ -185,7 +188,7 @@ class TestOnResponse:
 
 class TestRequestBuilding:
     def test_select_castle_request_packet_shape(self):
-        packet = SelectCastleRequest(CID=12345, KID=Kingdom.ICE).to_packet(zone="EmpireEx_21")
+        packet = SelectCastleRequest(castle_id=12345, kingdom_id=Kingdom.ICE).to_packet(zone="EmpireEx_21")
         assert packet == '%xt%EmpireEx_21%jca%-1%{"CID":12345,"KID":2}%'
 
     def test_alliance_info_request_requires_an_id(self):

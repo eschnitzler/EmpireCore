@@ -91,7 +91,16 @@ class TestSendSpyRequest:
     def test_the_payload_keeps_the_client_order(self):
         # C2SCreateSpyMovementVO initialises SID, TX, TY, SC, ST, SE, HBW, KID, PTT, SD in that order
         request = SendSpyRequest(
-            SID=1, TX=2, TY=3, SC=4, ST=SpyType.SABOTAGE, SE=30, HBW=1010, KID=Kingdom.ICE, PTT=0, SD=5
+            castle_id=1,
+            target_x=2,
+            target_y=3,
+            spy_count=4,
+            spy_type=SpyType.SABOTAGE,
+            accuracy_or_damage=30,
+            horse_booster_id=1010,
+            target_kingdom=Kingdom.ICE,
+            feathers=0,
+            slowdown=5,
         )
 
         assert list(request.to_payload().items()) == [
@@ -109,7 +118,7 @@ class TestSendSpyRequest:
 
     def test_feathers_send_no_horse(self):
         # Client: HBW=int(u?-1:l), PTT=int(u?1:0)
-        payload = SendSpyRequest(SID=1, TX=2, TY=3, HBW=1010, PTT=1).to_payload()
+        payload = SendSpyRequest(castle_id=1, target_x=2, target_y=3, horse_booster_id=1010, feathers=1).to_payload()
 
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
 
@@ -190,7 +199,7 @@ class TestSpyScreenInfoResponse:
 class TestAutoSpy:
     def test_ssu_sends_only_the_position(self):
         # C2SSpySpyUnits sets TX and TY
-        assert AutoSpyRequest(TX=501, TY=297).to_payload() == {"TX": 501, "TY": 297}
+        assert AutoSpyRequest(target_x=501, target_y=297).to_payload() == {"TX": 501, "TY": 297}
 
     def test_the_reply_is_a_spy_report(self):
         report = parse_response("ssu", BSD_NPC_CAMP_REPORT)

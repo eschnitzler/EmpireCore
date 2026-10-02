@@ -475,13 +475,13 @@ class TestAreaTypeLevelFloor:
 class TestWaveLimitViolations:
     def test_a_legal_attack_reports_nothing(self):
         capacity = WaveCapacity.for_level(70)
-        wave = AttackWave(L=WaveFlank(U=[[601, capacity.flank_soldiers]]))
+        wave = AttackWave(left=WaveFlank(units=[[601, capacity.flank_soldiers]]))
 
         assert wave_limit_violations([wave], capacity) == []
 
     def test_an_overfull_flank_is_named(self):
         capacity = WaveCapacity.for_level(70)
-        wave = AttackWave(L=WaveFlank(U=[[601, capacity.flank_soldiers + 1]]))
+        wave = AttackWave(left=WaveFlank(units=[[601, capacity.flank_soldiers + 1]]))
 
         problems = wave_limit_violations([wave], capacity)
 

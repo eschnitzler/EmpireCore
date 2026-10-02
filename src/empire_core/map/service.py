@@ -65,7 +65,7 @@ class MapService(BaseService):
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        request = GetMapAreaRequest(KID=kingdom, AX1=x1, AY1=y1, AX2=x2, AY2=y2)
+        request = GetMapAreaRequest(kingdom=kingdom, x1=x1, y1=y1, x2=x2, y2=y2)
         return self.request(request, GetMapAreaResponse, timeout=timeout)
 
     def scan_kingdom(
@@ -135,7 +135,9 @@ class MapService(BaseService):
         Raises:
             CommandError: The server refused for any other reason
         """
-        request = FindNextMapObjectRequest(T=area_type, KID=kingdom, LMIN=min_level, LMAX=max_level, NID=owner_id)
+        request = FindNextMapObjectRequest(
+            area_type=area_type, kingdom=kingdom, min_level=min_level, max_level=max_level, owner_id=owner_id
+        )
         return self._find(request, FindNextMapObjectResponse, kingdom, timeout)
 
     def find_next_enemy_castle(
@@ -178,7 +180,7 @@ class MapService(BaseService):
         """
         if not 0 <= index <= MAX_FINDABLE_ENEMY_INDEX:
             raise ValueError(f"index must be 0 to {MAX_FINDABLE_ENEMY_INDEX}, got {index}")
-        request = FindNextEnemyCastleRequest(X=x, Y=y, N=index, LMIN=min_level, LMAX=max_level)
+        request = FindNextEnemyCastleRequest(x=x, y=y, index=index, min_level=min_level, max_level=max_level)
         return self._find(request, FindNextEnemyCastleResponse, kingdom, timeout)
 
     def find_next_tower(self, timeout: float = 5.0) -> FindNextTowerResponse | None:

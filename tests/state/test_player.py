@@ -479,9 +479,13 @@ class TestLevelProgress:
 
     def test_xp_progress_edges(self):
         assert Player().xp_progress == 0.0
-        at_cap = Player(LVL=70, XP=10630311, LL=950, XPFCL=10630311, XPTNL=10630311)
+        at_cap = Player(
+            level=70, xp=10630311, legendary_level=950, xp_for_current_level=10630311, xp_to_next_level=10630311
+        )
         assert at_cap.xp_progress == 0.0
-        just_past_70 = Player(LVL=70, XP=147000, LL=1, XPFCL=147250, XPTNL=151095)
+        just_past_70 = Player(
+            level=70, xp=147000, legendary_level=1, xp_for_current_level=147250, xp_to_next_level=151095
+        )
         assert just_past_70.xp_progress == 0.0
 
 

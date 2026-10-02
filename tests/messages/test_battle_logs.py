@@ -35,13 +35,13 @@ from tests.messages.battle_log_payloads import (
 
 class TestRequests:
     def test_short_log_request_sends_mid_then_im(self):
-        payload = GetBattleLogShortRequest(MID=MESSAGE_ID).to_payload()
+        payload = GetBattleLogShortRequest(message_id=MESSAGE_ID).to_payload()
         assert payload == {"MID": MESSAGE_ID, "IM": 0}
         assert list(payload) == ["MID", "IM"]
 
     @pytest.mark.parametrize(("im", "sent"), [(True, 1), (1, 1), (False, 0), (0, 0)])
     def test_im_is_sent_as_one_or_zero(self, im, sent):
-        assert GetBattleLogShortRequest(MID=1, IM=im).to_payload()["IM"] == sent
+        assert GetBattleLogShortRequest(message_id=1, include_details=im).to_payload()["IM"] == sent
 
     @pytest.mark.parametrize("request_type", [GetBattleLogMiddleRequest, GetBattleLogDetailRequest])
     def test_middle_and_detail_requests_send_the_log_id(self, request_type):
@@ -53,13 +53,13 @@ class TestRequests:
         assert not request.accepts_reply({"LID": LOG_ID + 1})
 
     def test_short_request_accepts_its_own_message_or_a_reply_without_mid(self):
-        request = GetBattleLogShortRequest(MID=MESSAGE_ID)
+        request = GetBattleLogShortRequest(message_id=MESSAGE_ID)
         assert request.accepts_reply({"MID": MESSAGE_ID})
         assert request.accepts_reply({"LID": LOG_ID})
         assert not request.accepts_reply({"MID": MESSAGE_ID + 1})
 
     def test_forward_sends_mid_before_pid(self):
-        payload = ForwardBattleLogRequest(MID=MESSAGE_ID, PID=[7, 8]).to_payload()
+        payload = ForwardBattleLogRequest(message_id=MESSAGE_ID, player_ids=[7, 8]).to_payload()
         assert payload == {"MID": MESSAGE_ID, "PID": [7, 8]}
         assert list(payload) == ["MID", "PID"]
 

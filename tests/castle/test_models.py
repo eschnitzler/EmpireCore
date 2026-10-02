@@ -192,7 +192,9 @@ class TestGoldenCastlePayloads:
 
 class TestRenameCastle:
     def test_a_rename_sends_p_1(self):
-        request = RenameCastleRequest(CID=1, N="Keep", AT=MapItemType.CASTLE, KID=Kingdom.ICE)
+        request = RenameCastleRequest(
+            castle_id=1, castle_name="Keep", castle_type=MapItemType.CASTLE, kingdom_id=Kingdom.ICE
+        )
         assert request.to_payload() == {"CID": 1, "N": "Keep", "AT": 1, "KID": 2, "P": 1}
 
     def test_the_reply_reads_p(self):
@@ -202,7 +204,9 @@ class TestRenameCastle:
 def test_rename_castle_sends_the_client_keys_and_encodes_the_name():
     from empire_core.castle.models.actions import RenameCastleRequest
 
-    payload = RenameCastleRequest(CID=5, N="100% 'mine'\tnow", AT=MapItemType.CASTLE, KID=Kingdom.ICE, P=1).to_payload()
+    payload = RenameCastleRequest(
+        castle_id=5, castle_name="100% 'mine'\tnow", castle_type=MapItemType.CASTLE, kingdom_id=Kingdom.ICE, is_rename=1
+    ).to_payload()
     # C2SRenameCastleVO: CID, P, KID and AT are initialised before N
     assert list(payload) == ["CID", "P", "KID", "AT", "N"]
     assert payload["N"] == "100&percnt; &145;mine&145; now"
@@ -281,7 +285,7 @@ class TestCastleListRowTimers:
 class TestCastleListRequest:
     def test_sends_the_player_id(self):
         # C2SGetCastleListVO sends PID
-        assert GetCastlesRequest(PID=777).to_payload() == {"PID": 777}
+        assert GetCastlesRequest(player_id=777).to_payload() == {"PID": 777}
 
     def test_without_a_player_id_sends_nothing(self):
         assert GetCastlesRequest().to_payload() == {}

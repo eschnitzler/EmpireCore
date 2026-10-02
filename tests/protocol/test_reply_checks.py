@@ -31,7 +31,7 @@ TARGET = [2, 633, 244, 3001, -1]
 
 
 class TestMapArea:
-    request = GetMapAreaRequest(KID=Kingdom.GREEN, AX1=620, AY1=231, AX2=644, AY2=255)
+    request = GetMapAreaRequest(kingdom=Kingdom.GREEN, x1=620, y1=231, x2=644, y2=255)
 
     def test_a_reply_for_this_rectangle(self):
         assert self.request.accepts_reply({"KID": 0, "AI": [[1, 620, 231], [2, 644, 255], [31, 0]], "OI": []})
@@ -54,12 +54,12 @@ class TestMapArea:
         assert self.request.accepts_reply({"KID": 0, "AI": [], "OI": []})
 
     def test_corners_given_the_other_way_round(self):
-        request = GetMapAreaRequest(KID=Kingdom.ICE, AX1=99, AY1=99, AX2=0, AY2=0)
+        request = GetMapAreaRequest(kingdom=Kingdom.ICE, x1=99, y1=99, x2=0, y2=0)
         assert request.accepts_reply({"KID": 2, "AI": [[1, 50, 50]]})
 
 
 class TestSpyScreen:
-    request = SpyScreenInfoRequest(TX=633, TY=240, KID=Kingdom.GREEN)
+    request = SpyScreenInfoRequest(target_x=633, target_y=240, target_kingdom=Kingdom.GREEN)
 
     def test_the_target_s_reply(self):
         assert self.request.accepts_reply({"TX": 633.0, "TY": 240.0, "gaa": {"KID": 0, "AI": [[2, 633, 240]]}})
@@ -74,50 +74,50 @@ class TestSpyScreen:
 
 class TestMovementSends:
     def test_spies_heading_out_and_their_way_home(self):
-        request = SendSpyRequest(SID=2001, TX=633, TY=244)
+        request = SendSpyRequest(castle_id=2001, target_x=633, target_y=244)
         assert request.accepts_reply({"A": movement(TARGET, OWN)})
         # The server pushes the return as another csm: from the target back to your castle
         assert not request.accepts_reply({"A": movement(OWN, TARGET, direction=1)})
 
     def test_an_attack_support_and_troop_transfer(self):
-        attack = CreateAttackRequest(SX=632, SY=243, TX=633, TY=244, LID=0)
+        attack = CreateAttackRequest(source_x=632, source_y=243, target_x=633, target_y=244, commander_id=0)
         assert attack.accepts_reply({"AAM": movement(TARGET, OWN)})
         assert not attack.accepts_reply({"AAM": movement([2, 1, 1], OWN)})
-        support = SendSupportRequest(SID=2001, TX=633, TY=244, LID=0, A=[])
+        support = SendSupportRequest(source_castle_id=2001, target_x=633, target_y=244, commander_id=0, units=[])
         assert support.accepts_reply({"A": movement(TARGET, OWN)})
-        troops = SendTroopsRequest(SX=632, SY=243, TX=633, TY=244, LID=0, A=[])
+        troops = SendTroopsRequest(source_x=632, source_y=243, target_x=633, target_y=244, commander_id=0, units=[])
         assert not troops.accepts_reply({"A": movement(OWN, TARGET)})
 
     def test_a_reply_without_a_movement_is_taken(self):
-        assert SendSpyRequest(SID=2001, TX=633, TY=244).accepts_reply({"O": []})
+        assert SendSpyRequest(castle_id=2001, target_x=633, target_y=244).accepts_reply({"O": []})
 
 
 class TestIdEchoes:
     def test_alliance_info(self):
-        request = GetAllianceInfoRequest(AID=190426)
+        request = GetAllianceInfoRequest(alliance_id=190426)
         assert request.accepts_reply({"A": {"AID": 190426, "N": "Clan"}})
         assert not request.accepts_reply({"A": {"AID": 190427}})
         assert request.accepts_reply({"A": {"N": "no id"}})
 
     def test_castle_resources(self):
-        request = GetResourcesRequest(AID=16654596, KID=Kingdom.GREEN)
+        request = GetResourcesRequest(castle_id=16654596, kingdom_id=Kingdom.GREEN)
         assert request.accepts_reply({"AID": 16654596, "KID": 0, "W": 1.0})
         assert not request.accepts_reply({"AID": 14733404, "KID": 0})
 
     def test_recall(self):
-        request = CancelMovementRequest(MID=99090783)
+        request = CancelMovementRequest(movement_id=99090783)
         assert request.accepts_reply({"A": {"M": {"MID": 99090783}}})
         assert not request.accepts_reply({"A": {"M": {"MID": 99302849}}})
 
     def test_defense(self):
-        request = GetDefenseRequest(CX=632, CY=243, AID=16654596)
+        request = GetDefenseRequest(castle_x=632, castle_y=243, area_id=16654596)
         assert request.accepts_reply({"A": [1, 632, 243, 16654596]})
         assert not request.accepts_reply({"A": [1, 629, 235, 14733404]})
 
     def test_joining_a_castle_or_an_area(self):
         # JAACommand adopts the reply's kingdom, so a castle join checks nothing
-        assert not hasattr(SelectCastleRequest(CID=16654596, KID=Kingdom.GREEN), "accepts_reply")
-        area = JoinAreaRequest(PX=424, PY=894, KID=Kingdom.SANDS)
+        assert not hasattr(SelectCastleRequest(castle_id=16654596, kingdom_id=Kingdom.GREEN), "accepts_reply")
+        area = JoinAreaRequest(x=424, y=894, kingdom_id=Kingdom.SANDS)
         assert area.accepts_reply({"KID": 1, "gca": {"A": [12, 424, 894]}})
         assert not area.accepts_reply({"KID": 1, "gca": {"A": [4, 626, 238]}})
         assert not area.accepts_reply({"KID": 0, "gca": {"A": [12, 424, 894]}})
@@ -126,9 +126,9 @@ class TestIdEchoes:
 
 
 class TestLeaderboards:
-    page = GetRankingListRequest(LT=RankingType.LONG_TERM_POINT_EVENT, LID=3, M=8, R=1)
-    window = GetRankingWindowRequest(LT=RankingType.LONG_TERM_POINT_EVENT, LID=3, M=8)
-    search = SearchRankingListRequest(LT=RankingType.LONG_TERM_POINT_EVENT, SV="name")
+    page = GetRankingListRequest(list_type=RankingType.LONG_TERM_POINT_EVENT, league_type_id=3, max_results=8, rank=1)
+    window = GetRankingWindowRequest(list_type=RankingType.LONG_TERM_POINT_EVENT, league_type_id=3, max_results=8)
+    search = SearchRankingListRequest(list_type=RankingType.LONG_TERM_POINT_EVENT, search_value="name")
 
     def test_a_reply_for_the_list_asked_for(self):
         for request in (self.page, self.window, self.search):
@@ -147,7 +147,9 @@ class TestLeaderboards:
         # onScoreDataReceived skips only when LT differs and the league, LID or -1, matches
         for request in (self.page, self.window):
             assert request.accepts_reply({"LT": 40, "LID": 5, "L": []})
-        own_league = GetRankingListRequest(LT=RankingType.PLAYER_LEGEND, LID=-1, M=8, R=1)
+        own_league = GetRankingListRequest(
+            list_type=RankingType.PLAYER_LEGEND, league_type_id=-1, max_results=8, rank=1
+        )
         assert not own_league.accepts_reply({"LT": 5, "L": []})
         assert own_league.accepts_reply({"LT": 5, "LID": 1, "L": []})
         assert not self.page.accepts_reply({"LT": None, "LID": 3, "L": []})
@@ -163,7 +165,7 @@ class TestLeaderboards:
 
     def test_highscores_check_nothing(self):
         # The highscore dialog switches to the list and league a reply names
-        assert not hasattr(GetHighscoreRequest(LT=RankingType.PLAYER_LEGEND, SV="-1"), "accepts_reply")
+        assert not hasattr(GetHighscoreRequest(list_type=RankingType.PLAYER_LEGEND, search_value="-1"), "accepts_reply")
 
 
 def test_a_leaderboard_page_for_another_list_does_not_take_the_waiter():
@@ -171,7 +173,9 @@ def test_a_leaderboard_page_for_another_list_does_not_take_the_waiter():
     from empire_core.protocol.packet import Packet
 
     conn = Connection("wss://example.invalid/")
-    request = GetRankingListRequest(LT=RankingType.LONG_TERM_POINT_EVENT, LID=3, M=8, R=1)
+    request = GetRankingListRequest(
+        list_type=RankingType.LONG_TERM_POINT_EVENT, league_type_id=3, max_results=8, rank=1
+    )
     waiter = conn.create_waiter("llsp", lambda reply: request.accepts_reply(reply.payload))
     conn._route_packet(Packet.from_bytes(b'%xt%llsp%1%0%{"LT":40,"LID":3,"L":[],"T":0}%'))
     assert waiter.result is None
@@ -184,7 +188,9 @@ def test_a_leaderboard_error_goes_to_the_waiter():
     from empire_core.protocol.packet import Packet
 
     conn = Connection("wss://example.invalid/")
-    request = GetRankingListRequest(LT=RankingType.LONG_TERM_POINT_EVENT, LID=3, M=8, R=1)
+    request = GetRankingListRequest(
+        list_type=RankingType.LONG_TERM_POINT_EVENT, league_type_id=3, max_results=8, rank=1
+    )
     waiter = conn.create_waiter("llsp", lambda reply: request.accepts_reply(reply.payload))
     conn._route_packet(Packet.from_bytes(b"%xt%llsp%1%145%%"))
     assert waiter.result is not None and waiter.result.error_code == 145
@@ -192,7 +198,7 @@ def test_a_leaderboard_error_goes_to_the_waiter():
 
 def test_request_packet_passes_the_request_s_check_on():
     client = make_client({"gaa": xt_packet("gaa", {"KID": 0, "AI": [[1, 5, 5]]})})
-    request = GetMapAreaRequest(KID=Kingdom.GREEN, AX1=0, AY1=0, AX2=9, AY2=9)
+    request = GetMapAreaRequest(kingdom=Kingdom.GREEN, x1=0, y1=0, x2=9, y2=9)
     assert client.request_packet(request, "gaa").payload == {"KID": 0, "AI": [[1, 5, 5]]}
     conn(client).script["gaa"] = xt_packet("gaa", {"AI": [[2, 633, 244]]})
     with pytest.raises(EmpireTimeoutError):
@@ -204,7 +210,7 @@ def test_the_pushed_gaa_does_not_take_a_waiting_chunk_s_reply():
     from empire_core.protocol.packet import Packet
 
     conn = Connection("wss://example.invalid/")
-    request = GetMapAreaRequest(KID=Kingdom.GREEN, AX1=630, AY1=180, AX2=719, AY2=269)
+    request = GetMapAreaRequest(kingdom=Kingdom.GREEN, x1=630, y1=180, x2=719, y2=269)
     waiter = conn.create_waiter("gaa", lambda reply: request.accepts_reply(reply.payload))
     conn._route_packet(Packet.from_bytes(b'%xt%gaa%1%0%{"AI":[[2,633,244,0,1,-3044784,0]]}%'))
     assert waiter.result is None

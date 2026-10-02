@@ -74,7 +74,7 @@ class TestFindNextEnemyCastle:
 
     def test_request_keys_follow_the_vo(self):
         # C2SFindNextEnemyCastleVO initialises X, Y, N, LMIN, LMAX; the levels default to -1
-        request = FindNextEnemyCastleRequest(X=500, Y=510, N=3)
+        request = FindNextEnemyCastleRequest(x=500, y=510, index=3)
         assert list(request.to_payload().items()) == [("X", 500), ("Y", 510), ("N", 3), ("LMIN", -1), ("LMAX", -1)]
 
     def test_sends_the_position_and_index(self):

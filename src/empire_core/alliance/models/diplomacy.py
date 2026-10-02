@@ -177,7 +177,7 @@ class SendNewsletterRequest(BaseRequest):
     @classmethod
     def create(cls, subject: str, text: str) -> SendNewsletterRequest:
         """A newsletter, both parts encoded as ``C2SAllianceNewsletterVO`` encodes them."""
-        return cls(SJ=encode_json_text(subject), TXT=encode_json_text(text))
+        return cls(subject=encode_json_text(subject), text=encode_json_text(text))
 
 
 class SendNewsletterResponse(BaseResponse):
@@ -267,7 +267,7 @@ class DonateRequest(BaseRequest):
     @classmethod
     def create(cls, castle_id: int, kingdom: Kingdom, donation: AllianceDonation) -> DonateRequest:
         """A donation of ``donation`` from ``castle_id``."""
-        return cls(AID=castle_id, KID=kingdom, RV=donation.resource_values())
+        return cls(castle_id=castle_id, kingdom=kingdom, resources=donation.resource_values())
 
 
 class DonateResponse(BaseResponse):

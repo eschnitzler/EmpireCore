@@ -30,7 +30,7 @@ class TestGetPresets:
 class TestSavePreset:
     def test_saves_a_wave_as_the_client_does(self):
         client = make_client()
-        wave = AttackWave(M=WaveFlank(T=[[1, 2], [-1, 0]], U=[[10, 20]]), R=WaveFlank(U=[[12, 7]]))
+        wave = AttackWave(middle=WaveFlank(tools=[[1, 2], [-1, 0]], units=[[10, 20]]), right=WaveFlank(units=[[12, 7]]))
 
         assert client.attack.save_preset(3, wave) is True
 

@@ -44,7 +44,7 @@ class AllianceChatMessageRequest(BaseRequest):
     @classmethod
     def create(cls, text: str) -> "AllianceChatMessageRequest":
         """A chat message request, the text encoded as ``C2SAllianceChatVO`` does after dropping carriage returns."""
-        return cls(M=encode_json_text(text.replace("\r", "")))
+        return cls(message=encode_json_text(text.replace("\r", "")))
 
 
 class ChatMessageData(BasePayload):

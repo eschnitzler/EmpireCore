@@ -34,22 +34,22 @@ from empire_core.protocol.models import (
 
 class TestDungeonCooldownSkips:
     def test_minute_skip_sends_the_client_keys_with_kingdom_as_string(self):
-        request = MinuteSkipDungeonRequest(MST="MS2", KID=Kingdom.ICE, X=100, Y=200)
+        request = MinuteSkipDungeonRequest(minute_skip="MS2", kingdom_id=Kingdom.ICE, x=100, y=200)
         payload = request.to_payload()
         assert list(payload.items()) == [("X", 100), ("Y", 200), ("MID", -1), ("NID", -1), ("MST", "MS2"), ("KID", "2")]
 
     def test_minute_skip_on_a_treasure_map_node(self):
-        request = MinuteSkipDungeonRequest(MST="MS1", KID=Kingdom.GREEN, X=5, Y=6, MID=3, NID=12)
+        request = MinuteSkipDungeonRequest(minute_skip="MS1", kingdom_id=Kingdom.GREEN, x=5, y=6, map_id=3, node_id=12)
         assert request.to_payload()["MID"] == 3
         assert request.to_payload()["NID"] == 12
         assert json.loads(request.to_packet().split("%")[5])["KID"] == "0"
 
     def test_full_skip_sends_the_client_keys_with_kingdom_as_number(self):
-        request = SkipDungeonCooldownRequest(X=100, Y=200, KID=Kingdom.ICE)
+        request = SkipDungeonCooldownRequest(x=100, y=200, kingdom_id=Kingdom.ICE)
         assert list(request.to_payload().items()) == [("X", 100), ("Y", 200), ("KID", 2), ("MID", -1), ("NID", -1)]
 
     def test_full_skip_on_a_treasure_map_node(self):
-        payload = SkipDungeonCooldownRequest(X=1, Y=2, KID=Kingdom.GREEN, MID=7, NID=4).to_payload()
+        payload = SkipDungeonCooldownRequest(x=1, y=2, kingdom_id=Kingdom.GREEN, map_id=7, node_id=4).to_payload()
         assert (payload["MID"], payload["NID"]) == (7, 4)
 
     def test_replies_carry_the_dungeon_row(self):
@@ -109,16 +109,16 @@ class TestAttackPresets:
 
     def test_save_from_wave_matches_the_client(self):
         wave = AttackWave(
-            M=WaveFlank(T=[[1, 2], [-1, 0]], U=[[10, 20], [-1, 0], [11, 5]]),
-            L=WaveFlank(T=[[-1, 0]], U=[[-1, 0], [-1, 0]]),
-            R=WaveFlank(T=[[3, 4]], U=[[12, 7]]),
+            middle=WaveFlank(tools=[[1, 2], [-1, 0]], units=[[10, 20], [-1, 0], [11, 5]]),
+            left=WaveFlank(tools=[[-1, 0]], units=[[-1, 0], [-1, 0]]),
+            right=WaveFlank(tools=[[3, 4]], units=[[12, 7]]),
         )
         request = SavePresetRequest.create(3, PresetArmy.from_wave(wave))
         assert request.command == "sas"
         assert request.to_payload() == {"S": 3, "A": WAVE_SAVED_AS}
 
     def test_save_from_a_padded_wave_drops_the_empty_slots(self):
-        wave = AttackWave(M=WaveFlank(T=[[-1, 0]] * 3, U=[[10, 20]] + [[-1, 0]] * 5))
+        wave = AttackWave(middle=WaveFlank(tools=[[-1, 0]] * 3, units=[[10, 20]] + [[-1, 0]] * 5))
         assert PresetArmy.from_wave(wave).to_arrays() == [[], [], [], [10, 20], [], []]
 
     def test_save_round_trips_through_the_reply(self):
@@ -128,7 +128,7 @@ class TestAttackPresets:
 
     def test_upan_keys_follow_the_vo(self):
         # C2SUpdatePresetNameVO initialises S, then sets SN as typed
-        request = RenamePresetRequest(S=2, SN="Farm 'n' go")
+        request = RenamePresetRequest(index=2, name="Farm 'n' go")
         assert list(request.to_payload().items()) == [("S", 2), ("SN", "Farm 'n' go")]
 
     def test_upan_reply_is_registered(self):
@@ -137,7 +137,9 @@ class TestAttackPresets:
 
 class TestAttackRequestShapes:
     def test_cra_keys_follow_the_client_order(self):
-        request = CreateAttackRequest(LID=0, SX=1, SY=2, TX=3, TY=4, A=[AttackWave()])
+        request = CreateAttackRequest(
+            commander_id=0, source_x=1, source_y=2, target_x=3, target_y=4, waves=[AttackWave()]
+        )
         # C2SCreateArmyAttackMovementVO initialises SX..CD, then sets A, BKS, AST, RW, ASCT
         assert list(request.to_payload()) == [
             "SX", "SY", "TX", "TY", "KID", "LID", "WT", "HBW", "BPC", "ATT", "AV",
@@ -146,7 +148,18 @@ class TestAttackRequestShapes:
 
     def test_csm_keys_follow_the_client_order(self):
         # C2SCreateSpyMovementVO declares SID, TX, TY, SC, ST, SE, HBW, KID, PTT, SD
-        request = SendSpyRequest(SID=5, TX=3, TY=4, SC=2, ST=SpyType.ECO, SE=80, HBW=-1, KID=Kingdom.ICE, PTT=1, SD=7)
+        request = SendSpyRequest(
+            castle_id=5,
+            target_x=3,
+            target_y=4,
+            spy_count=2,
+            spy_type=SpyType.ECO,
+            accuracy_or_damage=80,
+            horse_booster_id=-1,
+            target_kingdom=Kingdom.ICE,
+            feathers=1,
+            slowdown=7,
+        )
         assert list(request.to_payload().items()) == [
             ("SID", 5), ("TX", 3), ("TY", 4), ("SC", 2), ("ST", 1),
             ("SE", 80), ("HBW", -1), ("KID", 2), ("PTT", 1), ("SD", 7),
@@ -154,12 +167,20 @@ class TestAttackRequestShapes:
 
     def test_ssi_keys_follow_the_client_order(self):
         # C2SGetSpyInfo declares TX, TY, KID
-        request = SpyScreenInfoRequest(TX=3, TY=4, KID=Kingdom.STORM)
+        request = SpyScreenInfoRequest(target_x=3, target_y=4, target_kingdom=Kingdom.STORM)
         assert list(request.to_payload().items()) == [("TX", 3), ("TY", 4), ("KID", 4)]
 
     def test_collector_boosters_are_currency_amount_pairs(self):
         # CastleFightScreenVO.addCollectorBooster pushes [boosterKey, amount]
-        request = CreateAttackRequest(LID=0, SX=1, SY=2, TX=3, TY=4, A=[AttackWave()], BKS=[[31, 2], [32, 0]])
+        request = CreateAttackRequest(
+            commander_id=0,
+            source_x=1,
+            source_y=2,
+            target_x=3,
+            target_y=4,
+            waves=[AttackWave()],
+            collector_booster=[[31, 2], [32, 0]],
+        )
         assert request.to_payload()["BKS"] == [[31, 2], [32, 0]]
 
     def test_wave_keys_follow_the_client_order(self):
@@ -260,7 +281,7 @@ class TestReviewedLeniency:
     def test_the_castellan_source_also_follows_field_names(self):
         from empire_core.protocol.models import Commander, GetAttackInfoResponse
 
-        info = GetAttackInfoResponse.model_validate({"S": [[[1, 2]]], "spied_castellan": Commander(ID=7)})
+        info = GetAttackInfoResponse.model_validate({"S": [[[1, 2]]], "spied_castellan": Commander(commander_id=7)})
         again = GetAttackInfoResponse.model_validate(info.model_dump())
         for response in (info, again):
             castellan = response.defending_castellan()
@@ -300,15 +321,15 @@ class TestInputEnums:
 
     def test_cra_sends_enum_inputs_as_their_numbers(self):
         request = CreateAttackRequest(
-            LID=0,
-            SX=1,
-            SY=2,
-            TX=3,
-            TY=4,
-            KID=Kingdom.ICE,
-            ATT=AttackType.OUTPOST_CONQUER,
-            LP=LootPriority.IRON,
-            ASCT=AutoSkipCooldownType.MINUTE_SKIP,
+            commander_id=0,
+            source_x=1,
+            source_y=2,
+            target_x=3,
+            target_y=4,
+            kingdom_id=Kingdom.ICE,
+            attack_type=AttackType.OUTPOST_CONQUER,
+            loot_priority=LootPriority.IRON,
+            auto_skip_cooldown=AutoSkipCooldownType.MINUTE_SKIP,
         )
         payload = request.to_payload()
         assert (payload["KID"], payload["ATT"], payload["LP"], payload["ASCT"]) == (2, 1, 8, 1)
@@ -333,15 +354,17 @@ class TestInputEnums:
         assert json.loads(request.to_packet().split("%")[5])["KID"] == 10
 
     def test_csm_takes_a_spy_type(self):
-        request = SendSpyRequest(SID=5, TX=3, TY=4, KID=Kingdom.FIRE, ST=SpyType.SABOTAGE)
+        request = SendSpyRequest(
+            castle_id=5, target_x=3, target_y=4, target_kingdom=Kingdom.FIRE, spy_type=SpyType.SABOTAGE
+        )
         payload = request.to_payload()
         assert (payload["KID"], payload["ST"]) == (3, 2)
-        assert SendSpyRequest(SID=5, TX=3, TY=4).to_payload()["ST"] == 0
+        assert SendSpyRequest(castle_id=5, target_x=3, target_y=4).to_payload()["ST"] == 0
         with pytest.raises(ValidationError):
             SendSpyRequest.model_validate({"SID": 5, "TX": 3, "TY": 4, "ST": 4})
 
     def test_minute_skip_sends_an_enum_kingdom_as_its_number_string(self):
-        request = MinuteSkipDungeonRequest(MST="MS2", KID=Kingdom.ICE, X=100, Y=200)
+        request = MinuteSkipDungeonRequest(minute_skip="MS2", kingdom_id=Kingdom.ICE, x=100, y=200)
         assert request.to_payload()["KID"] == "2"
         assert json.loads(request.to_packet().split("%")[5])["KID"] == "2"
 

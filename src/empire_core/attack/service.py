@@ -386,25 +386,25 @@ class AttackService(BaseService):
 
         kingdom_id = self._own_area_kingdom(source_x, source_y, kingdom_id)
         request = CreateAttackRequest(
-            SX=source_x,
-            SY=source_y,
-            TX=target_x,
-            TY=target_y,
-            A=filled_waves,
-            KID=kingdom_id,
-            LID=commander_id,
-            ATT=attack_type,
-            WT=wait_time,
-            HBW=-1 if feathers else horse_booster_id,
-            PTT=1 if feathers else 0,
-            BPC=1 if use_premium_commander else 0,
-            AV=1 if share_battle_view else 0,
-            LP=loot_priority,
-            SD=slowdown,
-            RW=yard_wave or [],
-            AST=support_tools or [],
-            BKS=collector_booster or [],
-            FC=1 if send_anyway else 0,
+            source_x=source_x,
+            source_y=source_y,
+            target_x=target_x,
+            target_y=target_y,
+            waves=filled_waves,
+            kingdom_id=kingdom_id,
+            commander_id=commander_id,
+            attack_type=attack_type,
+            wait_time=wait_time,
+            horse_booster_id=-1 if feathers else horse_booster_id,
+            feathers=1 if feathers else 0,
+            use_premium_commander=1 if use_premium_commander else 0,
+            share_battle_view=1 if share_battle_view else 0,
+            loot_priority=loot_priority,
+            slowdown=slowdown,
+            yard_wave=yard_wave or [],
+            support_tools=support_tools or [],
+            collector_booster=collector_booster or [],
+            send_anyway=1 if send_anyway else 0,
         )
         try:
             self.client.send(request, wait=True, timeout=timeout)
@@ -525,7 +525,7 @@ class AttackService(BaseService):
                 f"Preset names are 1 to {PRESET_NAME_MAX_LENGTH} characters without any of "
                 f"{''.join(SMARTFOX_INVALID_CHARS)}, got {name!r}"
             )
-        return self.execute(RenamePresetRequest(S=index, SN=name), timeout=timeout)
+        return self.execute(RenamePresetRequest(index=index, name=name), timeout=timeout)
 
     def fill_waves(
         self,

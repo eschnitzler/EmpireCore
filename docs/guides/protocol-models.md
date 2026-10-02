@@ -55,6 +55,9 @@ AttackWave(left=WaveFlank(units=[[487, 100]]))
 AttackWave(L=WaveFlank(U=[[487, 100]]))       # the same wave, by wire keys
 ```
 
+Prefer field names: with pydantic's mypy plugin, mypy checks those calls for
+missing fields, wrong types and typos, and rejects wire keys.
+
 `model_dump(by_alias=True)` gives the wire form back. The
 [API reference](../reference/index.md) lists every model's fields with their
 wire keys and descriptions.

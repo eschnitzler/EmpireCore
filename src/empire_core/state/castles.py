@@ -92,7 +92,9 @@ class CastleState(StateBase):
                     self._swap_model_fields(existing, merged, {"name", "x", "y", "open_gate_counter"})
                     owned[key] = existing
                 else:
-                    owned[key] = Castle(OID=area_id, N=name, KID=kingdom, X=x, Y=y, OGC=open_gates)
+                    owned[key] = Castle(
+                        id=area_id, name=name, kingdom_id=kingdom, x=x, y=y, open_gate_counter=open_gates
+                    )
 
         if skipped and skipped == entries:
             logger.warning(

@@ -63,7 +63,7 @@ class TestGdiReplyMatching:
     """gdi replies carry the player they are about (O.OID); nothing else ties them to a request."""
 
     def test_the_request_accepts_only_a_reply_about_its_player(self):
-        request = GetPlayerInfoRequest(PID=42)
+        request = GetPlayerInfoRequest(player_id=42)
         assert request.accepts_reply({"O": {"OID": 42, "N": "p"}})
         assert request.accepts_reply({"O": {"OID": "42"}})
         assert not request.accepts_reply({"O": {"OID": 7}})

@@ -359,9 +359,9 @@ def fill_wave(
         tools[flank] += [[-1, 0]] * (tool_slots - len(tools[flank]))
 
     return AttackWave(
-        L=WaveFlank(U=units[Flank.LEFT], T=tools[Flank.LEFT]),
-        M=WaveFlank(U=units[Flank.MIDDLE], T=tools[Flank.MIDDLE]),
-        R=WaveFlank(U=units[Flank.RIGHT], T=tools[Flank.RIGHT]),
+        left=WaveFlank(units=units[Flank.LEFT], tools=tools[Flank.LEFT]),
+        middle=WaveFlank(units=units[Flank.MIDDLE], tools=tools[Flank.MIDDLE]),
+        right=WaveFlank(units=units[Flank.RIGHT], tools=tools[Flank.RIGHT]),
     )
 
 

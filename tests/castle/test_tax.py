@@ -32,7 +32,7 @@ class TestRequests:
 
     def test_txs_keys_follow_the_vo(self):
         # C2SStartCollectTaxVO: TT, then TX always 3
-        payload = StartTaxRequest(TT=4).to_payload()
+        payload = StartTaxRequest(tax_type=4).to_payload()
         assert list(payload.items()) == [("TT", 4), ("TX", 3)]
 
     def test_txc_sends_tr_29(self):

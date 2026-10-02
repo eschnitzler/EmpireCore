@@ -74,7 +74,9 @@ class MovementsService(BaseService):
         Client: ``CastleAskRetreatDialog.onClick`` (bundle line 33234),
         ``MCMCommand.executeCommand`` (bundle line 126041)
         """
-        return self.request(CancelMovementRequest(MID=movement_id), CancelMovementResponse, timeout=timeout).movement
+        return self.request(
+            CancelMovementRequest(movement_id=movement_id), CancelMovementResponse, timeout=timeout
+        ).movement
 
     def get_incoming_attacks(self) -> list[Movement]:
         """Get all incoming attack movements."""

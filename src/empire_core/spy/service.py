@@ -148,7 +148,7 @@ class SpyService(BaseService):
         if not player_ids:
             return False
         try:
-            self.client.send(ForwardSpyLogRequest(MID=message_id, PID=list(player_ids)), wait=True)
+            self.client.send(ForwardSpyLogRequest(message_id=message_id, player_ids=list(player_ids)), wait=True)
         except CommandError as e:
             if e.error is GGEError.ALREADY_HAS_SPY_REPORT:
                 return True
@@ -167,7 +167,10 @@ class SpyService(BaseService):
 
         Client: ``C2SGetSpyInfo`` (bundle line 22504), ``CastleSpyData.parse_SSI`` (bundle line 139962)
         """
-        return self.request(SpyScreenInfoRequest(TX=target_x, TY=target_y, KID=target_kingdom), SpyScreenInfoResponse)
+        return self.request(
+            SpyScreenInfoRequest(target_x=target_x, target_y=target_y, target_kingdom=target_kingdom),
+            SpyScreenInfoResponse,
+        )
 
     def get_report(self, message_id: int) -> SpyReportResponse | None:
         """
@@ -187,7 +190,7 @@ class SpyService(BaseService):
         (bundle line 125223)
         """
         try:
-            return self.request(GetSpyReportRequest(MID=message_id), SpyReportResponse)
+            return self.request(GetSpyReportRequest(message_id=message_id), SpyReportResponse)
         except CommandError as e:
             if e.error in _NO_REPORT_ERRORS:
                 return None
@@ -206,7 +209,7 @@ class SpyService(BaseService):
         Client: ``ButtonAutoSpyComponent.onClick`` (bundle line 109977), ``SSUCommand.executeCommand``
         (bundle line 128568)
         """
-        return self.request(AutoSpyRequest(TX=target_x, TY=target_y), AutoSpyResponse)
+        return self.request(AutoSpyRequest(target_x=target_x, target_y=target_y), AutoSpyResponse)
 
     def spies_in_use(self) -> int:
         """
@@ -377,16 +380,16 @@ class SpyService(BaseService):
         if spy_type == SpyType.PLAGUE:
             raise ValueError("the client sends plague monks with cpm, not csm")
         request = SendSpyRequest(
-            SID=source_castle_id,
-            TX=target_x,
-            TY=target_y,
-            SC=spies,
-            ST=spy_type,
-            SE=accuracy_or_damage,
-            HBW=horse_booster_id,
-            KID=target_kingdom,
-            PTT=1 if feathers else 0,
-            SD=slowdown,
+            castle_id=source_castle_id,
+            target_x=target_x,
+            target_y=target_y,
+            spy_count=spies,
+            spy_type=spy_type,
+            accuracy_or_damage=accuracy_or_damage,
+            horse_booster_id=horse_booster_id,
+            target_kingdom=target_kingdom,
+            feathers=1 if feathers else 0,
+            slowdown=slowdown,
         )
         return self.request(request, SendSpyResponse)
 
@@ -650,7 +653,7 @@ class SpyService(BaseService):
                 if header is None or not _names_target(header, target, target_kingdom, spy_type):
                     continue
                 try:
-                    report = self.request(GetSpyReportRequest(MID=message.message_id), SpyReportResponse)
+                    report = self.request(GetSpyReportRequest(message_id=message.message_id), SpyReportResponse)
                 except CommandError as e:
                     if e.error in _NO_REPORT_ERRORS:
                         return SpyResult(

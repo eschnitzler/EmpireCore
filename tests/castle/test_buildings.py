@@ -225,7 +225,7 @@ OUTPOST_JAA: dict[str, Any] = {
 class TestJoinArea:
     def test_request_keys_follow_the_client(self):
         # C2SJoinAreaVO sets PX, PY, KID
-        request = JoinAreaRequest(PX=5, PY=6, KID=Kingdom.ICE)
+        request = JoinAreaRequest(x=5, y=6, kingdom_id=Kingdom.ICE)
         assert (request.get_command(), request.get_response_command()) == ("jaa", "jaa")
         assert list(request.to_payload().items()) == [("PX", 5), ("PY", 6), ("KID", 2)]
 
@@ -267,26 +267,29 @@ class TestJoinArea:
     [
         # C2SIsoBuyObjectVO: PWR is initialised before PO
         (
-            BuildRequest(WID=101, X=5, Y=6, R=1),
+            BuildRequest(wod_id=101, x=5, y=6, rotation=1),
             {"WID": 101, "X": 5, "Y": 6, "R": 1, "PWR": 0, "PO": -1, "DOID": -1},
         ),
         (
-            BuildRequest(WID=101, X=-1, Y=-1, PWR=True, PO=7, DOID=99),
+            BuildRequest(wod_id=101, x=-1, y=-1, pay_with_rubies=True, private_offer_id=7, district_object_id=99),
             {"WID": 101, "X": -1, "Y": -1, "R": 0, "PWR": 1, "PO": 7, "DOID": 99},
         ),
-        (UpgradeBuildingRequest(OID=42), {"OID": 42, "PWR": 0, "PO": -1}),
-        (UpgradeBuildingRequest(OID=42, PWR=True, PO=7), {"OID": 42, "PWR": 1, "PO": 7}),
-        (MoveBuildingRequest(OID=42, X=3, Y=4, R=1), {"OID": 42, "X": 3, "Y": 4, "R": 1}),
-        (SellBuildingRequest(OID=42), {"OID": 42}),
-        (DestroyBuildingRequest(OID=42), {"OID": 42}),
-        (FastCompleteRequest(OID=42), {"OID": 42, "FS": 0}),
+        (UpgradeBuildingRequest(object_id=42), {"OID": 42, "PWR": 0, "PO": -1}),
+        (
+            UpgradeBuildingRequest(object_id=42, pay_with_rubies=True, private_offer_id=7),
+            {"OID": 42, "PWR": 1, "PO": 7},
+        ),
+        (MoveBuildingRequest(object_id=42, x=3, y=4, rotation=1), {"OID": 42, "X": 3, "Y": 4, "R": 1}),
+        (SellBuildingRequest(object_id=42), {"OID": 42}),
+        (DestroyBuildingRequest(object_id=42), {"OID": 42}),
+        (FastCompleteRequest(object_id=42), {"OID": 42, "FS": 0}),
         # C2SMinuteSkipBuildingVO: OID is initialised, MST set after it
-        (TimeSkipBuildingRequest(OID=42, MST="MS2"), {"OID": 42, "MST": "MS2"}),
-        (UpgradeWallRequest(OID=42), {"OID": 42, "PO": -1, "PWR": 0}),
-        (RepairBuildingRequest(OID=42), {"OID": 42, "PO": -1, "PWR": 0}),
+        (TimeSkipBuildingRequest(object_id=42, minute_skip="MS2"), {"OID": 42, "MST": "MS2"}),
+        (UpgradeWallRequest(object_id=42), {"OID": 42, "PO": -1, "PWR": 0}),
+        (RepairBuildingRequest(object_id=42), {"OID": 42, "PO": -1, "PWR": 0}),
         (RepairAllRequest(), {}),
-        (BuyExtensionRequest(X=3, Y=4), {"X": 3, "Y": 4, "R": 0, "CT": 1}),
-        (CollectExtensionGiftRequest(OID=42), {"OID": 42}),
+        (BuyExtensionRequest(x=3, y=4), {"X": 3, "Y": 4, "R": 0, "CT": 1}),
+        (CollectExtensionGiftRequest(object_id=42), {"OID": 42}),
     ],
 )
 def test_building_requests_match_the_client(request_model: Any, expected: dict[str, Any]):

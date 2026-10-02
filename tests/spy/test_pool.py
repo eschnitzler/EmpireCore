@@ -66,7 +66,14 @@ def spy_movement(
 ) -> Movement:
     spy = MovementSpy.model_validate({"ST": 0, "SA": 100, "SC": spies, "SR": 26})
     owner = 1001 if mine else 2002
-    return Movement(MID=mid, T=movement_type, D=int(returning), OID=owner, local_player_id=1001, spy=spy)
+    return Movement(
+        movement_id=mid,
+        movement_type=movement_type,
+        direction=int(returning),
+        owner_id=owner,
+        local_player_id=1001,
+        spy=spy,
+    )
 
 
 class TestTotalSpies:
@@ -181,7 +188,7 @@ class TestSpiesInUse:
             spy_movement(1, 4),
             spy_movement(2, 4, mine=False),
             spy_movement(3, 9, movement_type=MovementType.PLAGUEMONK),
-            Movement(MID=4, T=MovementType.SPY, OID=1001, local_player_id=1001),
+            Movement(movement_id=4, movement_type=MovementType.SPY, owner_id=1001, local_player_id=1001),
             spy_movement(5, 3, returning=True),
         ]
         client = make_client(state=StubState(movements=movements))

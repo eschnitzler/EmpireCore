@@ -358,7 +358,7 @@ class TestSendErrorSurfacing:
         client = make_client(StubConnection({"gdi": xt_packet("gdi", '{"PID": 1}')}))
 
         with pytest.raises(PacketError) as exc_info:
-            client.send(GetPlayerInfoRequest(PID=1), wait=True)
+            client.send(GetPlayerInfoRequest(player_id=1), wait=True)
 
         assert "gdi" in str(exc_info.value)
         assert exc_info.value.__cause__ is not None
@@ -483,6 +483,6 @@ class TestCommandsCarryTheJoinedRoom:
         client = make_client(conn)
         client.login()
 
-        client.send(GetPlayerInfoRequest(PID=1))
+        client.send(GetPlayerInfoRequest(player_id=1))
 
         assert conn.sent[-1].startswith("%xt%EmpireEx_21%gdi%5%")
