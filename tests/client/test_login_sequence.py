@@ -152,7 +152,7 @@ class StubState:
         self.events = events if events is not None else []
         self.shutdown_count = 0
 
-    def update_from_packet(self, cmd_id: str, payload: object) -> None:
+    def update_from_packet(self, cmd_id: str, payload: object, error_code: int = 0) -> None:
         pass
 
     def shutdown(self) -> None:

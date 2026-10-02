@@ -42,6 +42,10 @@ skills = client.skills.get_skills()
 print(skills.legend_skill_ids, skills.total_points, skills.reset_count)
 ```
 
+The login data carries the list too, and state keeps the last one the server
+sent, so `client.state.get_skills()` reads it without a request (None before
+the login data).
+
 The server sends the skill list again after every change. To follow it, register
 a callback; it runs for the reply to `get_skills()` too:
 

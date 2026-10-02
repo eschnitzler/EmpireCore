@@ -9,9 +9,10 @@ Commands:
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
 from empire_core.protocol.js import ClientInt, js_number_or_none
@@ -50,9 +51,13 @@ class ChatMessageData(BasePayload):
     """
     One alliance chat message: an acm push's ``CM`` block, or one entry of an acl reply's ``CM`` list.
 
+    ``sent_at`` is taken when the message is read, as the client dates it. Read-only.
+
     Client: ``ChatMessageVO.parseObj`` (bundle line 111316), reached through
     ``CastleChatData.getParsedMessage`` (bundle line 111301).
     """
+
+    model_config = ConfigDict(frozen=True)
 
     player_id: ClientInt = Field(alias="PID", default=0, description="The sender's player id")
     player_name: str = Field(alias="PN", default="", description="The sender's name")
@@ -61,6 +66,10 @@ class ChatMessageData(BasePayload):
         alias="MA",
         default=None,
         description="Seconds since the message was sent; None when the reply has no number for it",
+    )
+    sent_at: float | None = Field(
+        default=None,
+        description="When the message was sent, wall-clock time.time() seconds; None when age_seconds is None",
     )
 
     @field_validator("player_name", "message_text", mode="before")
@@ -73,6 +82,12 @@ class ChatMessageData(BasePayload):
     def _age_as_number(cls, value: Any) -> Any:
         # parseObj dates the message MA * 1000 ms before now; a JSON null multiplies as 0
         return 0 if value is None else js_number_or_none(value)
+
+    @model_validator(mode="after")
+    def _date(self) -> ChatMessageData:
+        if self.sent_at is None and self.age_seconds is not None:
+            object.__setattr__(self, "sent_at", time.time() - self.age_seconds)
+        return self
 
     @property
     def decoded_text(self) -> str:

@@ -8,7 +8,11 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+from empire_core.alliance.models.chat import ChatMessageData
+from empire_core.alliance.models.info import AllianceInfo
 from empire_core.castle.models.permanent import PermanentCastle
+from empire_core.commanders.models.roster import CommanderRoster
+from empire_core.commanders.models.skills import SkillList
 from empire_core.events.models import SpecialEvent
 from empire_core.movements.models import MovementOwner
 from empire_core.movements.tracked import Movement
@@ -96,13 +100,21 @@ class StateBase:
         self.events: dict[int, SpecialEvent] = {}
         self._events_updated_at: float | None = None
 
+        # Login sections kept as their models; each replaced, never edited, and copied when handed out
+        self.commanders: CommanderRoster | None = None
+        self.skills: SkillList | None = None
+        self.own_alliance: AllianceInfo | None = None
+        # The ain block own_alliance was read from, for the keys a later ain leaves out
+        self._own_alliance_raw: dict[str, Any] | None = None
+        self.alliance_chat: tuple[ChatMessageData, ...] = ()
+
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}
         self._castle_details_at: dict[CastleKey, float] = {}
         self._player_updated_at: float | None = None
 
     def reset(self) -> None:
-        """Forget everything the session sent: player, castles, movements, spies, events and their timestamps.
+        """Forget everything the session sent: player, castles, movements, events, login sections, timestamps.
 
         Registered callbacks stay, and so does the record of attacks already
         announced to :meth:`on_incoming_attack`. Fires no callback: a movement that is dropped
@@ -117,6 +129,11 @@ class StateBase:
         """
         with self._lock:
             self._set_empty_session()
+
+    def _handle_gbd(self, data: dict[str, Any]) -> set[str]:
+        """Apply login data, or one section in the same shape, and return the sections not applied;
+        :class:`GameState` implements it."""
+        raise NotImplementedError
 
     def shutdown(self) -> None:
         """Shutdown the callback executor. Call when done with the client."""

@@ -35,6 +35,10 @@ FACTION_BARON_ID = -16
 """``FactionConst.BARON_ID`` (dll line 19333)"""
 
 
+CASTELLAN_PICTURE_ORDER = (0, 6, 7, 8, 1, 13, 2, 3, 4, 10, 11, 12, 9, 5)
+"""``BaronVO.PIC_ID_ORDER`` (bundle line 43551): castellans are listed in this portrait order"""
+
+
 _SLOT_ORDER = (
     EquipmentSlot.HELMET,
     EquipmentSlot.ARMOR,
@@ -304,7 +308,11 @@ class CommanderRoster(BasePayload):
     """
     A player's commanders and castellans, the ``gli`` block.
 
-    Client: ``CastleLordData.parse_GLI`` (bundle line 38553)
+    The lists are in the client's order: commanders by ``commander_id``, castellans
+    by their portrait's place in :data:`CASTELLAN_PICTURE_ORDER`, an unlisted portrait first.
+
+    Client: ``CastleLordData.parse_GLI`` (bundle line 38553), ``onSortLord`` and ``onSortBaron``
+    (bundle lines 38572-38573), ``BaronVO.parseLord`` (bundle line 43534)
     """
 
     commanders: list[Commander] = Field(alias="C", default_factory=list, description="Commanders")
@@ -321,6 +329,16 @@ class CommanderRoster(BasePayload):
     def _readable_entries(cls, value: Any, info: ValidationInfo) -> Any:
         model = Commander if info.field_name == "commanders" else Castellan
         return readable_list(model, value, warn=logger, what="gli entries")
+
+    @model_validator(mode="after")
+    def _client_order(self) -> CommanderRoster:
+        self.commanders.sort(key=lambda commander: commander.commander_id)
+        self.castellans.sort(key=lambda castellan: _castellan_place(castellan.picture_id))
+        return self
+
+
+def _castellan_place(picture_id: int) -> int:
+    return CASTELLAN_PICTURE_ORDER.index(picture_id) if picture_id in CASTELLAN_PICTURE_ORDER else -1
 
 
 class GetCommandersResponse(BaseResponse, CommanderRoster):

@@ -106,7 +106,7 @@ class StubState:
         self.updates: list[tuple[str, object]] = []
         self.shutdown_count = 0
 
-    def update_from_packet(self, cmd_id: str, payload) -> None:
+    def update_from_packet(self, cmd_id: str, payload, error_code: int = 0) -> None:
         self.updates.append((cmd_id, payload))
 
     def get_all_movements(self) -> list:

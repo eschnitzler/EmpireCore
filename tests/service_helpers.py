@@ -245,7 +245,7 @@ class StubState:
         self.events: list[str] = []
         self.updates: list[tuple[str, object]] = []
 
-    def update_from_packet(self, cmd_id: str, payload: object) -> None:
+    def update_from_packet(self, cmd_id: str, payload: object, error_code: int = 0) -> None:
         self.updates.append((cmd_id, payload))
 
     def get_local_player(self) -> StubPlayer | None:
