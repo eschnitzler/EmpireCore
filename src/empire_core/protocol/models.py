@@ -338,8 +338,13 @@ from empire_core.enums import (
     WearerType,
 )
 from empire_core.map.models.areas import (
+    MAX_FINDABLE_ENEMY_INDEX,
+    FindNextEnemyCastleRequest,
+    FindNextEnemyCastleResponse,
     FindNextMapObjectRequest,
     FindNextMapObjectResponse,
+    FindNextTowerRequest,
+    FindNextTowerResponse,
     GetMapAreaRequest,
     GetMapAreaResponse,
     KingdomProtection,
@@ -603,6 +608,11 @@ __all__ = [
     "OwnerFaction",
     "FindNextMapObjectRequest",
     "FindNextMapObjectResponse",
+    "MAX_FINDABLE_ENEMY_INDEX",
+    "FindNextEnemyCastleRequest",
+    "FindNextEnemyCastleResponse",
+    "FindNextTowerRequest",
+    "FindNextTowerResponse",
     "JoinAreaRequest",
     "MapArea",
     # Player

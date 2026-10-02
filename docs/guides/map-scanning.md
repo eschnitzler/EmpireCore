@@ -80,6 +80,17 @@ join their castle again themselves; anything else castle-scoped needs
 
 - `client.map.find_next(area_type)` finds the nearest object of one area type,
   with the map rows around it.
+- `client.map.find_next_enemy_castle(x, y, index=0)` finds an enemy castle
+  near a position, as the game's "search enemy" button does. The button asks
+  with `index` 0 to 9 in turn, so each press finds another castle; pass
+  `min_level` and `max_level` to narrow it. Outposts count: on a live
+  account, the first three indexes found three players' outposts. The request names no kingdom;
+  pass `kingdom` for the one the reply's rows are read in.
+- `client.map.find_next_tower()` finds the next Berimond tower, the button's
+  search in Berimond.
+
+Each find returns `None` when nothing matches, and `found()` on the reply
+gives the row it found.
 - `client.map.scan_map_area(x1, y1, x2, y2)` reads one rectangle of the map.
 - `client.castle.join_area(x, y)` joins an outpost, capital, metropolis or
   faction camp by its position.
