@@ -22,7 +22,7 @@ GOLDEN_AIN: dict[str, Any] = {
     "A": {
         "AID": 301,
         "N": "Test Alliance",
-        "A": "HOPE",
+        "A": "PACT",
         "D": "Recruiting active players",
         "MP": 4213377,
         "CF": 12,
@@ -234,7 +234,7 @@ class TestAllianceSearch:
     def test_search_parses_positional_results(self):
         client = make_client({"hgh": xt_packet("hgh", self.GOLDEN_HGH)})
 
-        results = client.alliance.search_alliances("HOPE")
+        results = client.alliance.search_alliances("PACT")
 
         assert len(results) == 1
         assert results[0].alliance_id == 301
@@ -244,10 +244,10 @@ class TestAllianceSearch:
 
     def test_search_sends_the_search_term(self):
         client = make_client({"hgh": xt_packet("hgh", self.GOLDEN_HGH)})
-        client.alliance.search_alliances("HOPE")
+        client.alliance.search_alliances("PACT")
         command, payload = conn(client).request_payloads[0]
         assert command == "hgh"
-        assert payload["SV"] == "HOPE"
+        assert payload["SV"] == "PACT"
 
     def test_nothing_found_is_an_empty_result_not_an_error(self):
         # 114 is the server's "no match", which is a legitimate empty answer.
@@ -257,28 +257,28 @@ class TestAllianceSearch:
     def test_other_error_codes_raise(self):
         client = make_client({"hgh": xt_packet("hgh", error_code=21)})
         with pytest.raises(CommandError) as exc_info:
-            client.alliance.search_alliances("HOPE")
+            client.alliance.search_alliances("PACT")
         assert exc_info.value.code == 21
 
     def test_array_payload_is_an_empty_result(self):
         client = make_client({"hgh": xt_packet("hgh", [1, 2, 3])})
-        assert client.alliance.search_alliances("HOPE") == []
+        assert client.alliance.search_alliances("PACT") == []
 
     def test_a_row_without_an_alliance_keeps_its_defaults(self):
         client = make_client({"hgh": xt_packet("hgh", {"L": [[1, 2], [1, 2, "not-a-list"]]})})
-        results = client.alliance.search_alliances("HOPE")
+        results = client.alliance.search_alliances("PACT")
         assert [(r.rank, r.score, r.name) for r in results] == [(1, 2, ""), (1, 2, "")]
 
     def test_a_list_that_is_not_a_list_is_an_empty_result(self):
         client = make_client({"hgh": xt_packet("hgh", {"L": "junk"})})
-        assert client.alliance.search_alliances("HOPE") == []
+        assert client.alliance.search_alliances("PACT") == []
 
     def test_a_row_that_is_not_a_list_is_skipped_not_fatal(self, caplog):
         payload = {"L": [[1, 2, ["x", "y"]], self.GOLDEN_HGH["L"][0], 5]}
         client = make_client({"hgh": xt_packet("hgh", payload)})
 
         with caplog.at_level(logging.WARNING, logger="empire_core.alliance.models.info"):
-            results = client.alliance.search_alliances("HOPE")
+            results = client.alliance.search_alliances("PACT")
 
         assert [(r.alliance_id, r.name) for r in results] == [(0, "y"), (301, "Test Alliance")]
         assert "Skipped 1/3" in caplog.text

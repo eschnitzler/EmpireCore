@@ -75,7 +75,7 @@ help yourself with `request_build_help`, `request_repair_help`,
 members = client.alliance.get_local_members()
 online = client.alliance.get_local_online_members()
 
-for result in client.alliance.search_alliances("HOPE"):
+for result in client.alliance.search_alliances("PACT"):
     info = client.alliance.get_alliance_info(result.alliance_id)
 ```
 

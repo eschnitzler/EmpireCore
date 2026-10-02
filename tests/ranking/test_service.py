@@ -15,7 +15,7 @@ from tests.service_helpers import conn, make_client, xt_packet
 
 class TestRankingService:
     def test_highscore_dict_details_layout(self):
-        payload = {"L": [[1, 999999, {"OID": 7001, "N": "LeaderGuy", "AID": 301, "AN": "HOPE"}]]}
+        payload = {"L": [[1, 999999, {"OID": 7001, "N": "LeaderGuy", "AID": 301, "AN": "PACT"}]]}
         client = make_client({"hgh": xt_packet("hgh", payload)})
 
         entries = client.ranking.get_highscore(list_type=RankingType.PLAYER_MIGHT_POINTS, search_value="LeaderGuy")
@@ -23,7 +23,7 @@ class TestRankingService:
         assert len(entries) == 1
         entry = entries[0]
         assert (entry.rank, entry.score, entry.entity_id) == (1, 999999, 7001)
-        assert (entry.name, entry.alliance_id, entry.alliance_name) == ("LeaderGuy", 301, "HOPE")
+        assert (entry.name, entry.alliance_id, entry.alliance_name) == ("LeaderGuy", 301, "PACT")
 
     def test_highscore_sends_list_type_league_and_search_value(self):
         client = make_client({"hgh": xt_packet("hgh", {"L": []})})
