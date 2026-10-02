@@ -529,6 +529,7 @@ class AllianceService(BaseService):
         Get your alliance's action list, newest first.
 
         Raises:
+            CommandError: error 114 when you are in no alliance
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
         return self.request(AllianceActionListRequest(), AllianceActionListResponse, timeout=timeout).actions

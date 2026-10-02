@@ -215,6 +215,12 @@ class TestAllianceLocalHelpers:
         assert conn(client).request_payloads == [("all", {})]
         assert [a.player_name for a in actions] == ["Last", "First"]
 
+    def test_action_list_without_an_alliance_raises(self):
+        client = make_client({"all": xt_packet("all", error_code=114)})
+        with pytest.raises(CommandError) as exc_info:
+            client.alliance.get_action_list()
+        assert exc_info.value.code == 114
+
     def test_subscriber_count(self):
         client = make_client({"asc": xt_packet("asc", {"ASC": 12})})
 
