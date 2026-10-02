@@ -6,6 +6,6 @@ The mailbox and its reports behind `client.messages`.
 
 ::: empire_core.messages.service
 
-## `messages.models`
+## `messages.models.mailbox`
 
-::: empire_core.messages.models
+::: empire_core.messages.models.mailbox
