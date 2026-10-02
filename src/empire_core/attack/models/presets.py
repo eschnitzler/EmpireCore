@@ -125,9 +125,9 @@ class PresetArmy(BaseModel):
     def to_wave(self) -> AttackWave:
         """The army as a wave, without the support tools."""
         return AttackWave(
-            L=WaveFlank(T=self.left_tools, U=self.left_units),
-            M=WaveFlank(T=self.middle_tools, U=self.middle_units),
-            R=WaveFlank(T=self.right_tools, U=self.right_units),
+            left=WaveFlank(tools=self.left_tools, units=self.left_units),
+            middle=WaveFlank(tools=self.middle_tools, units=self.middle_units),
+            right=WaveFlank(tools=self.right_tools, units=self.right_units),
         )
 
 
@@ -203,7 +203,7 @@ class SavePresetRequest(BaseRequest):
     @classmethod
     def create(cls, index: int, army: PresetArmy) -> SavePresetRequest:
         """Build the request for an army, serialised the way ``JSON.stringify`` does."""
-        return cls(S=index, A=json.dumps(army.to_arrays(), separators=(",", ":")))
+        return cls(index=index, raw_army=json.dumps(army.to_arrays(), separators=(",", ":")))
 
 
 class SavePresetResponse(BaseResponse):

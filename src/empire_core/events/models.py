@@ -953,7 +953,9 @@ class GlobalEffectBuffEvent(SpecialEvent):
         super()._read(values, entry, now, events)
         boosts = entry.get("GEB")
         values["boosts"] = [
-            GlobalEffectBoost(GEID=js_int(b.get("GEID")), BV=js_number(b.get("BV")), C2=js_int(b.get("C2")))
+            GlobalEffectBoost(
+                effect_id=js_int(b.get("GEID")), boost_value=js_number(b.get("BV")), cost=js_int(b.get("C2"))
+            )
             for b in (boosts if isinstance(boosts, list) else ())
             if isinstance(b, dict)
         ]

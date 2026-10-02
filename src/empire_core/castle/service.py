@@ -130,7 +130,7 @@ class CastleService(BaseService):
         """
         player = self.client.state.get_local_player()
         player_id = getattr(player, "id", None)
-        request = GetCastlesRequest(PID=player_id if isinstance(player_id, int) and player_id > 0 else None)
+        request = GetCastlesRequest(player_id=player_id if isinstance(player_id, int) and player_id > 0 else None)
         return self.request(request, GetCastlesResponse, timeout=timeout).castles
 
     def get_details(self, castle_id: int, timeout: float = 5.0) -> DetailedCastleInfo | None:
@@ -182,7 +182,7 @@ class CastleService(BaseService):
                 print("Castle selected!")
         """
         kingdom_id = self._require_own_castle(castle_id).kingdom_id
-        return self.execute(SelectCastleRequest(CID=castle_id, KID=kingdom_id), timeout=timeout)
+        return self.execute(SelectCastleRequest(castle_id=castle_id, kingdom_id=kingdom_id), timeout=timeout)
 
     def join(self, castle_id: int, timeout: float = 5.0) -> SelectCastleResponse:
         """
@@ -206,7 +206,9 @@ class CastleService(BaseService):
                 print([b.wod_id for b in castle.buildings.buildings])
         """
         kingdom_id = self._require_own_castle(castle_id).kingdom_id
-        return self.request(SelectCastleRequest(CID=castle_id, KID=kingdom_id), SelectCastleResponse, timeout=timeout)
+        return self.request(
+            SelectCastleRequest(castle_id=castle_id, kingdom_id=kingdom_id), SelectCastleResponse, timeout=timeout
+        )
 
     def join_area(
         self, x: int, y: int, kingdom_id: Kingdom = Kingdom.GREEN, timeout: float = 5.0
@@ -234,7 +236,7 @@ class CastleService(BaseService):
         Client: ``JoinAreaAndSavePositionCommand.execute`` (bundle line 100892),
         ``JAACommand.executeCommand`` (bundle line 130190)
         """
-        return self.request(JoinAreaRequest(PX=x, PY=y, KID=kingdom_id), SelectCastleResponse, timeout=timeout)
+        return self.request(JoinAreaRequest(x=x, y=y, kingdom_id=kingdom_id), SelectCastleResponse, timeout=timeout)
 
     # =========================================================================
     # Castle Modification
@@ -272,11 +274,11 @@ class CastleService(BaseService):
         castle = matches[0]
         return self.execute(
             RenameCastleRequest(
-                CID=castle_id,
-                N=new_name,
-                AT=castle.castle_type,
-                KID=castle.kingdom_id,
-                P=0 if is_initial_name else 1,
+                castle_id=castle_id,
+                castle_name=new_name,
+                castle_type=castle.castle_type,
+                kingdom_id=castle.kingdom_id,
+                is_rename=0 if is_initial_name else 1,
             ),
             timeout=timeout,
         )
@@ -305,7 +307,9 @@ class CastleService(BaseService):
             print(f"Wood: {resources.wood}")
         """
         kingdom_id = self._require_own_castle(castle_id).kingdom_id
-        return self.request(GetResourcesRequest(AID=castle_id, KID=kingdom_id), GetResourcesResponse, timeout=timeout)
+        return self.request(
+            GetResourcesRequest(castle_id=castle_id, kingdom_id=kingdom_id), GetResourcesResponse, timeout=timeout
+        )
 
     def get_production(self, timeout: float = 5.0) -> CastleProductionArea:
         """
@@ -360,13 +364,13 @@ class CastleService(BaseService):
             timeout: Timeout in seconds
         """
         request = BuildRequest(
-            WID=wod_id,
-            X=x,
-            Y=y,
-            R=rotation,
-            PWR=pay_with_rubies,
-            PO=private_offer_id,
-            DOID=district_object_id,
+            wod_id=wod_id,
+            x=x,
+            y=y,
+            rotation=rotation,
+            pay_with_rubies=pay_with_rubies,
+            private_offer_id=private_offer_id,
+            district_object_id=district_object_id,
         )
         return self.execute(request, timeout=timeout)
 
@@ -374,24 +378,26 @@ class CastleService(BaseService):
         self, object_id: int, *, pay_with_rubies: bool = False, private_offer_id: int = -1, timeout: float = 5.0
     ) -> bool:
         """Upgrade a building in the joined castle."""
-        request = UpgradeBuildingRequest(OID=object_id, PWR=pay_with_rubies, PO=private_offer_id)
+        request = UpgradeBuildingRequest(
+            object_id=object_id, pay_with_rubies=pay_with_rubies, private_offer_id=private_offer_id
+        )
         return self.execute(request, timeout=timeout)
 
     def move_building(self, object_id: int, x: int, y: int, rotation: int = 0, timeout: float = 5.0) -> bool:
         """Move a building in the joined castle."""
-        return self.execute(MoveBuildingRequest(OID=object_id, X=x, Y=y, R=rotation), timeout=timeout)
+        return self.execute(MoveBuildingRequest(object_id=object_id, x=x, y=y, rotation=rotation), timeout=timeout)
 
     def sell_decoration(self, object_id: int, timeout: float = 5.0) -> bool:
         """Sell a decoration placed in the joined castle."""
-        return self.execute(SellBuildingRequest(OID=object_id), timeout=timeout)
+        return self.execute(SellBuildingRequest(object_id=object_id), timeout=timeout)
 
     def destroy_building(self, object_id: int, timeout: float = 5.0) -> bool:
         """Start taking a building in the joined castle down."""
-        return self.execute(DestroyBuildingRequest(OID=object_id), timeout=timeout)
+        return self.execute(DestroyBuildingRequest(object_id=object_id), timeout=timeout)
 
     def finish_construction(self, object_id: int, *, free_skip: bool = False, timeout: float = 5.0) -> bool:
         """Finish a building's running construction at once, for rubies or with an event's free skip."""
-        return self.execute(FastCompleteRequest(OID=object_id, FS=free_skip), timeout=timeout)
+        return self.execute(FastCompleteRequest(object_id=object_id, free_skip=free_skip), timeout=timeout)
 
     def skip_construction_time(self, object_id: int, minute_skip: str, timeout: float = 5.0) -> bool:
         """
@@ -403,20 +409,24 @@ class CastleService(BaseService):
                 (``SCEItem.SKIP_1_MIN`` and the others)
             timeout: Timeout in seconds
         """
-        return self.execute(TimeSkipBuildingRequest(OID=object_id, MST=minute_skip), timeout=timeout)
+        return self.execute(TimeSkipBuildingRequest(object_id=object_id, minute_skip=minute_skip), timeout=timeout)
 
     def upgrade_defense(
         self, object_id: int, *, pay_with_rubies: bool = False, private_offer_id: int = -1, timeout: float = 5.0
     ) -> bool:
         """Upgrade the joined castle's wall, gate or one of its towers, by its object id."""
-        request = UpgradeWallRequest(OID=object_id, PO=private_offer_id, PWR=pay_with_rubies)
+        request = UpgradeWallRequest(
+            object_id=object_id, private_offer_id=private_offer_id, pay_with_rubies=pay_with_rubies
+        )
         return self.execute(request, timeout=timeout)
 
     def repair_building(
         self, object_id: int, *, pay_with_rubies: bool = False, private_offer_id: int = -1, timeout: float = 5.0
     ) -> bool:
         """Repair a damaged building in the joined castle."""
-        request = RepairBuildingRequest(OID=object_id, PO=private_offer_id, PWR=pay_with_rubies)
+        request = RepairBuildingRequest(
+            object_id=object_id, private_offer_id=private_offer_id, pay_with_rubies=pay_with_rubies
+        )
         return self.execute(request, timeout=timeout)
 
     def repair_all(self, timeout: float = 5.0) -> bool:
@@ -432,19 +442,21 @@ class CastleService(BaseService):
         timeout: float = 5.0,
     ) -> bool:
         """Buy an expansion of the joined castle's grounds, with resources (NORMAL) or rubies (PREMIUM)."""
-        return self.execute(BuyExtensionRequest(X=x, Y=y, R=rotation, CT=expansion_type), timeout=timeout)
+        return self.execute(
+            BuyExtensionRequest(x=x, y=y, rotation=rotation, expansion_type=expansion_type), timeout=timeout
+        )
 
     def open_treasure_chest(self, object_id: int, timeout: float = 5.0) -> bool:
         """Open a treasure chest found on an expansion of the joined castle."""
-        return self.execute(CollectExtensionGiftRequest(OID=object_id), timeout=timeout)
+        return self.execute(CollectExtensionGiftRequest(object_id=object_id), timeout=timeout)
 
     def collect_mine(self, object_id: int, timeout: float = 5.0) -> bool:
         """Collect what a mine in the joined castle has produced."""
-        return self.execute(CollectMineResourcesRequest(OID=object_id), timeout=timeout)
+        return self.execute(CollectMineResourcesRequest(object_id=object_id), timeout=timeout)
 
     def collect_resource_cart(self, cart_type: ResourceCartType, timeout: float = 5.0) -> bool:
         """Collect the joined castle's resource cart of one resource."""
-        return self.execute(CollectResourceCartRequest(RT=cart_type), timeout=timeout)
+        return self.execute(CollectResourceCartRequest(cart_type=cart_type), timeout=timeout)
 
     # =========================================================================
     # Market
@@ -509,14 +521,14 @@ class CastleService(BaseService):
         """
         pairs = self._sendable_goods(goods)
         request = CreateMarketMovementRequest(
-            KID=self._require_own_castle(source_castle_id).kingdom_id,
-            SID=source_castle_id,
-            TX=target_x,
-            TY=target_y,
-            HBW=-1 if feathers else horse_booster_id,
-            PTT=1 if feathers else 0,
-            SD=slowdown,
-            G=pairs,
+            kingdom_id=self._require_own_castle(source_castle_id).kingdom_id,
+            source_castle_id=source_castle_id,
+            target_x=target_x,
+            target_y=target_y,
+            horse_booster_id=-1 if feathers else horse_booster_id,
+            feathers=1 if feathers else 0,
+            slowdown=slowdown,
+            goods=pairs,
         )
         return self.execute(request, timeout=timeout)
 
@@ -605,16 +617,16 @@ class CastleService(BaseService):
             timeout: Timeout in seconds
         """
         request = SendSupportRequest(
-            SID=source_castle_id,
-            TX=target_x,
-            TY=target_y,
-            A=units,
-            WT=wait_time,
-            BPC=1 if use_premium_commander else 0,
-            HBW=-1 if feathers else horse_booster_id,
-            PTT=1 if feathers else 0,
-            SD=slowdown,
-            LID=commander_id,
+            source_castle_id=source_castle_id,
+            target_x=target_x,
+            target_y=target_y,
+            units=units,
+            wait_time=wait_time,
+            use_premium_commander=1 if use_premium_commander else 0,
+            horse_booster_id=-1 if feathers else horse_booster_id,
+            feathers=1 if feathers else 0,
+            slowdown=slowdown,
+            commander_id=commander_id,
         )
         return self.execute(request, timeout=timeout)
 
@@ -677,17 +689,17 @@ class CastleService(BaseService):
             timeout: Timeout in seconds
         """
         request = SendTroopsRequest(
-            SX=source_x,
-            SY=source_y,
-            TX=target_x,
-            TY=target_y,
-            KID=kingdom_id,
-            LID=commander_id,
-            HBW=-1 if feathers else horse_booster_id,
-            BPC=1 if use_premium_commander else 0,
-            PTT=1 if feathers else 0,
-            SD=slowdown,
-            A=units,
+            source_x=source_x,
+            source_y=source_y,
+            target_x=target_x,
+            target_y=target_y,
+            kingdom_id=kingdom_id,
+            commander_id=commander_id,
+            horse_booster_id=-1 if feathers else horse_booster_id,
+            use_premium_commander=1 if use_premium_commander else 0,
+            feathers=1 if feathers else 0,
+            slowdown=slowdown,
+            units=units,
         )
         return self.execute(request, timeout=timeout)
 
@@ -718,11 +730,11 @@ class CastleService(BaseService):
         (bundle line 37448) sends the source castle's ``kingdomID`` as ``SKID``
         """
         request = KingdomUnitTransferRequest(
-            SCID=source_castle_id,
-            SKID=self._require_own_castle(source_castle_id).kingdom_id,
-            TKID=target_kingdom_id,
-            CID=target_castle_id,
-            A=units,
+            source_castle_id=source_castle_id,
+            source_kingdom_id=self._require_own_castle(source_castle_id).kingdom_id,
+            target_kingdom_id=target_kingdom_id,
+            target_castle_id=target_castle_id,
+            units=units,
         )
         return self.execute(request, timeout=timeout)
 

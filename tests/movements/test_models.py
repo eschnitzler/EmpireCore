@@ -65,7 +65,7 @@ class TestMalformedMovementBatch:
         record = wrapper.movement
         assert record.movement_id == 1 and record.movement_type == 0 and not record.is_returning
         assert record.owner_id == 17 and record.target_id == -202
-        assert record.source_area is not None and record.source_area.position == Position(X=1, Y=2)
+        assert record.source_area is not None and record.source_area.position == Position(x=1, y=2)
         assert record.target_area is not None and (record.target_area.area_type, record.target_area.y) == (2, 4)
         assert record.source_area.row[10] == "Home"
         assert wrapper.visible_army is not None and wrapper.visible_army.courtyard == [[3, 1]]
@@ -123,7 +123,7 @@ class TestMalformedMovementBatch:
         ).movements[0]
         assert spy.spy is not None and spy.spy.is_sabotage and spy.spy.accuracy_or_damage == 40
         assert spy.spy.spy_type_enum is SpyType.SABOTAGE
-        assert MovementSpy(ST=9).spy_type_enum is None
+        assert MovementSpy(spy_type=9).spy_type_enum is None
         market = GetMovementsResponse.model_validate(
             {"M": [{**GOOD_MOVEMENT, "S": 0, "MM": {"C": 3, "G": [["W", 100], ["S", 50]]}}]}
         ).movements[0]
@@ -243,7 +243,7 @@ RECALLED_MOVEMENT: dict[str, Any] = {
 
 class TestCancelMovement:
     def test_request_sends_the_movement_id_as_the_client_does(self):
-        request = CancelMovementRequest(MID=208)
+        request = CancelMovementRequest(movement_id=208)
         assert request.get_command() == "mcm"
         assert list(request.to_payload().items()) == [("MID", 208)]
 

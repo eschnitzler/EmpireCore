@@ -53,7 +53,7 @@ class DefenseService(BaseService):
         Client: ``C2SDefenceCompleteVO`` (bundle line 32769), sent by
         ``CastleDefenceDialog.updateDefenceData`` (bundle line 15978)
         """
-        request = GetDefenseRequest(CX=castle_x, CY=castle_y, AID=castle_id, KID=kingdom)
+        request = GetDefenseRequest(castle_x=castle_x, castle_y=castle_y, area_id=castle_id, kingdom_id=kingdom)
         return self.request(request, GetDefenseResponse, timeout=timeout)
 
     def get_support_defense_info(
@@ -96,5 +96,5 @@ class DefenseService(BaseService):
             source_y = main_castle.y
             logger.debug(f"SDI: Using source castle at {source_x}:{source_y}")
 
-        request = GetSupportDefenseRequest(TX=target_x, TY=target_y, SX=source_x, SY=source_y)
+        request = GetSupportDefenseRequest(target_x=target_x, target_y=target_y, source_x=source_x, source_y=source_y)
         return self.request(request, GetSupportDefenseResponse, timeout=timeout)

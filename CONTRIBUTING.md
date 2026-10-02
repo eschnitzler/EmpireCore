@@ -98,6 +98,8 @@ class YourRequest(BaseRequest):
 - Name the client class that builds the payload in a `Client:` line (see
   [Client reference](#client-reference))
 - Use `Field(alias="X")` to map Python names to wire format
+- Build models by field name (`cls(target_id=...)`, not `cls(ID=...)`): mypy's
+  pydantic plugin checks those calls and rejects wire keys
 - Add `@classmethod` factory methods for common patterns
 - Document the command and payload format
 
@@ -193,7 +195,7 @@ class Bookmark(BaseResponse):
     
     @property
     def position(self) -> Position:
-        return Position(X=self.x, Y=self.y, KID=self.kingdom_id)
+        return Position(x=self.x, y=self.y, kingdom=self.kingdom_id)
 
 
 class GetBookmarksResponse(BaseResponse):
@@ -289,7 +291,7 @@ def send_chat(self, message: str) -> None:
 
 ```python
 def get_resources(self, castle_id: int) -> CastleResources:
-    request = GetResourcesRequest(AID=castle_id, KID=self._require_own_castle(castle_id).kingdom_id)
+    request = GetResourcesRequest(castle_id=castle_id, kingdom_id=self._require_own_castle(castle_id).kingdom_id)
     return self.request(request, GetResourcesResponse, timeout=5.0)
 ```
 
@@ -466,12 +468,12 @@ class AskHelpRequest(BaseRequest):
     @classmethod
     def repair(cls, building_id: int) -> "AskHelpRequest":
         """Ask for help repairing a building."""
-        return cls(ID=building_id, T=HelpType.REPAIR)
+        return cls(target_id=building_id, type_id=HelpType.REPAIR)
 
     @classmethod
     def build(cls, building_id: int) -> "AskHelpRequest":
         """Ask for help building a building."""
-        return cls(ID=building_id, T=HelpType.BUILD)
+        return cls(target_id=building_id, type_id=HelpType.BUILD)
 ```
 
 ## Development Setup

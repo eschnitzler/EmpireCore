@@ -165,7 +165,7 @@ class TestOwnerRecordLeniency:
 
     def test_gaa_keys_follow_the_client_order(self):
         # C2SGetAreasVO declares KID, AX1, AY1, AX2, AY2
-        request = GetMapAreaRequest(KID=Kingdom.FIRE, AX1=1, AY1=2, AX2=3, AY2=4)
+        request = GetMapAreaRequest(kingdom=Kingdom.FIRE, x1=1, y1=2, x2=3, y2=4)
         assert list(request.to_payload().items()) == [("KID", 3), ("AX1", 1), ("AY1", 2), ("AX2", 3), ("AY2", 4)]
 
     def test_a_row_the_client_cannot_read_costs_only_itself(self):
@@ -610,7 +610,7 @@ class TestErrorCodeKeyCollision:
 class TestFindNextMapObject:
     def test_request_keys_follow_the_client(self):
         # C2SFindNextMapObjectVO sets T, KID, LMIN, LMAX, NID, defaulting the last three to -1
-        request = FindNextMapObjectRequest(T=MapItemType.NOMAD_CAMP, KID=Kingdom.GREEN, NID=-1500)
+        request = FindNextMapObjectRequest(area_type=MapItemType.NOMAD_CAMP, kingdom=Kingdom.GREEN, owner_id=-1500)
         assert request.get_command() == "fnm"
         assert list(request.to_payload().items()) == [("T", 27), ("KID", 0), ("LMIN", -1), ("LMAX", -1), ("NID", -1500)]
 

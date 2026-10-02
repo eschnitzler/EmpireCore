@@ -133,38 +133,38 @@ class TestMovementDirection:
 class TestMovementTypes:
     @pytest.mark.parametrize("t", [0, 11, 17, 18, 19, 20, 21, 23, 24, 25, 27, 28, 29, 30, 31, 33, 34])
     def test_attack_types(self, t):
-        mov = Movement(T=t)
+        mov = Movement(movement_type=t)
         assert mov.is_attack and not mov.is_support and not mov.is_siege
 
     @pytest.mark.parametrize("t", [1, 26, 32])
     def test_support_types(self, t):
-        mov = Movement(T=t)
+        mov = Movement(movement_type=t)
         assert mov.is_support and not mov.is_attack
 
     @pytest.mark.parametrize("t", [5, 15])
     def test_siege_types(self, t):
-        assert Movement(T=t).is_siege
+        assert Movement(movement_type=t).is_siege
 
     def test_single_value_types(self):
-        assert Movement(T=2).is_travel
-        assert Movement(T=3).is_spy
-        assert Movement(T=4).is_transport
-        assert not Movement(T=2).is_transport
+        assert Movement(movement_type=2).is_travel
+        assert Movement(movement_type=3).is_spy
+        assert Movement(movement_type=4).is_transport
+        assert not Movement(movement_type=2).is_transport
 
     @pytest.mark.parametrize("t", [2, 3, 4, 6, 14])
     def test_non_combat_types_are_not_attacks(self, t):
-        assert not Movement(T=t).is_attack
+        assert not Movement(movement_type=t).is_attack
 
     def test_names_follow_the_client(self):
-        assert Movement(T=1).movement_type_name == "DEFENCE"
-        assert Movement(T=11).movement_type_name == "NPC_ATTACK"
-        assert Movement(T=99).movement_type_name == "UNKNOWN_99"
+        assert Movement(movement_type=1).movement_type_name == "DEFENCE"
+        assert Movement(movement_type=11).movement_type_name == "NPC_ATTACK"
+        assert Movement(movement_type=99).movement_type_name == "UNKNOWN_99"
 
     def test_a_type_the_client_lacks_has_no_enum(self):
-        movement = Movement(T=-1)
+        movement = Movement(movement_type=-1)
         assert movement.movement_type_enum is None
         assert not (movement.is_attack or movement.is_support or movement.is_siege)
-        assert Movement(T=11).movement_type_enum is MovementType.NPC_ATTACK
+        assert Movement(movement_type=11).movement_type_enum is MovementType.NPC_ATTACK
 
     def test_target_type_reads_as_an_area_type(self):
         assert Movement(target_type=1).target_type_enum is MapItemType.CASTLE
@@ -173,8 +173,8 @@ class TestMovementTypes:
         assert Movement().target_type_enum is None
 
     def test_direction_flag_marks_returns_for_any_type(self):
-        assert Movement(T=11, D=0).is_returning is False
-        assert Movement(T=4, D=1).is_returning
+        assert Movement(movement_type=11, direction=0).is_returning is False
+        assert Movement(movement_type=4, direction=1).is_returning
 
 
 class TestMovementLifecycle:
@@ -344,14 +344,14 @@ class TestStationedMovements:
 
 class TestMovementTime:
     def test_time_remaining_advances_with_wall_clock(self):
-        mov = Movement(MID=1, T=0, PT=0, TT=100, D=0)
+        mov = Movement(movement_id=1, movement_type=0, progress_time=0, total_time=100, direction=0)
         mov.last_updated = time.time() - 30
         # 100s total, packet 30s ago => ~70s remaining
         assert 65 <= mov.time_remaining <= 71
         assert not mov.has_arrived()
 
     def test_has_arrived_after_eta_passes(self):
-        mov = Movement(MID=2, T=0, PT=90, TT=100, D=0)
+        mov = Movement(movement_id=2, movement_type=0, progress_time=90, total_time=100, direction=0)
         mov.last_updated = time.time() - 60  # 10s remained, 60s ago
         assert mov.time_remaining == 0
         assert mov.has_arrived()
@@ -359,7 +359,7 @@ class TestMovementTime:
     def test_resources_total_includes_special(self):
         from empire_core.movements.tracked import MovementResources
 
-        res = MovementResources(MEAD=5, A=2, C=1, O=4)
+        res = MovementResources(mead=5, aquamarine=2, coal=1, oil=4)
         assert (res.aquamarine, res.coal, res.oil) == (2, 1, 4)
         assert res.total == 12
         assert not res.is_empty

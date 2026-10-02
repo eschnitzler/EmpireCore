@@ -133,7 +133,7 @@ class InvitePlayerRequest(BaseRequest):
     @classmethod
     def for_player(cls, player_id: int) -> InvitePlayerRequest:
         """Invite the player ``player_id``."""
-        return cls(SV=str(player_id))
+        return cls(search_value=str(player_id))
 
 
 class InvitePlayerResponse(BaseResponse):
@@ -256,7 +256,7 @@ class AnswerApplicationRequest(BaseRequest):
 
     @classmethod
     def create(cls, player_id: int, accept: bool) -> AnswerApplicationRequest:
-        return cls(PID=player_id, A=1 if accept else 0)
+        return cls(player_id=player_id, accept=1 if accept else 0)
 
 
 class AnswerApplicationResponse(BaseResponse):

@@ -69,7 +69,9 @@ class ArmyService(BaseService):
             CommandError: The server refused to join the castle
         """
         kingdom_id = self._require_own_castle(castle_id).kingdom_id
-        self.request(SelectCastleRequest(CID=castle_id, KID=kingdom_id), SelectCastleResponse, timeout=timeout)
+        self.request(
+            SelectCastleRequest(castle_id=castle_id, kingdom_id=kingdom_id), SelectCastleResponse, timeout=timeout
+        )
         return kingdom_id
 
     # =========================================================================
@@ -128,7 +130,7 @@ class ArmyService(BaseService):
         Client: ``CastleRecruitDismissUnitsDialog.dismissUnits`` (bundle line 84330)
         """
         self._join_castle(castle_id, timeout)
-        request = DismissUnitsRequest(WID=wod_id, A=amount, S=1 if from_stronghold else 0)
+        request = DismissUnitsRequest(wod_id=wod_id, amount=amount, from_stronghold=1 if from_stronghold else 0)
         return self.execute(request, timeout=timeout)
 
     # =========================================================================
@@ -166,13 +168,13 @@ class ArmyService(BaseService):
             raise ValueError("bup produces soldiers, tools or auxiliaries; the hospital list is healed with heal_units")
         kingdom_id = self._join_castle(castle_id, timeout)
         request = ProduceUnitsRequest(
-            LID=list_id,
-            WID=wod_id,
-            AMT=amount,
-            PO=private_offer_id if pay_with_rubies else -1,
-            PWR=1 if pay_with_rubies else 0,
-            SID=kingdom_id,
-            AID=castle_id,
+            list_id=list_id,
+            wod_id=wod_id,
+            amount=amount,
+            private_offer_id=private_offer_id if pay_with_rubies else -1,
+            pay_with_rubies=1 if pay_with_rubies else 0,
+            kingdom_id=kingdom_id,
+            castle_id=castle_id,
         )
         return self.execute(request, timeout=timeout)
 
@@ -187,7 +189,7 @@ class ArmyService(BaseService):
         Client: ``C2SShowPackageListVO`` (bundle line 22860)
         """
         self._join_castle(castle_id, timeout)
-        return self.request(GetProductionListRequest(LID=list_id), GetProductionListResponse, timeout=timeout)
+        return self.request(GetProductionListRequest(list_id=list_id), GetProductionListResponse, timeout=timeout)
 
     def cancel_production(
         self,
@@ -209,7 +211,7 @@ class ArmyService(BaseService):
         Client: ``CastleRecruitDialogUnits.onCancelCurrentSlotConfirmed`` (bundle line 23655)
         """
         self._join_castle(castle_id, timeout)
-        request = CancelProductionRequest(LID=list_id, S=position, ST=slot_type)
+        request = CancelProductionRequest(list_id=list_id, position=position, slot_type=slot_type)
         return self.execute(request, timeout=timeout)
 
     def double_production_slot(
@@ -232,7 +234,9 @@ class ArmyService(BaseService):
         Client: ``RecruitmentHelper.boostCurrentSlot`` (bundle line 23165)
         """
         kingdom_id = self._join_castle(castle_id, timeout)
-        request = DoubleProductionSlotRequest(LID=list_id, S=position, AID=castle_id, SID=kingdom_id, ST=slot_type)
+        request = DoubleProductionSlotRequest(
+            list_id=list_id, position=position, castle_id=castle_id, kingdom_id=kingdom_id, slot_type=slot_type
+        )
         return self.execute(request, timeout=timeout)
 
     # =========================================================================
@@ -249,7 +253,7 @@ class ArmyService(BaseService):
         Client: ``CastleRecruitSelectedUnitComponent.onReviveClick`` (bundle line 51105)
         """
         self._join_castle(castle_id, timeout)
-        return self.execute(HealUnitsRequest(U=wod_id, A=amount), timeout=timeout)
+        return self.execute(HealUnitsRequest(wod_id=wod_id, amount=amount), timeout=timeout)
 
     def heal_all(self, castle_id: int, ruby_cost: int, timeout: float = 5.0) -> bool:
         """
@@ -263,7 +267,7 @@ class ArmyService(BaseService):
         Client: ``CastleHospitalReviveAllDialog.reviveAll`` (bundle line 83667)
         """
         self._join_castle(castle_id, timeout)
-        return self.execute(HealAllRequest(C2=ruby_cost), timeout=timeout)
+        return self.execute(HealAllRequest(ruby_cost=ruby_cost), timeout=timeout)
 
     def cancel_heal(self, castle_id: int, position: int, timeout: float = 5.0) -> bool:
         """
@@ -275,7 +279,7 @@ class ArmyService(BaseService):
         Client: ``CastleRecruitDialogHospital.onCurrentSlotCancelled`` (bundle line 83508)
         """
         self._join_castle(castle_id, timeout)
-        return self.execute(CancelHealRequest(S=position), timeout=timeout)
+        return self.execute(CancelHealRequest(position=position), timeout=timeout)
 
     def skip_heal(self, castle_id: int, position: int, timeout: float = 5.0) -> bool:
         """
@@ -287,7 +291,7 @@ class ArmyService(BaseService):
         Client: ``CastleRecruitDialogHospital`` (bundle line 83504)
         """
         self._join_castle(castle_id, timeout)
-        return self.execute(SkipHealRequest(S=position), timeout=timeout)
+        return self.execute(SkipHealRequest(position=position), timeout=timeout)
 
     def dismiss_wounded(self, castle_id: int, wod_id: int, amount: int, timeout: float = 5.0) -> bool:
         """
@@ -299,7 +303,7 @@ class ArmyService(BaseService):
         Client: ``CastleHospitalDismissUnitsDialog.dismissUnits`` (bundle line 83737)
         """
         self._join_castle(castle_id, timeout)
-        return self.execute(DismissWoundedRequest(U=wod_id, A=amount), timeout=timeout)
+        return self.execute(DismissWoundedRequest(wod_id=wod_id, amount=amount), timeout=timeout)
 
     def dismiss_wounded_units(self, castle_id: int, units: Mapping[int, int], timeout: float = 5.0) -> bool:
         """
@@ -311,5 +315,5 @@ class ArmyService(BaseService):
         Client: ``CastleRecruitDialogHospital.onConfirmDeleteAll`` (bundle line 83498)
         """
         self._join_castle(castle_id, timeout)
-        entries = [WoundedUnits(U=wod_id, A=amount) for wod_id, amount in units.items()]
-        return self.execute(DismissManyWoundedRequest(UT=entries), timeout=timeout)
+        entries = [WoundedUnits(wod_id=wod_id, amount=amount) for wod_id, amount in units.items()]
+        return self.execute(DismissManyWoundedRequest(units=entries), timeout=timeout)

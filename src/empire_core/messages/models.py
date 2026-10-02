@@ -729,7 +729,7 @@ class SendMessageRequest(BaseRequest):
     @classmethod
     def create(cls, receiver_name: str, subject: str, text: str) -> SendMessageRequest:
         """A message, subject and text encoded as ``C2SSendMessageVO`` encodes them."""
-        return cls(RN=receiver_name, MH=encode_json_text(subject), TXT=encode_json_text(text))
+        return cls(receiver_name=receiver_name, subject=encode_json_text(subject), text=encode_json_text(text))
 
 
 class SendMessageResponse(BaseResponse):

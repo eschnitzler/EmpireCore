@@ -144,7 +144,7 @@ class AllianceService(BaseService):
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        return self.request(GetAllianceInfoRequest(AID=alliance_id), GetAllianceInfoResponse, timeout=timeout)
+        return self.request(GetAllianceInfoRequest(alliance_id=alliance_id), GetAllianceInfoResponse, timeout=timeout)
 
     def get_members(self, alliance_id: int, timeout: float = 5.0) -> list[AllianceMember]:
         """
@@ -167,7 +167,9 @@ class AllianceService(BaseService):
             for member in members:
                 print(f"{member.name}: online={member.is_online}")
         """
-        response = self.request(GetAllianceInfoRequest(AID=alliance_id), GetAllianceInfoResponse, timeout=timeout)
+        response = self.request(
+            GetAllianceInfoRequest(alliance_id=alliance_id), GetAllianceInfoResponse, timeout=timeout
+        )
         # Update cached members and remember which alliance they belong to
         self._members = {m.player_id: m for m in response.members}
         self._members_alliance_id = alliance_id
@@ -250,7 +252,7 @@ class AllianceService(BaseService):
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        return self.request(KickMemberRequest(PID=player_id), KickMemberResponse, timeout=timeout).alliance
+        return self.request(KickMemberRequest(player_id=player_id), KickMemberResponse, timeout=timeout).alliance
 
     def set_rank(self, player_id: int, rank: AllianceRank, timeout: float = 5.0) -> AllianceInfo | None:
         """
@@ -270,7 +272,7 @@ class AllianceService(BaseService):
         """
         try:
             return self.request(
-                RerankMemberRequest(PID=player_id, R=rank), RerankMemberResponse, timeout=timeout
+                RerankMemberRequest(player_id=player_id, rank=rank), RerankMemberResponse, timeout=timeout
             ).alliance
         except CommandError as e:
             if e.error is GGEError.NO_CHANGE:
@@ -345,7 +347,7 @@ class AllianceService(BaseService):
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        request = ChangeDiplomacyRequest(AID=alliance_id, NDR=new_status, T=tribute)
+        request = ChangeDiplomacyRequest(alliance_id=alliance_id, new_status=new_status, tribute=tribute)
         return self.request(request, ChangeDiplomacyResponse, timeout=timeout)
 
     def refuse_diplomacy(self, alliance_id: int, timeout: float = 5.0) -> AllianceInfo | None:
@@ -358,7 +360,9 @@ class AllianceService(BaseService):
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        return self.request(RefuseDiplomacyRequest(AID=alliance_id), RefuseDiplomacyResponse, timeout=timeout).alliance
+        return self.request(
+            RefuseDiplomacyRequest(alliance_id=alliance_id), RefuseDiplomacyResponse, timeout=timeout
+        ).alliance
 
     def set_auto_war(self, enabled: bool, timeout: float = 5.0) -> bool:
         """
@@ -370,7 +374,9 @@ class AllianceService(BaseService):
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        return self.request(SetAutoWarRequest(AW=1 if enabled else 0), SetAutoWarResponse, timeout=timeout).auto_war
+        return self.request(
+            SetAutoWarRequest(auto_war=1 if enabled else 0), SetAutoWarResponse, timeout=timeout
+        ).auto_war
 
     def send_newsletter(self, subject: str, text: str, timeout: float = 5.0) -> bool:
         """
@@ -700,7 +706,7 @@ class AllianceService(BaseService):
             request: An :class:`AllianceHelpRequest` from :attr:`help_requests`, or its ``list_id``
         """
         list_id = request.list_id if isinstance(request, AllianceHelpRequest) else request
-        self.send(HelpMemberRequest(LID=list_id))
+        self.send(HelpMemberRequest(list_id=list_id))
 
     def help_all(self) -> None:
         """

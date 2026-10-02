@@ -53,7 +53,7 @@ class RankingService(BaseService):
         ``LID`` need not be the ones asked for, so no reply is refused on them
         (see ``GetHighscoreRequest``).
         """
-        request = GetHighscoreRequest(LT=list_type, LID=league_type_id, SV=search_value)
+        request = GetHighscoreRequest(list_type=list_type, league_type_id=league_type_id, search_value=search_value)
         return self.request(request, GetHighscoreResponse, timeout=timeout).entries
 
     def get_ranking_list(
@@ -98,7 +98,12 @@ class RankingService(BaseService):
         ``GlobalLeaderBoardComponent.init`` (bundle line 34989) for event leaderboard dialogs
         """
         request = GetRankingListRequest(
-            LT=list_type, LID=league_type_id, M=max_results, R=rank, SDI=sub_division_id, EID=event_id
+            list_type=list_type,
+            league_type_id=league_type_id,
+            max_results=max_results,
+            rank=rank,
+            sub_division_id=sub_division_id,
+            event_id=event_id,
         )
         return self.request(request, GetRankingListResponse, timeout=timeout).entries
 
@@ -171,7 +176,12 @@ class RankingService(BaseService):
         Client: ``LeaderBoardDataProvider.getCurrentSearchPage`` (bundle line 75943)
         """
         request = GetRankingWindowRequest(
-            LT=list_type, LID=league_type_id, M=max_results, SI=score_id, SDI=sub_division_id, EID=event_id
+            list_type=list_type,
+            league_type_id=league_type_id,
+            max_results=max_results,
+            score_id=score_id,
+            sub_division_id=sub_division_id,
+            event_id=event_id,
         )
         return self.request(request, GetRankingWindowResponse, timeout=timeout).entries
 
@@ -210,5 +220,7 @@ class RankingService(BaseService):
         """
         if not search_value:
             raise ValueError("search_value must not be empty")
-        request = SearchRankingListRequest(LT=list_type, SV=search_value, SDI=sub_division_id, EID=event_id)
+        request = SearchRankingListRequest(
+            list_type=list_type, search_value=search_value, sub_division_id=sub_division_id, event_id=event_id
+        )
         return self.request(request, SearchRankingListResponse, timeout=timeout).results

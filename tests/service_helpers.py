@@ -364,7 +364,7 @@ GOLDEN_GCL: dict[str, Any] = {
 
 def wave(units=None, tools=None, middle_units=None):
     return AttackWave(
-        L=WaveFlank(U=units or [], T=tools or []),
-        M=WaveFlank(U=middle_units or []),
-        R=WaveFlank(),
+        left=WaveFlank(units=units or [], tools=tools or []),
+        middle=WaveFlank(units=middle_units or []),
+        right=WaveFlank(),
     )

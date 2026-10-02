@@ -103,7 +103,7 @@ class TestRankingType:
 
 class TestHighscoreRequest:
     def test_payload_follows_the_client_key_order(self):
-        request = GetHighscoreRequest(LT=RankingType.SAMURAI_ALLIANCE, LID=3, SV="12")
+        request = GetHighscoreRequest(list_type=RankingType.SAMURAI_ALLIANCE, league_type_id=3, search_value="12")
 
         payload = request.to_payload()
 
@@ -111,14 +111,14 @@ class TestHighscoreRequest:
 
     def test_league_defaults_to_minus_one_and_is_always_sent(self):
         # C2SGetHighscoreVO(t, i, n): void 0===n&&(n=-1)
-        assert GetHighscoreRequest(LT=RankingType.PLAYER_MIGHT_POINTS, SV="-1").to_payload() == {
+        assert GetHighscoreRequest(list_type=RankingType.PLAYER_MIGHT_POINTS, search_value="-1").to_payload() == {
             "LT": 6,
             "LID": -1,
             "SV": "-1",
         }
 
     def test_search_value_is_encoded_as_the_client_encodes_text(self):
-        request = GetHighscoreRequest(LT=RankingType.PLAYER_MIGHT_POINTS, SV="50% o'clock")
+        request = GetHighscoreRequest(list_type=RankingType.PLAYER_MIGHT_POINTS, search_value="50% o'clock")
 
         assert json.loads(request.to_packet().split("%")[5])["SV"] == "50&percnt; o&145;clock"
 
@@ -130,13 +130,17 @@ class TestHighscoreRequest:
 
 class TestRankingListRequest:
     def test_payload_follows_the_client_key_order(self):
-        request = GetRankingListRequest(LT=RankingType.LONG_TERM_POINT_EVENT, LID=2, M=8, R=41)
+        request = GetRankingListRequest(
+            list_type=RankingType.LONG_TERM_POINT_EVENT, league_type_id=2, max_results=8, rank=41
+        )
 
         assert list(request.to_payload().items()) == [("LT", 53), ("LID", 2), ("M", 8), ("R", 41)]
 
     def test_defaults_match_the_client(self):
         # C2SListLeaderboardScoresPageVO: R=1; M has no default
-        assert GetRankingListRequest(LT=RankingType.ALLIANCE_MOBILISATION_EVENT, LID=4, M=10).to_payload() == {
+        assert GetRankingListRequest(
+            list_type=RankingType.ALLIANCE_MOBILISATION_EVENT, league_type_id=4, max_results=10
+        ).to_payload() == {
             "LT": 84,
             "LID": 4,
             "M": 10,
@@ -146,11 +150,18 @@ class TestRankingListRequest:
     def test_the_league_is_required(self):
         # LeaderBoardDataProvider sends the league it was built with on every page
         with pytest.raises(ValidationError):
-            GetRankingListRequest(LT=RankingType.LONG_TERM_POINT_EVENT, M=10)  # type: ignore[call-arg]
+            GetRankingListRequest(list_type=RankingType.LONG_TERM_POINT_EVENT, max_results=10)  # type: ignore[call-arg]
 
     def test_alliance_event_keys_follow_the_vo_keys(self):
         # LeaderBoardDataProvider.sendCommand copies {SDI, EID} onto the VO after its constructor
-        request = GetRankingListRequest(LT=RankingType.ALLIANCE_MOBILISATION_EVENT, LID=4, M=10, R=11, SDI=7, EID=94)
+        request = GetRankingListRequest(
+            list_type=RankingType.ALLIANCE_MOBILISATION_EVENT,
+            league_type_id=4,
+            max_results=10,
+            rank=11,
+            sub_division_id=7,
+            event_id=94,
+        )
 
         assert list(request.to_payload().items()) == [
             ("LT", 84),
@@ -165,13 +176,17 @@ class TestRankingListRequest:
 class TestRankingWindowRequest:
     def test_payload_follows_the_client_key_order(self):
         # C2SListLeaderboardScoresWindowVO: LT, LID, M, SI
-        request = GetRankingWindowRequest(LT=RankingType.LONG_TERM_POINT_EVENT, LID=3, M=8, SI="1234")
+        request = GetRankingWindowRequest(
+            list_type=RankingType.LONG_TERM_POINT_EVENT, league_type_id=3, max_results=8, score_id="1234"
+        )
 
         assert list(request.to_payload().items()) == [("LT", 53), ("LID", 3), ("M", 8), ("SI", "1234")]
 
     def test_own_page_sends_an_empty_score_id_and_the_league(self):
         # getCurrentPlayerPage: new C2SListLeaderboardScoresWindowVO(LT, LID, M), SI defaults to ""
-        assert GetRankingWindowRequest(LT=RankingType.POINT_EVENT, LID=2, M=8).to_payload() == {
+        assert GetRankingWindowRequest(
+            list_type=RankingType.POINT_EVENT, league_type_id=2, max_results=8
+        ).to_payload() == {
             "LT": 40,
             "LID": 2,
             "M": 8,
@@ -180,21 +195,27 @@ class TestRankingWindowRequest:
 
     def test_the_league_is_required(self):
         with pytest.raises(ValidationError):
-            GetRankingWindowRequest(LT=RankingType.POINT_EVENT, M=8)  # type: ignore[call-arg]
+            GetRankingWindowRequest(list_type=RankingType.POINT_EVENT, max_results=8)  # type: ignore[call-arg]
 
     def test_score_id_is_encoded_as_the_client_encodes_text(self):
-        request = GetRankingWindowRequest(LT=RankingType.POINT_EVENT, LID=1, M=8, SI='a"b')
+        request = GetRankingWindowRequest(
+            list_type=RankingType.POINT_EVENT, league_type_id=1, max_results=8, score_id='a"b'
+        )
 
         assert json.loads(request.to_packet().split("%", 5)[5][:-1])["SI"] == "a&quot;b"
 
     def test_a_result_without_a_league_sends_none(self):
         # getCurrentSearchPage passes the hit's LID as read; undefined is not serialised
-        request = GetRankingWindowRequest(LT=RankingType.POINT_EVENT, LID=None, M=8, SI="5")
+        request = GetRankingWindowRequest(
+            list_type=RankingType.POINT_EVENT, league_type_id=None, max_results=8, score_id="5"
+        )
 
         assert request.to_payload() == {"LT": 40, "M": 8, "SI": "5"}
 
     def test_alliance_event_keys_follow_the_vo_keys(self):
-        request = GetRankingWindowRequest(LT=RankingType.ALLIANCE_RAID_MOBILISATION_EVENT, LID=1, M=10, EID=112)
+        request = GetRankingWindowRequest(
+            list_type=RankingType.ALLIANCE_RAID_MOBILISATION_EVENT, league_type_id=1, max_results=10, event_id=112
+        )
 
         assert list(request.to_payload()) == ["LT", "LID", "M", "SI", "EID"]
 
@@ -202,17 +223,19 @@ class TestRankingWindowRequest:
 class TestSearchRankingListRequest:
     def test_payload_follows_the_client_key_order(self):
         # C2SSearchLeaderboardScoresEventVO: LT, SV
-        request = SearchRankingListRequest(LT=RankingType.LONG_TERM_POINT_EVENT, SV="Someone")
+        request = SearchRankingListRequest(list_type=RankingType.LONG_TERM_POINT_EVENT, search_value="Someone")
 
         assert list(request.to_payload().items()) == [("LT", 53), ("SV", "Someone")]
 
     def test_search_value_is_encoded_as_the_client_encodes_text(self):
-        request = SearchRankingListRequest(LT=RankingType.POINT_EVENT, SV="50% o'clock")
+        request = SearchRankingListRequest(list_type=RankingType.POINT_EVENT, search_value="50% o'clock")
 
         assert json.loads(request.to_packet().split("%", 5)[5][:-1])["SV"] == "50&percnt; o&145;clock"
 
     def test_alliance_event_keys_follow_the_vo_keys(self):
-        request = SearchRankingListRequest(LT=RankingType.ALLIANCE_MOBILISATION_EVENT, SV="x", SDI=2, EID=94)
+        request = SearchRankingListRequest(
+            list_type=RankingType.ALLIANCE_MOBILISATION_EVENT, search_value="x", sub_division_id=2, event_id=94
+        )
 
         assert list(request.to_payload()) == ["LT", "SV", "SDI", "EID"]
 

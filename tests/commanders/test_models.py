@@ -216,7 +216,7 @@ class TestAlienEquipment:
 
 class TestRenameCommander:
     def test_the_payload_matches_c2s_rename_lord_vo(self):
-        request = RenameCommanderRequest(LID=91, N="farm-1")
+        request = RenameCommanderRequest(commander_id=91, name="farm-1")
 
         assert request.command == "arl"
         assert list(request.to_payload().items()) == [("LID", 91), ("N", "farm-1")]
@@ -340,9 +340,9 @@ class TestDriftedEquipmentEntries:
 
     def test_a_flank_entry_that_is_not_a_pair_counts_as_no_units(self):
         # A padded or truncated slot must not raise out of the wave check.
-        assert AttackWave(L=WaveFlank(U=[[487]])).unit_count() == 0
-        assert AttackWave(L=WaveFlank(U=[[487, 5, 1], [488, 2]])).unit_count() == 7
-        assert AttackWave(L=WaveFlank(U=[[-1, 0]])).is_complete() is False
+        assert AttackWave(left=WaveFlank(units=[[487]])).unit_count() == 0
+        assert AttackWave(left=WaveFlank(units=[[487, 5, 1], [488, 2]])).unit_count() == 7
+        assert AttackWave(left=WaveFlank(units=[[-1, 0]])).is_complete() is False
 
     def test_a_movement_without_a_usable_id_reports_none(self):
         assert CreateAttackResponse.model_validate({"AAM": {"M": []}}).movement_id is None

@@ -89,7 +89,7 @@ class MovementArea(BasePayload):
 
     @property
     def position(self) -> Position:
-        return Position(X=self.x, Y=self.y)
+        return Position(x=self.x, y=self.y)
 
     def _at(self, slot: int) -> Any:
         layout = _AREA_LAYOUTS.get(self.area_type)

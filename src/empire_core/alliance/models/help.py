@@ -279,7 +279,7 @@ class HelpMemberRequest(BaseRequest):
     @classmethod
     def for_request(cls, request: AllianceHelpRequest) -> HelpMemberRequest:
         """Help ``request``."""
-        return cls(LID=request.list_id)
+        return cls(list_id=request.list_id)
 
 
 # =============================================================================
@@ -332,24 +332,24 @@ class AskHelpRequest(BaseRequest):
     @classmethod
     def build(cls, building_id: int) -> AskHelpRequest:
         """Ask for help building ``building_id``, the building's object id."""
-        return cls(ID=building_id, T=HelpType.BUILD)
+        return cls(target_id=building_id, type_id=HelpType.BUILD)
 
     @classmethod
     def repair(cls, building_id: int) -> AskHelpRequest:
         """Ask for help repairing ``building_id``, the building's object id."""
-        return cls(ID=building_id, T=HelpType.REPAIR)
+        return cls(target_id=building_id, type_id=HelpType.REPAIR)
 
     @classmethod
     def recruit(cls, recruit_id: int, help_type: HelpType) -> AskHelpRequest:
         """Ask for help with the recruitment ``recruit_id``; ``help_type`` is one of the three recruit types."""
         if help_type not in _RECRUIT_TYPES:
             raise ValueError(f"{help_type!r} is not a recruit help type")
-        return cls(ID=recruit_id, T=help_type)
+        return cls(target_id=recruit_id, type_id=help_type)
 
     @classmethod
     def heal(cls, hospital_entry_id: int, hospital_list_id: int) -> AskHelpRequest:
         """Ask for help healing the hospital entry ``hospital_entry_id`` on list ``hospital_list_id``."""
-        return cls(ID=hospital_entry_id, T=hospital_list_id)
+        return cls(target_id=hospital_entry_id, type_id=hospital_list_id)
 
 
 class AskHelpResponse(BaseResponse):

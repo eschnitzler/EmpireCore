@@ -162,7 +162,7 @@ class MapScanner:
         (as opposed to succeeding with an empty area).
         """
         x1, y1, x2, y2 = self._chunk_bounds(cx, cy)
-        request = GetMapAreaRequest(KID=kingdom, AX1=x1, AY1=y1, AX2=x2, AY2=y2)
+        request = GetMapAreaRequest(kingdom=kingdom, x1=x1, y1=y1, x2=x2, y2=y2)
 
         for attempt in range(self.CHUNK_RETRIES + 1):
             last = attempt == self.CHUNK_RETRIES

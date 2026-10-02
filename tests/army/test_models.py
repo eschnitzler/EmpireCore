@@ -52,35 +52,49 @@ class TestRequests:
         "request_,expected",
         [
             (
-                ProduceUnitsRequest(LID=ProductionListId.SOLDIERS, WID=620, AMT=150, SID=Kingdom.GREEN, AID=12345),
+                ProduceUnitsRequest(
+                    list_id=ProductionListId.SOLDIERS, wod_id=620, amount=150, kingdom_id=Kingdom.GREEN, castle_id=12345
+                ),
                 {"LID": 0, "WID": 620, "AMT": 150, "PO": -1, "PWR": 0, "SK": 73, "SID": 0, "AID": 12345},
             ),
             (
                 ProduceUnitsRequest(
-                    LID=ProductionListId.TOOLS, WID=649, AMT=20, PO=88, PWR=1, SID=Kingdom.ICE, AID=12345
+                    list_id=ProductionListId.TOOLS,
+                    wod_id=649,
+                    amount=20,
+                    private_offer_id=88,
+                    pay_with_rubies=1,
+                    kingdom_id=Kingdom.ICE,
+                    castle_id=12345,
                 ),
                 {"LID": 1, "WID": 649, "AMT": 20, "PO": 88, "PWR": 1, "SK": 73, "SID": 2, "AID": 12345},
             ),
-            (GetProductionListRequest(LID=ProductionListId.AUXILIARIES), {"LID": 3}),
+            (GetProductionListRequest(list_id=ProductionListId.AUXILIARIES), {"LID": 3}),
             (
                 DoubleProductionSlotRequest(
-                    LID=ProductionListId.SOLDIERS, S=2, AID=12345, SID=Kingdom.GREEN, ST=SlotType.QUEUE
+                    list_id=ProductionListId.SOLDIERS,
+                    position=2,
+                    castle_id=12345,
+                    kingdom_id=Kingdom.GREEN,
+                    slot_type=SlotType.QUEUE,
                 ),
                 {"LID": 0, "S": 2, "AID": 12345, "SID": 0, "ST": "queue"},
             ),
             (
-                CancelProductionRequest(LID=ProductionListId.TOOLS, S=0, ST=SlotType.PRODUCTION),
+                CancelProductionRequest(list_id=ProductionListId.TOOLS, position=0, slot_type=SlotType.PRODUCTION),
                 {"LID": 1, "S": 0, "ST": "production"},
             ),
-            (DismissUnitsRequest(WID=620, A=30, S=1), {"WID": 620, "A": 30, "S": 1}),
-            (DismissUnitsRequest(WID=620, A=30), {"WID": 620, "A": 30, "S": 0}),
-            (HealUnitsRequest(U=620, A=12), {"U": 620, "A": 12}),
-            (CancelHealRequest(S=1), {"S": 1}),
-            (SkipHealRequest(S=2), {"S": 2}),
-            (HealAllRequest(C2=417), {"C2": 417}),
-            (DismissWoundedRequest(U=620, A=5), {"U": 620, "A": 5}),
+            (DismissUnitsRequest(wod_id=620, amount=30, from_stronghold=1), {"WID": 620, "A": 30, "S": 1}),
+            (DismissUnitsRequest(wod_id=620, amount=30), {"WID": 620, "A": 30, "S": 0}),
+            (HealUnitsRequest(wod_id=620, amount=12), {"U": 620, "A": 12}),
+            (CancelHealRequest(position=1), {"S": 1}),
+            (SkipHealRequest(position=2), {"S": 2}),
+            (HealAllRequest(ruby_cost=417), {"C2": 417}),
+            (DismissWoundedRequest(wod_id=620, amount=5), {"U": 620, "A": 5}),
             (
-                DismissManyWoundedRequest(UT=[WoundedUnits(U=620, A=5), WoundedUnits(U=621, A=3)]),
+                DismissManyWoundedRequest(
+                    units=[WoundedUnits(wod_id=620, amount=5), WoundedUnits(wod_id=621, amount=3)]
+                ),
                 {"UT": [{"U": 620, "A": 5}, {"U": 621, "A": 3}]},
             ),
         ],
