@@ -397,7 +397,7 @@ class EffectResolver:
         defender's matching bonus.
         """
         bonuses = list(bonuses)
-        return tuple(  # type: ignore[return-value]
+        wall, gate, moat = (
             self.accumulate(bonuses, effect_type, area_type=area_type, player_target=player_target) / 100
             for effect_type in (
                 CombatEffectType.WALL_REDUCTION,
@@ -405,6 +405,7 @@ class EffectResolver:
                 CombatEffectType.MOAT_REDUCTION,
             )
         )
+        return wall, gate, moat
 
 
 def parse_effect_spec(spec: str | None) -> list[Bonus]:
