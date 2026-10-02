@@ -45,7 +45,7 @@ class AllianceActionListItem(BasePayload):
     """
 
     player_id: ClientInt = Field(alias="PID", default=0, description="The player the entry is about")
-    player_name: str = Field(alias="PN", default="", description="The player's name")
+    player_name: str | None = Field(alias="PN", default=None, description="The player's name")
     seconds_ago: ClientInt = Field(alias="MA", default=0, description="Seconds since the action")
     action: ClientInt = Field(alias="A", default=0, description="What happened, an AllianceActionType value")
     action_values: list[Any] = Field(
@@ -55,7 +55,7 @@ class AllianceActionListItem(BasePayload):
     @field_validator("player_name", mode="before")
     @classmethod
     def _name(cls, value: Any) -> Any:
-        return value if isinstance(value, str) else ""
+        return value if isinstance(value, str) else None
 
     @field_validator("action_values", mode="before")
     @classmethod
@@ -120,7 +120,9 @@ class AllianceSubscriberCountResponse(BaseResponse):
     Command: asc
 
     Client: ``ASCCommand.executeCommand`` (bundle line 128655) into
-    ``SubscriptionData.parseASC`` (bundle line 120005)
+    ``SubscriptionData.parseASC`` (bundle line 120005); the treasury's
+    subscriptions tab shows it against the member limit
+    (``CastleAllianceDialogTreasurySubscriptions.updateSubscriberCount``, bundle line 70697)
     """
 
     command = "asc"
