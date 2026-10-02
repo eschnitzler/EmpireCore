@@ -3,6 +3,8 @@
 Commands:
 - gaa: Get map area/chunk
 - fnm: Find the next map object of a type
+- fec: Find the next enemy castle
+- fnt: Find the next Berimond tower
 """
 
 from __future__ import annotations
@@ -409,6 +411,91 @@ class FindNextMapObjectResponse(BaseResponse):
         return next((item for item in self.area.items if (item.x, item.y) == (self.x, self.y)), None)
 
 
+# =============================================================================
+# FEC / FNT - Find the next enemy castle, the next Berimond tower
+# =============================================================================
+
+MAX_FINDABLE_ENEMY_INDEX = 9
+"""The highest result index ``fec`` asks for; the client cycles 0 to 9.
+
+Client: ``ClientConstCastle.MAX_FINDABLE_ENEMY_COUNTER`` (bundle line 1004), 10
+"""
+
+
+class FindNextEnemyCastleRequest(BaseRequest):
+    """
+    Find an enemy castle near a position, as the client's "search enemy" button does.
+
+    Command: fec
+    Payload: {"X": x, "Y": y, "N": index, "LMIN": min_level, "LMAX": max_level}
+
+    The button sends the selected map object's position and a counter mod 10
+    as ``N``, so each press finds the next castle; quest help sends ``N`` 0
+    from your main castle with a minimum level. The server answers
+    NO_PLAYER_FOUND (153) when nothing matches.
+
+    Client: ``C2SFindNextEnemyCastleVO`` (bundle line 55304), sent by
+    ``SearchEnemyPanelButton.onButtonClicked`` (bundle line 108075) and
+    ``ShowHowToDoQuestconditionCommand.toNextEnemy`` / ``toNextDifferentEnemy``
+    (bundle lines 97694-97698)
+    """
+
+    command = "fec"
+
+    x: int = Field(alias="X", description="Map x to search from")
+    y: int = Field(alias="Y", description="Map y to search from")
+    index: int = Field(alias="N", default=0, description="Which castle to find, 0 for the first, up to 9")
+    min_level: int = Field(alias="LMIN", default=-1, description="Lowest level to match, -1 for any")
+    max_level: int = Field(alias="LMAX", default=-1, description="Highest level to match, -1 for any")
+
+
+class FindNextEnemyCastleResponse(FindNextMapObjectResponse):
+    """
+    Where the enemy castle found lies, with the map rows around it.
+
+    Command: fec
+    Payload: {"gaa": {"AI": [...], "OI": [...]}, "X": x, "Y": y}
+
+    Client: ``FECCommand`` (bundle line 130098) extends ``FNMCommand``
+    (bundle line 40185) and reads the reply as it does.
+    """
+
+    command = "fec"
+
+
+class FindNextTowerRequest(BaseRequest):
+    """
+    Find the next Berimond tower.
+
+    Command: fnt
+    Payload: {}
+
+    The client sends it only in Berimond, from the "search enemy" button and
+    quest help. The server answers NO_PLAYER_FOUND (153) when nothing matches.
+
+    Client: ``C2SFindNextTowerVO`` (bundle line 37533), sent by
+    ``SearchEnemyPanelButton.onButtonClicked`` (bundle line 108075),
+    ``ShowHowToDoQuestconditionCommand.toNextFactionTower`` (bundle line 97699)
+    and after switching to Berimond (bundle line 54636)
+    """
+
+    command = "fnt"
+
+
+class FindNextTowerResponse(FindNextMapObjectResponse):
+    """
+    Where the tower found lies, with the map rows around it.
+
+    Command: fnt
+    Payload: {"gaa": {"AI": [...], "OI": [...]}, "X": x, "Y": y}
+
+    Client: ``FNTCommand`` (bundle line 127833) extends ``FNMCommand``
+    (bundle line 40185) and reads the reply as it does.
+    """
+
+    command = "fnt"
+
+
 __all__ = [
     "GetMapAreaRequest",
     "GetMapAreaResponse",
@@ -417,4 +504,9 @@ __all__ = [
     "KingdomProtection",
     "FindNextMapObjectRequest",
     "FindNextMapObjectResponse",
+    "MAX_FINDABLE_ENEMY_INDEX",
+    "FindNextEnemyCastleRequest",
+    "FindNextEnemyCastleResponse",
+    "FindNextTowerRequest",
+    "FindNextTowerResponse",
 ]

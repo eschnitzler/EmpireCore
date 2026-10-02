@@ -1,8 +1,13 @@
 """The world map: map areas, map objects and their owners: protocol models."""
 
 from .areas import (
+    MAX_FINDABLE_ENEMY_INDEX,
+    FindNextEnemyCastleRequest,
+    FindNextEnemyCastleResponse,
     FindNextMapObjectRequest,
     FindNextMapObjectResponse,
+    FindNextTowerRequest,
+    FindNextTowerResponse,
     GetMapAreaRequest,
     GetMapAreaResponse,
     KingdomProtection,
@@ -22,6 +27,11 @@ __all__ = [
     "AllianceEmblem",
     "FindNextMapObjectRequest",
     "FindNextMapObjectResponse",
+    "MAX_FINDABLE_ENEMY_INDEX",
+    "FindNextEnemyCastleRequest",
+    "FindNextEnemyCastleResponse",
+    "FindNextTowerRequest",
+    "FindNextTowerResponse",
     "INVASION_AREA_TYPES",
     "ROW_PARSERS",
     "MapAreaItem",

@@ -1,5 +1,5 @@
 """
-Map areas, kingdom scans and finding map objects.
+Map areas, kingdom scans and finding map objects, enemy castles and Berimond towers.
 
 Reading the map moves the session off the castle it had joined: a
 castle-scoped read after a scan fails with NOT_IN_OWNED_CASTLE until the
@@ -9,18 +9,28 @@ else castle-scoped needs ``client.castle.select`` first.
 
 from __future__ import annotations
 
+from typing import TypeVar
+
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.exceptions import CommandError
 from empire_core.map.models.areas import (
+    MAX_FINDABLE_ENEMY_INDEX,
+    FindNextEnemyCastleRequest,
+    FindNextEnemyCastleResponse,
     FindNextMapObjectRequest,
     FindNextMapObjectResponse,
+    FindNextTowerRequest,
+    FindNextTowerResponse,
     GetMapAreaRequest,
     GetMapAreaResponse,
 )
 from empire_core.map.models.items import parse_area_rows
 from empire_core.map.scanner import MapScanner, ScanResult
+from empire_core.protocol.base import BaseRequest
 from empire_core.protocol.errors import GGEError
 from empire_core.services.base import BaseService
+
+_F = TypeVar("_F", bound=FindNextMapObjectResponse)
 
 
 class MapService(BaseService):
@@ -126,8 +136,71 @@ class MapService(BaseService):
             CommandError: The server refused for any other reason
         """
         request = FindNextMapObjectRequest(T=area_type, KID=kingdom, LMIN=min_level, LMAX=max_level, NID=owner_id)
+        return self._find(request, FindNextMapObjectResponse, kingdom, timeout)
+
+    def find_next_enemy_castle(
+        self,
+        x: int,
+        y: int,
+        index: int = 0,
+        min_level: int = -1,
+        max_level: int = -1,
+        *,
+        kingdom: Kingdom = Kingdom.GREEN,
+        timeout: float = 5.0,
+    ) -> FindNextEnemyCastleResponse | None:
+        """
+        Find an enemy castle near a position, with the map rows around it.
+
+        The game's "search enemy" button asks with index 0, 1, 2 ... 9 and
+        then 0 again, so each press finds another castle. On a live account
+        indexes 0 to 2 found three different players' outposts near the castle
+        searched from; the reply also echoes ``N``, which the client does not read.
+
+        Args:
+            x: Map x to search from
+            y: Map y to search from
+            index: Which castle to find, 0 to 9
+            min_level: Lowest level to match, -1 for any
+            max_level: Highest level to match, -1 for any
+            kingdom: The kingdom the rows of the reply are read in; the request names none
+            timeout: Timeout in seconds
+
+        Returns:
+            The reply; None when nothing matches (NO_PLAYER_FOUND)
+
+        Raises:
+            ValueError: ``index`` is not 0 to 9
+            CommandError: The server refused for any other reason
+
+        Client: ``C2SFindNextEnemyCastleVO`` (bundle line 55304), sent by
+        ``SearchEnemyPanelButton.onButtonClicked`` (bundle line 108075)
+        """
+        if not 0 <= index <= MAX_FINDABLE_ENEMY_INDEX:
+            raise ValueError(f"index must be 0 to {MAX_FINDABLE_ENEMY_INDEX}, got {index}")
+        request = FindNextEnemyCastleRequest(X=x, Y=y, N=index, LMIN=min_level, LMAX=max_level)
+        return self._find(request, FindNextEnemyCastleResponse, kingdom, timeout)
+
+    def find_next_tower(self, timeout: float = 5.0) -> FindNextTowerResponse | None:
+        """
+        Find the next Berimond tower, with the map rows around it, read in Berimond.
+
+        Returns:
+            The reply; None when nothing matches (NO_PLAYER_FOUND)
+
+        Raises:
+            CommandError: The server refused for any other reason, for example
+                when no Berimond event runs
+
+        Client: ``C2SFindNextTowerVO`` (bundle line 37533), sent by
+        ``SearchEnemyPanelButton.onButtonClicked`` (bundle line 108075) in Berimond
+        """
+        return self._find(FindNextTowerRequest(), FindNextTowerResponse, Kingdom.BERIMOND, timeout)
+
+    def _find(self, request: BaseRequest, response_type: type[_F], kingdom: Kingdom, timeout: float) -> _F | None:
+        """Send a find-next request; None for NO_PLAYER_FOUND, as ``FNMCommand`` reads it (bundle line 40185)."""
         try:
-            response = self.request(request, FindNextMapObjectResponse, timeout=timeout)
+            response = self.request(request, response_type, timeout=timeout)
         except CommandError as e:
             if e.code == GGEError.NO_PLAYER_FOUND:
                 return None
