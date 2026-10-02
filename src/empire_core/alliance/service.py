@@ -429,7 +429,7 @@ class AllianceService(BaseService):
             List of AllianceSearchResult objects matching the search
 
         Example:
-            results = client.alliance.search_alliances("HOPE")
+            results = client.alliance.search_alliances("PACT")
             for alliance in results:
                 print(f"{alliance.name} (ID: {alliance.alliance_id}, {alliance.member_count} members)")
 
