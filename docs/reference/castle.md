@@ -46,6 +46,10 @@ Castles, buildings, resources and transfers behind `client.castle`.
 
 ::: empire_core.castle.models.support
 
+## `castle.models.tax`
+
+::: empire_core.castle.models.tax
+
 ## `castle.models.transfers`
 
 ::: empire_core.castle.models.transfers

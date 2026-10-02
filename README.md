@@ -31,7 +31,7 @@
 
 | Service | What it does |
 |---|---|
-| [`client.castle`](https://eschnitzler.github.io/EmpireCore/guides/castle/) | Castles, buildings, resources, horses, sending goods and troops |
+| [`client.castle`](https://eschnitzler.github.io/EmpireCore/guides/castle/) | Castles, buildings, resources, horses, tax, sending goods and troops |
 | [`client.army`](https://eschnitzler.github.io/EmpireCore/guides/army/) | Units, recruitment and the hospital |
 | [`client.attack`](https://eschnitzler.github.io/EmpireCore/guides/attack/) | Sending attacks, and [filling waves](https://eschnitzler.github.io/EmpireCore/guides/filling-waves/) like the game does |
 | [`client.commanders`](https://eschnitzler.github.io/EmpireCore/guides/commanders/) | Commanders and castellans |

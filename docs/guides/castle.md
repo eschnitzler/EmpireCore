@@ -132,6 +132,40 @@ with `send_troops`. `get_market_info()` lists each castle's free carriages, and
 
 `rename(castle_id, new_name)` renames a castle.
 
+## Tax
+
+The tax collector brings coins from your population. Read where it stands,
+start a collection of one tax type, and collect it:
+
+```python
+tax = client.castle.get_tax_info()
+print(tax.status, tax.remaining_seconds, tax.expected_income)
+
+client.castle.start_tax(0)
+reply = client.castle.collect_tax()
+print(reply.collected)
+```
+
+`tax.status` is a `TaxStatus`: `NONE`, `COLLECTING` or `WAIT_FOR_COLLECT`, as
+of the reply. Like the game, it counts a collection with `remaining_seconds` 0
+as still collecting; the game shows it ready once that time has passed, so
+count down from the reply to tell. Collecting while the collection runs brings the share of its
+income earned so far.
+
+| Tax type | Duration | Cost |
+| --- | --- | --- |
+| 0 | 10 minutes | free |
+| 1 to 4 | 30 minutes to 6 hours | a tenth of the income, in coins |
+| 5 | 12 hours | 125 rubies |
+| 6 | 24 hours | 300 rubies |
+
+A premium account, a VIP level or the tax research can waive the rubies of
+types 5 and 6; without a premium account, a waived collection costs a tenth
+of its income in coins instead. `start_tax`
+refuses types 5 and 6 with `ValueError` unless you pass `spend_rubies=True`;
+it does not check for a waiver, so the flag may spend rubies.
+`TAX_DURATIONS` and `TAX_RUBY_COSTS` hold the numbers by tax type.
+
 ## Horses
 
 `client.castle.get_horses(castle_id)` lists the horses a castle can send

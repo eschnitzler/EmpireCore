@@ -35,7 +35,7 @@ client.defense      client.ranking     client.events
 
     ---
 
-    Castles, resources, buildings and the construction queue.
+    Castles, resources, buildings, the construction queue and tax.
 
 -   :material-account-multiple-plus:{ .lg .middle } **[Army](army.md)**
 

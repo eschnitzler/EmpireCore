@@ -7,10 +7,12 @@ It covers:
 - Resources and production
 - Buildings and the construction queue
 - Sending resources, support and units
+- Tax collection
 
 Action methods return True when the server accepted the action and False
 when it rejected it with an error code; transport failures (timeout,
-disconnect) raise. Query methods raise on any failure.
+disconnect) raise. Query methods raise on any failure, and so do
+``start_tax`` and ``collect_tax``, which return their replies.
 
 Methods that take one of your castles send its kingdom from the castle
 list the server sent at login (``client.state.get_castles()``), as the
@@ -72,6 +74,17 @@ from empire_core.castle.models.resources import (
     GetResourcesResponse,
 )
 from empire_core.castle.models.support import SendSupportRequest, SendTroopsRequest
+from empire_core.castle.models.tax import (
+    TAX_DURATIONS,
+    TAX_RUBY_COSTS,
+    CollectTaxRequest,
+    CollectTaxResponse,
+    GetTaxInfoRequest,
+    StartTaxRequest,
+    StartTaxResponse,
+    TaxInfo,
+    TaxInfoResponse,
+)
 from empire_core.castle.models.transfers import KingdomUnitTransferRequest
 from empire_core.enums import ExpansionType, Kingdom, Resource, ResourceCartType
 from empire_core.exceptions import (
@@ -445,6 +458,77 @@ class CastleService(BaseService):
     def collect_resource_cart(self, cart_type: ResourceCartType, timeout: float = 5.0) -> bool:
         """Collect the joined castle's resource cart of one resource."""
         return self.execute(CollectResourceCartRequest(RT=cart_type), timeout=timeout)
+
+    # =========================================================================
+    # Tax
+    # =========================================================================
+
+    def get_tax_info(self, timeout: float = 5.0) -> TaxInfo:
+        """
+        Read the tax collection status.
+
+        Example:
+            tax = client.castle.get_tax_info()
+            print(tax.status, tax.remaining_seconds, tax.expected_income)
+
+        Client: ``C2SGetTaxInfoVO`` (bundle line 37186), ``TXICommand`` (bundle line 128792)
+        """
+        return self.request(GetTaxInfoRequest(), TaxInfoResponse, timeout=timeout).tax
+
+    def start_tax(self, tax_type: int, *, spend_rubies: bool = False, timeout: float = 5.0) -> StartTaxResponse:
+        """
+        Start a tax collection.
+
+        Tax types 0 to 6 collect for ``TAX_DURATIONS[tax_type]`` seconds. Type 0
+        is free and types 1 to 4 cost a tenth of their income in coins. Types 5
+        and 6 cost ``TAX_RUBY_COSTS`` rubies unless a premium account, a VIP
+        level or the tax research waives it; this method refuses them unless
+        ``spend_rubies`` is True, and does not check for a waiver.
+
+        Args:
+            tax_type: The tax type, 0 to 6
+            spend_rubies: Allow types 5 and 6, which may spend rubies
+            timeout: Timeout in seconds
+
+        Returns:
+            The reply: coins and rubies after, and the tax status.
+
+        Raises:
+            ValueError: ``tax_type`` is not 0 to 6, or costs rubies and ``spend_rubies`` is False
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``C2SStartCollectTaxVO`` (bundle line 91088), sent by
+        ``CastleCollectTaxElement.onStartTaxCollection`` (bundle line 91069), which
+        shows a ruby cost when ``CollectTaxElementVO.hasC2CostWithoutPremium``
+        (bundle line 91050); ``TaxConst`` (dll lines 19771-19790)
+        """
+        if not 0 <= tax_type < len(TAX_DURATIONS):
+            raise ValueError(f"tax_type must be 0 to {len(TAX_DURATIONS) - 1}, got {tax_type}")
+        if TAX_RUBY_COSTS[tax_type] > 0 and not spend_rubies:
+            raise ValueError(
+                f"tax type {tax_type} costs {TAX_RUBY_COSTS[tax_type]} rubies unless waived; pass spend_rubies=True"
+            )
+        return self.request(StartTaxRequest(TT=tax_type), StartTaxResponse, timeout=timeout)
+
+    def collect_tax(self, timeout: float = 5.0) -> CollectTaxResponse:
+        """
+        Collect the tax.
+
+        Collecting while the collection runs brings the share of its income
+        earned so far; the client asks first when that is nothing.
+
+        Returns:
+            The reply: the coins collected, coins and rubies after, and the tax status.
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``C2SCollectTaxVO`` (bundle line 41083), sent by
+        ``CastleCollectTaxDialog.collectTax`` (bundle line 91027) after
+        ``onCollectTaxClick`` (bundle line 91015); ``TaxConst.getCollectedMoney``
+        (dll line 19784); ``TXCCommand`` (bundle line 128747)
+        """
+        return self.request(CollectTaxRequest(), CollectTaxResponse, timeout=timeout)
 
     # =========================================================================
     # Market

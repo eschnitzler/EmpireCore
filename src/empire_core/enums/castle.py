@@ -1,4 +1,4 @@
-"""Castle buildings, resource carts, market goods and market scopes."""
+"""Castle buildings, resource carts, market goods, market scopes and tax collection."""
 
 from enum import Enum, IntEnum
 
@@ -83,3 +83,15 @@ class ExpansionType(IntEnum):
 
     PREMIUM = 0
     NORMAL = 1
+
+
+class TaxStatus(IntEnum):
+    """
+    Where a tax collection stands.
+
+    Client: ``TaxInfoVO.TAXSTATUS_*`` (bundle line 29576)
+    """
+
+    NONE = 0
+    COLLECTING = 1
+    WAIT_FOR_COLLECT = 2
