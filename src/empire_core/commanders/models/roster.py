@@ -16,7 +16,7 @@ from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from empire_core.enums import EquipmentSlot, Kingdom
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, list_or_empty, readable_list
-from empire_core.protocol.js import ClientInt
+from empire_core.protocol.js import ClientInt, js_loose_equals, js_truthy
 
 from .equipment import Equipment, EquipmentBonus
 
@@ -99,7 +99,11 @@ class LeaderBase(BasePayload):
 
     Client: ``LordFactory.createLord`` (bundle line 26399), ``LordVO.parseLord`` (bundle line 26451),
     ``LordVO.parseGeneral`` (bundle line 26480) and ``GeneralVO.parseData`` (bundle line 26666) for
-    ``ST`` and ``L``.
+    ``ST``, ``L`` and the general's ``XP``, ``OXP``, ``IN``, ``LU``, ``SIDS`` and ``GASAIDS``. The
+    client reads those six only when the entry names a general above 0 and is a default commander
+    or was created with ``LordFactory.createLord(e, true)``, as a battle log's are. An entry cannot
+    tell the second case, so they are None unless sent, or filled with the client's defaults for a
+    default commander with a general; elsewhere the client ignores them.
     """
 
     commander_id: int = Field(alias="ID", description="Commander id; for a default commander, its default-commander id")
@@ -147,6 +151,60 @@ class LeaderBase(BasePayload):
             "The general's level when the entry doubles as its general: a default commander with a general_id above 0"
         ),
     )
+    general_xp: ClientInt | None = Field(
+        alias="XP", default=None, description="The general's experience; None when the entry does not carry it"
+    )
+    general_old_xp: ClientInt | None = Field(
+        alias="OXP",
+        default=None,
+        description="The general's experience before the battle; None when the entry does not carry it",
+    )
+    general_is_new: bool | None = Field(
+        alias="IN", default=None, description="The general is newly unlocked; None when the entry does not say"
+    )
+    general_has_level_up: bool | None = Field(
+        alias="LU", default=None, description="The general gained a level; None when the entry does not say"
+    )
+    general_skill_ids: list[Any] | None = Field(
+        alias="SIDS", default=None, description="The general's unlocked skill ids; None when the entry has none"
+    )
+    general_ability_ids: list[Any] | None = Field(
+        alias="GASAIDS",
+        default=None,
+        description="The general's selected slot and ability ids, as sent; None when the entry has none",
+    )
+
+    @field_validator("general_xp", "general_old_xp", mode="before")
+    @classmethod
+    def _xp_or_zero(cls, value: Any) -> Any:
+        # GeneralVO.parseData: e.XP||0, e.OXP||0
+        return value if js_truthy(value) else 0
+
+    @field_validator("general_is_new", "general_has_level_up", mode="before")
+    @classmethod
+    def _one_flag(cls, value: Any) -> bool:
+        return js_loose_equals(value, 1)
+
+    @field_validator("general_skill_ids", "general_ability_ids", mode="before")
+    @classmethod
+    def _id_list(cls, value: Any) -> Any:
+        return list_or_empty(value)
+
+    @model_validator(mode="after")
+    def _default_commander_general(self) -> LeaderBase:
+        # A default commander with a general always goes through GeneralVO.parseData
+        if self.commander_id < 0 and (self.general_id or 0) > 0:
+            for name, default in (
+                ("general_xp", 0),
+                ("general_old_xp", 0),
+                ("general_is_new", False),
+                ("general_has_level_up", False),
+                ("general_skill_ids", []),
+                ("general_ability_ids", []),
+            ):
+                if getattr(self, name) is None:
+                    setattr(self, name, default)
+        return self
 
     @model_validator(mode="before")
     @classmethod
