@@ -6,7 +6,8 @@ description: What client.state holds, how to read it safely, and how to tell how
 
 `client.state` is an in-memory picture of your account: the player, castles,
 movements, special currencies, your spy count, active events, your commanders and
-skills, and your alliance and its chat. A background thread applies
+skills, your alliance and its chat, and your progress: research, boosters,
+might, titles, achievements, relocation and plague monks. A background thread applies
 the server's packets to it while your code reads it.
 
 ## Read through the accessors
@@ -28,11 +29,23 @@ roster = client.state.get_commanders()      # commanders and castellans
 skills = client.state.get_skills()          # legend and sceat skills
 alliance = client.state.get_own_alliance()  # your alliance's details and members
 chat = client.state.get_alliance_chat()     # the alliance chat history, oldest first
+research = client.state.get_research()      # finished and running research
+boosts = client.state.get_boosts()          # boosters, premium account, slots, festival
+might = client.state.get_might()
+glory = client.state.get_glory_points()
+berimond = client.state.get_faction_points()
+ranks = client.state.get_title_ranks()      # top-X ranks, Storm Islands title
+achievements = client.state.get_achievements()
+relocation = client.state.get_relocation()
+monks = client.state.get_plague_monks()
 ```
 
 The commanders, skills and alliance accessors return copies, and the chat
-messages are read-only, so changing what you hold changes nothing in state, and
-a newer packet does not change it either.
+messages and progress models are read-only, so changing what you hold changes
+nothing in state, and a newer packet does not change it either. The progress
+models count their times from when they were read (`received_at`, in
+`time.monotonic()` seconds), so `research.remaining_research_seconds()` or
+`booster.is_active()` stay right between packets.
 
 The attributes behind them (`client.state.local_player`,
 `client.state.castles`, ...) stay readable, but they are live and unlocked.
@@ -58,6 +71,16 @@ every value is as old as the last packet that carried it:
 | Legend and sceat skills | `skl`, `ego` (pushed) | `client.skills.get_skills()` |
 | Your alliance's details and members | `ain`, `acn`, `cal`, `acd`, `ado`, `akm`, `arm`; an `acm` marks its sender online | `client.alliance.get_alliance_info(alliance_id)` |
 | Alliance chat history | `acl`, `acm` (pushed) | none |
+| Research | `rei` (pushed), the `res` and `msr` replies | log in again |
+| Boosters, premium account, production slots | `boi` (pushed), the booster replies (`ovs`, `bds`, ...); a `boi` updates only the boosters it lists | log in again |
+| Festival | `boi`, the `bfs` reply | log in again |
+| Might points | `gmu` (pushed) | log in again |
+| Glory points | `ufa` (pushed) | log in again |
+| Berimond points | `ufp` (pushed; the login data's copy is ignored, as the game ignores it) | none |
+| Top-X ranks, Storm Islands title | `uar` (pushed) | log in again |
+| Achievements | `vli` (pushed); finished ones add up, progress per achievement | log in again |
+| Relocation | `gri` (pushed) | log in again |
+| Plague monks | `cpi` (pushed), the `cpm` and `sbp` replies | log in again |
 | Running events, their scores and ends | `sei`, `tei` (pushed), `see`, `tee`, `pep`, the `fjf` and `bst` replies | `client.events.refresh()` |
 | Movements | `gam`, `abr`/`asr`, your sends' replies | `client.movements.get_movements()` |
 

@@ -16,7 +16,17 @@ from empire_core.commanders.models.skills import SkillList
 from empire_core.events.models import SpecialEvent
 from empire_core.movements.models import MovementOwner
 from empire_core.movements.tracked import Movement
-from empire_core.spy.models import MaxSpiesResponse
+from empire_core.player.models.progress import (
+    AchievementsResponse,
+    BoosterInfoResponse,
+    FactionPointsResponse,
+    GloryPointsResponse,
+    MightPointsResponse,
+    RelocationInfoResponse,
+    ResearchInfoResponse,
+    TitleRanksResponse,
+)
+from empire_core.spy.models import MaxSpiesResponse, PlagueMonkInfoResponse
 from empire_core.state.models import Castle, CastleKey, Player
 
 logger = logging.getLogger(__name__)
@@ -107,6 +117,15 @@ class StateBase:
         # The ain block own_alliance was read from, for the keys a later ain leaves out
         self._own_alliance_raw: dict[str, Any] | None = None
         self.alliance_chat: tuple[ChatMessageData, ...] = ()
+        self.research: ResearchInfoResponse | None = None
+        self.boosts: BoosterInfoResponse | None = None
+        self.might: MightPointsResponse | None = None
+        self.glory_points: GloryPointsResponse | None = None
+        self.faction_points: FactionPointsResponse | None = None
+        self.title_ranks: TitleRanksResponse | None = None
+        self.achievements: AchievementsResponse | None = None
+        self.relocation: RelocationInfoResponse | None = None
+        self.plague_monks: PlagueMonkInfoResponse | None = None
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}

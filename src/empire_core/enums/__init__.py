@@ -12,6 +12,7 @@ from .commanders import EquipmentSlot, EquipmentType, Rareness, SCEItem, WearerT
 from .map import Kingdom, MapItemType, NPCOwner, PeaceModeStatus
 from .messages import MessageType
 from .movements import MovementType
+from .player import TitleSystem
 from .ranking import RankingType
 from .spy import SpyLogResult, SpyLogType, SpyOutcome, SpyStep, SpyType
 
@@ -58,6 +59,8 @@ __all__ = [
     "HelpType",
     # Messages
     "MessageType",
+    # Player
+    "TitleSystem",
     # Ranking
     "RankingType",
     # Inventory

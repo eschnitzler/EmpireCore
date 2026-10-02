@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
+from pydantic import ConfigDict, Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
 from empire_core.enums import Kingdom, SpyType
 from empire_core.map.models import KingdomProtection, MapAreaItem, MapObject, parse_area_rows
@@ -388,10 +388,29 @@ class MaxSpiesResponse(BaseResponse):
     bonus_spies: ClientInt = Field(alias="BS", default=0, description="Bonus spies, not part of the spy count")
 
 
+class PlagueMonkInfoResponse(BaseResponse):
+    """
+    Your plague monks.
+
+    Command: cpi, as a login section of ``gbd``, a push, and inside the ``cpm`` and ``sbp`` replies.
+
+    Client: ``CPICommand`` (bundle line 128524), ``CastleSpyData.parse_CPI`` (bundle line 139967),
+    which skips a falsy section
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    command = "cpi"
+
+    available_plague_monks: ClientInt = Field(alias="APM", default=0, description="Plague monks at home")
+    total_plague_monks: ClientInt = Field(alias="TPM", default=0, description="All your plague monks")
+
+
 __all__ = [
     "AutoSpyRequest",
     "AutoSpyResponse",
     "MaxSpiesResponse",
+    "PlagueMonkInfoResponse",
     "SendSpyRequest",
     "SendSpyResponse",
     "SpyScreenInfoRequest",

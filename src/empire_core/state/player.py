@@ -294,7 +294,7 @@ class PlayerState(StateBase):
         """The spies you own before boosts, from ``gms``; None until the login gbd brings it.
 
         The model is replaced, never edited, on each ``gms``, so the one returned stays as it was.
-        ``client.spy.total_spies()`` adds the boosts.
+        ``client.spy.total_spies()`` adds the boosts, read from state.
         """
         with self._lock:
             return self.max_spies

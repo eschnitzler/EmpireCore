@@ -383,6 +383,16 @@ from empire_core.player.models.info import (
     SearchPlayerRequest,
     SearchPlayerResponse,
 )
+from empire_core.player.models.progress import (
+    AchievementsResponse,
+    BoosterInfoResponse,
+    FactionPointsResponse,
+    GloryPointsResponse,
+    MightPointsResponse,
+    RelocationInfoResponse,
+    ResearchInfoResponse,
+    TitleRanksResponse,
+)
 from empire_core.protocol.auth import (
     CheckUsernameAvailableRequest,
     CheckUsernameAvailableResponse,
@@ -426,6 +436,7 @@ from empire_core.spy.models import (
     AutoSpyRequest,
     AutoSpyResponse,
     MaxSpiesResponse,
+    PlagueMonkInfoResponse,
     SendSpyRequest,
     SendSpyResponse,
     SpyScreenInfoRequest,
@@ -556,6 +567,14 @@ __all__ = [
     "LocationCapture",
     "SearchPlayerRequest",
     "SearchPlayerResponse",
+    "AchievementsResponse",
+    "BoosterInfoResponse",
+    "FactionPointsResponse",
+    "GloryPointsResponse",
+    "MightPointsResponse",
+    "RelocationInfoResponse",
+    "ResearchInfoResponse",
+    "TitleRanksResponse",
     # Attack
     "AttackType",
     "LootPriority",
@@ -596,6 +615,7 @@ __all__ = [
     "AutoSpyRequest",
     "AutoSpyResponse",
     "MaxSpiesResponse",
+    "PlagueMonkInfoResponse",
     "GetPresetsRequest",
     "GetPresetsResponse",
     "AttackPreset",

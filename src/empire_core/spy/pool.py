@@ -10,7 +10,8 @@ from collections.abc import Iterable
 
 from empire_core.combat.bonuses import EffectResolver, legend_skill_value, parse_effect_spec
 from empire_core.gamedata import GameData
-from empire_core.protocol.js import js_int, js_parse_int
+from empire_core.player.titles import island_title_chain
+from empire_core.protocol.js import js_int
 
 # EffectTypeEnum (bundle line 1322): EFFECT_TYPE_SPY_COUNT_BOOST, EFFECT_TYPE_AMOUNT_SPIES_BOOST
 _SPY_COUNT_BOOST = 73
@@ -72,24 +73,6 @@ def legend_spy_bonus(game_data: GameData, legend_skill_ids: Iterable[int]) -> fl
     Client: ``CastleLegendSkillData.getTotalValueOfLegendSkillEffect`` (bundle line 112086)
     """
     return legend_skill_value(game_data, legend_skill_ids, _SPY_AMOUNT_BONUS)
-
-
-def island_title_chain(game_data: GameData, island_title_id: int) -> list[int]:
-    """
-    The island titles you hold with one: it and every title below it, lowest first.
-
-    Args:
-        game_data: Loaded tables
-        island_title_id: Your current Storm Islands title, -1 or an unknown id for none
-
-    Client: ``CastleTitleData.getUsersTitleVectorFromSystem`` for ``ISLAND_TITLE`` (bundle line 21119)
-    """
-    chain: list[int] = []
-    title_id: int | None = island_title_id
-    while title_id is not None and title_id in game_data.titles and title_id not in chain:
-        chain.insert(0, title_id)
-        title_id = js_parse_int(game_data.titles[title_id].get("previousTitleID"))
-    return chain
 
 
 def title_spy_percent(game_data: GameData, title_ids: Iterable[int]) -> float:
