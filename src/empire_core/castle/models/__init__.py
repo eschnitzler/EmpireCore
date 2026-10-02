@@ -82,6 +82,17 @@ from .resources import (
     GetResourcesResponse,
 )
 from .support import SendSupportRequest, SendSupportResponse, SendTroopsRequest, SendTroopsResponse
+from .tax import (
+    TAX_DURATIONS,
+    TAX_RUBY_COSTS,
+    CollectTaxRequest,
+    CollectTaxResponse,
+    GetTaxInfoRequest,
+    StartTaxRequest,
+    StartTaxResponse,
+    TaxInfo,
+    TaxInfoResponse,
+)
 from .transfers import KingdomUnitTransferRequest, KingdomUnitTransferResponse
 from .updates import (
     AreaBooster,
@@ -179,4 +190,13 @@ __all__ = [
     "DamagedBuildings",
     "SlumLevel",
     "UnitsReceived",
+    "TAX_DURATIONS",
+    "TAX_RUBY_COSTS",
+    "CollectTaxRequest",
+    "CollectTaxResponse",
+    "GetTaxInfoRequest",
+    "StartTaxRequest",
+    "StartTaxResponse",
+    "TaxInfo",
+    "TaxInfoResponse",
 ]

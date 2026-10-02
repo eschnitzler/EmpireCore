@@ -77,7 +77,8 @@ _WHOLE_SECTIONS = {
 # BDSCommand, BISCommand, BMSCommand, BRSCommand, OVSCommand, UPSCommand, BTXCommand (bundle lines
 # 122539, 122554, 122599, 122614, 122644, 122659, 125723, 128733), CPMCommand, SBPCommand
 # (bundle lines 128539, 128320). The coins and rubies (gcu) wherever the client parses them too,
-# and sbp's vip; cpm's gcu comes with its movement
+# and sbp's vip; cpm's gcu comes with its movement. The tax replies TXSCommand and TXCCommand
+# (bundle lines 128808, 128748) bring only their gcu to state
 _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("arl", "gla", "sdi", "sti"), ("gli",)),
     "seq": ("gli", "gcu"),
@@ -90,6 +91,7 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("bcs", "bds", "bis", "bms", "brs", "ovs", "ups", "btx"), ("gcu", "boi")),
     "cpm": ("cpi",),
     "sbp": ("gcu", "cpi", "vip"),
+    **dict.fromkeys(("txs", "txc"), ("gcu",)),
 }
 
 # Commands whose state the client applies only from a successful reply: SEICommand, SEECommand,
