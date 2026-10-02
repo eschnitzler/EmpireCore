@@ -92,27 +92,35 @@ and titles:
 total = int((owned + int(research) + int(legend skills)) * (1 + title percent / 100))
 ```
 
-State does not carry your research, legend skills or titles, so pass the ones
-you have. Each one left out counts as none, and passing any of them needs
-`client.load_game_data()`:
+State carries your research (`rei`), legend skills (`skl`) and the points and
+ranks that give your titles (`ufa`, `ufp`, `uar`), so with the game data loaded
+no argument is needed. After login that is always the case, so call
+`client.load_game_data()` first:
 
 ```python
 client.load_game_data()
-skills = client.skills.get_skills()
+free = client.spy.available_spies()                    # boosts from state
+legend = client.spy.total_spies(legend_target=True)    # the target's owner is a legend
+```
 
-free = client.spy.available_spies(
+Pass a boost to count it instead of the state's, or `()` for none:
+
+```python
+total = client.spy.total_spies(
     research_ids=[171, 172, 173],             # finished research, the rei section's BR
-    legend_skill_ids=skills.legend_skill_ids,
+    legend_skill_ids=(),                      # no legend skills
     island_title_id=54,                       # your Storm Islands title, -1 for none
-    legend_target=True,                       # the target's owner is a legend
+    legend_target=True,
 )
 ```
 
 The game adds legend skills for a target whose owner is a legend or that is a
 landmark, for your own legend status, and always in the attack screen's spy
-alert; `legend_target` says when to add them. Pass every glory and nobility
-title you hold, the ones below your current title included. Any Storm Islands
-title also holds every title below it, and the lowest one doubles your spies.
+alert; `legend_target` says when to add them. Titles passed as `title_ids` are
+every glory and Berimond title you hold, the ones below your current title
+included, as `empire_core.player.titles.player_title_ids` works them out. Any
+Storm Islands title also holds every title below it, and the lowest one doubles
+your spies.
 
 The game uses this count to offer the spy button. The spy dialog sends with the
 free spies the `ssi` reply gives, and so does `execute_instant_spy`.

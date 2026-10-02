@@ -146,6 +146,30 @@ class TestSpyService:
         with pytest.raises(GameDataNotLoadedError):
             client.spy.total_spies(research_ids=[171])
 
+    def test_boosts_come_from_state_when_not_passed(self, game_data):
+        client = self.client(gms={"MS": 10}, movements=[spy_movement(1, 4)], game_data=game_data)
+        client.state.update_from_packet(
+            "gbd",
+            {
+                "rei": {"ARID": -1, "ARRT": 0, "BR": ALL_SPY_RESEARCH},
+                "skl": {"SID": [53], "SIDS": [], "SP": 3, "RS": 0, "RC": 0, "SSA": []},
+                "uar": {"FTM": {"CTXT": -1}, "BTM": {"CTXT": -1}, "ITM": {"TID": 50}, "PFX": "", "SFX": ""},
+            },
+        )
+        assert client.spy.total_spies(legend_target=True) == 40
+        assert client.spy.available_spies(legend_target=True) == 36
+        assert client.spy.total_spies() == 34
+        # A passed value wins over state; () counts none
+        assert client.spy.total_spies(research_ids=(), island_title_id=-1) == 10
+        assert client.spy.total_spies(title_ids=[], island_title_id=54) == 34
+
+    def test_state_boosts_need_game_data(self):
+        client = self.client(gms={"MS": 10})
+        client.state.update_from_packet("ufa", {"CF": 0, "HF": 0})
+        with pytest.raises(GameDataNotLoadedError):
+            client.spy.total_spies()
+        assert client.spy.total_spies(title_ids=()) == 10
+
     def test_available_can_go_negative_as_in_the_client(self):
         client = self.client(gms={"MS": 7}, movements=[spy_movement(1, 5), spy_movement(2, 4)])
         assert client.spy.available_spies() == -2

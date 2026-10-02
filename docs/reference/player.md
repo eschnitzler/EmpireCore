@@ -13,3 +13,11 @@ Player profiles and search behind `client.player`.
 ## `player.models.profile`
 
 ::: empire_core.player.models.profile
+
+## `player.models.progress`
+
+::: empire_core.player.models.progress
+
+## `player.titles`
+
+::: empire_core.player.titles
