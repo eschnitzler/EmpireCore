@@ -1,5 +1,5 @@
 ---
-description: Sending an attack with waves you build yourself.
+description: Sending an attack with waves you build yourself, and attack presets.
 ---
 
 # Attack
@@ -63,6 +63,31 @@ for the pre-calculation the game's attack dialog asks for: the target's map
 row, your inventory and commanders, and your effects scoped to this target.
 Pass the target's `area_type` so the right command is asked, as the client
 picks it.
+
+## Presets
+
+The game's attack presets are saved armies, one per slot. `get_presets()`
+lists your unlocked slots; `save_preset` stores a wave in one and
+`rename_preset` names it:
+
+```python
+for preset in client.attack.get_presets():
+    army = preset.army()               # PresetArmy, or None for an empty slot
+    print(preset.index, preset.name, army.to_wave() if army else None)
+
+client.attack.save_preset(0, AttackWave(left=WaveFlank(units=[[487, 100]])))
+client.attack.rename_preset(0, "Farm")
+```
+
+A wave is saved the way the game saves one: its filled slots, without support
+tools. A preset name is at most 15 characters and none of the characters the
+game refuses in names (`SMARTFOX_INVALID_CHARS`); `rename_preset` raises
+`ValueError` for any other, as the game's rename dialog refuses it. Both
+return `True` when the server accepts and `False` when it refuses. The game
+saves only into unlocked slots.
+
+Unlocking a slot is left out: every slot after the first costs rubies, from
+2,200 for the second to 72,000 for the thirtieth.
 
 ## Runnable example
 

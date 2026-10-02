@@ -3,6 +3,7 @@
 Commands:
 - gas: Get attack presets
 - sas: Save an attack preset
+- upan: Rename an attack preset
 """
 
 from __future__ import annotations
@@ -217,6 +218,46 @@ class SavePresetResponse(BaseResponse):
     command = "sas"
 
 
+PRESET_NAME_MAX_LENGTH = 15
+"""The longest preset name the client's rename dialog takes.
+
+Client: ``RenameFightPresetDialog.PRESET_MAX_CHARS`` (bundle line 45597)
+"""
+
+
+class RenamePresetRequest(BaseRequest):
+    """
+    Rename a preset slot.
+
+    Command: upan
+    Payload: {"S": index, "SN": name}
+
+    The client sends the name as typed, unencoded, once its rename dialog has
+    checked it: at most ``PRESET_NAME_MAX_LENGTH`` characters, passing
+    ``TextValide.isSmartFoxValide``.
+
+    Client: ``C2SUpdatePresetNameVO`` (bundle line 141794), sent by
+    ``FightPresetData.savePresetName`` from ``RenameFightPresetDialog.sendCommand``
+    (bundle line 45609)
+    """
+
+    command = "upan"
+
+    index: int = Field(alias="S", description="Preset slot index")
+    name: str = Field(alias="SN", description="The new name")
+
+
+class RenamePresetResponse(BaseResponse):
+    """
+    Acknowledgement of a renamed preset; the client reads nothing from it.
+
+    Command: upan
+    Client: ``UPANCommand.executeCommand`` (bundle line 122114)
+    """
+
+    command = "upan"
+
+
 __all__ = [
     "GetPresetsRequest",
     "GetPresetsResponse",
@@ -224,4 +265,7 @@ __all__ = [
     "PresetArmy",
     "SavePresetRequest",
     "SavePresetResponse",
+    "PRESET_NAME_MAX_LENGTH",
+    "RenamePresetRequest",
+    "RenamePresetResponse",
 ]

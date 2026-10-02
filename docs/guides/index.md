@@ -71,7 +71,7 @@ client.defense      client.ranking     client.events
 
     ---
 
-    Sending an attack with waves you build yourself.
+    Sending an attack with waves you build yourself, and attack presets.
 
 -   :material-auto-fix:{ .lg .middle } **[Filling waves](filling-waves.md)**
 

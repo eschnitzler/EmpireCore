@@ -139,10 +139,13 @@ from empire_core.attack.models.info import (
     GetAttackInfoResponse,
 )
 from empire_core.attack.models.presets import (
+    PRESET_NAME_MAX_LENGTH,
     AttackPreset,
     GetPresetsRequest,
     GetPresetsResponse,
     PresetArmy,
+    RenamePresetRequest,
+    RenamePresetResponse,
     SavePresetRequest,
     SavePresetResponse,
 )
@@ -664,6 +667,9 @@ __all__ = [
     "PresetArmy",
     "SavePresetRequest",
     "SavePresetResponse",
+    "RenamePresetRequest",
+    "RenamePresetResponse",
+    "PRESET_NAME_MAX_LENGTH",
     "MinuteSkipDungeonRequest",
     "MinuteSkipDungeonResponse",
     "SkipDungeonCooldownRequest",

@@ -38,4 +38,23 @@ def decode_json_text(text: str | None) -> str:
     return result.replace("[", " ").replace("]", " ")
 
 
-__all__ = ["decode_json_text", "encode_json_text"]
+SMARTFOX_INVALID_CHARS: tuple[str, ...] = (
+    "%", "&", "*", "/", "(", ")", "[", "]", "{", "}", '"', "'", "\\",
+    "´", "`", "^", "°", "§", "€", "²", "³", ",", ";", "µ", "$",
+)  # fmt: skip
+"""Characters the client refuses in a name it checks.
+
+Client: ``TextValide.invalidChars`` (dll line 5831)
+"""
+
+
+def is_smartfox_valid(text: str) -> bool:
+    """
+    Whether the client accepts ``text`` as a name: not blank, and none of :data:`SMARTFOX_INVALID_CHARS`.
+
+    Client: ``TextValide.isSmartFoxValide`` (dll line 5777)
+    """
+    return bool(text.strip()) and not any(char in text for char in SMARTFOX_INVALID_CHARS)
+
+
+__all__ = ["SMARTFOX_INVALID_CHARS", "decode_json_text", "encode_json_text", "is_smartfox_valid"]
