@@ -18,7 +18,18 @@ castellans = client.commanders.get_castellans()
 ```
 
 Both lists come back from the same request; `client.commanders.get_all()`
-returns the whole reply when you want both at once.
+returns the whole reply when you want both at once. Both are in the game's
+order: commanders by id, castellans by portrait.
+
+The login data already carries the list, and state keeps the last one any
+reply brought (a rename, a general assignment, an attack info reply, ...), so
+reading it costs no request:
+
+```python
+roster = client.state.get_commanders()   # None before the login data
+if roster is not None:
+    print(len(roster.commanders), len(roster.castellans))
+```
 
 ## Rename
 

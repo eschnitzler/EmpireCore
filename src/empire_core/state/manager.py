@@ -3,10 +3,13 @@ The game state, kept current from server packets.
 """
 
 import time
+from collections.abc import Set as AbstractSet
 from typing import Any
 
+from empire_core.state.alliance import AllianceState
 from empire_core.state.base import MovementEventCallback
 from empire_core.state.castles import CastleState
+from empire_core.state.commanders import CommanderState
 from empire_core.state.events import EventCallback, EventsCallback, EventState
 from empire_core.state.movements import MOVEMENT_PARSE_WARN_INTERVAL, MovementState
 from empire_core.state.player import PlayerState
@@ -29,6 +32,10 @@ _TRACKED_SECTIONS = (
     "sei",
     "gpc",
     "gms",
+    "gli",
+    "skl",
+    "ain",
+    "acl",
 )
 
 _PLAYER_SECTIONS = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce"})
@@ -36,8 +43,33 @@ _PLAYER_SECTIONS = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "
 # Pushes whose payload is the body of the gbd section of the same name.
 _SECTION_PUSHES = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc", "gms"})
 
+# Replies and pushes whose payload is the body of a gbd section, applied only on success:
+# GLICommand, SKLCommand, AINCommand, ACNCommand, CALCommand, ACLCommand (bundle lines 123977,
+# 129742, 121462, 121332, 121668, 121302)
+_WHOLE_SECTIONS = {"gli": "gli", "skl": "skl", "ain": "ain", "acn": "ain", "cal": "ain", "acl": "acl"}
 
-class GameState(MovementState, CastleState, PlayerState, EventState):
+# Replies that carry a gbd section under its own key, applied only on success: ARLCommand,
+# GLACommand, SEQCommand, SDICommand, STICommand (bundle lines 123658, 124219, 124024, 122353,
+# 129100), the attack and conquer info replies through CastleAttackInfoVO.fillFromParamObject
+# (bundle line 30633; CastleAttackData, bundle lines 133821-133845), EGOCommand (bundle line
+# 122801), ACDCommand, ADOCommand, AKMCommand, ARMCommand (bundle lines 121282, 121347, 121514, 121590)
+_NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
+    **dict.fromkeys(("arl", "gla", "seq", "sdi", "sti"), ("gli",)),
+    **dict.fromkeys(("aci", "abi", "acc", "adi", "aii", "ali", "avi", "cci", "coi", "cti", "gti", "cfi"), ("gli",)),
+    "ego": ("skl",),
+    **dict.fromkeys(("acd", "ado", "akm", "arm"), ("ain",)),
+}
+
+# Commands whose state the client applies only from a successful reply: SEICommand, SEECommand,
+# TEICommand, TEECommand, PEPCommand, FJFCommand, BSTCommand (bundle lines 128379, 128364,
+# 128409, 128394, 128214, 127782, 127608), ACMCommand, AQICommand (bundle lines 121317, 121557)
+# and the section replies above
+_SUCCESS_ONLY = frozenset(
+    {"sei", "see", "tei", "tee", "pep", "fjf", "bst", "acm", "aqi", *_WHOLE_SECTIONS, *_NESTED_SECTIONS}
+)
+
+
+class GameState(MovementState, CastleState, PlayerState, EventState, CommanderState, AllianceState):
     """
     Manages game state parsed from server packets.
 
@@ -47,7 +79,8 @@ class GameState(MovementState, CastleState, PlayerState, EventState):
     The public attributes stay readable directly, but callers that read
     several fields at once (or iterate a container) should use the snapshot
     accessors — ``get_local_player()``, ``get_special_currencies()``, ``get_castles()``,
-    ``get_all_movements()``, ``get_events()`` — which copy under the lock. Mutation paths swap
+    ``get_all_movements()``, ``get_events()``, ``get_alliance_chat()``, ``get_commanders()``,
+    ``get_skills()``, ``get_own_alliance()`` — which copy under the lock. Mutation paths swap
     containers instead of editing them in place, so an unlocked reader that
     already holds one never sees it change underneath.
 
@@ -74,6 +107,12 @@ class GameState(MovementState, CastleState, PlayerState, EventState):
     honor, beginner protection           ``gho``/``uap``              re-login
     special currencies                   ``sce`` (pushed)             --
     spies owned, before boosts           ``gms`` (pushed)             re-login
+    commanders and castellans            ``gli``, the replies that    ``client.commanders.get_all()``
+                                         carry one (``arl``, ...)
+    legend and sceat skills              ``skl``, ``ego``             ``client.skills.get_skills()``
+    your alliance's details, members     ``ain``, ``acn``, ``akm``,   ``client.alliance.get_alliance_info(id)``
+                                         ..., ``acm`` (online)
+    alliance chat history                ``acl``, ``acm`` (pushed)    --
     running events, scores, ends         ``sei``/``tei`` (pushed),    ``client.events.refresh()``
                                          ``see``/``tee``, ``pep``,
                                          ``fjf``, ``bst``
@@ -130,38 +169,72 @@ class GameState(MovementState, CastleState, PlayerState, EventState):
         "tee": "_handle_tee",
         "pep": "_handle_pep",
         "bst": "_handle_bst",
+        "acm": "_handle_acm",
+        "aqi": "_handle_aqi",
     }
 
-    def update_from_packet(self, cmd_id: str, payload: dict[str, Any]) -> None:
+    def update_from_packet(self, cmd_id: str, payload: dict[str, Any], error_code: int = 0) -> None:
         """Central update router — parses packet and updates state.
+
+        ``error_code`` is the packet's status; a command the client reads only
+        from a successful reply is skipped, unstamped, when it is not 0.
 
         Every packet, handled or not, also advances movements, so arrivals
         fire with the server's traffic rather than only on movement packets.
         """
         handler_name = self._DISPATCH.get(cmd_id)
+        ok = error_code == 0
         with self._lock:
-            if cmd_id in _SECTION_PUSHES:
+            if not ok and cmd_id in _SUCCESS_ONLY:
+                pass
+            elif cmd_id in _SECTION_PUSHES:
                 # An unreadable frame arrives as {"raw": ...}; the client applies a push only on success
                 if isinstance(payload, dict) and "raw" not in payload:
                     self._packet_times[cmd_id] = time.time()
                     self._handle_gbd({cmd_id: payload})
+            elif cmd_id in _WHOLE_SECTIONS:
+                # Stamped only when applied: not for an unreadable frame, a block that does not
+                # validate, or another alliance's ain
+                if isinstance(payload, dict) and "raw" not in payload:
+                    section = _WHOLE_SECTIONS[cmd_id]
+                    if cmd_id == "acl":
+                        if self._parse_chat_history({"acl": payload}, replace=True):
+                            self._packet_times["acl"] = time.time()
+                    elif section not in self._handle_gbd({section: payload}):
+                        self._packet_times[cmd_id] = time.time()
             elif handler_name:
                 self._packet_times[cmd_id] = time.time()
                 getattr(self, handler_name)(payload)
+            if ok and cmd_id in _NESTED_SECTIONS and isinstance(payload, dict):
+                if sections := {key: payload[key] for key in _NESTED_SECTIONS[cmd_id] if key in payload}:
+                    self._handle_gbd(sections)
             self._advance_movements()
             self._expire_events()
 
-    def _handle_gbd(self, data: dict[str, Any]) -> None:
+    def _handle_gbd(self, data: dict[str, Any]) -> set[str]:
         """Apply the login data, or the one section a push wraps in the same shape.
+
+        Returns the sections present but not applied, which are not stamped.
 
         Client: ``GBDCommand.exec``; the pushes are ``GPICommand``, ``GXPCommand``,
         ``GCUCommand``, ``VIPCommand``, ``GALCommand``, ``GCLCommand``,
         ``GHOCommand``, ``UAPCommand``, ``GPCCommand`` and ``GMSCommand`` (bundle line 120555);
-        ``GBDCommand.exec`` (bundle line 129381) applies ``tei`` before ``sei``.
+        ``GBDCommand.exec`` (bundle line 129381) applies ``gal`` before ``ain`` and ``tei`` before ``sei``.
         """
         self._parse_player_sections(data)
         self._parse_special_currencies(data)
         self._parse_alliance_info(data)
+        self._apply_gal_reset(data)
+        skipped = {
+            section
+            for section, applied in (
+                ("ain", self._parse_own_alliance(data)),
+                ("acl", self._parse_chat_history(data)),
+                ("gli", self._parse_commanders(data)),
+                ("skl", self._parse_skills(data)),
+            )
+            if not applied
+        }
         self._parse_castles(data)
         self._parse_permanent_castles(data)
         self._parse_max_spies(data)
@@ -171,7 +244,8 @@ class GameState(MovementState, CastleState, PlayerState, EventState):
             self._handle_tei(data["tei"])
         if "sei" in data:
             self._handle_sei(data["sei"])
-        self._stamp_sections(data)
+        self._stamp_sections(data, skipped)
+        return skipped
 
     def _handle_attack_sent(self, data: dict[str, Any]) -> None:
         """Handle the reply to an attack you send: the new movement under ``AAM``.
@@ -250,7 +324,7 @@ class GameState(MovementState, CastleState, PlayerState, EventState):
                 self._handle_gbd({"gcu": gcu})
             self._apply_sei(data)
 
-    def _stamp_sections(self, data: dict[str, Any]) -> None:
+    def _stamp_sections(self, data: dict[str, Any], skipped: AbstractSet[str] = frozenset()) -> None:
         """Record when each section of a gbd payload, or a section push, was applied.
 
         A section present but null still counts as applied: "gal": None means
@@ -260,7 +334,7 @@ class GameState(MovementState, CastleState, PlayerState, EventState):
         """
         now = time.time()
         for section in _TRACKED_SECTIONS:
-            if section in data:
+            if section in data and section not in skipped:
                 self._packet_times[section] = now
                 if section in _PLAYER_SECTIONS and self.local_player is not None:
                     self._player_updated_at = now
@@ -271,13 +345,16 @@ class GameState(MovementState, CastleState, PlayerState, EventState):
         Accepts the wire ids this manager tracks — "gbd", "gam", "dcl",
         "abr", "asr", the send replies ("cra", "cam", "abgcam", "cds", "csm",
         "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm",
-        "mfc", "glu", "mir", "fjf", "bst", "sce", "see", "tee", "pep" — and the login sections
-        "gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc", "gms", "sei" and
-        "tei", stamped whether they came inside a gbd or as a push of their own ("sei"
-        also when a fjf or bst reply carries one), plus "gac", which only comes inside
-        a gbd. A send reply
-        is stamped even when the server refused the send. ``None`` means none
-        was ever seen; packets this manager ignores are never recorded.
+        "mfc", "glu", "mir", "fjf", "bst", "sce", "see", "tee", "pep", "acm", "aqi", "acn", "cal" —
+        and the login sections "gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc",
+        "gms", "sei", "tei", "gli", "skl", "ain" and "acl", stamped whether they came inside a gbd,
+        as a push of their own or inside a reply that carries one ("sei" from a fjf or bst,
+        "gli" from an arl, "ain" from an akm, ...), plus "gac", which only comes inside a gbd.
+        A send reply is stamped even when the server refused the send; the commands the
+        client reads only from a successful reply (the event ones, the login section ones,
+        "acm" and "aqi") are not, nor is a login section that was not applied: unreadable, not
+        valid, or another alliance's "ain". ``None`` means none was ever seen; packets this
+        manager ignores are never recorded.
         """
         with self._lock:
             return self._packet_times.get(cmd_id)

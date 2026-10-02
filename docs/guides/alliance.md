@@ -15,6 +15,14 @@ for entry in client.alliance.get_chat_log():
     print(f"{entry.player_name}: {entry.decoded_text}")
 ```
 
+State keeps the chat history from the login data on, with every message the
+server sends after it, oldest first, so reading it costs no request:
+
+```python
+for entry in client.state.get_alliance_chat():
+    print(entry.sent_at, entry.player_name, entry.decoded_text)
+```
+
 Subscribe to new messages with a typed callback, and detach it again with
 `remove_chat_message_callback`:
 
@@ -74,6 +82,10 @@ for result in client.alliance.search_alliances("HOPE"):
 `get_members(alliance_id)` and `get_online_members(alliance_id)` do the same
 for any alliance, and `client.alliance.local_alliance_id` is your own alliance's
 id, or `None` outside one.
+
+`client.state.get_own_alliance()` is your alliance's details as the login data
+and the replies since left them (a chat message marks its sender online), or
+`None` outside one, without a request.
 
 ## Applications, ranks and the treasury
 

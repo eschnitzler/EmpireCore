@@ -26,6 +26,14 @@ The thread-safe game state that server pushes keep current.
 
 ::: empire_core.state.events
 
+## `state.commanders`
+
+::: empire_core.state.commanders
+
+## `state.alliance`
+
+::: empire_core.state.alliance
+
 ## `state.models`
 
 ::: empire_core.state.models
