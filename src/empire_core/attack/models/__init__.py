@@ -8,10 +8,13 @@ from .dungeon_skips import (
 )
 from .info import AttackInfoResponse, AttackTargetArea, GetAttackInfoRequest, GetAttackInfoResponse
 from .presets import (
+    PRESET_NAME_MAX_LENGTH,
     AttackPreset,
     GetPresetsRequest,
     GetPresetsResponse,
     PresetArmy,
+    RenamePresetRequest,
+    RenamePresetResponse,
     SavePresetRequest,
     SavePresetResponse,
 )
@@ -50,6 +53,9 @@ __all__ = [
     "PresetArmy",
     "SavePresetRequest",
     "SavePresetResponse",
+    "RenamePresetRequest",
+    "RenamePresetResponse",
+    "PRESET_NAME_MAX_LENGTH",
     "CreateAttackRequest",
     "CreateAttackResponse",
     "GetDungeonAttackInfoRequest",

@@ -3,6 +3,7 @@
 from empire_core.enums import AttackType, AutoSkipCooldownType, LootPriority
 
 from .models import (
+    PRESET_NAME_MAX_LENGTH,
     AttackInfoResponse,
     AttackPreset,
     AttackTargetArea,
@@ -31,6 +32,8 @@ from .models import (
     MinuteSkipDungeonRequest,
     MinuteSkipDungeonResponse,
     PresetArmy,
+    RenamePresetRequest,
+    RenamePresetResponse,
     SavePresetRequest,
     SavePresetResponse,
     SkipDungeonCooldownRequest,
@@ -52,6 +55,9 @@ __all__ = [
     "PresetArmy",
     "SavePresetRequest",
     "SavePresetResponse",
+    "RenamePresetRequest",
+    "RenamePresetResponse",
+    "PRESET_NAME_MAX_LENGTH",
     "CreateAttackRequest",
     "CreateAttackResponse",
     "GetDungeonAttackInfoRequest",

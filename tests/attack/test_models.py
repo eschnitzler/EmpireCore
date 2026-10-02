@@ -19,6 +19,8 @@ from empire_core.protocol.models import (
     MinuteSkipDungeonRequest,
     MinuteSkipDungeonResponse,
     PresetArmy,
+    RenamePresetRequest,
+    RenamePresetResponse,
     SavePresetRequest,
     SendSpyRequest,
     SkipDungeonCooldownRequest,
@@ -123,6 +125,14 @@ class TestAttackPresets:
         army = AttackPreset.model_validate({"S": 0, "A": SIX_ARRAYS}).army()
         assert army is not None
         assert SavePresetRequest.create(0, army).to_payload()["A"] == SIX_ARRAYS
+
+    def test_upan_keys_follow_the_vo(self):
+        # C2SUpdatePresetNameVO initialises S, then sets SN as typed
+        request = RenamePresetRequest(S=2, SN="Farm 'n' go")
+        assert list(request.to_payload().items()) == [("S", 2), ("SN", "Farm 'n' go")]
+
+    def test_upan_reply_is_registered(self):
+        assert isinstance(parse_response("upan", {}), RenamePresetResponse)
 
 
 class TestAttackRequestShapes:

@@ -33,7 +33,7 @@
 |---|---|
 | [`client.castle`](https://eschnitzler.github.io/EmpireCore/guides/castle/) | Castles, buildings, resources, horses, tax, sending goods and troops |
 | [`client.army`](https://eschnitzler.github.io/EmpireCore/guides/army/) | Units, recruitment and the hospital |
-| [`client.attack`](https://eschnitzler.github.io/EmpireCore/guides/attack/) | Sending attacks, and [filling waves](https://eschnitzler.github.io/EmpireCore/guides/filling-waves/) like the game does |
+| [`client.attack`](https://eschnitzler.github.io/EmpireCore/guides/attack/) | Sending attacks, attack presets, and [filling waves](https://eschnitzler.github.io/EmpireCore/guides/filling-waves/) like the game does |
 | [`client.commanders`](https://eschnitzler.github.io/EmpireCore/guides/commanders/) | Commanders and castellans |
 | [`client.skills`](https://eschnitzler.github.io/EmpireCore/guides/skills/) | Generals, abilities and skill trees |
 | [`client.equipment`](https://eschnitzler.github.io/EmpireCore/guides/equipment/) | The equipment inventory |

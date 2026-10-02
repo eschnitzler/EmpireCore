@@ -1,5 +1,6 @@
 """
-Sending attacks, and filling their waves the way the game's "Fill waves" button does.
+Sending attacks, filling their waves the way the game's "Fill waves" button
+does, and the saved attack presets.
 """
 
 from __future__ import annotations
@@ -11,6 +12,15 @@ from dataclasses import dataclass
 from empire_core.army.models.units import AttackWave
 from empire_core.army.spy_army import SpyArmy
 from empire_core.attack.models.info import AttackInfoResponse, GetAttackInfoRequest, GetAttackInfoResponse
+from empire_core.attack.models.presets import (
+    PRESET_NAME_MAX_LENGTH,
+    AttackPreset,
+    GetPresetsRequest,
+    GetPresetsResponse,
+    PresetArmy,
+    RenamePresetRequest,
+    SavePresetRequest,
+)
 from empire_core.attack.models.send import CreateAttackRequest
 from empire_core.attack.models.target_info import (
     GetBossDungeonAttackInfoRequest,
@@ -75,6 +85,7 @@ from empire_core.map.models.areas import GetMapAreaResponse, MapObject
 from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.base import BaseRequest
 from empire_core.protocol.errors import GGEError
+from empire_core.protocol.text import SMARTFOX_INVALID_CHARS, is_smartfox_valid
 from empire_core.services.base import BaseService
 
 logger = logging.getLogger(__name__)
@@ -445,6 +456,76 @@ class AttackService(BaseService):
         if "source_x" in request_type.model_fields:
             keys.update(SX=source_x, SY=source_y)
         return self.request(request_type(**keys), response_type, timeout=timeout)
+
+    # =========================================================================
+    # Presets
+    # =========================================================================
+
+    def get_presets(self, timeout: float = 5.0) -> list[AttackPreset]:
+        """
+        Get your unlocked attack preset slots.
+
+        Example:
+            for preset in client.attack.get_presets():
+                army = preset.army()
+                print(preset.index, preset.name, army.to_wave() if army else None)
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``C2SGetPreDefinedAttackSetupVO`` (bundle line 141803), sent by
+        ``FightPresetData.loadDataFromServer`` (bundle line 141779)
+        """
+        return self.request(GetPresetsRequest(), GetPresetsResponse, timeout=timeout).presets
+
+    def save_preset(self, index: int, army: PresetArmy | AttackWave, timeout: float = 5.0) -> bool:
+        """
+        Save an army into an unlocked preset slot.
+
+        A wave is saved as the client saves one: its filled slots, without
+        support tools.
+
+        Args:
+            index: The preset slot, an ``AttackPreset.index`` from :meth:`get_presets`
+            army: The army, a ``PresetArmy`` or a wave
+            timeout: Timeout in seconds
+
+        Returns:
+            True when the server accepted it, False when it refused it.
+
+        Client: ``C2SUpdatePreDefinedAttackSetupVO`` (bundle line 141820), sent by
+        ``FightPresetData.savePresetArmy`` (bundle line 141780) from
+        ``AttackDialogPresets.handleSavePresetRequested`` (bundle line 101661), which
+        saves only an unlocked slot
+        """
+        preset = army if isinstance(army, PresetArmy) else PresetArmy.from_wave(army)
+        return self.execute(SavePresetRequest.create(index, preset), timeout=timeout)
+
+    def rename_preset(self, index: int, name: str, timeout: float = 5.0) -> bool:
+        """
+        Rename a preset slot.
+
+        Args:
+            index: The preset slot, an ``AttackPreset.index`` from :meth:`get_presets`
+            name: The new name, at most 15 characters, none of ``SMARTFOX_INVALID_CHARS``
+            timeout: Timeout in seconds
+
+        Returns:
+            True when the server accepted it, False when it refused it.
+
+        Raises:
+            ValueError: The client's rename dialog would refuse the name
+
+        Client: ``C2SUpdatePresetNameVO`` (bundle line 141794), sent by
+        ``RenameFightPresetDialog.sendCommand`` (bundle line 45609) after its
+        ``validate`` (bundle line 45606) and its 15-character limit (bundle line 45597)
+        """
+        if len(name) > PRESET_NAME_MAX_LENGTH or not is_smartfox_valid(name):
+            raise ValueError(
+                f"Preset names are 1 to {PRESET_NAME_MAX_LENGTH} characters without any of "
+                f"{''.join(SMARTFOX_INVALID_CHARS)}, got {name!r}"
+            )
+        return self.execute(RenamePresetRequest(S=index, SN=name), timeout=timeout)
 
     def fill_waves(
         self,
