@@ -8,6 +8,7 @@ It covers:
 - Diplomacy, auto war, the newsletter and treasury donations
 - Alliance chat (send messages, get history)
 - Alliance help (the help list and its pushes, helping, asking for help)
+- Your alliance's action list and subscriber count
 """
 
 from __future__ import annotations
@@ -18,6 +19,13 @@ from collections.abc import Callable
 
 from pydantic import ValidationError
 
+from empire_core.alliance.models.actions import (
+    AllianceActionListItem,
+    AllianceActionListRequest,
+    AllianceActionListResponse,
+    AllianceSubscriberCountRequest,
+    AllianceSubscriberCountResponse,
+)
 from empire_core.alliance.models.chat import (
     AllianceChatLogRequest,
     AllianceChatLogResponse,
@@ -515,6 +523,25 @@ class AllianceService(BaseService):
         if alliance_id is None:
             return []
         return self.get_online_members(alliance_id, timeout=timeout)
+
+    def get_action_list(self, timeout: float = 5.0) -> list[AllianceActionListItem]:
+        """
+        Get your alliance's action list, newest first.
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        return self.request(AllianceActionListRequest(), AllianceActionListResponse, timeout=timeout).actions
+
+    def get_subscriber_count(self, timeout: float = 5.0) -> int:
+        """
+        Get how many of your alliance's members have a subscription.
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        response = self.request(AllianceSubscriberCountRequest(), AllianceSubscriberCountResponse, timeout=timeout)
+        return response.subscriber_count
 
     # =========================================================================
     # Chat Operations

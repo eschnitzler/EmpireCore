@@ -7,6 +7,13 @@ packages (``empire_core.map.models``, ``empire_core.attack.models``, ...);
 library code imports them from there, never from here.
 """
 
+from empire_core.alliance.models.actions import (
+    AllianceActionListItem,
+    AllianceActionListRequest,
+    AllianceActionListResponse,
+    AllianceSubscriberCountRequest,
+    AllianceSubscriberCountResponse,
+)
 from empire_core.alliance.models.chat import (
     AllianceChatLogRequest,
     AllianceChatLogResponse,
@@ -770,6 +777,11 @@ __all__ = [
     "AnswerApplicationResponse",
     "QuitAllianceRequest",
     "QuitAllianceResponse",
+    "AllianceActionListRequest",
+    "AllianceActionListItem",
+    "AllianceActionListResponse",
+    "AllianceSubscriberCountRequest",
+    "AllianceSubscriberCountResponse",
     "AllianceCrests",
     "CrestLayout",
     "PeaceOffer",

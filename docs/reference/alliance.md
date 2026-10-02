@@ -6,6 +6,10 @@ Alliance info, members, chat and help behind `client.alliance`.
 
 ::: empire_core.alliance.service
 
+## `alliance.models.actions`
+
+::: empire_core.alliance.models.actions
+
 ## `alliance.models.chat`
 
 ::: empire_core.alliance.models.chat

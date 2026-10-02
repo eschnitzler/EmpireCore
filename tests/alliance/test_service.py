@@ -206,6 +206,21 @@ class TestAllianceLocalHelpers:
         assert client.alliance.get_local_online_members() == []
         assert conn(client).requested == []
 
+    def test_action_list(self):
+        reply = {"AID": 301, "AL": [{"PID": 1, "PN": "First", "MA": 90, "A": 0, "AV": []}, {"PID": 2, "PN": "Last"}]}
+        client = make_client({"all": xt_packet("all", reply)})
+
+        actions = client.alliance.get_action_list()
+
+        assert conn(client).request_payloads == [("all", {})]
+        assert [a.player_name for a in actions] == ["Last", "First"]
+
+    def test_subscriber_count(self):
+        client = make_client({"asc": xt_packet("asc", {"ASC": 12})})
+
+        assert client.alliance.get_subscriber_count() == 12
+        assert conn(client).request_payloads == [("asc", {})]
+
 
 class TestAllianceSearch:
     GOLDEN_HGH: dict[str, Any] = {"L": [[1, 4213377, [301, "Test Alliance", 47, 1520300]]]}
