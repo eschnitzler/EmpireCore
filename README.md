@@ -41,7 +41,7 @@
 | [`client.map`](https://eschnitzler.github.io/EmpireCore/guides/map-scanning/) | Kingdom scans and map lookups |
 | [`client.movements`](https://eschnitzler.github.io/EmpireCore/guides/movements/) | Army movements, recalls and incoming attacks |
 | [`client.alliance`](https://eschnitzler.github.io/EmpireCore/guides/alliance/) | Chat, help requests, members and the treasury |
-| [`client.messages`](https://eschnitzler.github.io/EmpireCore/guides/messages/) | The mailbox |
+| [`client.messages`](https://eschnitzler.github.io/EmpireCore/guides/messages/) | The mailbox, mail and battle reports |
 | [`client.player`, `defense`, `ranking`, `events`](https://eschnitzler.github.io/EmpireCore/guides/) | Players, castle defense, highscores and events |
 
 ## Install

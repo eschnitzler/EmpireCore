@@ -6,6 +6,7 @@ import pytest
 
 from empire_core.exceptions import CommandError, MessageUnavailableError
 from empire_core.messages.models import DeleteMessagesResponse
+from tests.messages.battle_log_payloads import BLD, BLM, BLS, LOG_ID, MAILBOX_ROW, MESSAGE_ID
 from tests.service_helpers import conn, make_client, request_payload, xt_packet
 
 ROW = [501, 1, "Hello", "Sender", 4242, 30, 0, 0, 0]
@@ -187,3 +188,80 @@ class TestReviewFollowUps:
         client._on_packet(xt_packet("sne", {"MSG": [[501, 1, "Hi", "S", 1, "soon", 0, 0, 0]]}))
         (message,) = client.messages.mailbox
         assert message.seconds_since_sent is None
+
+
+class TestBattleReports:
+    def test_short_only(self):
+        client = make_client({"bls": xt_packet("bls", BLS)})
+
+        report = client.messages.get_battle_report(MESSAGE_ID)
+
+        assert conn(client).request_payloads == [("bls", {"MID": MESSAGE_ID, "IM": 0})]
+        assert report.short.log_id == LOG_ID
+        assert (report.middle, report.detail) == (None, None)
+
+    def test_middle_is_asked_for_by_the_log_id(self):
+        client = make_client({"bls": xt_packet("bls", BLS), "blm": xt_packet("blm", BLM)})
+
+        report = client.messages.get_battle_report(MESSAGE_ID, detail="middle")
+
+        assert conn(client).request_payloads == [("bls", {"MID": MESSAGE_ID, "IM": 0}), ("blm", {"LID": LOG_ID})]
+        assert report.middle is not None and len(report.middle.waves) == 1
+        assert report.detail is None
+
+    def test_full_asks_for_each_log_with_im_0(self):
+        # The client only ever sends IM 0 (CastleMessageData.getBattleLogShort), then blm and bld by LID
+        script = {"bls": xt_packet("bls", BLS), "blm": xt_packet("blm", BLM), "bld": xt_packet("bld", BLD)}
+        client = make_client(script)
+
+        report = client.messages.get_battle_report(MESSAGE_ID, detail="full")
+
+        assert conn(client).request_payloads == [
+            ("bls", {"MID": MESSAGE_ID, "IM": 0}),
+            ("blm", {"LID": LOG_ID}),
+            ("bld", {"LID": LOG_ID}),
+        ]
+        assert report.middle is not None and report.middle.log_id == LOG_ID
+        assert report.detail is not None and len(report.detail.waves) == 1
+
+    @pytest.mark.parametrize("code", [66, 225])
+    def test_a_missing_or_old_log_is_unavailable(self, code):
+        client = make_client({"bls": xt_packet("bls", error_code=code)})
+        with pytest.raises(MessageUnavailableError) as raised:
+            client.messages.get_battle_report(MESSAGE_ID, detail="full")
+        assert raised.value.code == code
+
+    def test_a_middle_log_error_stays_a_command_error(self):
+        client = make_client({"bls": xt_packet("bls", BLS), "blm": xt_packet("blm", error_code=66)})
+        with pytest.raises(CommandError) as raised:
+            client.messages.get_battle_report(MESSAGE_ID, detail="middle")
+        assert not isinstance(raised.value, MessageUnavailableError)
+
+    def test_an_unknown_detail_is_refused(self):
+        client = make_client()
+        with pytest.raises(ValueError):
+            client.messages.get_battle_report(MESSAGE_ID, detail="everything")  # type: ignore[arg-type]
+        assert conn(client).request_payloads == []
+
+    def test_battle_logs_are_found_in_the_mailbox(self):
+        client = make_client()
+        client._on_packet(xt_packet("sne", {"MSG": [ROW, MAILBOX_ROW]}))
+        assert [m.message_id for m in client.messages.mailbox if m.is_battle_log] == [MESSAGE_ID]
+
+    def test_forward(self):
+        client = make_client({"mfb": xt_packet("mfb")})
+
+        client.messages.forward_battle_report(MESSAGE_ID, [7, 8])
+
+        assert conn(client).request_payloads == [("mfb", {"MID": MESSAGE_ID, "PID": [7, 8]})]
+
+    def test_a_refused_forward_raises(self):
+        client = make_client({"mfb": xt_packet("mfb", error_code=21)})
+        with pytest.raises(CommandError):
+            client.messages.forward_battle_report(MESSAGE_ID, [7])
+
+    def test_a_forward_needs_a_recipient(self):
+        client = make_client()
+        with pytest.raises(ValueError):
+            client.messages.forward_battle_report(MESSAGE_ID, [])
+        assert conn(client).sent == []

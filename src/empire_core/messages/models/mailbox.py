@@ -19,7 +19,7 @@ from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model
 
 from empire_core.army.models.units import SpyPositions
 from empire_core.commanders.models.roster import Castellan
-from empire_core.enums import Kingdom, LogResult, MapItemType, MessageType, SpyLogType
+from empire_core.enums import BattleLogAttackType, Kingdom, LogResult, MapItemType, MessageType, SpyLogType
 from empire_core.map.models import MapObject
 from empire_core.protocol.base import (
     BasePayload,
@@ -190,6 +190,15 @@ class MessageInfo(BasePayload):
         """This message's spy log header, or None when it is no readable spy log."""
         return SpyLogHeader.from_message(self)
 
+    @property
+    def is_battle_log(self) -> bool:
+        """A battle log: a battle report, read with ``client.messages.get_battle_report``."""
+        return self.message_type == MessageType.BATTLE_LOG
+
+    def battle_log_header(self) -> BattleLogHeader | None:
+        """This message's battle log header, or None when it is no readable battle log."""
+        return BattleLogHeader.from_message(self)
+
 
 @dataclass(frozen=True)
 class SpyLogHeader:
@@ -278,6 +287,62 @@ class SpyLogHeader:
         ``MessageSpyNpcVO.hasDetailedSpyLog`` (bundle line 137642)
         """
         return self.log_type == SpyLogType.DEFENCE and self.result == LogResult.ATTACKER_SUCCESS
+
+
+@dataclass(frozen=True)
+class BattleLogHeader:
+    """
+    What a battle log's header says.
+
+    The header is ``areaType+subtypeAttack+subtypeResult[+tMapID[+tMapAreaType]]``,
+    then ``#kingdomID+ownerID[+areaName]``.
+
+    A number the header lacks, or that ``parseInt`` cannot read, is None; the
+    two treasure map numbers are -1 when the header has none, as the client
+    keeps them. An attack type or result the client defines no constant for is None.
+
+    It is read from the header as :func:`repair_header` decodes it.
+
+    Client: ``CastleMessageFactory.parseMessage`` (bundle line 135117),
+    ``MessageBattleLogVO.parseMessageHeader`` (bundle lines 135579-135580),
+    ``MessageConst.SUBTYPE_META_DATA_SPLITTER`` (dll line 19516)
+    """
+
+    area_type: int | None
+    attack_type: BattleLogAttackType | None
+    result: LogResult | None
+    treasure_map_id: int | None = -1
+    treasure_map_area_type: int | None = -1
+    kingdom_id: int | None = None
+    owner_id: int | None = None
+    area_name: str = ""
+
+    @classmethod
+    def from_message(cls, message: MessageInfo) -> BattleLogHeader | None:
+        """
+        The header of a battle log, or None when the message is no battle log or its header has no ``#`` part.
+
+        ``MessageBattleLogVO`` throws on a header without the part after ``#``.
+        """
+        if not message.is_battle_log:
+            return None
+        head, sep, meta = message.decoded_header.partition("#")
+        if not sep:
+            return None
+        subtypes = head.split("+")
+        area = meta.split("#")[0].split("+")
+        raw_attack = js_parse_int(subtypes[1]) if len(subtypes) > 1 else None
+        raw_result = js_parse_int(subtypes[2]) if len(subtypes) > 2 else None
+        return cls(
+            area_type=js_parse_int(subtypes[0]),
+            attack_type=None if raw_attack is None else enum_or_none(BattleLogAttackType, raw_attack),
+            result=None if raw_result is None else enum_or_none(LogResult, raw_result),
+            treasure_map_id=js_parse_int(subtypes[3]) if len(subtypes) > 3 else -1,
+            treasure_map_area_type=js_parse_int(subtypes[4]) if len(subtypes) > 4 else -1,
+            kingdom_id=js_parse_int(area[0]),
+            owner_id=js_parse_int(area[1]) if len(area) > 1 else None,
+            area_name=area[2] if len(area) > 2 else "",
+        )
 
 
 class SystemNotificationEvent(BaseResponse):
@@ -768,6 +833,7 @@ __all__ = [
     "MessageInfo",
     "SPY_VALIDITY",
     "SpyLogHeader",
+    "BattleLogHeader",
     "SpyReportArea",
     "SpyReportResponse",
     "SystemNotificationEvent",

@@ -1,6 +1,6 @@
 # Messages
 
-The mailbox and its reports behind `client.messages`.
+The mailbox, its reports and battle reports behind `client.messages`.
 
 ## `messages.service`
 
@@ -9,3 +9,7 @@ The mailbox and its reports behind `client.messages`.
 ## `messages.models.mailbox`
 
 ::: empire_core.messages.models.mailbox
+
+## `messages.models.battle_logs`
+
+::: empire_core.messages.models.battle_logs

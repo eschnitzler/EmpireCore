@@ -1,5 +1,5 @@
 """
-The mailbox and mail.
+The mailbox, mail and battle reports.
 """
 
 from __future__ import annotations
@@ -8,6 +8,7 @@ import logging
 import re
 import threading
 from collections.abc import Callable
+from typing import Literal
 
 from empire_core.exceptions import CommandError, MessageUnavailableError
 from empire_core.messages.models import (
@@ -16,9 +17,17 @@ from empire_core.messages.models import (
     MIN_TEXT_LENGTH,
     ArchiveMessageRequest,
     ArchiveMessageResponse,
+    BattleLogDetailResponse,
+    BattleLogMiddleResponse,
+    BattleLogShortResponse,
+    BattleReport,
     DeleteMessageRequest,
     DeleteMessagesRequest,
     DeleteMessagesResponse,
+    ForwardBattleLogRequest,
+    GetBattleLogDetailRequest,
+    GetBattleLogMiddleRequest,
+    GetBattleLogShortRequest,
     MarkMessageReadRequest,
     MessageInfo,
     ReadMessageRequest,
@@ -35,10 +44,13 @@ logger = logging.getLogger(__name__)
 
 _WHITESPACE = re.compile(r"\s")
 
+BattleReportDetail = Literal["short", "middle", "full"]
+_DETAILS = ("short", "middle", "full")
+
 
 class MessagesService(BaseService):
     """
-    The mailbox and mail.
+    The mailbox, mail and battle reports.
 
     Accessible via client.messages. The mailbox is kept as the client keeps it:
     the login data's ``sne`` section fills it, each sne push row replaces the
@@ -198,5 +210,68 @@ class MessagesService(BaseService):
             raise ValueError(f"a text needs at least {MIN_TEXT_LENGTH} characters that are not whitespace")
         self.request(SendMessageRequest.create(receiver_name, subject, text), SendMessageResponse, timeout=timeout)
 
+    def get_battle_report(
+        self, message_id: int, detail: BattleReportDetail = "short", timeout: float = 5.0
+    ) -> BattleReport:
+        """
+        Read a battle report from the mailbox.
 
-__all__ = ["MessagesService"]
+        The short log comes first, a ``bls`` with ``IM`` 0 as the client always sends it;
+        the middle and detail logs are then asked for by its ``log_id``, one request each,
+        as the client asks when its battle report dialogs open them.
+
+        Args:
+            message_id: A battle log's ``MessageInfo.message_id``: one in :attr:`mailbox`
+                whose ``is_battle_log`` is true
+            detail: ``"short"`` for the overview (players, loot, area, commanders),
+                ``"middle"`` adds the waves per flank, ``"full"`` adds every unit per flank and wave
+
+        Raises:
+            ValueError: ``detail`` is none of the three
+            MessageUnavailableError: error 66 (no such message) or 225 (too old to read) for the short
+                log, which the client shows as a log that does not exist (``BLSCommand``, bundle line 125196)
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleMessageData.getBattleLogShort``, ``getBattleLogMiddle`` and
+        ``getBattleLogDetailed`` (bundle lines 134905-134907)
+        """
+        if detail not in _DETAILS:
+            raise ValueError(f"detail must be one of {_DETAILS}, not {detail!r}")
+        request = GetBattleLogShortRequest(MID=message_id, IM=0)
+        try:
+            short = self.request(request, BattleLogShortResponse, timeout=timeout)
+        except CommandError as e:
+            if e.error in (GGEError.NO_SUCH_MESSAGE, GGEError.MESSAGEDATA_TOO_OLD):
+                raise MessageUnavailableError(e.command, e.code, e.payload) from e
+            raise
+        if detail == "short":
+            return BattleReport(short)
+        middle = self.request(GetBattleLogMiddleRequest(LID=short.log_id), BattleLogMiddleResponse, timeout=timeout)
+        if detail == "middle":
+            return BattleReport(short, middle)
+        full = self.request(GetBattleLogDetailRequest(LID=short.log_id), BattleLogDetailResponse, timeout=timeout)
+        return BattleReport(short, middle, full)
+
+    def forward_battle_report(self, message_id: int, player_ids: list[int], timeout: float = 5.0) -> None:
+        """
+        Forward a battle report to other players.
+
+        Args:
+            message_id: A battle log's ``MessageInfo.message_id``
+            player_ids: The recipients. The client offers the members of your alliance
+                other than you, ``AllianceMember.player_id`` from ``client.alliance.get_local_members()``
+
+        Raises:
+            ValueError: no recipients
+            CommandError: the server refused; the client handles no error specially
+            EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleForwardMessageDialog.sendMessage`` (bundle line 60740),
+        ``MFBCommand.executeCommand`` (bundle line 125396)
+        """
+        if not player_ids:
+            raise ValueError("a battle report needs at least one recipient")
+        self.send(ForwardBattleLogRequest(MID=message_id, PID=list(player_ids)), wait=True, timeout=timeout)
+
+
+__all__ = ["BattleReportDetail", "MessagesService"]
