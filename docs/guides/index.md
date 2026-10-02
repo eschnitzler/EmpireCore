@@ -37,6 +37,12 @@ client.defense      client.ranking     client.events
 
     Castles, resources, buildings, the construction queue and tax.
 
+-   :material-shield-outline:{ .lg .middle } **[Defense](defense.md)**
+
+    ---
+
+    Reading and setting a castle's keep, wall and moat.
+
 -   :material-account-multiple-plus:{ .lg .middle } **[Army](army.md)**
 
     ---
@@ -98,8 +104,6 @@ The smaller services have no guide of their own; their
 
 - `client.player`: `get_player_info(player_id)`, `get_player_details_bulk(player_ids)`
   and `search_player_by_name(name)`.
-- `client.defense`: `get_own_defense(castle_x, castle_y, castle_id)` and
-  `get_support_defense_info(target_x, target_y)` for an alliance member's castle.
 - `client.ranking`: `get_highscore(list_type, search_value)` and the event
   leaderboards, `get_ranking_list`, `get_own_ranking_page`,
   `get_ranking_window` and `search_leaderboard`.
