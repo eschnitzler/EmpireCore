@@ -10,11 +10,11 @@ from .castle import BuildingState, ExpansionType, MarketScope, Resource, Resourc
 from .combat import AttackType, AutoSkipCooldownType, CombatEffectType, Flank, LootPriority
 from .commanders import EquipmentSlot, EquipmentType, Rareness, SCEItem, WearerType
 from .map import Kingdom, MapItemType, NPCOwner, PeaceModeStatus
-from .messages import MessageType
+from .messages import BattleLogAttackType, LogResult, MessageType
 from .movements import MovementType
 from .player import TitleSystem
 from .ranking import RankingType
-from .spy import SpyLogResult, SpyLogType, SpyOutcome, SpyStep, SpyType
+from .spy import SpyLogType, SpyOutcome, SpyStep, SpyType
 
 __all__ = [
     # Map / kingdom
@@ -33,7 +33,6 @@ __all__ = [
     # Spy
     "SpyType",
     "SpyLogType",
-    "SpyLogResult",
     "SpyOutcome",
     "SpyStep",
     # Army
@@ -59,6 +58,8 @@ __all__ = [
     "HelpType",
     # Messages
     "MessageType",
+    "LogResult",
+    "BattleLogAttackType",
     # Player
     "TitleSystem",
     # Ranking

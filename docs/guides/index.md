@@ -29,7 +29,7 @@ client.defense      client.ranking     client.events
 
     ---
 
-    The mailbox, reading and sending mail.
+    The mailbox, reading and sending mail, battle reports.
 
 -   :material-castle:{ .lg .middle } **[Castle](castle.md)**
 
