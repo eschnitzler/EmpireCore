@@ -183,7 +183,7 @@ class TestAllianceLocalHelpers:
         assert client.alliance.local_alliance_id is None
 
     def test_local_members_without_an_alliance_sends_nothing(self):
-        client = make_client(state=StubState(local_player=StubPlayer(alliance_id=None)))  # type: ignore[arg-type]
+        client = make_client(state=StubState(local_player=StubPlayer(alliance_id=None)))  # ty: ignore[invalid-argument-type]
         assert client.alliance.get_local_members() == []
         assert conn(client).requested == []
 

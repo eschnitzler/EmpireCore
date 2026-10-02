@@ -7,12 +7,14 @@ repos:
         args: [ --fix ]
       - id: ruff-format
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.19.1
+  - repo: local
     hooks:
-      - id: mypy
-        additional_dependencies: [ pydantic, python-dotenv, types-requests, requests, websocket-client ]
-        args: [ --config-file=pyproject.toml ]
+      - id: ty
+        name: ty
+        entry: uv run --locked ty check
+        language: system
+        types_or: [ python, pyi ]
+        pass_filenames: false
 
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v3.1.0

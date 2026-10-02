@@ -114,7 +114,7 @@ class TestSpyService:
         state = GameState()
         if gms is not None:
             state.update_from_packet("gbd", {"gms": gms})
-        state.get_all_movements = lambda: list(movements or [])  # type: ignore[method-assign]
+        state.get_all_movements = lambda: list(movements or [])  # ty: ignore[invalid-assignment]
         client.state = state
         client.game_data = game_data
         return client

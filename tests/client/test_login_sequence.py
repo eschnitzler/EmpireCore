@@ -171,8 +171,8 @@ def make_client(
     client.password = "s3cr3t-pw"
     client.login_token = None
     client.session_id = SESSION_ID
-    client.connection = connection or ScriptedConnection()  # type: ignore[assignment]
-    client.state = state or StubState()  # type: ignore[assignment]
+    client.connection = connection or ScriptedConnection()  # ty: ignore[invalid-assignment]
+    client.state = state or StubState()  # ty: ignore[invalid-assignment]
     client.is_logged_in = False
     client._handlers = {}
     client._handlers_lock = threading.Lock()
@@ -609,7 +609,7 @@ class TestFailedLoginReleasesResources:
         def exploding_disconnect() -> None:
             raise RuntimeError("disconnect blew up")
 
-        conn.disconnect = exploding_disconnect  # type: ignore[method-assign]
+        conn.disconnect = exploding_disconnect  # ty: ignore[invalid-assignment]
 
         with caplog.at_level("ERROR", logger="empire_core.client.client"):
             with pytest.raises(LoginError, match="401"):
@@ -728,7 +728,7 @@ class TestJoinedRoom:
                     callback(room_list("2"))
             return result
 
-        conn.request = request  # type: ignore[method-assign]
+        conn.request = request  # ty: ignore[invalid-assignment]
         make_client(conn).login()
         assert conn.room_id == 2
         assert conn.subscribers["rlu"] == []
@@ -899,7 +899,7 @@ class TestLoginTokenPushShapes:
                     client._on_packet(Packet.from_bytes(b'%xt%slt%-1%0%{"LT":"live-token"}%'))
                 return super().wait_for_result(cmd_id, waiter, timeout)
 
-        client.connection = PushingConnection()  # type: ignore[assignment]
+        client.connection = PushingConnection()  # ty: ignore[invalid-assignment]
         client.login()
         assert client.login_token == "live-token"
 

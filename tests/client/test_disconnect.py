@@ -41,11 +41,11 @@ def client() -> Iterator[EmpireClient]:
 def drop(client: EmpireClient) -> None:
     """Run the receive loop of a live session until the server closes it."""
     connection = client.connection
-    connection.ws = ClosingSocket()  # type: ignore[assignment]
+    connection.ws = ClosingSocket()  # ty: ignore[invalid-assignment]
     connection._running = True
     connection._closing = False
     connection._generation += 1
-    connection._recv_loop(connection.ws, connection._generation)  # type: ignore[arg-type]
+    connection._recv_loop(connection.ws, connection._generation)  # ty: ignore[invalid-argument-type]
 
 
 class TestDisconnectCallbacks:
@@ -62,12 +62,12 @@ class TestDisconnectCallbacks:
         calls: list[str] = []
         client.on_disconnect(lambda: calls.append("fired"))
         client.connection._running = True
-        client.connection.ws = ClosingSocket()  # type: ignore[assignment]
+        client.connection.ws = ClosingSocket()
 
         client.close()
         # The receive loop then ends on the closed socket without reporting it.
         client.connection._running = True
-        client.connection._recv_loop(ClosingSocket(), client.connection._generation)  # type: ignore[arg-type]
+        client.connection._recv_loop(ClosingSocket(), client.connection._generation)
 
         assert calls == []
 
@@ -144,7 +144,7 @@ def new_session(client: EmpireClient) -> RecordingSocket:
     """Stand up a fresh live session, as a (re)connect does, that records what it sends."""
     socket = RecordingSocket()
     connection = client.connection
-    connection.ws = socket  # type: ignore[assignment]
+    connection.ws = socket  # ty: ignore[invalid-assignment]
     connection._running = True
     connection._closing = False
     connection._generation += 1

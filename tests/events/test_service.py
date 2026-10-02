@@ -10,7 +10,7 @@ from tests.service_helpers import conn, make_client, xt_packet
 
 
 def _client(state: GameState | None = None):
-    return make_client(state=state or GameState())  # type: ignore[arg-type]
+    return make_client(state=state or GameState())  # ty: ignore[invalid-argument-type]
 
 
 class TestEventLeagues:
@@ -101,7 +101,7 @@ class TestRefresh:
 
     def test_refresh_sends_sei_and_returns_the_events_it_brings(self):
         reply = xt_packet("sei", {"E": [{"EID": 60, "RS": 60, "LID": 4}]})
-        client = make_client({"sei": reply}, state=GameState())  # type: ignore[arg-type]
+        client = make_client({"sei": reply}, state=GameState())  # ty: ignore[invalid-argument-type]
         conn(client).on_packet = client._on_packet
 
         events = client.events.refresh()
@@ -123,7 +123,7 @@ class TestRefusedReplies:
         client._on_packet(xt_packet("fjf", {"sei": {"E": [{"EID": 3, "RS": 60}]}}, error_code=1))
 
         assert client.events.get_active_event_ids() == [60]
-        assert client.state.get_event(60).own_points == 0  # type: ignore[union-attr]
+        assert client.state.get_event(60).own_points == 0
 
 
 class TestEventUpdates:

@@ -31,7 +31,7 @@ models.
     ```bash
     git clone https://github.com/eschnitzler/EmpireCore.git
     cd EmpireCore
-    uv sync --extra dev    # a plain `uv sync` has no pytest, ruff or mypy
+    uv sync --extra dev    # a plain `uv sync` has no pytest, ruff or ty
     uv run pytest
     ```
 

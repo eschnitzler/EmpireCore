@@ -238,7 +238,7 @@ class ReadOnlyDict(dict[_K, _V]):
     def _refuse(self, *args: Any, **kwargs: Any) -> NoReturn:
         raise TypeError("an event's mappings are read-only; the state replaces the event instead")
 
-    __setitem__ = __delitem__ = clear = pop = popitem = setdefault = update = __ior__ = _refuse  # type: ignore[assignment]
+    __setitem__ = __delitem__ = clear = pop = popitem = setdefault = update = __ior__ = _refuse
 
     def __reduce__(self) -> tuple[Any, ...]:
         return (type(self), (dict(self),))
@@ -445,7 +445,7 @@ class ScoredEvent(SpecialEvent, _ScoreFields):
         _read_score(values, entry)
 
     def with_points(self, ranks: Any, points: Any, maxima: Any) -> SpecialEvent:
-        return _with_points(self, ranks, points, maxima)  # type: ignore[no-any-return]
+        return _with_points(self, ranks, points, maxima)
 
 
 class PointEvent(ScoredEvent):
@@ -712,7 +712,7 @@ class BerimondEvent(SpecialEvent):
             values["league_id"] = js_int(entry["LID"])
 
     def with_points(self, ranks: Any, points: Any, maxima: Any) -> SpecialEvent:
-        return _with_points(self, ranks, points, None)  # type: ignore[no-any-return]
+        return _with_points(self, ranks, points, None)
 
 
 class RaidBossEvent(SpecialEvent):
@@ -997,7 +997,7 @@ event's ``eventType``
 
 def event_class(event_id: int) -> type[SpecialEvent]:
     """The model an event's entries are read into."""
-    return EVENT_CLASSES.get(_EVENT_IDS.get(event_id), SpecialEvent)  # type: ignore[arg-type]
+    return EVENT_CLASSES.get(_EVENT_IDS.get(event_id), SpecialEvent)
 
 
 class SpecialEventInfoRequest(BaseRequest):

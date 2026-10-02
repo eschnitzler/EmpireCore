@@ -749,7 +749,7 @@ class TestFillAttack:
 
     def test_the_source_kingdom_and_position_come_from_the_castle_list(self):
         client = self.build([[601, 100_000]])
-        client.state.castles = gcl_castles((777, Kingdom.GREEN), (12345, Kingdom.ICE, 5, 6))  # type: ignore[attr-defined]
+        client.state.castles = gcl_castles((777, Kingdom.GREEN), (12345, Kingdom.ICE, 5, 6))
         camp_row = [2, 700, 710, -1, 0, -1, -299]
         conn(client).script["gaa"] = xt_packet("gaa", {"KID": 2, "AI": [camp_row], "OI": []})
         conn(client).script["adi"] = xt_packet("adi", dict(LIVE_ADI, gaa={"AI": camp_row}, gui={"I": [[601, 100_000]]}))
@@ -762,7 +762,7 @@ class TestFillAttack:
 
     def test_a_castle_not_in_the_castle_list_raises_before_reading_the_target(self):
         client = self.build([[601, 100_000]])
-        client.state.castles = gcl_castles((777, Kingdom.ICE))  # type: ignore[attr-defined]
+        client.state.castles = gcl_castles((777, Kingdom.ICE))
 
         with pytest.raises(UnknownCastleError):
             client.attack.fill_attack(12345, target_x=700, target_y=710)
@@ -771,7 +771,7 @@ class TestFillAttack:
 
     def test_an_id_repeated_across_your_kingdoms_raises_before_joining(self):
         client = self.build([[601, 100_000]])
-        client.state.castles = gcl_castles((12345, Kingdom.STORM, 5, 6), (12345, Kingdom.BERIMOND, 7, 8))  # type: ignore[attr-defined]
+        client.state.castles = gcl_castles((12345, Kingdom.STORM, 5, 6), (12345, Kingdom.BERIMOND, 7, 8))
 
         with pytest.raises(AmbiguousCastleError):
             client.attack.fill_attack(12345, target_level=13)

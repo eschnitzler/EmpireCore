@@ -146,7 +146,7 @@ class TestRankingListRequest:
     def test_the_league_is_required(self):
         # LeaderBoardDataProvider sends the league it was built with on every page
         with pytest.raises(ValidationError):
-            GetRankingListRequest(LT=RankingType.LONG_TERM_POINT_EVENT, M=10)  # type: ignore[call-arg]
+            GetRankingListRequest(LT=RankingType.LONG_TERM_POINT_EVENT, M=10)
 
     def test_alliance_event_keys_follow_the_vo_keys(self):
         # LeaderBoardDataProvider.sendCommand copies {SDI, EID} onto the VO after its constructor
@@ -180,7 +180,7 @@ class TestRankingWindowRequest:
 
     def test_the_league_is_required(self):
         with pytest.raises(ValidationError):
-            GetRankingWindowRequest(LT=RankingType.POINT_EVENT, M=8)  # type: ignore[call-arg]
+            GetRankingWindowRequest(LT=RankingType.POINT_EVENT, M=8)
 
     def test_score_id_is_encoded_as_the_client_encodes_text(self):
         request = GetRankingWindowRequest(LT=RankingType.POINT_EVENT, LID=1, M=8, SI='a"b')
@@ -346,7 +346,7 @@ class TestRankingEntryDriftedLayouts:
         with caplog.at_level(logging.ERROR, logger="empire_core.ranking.models"):
             # Deliberately not a list/dict: the point of the test is that an
             # unparseable layout degrades to rank -1 rather than raising.
-            entry = RankingEntry(None)  # type: ignore[arg-type]
+            entry = RankingEntry(None)  # ty: ignore[invalid-argument-type]
         assert entry.rank == -1
         assert "Failed to parse RankingEntry" in caplog.text
 

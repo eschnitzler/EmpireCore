@@ -478,7 +478,7 @@ class AskHelpRequest(BaseRequest):
 
 ```bash
 uv sync --extra dev     # `dev` is an extra, not a default group: a plain
-                        # `uv sync` leaves you without pytest/ruff/mypy
+                        # `uv sync` leaves you without pytest/ruff/ty
 uv run pre-commit install --hook-type pre-commit --hook-type commit-msg
 ```
 
@@ -510,8 +510,9 @@ uv run pre-commit run --all-files   # exactly what CI's lint job runs
 ```
 
 > [!TIP]
-> `uv run mypy src` is **not** enough — the hook type-checks `tests/` and
-> `examples/` too, so run pre-commit before pushing.
+> `uv run ty check src` is **not** enough — the hook type-checks `tests/` and
+> `examples/` too, so run `uv run ty check` with no path, or pre-commit, before
+> pushing.
 
 Verify the client still builds every service:
 

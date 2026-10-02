@@ -278,7 +278,7 @@ class TestMemberData:
 
         assert (ids.Unit, ids.Tool) == (Unit, Tool)
         with pytest.raises(AttributeError):
-            ids.NotAnEnum  # type: ignore[attr-defined]  # noqa: B018
+            ids.NotAnEnum  # ty: ignore[unresolved-attribute]  # noqa: B018
 
 
 class TestRecords:

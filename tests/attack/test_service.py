@@ -206,7 +206,7 @@ class TestAttackService:
         # value to default to.
         client = make_client(castles=OWN)
         with pytest.raises(TypeError):
-            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])])  # type: ignore[call-arg]
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])])  # ty: ignore[missing-argument]
 
     def test_commander_is_sent_as_lid(self):
         client = make_client(castles=OWN)

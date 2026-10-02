@@ -277,11 +277,11 @@ def make_client(
     client.config = EmpireConfig()
     client.username = "tester"
     client.password = "secret"
-    client.connection = ScriptedConnection(script, pushes)  # type: ignore[assignment]
+    client.connection = ScriptedConnection(script, pushes)  # ty: ignore[invalid-assignment]
     stub = state or StubState()
     if castles is not None:
         stub.castles = gcl_castles(*castles)
-    client.state = stub  # type: ignore[assignment]
+    client.state = stub  # ty: ignore[invalid-assignment]
     client.game_data = None
     client.is_logged_in = True
     client._handlers = {}
@@ -291,7 +291,7 @@ def make_client(
 
 
 def conn(client: EmpireClient) -> ScriptedConnection:
-    return client.connection  # type: ignore[return-value]
+    return client.connection  # ty: ignore[invalid-return-type]
 
 
 GOLDEN_GCL: dict[str, Any] = {

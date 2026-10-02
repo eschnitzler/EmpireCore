@@ -319,7 +319,7 @@ class TestRelicInfo:
     def test_no_gem_and_ordinary_items(self):
         from empire_core.commanders.models.roster import Equipment
 
-        assert Equipment.model_validate([*self.RELIC[:12], [1, 6, 2980, []]]).relic_info.gem is None  # type: ignore[union-attr]
+        assert Equipment.model_validate([*self.RELIC[:12], [1, 6, 2980, []]]).relic_info.gem is None  # ty: ignore[unresolved-attribute]
         assert Equipment.model_validate([*self.RELIC[:12], "junk"]).relic_info is None
         ordinary = [*self.RELIC[:11], 0, [1, 6, 2980, []]]
         assert Equipment.model_validate(ordinary).relic_info is None

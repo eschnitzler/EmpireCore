@@ -154,7 +154,7 @@ class TestOnResponse:
         client._on_packet(xt_packet("gcl", GOLDEN_GCL))
 
         assert len(seen) == 1
-        assert [c.castle_id for c in seen[0].castles] == [2001, 2002]  # type: ignore[attr-defined]
+        assert [c.castle_id for c in seen[0].castles] == [2001, 2002]  # ty: ignore[unresolved-attribute]
 
     def test_unparseable_push_does_not_reach_the_handler(self, caplog):
         client = make_client()
@@ -175,7 +175,7 @@ class TestOnResponse:
         # on the receive thread: parsing is skipped entirely.
         client._on_packet(xt_packet("gli", {"C": [{"N": "no id"}]}))
 
-        assert client.state.updates == [("gli", {"C": [{"N": "no id"}]})]  # type: ignore[attr-defined]
+        assert client.state.updates == [("gli", {"C": [{"N": "no id"}]})]  # ty: ignore[unresolved-attribute]
 
 
 # =============================================================================
@@ -190,7 +190,7 @@ class TestRequestBuilding:
 
     def test_alliance_info_request_requires_an_id(self):
         with pytest.raises(ValidationError):
-            GetAllianceInfoRequest()  # type: ignore[call-arg]
+            GetAllianceInfoRequest()
 
     def test_response_members_accessor_tolerates_a_missing_alliance(self):
         response = GetAllianceInfoResponse.model_validate({})

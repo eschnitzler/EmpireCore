@@ -128,8 +128,8 @@ def make_client(connection: StubConnection | None = None, state: StubState | Non
     client.password = "secret"
     client.login_token = None
     client.session_id = "1e+300"
-    client.connection = connection or StubConnection()  # type: ignore[assignment]
-    client.state = state or StubState()  # type: ignore[assignment]
+    client.connection = connection or StubConnection()  # ty: ignore[invalid-assignment]
+    client.state = state or StubState()  # ty: ignore[invalid-assignment]
     client.is_logged_in = False
     client._handlers = {}
     client._handlers_lock = threading.Lock()
@@ -404,7 +404,7 @@ class TestHandlerRegistryIsLocked:
     def test_register_holds_the_lock(self):
         client = make_client()
         lock = RecordingLock()
-        client._handlers_lock = lock  # type: ignore[assignment]
+        client._handlers_lock = lock  # ty: ignore[invalid-assignment]
 
         client._register_handler("gdi", lambda response: None)
 
@@ -419,7 +419,7 @@ class TestHandlerRegistryIsLocked:
 
         client._register_handler("gdi", handler)
         lock = RecordingLock()
-        client._handlers_lock = lock  # type: ignore[assignment]
+        client._handlers_lock = lock  # ty: ignore[invalid-assignment]
 
         client._unregister_handler("gdi", handler)
 
@@ -452,7 +452,7 @@ class TestHandlerRegistryIsLocked:
         client = make_client()
         client._register_handler("gam", lambda response: None)
         lock = RecordingLock()
-        client._handlers_lock = lock  # type: ignore[assignment]
+        client._handlers_lock = lock  # ty: ignore[invalid-assignment]
 
         client._on_packet(xt_packet("gam", '{"M": []}'))
 

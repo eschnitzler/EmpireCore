@@ -444,7 +444,7 @@ class TestAccountPool:
 
     def test_a_registry_is_required(self):
         with pytest.raises(TypeError):
-            AccountPool()  # type: ignore[call-arg]
+            AccountPool()  # ty: ignore[missing-argument]
 
     def test_a_loaded_registry_never_reads_the_working_directory(self, tmp_path, monkeypatch, isolated_environ):
         for key in [k for k in isolated_environ if k.startswith("EMPIRE_ACCOUNT_")]:
@@ -507,7 +507,7 @@ class TestAccountPool:
         """
 
         class QuietLoginClient(FakeClient):
-            def login(self) -> None:  # type: ignore[override]
+            def login(self) -> None:  # ty: ignore[invalid-method-override]
                 self.is_logged_in = True
                 return None
 

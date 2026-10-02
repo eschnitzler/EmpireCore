@@ -28,7 +28,7 @@ class MovementState(StateBase):
     # iterate a snapshot taken under the lock; the callbacks themselves run
     # on the thread pool, outside it.
 
-    def on_incoming_attack(self, callback: Callable[[Movement], None]) -> None:  # type: ignore[misc]
+    def on_incoming_attack(self, callback: Callable[[Movement], None]) -> None:
         """Register a callback for new hostile attack movements.
 
         Fires once per newly seen attack that is not the local player's own,
@@ -60,7 +60,7 @@ class MovementState(StateBase):
         with self._lock:
             self._incoming_attack_callbacks.remove(callback)
 
-    def on_movement_recalled(self, callback: MovementEventCallback) -> None:  # type: ignore[misc]
+    def on_movement_recalled(self, callback: MovementEventCallback) -> None:
         """Register a callback for your own recalled movements.
 
         Fires on the ``mcm`` reply to a recall, with the movement as it now
@@ -83,7 +83,7 @@ class MovementState(StateBase):
         with self._lock:
             self._remove_listener(self._movement_recalled_callbacks, callback)
 
-    def on_movement_arrived(self, callback: MovementEventCallback) -> None:  # type: ignore[misc]
+    def on_movement_arrived(self, callback: MovementEventCallback) -> None:
         """Register a callback for movements reaching their target.
 
         The server sends no arrival packet: as in the game client, a movement
@@ -117,7 +117,7 @@ class MovementState(StateBase):
         with self._lock:
             self._remove_listener(self._movement_arrived_callbacks, callback)
 
-    def on_movement_removed(self, callback: MovementEventCallback) -> None:  # type: ignore[misc]
+    def on_movement_removed(self, callback: MovementEventCallback) -> None:
         """Register a callback for movements the server removes (``mrm``).
 
         The server does not say why: a battle ending, a finished recall and a

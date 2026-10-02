@@ -111,7 +111,7 @@ class TestParsing:
     def test_empty_input(self):
         assert parse_bonus_entries([]) == []
         # A missing block is normal; the parser takes it.
-        assert parse_bonus_entries(None) == []  # type: ignore[arg-type]
+        assert parse_bonus_entries(None) == []  # ty: ignore[invalid-argument-type]
 
 
 class TestAccumulation:

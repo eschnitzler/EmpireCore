@@ -17,7 +17,7 @@ from tests.service_helpers import conn, make_client, xt_packet
 
 def _running(script: dict[str, Any] | None = None, *entries: dict[str, Any]):
     # Every entry runs for an hour, and Berimond is unlocked, unless the test says otherwise
-    client = make_client(script, state=GameState())  # type: ignore[arg-type]
+    client = make_client(script, state=GameState())  # ty: ignore[invalid-argument-type]
     client._on_packet(xt_packet("sei", {"E": [{"RS": 3600, "UL": 1, **entry} for entry in entries]}))
     return client
 
@@ -316,7 +316,7 @@ class TestClientDivergencesFixed:
 
     def test_an_event_never_given_an_end_has_ended(self):
         # ASpecialEventVO starts at _endTimestamp=0
-        client = make_client(state=GameState())  # type: ignore[arg-type]
+        client = make_client(state=GameState())  # ty: ignore[invalid-argument-type]
         client._on_packet(xt_packet("sei", {"E": [{"EID": 3}]}))
 
         assert client.events.get_active_event_ids() == []

@@ -261,7 +261,7 @@ class Caller:
 
 
 def sent(conn: Connection) -> list[str]:
-    return conn.ws.sent  # type: ignore[union-attr]
+    return conn.ws.sent  # ty: ignore[unresolved-attribute]
 
 
 class TestOneRequestPerCommand:
@@ -466,7 +466,7 @@ class TestRecvLoopResilience:
             seen.append(packet.command_id)
             original_route(packet)
 
-        live_conn._route_packet = flaky_route  # type: ignore[method-assign]
+        live_conn._route_packet = flaky_route
         ws = FakeSocket([make_frame("gam"), make_frame("gaa")])
 
         with caplog.at_level("ERROR", logger="empire_core.network.connection"):
@@ -622,7 +622,7 @@ class TestMessageDecoding:
 
     def _route(self, live_conn, *frames: bytes) -> list:
         ws = websocket.WebSocket(skip_utf8_validation=True)
-        ws.sock = _ByteSocket(b"".join(frames))  # type: ignore[assignment]
+        ws.sock = _ByteSocket(b"".join(frames))  # ty: ignore[invalid-assignment]
         ws.connected = True
         routed: list = []
         live_conn.on_packet = routed.append

@@ -82,7 +82,7 @@ class TestCastleQueries:
 
     def test_gcl_sends_the_player_id_once_known(self):
         player = StubPlayer()
-        player.id = 777  # type: ignore[attr-defined]
+        player.id = 777  # ty: ignore[unresolved-attribute]
         client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL)}, state=StubState(local_player=player))
 
         client.castle.get_all()

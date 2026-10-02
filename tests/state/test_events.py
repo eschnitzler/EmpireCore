@@ -219,7 +219,7 @@ class TestTypedEvents:
 
         assert list(before) == [83] and before[83] is event and event.league_id == 3
         with pytest.raises(ValidationError):
-            event.league_id = 5  # type: ignore[misc]
+            event.league_id = 5
         assert state.get_event(83).league_id == 4
 
 
