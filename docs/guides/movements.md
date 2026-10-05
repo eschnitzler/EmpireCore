@@ -22,6 +22,7 @@ client.state.on_movement_arrived(on_arrived)
 | Register | Fires | Remove with |
 |---|---|---|
 | `on_incoming_attack(cb)` | Once per newly seen hostile attack | `remove_incoming_attack_callback` |
+| `on_incoming_attack_updated(cb)` | When a later packet changes an announced attack | `remove_incoming_attack_updated_callback` |
 | `on_incoming_attack_withdrawn(cb)` | When the server removes an announced attack before it arrives | `remove_incoming_attack_withdrawn_callback` |
 | `on_movement_arrived(cb)` | Once a movement's travel time is up | `remove_movement_arrived_callback` |
 | `on_movement_recalled(cb)` | On the reply to your own recall | `remove_movement_recalled_callback` |
@@ -68,6 +69,15 @@ stateDiagram-v2
   `movement.is_returning` to tell the two apart.
 - **Removal.** `mrm` does not say why: a battle ending, a finished recall and a
   support sent home all look the same.
+- **Updated attacks.** `on_incoming_attack_updated(old, new)` fires when a
+  later packet for an announced attack changes its army (`units`,
+  `estimated_size`), its arrival (`estimated_arrival`, by two seconds or more,
+  as a speed-up does), its target (`target_id`, `target_area_id`, `target_x`,
+  `target_y`) or its commander's gear (`commander_equipment`,
+  `commander_effects`). `old` is the attack as state had it before the packet.
+  A packet that changes none of these does not fire it, and neither does the
+  packet that announces the attack. Units, the size estimate and the
+  commander's gear a later packet leaves out are kept from the earlier one.
 - **Withdrawn attacks.** When `mrm` removes an attack that `on_incoming_attack`
   announced and its travel time is not up yet, `on_incoming_attack_withdrawn`
   fires with the attack, after `on_movement_removed`. Use it to retract an
@@ -79,8 +89,9 @@ stateDiagram-v2
 ## Callback signatures
 
 `on_incoming_attack` and `on_incoming_attack_withdrawn` callbacks take the
-`Movement`. Arrival, recall and removal callbacks take either the movement id
-alone or the id and the `Movement`:
+`Movement`, `on_incoming_attack_updated` callbacks the old and the new one.
+Arrival, recall and removal callbacks take either the movement id alone or the
+id and the `Movement`:
 
 ```python
 def on_removed(movement_id): ...

@@ -23,6 +23,17 @@ ETA_CHANGE_THRESHOLD = 2.0
 # rate-limited to one per this interval; the rest go to debug.
 MOVEMENT_PARSE_WARN_INTERVAL = 60.0
 
+UPDATED_ATTACK_FIELDS = (
+    "units",
+    "estimated_size",
+    "target_id",
+    "target_area_id",
+    "target_x",
+    "target_y",
+    "commander_equipment",
+    "commander_effects",
+)
+
 
 class MovementState(StateBase):
     # Registration and removal happen on user threads while the receive
@@ -63,6 +74,35 @@ class MovementState(StateBase):
         """Unregister an incoming attack callback."""
         with self._lock:
             self._incoming_attack_callbacks.remove(callback)
+
+    def on_incoming_attack_updated(self, callback: Callable[[Movement, Movement], None]) -> None:  # type: ignore[misc]
+        """Register a callback for changes to an attack :meth:`on_incoming_attack` announced.
+
+        ``callback(old, new)`` fires on a later packet for the same attack that
+        changes its army (``units``, ``estimated_size``), its arrival
+        (``estimated_arrival``, by two seconds or more, as a speed-up
+        does), its target (``target_id``, ``target_area_id``,
+        ``target_x``, ``target_y``) or its commander's gear
+        (``commander_equipment``, ``commander_effects``). A packet that changes
+        none of these does not fire it, nor does the packet that announces the
+        attack, nor any packet once the attack has arrived or been removed.
+        After a reconnect the first listing of an attack has nothing to compare
+        with, so it does not fire either. ``old`` is the Movement as state had
+        it before the packet, ``new`` the one it holds now.
+
+        The client keeps no history to compare with: ``parseMapMovementArray``
+        (bundle line 133626) replaces a movement's object with each packet, so
+        this is derived by comparing the two.
+
+        Runs on the callback thread, in packet order (see :class:`GameState`).
+        """
+        with self._lock:
+            self._incoming_attack_updated_callbacks.append(callback)
+
+    def remove_incoming_attack_updated_callback(self, callback: Callable[[Movement, Movement], None]) -> None:
+        """Unregister an incoming attack updated callback."""
+        with self._lock:
+            self._incoming_attack_updated_callbacks.remove(callback)
 
     def on_incoming_attack_withdrawn(self, callback: Callable[[Movement], None]) -> None:  # type: ignore[misc]
         """Register a callback for announced attacks the server removes before they arrive.
@@ -311,9 +351,15 @@ class MovementState(StateBase):
         An attack is judged on every packet that carries it, as the client counts
         its attack warnings anew (``CastleArmyData.checkAllAttackMovements``, bundle
         line 133659), so one whose owner record comes later still fires, once.
+        A later packet for an announced attack fires :meth:`on_incoming_attack_updated`
+        when it changes what that callback reports.
+
+        Names, owner records, units, the size estimate and the commander's gear
+        a later packet leaves out are kept from the earlier one.
         """
         mid = mov.movement_id
         existing = self.movements.get(mid)
+        announced = mid in self._announced_attacks
 
         if existing is None:
             mov.created_at = time.time()
@@ -333,17 +379,33 @@ class MovementState(StateBase):
             mov.target_owner = mov.target_owner or existing.target_owner
             if not mov.units and existing.units:
                 mov.units = existing.units
+            mov.estimated_size = mov.estimated_size or existing.estimated_size
+            if not mov.commander_equipment and not mov.commander_effects:
+                mov.commander_equipment = existing.commander_equipment
+                mov.commander_effects = existing.commander_effects
 
-        if mid not in self._announced_attacks and self._is_attack_on_us(mov):
+        if not announced and self._is_attack_on_us(mov):
             end = mov.estimated_end
             self._announced_attacks[mid] = end
             self._announced_prune_at = min(self._announced_prune_at, end)
             with self._lock:
                 attack_callbacks = list(self._incoming_attack_callbacks)
-            for cb in attack_callbacks:
-                self._dispatch_callback(cb, mov)
+            for announce in attack_callbacks:
+                self._dispatch_callback(announce, mov)
+        elif announced and existing is not None and self._attack_changed(existing, mov):
+            with self._lock:
+                updated_callbacks = list(self._incoming_attack_updated_callbacks)
+            for update in updated_callbacks:
+                self._dispatch_callback(update, existing, mov)
         self.movements[mid] = mov
         self._schedule_movement(mid, mov)
+
+    @staticmethod
+    def _attack_changed(old: Movement, new: Movement) -> bool:
+        """Whether a packet changed what :meth:`on_incoming_attack_updated` reports."""
+        if abs(new.estimated_arrival - old.estimated_arrival) >= ETA_CHANGE_THRESHOLD:
+            return True
+        return any(getattr(old, name) != getattr(new, name) for name in UPDATED_ATTACK_FIELDS)
 
     def _schedule_movement(self, mid: int, mov: Movement) -> tuple[float, float]:
         """Take the movement's arrival and end now, so a packet with nothing due costs no scan."""
