@@ -291,12 +291,19 @@ class Movement(BaseModel):
 
         The daimyo township counts as yours, as in the client, except for an
         alien attack, which comes only at you. Armies moving between your own
-        areas count as outgoing, not incoming.
+        areas count as outgoing, not incoming, and so does no occupation
+        (``is_occupation``): the forces holding an area are not on their way to it.
 
         Client: ``ArmyAttackMapmovementVO.isAttackingMovement`` (bundle line 14389),
-        ``AlienAttackMovementVO.isAttackingMovement`` (bundle line 33073)
+        ``AlienAttackMovementVO.isAttackingMovement`` (bundle line 33073). An
+        occupation is a ``SiegeMapmovementVO``, which keeps
+        ``BasicMapmovementVO.isAttackingMovement`` (bundle line 19438, always
+        false); the movement overview's attack category (``FilterAttack``,
+        ``dialog_moveOverview_catAttack``, bundle line 67996) adds one on your
+        area by a clause of its own, and lists it as "Occupying forces"
+        (``RenderSiege``, bundle line 67408), not as an attack under way.
         """
-        if self.local_player_id == -1 or self.is_mine or self.is_returning:
+        if self.local_player_id == -1 or self.is_mine or self.is_returning or self.is_occupation:
             return False
         township = self.movement_type_enum is not MovementType.ALIEN_ATTACK
         return self.target_id == self.local_player_id or (township and self.target_id == NPCOwner.DAIMYO_TOWNSHIP)
@@ -314,10 +321,10 @@ class Movement(BaseModel):
         return movement_type is not None and movement_type.is_support
 
     @property
-    def is_siege(self) -> bool:
-        """A siege or faction occupation."""
+    def is_occupation(self) -> bool:
+        """An occupation: the forces holding an area a capture attack won, until it is captured or they are driven off."""
         movement_type = self.movement_type_enum
-        return movement_type is not None and movement_type.is_siege
+        return movement_type is not None and movement_type.is_occupation
 
     @property
     def is_transport(self) -> bool:

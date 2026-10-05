@@ -1,5 +1,5 @@
 ---
-description: React to incoming attacks, arrivals, recalls and removals with state callbacks.
+description: React to incoming attacks and occupations, arrivals, recalls and removals with state callbacks.
 ---
 
 # Reacting to movements
@@ -24,6 +24,9 @@ client.state.on_movement_arrived(on_arrived)
 | `on_incoming_attack(cb)` | Once per newly seen hostile attack | `remove_incoming_attack_callback` |
 | `on_incoming_attack_updated(cb)` | When a later packet changes an announced attack | `remove_incoming_attack_updated_callback` |
 | `on_incoming_attack_withdrawn(cb)` | When the server removes an announced attack before it arrives | `remove_incoming_attack_withdrawn_callback` |
+| `on_occupation_started(cb)` | Once per newly seen occupation of your or an alliance member's area | `remove_occupation_started_callback` |
+| `on_occupation_updated(cb)` | When a later packet changes an announced occupation | `remove_occupation_updated_callback` |
+| `on_occupation_ended(cb)` | When an announced occupation leaves state: captured, or driven off | `remove_occupation_ended_callback` |
 | `on_movement_arrived(cb)` | Once a movement's travel time is up | `remove_movement_arrived_callback` |
 | `on_movement_recalled(cb)` | On the reply to your own recall | `remove_movement_recalled_callback` |
 | `on_movement_removed(cb)` | When the server removes a movement (`mrm`) | `remove_movement_removed_callback` |
@@ -85,11 +88,32 @@ stateDiagram-v2
   nor the game client says why a movement is removed. An attack removed within
   two seconds of its `estimated_arrival` (which can run a second late), at or
   after it, or one state no longer tracks, does not fire.
+- **Occupations.** A capture attack that lands and wins is followed by an
+  occupation (`MovementType.SIEGE` or `OCCUPY_FACTION`, `movement.is_occupation`):
+  the game lists it as "Occupying forces", and its travel time is the time the
+  occupier must hold the area before it is captured. The capture attack is an
+  ordinary attack and goes through `on_incoming_attack`; the occupation is not
+  an attack, so the attack callbacks never report it. `on_occupation_started`
+  and `on_occupation_updated` do, by the same rules for refreshes, reconnects
+  and changes. An occupation counts when it is not your own, is not on its way
+  home and holds an area of yours or the daimyo township's, or of another
+  member of your alliance, whoever sends it: the game client raises no attack
+  warning for occupations, and these are the ones its movement list shows to
+  you or your alliance.
+- **Ended occupations.** `on_occupation_ended(movement, captured)` fires once
+  when an announced occupation leaves state. `captured` is `True` when its
+  time ran out, at its arrival (after `on_movement_arrived`) or on an `mrm`
+  within two seconds of it or later (after `on_movement_removed`): the area is
+  captured. It is `False` when `mrm` removes it earlier (after
+  `on_movement_removed`): the occupation was broken, "Occupying forces driven
+  off!" in the game. Derived from the arrival time, as withdrawn attacks are.
+  An occupation that ends while no session is logged in is not reported.
 
 ## Callback signatures
 
-`on_incoming_attack` and `on_incoming_attack_withdrawn` callbacks take the
-`Movement`, `on_incoming_attack_updated` callbacks the old and the new one.
+`on_incoming_attack`, `on_incoming_attack_withdrawn` and `on_occupation_started`
+take the `Movement`, the `_updated` callbacks the old and the new one, and
+`on_occupation_ended` the `Movement` and `captured`.
 Arrival, recall and removal callbacks take either the movement id alone or the
 id and the `Movement`:
 

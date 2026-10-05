@@ -164,6 +164,9 @@ class TestTyping:
             assert_type(client.listen(client.state.on_incoming_attack_updated), EventStream[Movement, Movement])
             assert_type(client.listen(client.alliance.on_chat_message), EventStream[AllianceChatMessageResponse])
             assert_type(client.listen(client.on_disconnect), "EventStream[()]")
+            assert_type(client.listen(client.state.on_occupation_started), EventStream[Movement])
+            assert_type(client.listen(client.state.on_occupation_updated), EventStream[Movement, Movement])
+            assert_type(client.listen(client.state.on_occupation_ended), EventStream[Movement, bool])
             async with client.listen(client.state.on_incoming_attack) as attacks:
                 client._on_packet(xt_packet("gam", gam_payload(100)))
                 (attack,) = await take(attacks, 1)
@@ -171,6 +174,34 @@ class TestTyping:
             return movement
 
         assert asyncio.run(scenario()).movement_id == 100
+
+
+class TestSieges:
+    def test_a_siege_streams_as_its_own_event(self, client):
+        async def scenario():
+            async with client.listen(client.state.on_occupation_started) as occupations:
+                client._on_packet(xt_packet("gam", gam_payload(100, movement_type=5)))
+                (occupation,) = await take(occupations, 1)
+            return occupation
+
+        occupation = asyncio.run(scenario())
+
+        assert occupation.name == "occupation_started"
+        assert occupation.args[0].is_occupation
+
+    def test_an_ended_occupation_streams_with_whether_it_was_captured(self, client: EmpireClient):
+        async def scenario():
+            async with client.listen(client.state.on_occupation_ended) as ended:
+                client._on_packet(xt_packet("gam", gam_payload(100, movement_type=5)))
+                client._on_packet(xt_packet("mrm", {"MID": 100}))
+                (event,) = await take(ended, 1)
+            assert event.name == "occupation_ended"
+            return assert_type(event, ClientEvent[Movement, bool]).args
+
+        movement, captured = asyncio.run(scenario())
+
+        assert movement.movement_id == 100
+        assert captured is False
 
 
 class TestServiceCallbacks:
@@ -232,7 +263,7 @@ class TestEnding:
 
         events = asyncio.run(scenario())
 
-        assert client.state._incoming_attack_callbacks == []
+        assert client.state._attack_listeners.announced == []
         assert client.state._movement_arrived_callbacks == []
         assert client.alliance._chat_callbacks == []
         assert client._streams == set()

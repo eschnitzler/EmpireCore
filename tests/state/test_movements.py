@@ -9,7 +9,7 @@ import pytest
 
 from empire_core.combat import commander_bonuses
 from empire_core.commanders.models.roster import Commander, CommanderEffect
-from empire_core.enums import MapItemType, MovementType
+from empire_core.enums import MapItemType, MovementType, NPCOwner
 from empire_core.gamedata import GameData
 from empire_core.movements.tracked import Movement
 from empire_core.state.manager import GameState
@@ -301,6 +301,180 @@ class TestUpdatedAttacks:
             state.remove_incoming_attack_updated_callback(callback)
 
 
+class TestOccupationCallbacks:
+    """Occupations: SiegeMapmovementVO (bundle line 33173), shown by FilterAttack and FilterAllianceIncoming."""
+
+    ME, ALLY, ENEMY, OUTSIDER, CLAN = 1, 2, 3, 4, 301
+
+    @staticmethod
+    def watch(state: GameState) -> list[tuple[str, Movement | None]]:
+        events: list[tuple[str, Movement | None]] = []
+        state.on_incoming_attack(lambda mov: events.append(("attack", mov)))
+        state.on_incoming_attack_updated(lambda old, new: events.append(("attack updated", new)))
+        state.on_incoming_attack_withdrawn(lambda mov: events.append(("attack withdrawn", mov)))
+        state.on_occupation_started(lambda mov: events.append(("occupation", mov)))
+        state.on_occupation_updated(lambda old, new: events.append(("occupation updated", new)))
+        state.on_occupation_ended(lambda mov, captured: events.append(("captured" if captured else "broken", mov)))
+        state.on_movement_arrived(lambda mid, mov: events.append(("arrived", mov)))
+        state.on_movement_removed(lambda mid, mov: events.append(("removed", mov)))
+        return events
+
+    @staticmethod
+    def settle(state: GameState) -> None:
+        marker = threading.Event()
+        state._dispatch_callback(marker.set)
+        assert marker.wait(2)
+
+    @staticmethod
+    def names(events: list[tuple[str, Movement | None]]) -> list[tuple[str, int | None]]:
+        return [(name, mov.movement_id if mov else None) for name, mov in events]
+
+    @pytest.mark.parametrize("movement_type", [MovementType.SIEGE, MovementType.OCCUPY_FACTION])
+    def test_an_occupation_of_mine_is_announced_once_and_not_as_an_attack(self, state, movement_type):
+        login(state)
+        events = self.watch(state)
+        state.update_from_packet("gam", gam_payload(400, movement_type=movement_type))
+        state.update_from_packet("gam", gam_payload(400, movement_type=movement_type))
+        self.settle(state)
+        assert self.names(events) == [("occupation", 400)]
+
+    def test_an_occupation_of_the_daimyo_township_is_announced(self, state):
+        # getOwnerInfoVO (bundle line 138994) gives the township your own owner info
+        login(state)
+        events = self.watch(state)
+        state.update_from_packet("gam", gam_payload(401, movement_type=MovementType.SIEGE, tid=-815))
+        self.settle(state)
+        assert [name for name, _ in events] == ["occupation"]
+
+    @pytest.mark.parametrize("owner", [ENEMY, -202])
+    def test_an_occupation_of_an_alliance_member_is_announced_whoever_sends_it(self, state, owner):
+        login(state, self.ME, self.CLAN)
+        events = self.watch(state)
+        payload = gam_payload(402, movement_type=MovementType.SIEGE, oid=owner, tid=self.ALLY)
+        payload["O"] = [{"OID": self.ALLY, "AID": self.CLAN, "N": "ally"}]
+        state.update_from_packet("gam", payload)
+        self.settle(state)
+        assert [name for name, _ in events] == ["occupation"]
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            gam_payload(403, movement_type=MovementType.SIEGE, oid=1),
+            gam_payload(403, movement_type=MovementType.SIEGE, extra={"D": 1}),
+            gam_payload(403, movement_type=MovementType.SIEGE, tid=OUTSIDER),
+            gam_payload(403, movement_type=MovementType.DEFENCE),
+        ],
+        ids=["own occupation", "on its way home", "of an outsider", "support"],
+    )
+    def test_an_occupation_not_of_us_is_neither_announced_nor_ended(self, state, payload):
+        login(state, self.ME, self.CLAN)
+        events = self.watch(state)
+        payload["O"].append({"OID": self.OUTSIDER, "AID": 99, "N": "outsider"})
+        state.update_from_packet("gam", payload)
+        state.update_from_packet("mrm", {"MID": 403})
+        self.settle(state)
+        assert [name for name, _ in events] == ["removed"]
+
+    def test_a_changed_occupation_is_updated(self, state):
+        login(state)
+        events = self.watch(state)
+        state.update_from_packet("gam", gam_payload(404, movement_type=MovementType.SIEGE))
+        state.update_from_packet("gam", gam_payload(404, movement_type=MovementType.SIEGE, extra={"TT": 300}))
+        state.update_from_packet("gam", gam_payload(404, movement_type=MovementType.SIEGE, extra={"TT": 300}))
+        self.settle(state)
+        assert [name for name, _ in events] == ["occupation", "occupation updated"]
+
+    def test_an_occupation_whose_army_changes_is_updated(self, state):
+        # SiegeMapmovementVO.parseArmy (bundle line 33176) reads the wrapper's A block
+        login(state)
+        events = self.watch(state)
+        for army in ([[216, 5]], [[216, 9]]):
+            payload = gam_payload(408, movement_type=MovementType.SIEGE)
+            payload["M"][0]["A"] = army
+            state.update_from_packet("gam", payload)
+        self.settle(state)
+        assert [(name, mov.units if mov else None) for name, mov in events] == [
+            ("occupation", {216: 5}),
+            ("occupation updated", {216: 9}),
+        ]
+
+    def test_an_occupation_removed_before_its_end_is_broken(self, state):
+        login(state)
+        events = self.watch(state)
+        state.update_from_packet("gam", gam_payload(405, movement_type=MovementType.SIEGE))
+        with later(300):
+            state.update_from_packet("mrm", {"MID": 405})
+        self.settle(state)
+        assert self.names(events) == [("occupation", 405), ("removed", 405), ("broken", 405)]
+        assert events[-1][1] is not None and events[-1][1].source_player_name == "Attacker"
+
+    def test_an_occupation_whose_time_runs_out_is_captured_once(self, state):
+        login(state)
+        events = self.watch(state)
+        state.update_from_packet("gam", gam_payload(406, movement_type=MovementType.SIEGE))
+        arrive(state, 406)
+        with later(900):
+            state.get_all_movements()
+            state.update_from_packet("mrm", {"MID": 406})
+        self.settle(state)
+        assert self.names(events) == [("occupation", 406), ("arrived", 406), ("captured", 406), ("removed", None)]
+
+    @pytest.mark.parametrize("before_end", [0.5, -60], ids=["just before its estimate", "after it"])
+    def test_an_occupation_removed_at_its_end_is_captured(self, state, before_end):
+        # No packet in between, so state has not yet seen the arrival time pass
+        login(state)
+        events = self.watch(state)
+        state.update_from_packet("gam", gam_payload(409, movement_type=MovementType.SIEGE))
+        with later(state.movements[409].estimated_arrival - time.time() - before_end):
+            state.update_from_packet("mrm", {"MID": 409})
+        self.settle(state)
+        assert self.names(events) == [("occupation", 409), ("removed", 409), ("captured", 409)]
+
+    def test_an_occupation_state_no_longer_tracks_does_not_end(self, state):
+        login(state)
+        events = self.watch(state)
+        state.update_from_packet("gam", gam_payload(410, movement_type=MovementType.SIEGE))
+        state.reset()
+        state.update_from_packet("mrm", {"MID": 410})
+        self.settle(state)
+        assert self.names(events) == [("occupation", 410), ("removed", None)]
+
+    def test_an_occupation_is_not_announced_again_after_a_reconnect(self, state):
+        login(state)
+        events = self.watch(state)
+        state.update_from_packet("gam", gam_payload(407, movement_type=MovementType.SIEGE))
+        state.reset()
+        login(state)
+        state.update_from_packet("gam", gam_payload(407, movement_type=MovementType.SIEGE))
+        self.settle(state)
+        assert [name for name, _ in events] == ["occupation"]
+
+    def test_removed_callbacks_no_longer_fire(self, state):
+        login(state)
+        fired: list[object] = []
+
+        def one(mov: Movement) -> None:
+            fired.append(mov)
+
+        def two(old: Movement, new: Movement) -> None:
+            fired.append(new)
+
+        def ended(mov: Movement, captured: bool) -> None:
+            fired.append(mov)
+
+        state.on_occupation_started(one)
+        state.on_occupation_updated(two)
+        state.on_occupation_ended(ended)
+        state.remove_occupation_started_callback(one)
+        state.remove_occupation_updated_callback(two)
+        state.remove_occupation_ended_callback(ended)
+        state.update_from_packet("gam", gam_payload(408, movement_type=MovementType.SIEGE))
+        state.update_from_packet("gam", gam_payload(408, movement_type=MovementType.SIEGE, extra={"TT": 100}))
+        state.update_from_packet("mrm", {"MID": 408})
+        self.settle(state)
+        assert fired == []
+
+
 class TestMovementDirection:
     ME = 1
 
@@ -331,6 +505,16 @@ class TestMovementDirection:
         assert [m.movement_id for m in me.get_incoming_movements()] == [703]
         assert me.get_incoming_attacks() == []
 
+    @pytest.mark.parametrize("movement_type", [MovementType.SIEGE, MovementType.OCCUPY_FACTION])
+    @pytest.mark.parametrize("tid", [ME, NPCOwner.DAIMYO_TOWNSHIP])
+    def test_occupation_of_my_area_is_not_incoming(self, me, movement_type, tid):
+        # SiegeMapmovementVO keeps BasicMapmovementVO.isAttackingMovement (bundle line 19438): false
+        me.update_from_packet("gam", gam_payload(709, movement_type=movement_type, oid=555, tid=tid))
+        mov = me.get_movement_by_id(709)
+        assert mov is not None and mov.is_occupation and not mov.is_incoming
+        assert me.get_incoming_movements() == []
+        assert me.get_incoming_attacks() == []
+
     def test_returning_army_is_neither_incoming_nor_outgoing(self, me):
         me.update_from_packet("gam", gam_payload(704, oid=self.ME, tid=555, extra={"D": 1}))
         me.update_from_packet("gam", gam_payload(705, oid=555, tid=self.ME, extra={"D": 1}))
@@ -359,7 +543,7 @@ class TestMovementTypes:
     @pytest.mark.parametrize("t", [0, 11, 17, 18, 19, 20, 21, 23, 24, 25, 27, 28, 29, 30, 31, 33, 34])
     def test_attack_types(self, t):
         mov = Movement(movement_type=t)
-        assert mov.is_attack and not mov.is_support and not mov.is_siege
+        assert mov.is_attack and not mov.is_support and not mov.is_occupation
 
     @pytest.mark.parametrize("t", [1, 26, 32])
     def test_support_types(self, t):
@@ -367,8 +551,8 @@ class TestMovementTypes:
         assert mov.is_support and not mov.is_attack
 
     @pytest.mark.parametrize("t", [5, 15])
-    def test_siege_types(self, t):
-        assert Movement(movement_type=t).is_siege
+    def test_occupation_types(self, t):
+        assert Movement(movement_type=t).is_occupation
 
     def test_single_value_types(self):
         assert Movement(movement_type=2).is_travel
@@ -388,7 +572,7 @@ class TestMovementTypes:
     def test_a_type_the_client_lacks_has_no_enum(self):
         movement = Movement(movement_type=-1)
         assert movement.movement_type_enum is None
-        assert not (movement.is_attack or movement.is_support or movement.is_siege)
+        assert not (movement.is_attack or movement.is_support or movement.is_occupation)
         assert Movement(movement_type=11).movement_type_enum is MovementType.NPC_ATTACK
 
     def test_target_type_reads_as_an_area_type(self):
@@ -830,6 +1014,9 @@ class TestCallbackRegistrationLocking:
             ("on_incoming_attack", "remove_incoming_attack_callback"),
             ("on_incoming_attack_updated", "remove_incoming_attack_updated_callback"),
             ("on_incoming_attack_withdrawn", "remove_incoming_attack_withdrawn_callback"),
+            ("on_occupation_started", "remove_occupation_started_callback"),
+            ("on_occupation_updated", "remove_occupation_updated_callback"),
+            ("on_occupation_ended", "remove_occupation_ended_callback"),
             ("on_movement_arrived", "remove_movement_arrived_callback"),
             ("on_movement_recalled", "remove_movement_recalled_callback"),
             ("on_movement_removed", "remove_movement_removed_callback"),

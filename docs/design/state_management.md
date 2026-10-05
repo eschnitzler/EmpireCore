@@ -183,6 +183,16 @@ when the callback runs, so the id alone cannot be resolved. `movement` is
 * `on_incoming_attack_withdrawn`: `mrm` removed an attack `on_incoming_attack`
   announced more than two seconds before its estimated arrival. Derived from
   the arrival time; it takes the `Movement`.
+* `on_occupation_started`, `on_occupation_updated`: the same for
+  occupations (`SIEGE`, `OCCUPY_FACTION`), the forces that hold an area
+  after a capture attack won ("Occupying forces" in the game), which the
+  attack callbacks do not report. The client raises no attack warning for an
+  occupation; these follow its movement list, which shows one that holds an
+  area of yours, the daimyo township's or another alliance member's.
+* `on_occupation_ended`: an announced occupation left state; it takes the
+  `Movement` and `captured`, True when its occupation time ran out (the area
+  is captured) and False when `mrm` removed it more than two seconds before
+  then (the occupation was broken).
 
 `on_incoming_attack` fires **once** per attack movement id (judged again on
 every packet that carries it, so an attacker's record that comes later counts), also

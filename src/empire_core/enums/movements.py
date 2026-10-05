@@ -7,7 +7,8 @@ class MovementType(IntEnum):
     """Army movement type, the ``T`` of a movement record.
 
     A returning army is not a type: any type can be on its way home, which is
-    the movement's ``D`` flag.
+    the movement's ``D`` flag. ``SIEGE`` and ``OCCUPY_FACTION`` keep the client's
+    names; the game shows both as occupations (see :attr:`is_occupation`).
 
     Client: ``ClientConstCastle.MOVEMENTTYPE_*`` (bundle line 1004)
     """
@@ -55,8 +56,13 @@ class MovementType(IntEnum):
         )
 
     @property
-    def is_siege(self) -> bool:
-        """Types the client parses as a siege (``SiegeMapmovementVO``)."""
+    def is_occupation(self) -> bool:
+        """Types the client parses as ``SiegeMapmovementVO``: an occupation, ``SIEGE`` and ``OCCUPY_FACTION``.
+
+        Players see it as the "Occupying forces" that hold an area after a capture attack won
+        (``RenderSiege``, bundle line 67408, ``dialog_moveOverview_siege``). The capture attack
+        before it is an attack whose attack type is conquer (``isConquerMovement``, bundle line 14404).
+        """
         return self in (MovementType.SIEGE, MovementType.OCCUPY_FACTION)
 
 

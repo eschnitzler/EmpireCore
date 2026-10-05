@@ -44,6 +44,43 @@ CALLBACK_QUEUE_WARN_INTERVAL = 60.0
 # ``Callable[[int], None]`` handlers keep working unchanged.
 MovementEventCallback = Callable[[int], Any] | Callable[[int, Movement | None], Any]
 
+# A callback to queue and its arguments
+QueuedCall = tuple[Callable[..., None], tuple[Any, ...]]
+
+
+class AnnouncedListeners:
+    """The callbacks of one kind of announced movement: announced, updated, and how one leaves state."""
+
+    def __init__(self) -> None:
+        self.announced: list[Callable[[Movement], None]] = []
+        self.updated: list[Callable[[Movement, Movement], None]] = []
+
+    def leaving(self, mov: Movement, arrived: bool) -> list[QueuedCall]:
+        """The calls for an announced ``mov`` leaving state, at its arrival or removed before it."""
+        raise NotImplementedError
+
+
+class AttackListeners(AnnouncedListeners):
+    """Incoming attacks: only one removed before it arrives is reported, as withdrawn."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.withdrawn: list[Callable[[Movement], None]] = []
+
+    def leaving(self, mov: Movement, arrived: bool) -> list[QueuedCall]:
+        return [] if arrived else [(callback, (mov,)) for callback in self.withdrawn]
+
+
+class OccupationListeners(AnnouncedListeners):
+    """Occupations: each one leaving is reported as ended, captured when its time ran out."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.ended: list[Callable[[Movement, bool], None]] = []
+
+    def leaving(self, mov: Movement, arrived: bool) -> list[QueuedCall]:
+        return [(callback, (mov, arrived)) for callback in self.ended]
+
 
 class StateBase:
     """The data every GameState mixin reads and writes, created once in ``__init__``."""
@@ -55,9 +92,8 @@ class StateBase:
         # Callbacks for specific events — support multiple listeners.
         # Arrival/recall listeners are stored with a flag saying whether they
         # also take the Movement (see MovementState._accepts_movement).
-        self._incoming_attack_callbacks: list[Callable[[Movement], None]] = []
-        self._incoming_attack_updated_callbacks: list[Callable[[Movement, Movement], None]] = []
-        self._incoming_attack_withdrawn_callbacks: list[Callable[[Movement], None]] = []
+        self._attack_listeners = AttackListeners()
+        self._occupation_listeners = OccupationListeners()
         self._movement_recalled_callbacks: list[tuple[MovementEventCallback, bool]] = []
         self._movement_arrived_callbacks: list[tuple[MovementEventCallback, bool]] = []
         self._movement_removed_callbacks: list[tuple[MovementEventCallback, bool]] = []
@@ -75,10 +111,10 @@ class StateBase:
         self._callbacks_pending = 0
         self._callback_queue_warn_at = 0.0
 
-        # Attack movement id -> when it ends (wall clock), for every attack
-        # on_incoming_attack announced. Kept across reset() so a reconnect does
-        # not announce the same attack again.
-        self._announced_attacks: dict[int, float] = {}
+        # Movement id -> when it ends (wall clock), for every attack and occupation
+        # announced. Kept across reset() so a reconnect does not announce the
+        # same movement again.
+        self._announced: dict[int, float] = {}
         self._announced_prune_at = math.inf
 
         # Rate-limit state for movement parse failure warnings
@@ -147,9 +183,10 @@ class StateBase:
     def reset(self) -> None:
         """Forget all the session sent: player, castles, joined area, movements, events, login sections, timestamps.
 
-        Registered callbacks stay, and so does the record of attacks already
-        announced to :meth:`on_incoming_attack`. Fires no callback: a movement that is dropped
-        here was not seen to arrive or be removed. The client resets its data
+        Registered callbacks stay, and so does the record of attacks and occupations
+        already announced to :meth:`on_incoming_attack` and :meth:`on_occupation_started`.
+        Fires no callback: a movement that is dropped here was not seen to
+        arrive or be removed. The client resets its data
         the same way when the connection is lost; the next login's gbd, and the
         gam the server pushes after it (seen live), rebuild it.
 

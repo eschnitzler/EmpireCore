@@ -202,7 +202,7 @@ loop, `client.listen()` streams them instead: every `on_*` registration of the
 client, its state and its services, or only the ones you pass. Each event is a
 `ClientEvent` whose `name` is the registration without `on_` and whose `args`
 are what a callback there is called with: `(old, new)` for
-`incoming_attack_updated`, `(movement_id, movement)` for the movement
+`incoming_attack_updated` and `incoming_siege_updated`, `(movement_id, movement)` for the movement
 callbacks, one model for the others, none for `disconnect`:
 
 ```python

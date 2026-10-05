@@ -349,7 +349,7 @@ class CancelMovementRequest(BaseRequest):
     - supports: your own, in either direction
     - travel between your areas: your own, heading to the target, from a
       source area that is still yours
-    - spies, market transports and sieges: your own, heading to the target
+    - spies, market transports and occupations: your own, heading to the target
     - treasure hunts and plague monks: never
 
     The movement list also disables it while the source area is under
