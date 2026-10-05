@@ -211,6 +211,8 @@ class Connection:
         # Single slot, claimed by EmpireClient for its own bookkeeping; other
         # observers register via add_disconnect_listener.
         self.on_disconnect: Callable[[int], None] | None = None
+        # Likewise, but after every disconnect listener has run.
+        self.after_disconnect: Callable[[int], None] | None = None
 
         self._disconnect_listeners: list[Callable[[], None]] = []
         self._disconnect_lock = threading.Lock()
@@ -643,7 +645,7 @@ class Connection:
                 pass
 
     def _notify_disconnect(self, generation: int) -> None:
-        """Fire the on_disconnect slot, then every registered listener."""
+        """Fire the on_disconnect slot, then every registered listener, then the after_disconnect slot."""
         if self.on_disconnect is not None:
             try:
                 self.on_disconnect(generation)
@@ -656,6 +658,11 @@ class Connection:
                 callback()
             except Exception:
                 logger.exception("Error in disconnect callback")
+        if self.after_disconnect is not None:
+            try:
+                self.after_disconnect(generation)
+            except Exception:
+                logger.exception("Error in after_disconnect callback")
 
     @property
     def degraded_frames(self) -> DegradedFrameCounts:

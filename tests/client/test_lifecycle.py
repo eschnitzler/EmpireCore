@@ -135,6 +135,16 @@ def make_client(connection: StubConnection | None = None, state: StubState | Non
     client._handlers_lock = threading.Lock()
     client._streams = set()
     client._streams_lock = threading.Lock()
+    client.keep_session = False
+    client._closed = threading.Event()
+    client._session_lock = threading.RLock()
+    client._relogin_thread = None
+    client._relogin_running = False
+    client._dropped_logged_in = None
+    client._session_restored_callbacks = []
+    client._session_lost_callbacks = []
+    client._session_callbacks_lock = threading.Lock()
+    client._login_cooldown = None
     return client
 
 

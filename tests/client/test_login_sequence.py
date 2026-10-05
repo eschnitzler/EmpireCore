@@ -179,6 +179,16 @@ def make_client(
     client._handlers_lock = threading.Lock()
     client._streams = set()
     client._streams_lock = threading.Lock()
+    client.keep_session = False
+    client._closed = threading.Event()
+    client._session_lock = threading.RLock()
+    client._relogin_thread = None
+    client._relogin_running = False
+    client._dropped_logged_in = None
+    client._session_restored_callbacks = []
+    client._session_lost_callbacks = []
+    client._session_callbacks_lock = threading.Lock()
+    client._login_cooldown = None
     return client
 
 
@@ -566,6 +576,19 @@ class TestCooldownReporting:
             client.login()
 
         assert exc_info.value.cooldown == 0
+
+    def test_the_remaining_cooldown_is_the_refusals_until_a_login_holds(self):
+        conn = ScriptedConnection({"lli": xt_packet("lli", {"CD": 42.5}, error_code=LOGIN_COOLDOWN_CODE)})
+        client = make_client(conn)
+        with pytest.raises(LoginCooldownError):
+            client.login()
+
+        assert 42 < client.remaining_login_cooldown() <= 42.5
+
+        conn.script["lli"] = xt_packet("lli")
+        client.login()
+
+        assert client.remaining_login_cooldown() == 0.0
 
     def test_cooldown_is_catchable_as_a_login_error(self):
         conn = ScriptedConnection({"lli": xt_packet("lli", {"CD": 5}, error_code=LOGIN_COOLDOWN_CODE)})

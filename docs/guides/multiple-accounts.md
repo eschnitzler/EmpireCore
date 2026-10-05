@@ -55,6 +55,26 @@ closes it and logs in a fresh client; a cooldown on that login moves the lease
 on to the next candidate as usual. `release(client, logout=True)` closes a
 client even in a `keep_alive` pool.
 
+A lease you hold for the whole process never reaches either path. Set
+`client.keep_session = True` on it and the client logs a dropped session in
+again by itself, honouring login cooldowns (see
+[Keeping the session](game-state.md#keeping-the-session)):
+
+```python
+client = pool.lease(username="watcher1")
+client.keep_session = True
+client.on_session_restored(lambda: print("watcher1 is back"))
+client.on_session_lost(lambda error: print("watcher1 is gone:", error))
+```
+
+A release closes the client or keeps it as before, and closing ends any
+re-login. A kept client still waiting to log in again when it is next leased
+counts as dropped: the lease closes it and logs in a fresh client. While a
+held client waits out a cooldown, `client.remaining_login_cooldown()` says for
+how long: the seconds the server last named, counting down. A lease that
+fails chains its last failure to the `LoginError` it raises; a
+`LoginCooldownError` there carries the seconds.
+
 The next lease gets the very client object you held, so let go of your handle
 when you release it. `pool.leased()` releases only its own lease, but a manual
 `pool.release(client)` cannot tell your handle from the next leaseholder's:
@@ -68,6 +88,12 @@ changes nothing and logs a warning.
     and the like) keep firing during their lease. Remove them before the
     `with` block ends, or release with `logout=True`. Streams of
     `client.listen()` are the exception: release ends them.
+
+    What the client announced stays announced, also across `close()` and
+    `login()`: an attack or occupation announced to you is not announced again
+    to the next leaseholder. It reads `client.state.get_announced_attacks()` and
+    `get_occupations()`, or calls `client.state.reannounce(movement_id)`
+    (see [Movements](movements.md#what-was-announced-and-announcing-again)).
 
 ## Where accounts come from
 

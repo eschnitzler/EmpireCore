@@ -34,10 +34,11 @@ class ClientEvent(Generic[Unpack[Args]]):
     ``name`` is the registration's name without ``on_``: ``"incoming_attack"`` for
     ``client.state.on_incoming_attack``, ``"chat_message"`` for ``client.alliance.on_chat_message``.
     ``args`` are what a callback registered there is called with: one model for most,
-    ``(old, new)`` for ``"incoming_attack_updated"`` and ``"incoming_siege_updated"``,
-    ``(movement_id, movement)`` for the movement callbacks, none for ``"disconnect"``.
-    From a stream of one registration, ``args`` is typed as that registration's callback
-    parameters.
+    ``(old, new)`` for ``"incoming_attack_updated"`` and ``"occupation_updated"``,
+    ``(movement, captured)`` for ``"occupation_ended"``,
+    ``(movement_id, movement)`` for the movement callbacks, ``(error,)`` for ``"session_lost"``,
+    none for ``"disconnect"`` and ``"session_restored"``. From a stream of one registration,
+    ``args`` is typed as that registration's callback parameters.
     """
 
     name: str

@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from types import TracebackType
-from typing import Any, TypeVar, cast, overload
+from typing import Any, NoReturn, TypeVar, cast, overload
 
 from pydantic import ValidationError
 from typing_extensions import Unpack
@@ -33,10 +33,12 @@ from empire_core.exceptions import (
     AccountBannedError,
     ClientVersionError,
     CommandError,
+    ConnectionClosedError,
     EmpireError,
     EmpireTimeoutError,
     LoginCooldownError,
     LoginError,
+    NetworkError,
     PacketError,
     VersionCheckStatus,
     WrongServerError,
@@ -67,6 +69,10 @@ LOBBY_ROOM_NAME = "Lobby"
 # Client: GBDCommand.exec (bundle line 129381) hands n.sne to parse_SNE and n.ahl to parse_AHL,
 # as SNECommand and AHLCommand do.
 LOGIN_SECTION_PUSHES = ("sne", "ahl")
+
+# Library policy for keep_session: the client never re-logs in by itself after a drop.
+RELOGIN_FIRST_DELAY = 5.0
+RELOGIN_MAX_DELAY = 300.0
 
 
 def _joined_room_id(join_ok: Packet) -> int:
@@ -131,6 +137,31 @@ class EmpireClient:
         with EmpireClient(username="user", password="pass") as client:
             client.login()
             movements = client.movements.get_movements()
+
+    Keeping the session:
+        With ``keep_session=True`` (or the attribute set later), a logged-in
+        session that drops is logged in again on a thread of its own, on the
+        same client, so callbacks and :meth:`listen` streams carry on.
+        :meth:`on_session_restored` fires once it is back, and
+        :meth:`on_session_lost` when it gives up. :meth:`close` ends it, also
+        while it waits between attempts, and a :meth:`login` of your own stops
+        it before it logs in.
+
+        The game client does not do this: after a drop
+        (``CastleConnectionLostCommand.execute``, bundle line 120253) it
+        empties the game and shows a reconnect dialog, and logs in again only
+        when the player clicks it (``onReconnect``, bundle line 120256). So
+        the delays are library policy: the first attempt comes
+        ``RELOGIN_FIRST_DELAY`` (5) seconds after the drop, a failed one is
+        retried after twice the last delay, up to ``RELOGIN_MAX_DELAY`` (300)
+        seconds. A :class:`~empire_core.exceptions.LoginCooldownError`
+        counts as a failed attempt too, and is retried no sooner than the
+        seconds the refusal named (see :meth:`remaining_login_cooldown`): after
+        the longer of that cooldown and the delay. A refusal that waiting does
+        not cure (a ban, the wrong server, the client version, credentials, or
+        any other refusal) ends the attempts, logged as an error and reported
+        to :meth:`on_session_lost`; the client then stays logged out. A
+        re-login sends no reCAPTCHA token.
     """
 
     alliance: AllianceService
@@ -155,6 +186,7 @@ class EmpireClient:
         password: str | None = None,
         config: EmpireConfig | None = None,
         login_token: str | None = None,
+        keep_session: bool = False,
     ):
         self.config = config or default_config
         self.username = username or self.config.username
@@ -169,6 +201,23 @@ class EmpireClient:
         self.state = GameState()
         self.game_data: GameData | None = None
         self.is_logged_in = False
+        # Log in again by itself after a drop (see the class docstring).
+        self.keep_session = keep_session
+        # Set by close() and cleared by login(): no re-login may start or go on while set.
+        self._closed = threading.Event()
+        # Held while a login connects, while close() or login() marks the client
+        # closed, and while a re-login starts or stops keeping the session.
+        self._session_lock = threading.RLock()
+        self._relogin_thread: threading.Thread | None = None
+        # Whether _relogin_thread still keeps the session: a drop then starts no other.
+        self._relogin_running = False
+        # The generation of the last session that dropped while logged in.
+        self._dropped_logged_in: int | None = None
+        self._session_restored_callbacks: list[Callable[[], None]] = []
+        self._session_lost_callbacks: list[Callable[[Exception], None]] = []
+        self._session_callbacks_lock = threading.Lock()
+        # The seconds the last cooldown refusal named, and when it came (time.monotonic()).
+        self._login_cooldown: tuple[float, float] | None = None
 
         # Command -> handlers mapping for efficient dispatch
         # Only commands with handlers will be parsed.
@@ -184,6 +233,7 @@ class EmpireClient:
         # Wire up packet handler for state updates
         self.connection.on_packet = self._on_packet
         self.connection.on_disconnect = self._on_disconnect
+        self.connection.after_disconnect = self._keep_session_after_drop
 
         self._attach_services()
 
@@ -332,12 +382,108 @@ class EmpireClient:
         the lost session is reported after it. The next login's gbd rebuilds
         the player and castles, and the gam the server pushes after it the movements.
         Registered callbacks and the callback executor stay, so they keep
-        working after a re-login.
+        working after a re-login. With :attr:`keep_session`, a session that
+        was logged in is logged in again on a thread of its own.
         """
+        was_logged_in = self.is_logged_in
         if not self.connection.run_if_current(generation, self._forget_session):
             logger.debug(f"Client {self.username}: drop of an earlier session reported late, ignored")
             return
         logger.warning(f"Client {self.username} disconnected unexpectedly")
+        self._dropped_logged_in = generation if was_logged_in else None
+
+    def _keep_session_after_drop(self, generation: int) -> None:
+        """Start the re-login once the disconnect callbacks have run, so their events come before its own.
+
+        None starts while one still keeps the session: that one logs in again itself.
+        """
+        with self._session_lock:
+            if (
+                not self.keep_session
+                or self._dropped_logged_in != generation
+                or generation != self.connection.generation
+                or self._closed.is_set()
+                or self._relogin_running
+            ):
+                return
+            self._relogin_running = True
+            self._relogin_thread = threading.Thread(
+                target=self._restore_session, name=f"EmpireCore-Relogin-{self.username}", daemon=True
+            )
+            self._relogin_thread.start()
+
+    def _restore_session(self) -> None:
+        """Log in again until a login holds, waiting between attempts; :meth:`close` and :meth:`login` end it.
+
+        Stops without a login when another one already holds the connection.
+        """
+        delay = RELOGIN_FIRST_DELAY
+        wait = max(delay, self.remaining_login_cooldown())
+        try:
+            while not self._closed.wait(wait):
+                try:
+                    restored = self._relogin()
+                except (LoginCooldownError, NetworkError, EmpireTimeoutError) as e:
+                    delay = min(delay * 2, RELOGIN_MAX_DELAY)
+                    wait = max(delay, self.remaining_login_cooldown())
+                    logger.warning(f"Client {self.username}: re-login failed ({e}); next attempt in {wait:.0f}s")
+                    continue
+                except Exception as e:
+                    logger.exception(f"Client {self.username}: re-login stopped; the session is not restored")
+                    self._dispatch_session_event(self._session_lost_callbacks, e)
+                    return
+                if restored:
+                    logger.info(f"Client {self.username}: session restored")
+                    self._dispatch_session_event(self._session_restored_callbacks)
+                return
+        finally:
+            with self._session_lock:
+                if self._relogin_thread is threading.current_thread():
+                    self._relogin_running = False
+
+    def _relogin(self) -> bool:
+        """Log in on a new connection and wait for the movement list the server pushes; say whether it held.
+
+        False when :meth:`close` or :meth:`login` came first or another login
+        holds the connection. A failure ends the new session unless it already
+        ended, so a :meth:`close` from a disconnect callback has nothing to wait
+        for. A session that drops before it held raises ``ConnectionClosedError``,
+        retried as any failed attempt.
+        """
+        started = time.monotonic()
+        with self._session_lock:
+            if self._closed.is_set() or self.connection.connected:
+                return False
+            self.connection.connect(timeout=self.config.connection_timeout)
+            generation = self.connection.generation
+        # Before the login, as the push follows gbd closely.
+        movements = self.connection.create_waiter("gam")
+        try:
+            try:
+                self._login_sequence(started, None)
+            except Exception:
+                if self.connection.generation == generation and self.connection.connected:
+                    self._end_session_quietly()
+                raise
+            try:
+                self.connection.wait_for_result("gam", movements, timeout=self.config.request_timeout)
+            except EmpireTimeoutError:
+                logger.warning(f"Client {self.username}: no movement list after the re-login; movements may be missing")
+        finally:
+            self.connection.cancel_waiter("gam", movements)
+        with self._session_lock:
+            if self._closed.is_set():
+                return False
+            if self.connection.generation != generation or not self.connection.connected:
+                raise ConnectionClosedError("The restored session dropped before it held")
+            self._relogin_running = False
+        return True
+
+    def _dispatch_session_event(self, callbacks: list[Callable[..., None]], *args: Any) -> None:
+        with self._session_callbacks_lock:
+            snapshot = list(callbacks)
+        for callback in snapshot:
+            self.state._dispatch_callback(callback, *args)
 
     def _forget_session(self) -> None:
         self.is_logged_in = False
@@ -349,7 +495,9 @@ class EmpireClient:
 
         Runs on the receive thread as it shuts down, after ``is_logged_in`` is
         cleared, and fires once per dropped session. Keep it short and hand a
-        re-login to another thread. Registering the same callback twice is a no-op.
+        re-login to another thread, or leave it to :attr:`keep_session`, which
+        starts its own once these callbacks have run. Registering the same
+        callback twice is a no-op.
         """
         self.connection.add_disconnect_listener(callback)
 
@@ -470,6 +618,9 @@ class EmpireClient:
         pushes a fresh token, kept in :attr:`login_token`; the push comes after
         ``gbd``, so it lands shortly after this method returns.
 
+        A :attr:`keep_session` re-login still under way, or waiting between
+        attempts, is ended first, so only this login runs.
+
         Args:
             recaptcha_token: A reCAPTCHA v3 token for the action ``login``, or
                 a function returning one, sent as ``RCT``. The game client
@@ -500,11 +651,14 @@ class EmpireClient:
 
         logger.debug(f"Logging in as {self.username}...")
 
+        self._stop_relogin()
+        self._closed.clear()
         try:
             # The client times the connection from before it opens the socket.
             started = time.monotonic()
-            if not self.connection.connected:
-                self.connection.connect(timeout=self.config.connection_timeout)
+            with self._session_lock:
+                if not self.connection.connected:
+                    self.connection.connect(timeout=self.config.connection_timeout)
 
             self._login_sequence(started, recaptcha_token)
         except Exception:
@@ -512,7 +666,7 @@ class EmpireClient:
             # path, so without this a failed login leaves an open socket plus
             # a receive and a keepalive thread pinging an unauthenticated
             # session forever.
-            self._close_after_failed_login()
+            self._end_session_quietly()
             raise
 
     def _login_sequence(self, started: float, recaptcha_token: str | Callable[[], str] | None) -> None:
@@ -591,6 +745,7 @@ class EmpireClient:
                 logger.warning(f"gbd packet not received for {self.username}, player state may be incomplete")
 
             logger.debug(f"Logged in as {self.username}")
+            self._login_cooldown = None
             self.is_logged_in = True
         finally:
             self.connection.cancel_waiter("gbd", gbd_waiter)
@@ -632,7 +787,7 @@ class EmpireClient:
             raise LoginError(f"Version check failed with code {vck.error_code}")
         return _elapsed_ms(sent, answered[0]) if answered else 0
 
-    def _raise_login_refusal(self, lli: Packet) -> None:
+    def _raise_login_refusal(self, lli: Packet) -> NoReturn:
         """
         Raise the error for a refused ``lli``.
 
@@ -644,6 +799,7 @@ class EmpireClient:
             details = read_or_none(LoginResponse.model_validate, lli.payload) or details
         match code:
             case GGEError.LOGIN_COOLDOWN_ACTIVE:
+                self._login_cooldown = (float(details.remaining_cooldown_seconds or 0), time.monotonic())
                 raise LoginCooldownError(int(details.remaining_cooldown_seconds or 0))
             case GGEError.IS_BANNED:
                 raise AccountBannedError(details.remaining_ban_seconds, details.account_deleted)
@@ -656,20 +812,72 @@ class EmpireClient:
             case _:
                 raise LoginError("Auth failed", code)
 
-    def _close_after_failed_login(self) -> None:
-        """Best-effort cleanup that must never mask the original failure."""
+    def remaining_login_cooldown(self) -> float:
+        """Seconds until the login cooldown the server last named is over; 0 when there is none.
+
+        Only what the server last said: the ``CD`` of the last refused login of
+        this client, less the time since, cleared by a login that holds. The
+        server may start a cooldown this client has not been told about yet.
+
+        Client: ``LLICommand.executeCommand`` (bundle line 120673) shows the
+        refusal's ``REMAINING_COOLDOWN`` in a timer dialog.
+        """
+        cooldown = self._login_cooldown
+        if cooldown is None:
+            return 0.0
+        seconds, refused_at = cooldown
+        return max(0.0, seconds - (time.monotonic() - refused_at))
+
+    def on_session_lost(self, callback: Callable[[Exception], None]) -> None:
+        """Register a callback for a :attr:`keep_session` re-login that gives up.
+
+        ``callback(error)`` fires once, with the refusal that ended the attempts
+        (a ban, the wrong server, the client version, credentials, or any other
+        refusal waiting does not cure); the client then stays logged out until
+        a :meth:`login` of your own. Neither :meth:`close` nor a :meth:`login`
+        of your own that stops the re-login fires it; that login raises its own
+        failure. Runs on the callback thread (see
+        :class:`~empire_core.state.manager.GameState`). Registering the same
+        callback twice is a no-op.
+        """
+        with self._session_callbacks_lock:
+            if callback not in self._session_lost_callbacks:
+                self._session_lost_callbacks.append(callback)
+
+    def remove_session_lost_callback(self, callback: Callable[[Exception], None]) -> None:
+        """Remove a callback added with :meth:`on_session_lost`; unknown callbacks are ignored."""
+        with self._session_callbacks_lock:
+            if callback in self._session_lost_callbacks:
+                self._session_lost_callbacks.remove(callback)
+
+    def on_session_restored(self, callback: Callable[[], None]) -> None:
+        """Register a callback for a :attr:`keep_session` re-login that holds.
+
+        Fires once per restored session, after the login data and the movement
+        list the server pushes after it have reached state (or that list did
+        not come within ``config.request_timeout``), so the events of that
+        state come first. Runs on the callback thread (see
+        :class:`~empire_core.state.manager.GameState`). A :meth:`login` of
+        your own does not fire it. Registering the same callback twice is a no-op.
+        """
+        with self._session_callbacks_lock:
+            if callback not in self._session_restored_callbacks:
+                self._session_restored_callbacks.append(callback)
+
+    def remove_session_restored_callback(self, callback: Callable[[], None]) -> None:
+        """Remove a callback added with :meth:`on_session_restored`; unknown callbacks are ignored."""
+        with self._session_callbacks_lock:
+            if callback in self._session_restored_callbacks:
+                self._session_restored_callbacks.remove(callback)
+
+    def _end_session_quietly(self) -> None:
+        """End the session after a failed login; never masks the failure, and leaves a re-login going."""
         try:
-            self.close()
+            self._end_session()
         except Exception:
             logger.exception("Cleanup after failed login raised")
 
-    def close(self) -> None:
-        """Disconnect from the server and release background resources.
-
-        Safe to call more than once, and safe to call after a failed login.
-        Registered callbacks and the streams of :meth:`listen` stay, as on a
-        dropped session: they keep working after the next :meth:`login`.
-        """
+    def _end_session(self) -> None:
         self.is_logged_in = False
         # Disconnect first: shutting the state executor down while packets can
         # still arrive lets a late callback lazily recreate it, leaking a
@@ -677,6 +885,33 @@ class EmpireClient:
         self.connection.disconnect()
         self.state.shutdown()
         self.state.reset()
+
+    def close(self) -> None:
+        """Disconnect from the server and release background resources.
+
+        Safe to call more than once, and safe to call after a failed login.
+        Registered callbacks and the streams of :meth:`listen` stay, as on a
+        dropped session: they keep working after the next :meth:`login`.
+
+        Ends a :attr:`keep_session` re-login, also one waiting between
+        attempts, and returns once it has stopped: no re-login follows a
+        close until the next :meth:`login`. The game client's ``logout``
+        likewise marks the disconnect as the user's (``userForcedDisconnect``,
+        ggs.dll line 7170), and with it set does not log in again by the stored
+        token (``VCKLegacyCommand.executeCommand``, bundle line 121066).
+        """
+        self._stop_relogin()
+        self._end_session()
+
+    def _stop_relogin(self) -> None:
+        """Mark the client closed and wait for a :attr:`keep_session` re-login still keeping the session to end."""
+        with self._session_lock:
+            self._closed.set()
+            relogin = self._relogin_thread if self._relogin_running else None
+        if relogin is not None and relogin is not threading.current_thread():
+            # Disconnecting first fails a re-login under way at its next step.
+            self.connection.disconnect()
+            relogin.join()
 
     def __enter__(self) -> EmpireClient:
         """Enter a context that closes the client on exit.

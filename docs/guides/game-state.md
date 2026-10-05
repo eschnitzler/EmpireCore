@@ -194,7 +194,52 @@ client.on_disconnect(lambda: print("connection lost"))
 ```
 
 The callback runs on the receive thread as it shuts down. Keep it short and
-start a new login from another thread.
+start a new login from another thread, or let the client do it.
+
+### Keeping the session
+
+Made with `keep_session=True` (or with `client.keep_session = True` set
+later), the client logs a dropped session in again by itself, on a thread of
+its own. It is the same client, so callbacks and `listen()` streams carry on.
+`client.on_session_restored(callback)` fires once the session is back and its
+login data and movement list have reached state, on the callback thread after
+the events they caused. `client.on_session_lost(callback)` fires, with the
+error, when the attempts end without one:
+
+```python
+client = EmpireClient(username="user", password="pass", keep_session=True)
+client.on_disconnect(lambda: print("connection lost"))
+client.on_session_restored(lambda: print("logged in again"))
+client.on_session_lost(lambda error: print("gave up:", error))
+client.login()
+```
+
+The game client does not log in again by itself: after a drop it shows a
+reconnect dialog and waits for a click. So the timing is the library's: the
+first attempt comes 5 seconds after the drop, and a failed one is retried after
+twice the last wait, up to 5 minutes. A refusal with a login cooldown counts
+as a failed attempt too, and is retried no sooner than the seconds the server
+named: after the longer of that cooldown and the doubled wait. The cooldown is
+what `client.remaining_login_cooldown()` reports, counting down. Live, a kick
+was followed by a refusal with a 55 second cooldown; the client waited it out
+to the second and the next attempt restored the session. A refusal that
+waiting does not cure (a ban, the wrong server, the client version, the
+credentials) ends the attempts with an error in the log and in
+`on_session_lost`, and the client stays logged out.
+
+`close()` ends the attempts, also while one is waiting, and never starts one;
+the next `login()` turns them back on. Live, a `close()` during the cooldown
+wait returned at once, with the re-login thread gone and no login after it.
+`close()` may also be called from an `on_disconnect` callback. A `login()` of
+your own ends attempts still going before it logs in, so only one login runs;
+if it fails it raises, and `on_session_lost` does not fire. Only a session
+that was logged in is restored.
+
+An attack or occupation announced before the drop is not announced again when
+the restored session lists it: `on_incoming_attack` and `on_occupation_started`
+fire for the ones that are new. `client.state.reannounce(movement_id)` fires them
+again on purpose. The same holds across `close()` and `login()`; see
+[what was announced](movements.md#what-was-announced-and-announcing-again).
 
 ## From an asyncio program
 
@@ -203,8 +248,10 @@ loop, `client.listen()` streams them instead: every `on_*` registration of the
 client, its state and its services, or only the ones you pass. Each event is a
 `ClientEvent` whose `name` is the registration without `on_` and whose `args`
 are what a callback there is called with: `(old, new)` for
-`incoming_attack_updated` and `incoming_siege_updated`, `(movement_id, movement)` for the movement
-callbacks, one model for the others, none for `disconnect`:
+`incoming_attack_updated` and `occupation_updated`, `(movement, captured)` for
+`occupation_ended`, `(movement_id, movement)` for the movement
+callbacks, one model for the others, the error for `session_lost`, none for
+`disconnect` and `session_restored`:
 
 ```python
 import asyncio
@@ -238,7 +285,8 @@ Service and disconnect events (chat, help, skill lists, new messages,
 callback delays them too.
 
 A stream outlives sessions, as callbacks do: a dropped session is a
-`disconnect` event, and after `client.close()` and a new `client.login()` the
+`disconnect` event, a session `keep_session` restores is a `session_restored`
+event, one it gives up on a `session_lost` event, and after `client.close()` and a new `client.login()` the
 same stream delivers the new session's events. While the client is closed,
 nothing arrives.
 

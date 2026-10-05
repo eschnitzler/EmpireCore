@@ -1081,6 +1081,26 @@ class TestDisconnectListeners:
 
         assert sorted(calls) == ["attribute", "listener"]
 
+    def test_after_disconnect_fires_once_every_listener_has_run(self, live_conn):
+        calls: list[str] = []
+        live_conn.after_disconnect = lambda generation: calls.append(f"after {generation}")
+        live_conn.on_disconnect = lambda _generation: calls.append("attribute")
+        live_conn.add_disconnect_listener(lambda: calls.append("listener"))
+
+        live_conn._recv_loop(FakeSocket([]), 1)
+
+        assert calls == ["attribute", "listener", "after 1"]
+
+    def test_a_failing_after_disconnect_is_logged_as_that_slot(self, live_conn, caplog):
+        def boom(_generation: int) -> None:
+            raise RuntimeError("after blew up")
+
+        live_conn.after_disconnect = boom
+
+        live_conn._recv_loop(FakeSocket([]), 1)
+
+        assert "Error in after_disconnect callback" in caplog.text
+
     def test_multiple_listeners_are_independent(self, live_conn):
         calls: list[str] = []
 
