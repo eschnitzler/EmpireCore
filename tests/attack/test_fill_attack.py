@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from typing import Any, ClassVar, cast
 
 import pytest
@@ -12,63 +11,15 @@ from empire_core.enums import Kingdom
 from empire_core.exceptions import (
     AmbiguousCastleError,
     AttackBelowMinimumError,
-    EmpireTimeoutError,
     UnknownCastleError,
 )
 from empire_core.protocol.models import Commander
+from tests.attack.fill_helpers import OWN, FillClient
 from tests.service_helpers import LIVE_ADI, conn, gcl_castles, make_client, placed, stub_player, wave, xt_packet
 
-OWN = [(12345, Kingdom.GREEN)]
 
-
-class TestFillAttack:
+class TestFillAttack(FillClient):
     """One call producing a complete attack."""
-
-    UNITS: ClassVar[dict[str, list]] = {
-        "units": [
-            {
-                "wodID": 601,
-                "name": "Barracks",
-                "type": "Sword",
-                "role": "melee",
-                "meleeAttack": "100",
-                "fightType": "0",
-            },
-            {
-                "wodID": 611,
-                "name": "Workshop",
-                "type": "Ram",
-                "typ": "Attack",
-                "slotTypes": "1,2,9",
-                "gateBonus": "30",
-                "fightType": "1",
-            },
-        ],
-        "buildings": [
-            {"wodID": 501, "comment2": "Castlewall", "level": "1", "wallBonus": "30"},
-            {"wodID": 450, "comment2": "Gate", "level": "1", "gateBonus": "30"},
-        ],
-        # A daimyo rank jumps at a rank boundary, so the level is looked up and
-        # never counted off from the first row.
-        "daimyoCastles": [{"id": "1", "rank": "1", "level": "81", "wallBonus": "110", "gateBonus": "110"}],
-        "daimyoTownships": [
-            {"id": "25", "rank": "3", "level": "110", "wallBonus": "100", "gateBonus": "100"},
-            {"id": "26", "rank": "4", "level": "116", "wallBonus": "100", "gateBonus": "100"},
-        ],
-        "leaguetypes": [
-            {"leaguetypeID": "1", "eventID": "80", "minLevel": 10, "maxLevel": "69", "countVictoryMin": "16"},
-            {"leaguetypeID": "2", "eventID": "80", "minLevel": 70, "maxLevel": "369", "countVictoryMin": "81"},
-        ],
-        "eventAutoScalingCamps": [{"eventAutoScalingCampID": "3", "camplevel": "70"}],
-    }
-
-    def build(self, inventory):
-        from empire_core.gamedata import GameData
-
-        client = make_client({"gui": xt_packet("gui", {"I": inventory})}, castles=OWN)
-        client.game_data = GameData.parse("test", self.UNITS)
-        client.state.local_player = stub_player(level=70)
-        return client
 
     def test_waves_and_a_courtyard_wave(self):
         client = self.build([[601, 100_000]])
@@ -648,32 +599,6 @@ class TestFillAttack:
         placed = lambda a: sum(c for _, c in a.waves[0].model_dump(by_alias=True)["M"]["T"])  # noqa: E731
         assert placed(skilled) > placed(plain)
 
-    def test_the_precalculation_supplies_the_defenders_legend_skills(self):
-        from empire_core.attack.service import _Target
-
-        client = self.build([[601, 100_000]])
-        army = SpyArmy.from_spy_data([[[601, 10]], [], [], [], [], [], []])
-
-        def info(spy):
-            return SimpleNamespace(
-                target_row=lambda: None,
-                spy_army=lambda: spy,
-                defending_castellan=lambda: None,
-                attacker_bonuses=lambda: [],
-                owner_records=lambda: [],
-                defender_legend_skill_ids=[434],
-            )
-
-        spied = _Target(x=5, y=6)
-        client.attack.get_attack_info = lambda **_: info(army)
-        client.attack._read_precalculation(spied, timeout=1.0)
-        assert spied.defender_legend_skill_ids == [434]
-
-        unspied = _Target(x=5, y=6)
-        client.attack.get_attack_info = lambda **_: info(None)
-        client.attack._read_precalculation(unspied, timeout=1.0)
-        assert unspied.defender_legend_skill_ids is None
-
     def test_the_inventory_is_read_once(self):
         client = self.build([[601, 100_000]])
 
@@ -844,32 +769,6 @@ class TestFillAttack:
         inventory = next(i for i, e in enumerate(order) if "gui" in e)
         assert scanned < reselected < inventory
 
-    def test_a_failed_tile_scan_still_tries_the_pre_calculation_once(self):
-        from empire_core.attack.service import _Target
-
-        client = self.build([[601, 100_000]])
-        conn(client).script["gaa"] = EmpireTimeoutError("no gaa")
-        target = _Target(x=700, y=710)
-
-        client.attack._read_target(target, castle_id=12345, timeout=1.0)
-
-        sent = [command for command, _ in conn(client).request_payloads]
-        assert sent.count("gaa") == 1
-        assert "aci" in sent
-
-    def test_a_pre_calculation_without_a_row_leaves_the_map_to_supply_it(self):
-        from empire_core.attack.service import _Target
-
-        client = self.build([[601, 100_000]])
-        outpost_row = [4, 700, 710, 55, 4242, 1, 1, 1, 0, 0, "outpost"]
-        conn(client).script["coi"] = xt_packet("coi", {"AB": 1, "MB": 2})
-        conn(client).script["gaa"] = xt_packet("gaa", {"KID": 0, "AI": [outpost_row], "OI": []})
-        target = _Target(x=700, y=710, area_type=4, conquer=True)
-
-        client.attack._read_target(target, castle_id=12345, timeout=1.0)
-
-        assert target.row == outpost_row
-
     def test_a_samurai_camp_starts_at_the_players_own_league(self):
         # The row carries no level: it starts where the player's league band
         # starts and climbs with every defeat the camp has taken.
@@ -917,62 +816,6 @@ class TestFillAttack:
         assert item.is_invasion_camp
         assert (item.base_wall_bonus, item.base_gate_bonus, item.base_moat_bonus) == (110.0, 110.0, 0.0)
         assert MapAreaItem.from_list([1, 700, 710, 900, 4242, 1, 1, 1, 0, 0]).base_wall_bonus is None
-
-    def test_an_invasion_camps_protection_is_divided_by_a_hundred(self):
-        # FightScreenHelper.getDefenceBonuses (bundle line 19148) takes baseWallBonus / 100,
-        # as fortification_bonuses does for a castle's buildings
-        from empire_core.attack.service import _Target
-        from empire_core.enums import Flank
-
-        client = self.build([[601, 100_000]])
-        assert client.game_data is not None
-        target = _Target(x=700, y=710, row=[27, 700, 710, -1, 4, 0, 0, 0, -1, 110, 120, 30])
-
-        defense = client.attack._target_defense(client.game_data, target)
-
-        assert defense is not None
-        left, middle = defense[Flank.LEFT], defense[Flank.MIDDLE]
-        assert (left.wall_bonus, left.gate_bonus, left.moat_bonus) == pytest.approx((1.1, 0.0, 0.3))
-        assert middle.gate_bonus == pytest.approx(1.2)
-
-    def test_an_alien_camps_row_gives_its_protection_and_level(self):
-        # A captured red alien camp row; AAlienInvasionMapobjectVO returns fields 6 to 8 as its bonuses
-        from empire_core.attack.service import _Target
-        from empire_core.enums import Flank
-
-        client = self.build([[601, 100_000]])
-        assert client.game_data is not None
-        row = [34, 619, 242, 70, -1, 0, 120, 120, 45, 0, -1]
-        target = _Target(x=619, y=242, row=row)
-
-        defense = client.attack._target_defense(client.game_data, target)
-
-        assert defense is not None
-        left, middle = defense[Flank.LEFT], defense[Flank.MIDDLE]
-        assert (left.wall_bonus, middle.gate_bonus, left.moat_bonus) == pytest.approx((1.2, 1.2, 0.45))
-
-        conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
-        conn(client).script["gaa"] = xt_packet("gaa", {"KID": 0, "AI": [row], "OI": []})
-        read = _Target(x=619, y=242)
-        client.attack._read_target(read, castle_id=12345, timeout=1.0)
-        assert (read.row, read.level) == (row, 70)
-        assert conn(client).requested.count("gaa") == 1
-
-    def test_the_wolf_king_and_alliance_camps_take_their_rows_protection(self):
-        from empire_core.attack.service import _Target
-        from empire_core.enums import Flank
-
-        client = self.build([[601, 100_000]])
-        assert client.game_data is not None
-        for row in (
-            [42, 1, 2, 60, 12, 0, 40, 50, 60],
-            [35, 1, 2, 60, 8, 100, 500, 20, 6, 3, 40, 50, 60],
-            [40, 1, 2, 60, 8, 100, 500, 20, 6, 3, 40, 50, 60],
-        ):
-            defense = client.attack._target_defense(client.game_data, _Target(x=1, y=2, row=row))
-            assert defense is not None
-            middle = defense[Flank.MIDDLE]
-            assert (middle.wall_bonus, middle.gate_bonus, middle.moat_bonus) == pytest.approx((0.4, 0.5, 0.6)), row
 
     def test_an_unknown_camp_rank_says_which_rank(self):
         client = self.build([[601, 100_000]])
