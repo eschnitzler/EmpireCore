@@ -23,6 +23,7 @@ unlocks = client.state.get_permanent_castle(castle_id)    # unlocked units, hors
 horse_ids = client.state.get_castle_horse_ids(castle_id)  # the horses' wod ids
 movements = client.state.get_all_movements()
 attacks = client.state.get_incoming_attacks()
+announced = client.state.get_announced_attacks()  # what on_incoming_attack reported
 currencies = client.state.get_special_currencies()
 spies = client.state.get_max_spies()        # spies owned, before boosts
 events = client.state.get_events()          # the running events, by id
@@ -252,6 +253,14 @@ async with client.listen(client.state.on_incoming_attack_updated) as updates:
         old, new = update.args  # Movement, Movement
         print(old.estimated_arrival, "->", new.estimated_arrival)
 ```
+
+Subscriptions kept as data can name the registrations instead, by the event
+names: `client.listen(names={"incoming_attack", "chat_message"})`. A name no
+registration has raises `ValueError` when `listen` is called, so a typo does
+not go unnoticed; `names` takes a collection, never a single string. A stream
+by name has untyped `args`. Registration methods and `names` can be given
+together, and the stream then has both. Only `client.listen()` with neither
+streams every registration; an empty `names` streams none.
 
 A stream listens for exactly its `async with` block: entering subscribes,
 leaving (or `events.close()`) stops listening, and iterating a stream you did

@@ -8,6 +8,7 @@ player.models.info) subclass PlayerProfileBase.
 from __future__ import annotations
 
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import Field, field_validator, model_validator
@@ -30,6 +31,7 @@ class PlayerProfileBase(BasePayload):
 
     The protection times count from ``received_at``, as the client counts them from the ``CachedTimer``
     reading ``parseOwnerInfo`` takes (bundle line 138997).
+    ``received_at_wall`` is stamped with it, for the ``*_utc`` ends: the wall clock at reading.
     """
 
     player_id: ParseInt = Field(alias="OID", default=0, description="Player id")
@@ -69,6 +71,9 @@ class PlayerProfileBase(BasePayload):
     via_refer_a_friend: bool = Field(alias="IRF", default=False, description="The player joined through a referral")
     received_at: float = Field(
         default_factory=time.monotonic, description="When the values were read, in time.monotonic() seconds"
+    )
+    received_at_wall: float = Field(
+        default_factory=time.time, description="When the values were read, in time.time() seconds"
     )
 
     @field_validator("name", "alliance_name", mode="before")
@@ -194,6 +199,25 @@ class PlayerProfileBase(BasePayload):
     def beginner_protection_end(self) -> float | None:
         """When beginner protection ends, in time.monotonic() seconds; None without protection."""
         return self.received_at + self.beginner_protection_seconds if self.beginner_protection_seconds > 0 else None
+
+    def revenge_protection_end_utc(self) -> datetime | None:
+        """When peace protection ends, as a UTC datetime; None without protection.
+
+        Counted from ``received_at_wall``, not from now, so it stays the same
+        for the same record.
+        """
+        return self._utc_end(self.revenge_protection_seconds)
+
+    def beginner_protection_end_utc(self) -> datetime | None:
+        """When beginner protection ends, as a UTC datetime; None without protection.
+
+        Counted from ``received_at_wall``, not from now, so it stays the same
+        for the same record.
+        """
+        return self._utc_end(self.beginner_protection_seconds)
+
+    def _utc_end(self, seconds: int) -> datetime | None:
+        return datetime.fromtimestamp(self.received_at_wall + seconds, timezone.utc) if seconds > 0 else None
 
     def remaining_revenge_protection_seconds(self, now: float | None = None) -> float:
         """

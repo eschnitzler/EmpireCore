@@ -12,7 +12,7 @@ import logging
 import threading
 import time
 import xml.etree.ElementTree as ET
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from types import TracebackType
 from typing import Any, TypeVar, cast, overload
@@ -364,11 +364,19 @@ class EmpireClient:
 
     @overload
     def listen(
-        self, *sources: Callable[[Callable[..., Any]], None], maxsize: int = 0
+        self,
+        *sources: Callable[[Callable[..., Any]], None],
+        names: Iterable[str] | None = None,
+        maxsize: int = 0,
     ) -> EventStream[Unpack[tuple[Any, ...]]]: ...
 
-    def listen(self, *sources: Callable[..., None], maxsize: int = 0) -> EventStream[Unpack[tuple[Any, ...]]]:
-        """Stream callback calls to the running event loop: every registration's, or those of ``sources``.
+    def listen(
+        self,
+        *sources: Callable[..., None],
+        names: Iterable[str] | None = None,
+        maxsize: int = 0,
+    ) -> EventStream[Unpack[tuple[Any, ...]]]:
+        """Stream callback calls to the running event loop: every registration's, or those of ``sources`` and ``names``.
 
         Call it from a coroutine; the stream delivers on that coroutine's loop. ``sources``
         are the registration methods themselves (``client.state.on_incoming_attack``,
@@ -380,6 +388,14 @@ class EmpireClient:
         ``ClientEvent[Movement, Movement]``. The movement callbacks, which take either
         ``(movement_id)`` or ``(movement_id, movement)``, and streams of several
         registrations yield untyped ``args``.
+
+        ``names`` picks registrations by the event names instead, for subscriptions kept as
+        data: ``client.listen(names={"incoming_attack", "chat_message"})``. A name is the
+        registration's without ``on_``, as :class:`~empire_core.client.stream.ClientEvent` has
+        it, and an unknown one raises ``ValueError`` here, not later. A stream by name has
+        untyped ``args``. ``sources`` and ``names`` can be given together; the stream then has
+        the registrations of both. Only with neither does it have every registration: an
+        empty ``names`` alone picks none.
 
         The stream listens inside ``async with`` only: entering it subscribes, leaving it
         stops listening, and iterating a stream that was not entered raises ``RuntimeError``.
@@ -394,7 +410,8 @@ class EmpireClient:
 
         Raises:
             RuntimeError: No event loop is running.
-            ValueError: A source is not a callback registration of this client.
+            ValueError: A source is not a callback registration of this client, a name is not
+                one's, or ``names`` is a single string.
 
         Example::
 
@@ -403,11 +420,19 @@ class EmpireClient:
                     (movement,) = attack.args
         """
         loop = asyncio.get_running_loop()
-        known = {source.register: source for source in callback_sources(self).values()}
+        by_name = callback_sources(self)
+        known = {source.register: source for source in by_name.values()}
         if unknown := [source for source in sources if source not in known]:
             raise ValueError(f"not callback registrations of this client: {unknown}")
-        chosen = [known[source] for source in dict.fromkeys(sources)] if sources else list(known.values())
-        return EventStream(self, chosen, loop, maxsize)
+        if isinstance(names, str):
+            raise ValueError(f"names takes a collection of names, not the string {names!r}")
+        names = None if names is None else tuple(names)
+        if unknown_names := sorted(set(names or ()) - set(by_name)):
+            raise ValueError(f"no callback registration of this client is named {unknown_names}")
+        if not sources and names is None:
+            return EventStream(self, list(by_name.values()), loop, maxsize)
+        chosen = [known[source] for source in sources] + [by_name[name] for name in names or ()]
+        return EventStream(self, list(dict.fromkeys(chosen)), loop, maxsize)
 
     def close_streams(self) -> None:
         """End every stream of :meth:`listen` still listening, after the events already on their way.

@@ -497,6 +497,8 @@ class MovementState(StateBase):
             mov.estimated_size = mov.estimated_size or existing.estimated_size
             mov.commander = mov.commander or existing.commander
 
+        if announced:
+            self._announced[mid] = max(self._announced[mid], mov.estimated_end)
         listeners = self._listeners_for(mov)
         if listeners is not None and not announced and (self._is_attack_on_us(mov) or self._is_occupation_on_us(mov)):
             end = mov.estimated_end
@@ -790,6 +792,64 @@ class MovementState(StateBase):
         with self._lock:
             self._advance_movements()
             return [m for m in self.movements.values() if m.is_incoming and m.is_attack]
+
+    def get_announced_attacks(self) -> list[Movement]:
+        """The attacks :meth:`on_incoming_attack` announced that are still on their way, in the order announced.
+
+        Each is the Movement as state holds it now, from the latest packet that
+        carried it. Unlike :meth:`get_incoming_attacks`, which lists the attacks
+        aimed at you, this is what the callback reported, attacks on alliance
+        members included. An attack leaves it when it arrives or the server
+        removes it. After a reconnect, or a ``close()`` and ``login()``, an
+        attack is listed again once a packet lists it, without being announced
+        again (see :meth:`reannounce`): a client handed to a new holder does
+        not announce to it what it announced before.
+
+        Library bookkeeping: the client keeps no record of what it announced.
+        """
+        return self._still_announced(self._attack_listeners)
+
+    def get_occupations(self) -> list[Movement]:
+        """The occupations :meth:`on_occupation_started` announced that have not ended, in the order announced.
+
+        Listed as :meth:`get_announced_attacks` lists attacks; an occupation
+        leaves the list as :meth:`on_occupation_ended` reports it.
+        """
+        return self._still_announced(self._occupation_listeners)
+
+    def _still_announced(self, listeners: AnnouncedListeners) -> list[Movement]:
+        with self._lock:
+            self._advance_movements()
+            tracked = (self.movements.get(mid) for mid in self._announced)
+            return [mov for mov in tracked if mov is not None and self._listeners_for(mov) is listeners]
+
+    def reannounce(self, movement_id: int) -> bool:
+        """Fire :meth:`on_incoming_attack` or :meth:`on_occupation_started` again for an announced movement.
+
+        For a consumer whose callback could not act on the announcement (an
+        alert that failed to send). The callbacks get the Movement as state
+        holds it now, on the callback thread, behind those already queued.
+        Nothing else changes: the movement stays announced, so no packet
+        announces it again. A ``client.listen()`` stream gets it as an
+        ordinary ``incoming_attack`` or ``occupation_started`` event.
+
+        Returns:
+            True if the callbacks were queued; False if ``movement_id`` is not
+            among :meth:`get_announced_attacks` or :meth:`get_occupations`
+            (never announced, arrived or ended, removed, or not listed again
+            since a reconnect).
+
+        Library bookkeeping: the client announces nothing (see :meth:`on_incoming_attack`).
+        """
+        with self._lock:
+            self._advance_movements()
+            mov = self.movements.get(movement_id)
+            listeners = self._listeners_for(mov) if mov is not None and movement_id in self._announced else None
+            if listeners is None:
+                return False
+            for announce in list(listeners.announced):
+                self._dispatch_callback(announce, mov)
+            return True
 
     def get_movement_by_id(self, movement_id: int) -> Movement | None:
         """Get a tracked movement by its ``Movement.movement_id``, as ``client.movements.get_movements()`` lists it."""

@@ -1,6 +1,7 @@
 """Tests for the player models."""
 
 import time
+from datetime import datetime, timezone
 
 import pytest
 
@@ -226,6 +227,26 @@ class TestProtectionTimes:
         assert owner.remaining_revenge_protection_seconds(now=160.0) == 3540
         assert owner.remaining_beginner_protection_seconds(now=160.0) == 540
         assert owner.remaining_beginner_protection_seconds(now=800.0) == 0
+
+    def test_the_utc_ends_count_from_the_wall_clock_stamped_at_reading(self):
+        before = time.time()
+        owner = PlayerOwnerInfo.model_validate({"OID": 1, "RPT": 3600, "RNP": 600})
+        assert before <= owner.received_at_wall <= time.time()
+        assert owner.revenge_protection_end_utc() == datetime.fromtimestamp(owner.received_at_wall + 3600, timezone.utc)
+
+        stamped = PlayerOwnerInfo(
+            player_id=1,
+            revenge_protection_seconds=3600,
+            beginner_protection_seconds=600,
+            received_at_wall=1_700_000_000,
+        )
+        assert stamped.revenge_protection_end_utc() == datetime(2023, 11, 14, 23, 13, 20, tzinfo=timezone.utc)
+        assert stamped.beginner_protection_end_utc() == datetime(2023, 11, 14, 22, 23, 20, tzinfo=timezone.utc)
+
+    def test_no_protection_has_no_utc_end(self):
+        owner = PlayerOwnerInfo.model_validate({"OID": 1, "RPT": 0, "RNP": -1})
+        assert owner.revenge_protection_end_utc() is None
+        assert owner.beginner_protection_end_utc() is None
 
     def test_the_flags_go_false_when_the_time_runs_out(self):
         # isPeaceProtected and isNoobProtected (bundle lines 10808, 10806): the time left is above 0

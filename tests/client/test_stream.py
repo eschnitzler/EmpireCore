@@ -176,8 +176,61 @@ class TestTyping:
         assert asyncio.run(scenario()).movement_id == 100
 
 
-class TestSieges:
-    def test_a_siege_streams_as_its_own_event(self, client):
+class TestNames:
+    def test_names_pick_the_registrations_streamed(self, client):
+        async def scenario():
+            async with client.listen(names={"chat_message"}) as events:
+                client._on_packet(xt_packet("gam", gam_payload(100)))
+                client._on_packet(chat("only me"))
+                return await take(events, 1), events
+
+        (event,), events = asyncio.run(scenario())
+
+        assert event.name == "chat_message"
+        assert [source.name for source in events._sources] == ["chat_message"]
+
+    def test_sources_and_names_together_stream_both_once(self, client):
+        async def scenario():
+            return client.listen(
+                client.state.on_incoming_attack, client.alliance.on_chat_message, names=["chat_message", "disconnect"]
+            )
+
+        events = asyncio.run(scenario())
+
+        assert [source.name for source in events._sources] == ["incoming_attack", "chat_message", "disconnect"]
+
+    def test_names_may_be_a_generator(self, client):
+        async def scenario():
+            return client.listen(names=(name for name in ["chat_message", "disconnect"]))
+
+        events = asyncio.run(scenario())
+
+        assert [source.name for source in events._sources] == ["chat_message", "disconnect"]
+
+    def test_empty_names_pick_none(self, client):
+        async def scenario():
+            return client.listen(names=())
+
+        assert asyncio.run(scenario())._sources == []
+
+    @pytest.mark.parametrize(
+        ("names", "match"),
+        [
+            ({"chat_message", "chat_mesage"}, "chat_mesage"),
+            ({"on_chat_message"}, "on_chat_message"),
+            ("chat_message", "string"),
+        ],
+    )
+    def test_a_name_no_registration_has_is_refused_at_once(self, client, names, match):
+        async def scenario():
+            client.listen(names=names)
+
+        with pytest.raises(ValueError, match=match):
+            asyncio.run(scenario())
+
+
+class TestOccupations:
+    def test_an_occupation_streams_as_its_own_event(self, client):
         async def scenario():
             async with client.listen(client.state.on_occupation_started) as occupations:
                 client._on_packet(xt_packet("gam", gam_payload(100, movement_type=5)))

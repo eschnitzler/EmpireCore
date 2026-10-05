@@ -475,6 +475,123 @@ class TestOccupationCallbacks:
         assert fired == []
 
 
+class TestAnnouncedMovements:
+    """get_announced_attacks, get_occupations and reannounce: library bookkeeping, no client counterpart."""
+
+    ME, ALLY, ENEMY, CLAN = 1, 2, 3, 301
+
+    @staticmethod
+    def settle(state: GameState) -> None:
+        marker = threading.Event()
+        state._dispatch_callback(marker.set)
+        assert marker.wait(2)
+
+    def test_the_announced_attacks_are_those_the_callback_reported(self, state):
+        login(state, self.ME, self.CLAN)
+        on_ally = gam_payload(501, oid=self.ENEMY, tid=self.ALLY)
+        on_ally["O"].append({"OID": self.ALLY, "AID": self.CLAN, "N": "ally"})
+        state.update_from_packet("gam", gam_payload(500))
+        state.update_from_packet("gam", on_ally)
+        state.update_from_packet("gam", gam_payload(502, movement_type=MovementType.DEFENCE))
+        state.update_from_packet("gam", gam_payload(503, movement_type=MovementType.SIEGE))
+
+        assert [mov.movement_id for mov in state.get_announced_attacks()] == [500, 501]
+        assert [mov.movement_id for mov in state.get_incoming_attacks()] == [500]
+        assert [mov.movement_id for mov in state.get_occupations()] == [503]
+
+    def test_an_occupation_leaves_the_list_when_it_ends(self, state):
+        login(state)
+        state.update_from_packet("gam", gam_payload(515, movement_type=MovementType.SIEGE))
+        state.update_from_packet("gam", gam_payload(516, movement_type=MovementType.SIEGE, extra={"TT": 1200}))
+        arrive(state, 515)
+        assert [mov.movement_id for mov in state.get_occupations()] == [516]
+        state.update_from_packet("mrm", {"MID": 516})
+        assert state.get_occupations() == []
+
+    def test_an_announced_attack_is_listed_as_the_latest_packet_has_it(self, state):
+        login(state)
+        state.update_from_packet("gam", gam_payload(510))
+        state.update_from_packet("gam", gam_payload(510, extra={"TT": 300}))
+        [attack] = state.get_announced_attacks()
+        assert attack is state.movements[510]
+
+    def test_an_attack_leaves_the_list_when_it_arrives_or_is_removed(self, state):
+        login(state)
+        state.update_from_packet("gam", gam_payload(520))
+        state.update_from_packet("gam", gam_payload(521))
+        arrive(state, 520)
+        state.update_from_packet("mrm", {"MID": 521})
+        assert state.get_announced_attacks() == []
+
+    def test_an_attack_a_later_packet_delays_stays_announced_until_its_new_arrival(self, state):
+        login(state)
+        fired: list[Movement] = []
+        state.on_incoming_attack(fired.append)
+        state.update_from_packet("gam", gam_payload(525))
+        state.update_from_packet("gam", gam_payload(525, extra={"TT": 900}))
+
+        with later(700):
+            assert [mov.movement_id for mov in state.get_announced_attacks()] == [525]
+            state.update_from_packet("gam", gam_payload(525, extra={"TT": 900, "PT": 700}))
+            assert state.reannounce(525) is True
+        self.settle(state)
+        assert len(fired) == 2
+        with later(1000):
+            assert state.get_announced_attacks() == []
+
+    def test_after_a_reconnect_an_attack_is_listed_again_once_a_packet_lists_it(self, state):
+        login(state)
+        fired: list[Movement] = []
+        state.on_incoming_attack(fired.append)
+        state.update_from_packet("gam", gam_payload(530))
+        state.reset()
+        login(state)
+        assert state.get_announced_attacks() == []
+        state.update_from_packet("gam", gam_payload(530))
+        assert [mov.movement_id for mov in state.get_announced_attacks()] == [530]
+        self.settle(state)
+        assert len(fired) == 1
+
+    @pytest.mark.parametrize(
+        ("movement_type", "callback"),
+        [(MovementType.ATTACK, "on_incoming_attack"), (MovementType.SIEGE, "on_occupation_started")],
+    )
+    def test_reannounce_fires_the_announcement_again(self, state, movement_type, callback):
+        login(state)
+        fired: list[Movement] = []
+        getattr(state, callback)(fired.append)
+        state.update_from_packet("gam", gam_payload(540, movement_type=movement_type))
+        state.update_from_packet("gam", gam_payload(540, movement_type=movement_type, extra={"TT": 300}))
+
+        assert state.reannounce(540) is True
+        self.settle(state)
+        assert [mov.movement_id for mov in fired] == [540, 540]
+        assert fired[1] is state.movements[540]
+        state.update_from_packet("gam", gam_payload(540, movement_type=movement_type, extra={"TT": 300}))
+        self.settle(state)
+        assert len(fired) == 2
+
+    def test_reannounce_refuses_what_is_not_announced_and_still_on_its_way(self, state):
+        login(state)
+        fired: list[Movement] = []
+        state.on_incoming_attack(fired.append)
+        state.on_occupation_started(fired.append)
+        state.update_from_packet("gam", gam_payload(550))
+        state.update_from_packet("gam", gam_payload(551))
+        state.update_from_packet("gam", gam_payload(552, oid=1))
+        state.update_from_packet("gam", gam_payload(553))
+        arrive(state, 550)
+        state.update_from_packet("mrm", {"MID": 551})
+        state.reset()
+        login(state)
+        self.settle(state)
+        fired.clear()
+
+        assert [state.reannounce(mid) for mid in (550, 551, 552, 553, 9999)] == [False] * 5
+        self.settle(state)
+        assert fired == []
+
+
 class TestMovementDirection:
     ME = 1
 
@@ -514,6 +631,7 @@ class TestMovementDirection:
         assert mov is not None and mov.is_occupation and not mov.is_incoming
         assert me.get_incoming_movements() == []
         assert me.get_incoming_attacks() == []
+        assert [m.movement_id for m in me.get_occupations()] == [709]
 
     def test_returning_army_is_neither_incoming_nor_outgoing(self, me):
         me.update_from_packet("gam", gam_payload(704, oid=self.ME, tid=555, extra={"D": 1}))

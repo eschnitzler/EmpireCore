@@ -109,6 +109,31 @@ stateDiagram-v2
   off!" in the game. Derived from the arrival time, as withdrawn attacks are.
   An occupation that ends while no session is logged in is not reported.
 
+## What was announced, and announcing again
+
+`client.state.get_announced_attacks()` and `get_occupations()` list what
+`on_incoming_attack` and `on_occupation_started` announced that has not
+arrived or ended, in the order announced, each as the latest packet has it. That is not
+`get_incoming_attacks()`, which lists only attacks aimed at you; the announced
+list includes attacks on alliance members.
+
+If a callback could not act on an announcement (an alert that failed to send),
+`client.state.reannounce(movement_id)` fires `on_incoming_attack` or
+`on_occupation_started` again with the movement as state has it now, and returns
+`True`. It returns `False`, firing nothing, for a movement that is not in
+those lists: never announced, arrived, removed, or not listed again since a
+reconnect. Nothing is re-announced on its own: the movement stays announced,
+and later packets for it fire only the `_updated` callbacks. A re-announcement
+reaches every `on_incoming_attack` or `on_occupation_started` callback and every
+`client.listen()` stream of them as an ordinary `incoming_attack` or
+`occupation_started` event; nothing marks it as a repeat.
+
+What was announced outlives the session: a reconnect, and also `close()`
+followed by `login()`, announces none of it again. A client handed on, as an
+[account pool](multiple-accounts.md) lease is, does not announce to its next
+holder what it announced to the previous one; read `get_announced_attacks()`
+and `get_occupations()`, or call `reannounce`, to catch up.
+
 ## Callback signatures
 
 `on_incoming_attack`, `on_incoming_attack_withdrawn` and `on_occupation_started`

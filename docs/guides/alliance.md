@@ -90,8 +90,11 @@ A member's protection times count from when the reply was read (`received_at`,
 in `time.monotonic()` seconds): `revenge_protection_end` and
 `beginner_protection_end` stay fixed, and
 `remaining_revenge_protection_seconds()` counts down; `has_bird` and
-`has_beginner_protection` turn False once the time runs out. A player from
-`client.player.get_player_info` has the same on its `owner`.
+`has_beginner_protection` turn False once the time runs out. To store or show
+an end, `revenge_protection_end_utc()` and `beginner_protection_end_utc()` give
+it as a UTC `datetime` (or `None`), counted from the wall-clock time stamped at
+the same read (`received_at_wall`), so they do not move between calls. A player
+from `client.player.get_player_info` has the same on its `owner`.
 
 `client.state.get_own_alliance()` is your alliance's details as the login data
 and the replies since left them (a chat message marks its sender online), or
