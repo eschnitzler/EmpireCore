@@ -9,6 +9,7 @@ else castle-scoped needs ``client.castle.select`` first.
 
 from __future__ import annotations
 
+import threading
 from typing import TypeVar
 
 from empire_core.enums import Kingdom, MapItemType
@@ -76,6 +77,8 @@ class MapService(BaseService):
         request_timeout: float = 5.0,
         chunk_delay: float = 0.0,
         include_unowned_types: set[MapItemType] | None = None,
+        *,
+        cancel: threading.Event | None = None,
     ) -> ScanResult:
         """Scan a kingdom map. See MapScanner.scan_kingdom; the session leaves its castle."""
         return MapScanner(self.client).scan_kingdom(
@@ -85,6 +88,7 @@ class MapService(BaseService):
             request_timeout,
             chunk_delay,
             include_unowned_types=include_unowned_types,
+            cancel=cancel,
         )
 
     def scan_chunks(
@@ -96,6 +100,8 @@ class MapService(BaseService):
         request_timeout: float = 5.0,
         chunk_delay: float = 0.0,
         include_unowned_types: set[MapItemType] | None = None,
+        *,
+        cancel: threading.Event | None = None,
     ) -> ScanResult:
         """Scan an explicit chunk list (no BFS). See MapScanner.scan_chunks; the session leaves its castle."""
         return MapScanner(self.client).scan_chunks(
@@ -106,6 +112,7 @@ class MapService(BaseService):
             request_timeout,
             chunk_delay,
             include_unowned_types=include_unowned_types,
+            cancel=cancel,
         )
 
     def find_next(

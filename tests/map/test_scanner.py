@@ -2,6 +2,7 @@
 
 import json
 import logging
+import threading
 import time
 from types import SimpleNamespace
 from typing import Any
@@ -443,7 +444,12 @@ class TestChunkRetry:
 
     def test_retries_back_off(self, monkeypatch):
         slept: list[float] = []
-        monkeypatch.setattr("empire_core.map.scanner.time.sleep", slept.append)
+
+        def sleep(seconds: float, cancel: threading.Event | None) -> bool:
+            slept.append(seconds)
+            return False
+
+        monkeypatch.setattr("empire_core.map.scanner.sleep_unless_cancelled", sleep)
         fake = _FakeClient(
             content_chunks={(1, 1)},
             raises={(1, 1): [EmpireTimeoutError("no answer"), EmpireTimeoutError("again")]},
@@ -567,3 +573,87 @@ class TestScanKingdom:
         fake = _FakeClient(content_chunks=set(), payloads={(1, 1): {"AI": [], "OI": [{"N": "x"}, {"OID": 5}]}})
         result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], chunk_delay=0)
         assert list(result.objects) == [5]
+
+
+def _cancel_after(fake: _FakeClient, requests: int) -> threading.Event:
+    """An event the fake server sets as it answers its ``requests``-th gaa."""
+    cancel = threading.Event()
+    answer = fake.connection.request
+
+    def request(data: str, cmd_id: str, timeout: float = 5.0) -> Packet:
+        try:
+            return answer(data, cmd_id, timeout)
+        finally:
+            if len(fake.connection.requests) >= requests:
+                cancel.set()
+
+    fake.connection.request = request  # type: ignore[method-assign]
+    return cancel
+
+
+CONTENT = {(5, 5), (5, 6), (6, 5)}
+
+
+class TestCancellingAScan:
+    """A cancel is looked at between chunks: the chunk in flight is answered, never abandoned."""
+
+    def test_a_kingdom_scan_stops_after_the_chunk_in_flight(self):
+        fake = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+        cancel = _cancel_after(fake, 3)
+
+        result = _make_scanner(fake).scan_kingdom(kingdom=Kingdom.GREEN, item_types=[], cancel=cancel)
+
+        assert len(fake.connection.requests) == 3
+        assert result.failed_chunks
+        assert not set(result.failed_chunks) & set(fake.connection.requests)
+        assert set(result.content_chunks) <= set(fake.connection.requests)
+
+    def test_a_cancel_before_the_first_chunk_scans_nothing(self):
+        fake = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+        cancel = threading.Event()
+        cancel.set()
+
+        result = _make_scanner(fake).scan_kingdom(kingdom=Kingdom.GREEN, item_types=[], cancel=cancel)
+
+        assert fake.connection.requests == []
+        assert result.failed_chunks == ((5, 5),)
+
+    def test_a_chunk_scan_reports_the_chunks_left(self):
+        fake = _FakeClient(content_chunks=CONTENT)
+        cancel = _cancel_after(fake, 1)
+
+        result = _make_scanner(fake).scan_chunks(Kingdom.GREEN, [(5, 5), (5, 6), (6, 5)], item_types=[], cancel=cancel)
+
+        assert fake.connection.requests == [(5, 5)]
+        assert result.content_chunks == ((5, 5),)
+        assert result.failed_chunks == ((5, 6), (6, 5))
+
+    def test_a_cancel_skips_the_retry(self):
+        fake = _FakeClient(content_chunks={(1, 1)}, raises={(1, 1): [EmpireTimeoutError("no answer")]})
+        cancel = _cancel_after(fake, 1)
+
+        result = MapScanner(fake).scan_chunks(Kingdom.GREEN, [(1, 1), (2, 2)], item_types=[], cancel=cancel)
+
+        assert fake.connection.requests == [(1, 1)]
+        assert result.failed_chunks == ((1, 1), (2, 2))
+
+    def test_the_facade_passes_the_cancel_on(self):
+        from empire_core.map.service import MapService
+
+        fake = _FakeClient(content_chunks=CONTENT)
+        cancel = threading.Event()
+        cancel.set()
+
+        result = MapService(fake).scan_chunks(Kingdom.GREEN, [(5, 5)], cancel=cancel)  # type: ignore[arg-type]
+
+        assert (fake.connection.requests, result.failed_chunks) == ([], ((5, 5),))
+
+    def test_a_cancelled_scan_does_not_warn(self, caplog):
+        fake = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+        cancel = _cancel_after(fake, 2)
+
+        with caplog.at_level(logging.DEBUG, logger="empire_core.map.scanner"):
+            result = _make_scanner(fake).scan_kingdom(item_types=[], cancel=cancel)
+
+        assert result.failed_chunks
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]

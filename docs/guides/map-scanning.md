@@ -68,6 +68,24 @@ accounts, in interleaved slices `chunks[i::n]`, and run their `scan_chunks()`
 calls at the same time. The server limits the request rate per account; see
 [Multiple accounts](multiple-accounts.md).
 
+## Cancelling a scan
+
+Pass a `threading.Event` as `cancel` to `scan_kingdom()` or `scan_chunks()`.
+Once it is set, the scan stops before its next chunk and returns what it has,
+with the chunks it did not scan in `failed_chunks`, as a timeout does:
+
+```python
+import threading
+
+stop = threading.Event()
+result = client.map.scan_kingdom(Kingdom.GREEN, cancel=stop)
+# on another thread: stop.set()
+```
+
+The chunk in flight is not abandoned: it ends with its reply or its
+`request_timeout`, so its reply cannot reach the next map request. The same
+event can cancel spy missions too (see [Spy](spy.md)).
+
 ## The session leaves its castle
 
 A scan moves the session off the castle it had joined and drops
