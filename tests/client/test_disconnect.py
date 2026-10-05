@@ -86,6 +86,24 @@ class TestDisconnectCallbacks:
 
         assert calls == ["fired"]
 
+    def test_callbacks_are_the_connections_disconnect_listeners(self, client):
+        calls: list[str] = []
+
+        def first() -> None:
+            calls.append("first")
+
+        def second() -> None:
+            calls.append("second")
+
+        client.connection.add_disconnect_listener(first)
+        client.on_disconnect(second)
+        client.on_disconnect(first)
+        drop(client)
+        client.connection.remove_disconnect_listener(second)
+        drop(client)
+
+        assert calls == ["first", "second", "first"]
+
 
 class TestStateAfterADrop:
     """The game client forgets the lost session's data; the next login rebuilds it."""
@@ -260,7 +278,7 @@ class TestLateDropReport:
         client.is_logged_in = True
         login(client.state)
 
-        client._on_disconnect(stale)
+        client._session.dropped(stale)
 
         assert client.is_logged_in
         assert client.state.local_player is not None
@@ -270,7 +288,7 @@ class TestLateDropReport:
         client.is_logged_in = True
         login(client.state)
 
-        client._on_disconnect(client.connection.generation)
+        client._session.dropped(client.connection.generation)
 
         assert not client.is_logged_in
         assert client.state.local_player is None

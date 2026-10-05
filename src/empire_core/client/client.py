@@ -10,12 +10,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-import time
-import xml.etree.ElementTree as ET
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from types import TracebackType
-from typing import Any, NoReturn, TypeVar, cast, overload
+from typing import Any, TypeVar, cast, overload
 
 from pydantic import ValidationError
 from typing_extensions import Unpack
@@ -24,25 +22,13 @@ from empire_core.alliance.service import AllianceService
 from empire_core.army.service import ArmyService
 from empire_core.attack.service import AttackService
 from empire_core.castle.service import CastleService
+from empire_core.client.session import Session
 from empire_core.client.stream import Args, EventStream, callback_sources
 from empire_core.commanders.service import CommandersService, EquipmentService, SkillsService
-from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, default_config, generate_session_id
+from empire_core.config import EmpireConfig, default_config, generate_session_id
 from empire_core.defense.service import DefenseService
 from empire_core.events.service import EventsService
-from empire_core.exceptions import (
-    AccountBannedError,
-    ClientVersionError,
-    CommandError,
-    ConnectionClosedError,
-    EmpireError,
-    EmpireTimeoutError,
-    LoginCooldownError,
-    LoginError,
-    NetworkError,
-    PacketError,
-    VersionCheckStatus,
-    WrongServerError,
-)
+from empire_core.exceptions import CommandError, EmpireError, PacketError
 from empire_core.gamedata import GameData
 from empire_core.map.service import MapService
 from empire_core.messages.service import MessagesService
@@ -50,71 +36,22 @@ from empire_core.movements.models import GetMovementsRequest
 from empire_core.movements.service import MovementsService
 from empire_core.network.connection import NON_ERROR_COMMANDS, Connection
 from empire_core.player.service import PlayerService
-from empire_core.protocol.auth import LoginRequest, LoginResponse, LoginTokenResponse, build_version_check
-from empire_core.protocol.base import NO_ROOM, read_or_none
-from empire_core.protocol.errors import GGEError
-from empire_core.protocol.js import js_number_or_none
+from empire_core.protocol.auth import LoginTokenResponse
+from empire_core.protocol.base import read_or_none
 from empire_core.protocol.models import BaseRequest, BaseResponse, parse_response
 from empire_core.protocol.packet import Packet
 from empire_core.ranking.service import RankingService
 from empire_core.spy.service import SpyService
 from empire_core.state.manager import GameState
-from empire_core.utils.callbacks import BoundCallbacks, Callbacks, Registry, Remover
+from empire_core.utils.callbacks import Callbacks, Registry, Remover
 
 logger = logging.getLogger(__name__)
 
-
-LOBBY_ROOM_NAME = "Lobby"
 
 # Login data sections the client parses as it parses the push of the same name.
 # Client: GBDCommand.exec (bundle line 129381) hands n.sne to parse_SNE and n.ahl to parse_AHL,
 # as SNECommand and AHLCommand do.
 LOGIN_SECTION_PUSHES = ("sne", "ahl")
-
-# Library policy for keep_session: the client never re-logs in by itself after a drop.
-RELOGIN_FIRST_DELAY = 5.0
-RELOGIN_MAX_DELAY = 300.0
-
-
-def _joined_room_id(join_ok: Packet) -> int:
-    """
-    The room id in a ``joinOK``'s ``r`` attribute, read with ``Number()``.
-
-    Where the client would get NaN, this reads -1 (no room).
-
-    Client: ``BasicSmartfoxClient.handleSystemMessage`` (dll line 7232)
-    """
-    body = join_ok.payload.find("body") if isinstance(join_ok.payload, ET.Element) else None
-    if body is None:
-        return NO_ROOM
-    number = js_number_or_none(body.get("r", ""))
-    return NO_ROOM if number is None else int(number)
-
-
-def _room_entry(packet: Packet) -> tuple[int, str] | None:
-    """
-    The room id and name one ``rlu`` message lists, or None when it has no name.
-
-    ``%xt%rlu%-1%{id}%{a}%{b}%{flags}%{name}%``: the id lands in the status
-    field and the name is the fourth field after it.
-
-    Client: ``BasicSmartfoxClient.setRoomList`` (dll line 7155)
-    """
-    raw = packet.payload.get("raw") if isinstance(packet.payload, dict) else None
-    fields = raw.split("%") if isinstance(raw, str) else []
-    return (packet.error_code, fields[3]) if len(fields) > 3 else None
-
-
-def _elapsed_ms(start: float, end: float | None = None) -> int:
-    """Whole milliseconds between two ``time.monotonic()`` readings, the second defaulting to now."""
-    return int(((time.monotonic() if end is None else end) - start) * 1000)
-
-
-def _first_field(packet: Packet) -> str | None:
-    """The first field after the status of a reply that is not JSON, or None when it has none."""
-    raw = packet.payload.get("raw") if isinstance(packet.payload, dict) else None
-    first = raw.split("%")[0] if isinstance(raw, str) else ""
-    return first or None
 
 
 T = TypeVar("T", bound=BaseResponse)
@@ -153,11 +90,12 @@ class EmpireClient:
         empties the game and shows a reconnect dialog, and logs in again only
         when the player clicks it (``onReconnect``, bundle line 120256). So
         the delays are library policy: the first attempt comes
-        ``RELOGIN_FIRST_DELAY`` (5) seconds after the drop, a failed one is
-        retried after twice the last delay, up to ``RELOGIN_MAX_DELAY`` (300)
-        seconds. A :class:`~empire_core.exceptions.LoginCooldownError`
-        counts as a failed attempt too, and is retried no sooner than the
-        seconds the refusal named (see :meth:`remaining_login_cooldown`): after
+        :data:`~empire_core.client.session.RELOGIN_FIRST_DELAY` (5) seconds
+        after the drop, a failed one is retried after twice the last delay, up
+        to :data:`~empire_core.client.session.RELOGIN_MAX_DELAY` (300) seconds.
+        A :class:`~empire_core.exceptions.LoginCooldownError` counts as a
+        failed attempt too, and is retried no sooner than the seconds the
+        refusal named (see :meth:`remaining_login_cooldown`): after
         the longer of that cooldown and the delay. A refusal that waiting does
         not cure (a ban, the wrong server, the client version, credentials, or
         any other refusal) ends the attempts, logged as an error and reported
@@ -198,26 +136,16 @@ class EmpireClient:
         # One per client, as the game client makes one per page load.
         self.session_id = generate_session_id()
 
-        self.connection = Connection(self.config.game_url, keepalive_zone=self.config.default_zone)
+        self._registry = self._new_registry()
+        self.connection = Connection(
+            self.config.game_url, keepalive_zone=self.config.default_zone, listeners=self._registry
+        )
         self.state = GameState()
         self.game_data: GameData | None = None
         self.is_logged_in = False
         # Log in again by itself after a drop (see the class docstring).
         self.keep_session = keep_session
-        # Set by close() and cleared by login(): no re-login may start or go on while set.
-        self._closed = threading.Event()
-        # Held while a login connects, while close() or login() marks the client
-        # closed, and while a re-login starts or stops keeping the session.
-        self._session_lock = threading.RLock()
-        self._relogin_thread: threading.Thread | None = None
-        # Whether _relogin_thread still keeps the session: a drop then starts no other.
-        self._relogin_running = False
-        # The generation of the last session that dropped while logged in.
-        self._dropped_logged_in: int | None = None
-        # The client's on_* callbacks: each registered once, removing one not registered is a no-op
-        self._registry = Registry(unique=True, missing_ok=True)
-        # The seconds the last cooldown refusal named, and when it came (time.monotonic()).
-        self._login_cooldown: tuple[float, float] | None = None
+        self._session = Session(self)
 
         # Command -> handlers mapping for efficient dispatch
         # Only commands with handlers will be parsed.
@@ -232,11 +160,19 @@ class EmpireClient:
 
         # Wire up packet handler for state updates
         self.connection.on_packet = self._on_packet
-        self.connection.on_disconnect = self._on_disconnect
-        self.connection.after_disconnect = self._keep_session_after_drop
-        self.connection.add_disconnect_listener(self._fire_disconnect)
+        self.connection.on_disconnect = self._session.dropped
+        self.connection.after_disconnect = self._session.after_drop
 
         self._attach_services()
+
+    @staticmethod
+    def _new_registry() -> Registry:
+        """The store of the client's on_* callbacks, which its connection keeps its disconnect listeners in.
+
+        Each is registered once, and removing one not registered is a no-op, as for the
+        connection's listeners: :meth:`on_disconnect` callbacks are those listeners.
+        """
+        return Registry(unique=True, missing_ok=True)
 
     def _attach_services(self) -> None:
         """Build one of each service; they register their packet handlers on the way."""
@@ -376,127 +312,6 @@ class EmpireClient:
         """
         self.state.update_from_packet(cmd, cast(dict[str, Any], payload), error_code)
 
-    def _on_disconnect(self, generation: int) -> None:
-        """Handle unexpected connection loss of the session ``generation``; a newer session is left alone.
-
-        State data is reset, as the game client resets it, so nothing from
-        the lost session is reported after it. The next login's gbd rebuilds
-        the player and castles, and the gam the server pushes after it the movements.
-        Registered callbacks and the callback executor stay, so they keep
-        working after a re-login. With :attr:`keep_session`, a session that
-        was logged in is logged in again on a thread of its own.
-        """
-        was_logged_in = self.is_logged_in
-        if not self.connection.run_if_current(generation, self._forget_session):
-            logger.debug(f"Client {self.username}: drop of an earlier session reported late, ignored")
-            return
-        logger.warning(f"Client {self.username} disconnected unexpectedly")
-        self._dropped_logged_in = generation if was_logged_in else None
-
-    def _keep_session_after_drop(self, generation: int) -> None:
-        """Start the re-login once the disconnect callbacks have run, so their events come before its own.
-
-        None starts while one still keeps the session: that one logs in again itself.
-        """
-        with self._session_lock:
-            if (
-                not self.keep_session
-                or self._dropped_logged_in != generation
-                or generation != self.connection.generation
-                or self._closed.is_set()
-                or self._relogin_running
-            ):
-                return
-            self._relogin_running = True
-            self._relogin_thread = threading.Thread(
-                target=self._restore_session, name=f"EmpireCore-Relogin-{self.username}", daemon=True
-            )
-            self._relogin_thread.start()
-
-    def _restore_session(self) -> None:
-        """Log in again until a login holds, waiting between attempts; :meth:`close` and :meth:`login` end it.
-
-        Stops without a login when another one already holds the connection.
-        """
-        delay = RELOGIN_FIRST_DELAY
-        wait = max(delay, self.remaining_login_cooldown())
-        try:
-            while not self._closed.wait(wait):
-                try:
-                    restored = self._relogin()
-                except (LoginCooldownError, NetworkError, EmpireTimeoutError) as e:
-                    delay = min(delay * 2, RELOGIN_MAX_DELAY)
-                    wait = max(delay, self.remaining_login_cooldown())
-                    logger.warning(f"Client {self.username}: re-login failed ({e}); next attempt in {wait:.0f}s")
-                    continue
-                except Exception as e:
-                    logger.exception(f"Client {self.username}: re-login stopped; the session is not restored")
-                    self._dispatch_session_event(self.on_session_lost, e)
-                    return
-                if restored:
-                    logger.info(f"Client {self.username}: session restored")
-                    self._dispatch_session_event(self.on_session_restored)
-                return
-        finally:
-            with self._session_lock:
-                if self._relogin_thread is threading.current_thread():
-                    self._relogin_running = False
-
-    def _relogin(self) -> bool:
-        """Log in on a new connection and wait for the movement list the server pushes; say whether it held.
-
-        False when :meth:`close` or :meth:`login` came first or another login
-        holds the connection. A failure ends the new session unless it already
-        ended, so a :meth:`close` from a disconnect callback has nothing to wait
-        for. A session that drops before it held raises ``ConnectionClosedError``,
-        retried as any failed attempt.
-        """
-        started = time.monotonic()
-        with self._session_lock:
-            if self._closed.is_set() or self.connection.connected:
-                return False
-            self.connection.connect(timeout=self.config.connection_timeout)
-            generation = self.connection.generation
-        # Before the login, as the push follows gbd closely.
-        movements = self.connection.create_waiter("gam")
-        try:
-            try:
-                self._login_sequence(started, None)
-            except Exception:
-                if self.connection.generation == generation and self.connection.connected:
-                    self._end_session_quietly()
-                raise
-            try:
-                self.connection.wait_for_result("gam", movements, timeout=self.config.request_timeout)
-            except EmpireTimeoutError:
-                logger.warning(f"Client {self.username}: no movement list after the re-login; movements may be missing")
-        finally:
-            self.connection.cancel_waiter("gam", movements)
-        with self._session_lock:
-            if self._closed.is_set():
-                return False
-            if self.connection.generation != generation or not self.connection.connected:
-                raise ConnectionClosedError("The restored session dropped before it held")
-            self._relogin_running = False
-        return True
-
-    def _dispatch_session_event(self, callbacks: BoundCallbacks[Any], *args: Any) -> None:
-        for callback in callbacks.calls():
-            self.state._dispatch_callback(callback, *args)
-
-    def _fire_disconnect(self) -> None:
-        """The connection's disconnect listener: the :meth:`on_disconnect` callbacks, on the receive thread."""
-        for callback in self.on_disconnect.calls():
-            try:
-                callback()
-            except Exception:
-                logger.exception("Error in disconnect callback")
-
-    def _forget_session(self) -> None:
-        self.is_logged_in = False
-        self.state.reset()
-        self.messages._reset()
-
     on_disconnect = Callbacks[Callable[[], None]]()
     """Register a callback for the session dropping on its own; :meth:`close` does not fire it.
 
@@ -505,6 +320,12 @@ class EmpireClient:
     re-login to another thread, or leave it to :attr:`keep_session`, which
     starts its own once these callbacks have run. Registering the same
     callback twice is a no-op.
+
+    The callbacks are the connection's disconnect listeners
+    (:meth:`Connection.add_disconnect_listener
+    <empire_core.network.connection.Connection.add_disconnect_listener>`):
+    one list, run in the order registered through either, and either
+    remover takes one out.
     """
     remove_disconnect_callback = Remover(on_disconnect)
     """Remove a callback added with :meth:`on_disconnect`; unknown callbacks are ignored."""
@@ -650,171 +471,7 @@ class EmpireClient:
         Client: ``BasicSmartfoxClient`` (dll line 7130), ``BasicJoinedRoomCommand`` (dll line 33011),
         ``CastleLoginCommand`` (bundle line 131762)
         """
-        if not self.username or not (self.password or self.login_token):
-            raise LoginError("Username and a password or login token are required")
-
-        logger.debug(f"Logging in as {self.username}...")
-
-        self._stop_relogin()
-        self._closed.clear()
-        try:
-            # The client times the connection from before it opens the socket.
-            started = time.monotonic()
-            with self._session_lock:
-                if not self.connection.connected:
-                    self.connection.connect(timeout=self.config.connection_timeout)
-
-            self._login_sequence(started, recaptcha_token)
-        except Exception:
-            # The documented cleanup call (close()) never runs on the raising
-            # path, so without this a failed login leaves an open socket plus
-            # a receive and a keepalive thread pinging an unauthenticated
-            # session forever.
-            self._end_session_quietly()
-            raise
-
-    def _login_sequence(self, started: float, recaptcha_token: str | Callable[[], str] | None) -> None:
-        """Run the handshake/auth exchange on an already-connected socket."""
-        ver_packet = f"<msg t='sys'><body action='verChk' r='0'><ver v='{self.config.game_version}' /></body></msg>"
-        try:
-            self.connection.request(ver_packet, "apiOK", timeout=self.config.request_timeout)
-        except EmpireTimeoutError as e:
-            raise EmpireTimeoutError("API version check (verChk) timed out") from e
-        connection_time = _elapsed_ms(started)
-
-        login_packet = (
-            f"<msg t='sys'><body action='login' r='0'>"
-            f"<login z='{self.config.default_zone}'>"
-            f"<nick><![CDATA[]]></nick>"
-            f"<pword><![CDATA[{self.config.build_number}%{LOGIN_DEFAULTS['LANG']}%{LOGIN_DEFAULTS['DID']}]]></pword>"
-            f"</login></body></msg>"
-        )
-        rooms: dict[int, str] = {}
-
-        def on_room(packet: Packet) -> None:
-            entry = _room_entry(packet)
-            if entry is not None:
-                rooms[entry[0]] = entry[1]
-
-        self.connection.subscribe("rlu", on_room)
-        try:
-            try:
-                on_room(self.connection.request(login_packet, "rlu", timeout=self.config.login_timeout))
-            except EmpireTimeoutError as e:
-                raise EmpireTimeoutError("Zone login timed out") from e
-
-            join_packet = "<msg t='sys'><body action='autoJoin' r='-1'></body></msg>"
-            try:
-                join_ok = self.connection.request(join_packet, "joinOK", timeout=self.config.request_timeout)
-            except EmpireTimeoutError as e:
-                raise EmpireTimeoutError("Room join (joinOK) timed out") from e
-        finally:
-            self.connection.unsubscribe("rlu", on_room)
-
-        room_id = _joined_room_id(join_ok)
-        self.connection.room_id = room_id
-        # The client sends roundTrip and vck only once it has joined the lobby (dll line 7163, 33011).
-        if rooms.get(room_id) != LOBBY_ROOM_NAME:
-            raise LoginError(f"Joined room {room_id} ({rooms.get(room_id, 'not in the room list')}) is not the lobby")
-
-        round_trip_time = self._version_check()
-
-        request = LoginRequest.create(
-            self.username or "",
-            self.password,
-            **LOGIN_DEFAULTS,
-            CONM=connection_time,
-            RTM=round_trip_time,
-            LT=None if self.password else self.login_token,
-            RCT=recaptcha_token() if callable(recaptcha_token) else recaptcha_token,
-        )
-        xt_packet = self.frame(request)
-
-        # Register the gbd waiter up front: it arrives right after a
-        # successful lli and would otherwise race the lli handling below.
-        gbd_waiter = self.connection.create_waiter("gbd")
-        try:
-            try:
-                lli_response = self.connection.request(xt_packet, "lli", timeout=self.config.login_timeout)
-            except EmpireTimeoutError as e:
-                raise EmpireTimeoutError("XT login timed out") from e
-
-            if lli_response.error_code != 0:
-                self._raise_login_refusal(lli_response)
-
-            # Wait for gbd (Get Big Data) which contains player info, castles, etc.
-            try:
-                self.connection.wait_for_result("gbd", gbd_waiter, timeout=self.config.request_timeout)
-            except EmpireTimeoutError:
-                logger.warning(f"gbd packet not received for {self.username}, player state may be incomplete")
-
-            logger.debug(f"Logged in as {self.username}")
-            self._login_cooldown = None
-            self.is_logged_in = True
-        finally:
-            self.connection.cancel_waiter("gbd", gbd_waiter)
-
-    def _version_check(self) -> int:
-        """
-        Send ``roundTrip`` and ``vck`` back to back, as the client does on joining the lobby.
-
-        Returns the round trip in milliseconds, or 0 when its answer has not
-        come back by the time ``vck`` is answered: the client sends whatever
-        it has measured when it logs in.
-
-        Client: ``BasicSmartfoxClient.onJoinRoom`` (dll line 7163), ``BasicJoinedRoomCommand`` (dll line 33011),
-        ``CastleVCKCommand.executeCommand`` (bundle line 120444)
-        """
-        answered: list[float] = []
-
-        def on_round_trip(_packet: Packet) -> None:
-            answered.append(time.monotonic())
-
-        room_id = self.connection.room_id
-        self.connection.subscribe("roundTripRes", on_round_trip)
-        try:
-            sent = time.monotonic()
-            self.connection.send(f"<msg t='sys'><body action='roundTrip' r='{room_id}'></body></msg>")
-            vck_packet = build_version_check(
-                self.config.default_zone, self.config.build_number, self.session_id, room_id
-            )
-            try:
-                vck = self.connection.request(vck_packet, "vck", timeout=self.config.request_timeout)
-            except EmpireTimeoutError as e:
-                raise EmpireTimeoutError("Version check (vck) timed out") from e
-        finally:
-            self.connection.unsubscribe("roundTripRes", on_round_trip)
-
-        if vck.error_code in tuple(VersionCheckStatus):
-            raise ClientVersionError(VersionCheckStatus(vck.error_code), _first_field(vck))
-        if vck.error_code != 0:
-            raise LoginError(f"Version check failed with code {vck.error_code}")
-        return _elapsed_ms(sent, answered[0]) if answered else 0
-
-    def _raise_login_refusal(self, lli: Packet) -> NoReturn:
-        """
-        Raise the error for a refused ``lli``.
-
-        Client: ``LLICommand.executeCommand`` (bundle line 120651)
-        """
-        code = lli.error_code
-        details = LoginResponse()
-        if isinstance(lli.payload, dict):
-            details = read_or_none(LoginResponse.model_validate, lli.payload) or details
-        match code:
-            case GGEError.LOGIN_COOLDOWN_ACTIVE:
-                self._login_cooldown = (float(details.remaining_cooldown_seconds or 0), time.monotonic())
-                raise LoginCooldownError(int(details.remaining_cooldown_seconds or 0))
-            case GGEError.IS_BANNED:
-                raise AccountBannedError(details.remaining_ban_seconds, details.account_deleted)
-            case GGEError.EXISTING_MAPPING_WRONG_SERVER:
-                raise WrongServerError(details.instance_id)
-            case GGEError.INVALID_LOGIN_TOKEN:
-                # The client forgets a token the server refused.
-                self.login_token = None
-                raise LoginError("The login token was refused", code)
-            case _:
-                raise LoginError("Auth failed", code)
+        self._session.login(recaptcha_token)
 
     def remaining_login_cooldown(self) -> float:
         """Seconds until the login cooldown the server last named is over; 0 when there is none.
@@ -826,11 +483,7 @@ class EmpireClient:
         Client: ``LLICommand.executeCommand`` (bundle line 120673) shows the
         refusal's ``REMAINING_COOLDOWN`` in a timer dialog.
         """
-        cooldown = self._login_cooldown
-        if cooldown is None:
-            return 0.0
-        seconds, refused_at = cooldown
-        return max(0.0, seconds - (time.monotonic() - refused_at))
+        return self._session.remaining_login_cooldown()
 
     on_session_lost = Callbacks[Callable[[Exception], None]]()
     """Register a callback for a :attr:`keep_session` re-login that gives up.
@@ -860,22 +513,6 @@ class EmpireClient:
     remove_session_restored_callback = Remover(on_session_restored)
     """Remove a callback added with :meth:`on_session_restored`; unknown callbacks are ignored."""
 
-    def _end_session_quietly(self) -> None:
-        """End the session after a failed login; never masks the failure, and leaves a re-login going."""
-        try:
-            self._end_session()
-        except Exception:
-            logger.exception("Cleanup after failed login raised")
-
-    def _end_session(self) -> None:
-        self.is_logged_in = False
-        # Disconnect first: shutting the state executor down while packets can
-        # still arrive lets a late callback lazily recreate it, leaking a
-        # thread pool nobody owns any more.
-        self.connection.disconnect()
-        self.state.shutdown()
-        self.state.reset()
-
     def close(self) -> None:
         """Disconnect from the server and release background resources.
 
@@ -890,18 +527,7 @@ class EmpireClient:
         ggs.dll line 7170), and with it set does not log in again by the stored
         token (``VCKLegacyCommand.executeCommand``, bundle line 121066).
         """
-        self._stop_relogin()
-        self._end_session()
-
-    def _stop_relogin(self) -> None:
-        """Mark the client closed and wait for a :attr:`keep_session` re-login still keeping the session to end."""
-        with self._session_lock:
-            self._closed.set()
-            relogin = self._relogin_thread if self._relogin_running else None
-        if relogin is not None and relogin is not threading.current_thread():
-            # Disconnecting first fails a re-login under way at its next step.
-            self.connection.disconnect()
-            relogin.join()
+        self._session.close()
 
     def __enter__(self) -> EmpireClient:
         """Enter a context that closes the client on exit.

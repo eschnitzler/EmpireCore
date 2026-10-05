@@ -15,7 +15,9 @@ import pytest
 from pydantic import BaseModel
 
 from empire_core.client import client as client_module
+from empire_core.client import session as session_module
 from empire_core.client.client import EmpireClient
+from empire_core.client.session import Session
 from empire_core.config import EmpireConfig
 from empire_core.exceptions import (
     EmpireError,
@@ -29,7 +31,6 @@ from empire_core.player.models.info import GetPlayerInfoRequest
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import BaseResponse
 from empire_core.protocol.packet import Packet
-from empire_core.utils.callbacks import Registry
 
 
 def xt_packet(command: str, payload: str = "{}", error_code: int = 0) -> Packet:
@@ -137,13 +138,8 @@ def make_client(connection: StubConnection | None = None, state: StubState | Non
     client._streams = set()
     client._streams_lock = threading.Lock()
     client.keep_session = False
-    client._closed = threading.Event()
-    client._session_lock = threading.RLock()
-    client._relogin_thread = None
-    client._relogin_running = False
-    client._dropped_logged_in = None
-    client._registry = Registry(unique=True, missing_ok=True)
-    client._login_cooldown = None
+    client._session = Session(client)
+    client._registry = EmpireClient._new_registry()
     return client
 
 
@@ -291,7 +287,7 @@ class TestLoginClientVersion:
     """The zone login and the version check send the build number of one configured version."""
 
     def test_zone_login_and_version_check_share_one_build_number(self, monkeypatch):
-        monkeypatch.setitem(client_module.LOGIN_DEFAULTS, "LANG", "de")
+        monkeypatch.setitem(session_module.LOGIN_DEFAULTS, "LANG", "de")
         conn = StubConnection()
         client = make_client(conn)
         client.config = EmpireConfig(client_version="1.170.2", request_timeout=0.1)

@@ -20,6 +20,7 @@ from empire_core.network.framing import FrameBuffer
 from empire_core.protocol.base import NO_ROOM, build_command
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import DegradedFrameCounts, Packet, degraded_frame_counts
+from empire_core.utils.callbacks import Registry
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +163,8 @@ class Connection:
     to the command registered for its id.
     """
 
-    def __init__(self, url: str, keepalive_zone: str | None = None):
+    def __init__(self, url: str, keepalive_zone: str | None = None, listeners: Registry | None = None):
+        """``listeners`` keeps the disconnect listeners, under ``disconnect``; by default a store of their own."""
         self.url = url
         self.keepalive_zone = keepalive_zone
         # The joined room's id, which every command carries; the login sets it from joinOK.
@@ -214,8 +216,7 @@ class Connection:
         # Likewise, but after every disconnect listener has run.
         self.after_disconnect: Callable[[int], None] | None = None
 
-        self._disconnect_listeners: list[Callable[[], None]] = []
-        self._disconnect_lock = threading.Lock()
+        self._listeners = listeners if listeners is not None else Registry(unique=True, missing_ok=True)
 
     @property
     def connected(self) -> bool:
@@ -623,26 +624,22 @@ class Connection:
         :class:`~empire_core.client.client.EmpireClient` claims for its own
         bookkeeping: several consumers can observe disconnects without
         clobbering each other or patching the client's wiring. Registering the
-        same callback twice is a no-op.
+        same callback twice is a no-op; the client's
+        :meth:`~empire_core.client.client.EmpireClient.on_disconnect` callbacks
+        are listeners of its connection, in the same list.
 
         Not called by :meth:`disconnect` - only when the session drops on its
         own. Callbacks run on the receive thread, outside every internal lock,
         so a listener may call :meth:`connect` to reconnect.
         """
-        with self._disconnect_lock:
-            if callback not in self._disconnect_listeners:
-                self._disconnect_listeners.append(callback)
+        self._listeners.add("disconnect", callback)
 
     def remove_disconnect_listener(self, callback: Callable[[], None]) -> None:
         """Remove a listener added with :meth:`add_disconnect_listener`.
 
         No-op if the callback is not registered.
         """
-        with self._disconnect_lock:
-            try:
-                self._disconnect_listeners.remove(callback)
-            except ValueError:
-                pass
+        self._listeners.remove("disconnect", callback)
 
     def _notify_disconnect(self, generation: int) -> None:
         """Fire the on_disconnect slot, then every registered listener, then the after_disconnect slot."""
@@ -651,9 +648,7 @@ class Connection:
                 self.on_disconnect(generation)
             except Exception:
                 logger.exception("Error in disconnect callback")
-        with self._disconnect_lock:
-            callbacks = list(self._disconnect_listeners)
-        for callback in callbacks:
+        for callback in self._listeners.calls("disconnect"):
             try:
                 callback()
             except Exception:

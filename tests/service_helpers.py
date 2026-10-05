@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from typing import Any, cast
 
 from empire_core.client.client import EmpireClient
+from empire_core.client.session import Session
 from empire_core.config import EmpireConfig
 from empire_core.enums import Kingdom
 from empire_core.exceptions import EmpireTimeoutError
@@ -17,7 +18,6 @@ from empire_core.protocol.models import AttackWave, WaveFlank
 from empire_core.protocol.packet import Packet
 from empire_core.state.manager import GameState
 from empire_core.state.models import Castle, Player
-from empire_core.utils.callbacks import Registry
 
 
 def placed(slots: list[list[int]]) -> list[list[int]]:
@@ -299,13 +299,8 @@ def make_client(
     client._streams = set()
     client._streams_lock = threading.Lock()
     client.keep_session = False
-    client._closed = threading.Event()
-    client._session_lock = threading.RLock()
-    client._relogin_thread = None
-    client._relogin_running = False
-    client._dropped_logged_in = None
-    client._registry = Registry(unique=True, missing_ok=True)
-    client._login_cooldown = None
+    client._session = Session(client)
+    client._registry = EmpireClient._new_registry()
     client._attach_services()
     return client
 

@@ -167,7 +167,7 @@ class TestReviewFollowUps:
         client = make_client()
         client._on_packet(xt_packet("sne", {"MSG": [ROW]}))
 
-        client._on_disconnect(conn(client).generation)
+        client._session.dropped(conn(client).generation)
 
         assert client.messages.mailbox == []
 
@@ -175,7 +175,7 @@ class TestReviewFollowUps:
         client = make_client()
         client._on_packet(xt_packet("sne", {"MSG": [ROW]}))
 
-        client._on_disconnect(conn(client).generation - 1)
+        client._session.dropped(conn(client).generation - 1)
 
         assert len(client.messages.mailbox) == 1
 

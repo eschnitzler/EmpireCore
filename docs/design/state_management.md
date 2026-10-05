@@ -225,13 +225,17 @@ subscription in one `Registry`, its `_registry`, behind one lock: the state's
 a lock of its own for the client and each service. The owner fires an event
 from a snapshot, `self.on_incoming_attack.calls()`, taken under that lock.
 `GameState` queues each callback on the callback thread; a service calls its
-callbacks on the receive thread; the client queues `on_session_lost` and
-`on_session_restored` on the state's callback thread and calls `on_disconnect`
-from the one disconnect listener it adds to the connection, between the
-connection's `on_disconnect` and `after_disconnect` slots. Two things differ
-by owner, and the owner's `Registry` says which: state callbacks fire once per
-registration and removing one not registered raises `ValueError`; a service
-ignores such a removal; the client also registers each callback only once.
+callbacks on the receive thread; the client's session queues `on_session_lost`
+and `on_session_restored` on the state's callback thread. The client's
+`Registry` is also the store its connection keeps its disconnect listeners in,
+so the `on_disconnect` callbacks are those listeners: the connection calls them
+between its `on_disconnect` and `after_disconnect` slots, in the order
+registered through either `client.on_disconnect` or
+`connection.add_disconnect_listener`. Two things differ by owner, and the
+owner's `Registry` says which: state callbacks fire once per registration and
+removing one not registered raises `ValueError`; a service ignores such a
+removal; the client (and so the connection) also registers each callback only
+once.
 
 `client.listen()` streams whatever is declared: `callback_sources` lists the
 declarations of the client, its state and every service, so a new event is

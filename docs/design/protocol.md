@@ -36,10 +36,10 @@ What the HTML5 client does (`BasicSmartfoxClient`, dll lines 7132-7240):
 6. **`lli`**: the account login, whose JSON payload carries the name (`NOM`)
    and password (`PW`).
 
-The library (`EmpireClient._login_sequence`) runs the same steps in the same
-order: `verChk`, the zone login with the build number, `autoJoin`, then
-`roundTrip` and `vck` once it has joined the lobby, and `lli` with the measured
-connection and round-trip times. It then waits for `gbd`. Its `pin` goes out
+The library (`Session._login_sequence`, in `client/session.py`) runs the same
+steps in the same order: `verChk`, the zone login with the build number,
+`autoJoin`, then `roundTrip` and `vck` once it has joined the lobby, and `lli`
+with the measured connection and round-trip times. It then waits for `gbd`. Its `pin` goes out
 every 60 seconds from its own keepalive thread.
 
 ## 2. Extension messages

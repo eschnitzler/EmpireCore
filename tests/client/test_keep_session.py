@@ -9,7 +9,7 @@ from collections.abc import Callable, Iterator
 
 import pytest
 
-from empire_core.client import client as client_module
+from empire_core.client import session as session_module
 from empire_core.client.client import EmpireClient
 from empire_core.enums import MovementType
 from empire_core.exceptions import (
@@ -72,7 +72,7 @@ class FakeServer:
         if isinstance(attempt, Exception):
             raise attempt
         if isinstance(attempt, float):
-            self.client._raise_login_refusal(
+            self.client._session._raise_login_refusal(
                 xt_packet("lli", {"CD": attempt}, error_code=GGEError.LOGIN_COOLDOWN_ACTIVE)
             )
         arrive_packet(self.client, "gbd", GBD)
@@ -92,7 +92,7 @@ def client() -> Iterator[EmpireClient]:
 def serve(client: EmpireClient, monkeypatch: pytest.MonkeyPatch, *attempts: Attempt) -> FakeServer:
     server = FakeServer(client, list(attempts))
     monkeypatch.setattr(client.connection, "connect", server.connect)
-    monkeypatch.setattr(client, "_login_sequence", server.login_sequence)
+    monkeypatch.setattr(client._session, "_login_sequence", server.login_sequence)
     return server
 
 
@@ -106,13 +106,13 @@ def logged_in(client: EmpireClient, *gams: Listed) -> None:
 
 
 def relogin_done(client: EmpireClient) -> Callable[[], bool]:
-    return lambda: client._relogin_thread is not None and not client._relogin_thread.is_alive()
+    return lambda: client._session._relogin_thread is not None and not client._session._relogin_thread.is_alive()
 
 
 @pytest.fixture
 def waits(client: EmpireClient) -> list[float]:
     closed = RecordingEvent()
-    client._closed = closed
+    client._session._closed = closed
     return closed.waits
 
 
@@ -128,14 +128,14 @@ class TestRestore:
         drop(client)
 
         assert wait_for(lambda: restored == [True])
-        first = client_module.RELOGIN_FIRST_DELAY
+        first = session_module.RELOGIN_FIRST_DELAY
         assert waits == [first, 2 * first, 4 * first]
         assert server.logins == 3
         assert disconnects == [False]
         assert client.state.local_player is not None and client.state.local_player.name == "me"
 
     def test_the_backoff_stops_growing_at_its_cap(self, client, monkeypatch, waits):
-        monkeypatch.setattr(client_module, "RELOGIN_MAX_DELAY", 12.0)
+        monkeypatch.setattr(session_module, "RELOGIN_MAX_DELAY", 12.0)
         serve(client, monkeypatch, *[NetworkError("down")] * 4, [])
         logged_in(client)
 
@@ -192,13 +192,13 @@ class TestRestore:
             client.is_logged_in = True
             drop(client)
 
-        monkeypatch.setattr(client, "_login_sequence", dropping_at_first)
+        monkeypatch.setattr(client._session, "_login_sequence", dropping_at_first)
         logged_in(client)
 
         drop(client)
 
         assert wait_for(lambda: restored == [True])
-        assert attempts == [client._relogin_thread] * 2
+        assert attempts == [client._session._relogin_thread] * 2
         assert waits == [5.0, 10.0]
 
     def test_a_drop_during_a_login_starts_nothing(self, client, monkeypatch):
@@ -207,7 +207,7 @@ class TestRestore:
 
         drop(client)
 
-        assert client._relogin_thread is None
+        assert client._session._relogin_thread is None
         assert server.connects == 0
 
     def test_off_by_default(self, monkeypatch):
@@ -217,7 +217,7 @@ class TestRestore:
 
         drop(client)
 
-        assert client._relogin_thread is None
+        assert client._session._relogin_thread is None
         assert server.connects == 0
         client.close()
 
@@ -266,7 +266,7 @@ class TestCooldown:
         drop(client)
 
         assert wait_for(lambda: restored == [True])
-        assert waits[0] == client_module.RELOGIN_FIRST_DELAY
+        assert waits[0] == session_module.RELOGIN_FIRST_DELAY
         assert waits[1] == pytest.approx(55.0, abs=0.05)
         assert len(waits) == 2
 
@@ -290,7 +290,7 @@ class TestCooldown:
 
     def test_a_cooldown_still_running_delays_the_first_attempt(self, client, monkeypatch, waits):
         serve(client, monkeypatch, [])
-        client._login_cooldown = (60.0, time.monotonic())
+        client._session._login_cooldown = (60.0, time.monotonic())
         logged_in(client)
 
         drop(client)
@@ -300,11 +300,13 @@ class TestCooldown:
 
     def test_the_remaining_cooldown_counts_down_from_the_last_refusal(self, client, monkeypatch):
         now = [100.0]
-        monkeypatch.setattr(client_module.time, "monotonic", lambda: now[0])
+        monkeypatch.setattr(session_module.time, "monotonic", lambda: now[0])
         assert client.remaining_login_cooldown() == 0.0
 
         with pytest.raises(LoginCooldownError) as refused:
-            client._raise_login_refusal(xt_packet("lli", {"CD": 30.5}, error_code=GGEError.LOGIN_COOLDOWN_ACTIVE))
+            client._session._raise_login_refusal(
+                xt_packet("lli", {"CD": 30.5}, error_code=GGEError.LOGIN_COOLDOWN_ACTIVE)
+            )
         now[0] = 110.0
 
         assert refused.value.cooldown == 30
@@ -315,11 +317,11 @@ class TestCooldown:
 
 class TestClose:
     def test_close_during_the_backoff_ends_it_at_once(self, client, monkeypatch):
-        monkeypatch.setattr(client_module, "RELOGIN_FIRST_DELAY", 60.0)
+        monkeypatch.setattr(session_module, "RELOGIN_FIRST_DELAY", 60.0)
         server = serve(client, monkeypatch, [])
         logged_in(client)
         drop(client)
-        relogin = client._relogin_thread
+        relogin = client._session._relogin_thread
         assert relogin is not None and relogin.is_alive()
 
         started = time.monotonic()
@@ -335,18 +337,18 @@ class TestClose:
 
         client.close()
 
-        assert client._relogin_thread is None
+        assert client._session._relogin_thread is None
         assert server.connects == 0
 
     def test_a_drop_reported_after_close_started_starts_nothing(self, client, monkeypatch):
         server = serve(client, monkeypatch, [])
         logged_in(client)
-        client._closed.set()
+        client._session._closed.set()
 
-        client._on_disconnect(client.connection.generation)
-        client._keep_session_after_drop(client.connection.generation)
+        client._session.dropped(client.connection.generation)
+        client._session.after_drop(client.connection.generation)
 
-        assert client._relogin_thread is None
+        assert client._session._relogin_thread is None
         assert server.connects == 0
 
     def test_a_close_while_the_relogin_connects_ends_the_new_session(self, client, monkeypatch, waits):
@@ -371,7 +373,7 @@ class TestClose:
         closer.join(2)
 
         assert not closer.is_alive()
-        assert not client._relogin_thread.is_alive()
+        assert not client._session._relogin_thread.is_alive()
         assert not client.connection.connected
         assert not client.is_logged_in
 
@@ -385,7 +387,7 @@ class TestClose:
             client.connection.request("<verChk/>", "apiOK", timeout=30)
 
         monkeypatch.setattr(client.connection, "connect", lambda timeout=10.0: new_session(client))
-        monkeypatch.setattr(client, "_login_sequence", login_sequence)
+        monkeypatch.setattr(client._session, "_login_sequence", login_sequence)
         logged_in(client)
         drop(client)
         assert logging_in.wait(2)
@@ -403,7 +405,7 @@ class TestClose:
         drop(client)
 
         assert took and took[0] < 1
-        assert not client._relogin_thread.is_alive()
+        assert not client._session._relogin_thread.is_alive()
         assert "still alive" not in caplog.text
 
     def test_a_close_before_the_relogin_waits_for_its_movement_list_leaves_no_waiter(self, client, monkeypatch, waits):
@@ -412,7 +414,7 @@ class TestClose:
         closers: list[threading.Thread] = []
 
         def close_first(command: str, accepts=None):
-            if command == "gam" and threading.current_thread() is client._relogin_thread:
+            if command == "gam" and threading.current_thread() is client._session._relogin_thread:
                 closers.append(threading.Thread(target=client.close))
                 closers[0].start()
                 assert wait_for(lambda: client.connection.ws is None)
@@ -456,7 +458,7 @@ class TestLoginOfYourOwn:
             inside[0] += 1
             most_inside[0] = max(most_inside[0], inside[0])
             try:
-                if threading.current_thread() is client._relogin_thread:
+                if threading.current_thread() is client._session._relogin_thread:
                     relogin_logging_in.set()
                     assert wait_for(lambda: not client.connection.connected)
                     raise ConnectionClosedError("closed by the login")
@@ -464,7 +466,7 @@ class TestLoginOfYourOwn:
             finally:
                 inside[0] -= 1
 
-        monkeypatch.setattr(client, "_login_sequence", one_at_a_time)
+        monkeypatch.setattr(client._session, "_login_sequence", one_at_a_time)
         logged_in(client)
         drop(client)
         assert relogin_logging_in.wait(2)
@@ -472,7 +474,7 @@ class TestLoginOfYourOwn:
         client.login()
 
         assert most_inside == [1]
-        assert not client._relogin_thread.is_alive()
+        assert not client._session._relogin_thread.is_alive()
         assert client.is_logged_in
         assert server.logins == 1
         time.sleep(0.05)

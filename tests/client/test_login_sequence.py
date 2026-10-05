@@ -26,6 +26,7 @@ from typing import Any
 import pytest
 
 from empire_core.client.client import EmpireClient
+from empire_core.client.session import Session
 from empire_core.config import LOGIN_DEFAULTS, EmpireConfig
 from empire_core.exceptions import (
     AccountBannedError,
@@ -40,7 +41,6 @@ from empire_core.exceptions import (
 from empire_core.network.connection import ResponseWaiter
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import MALFORMED_STATUS_CODE, Packet
-from empire_core.utils.callbacks import Registry
 
 # The requests in wire order: XML version check, XML zone login, XML autojoin,
 # the XT version check, then the XT auth. The round trip is sent, not
@@ -181,13 +181,8 @@ def make_client(
     client._streams = set()
     client._streams_lock = threading.Lock()
     client.keep_session = False
-    client._closed = threading.Event()
-    client._session_lock = threading.RLock()
-    client._relogin_thread = None
-    client._relogin_running = False
-    client._dropped_logged_in = None
-    client._registry = Registry(unique=True, missing_ok=True)
-    client._login_cooldown = None
+    client._session = Session(client)
+    client._registry = EmpireClient._new_registry()
     return client
 
 
@@ -438,7 +433,7 @@ class TestNonFatalSteps:
         conn = ScriptedConnection({"gbd": EmpireTimeoutError("no gbd")})
         client = make_client(conn)
 
-        with caplog.at_level("WARNING", logger="empire_core.client.client"):
+        with caplog.at_level("WARNING", logger="empire_core.client.session"):
             client.login()
 
         assert "gbd" in caplog.text
@@ -636,7 +631,7 @@ class TestFailedLoginReleasesResources:
 
         conn.disconnect = exploding_disconnect  # type: ignore[method-assign]
 
-        with caplog.at_level("ERROR", logger="empire_core.client.client"):
+        with caplog.at_level("ERROR", logger="empire_core.client.session"):
             with pytest.raises(LoginError, match="401"):
                 client.login()
 
@@ -780,7 +775,7 @@ class TestTimings:
 
     def test_connection_and_round_trip_times_are_measured(self, monkeypatch):
         ticks = iter([10.0, 10.25, 11.0, 11.5])
-        monkeypatch.setattr("empire_core.client.client.time.monotonic", lambda: next(ticks))
+        monkeypatch.setattr("empire_core.client.session.time.monotonic", lambda: next(ticks))
         conn = ScriptedConnection()
 
         make_client(conn).login()
