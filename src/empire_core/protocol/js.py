@@ -12,7 +12,8 @@ import math
 import re
 from typing import Annotated, Any
 
-from pydantic import BeforeValidator
+from annotated_types import Gt, Lt
+from pydantic import BeforeValidator, Field, Strict
 
 from .base import js_number_text as _number_text
 
@@ -180,11 +181,29 @@ def js_loose_equals(value: Any, number: float) -> bool:
     return False
 
 
-ClientInt = Annotated[int, BeforeValidator(js_int)]
-"""An int read through the client's ``int()``."""
+_PARSE_INT_BOUND = 10**21  # An int this large reads as a JS number text, so parseInt sees its first digit
 
-ParseInt = Annotated[int, BeforeValidator(js_parse_int_or_zero)]
-"""An int read through ``parseInt``, NaN as 0."""
+ClientInt = Annotated[
+    Annotated[int, Strict()] | Annotated[int, BeforeValidator(js_int)],
+    Field(union_mode="left_to_right"),
+]
+"""An int read through the client's ``int()``.
+
+A plain int, which ``int()`` returns as it is, is taken by pydantic-core alone;
+only another value calls :func:`js_int`. A reply's numbers are nearly all plain
+ints, and an owner record alone holds two dozen such fields.
+"""
+
+ParseInt = Annotated[
+    Annotated[int, Strict(), Gt(-_PARSE_INT_BOUND), Lt(_PARSE_INT_BOUND)]
+    | Annotated[int, BeforeValidator(js_parse_int_or_zero)],
+    Field(union_mode="left_to_right"),
+]
+"""An int read through ``parseInt``, NaN as 0.
+
+A plain int below 10**21 in size, which ``parseInt`` returns as it is, is taken by
+pydantic-core alone; only another value calls :func:`js_parse_int_or_zero`.
+"""
 
 
 __all__ = [

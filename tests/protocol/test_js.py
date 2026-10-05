@@ -9,11 +9,15 @@ no Python int holds, is 0.
 """
 
 import math
+from enum import IntEnum
 from typing import Any
 
 import pytest
+from pydantic import TypeAdapter
 
 from empire_core.protocol.js import (
+    ClientInt,
+    ParseInt,
     _text,
     js_falsy,
     js_int,
@@ -218,3 +222,25 @@ def test_js_number_reads_an_int_too_large_for_a_number_as_zero():
 def test_js_number_or_none_reads_an_int_too_large_for_a_number_as_none():
     assert js_number_or_none(10**400) is None
     assert js_number_or_none(-(10**400)) is None
+
+
+class TestIntFieldTypes:
+    """ClientInt and ParseInt read a value as js_int and js_parse_int_or_zero do, a plain int without calling them."""
+
+    class Area(IntEnum):
+        CASTLE = 1
+
+    VALUES: list[Any] = [
+        0, 5, -7, True, False, 10**21, -(10**21), 10**21 - 1, 2**63, 2**64, -(2**63) - 1, 2**1000,
+        Area.CASTLE, "5", "12abc", "0x1A", " 7", "", None, 7.9, -7.9, 1e22, float("nan"), "#ff0000", "1e3", [1], {},
+    ]  # fmt: skip
+
+    @pytest.mark.parametrize("value", VALUES, ids=repr)
+    def test_client_int_reads_as_js_int(self, value):
+        read: int = TypeAdapter(ClientInt).validate_python(value)
+        assert read == js_int(value) and type(read) is int
+
+    @pytest.mark.parametrize("value", VALUES, ids=repr)
+    def test_parse_int_reads_as_js_parse_int_or_zero(self, value):
+        read: int = TypeAdapter(ParseInt).validate_python(value)
+        assert read == js_parse_int_or_zero(value) and type(read) is int
