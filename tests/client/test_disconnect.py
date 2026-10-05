@@ -174,6 +174,28 @@ class TestMovementsAfterLogin:
         assert sent_commands(socket) == ["gam"]
         assert request_payload(socket.sent[0]) == {}
 
+    def test_the_gam_an_mvf_asks_for_does_not_answer_a_waiting_get_movements(self, client):
+        socket = new_session(client)
+        arrive_packet(client, "mvf", {})
+        errors: list[Exception] = []
+
+        def get_movements() -> None:
+            try:
+                client.movements.get_movements(timeout=2.0)
+            except Exception as e:
+                errors.append(e)
+
+        caller = threading.Thread(target=get_movements)
+        caller.start()
+        assert not wait_for(lambda: len(socket.sent) == 2, timeout=0.05)
+
+        arrive_packet(client, "gam", {"M": []})
+        assert wait_for(lambda: len(socket.sent) == 2)
+        arrive_packet(client, "gam", gam_payload(100))
+        caller.join(timeout=2)
+        assert errors == []
+        assert [m.movement_id for m in client.state.get_all_movements()] == [100]
+
     def test_a_refused_mvf_asks_for_nothing(self, client):
         socket = new_session(client)
         arrive_packet(client, "mvf", {}, error_code=1)

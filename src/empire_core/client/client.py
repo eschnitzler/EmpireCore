@@ -291,13 +291,16 @@ class EmpireClient:
         """Ask for the movement list (gam) after an mvf push changes the movement filter settings.
 
         Runs on the receive thread, so it sends without waiting; the reply reaches
-        state like any gam. After a login nothing needs asking: the server pushes
-        gam by itself shortly after the login data (seen live).
+        state like any gam, but no concurrent ``get_movements`` takes it (see
+        :meth:`Connection.send_and_drop_reply`). After a login nothing needs
+        asking: the server pushes gam by itself shortly after the login data (seen live).
 
         Client: ``MVFCommand.executeCommand`` (bundle line 129703).
         """
         try:
-            self.send(GetMovementsRequest())
+            self.connection.send_and_drop_reply(
+                self.frame(GetMovementsRequest()), "gam", window=self.config.request_timeout
+            )
         except EmpireError:
             logger.warning("Could not ask for the movement list after the login data", exc_info=True)
 
@@ -738,6 +741,9 @@ class EmpireClient:
 
         With ``wait=True``, requests for one command run one at a time across
         threads, and the wait for an earlier one counts against ``timeout``.
+        With ``wait=False`` the reply, if the command has one, is not paired
+        with this send: it can answer a concurrent waiting request for that
+        command that has no reply check (see :meth:`Connection.request`).
 
         Raises:
             CommandError: The server answered with a non-zero error code

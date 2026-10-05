@@ -18,7 +18,7 @@ from pydantic import BeforeValidator, Field, model_validator
 
 from empire_core.enums import Kingdom, ProductionListId, SlotType
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, object_or_none
-from empire_core.protocol.js import ParseInt, js_int, js_loose_equals, js_number, js_truthy
+from empire_core.protocol.js import ParseInt, js_int, js_loose_equals, js_number, js_same_number, js_truthy
 
 from .units import BUY_UNIT_PACKAGE_SK, RawBlock, UnitInventoryBlock
 
@@ -344,6 +344,20 @@ class GetProductionListRequest(BaseRequest):
     command = "spl"
 
     list_id: ProductionListId = Field(alias="LID")
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether an spl reply is about this list: its ``LID`` is the one asked for, or it is empty.
+
+        Client: ``CastleMilitaryData.parse_SPL`` (bundle line 138830) updates the
+        list named by the reply's ``LID`` and ignores a reply without one. The
+        server answers ``{}`` for a list the castle cannot produce (seen live for
+        the auxiliaries list on a castle without that building), which the client
+        never asks for; an empty reply names no list, so it cannot be another
+        request's.
+        """
+        if not isinstance(payload, dict):
+            return False
+        return not payload or ("LID" in payload and js_same_number(payload["LID"], self.list_id))
 
 
 class GetProductionListResponse(BaseResponse, ProductionList):

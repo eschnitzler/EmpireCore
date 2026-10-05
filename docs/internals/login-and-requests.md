@@ -85,8 +85,31 @@ sequenceDiagram
 - Some request models can check that a reply is theirs (`accepts_reply`); for
   those, replies about something else pass to state and subscribers without
   being taken. Error replies carry nothing to check and always go to the
-  oldest waiter.
-- Time spent waiting for the lock counts against the call's `timeout`.
+  oldest waiter. A successful reply goes to a waiter still waiting before one
+  that is only owed a reply (below) and has a check.
+- A request that times out still owes its reply. Its waiter stays registered
+  for as long again as the timeout and takes the late reply (or any error)
+  when it comes, so the reply reaches state and subscribers but no later
+  request. The next request for a command without a reply check is sent only
+  once that reply is in or the window has passed, and then still gets its
+  whole timeout: after a lost reply it can take up to the earlier request's
+  timeout longer. One with a check is sent at once.
+  `Connection.send_and_drop_reply` sends a request whose reply nobody waits
+  for in the same way, after taking the command's lock (except on the receive
+  thread): the library uses it for `get_movements(wait=False)` and the `gam`
+  it asks for after an `mvf` push. A plain `send(wait=False)` gives up
+  pairing: its reply can answer a concurrent request for that command.
+- Commands whose replies can't be told apart: `gam`, `gcl`, `dcl`, `gli`,
+  `gui`, `gpa` and other reads without parameters (any of their replies
+  answers any caller, as long as the joined castle stays the same), `hgh`, `bsd`, `rms`, `wsp`, `fnm`, `fec`, the attack-info family,
+  chat, and writes whose reply is only a status. For these the timeout drain
+  above is the only protection. It fails when a server push under the same
+  command id is taken for the owed reply, or when the owed reply never comes
+  and the next request's error is taken instead (that request times out).
+- Time spent waiting for the lock counts against the call's `timeout`;
+  waiting for an owed reply does not.
+- Threads waiting for one command's lock are not served in arrival order;
+  every wait is still bounded by its timeout.
 - The receive thread never waits for a reply itself: a waiting call made on it
   raises `ReceiveThreadError`. Alliance chat callbacks and connection
   subscribers run there; state callbacks run on their own callback thread.

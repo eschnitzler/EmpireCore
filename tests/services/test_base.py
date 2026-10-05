@@ -111,11 +111,11 @@ class TestRequestSemantics:
         assert exc_info.value.code == 21
 
     def test_unparseable_payload_raises_packet_error(self):
-        # 'arc' requires the castle id; a drifted reply must surface as a
-        # library error, not a raw pydantic ValidationError.
+        # A drifted 'arc' reply (P is an int) must surface as a library error,
+        # not a raw pydantic ValidationError.
         from empire_core.protocol.models import RenameCastleRequest, RenameCastleResponse
 
-        client = make_client({"arc": xt_packet("arc", {"N": "no id here"})})
+        client = make_client({"arc": xt_packet("arc", {"CID": 1, "P": "not a number"})})
         with pytest.raises(PacketError) as exc_info:
             client.request(
                 RenameCastleRequest(
@@ -124,6 +124,18 @@ class TestRequestSemantics:
                 RenameCastleResponse,
             )
         assert "arc" in str(exc_info.value)
+
+    def test_an_arc_reply_without_the_castle_id_is_not_taken(self):
+        from empire_core.protocol.models import RenameCastleRequest, RenameCastleResponse
+
+        client = make_client({"arc": xt_packet("arc", {"N": "no id here"})})
+        with pytest.raises(EmpireTimeoutError):
+            client.request(
+                RenameCastleRequest(
+                    castle_id=1, castle_name="x", castle_type=MapItemType.CASTLE, kingdom_id=Kingdom.GREEN, is_rename=1
+                ),
+                RenameCastleResponse,
+            )
 
     def test_a_gli_entry_without_an_id_is_skipped(self):
         # parse_GLI builds every entry; one the library cannot read costs only itself

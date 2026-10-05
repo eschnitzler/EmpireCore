@@ -28,7 +28,9 @@ class MovementsService(BaseService):
 
         Args:
             wait: If True, wait for response before returning
-            timeout: Timeout in seconds when waiting
+            timeout: Timeout in seconds when waiting; with ``wait=False``, how long
+                to wait for a gam request in flight before sending, and how long
+                the reply is kept from other gam requests at most
 
         Returns:
             List of Movement objects, read from state after the response has
@@ -37,7 +39,8 @@ class MovementsService(BaseService):
 
         Raises:
             CommandError: ``wait=True`` and the server rejected 'gam'
-            EmpireTimeoutError: ``wait=True`` and no response within ``timeout``
+            EmpireTimeoutError: ``wait=True`` and no response within ``timeout``,
+                or ``wait=False`` and a gam request in flight for all of ``timeout``
         """
         if wait:
             response = self.client.request_packet(GetMovementsRequest(), "gam", timeout=timeout)
@@ -46,7 +49,7 @@ class MovementsService(BaseService):
             if response.error_code != 0:
                 raise CommandError("gam", response.error_code)
         else:
-            self.client.connection.send(self.client.frame(GetMovementsRequest()))
+            self.client.connection.send_and_drop_reply(self.client.frame(GetMovementsRequest()), "gam", window=timeout)
 
         return self.client.state.get_all_movements()
 

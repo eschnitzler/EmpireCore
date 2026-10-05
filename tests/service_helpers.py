@@ -123,6 +123,9 @@ class ScriptedConnection:
     def send(self, data: str) -> None:
         self.sent.append(data)
 
+    def send_and_drop_reply(self, data: str, cmd_id: str, window: float = 5.0) -> None:
+        self.sent.append(data)
+
     def request(self, data: str, cmd_id: str, timeout: float = 5.0, accepts: Any = None) -> Packet:
         self.requested.append(cmd_id)
         self.accepts.append(accepts)

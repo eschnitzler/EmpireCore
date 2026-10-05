@@ -70,6 +70,14 @@ class TestArmyService:
         assert production.current.is_free
         assert conn(client).request_payloads == [("jaa", {"CID": 12345, "KID": 0}), ("spl", {"LID": 1})]
 
+    def test_a_list_the_castle_cannot_produce_reads_as_empty(self):
+        # The server answers {} for such a list (seen live: auxiliaries on a castle without that building)
+        client = make_client({"spl": xt_packet("spl", {})}, castles=OWN)
+
+        production = client.army.get_production_list(12345, ProductionListId.AUXILIARIES)
+
+        assert production.queue == []
+
     @pytest.mark.parametrize(
         "call,command,expected",
         [

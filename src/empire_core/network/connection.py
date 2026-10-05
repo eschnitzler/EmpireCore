@@ -10,7 +10,7 @@ import re
 import threading
 import time
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, field
 
 import websocket
@@ -109,7 +109,7 @@ THREAD_JOIN_TIMEOUT = 2.0
 REPLY_CHECK_WARN_INTERVAL = 60.0
 
 
-@dataclass
+@dataclass(eq=False)
 class ResponseWaiter:
     """A waiter for a specific command response."""
 
@@ -118,6 +118,8 @@ class ResponseWaiter:
     error: Exception | None = None
     # Decides whether a successful reply is this waiter's; None takes the first one.
     accepts: Callable[[Packet], bool] | None = None
+    # Set once nobody waits for the reply any more: until then the waiter only keeps it from later requests.
+    owed_until: float | None = None
 
 
 class Connection:
@@ -142,12 +144,18 @@ class Connection:
         answered (or to time out), and that wait counts against its timeout.
         Different commands still run in parallel.
 
-        A reply goes to the oldest waiter for its command id that accepts it.
-        A waiter with an ``accepts`` check takes only the successful replies
-        that pass it, plus any error reply; other replies still reach state
-        and subscribers. Without a check, a server push or a late reply to an
-        earlier timed-out request with the same command id is taken as the
-        answer.
+        A reply goes to the oldest waiter for its command id that accepts it;
+        a successful reply goes to a waiter still waiting before one that is
+        only owed a reply and has a check (see below). A waiter with an
+        ``accepts`` check takes only the successful replies that pass it, plus
+        any error reply; other replies still reach state and subscribers.
+        Without a check, a server push with the same command id is taken as
+        the answer.
+
+        A reply nobody waits for any more is still owed: a request that timed
+        out, and :meth:`send_and_drop_reply`, leave their waiter in place to
+        take that reply when it comes, so it reaches state and subscribers but
+        no later request (see :meth:`request`).
 
     Client: ``BasicSmartfoxClient.onExtensionResponse`` (ggs.dll line 7151) and
     ``CastleExtensionResponseCommand`` (bundle line 110733), which hands each reply
@@ -183,6 +191,8 @@ class Connection:
         self._waiters: dict[str, list[ResponseWaiter]] = {}
         self._waiters_lock = threading.Lock()
         self._reply_check_warn_at = 0.0
+        # Command ids that may have a waiter owed a late reply, whose window routing must check
+        self._owing: set[str] = set()
 
         # cmd_id -> the lock request() holds for that command (see Correlation)
         self._command_locks: dict[str, threading.RLock] = {}
@@ -401,18 +411,27 @@ class Connection:
                 replies carry nothing to check, so they are always taken.
 
         ``EmpireClient.send`` and ``request_packet`` pass the check of a request
-        model that defines ``accepts_reply`` (gaa, ssi, ain, grc, dfc, mcm, jaa by
-        position, csm, cra, cds, cat, and llsp, llsw and slse by list): those
-        replies name what was asked for. Most commands' replies do not (gam, gcl,
-        dcl, gli, gui, jca, the attack-info family, chat and every write), and hgh
-        replies name a list and league that need not be the ones asked for (see
-        ``GetHighscoreRequest``), so without a check a reply
-        cannot be told from another one under the same command: after one
-        request times out, its late reply is taken by the next request for that
-        command, whose own reply then goes to the one after, until a request
-        times out with nothing arriving. A server push under that command id is
-        taken the same way. An error reply for a checked command still goes to
-        the oldest waiter.
+        model that defines ``accepts_reply`` (gaa, ssi, ain, grc, dfc, mcm, spl,
+        arc, jaa by position, csm, cra, cds, cat, and llsp, llsw and slse by
+        list): those replies name what was asked for. Most commands' replies do
+        not (gam, gcl, dcl, gli, gui, gpa, jca, bsd, wsp, the attack-info family,
+        chat and every write), and hgh replies name a list and league that need
+        not be the ones asked for (see ``GetHighscoreRequest``).
+
+        A request that times out still owes its reply: its waiter stays
+        registered for ``timeout`` more seconds and takes that reply, or any
+        error, when it arrives, so no later request does. A later request
+        without a check sends only once that reply has arrived or the window
+        has passed, and then still has its whole ``timeout`` for its own
+        reply: after a lost reply it can take up to the earlier request's
+        timeout longer. One with a check sends at once, as its check already
+        tells a late success reply from its own, and a successful reply goes
+        to it before the owed waiter. Two things still get past this. A
+        server push under the command id is taken as the owed reply, and the
+        late reply then answers the next request as before. And when the
+        reply never comes, the owed waiter takes the next request's error, so
+        that request times out instead. Both assume the server answers one
+        command's requests in the order sent.
 
         Raises:
             EmpireTimeoutError: No response within ``timeout``
@@ -423,6 +442,8 @@ class Connection:
         self._refuse_receive_thread(cmd_id)
         deadline = time.monotonic() + timeout
         with self.command_lock(cmd_id, timeout=timeout):
+            if accepts is None and cmd_id in self._owing:
+                deadline += self._settle_owed_replies(cmd_id)
             if time.monotonic() >= deadline:
                 raise EmpireTimeoutError(
                     f"Timeout waiting for '{cmd_id}': an earlier '{cmd_id}' request was still running"
@@ -433,7 +454,53 @@ class Connection:
             except Exception:
                 self.cancel_waiter(cmd_id, waiter)
                 raise
-            return self.wait_for_result(cmd_id, waiter, timeout=max(0.0, deadline - time.monotonic()))
+            answered = waiter.event.wait(max(0.0, deadline - time.monotonic()))
+            if answered or not self._owe_reply(cmd_id, waiter, timeout):
+                return self.wait_for_result(cmd_id, waiter, timeout=timeout)
+            raise EmpireTimeoutError(f"Timeout waiting for '{cmd_id}'")
+
+    def send_and_drop_reply(self, data: str, cmd_id: str, window: float = 5.0) -> None:
+        """Send data whose reply under ``cmd_id`` nobody waits for, and keep that reply from every request.
+
+        The reply is owed as a timed-out request's is (see :meth:`request`): it
+        reaches state and subscribers, and a request for ``cmd_id`` without a
+        check sends only once it has arrived or ``window`` has passed. Off the
+        receive thread it first takes :meth:`command_lock`, waiting up to
+        ``window`` for a request in flight, so the two replies cannot swap; on
+        the receive thread, which may not wait, it sends at once.
+
+        Raises:
+            NetworkError: If not connected or the send fails
+            EmpireTimeoutError: A request for ``cmd_id`` held the lock for all of ``window``
+        """
+        on_receive_thread = threading.current_thread() is self._recv_thread
+        with nullcontext() if on_receive_thread else self.command_lock(cmd_id, timeout=window):
+            waiter = self.create_waiter(cmd_id)
+            self._owe_reply(cmd_id, waiter, window)
+            try:
+                self.send(data)
+            except Exception:
+                self.cancel_waiter(cmd_id, waiter)
+                raise
+
+    def _owe_reply(self, cmd_id: str, waiter: ResponseWaiter, window: float) -> bool:
+        """Leave ``waiter`` to take its late reply for ``window`` seconds; False if a reply or the close came first."""
+        with self._waiters_lock:
+            if not any(w is waiter for w in self._waiters.get(cmd_id, ())):
+                return False
+            waiter.owed_until = time.monotonic() + window
+            self._owing.add(cmd_id)
+            return True
+
+    def _settle_owed_replies(self, cmd_id: str) -> float:
+        """Wait until each reply owed under ``cmd_id`` is in or its window has passed; return the seconds waited."""
+        started = time.monotonic()
+        with self._waiters_lock:
+            owed = [(w, w.owed_until) for w in self._waiters.get(cmd_id, ()) if w.owed_until is not None]
+        for waiter, owed_until in owed:
+            waiter.event.wait(max(0.0, owed_until - time.monotonic()))
+            self.cancel_waiter(cmd_id, waiter)
+        return time.monotonic() - started
 
     @contextmanager
     def command_lock(self, cmd_id: str, timeout: float = 5.0) -> Iterator[None]:
@@ -442,6 +509,9 @@ class Connection:
         For work that sends ``cmd_id`` itself, several requests at once for
         example, so that neither their replies nor their errors can land on a
         concurrent :meth:`request`. Reentrant on the holding thread.
+
+        Threads waiting for it are not served in arrival order: under
+        contention one can lose the race again and again, until its timeout.
 
         Raises:
             EmpireTimeoutError: Another thread held it for all of ``timeout``
@@ -751,12 +821,17 @@ class Connection:
             # Check waiters (request/response pattern)
             with self._waiters_lock:
                 waiters_list = self._waiters.get(cmd_id)
+                if waiters_list and cmd_id in self._owing:
+                    now = time.monotonic()
+                    waiters_list[:] = [w for w in waiters_list if w.owed_until is None or w.owed_until > now]
+                    if all(w.owed_until is None for w in waiters_list):
+                        self._owing.discard(cmd_id)
                 if waiters_list:
-                    index = next((i for i, w in enumerate(waiters_list) if self._takes(w, packet)), None)
-                    if index is not None:
-                        waiter = waiters_list.pop(index)
-                        if not waiters_list:
-                            del self._waiters[cmd_id]
+                    waiter = self._taker(waiters_list, packet)
+                    if waiter is not None:
+                        waiters_list.remove(waiter)
+                if waiters_list is not None and not waiters_list:
+                    del self._waiters[cmd_id]
 
             # Get subscriber callbacks (copy the list)
             with self._subscribers_lock:
@@ -775,6 +850,8 @@ class Connection:
                 logger.exception("Packet handler error")
 
         if waiter:
+            if waiter.owed_until is not None:
+                logger.debug(f"Late '{cmd_id}' reply kept from later requests: its own had stopped waiting")
             waiter.result = packet
             waiter.event.set()
 
@@ -784,6 +861,17 @@ class Connection:
                     callback(packet)
                 except Exception:
                     logger.exception("Subscriber error")
+
+    def _taker(self, waiters: list[ResponseWaiter], packet: Packet) -> ResponseWaiter | None:
+        """The oldest waiter that accepts ``packet``, owed waiters with a check last for a success.
+
+        An owed waiter with a check would otherwise take every later reply its
+        check accepts, so after one lost reply each request would get the one
+        before's reply. Called under the waiters lock.
+        """
+        if packet.error_code == 0:
+            waiters = sorted(waiters, key=lambda w: w.owed_until is not None and w.accepts is not None)
+        return next((w for w in waiters if self._takes(w, packet)), None)
 
     def _takes(self, waiter: ResponseWaiter, packet: Packet) -> bool:
         """Whether ``waiter`` takes ``packet``; a check that raises counts as no. Called under the waiters lock."""
@@ -869,3 +957,4 @@ class Connection:
                     waiter.error = error
                     waiter.event.set()
             self._waiters.clear()
+            self._owing.clear()

@@ -3,12 +3,13 @@
 import pytest
 
 from empire_core.alliance.models.info import GetAllianceInfoRequest
+from empire_core.army.models.production import GetProductionListRequest
 from empire_core.attack.models.send import CreateAttackRequest
-from empire_core.castle.models.actions import JoinAreaRequest, SelectCastleRequest
+from empire_core.castle.models.actions import JoinAreaRequest, RenameCastleRequest, SelectCastleRequest
 from empire_core.castle.models.resources import GetResourcesRequest
 from empire_core.castle.models.support import SendSupportRequest, SendTroopsRequest
 from empire_core.defense.models import GetDefenseRequest
-from empire_core.enums import Kingdom, RankingType
+from empire_core.enums import Kingdom, MapItemType, ProductionListId, RankingType
 from empire_core.exceptions import EmpireTimeoutError
 from empire_core.map.models.areas import GetMapAreaRequest
 from empire_core.movements.models import CancelMovementRequest
@@ -120,6 +121,25 @@ class TestIdEchoes:
         request = GetDefenseRequest(castle_x=632, castle_y=243, area_id=16654596)
         assert request.accepts_reply({"A": [1, 632, 243, 16654596]})
         assert not request.accepts_reply({"A": [1, 629, 235, 14733404]})
+
+    def test_production_list(self):
+        request = GetProductionListRequest(list_id=ProductionListId.SOLDIERS)
+        assert request.accepts_reply({"LID": 0, "QS": []})
+        assert request.accepts_reply({"LID": "0"})
+        assert not request.accepts_reply({"LID": 1, "QS": []})
+        # parse_SPL ignores a reply without LID
+        assert not request.accepts_reply({"QS": []})
+        # the server's answer for a list the castle cannot produce
+        assert request.accepts_reply({})
+
+    def test_castle_rename(self):
+        request = RenameCastleRequest(
+            castle_id=16654596, castle_name="Keep", castle_type=MapItemType.CASTLE, kingdom_id=Kingdom.ICE
+        )
+        assert request.accepts_reply({"CID": 16654596, "KID": 2, "P": 1})
+        assert request.accepts_reply({"CID": 16654596})
+        assert not request.accepts_reply({"CID": 14733404, "KID": 2})
+        assert not request.accepts_reply({"CID": 16654596, "KID": 0})
 
     def test_joining_a_castle_or_an_area(self):
         # JAACommand adopts the reply's kingdom, so a castle join checks nothing

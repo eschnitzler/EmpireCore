@@ -239,6 +239,16 @@ class RenameCastleRequest(BaseRequest):
     def _encoded_name(self, value: str) -> str:
         return encode_json_text(value)
 
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether an arc reply is about this castle: its ``CID``, and its ``KID`` when sent, are the ones asked for.
+
+        Client: ``ARCCommand.executeCommand`` (bundle line 124966) looks the renamed
+        castle up by the reply's ``CID`` and ``KID`` (bundle line 124968).
+        """
+        if not isinstance(payload, dict) or not js_same_number(payload.get("CID"), self.castle_id):
+            return False
+        return "KID" not in payload or js_same_number(payload["KID"], self.kingdom_id)
+
 
 class RenameCastleResponse(BaseResponse):
     """

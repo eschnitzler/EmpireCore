@@ -397,6 +397,144 @@ class TestReplyChecks:
         assert len([r for r in caplog.records if "Reply check" in r.getMessage()]) == 1
 
 
+def time_out(conn: Connection, cmd_id: str, timeout: float = 0.05, accepts=None) -> None:
+    with pytest.raises(EmpireTimeoutError):
+        conn.request(f"%xt%EmpireEx_21%{cmd_id}%1%{{}}%", cmd_id, timeout=timeout, accepts=accepts)
+
+
+class TestLateReplies:
+    """A reply whose request stopped waiting is owed to that request, never handed to the next."""
+
+    def test_the_next_unchecked_request_sends_once_the_late_reply_is_in_and_gets_its_own(self, sending_conn):
+        time_out(sending_conn, "gui", timeout=0.6)
+        caller = Caller(sending_conn, "gui")
+        time.sleep(0.05)
+        assert len(sent(sending_conn)) == 1
+
+        sending_conn._route_packet(make_packet("gui", '{"late": 1}'))
+        assert wait_until(lambda: len(sent(sending_conn)) == 2)
+        sending_conn._route_packet(make_packet("gui", '{"own": 1}'))
+        assert caller.answer().payload == {"own": 1}
+
+    def test_the_late_reply_still_reaches_state_and_subscribers(self, sending_conn):
+        seen: list[Packet] = []
+        sending_conn.on_packet = seen.append
+        pushed: list[Packet] = []
+        sending_conn.subscribe("gui", pushed.append)
+        time_out(sending_conn, "gui")
+        sending_conn._route_packet(make_packet("gui", '{"late": 1}'))
+        assert len(seen) == 1 and len(pushed) == 1
+        assert sending_conn._waiters == {}
+
+    def test_a_reply_that_never_comes_holds_the_next_request_back_only_for_the_window(self, sending_conn):
+        time_out(sending_conn, "gui", timeout=0.05)
+        caller = Caller(sending_conn, "gui")
+        assert wait_until(lambda: len(sent(sending_conn)) == 2, timeout=0.5)
+        sending_conn._route_packet(make_packet("gui", '{"own": 1}'))
+        assert caller.answer().payload == {"own": 1}
+
+    def test_after_a_lost_reply_the_next_request_still_has_its_whole_timeout(self, sending_conn):
+        time_out(sending_conn, "gui", timeout=0.2)
+        caller = Caller(sending_conn, "gui", timeout=0.15)
+        assert wait_until(lambda: len(sent(sending_conn)) == 2, timeout=0.5)
+        time.sleep(0.05)
+        sending_conn._route_packet(make_packet("gui", '{"own": 1}'))
+        assert caller.answer().payload == {"own": 1}
+
+    def test_after_a_lost_checked_reply_only_that_request_times_out(self, sending_conn):
+        lid0 = lambda packet: packet.payload.get("LID") == 0  # noqa: E731
+        time_out(sending_conn, "spl", timeout=0.3, accepts=lid0)
+        for count in (2, 3, 4):
+            caller = Caller(sending_conn, "spl", timeout=0.5, accepts=lid0)
+            assert wait_until(lambda: len(sent(sending_conn)) == count)  # noqa: B023
+            sending_conn._route_packet(make_packet("spl", '{"LID": 0}'))
+            assert caller.answer().payload == {"LID": 0}
+
+    def test_an_error_after_a_lost_checked_reply_still_goes_to_the_owed_waiter(self, sending_conn):
+        time_out(sending_conn, "gdi", timeout=0.2, accepts=about(1))
+        caller = Caller(sending_conn, "gdi", timeout=0.1, accepts=about(2))
+        assert wait_until(lambda: len(sent(sending_conn)) == 2)
+        sending_conn._route_packet(Packet.from_bytes(b"%xt%gdi%1%114%%"))
+        caller.join()
+        assert isinstance(caller.error, EmpireTimeoutError)
+
+    def test_a_late_error_is_not_taken_by_the_next_checked_request(self, sending_conn):
+        time_out(sending_conn, "gdi", timeout=0.2, accepts=about(1))
+        caller = Caller(sending_conn, "gdi", accepts=about(2))
+        # A check tells the late success reply apart, so the next request is sent at once.
+        assert wait_until(lambda: len(sent(sending_conn)) == 2)
+
+        sending_conn._route_packet(Packet.from_bytes(b"%xt%gdi%1%114%%"))
+        sending_conn._route_packet(gdi_reply(2))
+        assert caller.answer().payload == {"O": {"OID": 2}}
+
+    def test_a_late_reply_after_the_window_is_not_kept_back(self, sending_conn):
+        time_out(sending_conn, "gui", timeout=0.01)
+        time.sleep(0.02)
+        sending_conn._route_packet(make_packet("gui"))
+        assert sending_conn._waiters == {}
+
+    def test_a_disconnect_ends_the_wait_for_an_owed_reply(self, sending_conn):
+        time_out(sending_conn, "gui", timeout=0.6)
+        caller = Caller(sending_conn, "gui", timeout=2.0)
+        time.sleep(0.05)
+        started = time.monotonic()
+        sending_conn._running = False
+        sending_conn._cancel_all_waiters()
+        caller.join()
+        assert isinstance(caller.error, NetworkError)
+        assert time.monotonic() - started < 0.4
+
+    def test_a_reply_to_drop_is_asked_for_once_the_request_in_flight_is_answered(self, sending_conn):
+        caller = Caller(sending_conn, "gam")
+        assert wait_until(lambda: len(sent(sending_conn)) == 1)
+        dropper = threading.Thread(target=sending_conn.send_and_drop_reply, args=("%xt%EmpireEx_21%gam%1%{}%", "gam"))
+        dropper.start()
+        time.sleep(0.05)
+        assert len(sent(sending_conn)) == 1
+
+        sending_conn._route_packet(make_packet("gam", '{"own": 1}'))
+        assert caller.answer().payload == {"own": 1}
+        dropper.join(timeout=2)
+        assert len(sent(sending_conn)) == 2
+        sending_conn._route_packet(make_packet("gam", '{"dropped": 1}'))
+        assert sending_conn._waiters == {}
+
+    def test_the_receive_thread_drops_a_reply_without_waiting_for_the_request_in_flight(self, sending_conn):
+        caller = Caller(sending_conn, "gam")
+        assert wait_until(lambda: len(sent(sending_conn)) == 1)
+        sending_conn._recv_thread = threading.current_thread()
+        sending_conn.send_and_drop_reply("%xt%EmpireEx_21%gam%1%{}%", "gam")
+        assert len(sent(sending_conn)) == 2
+
+        sending_conn._route_packet(make_packet("gam", '{"own": 1}'))
+        sending_conn._route_packet(make_packet("gam", '{"dropped": 1}'))
+        assert caller.answer().payload == {"own": 1}
+        assert sending_conn._waiters == {}
+
+    def test_a_request_after_a_dropped_reply_waits_for_it(self, sending_conn):
+        sending_conn.send_and_drop_reply("%xt%EmpireEx_21%gam%1%{}%", "gam")
+        caller = Caller(sending_conn, "gam")
+        time.sleep(0.05)
+        assert len(sent(sending_conn)) == 1
+
+        sending_conn._route_packet(make_packet("gam", '{"dropped": 1}'))
+        assert wait_until(lambda: len(sent(sending_conn)) == 2)
+        sending_conn._route_packet(make_packet("gam", '{"own": 1}'))
+        assert caller.answer().payload == {"own": 1}
+
+    def test_dropping_a_reply_works_on_the_receive_thread(self, sending_conn):
+        sending_conn._recv_thread = threading.current_thread()
+        sending_conn.send_and_drop_reply("%xt%EmpireEx_21%gam%1%{}%", "gam")
+        assert len(sent(sending_conn)) == 1
+
+    def test_a_failed_send_owes_no_reply(self, sending_conn):
+        sending_conn._running = False
+        with pytest.raises(NetworkError):
+            sending_conn.send_and_drop_reply("%xt%EmpireEx_21%gam%1%{}%", "gam")
+        assert sending_conn._waiters == {}
+
+
 class TestReceiveThreadGuard:
     """A wait on the receive thread could only time out, stalling every other reply meanwhile."""
 
