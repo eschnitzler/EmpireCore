@@ -59,7 +59,9 @@ class FrameBuffer:
 
         Extension packets are returned with their ``%xt`` prefix, as ``Packet.from_bytes`` reads them.
         """
-        text = _STRIPPED_CHARS_RE.sub("", message)
+        # An ASCII message holds none of the stripped characters but NUL; the regex costs
+        # 0.3 ms on a map chunk, on the receive thread
+        text = message if message.isascii() and "\x00" not in message else _STRIPPED_CHARS_RE.sub("", message)
         if not text:
             return []
         if not self._chunks and text.endswith("%") and _SYSTEM_MESSAGE_START not in text:

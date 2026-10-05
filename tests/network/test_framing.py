@@ -59,6 +59,11 @@ def test_null_bytes_and_noncharacters_are_stripped():
     assert FrameBuffer().feed("\x00%xt%gam%1%0%￾{}￿%\x00") == ["%xt%gam%1%0%{}%"]
 
 
+def test_a_null_inside_an_ascii_packet_and_a_lone_surrogate_are_stripped():
+    assert FrameBuffer().feed('%xt%gam%1%0%{"N":"a\x00b"}%') == ['%xt%gam%1%0%{"N":"ab"}%']
+    assert FrameBuffer().feed('%xt%gam%1%0%{"N":"é\ud800"}%') == ['%xt%gam%1%0%{"N":"é"}%']
+
+
 def test_null_padding_yields_nothing():
     frames = FrameBuffer()
     assert frames.feed("\x00\x00") == []
