@@ -528,6 +528,20 @@ class MapAreaItem(BasePayload):
                 the client reads no row of; ``ValidationError`` is one, for a
                 value of the wrong kind
         """
+        return cls(**cls.row_values(data, kingdom))
+
+    @staticmethod
+    def row_values(data: Any, kingdom: Kingdom = Kingdom.GREEN) -> dict[str, Any]:
+        """
+        The values :meth:`from_list` builds a map row from, by field name, before they are validated.
+
+        A caller that drops most rows can look at a row's values first and
+        build only the rows it keeps.
+
+        Raises:
+            ValueError: The row is not a list, is empty, or has an area type
+                the client reads no row of
+        """
         if not isinstance(data, list) or not data:
             raise ValueError(f"Not a map row: {data!r}")
         area_type = enum_or_none(MapItemType, js_int(data[0]))
@@ -542,14 +556,14 @@ class MapAreaItem(BasePayload):
             if isinstance(row_kingdom, int) and not isinstance(row_kingdom, bool)
             else None
         )
-        return cls(
-            item_type=area_type,
-            x=row.as_int(1),
-            y=row.as_int(2),
-            kingdom=kingdom if named is None else named,
-            raw_data=data,
+        return {
+            "item_type": area_type,
+            "x": row.as_int(1),
+            "y": row.as_int(2),
+            "kingdom": kingdom if named is None else named,
+            "raw_data": data,
             **fields,
-        )
+        }
 
     @property
     def is_occupied(self) -> bool:

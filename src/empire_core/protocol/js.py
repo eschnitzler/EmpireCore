@@ -21,6 +21,8 @@ _HEX_COLOR = re.compile(r"#[0-9A-Fa-f]{6}")
 _DECIMAL = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
 _RADIX_LITERAL = re.compile(r"0(?:([xX][0-9A-Fa-f]+)|([oO][0-7]+)|([bB][01]+))")
 _LEADING_INT = re.compile(r"([+-]?)(?:0[xX]([0-9A-Fa-f]*)|([0-9]+))")
+_FLOAT_BOUND = 2**1024  # An int this large is Infinity as a JS number
+_EXACT_FLOAT_BOUND = 2**53  # Every int below this is exactly a float
 
 
 def _text(value: Any) -> str:
@@ -81,6 +83,8 @@ def js_int(value: Any) -> int:
 
     Client: ``int`` (dll line 16098)
     """
+    if type(value) is int:
+        return value
     if isinstance(value, str) and _HEX_COLOR.fullmatch(value):
         return int(value[1:], 16)
     if isinstance(value, int) and not isinstance(value, bool):
@@ -91,13 +95,15 @@ def js_int(value: Any) -> int:
 
 def js_number(value: Any) -> float:
     """``Number(value)``, NaN and infinities as 0."""
+    if type(value) is int and -_EXACT_FLOAT_BOUND < value < _EXACT_FLOAT_BOUND:
+        return float(value)
     number = _number(value)
     return 0.0 if math.isnan(number) or math.isinf(number) else number
 
 
 def js_number_or_none(value: Any) -> int | float | None:
     """``Number(value)``, None read as ``undefined``; None where it gives NaN or an infinity, an int kept as is."""
-    if isinstance(value, int) and not isinstance(value, bool) and abs(value) < 2**1024:
+    if isinstance(value, int) and not isinstance(value, bool) and -_FLOAT_BOUND < value < _FLOAT_BOUND:
         return value
     number = _number(value)
     return None if math.isnan(number) or math.isinf(number) else number
