@@ -1,0 +1,190 @@
+"""
+Every client callback as one asyncio stream, for code that runs on an event loop.
+
+The library stays threaded; a stream of :meth:`EmpireClient.listen` subscribes to the
+callbacks inside ``async with`` and hands each call to a loop.
+The game client decides none of this: it is library threading.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import threading
+from collections.abc import Callable
+from dataclasses import dataclass
+from functools import partial
+from types import TracebackType
+from typing import TYPE_CHECKING, Any
+
+from empire_core.exceptions import EventStreamOverflowError
+from empire_core.services.base import BaseService
+
+if TYPE_CHECKING:
+    from empire_core.client.client import EmpireClient
+
+
+@dataclass(frozen=True)
+class ClientEvent:
+    """One callback call, as an :class:`EventStream` delivers it.
+
+    ``name`` is the registration's name without ``on_``: ``"incoming_attack"`` for
+    ``client.state.on_incoming_attack``, ``"chat_message"`` for ``client.alliance.on_chat_message``.
+    ``args`` are what a callback registered there is called with: one model for most,
+    ``(old, new)`` for ``"incoming_attack_updated"``, ``(movement_id, movement)`` for the
+    movement callbacks, none for ``"disconnect"``.
+    """
+
+    name: str
+    args: tuple[Any, ...]
+
+
+@dataclass(frozen=True)
+class CallbackSource:
+    """A callback registration: ``on_<name>`` with its ``remove_<name>_callback``."""
+
+    name: str
+    register: Callable[[Callable[..., Any]], None]
+    unregister: Callable[[Callable[..., Any]], None]
+    on_callback_thread: bool
+
+
+def callback_sources(client: EmpireClient) -> dict[str, CallbackSource]:
+    """Every callback registration of the client, its state and its services, by name.
+
+    A method ``on_<name>`` is one when its owner also has ``remove_<name>_callback``, so a
+    new registration that follows the pattern is streamed with no change here.
+    """
+    services = [owner for owner in vars(client).values() if isinstance(owner, BaseService)]
+    sources: dict[str, CallbackSource] = {}
+    for owner in (client, client.state, *services):
+        for name in (attribute[3:] for attribute in dir(type(owner)) if attribute.startswith("on_")):
+            unregister = getattr(owner, f"remove_{name}_callback", None)
+            if callable(unregister):
+                sources[name] = CallbackSource(name, getattr(owner, f"on_{name}"), unregister, owner is client.state)
+    return sources
+
+
+_END = object()
+
+
+class EventStream:
+    """The calls of some callback registrations, delivered on an event loop in packet order.
+
+    Made by :meth:`EmpireClient.listen`. Iterate it with ``async for``; each item is a
+    :class:`ClientEvent`. Every call reaches the loop through the state callback thread,
+    the state's own callbacks as they run there and the others queued behind them from
+    the receive thread, so the events come in the order their packets came, whatever
+    registration they belong to.
+
+    It listens for the length of one ``async with``: entering subscribes, leaving (or
+    :meth:`close`) stops listening, and a stream not entered refuses to be iterated.
+    :meth:`EmpireClient.close` and :meth:`EmpireClient.close_streams` end it after the
+    events already on their way. A session that drops is a ``"disconnect"`` event: the
+    stream keeps listening, as the callbacks keep working after the next login.
+    """
+
+    def __init__(
+        self,
+        client: EmpireClient,
+        sources: list[CallbackSource],
+        loop: asyncio.AbstractEventLoop,
+        maxsize: int,
+    ) -> None:
+        self._client = client
+        self._sources = sources
+        self._entered = False
+        self._loop = loop
+        self._maxsize = maxsize
+        self._queue: asyncio.Queue[Any] = asyncio.Queue(maxsize)
+        self._ending = False
+        self._overflowed = False
+        self._subscribed: list[tuple[Callable[[Callable[..., Any]], None], Callable[..., Any]]] = []
+        self._subscription_lock = threading.Lock()
+
+    def _deliver(self, name: str, *args: Any) -> None:
+        try:
+            self._loop.call_soon_threadsafe(self._put, ClientEvent(name, args))
+        except RuntimeError:
+            self._unsubscribe()
+
+    def _put(self, event: Any) -> None:
+        if self._ending:
+            return
+        try:
+            self._queue.put_nowait(event)
+        except asyncio.QueueFull:
+            self._overflowed = True
+            self._unsubscribe()
+            self._end()
+
+    def _end(self) -> None:
+        if not self._ending:
+            self._ending = True
+            if not self._queue.full():
+                self._queue.put_nowait(_END)
+
+    def _unsubscribe(self) -> None:
+        with self._subscription_lock:
+            subscribed, self._subscribed = self._subscribed, []
+        for unregister, callback in subscribed:
+            try:
+                unregister(callback)
+            except ValueError:
+                pass
+        self._client._forget_stream(self)
+
+    def _finish(self) -> None:
+        """Stop listening and end the stream after the events already queued for it."""
+        self._unsubscribe()
+        self._client.state._dispatch_callback(self._post, self._end)
+
+    def _post(self, call: Callable[[], None]) -> None:
+        try:
+            self._loop.call_soon_threadsafe(call)
+        except RuntimeError:
+            pass
+
+    def close(self) -> None:
+        """Stop listening and end the stream after the events it already holds. Safe from any thread."""
+        self._unsubscribe()
+        self._post(self._end)
+
+    def __aiter__(self) -> EventStream:
+        return self
+
+    async def __anext__(self) -> ClientEvent:
+        if not self._entered:
+            raise RuntimeError("an EventStream listens only inside async with; enter it first")
+        if self._ending and self._queue.empty():
+            raise self._ended()
+        event = await self._queue.get()
+        if event is _END:
+            raise self._ended()
+        return event
+
+    def _ended(self) -> Exception:
+        if self._overflowed:
+            return EventStreamOverflowError(f"{self._maxsize} events waited unread; the stream stopped listening")
+        return StopAsyncIteration()
+
+    async def __aenter__(self) -> EventStream:
+        if self._entered:
+            raise RuntimeError("an EventStream is entered once; call client.listen() again")
+        self._entered = True
+        with self._subscription_lock:
+            self._client._remember_stream(self)
+            for source in self._sources:
+                callback = partial(self._deliver, source.name)
+                if not source.on_callback_thread:
+                    callback = partial(self._client.state._dispatch_callback, callback)
+                source.register(callback)
+                self._subscribed.append((source.unregister, callback))
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.close()

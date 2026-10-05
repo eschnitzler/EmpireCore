@@ -133,6 +133,8 @@ def make_client(connection: StubConnection | None = None, state: StubState | Non
     client.is_logged_in = False
     client._handlers = {}
     client._handlers_lock = threading.Lock()
+    client._streams = set()
+    client._streams_lock = threading.Lock()
     return client
 
 

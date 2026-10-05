@@ -195,6 +195,66 @@ client.on_disconnect(lambda: print("connection lost"))
 The callback runs on the receive thread as it shuts down. Keep it short and
 start a new login from another thread.
 
+## From an asyncio program
+
+The client is threaded, and its callbacks run on its own threads. On an event
+loop, `client.listen()` streams them instead: every `on_*` registration of the
+client, its state and its services, or only the ones you pass. Each event is a
+`ClientEvent` whose `name` is the registration without `on_` and whose `args`
+are what a callback there is called with: `(old, new)` for
+`incoming_attack_updated`, `(movement_id, movement)` for the movement
+callbacks, one model for the others, none for `disconnect`:
+
+```python
+import asyncio
+
+from empire_core import ClientEvent
+
+async def watch(client):
+    await asyncio.to_thread(client.login)
+    async with client.listen(
+        client.state.on_incoming_attack,
+        client.state.on_movement_arrived,
+        client.alliance.on_chat_message,
+        client.on_disconnect,
+    ) as events:
+        async for event in events:
+            match event:
+                case ClientEvent(name="incoming_attack", args=(movement,)):
+                    print("attack from", movement.source_player_name)
+                case ClientEvent(name="movement_arrived", args=(movement_id, movement)):
+                    print("arrived", movement_id)
+                case ClientEvent(name="chat_message", args=(message,)):
+                    print(message.player_name, message.decoded_text)
+                case ClientEvent(name="disconnect"):
+                    print("connection lost")
+```
+
+The events come on the loop in the order their packets came, across every
+registration, through the one callback thread: no thread is started per event.
+A dropped session is a `disconnect` event and the stream keeps listening, as
+callbacks do.
+
+A stream listens for exactly its `async with` block: entering subscribes,
+leaving (or `events.close()`) stops listening, and iterating a stream you did
+not enter raises `RuntimeError`. A stream is entered once; call
+`client.listen()` again for another. `client.close()` and
+`client.close_streams()` end every open stream after the events already on
+their way; a `keep_alive` pool calls `close_streams()` when it keeps a released
+client, so your streams never run into the next lease.
+
+Nothing is dropped while your loop keeps up. `client.listen(maxsize=n)` caps
+the events waiting unread instead: one more stops the stream, which raises
+`EventStreamOverflowError` after the events it holds. Read the state you need
+again and listen anew.
+
+Blocking calls stay blocking; run them off the loop with `asyncio.to_thread`,
+as above, so a request that waits for its reply does not stall the loop:
+
+```python
+movements = await asyncio.to_thread(client.movements.get_movements)
+```
+
 !!! tip "Going deeper"
 
     [State management](../design/state_management.md) documents the

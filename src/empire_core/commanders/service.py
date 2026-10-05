@@ -315,6 +315,7 @@ class SkillsService(BaseService):
 
     def __init__(self, client) -> None:
         super().__init__(client)
+        self._callbacks_lock = threading.Lock()
         self._skill_list_callbacks: list[Callable[[SkillList], None]] = []
         self.on_response("skl", self._handle_skill_list)
         self.on_response("ego", self._handle_skill_list)
@@ -451,14 +452,14 @@ class SkillsService(BaseService):
         Client: ``SKLCommand.executeCommand`` (bundle line 129742) and
         ``EGOCommand.executeCommand`` (bundle line 122801) both call ``parse_SKL``.
         """
-        self._skill_list_callbacks.append(callback)
+        with self._callbacks_lock:
+            self._skill_list_callbacks.append(callback)
 
     def remove_skill_list_callback(self, callback: Callable[[SkillList], None]) -> None:
         """Remove a callback registered with :meth:`on_skill_list`; a no-op if it is not registered."""
-        try:
-            self._skill_list_callbacks.remove(callback)
-        except ValueError:
-            pass
+        with self._callbacks_lock:
+            if callback in self._skill_list_callbacks:
+                self._skill_list_callbacks.remove(callback)
 
     def _handle_skill_list(self, response: BaseResponse) -> None:
         if isinstance(response, GetSkillsResponse):
@@ -469,7 +470,9 @@ class SkillsService(BaseService):
             return
         if skills is None:
             return
-        for callback in list(self._skill_list_callbacks):
+        with self._callbacks_lock:
+            callbacks = list(self._skill_list_callbacks)
+        for callback in callbacks:
             try:
                 callback(skills)
             except Exception:

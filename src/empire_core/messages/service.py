@@ -65,6 +65,7 @@ class MessagesService(BaseService):
         super().__init__(client)
         self._mailbox: dict[int, MessageInfo] = {}
         self._mailbox_lock = threading.Lock()
+        self._callbacks_lock = threading.Lock()
         self._callbacks: list[Callable[[SystemNotificationEvent], None]] = []
         self.on_response("sne", self._handle_update)
         self.on_response("dms", self._handle_update)
@@ -88,20 +89,22 @@ class MessagesService(BaseService):
 
     def on_new_messages(self, callback: Callable[[SystemNotificationEvent], None]) -> None:
         """Call ``callback`` with the login data's sne section and each sne push, after :attr:`mailbox` is updated."""
-        self._callbacks.append(callback)
+        with self._callbacks_lock:
+            self._callbacks.append(callback)
 
     def remove_new_messages_callback(self, callback: Callable[[SystemNotificationEvent], None]) -> None:
         """Remove a callback registered with :meth:`on_new_messages`; a no-op if it is not registered."""
-        try:
-            self._callbacks.remove(callback)
-        except ValueError:
-            pass
+        with self._callbacks_lock:
+            if callback in self._callbacks:
+                self._callbacks.remove(callback)
 
     def _handle_update(self, response: BaseResponse) -> None:
         with self._mailbox_lock:
             self._apply_update(response)
         if isinstance(response, SystemNotificationEvent):
-            for callback in list(self._callbacks):
+            with self._callbacks_lock:
+                callbacks = list(self._callbacks)
+            for callback in callbacks:
                 try:
                     callback(response)
                 except Exception:

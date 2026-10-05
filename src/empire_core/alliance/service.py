@@ -117,6 +117,7 @@ class AllianceService(BaseService):
 
     def __init__(self, client) -> None:
         super().__init__(client)
+        self._callbacks_lock = threading.Lock()
         self._chat_callbacks: list[Callable[[AllianceChatMessageResponse], None]] = []
         self._members: dict[int, AllianceMember] = {}
         self._members_alliance_id: int | None = None
@@ -608,7 +609,8 @@ class AllianceService(BaseService):
 
             client.alliance.on_chat_message(on_message)
         """
-        self._chat_callbacks.append(callback)
+        with self._callbacks_lock:
+            self._chat_callbacks.append(callback)
 
     def remove_chat_message_callback(self, callback: Callable[[AllianceChatMessageResponse], None]) -> None:
         """Remove a callback registered with :meth:`on_chat_message`.
@@ -616,15 +618,16 @@ class AllianceService(BaseService):
         No-op if the callback is not registered, so reconnect re-wiring can
         detach unconditionally.
         """
-        try:
-            self._chat_callbacks.remove(callback)
-        except ValueError:
-            pass
+        with self._callbacks_lock:
+            if callback in self._chat_callbacks:
+                self._chat_callbacks.remove(callback)
 
     def _handle_chat_message(self, response) -> None:
         """Internal handler for chat message responses."""
         if isinstance(response, AllianceChatMessageResponse):
-            for callback in self._chat_callbacks:
+            with self._callbacks_lock:
+                callbacks = list(self._chat_callbacks)
+            for callback in callbacks:
                 try:
                     callback(response)
                 except Exception:
@@ -660,14 +663,14 @@ class AllianceService(BaseService):
 
         Detach it again with :meth:`remove_help_update_callback`.
         """
-        self._help_callbacks.append(callback)
+        with self._callbacks_lock:
+            self._help_callbacks.append(callback)
 
     def remove_help_update_callback(self, callback: Callable[[AllianceHelpUpdate], None]) -> None:
         """Remove a callback registered with :meth:`on_help_update`; a no-op if it is not registered."""
-        try:
-            self._help_callbacks.remove(callback)
-        except ValueError:
-            pass
+        with self._callbacks_lock:
+            if callback in self._help_callbacks:
+                self._help_callbacks.remove(callback)
 
     def _apply_help_update(self, response: BaseResponse) -> AllianceHelpUpdate | None:
         if isinstance(response, AllianceHelpListResponse):
@@ -690,7 +693,9 @@ class AllianceService(BaseService):
             update = self._apply_help_update(response)
         if update is None:
             return
-        for callback in list(self._help_callbacks):
+        with self._callbacks_lock:
+            callbacks = list(self._help_callbacks)
+        for callback in callbacks:
             try:
                 callback(update)
             except Exception:

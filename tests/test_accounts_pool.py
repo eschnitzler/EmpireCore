@@ -352,6 +352,7 @@ class FakeClient:
         self.is_logged_in = False
         self.closed = False
         self.logins = 0
+        self.streams_closed = 0
         self.connection = FakeConnection()
         self._login_ok = login_ok
 
@@ -363,6 +364,9 @@ class FakeClient:
     def close(self) -> None:
         self.closed = True
         self.is_logged_in = False
+
+    def close_streams(self) -> None:
+        self.streams_closed += 1
 
 
 class FakeRegistry(AccountRegistry):
@@ -781,6 +785,13 @@ class TestKeepAlive:
         assert pool.lease() is made[1]
         assert made[0].closed and made[2].closed
         assert pool.get_client("alpha") is None
+
+    def test_keeping_a_client_ends_its_streams(self, made):
+        pool = self.pool("alpha")
+        with pool.leased():
+            pass
+        assert made[0].streams_closed == 1
+        assert not made[0].closed
 
     def test_release_with_logout_closes_the_client(self, made):
         pool = self.pool("alpha")

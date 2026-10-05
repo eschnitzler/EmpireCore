@@ -292,6 +292,8 @@ def make_client(
     client.is_logged_in = True
     client._handlers = {}
     client._handlers_lock = threading.Lock()
+    client._streams = set()
+    client._streams_lock = threading.Lock()
     client._attach_services()
     return client
 
