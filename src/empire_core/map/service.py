@@ -9,6 +9,7 @@ else castle-scoped needs ``client.castle.select`` first.
 
 from __future__ import annotations
 
+import threading
 from typing import TypeVar
 
 from empire_core.enums import Kingdom, MapItemType
@@ -25,7 +26,7 @@ from empire_core.map.models.areas import (
     GetMapAreaResponse,
 )
 from empire_core.map.models.items import parse_area_rows
-from empire_core.map.scanner import MapScanner, ScanResult
+from empire_core.map.scanner import KingdomTopology, MapScanner, ScanResult, kingdom_topology
 from empire_core.protocol.base import BaseRequest
 from empire_core.protocol.errors import GGEError
 from empire_core.services.base import BaseService
@@ -37,8 +38,13 @@ class MapService(BaseService):
     """
     Read the world map: areas, kingdom scans and the nearest object of a type.
 
-    Reached as client.map.
+    Reached as client.map. Its kingdom scans keep their discoveries in
+    ``topology``, the process-wide ``kingdom_topology`` unless set to another
+    :class:`~empire_core.map.scanner.KingdomTopology` (``client.map.topology
+    = KingdomTopology()`` gives this client a cache of its own).
     """
+
+    topology: KingdomTopology = kingdom_topology
 
     def scan_map_area(
         self,
@@ -76,15 +82,20 @@ class MapService(BaseService):
         request_timeout: float = 5.0,
         chunk_delay: float = 0.0,
         include_unowned_types: set[MapItemType] | None = None,
+        *,
+        cancel: threading.Event | None = None,
+        refresh_topology: bool = False,
     ) -> ScanResult:
         """Scan a kingdom map. See MapScanner.scan_kingdom; the session leaves its castle."""
-        return MapScanner(self.client).scan_kingdom(
+        return MapScanner(self.client, self.topology).scan_kingdom(
             kingdom,
             item_types,
             timeout,
             request_timeout,
             chunk_delay,
             include_unowned_types=include_unowned_types,
+            cancel=cancel,
+            refresh_topology=refresh_topology,
         )
 
     def scan_chunks(
@@ -96,9 +107,11 @@ class MapService(BaseService):
         request_timeout: float = 5.0,
         chunk_delay: float = 0.0,
         include_unowned_types: set[MapItemType] | None = None,
+        *,
+        cancel: threading.Event | None = None,
     ) -> ScanResult:
         """Scan an explicit chunk list (no BFS). See MapScanner.scan_chunks; the session leaves its castle."""
-        return MapScanner(self.client).scan_chunks(
+        return MapScanner(self.client, self.topology).scan_chunks(
             kingdom,
             chunks,
             item_types,
@@ -106,6 +119,7 @@ class MapService(BaseService):
             request_timeout,
             chunk_delay,
             include_unowned_types=include_unowned_types,
+            cancel=cancel,
         )
 
     def find_next(

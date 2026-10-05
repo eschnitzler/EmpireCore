@@ -2,6 +2,7 @@
 
 import json
 import logging
+import threading
 import time
 from types import SimpleNamespace
 from typing import Any
@@ -10,7 +11,7 @@ import pytest
 
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
-from empire_core.map.scanner import MapScanner
+from empire_core.map.scanner import KingdomTopology, MapScanner, kingdom_topology
 from empire_core.protocol.packet import Packet
 
 
@@ -97,6 +98,7 @@ class _FakeConnection:
 
 
 class _FakeConfig:
+    game_url = "wss://ep-live-de1-game.goodgamestudios.com:443"
     default_zone = "EmpireEx_21"
 
 
@@ -443,7 +445,12 @@ class TestChunkRetry:
 
     def test_retries_back_off(self, monkeypatch):
         slept: list[float] = []
-        monkeypatch.setattr("empire_core.map.scanner.time.sleep", slept.append)
+
+        def sleep(seconds: float, cancel: threading.Event | None) -> bool:
+            slept.append(seconds)
+            return False
+
+        monkeypatch.setattr("empire_core.map.scanner.sleep_unless_cancelled", sleep)
         fake = _FakeClient(
             content_chunks={(1, 1)},
             raises={(1, 1): [EmpireTimeoutError("no answer"), EmpireTimeoutError("again")]},
@@ -567,3 +574,188 @@ class TestScanKingdom:
         fake = _FakeClient(content_chunks=set(), payloads={(1, 1): {"AI": [], "OI": [{"N": "x"}, {"OID": 5}]}})
         result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], chunk_delay=0)
         assert list(result.objects) == [5]
+
+
+def _cancel_after(fake: _FakeClient, requests: int) -> threading.Event:
+    """An event the fake server sets as it answers its ``requests``-th gaa."""
+    cancel = threading.Event()
+    answer = fake.connection.request
+
+    def request(data: str, cmd_id: str, timeout: float = 5.0) -> Packet:
+        try:
+            return answer(data, cmd_id, timeout)
+        finally:
+            if len(fake.connection.requests) >= requests:
+                cancel.set()
+
+    fake.connection.request = request  # type: ignore[method-assign]
+    return cancel
+
+
+CONTENT = {(5, 5), (5, 6), (6, 5)}
+
+
+class TestCancellingAScan:
+    """A cancel is looked at between chunks: the chunk in flight is answered, never abandoned."""
+
+    def test_a_kingdom_scan_stops_after_the_chunk_in_flight(self):
+        fake = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+        cancel = _cancel_after(fake, 3)
+
+        result = _make_scanner(fake).scan_kingdom(kingdom=Kingdom.GREEN, item_types=[], cancel=cancel)
+
+        assert len(fake.connection.requests) == 3
+        assert result.failed_chunks
+        assert not set(result.failed_chunks) & set(fake.connection.requests)
+        assert set(result.content_chunks) <= set(fake.connection.requests)
+
+    def test_a_cancel_before_the_first_chunk_scans_nothing(self):
+        fake = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+        cancel = threading.Event()
+        cancel.set()
+
+        result = _make_scanner(fake).scan_kingdom(kingdom=Kingdom.GREEN, item_types=[], cancel=cancel)
+
+        assert fake.connection.requests == []
+        assert result.failed_chunks == ((5, 5),)
+
+    def test_a_chunk_scan_reports_the_chunks_left(self):
+        fake = _FakeClient(content_chunks=CONTENT)
+        cancel = _cancel_after(fake, 1)
+
+        result = _make_scanner(fake).scan_chunks(Kingdom.GREEN, [(5, 5), (5, 6), (6, 5)], item_types=[], cancel=cancel)
+
+        assert fake.connection.requests == [(5, 5)]
+        assert result.content_chunks == ((5, 5),)
+        assert result.failed_chunks == ((5, 6), (6, 5))
+
+    def test_a_cancel_skips_the_retry(self):
+        fake = _FakeClient(content_chunks={(1, 1)}, raises={(1, 1): [EmpireTimeoutError("no answer")]})
+        cancel = _cancel_after(fake, 1)
+
+        result = MapScanner(fake).scan_chunks(Kingdom.GREEN, [(1, 1), (2, 2)], item_types=[], cancel=cancel)
+
+        assert fake.connection.requests == [(1, 1)]
+        assert result.failed_chunks == ((1, 1), (2, 2))
+
+    def test_the_facade_passes_the_cancel_on(self):
+        from empire_core.map.service import MapService
+
+        fake = _FakeClient(content_chunks=CONTENT)
+        cancel = threading.Event()
+        cancel.set()
+
+        result = MapService(fake).scan_chunks(Kingdom.GREEN, [(5, 5)], cancel=cancel)  # type: ignore[arg-type]
+
+        assert (fake.connection.requests, result.failed_chunks) == ([], ((5, 5),))
+
+
+class TestKingdomTopology:
+    """A complete discovery is shared by every later scan of that kingdom on that world."""
+
+    def test_a_second_scan_asks_only_the_chunks_with_content(self):
+        first = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+        discovered = _make_scanner(first).scan_kingdom(kingdom=Kingdom.GREEN, item_types=[])
+        second = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+
+        result = _make_scanner(second).scan_kingdom(kingdom=Kingdom.GREEN, item_types=[])
+
+        assert len(first.connection.requests) > len(CONTENT)
+        assert sorted(second.connection.requests) == sorted(CONTENT)
+        assert sorted(result.content_chunks) == sorted(discovered.content_chunks)
+        assert len(result.items) == len(discovered.items)
+
+    def test_another_world_or_kingdom_discovers_its_own(self):
+        _make_scanner(_FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))).scan_kingdom(item_types=[])
+        other_world = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+        other_world.config = SimpleNamespace(game_url=_FakeConfig.game_url, default_zone="EmpireEx_2")  # type: ignore[assignment]
+        other_kingdom = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+
+        _make_scanner(other_world).scan_kingdom(item_types=[])
+        _make_scanner(other_kingdom).scan_kingdom(kingdom=Kingdom.ICE, item_types=[])
+
+        assert len(other_world.connection.requests) > len(CONTENT)
+        assert len(other_kingdom.connection.requests) > len(CONTENT)
+
+    def test_refresh_discovers_again(self):
+        _make_scanner(_FakeClient(content_chunks={(5, 5)}, start_chunk=(5, 5))).scan_kingdom(item_types=[])
+        grown = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+
+        result = _make_scanner(grown).scan_kingdom(item_types=[], refresh_topology=True)
+        again = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+        _make_scanner(again).scan_kingdom(item_types=[])
+
+        assert sorted(result.content_chunks) == sorted(CONTENT)
+        assert sorted(again.connection.requests) == sorted(CONTENT)
+
+    @pytest.mark.parametrize(
+        "client_kwargs, cancel_after",
+        [({"error_codes": {(5, 6): 95}}, None), ({}, 2)],
+        ids=["a failed chunk", "a cancel"],
+    )
+    def test_an_incomplete_discovery_is_not_kept(self, client_kwargs, cancel_after):
+        fake = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5), **client_kwargs)
+        cancel = _cancel_after(fake, cancel_after) if cancel_after else None
+        _make_scanner(fake).scan_kingdom(item_types=[], cancel=cancel)
+        again = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+
+        _make_scanner(again).scan_kingdom(item_types=[])
+
+        assert len(again.connection.requests) > len(CONTENT)
+
+    def test_a_scanner_can_keep_its_own_topology(self):
+        _make_scanner(_FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))).scan_kingdom(item_types=[])
+        fake = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+
+        MapScanner(fake, topology=KingdomTopology()).scan_kingdom(item_types=[])
+
+        assert len(fake.connection.requests) > len(CONTENT)
+
+    def test_the_facade_uses_the_topology_it_is_given(self):
+        from empire_core.map.service import MapService
+
+        _make_scanner(_FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))).scan_kingdom(item_types=[])
+        fake = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+        service = MapService(fake)  # type: ignore[arg-type]
+        service.topology = KingdomTopology()
+
+        service.scan_kingdom(item_types=[])
+
+        assert MapService.topology is kingdom_topology
+        assert len(fake.connection.requests) > len(CONTENT)
+        assert service.topology.get((_FakeConfig.game_url, _FakeConfig.default_zone, Kingdom.GREEN))
+
+    def test_concurrent_discoveries_run_side_by_side(self):
+        clients = [_FakeClient(content_chunks=CONTENT, start_chunk=(5, 5), delay=0.01) for _ in range(3)]
+        all_discovering = threading.Barrier(len(clients), timeout=1)
+        for fake in clients:
+
+            def first_request(data: str, cmd_id: str, timeout: float = 5.0, fake=fake, answer=fake.connection.request):
+                if not fake.connection.requests:
+                    all_discovering.wait()
+                return answer(data, cmd_id, timeout)
+
+            fake.connection.request = first_request  # type: ignore[method-assign]
+        results: list[Any] = []
+        threads = [
+            threading.Thread(target=lambda f=fake: results.append(_make_scanner(f).scan_kingdom(item_types=[])))
+            for fake in clients
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        assert len(results) == len(clients)
+        assert all(not r.failed_chunks and sorted(r.content_chunks) == sorted(CONTENT) for r in results)
+        assert kingdom_topology.get((_FakeConfig.game_url, _FakeConfig.default_zone, Kingdom.GREEN))
+
+    def test_a_cancelled_scan_does_not_warn(self, caplog):
+        fake = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+        cancel = _cancel_after(fake, 2)
+
+        with caplog.at_level(logging.DEBUG, logger="empire_core.map.scanner"):
+            result = _make_scanner(fake).scan_kingdom(item_types=[], cancel=cancel)
+
+        assert result.failed_chunks
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]

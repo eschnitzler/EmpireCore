@@ -1,6 +1,7 @@
 """Kingdom scans: breadth-first discovery and targeted re-scans of known chunks."""
 
 import logging
+import threading
 import time
 from collections import deque
 from collections.abc import Iterable
@@ -13,6 +14,7 @@ from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.protocol.packet import Packet
+from empire_core.utils.cancel import sleep_unless_cancelled
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +41,61 @@ class ScanResult(NamedTuple):
     # back into scan_chunks() to re-scan a known region without paying for
     # BFS discovery of the empty boundary again.
     content_chunks: tuple[tuple[int, int], ...] = ()
+
+
+_Chunk = tuple[int, int]
+_TopologyKey = tuple[str, str, Kingdom]
+
+
+class KingdomTopology:
+    """
+    The chunks with map content in each kingdom, from complete discoveries, shared by every scanner.
+
+    Keyed by world, the game URL and zone a client logs into, and kingdom:
+    the map belongs to the world, not to an account, so every client on a
+    world, from a pool or not, reuses one discovery of a kingdom. Only a
+    discovery that scanned every chunk it found (no failed chunk, no
+    timeout, not cancelled) is stored; when several run at once, the last
+    to finish replaces the others.
+
+    A discovery is a BFS from the scanning account's own castle in that
+    kingdom (the map center without one) that stops two empty chunks past
+    the content it found, so it holds the region connected to that castle.
+    An account whose castle lies in a region the stored discovery did not
+    reach needs ``scan_kingdom(refresh_topology=True)``, or a topology of
+    its own.
+
+    An entry stays until ``refresh_topology=True`` replaces it or
+    :meth:`clear`; the client takes the map's size from the game constants
+    (``ggc`` ``SX``/``SY``, ``GGCCommand.executeCommand``, bundle line
+    120541, and ``nfo``, bundle line 120802, through
+    ``ClientConstCastle.setWorldmapSizeViaGGC``, bundle line 985), which the
+    library does not read, so a world that grows is not noticed by itself.
+    Thread-safe.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._chunks: dict[_TopologyKey, tuple[_Chunk, ...]] = {}
+
+    def get(self, key: _TopologyKey) -> tuple[_Chunk, ...] | None:
+        """The content chunks a complete discovery of ``key`` found, or None."""
+        with self._lock:
+            return self._chunks.get(key)
+
+    def store(self, key: _TopologyKey, chunks: tuple[_Chunk, ...]) -> None:
+        """Keep the content chunks of a complete discovery of ``key``, replacing any before."""
+        with self._lock:
+            self._chunks[key] = chunks
+
+    def clear(self) -> None:
+        """Forget every kingdom, so each next scan_kingdom discovers its map again."""
+        with self._lock:
+            self._chunks.clear()
+
+
+#: The process-wide topology every MapScanner uses unless given another.
+kingdom_topology = KingdomTopology()
 
 
 class _ChunkResult(NamedTuple):
@@ -68,9 +125,16 @@ class _State(Protocol):
     def get_castles(self) -> Iterable[_Castle]: ...
 
 
+class _Config(Protocol):
+    game_url: str
+    default_zone: str
+
+
 class _Client(Protocol):
     """What the scanner uses of EmpireClient, which the map area can't import."""
 
+    @property
+    def config(self) -> _Config: ...
     @property
     def connection(self) -> _Connection: ...
     def request_packet(self, request: GetMapAreaRequest, response_command: str, timeout: float = 5.0) -> Packet: ...
@@ -88,8 +152,9 @@ class MapScanner:
     CHUNK_RETRIES = 2
     RETRY_BACKOFF = 0.5
 
-    def __init__(self, client: _Client) -> None:
+    def __init__(self, client: _Client, topology: KingdomTopology = kingdom_topology) -> None:
         self.client = client
+        self.topology = topology
 
     def _chunk_bounds(self, cx: int, cy: int) -> tuple[int, int, int, int]:
         """Convert chunk coords to world bounds (inclusive)."""
@@ -154,12 +219,14 @@ class MapScanner:
         collected_objects: dict[int, MapObject],
         request_timeout: float,
         include_unowned_types: set[MapItemType] | None = None,
+        cancel: threading.Event | None = None,
     ) -> _ChunkResult:
         """
         Request a single chunk and process the response.
 
         Returns (ok, has_content). ``ok=False`` means the request failed
-        (as opposed to succeeding with an empty area).
+        (as opposed to succeeding with an empty area), or ``cancel`` was set
+        before a retry.
         """
         x1, y1, x2, y2 = self._chunk_bounds(cx, cy)
         request = GetMapAreaRequest(kingdom=kingdom, x1=x1, y1=y1, x2=x2, y2=y2)
@@ -180,7 +247,8 @@ class MapScanner:
                 if last or not GGEError.from_code(response.error_code).is_cooldown:
                     break
                 logger.warning(f"Chunk ({cx}, {cy}) refused with a cooldown. Retrying...")
-            time.sleep(self.RETRY_BACKOFF * 2**attempt)
+            if sleep_unless_cancelled(self.RETRY_BACKOFF * 2**attempt, cancel):
+                return _ChunkResult(ok=False, has_content=False)
 
         if response.error_code == 337:
             raise CommandError("gaa", 337)  # ADDITIONAL_KINGDOM_NOT_UNLOCKED
@@ -283,10 +351,24 @@ class MapScanner:
         request_timeout: float = 5.0,
         chunk_delay: float = 0.0,
         include_unowned_types: set[MapItemType] | None = None,
+        *,
+        cancel: threading.Event | None = None,
+        refresh_topology: bool = False,
     ) -> ScanResult:
         """
         Scan a kingdom map with dynamic boundary detection.
         Uses BFS expansion from the bot's castle position.
+
+        The first scan of a kingdom discovers its map by BFS; once one has
+        scanned every chunk it found, later scans of that kingdom on the same
+        world, from any client in the process, scan only the chunks it found
+        with content, as :meth:`scan_chunks` would (see
+        :class:`KingdomTopology`). ``refresh_topology`` discovers the map
+        again and replaces what was stored. Scans that find nothing stored
+        each discover, at the same time if they run at once, and the last
+        complete one is kept. A discovery starts at this account's castle in
+        the kingdom, so one stored from another account's castle may miss a
+        region not connected to it; ``refresh_topology`` covers that.
 
         ``item_types`` selects which map items are collected, and its two
         empty-ish values mean opposite things — the sentinel is inverted,
@@ -321,16 +403,54 @@ class MapScanner:
         second saw no refusal and no dropped connection. A chunk that times
         out, fails on the network or is refused with a cooldown is asked
         again after a short backoff (``CHUNK_RETRIES``, ``RETRY_BACKOFF``).
-        """
-        # Get starting position from bot's castle
-        start_x, start_y = self._get_kingdom_start_position(kingdom)
-        start_cx, start_cy = start_x // self.CHUNK_SIZE, start_y // self.CHUNK_SIZE
 
+        Setting ``cancel`` stops the scan before its next chunk and returns
+        what it has, the chunks not scanned in ``failed_chunks``, as a timeout
+        does. It is looked at between requests, never during one: the chunk
+        in flight ends with its reply or ``request_timeout``, so its reply
+        cannot reach the next ``gaa`` request, and a cancel takes at most one
+        chunk.
+        """
         # None means castles only (type 1 = player main castles)
         if item_types is None:
             item_types = [MapItemType.CASTLE]
+        config = self.client.config
+        key = (config.game_url, config.default_zone, kingdom)
+        known = None if refresh_topology else self.topology.get(key)
+        if known is None:
+            result = self._discover(
+                kingdom, item_types, timeout, request_timeout, chunk_delay, include_unowned_types, cancel
+            )
+            if result.content_chunks and not result.failed_chunks:
+                self.topology.store(key, result.content_chunks)
+            return result
+        logger.debug(f"Scanning kingdom {kingdom!r} over the {len(known)} chunks its discovery found with content")
+        return self.scan_chunks(
+            kingdom,
+            list(known),
+            item_types,
+            timeout,
+            request_timeout,
+            chunk_delay,
+            include_unowned_types,
+            cancel=cancel,
+        )
 
-        # An empty list, by contrast, means no filtering at all
+    def _discover(
+        self,
+        kingdom: Kingdom,
+        item_types: list[MapItemType],
+        timeout: float,
+        request_timeout: float,
+        chunk_delay: float,
+        include_unowned_types: set[MapItemType] | None,
+        cancel: threading.Event | None,
+    ) -> ScanResult:
+        """Discover a kingdom's map by BFS from the own castle there; see :meth:`scan_kingdom`."""
+        start_x, start_y = self._get_kingdom_start_position(kingdom)
+        start_cx, start_cy = start_x // self.CHUNK_SIZE, start_y // self.CHUNK_SIZE
+
+        # An empty list means no filtering at all
         filter_types = set(item_types) if item_types else None
 
         filter_desc = f"types={list(item_types)}" if item_types else "all types"
@@ -362,7 +482,11 @@ class MapScanner:
                 break
 
             if chunk_delay > 0:
-                time.sleep(chunk_delay)
+                sleep_unless_cancelled(chunk_delay, cancel)
+            if cancel is not None and cancel.is_set():
+                logger.info(f"Kingdom scan cancelled after {total_requests} requests")
+                failed_chunks.extend(self._unscanned_chunks(queue, visited))
+                break
 
             cx, cy = queue.popleft()
 
@@ -384,6 +508,7 @@ class MapScanner:
                 collected_objects,
                 request_timeout,
                 include_unowned_types=include_unowned_types,
+                cancel=cancel,
             )
 
             if not result.ok:
@@ -429,7 +554,10 @@ class MapScanner:
 
         elapsed = time.time() - start_time
         if failed_chunks:
-            logger.warning(f"Kingdom scan incomplete: {len(failed_chunks)} chunk(s) failed: {failed_chunks[:10]}")
+            logger.log(
+                logging.DEBUG if cancel is not None and cancel.is_set() else logging.WARNING,
+                f"Kingdom scan incomplete: {len(failed_chunks)} chunk(s) failed: {failed_chunks[:10]}",
+            )
         logger.debug(
             f"Kingdom {kingdom!r} scan complete. "
             f"Scanned {total_requests} chunks in {elapsed:.1f}s, "
@@ -454,6 +582,8 @@ class MapScanner:
         request_timeout: float = 5.0,
         chunk_delay: float = 0.0,
         include_unowned_types: set[MapItemType] | None = None,
+        *,
+        cancel: threading.Event | None = None,
     ) -> ScanResult:
         """
         Scan an explicit list of chunks — no BFS discovery.
@@ -472,8 +602,9 @@ class MapScanner:
         there are collected even when they have no player owner.
 
         Chunks are deduplicated and out-of-range coordinates skipped.
-        Unscanned chunks left over when ``timeout`` hits are reported in
-        ``failed_chunks``.
+        Unscanned chunks left over when ``timeout`` hits or ``cancel`` is set
+        are reported in ``failed_chunks``; ``cancel`` is looked at between
+        chunks, as in scan_kingdom().
         """
         # None means castles only; an empty list means no filtering at all.
         if item_types is None:
@@ -503,7 +634,11 @@ class MapScanner:
                 break
 
             if chunk_delay > 0:
-                time.sleep(chunk_delay)
+                sleep_unless_cancelled(chunk_delay, cancel)
+            if cancel is not None and cancel.is_set():
+                logger.info(f"Chunk scan cancelled after {i} of {len(todo)} chunks")
+                failed_chunks.extend(todo[i:])
+                break
 
             result = self._process_chunk(
                 cx,
@@ -514,6 +649,7 @@ class MapScanner:
                 collected_objects,
                 request_timeout,
                 include_unowned_types=include_unowned_types,
+                cancel=cancel,
             )
 
             if not result.ok:
@@ -526,7 +662,10 @@ class MapScanner:
                 content_chunks.append((cx, cy))
 
         if failed_chunks:
-            logger.warning(f"Chunk scan incomplete: {len(failed_chunks)} chunk(s) failed: {failed_chunks[:10]}")
+            logger.log(
+                logging.DEBUG if cancel is not None and cancel.is_set() else logging.WARNING,
+                f"Chunk scan incomplete: {len(failed_chunks)} chunk(s) failed: {failed_chunks[:10]}",
+            )
         return ScanResult(
             items=collected_items,
             objects=collected_objects,

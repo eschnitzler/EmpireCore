@@ -43,10 +43,37 @@ backoff. `chunk_delay` adds a fixed wait before every request if you want one.
 
 ## Re-scanning cheaply
 
-Feed `content_chunks` back into `scan_chunks()` to re-scan a known region
-without paying for the breadth-first discovery again, which takes roughly a
-third fewer requests. Run a full `scan_kingdom()` now and then to pick up
-content in chunks that were empty before.
+The first `scan_kingdom()` of a kingdom discovers it breadth-first. Once a
+discovery has scanned every chunk it found, the library keeps the chunks that
+held items, and every later `scan_kingdom()` of that kingdom on the same
+world, from any client in the process, pooled or not, asks only those chunks.
+That takes roughly a third fewer requests. Discovering again is up to you,
+since the library does not notice a world that grows:
+
+```python
+result = client.map.scan_kingdom(Kingdom.GREEN, refresh_topology=True)  # discover again, keep the new map
+
+from empire_core.map.scanner import kingdom_topology
+kingdom_topology.clear()  # forget every kingdom's map
+```
+
+A scan that failed a chunk, timed out or was cancelled is not kept. Scans
+that start before any discovery is kept each discover the kingdom, and the
+last complete one is kept.
+
+A discovery starts at the scanning account's castle in that kingdom and stops
+two empty chunks past the content it found, so it holds the region around that
+castle. If your accounts sit in parts of a kingdom that empty land separates,
+the kept map may miss some of them: pass `refresh_topology=True`, or give a
+client a cache of its own:
+
+```python
+from empire_core.map.scanner import KingdomTopology
+client.map.topology = KingdomTopology()  # this client no longer shares discoveries
+```
+
+`scan_chunks()` scans exactly the chunks you give it, for example a
+`content_chunks` you kept yourself:
 
 ```python
 discovery = client.map.scan_kingdom(Kingdom.GREEN, item_types=[MapItemType.CASTLE])
@@ -58,15 +85,33 @@ fresh = client.map.scan_chunks(
 
 ```mermaid
 flowchart LR
-    A[scan_kingdom<br/>breadth-first discovery] -->|content_chunks| B[scan_chunks<br/>known chunks only]
+    A[scan_kingdom<br/>breadth-first discovery] -->|content_chunks| B[scan_kingdom or scan_chunks<br/>known chunks only]
     B -->|often| B
-    B -.->|now and then| A
+    B -.->|refresh_topology| A
 ```
 
 For very frequent scans, split `content_chunks` across several logged-in
 accounts, in interleaved slices `chunks[i::n]`, and run their `scan_chunks()`
 calls at the same time. The server limits the request rate per account; see
 [Multiple accounts](multiple-accounts.md).
+
+## Cancelling a scan
+
+Pass a `threading.Event` as `cancel` to `scan_kingdom()` or `scan_chunks()`.
+Once it is set, the scan stops before its next chunk and returns what it has,
+with the chunks it did not scan in `failed_chunks`, as a timeout does:
+
+```python
+import threading
+
+stop = threading.Event()
+result = client.map.scan_kingdom(Kingdom.GREEN, cancel=stop)
+# on another thread: stop.set()
+```
+
+The chunk in flight is not abandoned: it ends with its reply or its
+`request_timeout`, so its reply cannot reach the next map request. The same
+event can cancel spy missions too (see [Spy](spy.md)).
 
 ## The session leaves its castle
 
