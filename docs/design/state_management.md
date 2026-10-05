@@ -205,3 +205,35 @@ run one at a time on a single callback thread, in packet order, never on the
 receive thread, so a callback may make blocking calls (e.g. request more data)
 without stalling the receive loop; everything queued behind it waits, though.
 See [Reacting to movements](../guides/movements.md) for examples.
+
+### One registry for every callback
+
+Every `on_<name>` of the client, its state and its services is a declaration
+of `Callbacks` (`src/empire_core/utils/callbacks.py`), not a hand-written method:
+
+```python
+on_incoming_attack = Callbacks[Callable[[Movement], None]]()
+"""Register a callback for new hostile attack movements. ..."""
+remove_incoming_attack_callback = Remover(on_incoming_attack)
+"""Unregister an incoming attack callback."""
+```
+
+On an instance, `on_incoming_attack` is the registration and
+`remove_incoming_attack_callback` its remover. Each owner keeps every
+subscription in one `Registry`, its `_registry`, behind one lock: the state's
+`RLock` for `GameState`, so registering waits for a packet being applied, and
+a lock of its own for the client and each service. The owner fires an event
+from a snapshot, `self.on_incoming_attack.calls()`, taken under that lock.
+`GameState` queues each callback on the callback thread; a service calls its
+callbacks on the receive thread; the client queues `on_session_lost` and
+`on_session_restored` on the state's callback thread and calls `on_disconnect`
+from the one disconnect listener it adds to the connection, between the
+connection's `on_disconnect` and `after_disconnect` slots. Two things differ
+by owner, and the owner's `Registry` says which: state callbacks fire once per
+registration and removing one not registered raises `ValueError`; a service
+ignores such a removal; the client also registers each callback only once.
+
+`client.listen()` streams whatever is declared: `callback_sources` lists the
+declarations of the client, its state and every service, so a new event is
+streamed by declaring it. A `Remover` named other than
+`remove_<name>_callback` fails when its class is created.

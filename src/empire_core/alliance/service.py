@@ -85,6 +85,7 @@ from empire_core.exceptions import CommandError, NotInAllianceError, PacketError
 from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.errors import GGEError
 from empire_core.services.base import BaseService
+from empire_core.utils.callbacks import Callbacks, Remover
 
 logger = logging.getLogger(__name__)
 
@@ -126,13 +127,10 @@ class AllianceService(BaseService):
 
     def __init__(self, client) -> None:
         super().__init__(client)
-        self._callbacks_lock = threading.Lock()
-        self._chat_callbacks: list[Callable[[AllianceChatMessageResponse], None]] = []
         self._members: dict[int, AllianceMember] = {}
         self._members_alliance_id: int | None = None
         self._help_requests: list[AllianceHelpRequest] = []
         self._help_lock = threading.Lock()
-        self._help_callbacks: list[Callable[[AllianceHelpUpdate], None]] = []
 
         self.on_response("acm", self._handle_chat_message)
         for command in ("ahl", "ahh", "ahd", "ahf"):
@@ -695,48 +693,36 @@ class AllianceService(BaseService):
         """
         return self.request(AllianceChatLogRequest(), AllianceChatLogResponse, timeout=timeout).chat_log
 
-    def on_chat_message(self, callback: Callable[[AllianceChatMessageResponse], None]) -> None:
-        """
-        Register a callback for incoming alliance chat messages.
+    on_chat_message = Callbacks[Callable[[AllianceChatMessageResponse], None]]()
+    """
+    Register a callback for incoming alliance chat messages.
 
-        The callback will be called whenever a chat message is received,
-        including messages from other players and confirmations of your own.
+    The callback will be called whenever a chat message is received,
+    including messages from other players and confirmations of your own.
 
-        Callbacks run on the receive thread: they must not block, and a call
-        that waits for a reply raises ``ReceiveThreadError``.
+    Callbacks run on the receive thread: they must not block, and a call
+    that waits for a reply raises ``ReceiveThreadError``.
 
-        Args:
-            callback: Function that receives AllianceChatMessageResponse
+    Args:
+        callback: Function that receives AllianceChatMessageResponse
 
-        Example:
-            def on_message(msg: AllianceChatMessageResponse):
-                print(f"[{msg.player_name}] {msg.decoded_text}")
+    Example:
+        def on_message(msg: AllianceChatMessageResponse):
+            print(f"[{msg.player_name}] {msg.decoded_text}")
 
-            client.alliance.on_chat_message(on_message)
-        """
-        with self._callbacks_lock:
-            self._chat_callbacks.append(callback)
+        client.alliance.on_chat_message(on_message)
+    """
+    remove_chat_message_callback = Remover(on_chat_message)
+    """Remove a callback registered with :meth:`on_chat_message`.
 
-    def remove_chat_message_callback(self, callback: Callable[[AllianceChatMessageResponse], None]) -> None:
-        """Remove a callback registered with :meth:`on_chat_message`.
-
-        No-op if the callback is not registered, so reconnect re-wiring can
-        detach unconditionally.
-        """
-        with self._callbacks_lock:
-            if callback in self._chat_callbacks:
-                self._chat_callbacks.remove(callback)
+    No-op if the callback is not registered, so reconnect re-wiring can
+    detach unconditionally.
+    """
 
     def _handle_chat_message(self, response) -> None:
         """Internal handler for chat message responses."""
         if isinstance(response, AllianceChatMessageResponse):
-            with self._callbacks_lock:
-                callbacks = list(self._chat_callbacks)
-            for callback in callbacks:
-                try:
-                    callback(response)
-                except Exception:
-                    logger.exception("Chat message callback error")
+            self._fire(self.on_chat_message, response)
 
     # =========================================================================
     # Help Operations
@@ -761,21 +747,15 @@ class AllianceService(BaseService):
         with self._help_lock:
             return list(self._help_requests)
 
-    def on_help_update(self, callback: Callable[[AllianceHelpUpdate], None]) -> None:
-        """
-        Call ``callback`` with the login data's ahl section and each ahl, ahh, ahd and ahf push,
-        after :attr:`help_requests` is updated.
+    on_help_update = Callbacks[Callable[[AllianceHelpUpdate], None]]()
+    """
+    Call ``callback`` with the login data's ahl section and each ahl, ahh, ahd and ahf push,
+    after :attr:`help_requests` is updated.
 
-        Detach it again with :meth:`remove_help_update_callback`.
-        """
-        with self._callbacks_lock:
-            self._help_callbacks.append(callback)
-
-    def remove_help_update_callback(self, callback: Callable[[AllianceHelpUpdate], None]) -> None:
-        """Remove a callback registered with :meth:`on_help_update`; a no-op if it is not registered."""
-        with self._callbacks_lock:
-            if callback in self._help_callbacks:
-                self._help_callbacks.remove(callback)
+    Detach it again with :meth:`remove_help_update_callback`.
+    """
+    remove_help_update_callback = Remover(on_help_update)
+    """Remove a callback registered with :meth:`on_help_update`; a no-op if it is not registered."""
 
     def _apply_help_update(self, response: BaseResponse) -> AllianceHelpUpdate | None:
         if isinstance(response, AllianceHelpListResponse):
@@ -798,13 +778,7 @@ class AllianceService(BaseService):
             update = self._apply_help_update(response)
         if update is None:
             return
-        with self._callbacks_lock:
-            callbacks = list(self._help_callbacks)
-        for callback in callbacks:
-            try:
-                callback(update)
-            except Exception:
-                logger.exception("Help update callback error")
+        self._fire(self.on_help_update, update)
 
     def help_member(self, request: AllianceHelpRequest | int) -> None:
         """

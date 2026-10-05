@@ -13,7 +13,6 @@
 
 from __future__ import annotations
 
-import logging
 import threading
 import time
 from collections.abc import Callable, Iterable
@@ -50,8 +49,7 @@ from empire_core.commanders.models.skills import (
 from empire_core.exceptions import GameDataNotLoadedError, PremiumCommanderCostError
 from empire_core.protocol.base import BaseResponse
 from empire_core.services.base import BaseService
-
-logger = logging.getLogger(__name__)
+from empire_core.utils.callbacks import Callbacks, Remover
 
 
 class CommandersService(BaseService):
@@ -315,8 +313,6 @@ class SkillsService(BaseService):
 
     def __init__(self, client) -> None:
         super().__init__(client)
-        self._callbacks_lock = threading.Lock()
-        self._skill_list_callbacks: list[Callable[[SkillList], None]] = []
         self.on_response("skl", self._handle_skill_list)
         self.on_response("ego", self._handle_skill_list)
 
@@ -442,24 +438,18 @@ class SkillsService(BaseService):
         """
         return self.request(GetSkillsRequest(), GetSkillsResponse, timeout=timeout)
 
-    def on_skill_list(self, callback: Callable[[SkillList], None]) -> None:
-        """
-        Register a callback for every skill list the server sends.
+    on_skill_list = Callbacks[Callable[[SkillList], None]]()
+    """
+    Register a callback for every skill list the server sends.
 
-        That is each ``skl`` packet, including the reply to :meth:`get_skills`,
-        and the ``skl`` block of an ``ego`` push.
+    That is each ``skl`` packet, including the reply to :meth:`get_skills`,
+    and the ``skl`` block of an ``ego`` push.
 
-        Client: ``SKLCommand.executeCommand`` (bundle line 129742) and
-        ``EGOCommand.executeCommand`` (bundle line 122801) both call ``parse_SKL``.
-        """
-        with self._callbacks_lock:
-            self._skill_list_callbacks.append(callback)
-
-    def remove_skill_list_callback(self, callback: Callable[[SkillList], None]) -> None:
-        """Remove a callback registered with :meth:`on_skill_list`; a no-op if it is not registered."""
-        with self._callbacks_lock:
-            if callback in self._skill_list_callbacks:
-                self._skill_list_callbacks.remove(callback)
+    Client: ``SKLCommand.executeCommand`` (bundle line 129742) and
+    ``EGOCommand.executeCommand`` (bundle line 122801) both call ``parse_SKL``.
+    """
+    remove_skill_list_callback = Remover(on_skill_list)
+    """Remove a callback registered with :meth:`on_skill_list`; a no-op if it is not registered."""
 
     def _handle_skill_list(self, response: BaseResponse) -> None:
         if isinstance(response, GetSkillsResponse):
@@ -470,10 +460,4 @@ class SkillsService(BaseService):
             return
         if skills is None:
             return
-        with self._callbacks_lock:
-            callbacks = list(self._skill_list_callbacks)
-        for callback in callbacks:
-            try:
-                callback(skills)
-            except Exception:
-                logger.exception("Skill list callback error")
+        self._fire(self.on_skill_list, skills)

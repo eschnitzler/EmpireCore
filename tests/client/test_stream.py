@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
-import ast
 import asyncio
+import inspect
 import threading
-from collections.abc import Iterator
-from pathlib import Path
+from collections.abc import Callable, Iterator
 
 import pytest
 from typing_extensions import Unpack, assert_type
 
-import empire_core
 from empire_core.alliance.models.chat import AllianceChatMessageResponse
 from empire_core.client.client import EmpireClient
 from empire_core.client.stream import Args, ClientEvent, EventStream, callback_sources
 from empire_core.exceptions import EventStreamOverflowError
 from empire_core.movements.tracked import Movement
+from empire_core.services import BaseService
+from empire_core.utils.callbacks import Callbacks, Remover
 from tests.client.test_disconnect import drop
 from tests.service_helpers import xt_packet
 from tests.state.state_helpers import arrive, gam_payload, login, wait_for
@@ -46,42 +46,30 @@ async def settle(client: EmpireClient) -> None:
 
 
 class TestSources:
-    def test_every_remove_callback_in_the_package_has_its_registration_streamed(self, client):
-        removers = [
-            node.name.removeprefix("remove_").removesuffix("_callback")
-            for path in empire_core.__path__
-            for file in Path(path).rglob("*.py")
-            for node in ast.walk(ast.parse(file.read_text()))
-            if isinstance(node, ast.FunctionDef) and node.name.startswith("remove_") and node.name.endswith("_callback")
-        ]
+    def test_every_registration_is_a_declared_event_with_its_remover(self, client):
+        services = [owner for owner in vars(client).values() if isinstance(owner, BaseService)]
+        declared = []
+        for owner in (client, client.state, *services):
+            for attribute in dir(type(owner)):
+                if not attribute.startswith("on_") or attribute == "on_response":
+                    continue
+                event = inspect.getattr_static(owner, attribute)
+                assert isinstance(event, Callbacks), f"{type(owner).__name__}.{attribute} is not a declared event"
+                remover = inspect.getattr_static(owner, f"remove_{event.name}_callback")
+                assert isinstance(remover, Remover) and remover.callbacks is event
+                declared.append(event.name)
 
-        assert set(callback_sources(client)) == set(removers)
-        assert len(removers) == len(set(removers))
-
-    def test_every_public_registration_in_the_package_has_its_remove_callback(self):
-        not_callback_registrations = {
-            ("BaseService", "on_response"): "a command's response handler, kept for the service's lifetime",
-        }
-        classes = [
-            node
-            for path in empire_core.__path__
-            for file in Path(path).rglob("*.py")
-            for node in ast.walk(ast.parse(file.read_text()))
-            if isinstance(node, ast.ClassDef)
-        ]
-        without_remover: set[tuple[str, str]] = set()
-        for cls in classes:
-            methods = {node.name for node in cls.body if isinstance(node, ast.FunctionDef)}
-            without_remover.update(
-                (cls.name, method)
-                for method in methods
-                if method.startswith("on_") and f"remove_{method.removeprefix('on_')}_callback" not in methods
-            )
-
-        assert without_remover == set(not_callback_registrations)
+        assert sorted(callback_sources(client)) == sorted(declared)
 
     def test_response_handlers_are_not_a_source(self, client):
         assert "response" not in callback_sources(client)
+
+    def test_a_remover_is_named_after_its_event(self):
+        with pytest.raises((TypeError, RuntimeError)):
+
+            class Owner:
+                on_ping = Callbacks[Callable[[], None]]()
+                remove_pong_callback = Remover(on_ping)
 
 
 class TestDelivery:
@@ -290,7 +278,7 @@ class TestEnding:
     def test_a_stream_not_entered_refuses_iteration_and_does_not_listen(self, client):
         async def scenario():
             events = client.listen(client.alliance.on_chat_message)
-            assert client.alliance._chat_callbacks == []
+            assert client.alliance.on_chat_message.calls() == []
             with pytest.raises(RuntimeError, match="async with"):
                 await events.__anext__()
 
@@ -305,7 +293,7 @@ class TestEnding:
                 await events.__aenter__()
 
         asyncio.run(scenario())
-        assert client.alliance._chat_callbacks == []
+        assert client.alliance.on_chat_message.calls() == []
 
     def test_leaving_the_block_unsubscribes_and_a_second_close_is_harmless(self, client):
         async def scenario():
@@ -316,9 +304,9 @@ class TestEnding:
 
         events = asyncio.run(scenario())
 
-        assert client.state._attack_listeners.announced == []
-        assert client.state._movement_arrived_callbacks == []
-        assert client.alliance._chat_callbacks == []
+        assert client.state.on_incoming_attack.calls() == []
+        assert client.state.on_movement_arrived.calls() == []
+        assert client.alliance.on_chat_message.calls() == []
         assert client._streams == set()
         assert events._subscribed == []
 
@@ -354,7 +342,7 @@ class TestEnding:
 
         assert [event.args[0].decoded_text for event in got] == ["last"]
         assert client.state._callback_executor is None
-        assert client.alliance._chat_callbacks == []
+        assert client.alliance.on_chat_message.calls() == []
 
     def test_close_streams_ends_every_stream_and_keeps_the_client(self, client):
         async def scenario():
@@ -367,7 +355,7 @@ class TestEnding:
 
         assert [event.name for event in chats] == ["chat_message"]
         assert [event.name for event in everything] == ["chat_message"]
-        assert client.alliance._chat_callbacks == []
+        assert client.alliance.on_chat_message.calls() == []
         assert client._streams == set()
 
     def test_a_full_stream_stops_listening_and_says_so_after_the_events_it_holds(self, client):
@@ -384,7 +372,7 @@ class TestEnding:
         (event,) = asyncio.run(scenario())
 
         assert event.args[0].decoded_text == "one"
-        assert client.alliance._chat_callbacks == []
+        assert client.alliance.on_chat_message.calls() == []
 
     def test_a_stream_whose_loop_is_gone_unsubscribes_on_the_next_event(self, client):
         async def scenario():
@@ -393,4 +381,4 @@ class TestEnding:
         asyncio.run(scenario())
         client._on_packet(chat("nobody reads this"))
 
-        assert wait_for(lambda: client.alliance._chat_callbacks == [])
+        assert wait_for(lambda: client.alliance.on_chat_message.calls() == [])

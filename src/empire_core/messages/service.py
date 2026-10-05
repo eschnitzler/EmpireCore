@@ -4,7 +4,6 @@ The mailbox, mail and battle reports.
 
 from __future__ import annotations
 
-import logging
 import re
 import threading
 from collections.abc import Callable
@@ -39,8 +38,7 @@ from empire_core.messages.models import (
 from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.errors import GGEError
 from empire_core.services.base import BaseService
-
-logger = logging.getLogger(__name__)
+from empire_core.utils.callbacks import Callbacks, Remover
 
 _WHITESPACE = re.compile(r"\s")
 
@@ -65,8 +63,6 @@ class MessagesService(BaseService):
         super().__init__(client)
         self._mailbox: dict[int, MessageInfo] = {}
         self._mailbox_lock = threading.Lock()
-        self._callbacks_lock = threading.Lock()
-        self._callbacks: list[Callable[[SystemNotificationEvent], None]] = []
         self.on_response("sne", self._handle_update)
         self.on_response("dms", self._handle_update)
         self.on_response("ams", self._handle_update)
@@ -87,28 +83,16 @@ class MessagesService(BaseService):
         with self._mailbox_lock:
             return list(self._mailbox.values())
 
-    def on_new_messages(self, callback: Callable[[SystemNotificationEvent], None]) -> None:
-        """Call ``callback`` with the login data's sne section and each sne push, after :attr:`mailbox` is updated."""
-        with self._callbacks_lock:
-            self._callbacks.append(callback)
-
-    def remove_new_messages_callback(self, callback: Callable[[SystemNotificationEvent], None]) -> None:
-        """Remove a callback registered with :meth:`on_new_messages`; a no-op if it is not registered."""
-        with self._callbacks_lock:
-            if callback in self._callbacks:
-                self._callbacks.remove(callback)
+    on_new_messages = Callbacks[Callable[[SystemNotificationEvent], None]]()
+    """Call ``callback`` with the login data's sne section and each sne push, after :attr:`mailbox` is updated."""
+    remove_new_messages_callback = Remover(on_new_messages)
+    """Remove a callback registered with :meth:`on_new_messages`; a no-op if it is not registered."""
 
     def _handle_update(self, response: BaseResponse) -> None:
         with self._mailbox_lock:
             self._apply_update(response)
         if isinstance(response, SystemNotificationEvent):
-            with self._callbacks_lock:
-                callbacks = list(self._callbacks)
-            for callback in callbacks:
-                try:
-                    callback(response)
-                except Exception:
-                    logger.exception("New messages callback error")
+            self._fire(self.on_new_messages, response)
 
     def _apply_update(self, response: BaseResponse) -> None:
         if isinstance(response, SystemNotificationEvent):

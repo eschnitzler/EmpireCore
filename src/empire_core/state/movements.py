@@ -1,9 +1,11 @@
 """Movement tracking: gam and its pushes, arrival, removal and the movement queries."""
 
+import contextlib
 import inspect
 import logging
 import math
 import time
+import weakref
 from collections.abc import Callable
 from typing import Any
 
@@ -11,7 +13,19 @@ from empire_core.enums import MovementType, NPCOwner
 from empire_core.movements.models import MovementArea, MovementOwner, MovementWrapper
 from empire_core.movements.tracked import DUNGEON_OWNER_IDS, Movement, MovementResources
 from empire_core.protocol.base import read_or_none, readable_list
-from empire_core.state.base import AnnouncedListeners, MovementEventCallback, QueuedCall, StateBase
+from empire_core.state.base import (
+    AnnouncedListeners,
+    AttackListeners,
+    MovementEventCallback,
+    OccupationListeners,
+    QueuedCall,
+    StateBase,
+)
+from empire_core.utils.callbacks import BoundCallbacks, Callbacks, Remover
+
+_POSITIONAL = (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+# Whether an arrival, recall or removal callback takes the Movement, by callback, while it lives
+_ACCEPTS_MOVEMENT: weakref.WeakKeyDictionary[Callable[..., Any], bool] = weakref.WeakKeyDictionary()
 
 logger = logging.getLogger(__name__)
 
@@ -35,316 +49,248 @@ UPDATED_ATTACK_FIELDS = (
 
 
 class MovementState(StateBase):
-    # Registration and removal happen on user threads while the receive
-    # thread iterates the listener lists, so every access goes through
-    # self._lock — CPython's per-op atomicity is not a guarantee to build
-    # on and does not hold on free-threaded builds. The dispatch paths
-    # iterate a snapshot taken under the lock; the callbacks themselves run
-    # on the thread pool, outside it.
+    on_incoming_attack = Callbacks[Callable[[Movement], None]]()
+    """Register a callback for new hostile attack movements.
 
-    def on_incoming_attack(self, callback: Callable[[Movement], None]) -> None:  # type: ignore[misc]
-        """Register a callback for new hostile attack movements.
+    Fires once per newly seen attack that is not the local player's own,
+    is not on its way home and had not already landed when first seen, and
+    is aimed at you or the daimyo township (an alien attack only at you),
+    whoever sends it, or at another member of your alliance. An attack on
+    an alliance member fires when a player the movement names sends it,
+    when an alien attack or the alliance nomad camp does, or when an NPC
+    that is not a dungeon owner does (an outpost, capital or metropolis
+    owner, the plague monk, or an NPC id the client does not know); robber
+    barons, camps, event dungeons and the other dungeon owners do not fire
+    it. An alliance member's attack on someone outside the alliance does
+    not fire. Each packet that carries an attack judges it again, with the
+    owner records seen so far, so one whose attacker's record comes later
+    fires then.
 
-        Fires once per newly seen attack that is not the local player's own,
-        is not on its way home and had not already landed when first seen, and
-        is aimed at you or the daimyo township (an alien attack only at you),
-        whoever sends it, or at another member of your alliance. An attack on
-        an alliance member fires when a player the movement names sends it,
-        when an alien attack or the alliance nomad camp does, or when an NPC
-        that is not a dungeon owner does (an outpost, capital or metropolis
-        owner, the plague monk, or an NPC id the client does not know); robber
-        barons, camps, event dungeons and the other dungeon owners do not fire
-        it. An alliance member's attack on someone outside the alliance does
-        not fire. Each packet that carries an attack judges it again, with the
-        owner records seen so far, so one whose attacker's record comes later
-        fires then.
+    Fires once per attack movement id, also across a reconnect: an attack
+    still on its way when the connection drops is not announced again when
+    the next login lists it. The record of an attack is dropped when it
+    arrives, when the server removes it, or once its travel time is over.
 
-        Fires once per attack movement id, also across a reconnect: an attack
-        still on its way when the connection drops is not announced again when
-        the next login lists it. The record of an attack is dropped when it
-        arrives, when the server removes it, or once its travel time is over.
+    Runs on the callback thread, in packet order (see :class:`GameState`).
+    """
+    remove_incoming_attack_callback = Remover(on_incoming_attack)
+    """Unregister an incoming attack callback."""
 
-        Runs on the callback thread, in packet order (see :class:`GameState`).
-        """
-        with self._lock:
-            self._attack_listeners.announced.append(callback)
+    on_incoming_attack_updated = Callbacks[Callable[[Movement, Movement], None]]()
+    """Register a callback for changes to an attack :meth:`on_incoming_attack` announced.
 
-    def remove_incoming_attack_callback(self, callback: Callable[[Movement], None]) -> None:
-        """Unregister an incoming attack callback."""
-        with self._lock:
-            self._attack_listeners.announced.remove(callback)
+    ``callback(old, new)`` fires on a later packet for the same attack that
+    changes its army (``units``, ``estimated_size``), its arrival
+    (``estimated_arrival``, by two seconds or more, as a speed-up
+    does), its target (``target_id``, ``target_area_id``,
+    ``target_x``, ``target_y``) or its commander (``commander``, its
+    equipment and area effects included). A packet that changes
+    none of these does not fire it, nor does the packet that announces the
+    attack, nor any packet once the attack has arrived or been removed.
+    After a reconnect the first listing of an attack has nothing to compare
+    with, so it does not fire either. ``old`` is the Movement as state had
+    it before the packet, ``new`` the one it holds now.
 
-    def on_incoming_attack_updated(self, callback: Callable[[Movement, Movement], None]) -> None:  # type: ignore[misc]
-        """Register a callback for changes to an attack :meth:`on_incoming_attack` announced.
+    The client keeps no history to compare with: ``parseMapMovementArray``
+    (bundle line 133626) replaces a movement's object with each packet, so
+    this is derived by comparing the two.
 
-        ``callback(old, new)`` fires on a later packet for the same attack that
-        changes its army (``units``, ``estimated_size``), its arrival
-        (``estimated_arrival``, by two seconds or more, as a speed-up
-        does), its target (``target_id``, ``target_area_id``,
-        ``target_x``, ``target_y``) or its commander (``commander``, its
-        equipment and area effects included). A packet that changes
-        none of these does not fire it, nor does the packet that announces the
-        attack, nor any packet once the attack has arrived or been removed.
-        After a reconnect the first listing of an attack has nothing to compare
-        with, so it does not fire either. ``old`` is the Movement as state had
-        it before the packet, ``new`` the one it holds now.
+    Runs on the callback thread, in packet order (see :class:`GameState`).
+    """
+    remove_incoming_attack_updated_callback = Remover(on_incoming_attack_updated)
+    """Unregister an incoming attack updated callback."""
 
-        The client keeps no history to compare with: ``parseMapMovementArray``
-        (bundle line 133626) replaces a movement's object with each packet, so
-        this is derived by comparing the two.
+    on_incoming_attack_withdrawn = Callbacks[Callable[[Movement], None]]()
+    """Register a callback for announced attacks the server removes before they arrive.
 
-        Runs on the callback thread, in packet order (see :class:`GameState`).
-        """
-        with self._lock:
-            self._attack_listeners.updated.append(callback)
+    Fires once, with the attack as state last had it, when ``mrm`` removes an
+    attack that :meth:`on_incoming_attack` announced while its travel time
+    is not up yet. An attack removed within two seconds of its estimated
+    arrival (``estimated_arrival`` can run a second late), at or after it,
+    or one state no longer tracks, does not fire.
+    :meth:`on_movement_removed` still fires for the same ``mrm``, first.
 
-    def remove_incoming_attack_updated_callback(self, callback: Callable[[Movement, Movement], None]) -> None:
-        """Unregister an incoming attack updated callback."""
-        with self._lock:
-            self._attack_listeners.updated.remove(callback)
+    Derived, not reported: the server does not say why it removes a
+    movement, and neither does the client. ``CastleArmyData.parse_MRM``
+    (bundle line 133633) only drops it, and the client removes an arrived
+    movement on its own timer (``updateMapmovements``, bundle line 133670,
+    once ``currentProgress`` reaches 1), so a removal before arrival is the
+    attack turning back or being called off.
 
-    def on_incoming_attack_withdrawn(self, callback: Callable[[Movement], None]) -> None:  # type: ignore[misc]
-        """Register a callback for announced attacks the server removes before they arrive.
+    Runs on the callback thread, in packet order (see :class:`GameState`).
+    """
+    remove_incoming_attack_withdrawn_callback = Remover(on_incoming_attack_withdrawn)
+    """Unregister an incoming attack withdrawn callback."""
 
-        Fires once, with the attack as state last had it, when ``mrm`` removes an
-        attack that :meth:`on_incoming_attack` announced while its travel time
-        is not up yet. An attack removed within two seconds of its estimated
-        arrival (``estimated_arrival`` can run a second late), at or after it,
-        or one state no longer tracks, does not fire.
-        :meth:`on_movement_removed` still fires for the same ``mrm``, first.
+    on_occupation_started = Callbacks[Callable[[Movement], None]]()
+    """Register a callback for occupations of your areas or your alliance members'.
 
-        Derived, not reported: the server does not say why it removes a
-        movement, and neither does the client. ``CastleArmyData.parse_MRM``
-        (bundle line 133633) only drops it, and the client removes an arrived
-        movement on its own timer (``updateMapmovements``, bundle line 133670,
-        once ``currentProgress`` reaches 1), so a removal before arrival is the
-        attack turning back or being called off.
+    An occupation (``MovementType.SIEGE`` or ``OCCUPY_FACTION``, both parsed
+    as ``SiegeMapmovementVO``, bundle line 133809) follows a capture attack
+    that landed and won: the game's movement overview lists it as
+    "Occupying forces" (``RenderSiege``, bundle line 67408,
+    ``dialog_moveOverview_siege``). Its travel time is the time the
+    occupier must hold the area (the battle log's ``dialog_battleLog_youSiege24h``);
+    once it runs out the area is captured. It is no attack, so
+    :meth:`on_incoming_attack` never reports it; the capture attack before
+    it is an ordinary attack (``isConquerMovement``, bundle line 14404).
 
-        Runs on the callback thread, in packet order (see :class:`GameState`).
-        """
-        with self._lock:
-            self._attack_listeners.withdrawn.append(callback)
+    Fires once per newly seen occupation that is not the local player's
+    own, is not on its way home and had not already ended when first seen,
+    and holds an area of yours or the daimyo township, or of another
+    member of your alliance, whoever sends it. One on someone outside the
+    alliance does not fire. As for attacks, each packet judges it again,
+    and it fires once per movement id, also across a reconnect.
 
-    def remove_incoming_attack_withdrawn_callback(self, callback: Callable[[Movement], None]) -> None:
-        """Unregister an incoming attack withdrawn callback."""
-        with self._lock:
-            self._attack_listeners.withdrawn.remove(callback)
+    The client raises no attack warning for an occupation:
+    ``SiegeMapmovementVO`` (bundle line 33173) is a ``BasicMapmovementVO``,
+    and ``CastleArmyData.checkAllAttackMovements`` (bundle line 133659)
+    counts only ``ArmyAttackMapmovementVO`` (its type check, 133664). These
+    are the occupations its movement list shows: ``FilterAttack`` (bundle
+    line 67995) those whose target owner is you, which the daimyo
+    township's is (``getOwnerInfoVO``, bundle line 138994), and
+    ``FilterAllianceIncoming`` (bundle line 67971) those, not yours, whose
+    target owner is another member of your alliance. Leaving out your own
+    and returning occupations is the library's choice, as for attacks:
+    neither filter checks the direction, and ``FilterAttack`` (67996) does
+    not check the sender either.
 
-    def on_occupation_started(self, callback: Callable[[Movement], None]) -> None:  # type: ignore[misc]
-        """Register a callback for occupations of your areas or your alliance members'.
+    Runs on the callback thread, in packet order (see :class:`GameState`).
+    """
+    remove_occupation_started_callback = Remover(on_occupation_started)
+    """Unregister an occupation started callback."""
 
-        An occupation (``MovementType.SIEGE`` or ``OCCUPY_FACTION``, both parsed
-        as ``SiegeMapmovementVO``, bundle line 133809) follows a capture attack
-        that landed and won: the game's movement overview lists it as
-        "Occupying forces" (``RenderSiege``, bundle line 67408,
-        ``dialog_moveOverview_siege``). Its travel time is the time the
-        occupier must hold the area (the battle log's ``dialog_battleLog_youSiege24h``);
-        once it runs out the area is captured. It is no attack, so
-        :meth:`on_incoming_attack` never reports it; the capture attack before
-        it is an ordinary attack (``isConquerMovement``, bundle line 14404).
+    on_occupation_updated = Callbacks[Callable[[Movement, Movement], None]]()
+    """Register a callback for changes to an occupation :meth:`on_occupation_started` announced.
 
-        Fires once per newly seen occupation that is not the local player's
-        own, is not on its way home and had not already ended when first seen,
-        and holds an area of yours or the daimyo township, or of another
-        member of your alliance, whoever sends it. One on someone outside the
-        alliance does not fire. As for attacks, each packet judges it again,
-        and it fires once per movement id, also across a reconnect.
+    ``callback(old, new)`` fires on the same changes, and with the same
+    exceptions, as :meth:`on_incoming_attack_updated` does for an attack:
+    a changed ``estimated_arrival`` is a changed end of the occupation
+    time. An occupation's army is its ``A`` block
+    (``SiegeMapmovementVO.parseArmy``, bundle line 33176), read into
+    ``units``.
 
-        The client raises no attack warning for an occupation:
-        ``SiegeMapmovementVO`` (bundle line 33173) is a ``BasicMapmovementVO``,
-        and ``CastleArmyData.checkAllAttackMovements`` (bundle line 133659)
-        counts only ``ArmyAttackMapmovementVO`` (its type check, 133664). These
-        are the occupations its movement list shows: ``FilterAttack`` (bundle
-        line 67995) those whose target owner is you, which the daimyo
-        township's is (``getOwnerInfoVO``, bundle line 138994), and
-        ``FilterAllianceIncoming`` (bundle line 67971) those, not yours, whose
-        target owner is another member of your alliance. Leaving out your own
-        and returning occupations is the library's choice, as for attacks:
-        neither filter checks the direction, and ``FilterAttack`` (67996) does
-        not check the sender either.
+    Runs on the callback thread, in packet order (see :class:`GameState`).
+    """
+    remove_occupation_updated_callback = Remover(on_occupation_updated)
+    """Unregister an occupation updated callback."""
 
-        Runs on the callback thread, in packet order (see :class:`GameState`).
-        """
-        with self._lock:
-            self._occupation_listeners.announced.append(callback)
+    on_occupation_ended = Callbacks[Callable[[Movement, bool], None]]()
+    """Register a callback for occupations :meth:`on_occupation_started` announced leaving state.
 
-    def remove_occupation_started_callback(self, callback: Callable[[Movement], None]) -> None:
-        """Unregister an occupation started callback."""
-        with self._lock:
-            self._occupation_listeners.announced.remove(callback)
+    ``callback(movement, captured)`` fires once per announced occupation,
+    with it as state last had it. ``captured`` is True when its time ran
+    out: at its arrival, after :meth:`on_movement_arrived`, or when ``mrm``
+    removes it within two seconds of its estimated arrival or later, after
+    :meth:`on_movement_removed`. The game then reports the area captured
+    ("managed to occupy your outpost for long enough and has now captured
+    it", ``dialog_siegeMessage_yourOutpostWasConquered``). ``captured`` is
+    False when ``mrm`` removes it earlier, after :meth:`on_movement_removed`:
+    the occupation was broken ("Occupying forces driven off!",
+    ``dialog_messageHeader_siegeCancelledByPlayer``,
+    ``dialog_siegeMessage_siegeCancelled``). One that ends while no session
+    is logged in is not reported: state drops it with the session (see
+    :meth:`reset`) and the next login does not list it.
 
-    def on_occupation_updated(self, callback: Callable[[Movement, Movement], None]) -> None:  # type: ignore[misc]
-        """Register a callback for changes to an occupation :meth:`on_occupation_started` announced.
+    Derived, not reported, as :meth:`on_incoming_attack_withdrawn` is: the
+    server does not say why it removes a movement, and the reports above
+    come as messages of their own.
 
-        ``callback(old, new)`` fires on the same changes, and with the same
-        exceptions, as :meth:`on_incoming_attack_updated` does for an attack:
-        a changed ``estimated_arrival`` is a changed end of the occupation
-        time. An occupation's army is its ``A`` block
-        (``SiegeMapmovementVO.parseArmy``, bundle line 33176), read into
-        ``units``.
+    Runs on the callback thread, in packet order (see :class:`GameState`).
+    """
+    remove_occupation_ended_callback = Remover(on_occupation_ended)
+    """Unregister an occupation ended callback."""
 
-        Runs on the callback thread, in packet order (see :class:`GameState`).
-        """
-        with self._lock:
-            self._occupation_listeners.updated.append(callback)
+    on_movement_recalled = Callbacks[MovementEventCallback]()
+    """Register a callback for your own recalled movements.
 
-    def remove_occupation_updated_callback(self, callback: Callable[[Movement, Movement], None]) -> None:
-        """Unregister an occupation updated callback."""
-        with self._lock:
-            self._occupation_listeners.updated.remove(callback)
+    Fires on the ``mcm`` reply to a recall, with the movement as it now
+    stands: on its way home (``is_returning``). A plain removal (``mrm``)
+    fires :meth:`on_movement_removed` instead.
 
-    def on_occupation_ended(self, callback: Callable[[Movement, bool], None]) -> None:  # type: ignore[misc]
-        """Register a callback for occupations :meth:`on_occupation_started` announced leaving state.
+    Accepts either signature (see :meth:`on_movement_arrived`)::
 
-        ``callback(movement, captured)`` fires once per announced occupation,
-        with it as state last had it. ``captured`` is True when its time ran
-        out: at its arrival, after :meth:`on_movement_arrived`, or when ``mrm``
-        removes it within two seconds of its estimated arrival or later, after
-        :meth:`on_movement_removed`. The game then reports the area captured
-        ("managed to occupy your outpost for long enough and has now captured
-        it", ``dialog_siegeMessage_yourOutpostWasConquered``). ``captured`` is
-        False when ``mrm`` removes it earlier, after :meth:`on_movement_removed`:
-        the occupation was broken ("Occupying forces driven off!",
-        ``dialog_messageHeader_siegeCancelledByPlayer``,
-        ``dialog_siegeMessage_siegeCancelled``). One that ends while no session
-        is logged in is not reported: state drops it with the session (see
-        :meth:`reset`) and the next login does not list it.
+        def on_recalled(movement_id: int) -> None: ...
+        def on_recalled(movement_id: int, movement: Movement | None) -> None: ...
 
-        Derived, not reported, as :meth:`on_incoming_attack_withdrawn` is: the
-        server does not say why it removes a movement, and the reports above
-        come as messages of their own.
+    Runs on the callback thread, in packet order (see :class:`GameState`).
+    """
+    remove_movement_recalled_callback = Remover(on_movement_recalled)
+    """Unregister a movement recalled callback."""
 
-        Runs on the callback thread, in packet order (see :class:`GameState`).
-        """
-        with self._lock:
-            self._occupation_listeners.ended.append(callback)
+    on_movement_arrived = Callbacks[MovementEventCallback]()
+    """Register a callback for movements reaching their target.
 
-    def remove_occupation_ended_callback(self, callback: Callable[[Movement, bool], None]) -> None:
-        """Unregister an occupation ended callback."""
-        with self._lock:
-            self._occupation_listeners.ended.remove(callback)
+    The server sends no arrival packet: as in the game client, a movement
+    arrives once its travel time is up. The check runs on every packet
+    and every movement query, so a callback fires with the first of those
+    after arrival. It fires once per movement, and not for a movement
+    first seen after it had already arrived.
 
-    def on_movement_recalled(self, callback: MovementEventCallback) -> None:  # type: ignore[misc]
-        """Register a callback for your own recalled movements.
+    An army that stays at its target (a stationed support) is kept in
+    state until its wait is over (``estimated_end``); every other
+    movement is removed before callbacks run. An army's way home is a
+    movement too, so it fires when the army gets back; check
+    ``movement.is_returning`` to tell the two apart.
 
-        Fires on the ``mcm`` reply to a recall, with the movement as it now
-        stands: on its way home (``is_returning``). A plain removal (``mrm``)
-        fires :meth:`on_movement_removed` instead.
+    Two signatures are supported, picked per callback from its own
+    parameter list::
 
-        Accepts either signature (see :meth:`on_movement_arrived`)::
+        def on_arrived(movement_id: int) -> None: ...
+        def on_arrived(movement_id: int, movement: Movement | None) -> None: ...
 
-            def on_recalled(movement_id: int) -> None: ...
-            def on_recalled(movement_id: int, movement: Movement | None) -> None: ...
+    Prefer the second form: the id alone says nothing about what arrived.
 
-        Runs on the callback thread, in packet order (see :class:`GameState`).
-        """
-        entry = (callback, self._accepts_movement(callback))
-        with self._lock:
-            self._movement_recalled_callbacks.append(entry)
+    Runs on the callback thread, in packet order (see :class:`GameState`).
+    """
+    remove_movement_arrived_callback = Remover(on_movement_arrived)
+    """Unregister a movement arrived callback."""
 
-    def remove_movement_recalled_callback(self, callback: MovementEventCallback) -> None:
-        """Unregister a movement recalled callback."""
-        with self._lock:
-            self._remove_listener(self._movement_recalled_callbacks, callback)
+    on_movement_removed = Callbacks[MovementEventCallback]()
+    """Register a callback for movements the server removes (``mrm``).
 
-    def on_movement_arrived(self, callback: MovementEventCallback) -> None:  # type: ignore[misc]
-        """Register a callback for movements reaching their target.
+    The server does not say why: a battle ending, a finished recall and a
+    support sent home all look the same; :meth:`on_incoming_attack_withdrawn`
+    tells an announced attack removed before it arrives, and
+    :meth:`on_occupation_ended` an announced occupation leaving. ``movement`` is
+    ``None`` if state was not tracking it. Accepts either signature (see
+    :meth:`on_movement_arrived`).
 
-        The server sends no arrival packet: as in the game client, a movement
-        arrives once its travel time is up. The check runs on every packet
-        and every movement query, so a callback fires with the first of those
-        after arrival. It fires once per movement, and not for a movement
-        first seen after it had already arrived.
+    Runs on the callback thread, in packet order (see :class:`GameState`).
+    """
+    remove_movement_removed_callback = Remover(on_movement_removed)
+    """Unregister a movement removed callback."""
 
-        An army that stays at its target (a stationed support) is kept in
-        state until its wait is over (``estimated_end``); every other
-        movement is removed before callbacks run. An army's way home is a
-        movement too, so it fires when the army gets back; check
-        ``movement.is_returning`` to tell the two apart.
-
-        Two signatures are supported, picked per callback from its own
-        parameter list::
-
-            def on_arrived(movement_id: int) -> None: ...
-            def on_arrived(movement_id: int, movement: Movement | None) -> None: ...
-
-        Prefer the second form: the id alone says nothing about what arrived.
-
-        Runs on the callback thread, in packet order (see :class:`GameState`).
-        """
-        entry = (callback, self._accepts_movement(callback))
-        with self._lock:
-            self._movement_arrived_callbacks.append(entry)
-
-    def remove_movement_arrived_callback(self, callback: MovementEventCallback) -> None:
-        """Unregister a movement arrived callback."""
-        with self._lock:
-            self._remove_listener(self._movement_arrived_callbacks, callback)
-
-    def on_movement_removed(self, callback: MovementEventCallback) -> None:  # type: ignore[misc]
-        """Register a callback for movements the server removes (``mrm``).
-
-        The server does not say why: a battle ending, a finished recall and a
-        support sent home all look the same; :meth:`on_incoming_attack_withdrawn`
-        tells an announced attack removed before it arrives, and
-        :meth:`on_occupation_ended` an announced occupation leaving. ``movement`` is
-        ``None`` if state was not tracking it. Accepts either signature (see
-        :meth:`on_movement_arrived`).
-
-        Runs on the callback thread, in packet order (see :class:`GameState`).
-        """
-        entry = (callback, self._accepts_movement(callback))
-        with self._lock:
-            self._movement_removed_callbacks.append(entry)
-
-    def remove_movement_removed_callback(self, callback: MovementEventCallback) -> None:
-        """Unregister a movement removed callback."""
-        with self._lock:
-            self._remove_listener(self._movement_removed_callbacks, callback)
+    _attack_listeners = AttackListeners(on_incoming_attack, on_incoming_attack_updated, on_incoming_attack_withdrawn)
+    _occupation_listeners = OccupationListeners(on_occupation_started, on_occupation_updated, on_occupation_ended)
 
     @staticmethod
     def _accepts_movement(callback: Callable[..., Any]) -> bool:
-        """True if ``callback`` takes the Movement as a second positional arg.
+        """True if ``callback`` takes the Movement as a second positional arg; its signature is read once.
 
-        Decided once, at registration. Callables whose signature cannot be
-        inspected (some builtins/C functions) are treated as id-only, which is
-        the historical behavior.
+        Callables whose signature cannot be inspected (some builtins/C
+        functions) are treated as id-only, which is the historical behavior.
         """
         try:
-            parameters = inspect.signature(callback).parameters.values()
+            return _ACCEPTS_MOVEMENT[callback]
+        except (KeyError, TypeError):
+            pass
+        try:
+            kinds = [param.kind for param in inspect.signature(callback).parameters.values()]
         except (TypeError, ValueError):
-            return False
-        positional = 0
-        for param in parameters:
-            if param.kind is inspect.Parameter.VAR_POSITIONAL:
-                return True
-            if param.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD):
-                positional += 1
-        return positional >= 2
-
-    @staticmethod
-    def _remove_listener(
-        listeners: list[tuple[MovementEventCallback, bool]],
-        callback: MovementEventCallback,
-    ) -> None:
-        """Remove the first registration of ``callback`` (``list.remove`` semantics)."""
-        for index, (registered, _) in enumerate(listeners):
-            if registered == callback:
-                del listeners[index]
-                return
-        raise ValueError(f"callback {callback!r} is not registered")
+            kinds = []
+        accepts = inspect.Parameter.VAR_POSITIONAL in kinds or sum(kind in _POSITIONAL for kind in kinds) >= 2
+        # A callable that takes no weak reference is read on every call
+        with contextlib.suppress(TypeError):
+            _ACCEPTS_MOVEMENT[callback] = accepts
+        return accepts
 
     def _dispatch_movement_event(
-        self,
-        listeners: list[tuple[MovementEventCallback, bool]],
-        mid: int,
-        mov: Movement | None,
+        self, callbacks: BoundCallbacks[MovementEventCallback], mid: int, mov: Movement | None
     ) -> None:
         """Fire arrival/recall listeners, passing the Movement to those that want it."""
-        with self._lock:
-            snapshot = list(listeners)
-        for callback, wants_movement in snapshot:
-            if wants_movement:
+        for callback in callbacks.calls():
+            if self._accepts_movement(callback):
                 self._dispatch_callback(callback, mid, mov)
             else:
                 self._dispatch_callback(callback, mid)
@@ -372,7 +318,7 @@ class MovementState(StateBase):
         Client: ``MCMCommand``.
         """
         for mov in self._apply_movement_wrappers([data.get("A")], []):
-            self._dispatch_movement_event(self._movement_recalled_callbacks, mov.movement_id, mov)
+            self._dispatch_movement_event(self.on_movement_recalled, mov.movement_id, mov)
 
     def _apply_movement_wrappers(self, wrappers: Any, owners: Any) -> list[Movement]:
         """Parse and store ``gam``-style movement wrappers; return the ones stored.
@@ -504,15 +450,9 @@ class MovementState(StateBase):
             end = mov.estimated_end
             self._announced[mid] = end
             self._announced_prune_at = min(self._announced_prune_at, end)
-            with self._lock:
-                announce_callbacks = list(listeners.announced)
-            for announce in announce_callbacks:
-                self._dispatch_callback(announce, mov)
+            self._fire(listeners.announced.of(self), mov)
         elif listeners is not None and announced and existing is not None and self._attack_changed(existing, mov):
-            with self._lock:
-                updated_callbacks = list(listeners.updated)
-            for update in updated_callbacks:
-                self._dispatch_callback(update, existing, mov)
+            self._fire(listeners.updated.of(self), existing, mov)
         self.movements[mid] = mov
         self._schedule_movement(mid, mov)
 
@@ -555,7 +495,7 @@ class MovementState(StateBase):
                 if mid not in dispatched and now >= times[0]:
                     dispatched.add(mid)
                     listeners = self._listeners_for(mov) if self._announced.pop(mid, None) is not None else None
-                    arrived.append((mov, listeners.leaving(mov, arrived=True) if listeners is not None else []))
+                    arrived.append((mov, listeners.leaving(self, mov, arrived=True) if listeners is not None else []))
                 if now >= times[1]:
                     del self.movements[mid]
                     del self._movement_times[mid]
@@ -570,7 +510,7 @@ class MovementState(StateBase):
             self._announced = {mid: end for mid, end in self._announced.items() if now < end}
             self._announced_prune_at = min(self._announced.values(), default=math.inf)
         for mov, leaving in arrived:
-            self._dispatch_movement_event(self._movement_arrived_callbacks, mov.movement_id, mov)
+            self._dispatch_movement_event(self.on_movement_arrived, mov.movement_id, mov)
             for callback, args in leaving:
                 self._dispatch_callback(callback, *args)
 
@@ -596,10 +536,10 @@ class MovementState(StateBase):
             if listeners is not None:
                 arrived = time.time() >= mov.estimated_arrival - ETA_CHANGE_THRESHOLD
                 with self._lock:
-                    leaving = listeners.leaving(mov, arrived)
+                    leaving = listeners.leaving(self, mov, arrived)
         self._arrival_dispatched.discard(mid)
         self._announced.pop(mid, None)
-        self._dispatch_movement_event(self._movement_removed_callbacks, mid, mov)
+        self._dispatch_movement_event(self.on_movement_removed, mid, mov)
         for callback, args in leaving:
             self._dispatch_callback(callback, *args)
 
@@ -847,8 +787,7 @@ class MovementState(StateBase):
             listeners = self._listeners_for(mov) if mov is not None and movement_id in self._announced else None
             if listeners is None:
                 return False
-            for announce in list(listeners.announced):
-                self._dispatch_callback(announce, mov)
+            self._fire(listeners.announced.of(self), mov)
             return True
 
     def get_movement_by_id(self, movement_id: int) -> Movement | None:

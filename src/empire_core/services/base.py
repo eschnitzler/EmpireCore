@@ -6,12 +6,13 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Collection
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from empire_core.enums import Kingdom
 from empire_core.exceptions import AmbiguousCastleError, CommandError, UnknownCastleError
 from empire_core.protocol.base import BaseRequest, BaseResponse
 from empire_core.protocol.errors import GGEError
+from empire_core.utils.callbacks import BoundCallbacks, Registry
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
@@ -55,6 +56,15 @@ class BaseService:
 
     def __init__(self, client: "EmpireClient") -> None:
         self.client = client
+        self._registry = Registry(missing_ok=True)
+
+    def _fire(self, callbacks: BoundCallbacks[Any], *args: Any) -> None:
+        """Call every callback of an event here, on the receive thread; one that raises is logged."""
+        for callback in callbacks.calls():
+            try:
+                callback(*args)
+            except Exception:
+                logging.getLogger(type(self).__module__).exception(f"{callbacks.name} callback error")
 
     @property
     def zone(self) -> str:

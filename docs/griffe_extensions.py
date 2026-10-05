@@ -1,4 +1,4 @@
-"""Griffe extensions that turn the source's reST-flavoured docstrings into Markdown."""
+"""Griffe extensions: the source's reST-flavoured docstrings as Markdown, and callback declarations as methods."""
 
 import re
 
@@ -118,3 +118,35 @@ class MarkdownDocstrings(griffe.Extension):
     def on_instance(self, *, obj: griffe.Object, **kwargs: object) -> None:
         if obj.docstring is not None:
             obj.docstring.value = markdownify(obj.docstring.value)
+
+
+class CallbackDeclarations(griffe.Extension):
+    """Show each ``on_x = Callbacks[C]()`` and its ``remove_x_callback = Remover(on_x)`` as the method it is."""
+
+    def on_class_members(self, *, cls: griffe.Class, **kwargs: object) -> None:
+        declared: dict[str, griffe.Expr | str] = {}
+        for name, member in list(cls.members.items()):
+            value = getattr(member, "value", None)
+            if not isinstance(value, griffe.ExprCall):
+                continue
+            if isinstance(value.function, griffe.ExprSubscript) and str(value.function.left) == "Callbacks":
+                callback = declared[name] = value.function.slice
+            elif str(value.function) == "Remover" and str(value.arguments[0]) in declared:
+                callback = declared[str(value.arguments[0])]
+            else:
+                continue
+            positional = griffe.ParameterKind.positional_or_keyword
+            cls.set_member(
+                name,
+                griffe.Function(
+                    name,
+                    lineno=member.lineno,
+                    endlineno=member.endlineno,
+                    parameters=griffe.Parameters(
+                        griffe.Parameter("self", kind=positional),
+                        griffe.Parameter("callback", annotation=callback, kind=positional),
+                    ),
+                    returns="None",
+                    docstring=member.docstring,
+                ),
+            )

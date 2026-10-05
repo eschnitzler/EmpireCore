@@ -21,6 +21,7 @@ from empire_core.enums import Kingdom, ResourceCartType
 from empire_core.protocol.base import enum_or_none, read_or_none
 from empire_core.state.base import StateBase
 from empire_core.state.models import JoinedArea
+from empire_core.utils.callbacks import Callbacks, Remover
 
 logger = logging.getLogger(__name__)
 
@@ -29,52 +30,37 @@ _CART_COUNT = 3
 
 
 class AreaState(StateBase):
-    def on_building_finished(self, callback: Callable[[BuildingFinished], Any]) -> None:
-        """Register a callback for a building in the joined castle that finished (``fbe``).
+    on_building_finished = Callbacks[Callable[[BuildingFinished], Any]]()
+    """Register a callback for a building in the joined castle that finished (``fbe``).
 
-        Called with the building's object id and the XP it gave. Runs on the callback
-        thread, in packet order (see :class:`GameState`).
+    Called with the building's object id and the XP it gave. Runs on the callback
+    thread, in packet order (see :class:`GameState`).
 
-        Client: ``FBECommand.exec`` (bundle line 122879), ``AreaDataUpdater.parseCBX`` (bundle line 131521)
-        """
-        with self._lock:
-            self._building_finished_callbacks.append(callback)
+    Client: ``FBECommand.exec`` (bundle line 122879), ``AreaDataUpdater.parseCBX`` (bundle line 131521)
+    """
+    remove_building_finished_callback = Remover(on_building_finished)
+    """Unregister a building finished callback."""
 
-    def remove_building_finished_callback(self, callback: Callable[[BuildingFinished], Any]) -> None:
-        """Unregister a building finished callback."""
-        with self._lock:
-            self._building_finished_callbacks.remove(callback)
+    on_building_xp = Callbacks[Callable[[BuildingXP], Any]]()
+    """Register a callback for XP a building in the joined castle gave (``cbx``).
 
-    def on_building_xp(self, callback: Callable[[BuildingXP], Any]) -> None:
-        """Register a callback for XP a building in the joined castle gave (``cbx``).
+    Client: ``CBXCommand.executeCommand`` (bundle line 123345)
+    """
+    remove_building_xp_callback = Remover(on_building_xp)
+    """Unregister a building XP callback."""
 
-        Client: ``CBXCommand.executeCommand`` (bundle line 123345)
-        """
-        with self._lock:
-            self._building_xp_callbacks.append(callback)
+    on_buildings_changed = Callbacks[Callable[[DamagedBuildings], Any]]()
+    """Register a callback for buildings of the joined castle that were damaged (``gdb``) or
+    whose efficiency changed (``gcb``, a :class:`BuildingEfficiencyChanged`).
 
-    def remove_building_xp_callback(self, callback: Callable[[BuildingXP], Any]) -> None:
-        """Unregister a building XP callback."""
-        with self._lock:
-            self._building_xp_callbacks.remove(callback)
+    Called with the buildings' new rows. State does not keep the joined castle's
+    buildings: the build, upgrade and repair replies change them too.
 
-    def on_buildings_changed(self, callback: Callable[[DamagedBuildings], Any]) -> None:
-        """Register a callback for buildings of the joined castle that were damaged (``gdb``) or
-        whose efficiency changed (``gcb``, a :class:`BuildingEfficiencyChanged`).
-
-        Called with the buildings' new rows. State does not keep the joined castle's
-        buildings: the build, upgrade and repair replies change them too.
-
-        Client: ``GDBCommand`` and ``GCBCommand`` (bundle lines 122998, 122968),
-        ``IsoUpdaterData.updateMultipleObjectInfos`` (bundle line 130259)
-        """
-        with self._lock:
-            self._buildings_changed_callbacks.append(callback)
-
-    def remove_buildings_changed_callback(self, callback: Callable[[DamagedBuildings], Any]) -> None:
-        """Unregister a buildings changed callback."""
-        with self._lock:
-            self._buildings_changed_callbacks.remove(callback)
+    Client: ``GDBCommand`` and ``GCBCommand`` (bundle lines 122998, 122968),
+    ``IsoUpdaterData.updateMultipleObjectInfos`` (bundle line 130259)
+    """
+    remove_buildings_changed_callback = Remover(on_buildings_changed)
+    """Unregister a buildings changed callback."""
 
     def _handle_jaa(self, data: Any) -> None:
         """Apply a join's reply: the joined area, and its mines and resource carts when it sends them.
@@ -205,29 +191,25 @@ class AreaState(StateBase):
         if isinstance(data, dict):
             finished = read_or_none(BuildingFinished.model_validate, data, warn=logger, what="an fbe push")
             if finished is not None:
-                self._fire_area(self._building_finished_callbacks, finished)
+                self._fire(self.on_building_finished, finished)
 
     def _handle_cbx(self, data: Any) -> None:
         if isinstance(data, dict):
             gained = read_or_none(BuildingXP.model_validate, data, warn=logger, what="a cbx push")
             if gained is not None:
-                self._fire_area(self._building_xp_callbacks, gained)
+                self._fire(self.on_building_xp, gained)
 
     def _handle_gdb(self, data: Any) -> None:
         if isinstance(data, dict):
             damaged = read_or_none(DamagedBuildings.model_validate, data, warn=logger, what="a gdb push")
             if damaged is not None:
-                self._fire_area(self._buildings_changed_callbacks, damaged)
+                self._fire(self.on_buildings_changed, damaged)
 
     def _handle_gcb(self, data: Any) -> None:
         if isinstance(data, dict):
             changed = read_or_none(BuildingEfficiencyChanged.model_validate, data, warn=logger, what="a gcb push")
             if changed is not None:
-                self._fire_area(self._buildings_changed_callbacks, changed)
-
-    def _fire_area(self, callbacks: list[Any], argument: Any) -> None:
-        for callback in list(callbacks):
-            self._dispatch_callback(callback, argument)
+                self._fire(self.on_buildings_changed, changed)
 
     def get_joined_area(self) -> JoinedArea | None:
         """The area joined, with its slum level and builder discount; ``None`` before any join.

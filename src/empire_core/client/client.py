@@ -59,6 +59,7 @@ from empire_core.protocol.packet import Packet
 from empire_core.ranking.service import RankingService
 from empire_core.spy.service import SpyService
 from empire_core.state.manager import GameState
+from empire_core.utils.callbacks import BoundCallbacks, Callbacks, Registry, Remover
 
 logger = logging.getLogger(__name__)
 
@@ -213,9 +214,8 @@ class EmpireClient:
         self._relogin_running = False
         # The generation of the last session that dropped while logged in.
         self._dropped_logged_in: int | None = None
-        self._session_restored_callbacks: list[Callable[[], None]] = []
-        self._session_lost_callbacks: list[Callable[[Exception], None]] = []
-        self._session_callbacks_lock = threading.Lock()
+        # The client's on_* callbacks: each registered once, removing one not registered is a no-op
+        self._registry = Registry(unique=True, missing_ok=True)
         # The seconds the last cooldown refusal named, and when it came (time.monotonic()).
         self._login_cooldown: tuple[float, float] | None = None
 
@@ -234,6 +234,7 @@ class EmpireClient:
         self.connection.on_packet = self._on_packet
         self.connection.on_disconnect = self._on_disconnect
         self.connection.after_disconnect = self._keep_session_after_drop
+        self.connection.add_disconnect_listener(self._fire_disconnect)
 
         self._attach_services()
 
@@ -430,11 +431,11 @@ class EmpireClient:
                     continue
                 except Exception as e:
                     logger.exception(f"Client {self.username}: re-login stopped; the session is not restored")
-                    self._dispatch_session_event(self._session_lost_callbacks, e)
+                    self._dispatch_session_event(self.on_session_lost, e)
                     return
                 if restored:
                     logger.info(f"Client {self.username}: session restored")
-                    self._dispatch_session_event(self._session_restored_callbacks)
+                    self._dispatch_session_event(self.on_session_restored)
                 return
         finally:
             with self._session_lock:
@@ -479,31 +480,34 @@ class EmpireClient:
             self._relogin_running = False
         return True
 
-    def _dispatch_session_event(self, callbacks: list[Callable[..., None]], *args: Any) -> None:
-        with self._session_callbacks_lock:
-            snapshot = list(callbacks)
-        for callback in snapshot:
+    def _dispatch_session_event(self, callbacks: BoundCallbacks[Any], *args: Any) -> None:
+        for callback in callbacks.calls():
             self.state._dispatch_callback(callback, *args)
+
+    def _fire_disconnect(self) -> None:
+        """The connection's disconnect listener: the :meth:`on_disconnect` callbacks, on the receive thread."""
+        for callback in self.on_disconnect.calls():
+            try:
+                callback()
+            except Exception:
+                logger.exception("Error in disconnect callback")
 
     def _forget_session(self) -> None:
         self.is_logged_in = False
         self.state.reset()
         self.messages._reset()
 
-    def on_disconnect(self, callback: Callable[[], None]) -> None:
-        """Register a callback for the session dropping on its own; :meth:`close` does not fire it.
+    on_disconnect = Callbacks[Callable[[], None]]()
+    """Register a callback for the session dropping on its own; :meth:`close` does not fire it.
 
-        Runs on the receive thread as it shuts down, after ``is_logged_in`` is
-        cleared, and fires once per dropped session. Keep it short and hand a
-        re-login to another thread, or leave it to :attr:`keep_session`, which
-        starts its own once these callbacks have run. Registering the same
-        callback twice is a no-op.
-        """
-        self.connection.add_disconnect_listener(callback)
-
-    def remove_disconnect_callback(self, callback: Callable[[], None]) -> None:
-        """Remove a callback added with :meth:`on_disconnect`; unknown callbacks are ignored."""
-        self.connection.remove_disconnect_listener(callback)
+    Runs on the receive thread as it shuts down, after ``is_logged_in`` is
+    cleared, and fires once per dropped session. Keep it short and hand a
+    re-login to another thread, or leave it to :attr:`keep_session`, which
+    starts its own once these callbacks have run. Registering the same
+    callback twice is a no-op.
+    """
+    remove_disconnect_callback = Remover(on_disconnect)
+    """Remove a callback added with :meth:`on_disconnect`; unknown callbacks are ignored."""
 
     @overload
     def listen(
@@ -828,47 +832,33 @@ class EmpireClient:
         seconds, refused_at = cooldown
         return max(0.0, seconds - (time.monotonic() - refused_at))
 
-    def on_session_lost(self, callback: Callable[[Exception], None]) -> None:
-        """Register a callback for a :attr:`keep_session` re-login that gives up.
+    on_session_lost = Callbacks[Callable[[Exception], None]]()
+    """Register a callback for a :attr:`keep_session` re-login that gives up.
 
-        ``callback(error)`` fires once, with the refusal that ended the attempts
-        (a ban, the wrong server, the client version, credentials, or any other
-        refusal waiting does not cure); the client then stays logged out until
-        a :meth:`login` of your own. Neither :meth:`close` nor a :meth:`login`
-        of your own that stops the re-login fires it; that login raises its own
-        failure. Runs on the callback thread (see
-        :class:`~empire_core.state.manager.GameState`). Registering the same
-        callback twice is a no-op.
-        """
-        with self._session_callbacks_lock:
-            if callback not in self._session_lost_callbacks:
-                self._session_lost_callbacks.append(callback)
+    ``callback(error)`` fires once, with the refusal that ended the attempts
+    (a ban, the wrong server, the client version, credentials, or any other
+    refusal waiting does not cure); the client then stays logged out until
+    a :meth:`login` of your own. Neither :meth:`close` nor a :meth:`login`
+    of your own that stops the re-login fires it; that login raises its own
+    failure. Runs on the callback thread (see
+    :class:`~empire_core.state.manager.GameState`). Registering the same
+    callback twice is a no-op.
+    """
+    remove_session_lost_callback = Remover(on_session_lost)
+    """Remove a callback added with :meth:`on_session_lost`; unknown callbacks are ignored."""
 
-    def remove_session_lost_callback(self, callback: Callable[[Exception], None]) -> None:
-        """Remove a callback added with :meth:`on_session_lost`; unknown callbacks are ignored."""
-        with self._session_callbacks_lock:
-            if callback in self._session_lost_callbacks:
-                self._session_lost_callbacks.remove(callback)
+    on_session_restored = Callbacks[Callable[[], None]]()
+    """Register a callback for a :attr:`keep_session` re-login that holds.
 
-    def on_session_restored(self, callback: Callable[[], None]) -> None:
-        """Register a callback for a :attr:`keep_session` re-login that holds.
-
-        Fires once per restored session, after the login data and the movement
-        list the server pushes after it have reached state (or that list did
-        not come within ``config.request_timeout``), so the events of that
-        state come first. Runs on the callback thread (see
-        :class:`~empire_core.state.manager.GameState`). A :meth:`login` of
-        your own does not fire it. Registering the same callback twice is a no-op.
-        """
-        with self._session_callbacks_lock:
-            if callback not in self._session_restored_callbacks:
-                self._session_restored_callbacks.append(callback)
-
-    def remove_session_restored_callback(self, callback: Callable[[], None]) -> None:
-        """Remove a callback added with :meth:`on_session_restored`; unknown callbacks are ignored."""
-        with self._session_callbacks_lock:
-            if callback in self._session_restored_callbacks:
-                self._session_restored_callbacks.remove(callback)
+    Fires once per restored session, after the login data and the movement
+    list the server pushes after it have reached state (or that list did
+    not come within ``config.request_timeout``), so the events of that
+    state come first. Runs on the callback thread (see
+    :class:`~empire_core.state.manager.GameState`). A :meth:`login` of
+    your own does not fire it. Registering the same callback twice is a no-op.
+    """
+    remove_session_restored_callback = Remover(on_session_restored)
+    """Remove a callback added with :meth:`on_session_restored`; unknown callbacks are ignored."""
 
     def _end_session_quietly(self) -> None:
         """End the session after a failed login; never masks the failure, and leaves a re-login going."""

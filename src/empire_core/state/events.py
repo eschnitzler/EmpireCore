@@ -9,6 +9,7 @@ from empire_core.events.models import KingdomsLeagueEvent, SpecialEvent, event_c
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase
+from empire_core.utils.callbacks import Callbacks, Remover
 
 logger = logging.getLogger(__name__)
 _clock = time.monotonic
@@ -18,55 +19,40 @@ EventsCallback = Callable[[dict[int, SpecialEvent]], Any]
 
 
 class EventState(StateBase):
-    def on_event_added(self, callback: EventCallback) -> None:
-        """Register a callback for an event that starts: a ``sei`` or ``tei`` entry for an event not running.
+    on_event_added = Callbacks[EventCallback]()
+    """Register a callback for an event that starts: a ``sei`` or ``tei`` entry for an event not running.
 
-        Called with the event as that entry left it. Runs on the callback thread, in packet
-        order (see :class:`GameState`).
+    Called with the event as that entry left it. Runs on the callback thread, in packet
+    order (see :class:`GameState`).
 
-        Client: ``CastleSpecialEventEvent.ADD_SPECIALEVENT`` from ``parseServerEventData`` (bundle line 139814)
-        """
-        with self._lock:
-            self._event_added_callbacks.append(callback)
+    Client: ``CastleSpecialEventEvent.ADD_SPECIALEVENT`` from ``parseServerEventData`` (bundle line 139814)
+    """
+    remove_event_added_callback = Remover(on_event_added)
+    """Unregister an event added callback."""
 
-    def remove_event_added_callback(self, callback: EventCallback) -> None:
-        """Unregister an event added callback."""
-        with self._lock:
-            self._event_added_callbacks.remove(callback)
+    on_event_removed = Callbacks[EventCallback]()
+    """Register a callback for an event that ends: a ``see`` or ``tee``, or its time running out.
 
-    def on_event_removed(self, callback: EventCallback) -> None:
-        """Register a callback for an event that ends: a ``see`` or ``tee``, or its time running out.
+    Called with the event as it last stood. A disconnect (see :meth:`reset`) fires none.
 
-        Called with the event as it last stood. A disconnect (see :meth:`reset`) fires none.
+    Client: ``CastleSpecialEventEvent.REMOVE_SPECIALEVENT`` from ``removeEventById`` (bundle line 139840),
+    reached from ``parse_SEE``, ``parseTEE`` and ``executeUpdateForEvents`` (bundle lines 139826, 139915, 139836)
+    """
+    remove_event_removed_callback = Remover(on_event_removed)
+    """Unregister an event removed callback."""
 
-        Client: ``CastleSpecialEventEvent.REMOVE_SPECIALEVENT`` from ``removeEventById`` (bundle line 139840),
-        reached from ``parse_SEE``, ``parseTEE`` and ``executeUpdateForEvents`` (bundle lines 139826, 139915, 139836)
-        """
-        with self._lock:
-            self._event_removed_callbacks.append(callback)
+    on_events_updated = Callbacks[EventsCallback]()
+    """Register a callback for every ``sei``, non-empty ``tei`` and ``pep`` applied.
 
-    def remove_event_removed_callback(self, callback: EventCallback) -> None:
-        """Unregister an event removed callback."""
-        with self._lock:
-            self._event_removed_callbacks.remove(callback)
+    Called with every running event (a copy of :meth:`get_events`), after the
+    :meth:`on_event_added` and :meth:`on_event_removed` callbacks of the same packet.
 
-    def on_events_updated(self, callback: EventsCallback) -> None:
-        """Register a callback for every ``sei``, non-empty ``tei`` and ``pep`` applied.
-
-        Called with every running event (a copy of :meth:`get_events`), after the
-        :meth:`on_event_added` and :meth:`on_event_removed` callbacks of the same packet.
-
-        Client: ``onEventDataParsed`` (bundle line 139818) sends ``REFRESH_SPECIALEVENT`` for every
-        event and ``SERVER_DATA_PARSED``; ``AScoreEventVO.setRankAndPoints`` (bundle line 15044)
-        sends ``UPDATE_POINTS`` for a ``pep``
-        """
-        with self._lock:
-            self._events_updated_callbacks.append(callback)
-
-    def remove_events_updated_callback(self, callback: EventsCallback) -> None:
-        """Unregister an events updated callback."""
-        with self._lock:
-            self._events_updated_callbacks.remove(callback)
+    Client: ``onEventDataParsed`` (bundle line 139818) sends ``REFRESH_SPECIALEVENT`` for every
+    event and ``SERVER_DATA_PARSED``; ``AScoreEventVO.setRankAndPoints`` (bundle line 15044)
+    sends ``UPDATE_POINTS`` for a ``pep``
+    """
+    remove_events_updated_callback = Remover(on_events_updated)
+    """Unregister an events updated callback."""
 
     def _handle_sei(self, data: Any) -> None:
         """Handle 'Send Event Information': each entry updates its event, or adds it.
@@ -129,9 +115,9 @@ class EventState(StateBase):
         self.events = events
         self._events_updated_at = time.time()
         for event in added:
-            self._fire(self._event_added_callbacks, event)
+            self._fire(self.on_event_added, event)
         self._expire_events()
-        self._fire(self._events_updated_callbacks, dict(self.events))
+        self._fire(self.on_events_updated, dict(self.events))
 
     def _handle_see(self, data: Any) -> None:
         """Handle a 'special event end' push: the event it names has ended.
@@ -178,7 +164,7 @@ class EventState(StateBase):
         if data.get("BLPP") is not None and "boss_level_points" in type(updated).model_fields:
             updated = updated.model_copy(update={"boss_level_points": js_int(data["BLPP"])})
         self.events = {**self.events, event.event_id: updated}
-        self._fire(self._events_updated_callbacks, dict(self.events))
+        self._fire(self.on_events_updated, dict(self.events))
 
     def _sent_event(self, eid: Any) -> SpecialEvent | None:
         # The id as sent, compared as the client's Map compares keys: 3.0 is 3, "3" is not
@@ -191,7 +177,7 @@ class EventState(StateBase):
         if event is None:
             return
         self.events = {key: value for key, value in self.events.items() if key != eid}
-        self._fire(self._event_removed_callbacks, event)
+        self._fire(self.on_event_removed, event)
         self._expire_events()
 
     def _expire_events(self) -> None:
@@ -214,11 +200,7 @@ class EventState(StateBase):
                 return
             self.events = {eid: event for eid, event in events.items() if event.end_time > now}
             for event in ended:
-                self._fire(self._event_removed_callbacks, event)
-
-    def _fire(self, callbacks: list[Any], argument: Any) -> None:
-        for callback in list(callbacks):
-            self._dispatch_callback(callback, argument)
+                self._fire(self.on_event_removed, event)
 
     def get_events(self) -> dict[int, SpecialEvent]:
         """The running events by id, in the order they started; a copy.

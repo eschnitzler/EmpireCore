@@ -17,6 +17,7 @@ from empire_core.protocol.models import AttackWave, WaveFlank
 from empire_core.protocol.packet import Packet
 from empire_core.state.manager import GameState
 from empire_core.state.models import Castle, Player
+from empire_core.utils.callbacks import Registry
 
 
 def placed(slots: list[list[int]]) -> list[list[int]]:
@@ -303,9 +304,7 @@ def make_client(
     client._relogin_thread = None
     client._relogin_running = False
     client._dropped_logged_in = None
-    client._session_restored_callbacks = []
-    client._session_lost_callbacks = []
-    client._session_callbacks_lock = threading.Lock()
+    client._registry = Registry(unique=True, missing_ok=True)
     client._login_cooldown = None
     client._attach_services()
     return client

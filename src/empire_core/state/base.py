@@ -12,7 +12,6 @@ from empire_core.alliance.models.chat import ChatMessageData
 from empire_core.alliance.models.info import AllianceInfo
 from empire_core.castle.models.collect import MineStatus, ResourceCart
 from empire_core.castle.models.permanent import PermanentCastle
-from empire_core.castle.models.updates import BuildingFinished, BuildingXP, DamagedBuildings
 from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.commanders.models.skills import SkillList
 from empire_core.events.models import SpecialEvent
@@ -30,6 +29,7 @@ from empire_core.player.models.progress import (
 )
 from empire_core.spy.models import MaxSpiesResponse, PlagueMonkInfoResponse
 from empire_core.state.models import Castle, CastleKey, JoinedArea, Player
+from empire_core.utils.callbacks import BoundCallbacks, Callbacks, Registry
 
 logger = logging.getLogger(__name__)
 
@@ -49,37 +49,51 @@ QueuedCall = tuple[Callable[..., None], tuple[Any, ...]]
 
 
 class AnnouncedListeners:
-    """The callbacks of one kind of announced movement: announced, updated, and how one leaves state."""
+    """The events of one kind of announced movement: announced, updated, and how one leaving state is reported."""
 
-    def __init__(self) -> None:
-        self.announced: list[Callable[[Movement], None]] = []
-        self.updated: list[Callable[[Movement, Movement], None]] = []
+    def __init__(
+        self,
+        announced: Callbacks[Callable[[Movement], None]],
+        updated: Callbacks[Callable[[Movement, Movement], None]],
+    ) -> None:
+        self.announced = announced
+        self.updated = updated
 
-    def leaving(self, mov: Movement, arrived: bool) -> list[QueuedCall]:
-        """The calls for an announced ``mov`` leaving state, at its arrival or removed before it."""
+    def leaving(self, state: "StateBase", mov: Movement, arrived: bool) -> list[QueuedCall]:
+        """The calls for an announced ``mov`` leaving ``state``, at its arrival or removed before it."""
         raise NotImplementedError
 
 
 class AttackListeners(AnnouncedListeners):
     """Incoming attacks: only one removed before it arrives is reported, as withdrawn."""
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.withdrawn: list[Callable[[Movement], None]] = []
+    def __init__(
+        self,
+        announced: Callbacks[Callable[[Movement], None]],
+        updated: Callbacks[Callable[[Movement, Movement], None]],
+        withdrawn: Callbacks[Callable[[Movement], None]],
+    ) -> None:
+        super().__init__(announced, updated)
+        self.withdrawn = withdrawn
 
-    def leaving(self, mov: Movement, arrived: bool) -> list[QueuedCall]:
-        return [] if arrived else [(callback, (mov,)) for callback in self.withdrawn]
+    def leaving(self, state: "StateBase", mov: Movement, arrived: bool) -> list[QueuedCall]:
+        return [] if arrived else [(callback, (mov,)) for callback in self.withdrawn.of(state).calls()]
 
 
 class OccupationListeners(AnnouncedListeners):
     """Occupations: each one leaving is reported as ended, captured when its time ran out."""
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.ended: list[Callable[[Movement, bool], None]] = []
+    def __init__(
+        self,
+        announced: Callbacks[Callable[[Movement], None]],
+        updated: Callbacks[Callable[[Movement, Movement], None]],
+        ended: Callbacks[Callable[[Movement, bool], None]],
+    ) -> None:
+        super().__init__(announced, updated)
+        self.ended = ended
 
-    def leaving(self, mov: Movement, arrived: bool) -> list[QueuedCall]:
-        return [(callback, (mov, arrived)) for callback in self.ended]
+    def leaving(self, state: "StateBase", mov: Movement, arrived: bool) -> list[QueuedCall]:
+        return [(callback, (mov, arrived)) for callback in self.ended.of(state).calls()]
 
 
 class StateBase:
@@ -89,20 +103,7 @@ class StateBase:
         self._lock = threading.RLock()
         self._set_empty_session()
 
-        # Callbacks for specific events — support multiple listeners.
-        # Arrival/recall listeners are stored with a flag saying whether they
-        # also take the Movement (see MovementState._accepts_movement).
-        self._attack_listeners = AttackListeners()
-        self._occupation_listeners = OccupationListeners()
-        self._movement_recalled_callbacks: list[tuple[MovementEventCallback, bool]] = []
-        self._movement_arrived_callbacks: list[tuple[MovementEventCallback, bool]] = []
-        self._movement_removed_callbacks: list[tuple[MovementEventCallback, bool]] = []
-        self._event_added_callbacks: list[Callable[[SpecialEvent], Any]] = []
-        self._event_removed_callbacks: list[Callable[[SpecialEvent], Any]] = []
-        self._events_updated_callbacks: list[Callable[[dict[int, SpecialEvent]], Any]] = []
-        self._building_finished_callbacks: list[Callable[[BuildingFinished], Any]] = []
-        self._building_xp_callbacks: list[Callable[[BuildingXP], Any]] = []
-        self._buildings_changed_callbacks: list[Callable[[DamagedBuildings], Any]] = []
+        self._registry = Registry(self._lock)
 
         # One worker, so callbacks run one at a time in packet order, off the
         # receive thread. Created lazily so it survives disconnect/reconnect.
@@ -215,6 +216,11 @@ class StateBase:
         """Callbacks queued on the callback thread and not finished yet, the running one included."""
         with self._executor_lock:
             return self._callbacks_pending
+
+    def _fire(self, callbacks: BoundCallbacks[Any], *args: Any) -> None:
+        """Queue every callback of an event on the callback thread, as registered now."""
+        for callback in callbacks.calls():
+            self._dispatch_callback(callback, *args)
 
     def _dispatch_callback(self, callback: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         """Queue a callback on the callback thread, behind every callback queued before it."""

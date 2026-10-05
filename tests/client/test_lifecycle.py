@@ -29,6 +29,7 @@ from empire_core.player.models.info import GetPlayerInfoRequest
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import BaseResponse
 from empire_core.protocol.packet import Packet
+from empire_core.utils.callbacks import Registry
 
 
 def xt_packet(command: str, payload: str = "{}", error_code: int = 0) -> Packet:
@@ -141,9 +142,7 @@ def make_client(connection: StubConnection | None = None, state: StubState | Non
     client._relogin_thread = None
     client._relogin_running = False
     client._dropped_logged_in = None
-    client._session_restored_callbacks = []
-    client._session_lost_callbacks = []
-    client._session_callbacks_lock = threading.Lock()
+    client._registry = Registry(unique=True, missing_ok=True)
     client._login_cooldown = None
     return client
 

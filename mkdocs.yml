@@ -97,6 +97,7 @@ plugins:
               warn_missing_types: false
             extensions:
               - docs/griffe_extensions.py:MarkdownDocstrings
+              - docs/griffe_extensions.py:CallbackDeclarations
               - griffe_pydantic:
                   schema: false
             filters: ["!^_", "!^command$", "!^response_command$"]

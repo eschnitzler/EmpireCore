@@ -20,6 +20,7 @@ from typing_extensions import TypeVarTuple, Unpack
 
 from empire_core.exceptions import EventStreamOverflowError
 from empire_core.services.base import BaseService
+from empire_core.utils.callbacks import CallbackOwner, declared
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
@@ -47,7 +48,7 @@ class ClientEvent(Generic[Unpack[Args]]):
 
 @dataclass(frozen=True)
 class CallbackSource:
-    """A callback registration: ``on_<name>`` with its ``remove_<name>_callback``."""
+    """An event the client, its state or a service declares: ``on_<name>`` with its ``remove_<name>_callback``."""
 
     name: str
     register: Callable[[Callable[..., Any]], None]
@@ -56,19 +57,14 @@ class CallbackSource:
 
 
 def callback_sources(client: EmpireClient) -> dict[str, CallbackSource]:
-    """Every callback registration of the client, its state and its services, by name.
-
-    A method ``on_<name>`` is one when its owner also has ``remove_<name>_callback``, so a
-    new registration that follows the pattern is streamed with no change here.
-    """
+    """Every event the client, its state and its services declare (``Callbacks``), by name."""
     services = [owner for owner in vars(client).values() if isinstance(owner, BaseService)]
-    sources: dict[str, CallbackSource] = {}
-    for owner in (client, client.state, *services):
-        for name in (attribute[3:] for attribute in dir(type(owner)) if attribute.startswith("on_")):
-            unregister = getattr(owner, f"remove_{name}_callback", None)
-            if callable(unregister):
-                sources[name] = CallbackSource(name, getattr(owner, f"on_{name}"), unregister, owner is client.state)
-    return sources
+    owners: list[CallbackOwner] = [client, client.state, *services]
+    return {
+        callbacks.name: CallbackSource(callbacks.name, callbacks, callbacks.remove, owner is client.state)
+        for owner in owners
+        for callbacks in declared(owner)
+    }
 
 
 _END = object()

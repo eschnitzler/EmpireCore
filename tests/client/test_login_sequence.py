@@ -40,6 +40,7 @@ from empire_core.exceptions import (
 from empire_core.network.connection import ResponseWaiter
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import MALFORMED_STATUS_CODE, Packet
+from empire_core.utils.callbacks import Registry
 
 # The requests in wire order: XML version check, XML zone login, XML autojoin,
 # the XT version check, then the XT auth. The round trip is sent, not
@@ -185,9 +186,7 @@ def make_client(
     client._relogin_thread = None
     client._relogin_running = False
     client._dropped_logged_in = None
-    client._session_restored_callbacks = []
-    client._session_lost_callbacks = []
-    client._session_callbacks_lock = threading.Lock()
+    client._registry = Registry(unique=True, missing_ok=True)
     client._login_cooldown = None
     return client
 
