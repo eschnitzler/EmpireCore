@@ -475,9 +475,12 @@ class EffectDef(_Row):
         return parse_ids(self.raw_area_type_ids)
 
     def applies_to_area(self, area_type: int | None) -> bool:
-        """Whether the effect counts against a target of this area type."""
+        """Whether the effect counts against a target of this area type; None or below 0 is every area.
+
+        Client: ``BonusVO.matchesConditions`` (bundle line 5708) checks the area type only above -1
+        """
         allowed = self.area_type_ids
-        if not allowed or area_type is None:
+        if not allowed or area_type is None or area_type < 0:
             return True
         return area_type in allowed
 
@@ -487,9 +490,12 @@ class EffectDef(_Row):
         return parse_ids(self.raw_space_ids)
 
     def applies_to_space(self, space_id: int | None) -> bool:
-        """Whether the effect counts in this castle space."""
+        """Whether the effect counts in this castle space; None or below 0 is every space.
+
+        Client: ``BonusVO.matchesConditions`` (bundle line 5708) checks the space only above -1
+        """
         allowed = self.space_ids
-        if not allowed or space_id is None:
+        if not allowed or space_id is None or space_id < 0:
             return True
         return space_id in allowed
 
@@ -728,6 +734,25 @@ class GemDef(EffectSpecRow):
     )
 
 
+class EquipmentSetDef(EffectSpecRow):
+    """
+    One threshold of an equipment set: the bonuses worn items of the set grant from ``needed_items`` on.
+
+    Its ``effects`` name equipment effect ids.
+
+    Client: ``EquipmentXml.parseEquipmentSets`` (bundle line 144122) groups the
+    rows by ``setID``; ``XmlEquipmentSetVO.addEffect`` (bundle line 144227)
+    parses each effect with ``EquipmentBonusVO.parseEquipmentFromValueString``
+    (bundle line 20940).
+    """
+
+    row_id: int = Field(alias="ID", default=-1, description="Row id")
+    set_id: int = Field(alias="setID", description="Equipment set id, as in Equipment.set_id and GemDef.set_id")
+    needed_items: int = Field(
+        alias="neededItems", default=0, description="Set items and gems worn from which the bonuses apply"
+    )
+
+
 class LegendSkillDef(_Row):
     """One level of a legend skill, e.g. ``gateReduction``."""
 
@@ -823,12 +848,16 @@ class HorseStats(_Row):
         return value if isinstance(value, bool) else _parse_int_or_default(value, 0) != 0
 
 
-class DefaultLordDef(_Row):
+class DefaultLordDef(EffectSpecRow):
     """
-    A default lord.
+    A default commander, one of the negative commander ids.
 
-    These are the negative ``LID`` sentinels: -14 for "no commander" on a
-    support movement, -21 for the NPC that holds a camp, and so on.
+    -14 is the bought premium commander, -15 the commander of a robber baron
+    attack, -21 the NPC that holds a camp, and so on. Its ``effects`` name
+    equipment effect ids.
+
+    Client: ``DefaultLordVO.parseFromXml`` (bundle line 101999) parses each
+    effect with ``EquipmentBonusVO.parseEquipmentFromValueString``.
     """
 
     lord_id: int = Field(alias="lordID")
@@ -1106,6 +1135,7 @@ __all__ = [
     "GeneralAbilityDef",
     "RaidBossDef",
     "FortificationDef",
+    "EquipmentSetDef",
     "GemDef",
     "GeneralSkillDef",
     "GlobalEffectDef",

@@ -38,6 +38,7 @@ from .models import (
     EffectDef,
     EffectTypeDef,
     EquipmentEffectDef,
+    EquipmentSetDef,
     EventCampDef,
     FortificationDef,
     GemDef,
@@ -94,6 +95,7 @@ _CACHED_MODELS = (
     EffectTypeDef,
     EffectCapDef,
     EquipmentEffectDef,
+    EquipmentSetDef,
     GemDef,
     RelicEffectDef,
     FortificationDef,
@@ -284,6 +286,8 @@ class GameData(BaseModel):
     equipment_effects: dict[int, EquipmentEffectDef] = Field(default_factory=dict)
     relic_effects: dict[int, RelicEffectDef] = Field(default_factory=dict)
     gems: dict[int, GemDef] = Field(default_factory=dict)
+    equipment_sets: dict[int, list[EquipmentSetDef]] = Field(default_factory=dict)
+    """Each equipment set's threshold rows by set id, in the order listed."""
     fortifications: dict[int, FortificationDef] = Field(default_factory=dict)
     construction_items: dict[int, ConstructionItemDef] = Field(default_factory=dict)
     alliance_buffs: dict[int, AllianceBuffDef] = Field(default_factory=dict)
@@ -680,6 +684,9 @@ class GameData(BaseModel):
                 skipped += 1
         if skipped:
             logger.warning(f"Skipped {skipped} unparseable items entries (v{version})")
+        equipment_sets: dict[int, list[EquipmentSetDef]] = {}
+        for row in _rows(items_data.get("equipment_sets"), EquipmentSetDef):
+            equipment_sets.setdefault(row.set_id, []).append(row)
 
         return cls(
             version=version,
@@ -694,6 +701,7 @@ class GameData(BaseModel):
             },
             relic_effects={r.relic_effect_id: r for r in _rows(items_data.get("relicEffects"), RelicEffectDef)},
             gems={r.gem_id: r for r in _rows(items_data.get("gems"), GemDef)},
+            equipment_sets=equipment_sets,
             fortifications={
                 row.wod_id: row
                 for row in _rows(

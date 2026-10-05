@@ -12,6 +12,7 @@ from empire_core.combat import (
     attacker_flank_effects,
     commander_bonuses,
     construction_item_bonuses,
+    equipment_set_bonuses,
     general_passive_bonuses,
     general_skill_bonuses,
     global_effect_bonuses,
@@ -21,7 +22,7 @@ from empire_core.combat import (
     parse_effect_spec,
     sceat_skill_bonuses,
 )
-from empire_core.gamedata import GameData
+from empire_core.gamedata import EffectDef, GameData
 from empire_core.protocol.models import Commander
 
 # Effect ids invented for the test; effect *types* are the real ones.
@@ -406,6 +407,158 @@ class TestCommanderBonuses:
     def test_malformed_equipment_is_skipped(self):
         commander = Commander.model_validate({"ID": 1, "EQ": [[1, 2], "junk", [1, 2, 3, 4, 5, "not a list"]]})
         assert commander_bonuses(data(), commander) == []
+
+
+# The lords rows of items v786.03
+DEFAULT_LORDS = [
+    {"lordID": "-14", "type": "Premium", "wearerID": "2", "effects": "57&23,61&19,62&19"},
+    {
+        "lordID": "-15",
+        "generalID": "106",
+        "type": "Dungeongeneral",
+        "wearerID": "2",
+        "effects": "57&14,58&12,61&12,62&10",
+    },
+]
+
+
+def lords_data() -> GameData:
+    return GameData.parse("786.03", {**PAYLOAD, "lords": DEFAULT_LORDS})
+
+
+class TestDefaultCommanderBonuses:
+    """DefaultLordVO.getUniqueBoni: the lords row's effects, then E and AE."""
+
+    def test_a_robber_baron_attack_commander_has_its_row_effects(self):
+        commander = Commander.model_validate({"DLID": -15, "WID": 2})
+        assert commander_bonuses(lords_data(), commander) == [
+            Bonus(effect_id=57, value=14.0, via_equipment=True),
+            Bonus(effect_id=58, value=12.0, via_equipment=True),
+            Bonus(effect_id=61, value=12.0, via_equipment=True),
+            Bonus(effect_id=62, value=10.0, via_equipment=True),
+        ]
+
+    def test_the_premium_commander_has_its_row_effects_e_and_ae_and_no_equipment(self):
+        commander = Commander.model_validate(
+            {"ID": -14, "E": [[110, [5.0], "AB"]], "AE": [[120, [50.0], "RH"]], "EQ": [item(38, slot=1)]}
+        )
+        assert commander_bonuses(lords_data(), commander) == [
+            Bonus(effect_id=57, value=23.0, via_equipment=True),
+            Bonus(effect_id=61, value=19.0, via_equipment=True),
+            Bonus(effect_id=62, value=19.0, via_equipment=True),
+            Bonus(effect_id=110, value=5.0, raw_values=(5.0,)),
+            Bonus(effect_id=120, value=50.0, raw_values=(50.0,)),
+        ]
+
+    def test_aci_area_effects_replace_its_own(self):
+        commander = Commander.model_validate({"ID": -14, "AE": [[120, [50.0], "RH"]]})
+        aci = [Bonus(effect_id=121, value=3.0)]
+        assert commander_bonuses(lords_data(), commander, area_effects=aci)[-1] == aci[0]
+
+    def test_a_default_commander_without_a_row_grants_nothing(self):
+        commander = Commander.model_validate({"ID": -99, "E": [[110, [5.0], "AB"]]})
+        assert commander_bonuses(lords_data(), commander) == []
+
+
+SET_PAYLOAD = dict(
+    PAYLOAD,
+    effecttypes=[
+        *PAYLOAD["effecttypes"],
+        {"effectTypeID": "10", "name": "rangeBonus", "sortCategory": "1"},
+        {"effectTypeID": "179", "name": "attackUnitAmountReinforcementBonus", "sortCategory": "4"},
+        {"effectTypeID": "180", "name": "attackUnitAmountReinforcementBoost", "sortCategory": "4"},
+    ],
+    effects=[
+        *PAYLOAD["effects"],
+        {"effectID": "170", "name": "range", "effectTypeID": "10", "capID": "99"},
+        {"effectID": "171", "name": "yardBonus", "effectTypeID": "179", "capID": "99"},
+        {"effectID": "172", "name": "yardBoost", "effectTypeID": "180", "capID": "99"},
+    ],
+    equipment_sets=[
+        # Set 38 grants equipment effect 300 (melee) from 2 pieces and 301 (uncapped attack) from 3
+        {"ID": "1", "setID": "38", "neededItems": "2", "effects": "300&5"},
+        {"ID": "2", "setID": "38", "neededItems": "3", "effects": "301&7,300&1"},
+        {"ID": "3", "setID": "39", "neededItems": "1", "effects": "302&2"},
+    ],
+)
+
+
+def set_data() -> GameData:
+    return GameData.parse("test", SET_PAYLOAD)
+
+
+def item(set_id: int, gem_id: int = -1, slot: int = 1, equipment_type: int = 1) -> list:
+    return [1, slot, 2, 5, -1, [], -1, set_id, 0, -1, gem_id, equipment_type]
+
+
+class TestEquipmentSetBonuses:
+    def test_set_rows_are_grouped_by_set_in_order(self):
+        assert [row.needed_items for row in set_data().equipment_sets[38]] == [2, 3]
+
+    def test_worn_set_items_reach_each_threshold(self):
+        commander = Commander.model_validate({"ID": 1, "EQ": [item(38, slot=1), item(38, slot=2)]})
+        assert commander_bonuses(set_data(), commander) == [Bonus(effect_id=300, value=5.0, via_equipment=True)]
+
+        commander = Commander.model_validate({"ID": 1, "EQ": [item(38, slot=1), item(38, slot=2), item(38, slot=3)]})
+        assert equipment_set_bonuses(set_data(), commander.worn_items()) == [
+            Bonus(effect_id=300, value=5.0, via_equipment=True),
+            Bonus(effect_id=301, value=7.0, via_equipment=True),
+            Bonus(effect_id=300, value=1.0, via_equipment=True),
+        ]
+
+    def test_set_bonuses_come_after_the_area_effects(self):
+        commander = Commander.model_validate({"ID": 1, "AE": [[120, [50.0], "RH"]], "EQ": [item(39, slot=1)]})
+        assert commander_bonuses(set_data(), commander) == [
+            Bonus(effect_id=120, value=50.0, raw_values=(50.0,)),
+            Bonus(effect_id=302, value=2.0, via_equipment=True),
+        ]
+
+    def test_a_set_gem_counts_once_however_many_items_hold_it(self):
+        # Gem 400 belongs to set 38
+        one_item = Commander.model_validate({"ID": 1, "EQ": [item(38, gem_id=400, slot=1)]})
+        assert Bonus(effect_id=300, value=5.0, via_equipment=True) in commander_bonuses(set_data(), one_item)
+
+        two_gems = Commander.model_validate(
+            {"ID": 1, "EQ": [item(-1, gem_id=400, slot=1), item(-1, gem_id=400, slot=2)]}
+        )
+        assert equipment_set_bonuses(set_data(), two_gems.worn_items()) == []
+
+    def test_items_without_a_set_and_relic_gems_count_toward_none(self):
+        relic = [*item(38, gem_id=400, slot=2, equipment_type=3), [5, 2, 1200, []]]
+        commander = Commander.model_validate({"ID": 1, "EQ": [item(-1, slot=1), relic]})
+        assert equipment_set_bonuses(set_data(), commander.worn_items()) == []
+
+    def test_only_worn_items_count(self):
+        # Two items for the same slot: the later one is worn
+        commander = Commander.model_validate({"ID": 1, "EQ": [item(38, slot=1), item(38, slot=1)]})
+        assert equipment_set_bonuses(set_data(), commander.worn_items()) == []
+
+    def test_set_bonuses_resolve_through_the_equipment_effect_table(self):
+        commander = Commander.model_validate({"ID": 1, "EQ": [item(38, slot=1), item(38, slot=2), item(38, slot=3)]})
+        bonuses = commander_bonuses(set_data(), commander)
+        assert EffectResolver(set_data()).accumulate(bonuses, CombatEffectType.MELEE_BONUS) == 6.0
+        assert EffectResolver(set_data()).accumulate(bonuses, CombatEffectType.ATTACK_BONUS) == 7.0
+
+
+class TestAreaTypeBelowZero:
+    """``BonusVO.matchesConditions`` checks the area type and the space only above -1."""
+
+    def test_an_area_type_below_zero_keeps_every_effect(self):
+        bonuses = [Bonus(effect_id=150, value=10.0), Bonus(effect_id=151, value=5.0)]
+        resolver = EffectResolver(set_data())
+        castle = attacker_flank_effects(resolver, bonuses, area_type=1, player_target=True)
+        camp = attacker_flank_effects(resolver, bonuses, area_type=2, player_target=False)
+        assert (castle.melee_bonus, camp.melee_bonus) == (1.1, 1.05)
+        assert attacker_flank_effects(resolver, bonuses, area_type=-1, player_target=True).melee_bonus == 1.1
+        assert attacker_flank_effects(resolver, bonuses, area_type=-1).melee_bonus == 1.15
+        assert attacker_flank_effects(resolver, bonuses, area_type=-1) == attacker_flank_effects(resolver, bonuses)
+
+    def test_a_space_below_zero_keeps_every_effect(self):
+        effect = EffectDef.model_validate({"effectID": "160", "effectTypeID": "36", "spaceIDs": "10"})
+        assert not effect.applies_to_space(3)
+        assert effect.applies_to_space(10)
+        assert effect.applies_to_space(-1)
+        assert effect.applies_to_space(None)
 
 
 # =============================================================================

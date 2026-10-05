@@ -617,9 +617,37 @@ def commander_bonuses(
     ``E`` and ``AE``, which matters once a capped total mixes signs. The gems of
     alien equipment (``GEM``) count while ``AIE``/``TAE`` stand in for ``EQ``.
 
-    Still left out: equipment set bonuses, which the client works out from the
-    items and gems worn (``LordVO.setCounts``) rather than reading them from the
-    payload, so a commander wearing a full set resolves low.
+    The bonuses of the equipment sets worn (see :func:`equipment_set_bonuses`)
+    come last, after ``AE``, as the client adds them.
+
+    A default commander (``commander_id`` below 0, such as -14, the bought
+    premium commander, or -15, a robber baron attack's) has no slots and no
+    sets: its bonuses are its ``lords`` row's ``effects`` (see
+    ``GameData.get_default_lord``), which name equipment effect ids, then
+    ``E`` and ``AE``. Without a row the client builds no commander, so only
+    ``area_effects`` count. Client: ``LordFactory.createLord`` (bundle lines
+    26399-26401) returns ``CastleLordData.getDefaultLordByID`` for an id below
+    0; ``DefaultLordVO.parseFromXml`` (bundle lines 101999-102002) reads the
+    row and ``DefaultLordVO.getUniqueBoni`` (bundle lines 102005-102011) returns
+    its effects, ``E`` and ``AE``, with ``getCountOfSetId`` always 0 (bundle
+    line 102012).
+
+    A movement's ``commander`` resolves the same way. The client builds it from
+    the ``UM`` ``L`` block with ``LordFactory.createLord(e.L, true)``
+    (``BasicMapmovementVO.parseUnitMovement``, bundle line 19385), the factory
+    of the ``gli`` roster too, and shows its effects through the same
+    ``LordVO.getUniqueBoni`` (``CastleArmyListDialog.updateLord``, bundle line
+    95640, into ``LordEffectTooltip.createContent``, bundle line 65364) that the
+    attack dialog reads a roster commander's from (``CastleEffectsHelper``,
+    bundle line 4130). The movement tooltip leaves the general's passive
+    effects out and the attack dialog adds them (see
+    :func:`attack_dialog_bonuses`); a movement's commander carries its general's
+    ``general_skill_ids`` for that. Legend and sceat skills belong to the
+    attacking player, not the commander, and a movement does not carry them.
+
+    A movement's commander comes with the area effects (``AE``) of the castle
+    it was sent from, so it matches a roster commander resolved with that
+    castle's ``aci`` ``AE`` as ``area_effects``, not its bare ``gli`` entry.
 
     Client: ``LordVO.getUniqueBoni`` (bundle line 26496). The attack dialog
     replaces the commander's area effects with the ``aci`` ``AE`` list
@@ -628,12 +656,22 @@ def commander_bonuses(
     commander keeps its own ``gli`` ``AE`` when ``aci`` sends none.
 
     Args:
-        game_data: Loaded tables, for the gems
-        commander: The commander's ``gli`` entry
+        game_data: Loaded tables, for the gems and equipment sets
+        commander: The commander's ``gli`` entry, or a movement's ``commander``
         area_effects: The ``aci`` ``AE`` list, from
             ``GetAttackInfoResponse.attacker_bonuses()``. When it has entries
             they are used instead of the commander's own ``AE``
     """
+    if commander.commander_id < 0:
+        default = game_data.get_default_lord(commander.commander_id)
+        if default is None:
+            return list(area_effects or [])
+        return [
+            *(bonus.model_copy(update={"via_equipment": True}) for bonus in parse_effect_spec(default.raw_effects)),
+            *effect_bonuses(commander.effects),
+            *(area_effects if area_effects else effect_bonuses(commander.area_effects)),
+        ]
+
     bonuses: list[Bonus] = []
     for item in commander.worn_items():
         if item.is_relic:
@@ -657,7 +695,46 @@ def commander_bonuses(
 
     bonuses.extend(effect_bonuses(commander.effects))
     bonuses.extend(area_effects if area_effects else effect_bonuses(commander.area_effects))
+    bonuses.extend(equipment_set_bonuses(game_data, commander.worn_items()))
     return bonuses
+
+
+def equipment_set_bonuses(game_data: GameData, items: Iterable[Equipment]) -> list[Bonus]:
+    """
+    The bonuses of the equipment sets the worn items and their gems complete.
+
+    Each item whose ``set_id`` is not -1 counts once toward its set, and so does
+    each distinct gem slotted in an item whose gem row names a ``set_id`` above
+    0. A relic item's relic gem counts toward no set. Every threshold row of a
+    set (``GameData.equipment_sets``) whose ``needed_items`` the count reaches
+    grants its bonuses, which name equipment effect ids.
+
+    Client: ``LordVO.setCounts`` (bundle line 26576) and ``LordVO.getUniqueBoni``
+    (bundle lines 26510-26518). ``BasicEquipmentVO.hasSetbonus`` (bundle line
+    7213) reads ``setID != -1``; ``RelicGemVO`` keeps ``BasicEquippableVO``'s
+    ``setID`` of 0 (bundle line 4820). The alien equipment of ``AIE``/``TAE`` is
+    left out: the client counts it under set 0, which no set row uses.
+
+    Args:
+        game_data: Loaded tables, for the gems and equipment sets
+        items: The items worn, see ``Commander.worn_items``
+    """
+    counts: dict[int, int] = {}
+    gems_counted: set[int] = set()
+    for item in items:
+        if item.has_set:
+            counts[item.set_id] = counts.get(item.set_id, 0) + 1
+        gem = game_data.gems.get(item.gem_id) if item.relic_info is None and item.has_gem else None
+        if gem is not None and gem.set_id > 0 and gem.gem_id not in gems_counted:
+            gems_counted.add(gem.gem_id)
+            counts[gem.set_id] = counts.get(gem.set_id, 0) + 1
+    return [
+        bonus.model_copy(update={"via_equipment": True})
+        for set_id, count in counts.items()
+        for row in game_data.equipment_sets.get(set_id, [])
+        if row.needed_items <= count
+        for bonus in parse_effect_spec(row.raw_effects)
+    ]
 
 
 def gem_bonuses(game_data: GameData, item: Equipment) -> list[Bonus]:
@@ -766,7 +843,8 @@ def attacker_flank_effects(
     Args:
         resolver: Resolver over the loaded game data
         bonuses: The commander's bonuses, see :func:`attack_dialog_bonuses`
-        area_type: The target's area type, for scoping
+        area_type: The target's area type, for scoping, such as a movement's
+            ``target_type``; None or below 0 keeps every effect
         player_target: True when attacking a player. The client passes no
             filter strategy here, which keeps PvP and PvE effects alike; that
             is what None does
@@ -836,6 +914,7 @@ __all__ = [
     "attack_dialog_bonuses",
     "commander_bonuses",
     "effect_bonuses",
+    "equipment_set_bonuses",
     "gem_bonuses",
     "construction_item_bonuses",
     "general_passive_bonuses",
