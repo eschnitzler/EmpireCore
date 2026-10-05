@@ -177,6 +177,9 @@ when the callback runs, so the id alone cannot be resolved. `movement` is
 * `on_movement_recalled`: the `mcm` reply to your own recall, with the
   movement heading home.
 * `on_movement_removed`: the server sent `mrm`. It does not say why.
+* `on_incoming_attack_updated`: a later packet changed an announced attack's
+  army, arrival, target or commander gear; it takes the old and the new
+  `Movement`.
 * `on_incoming_attack_withdrawn`: `mrm` removed an attack `on_incoming_attack`
   announced more than two seconds before its estimated arrival. Derived from
   the arrival time; it takes the `Movement`.

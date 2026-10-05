@@ -56,6 +56,7 @@ class StateBase:
         # Arrival/recall listeners are stored with a flag saying whether they
         # also take the Movement (see MovementState._accepts_movement).
         self._incoming_attack_callbacks: list[Callable[[Movement], None]] = []
+        self._incoming_attack_updated_callbacks: list[Callable[[Movement, Movement], None]] = []
         self._incoming_attack_withdrawn_callbacks: list[Callable[[Movement], None]] = []
         self._movement_recalled_callbacks: list[tuple[MovementEventCallback, bool]] = []
         self._movement_arrived_callbacks: list[tuple[MovementEventCallback, bool]] = []

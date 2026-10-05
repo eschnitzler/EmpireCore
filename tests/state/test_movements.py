@@ -172,6 +172,132 @@ class TestWithdrawnAttacks:
             state.remove_incoming_attack_withdrawn_callback(withdrawn.append)
 
 
+class TestUpdatedAttacks:
+    """Later packets for an announced attack, compared field by field."""
+
+    @staticmethod
+    def wrapper(mid: int, extra: dict | None = None, **blocks) -> dict:
+        payload = gam_payload(mid, extra=extra)
+        payload["M"][0].update(blocks)
+        return payload
+
+    @staticmethod
+    def watch(state: GameState) -> list[tuple[Movement, Movement]]:
+        updates: list[tuple[Movement, Movement]] = []
+        state.on_incoming_attack_updated(lambda old, new: updates.append((old, new)))
+        return updates
+
+    @staticmethod
+    def settle(state: GameState) -> None:
+        marker = threading.Event()
+        state._dispatch_callback(marker.set)
+        assert marker.wait(2)
+
+    def test_the_army_becoming_visible_fires_once(self, state):
+        login(state)
+        updates = self.watch(state)
+        state.update_from_packet("gam", self.wrapper(170, GS=1200))
+        state.update_from_packet("gam", self.wrapper(170, GA={"L": [[1, 5]], "M": [[2, 7]]}))
+        state.update_from_packet("gam", self.wrapper(170, GA={"L": [[1, 5]], "M": [[2, 7]]}))
+        self.settle(state)
+        [(old, new)] = updates
+        assert (old.units, old.estimated_size) == ({}, 1200)
+        assert new.units == {1: 5, 2: 7}
+
+    def test_the_size_estimate_appearing_fires(self, state):
+        login(state)
+        updates = self.watch(state)
+        state.update_from_packet("gam", self.wrapper(171))
+        state.update_from_packet("gam", self.wrapper(171, GS=800))
+        self.settle(state)
+        assert [(old.estimated_size, new.estimated_size) for old, new in updates] == [(0, 800)]
+
+    def test_each_change_of_arrival_fires_once(self, state):
+        login(state)
+        updates = self.watch(state)
+        state.update_from_packet("gam", self.wrapper(172))
+        state.update_from_packet("gam", self.wrapper(172, extra={"TT": 300}))
+        state.update_from_packet("gam", self.wrapper(172, extra={"TT": 300}))
+        state.update_from_packet("gam", self.wrapper(172, extra={"TT": 100}))
+        self.settle(state)
+        assert [round(old.estimated_arrival - new.estimated_arrival) for old, new in updates] == [300, 200]
+
+    def test_time_passing_between_packets_is_not_a_change(self, state):
+        login(state)
+        updates = self.watch(state)
+        state.update_from_packet("gam", self.wrapper(173))
+        with later(30.9):
+            state.update_from_packet("gam", self.wrapper(173, extra={"PT": 30}))
+        self.settle(state)
+        assert updates == []
+
+    def test_a_new_target_fires(self, state):
+        login(state)
+        updates = self.watch(state)
+        state.update_from_packet("gam", self.wrapper(174, extra={"TA": [1, 10, 20, 5, 1]}))
+        state.update_from_packet("gam", self.wrapper(174, extra={"TA": [1, 30, 40, 6, 1]}))
+        self.settle(state)
+        [(old, new)] = updates
+        assert ((old.target_x, old.target_y), (new.target_x, new.target_y)) == ((10, 20), (30, 40))
+
+    def test_the_commander_gear_arriving_fires(self, state):
+        login(state)
+        updates = self.watch(state)
+        commander = {"L": {"ID": 4, "EQ": [[901, 2, 2, 3, 0, [[242, [25.0]]]]], "AE": [[426, [10.0], "GE"]]}}
+        state.update_from_packet("gam", self.wrapper(175))
+        state.update_from_packet("gam", self.wrapper(175, UM=commander))
+        state.update_from_packet("gam", self.wrapper(175))
+        self.settle(state)
+        [(old, new)] = updates
+        assert old.commander_equipment == [] and [item.equipment_id for item in new.commander_equipment] == [901]
+        assert state.movements[175].commander_effects == new.commander_effects
+
+    def test_nothing_fires_for_a_movement_never_announced(self, state):
+        login(state)
+        updates = self.watch(state)
+        for payload in (gam_payload(176, oid=1), gam_payload(177, movement_type=1)):
+            state.update_from_packet("gam", payload)
+            payload["M"][0]["M"]["TT"] = 100
+            state.update_from_packet("gam", payload)
+        self.settle(state)
+        assert updates == []
+
+    def test_nothing_fires_once_the_attack_has_arrived(self, state):
+        login(state)
+        updates = self.watch(state)
+        state.update_from_packet("gam", self.wrapper(178))
+        arrive(state, 178)
+        state.update_from_packet("gam", self.wrapper(178, extra={"TT": 900}))
+        self.settle(state)
+        assert updates == []
+
+    def test_the_announcement_comes_first_and_fires_once(self, state):
+        login(state)
+        events: list[str] = []
+        state.on_incoming_attack(lambda mov: events.append("incoming"))
+        state.on_incoming_attack_updated(lambda old, new: events.append("updated"))
+        state.update_from_packet("gam", self.wrapper(179))
+        state.update_from_packet("gam", self.wrapper(179, GS=50))
+        self.settle(state)
+        assert events == ["incoming", "updated"]
+
+    def test_a_removed_callback_no_longer_fires(self, state):
+        login(state)
+        updates: list[tuple[Movement, Movement]] = []
+
+        def callback(old: Movement, new: Movement) -> None:
+            updates.append((old, new))
+
+        state.on_incoming_attack_updated(callback)
+        state.remove_incoming_attack_updated_callback(callback)
+        state.update_from_packet("gam", self.wrapper(180))
+        state.update_from_packet("gam", self.wrapper(180, GS=50))
+        self.settle(state)
+        assert updates == []
+        with pytest.raises(ValueError):
+            state.remove_incoming_attack_updated_callback(callback)
+
+
 class TestMovementDirection:
     ME = 1
 
@@ -698,6 +824,7 @@ class TestCallbackRegistrationLocking:
         ("register", "remove"),
         [
             ("on_incoming_attack", "remove_incoming_attack_callback"),
+            ("on_incoming_attack_updated", "remove_incoming_attack_updated_callback"),
             ("on_incoming_attack_withdrawn", "remove_incoming_attack_withdrawn_callback"),
             ("on_movement_arrived", "remove_movement_arrived_callback"),
             ("on_movement_recalled", "remove_movement_recalled_callback"),
