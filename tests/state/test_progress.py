@@ -182,7 +182,7 @@ class TestModels:
         boosts = BoosterInfoResponse.model_validate(LOGIN["boi"])
         timed, permanent = boosts.boosters
         start = timed.received_at
-        assert timed.is_active(start + 3600) and not timed.is_active(start + 3601)
+        assert timed.is_active(start + 3599.5) and not timed.is_active(start + 3600.5)
         assert permanent.is_permanent and permanent.is_active(start + 10**9)
         assert permanent.remaining_seconds() == math.inf
 
