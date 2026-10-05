@@ -22,6 +22,7 @@ client.state.on_movement_arrived(on_arrived)
 | Register | Fires | Remove with |
 |---|---|---|
 | `on_incoming_attack(cb)` | Once per newly seen hostile attack | `remove_incoming_attack_callback` |
+| `on_incoming_attack_withdrawn(cb)` | When the server removes an announced attack before it arrives | `remove_incoming_attack_withdrawn_callback` |
 | `on_movement_arrived(cb)` | Once a movement's travel time is up | `remove_movement_arrived_callback` |
 | `on_movement_recalled(cb)` | On the reply to your own recall | `remove_movement_recalled_callback` |
 | `on_movement_removed(cb)` | When the server removes a movement (`mrm`) | `remove_movement_removed_callback` |
@@ -67,11 +68,19 @@ stateDiagram-v2
   `movement.is_returning` to tell the two apart.
 - **Removal.** `mrm` does not say why: a battle ending, a finished recall and a
   support sent home all look the same.
+- **Withdrawn attacks.** When `mrm` removes an attack that `on_incoming_attack`
+  announced and its travel time is not up yet, `on_incoming_attack_withdrawn`
+  fires with the attack, after `on_movement_removed`. Use it to retract an
+  alert. It is derived from the arrival time, not reported: neither the server
+  nor the game client says why a movement is removed. An attack removed within
+  two seconds of its `estimated_arrival` (which can run a second late), at or
+  after it, or one state no longer tracks, does not fire.
 
 ## Callback signatures
 
-`on_incoming_attack` callbacks take the `Movement`. Arrival, recall and removal
-callbacks take either the movement id alone or the id and the `Movement`:
+`on_incoming_attack` and `on_incoming_attack_withdrawn` callbacks take the
+`Movement`. Arrival, recall and removal callbacks take either the movement id
+alone or the id and the `Movement`:
 
 ```python
 def on_removed(movement_id): ...

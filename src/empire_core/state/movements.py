@@ -15,6 +15,10 @@ from empire_core.state.base import MovementEventCallback, StateBase
 
 logger = logging.getLogger(__name__)
 
+# Each packet anchors the arrival on its own receive time and whole seconds of
+# PT/TT, so an estimated arrival is only good to about a second either way.
+ETA_CHANGE_THRESHOLD = 2.0
+
 # A drifted movement schema would fail on every packet, so the warning is
 # rate-limited to one per this interval; the rest go to debug.
 MOVEMENT_PARSE_WARN_INTERVAL = 60.0
@@ -59,6 +63,33 @@ class MovementState(StateBase):
         """Unregister an incoming attack callback."""
         with self._lock:
             self._incoming_attack_callbacks.remove(callback)
+
+    def on_incoming_attack_withdrawn(self, callback: Callable[[Movement], None]) -> None:  # type: ignore[misc]
+        """Register a callback for announced attacks the server removes before they arrive.
+
+        Fires once, with the attack as state last had it, when ``mrm`` removes an
+        attack that :meth:`on_incoming_attack` announced while its travel time
+        is not up yet. An attack removed within two seconds of its estimated
+        arrival (``estimated_arrival`` can run a second late), at or after it,
+        or one state no longer tracks, does not fire.
+        :meth:`on_movement_removed` still fires for the same ``mrm``, first.
+
+        Derived, not reported: the server does not say why it removes a
+        movement, and neither does the client. ``CastleArmyData.parse_MRM``
+        (bundle line 133633) only drops it, and the client removes an arrived
+        movement on its own timer (``updateMapmovements``, bundle line 133670,
+        once ``currentProgress`` reaches 1), so a removal before arrival is the
+        attack turning back or being called off.
+
+        Runs on the callback thread, in packet order (see :class:`GameState`).
+        """
+        with self._lock:
+            self._incoming_attack_withdrawn_callbacks.append(callback)
+
+    def remove_incoming_attack_withdrawn_callback(self, callback: Callable[[Movement], None]) -> None:
+        """Unregister an incoming attack withdrawn callback."""
+        with self._lock:
+            self._incoming_attack_withdrawn_callbacks.remove(callback)
 
     def on_movement_recalled(self, callback: MovementEventCallback) -> None:  # type: ignore[misc]
         """Register a callback for your own recalled movements.
@@ -121,8 +152,9 @@ class MovementState(StateBase):
         """Register a callback for movements the server removes (``mrm``).
 
         The server does not say why: a battle ending, a finished recall and a
-        support sent home all look the same. ``movement`` is ``None`` if state
-        was not tracking it. Accepts either signature (see
+        support sent home all look the same; :meth:`on_incoming_attack_withdrawn`
+        tells an announced attack removed before it arrives. ``movement`` is
+        ``None`` if state was not tracking it. Accepts either signature (see
         :meth:`on_movement_arrived`).
 
         Runs on the callback thread, in packet order (see :class:`GameState`).
@@ -366,7 +398,9 @@ class MovementState(StateBase):
         """Handle mrm, the server removing a movement.
 
         The removed Movement is passed to callbacks that take it: it is gone
-        from state by the time they run.
+        from state by the time they run. An announced attack more than two
+        seconds short of its estimated arrival is also reported as withdrawn (see
+        :meth:`on_incoming_attack_withdrawn`).
 
         Client: ``CastleArmyData.parse_MRM``.
         """
@@ -375,9 +409,20 @@ class MovementState(StateBase):
             return
         mov = self.movements.pop(mid, None)
         self._movement_times.pop(mid, None)
+        withdrawn = (
+            mov is not None
+            and mid in self._announced_attacks
+            and mid not in self._arrival_dispatched
+            and time.time() < mov.estimated_arrival - ETA_CHANGE_THRESHOLD
+        )
         self._arrival_dispatched.discard(mid)
         self._announced_attacks.pop(mid, None)
         self._dispatch_movement_event(self._movement_removed_callbacks, mid, mov)
+        if withdrawn:
+            with self._lock:
+                withdrawn_callbacks = list(self._incoming_attack_withdrawn_callbacks)
+            for cb in withdrawn_callbacks:
+                self._dispatch_callback(cb, mov)
 
     def _handle_mfc(self, data: dict[str, Any]) -> None:
         """Handle mfc: the movement can now be force-cancelled.
