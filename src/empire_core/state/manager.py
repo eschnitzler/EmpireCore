@@ -311,6 +311,8 @@ class GameState(
                 ("acl", self._parse_chat_history(data)),
                 ("gli", self._parse_commanders(data)),
                 ("skl", self._parse_skills(data)),
+                # CastleVIPData.parse_VIP (bundle line 47527) ignores a vip that is not set
+                ("vip", isinstance(data.get("vip"), dict)),
             )
             if not applied
         }
@@ -409,6 +411,7 @@ class GameState(
 
         A section present but null still counts as applied: "gal": None means
         "you are in no alliance", which is information, not absence of it.
+        A null "vip" does not: the client ignores it.
         Sections carrying local-player fields also refresh the player stamp,
         but only once there is a player to attach it to.
         """

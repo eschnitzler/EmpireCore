@@ -12,6 +12,7 @@ Failure modes are kept distinct so callers can react to them individually:
 - ``EventNotRunningError``: a call needs an event that is not running.
 - ``ReplyMismatchError``: a reply answers another list than the one asked for.
 - ``UnsendableGoodsError``: a market send carries goods the client would not send.
+- ``PremiumCommanderCostError``: a send led by the premium commander may cost rubies.
 """
 
 from typing import Any
@@ -319,6 +320,27 @@ class UnsendableGoodsError(EmpireError, ValueError):
     def __init__(self, message: str, goods: Any):
         super().__init__(message)
         self.goods = goods
+
+
+class PremiumCommanderCostError(EmpireError, ValueError):
+    """A send led by the premium commander may cost rubies, and the caller did not allow it.
+
+    The client asks before such a send; pass ``spend_rubies=True`` to send it regardless.
+
+    Attributes:
+        free_premium_commanders: the free premium commanders left, None when not known
+
+    Client: ``CastlePostAttackDialog.startAttack`` (bundle line 38360) shows
+    ``CastleBuyTempCommanderDialog`` when no free premium commander is left.
+    """
+
+    def __init__(self, free_premium_commanders: int | None):
+        known = "is not known" if free_premium_commanders is None else f"is {free_premium_commanders}"
+        super().__init__(
+            f"Leading with the premium commander may cost rubies: the free premium commanders left {known}"
+            " and no premium account is known to run; pass spend_rubies=True to send anyway"
+        )
+        self.free_premium_commanders = free_premium_commanders
 
 
 class ReceiveThreadError(EmpireError):

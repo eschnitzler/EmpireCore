@@ -38,7 +38,11 @@ position in several kingdoms, `AmbiguousCastleError`.
 attack, `0` included, so there is no value that means "no commander". The
 server echoes the chosen one back in its reply (`CreateAttackResponse.leader`).
 `-14` with `use_premium_commander=True` leads with the premium commander, which
-uses one of your premium commanders or costs rubies.
+uses one of your free premium commanders or costs rubies. Where it may cost
+rubies `send_attack` raises `PremiumCommanderCostError` unless you pass
+`spend_rubies=True`; see [the premium commander](commanders.md#the-premium-commander).
+A conquer attack is checked the same way, although the game client sends most
+of them without the premium commander's rubies: the guide there has the gap.
 
 ## What the client checks, and so does the library
 

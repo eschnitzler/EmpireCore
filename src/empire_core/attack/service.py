@@ -290,6 +290,8 @@ class AttackService(BaseService):
         send_anyway: bool = False,
         min_soldiers: int | None = None,
         timeout: float = 5.0,
+        *,
+        spend_rubies: bool = False,
     ) -> bool:
         """
         Send an attack from a castle to a target position.
@@ -305,7 +307,16 @@ class AttackService(BaseService):
         and a castellan already posted to a castle is ``LORD_IS_USED`` (256).
         ``-14`` is the premium commander (``TravelConst.COMMANDER_PREMIUM``); the
         client sends it with ``BPC`` 1 (``use_premium_commander``), which uses a
-        premium commander or costs rubies, so it is never a default.
+        free premium commander or costs rubies, so it is never a default. Led by
+        it, the attack is refused before sending when it may cost rubies, unless
+        ``spend_rubies`` is True; see ``client.commanders.premium_send``.
+
+        Known gap: for a conquer attack (``AttackType.CONQUER``, which ``CastleAttackData.sendAttack``,
+        bundle line 133852, sends exactly when ``isConquerAttack``, bundle line 30550) the client sends
+        ``BPC`` 0 without asking for rubies, whichever commander leads, unless the target is a capital,
+        village, kings tower, resource isle, monument or laboratory (``CastlePostAttackDialog.startAttack``,
+        bundle line 38360). The target's area type is not known here, so such an attack is checked like
+        any other; ``use_premium_commander=False`` with ``spend_rubies=True`` sends what the client sends there.
 
         Args:
             source_x: Source absolute X coordinate
@@ -322,8 +333,8 @@ class AttackService(BaseService):
             horse_booster_id: Horse type for the speed bonus (-1 = none)
             feathers: Use feathers for the speed boost
             use_premium_commander: Lead with the premium commander (``commander_id``
-                -14). It uses one of your premium commanders, or costs rubies when
-                none are left; the client asks first, this does not
+                -14). It uses one of your free premium commanders, or costs rubies
+                when none is left and no premium account runs
             share_battle_view: Let others watch the battle
             loot_priority: Resource to loot first (``CombatConst.LOOT_PRIO_*``); the
                 client offers the choice from player level 20
@@ -343,6 +354,7 @@ class AttackService(BaseService):
                 ``combat.min_attack_soldiers(...)``; taken from ``capacity``
                 when not given. Without either nothing is checked
             timeout: Timeout in seconds
+            spend_rubies: Send with the premium commander even when it may cost rubies
 
         Returns:
             True when the server accepted the attack, False when it rejected it,
@@ -355,6 +367,10 @@ class AttackService(BaseService):
             AttackBelowMinimumError: The waves carry fewer units than
                 ``min_soldiers``, or than the minimum at ``capacity``'s level;
                 the client refuses such an attack
+            PremiumCommanderCostError: The premium commander leads, may cost rubies,
+                and ``spend_rubies`` is False
+            GameDataNotLoadedError: The premium commander leads, VIP time runs and
+                ``client.load_game_data()`` has not been called
             ValueError: No wave carries any units, or a container is overfull
             UnknownCastleError: No ``kingdom_id`` given and no area of yours in
                 the castle list is at the source position
@@ -406,14 +422,18 @@ class AttackService(BaseService):
             collector_booster=collector_booster or [],
             send_anyway=1 if send_anyway else 0,
         )
-        try:
-            self.client.send(request, wait=True, timeout=timeout)
-        except CommandError as e:
-            if e.error is GGEError.ATTACK_IN_PROGRESS:
-                raise AttackInProgressError(e.command, e.code, e.payload) from e
-            logger.warning(f"Action '{request.get_command()}' rejected: {e}")
-            return False
-        return True
+
+        def send() -> bool:
+            try:
+                self.client.send(request, wait=True, timeout=timeout)
+            except CommandError as e:
+                if e.error is GGEError.ATTACK_IN_PROGRESS:
+                    raise AttackInProgressError(e.command, e.code, e.payload) from e
+                logger.warning(f"Action '{request.get_command()}' rejected: {e}")
+                return False
+            return True
+
+        return self.client.commanders.premium_send(commander_id, use_premium_commander, send, spend_rubies=spend_rubies)
 
     def get_attack_info(
         self,

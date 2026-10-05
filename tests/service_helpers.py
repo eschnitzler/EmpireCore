@@ -254,6 +254,12 @@ class StubState:
     def get_castles(self) -> list[Castle]:
         return list(self.castles)
 
+    def get_boosts(self) -> None:
+        return None
+
+    def get_last_packet_time(self, cmd_id: str) -> None:
+        return None
+
     def get_all_movements(self) -> list:
         self.events.append("get_all_movements")
         return list(self.movements)

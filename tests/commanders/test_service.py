@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Any
 
 import pytest
 
-from empire_core.exceptions import CommandError
+from empire_core.commanders import PREMIUM_COMMANDER_ID
+from empire_core.enums import Kingdom
+from empire_core.exceptions import CommandError, GameDataNotLoadedError, PremiumCommanderCostError
+from empire_core.gamedata import GameData
 from empire_core.protocol.models import EquipmentSlot, EquipmentType, WearerType
-from tests.service_helpers import conn, make_client, xt_packet
+from empire_core.state.manager import GameState
+from tests.service_helpers import conn, make_client, wave, xt_packet
 
 
 class TestSkillListUpdates:
@@ -281,3 +286,233 @@ class TestEquipmentService:
         client = make_client({"eeq": xt_packet("eeq", error_code=21)})
 
         assert client.equipment.equip(equipment_id=880, commander_id=91) is False
+
+
+# Two viplevels rows as the items payload has them: below level 5 there is no freePremiumGeneralsPerDay.
+VIP_LEVELS = [
+    {"vipLevelID": "4", "thresholdMin": "3000", "thresholdMax": "7999", "attackSpeedBoost": "15"},
+    {"vipLevelID": "5", "thresholdMin": "8000", "thresholdMax": "19999", "freePremiumGeneralsPerDay": "25"},
+]
+
+
+def premium_client(vip: dict[str, Any] | None = None, boi: dict[str, Any] | None = None, *, game_data: bool = True):
+    state = GameState()
+    login: dict[str, Any] = {"gpi": {"PID": 7}}
+    if vip is not None:
+        login["vip"] = vip
+    if boi is not None:
+        login["boi"] = boi
+    state.update_from_packet("gbd", login)
+    client = make_client(state=state)  # type: ignore[arg-type]
+    if game_data:
+        client.game_data = GameData.parse("786.03", {"viplevels": VIP_LEVELS})
+    return client
+
+
+class TestFreePremiumCommanders:
+    """``CastleVIPData.remainingPremiumCommanders``: the active VIP level's free ones a day less ``UPG``."""
+
+    def test_the_vip_level_free_ones_less_those_used(self):
+        client = premium_client({"VP": 9000, "VRL": 5, "VRS": 3600, "UPG": 3})
+
+        assert client.commanders.free_premium_commanders() == 22
+        assert client.commanders.premium_commander_is_free()
+
+    def test_a_level_without_free_ones_has_none(self):
+        client = premium_client({"VP": 5000, "VRL": 4, "VRS": 3600, "UPG": 0})
+
+        assert client.commanders.free_premium_commanders() == 0
+
+    def test_points_above_the_top_level_count_as_the_top_level(self):
+        client = premium_client({"VP": 900000, "VRL": 5, "VRS": 3600, "UPG": 0})
+
+        assert client.commanders.free_premium_commanders() == 25
+
+    def test_none_without_vip_time(self):
+        client = premium_client({"VP": 9000, "VRL": 5, "VRS": 0, "UPG": 0}, game_data=False)
+
+        assert client.commanders.free_premium_commanders() == 0
+
+    def test_vip_time_runs_out_from_when_it_was_read(self):
+        client = premium_client({"VP": 9000, "VRL": 5, "VRS": 60, "UPG": 0})
+        read_at = client.state.get_last_packet_time("vip")
+        assert read_at is not None
+
+        assert client.commanders.free_premium_commanders(now=read_at + 59) == 25
+        assert client.commanders.free_premium_commanders(now=read_at + 60) == 0
+
+    def test_all_used_is_zero(self):
+        client = premium_client({"VP": 9000, "VRL": 5, "VRS": 3600, "UPG": 30})
+
+        assert client.commanders.free_premium_commanders() == 0
+        assert not client.commanders.premium_commander_is_free()
+
+    def test_unknown_before_the_vip_section(self):
+        client = premium_client()
+
+        assert client.commanders.free_premium_commanders() is None
+        assert not client.commanders.premium_commander_is_free()
+
+    def test_vip_time_needs_the_game_data(self):
+        client = premium_client({"VP": 9000, "VRL": 5, "VRS": 3600, "UPG": 0}, game_data=False)
+
+        with pytest.raises(GameDataNotLoadedError):
+            client.commanders.free_premium_commanders()
+
+    def test_a_vip_push_updates_the_count(self):
+        client = premium_client({"VP": 9000, "VRL": 5, "VRS": 3600, "UPG": 0})
+
+        client.state.update_from_packet("vip", {"VP": 9000, "VRL": 5, "VRS": 3500, "UPG": 1})
+
+        assert client.commanders.free_premium_commanders() == 24
+
+    def test_a_premium_account_makes_it_free(self):
+        # CastlePostAttackDialog.startAttack: the cost is 0 while premiumAccountVO.isActive
+        client = premium_client({"VP": 0, "VRL": 0, "VRS": 0, "UPG": 0}, {"PA": 3600, "PT": 1}, game_data=False)
+
+        assert client.commanders.free_premium_commanders() == 0
+        assert client.commanders.premium_commander_is_free()
+
+
+class TestPremiumCommanderSends:
+    NO_FREE = {"VP": 9000, "VRL": 5, "VRS": 3600, "UPG": 25}
+    FREE = {"VP": 9000, "VRL": 5, "VRS": 3600, "UPG": 0}
+
+    @staticmethod
+    def send_support(client, **options: Any) -> bool:
+        return client.castle.send_support(12345, 700, 710, [[487, 1]], **options)
+
+    @staticmethod
+    def send_troops(client, **options: Any) -> bool:
+        return client.castle.send_troops(100, 200, 110, 205, [[620, 1]], **options)
+
+    @staticmethod
+    def send_attack(client, **options: Any) -> bool:
+        waves = [wave(units=[[487, 1]])]
+        return client.attack.send_attack(500, 510, 700, 710, waves, kingdom_id=Kingdom.GREEN, **options)
+
+    SENDS = [send_support, send_troops, send_attack]
+
+    @pytest.mark.parametrize("send", SENDS)
+    def test_none_free_is_refused_before_sending(self, send):
+        client = premium_client(self.NO_FREE)
+
+        with pytest.raises(PremiumCommanderCostError) as raised:
+            send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True)
+
+        assert raised.value.free_premium_commanders == 0
+        assert conn(client).request_payloads == []
+
+    @pytest.mark.parametrize("send", SENDS)
+    def test_the_premium_commander_id_alone_counts(self, send):
+        client = premium_client(self.NO_FREE)
+
+        with pytest.raises(PremiumCommanderCostError):
+            send(client, commander_id=PREMIUM_COMMANDER_ID)
+
+        assert conn(client).request_payloads == []
+
+    @pytest.mark.parametrize("send", SENDS)
+    def test_unknown_is_refused(self, send):
+        client = premium_client()
+
+        with pytest.raises(PremiumCommanderCostError) as raised:
+            send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True)
+
+        assert raised.value.free_premium_commanders is None
+
+    @pytest.mark.parametrize("send", SENDS)
+    def test_spend_rubies_sends_anyway(self, send):
+        client = premium_client(self.NO_FREE)
+
+        assert send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True, spend_rubies=True)
+
+        assert conn(client).request_payloads[0][1]["BPC"] == 1
+
+    @pytest.mark.parametrize("send", SENDS)
+    def test_a_free_one_sends(self, send):
+        client = premium_client(self.FREE)
+
+        assert send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True)
+
+        assert (conn(client).request_payloads[0][1]["LID"], conn(client).request_payloads[0][1]["BPC"]) == (-14, 1)
+
+    @pytest.mark.parametrize("send", SENDS)
+    def test_a_premium_account_sends(self, send):
+        client = premium_client(self.NO_FREE, {"PA": 3600, "PT": 1})
+
+        assert send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True)
+
+    @pytest.mark.parametrize("send", SENDS)
+    def test_another_commander_is_not_checked(self, send):
+        client = premium_client()
+
+        assert send(client, commander_id=5)
+
+        assert conn(client).request_payloads[0][1]["BPC"] == 0
+
+
+class TestOwnPremiumSends:
+    """Library policy: an accepted premium send counts as used until the next vip, as cra and cds bring none."""
+
+    ONE_FREE = {"VP": 9000, "VRL": 5, "VRS": 3600, "UPG": 24}
+
+    @staticmethod
+    def send_support(client, **options: Any) -> bool:
+        return client.castle.send_support(
+            12345, 700, 710, [[487, 1]], commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True, **options
+        )
+
+    def test_an_accepted_send_counts_until_the_next_vip(self):
+        client = premium_client(self.ONE_FREE)
+
+        assert self.send_support(client)
+        assert client.commanders.free_premium_commanders() == 0
+        with pytest.raises(PremiumCommanderCostError):
+            self.send_support(client)
+
+        client.state.update_from_packet("vip", {"VP": 9000, "VRL": 5, "VRS": 3500, "UPG": 23})
+        assert client.commanders.free_premium_commanders() == 2
+
+    def test_a_refused_send_is_not_counted(self):
+        client = premium_client(self.ONE_FREE)
+        client.connection = conn(make_client({"cds": xt_packet("cds", error_code=5)}))
+
+        assert not self.send_support(client)
+        assert client.commanders.free_premium_commanders() == 1
+
+    def test_a_send_with_a_premium_account_is_not_counted(self):
+        client = premium_client(self.ONE_FREE, {"PA": 3600, "PT": 1})
+
+        assert self.send_support(client)
+        assert client.commanders.free_premium_commanders() == 1
+
+    def test_a_send_with_another_commander_is_not_counted(self):
+        client = premium_client(self.ONE_FREE)
+
+        assert client.castle.send_support(12345, 700, 710, [[487, 1]], commander_id=5)
+        assert client.commanders.free_premium_commanders() == 1
+
+    def test_two_sends_at_once_cannot_both_take_the_last_free_one(self):
+        client = premium_client(self.ONE_FREE)
+        second: list[BaseException] = []
+
+        def other_send() -> None:
+            try:
+                client.commanders.premium_send(PREMIUM_COMMANDER_ID, True, lambda: True, spend_rubies=False)
+            except PremiumCommanderCostError as error:
+                second.append(error)
+
+        thread = threading.Thread(target=other_send)
+
+        def first_send() -> bool:
+            thread.start()
+            thread.join(0.2)
+            assert thread.is_alive()
+            return True
+
+        assert client.commanders.premium_send(PREMIUM_COMMANDER_ID, True, first_send, spend_rubies=False)
+        thread.join(5)
+
+        assert len(second) == 1
+        assert "no premium account is known to run" in str(second[0])

@@ -52,6 +52,7 @@ classDiagram
     EmpireError <|-- UnknownCastleError
     EmpireError <|-- AmbiguousCastleError
     EmpireError <|-- UnsendableGoodsError
+    EmpireError <|-- PremiumCommanderCostError
 ```
 
 | Error | When |
@@ -71,6 +72,7 @@ classDiagram
 | `UnknownCastleError` | A castle id, or a source position, is not one of your castles; also a `ValueError` |
 | `AmbiguousCastleError` | A castle id or position matches your castles in several kingdoms; also a `LookupError` |
 | `UnsendableGoodsError` | A [market send](castle.md#goods-one-tab-per-send) carries goods the client would not send; also a `ValueError` |
+| `PremiumCommanderCostError` | A send led by the [premium commander](commanders.md#the-premium-commander) may cost rubies and `spend_rubies` is not set; also a `ValueError` |
 
 The library does not leak `pydantic.ValidationError` or raw socket exceptions
 past its own API: catching `EmpireError` covers everything.

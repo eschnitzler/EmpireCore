@@ -672,12 +672,18 @@ class CastleService(BaseService):
         feathers: bool = False,
         slowdown: int = 0,
         timeout: float = 5.0,
+        *,
+        spend_rubies: bool = False,
     ) -> bool:
         """
         Send support troops from a castle to a target location.
 
         The server refuses a support to your own area with NO_SELF_DESTRUCTION
         (92); move troops between your own areas with :meth:`send_troops`.
+
+        A support led by the premium commander is refused before sending when it
+        may cost rubies, unless ``spend_rubies`` is True; see
+        ``client.commanders.premium_send``.
 
         Args:
             source_castle_id: The castle the troops leave from, one of yours: ``CastleInfo.castle_id``
@@ -692,13 +698,20 @@ class CastleService(BaseService):
                 (with none picked it leads with the premium one, ``-14``)
             wait_time: Station duration in hours (0-12, default: 12)
             use_premium_commander: Lead with the premium commander (``commander_id``
-                -14). It uses one of your premium commanders, or costs rubies when
-                none are left; the client asks first, this does not
+                -14). It uses one of your free premium commanders, or costs rubies
+                when none is left and no premium account runs
             horse_booster_id: Type of horses for speed bonus (-1 = none, default: -1);
                 sent as -1 whenever feathers are used, as the client does
             feathers: Pay for the movement with feathers
             slowdown: Movement slowdown modifier (0 = none, default: 0)
             timeout: Timeout in seconds
+            spend_rubies: Send with the premium commander even when it may cost rubies
+
+        Raises:
+            PremiumCommanderCostError: The premium commander leads, may cost rubies,
+                and ``spend_rubies`` is False
+            GameDataNotLoadedError: The premium commander leads, VIP time runs and
+                ``client.load_game_data()`` has not been called
         """
         request = SendSupportRequest(
             source_castle_id=source_castle_id,
@@ -712,7 +725,12 @@ class CastleService(BaseService):
             slowdown=slowdown,
             commander_id=commander_id,
         )
-        return self.execute(request, timeout=timeout)
+        return self.client.commanders.premium_send(
+            commander_id,
+            use_premium_commander,
+            lambda: self.execute(request, timeout=timeout),
+            spend_rubies=spend_rubies,
+        )
 
     def send_troops(
         self,
@@ -725,6 +743,7 @@ class CastleService(BaseService):
         *,
         kingdom_id: Kingdom = Kingdom.GREEN,
         use_premium_commander: bool = False,
+        spend_rubies: bool = False,
         horse_booster_id: int = -1,
         feathers: bool = False,
         slowdown: int = 0,
@@ -764,13 +783,20 @@ class CastleService(BaseService):
                 starting one
             kingdom_id: The kingdom both areas sit in
             use_premium_commander: Lead with the premium commander (``commander_id``
-                -14). It uses one of your premium commanders, or costs rubies when
-                none are left; the client asks first, this does not
+                -14). It uses one of your free premium commanders, or costs rubies
+                when none is left and no premium account runs
+            spend_rubies: Send with the premium commander even when it may cost rubies
             horse_booster_id: The horse's wod id, -1 for none; sent as -1 whenever
                 feathers are used, as the client does
             feathers: Pay for the horse with feathers
             slowdown: Seconds to delay the arrival by
             timeout: Timeout in seconds
+
+        Raises:
+            PremiumCommanderCostError: The premium commander leads, may cost rubies,
+                and ``spend_rubies`` is False; see ``client.commanders.premium_send``
+            GameDataNotLoadedError: The premium commander leads, VIP time runs and
+                ``client.load_game_data()`` has not been called
         """
         request = SendTroopsRequest(
             source_x=source_x,
@@ -785,7 +811,12 @@ class CastleService(BaseService):
             slowdown=slowdown,
             units=units,
         )
-        return self.execute(request, timeout=timeout)
+        return self.client.commanders.premium_send(
+            commander_id,
+            use_premium_commander,
+            lambda: self.execute(request, timeout=timeout),
+            spend_rubies=spend_rubies,
+        )
 
     def transfer_units_to_kingdom(
         self,

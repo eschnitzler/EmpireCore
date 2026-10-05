@@ -55,6 +55,7 @@ from .models import (
     ToolCategoryDef,
     ToolStats,
     UnitStats,
+    VipLevelDef,
     parse_ids,
     parse_stacks,
 )
@@ -111,6 +112,7 @@ __all__ = [
     "ToolCategoryDef",
     "ToolStats",
     "UnitStats",
+    "VipLevelDef",
     "default_cache_dir",
     "parse_ids",
     "parse_stacks",

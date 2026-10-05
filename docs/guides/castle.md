@@ -105,6 +105,10 @@ client.castle.send_troops(
 )
 ```
 
+Led by the premium commander, a support or troop send that may cost rubies
+raises `PremiumCommanderCostError` unless you pass `spend_rubies=True`; see
+[the premium commander](commanders.md#the-premium-commander).
+
 ### Goods, one tab per send
 
 The game's send dialog offers goods on three tabs, and the server refuses a

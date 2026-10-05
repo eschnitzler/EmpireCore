@@ -281,6 +281,7 @@ class TestSendTroops:
             commander_id=-14,
             kingdom_id=Kingdom.ICE,
             use_premium_commander=True,
+            spend_rubies=True,
             horse_booster_id=3,
             slowdown=60,
         )
