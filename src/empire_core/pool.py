@@ -70,7 +70,9 @@ class AccountPool:
         holder's handle from the next one's: release a manual handle once, and
         never after its lease ended.
 
-        The client is handed over as it is: callbacks a leaseholder registered
+        Release ends the streams a leaseholder opened with
+        :meth:`EmpireClient.listen`. Otherwise the client is handed over as it
+        is: callbacks a leaseholder registered
         (``on_disconnect``, ``on_incoming_attack`` and the like) stay
         registered and fire during the next lease. Remove them before
         releasing, or release with ``logout=True`` to close the client.
@@ -369,6 +371,7 @@ class AccountPool:
                 self._safe_close(client)
             return
 
+        client.close_streams()
         if logout:
             # Always close: a client leased with login=False (or whose login
             # failed) still holds an open websocket and receive thread.

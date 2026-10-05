@@ -6,6 +6,10 @@
 
 ::: empire_core.client.client
 
+## `client.stream`
+
+::: empire_core.client.stream
+
 ## `config`
 
 ::: empire_core.config

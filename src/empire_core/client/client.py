@@ -7,6 +7,7 @@ host event loop.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 import time
@@ -14,14 +15,16 @@ import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from pathlib import Path
 from types import TracebackType
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar, cast, overload
 
 from pydantic import ValidationError
+from typing_extensions import Unpack
 
 from empire_core.alliance.service import AllianceService
 from empire_core.army.service import ArmyService
 from empire_core.attack.service import AttackService
 from empire_core.castle.service import CastleService
+from empire_core.client.stream import Args, EventStream, callback_sources
 from empire_core.commanders.service import CommandersService, EquipmentService, SkillsService
 from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, default_config, generate_session_id
 from empire_core.defense.service import DefenseService
@@ -174,6 +177,8 @@ class EmpireClient:
         # not hold on free-threaded builds.
         self._handlers: dict[str, list[Callable[[BaseResponse], None]]] = {}
         self._handlers_lock = threading.Lock()
+        self._streams: set[EventStream] = set()
+        self._streams_lock = threading.Lock()
 
         # Wire up packet handler for state updates
         self.connection.on_packet = self._on_packet
@@ -347,6 +352,78 @@ class EmpireClient:
     def remove_disconnect_callback(self, callback: Callable[[], None]) -> None:
         """Remove a callback added with :meth:`on_disconnect`; unknown callbacks are ignored."""
         self.connection.remove_disconnect_listener(callback)
+
+    @overload
+    def listen(
+        self, source: Callable[[Callable[[Unpack[Args]], Any]], None], /, *, maxsize: int = 0
+    ) -> EventStream[Unpack[Args]]: ...
+
+    @overload
+    def listen(
+        self, *sources: Callable[[Callable[..., Any]], None], maxsize: int = 0
+    ) -> EventStream[Unpack[tuple[Any, ...]]]: ...
+
+    def listen(self, *sources: Callable[..., None], maxsize: int = 0) -> EventStream[Unpack[tuple[Any, ...]]]:
+        """Stream callback calls to the running event loop: every registration's, or those of ``sources``.
+
+        Call it from a coroutine; the stream delivers on that coroutine's loop. ``sources``
+        are the registration methods themselves (``client.state.on_incoming_attack``,
+        ``client.alliance.on_chat_message``, ...): any ``on_<name>`` of the client, its state
+        or a service that has a ``remove_<name>_callback``. Each event is a
+        :class:`~empire_core.client.stream.ClientEvent` named after its registration. A stream
+        of one registration types its events' ``args`` as that registration's callback
+        parameters: ``client.listen(client.state.on_incoming_attack_updated)`` yields
+        ``ClientEvent[Movement, Movement]``. The movement callbacks, which take either
+        ``(movement_id)`` or ``(movement_id, movement)``, and streams of several
+        registrations yield untyped ``args``.
+
+        The stream listens inside ``async with`` only: entering it subscribes, leaving it
+        stops listening, and iterating a stream that was not entered raises ``RuntimeError``.
+        Inside the block it outlives sessions, as callbacks do: a dropped session is a
+        ``"disconnect"`` event, and after :meth:`close` and a new :meth:`login` the stream
+        delivers the new session's events. Only leaving the block, ``stream.close()`` and
+        :meth:`close_streams` end it.
+
+        Nothing is dropped while the loop keeps up. A ``maxsize`` above 0 caps the events
+        waiting unread: one more stops the stream, which raises
+        :class:`~empire_core.exceptions.EventStreamOverflowError` once the consumer reaches it.
+
+        Raises:
+            RuntimeError: No event loop is running.
+            ValueError: A source is not a callback registration of this client.
+
+        Example::
+
+            async with client.listen(client.state.on_incoming_attack) as attacks:
+                async for attack in attacks:
+                    (movement,) = attack.args
+        """
+        loop = asyncio.get_running_loop()
+        known = {source.register: source for source in callback_sources(self).values()}
+        if unknown := [source for source in sources if source not in known]:
+            raise ValueError(f"not callback registrations of this client: {unknown}")
+        chosen = [known[source] for source in dict.fromkeys(sources)] if sources else list(known.values())
+        return EventStream(self, chosen, loop, maxsize)
+
+    def close_streams(self) -> None:
+        """End every stream of :meth:`listen` still listening, after the events already on their way.
+
+        :meth:`close` leaves streams listening, as it leaves callbacks registered. A client
+        handed on to other code, as an :class:`~empire_core.pool.AccountPool` release does,
+        calls this so no stream of the previous holder keeps queueing.
+        """
+        with self._streams_lock:
+            streams = list(self._streams)
+        for stream in streams:
+            stream._finish()
+
+    def _remember_stream(self, stream: EventStream) -> None:
+        with self._streams_lock:
+            self._streams.add(stream)
+
+    def _forget_stream(self, stream: EventStream) -> None:
+        with self._streams_lock:
+            self._streams.discard(stream)
 
     def login(self, recaptcha_token: str | Callable[[], str] | None = None) -> bool:
         """
@@ -568,6 +645,8 @@ class EmpireClient:
         """Disconnect from the server and release background resources.
 
         Safe to call more than once, and safe to call after a failed login.
+        Registered callbacks and the streams of :meth:`listen` stay, as on a
+        dropped session: they keep working after the next :meth:`login`.
         """
         self.is_logged_in = False
         # Disconnect first: shutting the state executor down while packets can

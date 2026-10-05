@@ -66,7 +66,8 @@ changes nothing and logs a warning.
     The next leaseholder gets the client as you left it. Callbacks you
     registered on it (`client.on_disconnect`, `client.state.on_incoming_attack`
     and the like) keep firing during their lease. Remove them before the
-    `with` block ends, or release with `logout=True`.
+    `with` block ends, or release with `logout=True`. Streams of
+    `client.listen()` are the exception: release ends them.
 
 ## Where accounts come from
 

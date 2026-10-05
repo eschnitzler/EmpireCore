@@ -17,6 +17,7 @@ from empire_core.alliance.models.info import AllianceInfo, AllianceMember
 from empire_core.army.models.units import AttackWave, WaveFlank
 from empire_core.castle.models.castles import CastleInfo
 from empire_core.client.client import EmpireClient
+from empire_core.client.stream import ClientEvent, EventStream
 from empire_core.commanders.models.equipment import Equipment
 from empire_core.commanders.models.roster import Castellan, Commander
 from empire_core.config import EmpireConfig, NetworkInstance, fetch_network_instances, parse_network_instances
@@ -46,6 +47,7 @@ from empire_core.exceptions import (
     EmpireError,
     EmpireTimeoutError,
     EventNotRunningError,
+    EventStreamOverflowError,
     GameDataNotLoadedError,
     LoginCooldownError,
     LoginError,
@@ -83,6 +85,8 @@ except PackageNotFoundError:  # pragma: no cover - exercised in tests via monkey
 
 __all__ = [
     "EmpireClient",
+    "ClientEvent",
+    "EventStream",
     "EmpireConfig",
     "NetworkInstance",
     "fetch_network_instances",
@@ -110,6 +114,7 @@ __all__ = [
     "UnknownCastleError",
     "AmbiguousCastleError",
     "EventNotRunningError",
+    "EventStreamOverflowError",
     "ReplyMismatchError",
     "UnsendableGoodsError",
     "PremiumCommanderCostError",

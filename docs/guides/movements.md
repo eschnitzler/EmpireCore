@@ -109,6 +109,8 @@ State callbacks run one at a time on a single callback thread, in the order
 their packets arrived, never on the receive thread. A callback may make a
 request and wait for its reply, but every callback queued behind it waits too,
 so hand long work to another thread.
+On an event loop, `client.listen()` delivers the same calls as an
+`async for` stream; see [From an asyncio program](game-state.md#from-an-asyncio-program).
 
 The callbacks survive a disconnect and keep working after the next login. When
 the connection drops, state is emptied until the login refills it; see

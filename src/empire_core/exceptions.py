@@ -355,3 +355,11 @@ class ReceiveThreadError(EmpireError):
 
 class MessageUnavailableError(CommandError):
     """Raised when a message cannot be read: error 66 (no such message) or 225 (too old to read)."""
+
+
+class EventStreamOverflowError(EmpireError):
+    """Raised by an :class:`~empire_core.client.stream.EventStream` given a ``maxsize`` once that
+    many events waited unread: the stream has stopped listening, after the events it holds.
+
+    Read the state you need again and open a new stream.
+    """
