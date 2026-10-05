@@ -83,6 +83,13 @@ for result in client.alliance.search_alliances("PACT"):
 for any alliance, and `client.alliance.local_alliance_id` is your own alliance's
 id, or `None` outside one.
 
+A member's protection times count from when the reply was read (`received_at`,
+in `time.monotonic()` seconds): `revenge_protection_end` and
+`beginner_protection_end` stay fixed, and
+`remaining_revenge_protection_seconds()` counts down; `has_bird` and
+`has_beginner_protection` turn False once the time runs out. A player from
+`client.player.get_player_info` has the same on its `owner`.
+
 `client.state.get_own_alliance()` is your alliance's details as the login data
 and the replies since left them (a chat message marks its sender online), or
 `None` outside one, without a request.

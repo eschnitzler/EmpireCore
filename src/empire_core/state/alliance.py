@@ -17,7 +17,6 @@ _KEPT_WHEN_NULL = ("AA", "AW", "AP")
 # ... and when it sends them falsy
 _KEPT_WHEN_FALSY = ("STO", "ACLS", "aee")
 _FORGE_KEYS = ("MF", "IF", "SRFU", "HRFU")
-_AMI_LOGIN_ACTIVITY = 4
 
 
 class AllianceState(StateBase):
@@ -115,7 +114,8 @@ class AllianceState(StateBase):
 
         Client: ``CastleChatData.parseSingleMessage`` (bundle line 111288), from ``ACMCommand``
         (bundle line 121317): it appends the message, then sets the sender's ``AMI`` login
-        activity to ``ONLINESTATE_ONLINE`` when the player id is 0 or more
+        activity to ``ONLINESTATE_ONLINE`` when the player id is 0 or more, and changes nothing else
+        about the members (``AllianceInfoVO.getOnlineUserList``, bundle line 25980)
         """
         block = data.get("CM") if isinstance(data, dict) else None
         if not isinstance(block, dict):
@@ -124,22 +124,13 @@ class AllianceState(StateBase):
         if message is None:
             return
         self.alliance_chat = (*self.alliance_chat, message)
-        raw = self._own_alliance_raw
-        if message.player_id < 0 or raw is None or not isinstance(rows := raw.get("AMI"), list):
+        alliance = self.own_alliance
+        if message.player_id < 0 or alliance is None:
             return
-        index = next(
-            (
-                i
-                for i in range(len(rows) - 1, -1, -1)
-                if isinstance(rows[i], list) and rows[i] and js_int(rows[i][0]) == message.player_id
-            ),
-            None,
-        )
-        if index is None:
-            return
-        row = list(rows[index]) + [0] * max(0, _AMI_LOGIN_ACTIVITY + 1 - len(rows[index]))
-        row[_AMI_LOGIN_ACTIVITY] = int(OnlineState.ONLINE)
-        self._store_own_alliance({**raw, "AMI": [*rows[:index], row, *rows[index + 1 :]]})
+        info = next((i for i in reversed(alliance.member_info) if i.player_id == message.player_id), None)
+        if info is not None:
+            # The row the members share, set in place: rebuilding the members would restart their protection times
+            info.login_activity = int(OnlineState.ONLINE)
 
     def get_own_alliance(self) -> AllianceInfo | None:
         """Your alliance's details and members, from the last ``ain`` about it; None in no alliance or before one.

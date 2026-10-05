@@ -170,8 +170,8 @@ class TestGoldenAllianceInfo:
         assert by_name["LeaderGuy"].is_leader is True
         assert by_name["OfficerGal"].is_officer is True
         assert by_name["OfficerGal"].has_bird is True
-        assert by_name["OfficerGal"].bird_end_time is not None
-        assert by_name["LeaderGuy"].bird_end_time is None
+        assert by_name["OfficerGal"].revenge_protection_end == by_name["OfficerGal"].received_at + 7200
+        assert by_name["LeaderGuy"].revenge_protection_end is None
 
     @pytest.mark.parametrize(
         ("rank", "leader", "officer", "enum"),
