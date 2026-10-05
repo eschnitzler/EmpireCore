@@ -96,8 +96,15 @@ calls at the same time. The server limits the request rate per account; see
 [Multiple accounts](multiple-accounts.md).
 
 Scans run in their calling thread, and parsing a chunk's reply holds the GIL:
-a dense chunk takes a few tens of milliseconds. `scripts/bench_map_parse.py`
-times one.
+a dense chunk takes a few tens of milliseconds, a live-shaped one a few.
+`scripts/bench_map_parse.py` times one. An asyncio loop on another thread
+waits for the GIL at most one switch interval (5 ms by default) per busy
+thread while a chunk is parsed; `sys.setswitchinterval(0.001)` brings a 1 ms
+tick's typical delay from 4 ms to 1 ms beside one scan, and from 14 ms to 3 ms
+beside four, for a few percent of throughput. The long pauses are the
+interpreter's full garbage collections, which the records a scan keeps make
+longer (about 100 ms after one kingdom, twice per kingdom); `gc.freeze()` after
+startup shortens them a little, as the scan's own records make up most of a pass.
 
 ## Cancelling a scan
 
