@@ -210,6 +210,19 @@ class TestAllianceChat:
         member = next(m for m in state.get_own_alliance().members if m.player_id == 8)
         assert member.activity_tier == OnlineState.ONLINE
 
+    def test_an_acm_leaves_the_protection_end_where_it_was(self, state):
+        # AllianceInfoVO.getOnlineUserList: an acm flips the online flag; the owner records keep their timer
+        members = alliance()["A"]["M"]
+        members[1]["RPT"] = 600
+        state.update_from_packet("gbd", {**PLAYER, "ain": alliance(M=members)})
+        before = next(m for m in state.get_own_alliance().members if m.player_id == 8)
+
+        state.update_from_packet("acm", {"CM": message(8, "hello")})
+        after = next(m for m in state.get_own_alliance().members if m.player_id == 8)
+
+        assert after.is_online
+        assert after.revenge_protection_end == before.revenge_protection_end
+
     def test_an_acm_without_a_message_adds_nothing(self, state):
         state.update_from_packet("acm", {})
         state.update_from_packet("acm", {"CM": message(8, "x")}, error_code=5)

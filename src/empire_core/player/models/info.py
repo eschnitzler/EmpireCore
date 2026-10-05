@@ -9,7 +9,6 @@ Commands:
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any
 
 from pydantic import ConfigDict, Field, field_serializer, field_validator, model_validator
@@ -187,13 +186,18 @@ class GetPlayerInfoResponse(BaseResponse):
 
     @property
     def has_bird(self) -> bool:
-        """Check if player has revenge protection (bird) active."""
+        """Whether the player has peace protection left now; False once it has run out or without owner."""
         return self.owner.has_bird if self.owner else False
 
     @property
-    def bird_end_time(self) -> datetime | None:
-        """When bird protection ends (UTC), or None."""
-        return self.owner.bird_end_time if self.owner else None
+    def has_beginner_protection(self) -> bool:
+        """Whether the player has beginner protection left now; False once it has run out or without owner."""
+        return self.owner.has_beginner_protection if self.owner else False
+
+    @property
+    def revenge_protection_end(self) -> float | None:
+        """When peace protection ends, in time.monotonic() seconds; None without protection or owner."""
+        return self.owner.revenge_protection_end if self.owner else None
 
     def get_castles(self) -> list[CastleInfo]:
         """All castles, outposts and landmarks across all kingdoms."""

@@ -1,5 +1,7 @@
 """Tests for the player models."""
 
+import time
+
 import pytest
 
 from empire_core.castle.models.castles import GetCastlesResponse
@@ -55,7 +57,8 @@ class TestGoldenPlayerInfo:
         assert response.alliance_id == 301
         assert response.alliance_name == "Test Alliance"
         assert response.has_bird is True
-        assert response.bird_end_time is not None
+        assert response.owner is not None
+        assert response.revenge_protection_end == response.owner.received_at + 3600
 
     def test_castles_are_flattened_across_kingdoms(self):
         castles = GetPlayerInfoResponse.model_validate(GOLDEN_GDI).get_castles()
@@ -199,6 +202,46 @@ class TestPlayerInfoLandmarks:
         wrapped = {"AI": [gdi_location_row(1, 640, 655, 12345, 4242, "Main", 0)]}
         response = GetPlayerInfoResponse.model_validate({"gcl": {"C": [{"KID": 0, "AI": [wrapped]}]}})
         assert response.get_castles() == []
+
+
+class TestProtectionTimes:
+    """As WorldMapOwnerInfoVO.remainingPeaceTime and remainingNoobTime (bundle lines 10802-10804) count them."""
+
+    def test_the_end_times_are_fixed_when_read(self):
+        owner = PlayerOwnerInfo.model_validate({"OID": 1, "RPT": 3600, "RNP": 600})
+        assert owner.revenge_protection_end == owner.revenge_protection_end == owner.received_at + 3600
+        assert owner.beginner_protection_end == owner.beginner_protection_end == owner.received_at + 600
+
+    def test_no_protection_has_no_end(self):
+        owner = PlayerOwnerInfo.model_validate({"OID": 1, "RPT": 0, "RNP": -1})
+        assert owner.revenge_protection_end is None
+        assert owner.beginner_protection_end is None
+        assert owner.remaining_revenge_protection_seconds() == 0
+        assert owner.remaining_beginner_protection_seconds() == 0
+
+    def test_the_seconds_left_count_down_from_the_read(self):
+        owner = PlayerOwnerInfo(
+            player_id=1, revenge_protection_seconds=3600, beginner_protection_seconds=600, received_at=100.0
+        )
+        assert owner.remaining_revenge_protection_seconds(now=160.0) == 3540
+        assert owner.remaining_beginner_protection_seconds(now=160.0) == 540
+        assert owner.remaining_beginner_protection_seconds(now=800.0) == 0
+
+    def test_the_flags_go_false_when_the_time_runs_out(self):
+        # isPeaceProtected and isNoobProtected (bundle lines 10808, 10806): the time left is above 0
+        owner = PlayerOwnerInfo(
+            player_id=1,
+            revenge_protection_seconds=50,
+            beginner_protection_seconds=50,
+            received_at=time.monotonic() - 100,
+        )
+        assert not owner.has_bird
+        assert not owner.has_beginner_protection
+
+        fresh = PlayerOwnerInfo(player_id=1, revenge_protection_seconds=3600, beginner_protection_seconds=3600)
+        assert fresh.has_bird
+        assert fresh.has_beginner_protection
+        assert GetPlayerInfoResponse(owner=owner).has_bird is False
 
 
 class TestOwnerRecord:

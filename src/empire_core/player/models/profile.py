@@ -7,7 +7,7 @@ player.models.info) subclass PlayerProfileBase.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+import time
 from typing import Any
 
 from pydantic import Field, field_validator, model_validator
@@ -27,6 +27,9 @@ class PlayerProfileBase(BasePayload):
     which both the ain member list and the gdi owner go through
     (``CastleOtherPlayerData.parseOwnerInfo``, bundle line 138996);
     ``WorldMapOwnerInfoVO.parsePosList`` (bundle line 10795) for ``AP`` and ``VP``.
+
+    The protection times count from ``received_at``, as the client counts them from the ``CachedTimer``
+    reading ``parseOwnerInfo`` takes (bundle line 138997).
     """
 
     player_id: ParseInt = Field(alias="OID", default=0, description="Player id")
@@ -64,6 +67,9 @@ class PlayerProfileBase(BasePayload):
     title_suffix: int | None = Field(alias="SUF", default=None, description="Suffix title id; None when unsent")
     title_prefix: int | None = Field(alias="PRE", default=None, description="Prefix title id; None when unsent")
     via_refer_a_friend: bool = Field(alias="IRF", default=False, description="The player joined through a referral")
+    received_at: float = Field(
+        default_factory=time.monotonic, description="When the values were read, in time.monotonic() seconds"
+    )
 
     @field_validator("name", "alliance_name", mode="before")
     @classmethod
@@ -163,19 +169,53 @@ class PlayerProfileBase(BasePayload):
 
     @property
     def has_bird(self) -> bool:
-        """Whether the player has peace protection left."""
-        return self.revenge_protection_seconds > 0
+        """
+        Whether the player has peace protection left now; False once it has run out.
+
+        Client: ``WorldMapOwnerInfoVO.isPeaceProtected`` (bundle line 10808)
+        """
+        return self.remaining_revenge_protection_seconds() > 0
 
     @property
-    def bird_end_time(self) -> datetime | None:
+    def has_beginner_protection(self) -> bool:
         """
-        When peace protection ends (UTC), counted from now; None without protection.
+        Whether the player has beginner protection left now; False once it has run out.
 
-        Use it soon after fetching: the seconds are as of the reply.
+        Client: ``WorldMapOwnerInfoVO.isNoobProtected`` (bundle line 10806)
         """
-        if self.revenge_protection_seconds <= 0:
-            return None
-        return datetime.now(timezone.utc) + timedelta(seconds=self.revenge_protection_seconds)
+        return self.remaining_beginner_protection_seconds() > 0
+
+    @property
+    def revenge_protection_end(self) -> float | None:
+        """When peace protection ends, in time.monotonic() seconds; None without protection."""
+        return self.received_at + self.revenge_protection_seconds if self.revenge_protection_seconds > 0 else None
+
+    @property
+    def beginner_protection_end(self) -> float | None:
+        """When beginner protection ends, in time.monotonic() seconds; None without protection."""
+        return self.received_at + self.beginner_protection_seconds if self.beginner_protection_seconds > 0 else None
+
+    def remaining_revenge_protection_seconds(self, now: float | None = None) -> float:
+        """
+        Seconds of peace protection left, 0 when none.
+
+        Client: ``WorldMapOwnerInfoVO.remainingPeaceTime`` (bundle line 10804), counted from the
+        ``CachedTimer`` reading ``fillFromParamObject`` keeps (bundle line 10794)
+        """
+        return self._left(self.revenge_protection_end, now)
+
+    def remaining_beginner_protection_seconds(self, now: float | None = None) -> float:
+        """
+        Seconds of beginner protection left, 0 when none.
+
+        Client: ``WorldMapOwnerInfoVO.remainingNoobTime`` (bundle line 10802), counted from the
+        ``CachedTimer`` reading ``fillFromParamObject`` keeps (bundle line 10794)
+        """
+        return self._left(self.beginner_protection_end, now)
+
+    @staticmethod
+    def _left(end: float | None, now: float | None) -> float:
+        return 0.0 if end is None else max(end - (time.monotonic() if now is None else now), 0.0)
 
 
 __all__ = ["PlayerProfileBase"]
