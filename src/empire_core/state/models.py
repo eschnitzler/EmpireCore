@@ -250,6 +250,9 @@ class Player(BaseModel):
     vip_points: int = 0  # VP
     vip_level: int = 0  # VRL
     vip_time_left: int = 0  # VRS (Seconds)
+    used_premium_commanders: int = Field(
+        default=0, alias="UPG", description="Premium commanders used today from the VIP level's free ones"
+    )
 
     # Alliance
     alliance: Alliance | None = None

@@ -918,6 +918,35 @@ class CurrencyDef(_Row):
         return _parse_int_or_default(value, -1)
 
 
+class VipLevelDef(_Row):
+    """
+    A VIP level: the VIP points it spans and the premium commanders it gives free each day.
+
+    The other bonuses the client reads from the row are not parsed.
+
+    Client: ``VIPLevelInfoVO.parseConfigXML`` and ``inPointRange`` (bundle lines 77271, 77287),
+    read from the ``viplevels`` table by ``CastleVIPData.parseVIPLevels`` (bundle line 47518)
+    """
+
+    vip_level_id: int = Field(alias="vipLevelID", default=-1, description="VIP level, 1 and up")
+    min_points: int = Field(alias="thresholdMin", default=0, description="The fewest VIP points at this level")
+    max_points: int = Field(alias="thresholdMax", default=0, description="The most VIP points at this level")
+    free_premium_commanders_per_day: int = Field(
+        alias="freePremiumGeneralsPerDay",
+        default=0,
+        description="Premium commanders a day that cost no rubies while VIP time runs",
+    )
+
+    @field_validator("vip_level_id", "min_points", "max_points", "free_premium_commanders_per_day", mode="before")
+    @classmethod
+    def _parse_int(cls, value: object, info: ValidationInfo) -> int:
+        return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
+
+    def in_point_range(self, points: int) -> bool:
+        """Whether ``points`` VIP points fall in this level, both ends included."""
+        return self.min_points <= points <= self.max_points
+
+
 class RaidBossDef(_Row):
     """
     An alliance raid boss.

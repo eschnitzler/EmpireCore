@@ -382,6 +382,31 @@ class TestCombatTables:
         assert lord is not None
         assert lord.lord_type == "Treasuremap"
 
+    def test_vip_levels_give_their_free_premium_commanders(self):
+        rows = [
+            {"vipLevelID": "1", "thresholdMin": "0", "thresholdMax": "299", "bonusLoginKeys": "1"},
+            {"vipLevelID": "5", "thresholdMin": "8000", "thresholdMax": "19999", "freePremiumGeneralsPerDay": "25"},
+        ]
+        data = GameData.parse("786.03", {"viplevels": rows})
+
+        assert [(level.vip_level_id, level.free_premium_commanders_per_day) for level in data.vip_levels.values()] == [
+            (1, 0),
+            (5, 25),
+        ]
+
+    @pytest.mark.parametrize(
+        ("points", "level_id"), [(0, 1), (299, 1), (8000, 5), (19999, 5), (500, 5), (900000, 5), (-1, None)]
+    )
+    def test_vip_level_by_points(self, points: int, level_id: int | None):
+        # CastleVIPData.getVIPLevelInfoVOByPoints: the level in range, else the top one above 0 points
+        rows = [
+            {"vipLevelID": "5", "thresholdMin": "8000", "thresholdMax": "19999"},
+            {"vipLevelID": "1", "thresholdMin": "0", "thresholdMax": "299"},
+        ]
+        level = GameData.parse("786.03", {"viplevels": rows}).vip_level(points)
+
+        assert (level.vip_level_id if level is not None else None) == level_id
+
     def test_dungeon_defense_is_looked_up_by_victories(self):
         data = GameData.parse("783.01", FULL_PAYLOAD)
 

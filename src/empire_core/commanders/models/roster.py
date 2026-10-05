@@ -35,6 +35,12 @@ FACTION_BARON_ID = -16
 """``FactionConst.BARON_ID`` (dll line 19333)"""
 
 
+PREMIUM_COMMANDER_ID = -14
+"""``TravelConst.COMMANDER_PREMIUM`` (dll line 19872): the premium commander's ``commander_id``;
+the client offers it from ``ClientConstLevelRestrictions.MIN_LEVEL_SELECT_PREMIUM_COMMANDER``, level 10
+(bundle line 2139)"""
+
+
 CASTELLAN_PICTURE_ORDER = (0, 6, 7, 8, 1, 13, 2, 3, 4, 10, 11, 12, 9, 5)
 """``BaronVO.PIC_ID_ORDER`` (bundle line 43551): castellans are listed in this portrait order"""
 

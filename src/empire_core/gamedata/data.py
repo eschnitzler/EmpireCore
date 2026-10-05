@@ -56,6 +56,7 @@ from .models import (
     ToolCategoryDef,
     ToolStats,
     UnitStats,
+    VipLevelDef,
 )
 
 if TYPE_CHECKING:
@@ -117,6 +118,7 @@ _CACHED_MODELS = (
     GeneralAbilityDef,
     CurrencyDef,
     RaidBossDef,
+    VipLevelDef,
 )
 """Every row model the cache stores; the fingerprint covers each one's fields."""
 
@@ -303,6 +305,7 @@ class GameData(BaseModel):
     general_abilities: dict[int, GeneralAbilityDef] = Field(default_factory=dict)
     currencies: dict[int, CurrencyDef] = Field(default_factory=dict)
     raid_bosses: dict[int, RaidBossDef] = Field(default_factory=dict)
+    vip_levels: dict[int, VipLevelDef] = Field(default_factory=dict)
     dungeons: list[DungeonDefence] = Field(default_factory=list)
     camps: dict[str, list[NpcCampDefence]] = Field(default_factory=dict)
     event_camps: dict[str, dict[int, EventCampDef]] = Field(default_factory=dict)
@@ -345,6 +348,19 @@ class GameData(BaseModel):
     def get_default_lord(self, lord_id: int) -> DefaultLordDef | None:
         """A default lord, i.e. one of the negative ``LID`` sentinels."""
         return self.default_lords.get(lord_id)
+
+    def vip_level(self, points: int) -> VipLevelDef | None:
+        """
+        The VIP level ``points`` VIP points reach: the one whose range holds them, else the
+        top one when points are above 0, else None.
+
+        Client: ``CastleVIPData.getVIPLevelInfoVOByPoints`` (bundle line 47531)
+        """
+        levels = sorted(self.vip_levels.values(), key=lambda level: level.vip_level_id)
+        found = next((level for level in levels if level.in_point_range(points)), None)
+        if found is None and points > 0 and levels:
+            return levels[-1]
+        return found
 
     def get_event_camp(self, table: str, camp_id: int) -> EventCampDef | None:
         """One rank of a daimyo castle (``daimyoCastles``) or township (``daimyoTownships``)."""
@@ -730,6 +746,7 @@ class GameData(BaseModel):
             general_abilities={r.ability_id: r for r in _rows(items_data.get("generalAbilities"), GeneralAbilityDef)},
             currencies={r.currency_id: r for r in _rows(items_data.get("currencies"), CurrencyDef)},
             raid_bosses={r.raid_boss_id: r for r in _rows(items_data.get("raidBosses"), RaidBossDef)},
+            vip_levels={r.vip_level_id: r for r in _rows(items_data.get("viplevels"), VipLevelDef)},
             dungeons=_rows(items_data.get("dungeons"), DungeonDefence),
             camps={
                 table: _rows(items_data.get(table), NpcCampDefence) for table in CAMP_TABLES if items_data.get(table)

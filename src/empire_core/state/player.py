@@ -129,10 +129,13 @@ class PlayerState(StateBase):
             updated |= {"coins", "rubies"}
 
         if vip := _section(data, "vip"):
+            # parse_VIP (bundle line 47527) reads a missing key as 0; here it keeps its value,
+            # so a vip without UPG never frees premium commanders already used
             merged["vip_points"] = vip.get("VP", merged["vip_points"])
             merged["vip_level"] = vip.get("VRL", merged["vip_level"])
             merged["vip_time_left"] = vip.get("VRS", merged["vip_time_left"])
-            updated |= {"vip_points", "vip_level", "vip_time_left"}
+            merged["used_premium_commanders"] = _as_int(vip.get("UPG"), merged["used_premium_commanders"])
+            updated |= {"vip_points", "vip_level", "vip_time_left", "used_premium_commanders"}
 
         if gho := _section(data, "gho"):
             merged["honor"] = gho.get("H", merged["honor"])

@@ -137,6 +137,24 @@ class TestPartialSubPacketsPreserveState:
         player = state.get_local_player()
         assert (player.vip_points, player.vip_level, player.vip_time_left) == (10, 2, 1800)
 
+    def test_used_premium_commanders_from_the_login_vip(self, state):
+        # CastleVIPData.parse_VIP reads UPG
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "vip": {"VP": 10, "VRL": 2, "VRS": 3600, "UPG": 4}})
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "vip": {"VRS": 1800}})
+
+        assert state.get_local_player().used_premium_commanders == 4
+
+    def test_a_null_vip_is_not_stamped(self, state):
+        # CastleVIPData.parse_VIP applies nothing for a vip that is not set
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "vip": {"VP": 10, "VRL": 2, "VRS": 3600, "UPG": 4}})
+        stamped = state.get_last_packet_time("vip")
+
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "vip": None})
+        state.update_from_packet("sbp", {"vip": None})
+
+        assert state.get_last_packet_time("vip") == stamped
+        assert state.get_local_player().vip_time_left == 3600
+
 
 class TestAllianceMembership:
     def test_alliance_parsed(self, state):
@@ -315,9 +333,10 @@ class TestPlayerPushes:
 
     def test_vip_push(self, state):
         state.update_from_packet("gbd", LIVE_LOGIN)
-        state.update_from_packet("vip", {"VP": 50, "VRL": 4, "VRS": 3600, "UPG": 0})
+        state.update_from_packet("vip", {"VP": 50, "VRL": 4, "VRS": 3600, "UPG": 2})
         player = state.get_local_player()
         assert (player.vip_points, player.vip_level, player.vip_time_left) == (50, 4, 3600)
+        assert player.used_premium_commanders == 2
 
     def test_gcl_push(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})

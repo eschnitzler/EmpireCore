@@ -264,7 +264,9 @@ class TestCastleActions:
 
     def test_send_support_with_the_premium_commander(self):
         client = make_client()
-        client.castle.send_support(12345, 700, 710, [[487, 1]], commander_id=-14, use_premium_commander=True)
+        client.castle.send_support(
+            12345, 700, 710, [[487, 1]], commander_id=-14, use_premium_commander=True, spend_rubies=True
+        )
         payload = conn(client).request_payloads[0][1]
         assert (payload["LID"], payload["BPC"]) == (-14, 1)
 
