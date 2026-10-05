@@ -6,10 +6,10 @@ from __future__ import annotations
 
 import logging
 import math
-import queue
+import threading
 import time
-from collections.abc import Iterable
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Iterator
+from dataclasses import dataclass, field
 
 from pydantic import ValidationError
 
@@ -30,6 +30,7 @@ from empire_core.protocol.base import parse_response
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import Packet
 from empire_core.services.base import BaseService
+from empire_core.utils.cancel import sleep_unless_cancelled
 
 from .models import (
     AutoSpyRequest,
@@ -56,12 +57,15 @@ logger = logging.getLogger(__name__)
 # BSDCommand.executeCommand (bundle line 125223) shows "no spy data" for these
 _NO_REPORT_ERRORS = frozenset({GGEError.NO_SPY_DATA, GGEError.NO_SUCH_MESSAGE})
 _REPORT_MARGIN = 10.0
+# A handle never awaited or cancelled stops listening this long after its report was due.
+_ABANDONED_SECONDS = 600.0
 # Mission types and log subtypes are numbered differently (ClientConstCastle.SPYTYPE_*, MessageConst.SUBTYPE_SPY_*).
 # A military log is DEFENCE: its success lists the army (hasDetailedSpyLog, bundle lines 137642, 137672),
 # and a live military mission's log header began "1+".
 _LOG_TYPE_OF_MISSION = {SpyType.MILITARY: SpyLogType.DEFENCE, SpyType.ECO: SpyLogType.ECO}
 _POLL_SECONDS = 1.0
 _SSI_POLL_DELAY = 2.0
+_SpyLog = tuple[MessageInfo, SpyLogHeader]
 
 
 @dataclass
@@ -99,6 +103,79 @@ class SpyResult:
         return self.report.army() if self.report is not None else None
 
 
+@dataclass(eq=False)
+class SpyHandle:
+    """
+    A spy mission sent by :meth:`SpyService.send_instant_spy`, to pass to :meth:`SpyService.await_report`.
+
+    Until it is awaited or cancelled the service listens to ``sne`` and
+    keeps the spy logs that may be its report; a handle left alone stops
+    listening 10 minutes after its report was due.
+
+    Attributes:
+        target_x: Target X coordinate
+        target_y: Target Y coordinate
+        target_kingdom: Target kingdom
+        spy_type: MILITARY or ECO
+        cancel_event: Set to cancel the mission's wait, as :meth:`cancel` does;
+            the ``cancel`` event given to ``send_instant_spy``, if any
+        mission: The csm reply; None when nothing was sent
+        arrival_eta: ``time.monotonic()`` when the spies arrive; None when nothing was sent
+        result: How the mission ended: set when nothing was sent, when it was
+            cancelled before sending, and by ``await_report``, which returns it
+            from then on
+    """
+
+    target_x: int
+    target_y: int
+    target_kingdom: Kingdom
+    spy_type: SpyType
+    cancel_event: threading.Event = field(default_factory=threading.Event)
+    mission: SendSpyResponse | None = None
+    arrival_eta: float | None = None
+    result: SpyResult | None = None
+    _reading: _SpyLog | None = field(default=None, init=False, repr=False)
+    _declined: set[int] = field(default_factory=set, init=False, repr=False)
+    _awaited: bool = field(default=False, init=False, repr=False)
+    _on_cancel: Callable[[], None] | None = field(default=None, init=False, repr=False)
+
+    @property
+    def movement_id(self) -> int | None:
+        """The spy movement's id, for ``client.movements.recall``; None when nothing was sent."""
+        return self.mission.movement_id if self.mission is not None else None
+
+    @property
+    def target(self) -> MovementRecord | None:
+        """The csm reply's movement, whose target area a report is matched against."""
+        wrapper = self.mission.spy_movement if self.mission is not None else None
+        return wrapper.movement if wrapper is not None else None
+
+    def cancel(self) -> None:
+        """
+        Stop waiting for this mission: ``await_report`` returns ``CANCELLED`` at once.
+
+        The spies are not recalled. They arrive and their report comes as
+        usual: until 10s after their arrival the mission keeps its place in
+        the order reports are given out, and the ``sne`` subscription, so its
+        report is dropped rather than read as another mission's. To turn them back, recall the movement with
+        ``client.movements.recall(handle.movement_id)``, which the client
+        allows only for your own spies still heading to the target.
+
+        Client: ``SpyMapmovementVO.canBeRetreated`` (bundle line 43759),
+        ``CastleAskRetreatDialog.onClick`` (bundle line 33234)
+        """
+        self.cancel_event.set()
+        if self._on_cancel is not None:
+            self._on_cancel()
+
+    def _may_read(self, log: _SpyLog) -> bool:
+        """Whether ``log`` can be this mission's report; before the csm reply any log for its kingdom can."""
+        message, header = log
+        return message.message_id not in self._declined and _names_target(
+            header, self.target, self.target_kingdom, self.spy_type
+        )
+
+
 def _names_target(
     header: SpyLogHeader, target: MovementRecord | None, target_kingdom: Kingdom, spy_type: SpyType
 ) -> bool:
@@ -127,6 +204,12 @@ def _names_target(
 
 class SpyService(BaseService):
     """Spy missions planned for risk, sabotage, and reading spy reports."""
+
+    def __init__(self, client) -> None:
+        super().__init__(client)
+        self._logs_changed = threading.Condition()
+        self._missions: list[SpyHandle] = []
+        self._spy_logs: list[_SpyLog] = []
 
     def forward_report(self, message_id: int, player_ids: list[int]) -> bool:
         """Share a spy report with other players in game.
@@ -393,6 +476,187 @@ class SpyService(BaseService):
         )
         return self.request(request, SendSpyResponse)
 
+    def send_instant_spy(
+        self,
+        source_castle_id: int,
+        target_x: int,
+        target_y: int,
+        target_kingdom: Kingdom = Kingdom.GREEN,
+        risk_tolerance: int | None = None,
+        accuracy: int = MAX_ACCURACY,
+        *,
+        spy_type: SpyType = SpyType.MILITARY,
+        horse_booster_id: int = -1,
+        feathers: bool = False,
+        slowdown: int = 0,
+        wait_for_spies: float | None = None,
+        cancel: threading.Event | None = None,
+    ) -> SpyHandle:
+        """
+        Plan and send a military or economy spy mission, without waiting for its report.
+
+        Plans and sends as :meth:`execute_instant_spy` does, which is this and
+        :meth:`await_report`. The handle listens for the report from before
+        csm is sent, so a report that comes before ``await_report`` is called
+        is kept for it.
+
+        Args:
+            source_castle_id: The castle the spies leave from, one of yours
+            target_x: Target X coordinate
+            target_y: Target Y coordinate
+            target_kingdom: Target kingdom
+            risk_tolerance: Ceiling on the chance of being caught, as a percentage
+            accuracy: Spy accuracy (50-100)
+            spy_type: MILITARY or ECO
+            horse_booster_id: A horse's wod id to speed the spies up (-1 = none)
+            feathers: Use the instant spy horse and pay for it with feathers
+            slowdown: Seconds to delay the arrival by
+            wait_for_spies: Most seconds to keep asking ``ssi`` while no spy is at
+                home or the risk is over ``risk_tolerance``; None asks once
+            cancel: Ends the mission's wait when set, as ``SpyHandle.cancel``
+                does; looked at between requests (see :mod:`empire_core.utils.cancel`)
+
+        Returns:
+            The mission's handle; when nothing was sent, ``handle.result`` says why.
+
+        Raises:
+            ValueError: For a spy type other than MILITARY or ECO
+        """
+        if spy_type not in (SpyType.MILITARY, SpyType.ECO):
+            raise ValueError(f"send_instant_spy sends MILITARY or ECO missions, not {spy_type!r}")
+        handle = SpyHandle(target_x, target_y, target_kingdom, spy_type, cancel_event=cancel or threading.Event())
+        max_risk = risk_tolerance if risk_tolerance is not None else MAX_RISK_SPY
+
+        available = 0
+        plan = None
+        attempts = 1 + (math.ceil(wait_for_spies / _SSI_POLL_DELAY) if wait_for_spies and wait_for_spies > 0 else 0)
+        for attempt in range(attempts):
+            if handle.cancel_event.is_set():
+                break
+            try:
+                screen = self.get_screen_info(target_x, target_y, target_kingdom)
+            except EmpireError as e:
+                handle.result = SpyResult(SpyOutcome.COMMAND_FAILED, SpyStep.SSI, error=e)
+                return handle
+
+            available = screen.available_spies
+            if available > 0:
+                flags = screen.risk_flags(target_x, target_y)
+                dungeon, player_target = flags if flags is not None else (False, True)
+                plan = plan_mission(
+                    guards=screen.guard_count,
+                    available=available,
+                    accuracy=accuracy,
+                    max_risk=max_risk,
+                    player_target=player_target,
+                    dungeon=dungeon,
+                )
+                if plan is not None:
+                    break
+
+            # Spies still walking home. A fuller pool lowers the achievable
+            # risk, so waiting can bring an over-budget target into range.
+            if attempt < attempts - 1:
+                sleep_unless_cancelled(_SSI_POLL_DELAY, handle.cancel_event)
+
+        if handle.cancel_event.is_set():
+            handle.result = SpyResult(SpyOutcome.CANCELLED)
+            return handle
+        if available <= 0:
+            handle.result = SpyResult(SpyOutcome.NO_SPIES_AVAILABLE)
+            return handle
+        if plan is None:
+            handle.result = SpyResult(SpyOutcome.RISK_OVER_BUDGET)
+            return handle
+
+        self._listen(handle)
+        try:
+            mission = self.send_spy_mission(
+                source_castle_id,
+                target_x,
+                target_y,
+                target_kingdom,
+                spy_type=spy_type,
+                spies=plan.spies,
+                # The plan may have traded detail for risk; send what it settled on.
+                accuracy_or_damage=plan.accuracy,
+                horse_booster_id=horse_booster_id,
+                feathers=feathers,
+                slowdown=slowdown,
+            )
+        except EmpireError as e:
+            handle.result = SpyResult(SpyOutcome.COMMAND_FAILED, SpyStep.CSM, error=e)
+            self._release(handle)
+            return handle
+        except BaseException:
+            self._release(handle)
+            raise
+        if mission.spy_movement is None:
+            logger.warning("The csm reply has no readable movement; waiting only %ss for the report", _REPORT_MARGIN)
+        self._arm(handle, mission)
+        return handle
+
+    def await_report(self, handle: SpyHandle, max_wait: float | None = None) -> SpyResult:
+        """
+        Wait for a sent mission's report and read it.
+
+        Blocks until the spies arrive plus 10s for the report, or ``max_wait``
+        if that is shorter; do not call this from a state callback. Returns
+        ``CANCELLED`` once the handle is cancelled: at once through
+        :meth:`SpyHandle.cancel`, within a second when its event is set
+        directly. A ``bsd`` already asked for is read to the end, so a report
+        read while the cancel comes is returned. The handle stops listening
+        when this returns, and its result is kept in ``handle.result``: a
+        later call returns it at once, and a call made while another waits
+        returns what that one does, or ``TIMEOUT`` after its own ``max_wait``.
+
+        ``sne`` carries no mission id. A spy log whose header names a
+        mission's target (kingdom, owner, area type and name, from the csm
+        reply's movement) goes to the waiting mission for that target whose
+        spies arrive first, and one whose report is for another position is
+        handed on to the next. Two missions to one target so get the reports
+        in the order their spies arrive. A mission that stopped waiting
+        without its report, cancelled or at ``max_wait``, keeps its place
+        until 10s after its spies arrive, and the report given to it is
+        dropped. That is a client-side heuristic: no field ties a report to
+        its mission.
+
+        Args:
+            handle: From :meth:`send_instant_spy`
+            max_wait: Most seconds to wait from now; None waits for the trip plus 10s
+
+        Returns:
+            SpyResult with the report or why there is none; ``handle.result``
+            as it is when the mission ended before its report wait.
+        """
+        if handle.result is not None:
+            return handle.result
+        mission, arrival = handle.mission, handle.arrival_eta
+        if mission is None or arrival is None:
+            raise ValueError("await_report takes a handle from send_instant_spy")
+        deadline = None if max_wait is None else time.monotonic() + max_wait
+        with self._logs_changed:
+            while handle.result is None and handle._awaited:
+                remaining = None if deadline is None else deadline - time.monotonic()
+                if remaining is not None and remaining <= 0:
+                    return SpyResult(SpyOutcome.TIMEOUT, SpyStep.SNE, mission=mission)
+                self._logs_changed.wait(remaining)
+            if handle.result is not None:
+                return handle.result
+            handle._awaited = True
+        result = None
+        try:
+            wait = max(0.0, arrival - time.monotonic()) + _REPORT_MARGIN
+            if deadline is not None:
+                wait = min(wait, deadline - time.monotonic())
+            result = self._read_report(handle, mission, time.monotonic() + wait)
+            return result
+        finally:
+            with self._logs_changed:
+                handle.result = result
+                handle._awaited = False
+                self._release(handle)
+
     def execute_instant_spy(
         self,
         source_castle_id: int,
@@ -408,9 +672,13 @@ class SpyService(BaseService):
         slowdown: int = 0,
         max_wait: float | None = None,
         wait_for_spies: float | None = None,
+        cancel: threading.Event | None = None,
     ) -> SpyResult:
         """
         Send a military or economy spy mission and read its report.
+
+        This is :meth:`send_instant_spy` then :meth:`await_report`; call those
+        two to do something else while the spies travel.
 
         Nothing is paid unless asked: by default the spies travel without a
         horse. ``feathers`` uses the instant spy horse, paid with feathers,
@@ -430,8 +698,8 @@ class SpyService(BaseService):
         listeners; only a spy log whose header names this mission's target
         (kingdom, owner, area type and name, from the csm reply's movement)
         and whose report, a caught mission's too, is for the target's position
-        counts; the rest are skipped. ``sne`` carries no mission id, so two
-        missions to the same target at once cannot be told apart.
+        counts; the rest are skipped. Two missions to one target at once get
+        their reports in arrival order (see :meth:`await_report`).
 
         Asks ``ssi`` once: with no spy at home, or no mission within
         ``risk_tolerance``, it returns at once, as the client's spy dialog
@@ -440,6 +708,13 @@ class SpyService(BaseService):
         blocks until the spies arrive (the csm reply's travel time) plus 10s
         for the report, or ``max_wait`` if that is shorter; do not call this
         from a state callback.
+
+        Setting ``cancel`` ends the call with ``CANCELLED``. It is looked at
+        between requests, never during one: a request in flight ends with its
+        own reply or timeout, so no waiter is abandoned and no late reply can
+        reach the next caller of that command. Spies already sent keep going
+        (``result.mission`` is set); ``client.movements.recall`` with its
+        ``movement_id`` turns them back.
 
         Args:
             source_castle_id: The castle the spies leave from, one of yours: ``CastleInfo.castle_id``
@@ -463,6 +738,7 @@ class SpyService(BaseService):
                 None waits for the trip plus 10s
             wait_for_spies: Most seconds to keep asking ``ssi`` while no spy is at
                 home or the risk is over ``risk_tolerance``; None asks once
+            cancel: Ends the call with ``CANCELLED`` when set
 
         Client: ``CastlePostSpyDialog.spyCastle`` (bundle line 38459),
         ``CastleStartSpyVO.setSpyValues`` (bundle line 140004),
@@ -472,87 +748,21 @@ class SpyService(BaseService):
         Returns:
             SpyResult with the report or why there is none.
         """
-        if spy_type not in (SpyType.MILITARY, SpyType.ECO):
-            raise ValueError(f"execute_instant_spy sends MILITARY or ECO missions, not {spy_type!r}")
-        max_risk = risk_tolerance if risk_tolerance is not None else MAX_RISK_SPY
-
-        available = 0
-        plan = None
-        attempts = 1 + (math.ceil(wait_for_spies / _SSI_POLL_DELAY) if wait_for_spies and wait_for_spies > 0 else 0)
-        for attempt in range(attempts):
-            try:
-                screen = self.get_screen_info(target_x, target_y, target_kingdom)
-            except EmpireError as e:
-                return SpyResult(SpyOutcome.COMMAND_FAILED, SpyStep.SSI, error=e)
-
-            available = screen.available_spies
-            if available > 0:
-                flags = screen.risk_flags(target_x, target_y)
-                dungeon, player_target = flags if flags is not None else (False, True)
-                plan = plan_mission(
-                    guards=screen.guard_count,
-                    available=available,
-                    accuracy=accuracy,
-                    max_risk=max_risk,
-                    player_target=player_target,
-                    dungeon=dungeon,
-                )
-                if plan is not None:
-                    break
-
-            # Spies still walking home. A fuller pool lowers the achievable
-            # risk, so waiting can bring an over-budget target into range.
-            if attempt < attempts - 1:
-                time.sleep(_SSI_POLL_DELAY)
-
-        if available <= 0:
-            return SpyResult(SpyOutcome.NO_SPIES_AVAILABLE)
-        if plan is None:
-            return SpyResult(SpyOutcome.RISK_OVER_BUDGET)
-
-        # Subscribed before csm is sent so the report can't slip past; a
-        # subscriber sees every sne without taking it from anyone else.
-        notifications: queue.Queue[Packet] = queue.Queue()
-        connection = self.client.connection
-        connection.subscribe("sne", notifications.put)
-        try:
-            try:
-                mission = self.send_spy_mission(
-                    source_castle_id,
-                    target_x,
-                    target_y,
-                    target_kingdom,
-                    spy_type=spy_type,
-                    spies=plan.spies,
-                    # The plan may have traded detail for risk; send what it settled on.
-                    accuracy_or_damage=plan.accuracy,
-                    horse_booster_id=horse_booster_id,
-                    feathers=feathers,
-                    slowdown=slowdown,
-                )
-            except EmpireError as e:
-                return SpyResult(SpyOutcome.COMMAND_FAILED, SpyStep.CSM, error=e)
-
-            movement = mission.spy_movement.movement if mission.spy_movement else None
-            if movement is None:
-                logger.warning(
-                    "The csm reply has no readable movement; waiting only %ss for the report", _REPORT_MARGIN
-                )
-            wait = (mission.seconds_until_arrival or 0) + _REPORT_MARGIN
-            if max_wait is not None:
-                wait = min(wait, max_wait)
-            return self._await_report(
-                notifications,
-                time.monotonic() + wait,
-                mission,
-                movement,
-                target_x,
-                target_y,
-                target_kingdom,
-                spy_type=spy_type,
-            )
-        finally:
-            connection.unsubscribe("sne", notifications.put)
+        handle = self.send_instant_spy(
+            source_castle_id,
+            target_x,
+            target_y,
+            target_kingdom,
+            risk_tolerance,
+            accuracy,
+            spy_type=spy_type,
+            horse_booster_id=horse_booster_id,
+            feathers=feathers,
+            slowdown=slowdown,
+            wait_for_spies=wait_for_spies,
+            cancel=cancel,
+        )
+        return self.await_report(handle, max_wait=max_wait)
 
     def send_sabotage(
         self,
@@ -627,59 +837,174 @@ class SpyService(BaseService):
             return SpyResult(SpyOutcome.COMMAND_FAILED, SpyStep.CSM, error=e)
         return SpyResult(SpyOutcome.SENT, mission=mission)
 
-    def _await_report(
-        self,
-        notifications: queue.Queue[Packet],
-        deadline: float,
-        mission: SendSpyResponse,
-        target: MovementRecord | None,
-        target_x: int,
-        target_y: int,
-        target_kingdom: Kingdom,
-        *,
-        spy_type: SpyType,
-    ) -> SpyResult:
-        """Read ``sne`` pushes until one is this mission's report, or the deadline passes."""
-        missed = SpyOutcome.TIMEOUT
-        while (remaining := deadline - time.monotonic()) > 0:
-            try:
-                packet = notifications.get(timeout=min(remaining, _POLL_SECONDS))
-            except queue.Empty:
-                if not self.client.connection.connected:
-                    return SpyResult(SpyOutcome.DISCONNECTED, SpyStep.SNE, mission=mission)
+    def _listen(self, handle: SpyHandle) -> None:
+        """Keep spy logs for ``handle`` from now on; subscribed before csm is sent so the report can't slip past."""
+        with self._logs_changed:
+            self._prune()
+            if not self._missions:
+                self.client.connection.subscribe("sne", self._on_sne)
+            self._missions.append(handle)
+            handle._on_cancel = self._changed
+
+    def _arm(self, handle: SpyHandle, mission: SendSpyResponse) -> None:
+        """Give a listening handle its csm reply, from which its reports are matched."""
+        with self._logs_changed:
+            handle.mission = mission
+            handle.arrival_eta = time.monotonic() + (mission.seconds_until_arrival or 0)
+            self._prune()
+            self._logs_changed.notify_all()
+
+    def _release(self, handle: SpyHandle) -> None:
+        """``handle`` no longer reads; it keeps listening only as a cancelled mission's place (see :meth:`_prune`)."""
+        with self._logs_changed:
+            handle._reading = None
+            self._prune()
+            self._logs_changed.notify_all()
+
+    def _changed(self) -> None:
+        """Wake the waits and settle the logs after a handle was cancelled."""
+        with self._logs_changed:
+            self._prune()
+            self._logs_changed.notify_all()
+
+    def _on_sne(self, packet: Packet) -> None:
+        """Receive-thread subscriber: keep the spy logs of an ``sne`` push for the missions waiting."""
+        logs = [(message, header) for message in _spy_messages(packet) if (header := message.spy_log_header())]
+        with self._logs_changed:
+            self._spy_logs.extend(logs)
+            self._prune()
+            self._logs_changed.notify_all()
+
+    @staticmethod
+    def _listening(handle: SpyHandle, now: float) -> bool:
+        """
+        Whether ``handle`` still takes spy logs.
+
+        A handle waiting for its csm reply does, and an armed one until its
+        result is known or, never awaited, until ``_ABANDONED_SECONDS`` after
+        its report was due. A mission whose spies were sent and which left
+        its wait without reading its report (cancelled, ``max_wait``) stays
+        until 10s after they arrive, so the report routed to it is dropped
+        instead of reaching a mission whose spies arrive later.
+        """
+        if handle.mission is None or handle.arrival_eta is None:
+            return handle.result is None
+        if handle._reading is not None:
+            return True
+        due = handle.arrival_eta + _REPORT_MARGIN
+        if handle.result is None:
+            return now < due + (0 if handle.cancel_event.is_set() else _ABANDONED_SECONDS)
+        return handle.result.step is SpyStep.SNE and now < due
+
+    def _prune(self) -> None:
+        """
+        Settle the missions and kept logs; called under ``_logs_changed``.
+
+        Drops the handles no longer listening (one left alone gets a
+        ``TIMEOUT`` result), each mission that stopped reading together with
+        the log routed to it, and the logs no handle can take; unsubscribes
+        once no handle is left.
+        """
+        now = time.monotonic()
+        for handle in self._missions:
+            if not self._listening(handle, now) and handle.result is None:
+                handle.result = SpyResult(SpyOutcome.TIMEOUT, SpyStep.SNE, mission=handle.mission)
+        self._missions = [h for h in self._missions if self._listening(h, now)]
+        for log, handle in list(self._routes()):
+            if handle.cancel_event.is_set() or handle.result is not None:
+                self._spy_logs.remove(log)
+                self._missions.remove(handle)
+        self._spy_logs = [log for log in self._spy_logs if any(h._may_read(log) for h in self._missions)]
+        if not self._missions:
+            self.client.connection.unsubscribe("sne", self._on_sne)
+
+    def _routes(self) -> Iterator[tuple[_SpyLog, SpyHandle]]:
+        """
+        The kept spy logs with the mission each goes to now; called under ``_logs_changed``.
+
+        Logs go in the order they came, each to the free mission whose spies
+        arrive first among those whose target its header names and which have
+        not turned it down; a mission reading a log is not free, and each
+        mission gets one log at a time. A log a mission still waiting for its
+        csm reply could take is held, and so are the missions it could go to,
+        since the waiting one may arrive first (a feathered mission arrives
+        with the reply).
+        """
+        taken: set[int] = set()
+        for log in self._spy_logs:
+            armed = [h for h in self._missions if h.mission is not None and id(h) not in taken and h._may_read(log)]
+            if any(h.mission is None and h._may_read(log) for h in self._missions):
+                taken.update(id(h) for h in armed)
                 continue
-            for message in _spy_messages(packet):
-                header = message.spy_log_header()
-                if header is None or not _names_target(header, target, target_kingdom, spy_type):
-                    continue
-                try:
-                    report = self.request(GetSpyReportRequest(message_id=message.message_id), SpyReportResponse)
-                except CommandError as e:
-                    if e.error in _NO_REPORT_ERRORS:
-                        return SpyResult(
-                            SpyOutcome.NO_SPY_DATA,
-                            SpyStep.BSD,
-                            error=e,
-                            message_id=message.message_id,
-                            mission=mission,
-                        )
-                    return SpyResult(SpyOutcome.COMMAND_FAILED, SpyStep.BSD, error=e, mission=mission)
-                except EmpireError as e:
-                    return SpyResult(SpyOutcome.COMMAND_FAILED, SpyStep.BSD, error=e, mission=mission)
+            free = [h for h in armed if h._reading is None]
+            if free:
+                first = min(free, key=lambda h: h.arrival_eta or 0.0)
+                taken.add(id(first))
+                yield log, first
 
-                area = report.area
-                if area is not None and area.x >= 0 and area.y >= 0 and (area.x, area.y) != (target_x, target_y):
-                    # Another area with the same owner, e.g. one of many robber barons.
-                    missed = SpyOutcome.REPORT_TARGET_MISMATCH
-                    continue
+    def _take_log(self, handle: SpyHandle, deadline: float) -> _SpyLog | SpyOutcome:
+        """Wait for the next spy log ``handle`` should read, or the outcome that ends the wait."""
+        with self._logs_changed:
+            while (remaining := deadline - time.monotonic()) > 0:
+                if handle.cancel_event.is_set():
+                    return SpyOutcome.CANCELLED
+                self._prune()
+                log = next((log for log, h in self._routes() if h is handle), None)
+                if log is not None:
+                    self._spy_logs.remove(log)
+                    handle._reading = log
+                    return log
+                if not self.client.connection.connected:
+                    return SpyOutcome.DISCONNECTED
+                self._logs_changed.wait(min(remaining, _POLL_SECONDS))
+        return SpyOutcome.TIMEOUT
 
-                result = SpyResult(SpyOutcome.SUCCESS, message_id=message.message_id, report=report, mission=mission)
-                if header.spies_lost:
-                    result.outcome = SpyOutcome.SPY_CAUGHT
-                elif spy_type == SpyType.MILITARY and not report.has_army:
-                    result.outcome = SpyOutcome.NO_SPY_DATA
-                return result
-        return SpyResult(missed, SpyStep.SNE, mission=mission)
+    def _decline(self, handle: SpyHandle, log: _SpyLog) -> None:
+        """Hand back a report for another position, for the next mission whose target its header names."""
+        with self._logs_changed:
+            handle._declined.add(log[0].message_id)
+            handle._reading = None
+            self._spy_logs.append(log)
+            self._prune()
+            self._logs_changed.notify_all()
+
+    def _read_report(self, handle: SpyHandle, mission: SendSpyResponse, deadline: float) -> SpyResult:
+        """Read the spy logs given to ``handle`` until one is its report, or the deadline passes."""
+        missed = SpyOutcome.TIMEOUT
+        while True:
+            log = self._take_log(handle, deadline)
+            if isinstance(log, SpyOutcome):
+                return SpyResult(missed if log is SpyOutcome.TIMEOUT else log, SpyStep.SNE, mission=mission)
+            message, header = log
+            try:
+                report = self.request(GetSpyReportRequest(message_id=message.message_id), SpyReportResponse)
+            except CommandError as e:
+                if e.error in _NO_REPORT_ERRORS:
+                    return SpyResult(
+                        SpyOutcome.NO_SPY_DATA,
+                        SpyStep.BSD,
+                        error=e,
+                        message_id=message.message_id,
+                        mission=mission,
+                    )
+                return SpyResult(SpyOutcome.COMMAND_FAILED, SpyStep.BSD, error=e, mission=mission)
+            except EmpireError as e:
+                return SpyResult(SpyOutcome.COMMAND_FAILED, SpyStep.BSD, error=e, mission=mission)
+
+            area = report.area
+            target = (handle.target_x, handle.target_y)
+            if area is not None and area.x >= 0 and area.y >= 0 and (area.x, area.y) != target:
+                # Another area with the same owner, e.g. one of many robber barons.
+                missed = SpyOutcome.REPORT_TARGET_MISMATCH
+                self._decline(handle, log)
+                continue
+
+            result = SpyResult(SpyOutcome.SUCCESS, message_id=message.message_id, report=report, mission=mission)
+            if header.spies_lost:
+                result.outcome = SpyOutcome.SPY_CAUGHT
+            elif handle.spy_type == SpyType.MILITARY and not report.has_army:
+                result.outcome = SpyOutcome.NO_SPY_DATA
+            return result
 
 
 def _spy_messages(packet: Packet) -> list[MessageInfo]:
@@ -693,4 +1018,4 @@ def _spy_messages(packet: Packet) -> list[MessageInfo]:
     return event.messages if isinstance(event, SystemNotificationEvent) else []
 
 
-__all__ = ["SpyOutcome", "SpyResult", "SpyService", "SpyStep"]
+__all__ = ["SpyHandle", "SpyOutcome", "SpyResult", "SpyService", "SpyStep"]

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import copy
+import threading
+import time
 from typing import Any
 
 import pytest
@@ -12,6 +14,7 @@ from empire_core.enums import Kingdom, SpyOutcome, SpyStep, SpyType
 from empire_core.exceptions import CommandError, EmpireTimeoutError
 from empire_core.protocol.packet import Packet
 from empire_core.spy import service as spy_module
+from empire_core.spy.service import SpyHandle
 from tests.service_helpers import conn, make_client, xt_packet
 from tests.spy.payloads import BSD_NPC_CAMP_REPORT, CSM_REPLY
 
@@ -88,7 +91,11 @@ class TestSpySuccessPath:
         # Sending the whole pool bought nothing: 6 spies already reach the 5%
         # floor against an unguarded castle, and draining the pool made the next
         # mission wait for spies to walk home.
-        client = spy_client(ssi=xt_packet("ssi", {"AS": 46, "GC": 0}))
+        reply = csm_reply()
+        reply["A"]["M"]["KID"] = Kingdom.ICE
+        client = spy_client(
+            ssi=xt_packet("ssi", {"AS": 46, "GC": 0}), csm=xt_packet("csm", reply), sne=sne_packet("1+0+2#2+-211+")
+        )
 
         client.spy.execute_instant_spy(12345, 700, 710, target_kingdom=Kingdom.ICE)
 
@@ -450,7 +457,7 @@ class TestSpyFailurePaths:
 
     def test_waiting_for_spies_asks_again_until_the_limit(self, monkeypatch):
         slept: list[float] = []
-        monkeypatch.setattr(spy_module.time, "sleep", slept.append)
+        monkeypatch.setattr(spy_module, "sleep_unless_cancelled", lambda seconds, cancel: slept.append(seconds))
         client = spy_client(ssi=xt_packet("ssi", {"AS": 0}))
 
         result = client.spy.execute_instant_spy(12345, 700, 710, wait_for_spies=8)
@@ -547,7 +554,6 @@ class TestSpyFailurePaths:
         "kwargs",
         [
             {"csm": xt_packet("csm", error_code=21)},
-            {"sne": []},
             {"bsd": xt_packet("bsd", error_code=21)},
         ],
     )
@@ -558,6 +564,16 @@ class TestSpyFailurePaths:
 
         assert conn(client).subscribers["sne"] == []
         assert "unsubscribe:sne" in conn(client).events
+
+    def test_a_wait_cut_short_drops_the_subscription_once_the_report_was_due(self, no_sleep):
+        client = spy_client(sne=[])
+        handle = client.spy.send_instant_spy(12345, 700, 710)
+
+        client.spy.await_report(handle, max_wait=0.01)
+        assert len(conn(client).subscribers["sne"]) == 1
+        pass_time(client, handle, 1)
+
+        assert conn(client).subscribers["sne"] == []
 
 
 class TestPaying:
@@ -617,13 +633,13 @@ class TestReportWait:
     @staticmethod
     def _record_deadline(monkeypatch: pytest.MonkeyPatch) -> list[float]:
         deadlines: list[float] = []
-        original = spy_module.SpyService._await_report
+        original = spy_module.SpyService._read_report
 
-        def record(self: Any, notifications: Any, deadline: float, *args: Any, **kwargs: Any) -> Any:
+        def record(self: Any, handle: Any, mission: Any, deadline: float) -> Any:
             deadlines.append(deadline - spy_module.time.monotonic())
-            return original(self, notifications, deadline, *args, **kwargs)
+            return original(self, handle, mission, deadline)
 
-        monkeypatch.setattr(spy_module.SpyService, "_await_report", record)
+        monkeypatch.setattr(spy_module.SpyService, "_read_report", record)
         return deadlines
 
     def test_the_wait_covers_the_trip(self, no_sleep, monkeypatch):
@@ -923,3 +939,334 @@ class TestSabotageDamageRange:
         with pytest.raises(ValueError):
             client.spy.send_sabotage(12345, 700, 710, damage=damage)
         assert conn(client).requested == []
+
+
+def csm_mission(movement_id: int, trip: int, x: int = 700, y: int = 710) -> Packet:
+    """A csm reply for a mission to (x, y) whose spies arrive in ``trip`` seconds."""
+    reply = csm_reply(x, y)
+    reply["A"]["M"].update({"MID": movement_id, "TT": trip, "PT": 0})
+    return xt_packet("csm", reply)
+
+
+def push_sne(client: EmpireClient, *packets: Packet) -> None:
+    """Deliver ``sne`` pushes as the receive thread does: to every subscriber."""
+    for packet in packets:
+        for callback in list(conn(client).subscribers.get("sne", [])):
+            callback(packet)
+
+
+def pass_time(client: EmpireClient, handle: SpyHandle, past_due: float) -> None:
+    """Move ``handle``'s arrival so its report was due ``past_due`` seconds ago, and let an sne push settle it."""
+    assert handle.arrival_eta is not None
+    handle.arrival_eta -= handle.arrival_eta - time.monotonic() + spy_module._REPORT_MARGIN + past_due
+    push_sne(client, xt_packet("sne", {"MSG": []}))
+
+
+class TestASentMissionIsAwaitedSeparately:
+    """send_instant_spy returns once csm is answered; await_report reads the report later."""
+
+    def test_send_returns_a_handle_without_reading_a_report(self, no_sleep):
+        client = spy_client(sne=[])
+
+        handle = client.spy.send_instant_spy(12345, 700, 710)
+
+        assert handle.result is None
+        assert handle.movement_id == 5001
+        assert handle.arrival_eta == pytest.approx(time.monotonic() + 38, abs=0.5)
+        assert "bsd" not in conn(client).requested
+
+    def test_await_report_reads_the_report_routed_to_the_handle(self, no_sleep):
+        client = spy_client(sne=[])
+        handle = client.spy.send_instant_spy(12345, 700, 710)
+        push_sne(client, sne_packet())
+
+        result = client.spy.await_report(handle)
+
+        assert (result.outcome, result.message_id) == (SpyOutcome.SUCCESS, 9001)
+        assert result.mission is handle.mission
+        assert conn(client).subscribers["sne"] == []
+
+    def test_a_report_pushed_with_the_csm_reply_is_kept_for_the_handle(self, no_sleep):
+        # A feathered mission arrives with the reply: its sne can come before the handle knows its target
+        client = spy_client(csm=csm_mission(5001, trip=0))
+
+        handle = client.spy.send_instant_spy(12345, 700, 710, feathers=True)
+
+        assert client.spy.await_report(handle).message_id == 9001
+
+    def test_a_mission_not_sent_hands_back_why(self, no_sleep):
+        client = spy_client(ssi=xt_packet("ssi", {"AS": 0}))
+
+        handle = client.spy.send_instant_spy(12345, 700, 710)
+
+        assert handle.mission is None
+        assert client.spy.await_report(handle).outcome is SpyOutcome.NO_SPIES_AVAILABLE
+        assert "sne" not in conn(client).subscribers
+
+    def test_a_refused_csm_stops_listening(self, no_sleep):
+        client = spy_client(csm=xt_packet("csm", error_code=21))
+
+        handle = client.spy.send_instant_spy(12345, 700, 710)
+
+        assert handle.result is not None
+        assert (handle.result.outcome, handle.result.step) == (SpyOutcome.COMMAND_FAILED, SpyStep.CSM)
+        assert conn(client).subscribers["sne"] == []
+
+
+class TestCancellingAMission:
+    """A cancel is looked at between requests, so no request's waiter is ever abandoned."""
+
+    def test_cancel_ends_the_wait_with_the_mission(self, no_sleep):
+        client = spy_client(sne=[])
+        handle = client.spy.send_instant_spy(12345, 700, 710)
+
+        handle.cancel()
+        result = client.spy.await_report(handle)
+
+        assert (result.outcome, result.step) == (SpyOutcome.CANCELLED, SpyStep.SNE)
+        assert result.mission is handle.mission
+
+    def test_a_cancelled_mission_listens_until_its_report_is_due(self, no_sleep):
+        client = spy_client(sne=[])
+        handle = client.spy.send_instant_spy(12345, 700, 710)
+        handle.cancel()
+
+        assert len(conn(client).subscribers["sne"]) == 1
+        pass_time(client, handle, 1)
+        assert conn(client).subscribers["sne"] == []
+
+    def test_cancel_from_another_thread_wakes_the_wait_at_once(self, no_sleep):
+        client = spy_client(sne=[])
+        handle = client.spy.send_instant_spy(12345, 700, 710)
+        timer = threading.Timer(0.05, handle.cancel)
+        timer.start()
+
+        started = time.monotonic()
+        result = client.spy.await_report(handle)
+
+        assert result.outcome is SpyOutcome.CANCELLED
+        assert time.monotonic() - started < 0.5
+        timer.join()
+
+    def test_a_cancel_event_ends_execute_instant_spy(self, no_sleep):
+        cancel = threading.Event()
+        client = spy_client(sne=[])
+        timer = threading.Timer(0.05, cancel.set)
+        timer.start()
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, cancel=cancel)
+
+        assert result.outcome is SpyOutcome.CANCELLED
+        assert result.mission is not None
+        timer.join()
+
+    def test_a_cancel_before_sending_sends_nothing(self, no_sleep):
+        cancel = threading.Event()
+        cancel.set()
+        client = spy_client()
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, cancel=cancel)
+
+        assert (result.outcome, result.mission) == (SpyOutcome.CANCELLED, None)
+        assert conn(client).requested == []
+
+    def test_a_cancel_while_waiting_for_spies_stops_asking(self, monkeypatch):
+        cancel = threading.Event()
+
+        def cancel_during_the_pause(seconds: float, event: threading.Event) -> bool:
+            cancel.set()
+            return True
+
+        monkeypatch.setattr(spy_module, "sleep_unless_cancelled", cancel_during_the_pause)
+        client = spy_client(ssi=xt_packet("ssi", {"AS": 0}))
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, wait_for_spies=8, cancel=cancel)
+
+        assert result.outcome is SpyOutcome.CANCELLED
+        assert conn(client).requested == ["ssi"]
+
+    def test_a_report_already_asked_for_is_still_read(self, no_sleep):
+        client = spy_client(sne=[])
+        handle = client.spy.send_instant_spy(12345, 700, 710)
+        scripted = conn(client)
+        original = scripted.request
+
+        def cancel_during_bsd(data: str, cmd_id: str, timeout: float = 5.0, accepts: Any = None) -> Packet:
+            if cmd_id == "bsd":
+                handle.cancel_event.set()
+            return original(data, cmd_id, timeout, accepts)
+
+        scripted.request = cancel_during_bsd  # type: ignore[method-assign]
+        push_sne(client, sne_packet())
+
+        assert client.spy.await_report(handle).outcome is SpyOutcome.SUCCESS
+
+
+class TestTwoMissionsToOneTarget:
+    """sne has no mission id: reports for one target go to the missions in arrival order."""
+
+    @staticmethod
+    def two_missions(**script: Any) -> tuple[EmpireClient, SpyHandle, SpyHandle]:
+        client = make_client(
+            {
+                "ssi": xt_packet("ssi", {"AS": 46, "GC": 0}),
+                "csm": [csm_mission(5001, trip=60), csm_mission(5002, trip=30)],
+                **script,
+            }
+        )
+        slow = client.spy.send_instant_spy(12345, 700, 710)
+        fast = client.spy.send_instant_spy(12345, 700, 710)
+        return client, slow, fast
+
+    def test_each_mission_reads_its_own_report_whatever_the_await_order(self, no_sleep):
+        client, slow, fast = self.two_missions(bsd=[bsd_reply(9001), bsd_reply(9002)])
+        push_sne(client, sne_packet(message_id=9001), sne_packet(message_id=9002))
+
+        slow_result = client.spy.await_report(slow)
+        fast_result = client.spy.await_report(fast)
+
+        # The mission sent second arrives first, so the first report is its
+        assert (fast_result.message_id, slow_result.message_id) == (9001, 9002)
+        assert [p["MID"] for c, p in conn(client).request_payloads if c == "bsd"] == [9002, 9001]
+        assert conn(client).subscribers["sne"] == []
+
+    def test_a_report_for_a_sibling_camp_is_handed_to_the_mission_there(self, no_sleep):
+        client = make_client(
+            {
+                "ssi": xt_packet("ssi", {"AS": 46, "GC": 0}),
+                "csm": [csm_mission(5001, trip=30), csm_mission(5002, trip=60, x=111, y=222)],
+                "bsd": [caught_bsd(8000, x=111, y=222), bsd_reply(9001), caught_bsd(8000, x=111, y=222)],
+            }
+        )
+        near = client.spy.send_instant_spy(12345, 700, 710)
+        far = client.spy.send_instant_spy(12345, 111, 222)
+        push_sne(client, sne_packet("1+2+2#0+-211+", message_id=8000), sne_packet(message_id=9001))
+
+        near_result = client.spy.await_report(near)
+        far_result = client.spy.await_report(far)
+
+        assert (near_result.outcome, near_result.message_id) == (SpyOutcome.SUCCESS, 9001)
+        assert (far_result.outcome, far_result.message_id) == (SpyOutcome.SPY_CAUGHT, 8000)
+
+    def test_a_cancelled_missions_report_is_dropped_not_handed_on(self, no_sleep):
+        client, slow, fast = self.two_missions(bsd=bsd_reply(9002))
+        fast.cancel()
+        push_sne(client, sne_packet(message_id=9001), sne_packet(message_id=9002))
+
+        result = client.spy.await_report(slow)
+
+        assert result.message_id == 9002
+        assert [p["MID"] for c, p in conn(client).request_payloads if c == "bsd"] == [9002]
+
+    def test_a_mission_cancelled_by_its_event_drops_its_report_too(self, no_sleep):
+        client, slow, fast = self.two_missions(bsd=bsd_reply(9002))
+        push_sne(client, sne_packet(message_id=9001), sne_packet(message_id=9002))
+        fast.cancel_event.set()
+
+        assert client.spy.await_report(slow).message_id == 9002
+        assert [p["MID"] for c, p in conn(client).request_payloads if c == "bsd"] == [9002]
+
+    def test_a_mission_that_stopped_waiting_drops_its_report_too(self, no_sleep):
+        client, slow, fast = self.two_missions(bsd=bsd_reply(9002))
+        assert client.spy.await_report(fast, max_wait=0.05).outcome is SpyOutcome.TIMEOUT
+        push_sne(client, sne_packet(message_id=9001), sne_packet(message_id=9002))
+
+        assert client.spy.await_report(slow).message_id == 9002
+
+    def test_a_cancelled_mission_stops_taking_reports_once_they_were_due(self, no_sleep):
+        client, slow, fast = self.two_missions(bsd=bsd_reply(9001))
+        fast.cancel()
+        pass_time(client, fast, 1)
+        push_sne(client, sne_packet(message_id=9001))
+
+        assert client.spy.await_report(slow).message_id == 9001
+
+
+class TestAwaitingAHandle:
+    """A handle's result is kept; a handle no one awaits stops listening in the end."""
+
+    def test_a_second_await_returns_the_first_result_at_once(self, no_sleep):
+        client = spy_client(sne=[])
+        handle = client.spy.send_instant_spy(12345, 700, 710)
+        push_sne(client, sne_packet())
+        first = client.spy.await_report(handle)
+
+        started = time.monotonic()
+        again = client.spy.await_report(handle)
+
+        assert again is first is handle.result
+        assert time.monotonic() - started < 0.1
+        assert conn(client).requested.count("bsd") == 1
+
+    def test_a_concurrent_await_gets_what_the_first_one_reads(self, no_sleep):
+        client = spy_client(sne=[])
+        handle = client.spy.send_instant_spy(12345, 700, 710)
+        results: list[Any] = []
+        first = threading.Thread(target=lambda: results.append(client.spy.await_report(handle)))
+        first.start()
+        time.sleep(0.05)
+        threading.Timer(0.05, push_sne, (client, sne_packet())).start()
+
+        second = client.spy.await_report(handle)
+        first.join()
+
+        assert second is results[0]
+        assert second.outcome is SpyOutcome.SUCCESS
+        assert conn(client).requested.count("bsd") == 1
+
+    def test_a_concurrent_await_keeps_its_own_max_wait(self, no_sleep):
+        client = spy_client(sne=[])
+        handle = client.spy.send_instant_spy(12345, 700, 710)
+        first = threading.Thread(target=client.spy.await_report, args=(handle,))
+        first.start()
+        time.sleep(0.05)
+
+        assert client.spy.await_report(handle, max_wait=0.05).outcome is SpyOutcome.TIMEOUT
+        handle.cancel()
+        first.join()
+
+    def test_a_handle_never_awaited_stops_listening(self, no_sleep):
+        client = spy_client(sne=[])
+        handle = client.spy.send_instant_spy(12345, 700, 710)
+
+        pass_time(client, handle, spy_module._ABANDONED_SECONDS - 1)
+        assert len(conn(client).subscribers["sne"]) == 1
+        pass_time(client, handle, spy_module._ABANDONED_SECONDS + 1)
+
+        assert conn(client).subscribers["sne"] == []
+        assert client.spy.await_report(handle).outcome is SpyOutcome.TIMEOUT
+
+    def test_a_lost_connection_ends_the_wait_at_once(self, no_sleep):
+        client = spy_client(sne=[])
+        handle = client.spy.send_instant_spy(12345, 700, 710)
+        conn(client).connected = False
+
+        started = time.monotonic()
+        result = client.spy.await_report(handle)
+
+        assert result.outcome is SpyOutcome.DISCONNECTED
+        assert time.monotonic() - started < 0.1
+
+
+class TestAMissionWaitingForItsReply:
+    """Only the logs a mission still waiting for csm could take are held back."""
+
+    def test_a_log_for_another_kingdom_is_read_meanwhile(self, no_sleep):
+        client = spy_client(sne=[])
+        armed = client.spy.send_instant_spy(12345, 700, 710)
+        push_sne(client, sne_packet())
+        pending = spy_module.SpyHandle(1, 2, Kingdom.ICE, SpyType.MILITARY)
+        client.spy._listen(pending)
+
+        assert client.spy.await_report(armed, max_wait=0.5).message_id == 9001
+        pending.cancel()
+
+    def test_a_log_it_could_take_is_held(self, no_sleep):
+        client = spy_client(sne=[])
+        armed = client.spy.send_instant_spy(12345, 700, 710)
+        push_sne(client, sne_packet())
+        pending = spy_module.SpyHandle(700, 710, Kingdom.GREEN, SpyType.MILITARY)
+        client.spy._listen(pending)
+
+        assert client.spy.await_report(armed, max_wait=0.2).outcome is SpyOutcome.TIMEOUT
+        pending.cancel()

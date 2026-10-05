@@ -59,10 +59,69 @@ Nothing is paid unless you ask: by default the spies travel without a horse.
 | `RISK_OVER_BUDGET` | Even the whole pool stays above `risk_tolerance`, so nothing was sent. |
 | `COMMAND_FAILED` | A request failed; `error` holds why and `step` which one. |
 | `TIMEOUT` | No report for this mission arrived before the deadline. |
+| `CANCELLED` | You cancelled; `mission` is set when the spies had already left. |
 
 `step` is a `SpyStep`, the command the mission was at when it ended: `ssi`
 (the spy screen), `csm` (sending), `sne` (the report's mail) or `bsd` (reading
 it).
+
+### Send now, read the report later
+
+`execute_instant_spy` is `send_instant_spy` followed by `await_report`. Call
+the two yourself to do something else while the spies travel:
+
+```python
+handle = client.spy.send_instant_spy(castle.castle_id, 700, 710, risk_tolerance=20)
+if handle.result is not None:      # nothing was sent: no spies, too risky, refused
+    print(handle.result.outcome)
+else:
+    print(handle.movement_id, handle.arrival_eta)  # arrival_eta is a time.monotonic() value
+    ...
+    result = client.spy.await_report(handle)
+```
+
+The handle listens for its report from before the mission is sent, so a
+report that comes before `await_report` is kept for it. `await_report` keeps
+its result in `handle.result`, so calling it again returns the same result at
+once. Await or cancel the handles you send: a handle left alone keeps its
+reports, and the `sne` subscription, until 10 minutes after its report was
+due.
+
+The report's mail carries no mission id. A report goes to the mission whose
+target its header names, and when several missions go to one target, to the
+one whose spies arrive first. Two missions to one castle get their reports in
+the order their spies arrive. That is how the server sends them, but nothing
+in the mail confirms it.
+
+### Cancelling
+
+`handle.cancel()` ends `await_report` at once with `CANCELLED`. Or pass a
+`threading.Event` as `cancel` to `send_instant_spy` or `execute_instant_spy`;
+setting it cancels within a second, and one event can cancel many missions,
+for example at shutdown:
+
+```python
+import threading
+
+stop = threading.Event()
+result = client.spy.execute_instant_spy(castle.castle_id, 700, 710, cancel=stop)
+# on another thread: stop.set()
+```
+
+A cancel is looked at between requests, never during one: a request already
+sent ends with its reply or its timeout, so its reply cannot reach the next
+caller of that command. A report already being read is still returned.
+
+Cancelling does not bring the spies home. They arrive and their report comes
+as usual. Until 10s after their arrival the cancelled mission keeps its place
+in the order reports are given out, and the `sne` subscription, so its report
+is dropped, not read as the report of another mission to the same target. The
+same holds for a mission whose `await_report` ended at `max_wait`. To turn them back while they are
+still on the way:
+
+```python
+client.movements.recall(handle.movement_id)
+```
 
 ## Sabotage
 
