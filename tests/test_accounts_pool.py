@@ -340,14 +340,23 @@ class TestSecretsNotInRepr:
         assert self.SECRET not in f"{acc}"
 
 
+class FakeConnection:
+    def __init__(self):
+        self.connected = True
+        self.close_error: BaseException | None = None
+
+
 class FakeClient:
     def __init__(self, username: str, login_ok: bool = True):
         self.username = username
         self.is_logged_in = False
         self.closed = False
+        self.logins = 0
+        self.connection = FakeConnection()
         self._login_ok = login_ok
 
     def login(self) -> bool:
+        self.logins += 1
         self.is_logged_in = self._login_ok
         return self._login_ok
 
@@ -697,3 +706,208 @@ class TestConcurrentLeases:
             pool.lease()
         assert pool.busy_count == 0
         assert clients[0].closed
+
+
+class TestKeepAlive:
+    @pytest.fixture
+    def made(self, monkeypatch) -> list[FakeClient]:
+        made: list[FakeClient] = []
+
+        def make(account: Account) -> FakeClient:
+            made.append(FakeClient(account.username))
+            return made[-1]
+
+        monkeypatch.setattr(Account, "get_client", make)
+        return made
+
+    @staticmethod
+    def pool(*usernames: str) -> AccountPool:
+        return AccountPool(FakeRegistry([Account(username=name, password="p") for name in usernames]), keep_alive=True)
+
+    def test_release_keeps_the_client_and_the_next_lease_reuses_it(self, made):
+        pool = self.pool("alpha")
+        with pool.leased() as first:
+            pass
+        assert not made[0].closed
+        assert pool.busy_count == 0
+
+        with pool.leased() as second:
+            assert second is first
+        assert len(made) == 1
+        assert made[0].logins == 1
+
+    def test_a_dropped_client_is_closed_and_replaced_by_a_fresh_login(self, made):
+        pool = self.pool("alpha")
+        with pool.leased():
+            pass
+        made[0].is_logged_in = False
+        made[0].connection.connected = False
+
+        with pool.leased() as client:
+            assert client is made[1]
+        assert made[0].closed
+        assert made[1].logins == 1
+
+    def test_a_logged_in_client_whose_socket_died_is_replaced(self, made):
+        pool = self.pool("alpha")
+        with pool.leased():
+            pass
+        made[0].connection.connected = False
+
+        with pool.leased() as client:
+            assert client is made[1]
+        assert made[0].closed
+
+    def test_a_cooldown_on_the_relogin_moves_on_to_the_next_account(self, monkeypatch):
+        made: list[FakeClient] = []
+
+        class CooldownClient(FakeClient):
+            def login(self) -> bool:
+                if self.username == "alpha" and made[0].logins:
+                    raise LoginCooldownError(30)
+                return super().login()
+
+        def make(account: Account) -> FakeClient:
+            made.append(CooldownClient(account.username))
+            return made[-1]
+
+        monkeypatch.setattr(Account, "get_client", make)
+        pool = self.pool("alpha", "beta")
+        for name in ("alpha", "beta"):
+            with pool.leased(username=name):
+                pass
+        made[0].is_logged_in = False
+
+        assert pool.lease() is made[1]
+        assert made[0].closed and made[2].closed
+        assert pool.get_client("alpha") is None
+
+    def test_release_with_logout_closes_the_client(self, made):
+        pool = self.pool("alpha")
+        client = pool.lease()
+        assert client is not None
+        pool.release(client, logout=True)
+        assert made[0].closed
+        assert pool.get_client("alpha") is None
+
+    def test_a_client_that_is_not_logged_in_is_closed_on_release(self, made):
+        pool = self.pool("alpha")
+        client = pool.lease(login=False)
+        assert client is not None
+        pool.release(client)
+        assert made[0].closed
+
+    def test_a_kept_client_is_handed_out_logged_in_when_login_is_off(self, made):
+        pool = self.pool("alpha")
+        with pool.leased() as first:
+            pass
+        assert pool.lease(login=False) is first
+
+    def test_release_all_closes_kept_clients(self, made):
+        pool = self.pool("alpha", "beta")
+        with pool.leased(username="alpha"):
+            pass
+        leased = pool.lease(username="beta")
+        assert leased is not None
+
+        pool.release_all()
+        assert made[0].closed and made[1].closed
+        assert pool.busy_count == 0
+        assert pool.get_client("alpha") is None
+
+    def test_a_client_the_pool_did_not_lease_is_not_kept(self, made):
+        pool = self.pool("alpha")
+        with pool.leased() as kept:
+            pass
+        stranger = FakeClient("alpha")
+        stranger.login()
+        pool.release(stranger)  # type: ignore[arg-type]
+        assert stranger.closed
+        assert pool.get_client("alpha") is kept
+
+    def test_release_all_without_logout_keeps_idle_clients_and_frees_leased_ones(self, made):
+        pool = self.pool("alpha", "beta")
+        with pool.leased(username="alpha"):
+            pass
+        assert pool.lease(username="beta") is made[1]
+
+        pool.release_all(logout=False)
+        assert not made[0].closed and not made[1].closed
+        assert pool.busy_count == 0
+        assert pool.get_client("alpha") is made[0]
+
+    def test_a_second_release_of_an_idle_kept_client_changes_nothing(self, made, caplog):
+        pool = self.pool("alpha")
+        first = pool.lease()
+        assert first is not None
+        pool.release(first)
+
+        with caplog.at_level(logging.WARNING, logger="empire_core.pool"):
+            pool.release(first)
+            pool.release(first, logout=True)
+        assert not made[0].closed
+        assert pool.get_client("alpha") is first
+        assert "pool unchanged" in caplog.text
+
+    def test_a_finished_lease_cannot_release_the_next_one(self, made):
+        pool = self.pool("alpha")
+        with pool.leased() as first:
+            pool.release(first)
+            second = pool.lease()
+            assert second is first
+        assert pool.busy_count == 1
+        assert pool.lease() is None
+        assert not made[0].closed
+
+        pool.release(second)
+        assert pool.busy_count == 0
+
+    def test_a_kept_client_whose_check_raises_is_closed_and_forgotten(self, made):
+        class BrokenConnection:
+            @property
+            def connected(self) -> bool:
+                raise OSError("socket gone")
+
+        pool = self.pool("alpha")
+        with pool.leased():
+            pass
+        made[0].connection = BrokenConnection()  # type: ignore[assignment]
+
+        with pytest.raises(LoginError):
+            pool.lease()
+        assert made[0].closed
+        assert pool.get_client("alpha") is None
+        assert pool.busy_count == 0
+
+    def test_default_pool_still_closes_on_release(self, made):
+        pool = AccountPool(FakeRegistry([Account(username="alpha", password="p")]))
+        with pool.leased():
+            pass
+        assert made[0].closed
+        with pool.leased():
+            pass
+        assert len(made) == 2
+
+    def test_threads_never_share_a_kept_client(self, made):
+        pool = self.pool("alpha")
+        with pool.leased():
+            pass
+        count = 4
+        start = threading.Barrier(count, timeout=5)
+        got: list[object] = []
+        lock = threading.Lock()
+
+        def lease() -> None:
+            start.wait()
+            client = pool.lease()
+            with lock:
+                got.append(client)
+
+        threads = [threading.Thread(target=lease) for _ in range(count)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+
+        assert [c for c in got if c is not None] == [made[0]]
+        assert len(made) == 1

@@ -31,6 +31,43 @@ cause is chained onto it.
 
 The pool is safe to use from several threads.
 
+## Keeping clients logged in
+
+By default every lease logs in and every release closes the client. A consumer
+that leases per request pays a login each time, and frequent logins risk a
+login cooldown. Make the pool with `keep_alive=True` to keep released clients
+logged in instead:
+
+```python
+pool = AccountPool(registry, keep_alive=True)
+
+with pool.leased(username="scanner1") as client:   # logs in
+    ...
+with pool.leased(username="scanner1") as client:   # same client, no login
+    ...
+
+pool.release_all()   # closes the kept clients too
+```
+
+A kept client pings the server every 60 seconds, as the game client does, so an
+idle session stays open. If its session dropped while it waited, the next lease
+closes it and logs in a fresh client; a cooldown on that login moves the lease
+on to the next candidate as usual. `release(client, logout=True)` closes a
+client even in a `keep_alive` pool.
+
+The next lease gets the very client object you held, so let go of your handle
+when you release it. `pool.leased()` releases only its own lease, but a manual
+`pool.release(client)` cannot tell your handle from the next leaseholder's:
+call it once per lease. Releasing a client the account is not leased with
+changes nothing and logs a warning.
+
+!!! warning "Callbacks outlive the lease"
+
+    The next leaseholder gets the client as you left it. Callbacks you
+    registered on it (`client.on_disconnect`, `client.state.on_incoming_attack`
+    and the like) keep firing during their lease. Remove them before the
+    `with` block ends, or release with `logout=True`.
+
 ## Where accounts come from
 
 `registry.load()` reads the file you name plus every `EMPIRE_ACCOUNT_*`
