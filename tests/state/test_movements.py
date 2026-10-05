@@ -76,6 +76,102 @@ class TestAttackCallbacks:
         assert fired == []
 
 
+class TestWithdrawnAttacks:
+    """mrm before arrival on an announced attack: CastleArmyData.parse_MRM vs updateMapmovements."""
+
+    @staticmethod
+    def watch(state: GameState) -> tuple[list[str], list[Movement]]:
+        events: list[str] = []
+        withdrawn: list[Movement] = []
+        state.on_movement_removed(lambda mid: events.append("removed"))
+
+        def on_withdrawn(mov: Movement) -> None:
+            events.append("withdrawn")
+            withdrawn.append(mov)
+
+        state.on_incoming_attack_withdrawn(on_withdrawn)
+        return events, withdrawn
+
+    def test_an_announced_attack_removed_before_arrival_is_withdrawn(self, state):
+        login(state)
+        events, withdrawn = self.watch(state)
+        state.update_from_packet("gam", gam_payload(150))
+        with later(300):
+            state.update_from_packet("mrm", {"MID": 150})
+        assert wait_for(lambda: events == ["removed", "withdrawn"])
+        assert [mov.movement_id for mov in withdrawn] == [150]
+        assert withdrawn[0].source_player_name == "Attacker"
+
+    def test_an_attack_removed_at_its_arrival_time_is_not_withdrawn(self, state):
+        # No packet in between, so state has not yet seen the arrival time pass
+        login(state)
+        events, _ = self.watch(state)
+        state.update_from_packet("gam", gam_payload(151))
+        with later(600):
+            state.update_from_packet("mrm", {"MID": 151})
+        assert wait_for(lambda: events == ["removed"])
+        time.sleep(0.1)
+        assert events == ["removed"]
+
+    def test_an_attack_removed_just_before_its_estimate_is_not_withdrawn(self, state):
+        # estimated_arrival can run a second late, so this may be the landing
+        login(state)
+        events, _ = self.watch(state)
+        state.update_from_packet("gam", gam_payload(156))
+        with later(state.movements[156].estimated_arrival - time.time() - 0.5):
+            state.update_from_packet("mrm", {"MID": 156})
+        assert wait_for(lambda: events == ["removed"])
+        time.sleep(0.1)
+        assert events == ["removed"]
+
+    def test_an_arrived_attack_is_not_withdrawn(self, state):
+        login(state)
+        events, _ = self.watch(state)
+        state.update_from_packet("gam", gam_payload(152))
+        arrive(state, 152)
+        state.update_from_packet("mrm", {"MID": 152})
+        assert wait_for(lambda: events == ["removed"])
+        time.sleep(0.1)
+        assert events == ["removed"]
+
+    def test_an_attack_state_no_longer_tracks_is_not_withdrawn(self, state):
+        login(state)
+        events, _ = self.watch(state)
+        state.update_from_packet("gam", gam_payload(153))
+        state.reset()
+        state.update_from_packet("mrm", {"MID": 153})
+        state.update_from_packet("mrm", {"MID": 9999})
+        assert wait_for(lambda: events == ["removed", "removed"])
+        time.sleep(0.1)
+        assert events == ["removed", "removed"]
+
+    @pytest.mark.parametrize(
+        "payload",
+        [gam_payload(154, oid=1), gam_payload(154, movement_type=1), gam_payload(154, extra={"D": 1})],
+        ids=["own attack", "support", "on its way home"],
+    )
+    def test_a_movement_never_announced_is_not_withdrawn(self, state, payload):
+        login(state)
+        events, _ = self.watch(state)
+        state.update_from_packet("gam", payload)
+        state.update_from_packet("mrm", {"MID": 154})
+        assert wait_for(lambda: events == ["removed"])
+        time.sleep(0.1)
+        assert events == ["removed"]
+
+    def test_a_removed_callback_no_longer_fires(self, state):
+        login(state)
+        withdrawn: list[Movement] = []
+        state.on_incoming_attack_withdrawn(withdrawn.append)
+        state.remove_incoming_attack_withdrawn_callback(withdrawn.append)
+        state.update_from_packet("gam", gam_payload(155))
+        state.update_from_packet("mrm", {"MID": 155})
+        time.sleep(0.1)
+        assert withdrawn == []
+        with pytest.raises(ValueError):
+            state.remove_incoming_attack_withdrawn_callback(withdrawn.append)
+
+
 class TestMovementDirection:
     ME = 1
 
@@ -602,6 +698,7 @@ class TestCallbackRegistrationLocking:
         ("register", "remove"),
         [
             ("on_incoming_attack", "remove_incoming_attack_callback"),
+            ("on_incoming_attack_withdrawn", "remove_incoming_attack_withdrawn_callback"),
             ("on_movement_arrived", "remove_movement_arrived_callback"),
             ("on_movement_recalled", "remove_movement_recalled_callback"),
             ("on_movement_removed", "remove_movement_removed_callback"),
