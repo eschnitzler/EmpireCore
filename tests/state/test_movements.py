@@ -7,8 +7,10 @@ from unittest.mock import patch
 
 import pytest
 
-from empire_core.commanders.models.roster import CommanderEffect
+from empire_core.combat import commander_bonuses
+from empire_core.commanders.models.roster import Commander, CommanderEffect
 from empire_core.enums import MapItemType, MovementType
+from empire_core.gamedata import GameData
 from empire_core.movements.tracked import Movement
 from empire_core.state.manager import GameState
 from tests.state.state_helpers import arrive, gam_payload, later, login, push_payload, wait_for
@@ -249,8 +251,9 @@ class TestUpdatedAttacks:
         state.update_from_packet("gam", self.wrapper(175))
         self.settle(state)
         [(old, new)] = updates
-        assert old.commander_equipment == [] and [item.equipment_id for item in new.commander_equipment] == [901]
-        assert state.movements[175].commander_effects == new.commander_effects
+        assert old.commander is None and new.commander is not None
+        assert [item.equipment_id for item in new.commander.equipment] == [901]
+        assert state.movements[175].commander == new.commander
 
     def test_nothing_fires_for_a_movement_never_announced(self, state):
         login(state)
@@ -642,10 +645,11 @@ class TestMovementWrapperBlocks:
         assert (mov.support_tool_ids, mov.auto_skip_cooldown_type) == ([651, 652], 2)
         assert (mov.advisor_type, mov.advisor_movement_count, mov.advisor_movement_number) == (1, 3, 3)
         assert mov.advisor_is_last
-        [item] = mov.commander_equipment
+        assert mov.commander is not None
+        [item] = mov.commander.equipment
         assert (item.equipment_id, item.slot) == (901, 2)
         assert [(b.effect_id, b.values) for b in item.bonuses] == [(242, [25.0])]
-        assert mov.commander_effects == [CommanderEffect(effect_id=426, values=[10.0], source="GE")]
+        assert mov.commander.area_effects == [CommanderEffect(effect_id=426, values=[10.0], source="GE")]
         assert mov.battle_time == pytest.approx(mov.estimated_arrival + 30)
 
     def test_one_unreadable_block_does_not_drop_the_attack(self, state):
@@ -668,7 +672,7 @@ class TestMovementWrapperBlocks:
     def test_unreadable_commander_keeps_the_wait(self, state):
         mov = self.stored(state, UM={"PWD": 5, "TWD": 30, "L": {"EQ": "junk"}})
         assert (mov.wait_passed, mov.wait_total) == (5, 30)
-        assert (mov.commander_equipment, mov.commander_effects) == ([], [])
+        assert mov.commander is None
 
 
 class TestStaleMovementPruning:
@@ -1223,9 +1227,10 @@ class TestSentMovements:
         assert mov.units == {656: 1, 640: 2}
         assert (mov.target_x, mov.target_y, mov.target_id) == (510, 256, -202)
         assert mov.source_name == "Home"
-        [item] = mov.commander_equipment
+        assert mov.commander is not None
+        [item] = mov.commander.equipment
         assert (item.equipment_id, item.slot, item.unique_id, item.equipment_type) == (6515210043, 6, 802, 1)
-        assert [(e.effect_id, e.values, e.source) for e in mov.commander_effects] == [(426, [10.0], "GE")]
+        assert [(e.effect_id, e.values, e.source) for e in mov.commander.area_effects] == [(426, [10.0], "GE")]
         assert (mov.source_player_name, mov.source_alliance_name) == ("me", "Clan")
         assert mov.estimated_arrival == pytest.approx(time.time() + 128, abs=2)
 
@@ -1237,6 +1242,24 @@ class TestSentMovements:
         state.update_from_packet("gam", {"M": [wrapper], "O": []})
         [mov] = state.get_outgoing_movements()
         assert (mov.progress_time, mov.created_at, mov.source_player_name) == (10, created, "me")
+
+    def test_the_commander_resolves_like_its_gli_entry(self, state):
+        # LordFactory.createLord builds both; LordVO.getUniqueBoni reads both
+        entry = {**SENT_ATTACK["AAM"]["UM"]["L"], "E": [[110, [40.0], "AB"]]}
+        attack = {"AAM": {**SENT_ATTACK["AAM"], "UM": {"PWD": 0, "TWD": 0, "L": entry}}, "O": SENT_ATTACK["O"]}
+        login(state, self.ME)
+        state.update_from_packet("cra", attack)
+        [mov] = state.get_outgoing_movements()
+        game_data = GameData.parse("test", {})
+        assert mov.commander == Commander.model_validate(entry)
+        bonuses = commander_bonuses(game_data, mov.commander)
+        assert [bonus.effect_id for bonus in bonuses] == [242, 110, 426]
+        assert bonuses == commander_bonuses(game_data, Commander.model_validate(entry))
+
+    def test_a_movement_without_a_commander_has_none(self, state):
+        login(state, self.ME)
+        state.update_from_packet("gam", gam_payload(5, oid=self.ME))
+        assert state.movements[5].commander is None
 
     def test_own_attack_does_not_alert(self, state):
         login(state, self.ME)

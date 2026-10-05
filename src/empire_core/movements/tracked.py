@@ -6,8 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from empire_core.commanders.models.equipment import Equipment
-from empire_core.commanders.models.roster import CommanderEffect
+from empire_core.commanders.models.roster import Commander
 from empire_core.enums import MapItemType, MovementType, NPCOwner
 from empire_core.movements.models import MovementArea, MovementOwner, MovementSpy
 from empire_core.protocol.base import enum_or_none, read_or_none
@@ -163,8 +162,9 @@ class Movement(BaseModel):
     created_at: float = Field(default_factory=time.time, description="When state first saw this movement")
     last_updated: float = Field(default_factory=time.time, description="When the last packet for it was applied")
 
-    commander_equipment: list[Equipment] = Field(default_factory=list, description="Equipment the commander wears")
-    commander_effects: list[CommanderEffect] = Field(default_factory=list, description="The commander's area effects")
+    commander: Commander | None = Field(
+        default=None, description="The commander leading the army, as the UM block sends it; None when there is none"
+    )
 
     wait_total: int = Field(default=0, description="Seconds the army stays at its target")
     wait_passed: int = Field(default=0, description="Seconds of that wait already passed")

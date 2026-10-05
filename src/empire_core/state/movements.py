@@ -30,8 +30,7 @@ UPDATED_ATTACK_FIELDS = (
     "target_area_id",
     "target_x",
     "target_y",
-    "commander_equipment",
-    "commander_effects",
+    "commander",
 )
 
 
@@ -82,8 +81,8 @@ class MovementState(StateBase):
         changes its army (``units``, ``estimated_size``), its arrival
         (``estimated_arrival``, by two seconds or more, as a speed-up
         does), its target (``target_id``, ``target_area_id``,
-        ``target_x``, ``target_y``) or its commander's gear
-        (``commander_equipment``, ``commander_effects``). A packet that changes
+        ``target_x``, ``target_y``) or its commander (``commander``, its
+        equipment and area effects included). A packet that changes
         none of these does not fire it, nor does the packet that announces the
         attack, nor any packet once the attack has arrived or been removed.
         After a reconnect the first listing of an attack has nothing to compare
@@ -354,8 +353,8 @@ class MovementState(StateBase):
         A later packet for an announced attack fires :meth:`on_incoming_attack_updated`
         when it changes what that callback reports.
 
-        Names, owner records, units, the size estimate and the commander's gear
-        a later packet leaves out are kept from the earlier one.
+        Names, owner records, units, the size estimate and the commander a
+        later packet leaves out are kept from the earlier one.
         """
         mid = mov.movement_id
         existing = self.movements.get(mid)
@@ -380,9 +379,7 @@ class MovementState(StateBase):
             if not mov.units and existing.units:
                 mov.units = existing.units
             mov.estimated_size = mov.estimated_size or existing.estimated_size
-            if not mov.commander_equipment and not mov.commander_effects:
-                mov.commander_equipment = existing.commander_equipment
-                mov.commander_effects = existing.commander_effects
+            mov.commander = mov.commander or existing.commander
 
         if not announced and self._is_attack_on_us(mov):
             end = mov.estimated_end
@@ -595,8 +592,7 @@ class MovementState(StateBase):
                 advisor_is_last=info.advisor_is_last == 1,
             )
             if info.commander is not None:
-                fields["commander_equipment"] = list(info.commander.equipment)
-                fields["commander_effects"] = list(info.commander.area_effects)
+                fields["commander"] = info.commander
 
         goods: Any = []
         if (mm := block("MM")) is not None and mm.market is not None:

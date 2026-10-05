@@ -73,11 +73,11 @@ stateDiagram-v2
   later packet for an announced attack changes its army (`units`,
   `estimated_size`), its arrival (`estimated_arrival`, by two seconds or more,
   as a speed-up does), its target (`target_id`, `target_area_id`, `target_x`,
-  `target_y`) or its commander's gear (`commander_equipment`,
-  `commander_effects`). `old` is the attack as state had it before the packet.
+  `target_y`) or its commander (`commander`, its equipment and area effects
+  included). `old` is the attack as state had it before the packet.
   A packet that changes none of these does not fire it, and neither does the
   packet that announces the attack. Units, the size estimate and the
-  commander's gear a later packet leaves out are kept from the earlier one.
+  commander a later packet leaves out are kept from the earlier one.
 - **Withdrawn attacks.** When `mrm` removes an attack that `on_incoming_attack`
   announced and its travel time is not up yet, `on_incoming_attack_withdrawn`
   fires with the attack, after `on_movement_removed`. Use it to retract an
@@ -113,6 +113,56 @@ so hand long work to another thread.
 The callbacks survive a disconnect and keep working after the next login. When
 the connection drops, state is emptied until the login refills it; see
 [Disconnects](game-state.md#disconnects).
+
+## The attacker's commander
+
+A movement that carries its commander (the `UM` block, as an attack does) keeps
+it whole in `movement.commander`, the same `Commander` model as a `gli` roster
+entry; the game client builds both with one factory. Its bonuses resolve the
+same way too, equipment set bonuses included. A default commander (a negative
+`commander_id`, such as the bought premium commander, -14, or a robber baron
+attack's, -15) resolves to its `lords` row's effects in the game data instead
+of equipment.
+
+```python
+from empire_core.combat import EffectResolver, attacker_flank_effects, commander_bonuses
+from empire_core.gamedata import GameData
+
+game_data = GameData.load()
+resolver = EffectResolver(game_data)
+
+def on_attack(movement):
+    if movement.commander is None:
+        return
+    bonuses = commander_bonuses(game_data, movement.commander)
+    effects = attacker_flank_effects(
+        resolver, bonuses, area_type=movement.target_type, player_target=True
+    )
+    print(effects.melee_bonus, effects.range_bonus, effects.wall_reduction)
+    print(resolver.yard_capacity_bonus(bonuses, area_type=movement.target_type, player_target=True))
+```
+
+`attacker_flank_effects` gives the multipliers and the wall, gate and moat
+reductions the game uses for the fight; a `target_type` of -1 (no target area)
+keeps every effect, as the game does. `resolver.yard_capacity_bonus` and
+`yard_capacity_boost` are the courtyard additions that `yard_capacity` takes.
+
+`player_target=True` because the attack is on a player, you or an alliance
+member: the game client picks the effect filter from the owner of the
+movement's target
+(`LordEffectHelper.getFilterStrategyByMovementVO`). A player's castle gets the
+player-versus-player attack filter, which leaves out the effects flagged for
+NPC fights only.
+
+The movement's commander comes with the area effects (`AE`) of the castle it
+was sent from. So it matches a roster commander resolved with that castle's
+`aci` area effects, passed as `area_effects=` to `commander_bonuses`, not the
+bare `gli` entry.
+
+`commander_bonuses` leaves the general's passive effects out, as the game's
+movement tooltip does; `attack_dialog_bonuses` with the commander's
+`general_skill_ids` adds them. Legend skills belong to the attacking player and
+a movement does not carry them.
 
 ## Asking for movements
 
