@@ -4,7 +4,7 @@ import logging
 import threading
 import time
 from collections import deque
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any, NamedTuple, Protocol
 
 from empire_core.enums import Kingdom, MapItemType
@@ -43,6 +43,8 @@ def _has_no_player(is_plot_row: Any, occupier_id: Any, owner_id: Any) -> bool | 
 
 
 class ScanResult(NamedTuple):
+    """What a scan read: ``items`` and ``objects`` stay empty when it handed each chunk to ``on_chunk``."""
+
     items: list[MapAreaItem]
     objects: dict[int, MapObject]
     kingdom: Kingdom
@@ -53,9 +55,18 @@ class ScanResult(NamedTuple):
     content_chunks: tuple[tuple[int, int], ...] = ()
 
 
+ChunkHandler = Callable[[tuple[int, int], list[MapAreaItem], dict[int, MapObject]], None]
+"""Called with a chunk, the items kept from it and its owner records by player id; see ``on_chunk``."""
+
+
 class _ChunkResult(NamedTuple):
     ok: bool
     has_content: bool
+    items: list[MapAreaItem]
+    objects: dict[int, MapObject]
+
+
+_FAILED = _ChunkResult(ok=False, has_content=False, items=[], objects={})
 
 
 class _Connection(Protocol):
@@ -162,8 +173,6 @@ class MapScanner:
         cy: int,
         kingdom: Kingdom,
         filter_types: set[MapItemType] | None,
-        collected_items: list[MapAreaItem],
-        collected_objects: dict[int, MapObject],
         request_timeout: float,
         include_unowned_types: set[MapItemType] | None = None,
         cancel: threading.Event | None = None,
@@ -185,17 +194,17 @@ class MapScanner:
             except (EmpireTimeoutError, NetworkError) as e:
                 if not self.client.connection.connected:
                     logger.error(f"Connection lost during scan: {e}")
-                    return _ChunkResult(ok=False, has_content=False)
+                    return _FAILED
                 if last:
                     logger.error(f"Chunk ({cx}, {cy}) failed after {attempt} retries: {e}")
-                    return _ChunkResult(ok=False, has_content=False)
+                    return _FAILED
                 logger.warning(f"Chunk ({cx}, {cy}) request failed: {e}. Retrying...")
             else:
                 if last or not GGEError.from_code(response.error_code).is_cooldown:
                     break
                 logger.warning(f"Chunk ({cx}, {cy}) refused with a cooldown. Retrying...")
             if sleep_unless_cancelled(self.RETRY_BACKOFF * 2**attempt, cancel):
-                return _ChunkResult(ok=False, has_content=False)
+                return _FAILED
 
         if response.error_code == GGEError.ADDITIONAL_KINGDOM_NOT_UNLOCKED:
             raise CommandError("gaa", response.error_code)
@@ -207,14 +216,16 @@ class MapScanner:
             # legitimately empty area and quietly dropped from the scan.
             error_name = GGEError.from_code(response.error_code).name
             logger.warning(f"Chunk ({cx}, {cy}) failed with server error {error_name} ({response.error_code})")
-            return _ChunkResult(ok=False, has_content=False)
+            return _FAILED
 
         if not isinstance(response.payload, dict):
-            return _ChunkResult(ok=False, has_content=False)
+            return _FAILED
 
         ai_array = response.payload.get("AI", [])
         oi_array = response.payload.get("OI", [])
         has_content = len(ai_array) > 0
+        collected_items: list[MapAreaItem] = []
+        collected_objects: dict[int, MapObject] = {}
 
         # Collect matching items. One malformed entry must not cost us the
         # whole chunk (or, in scan_kingdom, every chunk collected so far), so
@@ -296,7 +307,7 @@ class MapScanner:
                 f"(server schema drift?); sample: {_truncated_repr(sample)}"
             )
 
-        return _ChunkResult(ok=True, has_content=has_content)
+        return _ChunkResult(ok=True, has_content=has_content, items=collected_items, objects=collected_objects)
 
     def scan_kingdom(
         self,
@@ -308,6 +319,7 @@ class MapScanner:
         include_unowned_types: set[MapItemType] | None = None,
         *,
         cancel: threading.Event | None = None,
+        on_chunk: ChunkHandler | None = None,
     ) -> ScanResult:
         """
         Scan a kingdom map with dynamic boundary detection.
@@ -353,6 +365,16 @@ class MapScanner:
         in flight ends with its reply or ``request_timeout``, so its reply
         cannot reach the next ``gaa`` request, and a cancel takes at most one
         chunk.
+
+        ``on_chunk`` is called with each chunk that answered, empty ones too,
+        as ``on_chunk((cx, cy), items, objects)``, and the scan keeps nothing
+        of that chunk: ``ScanResult.items`` and ``ScanResult.objects`` come
+        back empty. A caller that keeps only what it needs from each chunk
+        holds that, not the whole kingdom's rows and owner records, which
+        every full garbage collection walks while they live. A failed chunk
+        is not passed on; it is in ``failed_chunks`` as usual. An exception
+        raised by ``on_chunk`` ends the scan. The client decides nothing
+        here: it reads each chunk into its world map as it arrives.
         """
         # Get starting position from bot's castle
         start_x, start_y = self._get_kingdom_start_position(kingdom)
@@ -379,6 +401,7 @@ class MapScanner:
         queue: deque[tuple[int, int]] = deque([(start_cx, start_cy)])
         enqueued: set[tuple[int, int]] = {(start_cx, start_cy)}
         total_requests = 0
+        items_found = 0
         start_time = time.time()
 
         # Track boundaries
@@ -416,8 +439,6 @@ class MapScanner:
                 cy,
                 kingdom,
                 filter_types,
-                collected_items,
-                collected_objects,
                 request_timeout,
                 include_unowned_types=include_unowned_types,
                 cancel=cancel,
@@ -429,8 +450,15 @@ class MapScanner:
                     logger.error("Aborting scan: connection lost")
                     failed_chunks.extend(self._unscanned_chunks(queue, visited))
                     break
-            elif result.has_content:
-                content_chunks.append((cx, cy))
+            else:
+                items_found += len(result.items)
+                if on_chunk is not None:
+                    on_chunk((cx, cy), result.items, result.objects)
+                else:
+                    collected_items.extend(result.items)
+                    collected_objects.update(result.objects)
+                if result.has_content:
+                    content_chunks.append((cx, cy))
 
             # A failed chunk is treated as if it had content so BFS keeps
             # expanding past it instead of silently truncating the region.
@@ -460,9 +488,7 @@ class MapScanner:
             # Log progress periodically
             if total_requests % 50 == 0:
                 elapsed = time.time() - start_time
-                logger.debug(
-                    f"Scan progress: {total_requests} chunks, {len(collected_items)} items, {elapsed:.1f}s elapsed"
-                )
+                logger.debug(f"Scan progress: {total_requests} chunks, {items_found} items, {elapsed:.1f}s elapsed")
 
         elapsed = time.time() - start_time
         if failed_chunks:
@@ -473,7 +499,7 @@ class MapScanner:
         logger.debug(
             f"Kingdom {kingdom!r} scan complete. "
             f"Scanned {total_requests} chunks in {elapsed:.1f}s, "
-            f"found {len(collected_items)} items. "
+            f"found {items_found} items. "
             f"Map bounds: x=[{min_x_found * self.CHUNK_SIZE}-{(max_x_found + 1) * self.CHUNK_SIZE}] "
             f"y=[{min_y_found * self.CHUNK_SIZE}-{(max_y_found + 1) * self.CHUNK_SIZE}]"
         )
@@ -496,6 +522,7 @@ class MapScanner:
         include_unowned_types: set[MapItemType] | None = None,
         *,
         cancel: threading.Event | None = None,
+        on_chunk: ChunkHandler | None = None,
     ) -> ScanResult:
         """
         Scan an explicit list of chunks — no BFS discovery.
@@ -516,7 +543,8 @@ class MapScanner:
         Chunks are deduplicated and out-of-range coordinates skipped.
         Unscanned chunks left over when ``timeout`` hits or ``cancel`` is set
         are reported in ``failed_chunks``; ``cancel`` is looked at between
-        chunks, as in scan_kingdom().
+        chunks, and ``on_chunk`` takes each chunk in place of the result, as
+        in scan_kingdom().
         """
         # None means castles only; an empty list means no filtering at all.
         if item_types is None:
@@ -557,8 +585,6 @@ class MapScanner:
                 cy,
                 kingdom,
                 filter_types,
-                collected_items,
-                collected_objects,
                 request_timeout,
                 include_unowned_types=include_unowned_types,
                 cancel=cancel,
@@ -570,8 +596,14 @@ class MapScanner:
                     logger.error("Aborting scan: connection lost")
                     failed_chunks.extend(todo[i + 1 :])
                     break
-            elif result.has_content:
-                content_chunks.append((cx, cy))
+            else:
+                if on_chunk is not None:
+                    on_chunk((cx, cy), result.items, result.objects)
+                else:
+                    collected_items.extend(result.items)
+                    collected_objects.update(result.objects)
+                if result.has_content:
+                    content_chunks.append((cx, cy))
 
         if failed_chunks:
             logger.log(

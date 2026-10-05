@@ -26,8 +26,8 @@ A `ScanResult` holds:
 
 | Field | What it is |
 |---|---|
-| `items` | Every `MapAreaItem` found, read by its area type's layout. |
-| `objects` | The owner records (`MapObject`) the chunks sent, by player id. |
+| `items` | Every `MapAreaItem` found, read by its area type's layout; empty with [`on_chunk`](#keeping-only-what-you-need). |
+| `objects` | The owner records (`MapObject`) the chunks sent, by player id; empty with `on_chunk`. |
 | `kingdom` | The kingdom scanned; every item carries it too. |
 | `failed_chunks` | Chunks that still failed after their retries. |
 | `content_chunks` | Chunks that answered and held items. |
@@ -71,6 +71,30 @@ calls at the same time. The server limits the request rate per account; see
 Scans run in their calling thread, and parsing a chunk's reply holds the GIL:
 a dense chunk takes a few tens of milliseconds. `scripts/bench_map_parse.py`
 times one.
+
+## Keeping only what you need
+
+A `ScanResult` keeps every item and owner record of the kingdom, and Python's
+full garbage collections walk all of them while the result lives: for a dense
+kingdom that is a pause of a tenth of a second or more each time. Pass
+`on_chunk` to take each chunk as it is read and keep only what you need; the
+scan then keeps nothing itself, and `items` and `objects` come back empty:
+
+```python
+wanted_players = {1234, 5678}
+castles: dict[tuple[int, int], int] = {}
+
+def keep_castles(chunk, items, objects):
+    for item in items:
+        if item.owner_id in wanted_players:
+            castles[(item.x, item.y)] = item.owner_id
+
+result = client.map.scan_kingdom(Kingdom.GREEN, on_chunk=keep_castles)
+```
+
+`on_chunk` is called for every chunk that answered, empty ones too; failed
+chunks are still in `failed_chunks`, and `content_chunks` is filled as usual.
+An exception raised by `on_chunk` ends the scan.
 
 ## Cancelling a scan
 

@@ -26,7 +26,7 @@ from empire_core.map.models.areas import (
     GetMapAreaResponse,
 )
 from empire_core.map.models.items import parse_area_rows
-from empire_core.map.scanner import MapScanner, ScanResult
+from empire_core.map.scanner import ChunkHandler, MapScanner, ScanResult
 from empire_core.protocol.base import BaseRequest
 from empire_core.protocol.errors import GGEError
 from empire_core.services.base import BaseService
@@ -79,6 +79,7 @@ class MapService(BaseService):
         include_unowned_types: set[MapItemType] | None = None,
         *,
         cancel: threading.Event | None = None,
+        on_chunk: ChunkHandler | None = None,
     ) -> ScanResult:
         """Scan a kingdom map. See MapScanner.scan_kingdom; the session leaves its castle."""
         return MapScanner(self.client).scan_kingdom(
@@ -89,6 +90,7 @@ class MapService(BaseService):
             chunk_delay,
             include_unowned_types=include_unowned_types,
             cancel=cancel,
+            on_chunk=on_chunk,
         )
 
     def scan_chunks(
@@ -102,6 +104,7 @@ class MapService(BaseService):
         include_unowned_types: set[MapItemType] | None = None,
         *,
         cancel: threading.Event | None = None,
+        on_chunk: ChunkHandler | None = None,
     ) -> ScanResult:
         """Scan an explicit chunk list (no BFS). See MapScanner.scan_chunks; the session leaves its castle."""
         return MapScanner(self.client).scan_chunks(
@@ -113,6 +116,7 @@ class MapService(BaseService):
             chunk_delay,
             include_unowned_types=include_unowned_types,
             cancel=cancel,
+            on_chunk=on_chunk,
         )
 
     def find_next(

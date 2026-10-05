@@ -657,3 +657,78 @@ class TestCancellingAScan:
 
         assert result.failed_chunks
         assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+class TestOnChunk:
+    """``on_chunk`` takes each chunk that answered in place of the result."""
+
+    def test_each_chunk_goes_to_the_hook_and_the_result_keeps_none(self):
+        fake = _FakeClient(
+            content_chunks={(2, 2)},
+            payloads={(1, 1): {"AI": [], "OI": [{"OID": 5}]}},
+            error_codes={(3, 3): 95},
+        )
+        seen: list[tuple[tuple[int, int], int, list[int]]] = []
+
+        result = _make_scanner(fake).scan_chunks(
+            Kingdom.GREEN,
+            [(1, 1), (2, 2), (3, 3)],
+            item_types=[],
+            on_chunk=lambda chunk, items, objects: seen.append((chunk, len(items), list(objects))),
+        )
+
+        assert seen == [((1, 1), 0, [5]), ((2, 2), 1, [])]
+        assert (result.items, result.objects) == ([], {})
+        assert (result.content_chunks, result.failed_chunks) == (((2, 2),), ((3, 3),))
+
+    def test_a_kingdom_scan_hands_on_every_chunk_it_scans(self):
+        fake = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+        chunks: list[tuple[int, int]] = []
+
+        result = _make_scanner(fake).scan_kingdom(
+            item_types=[], on_chunk=lambda chunk, items, objects: chunks.append(chunk)
+        )
+
+        assert chunks == fake.connection.requests
+        assert result.items == []
+        assert set(result.content_chunks) == CONTENT
+
+    def test_an_exception_from_the_hook_ends_the_scan(self):
+        fake = _FakeClient(content_chunks=CONTENT)
+
+        def stop(chunk: tuple[int, int], items: list[Any], objects: dict[int, Any]) -> None:
+            raise RuntimeError("enough")
+
+        with pytest.raises(RuntimeError, match="enough"):
+            _make_scanner(fake).scan_chunks(Kingdom.GREEN, [(5, 5), (5, 6)], item_types=[], on_chunk=stop)
+        assert fake.connection.requests == [(5, 5)]
+
+    def test_an_exception_from_the_hook_ends_a_kingdom_scan(self):
+        fake = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+
+        def stop(chunk: tuple[int, int], items: list[Any], objects: dict[int, Any]) -> None:
+            raise RuntimeError("enough")
+
+        with pytest.raises(RuntimeError, match="enough"):
+            _make_scanner(fake).scan_kingdom(item_types=[], on_chunk=stop)
+        assert fake.connection.requests == [(5, 5)]
+
+    def test_the_scan_log_counts_the_items_handed_on(self, caplog):
+        fake = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
+
+        with caplog.at_level(logging.DEBUG, logger="empire_core.map.scanner"):
+            _make_scanner(fake).scan_kingdom(item_types=[], on_chunk=lambda chunk, items, objects: None)
+
+        assert f"found {len(CONTENT)} items" in caplog.text
+
+    def test_the_facade_passes_the_hook_on(self):
+        from empire_core.map.service import MapService
+
+        fake = _FakeClient(content_chunks=CONTENT)
+        chunks: list[tuple[int, int]] = []
+
+        MapService(fake).scan_chunks(  # type: ignore[arg-type]
+            Kingdom.GREEN, [(5, 5)], on_chunk=lambda chunk, items, objects: chunks.append(chunk)
+        )
+
+        assert chunks == [(5, 5)]
