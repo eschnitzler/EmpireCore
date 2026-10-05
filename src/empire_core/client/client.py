@@ -38,6 +38,7 @@ from empire_core.exceptions import (
     LoginCooldownError,
     LoginError,
     PacketError,
+    VersionCheckStatus,
     WrongServerError,
 )
 from empire_core.gamedata import GameData
@@ -607,8 +608,8 @@ class EmpireClient:
         finally:
             self.connection.unsubscribe("roundTripRes", on_round_trip)
 
-        if vck.error_code in (1, 2):
-            raise ClientVersionError(vck.error_code, _first_field(vck))
+        if vck.error_code in tuple(VersionCheckStatus):
+            raise ClientVersionError(VersionCheckStatus(vck.error_code), _first_field(vck))
         if vck.error_code != 0:
             raise LoginError(f"Version check failed with code {vck.error_code}")
         return _elapsed_ms(sent, answered[0]) if answered else 0

@@ -295,6 +295,44 @@ def get_resources(self, castle_id: int) -> CastleResources:
     return self.request(request, GetResourcesResponse, timeout=5.0)
 ```
 
+#### Reporting failure
+
+Every service method follows one rule, so callers learn it once:
+
+- transport errors and unexpected server errors raise;
+- `None` only for a not-found (or nothing-to-do) outcome mapped from a named
+  `GGEError`, documented on the method;
+- an empty collection only when the collection really is empty;
+- invalid arguments raise `ValueError`, or a typed error from `exceptions.py`
+  when the caller needs to tell it apart (`NotInAllianceError`, `UnknownCastleError`);
+- a malformed reply raises `PacketError`;
+- an action the server refuses returns `False` (`BaseService.execute`).
+
+Three kinds of method follow rules of their own, documented on the method:
+
+- state read without a request returns `None` while the login data or push it
+  comes from has not arrived yet (`client.castle.get_horses()` before a `gpc`);
+- a call made of several requests returns a result object naming each outcome
+  (`SpyOutcome.COMMAND_FAILED` on a `SpyResult`, the `failed` and `timed_out`
+  players of `get_player_details_bulk()`);
+- a best-effort fill goes on without a read the server refuses and names it
+  (`FilledAttack.unread`).
+
+Match server errors on `CommandError.error`, never on a number:
+
+```python
+except CommandError as e:
+    if e.error is GGEError.NO_PLAYER_FOUND:
+        return None
+    raise
+```
+
+`tests/services/test_failure_rule.py` fails on a bare number in `src/` where a
+name belongs: a name ending in `code` or `status` compared with or matched on a
+non-zero integer literal, `GGEError(<int>)` or `from_code(<int>)`, and any
+comparison on `.code` (compare `.error` instead). A status that is not a
+`GGEError` gets an enum of its own, as `VersionCheckStatus` does for `vck`.
+
 #### Subscribe to incoming messages
 
 Three things this pattern must get right, all of them learned the hard way:

@@ -197,8 +197,8 @@ class MapScanner:
             if sleep_unless_cancelled(self.RETRY_BACKOFF * 2**attempt, cancel):
                 return _ChunkResult(ok=False, has_content=False)
 
-        if response.error_code == 337:
-            raise CommandError("gaa", 337)  # ADDITIONAL_KINGDOM_NOT_UNLOCKED
+        if response.error_code == GGEError.ADDITIONAL_KINGDOM_NOT_UNLOCKED:
+            raise CommandError("gaa", response.error_code)
 
         if response.error_code:
             # Any other non-zero code (cooldown, rate limiting, map not

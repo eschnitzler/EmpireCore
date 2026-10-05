@@ -225,11 +225,15 @@ class SpyService(BaseService):
                 other than you, ``AllianceMember.player_id`` from
                 ``client.alliance.get_local_members()``
 
+        Raises:
+            ValueError: ``player_ids`` is empty; the client's forward button stays
+                disabled until a recipient is picked
+
         Client: ``CastleForwardMessageDialog.fillList`` and ``sendMessage`` (bundle lines 60719, 60740),
-        ``MFSCommand.executeCommand`` (bundle line 125409)
+        ``checkEnableForwardButton`` (bundle line 60753), ``MFSCommand.executeCommand`` (bundle line 125409)
         """
         if not player_ids:
-            return False
+            raise ValueError("a spy report is forwarded to at least one player")
         try:
             self.client.send(ForwardSpyLogRequest(message_id=message_id, player_ids=list(player_ids)), wait=True)
         except CommandError as e:

@@ -182,10 +182,11 @@ class TestForwardingASpyReport:
 
         assert client.spy.forward_report(9001, [111]) is False
 
-    def test_forwarding_to_nobody_sends_nothing(self):
+    def test_forwarding_to_nobody_raises_and_sends_nothing(self):
         client = make_client()
 
-        assert client.spy.forward_report(9001, []) is False
+        with pytest.raises(ValueError):
+            client.spy.forward_report(9001, [])
         assert "mfs" not in conn(client).requested
 
 

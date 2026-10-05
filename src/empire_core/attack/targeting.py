@@ -6,7 +6,7 @@ pre-calculation and its owner's record.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from empire_core.army.spy_army import SpyArmy
@@ -29,13 +29,14 @@ from empire_core.attack.models.target_info import (
     GetVillageAttackInfoRequest,
     GetVillageAttackInfoResponse,
 )
-from empire_core.combat import Bonus, invasion_camp_level, owner_id_from_row
+from empire_core.combat import Bonus, TargetRead, invasion_camp_level, owner_id_from_row
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.exceptions import EmpireError
+from empire_core.exceptions import CommandError
 from empire_core.map.models.areas import GetMapAreaResponse, MapObject
 from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.base import BaseRequest
+from empire_core.protocol.errors import GGEError
 
 if TYPE_CHECKING:
     from empire_core.attack.service import AttackService
@@ -183,6 +184,7 @@ class _Target:
     area_bonuses: list[Bonus] | None = None
     conquer: bool = False
     inventory: dict[int, int] | None = None
+    unread: dict[TargetRead, CommandError] = field(default_factory=dict)
 
     def wants_precalculation(self) -> bool:
         """Whether the pre-calculation would answer anything still missing."""
@@ -289,7 +291,7 @@ def _take_scanned_row(target: "_Target", area: GetMapAreaResponse | None) -> Non
 
 
 def _scan_tile(service: AttackService, target: "_Target", *, timeout: float) -> GetMapAreaResponse | None:
-    """The map's own record of the target's tile."""
+    """The map's own record of the target's tile; None, noted in ``target.unread``, when the server refuses it."""
     try:
         return service.client.map.scan_map_area(
             target.x,
@@ -299,8 +301,9 @@ def _scan_tile(service: AttackService, target: "_Target", *, timeout: float) -> 
             kingdom=Kingdom.GREEN if target.kingdom_id is None else target.kingdom_id,
             timeout=timeout,
         )
-    except (EmpireError, ValueError) as e:
-        logger.debug(f"Could not scan the map at {target.x}:{target.y}: {e}")
+    except CommandError as e:
+        logger.warning(f"Could not scan the map at {target.x}:{target.y}, filling without it: {e}")
+        target.unread[TargetRead.TILE] = e
         return None
 
 
@@ -309,7 +312,14 @@ def _read_precalculation(service: AttackService, target: "_Target", *, timeout: 
 
     The defender's legend skills come with the spy report only, as in
     ``CastleSpyArmyInfoVO.parseArmyInfo``, which sets them when ``S`` is not empty.
+
+    The server refuses the pre-calculation of a target it will not let this player
+    hit; ``INVALID_AREA`` is logged at info level, any other refusal as a warning.
+
+    Raises:
+        ValueError: ``target.area_type`` is not an area type, or one with no pre-calculation modelled
     """
+    area_type = MapItemType(target.area_type) if target.area_type is not None else MapItemType.CASTLE
     try:
         info = service.get_attack_info(
             target_x=target.x,
@@ -317,12 +327,16 @@ def _read_precalculation(service: AttackService, target: "_Target", *, timeout: 
             source_x=target.source_x or 0,
             source_y=target.source_y or 0,
             kingdom_id=Kingdom.GREEN if target.kingdom_id is None else target.kingdom_id,
-            area_type=MapItemType(target.area_type) if target.area_type is not None else MapItemType.CASTLE,
+            area_type=area_type,
             conquer=target.conquer,
             timeout=timeout,
         )
-    except (EmpireError, ValueError) as e:
-        logger.debug(f"Could not read the attack pre-calculation for {target.x}:{target.y}: {e}")
+    except CommandError as e:
+        level = logging.INFO if e.error is GGEError.INVALID_AREA else logging.WARNING
+        logger.log(
+            level, f"Could not read the attack pre-calculation for {target.x}:{target.y}, filling without it: {e}"
+        )
+        target.unread[TargetRead.PRECALCULATION] = e
         return
     if target.row is None:
         target.row = info.target_row() or None

@@ -146,12 +146,11 @@ class CastleService(BaseService):
         request = GetCastlesRequest(player_id=player_id if isinstance(player_id, int) and player_id > 0 else None)
         return self.request(request, GetCastlesResponse, timeout=timeout).castles
 
-    def get_details(self, castle_id: int, timeout: float = 5.0) -> DetailedCastleInfo | None:
+    def get_details(self, castle_id: int, timeout: float = 5.0) -> DetailedCastleInfo:
         """
         Get resources and stationed units for one castle.
 
-        The server answers with every castle; the one asked for is picked
-        out here, and None means it was not in the list.
+        The server answers with every castle of yours; the one asked for is picked out here.
 
         Args:
             castle_id: One of your castles, from ``client.castle.get_all()``
@@ -159,15 +158,18 @@ class CastleService(BaseService):
             timeout: Timeout in seconds
 
         Raises:
+            UnknownCastleError: The reply lists no castle with that id
             AmbiguousCastleError: The reply lists the id in several kingdoms
 
         Example:
             details = client.castle.get_details(12345)
-            if details:
-                print(f"Wood: {details.wood}, units: {details.units}")
+            print(f"Wood: {details.wood}, units: {details.units}")
         """
         response = self.request(GetDetailedCastleRequest(), GetDetailedCastleResponse, timeout=timeout)
-        return response.castle(castle_id)
+        castle = response.castle(castle_id)
+        if castle is None:
+            raise UnknownCastleError(castle_id)
+        return castle
 
     # =========================================================================
     # Castle Selection
@@ -868,10 +870,11 @@ class CastleService(BaseService):
                 its kingdom is taken from the castle list
 
         Returns:
-            The horses sorted by wod id, or None when the castle is not yours or no ``gpc`` named it
+            The horses sorted by wod id, or None when no ``gpc`` named the castle yet
 
         Raises:
             GameDataNotLoadedError: ``client.load_game_data()`` has not been called
+            UnknownCastleError: ``castle_id`` is not in your castle list
             AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
 
         Client: ``CastleHorsesVO.parseParamObject`` (bundle line 139177),
@@ -880,6 +883,7 @@ class CastleService(BaseService):
         game_data = self.client.game_data
         if game_data is None:
             raise GameDataNotLoadedError("Horse stats need the items payload: call client.load_game_data() first")
+        self._require_own_castle(castle_id)
         horse_ids = self.client.state.get_castle_horse_ids(castle_id)
         if horse_ids is None:
             return None

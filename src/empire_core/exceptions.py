@@ -10,11 +10,13 @@ Failure modes are kept distinct so callers can react to them individually:
 - ``UnknownCastleError``: a castle is not one of the logged-in player's castles.
 - ``AmbiguousCastleError``: a castle id or position matches castles in several kingdoms.
 - ``EventNotRunningError``: a call needs an event that is not running.
+- ``NotInAllianceError``: a call needs your alliance and you are in none.
 - ``ReplyMismatchError``: a reply answers another list than the one asked for.
 - ``UnsendableGoodsError``: a market send carries goods the client would not send.
 - ``PremiumCommanderCostError``: a send led by the premium commander may cost rubies.
 """
 
+from enum import IntEnum
 from typing import Any
 
 from empire_core.enums import Kingdom
@@ -104,23 +106,35 @@ class WrongServerError(LoginError):
         self.error = GGEError.EXISTING_MAPPING_WRONG_SERVER
 
 
+class VersionCheckStatus(IntEnum):
+    """
+    The version check (``vck``) refusals, which are not ``GGEError`` codes.
+
+    Client: ``VCKCommand.VERSION_TOO_LOW`` and ``VERSION_TOO_HIGH`` (dll line 14473),
+    matched by ``CastleVCKCommand.executeCommand`` (bundle line 120444)
+    """
+
+    VERSION_TOO_LOW = 1
+    VERSION_TOO_HIGH = 2
+
+
 class ClientVersionError(LoginError):
     """
-    Raised when the version check (``vck``) says the client's version is too low (1) or too high (2).
+    Raised when the version check (``vck``) says the client's version is too low or too high.
 
     Set ``EmpireConfig.client_version`` to the current game client's version.
 
     Attributes:
-        status: 1 (too low) or 2 (too high)
+        status: ``VersionCheckStatus.VERSION_TOO_LOW`` or ``VERSION_TOO_HIGH``
         server_build: the server's build number, or None when the reply had none
 
     Client: ``CastleVCKCommand.executeCommand`` (bundle line 120444)
     """
 
-    def __init__(self, status: int, server_build: str | None):
+    def __init__(self, status: VersionCheckStatus, server_build: str | None):
         self.status = status
         self.server_build = server_build
-        which = "too low" if status == 1 else "too high"
+        which = "too low" if status is VersionCheckStatus.VERSION_TOO_LOW else "too high"
         super().__init__(f"Client version {which} for the server (server build {server_build})")
 
 
@@ -184,6 +198,18 @@ class EventNotRunningError(EmpireError, LookupError):
     def __init__(self, event_id: int):
         self.event_id = event_id
         super().__init__(f"event {event_id} is not running")
+
+
+class NotInAllianceError(EmpireError, LookupError):
+    """
+    Raised when a call needs your own alliance and the player data names none.
+
+    The client reads your alliance from the player data (``AID``); the server
+    answers a request about your alliance outside one with ``ALLI_NOT_FOUND``.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("you are in no alliance")
 
 
 class UnknownCastleError(EmpireError, ValueError):
@@ -354,7 +380,7 @@ class ReceiveThreadError(EmpireError):
 
 
 class MessageUnavailableError(CommandError):
-    """Raised when a message cannot be read: error 66 (no such message) or 225 (too old to read)."""
+    """Raised when a message cannot be read: ``NO_SUCH_MESSAGE`` or ``MESSAGEDATA_TOO_OLD`` (too old to read)."""
 
 
 class EventStreamOverflowError(EmpireError):

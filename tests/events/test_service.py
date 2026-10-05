@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from empire_core.events import service as events_module
 from empire_core.events.models import PointEvent, SpecialEventInfoRequest
+from empire_core.exceptions import EventNotRunningError
 from empire_core.gamedata.ids.events import Event
 from empire_core.state.manager import GameState
 from tests.service_helpers import conn, make_client, xt_packet
@@ -19,9 +22,12 @@ class TestEventLeagues:
 
         client._on_packet(xt_packet("sei", {"E": [{"EID": 83, "RS": 60, "LID": 3, "OP": [0]}, {"EID": 7, "RS": 60}]}))
 
-        # A running event without a league is in league 1, the client's default; one not running has none
-        leagues = [client.events.get_league_id(event) for event in (83, 7, 60)]
-        assert leagues == [3, 1, None]
+        # A running event without a league is in league 1, the client's default
+        leagues = [client.events.get_league_id(event) for event in (83, 7)]
+        assert leagues == [3, 1]
+        with pytest.raises(EventNotRunningError) as raised:
+            client.events.get_league_id(60)
+        assert raised.value.event_id == 60
 
     def test_a_later_entry_without_a_league_keeps_it(self):
         # AScoreEventVO: t.LID&&(this._leagueID=int(t.LID))
@@ -46,7 +52,8 @@ class TestEventLeagues:
 
         state.reset()
 
-        assert client.events.get_league_id(83) is None
+        with pytest.raises(EventNotRunningError):
+            client.events.get_league_id(83)
 
 
 class TestActiveEvents:

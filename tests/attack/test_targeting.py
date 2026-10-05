@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -9,7 +10,10 @@ import pytest
 from empire_core.army.spy_army import SpyArmy
 from empire_core.attack.filling import _target_defense
 from empire_core.attack.targeting import _read_precalculation, _read_target
+from empire_core.combat import TargetRead
+from empire_core.enums import MapItemType
 from empire_core.exceptions import EmpireTimeoutError
+from empire_core.protocol.errors import GGEError
 from tests.attack.fill_helpers import FillClient
 from tests.service_helpers import conn, xt_packet
 
@@ -43,18 +47,53 @@ class TestTargetReading(FillClient):
         _read_precalculation(client.attack, unspied, timeout=1.0)
         assert unspied.defender_legend_skill_ids is None
 
-    def test_a_failed_tile_scan_still_tries_the_pre_calculation_once(self):
+    def test_a_refused_tile_scan_still_tries_the_pre_calculation_once(self, caplog):
         from empire_core.attack.targeting import _Target
 
         client = self.build([[601, 100_000]])
-        conn(client).script["gaa"] = EmpireTimeoutError("no gaa")
+        conn(client).script["gaa"] = xt_packet("gaa", error_code=GGEError.GENERAL_ERROR)
         target = _Target(x=700, y=710)
 
-        _read_target(client.attack, target, castle_id=12345, timeout=1.0)
+        with caplog.at_level(logging.WARNING, logger="empire_core.attack.targeting"):
+            _read_target(client.attack, target, castle_id=12345, timeout=1.0)
 
         sent = [command for command, _ in conn(client).request_payloads]
         assert sent.count("gaa") == 1
         assert "aci" in sent
+        assert target.unread[TargetRead.TILE].error is GGEError.GENERAL_ERROR
+        assert "Could not scan the map" in caplog.text
+
+    def test_a_tile_scan_that_times_out_raises(self):
+        from empire_core.attack.targeting import _Target
+
+        client = self.build([[601, 100_000]])
+        conn(client).script["gaa"] = EmpireTimeoutError("no gaa")
+
+        with pytest.raises(EmpireTimeoutError):
+            _read_target(client.attack, _Target(x=700, y=710), castle_id=12345, timeout=1.0)
+
+    def test_another_pre_calculation_refusal_is_a_warning(self, caplog):
+        from empire_core.attack.targeting import _Target
+
+        client = self.build([[601, 100_000]])
+        conn(client).script["aci"] = xt_packet("aci", error_code=GGEError.GENERAL_ERROR)
+        target = _Target(x=700, y=710, area_type=MapItemType.CASTLE)
+
+        with caplog.at_level(logging.INFO, logger="empire_core.attack.targeting"):
+            _read_precalculation(client.attack, target, timeout=1.0)
+
+        assert target.unread[TargetRead.PRECALCULATION].error is GGEError.GENERAL_ERROR
+        assert [r.levelno for r in caplog.records] == [logging.WARNING]
+
+    @pytest.mark.parametrize("area_type", [4242, MapItemType.FACTION_CAMP])
+    def test_an_area_type_without_a_pre_calculation_raises_before_sending(self, area_type):
+        from empire_core.attack.targeting import _Target
+
+        client = self.build([[601, 100_000]])
+
+        with pytest.raises(ValueError):
+            _read_precalculation(client.attack, _Target(x=700, y=710, area_type=area_type), timeout=1.0)
+        assert conn(client).request_payloads == []
 
     def test_a_pre_calculation_without_a_row_leaves_the_map_to_supply_it(self):
         from empire_core.attack.targeting import _Target

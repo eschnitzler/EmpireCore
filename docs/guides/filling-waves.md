@@ -45,6 +45,21 @@ that would have found it. The keyword arguments of
 [`fill_attack`](../reference/attack.md#empire_core.attack.service.AttackService.fill_attack)
 list them all.
 
+The reads are best effort against a refusal: the server refuses the
+pre-calculation for a target you may not hit, and the fill goes on with what
+the map tile says. Each refused read is named in `FilledAttack.unread`, keyed
+by `TargetRead` with the server's `CommandError`, and logged under
+`empire_core.attack`: a warning, or info for the pre-calculation's
+`INVALID_AREA`. A timeout, a dropped connection or an unreadable reply raises,
+and so does a target whose area type has no pre-calculation modelled
+(`ValueError`).
+
+```python
+attack = client.attack.fill_attack(castle_id, target_x=700, target_y=710)
+for read, refusal in attack.unread.items():
+    print("filled without", read.value, refusal.error)  # e.g. precalculation GGEError.INVALID_AREA
+```
+
 ```mermaid
 flowchart LR
     T([Target x, y]) --> R[Attack pre-calculation:<br/>map row, defenders,<br/>area effects]

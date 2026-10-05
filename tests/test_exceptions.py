@@ -8,6 +8,7 @@ from empire_core.exceptions import (
     EmpireError,
     EmpireTimeoutError,
     NetworkError,
+    NotInAllianceError,
     UnknownCastleError,
 )
 
@@ -38,3 +39,9 @@ def test_unknown_castle_error_is_a_value_error_naming_the_castle():
     assert isinstance(err, ValueError) and isinstance(err, EmpireError)
     assert err.castle_id == 12345
     assert "12345" in str(err)
+
+
+def test_not_in_alliance_error_is_a_lookup_error():
+    err = NotInAllianceError()
+    assert isinstance(err, LookupError) and isinstance(err, EmpireError)
+    assert "no alliance" in str(err)

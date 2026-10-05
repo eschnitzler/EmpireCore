@@ -31,6 +31,7 @@ from empire_core.combat import (
     FilledAttack,
     FillOptions,
     Inventory,
+    TargetRead,
     WaveCapacity,
     attack_dialog_bonuses,
     attacker_flank_effects,
@@ -57,7 +58,6 @@ from empire_core.exceptions import (
     AttackBelowMinimumError,
     AttackInProgressError,
     CommandError,
-    EmpireError,
     GameDataNotLoadedError,
 )
 from empire_core.protocol.errors import GGEError
@@ -677,6 +677,13 @@ class AttackService(BaseService):
         there: the castle is joined again only for the inventory read, and
         only when the pre-calculation did not carry the inventory.
 
+        Each read is best effort against a refusal: the server refuses the
+        pre-calculation for a target this player may not hit, and the fill goes
+        on with what the other reads found. Each refusal is named in the
+        result's ``unread`` with its ``CommandError``, and logged as a warning,
+        or at info level for the pre-calculation's ``INVALID_AREA``. A timeout,
+        a dropped connection or an unreadable reply raises.
+
         Args:
             castle_id: Castle whose troops to draw from, one of yours: a ``Castle.id``
                 from ``client.state.get_castles()``
@@ -739,7 +746,7 @@ class AttackService(BaseService):
 
         Returns:
             The waves and the courtyard wave, ready for :meth:`send_attack`,
-            with the minimum the waves had to reach
+            with the minimum the waves had to reach and what could not be read
 
         Raises:
             AttackBelowMinimumError: The waves could not be filled with the
@@ -749,6 +756,9 @@ class AttackService(BaseService):
             UnknownCastleError: ``castle_id`` is not in your castle list and
                 its kingdom, position or inventory had to be read from it
             AmbiguousCastleError: So, and ``castle_id`` repeats across your kingdoms
+            ValueError: ``area_type`` is not an area type, or the target's has no
+                pre-calculation modelled
+            EmpireTimeoutError / ConnectionClosedError / PacketError: A read of the target failed
         """
         game_data = self.client.game_data
         if game_data is None:
@@ -806,13 +816,15 @@ class AttackService(BaseService):
         if general_skill_ids is None and general_id is not None and general_id >= 0:
             try:
                 general_skill_ids = self.client.skills.get_generals(timeout=timeout).skill_ids(general_id)
-            except EmpireError as e:
-                logger.debug(f"Could not read the general's skills, sizing without them: {e}")
+            except CommandError as e:
+                logger.warning(f"Could not read the general's skills, sizing without them: {e}")
+                target.unread[TargetRead.GENERAL_SKILLS] = e
         if legend_skill_ids is None:
             try:
                 legend_skill_ids = self.client.skills.get_skills(timeout=timeout).legend_skill_ids
-            except EmpireError as e:
-                logger.debug(f"Could not read the player's skills, sizing without them: {e}")
+            except CommandError as e:
+                logger.warning(f"Could not read the player's skills, sizing without them: {e}")
+                target.unread[TargetRead.LEGEND_SKILLS] = e
 
         owner_id = target_owner_id if target_owner_id is not None else owner_id_from_row(target.row)
         # One inventory read for both passes: the waves deduct what they take,
@@ -882,6 +894,7 @@ class AttackService(BaseService):
             waves=waves,
             yard=yard,
             min_soldiers=min_attack_soldiers(owner_level, target.area_type, landmark_min_level=landmark_min_level),
+            unread=target.unread,
         )
         if attack.wave_unit_count() < attack.min_soldiers:
             raise AttackBelowMinimumError(attack.min_soldiers, attack.wave_unit_count(), attack)

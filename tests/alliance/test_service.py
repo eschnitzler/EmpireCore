@@ -9,8 +9,16 @@ import pytest
 
 from empire_core.alliance.models.diplomacy import AllianceDonation
 from empire_core.alliance.models.search import GetBookmarksResponse
+from empire_core.client.client import EmpireClient
 from empire_core.enums import AllianceRank, BookmarkType, DiplomacyStatus, Kingdom
-from empire_core.exceptions import AmbiguousCastleError, CommandError, UnknownCastleError
+from empire_core.exceptions import (
+    AmbiguousCastleError,
+    CommandError,
+    NotInAllianceError,
+    PacketError,
+    UnknownCastleError,
+)
+from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import AllianceChatMessageResponse, AllianceMember, HelpType
 from tests.service_helpers import StubPlayer, StubState, conn, make_client, request_payload, xt_packet
 
@@ -68,6 +76,11 @@ GOLDEN_AIN: dict[str, Any] = {
 # =============================================================================
 # AllianceService
 # =============================================================================
+
+
+def member_client(script: dict[str, Any] | None = None, **kwargs: Any) -> EmpireClient:
+    """A client whose player is in alliance 301, as GOLDEN_AIN describes it."""
+    return make_client(script, state=StubState(local_player=StubPlayer(alliance_id=301)), **kwargs)
 
 
 class TestAllianceMembers:
@@ -182,9 +195,19 @@ class TestAllianceLocalHelpers:
         client = make_client(state=StubState(local_player=None))
         assert client.alliance.local_alliance_id is None
 
-    def test_local_members_without_an_alliance_sends_nothing(self):
-        client = make_client(state=StubState(local_player=StubPlayer(alliance_id=None)))  # type: ignore[arg-type]
-        assert client.alliance.get_local_members() == []
+    def test_local_alliance_id_is_none_for_a_negative_aid(self):
+        client = make_client(state=StubState(local_player=StubPlayer(alliance_id=-1)))
+        assert client.alliance.local_alliance_id is None
+
+    def test_local_alliance_id_zero_is_an_alliance(self):
+        client = make_client(state=StubState(local_player=StubPlayer(alliance_id=0)))
+        assert client.alliance.local_alliance_id == 0
+
+    @pytest.mark.parametrize("alliance_id", [None, -1])
+    def test_local_members_without_an_alliance_raise_and_send_nothing(self, alliance_id):
+        client = make_client(state=StubState(local_player=StubPlayer(alliance_id=alliance_id)))  # type: ignore[arg-type]
+        with pytest.raises(NotInAllianceError):
+            client.alliance.get_local_members()
         assert conn(client).requested == []
 
     def test_local_members_uses_the_local_alliance_id(self):
@@ -201,31 +224,86 @@ class TestAllianceLocalHelpers:
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)}, state=state)
         assert [m.name for m in client.alliance.get_local_online_members()] == ["LeaderGuy"]
 
-    def test_local_online_members_without_an_alliance_is_empty(self):
+    def test_local_online_members_without_an_alliance_raise(self):
         client = make_client(state=StubState(local_player=None))
-        assert client.alliance.get_local_online_members() == []
+        with pytest.raises(NotInAllianceError):
+            client.alliance.get_local_online_members()
         assert conn(client).requested == []
 
     def test_chronicle(self):
         reply = {"AID": 301, "AL": [{"PID": 1, "PN": "First", "MA": 90, "A": 0, "AV": []}, {"PID": 2, "PN": "Last"}]}
-        client = make_client({"all": xt_packet("all", reply)})
+        client = member_client({"all": xt_packet("all", reply)})
 
         actions = client.alliance.get_chronicle()
 
         assert conn(client).request_payloads == [("all", {})]
         assert [a.player_name for a in actions] == ["Last", "First"]
 
-    def test_chronicle_without_an_alliance_raises(self):
-        client = make_client({"all": xt_packet("all", error_code=114)})
-        with pytest.raises(CommandError) as exc_info:
-            client.alliance.get_chronicle()
-        assert exc_info.value.code == 114
-
-    def test_subscriber_count(self):
-        client = make_client({"asc": xt_packet("asc", {"ASC": 12})})
+    def test_subscriber_count_is_asked_outside_an_alliance_too(self):
+        # SubscriptionData.onGbdArrived and AQICommand send asc whatever the alliance
+        client = make_client({"asc": xt_packet("asc", {"ASC": 12})}, state=StubState(local_player=None))
 
         assert client.alliance.get_subscriber_count() == 12
         assert conn(client).request_payloads == [("asc", {})]
+
+    def test_get_member_no_cache_without_an_alliance_raises(self):
+        client = make_client(state=StubState(local_player=StubPlayer(alliance_id=None)))  # type: ignore[arg-type]
+
+        with pytest.raises(NotInAllianceError):
+            client.alliance.get_member(7001, no_cache=True)
+        assert client.alliance.get_member(7001) is None
+        assert conn(client).requested == []
+
+
+OWN_ALLIANCE_CALLS = {
+    "get_chronicle": ("all", lambda a: a.get_chronicle()),
+    "get_applications": ("aal", lambda a: a.get_applications()),
+    "answer_application": ("aaa", lambda a: a.answer_application(4242, True)),
+    "invite": ("aip", lambda a: a.invite(4242)),
+    "kick_member": ("akm", lambda a: a.kick_member(7003)),
+    "set_rank": ("arm", lambda a: a.set_rank(7002, AllianceRank.GENERAL)),
+    "leave": ("aqi", lambda a: a.leave()),
+    "change_diplomacy": ("adp", lambda a: a.change_diplomacy(55, DiplomacyStatus.NEUTRAL)),
+    "refuse_diplomacy": ("ard", lambda a: a.refuse_diplomacy(55)),
+    "set_auto_war": ("saw", lambda a: a.set_auto_war(True)),
+    "send_newsletter": ("anl", lambda a: a.send_newsletter("Subject", "Text")),
+    "donate": ("ado", lambda a: a.donate(12345, AllianceDonation(wood=1))),
+}
+
+
+class TestOwnAllianceCalls:
+    """The calls CastleAllianceDialog makes, which it hides outside an alliance (bundle line 4893)."""
+
+    @pytest.mark.parametrize("call", OWN_ALLIANCE_CALLS.values(), ids=list(OWN_ALLIANCE_CALLS))
+    @pytest.mark.parametrize("alliance_id", [None, -1])
+    def test_outside_an_alliance_nothing_is_sent(self, call, alliance_id):
+        state = StubState(local_player=StubPlayer(alliance_id=alliance_id))  # type: ignore[arg-type]
+        client = make_client(state=state, castles=[(12345, Kingdom.GREEN)])
+
+        with pytest.raises(NotInAllianceError):
+            call[1](client.alliance)
+        assert conn(client).requested == []
+
+    @pytest.mark.parametrize("call", [*OWN_ALLIANCE_CALLS.values(), ("asc", lambda a: a.get_subscriber_count())])
+    def test_the_servers_alliance_not_found_is_not_in_alliance(self, call):
+        # A stale AID: the live server answered all with ALLI_NOT_FOUND outside an alliance
+        command, send = call
+        client = member_client(
+            {command: xt_packet(command, error_code=GGEError.ALLI_NOT_FOUND)}, castles=[(12345, Kingdom.GREEN)]
+        )
+
+        with pytest.raises(NotInAllianceError) as raised:
+            send(client.alliance)
+        assert isinstance(raised.value.__cause__, CommandError)
+        assert raised.value.__cause__.error is GGEError.ALLI_NOT_FOUND
+
+    @pytest.mark.parametrize("command", ["akm", "arm", "ard"])
+    def test_an_echo_without_its_alliance_is_malformed(self, command):
+        client = member_client({command: xt_packet(command, {})})
+        send = {"akm": "kick_member", "arm": "set_rank", "ard": "refuse_diplomacy"}[command]
+
+        with pytest.raises(PacketError, match="carries no alliance"):
+            OWN_ALLIANCE_CALLS[send][1](client.alliance)
 
 
 class TestAllianceSearch:
@@ -260,9 +338,10 @@ class TestAllianceSearch:
             client.alliance.search_alliances("PACT")
         assert exc_info.value.code == 21
 
-    def test_array_payload_is_an_empty_result(self):
+    def test_array_payload_raises(self):
         client = make_client({"hgh": xt_packet("hgh", [1, 2, 3])})
-        assert client.alliance.search_alliances("PACT") == []
+        with pytest.raises(PacketError):
+            client.alliance.search_alliances("PACT")
 
     def test_a_row_without_an_alliance_keeps_its_defaults(self):
         client = make_client({"hgh": xt_packet("hgh", {"L": [[1, 2], [1, 2, "not-a-list"]]})})
@@ -554,7 +633,7 @@ class TestAllianceMemberManagement:
     """Payloads as the C2SAlliance*VO constructors build them (bundle lines 70354-70364, 42819, 70138, 70244, 69639)."""
 
     def test_kick_member(self):
-        client = make_client({"akm": xt_packet("akm", {"ain": GOLDEN_AIN})})
+        client = member_client({"akm": xt_packet("akm", {"ain": GOLDEN_AIN})})
 
         alliance = client.alliance.kick_member(7003)
 
@@ -562,7 +641,7 @@ class TestAllianceMemberManagement:
         assert alliance is not None and alliance.alliance_id == 301
 
     def test_set_rank(self):
-        client = make_client({"arm": xt_packet("arm", {"ain": GOLDEN_AIN})})
+        client = member_client({"arm": xt_packet("arm", {"ain": GOLDEN_AIN})})
 
         alliance = client.alliance.set_rank(7002, AllianceRank.GENERAL)
 
@@ -572,23 +651,23 @@ class TestAllianceMemberManagement:
         assert alliance is not None
 
     def test_an_unchanged_rank_is_not_an_error(self):
-        client = make_client({"arm": xt_packet("arm", error_code=15)})
+        client = member_client({"arm": xt_packet("arm", error_code=GGEError.NO_CHANGE)})
         assert client.alliance.set_rank(7002, AllianceRank.GENERAL) is None
 
     def test_other_rank_errors_raise(self):
-        client = make_client({"arm": xt_packet("arm", error_code=110)})
+        client = member_client({"arm": xt_packet("arm", error_code=110)})
         with pytest.raises(CommandError):
             client.alliance.set_rank(7002, AllianceRank.GENERAL)
 
     def test_invite_sends_the_player_id_as_a_string(self):
-        client = make_client()
+        client = member_client()
 
         assert client.alliance.invite(4242) is True
 
         assert conn(client).request_payloads == [("aip", {"SV": "4242"})]
 
     def test_an_invitation_to_no_such_player_is_false(self):
-        client = make_client({"aip": xt_packet("aip", error_code=65)})
+        client = member_client({"aip": xt_packet("aip", error_code=GGEError.INVALID_PLAYER_ID)})
         assert client.alliance.invite(4242) is False
 
     def test_applications(self):
@@ -599,7 +678,7 @@ class TestAllianceMemberManagement:
                 {"PID": 4242, "D": 12, "AT": "100&percnt; active", "AA": 3600},
             ],
         }
-        client = make_client({"aal": xt_packet("aal", reply)})
+        client = member_client({"aal": xt_packet("aal", reply)})
 
         applications = client.alliance.get_applications()
 
@@ -616,7 +695,7 @@ class TestAllianceMemberManagement:
 
     @pytest.mark.parametrize(("accept", "answer"), [(True, 1), (False, 0)])
     def test_answer_application(self, accept, answer):
-        client = make_client()
+        client = member_client()
 
         assert client.alliance.answer_application(4242, accept) is True
 
@@ -625,7 +704,7 @@ class TestAllianceMemberManagement:
         assert list(sent[1]) == ["PID", "A"]
 
     def test_leave(self):
-        client = make_client()
+        client = member_client()
 
         assert client.alliance.leave() is True
 
@@ -638,7 +717,7 @@ class TestAllianceDiplomacy:
 
     def test_change_diplomacy_always_sends_a_tribute(self):
         reply = {"ODR": 0, "NDR": 1, "S": 2, "AS": GOLDEN_AIN["A"], "AO": {"AID": 55, "N": "Other"}}
-        client = make_client({"adp": xt_packet("adp", reply)})
+        client = member_client({"adp": xt_packet("adp", reply)})
 
         response = client.alliance.change_diplomacy(55, DiplomacyStatus.NEUTRAL)
 
@@ -650,12 +729,12 @@ class TestAllianceDiplomacy:
         assert response.other_alliance is not None and response.other_alliance.name == "Other"
 
     def test_accepting_a_demanded_peace_offer_sends_its_negative_tribute(self):
-        client = make_client()
+        client = member_client()
         client.alliance.change_diplomacy(55, DiplomacyStatus.NEUTRAL, tribute=-25)
         assert conn(client).request_payloads == [("adp", {"AID": 55, "NDR": 1, "T": -25})]
 
     def test_refuse_diplomacy(self):
-        client = make_client({"ard": xt_packet("ard", {"A": {"AID": 55, "N": "Other"}})})
+        client = member_client({"ard": xt_packet("ard", {"A": {"AID": 55, "N": "Other"}})})
 
         alliance = client.alliance.refuse_diplomacy(55)
 
@@ -664,14 +743,14 @@ class TestAllianceDiplomacy:
 
     @pytest.mark.parametrize(("enabled", "aw"), [(True, 1), (False, 0)])
     def test_set_auto_war(self, enabled, aw):
-        client = make_client({"saw": xt_packet("saw", {"AW": aw})})
+        client = member_client({"saw": xt_packet("saw", {"AW": aw})})
 
         assert client.alliance.set_auto_war(enabled) is enabled
 
         assert conn(client).request_payloads == [("saw", {"AW": aw})]
 
     def test_newsletter_encodes_both_parts(self):
-        client = make_client()
+        client = member_client()
 
         assert client.alliance.send_newsletter("Plan 100%", 'Say "go"\nnow') is True
 
@@ -687,7 +766,7 @@ class TestAllianceDiplomacy:
 
     def test_donate_sends_the_castle_and_only_amounts_above_zero(self):
         reply = {"gcu": {"C1": 900, "C2": 10}, "grc": {"W": 1}, "ain": GOLDEN_AIN}
-        client = make_client({"ado": xt_packet("ado", reply)}, castles=[(12345, Kingdom.ICE)])
+        client = member_client({"ado": xt_packet("ado", reply)}, castles=[(12345, Kingdom.ICE)])
 
         response = client.alliance.donate(12345, AllianceDonation(wood=500, coins=100, rift_coins=2))
 
@@ -724,7 +803,7 @@ class TestAllianceReviewFollowUps:
         assert (bookmark.name, bookmark.x) == (None, 1)
 
     def test_leaving_empties_the_help_list(self):
-        client = make_client()
+        client = member_client()
         client._on_packet(xt_packet("ahl", {"AHL": [HEAL_ENTRY]}))
 
         assert client.alliance.leave() is True
@@ -732,7 +811,7 @@ class TestAllianceReviewFollowUps:
         assert client.alliance.help_requests == []
 
     def test_a_refused_leave_keeps_the_help_list(self):
-        client = make_client({"aqi": xt_packet("aqi", error_code=21)})
+        client = member_client({"aqi": xt_packet("aqi", error_code=21)})
         client._on_packet(xt_packet("ahl", {"AHL": [HEAL_ENTRY]}))
 
         assert client.alliance.leave() is False

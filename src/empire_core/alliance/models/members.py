@@ -100,8 +100,8 @@ class RerankMemberResponse(_AllianceEcho):
 
     Command: arm
 
-    Client: ``ARMCommand.executeCommand`` (bundle line 121589); it takes error 15
-    (``NO_CHANGE``) as nothing to do
+    Client: ``ARMCommand.executeCommand`` (bundle line 121589); it takes ``NO_CHANGE``
+    as nothing to do
     """
 
     command = "arm"
@@ -138,7 +138,7 @@ class InvitePlayerRequest(BaseRequest):
 
 class InvitePlayerResponse(BaseResponse):
     """
-    The answer to an invitation; error 65 (``INVALID_PLAYER_ID``) when there is no such player.
+    The answer to an invitation; ``INVALID_PLAYER_ID`` when there is no such player.
 
     Command: aip
 

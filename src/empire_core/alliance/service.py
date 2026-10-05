@@ -15,7 +15,8 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 
 from pydantic import ValidationError
 
@@ -80,7 +81,7 @@ from empire_core.alliance.models.search import (
     SearchAllianceResponse,
 )
 from empire_core.enums import AllianceRank, DiplomacyStatus, HelpType
-from empire_core.exceptions import CommandError, PacketError
+from empire_core.exceptions import CommandError, NotInAllianceError, PacketError
 from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.errors import GGEError
 from empire_core.services.base import BaseService
@@ -90,6 +91,14 @@ logger = logging.getLogger(__name__)
 AllianceHelpUpdate = (
     AllianceHelpListResponse | AllianceHelpRequestChanged | AllianceHelpRequestRemoved | AllianceHelpReceived
 )
+
+_ALLIANCE_GONE = frozenset({GGEError.ALLI_NOT_FOUND})
+
+
+def _echoed(alliance: AllianceInfo | None, command: str) -> AllianceInfo:
+    if alliance is None:
+        raise PacketError(f"'{command}' reply carries no alliance")
+    return alliance
 
 
 class AllianceService(BaseService):
@@ -210,6 +219,9 @@ class AllianceService(BaseService):
         Returns:
             AllianceMember if found, None otherwise
 
+        Raises:
+            NotInAllianceError: ``no_cache`` with no alliance cached, and you are in none; nothing is sent
+
         Example:
             member = client.alliance.get_member(12345)  # From cache
             member = client.alliance.get_member(12345, no_cache=True)  # Fresh data
@@ -240,7 +252,7 @@ class AllianceService(BaseService):
     # Member Management
     # =========================================================================
 
-    def kick_member(self, player_id: int, timeout: float = 5.0) -> AllianceInfo | None:
+    def kick_member(self, player_id: int, timeout: float = 5.0) -> AllianceInfo:
         """
         Remove a member from your alliance.
 
@@ -248,37 +260,48 @@ class AllianceService(BaseService):
             player_id: The member's ``AllianceMember.player_id``
 
         Returns:
-            The alliance after the kick, None when the reply carries none
+            The alliance after the kick
 
         Raises:
+            NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
+            PacketError: The reply carries no alliance
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``AKMCommand.executeCommand`` (bundle line 121513) reads the reply's ``ain``
         """
-        return self.request(KickMemberRequest(player_id=player_id), KickMemberResponse, timeout=timeout).alliance
+        with self._own_alliance():
+            response = self.request(KickMemberRequest(player_id=player_id), KickMemberResponse, timeout=timeout)
+        return _echoed(response.alliance, "akm")
 
     def set_rank(self, player_id: int, rank: AllianceRank, timeout: float = 5.0) -> AllianceInfo | None:
         """
         Give a member another rank; ``AllianceRank.LEADER`` hands over the leadership.
-
-        Error 15 (``NO_CHANGE``), which the client takes as nothing to do, returns None.
 
         Args:
             player_id: The member's ``AllianceMember.player_id``
             rank: The new rank
 
         Returns:
-            The alliance after the change, None when the reply carries none
+            The alliance after the change, or None when the server answers ``NO_CHANGE``,
+            which the client takes as nothing to do
 
         Raises:
+            NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
+            PacketError: The reply carries no alliance
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``ARMCommand.executeCommand`` (bundle line 121589) reads the reply's ``ain``
+        and passes over ``NO_CHANGE``
         """
+        request = RerankMemberRequest(player_id=player_id, rank=rank)
         try:
-            return self.request(
-                RerankMemberRequest(player_id=player_id, rank=rank), RerankMemberResponse, timeout=timeout
-            ).alliance
+            with self._own_alliance():
+                response = self.request(request, RerankMemberResponse, timeout=timeout)
         except CommandError as e:
             if e.error is GGEError.NO_CHANGE:
                 return None
             raise
+        return _echoed(response.alliance, "arm")
 
     def invite(self, player_id: int, timeout: float = 5.0) -> bool:
         """
@@ -288,18 +311,28 @@ class AllianceService(BaseService):
             player_id: The player's id, e.g. ``PlayerOwnerInfo.player_id`` from ``client.player.get_player_info()``
 
         Returns:
-            Whether the server accepted the invitation (error 65: no such player)
+            Whether the server accepted the invitation; it refuses an id that names
+            no player with ``INVALID_PLAYER_ID``
+
+        Raises:
+            NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
+
+        Client: ``CastlePlayerInfoDialog`` shows its invite button for
+        ``CastleUserData.canInviteToAlliance`` (bundle line 9994), which needs ``isInAlliance``
         """
-        return self.execute(InvitePlayerRequest.for_player(player_id), timeout=timeout)
+        with self._own_alliance():
+            return self.execute(InvitePlayerRequest.for_player(player_id), timeout=timeout, raise_on=_ALLIANCE_GONE)
 
     def get_applications(self, timeout: float = 5.0) -> AllianceApplicationListResponse:
         """
         Get your alliance's applications, nearest first, with the applicants' owner records.
 
         Raises:
+            NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        return self.request(AllianceApplicationListRequest(), AllianceApplicationListResponse, timeout=timeout)
+        with self._own_alliance():
+            return self.request(AllianceApplicationListRequest(), AllianceApplicationListResponse, timeout=timeout)
 
     def answer_application(self, player_id: int, accept: bool, timeout: float = 5.0) -> bool:
         """
@@ -311,8 +344,13 @@ class AllianceService(BaseService):
 
         Returns:
             Whether the server accepted the answer
+
+        Raises:
+            NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
         """
-        return self.execute(AnswerApplicationRequest.create(player_id, accept), timeout=timeout)
+        request = AnswerApplicationRequest.create(player_id, accept)
+        with self._own_alliance():
+            return self.execute(request, timeout=timeout, raise_on=_ALLIANCE_GONE)
 
     def leave(self, timeout: float = 5.0) -> bool:
         """
@@ -323,8 +361,12 @@ class AllianceService(BaseService):
 
         Returns:
             Whether the server accepted it
+
+        Raises:
+            NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
         """
-        left = self.execute(QuitAllianceRequest(), timeout=timeout)
+        with self._own_alliance():
+            left = self.execute(QuitAllianceRequest(), timeout=timeout, raise_on=_ALLIANCE_GONE)
         if left:
             with self._help_lock:
                 self._help_requests = []
@@ -346,24 +388,36 @@ class AllianceService(BaseService):
             tribute: Only to accept a peace offer: ``PeaceOffer.tribute`` as the offer states it
 
         Raises:
+            NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleAllianceInfoDialogDiplomacy.updateButtons`` (bundle line 72349) offers
+        each change from the other alliance's status to your own
         """
         request = ChangeDiplomacyRequest(alliance_id=alliance_id, new_status=new_status, tribute=tribute)
-        return self.request(request, ChangeDiplomacyResponse, timeout=timeout)
+        with self._own_alliance():
+            return self.request(request, ChangeDiplomacyResponse, timeout=timeout)
 
     def refuse_diplomacy(self, alliance_id: int, timeout: float = 5.0) -> AllianceInfo | None:
         """
         Refuse another alliance's diplomacy request or peace offer.
 
         Returns:
-            The other alliance after the refusal, None when the reply carries none
+            The other alliance after the refusal
 
         Raises:
+            NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
+            PacketError: The reply carries no alliance
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``ARDCommand.executeCommand`` (bundle line 121574) reads the reply's ``A``;
+        ``CastleAllianceDialogDiplomacy`` opens the dialogs that refuse (bundle lines 69323, 69352)
         """
-        return self.request(
-            RefuseDiplomacyRequest(alliance_id=alliance_id), RefuseDiplomacyResponse, timeout=timeout
-        ).alliance
+        with self._own_alliance():
+            response = self.request(
+                RefuseDiplomacyRequest(alliance_id=alliance_id), RefuseDiplomacyResponse, timeout=timeout
+            )
+        return _echoed(response.alliance, "ard")
 
     def set_auto_war(self, enabled: bool, timeout: float = 5.0) -> bool:
         """
@@ -373,11 +427,12 @@ class AllianceService(BaseService):
             Whether auto war is on afterwards
 
         Raises:
+            NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        return self.request(
-            SetAutoWarRequest(auto_war=1 if enabled else 0), SetAutoWarResponse, timeout=timeout
-        ).auto_war
+        request = SetAutoWarRequest(auto_war=1 if enabled else 0)
+        with self._own_alliance():
+            return self.request(request, SetAutoWarResponse, timeout=timeout).auto_war
 
     def send_newsletter(self, subject: str, text: str, timeout: float = 5.0) -> bool:
         """
@@ -392,10 +447,12 @@ class AllianceService(BaseService):
 
         Raises:
             ValueError: ``text`` is empty
+            NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
         """
         if not text:
             raise ValueError("a newsletter needs text")
-        return self.execute(SendNewsletterRequest.create(subject, text), timeout=timeout)
+        with self._own_alliance():
+            return self.execute(SendNewsletterRequest.create(subject, text), timeout=timeout, raise_on=_ALLIANCE_GONE)
 
     def donate(self, castle_id: int, donation: AllianceDonation, timeout: float = 5.0) -> DonateResponse:
         """
@@ -410,6 +467,7 @@ class AllianceService(BaseService):
             UnknownCastleError: ``castle_id`` is not in your castle list
             AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
             ValueError: every amount is 0
+            NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
 
         Client: ``CastleAllianceDonateDialog.onDonateForAlliance`` (bundle line 45576) sends
@@ -418,7 +476,8 @@ class AllianceService(BaseService):
         request = DonateRequest.create(castle_id, self._require_own_castle(castle_id).kingdom_id, donation)
         if not request.resources:
             raise ValueError("a donation needs an amount above 0")
-        return self.request(request, DonateResponse, timeout=timeout)
+        with self._own_alliance():
+            return self.request(request, DonateResponse, timeout=timeout)
 
     # =========================================================================
     # Search Operations
@@ -433,7 +492,13 @@ class AllianceService(BaseService):
             timeout: Timeout in seconds to wait for response
 
         Returns:
-            List of AllianceSearchResult objects matching the search
+            List of AllianceSearchResult objects matching the search; empty when
+            the server finds none (``ALLI_NOT_FOUND``), which the client
+            shows as "alliance not found" (``HGHCommand.executeCommand``, bundle line 124377)
+
+        Raises:
+            CommandError: The server refused for another reason
+            PacketError: The reply's payload is not an object
 
         Example:
             results = client.alliance.search_alliances("PACT")
@@ -452,14 +517,13 @@ class AllianceService(BaseService):
         # is owned by GetHighscoreResponse.
         response_packet = self.client.request_packet(request, "hgh", timeout=timeout)
 
-        # 114 = nothing found; a legitimate empty result
-        if response_packet.error_code == 114:
+        if response_packet.error_code == GGEError.ALLI_NOT_FOUND:
             return []
         if response_packet.error_code != 0:
             raise CommandError("hgh", response_packet.error_code)
 
         if not isinstance(response_packet.payload, dict):
-            return []
+            raise PacketError(f"'hgh' reply payload is not an object: {type(response_packet.payload).__name__}")
         try:
             response = SearchAllianceResponse.model_validate(response_packet.payload)
         except ValidationError as e:
@@ -480,11 +544,42 @@ class AllianceService(BaseService):
         Get the local player's alliance ID.
 
         Returns:
-            Alliance ID if in an alliance, None otherwise
+            Alliance ID if in an alliance, None otherwise: the player data sends
+            a negative ``AID`` outside one
+
+        Client: ``CastleUserData.isInAlliance`` (bundle line 9986) is ``allianceID >= 0``
         """
-        if self.client.state.local_player:
-            return self.client.state.local_player.alliance_id
-        return None
+        player = self.client.state.local_player
+        if player is None or player.alliance_id is None or player.alliance_id < 0:
+            return None
+        return player.alliance_id
+
+    def _require_local_alliance_id(self) -> int:
+        alliance_id = self.local_alliance_id
+        if alliance_id is None:
+            raise NotInAllianceError()
+        return alliance_id
+
+    @contextmanager
+    def _own_alliance(self, *, sent_outside_one: bool = False) -> Iterator[None]:
+        """
+        A call about your own alliance: nothing is sent outside one, and the server's
+        ``ALLI_NOT_FOUND`` (a stale ``AID``) raises :class:`NotInAllianceError`.
+
+        ``sent_outside_one`` sends regardless, for a request the client sends outside an alliance too.
+
+        Client: the senders sit in ``CastleAllianceDialog`` and the dialogs it opens, and it
+        hides once ``isInAlliance`` turns false (bundle line 4893); the chronicle's is
+        ``CastleAllianceDialogOverview`` (bundle line 70407)
+        """
+        if not sent_outside_one:
+            self._require_local_alliance_id()
+        try:
+            yield
+        except CommandError as e:
+            if e.error is GGEError.ALLI_NOT_FOUND:
+                raise NotInAllianceError() from e
+            raise
 
     def get_local_members(self, timeout: float = 5.0) -> list[AllianceMember]:
         """
@@ -497,17 +592,17 @@ class AllianceService(BaseService):
             timeout: Timeout in seconds to wait for response
 
         Returns:
-            List of AllianceMember objects, empty list if not in alliance
+            List of AllianceMember objects
+
+        Raises:
+            NotInAllianceError: You are in no alliance; nothing is sent
 
         Example:
             members = client.alliance.get_local_members()
             for member in members:
                 print(f"{member.name}: {'online' if member.is_online else 'offline'}")
         """
-        alliance_id = self.local_alliance_id
-        if alliance_id is None:
-            return []
-        return self.get_members(alliance_id, timeout=timeout)
+        return self.get_members(self._require_local_alliance_id(), timeout=timeout)
 
     def get_local_online_members(self, timeout: float = 5.0) -> list[AllianceMember]:
         """
@@ -520,35 +615,45 @@ class AllianceService(BaseService):
             timeout: Timeout in seconds to wait for response
 
         Returns:
-            List of online AllianceMember objects, empty list if not in alliance
+            List of online AllianceMember objects
+
+        Raises:
+            NotInAllianceError: You are in no alliance; nothing is sent
 
         Example:
             online = client.alliance.get_local_online_members()
             print(f"{len(online)} alliance members online")
         """
-        alliance_id = self.local_alliance_id
-        if alliance_id is None:
-            return []
-        return self.get_online_members(alliance_id, timeout=timeout)
+        return self.get_online_members(self._require_local_alliance_id(), timeout=timeout)
 
     def get_chronicle(self, timeout: float = 5.0) -> list[AllianceChronicleEntry]:
         """
         Get your alliance's chronicle, newest first.
 
         Raises:
-            CommandError: error 114 when you are in no alliance
+            NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleAllianceDialogOverview`` (bundle line 70407) asks for it
         """
-        return self.request(AllianceChronicleRequest(), AllianceChronicleResponse, timeout=timeout).entries
+        with self._own_alliance():
+            return self.request(AllianceChronicleRequest(), AllianceChronicleResponse, timeout=timeout).entries
 
     def get_subscriber_count(self, timeout: float = 5.0) -> int:
         """
         Get how many of your alliance's members have a subscription.
 
+        Sent outside an alliance too, as the client sends it at login and right after leaving one.
+
         Raises:
+            NotInAllianceError: The server answered ``ALLI_NOT_FOUND``
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``SubscriptionData.onGbdArrived`` (bundle line 120092) and
+        ``AQICommand.executeCommand`` (bundle line 121557) call ``requestASC``
         """
-        response = self.request(AllianceSubscriberCountRequest(), AllianceSubscriberCountResponse, timeout=timeout)
+        with self._own_alliance(sent_outside_one=True):
+            response = self.request(AllianceSubscriberCountRequest(), AllianceSubscriberCountResponse, timeout=timeout)
         return response.subscriber_count
 
     # =========================================================================

@@ -9,7 +9,7 @@ import pytest
 
 from empire_core.castle.models import PermanentCastleDataResponse
 from empire_core.enums import Kingdom
-from empire_core.exceptions import GameDataNotLoadedError
+from empire_core.exceptions import GameDataNotLoadedError, UnknownCastleError
 from empire_core.gamedata import GameData
 from empire_core.state.manager import GameState
 from tests.service_helpers import make_client
@@ -172,10 +172,18 @@ class TestGetHorses:
         assert horses is not None and [h.wod_id for h in horses] == [1002]
         client.state.shutdown()
 
-    def test_none_when_no_gpc_named_the_castle(self):
+    def test_none_when_no_gpc_named_the_castle_yet(self):
         client = self._client(None)
+        client.state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(2001, "Main")])})
 
         assert client.castle.get_horses(2001) is None
+        client.state.shutdown()
+
+    def test_a_castle_not_yours_raises(self):
+        client = self._client([1001])
+
+        with pytest.raises(UnknownCastleError):
+            client.castle.get_horses(2009)
         client.state.shutdown()
 
     def test_needs_game_data(self):

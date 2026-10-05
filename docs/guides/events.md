@@ -143,8 +143,9 @@ yet; the `client.ranking` calls reach their lists directly.
 
 Your league is the one the event's model holds (for the invasions, the one of
 that board's part), and league 1 when the server named none, as in the game;
-`client.events.get_league_id(event_id, part)` reads it, and gives None only
-for an event that is not running. The donation board has no league.
+`client.events.get_league_id(event_id, part)` reads it, and raises
+`EventNotRunningError` for an event that is not running. The donation board
+has no league.
 
 Most boards are `hgh` lists, and the server decides how long their pages are
 (8 rows, seen live); `rank` asks for the page around that rank. The two

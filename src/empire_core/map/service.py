@@ -211,7 +211,7 @@ class MapService(BaseService):
         try:
             response = self.request(request, response_type, timeout=timeout)
         except CommandError as e:
-            if e.code == GGEError.NO_PLAYER_FOUND:
+            if e.error is GGEError.NO_PLAYER_FOUND:
                 return None
             raise
         response.area.items = parse_area_rows([item.raw_data for item in response.area.items], kingdom)[0]

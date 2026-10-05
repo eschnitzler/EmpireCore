@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, ClassVar, cast
 
 import pytest
 
 from empire_core.army.spy_army import SpyArmy
+from empire_core.combat import TargetRead
 from empire_core.enums import Kingdom
 from empire_core.exceptions import (
     AmbiguousCastleError,
     AttackBelowMinimumError,
+    EmpireTimeoutError,
     UnknownCastleError,
 )
+from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import Commander
 from tests.attack.fill_helpers import OWN, FillClient
 from tests.service_helpers import LIVE_ADI, conn, gcl_castles, make_client, placed, stub_player, wave, xt_packet
@@ -252,6 +256,39 @@ class TestFillAttack(FillClient):
 
         sent = [command for command, _ in conn(client).request_payloads]
         assert "gie" not in sent and "skl" not in sent
+
+    def test_refused_skill_reads_are_named_on_the_result(self, caplog):
+        from empire_core.protocol.models import Commander
+
+        client = self.build([[601, 100_000]])
+        conn(client).script["gie"] = xt_packet("gie", error_code=GGEError.GENERAL_ERROR)
+        conn(client).script["skl"] = xt_packet("skl", error_code=GGEError.INVALID_PARAMETER_VALUE)
+        commander = Commander.model_validate({"ID": 1, "GID": 7})
+
+        with caplog.at_level(logging.WARNING, logger="empire_core.attack.service"):
+            result = client.attack.fill_attack(12345, target_level=13, commander=commander)
+
+        assert result.waves
+        assert {read: e.error for read, e in result.unread.items()} == {
+            TargetRead.GENERAL_SKILLS: GGEError.GENERAL_ERROR,
+            TargetRead.LEGEND_SKILLS: GGEError.INVALID_PARAMETER_VALUE,
+        }
+        assert "sizing without them" in caplog.text
+
+    def test_a_skill_read_that_times_out_raises(self):
+        from empire_core.protocol.models import Commander
+
+        client = self.build([[601, 100_000]])
+        conn(client).script["gie"] = EmpireTimeoutError("no gie")
+        commander = Commander.model_validate({"ID": 1, "GID": 7})
+
+        with pytest.raises(EmpireTimeoutError):
+            client.attack.fill_attack(12345, target_level=13, commander=commander, legend_skill_ids=[])
+
+    def test_a_fill_that_read_everything_names_nothing_unread(self):
+        client = self.build([[601, 100_000]])
+        result = client.attack.fill_attack(12345, target_level=13, general_skill_ids=[], legend_skill_ids=[])
+        assert result.unread == {}
 
     def test_coordinates_are_enough(self):
         # Nothing about the target is passed: the pre-calculation and a one-tile
@@ -751,17 +788,21 @@ class TestFillAttack(FillClient):
         assert "gaa" not in [command for command, _ in conn(client).request_payloads]
         assert result.waves
 
-    def test_a_refused_precalculation_falls_back_to_the_map(self):
+    def test_a_refused_precalculation_falls_back_to_the_map(self, caplog):
         # The server refuses the pre-calculation for anything it will not let
         # this player hit, but the map still describes the tile.
         client = self.build([[601, 100_000]])
         camp_row = [2, 700, 710, -1, 0, -1, -299]
-        conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
+        conn(client).script["adi"] = xt_packet("adi", None, error_code=GGEError.INVALID_AREA)
         conn(client).script["gaa"] = xt_packet("gaa", {"KID": 0, "AI": [camp_row], "OI": []})
 
-        result = client.attack.fill_attack(12345, target_x=700, target_y=710)
+        with caplog.at_level(logging.INFO, logger="empire_core.attack.targeting"):
+            result = client.attack.fill_attack(12345, target_x=700, target_y=710)
 
         assert result.waves
+        assert list(result.unread) == [TargetRead.PRECALCULATION]
+        assert result.unread[TargetRead.PRECALCULATION].error is GGEError.INVALID_AREA
+        assert [r.levelno for r in caplog.records if "pre-calculation" in r.getMessage()] == [logging.INFO]
         # The scan is castle-scoped work too, so the fill returns home first.
         order = [e for e in conn(client).events if any(c in e for c in ("gaa", "jaa", "gui"))]
         scanned = next(i for i, e in enumerate(order) if "gaa" in e)

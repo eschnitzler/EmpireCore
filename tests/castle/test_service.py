@@ -59,7 +59,6 @@ class TestCastleQueries:
 
         details = client.castle.get_details(2002)
 
-        assert details is not None
         assert details.castle_id == 2002
         assert (details.wood, details.stone, details.food) == (800, 800, 800)
         assert details.units == {649: 18}
@@ -69,16 +68,18 @@ class TestCastleQueries:
     def test_short_unit_row_is_skipped(self):
         client = make_client({"dcl": xt_packet("dcl", GOLDEN_DCL)})
         details = client.castle.get_details(2001)
-        assert details is not None
         assert details.units == {656: 1, 650: 213}
 
-    def test_unknown_castle_is_none(self):
+    def test_a_castle_the_reply_does_not_list_raises(self):
         client = make_client({"dcl": xt_packet("dcl", GOLDEN_DCL)})
-        assert client.castle.get_details(1) is None
+        with pytest.raises(UnknownCastleError) as raised:
+            client.castle.get_details(1)
+        assert raised.value.castle_id == 1
 
-    def test_missing_castle_block_is_none(self):
+    def test_a_reply_without_castles_raises(self):
         client = make_client({"dcl": xt_packet("dcl", {})})
-        assert client.castle.get_details(12345) is None
+        with pytest.raises(UnknownCastleError):
+            client.castle.get_details(12345)
 
     def test_gcl_sends_the_player_id_once_known(self):
         player = StubPlayer()

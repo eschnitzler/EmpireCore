@@ -5,12 +5,13 @@ The base every service builds on: typed requests and action results.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from typing import TYPE_CHECKING, TypeVar
 
 from empire_core.enums import Kingdom
 from empire_core.exceptions import AmbiguousCastleError, CommandError, UnknownCastleError
 from empire_core.protocol.base import BaseRequest, BaseResponse
+from empire_core.protocol.errors import GGEError
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
@@ -28,6 +29,28 @@ class BaseService:
     Services provide high-level APIs for game domains and use
     protocol models for type-safe request/response handling. The client
     builds one of each in ``EmpireClient.__init__``.
+
+    Every service method reports failure by one rule:
+
+    - transport errors and unexpected server errors raise (``EmpireTimeoutError``,
+      ``ConnectionClosedError``, ``CommandError``);
+    - ``None`` only for a not-found (or nothing-to-do) outcome mapped from a named
+      ``GGEError``, matched on ``CommandError.error`` and documented on the method;
+    - an empty collection only when the collection really is empty;
+    - invalid arguments, and a call the client would not make, raise ``ValueError``
+      or a typed error from ``empire_core.exceptions``;
+    - a malformed reply raises ``PacketError``;
+    - an action the server refuses returns False (see :meth:`execute`).
+
+    Three kinds of method follow rules of their own, each documented on the method:
+
+    - state read without a request returns ``None`` while the login data or push it
+      comes from has not arrived yet (``client.castle.get_horses`` before a ``gpc``);
+    - a call made of several requests returns a result object that names each outcome,
+      such as ``SpyOutcome.COMMAND_FAILED`` on a ``SpyResult`` or the ``failed`` and
+      ``timed_out`` players of ``get_player_details_bulk``;
+    - a best-effort fill goes on without a read the server refuses and names it,
+      as ``fill_attack`` does in ``FilledAttack.unread``.
     """
 
     def __init__(self, client: "EmpireClient") -> None:
@@ -108,7 +131,7 @@ class BaseService:
         """
         return self.client.request(request, response_type, timeout=timeout)
 
-    def execute(self, request: BaseRequest, timeout: float = 5.0) -> bool:
+    def execute(self, request: BaseRequest, timeout: float = 5.0, *, raise_on: Collection[GGEError] = ()) -> bool:
         """
         Send an action request and report whether the server accepted it.
 
@@ -116,11 +139,16 @@ class BaseService:
         (logged at warning level). Transport failures (timeout, disconnect)
         still raise, so infrastructure problems are never mistaken for a
         game-rule rejection.
+
+        Args:
+            raise_on: Errors that raise their ``CommandError`` instead, for a caller that maps them
         """
         try:
             self.client.send(request, wait=True, timeout=timeout)
             return True
         except CommandError as e:
+            if e.error in raise_on:
+                raise
             logger.warning(f"Action '{request.get_command()}' rejected: {e}")
             return False
 

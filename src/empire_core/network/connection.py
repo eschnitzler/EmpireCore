@@ -808,7 +808,7 @@ class Connection:
         # The login raises its own typed errors for lli and vck refusals.
         if not packet.is_xml and packet.error_code != 0 and cmd_id not in NON_ERROR_COMMANDS:
             error_name = GGEError.from_code(packet.error_code).name
-            if packet.error_code == 21 or cmd_id in LOGIN_REPLY_COMMANDS:
+            if packet.error_code == GGEError.PLAYER_NOT_FOUND or cmd_id in LOGIN_REPLY_COMMANDS:
                 logger.debug(f"Server error: {error_name} ({packet.error_code}) for command '{cmd_id}'")
             else:
                 logger.error(f"Server error: {error_name} ({packet.error_code}) for command '{cmd_id}'")

@@ -34,6 +34,7 @@ from empire_core.exceptions import (
     EmpireTimeoutError,
     LoginCooldownError,
     LoginError,
+    VersionCheckStatus,
     WrongServerError,
 )
 from empire_core.network.connection import ResponseWaiter
@@ -769,14 +770,14 @@ class TestTimings:
 class TestVersionCheck:
     """The vck reply: 0 goes on, 1 too low, 2 too high (CastleVCKCommand, bundle line 120444)."""
 
-    @pytest.mark.parametrize("status", [1, 2])
+    @pytest.mark.parametrize("status", list(VersionCheckStatus))
     def test_a_version_the_server_refuses_raises_with_its_build(self, status):
-        conn = ScriptedConnection({"vck": Packet.from_bytes(f"%xt%vck%1%{status}%1170001%".encode())})
+        conn = ScriptedConnection({"vck": Packet.from_bytes(f"%xt%vck%1%{int(status)}%1170001%".encode())})
 
         with pytest.raises(ClientVersionError) as exc_info:
             make_client(conn).login()
 
-        assert exc_info.value.status == status
+        assert exc_info.value.status is status
         assert exc_info.value.server_build == "1170001"
         assert "lli" not in conn.requested
         assert "disconnect" in conn.events

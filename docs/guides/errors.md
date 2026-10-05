@@ -51,6 +51,7 @@ classDiagram
     EmpireError <|-- PoolExhaustedError
     EmpireError <|-- UnknownCastleError
     EmpireError <|-- AmbiguousCastleError
+    EmpireError <|-- NotInAllianceError
     EmpireError <|-- UnsendableGoodsError
     EmpireError <|-- PremiumCommanderCostError
 ```
@@ -71,6 +72,7 @@ classDiagram
 | `PoolExhaustedError` | No account in the [pool](multiple-accounts.md) was free |
 | `UnknownCastleError` | A castle id, or a source position, is not one of your castles; also a `ValueError` |
 | `AmbiguousCastleError` | A castle id or position matches your castles in several kingdoms; also a `LookupError` |
+| `NotInAllianceError` | A call about your own alliance, such as `get_local_members()`, while you are in none; also a `LookupError` |
 | `UnsendableGoodsError` | A [market send](castle.md#goods-one-tab-per-send) carries goods the client would not send; also a `ValueError` |
 | `PremiumCommanderCostError` | A send led by the [premium commander](commanders.md#the-premium-commander) may cost rubies and `spend_rubies` is not set; also a `ValueError` |
 
@@ -83,6 +85,37 @@ Action helpers, such as `client.castle.select()` or
 `client.equipment.equip()`, return `False` when the server refuses the action
 and log the refusal. Transport failures still raise, so an infrastructure
 problem is never mistaken for a game-rule refusal.
+
+## `None` means a named not-found
+
+A method returns `None` only where the server answers with an error that
+means "nothing there", such as `NO_PLAYER_FOUND` for `client.map.find_next_tower()`
+or `NO_SPY_DATA` for `client.spy.get_report()`. Each such method says so in its
+docstring; any other error code raises `CommandError`. Invalid arguments raise
+`ValueError`, and a reply the library cannot read raises `PacketError`.
+
+Three kinds of method follow rules of their own, each documented on the method:
+
+- State read without a request returns `None` while the login data or push it
+  comes from has not arrived: `client.castle.get_horses()` before a `gpc` named
+  the castle, `client.state.get_local_player()` before login.
+- A call made of several requests returns a result object that names each
+  outcome: a `SpyResult` with `SpyOutcome.COMMAND_FAILED` and its `error`, or
+  the `failed` and `timed_out` players of `client.player.get_player_details_bulk()`.
+- `client.attack.fill_attack()` reads the target on a best-effort basis: a read
+  the server refuses is named in the result's `unread`, keyed by `TargetRead`
+  with its `CommandError`, so a fill that lacks target data never passes for a
+  complete one. A timeout or a dropped connection still raises.
+
+```python
+from empire_core import GGEError
+from empire_core.combat import TargetRead
+
+attack = client.attack.fill_attack(castle_id, target_x=700, target_y=710)
+refusal = attack.unread.get(TargetRead.PRECALCULATION)
+if refusal is not None and refusal.error is GGEError.INVALID_AREA:
+    ...   # the server would not pre-calculate this target; the map tile filled it
+```
 
 ## An empty result means nothing there
 

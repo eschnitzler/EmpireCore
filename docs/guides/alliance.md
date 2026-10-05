@@ -81,7 +81,10 @@ for result in client.alliance.search_alliances("PACT"):
 
 `get_members(alliance_id)` and `get_online_members(alliance_id)` do the same
 for any alliance, and `client.alliance.local_alliance_id` is your own alliance's
-id, or `None` outside one.
+id, or `None` outside one. Outside an alliance the two `get_local_*` calls raise
+`NotInAllianceError` without sending anything, so "no alliance" is never
+mistaken for an alliance without members. `search_alliances` returns an empty
+list when nothing matches.
 
 A member's protection times count from when the reply was read (`received_at`,
 in `time.monotonic()` seconds): `revenge_protection_end` and
@@ -108,6 +111,14 @@ client.alliance.donate(castle_id, AllianceDonation(wood=1000))
 
 Also on the service: `invite`, `kick_member`, `leave`, `change_diplomacy`,
 `refuse_diplomacy`, `set_auto_war`, `send_newsletter` and `get_bookmarks`.
+
+All of these but `get_bookmarks`, and `get_chronicle`, are about your own
+alliance, which the client only offers inside one. Outside an alliance they raise
+`NotInAllianceError` without sending anything, and so does a server answer of
+`ALLI_NOT_FOUND` (your alliance id was stale). `set_rank` returns `None` for
+`NO_CHANGE`, the rank the member already has; `kick_member`, `set_rank` and
+`refuse_diplomacy` otherwise return the alliance the reply carries.
+`get_subscriber_count` is sent outside an alliance too, as the client sends it.
 
 ## Runnable example
 

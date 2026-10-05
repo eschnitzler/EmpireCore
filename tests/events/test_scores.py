@@ -310,7 +310,8 @@ class TestClientDivergencesFixed:
 
         assert client.events.get_active_event_ids() == [60]
         assert client.events.get_running_score_events() == [Event.POINT_EVENT]
-        assert client.events.get_league_id(3) is None
+        with pytest.raises(EventNotRunningError):
+            client.events.get_league_id(3)
         with pytest.raises(EventNotRunningError):
             client.events.get_scores(Event.FACTION)
 

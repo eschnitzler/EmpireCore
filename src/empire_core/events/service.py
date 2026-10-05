@@ -73,7 +73,7 @@ class EventsService(BaseService):
         self.send(SpecialEventInfoRequest(), wait=True, timeout=timeout)
         return self.client.state.get_events()
 
-    def get_league_id(self, event_id: int, part: str | None = None) -> int | None:
+    def get_league_id(self, event_id: int, part: str | None = None) -> int:
         """
         Get the league your score is in for an event, the ``LID`` of its sei entry.
 
@@ -87,15 +87,17 @@ class EventsService(BaseService):
                 ``A`` (alliances), ``FB`` or ``FR`` (Berimond invasion's blue and red players)
 
         Returns:
-            The league, 1 (the client's default) for a running event or part without one,
-            or None when the event is not running
+            The league, 1 (the client's default) for a running event or part without one
+
+        Raises:
+            EventNotRunningError: The event is not running
 
         Client: ``AScoreEventVO.parseBasicsFromParamObject`` (bundle line 14967), defaults at
         bundle line 14965, read by ``GlobalLeaderBoardLeagueComponent`` (bundle line 100470)
         """
         found = self.client.state.get_event(event_id)
         if found is None:
-            return None
+            raise EventNotRunningError(event_id)
         if part is not None:
             parts = getattr(found, "parts", {})
             return parts[part].league_id if part in parts else 1
@@ -251,8 +253,7 @@ class EventsService(BaseService):
         # AScoreEventVO (bundle line 14965) and FactionEventVO (bundle line 7353) start at league 1
         if event == 123:  # Event.DONATION_EVENT
             return -1
-        league = self.get_league_id(event, _LEAGUE_PART.get(board))
-        return 1 if league is None else league
+        return self.get_league_id(event, _LEAGUE_PART.get(board))
 
     def get_active_events(self, lang: str = "en", force_refresh: bool = False) -> list[GameEvent]:
         """

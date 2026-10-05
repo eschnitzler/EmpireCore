@@ -200,7 +200,7 @@ Any spy report in the mailbox can be read by its message id:
 
 ```python
 report = client.spy.get_report(message_id)  # None when the server has none
-client.spy.forward_report(message_id, [player_id])
+client.spy.forward_report(message_id, [player_id])  # at least one recipient
 ```
 
 **API:** [`SpyService`](../reference/spy.md#empire_core.spy.service.SpyService),

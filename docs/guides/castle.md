@@ -9,9 +9,8 @@ description: Castles, resources, buildings, the construction queue and moving go
 ```python
 castles = client.castle.get_all()    # list[CastleInfo]
 
-details = client.castle.get_details(castle_id=12345)
-if details:                          # None when the reply leaves the castle out
-    print(f"Wood: {details.wood}, units: {details.units}")
+details = client.castle.get_details(castle_id=12345)  # UnknownCastleError when it is not yours
+print(f"Wood: {details.wood}, units: {details.units}")
 
 resources = client.castle.get_resources(castle_id=12345)
 print(f"Wood: {resources.wood}, Stone: {resources.stone}")
@@ -174,8 +173,9 @@ it does not check for a waiver, so the flag may spend rubies.
 
 `client.castle.get_horses(castle_id)` lists the horses a castle can send
 movements with, read from the login data's `gpc` section and its pushes, so
-nothing is sent. It needs `client.load_game_data()`, and returns `None` for a
-castle that is not yours or that no `gpc` named:
+nothing is sent. It needs `client.load_game_data()`, raises
+`UnknownCastleError` for a castle that is not yours, and returns `None` while
+no `gpc` has named the castle yet:
 
 ```python
 client.load_game_data()
