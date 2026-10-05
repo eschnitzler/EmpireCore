@@ -98,6 +98,20 @@ def test_a_scan_builds_only_the_rows_it_keeps_and_those_it_cannot_judge_unbuilt(
     assert set(built) == {(item.x, item.y) for item in result.items} | {(row[1], row[2]) for row in unjudged}
 
 
+def test_a_scan_reads_the_values_of_only_the_castle_rows_it_builds(chunk, monkeypatch):
+    read: list[Any] = []
+    row_values = MapAreaItem.row_values
+
+    def counting(data: Any, kingdom: Kingdom = Kingdom.GREEN) -> dict[str, Any]:
+        read.append(data)
+        return row_values(data, kingdom)
+
+    monkeypatch.setattr(MapAreaItem, "row_values", staticmethod(counting))
+    result = _scan(chunk)
+    # The 43 castles kept, two of them plots judged only once built, plus the plot with occupier -1.0 dropped built
+    assert len(result.items) == 43 and len(read) == 44 and len(set(map(id, read))) == 44
+
+
 def test_only_positions_that_are_not_plain_ints_go_through_pydantic(payload, monkeypatch):
     validated: list[Any] = []
 

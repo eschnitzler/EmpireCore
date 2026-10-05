@@ -14,7 +14,7 @@ from .areas import (
     MapArea,
     MapObject,
 )
-from .items import INVASION_AREA_TYPES, ROW_PARSERS, MapAreaItem, parse_area_rows
+from .items import CASTLE_ROW_TYPES, INVASION_AREA_TYPES, ROW_PARSERS, MapAreaItem, castle_row_player, parse_area_rows
 from .owners import AllianceCrest, AllianceEmblem, OwnerCastlePosition, OwnerCrest, OwnerFaction
 
 __all__ = [
@@ -32,9 +32,11 @@ __all__ = [
     "FindNextEnemyCastleResponse",
     "FindNextTowerRequest",
     "FindNextTowerResponse",
+    "CASTLE_ROW_TYPES",
     "INVASION_AREA_TYPES",
     "ROW_PARSERS",
     "MapAreaItem",
+    "castle_row_player",
     "parse_area_rows",
     "OwnerCastlePosition",
     "OwnerCrest",

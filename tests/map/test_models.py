@@ -11,7 +11,7 @@ from empire_core.map.models.areas import (
     GetMapAreaRequest,
     GetMapAreaResponse,
 )
-from empire_core.map.models.items import ROW_PARSERS, MapAreaItem, parse_area_rows
+from empire_core.map.models.items import CASTLE_ROW_TYPES, ROW_PARSERS, MapAreaItem, castle_row_player, parse_area_rows
 from empire_core.protocol.models import parse_response
 
 # A castle row in the layout InteractiveMapobjectVO.parseAreaInfo (bundle line 3631) reads:
@@ -358,6 +358,36 @@ class TestRelocatingCastles:
 
     def test_a_full_castle_row_is_not_relocating(self):
         assert MapAreaItem.from_list(CASTLE_ROW).is_relocating is False
+
+
+class TestCastleRowPlayer:
+    """castle_row_player gives what row_values would, without building the row."""
+
+    def test_castle_row_types_are_those_castle_parser_reads(self):
+        assert CASTLE_ROW_TYPES == {MapItemType.CASTLE, MapItemType.KINGDOM_CASTLE}
+
+    @pytest.mark.parametrize(
+        "row",
+        [
+            [1, 5, 6, -1],
+            [12, 5, 6, 4242],
+            [1, 5, 6],
+            [1, 5, 6, "7"],
+            [1, 5, 6, None],
+            CASTLE_ROW,
+            [1, 5, 6, 3, "-1", 7],
+        ],
+    )
+    def test_agrees_with_row_values(self, row):
+        values = MapAreaItem.row_values(row)
+        is_plot_row = values.get("is_plot_row", False)
+        expected = (is_plot_row, values["occupier_id"] if is_plot_row else values["owner_id"])
+        assert castle_row_player(row) == expected
+
+    def test_a_plot_row_names_its_occupier_as_sent_and_a_castle_row_its_owner_through_int(self):
+        assert castle_row_player([1, 5, 6, "7"]) == (True, "7")
+        assert castle_row_player([1, 5, 6]) == (True, None)
+        assert castle_row_player([1, 5, 6, 3, "4242", 7]) == (False, 4242)
 
     def test_an_outpost_is_never_relocating(self):
         assert MapAreaItem.from_list([4, 5, 6, 4242]).is_relocating is False

@@ -410,6 +410,25 @@ ROW_PARSERS: dict[MapItemType, Callable[[_Row], dict[str, Any]]] = {
 }
 
 
+CASTLE_ROW_TYPES = frozenset(area_type for area_type, parser in ROW_PARSERS.items() if parser is _castle)
+"""The area types whose rows ``CastleMapobjectVO.parseAreaInfo`` reads: castles, and castles in another kingdom."""
+
+
+def castle_row_player(data: list[Any]) -> tuple[bool, Any]:
+    """
+    Whether a castle row is a plot row, and the player it names, without building the row.
+
+    The ``is_plot_row`` of :meth:`MapAreaItem.row_values` with its ``occupier_id``
+    for a plot row, as sent, or its ``owner_id`` for any other, through ``int()``.
+    A scan judges hundreds of castle rows a chunk by these two values and keeps few.
+
+    Client: ``CastleMapobjectVO.parseAreaInfo`` (bundle line 18910)
+    """
+    if len(data) <= 4:
+        return True, data[3] if len(data) > 3 else None
+    return False, js_int(data[4])
+
+
 INVASION_AREA_TYPES = frozenset(
     {
         MapItemType.SAMURAI_CAMP,
@@ -634,8 +653,10 @@ def parse_area_rows(value: Any, kingdom: Kingdom = Kingdom.GREEN) -> tuple[list[
 
 
 __all__ = [
+    "CASTLE_ROW_TYPES",
     "INVASION_AREA_TYPES",
     "ROW_PARSERS",
     "MapAreaItem",
+    "castle_row_player",
     "parse_area_rows",
 ]

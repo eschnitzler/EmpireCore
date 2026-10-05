@@ -10,7 +10,7 @@ from typing import Any, NamedTuple, Protocol
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
 from empire_core.map.models.areas import GetMapAreaRequest, MapObject
-from empire_core.map.models.items import MapAreaItem
+from empire_core.map.models.items import CASTLE_ROW_TYPES, MapAreaItem, castle_row_player
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.protocol.packet import Packet
@@ -25,21 +25,21 @@ def _truncated_repr(value: object, limit: int = 200) -> str:
     return text if len(text) <= limit else text[:limit] + "...(truncated)"
 
 
-def _has_no_player(is_plot_row: Any, occupier_id: Any, owner_id: Any) -> bool | None:
+def _has_no_player(is_plot_row: Any, player_id: Any) -> bool | None:
     """
     Whether a map row is a free castle plot, or names an NPC or nobody as its owner; a camp names no owner.
 
-    Takes a row's values before or after validation: None when an id the
-    answer depends on is not yet an int or None, so only the built row can tell.
+    ``player_id`` is a plot row's occupier, else the row's owner, before or after
+    validation: None when it is not yet an int or None, so only the built row can tell.
     See :attr:`MapAreaItem.is_relocating` and :attr:`MapAreaItem.has_player_owner`.
     """
     if is_plot_row:
-        if occupier_id is None:
+        if player_id is None:
             return True
-        return occupier_id <= -1 if type(occupier_id) is int else None
-    if owner_id is None:
+        return player_id <= -1 if type(player_id) is int else None
+    if player_id is None:
         return False
-    return owner_id <= 0 if type(owner_id) is int else None
+    return player_id <= 0 if type(player_id) is int else None
 
 
 class ScanResult(NamedTuple):
@@ -324,17 +324,24 @@ class MapScanner:
                 continue
             # filter_types is None only when the caller disabled filtering; rows of
             # other types are not read at all
-            if filter_types is not None and js_int(raw_item[0]) not in filter_types:
+            area_type = js_int(raw_item[0])
+            if filter_types is not None and area_type not in filter_types:
                 continue
+            unowned_wanted = include_unowned_types is not None and area_type in include_unowned_types
             # Free plots and NPC-owned rows are skipped unless their type is explicitly included,
             # decided before the row is built where its ids allow: a chunk holds hundreds of them
             try:
-                values = MapAreaItem.row_values(raw_item, kingdom)
-                unowned_wanted = include_unowned_types is not None and values["item_type"] in include_unowned_types
-                no_player = _has_no_player(values.get("is_plot_row"), values.get("occupier_id"), values.get("owner_id"))
-                if no_player and not unowned_wanted:
-                    continue
-                item = MapAreaItem(**values)
+                if area_type in CASTLE_ROW_TYPES:
+                    no_player = _has_no_player(*castle_row_player(raw_item))
+                    if no_player and not unowned_wanted:
+                        continue
+                    item = MapAreaItem.from_list(raw_item, kingdom)
+                else:
+                    values = MapAreaItem.row_values(raw_item, kingdom)
+                    no_player = _has_no_player(False, values.get("owner_id"))
+                    if no_player and not unowned_wanted:
+                        continue
+                    item = MapAreaItem(**values)
             except ValueError as e:
                 skipped_items += 1
                 sample = raw_item if sample is None else sample
@@ -343,7 +350,7 @@ class MapScanner:
             if (
                 no_player is None
                 and not unowned_wanted
-                and _has_no_player(item.is_plot_row, item.occupier_id, item.owner_id)
+                and _has_no_player(item.is_plot_row, item.occupier_id if item.is_plot_row else item.owner_id)
             ):
                 continue
             collected_items.append(item)

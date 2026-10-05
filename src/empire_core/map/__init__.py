@@ -3,6 +3,7 @@
 from empire_core.enums import Kingdom, MapItemType, NPCOwner
 
 from .models import (
+    CASTLE_ROW_TYPES,
     INVASION_AREA_TYPES,
     MAX_FINDABLE_ENEMY_INDEX,
     ROW_PARSERS,
@@ -23,6 +24,7 @@ from .models import (
     OwnerCastlePosition,
     OwnerCrest,
     OwnerFaction,
+    castle_row_player,
     parse_area_rows,
 )
 
@@ -41,9 +43,11 @@ __all__ = [
     "FindNextEnemyCastleResponse",
     "FindNextTowerRequest",
     "FindNextTowerResponse",
+    "CASTLE_ROW_TYPES",
     "INVASION_AREA_TYPES",
     "ROW_PARSERS",
     "MapAreaItem",
+    "castle_row_player",
     "parse_area_rows",
     "OwnerCastlePosition",
     "OwnerCrest",
