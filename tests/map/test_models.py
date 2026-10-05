@@ -93,6 +93,55 @@ class TestGoldenMapArea:
         assert [(p.kingdom_id, p.area_id) for p in owner.castle_positions] == [(10, 5)]
         assert [(p.x, p.y, p.area_type) for p in owner.village_positions] == [(3, 4, 2)]
 
+    @pytest.mark.parametrize(
+        ("row", "position"),
+        [
+            ([0, 1, 2, 3, 4, 5, 6], (0, 1, 2, 3, 4)),
+            ([0, 1, 2, 3], (0, 1, 2, 3, None)),
+            ([0, 1, 2, 3, None], (0, 1, 2, 3, None)),
+            (["1", "2", "3", "4", "5"], (1, 2, 3, 4, 5)),
+            ([0, 1, 5.0, 6.0, 1.0], (0, 1, 5, 6, 1)),
+            ([True, False, True, False, True], (1, 0, 1, 0, 1)),
+            ([None, "1e3", 1, 2, 3], (0, 1000, 1, 2, 3)),
+            ([1.5, "2.9", 3, 4, 5], (1, 2, 3, 4, 5)),
+        ],
+    )
+    def test_a_position_row_that_is_not_plain_ints_is_still_read(self, row, position):
+        owner = GetMapAreaResponse.model_validate({"OI": [{"OID": 5, "AP": [row]}]}).owners[0]
+        assert owner.castle_positions == [position]
+        assert all(type(value) is int for value in owner.castle_positions[0][:4])
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            [0, 1],
+            [0, 1, "x", 4, 1],
+            [0, 1, 5.5, 6, 1],
+            [0, 1, None, 2, 3],
+            [0, 1, 2, 3, ""],
+            [0, 1, [2], 3, 4],
+            "0,1,2,3,4",
+            None,
+            {},
+        ],
+    )
+    def test_an_unreadable_position_row_costs_only_itself(self, bad):
+        record = {"OID": 5, "AP": [[0, 1, 2, 3, 1], bad, [0, 9, 8, 7, 4]], "VP": [bad]}
+        owner = GetMapAreaResponse.model_validate({"OI": [record]}).owners[0]
+        assert owner.castle_positions == [(0, 1, 2, 3, 1), (0, 9, 8, 7, 4)]
+        assert owner.village_positions == []
+
+    def test_positions_that_are_not_a_list_read_as_none(self):
+        owner = GetMapAreaResponse.model_validate({"OI": [{"OID": 5, "AP": "0,1,2,3,4", "VP": None}]}).owners[0]
+        assert (owner.castle_positions, owner.village_positions) == ([], [])
+
+    def test_positions_given_by_field_name_are_kept(self):
+        from empire_core.map.models.areas import MapObject
+        from empire_core.map.models.owners import OwnerCastlePosition
+
+        position = OwnerCastlePosition(kingdom_id=0, area_id=1, x=2, y=3, area_type=1)
+        assert MapObject(owner_id=5, castle_positions=[position]).castle_positions == [position]
+
     def test_short_rows_are_read_as_the_client_reads_them(self):
         response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [[31, 2, 3], [43, 4, 5], CASTLE_ROW]})
         assert [(i.item_type, i.x) for i in response.items] == [

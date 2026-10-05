@@ -92,7 +92,9 @@ class GetMapAreaRequest(BaseRequest):
         for row in rows:
             if not isinstance(row, list) or len(row) < 3:
                 continue
-            x, y = js_number_or_none(row[1]), js_number_or_none(row[2])
+            x, y = row[1], row[2]
+            if type(x) is not int or type(y) is not int:
+                x, y = js_number_or_none(x), js_number_or_none(y)
             if x is None or y is None or not (low_x <= x <= high_x and low_y <= y <= high_y):
                 return False
         return True
@@ -196,9 +198,9 @@ class MapObject(BasePayload):
         # The client only reads keys off these; anything that is not an object leaves its defaults
         return object_or_none(value)
 
-    @field_validator("castle_positions", "village_positions", mode="before")
+    @field_validator("castle_positions", "village_positions", mode="plain")
     @classmethod
-    def _position_rows(cls, value: Any) -> Any:
+    def _position_rows(cls, value: Any) -> list[OwnerCastlePosition]:
         return owner_positions(value)
 
 

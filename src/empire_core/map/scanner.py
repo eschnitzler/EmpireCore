@@ -5,7 +5,7 @@ import threading
 import time
 from collections import deque
 from collections.abc import Iterable
-from typing import NamedTuple, Protocol
+from typing import Any, NamedTuple, Protocol
 
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
@@ -25,11 +25,21 @@ def _truncated_repr(value: object, limit: int = 200) -> str:
     return text if len(text) <= limit else text[:limit] + "...(truncated)"
 
 
-def _has_no_player(item: MapAreaItem) -> bool:
-    """A free castle plot, or a row whose owner is an NPC or nobody; a camp names no owner, so it is neither."""
-    if item.is_plot_row:
-        return not item.is_relocating
-    return item.owner_id is not None and not item.has_player_owner
+def _has_no_player(is_plot_row: Any, occupier_id: Any, owner_id: Any) -> bool | None:
+    """
+    Whether a map row is a free castle plot, or names an NPC or nobody as its owner; a camp names no owner.
+
+    Takes a row's values before or after validation: None when an id the
+    answer depends on is not yet an int or None, so only the built row can tell.
+    See :attr:`MapAreaItem.is_relocating` and :attr:`MapAreaItem.has_player_owner`.
+    """
+    if is_plot_row:
+        if occupier_id is None:
+            return True
+        return occupier_id <= -1 if type(occupier_id) is int else None
+    if owner_id is None:
+        return False
+    return owner_id <= 0 if type(owner_id) is int else None
 
 
 class ScanResult(NamedTuple):
@@ -221,7 +231,7 @@ class MapScanner:
             if not isinstance(raw_obj, dict):
                 skipped_objects += 1
                 sample = raw_obj if sample is None else sample
-                logger.debug(f"Chunk ({cx}, {cy}): skipping malformed map object {raw_obj!r}")
+                logger.debug("Chunk (%s, %s): skipping malformed map object %r", cx, cy, raw_obj)
                 continue
             if not js_truthy(raw_obj.get("OID")):
                 # CastleOtherPlayerData.parseOwnerInfo reads no record without an OID
@@ -231,7 +241,7 @@ class MapScanner:
             except Exception as e:
                 skipped_objects += 1
                 sample = raw_obj if sample is None else sample
-                logger.debug(f"Chunk ({cx}, {cy}): skipping invalid map object {raw_obj!r}: {e}")
+                logger.debug("Chunk (%s, %s): skipping invalid map object %r: %s", cx, cy, raw_obj, e)
                 continue
             oid = obj.owner_id
             if oid:
@@ -243,27 +253,35 @@ class MapScanner:
             # always been skipped here. Counting them as suspected drift buried
             # the real signal under a thousand warnings per chunk.
             if isinstance(raw_item, list) and len(raw_item) < 4:
-                logger.debug(f"Chunk ({cx}, {cy}): skipping short map item {raw_item!r}")
                 continue
             if not isinstance(raw_item, list):
                 skipped_items += 1
                 sample = raw_item if sample is None else sample
-                logger.debug(f"Chunk ({cx}, {cy}): skipping malformed map item {raw_item!r}")
+                logger.debug("Chunk (%s, %s): skipping malformed map item %r", cx, cy, raw_item)
                 continue
             # filter_types is None only when the caller disabled filtering; rows of
             # other types are not read at all
             if filter_types is not None and js_int(raw_item[0]) not in filter_types:
                 continue
+            # Free plots and NPC-owned rows are skipped unless their type is explicitly included,
+            # decided before the row is built where its ids allow: a chunk holds hundreds of them
             try:
-                item = MapAreaItem.from_list(raw_item, kingdom)
+                values = MapAreaItem.row_values(raw_item, kingdom)
+                unowned_wanted = include_unowned_types is not None and values["item_type"] in include_unowned_types
+                no_player = _has_no_player(values.get("is_plot_row"), values.get("occupier_id"), values.get("owner_id"))
+                if no_player and not unowned_wanted:
+                    continue
+                item = MapAreaItem(**values)
             except ValueError as e:
                 skipped_items += 1
                 sample = raw_item if sample is None else sample
-                logger.debug(f"Chunk ({cx}, {cy}): skipping invalid map item {raw_item!r}: {e}")
+                logger.debug("Chunk (%s, %s): skipping invalid map item %r: %s", cx, cy, raw_item, e)
                 continue
-
-            # Skip free plots and NPC-owned rows unless their type is explicitly included
-            if _has_no_player(item) and (include_unowned_types is None or item.item_type not in include_unowned_types):
+            if (
+                no_player is None
+                and not unowned_wanted
+                and _has_no_player(item.is_plot_row, item.occupier_id, item.owner_id)
+            ):
                 continue
             collected_items.append(item)
 

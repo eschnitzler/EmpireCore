@@ -53,6 +53,13 @@ class TestMapArea:
     def test_an_empty_reply_of_the_kingdom_matches(self):
         assert self.request.accepts_reply({"KID": 0, "AI": [], "OI": []})
 
+    @pytest.mark.parametrize(
+        ("x", "accepted"),
+        [(630, True), ("630", True), (630.0, True), (True, False), (None, False), ("x", False), (2**1100, False)],
+    )
+    def test_a_position_is_read_as_a_number(self, x, accepted):
+        assert self.request.accepts_reply({"KID": 0, "AI": [[1, 620, 231], [1, x, 240]]}) is accepted
+
     def test_corners_given_the_other_way_round(self):
         request = GetMapAreaRequest(kingdom=Kingdom.ICE, x1=99, y1=99, x2=0, y2=0)
         assert request.accepts_reply({"KID": 2, "AI": [[1, 50, 50]]})

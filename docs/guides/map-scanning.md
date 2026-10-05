@@ -27,7 +27,7 @@ A `ScanResult` holds:
 | Field | What it is |
 |---|---|
 | `items` | Every `MapAreaItem` found, read by its area type's layout. |
-| `objects` | The map objects by id. |
+| `objects` | The owner records (`MapObject`) the chunks sent, by player id. |
 | `kingdom` | The kingdom scanned; every item carries it too. |
 | `failed_chunks` | Chunks that still failed after their retries. |
 | `content_chunks` | Chunks that answered and held items. |
@@ -67,6 +67,10 @@ For very frequent scans, split `content_chunks` across several logged-in
 accounts, in interleaved slices `chunks[i::n]`, and run their `scan_chunks()`
 calls at the same time. The server limits the request rate per account; see
 [Multiple accounts](multiple-accounts.md).
+
+Scans run in their calling thread, and parsing a chunk's reply holds the GIL:
+a dense chunk takes a few tens of milliseconds. `scripts/bench_map_parse.py`
+times one.
 
 ## Cancelling a scan
 

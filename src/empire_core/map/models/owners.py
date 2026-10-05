@@ -5,6 +5,7 @@ A player's crest, faction standing, castle positions and alliance crest.
 
 from __future__ import annotations
 
+from contextlib import suppress
 from typing import Any, NamedTuple
 
 from pydantic import Field, TypeAdapter, ValidationError, field_validator
@@ -78,6 +79,9 @@ def owner_positions(value: Any) -> list[OwnerCastlePosition]:
     extra list (seen on AP in Berimond) is unwrapped, which the client does not do;
     a row that still cannot be read (fewer than four entries, or a position that is
     not a number) is skipped instead of failing the record.
+
+    A row of plain ints, the shape live replies carry, is taken as it is; only
+    another row goes through pydantic, one call per row.
     """
     if not isinstance(value, list):
         return []
@@ -88,10 +92,12 @@ def owner_positions(value: Any) -> list[OwnerCastlePosition]:
         if isinstance(entry, OwnerCastlePosition):
             positions.append(entry)
         elif isinstance(entry, (list, tuple)) and len(entry) >= 4:
-            try:
-                positions.append(_POSITION.validate_python(entry[:5]))
-            except ValidationError:
-                continue
+            fields = entry[:5]
+            if set(map(type, fields)) == {int}:
+                positions.append(OwnerCastlePosition(*fields))
+            else:
+                with suppress(ValidationError):
+                    positions.append(_POSITION.validate_python(fields))
     return positions
 
 
