@@ -265,9 +265,9 @@ class TestAttacksAcrossAReconnect:
     def test_an_arrived_attack_is_forgotten(self, client):
         login(client.state)
         client.state.update_from_packet("gam", gam_payload(100))
-        assert 100 in client.state._announced
+        assert 100 in client.state._announcer.announced
         arrive(client.state, 100)
-        assert 100 not in client.state._announced
+        assert 100 not in client.state._announcer.announced
 
 
 class TestLateDropReport:

@@ -9,18 +9,11 @@ import weakref
 from collections.abc import Callable
 from typing import Any
 
-from empire_core.enums import MovementType, NPCOwner
 from empire_core.movements.models import MovementArea, MovementOwner, MovementWrapper
-from empire_core.movements.tracked import DUNGEON_OWNER_IDS, Movement, MovementResources
+from empire_core.movements.tracked import Movement, MovementResources
 from empire_core.protocol.base import read_or_none, readable_list
-from empire_core.state.base import (
-    AnnouncedListeners,
-    AttackListeners,
-    MovementEventCallback,
-    OccupationListeners,
-    QueuedCall,
-    StateBase,
-)
+from empire_core.state.announcer import AttackEvents, MovementAnnouncer, OccupationEvents
+from empire_core.state.base import MovementEventCallback, StateBase
 from empire_core.utils.callbacks import BoundCallbacks, Callbacks, Remover
 
 _POSITIONAL = (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
@@ -29,23 +22,9 @@ _ACCEPTS_MOVEMENT: weakref.WeakKeyDictionary[Callable[..., Any], bool] = weakref
 
 logger = logging.getLogger(__name__)
 
-# Each packet anchors the arrival on its own receive time and whole seconds of
-# PT/TT, so an estimated arrival is only good to about a second either way.
-ETA_CHANGE_THRESHOLD = 2.0
-
 # A drifted movement schema would fail on every packet, so the warning is
 # rate-limited to one per this interval; the rest go to debug.
 MOVEMENT_PARSE_WARN_INTERVAL = 60.0
-
-UPDATED_ATTACK_FIELDS = (
-    "units",
-    "estimated_size",
-    "target_id",
-    "target_area_id",
-    "target_x",
-    "target_y",
-    "commander",
-)
 
 
 class MovementState(StateBase):
@@ -261,8 +240,13 @@ class MovementState(StateBase):
     remove_movement_removed_callback = Remover(on_movement_removed)
     """Unregister a movement removed callback."""
 
-    _attack_listeners = AttackListeners(on_incoming_attack, on_incoming_attack_updated, on_incoming_attack_withdrawn)
-    _occupation_listeners = OccupationListeners(on_occupation_started, on_occupation_updated, on_occupation_ended)
+    def __init__(self) -> None:
+        super().__init__()
+        self._announcer = MovementAnnouncer(
+            AttackEvents(self.on_incoming_attack, self.on_incoming_attack_updated, self.on_incoming_attack_withdrawn),
+            OccupationEvents(self.on_occupation_started, self.on_occupation_updated, self.on_occupation_ended),
+            self._fire,
+        )
 
     @staticmethod
     def _accepts_movement(callback: Callable[..., Any]) -> bool:
@@ -347,80 +331,14 @@ class MovementState(StateBase):
                 stored.append(mov)
         return stored
 
-    def _is_attack_on_us(self, mov: Movement) -> bool:
-        """A new attack aimed at the local player or at a member of their alliance.
-
-        Client: ``CastleArmyData.checkAllAttackMovements`` (bundle line 133659).
-        An attack on you (``isAttackingMovement``, 14389: the target is you, or
-        the daimyo township, which the client files under your own owner
-        record; an alien attack only counts on you, 33073) counts whoever sends
-        it. An attack on an alliance member other than you
-        (``isAllyAttackingMovement``, 14392) counts only when
-        ``showAsAllianceAttackWarning`` holds: always for an alien attack
-        (33091) and for the alliance nomad camp (14420), else when the attacker
-        has owner info and is not a dungeon owner (19456). An NPC always has
-        owner info (``getOwnerInfoVO``, 138994; an id the client does not know
-        gets a dummy that is not a dungeon owner); a player needs an owner
-        record, which is never a dungeon owner, and a movement without an owner
-        id (``OID``, which the client reads as 0) has none. The member list is
-        matched through the target's owner record, whose alliance id comes with
-        every movement.
-        """
-        if not mov.is_attack or mov.is_mine or mov.is_returning or mov.movement_id in self._arrival_dispatched:
-            return False
-        me = mov.local_player_id
-        if me == -1:
-            return False
-        is_alien = mov.movement_type_enum is MovementType.ALIEN_ATTACK
-        if mov.target_id == me or (mov.target_id == NPCOwner.DAIMYO_TOWNSHIP and not is_alien):
-            return True
-        alliance = self.local_player.alliance if self.local_player else None
-        if alliance is None or alliance.id <= 0 or mov.target_alliance_id != alliance.id:
-            return False
-        if is_alien or mov.owner_id == NPCOwner.ALLIANCE_NOMAD_CAMP:
-            return True
-        if "owner_id" not in mov.model_fields_set:
-            return False
-        if mov.owner_id < 0:
-            return mov.owner_id not in DUNGEON_OWNER_IDS
-        return mov.owner is not None
-
-    def _is_occupation_on_us(self, mov: Movement) -> bool:
-        """A new occupation of the local player's or an alliance member's area (see :meth:`on_occupation_started`)."""
-        if not mov.is_occupation or mov.is_mine or mov.is_returning or mov.movement_id in self._arrival_dispatched:
-            return False
-        me = mov.local_player_id
-        if me == -1:
-            return False
-        if mov.target_id in (me, NPCOwner.DAIMYO_TOWNSHIP):
-            return True
-        alliance = self.local_player.alliance if self.local_player else None
-        return alliance is not None and alliance.id > 0 and mov.target_alliance_id == alliance.id
-
-    def _listeners_for(self, mov: Movement) -> AnnouncedListeners | None:
-        """The callbacks for the kind of announced movement ``mov`` is, None if it is neither attack nor occupation."""
-        if mov.is_attack:
-            return self._attack_listeners
-        if mov.is_occupation:
-            return self._occupation_listeners
-        return None
-
     def _store_movement(self, mov: Movement) -> None:
-        """Insert or merge a parsed movement; fire callbacks for attacks and occupations that now count.
-
-        An attack is judged on every packet that carries it, as the client counts
-        its attack warnings anew (``CastleArmyData.checkAllAttackMovements``, bundle
-        line 133659), so one whose owner record comes later still fires, once; an
-        occupation likewise. A later packet for an announced attack or occupation
-        fires :meth:`on_incoming_attack_updated` or :meth:`on_occupation_updated`
-        when it changes what that callback reports.
+        """Insert or merge a parsed movement, and hand it to the announcer.
 
         Names, owner records, units, the size estimate and the commander a
         later packet leaves out are kept from the earlier one.
         """
         mid = mov.movement_id
         existing = self.movements.get(mid)
-        announced = mid in self._announced
 
         if existing is None:
             mov.created_at = time.time()
@@ -443,25 +361,12 @@ class MovementState(StateBase):
             mov.estimated_size = mov.estimated_size or existing.estimated_size
             mov.commander = mov.commander or existing.commander
 
-        if announced:
-            self._announced[mid] = max(self._announced[mid], mov.estimated_end)
-        listeners = self._listeners_for(mov)
-        if listeners is not None and not announced and (self._is_attack_on_us(mov) or self._is_occupation_on_us(mov)):
-            end = mov.estimated_end
-            self._announced[mid] = end
-            self._announced_prune_at = min(self._announced_prune_at, end)
-            self._fire(listeners.announced.of(self), mov)
-        elif listeners is not None and announced and existing is not None and self._attack_changed(existing, mov):
-            self._fire(listeners.updated.of(self), existing, mov)
+        alliance = self.local_player.alliance if self.local_player else None
+        self._announcer.stored(
+            existing, mov, arrived=mid in self._arrival_dispatched, alliance_id=alliance.id if alliance else None
+        )
         self.movements[mid] = mov
         self._schedule_movement(mid, mov)
-
-    @staticmethod
-    def _attack_changed(old: Movement, new: Movement) -> bool:
-        """Whether a packet changed what the ``_updated`` callbacks of an attack or occupation report."""
-        if abs(new.estimated_arrival - old.estimated_arrival) >= ETA_CHANGE_THRESHOLD:
-            return True
-        return any(getattr(old, name) != getattr(new, name) for name in UPDATED_ATTACK_FIELDS)
 
     def _schedule_movement(self, mid: int, mov: Movement) -> tuple[float, float]:
         """Take the movement's arrival and end now, so a packet with nothing due costs no scan."""
@@ -494,8 +399,7 @@ class MovementState(StateBase):
                     times = self._schedule_movement(mid, mov)
                 if mid not in dispatched and now >= times[0]:
                     dispatched.add(mid)
-                    listeners = self._listeners_for(mov) if self._announced.pop(mid, None) is not None else None
-                    arrived.append((mov, listeners.leaving(self, mov, arrived=True) if listeners is not None else []))
+                    arrived.append((mov, self._announcer.arrived(mov)))
                 if now >= times[1]:
                     del self.movements[mid]
                     del self._movement_times[mid]
@@ -506,9 +410,7 @@ class MovementState(StateBase):
                         next_due = due
             self._next_movement_due = next_due
         # After the scan, so an occupation that ends now is still known as announced at its arrival
-        if now >= self._announced_prune_at:
-            self._announced = {mid: end for mid, end in self._announced.items() if now < end}
-            self._announced_prune_at = min(self._announced.values(), default=math.inf)
+        self._announcer.prune(now)
         for mov, leaving in arrived:
             self._dispatch_movement_event(self.on_movement_arrived, mov.movement_id, mov)
             for callback, args in leaving:
@@ -530,15 +432,8 @@ class MovementState(StateBase):
             return
         mov = self.movements.pop(mid, None)
         self._movement_times.pop(mid, None)
-        leaving: list[QueuedCall] = []
-        if mov is not None and mid in self._announced and mid not in self._arrival_dispatched:
-            listeners = self._listeners_for(mov)
-            if listeners is not None:
-                arrived = time.time() >= mov.estimated_arrival - ETA_CHANGE_THRESHOLD
-                with self._lock:
-                    leaving = listeners.leaving(self, mov, arrived)
+        leaving = self._announcer.removed(mid, mov, arrived=mid in self._arrival_dispatched)
         self._arrival_dispatched.discard(mid)
-        self._announced.pop(mid, None)
         self._dispatch_movement_event(self.on_movement_removed, mid, mov)
         for callback, args in leaving:
             self._dispatch_callback(callback, *args)
@@ -747,7 +642,9 @@ class MovementState(StateBase):
 
         Library bookkeeping: the client keeps no record of what it announced.
         """
-        return self._still_announced(self._attack_listeners)
+        with self._lock:
+            self._advance_movements()
+            return self._announcer.listed(self._announcer.attacks, self.movements)
 
     def get_occupations(self) -> list[Movement]:
         """The occupations :meth:`on_occupation_started` announced that have not ended, in the order announced.
@@ -755,13 +652,9 @@ class MovementState(StateBase):
         Listed as :meth:`get_announced_attacks` lists attacks; an occupation
         leaves the list as :meth:`on_occupation_ended` reports it.
         """
-        return self._still_announced(self._occupation_listeners)
-
-    def _still_announced(self, listeners: AnnouncedListeners) -> list[Movement]:
         with self._lock:
             self._advance_movements()
-            tracked = (self.movements.get(mid) for mid in self._announced)
-            return [mov for mov in tracked if mov is not None and self._listeners_for(mov) is listeners]
+            return self._announcer.listed(self._announcer.occupations, self.movements)
 
     def reannounce(self, movement_id: int) -> bool:
         """Fire :meth:`on_incoming_attack` or :meth:`on_occupation_started` again for an announced movement.
@@ -783,12 +676,7 @@ class MovementState(StateBase):
         """
         with self._lock:
             self._advance_movements()
-            mov = self.movements.get(movement_id)
-            listeners = self._listeners_for(mov) if mov is not None and movement_id in self._announced else None
-            if listeners is None:
-                return False
-            self._fire(listeners.announced.of(self), mov)
-            return True
+            return self._announcer.reannounce(self.movements.get(movement_id))
 
     def get_movement_by_id(self, movement_id: int) -> Movement | None:
         """Get a tracked movement by its ``Movement.movement_id``, as ``client.movements.get_movements()`` lists it."""

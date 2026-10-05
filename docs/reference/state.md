@@ -14,6 +14,10 @@ The thread-safe game state that server pushes keep current.
 
 ::: empire_core.state.movements
 
+## `state.announcer`
+
+::: empire_core.state.announcer
+
 ## `state.castles`
 
 ::: empire_core.state.castles

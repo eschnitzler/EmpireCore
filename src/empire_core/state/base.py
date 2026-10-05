@@ -29,7 +29,7 @@ from empire_core.player.models.progress import (
 )
 from empire_core.spy.models import MaxSpiesResponse, PlagueMonkInfoResponse
 from empire_core.state.models import Castle, CastleKey, JoinedArea, Player
-from empire_core.utils.callbacks import BoundCallbacks, Callbacks, Registry
+from empire_core.utils.callbacks import BoundCallbacks, Registry
 
 logger = logging.getLogger(__name__)
 
@@ -43,57 +43,6 @@ CALLBACK_QUEUE_WARN_INTERVAL = 60.0
 # one is called is decided per callback from its signature, so existing
 # ``Callable[[int], None]`` handlers keep working unchanged.
 MovementEventCallback = Callable[[int], Any] | Callable[[int, Movement | None], Any]
-
-# A callback to queue and its arguments
-QueuedCall = tuple[Callable[..., None], tuple[Any, ...]]
-
-
-class AnnouncedListeners:
-    """The events of one kind of announced movement: announced, updated, and how one leaving state is reported."""
-
-    def __init__(
-        self,
-        announced: Callbacks[Callable[[Movement], None]],
-        updated: Callbacks[Callable[[Movement, Movement], None]],
-    ) -> None:
-        self.announced = announced
-        self.updated = updated
-
-    def leaving(self, state: "StateBase", mov: Movement, arrived: bool) -> list[QueuedCall]:
-        """The calls for an announced ``mov`` leaving ``state``, at its arrival or removed before it."""
-        raise NotImplementedError
-
-
-class AttackListeners(AnnouncedListeners):
-    """Incoming attacks: only one removed before it arrives is reported, as withdrawn."""
-
-    def __init__(
-        self,
-        announced: Callbacks[Callable[[Movement], None]],
-        updated: Callbacks[Callable[[Movement, Movement], None]],
-        withdrawn: Callbacks[Callable[[Movement], None]],
-    ) -> None:
-        super().__init__(announced, updated)
-        self.withdrawn = withdrawn
-
-    def leaving(self, state: "StateBase", mov: Movement, arrived: bool) -> list[QueuedCall]:
-        return [] if arrived else [(callback, (mov,)) for callback in self.withdrawn.of(state).calls()]
-
-
-class OccupationListeners(AnnouncedListeners):
-    """Occupations: each one leaving is reported as ended, captured when its time ran out."""
-
-    def __init__(
-        self,
-        announced: Callbacks[Callable[[Movement], None]],
-        updated: Callbacks[Callable[[Movement, Movement], None]],
-        ended: Callbacks[Callable[[Movement, bool], None]],
-    ) -> None:
-        super().__init__(announced, updated)
-        self.ended = ended
-
-    def leaving(self, state: "StateBase", mov: Movement, arrived: bool) -> list[QueuedCall]:
-        return [(callback, (mov, arrived)) for callback in self.ended.of(state).calls()]
 
 
 class StateBase:
@@ -111,12 +60,6 @@ class StateBase:
         self._executor_lock = threading.Lock()
         self._callbacks_pending = 0
         self._callback_queue_warn_at = 0.0
-
-        # Movement id -> when it ends (wall clock), for every attack and occupation
-        # announced. Kept across reset() so a reconnect does not announce the
-        # same movement again.
-        self._announced: dict[int, float] = {}
-        self._announced_prune_at = math.inf
 
         # Rate-limit state for movement parse failure warnings
         self._movement_parse_warn_at = 0.0
