@@ -1,6 +1,6 @@
 # Utilities
 
-Event titles and troop data from the game's CDN.
+Event titles and troop data from the game's CDN, and cancelling long calls.
 
 ## `utils.events`
 
@@ -9,3 +9,7 @@ Event titles and troop data from the game's CDN.
 ## `utils.troops`
 
 ::: empire_core.utils.troops
+
+## `utils.cancel`
+
+::: empire_core.utils.cancel

@@ -66,6 +66,11 @@ class SpyOutcome(str, Enum):
     """Only reports for other areas of the target's owner arrived before the deadline."""
     DISCONNECTED = "disconnected"
     """The connection dropped while waiting for the report."""
+    CANCELLED = "cancelled"
+    """
+    The caller cancelled; ``SpyResult.mission`` is set when the spies had
+    already left, and they keep going until recalled.
+    """
     SPY_CAUGHT = "spy_caught"
     """The spies were caught or kept away."""
     NO_SPY_DATA = "no_spy_data"
