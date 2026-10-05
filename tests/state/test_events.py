@@ -617,9 +617,9 @@ class TestCallbacks:
         state.on_event_added(seen.append)
         state.on_event_removed(seen.append)
         state.on_events_updated(seen.append)
-        state.remove_event_added_callback(seen.append)
-        state.remove_event_removed_callback(seen.append)
-        state.remove_events_updated_callback(seen.append)
+        state.on_event_added.remove(seen.append)
+        state.on_event_removed.remove(seen.append)
+        state.on_events_updated.remove(seen.append)
 
         state.update_from_packet("sei", {"E": [{"EID": 60, "RS": 60}]})
         state.update_from_packet("see", {"EID": 60})

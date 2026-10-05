@@ -14,7 +14,7 @@ from empire_core.movements.tracked import Movement, MovementResources
 from empire_core.protocol.base import read_or_none, readable_list
 from empire_core.state.announcer import AttackEvents, MovementAnnouncer, OccupationEvents
 from empire_core.state.base import MovementEventCallback, StateBase
-from empire_core.utils.callbacks import BoundCallbacks, Callbacks, Remover
+from empire_core.utils.callbacks import BoundEvent, Event, EventOf
 
 _POSITIONAL = (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
 # Whether an arrival, recall or removal callback takes the Movement, by callback, while it lives
@@ -28,7 +28,7 @@ MOVEMENT_PARSE_WARN_INTERVAL = 60.0
 
 
 class MovementState(StateBase):
-    on_incoming_attack = Callbacks[Callable[[Movement], None]]()
+    on_incoming_attack = Event[Movement]()
     """Register a callback for new hostile attack movements.
 
     Fires once per newly seen attack that is not the local player's own,
@@ -52,10 +52,8 @@ class MovementState(StateBase):
 
     Runs on the callback thread, in packet order (see :class:`GameState`).
     """
-    remove_incoming_attack_callback = Remover(on_incoming_attack)
-    """Unregister an incoming attack callback."""
 
-    on_incoming_attack_updated = Callbacks[Callable[[Movement, Movement], None]]()
+    on_incoming_attack_updated = Event[Movement, Movement]()
     """Register a callback for changes to an attack :meth:`on_incoming_attack` announced.
 
     ``callback(old, new)`` fires on a later packet for the same attack that
@@ -76,10 +74,8 @@ class MovementState(StateBase):
 
     Runs on the callback thread, in packet order (see :class:`GameState`).
     """
-    remove_incoming_attack_updated_callback = Remover(on_incoming_attack_updated)
-    """Unregister an incoming attack updated callback."""
 
-    on_incoming_attack_withdrawn = Callbacks[Callable[[Movement], None]]()
+    on_incoming_attack_withdrawn = Event[Movement]()
     """Register a callback for announced attacks the server removes before they arrive.
 
     Fires once, with the attack as state last had it, when ``mrm`` removes an
@@ -98,10 +94,8 @@ class MovementState(StateBase):
 
     Runs on the callback thread, in packet order (see :class:`GameState`).
     """
-    remove_incoming_attack_withdrawn_callback = Remover(on_incoming_attack_withdrawn)
-    """Unregister an incoming attack withdrawn callback."""
 
-    on_occupation_started = Callbacks[Callable[[Movement], None]]()
+    on_occupation_started = Event[Movement]()
     """Register a callback for occupations of your areas or your alliance members'.
 
     An occupation (``MovementType.SIEGE`` or ``OCCUPY_FACTION``, both parsed
@@ -136,10 +130,8 @@ class MovementState(StateBase):
 
     Runs on the callback thread, in packet order (see :class:`GameState`).
     """
-    remove_occupation_started_callback = Remover(on_occupation_started)
-    """Unregister an occupation started callback."""
 
-    on_occupation_updated = Callbacks[Callable[[Movement, Movement], None]]()
+    on_occupation_updated = Event[Movement, Movement]()
     """Register a callback for changes to an occupation :meth:`on_occupation_started` announced.
 
     ``callback(old, new)`` fires on the same changes, and with the same
@@ -151,10 +143,8 @@ class MovementState(StateBase):
 
     Runs on the callback thread, in packet order (see :class:`GameState`).
     """
-    remove_occupation_updated_callback = Remover(on_occupation_updated)
-    """Unregister an occupation updated callback."""
 
-    on_occupation_ended = Callbacks[Callable[[Movement, bool], None]]()
+    on_occupation_ended = Event[Movement, bool]()
     """Register a callback for occupations :meth:`on_occupation_started` announced leaving state.
 
     ``callback(movement, captured)`` fires once per announced occupation,
@@ -177,10 +167,8 @@ class MovementState(StateBase):
 
     Runs on the callback thread, in packet order (see :class:`GameState`).
     """
-    remove_occupation_ended_callback = Remover(on_occupation_ended)
-    """Unregister an occupation ended callback."""
 
-    on_movement_recalled = Callbacks[MovementEventCallback]()
+    on_movement_recalled = EventOf[MovementEventCallback]()
     """Register a callback for your own recalled movements.
 
     Fires on the ``mcm`` reply to a recall, with the movement as it now
@@ -194,10 +182,8 @@ class MovementState(StateBase):
 
     Runs on the callback thread, in packet order (see :class:`GameState`).
     """
-    remove_movement_recalled_callback = Remover(on_movement_recalled)
-    """Unregister a movement recalled callback."""
 
-    on_movement_arrived = Callbacks[MovementEventCallback]()
+    on_movement_arrived = EventOf[MovementEventCallback]()
     """Register a callback for movements reaching their target.
 
     The server sends no arrival packet: as in the game client, a movement
@@ -222,10 +208,8 @@ class MovementState(StateBase):
 
     Runs on the callback thread, in packet order (see :class:`GameState`).
     """
-    remove_movement_arrived_callback = Remover(on_movement_arrived)
-    """Unregister a movement arrived callback."""
 
-    on_movement_removed = Callbacks[MovementEventCallback]()
+    on_movement_removed = EventOf[MovementEventCallback]()
     """Register a callback for movements the server removes (``mrm``).
 
     The server does not say why: a battle ending, a finished recall and a
@@ -237,8 +221,6 @@ class MovementState(StateBase):
 
     Runs on the callback thread, in packet order (see :class:`GameState`).
     """
-    remove_movement_removed_callback = Remover(on_movement_removed)
-    """Unregister a movement removed callback."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -270,7 +252,7 @@ class MovementState(StateBase):
         return accepts
 
     def _dispatch_movement_event(
-        self, callbacks: BoundCallbacks[MovementEventCallback], mid: int, mov: Movement | None
+        self, callbacks: BoundEvent[MovementEventCallback], mid: int, mov: Movement | None
     ) -> None:
         """Fire arrival/recall listeners, passing the Movement to those that want it."""
         for callback in callbacks.calls():

@@ -121,20 +121,25 @@ class MarkdownDocstrings(griffe.Extension):
 
 
 class CallbackDeclarations(griffe.Extension):
-    """Show each ``on_x = Callbacks[C]()`` and its ``remove_x_callback = Remover(on_x)`` as the method it is."""
+    """Show each ``on_x = Event[A, B]()`` (or ``EventOf[C]()``) as the method it is, with its ``.remove``."""
 
     def on_class_members(self, *, cls: griffe.Class, **kwargs: object) -> None:
-        declared: dict[str, griffe.Expr | str] = {}
         for name, member in list(cls.members.items()):
             value = getattr(member, "value", None)
-            if not isinstance(value, griffe.ExprCall):
+            if not (isinstance(value, griffe.ExprCall) and isinstance(value.function, griffe.ExprSubscript)):
                 continue
-            if isinstance(value.function, griffe.ExprSubscript) and str(value.function.left) == "Callbacks":
-                callback = declared[name] = value.function.slice
-            elif str(value.function) == "Remover" and str(value.arguments[0]) in declared:
-                callback = declared[str(value.arguments[0])]
+            declaration = str(value.function.left).rsplit(".", 1)[-1]
+            arguments = value.function.slice
+            if declaration == "Event":
+                elements = arguments.elements if isinstance(arguments, griffe.ExprTuple) else [arguments]
+                callback = griffe.ExprSubscript(
+                    "Callable", griffe.ExprTuple([griffe.ExprList(list(elements)), "object"], implicit=True)
+                )
+            elif declaration == "EventOf":
+                callback = arguments
             else:
                 continue
+            docstring = member.docstring.value if member.docstring is not None else ""
             positional = griffe.ParameterKind.positional_or_keyword
             cls.set_member(
                 name,
@@ -147,6 +152,9 @@ class CallbackDeclarations(griffe.Extension):
                         griffe.Parameter("callback", annotation=callback, kind=positional),
                     ),
                     returns="None",
-                    docstring=member.docstring,
+                    docstring=griffe.Docstring(
+                        f"{docstring}\n\nUnregister a callback with `{name}.remove(callback)`.".lstrip(),
+                        parent=member.parent,
+                    ),
                 ),
             )

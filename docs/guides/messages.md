@@ -40,7 +40,7 @@ client.messages.on_new_messages(lambda event: print("new mail", event))
 ```
 
 The callback runs after the mailbox is updated, for the login data's section
-and every push after it. Remove it with `remove_new_messages_callback`.
+and every push after it. Remove it with `client.messages.on_new_messages.remove(callback)`.
 
 Spy reports arrive as mail too; [`client.spy.get_report`](spy.md#reports)
 reads one by its message id.

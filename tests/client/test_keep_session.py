@@ -167,8 +167,8 @@ class TestRestore:
         lost: list[Exception] = []
         client.on_session_lost(lost.append)
         client.on_session_lost(lost.append)
-        client.remove_session_lost_callback(lost.append)
-        client.remove_session_lost_callback(lost.append)
+        client.on_session_lost.remove(lost.append)
+        client.on_session_lost.remove(lost.append)
         logged_in(client)
 
         drop(client)
@@ -246,8 +246,8 @@ class TestRestore:
         logged_in(client)
         drop(client)
         assert wait_for(lambda: calls == ["restored"])
-        client.remove_session_restored_callback(callback)
-        client.remove_session_restored_callback(callback)
+        client.on_session_restored.remove(callback)
+        client.on_session_restored.remove(callback)
         drop(client)
         assert wait_for(relogin_done(client))
         time.sleep(0.05)

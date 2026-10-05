@@ -49,7 +49,7 @@ from empire_core.commanders.models.skills import (
 from empire_core.exceptions import GameDataNotLoadedError, PremiumCommanderCostError
 from empire_core.protocol.base import BaseResponse
 from empire_core.services.base import BaseService
-from empire_core.utils.callbacks import Callbacks, Remover
+from empire_core.utils.callbacks import Event
 
 
 class CommandersService(BaseService):
@@ -438,7 +438,7 @@ class SkillsService(BaseService):
         """
         return self.request(GetSkillsRequest(), GetSkillsResponse, timeout=timeout)
 
-    on_skill_list = Callbacks[Callable[[SkillList], None]]()
+    on_skill_list = Event[SkillList]()
     """
     Register a callback for every skill list the server sends.
 
@@ -447,9 +447,9 @@ class SkillsService(BaseService):
 
     Client: ``SKLCommand.executeCommand`` (bundle line 129742) and
     ``EGOCommand.executeCommand`` (bundle line 122801) both call ``parse_SKL``.
+
+    Removing a callback not registered is a no-op.
     """
-    remove_skill_list_callback = Remover(on_skill_list)
-    """Remove a callback registered with :meth:`on_skill_list`; a no-op if it is not registered."""
 
     def _handle_skill_list(self, response: BaseResponse) -> None:
         if isinstance(response, GetSkillsResponse):

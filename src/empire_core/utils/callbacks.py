@@ -1,25 +1,33 @@
 """
 The callback registry: each owner declares its events once, and keeps every subscription in one store.
 
-An owner (the client, its state, a service) declares an event as a class attribute::
+An owner (the client, its state, a service) declares an event as a class attribute, typed by
+the arguments its callbacks take::
 
-    on_chat_message = Callbacks[Callable[[AllianceChatMessageResponse], None]]()
-    remove_chat_message_callback = Remover(on_chat_message)
+    on_chat_message = Event[AllianceChatMessageResponse]()
+    on_disconnect = Event[()]()
 
-``owner.on_chat_message(callback)`` registers, ``owner.remove_chat_message_callback(callback)``
+``owner.on_chat_message(callback)`` registers, ``owner.on_chat_message.remove(callback)``
 unregisters, and the owner fires the event through ``owner.on_chat_message.calls()``, a
 snapshot taken under the store's lock. The store is the owner's ``_registry``.
+
+An event whose callbacks may take one of several signatures is declared by its callback
+type instead: ``on_movement_arrived = EventOf[MovementEventCallback]()``.
 """
 
 from __future__ import annotations
 
+import sys
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Any, Generic, Protocol, TypeVar, cast, overload
 
+from typing_extensions import TypeVarTuple, Unpack
+
 C = TypeVar("C", bound=Callable[..., Any])
+Args = TypeVarTuple("Args")
 
 
 class Registry:
@@ -64,8 +72,8 @@ class CallbackOwner(Protocol):
 
 
 @dataclass(frozen=True)
-class BoundCallbacks(Generic[C]):
-    """One owner's event: call it to register a callback."""
+class BoundEvent(Generic[C]):
+    """One owner's event: call it to register a callback, ``remove`` it to unregister."""
 
     name: str
     registry: Registry
@@ -81,8 +89,8 @@ class BoundCallbacks(Generic[C]):
         return cast(list[C], self.registry.calls(self.name))
 
 
-class Callbacks(Generic[C]):
-    """An event declared as ``on_<name>``: registration on an instance, the declaration on the class."""
+class EventOf(Generic[C]):
+    """An event declared as ``on_<name>`` by its callback type: bound to an instance, the declaration on the class."""
 
     name: str
 
@@ -92,44 +100,31 @@ class Callbacks(Generic[C]):
         self.name = attribute.removeprefix("on_")
 
     @overload
-    def __get__(self, owner: None, owner_type: type) -> Callbacks[C]: ...
+    def __get__(self, owner: None, owner_type: type) -> EventOf[C]: ...
 
     @overload
-    def __get__(self, owner: CallbackOwner, owner_type: type) -> BoundCallbacks[C]: ...
+    def __get__(self, owner: CallbackOwner, owner_type: type) -> BoundEvent[C]: ...
 
-    def __get__(self, owner: CallbackOwner | None, owner_type: type) -> Callbacks[C] | BoundCallbacks[C]:
+    def __get__(self, owner: CallbackOwner | None, owner_type: type) -> EventOf[C] | BoundEvent[C]:
         return self if owner is None else self.of(owner)
 
-    def of(self, owner: CallbackOwner) -> BoundCallbacks[C]:
-        return BoundCallbacks(self.name, owner._registry)
+    def of(self, owner: CallbackOwner) -> BoundEvent[C]:
+        return BoundEvent(self.name, owner._registry)
 
 
-class Remover(Generic[C]):
-    """The ``remove_<name>_callback`` of an ``on_<name>``: unregisters on an instance."""
+class Event(EventOf[Callable[[Unpack[Args]], object]], Generic[Unpack[Args]]):
+    """An event declared by the arguments its callbacks take: ``Event[Movement, bool]``, ``Event[()]``."""
 
-    def __init__(self, callbacks: Callbacks[C]) -> None:
-        self.callbacks = callbacks
+    if sys.version_info < (3, 11):
 
-    def __set_name__(self, owner: type, attribute: str) -> None:
-        if attribute != f"remove_{self.callbacks.name}_callback":
-            raise TypeError(
-                f"{owner.__name__}.{attribute}: the remover of on_{self.callbacks.name} is named "
-                f"remove_{self.callbacks.name}_callback"
-            )
-
-    @overload
-    def __get__(self, owner: None, owner_type: type) -> Remover[C]: ...
-
-    @overload
-    def __get__(self, owner: CallbackOwner, owner_type: type) -> Callable[[C], None]: ...
-
-    def __get__(self, owner: CallbackOwner | None, owner_type: type) -> Remover[C] | Callable[[C], None]:
-        return self if owner is None else self.callbacks.of(owner).remove
+        def __class_getitem__(cls, params: Any) -> Any:
+            # Python 3.10's Generic refuses Event[()]
+            return super().__class_getitem__(Unpack[tuple[()]] if params == () else params)  # type: ignore[misc]
 
 
-def declared(owner: CallbackOwner) -> Iterator[BoundCallbacks[Any]]:
+def declared(owner: CallbackOwner) -> Iterator[BoundEvent[Any]]:
     """Every event ``owner``'s class and its bases declare, bound to ``owner``."""
     for cls in type(owner).__mro__:
         for value in vars(cls).values():
-            if isinstance(value, Callbacks):
+            if isinstance(value, EventOf):
                 yield value.of(owner)

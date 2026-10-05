@@ -309,9 +309,9 @@ class TestBuildingCallbacks:
         state.on_building_finished(seen.append)
         state.on_building_xp(seen.append)
         state.on_buildings_changed(seen.append)
-        state.remove_building_finished_callback(seen.append)
-        state.remove_building_xp_callback(seen.append)
-        state.remove_buildings_changed_callback(seen.append)
+        state.on_building_finished.remove(seen.append)
+        state.on_building_xp.remove(seen.append)
+        state.on_buildings_changed.remove(seen.append)
 
         state.update_from_packet("fbe", {"OID": 5, "XP": 1})
         state.update_from_packet("cbx", {"OID": 5, "XP": 1})

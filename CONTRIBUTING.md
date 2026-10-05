@@ -335,52 +335,27 @@ comparison on `.code` (compare `.error` instead). A status that is not a
 
 #### Subscribe to incoming messages
 
-Three things this pattern must get right, all of them learned the hard way:
-register **and** unregister, guard the list with a lock, and never swallow a
-callback's exception.
+Declare the event once on the service, typed by the arguments its callbacks
+take; `utils/callbacks.py` gives it registration, `.remove`, the lock and
+`client.listen()` streaming:
 
 ```python
+on_message = Event[AllianceChatMessageResponse]()
+"""Register a callback for incoming messages. ..."""
+
 def __init__(self, client) -> None:
     super().__init__(client)
-    self._callbacks: list[Callable] = []
-    # Callbacks are registered from user threads and dispatched from the
-    # receive thread. CPython's per-op atomicity is not a guarantee to build
-    # on and does not hold on free-threaded builds, so take the lock.
-    self._callback_lock = threading.Lock()
-
     self.on_response("acm", self._handle_message)
 
-def on_message(self, callback: Callable) -> None:
-    """Register a callback for incoming messages."""
-    with self._callback_lock:
-        self._callbacks.append(callback)
-
-def remove_message_callback(self, callback: Callable) -> None:
-    """Detach a callback registered with :meth:`on_message`.
-
-    Always ship the unregister half: a consumer that re-wires its callbacks
-    after each reconnect otherwise accumulates duplicates with no way out.
-    """
-    with self._callback_lock:
-        if callback in self._callbacks:
-            self._callbacks.remove(callback)
-
 def _handle_message(self, response) -> None:
-    """Internal handler; dispatches to callbacks outside the lock."""
-    if not isinstance(response, AllianceChatMessageResponse):
-        return
-
-    with self._callback_lock:
-        callbacks = list(self._callbacks)   # snapshot: a callback may unregister
-
-    for callback in callbacks:
-        try:
-            callback(response)
-        except Exception:
-            # One bad consumer callback must not kill the receive thread or
-            # stop the others -- but it must never vanish either.
-            logger.exception("Error in message callback")
+    if isinstance(response, AllianceChatMessageResponse):
+        self._fire(self.on_message, response)
 ```
+
+A consumer registers with `client.<service>.on_message(cb)` and unregisters
+with `client.<service>.on_message.remove(cb)`. `_fire` calls a snapshot of the
+callbacks on the receive thread and logs one that raises, so a bad consumer
+callback neither stops the others nor vanishes.
 
 ## BaseService API Reference
 

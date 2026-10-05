@@ -80,8 +80,8 @@ class TestDisconnectCallbacks:
         client.on_disconnect(callback)
         client.on_disconnect(callback)
         drop(client)
-        client.remove_disconnect_callback(callback)
-        client.remove_disconnect_callback(callback)
+        client.on_disconnect.remove(callback)
+        client.on_disconnect.remove(callback)
         drop(client)
 
         assert calls == ["fired"]

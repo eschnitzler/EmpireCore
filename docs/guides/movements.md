@@ -19,17 +19,21 @@ client.state.on_incoming_attack(on_attack)
 client.state.on_movement_arrived(on_arrived)
 ```
 
-| Register | Fires | Remove with |
-|---|---|---|
-| `on_incoming_attack(cb)` | Once per newly seen hostile attack | `remove_incoming_attack_callback` |
-| `on_incoming_attack_updated(cb)` | When a later packet changes an announced attack | `remove_incoming_attack_updated_callback` |
-| `on_incoming_attack_withdrawn(cb)` | When the server removes an announced attack before it arrives | `remove_incoming_attack_withdrawn_callback` |
-| `on_occupation_started(cb)` | Once per newly seen occupation of your or an alliance member's area | `remove_occupation_started_callback` |
-| `on_occupation_updated(cb)` | When a later packet changes an announced occupation | `remove_occupation_updated_callback` |
-| `on_occupation_ended(cb)` | When an announced occupation leaves state: captured, or driven off | `remove_occupation_ended_callback` |
-| `on_movement_arrived(cb)` | Once a movement's travel time is up | `remove_movement_arrived_callback` |
-| `on_movement_recalled(cb)` | On the reply to your own recall | `remove_movement_recalled_callback` |
-| `on_movement_removed(cb)` | When the server removes a movement (`mrm`) | `remove_movement_removed_callback` |
+Each one unregisters with its `.remove`, as in
+`client.state.on_incoming_attack.remove(on_attack)`; removing a callback not
+registered raises `ValueError`.
+
+| Register | Fires |
+|---|---|
+| `on_incoming_attack(cb)` | Once per newly seen hostile attack |
+| `on_incoming_attack_updated(cb)` | When a later packet changes an announced attack |
+| `on_incoming_attack_withdrawn(cb)` | When the server removes an announced attack before it arrives |
+| `on_occupation_started(cb)` | Once per newly seen occupation of your or an alliance member's area |
+| `on_occupation_updated(cb)` | When a later packet changes an announced occupation |
+| `on_occupation_ended(cb)` | When an announced occupation leaves state: captured, or driven off |
+| `on_movement_arrived(cb)` | Once a movement's travel time is up |
+| `on_movement_recalled(cb)` | On the reply to your own recall |
+| `on_movement_removed(cb)` | When the server removes a movement (`mrm`) |
 
 ## A movement's life
 

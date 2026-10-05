@@ -208,18 +208,23 @@ See [Reacting to movements](../guides/movements.md) for examples.
 
 ### One registry for every callback
 
-Every `on_<name>` of the client, its state and its services is a declaration
-of `Callbacks` (`src/empire_core/utils/callbacks.py`), not a hand-written method:
+Every `on_<name>` of the client, its state and its services is an `Event`
+(`src/empire_core/utils/callbacks.py`), declared once with the arguments its
+callbacks take, not a hand-written method:
 
 ```python
-on_incoming_attack = Callbacks[Callable[[Movement], None]]()
+on_incoming_attack = Event[Movement]()
 """Register a callback for new hostile attack movements. ..."""
-remove_incoming_attack_callback = Remover(on_incoming_attack)
-"""Unregister an incoming attack callback."""
+on_occupation_ended = Event[Movement, bool]()
+on_disconnect = Event[()]()
 ```
 
-On an instance, `on_incoming_attack` is the registration and
-`remove_incoming_attack_callback` its remover. Each owner keeps every
+On an instance, `on_incoming_attack(cb)` registers and
+`on_incoming_attack.remove(cb)` unregisters, and mypy checks `cb` against the
+declared arguments for both. The movement callbacks that take either
+`(movement_id)` or `(movement_id, movement)` are declared by that union
+callback type instead: `on_movement_arrived = EventOf[MovementEventCallback]()`
+(`Event[...]` is `EventOf` of one `Callable`). Each owner keeps every
 subscription in one `Registry`, its `_registry`, behind one lock: the state's
 `RLock` for `GameState`, so registering waits for a packet being applied, and
 a lock of its own for the client and each service. The owner fires an event
@@ -239,5 +244,5 @@ once.
 
 `client.listen()` streams whatever is declared: `callback_sources` lists the
 declarations of the client, its state and every service, so a new event is
-streamed by declaring it. A `Remover` named other than
-`remove_<name>_callback` fails when its class is created.
+streamed by declaring it. An event not named `on_<name>` fails when its class
+is created.

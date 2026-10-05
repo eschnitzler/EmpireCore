@@ -53,6 +53,6 @@ a callback; it runs for the reply to `get_skills()` too:
 client.skills.on_skill_list(lambda s: print("skills now", s.sceat_skill_ids))
 ```
 
-Remove it with `remove_skill_list_callback`.
+Remove it with `client.skills.on_skill_list.remove(callback)`.
 
 **API:** [`SkillsService`](../reference/commanders.md#empire_core.commanders.service.SkillsService)

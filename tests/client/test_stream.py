@@ -16,7 +16,7 @@ from empire_core.client.stream import Args, ClientEvent, EventStream, callback_s
 from empire_core.exceptions import EventStreamOverflowError
 from empire_core.movements.tracked import Movement
 from empire_core.services import BaseService
-from empire_core.utils.callbacks import Callbacks, Remover
+from empire_core.utils.callbacks import Event, EventOf
 from tests.client.test_disconnect import drop
 from tests.service_helpers import xt_packet
 from tests.state.state_helpers import arrive, gam_payload, login, wait_for
@@ -46,7 +46,7 @@ async def settle(client: EmpireClient) -> None:
 
 
 class TestSources:
-    def test_every_registration_is_a_declared_event_with_its_remover(self, client):
+    def test_every_registration_is_an_event(self, client):
         services = [owner for owner in vars(client).values() if isinstance(owner, BaseService)]
         declared = []
         for owner in (client, client.state, *services):
@@ -54,9 +54,8 @@ class TestSources:
                 if not attribute.startswith("on_") or attribute == "on_response":
                     continue
                 event = inspect.getattr_static(owner, attribute)
-                assert isinstance(event, Callbacks), f"{type(owner).__name__}.{attribute} is not a declared event"
-                remover = inspect.getattr_static(owner, f"remove_{event.name}_callback")
-                assert isinstance(remover, Remover) and remover.callbacks is event
+                assert isinstance(event, EventOf), f"{type(owner).__name__}.{attribute} is not an Event"
+                assert not hasattr(owner, f"remove_{event.name}_callback")
                 declared.append(event.name)
 
         assert sorted(callback_sources(client)) == sorted(declared)
@@ -64,12 +63,51 @@ class TestSources:
     def test_response_handlers_are_not_a_source(self, client):
         assert "response" not in callback_sources(client)
 
-    def test_a_remover_is_named_after_its_event(self):
+    def test_an_event_is_named_on_something(self):
         with pytest.raises((TypeError, RuntimeError)):
 
             class Owner:
-                on_ping = Callbacks[Callable[[], None]]()
-                remove_pong_callback = Remover(on_ping)
+                ping = Event[()]()
+
+
+class TestRemove:
+    """``on_<name>.remove`` follows the owner's registry policy."""
+
+    def test_state_fires_once_per_registration_and_refuses_an_unknown_removal(self, client):
+        seen: list[Movement] = []
+        client.state.on_incoming_attack(seen.append)
+        client.state.on_incoming_attack(seen.append)
+        assert client.state.on_incoming_attack.calls() == [seen.append, seen.append]
+
+        client.state.on_incoming_attack.remove(seen.append)
+        assert client.state.on_incoming_attack.calls() == [seen.append]
+        client.state.on_incoming_attack.remove(seen.append)
+        with pytest.raises(ValueError, match="incoming_attack"):
+            client.state.on_incoming_attack.remove(seen.append)
+
+    def test_a_service_ignores_an_unknown_removal(self, client):
+        seen: list[AllianceChatMessageResponse] = []
+        client.alliance.on_chat_message(seen.append)
+        client.alliance.on_chat_message(seen.append)
+        client.alliance.on_chat_message.remove(seen.append)
+        assert client.alliance.on_chat_message.calls() == [seen.append]
+
+        client.alliance.on_chat_message.remove(seen.append)
+        client.alliance.on_chat_message.remove(seen.append)
+        assert client.alliance.on_chat_message.calls() == []
+
+    def test_the_client_registers_each_callback_once_and_ignores_an_unknown_removal(self, client):
+        lost: list[Exception] = []
+        client.on_session_lost(lost.append)
+        client.on_session_lost(lost.append)
+        assert client.on_session_lost.calls() == [lost.append]
+
+        client.on_session_lost.remove(lost.append)
+        client.on_session_lost.remove(lost.append)
+        assert client.on_session_lost.calls() == []
+
+    def test_an_event_bound_twice_is_the_same_registration(self, client):
+        assert client.state.on_incoming_attack == client.state.on_incoming_attack
 
 
 class TestDelivery:
@@ -162,6 +200,26 @@ class TestTyping:
             return movement
 
         assert asyncio.run(scenario()).movement_id == 100
+
+    def test_a_callback_is_checked_against_the_event_when_registered_and_removed(self, client: EmpireClient):
+        def on_id(movement_id: int) -> None: ...
+
+        def on_arrived(movement_id: int, movement: Movement | None) -> None: ...
+
+        client.state.on_incoming_attack(on_id)  # type: ignore[arg-type]
+        client.state.on_incoming_attack.remove(on_id)  # type: ignore[arg-type]
+        client.state.on_occupation_ended(lambda movement, captured: None)
+        client.state.on_occupation_ended(on_arrived)  # type: ignore[arg-type]
+        client.on_disconnect(on_id)  # type: ignore[arg-type]
+        client.alliance.on_chat_message(on_id)  # type: ignore[arg-type]
+        client.alliance.on_chat_message.remove(on_id)  # type: ignore[arg-type]
+        for event in (client.state.on_movement_arrived, client.state.on_movement_removed):
+            event(on_id)
+            event(on_arrived)
+            event.remove(on_id)
+            event.remove(on_arrived)
+        assert_type(client.state.on_incoming_attack.calls(), list[Callable[[Movement], object]])
+        assert_type(client.on_disconnect.calls(), list[Callable[[], object]])
 
 
 class TestNames:

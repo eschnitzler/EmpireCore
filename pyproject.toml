@@ -80,6 +80,11 @@ plugins = ["pydantic.mypy"]
 ignore_missing_imports = true
 check_untyped_defs = true
 
+[[tool.mypy.overrides]]
+# Its type: ignore lines assert that mypy rejects a wrongly typed callback
+module = "tests.client.test_stream"
+warn_unused_ignores = true
+
 [tool.pydantic-mypy]
 init_forbid_extra = true
 init_typed = true

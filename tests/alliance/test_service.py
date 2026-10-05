@@ -426,14 +426,14 @@ class TestAllianceChat:
         seen: list[AllianceChatMessageResponse] = []
         client.alliance.on_chat_message(seen.append)
 
-        client.alliance.remove_chat_message_callback(seen.append)
+        client.alliance.on_chat_message.remove(seen.append)
         client._on_packet(xt_packet("acm", {"CM": {"PN": "LeaderGuy", "MT": "hi", "PID": 7001}}))
 
         assert seen == []
 
     def test_removing_an_unregistered_callback_is_a_no_op(self):
         client = make_client()
-        client.alliance.remove_chat_message_callback(lambda r: None)
+        client.alliance.on_chat_message.remove(lambda r: None)
 
 
 HEAL_ENTRY: dict[str, Any] = {
@@ -534,8 +534,8 @@ class TestAllianceHelp:
         client = make_client()
         seen: list[Any] = []
         client.alliance.on_help_update(seen.append)
-        client.alliance.remove_help_update_callback(seen.append)
-        client.alliance.remove_help_update_callback(seen.append)
+        client.alliance.on_help_update.remove(seen.append)
+        client.alliance.on_help_update.remove(seen.append)
 
         client._on_packet(xt_packet("ahd", {"LID": 1}))
 

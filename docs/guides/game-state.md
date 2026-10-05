@@ -145,8 +145,8 @@ for object_id, mine in client.state.get_mines().items():
 
 The joined castle's buildings are not kept in state. `on_building_finished`
 (`fbe`), `on_building_xp` (`cbx`) and `on_buildings_changed` (`gdb` damaged
-buildings, `gcb` changed efficiency), with their `remove_*` counterparts, call
-you back on the callback thread instead.
+buildings, `gcb` changed efficiency) call you back on the callback thread
+instead; each one's `.remove(callback)` unregisters.
 
 ## Running events
 
@@ -175,8 +175,8 @@ ends with a `see` or `tee`, or when its time runs out. Your points come with
 the `pep` pushes. The models never change; a later packet replaces them, so a
 snapshot stays as it was.
 
-`on_event_added`, `on_event_removed` and `on_events_updated` (and their
-`remove_*` counterparts) call you back on the callback thread when an event
+`on_event_added`, `on_event_removed` and `on_events_updated` (each with its
+`.remove(callback)`) call you back on the callback thread when an event
 starts, ends, or a packet updates the events; `get_events_last_updated()` says
 when one last did. The [events guide](events.md) lists the models.
 

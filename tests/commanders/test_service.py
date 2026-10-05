@@ -61,8 +61,8 @@ class TestSkillListUpdates:
         seen: list[Any] = []
         client.skills.on_skill_list(seen.append)
 
-        client.skills.remove_skill_list_callback(seen.append)
-        client.skills.remove_skill_list_callback(seen.append)
+        client.skills.on_skill_list.remove(seen.append)
+        client.skills.on_skill_list.remove(seen.append)
         client._on_packet(xt_packet("skl", {"SID": [3]}))
 
         assert seen == []

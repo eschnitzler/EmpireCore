@@ -71,8 +71,8 @@ class TestMailbox:
         client = make_client()
         seen: list = []
         client.messages.on_new_messages(seen.append)
-        client.messages.remove_new_messages_callback(seen.append)
-        client.messages.remove_new_messages_callback(seen.append)
+        client.messages.on_new_messages.remove(seen.append)
+        client.messages.on_new_messages.remove(seen.append)
 
         client._on_packet(xt_packet("sne", {"MSG": [ROW]}))
 

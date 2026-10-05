@@ -9,7 +9,7 @@ from empire_core.events.models import KingdomsLeagueEvent, SpecialEvent, event_c
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase
-from empire_core.utils.callbacks import Callbacks, Remover
+from empire_core.utils import callbacks
 
 logger = logging.getLogger(__name__)
 _clock = time.monotonic
@@ -19,7 +19,7 @@ EventsCallback = Callable[[dict[int, SpecialEvent]], Any]
 
 
 class EventState(StateBase):
-    on_event_added = Callbacks[EventCallback]()
+    on_event_added = callbacks.Event[SpecialEvent]()
     """Register a callback for an event that starts: a ``sei`` or ``tei`` entry for an event not running.
 
     Called with the event as that entry left it. Runs on the callback thread, in packet
@@ -27,10 +27,8 @@ class EventState(StateBase):
 
     Client: ``CastleSpecialEventEvent.ADD_SPECIALEVENT`` from ``parseServerEventData`` (bundle line 139814)
     """
-    remove_event_added_callback = Remover(on_event_added)
-    """Unregister an event added callback."""
 
-    on_event_removed = Callbacks[EventCallback]()
+    on_event_removed = callbacks.Event[SpecialEvent]()
     """Register a callback for an event that ends: a ``see`` or ``tee``, or its time running out.
 
     Called with the event as it last stood. A disconnect (see :meth:`reset`) fires none.
@@ -38,10 +36,8 @@ class EventState(StateBase):
     Client: ``CastleSpecialEventEvent.REMOVE_SPECIALEVENT`` from ``removeEventById`` (bundle line 139840),
     reached from ``parse_SEE``, ``parseTEE`` and ``executeUpdateForEvents`` (bundle lines 139826, 139915, 139836)
     """
-    remove_event_removed_callback = Remover(on_event_removed)
-    """Unregister an event removed callback."""
 
-    on_events_updated = Callbacks[EventsCallback]()
+    on_events_updated = callbacks.Event[dict[int, SpecialEvent]]()
     """Register a callback for every ``sei``, non-empty ``tei`` and ``pep`` applied.
 
     Called with every running event (a copy of :meth:`get_events`), after the
@@ -51,8 +47,6 @@ class EventState(StateBase):
     event and ``SERVER_DATA_PARSED``; ``AScoreEventVO.setRankAndPoints`` (bundle line 15044)
     sends ``UPDATE_POINTS`` for a ``pep``
     """
-    remove_events_updated_callback = Remover(on_events_updated)
-    """Unregister an events updated callback."""
 
     def _handle_sei(self, data: Any) -> None:
         """Handle 'Send Event Information': each entry updates its event, or adds it.

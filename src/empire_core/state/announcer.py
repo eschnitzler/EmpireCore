@@ -8,7 +8,7 @@ from typing import Any
 
 from empire_core.enums import MovementType, NPCOwner
 from empire_core.movements.tracked import DUNGEON_OWNER_IDS, Movement
-from empire_core.utils.callbacks import BoundCallbacks
+from empire_core.utils.callbacks import BoundEvent
 
 # Each packet anchors the arrival on its own receive time and whole seconds of
 # PT/TT, so an estimated arrival is only good to about a second either way.
@@ -25,16 +25,16 @@ UPDATED_ATTACK_FIELDS = (
 )
 
 # A callback to queue and its arguments
-QueuedCall = tuple[Callable[..., None], tuple[Any, ...]]
+QueuedCall = tuple[Callable[..., object], tuple[Any, ...]]
 
 
 @dataclass(frozen=True)
 class AttackEvents:
     """Incoming attacks: only one removed before it arrives is reported, as withdrawn."""
 
-    announced: BoundCallbacks[Callable[[Movement], None]]
-    updated: BoundCallbacks[Callable[[Movement, Movement], None]]
-    withdrawn: BoundCallbacks[Callable[[Movement], None]]
+    announced: BoundEvent[Callable[[Movement], object]]
+    updated: BoundEvent[Callable[[Movement, Movement], object]]
+    withdrawn: BoundEvent[Callable[[Movement], object]]
 
     def leaving(self, mov: Movement, arrived: bool) -> list[QueuedCall]:
         """The calls for an announced attack leaving state, at its arrival or removed before it."""
@@ -45,9 +45,9 @@ class AttackEvents:
 class OccupationEvents:
     """Occupations: each one leaving is reported as ended, captured when its time ran out."""
 
-    announced: BoundCallbacks[Callable[[Movement], None]]
-    updated: BoundCallbacks[Callable[[Movement, Movement], None]]
-    ended: BoundCallbacks[Callable[[Movement, bool], None]]
+    announced: BoundEvent[Callable[[Movement], object]]
+    updated: BoundEvent[Callable[[Movement, Movement], object]]
+    ended: BoundEvent[Callable[[Movement, bool], object]]
 
     def leaving(self, mov: Movement, arrived: bool) -> list[QueuedCall]:
         """The calls for an announced occupation leaving state, at its arrival or removed before it."""

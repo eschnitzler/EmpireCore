@@ -24,7 +24,7 @@ for entry in client.state.get_alliance_chat():
 ```
 
 Subscribe to new messages with a typed callback, and detach it again with
-`remove_chat_message_callback`:
+`client.alliance.on_chat_message.remove(on_message)`:
 
 ```python
 def on_message(msg):                  # an AllianceChatMessageResponse

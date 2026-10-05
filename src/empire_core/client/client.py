@@ -43,7 +43,7 @@ from empire_core.protocol.packet import Packet
 from empire_core.ranking.service import RankingService
 from empire_core.spy.service import SpyService
 from empire_core.state.manager import GameState
-from empire_core.utils.callbacks import Callbacks, Registry, Remover
+from empire_core.utils.callbacks import Event, Registry
 
 logger = logging.getLogger(__name__)
 
@@ -312,23 +312,21 @@ class EmpireClient:
         """
         self.state.update_from_packet(cmd, cast(dict[str, Any], payload), error_code)
 
-    on_disconnect = Callbacks[Callable[[], None]]()
+    on_disconnect = Event[()]()
     """Register a callback for the session dropping on its own; :meth:`close` does not fire it.
 
     Runs on the receive thread as it shuts down, after ``is_logged_in`` is
     cleared, and fires once per dropped session. Keep it short and hand a
     re-login to another thread, or leave it to :attr:`keep_session`, which
     starts its own once these callbacks have run. Registering the same
-    callback twice is a no-op.
+    callback twice is a no-op, and so is removing one not registered.
 
     The callbacks are the connection's disconnect listeners
     (:meth:`Connection.add_disconnect_listener
     <empire_core.network.connection.Connection.add_disconnect_listener>`):
     one list, run in the order registered through either, and either
-    remover takes one out.
+    ``on_disconnect.remove`` or ``remove_disconnect_listener`` takes one out.
     """
-    remove_disconnect_callback = Remover(on_disconnect)
-    """Remove a callback added with :meth:`on_disconnect`; unknown callbacks are ignored."""
 
     @overload
     def listen(
@@ -353,8 +351,8 @@ class EmpireClient:
 
         Call it from a coroutine; the stream delivers on that coroutine's loop. ``sources``
         are the registration methods themselves (``client.state.on_incoming_attack``,
-        ``client.alliance.on_chat_message``, ...): any ``on_<name>`` of the client, its state
-        or a service that has a ``remove_<name>_callback``. Each event is a
+        ``client.alliance.on_chat_message``, ...): any ``on_<name>`` event of the client, its
+        state or a service. Each event is a
         :class:`~empire_core.client.stream.ClientEvent` named after its registration. A stream
         of one registration types its events' ``args`` as that registration's callback
         parameters: ``client.listen(client.state.on_incoming_attack_updated)`` yields
@@ -485,7 +483,7 @@ class EmpireClient:
         """
         return self._session.remaining_login_cooldown()
 
-    on_session_lost = Callbacks[Callable[[Exception], None]]()
+    on_session_lost = Event[Exception]()
     """Register a callback for a :attr:`keep_session` re-login that gives up.
 
     ``callback(error)`` fires once, with the refusal that ended the attempts
@@ -495,12 +493,10 @@ class EmpireClient:
     of your own that stops the re-login fires it; that login raises its own
     failure. Runs on the callback thread (see
     :class:`~empire_core.state.manager.GameState`). Registering the same
-    callback twice is a no-op.
+    callback twice is a no-op, and so is removing one not registered.
     """
-    remove_session_lost_callback = Remover(on_session_lost)
-    """Remove a callback added with :meth:`on_session_lost`; unknown callbacks are ignored."""
 
-    on_session_restored = Callbacks[Callable[[], None]]()
+    on_session_restored = Event[()]()
     """Register a callback for a :attr:`keep_session` re-login that holds.
 
     Fires once per restored session, after the login data and the movement
@@ -508,10 +504,9 @@ class EmpireClient:
     not come within ``config.request_timeout``), so the events of that
     state come first. Runs on the callback thread (see
     :class:`~empire_core.state.manager.GameState`). A :meth:`login` of
-    your own does not fire it. Registering the same callback twice is a no-op.
+    your own does not fire it. Registering the same callback twice is a no-op,
+    and so is removing one not registered.
     """
-    remove_session_restored_callback = Remover(on_session_restored)
-    """Remove a callback added with :meth:`on_session_restored`; unknown callbacks are ignored."""
 
     def close(self) -> None:
         """Disconnect from the server and release background resources.

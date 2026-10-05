@@ -29,7 +29,7 @@ from empire_core.player.models.progress import (
 )
 from empire_core.spy.models import MaxSpiesResponse, PlagueMonkInfoResponse
 from empire_core.state.models import Castle, CastleKey, JoinedArea, Player
-from empire_core.utils.callbacks import BoundCallbacks, Registry
+from empire_core.utils.callbacks import BoundEvent, Registry
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +160,7 @@ class StateBase:
         with self._executor_lock:
             return self._callbacks_pending
 
-    def _fire(self, callbacks: BoundCallbacks[Any], *args: Any) -> None:
+    def _fire(self, callbacks: BoundEvent[Any], *args: Any) -> None:
         """Queue every callback of an event on the callback thread, as registered now."""
         for callback in callbacks.calls():
             self._dispatch_callback(callback, *args)

@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import re
 import threading
-from collections.abc import Callable
 from typing import Literal
 
 from empire_core.exceptions import CommandError, MessageUnavailableError
@@ -38,7 +37,7 @@ from empire_core.messages.models import (
 from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.errors import GGEError
 from empire_core.services.base import BaseService
-from empire_core.utils.callbacks import Callbacks, Remover
+from empire_core.utils.callbacks import Event
 
 _WHITESPACE = re.compile(r"\s")
 
@@ -83,10 +82,11 @@ class MessagesService(BaseService):
         with self._mailbox_lock:
             return list(self._mailbox.values())
 
-    on_new_messages = Callbacks[Callable[[SystemNotificationEvent], None]]()
-    """Call ``callback`` with the login data's sne section and each sne push, after :attr:`mailbox` is updated."""
-    remove_new_messages_callback = Remover(on_new_messages)
-    """Remove a callback registered with :meth:`on_new_messages`; a no-op if it is not registered."""
+    on_new_messages = Event[SystemNotificationEvent]()
+    """Call ``callback`` with the login data's sne section and each sne push, after :attr:`mailbox` is updated.
+
+    Removing a callback not registered is a no-op.
+    """
 
     def _handle_update(self, response: BaseResponse) -> None:
         with self._mailbox_lock:

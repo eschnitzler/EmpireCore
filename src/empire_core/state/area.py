@@ -3,7 +3,6 @@ builder discount (gab), and the building pushes (fbe, cbx, gdb, gcb) as callback
 
 import logging
 import time
-from collections.abc import Callable
 from typing import Any
 
 from empire_core.castle.models.actions import SelectCastleResponse
@@ -21,7 +20,7 @@ from empire_core.enums import Kingdom, ResourceCartType
 from empire_core.protocol.base import enum_or_none, read_or_none
 from empire_core.state.base import StateBase
 from empire_core.state.models import JoinedArea
-from empire_core.utils.callbacks import Callbacks, Remover
+from empire_core.utils.callbacks import Event
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,7 @@ _CART_COUNT = 3
 
 
 class AreaState(StateBase):
-    on_building_finished = Callbacks[Callable[[BuildingFinished], Any]]()
+    on_building_finished = Event[BuildingFinished]()
     """Register a callback for a building in the joined castle that finished (``fbe``).
 
     Called with the building's object id and the XP it gave. Runs on the callback
@@ -38,18 +37,14 @@ class AreaState(StateBase):
 
     Client: ``FBECommand.exec`` (bundle line 122879), ``AreaDataUpdater.parseCBX`` (bundle line 131521)
     """
-    remove_building_finished_callback = Remover(on_building_finished)
-    """Unregister a building finished callback."""
 
-    on_building_xp = Callbacks[Callable[[BuildingXP], Any]]()
+    on_building_xp = Event[BuildingXP]()
     """Register a callback for XP a building in the joined castle gave (``cbx``).
 
     Client: ``CBXCommand.executeCommand`` (bundle line 123345)
     """
-    remove_building_xp_callback = Remover(on_building_xp)
-    """Unregister a building XP callback."""
 
-    on_buildings_changed = Callbacks[Callable[[DamagedBuildings], Any]]()
+    on_buildings_changed = Event[DamagedBuildings]()
     """Register a callback for buildings of the joined castle that were damaged (``gdb``) or
     whose efficiency changed (``gcb``, a :class:`BuildingEfficiencyChanged`).
 
@@ -59,8 +54,6 @@ class AreaState(StateBase):
     Client: ``GDBCommand`` and ``GCBCommand`` (bundle lines 122998, 122968),
     ``IsoUpdaterData.updateMultipleObjectInfos`` (bundle line 130259)
     """
-    remove_buildings_changed_callback = Remover(on_buildings_changed)
-    """Unregister a buildings changed callback."""
 
     def _handle_jaa(self, data: Any) -> None:
         """Apply a join's reply: the joined area, and its mines and resource carts when it sends them.

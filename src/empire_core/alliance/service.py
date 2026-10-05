@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 
 from pydantic import ValidationError
@@ -85,7 +85,7 @@ from empire_core.exceptions import CommandError, NotInAllianceError, PacketError
 from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.errors import GGEError
 from empire_core.services.base import BaseService
-from empire_core.utils.callbacks import Callbacks, Remover
+from empire_core.utils.callbacks import Event
 
 logger = logging.getLogger(__name__)
 
@@ -693,7 +693,7 @@ class AllianceService(BaseService):
         """
         return self.request(AllianceChatLogRequest(), AllianceChatLogResponse, timeout=timeout).chat_log
 
-    on_chat_message = Callbacks[Callable[[AllianceChatMessageResponse], None]]()
+    on_chat_message = Event[AllianceChatMessageResponse]()
     """
     Register a callback for incoming alliance chat messages.
 
@@ -711,12 +711,9 @@ class AllianceService(BaseService):
             print(f"[{msg.player_name}] {msg.decoded_text}")
 
         client.alliance.on_chat_message(on_message)
-    """
-    remove_chat_message_callback = Remover(on_chat_message)
-    """Remove a callback registered with :meth:`on_chat_message`.
 
-    No-op if the callback is not registered, so reconnect re-wiring can
-    detach unconditionally.
+    ``on_chat_message.remove(callback)`` detaches it, a no-op if it is not
+    registered, so reconnect re-wiring can detach unconditionally.
     """
 
     def _handle_chat_message(self, response) -> None:
@@ -747,15 +744,13 @@ class AllianceService(BaseService):
         with self._help_lock:
             return list(self._help_requests)
 
-    on_help_update = Callbacks[Callable[[AllianceHelpUpdate], None]]()
+    on_help_update = Event[AllianceHelpUpdate]()
     """
     Call ``callback`` with the login data's ahl section and each ahl, ahh, ahd and ahf push,
     after :attr:`help_requests` is updated.
 
-    Detach it again with :meth:`remove_help_update_callback`.
+    Detach it again with ``on_help_update.remove(callback)``, a no-op if it is not registered.
     """
-    remove_help_update_callback = Remover(on_help_update)
-    """Remove a callback registered with :meth:`on_help_update`; a no-op if it is not registered."""
 
     def _apply_help_update(self, response: BaseResponse) -> AllianceHelpUpdate | None:
         if isinstance(response, AllianceHelpListResponse):

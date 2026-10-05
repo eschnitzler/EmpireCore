@@ -48,7 +48,7 @@ class ClientEvent(Generic[Unpack[Args]]):
 
 @dataclass(frozen=True)
 class CallbackSource:
-    """An event the client, its state or a service declares: ``on_<name>`` with its ``remove_<name>_callback``."""
+    """An event the client, its state or a service declares as ``on_<name>``."""
 
     name: str
     register: Callable[[Callable[..., Any]], None]
@@ -57,7 +57,7 @@ class CallbackSource:
 
 
 def callback_sources(client: EmpireClient) -> dict[str, CallbackSource]:
-    """Every event the client, its state and its services declare (``Callbacks``), by name."""
+    """Every event the client, its state and its services declare (``Event``), by name."""
     services = [owner for owner in vars(client).values() if isinstance(owner, BaseService)]
     owners: list[CallbackOwner] = [client, client.state, *services]
     return {

@@ -165,13 +165,13 @@ class TestWithdrawnAttacks:
         login(state)
         withdrawn: list[Movement] = []
         state.on_incoming_attack_withdrawn(withdrawn.append)
-        state.remove_incoming_attack_withdrawn_callback(withdrawn.append)
+        state.on_incoming_attack_withdrawn.remove(withdrawn.append)
         state.update_from_packet("gam", gam_payload(155))
         state.update_from_packet("mrm", {"MID": 155})
         time.sleep(0.1)
         assert withdrawn == []
         with pytest.raises(ValueError):
-            state.remove_incoming_attack_withdrawn_callback(withdrawn.append)
+            state.on_incoming_attack_withdrawn.remove(withdrawn.append)
 
 
 class TestUpdatedAttacks:
@@ -292,13 +292,13 @@ class TestUpdatedAttacks:
             updates.append((old, new))
 
         state.on_incoming_attack_updated(callback)
-        state.remove_incoming_attack_updated_callback(callback)
+        state.on_incoming_attack_updated.remove(callback)
         state.update_from_packet("gam", self.wrapper(180))
         state.update_from_packet("gam", self.wrapper(180, GS=50))
         self.settle(state)
         assert updates == []
         with pytest.raises(ValueError):
-            state.remove_incoming_attack_updated_callback(callback)
+            state.on_incoming_attack_updated.remove(callback)
 
 
 class TestOccupationCallbacks:
@@ -465,9 +465,9 @@ class TestOccupationCallbacks:
         state.on_occupation_started(one)
         state.on_occupation_updated(two)
         state.on_occupation_ended(ended)
-        state.remove_occupation_started_callback(one)
-        state.remove_occupation_updated_callback(two)
-        state.remove_occupation_ended_callback(ended)
+        state.on_occupation_started.remove(one)
+        state.on_occupation_updated.remove(two)
+        state.on_occupation_ended.remove(ended)
         state.update_from_packet("gam", gam_payload(408, movement_type=MovementType.SIEGE))
         state.update_from_packet("gam", gam_payload(408, movement_type=MovementType.SIEGE, extra={"TT": 100}))
         state.update_from_packet("mrm", {"MID": 408})
@@ -1127,35 +1127,35 @@ class TestCallbackRegistrationLocking:
     CPython's per-op atomicity is not a guarantee to build on."""
 
     @pytest.mark.parametrize(
-        ("register", "remove"),
+        "event",
         [
-            ("on_incoming_attack", "remove_incoming_attack_callback"),
-            ("on_incoming_attack_updated", "remove_incoming_attack_updated_callback"),
-            ("on_incoming_attack_withdrawn", "remove_incoming_attack_withdrawn_callback"),
-            ("on_occupation_started", "remove_occupation_started_callback"),
-            ("on_occupation_updated", "remove_occupation_updated_callback"),
-            ("on_occupation_ended", "remove_occupation_ended_callback"),
-            ("on_movement_arrived", "remove_movement_arrived_callback"),
-            ("on_movement_recalled", "remove_movement_recalled_callback"),
-            ("on_movement_removed", "remove_movement_removed_callback"),
+            "on_incoming_attack",
+            "on_incoming_attack_updated",
+            "on_incoming_attack_withdrawn",
+            "on_occupation_started",
+            "on_occupation_updated",
+            "on_occupation_ended",
+            "on_movement_arrived",
+            "on_movement_recalled",
+            "on_movement_removed",
         ],
     )
-    def test_register_and_remove_wait_for_the_state_lock(self, state, register, remove):
+    def test_register_and_remove_wait_for_the_state_lock(self, state, event):
         def callback(*args):
             pass
 
         done = threading.Event()
 
         def worker():
-            getattr(state, register)(callback)
-            getattr(state, remove)(callback)
+            getattr(state, event)(callback)
+            getattr(state, event).remove(callback)
             done.set()
 
         thread = threading.Thread(target=worker, daemon=True)
         state._lock.acquire()
         try:
             thread.start()
-            assert not done.wait(0.2), f"{register}/{remove} mutated the listener list without the lock"
+            assert not done.wait(0.2), f"{event} mutated the listener list without the lock"
         finally:
             state._lock.release()
         assert done.wait(2.0)
@@ -1245,8 +1245,8 @@ class TestArrivalCallbackPayload:
 
         state.on_movement_arrived(arrived.append)
         state.on_movement_arrived(two_arg)
-        state.remove_movement_arrived_callback(arrived.append)
-        state.remove_movement_arrived_callback(two_arg)
+        state.on_movement_arrived.remove(arrived.append)
+        state.on_movement_arrived.remove(two_arg)
 
         state.update_from_packet("gam", gam_payload(607))
         arrive(state, 607)
@@ -1254,9 +1254,9 @@ class TestArrivalCallbackPayload:
         assert arrived == []
 
         with pytest.raises(ValueError):
-            state.remove_movement_arrived_callback(two_arg)
+            state.on_movement_arrived.remove(two_arg)
         with pytest.raises(ValueError):
-            state.remove_movement_recalled_callback(two_arg)
+            state.on_movement_recalled.remove(two_arg)
 
 
 class TestThreadSafety:
