@@ -105,6 +105,8 @@ class Packet:
     """
     Base representation of a SmartFoxServer packet.
     Can be either XML (Handshake) or XT (Extended/JSON).
+
+    ``error_code`` is an XT frame's status field, 0 for success.
     """
 
     raw_data: str
@@ -112,7 +114,7 @@ class Packet:
 
     command_id: str | None = None
     request_id: int = -1
-    error_code: int = 0  # New field for XT status/error code
+    error_code: int = 0
     # list: some XT commands answer with a bare JSON array, which _parse_xt
     # deliberately keeps as a list rather than wrapping it -- so consumers must
     # not assume `.get()` is available after a None-check.

@@ -347,19 +347,17 @@ class FakeConnection:
 
 
 class FakeClient:
-    def __init__(self, username: str, login_ok: bool = True):
+    def __init__(self, username: str):
         self.username = username
         self.is_logged_in = False
         self.closed = False
         self.logins = 0
         self.streams_closed = 0
         self.connection = FakeConnection()
-        self._login_ok = login_ok
 
-    def login(self) -> bool:
+    def login(self) -> None:
         self.logins += 1
-        self.is_logged_in = self._login_ok
-        return self._login_ok
+        self.is_logged_in = True
 
     def close(self) -> None:
         self.closed = True
@@ -510,31 +508,10 @@ class TestAccountPool:
         assert exc_info.value.__cause__.cooldown == 42
         assert pool.busy_count == 0
 
-    def test_lease_accepts_a_login_that_returns_nothing(self, monkeypatch):
-        """login() reports failure by raising; its return value carries no information.
-
-        The pool used to treat a falsy return as failure. EmpireClient.login()
-        has no False path, so that guard was dead - and actively a trap: the
-        recommended change to ``login() -> None`` would have turned every
-        successful lease into a spurious LoginError.
-        """
-
-        class QuietLoginClient(FakeClient):
-            def login(self) -> None:  # type: ignore[override]
-                self.is_logged_in = True
-                return None
-
-        monkeypatch.setattr(Account, "get_client", lambda self: QuietLoginClient(self.username))
-        pool = AccountPool(registry=FakeRegistry([Account(username="alpha", password="p")]))
-        client = pool.lease()
-        assert client is not None
-        assert client.is_logged_in
-        assert pool.busy_count == 1
-
     def test_lease_failure_is_reported_by_the_raised_exception(self, monkeypatch):
         # The surviving contract: a client whose login() raises is not leased.
         class RaisingLoginClient(FakeClient):
-            def login(self) -> bool:
+            def login(self) -> None:
                 raise LoginError("bad credentials")
 
         monkeypatch.setattr(Account, "get_client", lambda self: RaisingLoginClient(self.username))
@@ -645,10 +622,10 @@ class TestConcurrentLeases:
                 return super().get_all()
 
         class SlowLoginClient(FakeClient):
-            def login(self) -> bool:
+            def login(self) -> None:
                 # Every lease is mid-login at the same moment.
                 logging_in.wait()
-                return super().login()
+                super().login()
 
         monkeypatch.setattr(Account, "get_client", lambda self: SlowLoginClient(self.username))
         pool = AccountPool(SameMomentRegistry([Account(username=f"user{i}", password="p") for i in range(count)]))
@@ -679,10 +656,10 @@ class TestConcurrentLeases:
         class FailOnceClient(FakeClient):
             failures = [True]
 
-            def login(self) -> bool:
+            def login(self) -> None:
                 if self.failures and self.failures.pop():
                     raise LoginError("bad credentials")
-                return super().login()
+                super().login()
 
         monkeypatch.setattr(Account, "get_client", lambda self: FailOnceClient(self.username))
         pool = AccountPool(FakeRegistry([Account(username="alpha", password="p")]))
@@ -696,7 +673,7 @@ class TestConcurrentLeases:
         clients: list[FakeClient] = []
 
         class InterruptedClient(FakeClient):
-            def login(self) -> bool:
+            def login(self) -> None:
                 raise KeyboardInterrupt
 
         def make(account: Account) -> FakeClient:
@@ -766,10 +743,10 @@ class TestKeepAlive:
         made: list[FakeClient] = []
 
         class CooldownClient(FakeClient):
-            def login(self) -> bool:
+            def login(self) -> None:
                 if self.username == "alpha" and made[0].logins:
                     raise LoginCooldownError(30)
-                return super().login()
+                super().login()
 
         def make(account: Account) -> FakeClient:
             made.append(CooldownClient(account.username))

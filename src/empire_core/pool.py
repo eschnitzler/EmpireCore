@@ -222,10 +222,6 @@ class AccountPool:
                 client = account.get_client()
 
                 if login:
-                    # login() reports failure by raising and always returns True,
-                    # as its own docstring says. `if not client.login()` was dead
-                    # code, and a trap: it would reject every successful lease the
-                    # day that vestigial bool return becomes None.
                     client.login()
 
                 with self._lock:

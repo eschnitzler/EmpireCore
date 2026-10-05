@@ -429,7 +429,7 @@ class EmpireClient:
         with self._streams_lock:
             self._streams.discard(stream)
 
-    def login(self, recaptcha_token: str | Callable[[], str] | None = None) -> bool:
+    def login(self, recaptcha_token: str | Callable[[], str] | None = None) -> None:
         """
         Log in the way the game client does.
 
@@ -450,12 +450,6 @@ class EmpireClient:
                 a function returning one, sent as ``RCT``. The game client
                 always attaches one; the library cannot make one itself, and
                 logins are accepted without it today.
-
-        Returns:
-            Always ``True``. Every failure path raises, so ``if not
-            client.login():`` is dead code - check for exceptions instead.
-            The ``bool`` return is kept only for backwards compatibility with
-            callers that already assert on it.
 
         Raises:
             NetworkError: The WebSocket connection could not be established
@@ -487,7 +481,7 @@ class EmpireClient:
             if not self.connection.connected:
                 self.connection.connect(timeout=self.config.connection_timeout)
 
-            return self._login_sequence(started, recaptcha_token)
+            self._login_sequence(started, recaptcha_token)
         except Exception:
             # The documented cleanup call (close()) never runs on the raising
             # path, so without this a failed login leaves an open socket plus
@@ -496,7 +490,7 @@ class EmpireClient:
             self._close_after_failed_login()
             raise
 
-    def _login_sequence(self, started: float, recaptcha_token: str | Callable[[], str] | None) -> bool:
+    def _login_sequence(self, started: float, recaptcha_token: str | Callable[[], str] | None) -> None:
         """Run the handshake/auth exchange on an already-connected socket."""
         ver_packet = f"<msg t='sys'><body action='verChk' r='0'><ver v='{self.config.game_version}' /></body></msg>"
         try:
@@ -573,7 +567,6 @@ class EmpireClient:
 
             logger.debug(f"Logged in as {self.username}")
             self.is_logged_in = True
-            return True
         finally:
             self.connection.cancel_waiter("gbd", gbd_waiter)
 

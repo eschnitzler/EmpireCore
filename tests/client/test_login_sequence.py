@@ -409,7 +409,7 @@ class TestNonFatalSteps:
         conn = ScriptedConnection({"roundTripRes": EmpireTimeoutError("no roundTripRes")})
         client = make_client(conn)
 
-        assert client.login() is True
+        client.login()
         assert client.is_logged_in is True
         assert xt_login_payload(conn)["RTM"] == 0
 
@@ -422,7 +422,7 @@ class TestNonFatalSteps:
         )
         client = make_client(conn)
 
-        assert client.login() is True
+        client.login()
         assert "disconnect" not in conn.events
 
     def test_missing_gbd_is_warned_about(self, caplog):
@@ -646,10 +646,10 @@ class TestFailedLoginReleasesResources:
 
 
 class TestSuccessfulLogin:
-    def test_returns_true_and_marks_the_session_logged_in(self):
+    def test_marks_the_session_logged_in(self):
         client = make_client()
 
-        assert client.login() is True
+        client.login()
         assert client.is_logged_in is True
 
     def test_success_keeps_the_connection_open(self):
@@ -665,7 +665,8 @@ class TestSuccessfulLogin:
         conn = ScriptedConnection({"lli": xt_packet("lli", {"E": 0, "PID": 4242})})
         client = make_client(conn)
 
-        assert client.login() is True
+        client.login()
+        assert client.is_logged_in
 
     def test_missing_credentials_never_touch_the_socket(self):
         conn = ScriptedConnection()
@@ -789,7 +790,9 @@ class TestVersionCheck:
 
     def test_ok_goes_on_to_the_login(self):
         conn = ScriptedConnection({"vck": Packet.from_bytes(b"%xt%vck%1%0%1169011%")})
-        assert make_client(conn).login() is True
+        client = make_client(conn)
+        client.login()
+        assert client.is_logged_in
 
 
 class TestLoginToken:

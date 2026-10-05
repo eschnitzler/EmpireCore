@@ -265,7 +265,7 @@ class TestLoginCleansUpOnFailure:
         conn = StubConnection()
         client = make_client(conn)
 
-        assert client.login() is True
+        client.login()
         assert conn.disconnect_count == 0
         assert client.is_logged_in is True
 
@@ -274,7 +274,7 @@ class TestLoginCleansUpOnFailure:
         conn = StubConnection({"gbd": EmpireTimeoutError("no gbd")})
         client = make_client(conn)
 
-        assert client.login() is True
+        client.login()
         assert conn.disconnect_count == 0
 
 

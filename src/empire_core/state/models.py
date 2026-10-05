@@ -246,10 +246,9 @@ class Player(BaseModel):
         ),
     )
 
-    # VIP
-    vip_points: int = 0  # VP
-    vip_level: int = 0  # VRL
-    vip_time_left: int = 0  # VRS (Seconds)
+    vip_points: int = Field(default=0, alias="VP", description="VIP points")
+    vip_level: int = Field(default=0, alias="VRL", description="The highest VIP level reached")
+    vip_time_left: int = Field(default=0, alias="VRS", description="Seconds of VIP time left when last read")
     used_premium_commanders: int = Field(
         default=0, alias="UPG", description="Premium commanders used today from the VIP level's free ones"
     )
@@ -264,9 +263,16 @@ class Player(BaseModel):
         description="Kingdom id -> whether the player is under beginner protection there",
     )
 
-    # Premium/VIP
-    PF: int = Field(default=0)  # Premium Flag
-    VF: int = Field(default=0)  # VIP Flag
+    PF: int = Field(
+        default=0,
+        description="Premium flag, 1 when set; see premium_flag. Filled only from a gpi carrying PF, "
+        "where the client does not read it (it reads PF from gpf)",
+    )
+    VF: int = Field(
+        default=0,
+        description="VIP flag, 1 when set; see vip_flag. Filled only from a gpi carrying VF, "
+        "where the client does not read it (it reads VF only on map owner info)",
+    )
 
     # Python-friendly properties
     @property

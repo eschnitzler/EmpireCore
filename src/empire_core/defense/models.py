@@ -412,10 +412,13 @@ class GetSupportDefenseResponse(BaseResponse):
         description="Your commanders and castellans",
     )
 
-    # Capacity limits
-    yard_limit: int = Field(alias="UYL", default=0)  # Total yard/courtyard limit
-    available_yard_limit: int = Field(alias="AUYL", default=0)  # Available yard space
-    wall_limit: int = Field(alias="UWL", default=0)  # Wall limit
+    yard_limit: int = Field(
+        alias="UYL", default=0, description="Courtyard unit limit, the alliance share (available_yard_limit) included"
+    )
+    available_yard_limit: int = Field(
+        alias="AUYL", default=0, description="The share of the courtyard limit open to alliance support"
+    )
+    wall_limit: int = Field(alias="UWL", default=0, description="Wall unit limit")
 
     @field_validator("castellan", "tower_castellan", mode="wrap")
     @classmethod
