@@ -5,6 +5,7 @@ from empire_core.enums import ProductionListId, SlotType
 from .models import (
     BUY_UNIT_PACKAGE_SK,
     AddedUnit,
+    AttackWave,
     CancelHealRequest,
     CancelHealResponse,
     CancelProductionRequest,
@@ -33,11 +34,16 @@ from .models import (
     SkipHealRequest,
     SkipHealResponse,
     UnitInventory,
+    WaveFlank,
     WoundedUnits,
     wod_amount_pairs,
 )
+from .service import ArmyService
+from .spy_army import SpyArmy, UnitStack
 
 __all__ = [
+    "AttackWave",
+    "WaveFlank",
     "HealUnitsRequest",
     "HealUnitsResponse",
     "CancelHealRequest",
@@ -72,4 +78,7 @@ __all__ = [
     "DismissUnitsResponse",
     "ProductionListId",
     "SlotType",
+    "ArmyService",
+    "SpyArmy",
+    "UnitStack",
 ]

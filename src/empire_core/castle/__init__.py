@@ -98,6 +98,7 @@ from .models import (
     UpgradeWallRequest,
     UpgradeWallResponse,
 )
+from .service import CastleService
 
 __all__ = [
     "AreaBooster",
@@ -200,4 +201,5 @@ __all__ = [
     "StartTaxResponse",
     "TaxInfo",
     "TaxInfoResponse",
+    "CastleService",
 ]

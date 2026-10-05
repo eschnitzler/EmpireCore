@@ -41,7 +41,7 @@ graph TD
         * **Subscribers** — pub/sub; every matching packet is broadcast to
           all subscribers (e.g. alliance chat).
         * **Global handler** (`on_packet`) — feeds every packet to state.
-* **Packets** (`empire_core.protocol.packet.Packet`): parses both the XML
+* **Packets** (`empire_core.protocol.Packet`): parses both the XML
   handshake frames and the `%xt%` extension frames.
 
 ### 2. Protocol Layer (`empire_core.protocol`)
@@ -81,7 +81,7 @@ graph TD
     * **Services** (`client.alliance`, `client.castle`, `client.army`, …):
       high-level, domain-specific APIs, one per game area
       (`empire_core.<area>.service`), attached at construction. They build on
-      `BaseService` (`empire_core.services.base`): `request()` (typed response
+      `BaseService` (`empire_core.services`): `request()` (typed response
       or raise) and `execute()` (bool for action success).
     * **Errors**: waiting calls raise typed exceptions from
       `empire_core.exceptions` (`CommandError`, `EmpireTimeoutError`,

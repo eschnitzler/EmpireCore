@@ -25,6 +25,8 @@ from .models import (
     OwnerFaction,
     parse_area_rows,
 )
+from .scanner import MapScanner, ScanResult
+from .service import MapService
 
 __all__ = [
     "GetMapAreaRequest",
@@ -51,4 +53,7 @@ __all__ = [
     "Kingdom",
     "MapItemType",
     "NPCOwner",
+    "MapScanner",
+    "ScanResult",
+    "MapService",
 ]

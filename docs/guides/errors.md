@@ -9,8 +9,7 @@ Calls that wait for a reply raise typed exceptions instead of returning
 told apart. All of them inherit from `EmpireError`.
 
 ```python
-from empire_core import CommandError, ConnectionClosedError, EmpireTimeoutError
-from empire_core.protocol.errors import GGEError
+from empire_core import CommandError, ConnectionClosedError, EmpireTimeoutError, GGEError
 
 try:
     castles = client.castle.get_all()

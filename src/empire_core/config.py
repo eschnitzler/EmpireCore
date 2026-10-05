@@ -309,3 +309,11 @@ class _FrozenEmpireConfig(EmpireConfig):
 #:     cfg = EmpireConfig(**default_config.model_dump())
 #:     cfg.default_zone = "EmpireEx_1"
 default_config = _FrozenEmpireConfig()
+
+__all__ = [
+    "EmpireConfig",
+    "NetworkInstance",
+    "fetch_network_instances",
+    "network_config_url",
+    "parse_network_instances",
+]

@@ -26,6 +26,8 @@ from .models import (
     TitleRanksResponse,
     TopTitleRanking,
 )
+from .service import PlayerDetailsBulkResult, PlayerService
+from .titles import held_titles, player_title_ids, titles_in_order
 
 __all__ = [
     "GetPlayerInfoRequest",
@@ -51,4 +53,9 @@ __all__ = [
     "TitleRanksResponse",
     "TitleSystem",
     "TopTitleRanking",
+    "PlayerDetailsBulkResult",
+    "PlayerService",
+    "held_titles",
+    "player_title_ids",
+    "titles_in_order",
 ]

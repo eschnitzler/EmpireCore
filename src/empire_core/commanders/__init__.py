@@ -42,6 +42,7 @@ from .models import (
     SkillList,
     UnlockGeneralSkillRequest,
 )
+from .service import CommandersService, EquipmentService, SkillsService
 
 __all__ = [
     "NO_GEM_ID",
@@ -87,4 +88,7 @@ __all__ = [
     "EquipmentType",
     "Rareness",
     "SCEItem",
+    "CommandersService",
+    "EquipmentService",
+    "SkillsService",
 ]

@@ -39,6 +39,7 @@ from .models import (
     SkipDungeonCooldownRequest,
     SkipDungeonCooldownResponse,
 )
+from .service import AttackService
 
 __all__ = [
     "MinuteSkipDungeonRequest",
@@ -79,4 +80,5 @@ __all__ = [
     "AttackType",
     "LootPriority",
     "AutoSkipCooldownType",
+    "AttackService",
 ]

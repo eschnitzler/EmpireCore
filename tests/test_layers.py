@@ -8,7 +8,7 @@ Every import counts: module level, inside functions and under TYPE_CHECKING.
 - ``protocol.base`` imports nothing from empire_core.
 - Only the client and the tests import the ``protocol.models`` aggregator. Nothing in the
   library imports the ``empire_core`` root.
-- An area's ``__init__`` never imports its service, and the enums import only ``enum``.
+- Every area has an ``__init__``, and the enums import only ``enum``.
 
 A second test checks that ``import empire_core`` fills the whole response registry.
 """
@@ -144,11 +144,6 @@ def _init_and_enum_violations() -> list[str]:
     for area in sorted(a for a in RANK if a != "combat"):
         if not (PACKAGE / area / "__init__.py").exists():
             bad.append(f"empire_core.{area}: no __init__")
-        bad += [
-            f"empire_core.{area} -> {m} (an area __init__ imports its service)"
-            for i, m, _, _ in IMPORTS
-            if i == f"empire_core.{area}" and m.endswith(".service")
-        ]
     for path in sorted((PACKAGE / "enums").glob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):

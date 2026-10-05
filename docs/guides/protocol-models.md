@@ -6,15 +6,12 @@ description: Build and send any request model directly, and parse its typed repl
 
 The services cover the common commands. For everything else, and for full
 control, send the request models yourself. Every command has a request model
-(what you send) and a response model (what comes back), and
-`empire_core.protocol.models` re-exports them all.
+(what you send) and a response model (what comes back), exported from the
+command's area package.
 
 ```python
-from empire_core.protocol.models import (
-    AllianceChatMessageRequest,
-    GetCastlesRequest,
-    GetCastlesResponse,
-)
+from empire_core.alliance import AllianceChatMessageRequest
+from empire_core.castle import GetCastlesRequest, GetCastlesResponse
 
 request = AllianceChatMessageRequest.create("Hello 100%!")
 client.frame(request)

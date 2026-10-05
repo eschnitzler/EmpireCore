@@ -2,9 +2,9 @@
 GGE protocol models, all areas in one namespace.
 
 Importing this module imports every area's models, which fills the response
-registry in :mod:`empire_core.protocol.base`. The models live in their area
-packages (``empire_core.map.models``, ``empire_core.attack.models``, ...);
-library code imports them from there, never from here.
+registry. The models live in their area packages and are exported from them
+(``empire_core.map``, ``empire_core.attack``, ...); library code imports them
+from there, never from here.
 """
 
 from empire_core.alliance.models.chat import (

@@ -8,7 +8,7 @@ for every decision.
 
 ## The `GameState` Object
 
-`GameState` (in `empire_core.state.manager`) holds plain dictionaries:
+`GameState` (`empire_core.state.GameState`) holds plain dictionaries:
 
 ```python
 class GameState:

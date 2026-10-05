@@ -239,6 +239,8 @@ class AttackWave(BasePayload):
 
 
 __all__ = [
+    "AttackWave",
+    "WaveFlank",
     "wod_amount_pairs",
     "BUY_UNIT_PACKAGE_SK",
     "UnitInventory",

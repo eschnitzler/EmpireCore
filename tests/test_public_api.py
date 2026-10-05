@@ -1,100 +1,414 @@
 """Tests for the public API surface of ``empire_core``.
 
-These guard the *boundary* of the library rather than any single behavior:
+The contract: a name is public when it is in ``empire_core.__all__`` or in the
+``__all__`` of one of PUBLIC_MODULES, the first-level modules and packages such
+as ``empire_core.map``. Every deeper path (``empire_core.map.models.items``,
+``empire_core.spy.service``, ...) is private and may move in any release.
 
-- what ``empire_core.__all__`` promises and where those objects really live,
-- that the enums describing a given server ID space are not silently forked,
-- that ``__version__`` survives a metadata-less (vendored / PYTHONPATH) import,
-- that public dataclasses/models are actually typed and expose pythonic names.
-
-The names asserted below are the de-facto public surface: every one of them is
-imported by an external consumer today, so a rename here is a breaking change.
+These tests check that contract, that the docs, examples and docstrings name
+only public paths, that every type a public signature names is public, and the
+shape of a few public types.
 """
 
+import ast
+import functools
 import importlib
 import importlib.metadata
+import inspect
+import pkgutil
+import re
+import sys
+import textwrap
+import types
 from dataclasses import fields
-from typing import Any, get_type_hints
+from pathlib import Path
+from typing import Annotated, Any, get_args, get_origin, get_type_hints
 
 import pytest
 
 import empire_core
 from empire_core.enums import Kingdom
+from empire_core.services import BaseService
 
-# ---------------------------------------------------------------------------
-# Top-level exports (findings 1 & 2)
-# ---------------------------------------------------------------------------
+REPO = Path(__file__).resolve().parent.parent
 
-# (exported name, module that owns the object)
-# Every entry is deep-imported by the flagship consumer today.
-_DE_FACTO_PUBLIC_SURFACE = [
-    ("EmpireClient", "empire_core.client.client"),
-    ("EmpireConfig", "empire_core.config"),
-    ("AccountPool", "empire_core.pool"),
-    ("Account", "empire_core.accounts"),
-    ("accounts", "empire_core.accounts"),
-    ("Kingdom", "empire_core.enums"),
-    ("MapItemType", "empire_core.enums"),
-    ("MapAreaItem", "empire_core.map.models.items"),
-    ("ScanResult", "empire_core.map.scanner"),
-    ("SpyService", "empire_core.spy.service"),
-    ("SpyResult", "empire_core.spy.service"),
-    ("Packet", "empire_core.protocol.packet"),
-    ("GGEError", "empire_core.protocol.errors"),
-    ("CastleInfo", "empire_core.castle.models.castles"),
-    ("AllianceMember", "empire_core.alliance.models.info"),
-    ("RankingEntry", "empire_core.ranking.models"),
-    ("decode_json_text", "empire_core.protocol.text"),
-    ("encode_json_text", "empire_core.protocol.text"),
-    # The documented-preferred pool API raises this, and count_troops' docs
-    # tell callers to use these two — none may require a deep import.
-    ("PoolExhaustedError", "empire_core.pool"),
-    ("troop_data_available", "empire_core.gamedata.troops"),
-    ("get_troop_ids", "empire_core.gamedata.troops"),
-]
+PUBLIC_MODULES = (
+    "empire_core.accounts",
+    "empire_core.alliance",
+    "empire_core.army",
+    "empire_core.attack",
+    "empire_core.castle",
+    "empire_core.combat",
+    "empire_core.commanders",
+    "empire_core.config",
+    "empire_core.defense",
+    "empire_core.enums",
+    "empire_core.events",
+    "empire_core.exceptions",
+    "empire_core.gamedata",
+    "empire_core.map",
+    "empire_core.messages",
+    "empire_core.movements",
+    "empire_core.player",
+    "empire_core.pool",
+    "empire_core.protocol",
+    "empire_core.ranking",
+    "empire_core.services",
+    "empire_core.spy",
+    "empire_core.state",
+)
+# What these hold that callers need is exported from the root or an area.
+PRIVATE_MODULES = ("empire_core.client", "empire_core.network", "empire_core.utils")
+PUBLIC_SUBMODULES: tuple[str, ...] = ()  # OWNER TO DECIDE: ("empire_core.protocol.models",) keeps that path public
+PUBLIC_PATHS = ("empire_core", *PUBLIC_MODULES, *PUBLIC_SUBMODULES)
+
+# The core names the root exports.
+_ROOT_NAMES = (
+    "EmpireClient",
+    "EmpireConfig",
+    "AccountPool",
+    "PoolExhaustedError",
+    "Account",
+    "accounts",
+    "EmpireError",
+    "NetworkError",
+    "ConnectionClosedError",
+    "LoginError",
+    "LoginCooldownError",
+    "PacketError",
+    "EmpireTimeoutError",
+    "CommandError",
+    "AttackInProgressError",
+    "GGEError",
+    "Packet",
+    "Player",
+    "Castle",
+    "Resources",
+    "Building",
+    "Alliance",
+    "Movement",
+    "MovementResources",
+    "MovementType",
+    "GameEvent",
+    "Kingdom",
+    "MapItemType",
+    "MapAreaItem",
+    "ScanResult",
+    "SpyService",
+    "SpyResult",
+    "CastleInfo",
+    "AllianceMember",
+    "RankingEntry",
+    "decode_json_text",
+    "encode_json_text",
+    "troop_data_available",
+    "get_troop_ids",
+)
 
 
-@pytest.mark.parametrize("name, module_path", _DE_FACTO_PUBLIC_SURFACE)
-def test_de_facto_public_surface_is_exported_from_the_top_level(name: str, module_path: str) -> None:
-    """Consumers must not have to deep-import internal modules for these."""
-    assert name in empire_core.__all__, f"{name} missing from empire_core.__all__"
-    module = importlib.import_module(module_path)
-    assert getattr(empire_core, name) is getattr(module, name)
+def _public_names(module_name: str) -> list[str]:
+    return list(importlib.import_module(module_name).__all__)
 
 
-def test_previously_exported_names_are_still_available() -> None:
-    """Nothing that was public before may disappear (backwards compatibility)."""
-    for name in (
-        "EmpireClient",
-        "EmpireConfig",
-        "AccountPool",
-        "EmpireError",
-        "NetworkError",
-        "ConnectionClosedError",
-        "LoginError",
-        "LoginCooldownError",
-        "PacketError",
-        "EmpireTimeoutError",
-        "CommandError",
-        "AttackInProgressError",
-        "Player",
-        "Castle",
-        "Resources",
-        "Building",
-        "Alliance",
-        "Movement",
-        "MovementResources",
-        "MovementType",
-        "GameEvent",
-    ):
-        assert name in empire_core.__all__
-        assert getattr(empire_core, name) is not None
+def test_every_first_level_module_is_public_or_private() -> None:
+    """A new first-level module needs a decision: public through its ``__all__``, or private."""
+    found = {f"empire_core.{info.name}" for info in pkgutil.iter_modules(empire_core.__path__)}
+    assert found == set(PUBLIC_MODULES) | set(PRIVATE_MODULES)
 
 
-def test_all_entries_resolve_and_are_unique() -> None:
-    assert len(empire_core.__all__) == len(set(empire_core.__all__))
+@pytest.mark.parametrize("module_name", ("empire_core", *PUBLIC_MODULES))
+def test_public_module_all_is_unique_and_resolves(module_name: str) -> None:
+    module = importlib.import_module(module_name)
+    names = _public_names(module_name)
+    assert len(names) == len(set(names)), f"{module_name}.__all__ repeats a name"
+    missing = [name for name in names if not hasattr(module, name)]
+    assert not missing, f"{module_name}.__all__ advertises missing names {missing}"
+
+
+def test_root_exports_the_core_names() -> None:
+    missing = [name for name in _ROOT_NAMES if name not in empire_core.__all__]
+    assert not missing, f"missing from empire_core.__all__: {missing}"
+
+
+def _owner(obj: object) -> str | None:
+    module = getattr(obj, "__module__", None) if inspect.isclass(obj) or inspect.isfunction(obj) else None
+    if not module or not module.startswith("empire_core."):
+        return None
+    return ".".join(module.split(".")[:2])
+
+
+def test_root_names_are_exported_by_their_own_public_module() -> None:
+    """``empire_core.MapAreaItem`` is also ``empire_core.map.MapAreaItem``, and so on."""
+    unexported = []
     for name in empire_core.__all__:
-        assert hasattr(empire_core, name), f"__all__ advertises missing attribute {name}"
+        obj = getattr(empire_core, name)
+        owner = _owner(obj)
+        if owner in PUBLIC_MODULES and getattr(importlib.import_module(owner), name, None) is not obj:
+            unexported.append(f"{name} (defined under {owner})")
+        elif owner in PUBLIC_MODULES and name not in _public_names(owner):
+            unexported.append(f"{name} (not in {owner}.__all__)")
+    assert not unexported, unexported
+
+
+@pytest.mark.parametrize("package", [m for m in PUBLIC_MODULES if hasattr(importlib.import_module(m), "__path__")])
+def test_every_service_is_exported_from_its_package(package: str) -> None:
+    """``client.<area>`` is typed by a service a caller can import from the area."""
+    services = set()
+    for info in pkgutil.walk_packages(importlib.import_module(package).__path__, f"{package}."):
+        for name, obj in vars(importlib.import_module(info.name)).items():
+            if inspect.isclass(obj) and issubclass(obj, BaseService) and obj.__module__ == info.name:
+                services.add(name)
+    missing = services - set(_public_names(package))
+    assert not missing, f"{package}.__all__ lacks {sorted(missing)}"
+
+
+def _unexported(path: str) -> str | None:
+    """The first part of a dotted ``empire_core`` path past the public ones, or None when it is public."""
+    module, *rest = path.split(".")
+    for attr in rest:
+        if f"{module}.{attr}" in PUBLIC_PATHS:
+            module = f"{module}.{attr}"
+        elif attr in _public_names(module):
+            return None
+        else:
+            return f"{module}.{attr}"
+    return None
+
+
+def _code_problems(source: str) -> list[str]:
+    """Imports of private paths or unexported names, and attribute paths through a private one."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        lines = [line.strip() for line in source.splitlines() if line.lstrip().startswith(("from ", "import "))]
+        return [problem for line in lines if line != source.strip() for problem in _code_problems(line)]
+    problems = []
+    bound: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and not node.level and (node.module or "").split(".")[0] == "empire_core":
+            module = node.module or ""
+            if module not in PUBLIC_PATHS:
+                problems.append(f"from {module} import ... (a private path)")
+                continue
+            for alias in node.names:
+                if f"{module}.{alias.name}" in PUBLIC_PATHS:
+                    bound[alias.asname or alias.name] = f"{module}.{alias.name}"
+                elif alias.name != "*" and alias.name not in _public_names(module):
+                    problems.append(f"{alias.name} is not in {module}.__all__")
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.split(".")[0] != "empire_core":
+                    continue
+                if alias.name not in PUBLIC_PATHS:
+                    problems.append(f"import {alias.name} (a private path)")
+                else:
+                    bound[alias.asname or "empire_core"] = alias.name if alias.asname else "empire_core"
+    inner: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Attribute) or id(node) in inner:
+            continue
+        parts = []
+        part: ast.expr = node
+        while isinstance(part, ast.Attribute):
+            inner.add(id(part))
+            parts.append(part.attr)
+            part = part.value
+        if isinstance(part, ast.Name) and part.id in bound:
+            path = ".".join([bound[part.id], *reversed(parts)])
+            if private := _unexported(path):
+                problems.append(f"{path} goes through {private}, which is not public")
+    return problems
+
+
+_FENCE = re.compile(
+    r"^(?P<indent>[ \t]*)```(?P<lang>[\w-]*)[^\n]*\n(?P<body>.*?)^(?P=indent)```[ \t]*$", re.MULTILINE | re.DOTALL
+)
+_PROMPT = re.compile(r"^(>>>|\.\.\.) ?", re.MULTILINE)
+# A path after "#", "[", "<", "~" or a role's backtick is a link anchor or a cross-reference, not import advice.
+_DOTTED = re.compile(r"(?<![\w.#\[<~])(?<!:`)empire_core(?:\.\w+){2,}")
+_NAMES_PRIVATE_PATHS = {"docs/reference/index.md": "it lists which paths are private"}
+
+
+def _path_problems(text: str) -> list[str]:
+    """Dotted ``empire_core`` paths in prose or code that go through a private module."""
+    kept = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith(":::"))
+    return [
+        f"{match.group()} goes through {private}, which is not public"
+        for match in _DOTTED.finditer(kept)
+        if (private := _unexported(match.group()))
+    ]
+
+
+def _documents() -> list[Path]:
+    docs = [p for p in sorted((REPO / "docs").rglob("*.md")) if p.name != "changelog.md"]
+    return [REPO / "README.md", *docs, *sorted((REPO / "examples").glob("*.py"))]
+
+
+def _document_problems(path: Path) -> list[str]:
+    text = path.read_text(encoding="utf-8")
+    where = path.relative_to(REPO).as_posix()
+    if path.suffix == ".py":
+        problems = _code_problems(text)
+    else:
+        problems = [
+            problem
+            for block in _FENCE.finditer(text)
+            if block["lang"] in ("python", "py", "pycon")
+            for problem in _code_problems(_PROMPT.sub("", textwrap.dedent(block["body"])))
+        ]
+    if where not in _NAMES_PRIVATE_PATHS and not where.startswith("docs/internals/"):
+        problems += _path_problems(text)
+    return [f"{where}: {problem}" for problem in problems]
+
+
+def test_docs_and_examples_use_only_public_paths() -> None:
+    """Imports and dotted paths in the README, the docs (bar the internals pages) and the examples are public."""
+    problems = [problem for path in _documents() for problem in _document_problems(path)]
+    assert not problems, "\n".join(problems)
+
+
+_DOCSTRINGS_TO_FIX: dict[str, str] = {}
+
+
+def test_docstrings_name_only_public_paths() -> None:
+    """A docstring that tells the reader where something lives names a public path; cross-references are exempt."""
+    problems = []
+    for path in sorted((REPO / "src" / "empire_core").rglob("*.py")):
+        where = path.relative_to(REPO).as_posix()
+        if where in _DOCSTRINGS_TO_FIX:
+            continue
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                problems += [f"{where}: {problem}" for problem in _path_problems(ast.get_docstring(node) or "")]
+    assert not problems, "\n".join(problems)
+
+
+@pytest.mark.parametrize(
+    ("code", "problem"),
+    [
+        ("from empire_core.map import MapService, \\\n    ScanResult\n", None),
+        ("from empire_core import (\n    EmpireClient,  # the client\n    Kingdom,\n)\n", None),
+        ("from empire_core import EmpireClient; c = EmpireClient()\n", None),
+        ("from empire_core.map import *\n", None),
+        ("import empire_core.map as m\nm.MapService\n", None),
+        ("import empire_core\nempire_core.map.MapService\n", None),
+        ("from empire_core.map import NoSuchName\n", "NoSuchName is not in empire_core.map.__all__"),
+        ("import empire_core.protocol.models as pm\n", "import empire_core.protocol.models (a private path)"),
+        ("import os, empire_core.protocol.models\n", "import empire_core.protocol.models (a private path)"),
+        ("import empire_core\nx = empire_core.protocol.models.Foo\n", "through empire_core.protocol.models"),
+        ("import empire_core.map as m\nm.service.MapService\n", "through empire_core.map.service"),
+        ("importlib.import_module('empire_core.protocol.models')\n", "through empire_core.protocol.models"),
+        ("Use `from empire_core.events.titles import get_event_titles`.\n", "through empire_core.events.titles"),
+        ("- from empire_core.protocol.models import X\n", "through empire_core.protocol.models"),
+    ],
+)
+def test_the_docs_check_reads_every_import_form(code: str, problem: str | None) -> None:
+    found = _code_problems(code) + _path_problems(code)
+    if problem is None:
+        assert not found
+    else:
+        assert any(problem in entry for entry in found), found
+
+
+def test_the_docs_check_skips_reference_anchors() -> None:
+    text = (
+        "::: empire_core.gamedata.data\n"
+        "[GameData][empire_core.gamedata.data.GameData]\n"
+        "[load](../reference/gamedata.md#empire_core.gamedata.data.GameData.load)\n"
+        ":meth:`GameData.load <empire_core.gamedata.data.GameData.load>`\n"
+        ":class:`~empire_core.gamedata.data.GameData`\n"
+        ":mod:`empire_core.gamedata.data`\n"
+    )
+    assert _path_problems(text) == []
+
+
+def _exports() -> list[tuple[str, Any]]:
+    """(name, object) for every name a public path exports."""
+    return [
+        (name, getattr(importlib.import_module(module), name))
+        for module in PUBLIC_PATHS
+        for name in _public_names(module)
+    ]
+
+
+@functools.cache
+def _type_checking_names(module_name: str) -> dict[str, Any]:
+    """What a module imports under ``if TYPE_CHECKING:``, imported now."""
+    module = sys.modules[module_name]
+    names: dict[str, Any] = {}
+    for node in ast.parse(inspect.getsource(module)).body:
+        if isinstance(node, ast.If) and ast.unparse(node.test) in ("TYPE_CHECKING", "typing.TYPE_CHECKING"):
+            exec(
+                compile(
+                    ast.Module(body=node.body, type_ignores=[]), f"<type-checking imports of {module_name}>", "exec"
+                ),
+                dict(vars(module)),
+                names,
+            )
+    return names
+
+
+def _hints(obj: Any) -> dict[str, Any]:
+    """The resolved hints, names imported only under TYPE_CHECKING included."""
+    try:
+        return get_type_hints(obj)
+    except NameError:
+        own = vars(sys.modules[obj.__module__])
+        return get_type_hints(obj, localns={**_type_checking_names(obj.__module__), **own})
+
+
+def _library_types(hint: Any) -> set[type]:
+    if get_origin(hint) is Annotated:
+        return _library_types(get_args(hint)[0])
+    if get_origin(hint) is not None or isinstance(hint, types.UnionType):
+        return {found for arg in get_args(hint) for found in _library_types(arg)}
+    if inspect.isclass(hint) and hint.__module__.split(".")[0] == "empire_core":
+        return {hint}
+    return set()
+
+
+def _signatures(obj: type | types.FunctionType) -> list[tuple[str, Any]]:
+    """(where, object) for a public function, or for a public class and each public method it defines."""
+    found: list[tuple[str, Any]] = [(f"{obj.__module__}.{obj.__qualname__}", obj)]
+    for klass in getattr(obj, "__mro__", ()):
+        if klass.__module__.split(".")[0] != "empire_core":
+            continue
+        for name, member in vars(klass).items():
+            if name.startswith("_") and name != "__init__":
+                continue
+            member = member.fget if isinstance(member, property) else getattr(member, "__func__", member)
+            if inspect.isfunction(member) and member.__module__.split(".")[0] == "empire_core":
+                found.append((f"{klass.__module__}.{klass.__qualname__}.{name}", member))
+    return found
+
+
+_INTERNAL_TYPES = {
+    "empire_core.client.stream.CallbackSource": "EventStream.__init__ takes it, but only the client builds streams",
+    "empire_core.map.scanner._Client": "the structural type of MapScanner's client; callers pass an EmpireClient",
+}
+
+
+def test_every_type_a_public_signature_names_is_public() -> None:
+    """A type a public class, function or method takes or hands out can be imported from a public path."""
+    public_ids = {id(obj) for _, obj in _exports()}
+    problems = set()
+    for root in {id(obj): obj for _, obj in _exports()}.values():
+        if not (inspect.isclass(root) or inspect.isfunction(root)):
+            continue
+        for where, obj in _signatures(root):
+            try:
+                hints = _hints(obj)
+            except NameError as e:
+                problems.add(f"{where}: its hints name {e.name}, which cannot be resolved")
+                continue
+            for name, hint in hints.items():
+                if inspect.isclass(obj) and name.startswith("_"):
+                    continue
+                for found in _library_types(hint):
+                    path = f"{found.__module__}.{found.__qualname__}"
+                    if id(found) not in public_ids and path not in _INTERNAL_TYPES:
+                        problems.add(f"{where} ({name}): {path} is not public")
+    assert not problems, "\n".join(sorted(problems))
 
 
 def test_top_level_movement_is_the_state_model_consumers_use() -> None:
@@ -105,7 +419,7 @@ def test_top_level_movement_is_the_state_model_consumers_use() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Forked enums (finding 3)
+# Forked enums
 # ---------------------------------------------------------------------------
 
 
@@ -156,7 +470,7 @@ def test_ruins_are_castles_not_a_map_item_type() -> None:
 
 
 # ---------------------------------------------------------------------------
-# __version__ without distribution metadata (finding 4)
+# __version__ without distribution metadata
 # ---------------------------------------------------------------------------
 
 
@@ -178,7 +492,7 @@ def test_version_falls_back_when_distribution_metadata_is_missing(monkeypatch: p
 
 
 # ---------------------------------------------------------------------------
-# Exceptions (findings 5 & 9)
+# Exceptions
 # ---------------------------------------------------------------------------
 
 
@@ -217,7 +531,7 @@ def test_command_error_does_not_mislabel_unknown_codes() -> None:
 
 
 # ---------------------------------------------------------------------------
-# SpyResult typing (finding 6)
+# SpyResult typing
 # ---------------------------------------------------------------------------
 
 
@@ -225,8 +539,8 @@ def test_spy_result_fields_are_typed() -> None:
     from empire_core.enums import SpyOutcome, SpyStep
     from empire_core.exceptions import EmpireError
     from empire_core.messages.models import SpyReportResponse
+    from empire_core.spy import SpyResult
     from empire_core.spy.models import SendSpyResponse
-    from empire_core.spy.service import SpyResult
 
     hints = get_type_hints(SpyResult)
     assert hints["outcome"] == SpyOutcome
@@ -241,7 +555,7 @@ def test_spy_result_fields_are_typed() -> None:
 
 def test_spy_result_defaults_carry_no_report() -> None:
     from empire_core.enums import SpyOutcome
-    from empire_core.spy.service import SpyResult
+    from empire_core.spy import SpyResult
 
     result = SpyResult(SpyOutcome.NO_SPIES_AVAILABLE)
     assert (result.success, result.step, result.error, result.report, result.army) == (False, None, None, None, None)
@@ -250,7 +564,7 @@ def test_spy_result_defaults_carry_no_report() -> None:
 
 
 # ---------------------------------------------------------------------------
-# State models expose pythonic names (findings 7 & 8)
+# State models expose pythonic names
 # ---------------------------------------------------------------------------
 
 _SNAKE_CASE_ALIASES = {

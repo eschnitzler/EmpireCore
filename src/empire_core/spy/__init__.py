@@ -13,6 +13,9 @@ from .models import (
     SpyScreenInfoResponse,
     SpyTargetArea,
 )
+from .pool import total_spies
+from .risk import SabotagePlan, SpyPlan, plan_mission, plan_sabotage, sabotage_risk, spy_risk
+from .service import SpyHandle, SpyResult, SpyService
 
 __all__ = [
     "AutoSpyRequest",
@@ -27,4 +30,14 @@ __all__ = [
     "SpyScreenInfoResponse",
     "SpyTargetArea",
     "SpyType",
+    "total_spies",
+    "SabotagePlan",
+    "SpyPlan",
+    "plan_mission",
+    "plan_sabotage",
+    "sabotage_risk",
+    "spy_risk",
+    "SpyHandle",
+    "SpyResult",
+    "SpyService",
 ]

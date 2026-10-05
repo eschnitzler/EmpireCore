@@ -1,13 +1,16 @@
 """
 EmpireCore - Python library for Goodgame Empire automation.
 
-Everything re-exported here is public API and covered by the deprecation
-policy. Names reached through submodules (``empire_core.protocol.*``,
-``empire_core.state.manager``, ``empire_core.network.*``, ...) that are *not*
-re-exported here are internal: they can move or change shape in any release.
-Import from the package root instead of deep-importing::
+A name is public when it is in the ``__all__`` of this package or of a
+first-level package or module: each game area (``empire_core.map``,
+``empire_core.castle``, ...) and ``enums``, ``gamedata``, ``combat``,
+``protocol``, ``state``, ``services``, ``accounts``, ``config``, ``pool`` and
+``exceptions``. The modules inside them, and ``empire_core.client``,
+``empire_core.network`` and ``empire_core.utils`` as a whole, are private and may move in any
+release::
 
     from empire_core import EmpireClient, Kingdom, MapItemType, ScanResult
+    from empire_core.castle import GetCastlesRequest, GetCastlesResponse
 """
 
 from importlib.metadata import PackageNotFoundError, version

@@ -1,4 +1,4 @@
-"""Running server events and their scoreboards. The event titles come from ``empire_core.events.titles``."""
+"""Running server events, their scoreboards, and their in-game titles (:func:`get_event_titles`)."""
 
 from .models import (
     EVENT_CLASSES,
@@ -31,6 +31,8 @@ from .models import (
     SpecialEventInfoRequest,
     TempServerEvent,
 )
+from .service import EventsService
+from .titles import get_event_titles
 
 __all__ = [
     "EVENT_CLASSES",
@@ -62,4 +64,6 @@ __all__ = [
     "SpecialEvent",
     "SpecialEventInfoRequest",
     "TempServerEvent",
+    "EventsService",
+    "get_event_titles",
 ]

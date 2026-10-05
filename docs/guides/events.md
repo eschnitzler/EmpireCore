@@ -14,7 +14,7 @@ Events are named by the game data's `Event` enum, which uses the client's own
 names: Berimond is `Event.FACTION`.
 
 ```python
-from empire_core.gamedata.ids import Event
+from empire_core.gamedata import Event
 
 for event_id, event in client.state.get_events().items():
     print(event_id, type(event).__name__, round(event.remaining_seconds()))

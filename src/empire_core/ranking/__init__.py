@@ -15,6 +15,7 @@ from .models import (
     SearchRankingListRequest,
     SearchRankingListResponse,
 )
+from .service import RankingService
 
 __all__ = [
     "RankingEntry",
@@ -29,4 +30,5 @@ __all__ = [
     "LeaderboardSearchResult",
     "SearchRankingListResponse",
     "RankingType",
+    "RankingService",
 ]

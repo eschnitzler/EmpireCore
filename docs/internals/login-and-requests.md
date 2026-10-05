@@ -138,6 +138,8 @@ flowchart TB
 
 Each area package holds its models (a `models.py` or a `models/` package) and,
 where the game has one, a `service.py` reached as `client.<area>`. An area's
-`__init__` exports its models but never imports its service.
-`empire_core.protocol.models` re-exports every area's models for your
-convenience; the library itself imports models from their area.
+`__init__` exports its models and its service, and is the area's public
+import path (see [What is public](../reference/index.md)). The library itself
+imports from the modules inside an area, which are private.
+`empire_core.protocol.models` imports every area's models so the response
+registry is full; it is private too.

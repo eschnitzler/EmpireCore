@@ -749,7 +749,7 @@ class EmpireClient:
             ReceiveThreadError: Called with ``wait=True`` on the receive thread
 
         Example:
-            from empire_core.protocol.models import AllianceChatMessageRequest
+            from empire_core.alliance import AllianceChatMessageRequest
 
             request = AllianceChatMessageRequest.create("Hello!")
             client.send(request)

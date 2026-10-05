@@ -56,6 +56,7 @@ from .models import (
     UnitsBySide,
     repair_header,
 )
+from .service import BattleReportDetail, MessagesService
 
 __all__ = [
     "MAX_SUBJECT_LENGTH",
@@ -113,4 +114,6 @@ __all__ = [
     "SideUnits",
     "UnitsBySide",
     "BattleLogHeader",
+    "BattleReportDetail",
+    "MessagesService",
 ]

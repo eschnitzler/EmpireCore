@@ -389,3 +389,33 @@ class EventStreamOverflowError(EmpireError):
 
     Read the state you need again and open a new stream.
     """
+
+
+__all__ = [
+    "EmpireError",
+    "NetworkError",
+    "ConnectionClosedError",
+    "LoginError",
+    "LoginCooldownError",
+    "AccountBannedError",
+    "WrongServerError",
+    "ClientVersionError",
+    "VersionCheckStatus",
+    "PacketError",
+    "ReplyMismatchError",
+    "EmpireTimeoutError",
+    "GameDataNotLoadedError",
+    "AmbiguousLookupError",
+    "EventNotRunningError",
+    "UnknownCastleError",
+    "AmbiguousCastleError",
+    "CommandError",
+    "AttackInProgressError",
+    "AttackBelowMinimumError",
+    "UnsendableGoodsError",
+    "PremiumCommanderCostError",
+    "ReceiveThreadError",
+    "MessageUnavailableError",
+    "NotInAllianceError",
+    "EventStreamOverflowError",
+]

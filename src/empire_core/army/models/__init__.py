@@ -31,11 +31,13 @@ from .production import (
 )
 from .units import (
     BUY_UNIT_PACKAGE_SK,
+    AttackWave,
     DismissUnitsRequest,
     DismissUnitsResponse,
     GetUnitsRequest,
     GetUnitsResponse,
     UnitInventory,
+    WaveFlank,
     wod_amount_pairs,
 )
 
@@ -65,6 +67,8 @@ __all__ = [
     "DoubleProductionSlotResponse",
     "CancelProductionRequest",
     "CancelProductionResponse",
+    "AttackWave",
+    "WaveFlank",
     "wod_amount_pairs",
     "BUY_UNIT_PACKAGE_SK",
     "UnitInventory",

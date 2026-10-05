@@ -14,6 +14,7 @@ from .models import (
     WallSection,
     WallSectionSetup,
 )
+from .service import DefenseService
 
 __all__ = [
     "GetDefenseRequest",
@@ -28,4 +29,5 @@ __all__ = [
     "ChangeMoatDefenseRequest",
     "GetSupportDefenseRequest",
     "GetSupportDefenseResponse",
+    "DefenseService",
 ]

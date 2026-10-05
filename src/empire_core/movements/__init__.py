@@ -17,6 +17,7 @@ from .models import (
     MovementUnitInfo,
     MovementWrapper,
 )
+from .service import MovementsService
 from .tracked import Movement, MovementResources
 
 __all__ = [
@@ -36,4 +37,5 @@ __all__ = [
     "Movement",
     "MovementResources",
     "MovementType",
+    "MovementsService",
 ]

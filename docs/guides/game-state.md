@@ -157,7 +157,7 @@ ends (`end_time`, in `time.monotonic()` seconds; `remaining_seconds()` and
 `is_active()` read it):
 
 ```python
-from empire_core.gamedata.ids import Event
+from empire_core.gamedata import Event
 
 for event_id, event in client.state.get_events().items():
     print(event_id, type(event).__name__, round(event.remaining_seconds()))

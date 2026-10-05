@@ -27,6 +27,7 @@ if TYPE_CHECKING:
         is_current,
     )
 
+from .cdn import fetch_items_data, get_items_version
 from .data import CAMP_TABLES, RAW_TABLES, GameData, IdRecord, default_cache_dir
 from .models import (
     AllianceBuffDef,
@@ -40,6 +41,7 @@ from .models import (
     EffectTypeDef,
     EquipmentEffectDef,
     EquipmentSetDef,
+    EventCampDef,
     FortificationDef,
     GemDef,
     GeneralAbilityDef,
@@ -47,6 +49,7 @@ from .models import (
     GeneralSkillDef,
     GlobalEffectDef,
     HorseStats,
+    LeagueBracketDef,
     LegendSkillDef,
     NpcCampDefence,
     RaidBossDef,
@@ -59,8 +62,14 @@ from .models import (
     parse_ids,
     parse_stacks,
 )
+from .troops import count_troops, get_troop_ids, troop_data_available
 
 __all__ = [
+    "count_troops",
+    "fetch_items_data",
+    "get_items_version",
+    "get_troop_ids",
+    "troop_data_available",
     "Building",
     "ConstructionItem",
     "DifficultyType",
@@ -98,12 +107,14 @@ __all__ = [
     "EffectTypeDef",
     "EquipmentEffectDef",
     "EquipmentSetDef",
+    "EventCampDef",
     "GameData",
     "GemDef",
     "GeneralAbilityDef",
     "GeneralDef",
     "HorseStats",
     "IdRecord",
+    "LeagueBracketDef",
     "LegendSkillDef",
     "NpcCampDefence",
     "RAW_TABLES",

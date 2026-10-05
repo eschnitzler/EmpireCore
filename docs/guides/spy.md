@@ -177,7 +177,7 @@ The game adds legend skills for a target whose owner is a legend or that is a
 landmark, for your own legend status, and always in the attack screen's spy
 alert; `legend_target` says when to add them. Titles passed as `title_ids` are
 every glory and Berimond title you hold, the ones below your current title
-included, as `empire_core.player.titles.player_title_ids` works them out. Any
+included, as `empire_core.player.player_title_ids` works them out. Any
 Storm Islands title also holds every title below it, and the lowest one doubles
 your spies.
 

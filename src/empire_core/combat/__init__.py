@@ -72,6 +72,7 @@ from .solver import (
 )
 from .tools import (
     ALIEN_INVASION_AREA_TYPES,
+    FilledTools,
     ReduceDefenceBonusStrategy,
     TargetContext,
     ToolStrategy,
@@ -91,6 +92,7 @@ __all__ = [
     "DefenderFlankEffects",
     "FillOptions",
     "FilledAttack",
+    "FilledTools",
     "TargetRead",
     "Flank",
     "Inventory",

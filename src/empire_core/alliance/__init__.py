@@ -77,6 +77,7 @@ from .models import (
     SetAutoWarRequest,
     SetAutoWarResponse,
 )
+from .service import AllianceHelpUpdate, AllianceService
 
 __all__ = [
     "AllianceChatMessageRequest",
@@ -151,4 +152,6 @@ __all__ = [
     "DiplomacyStatus",
     "HelpType",
     "OnlineState",
+    "AllianceHelpUpdate",
+    "AllianceService",
 ]
