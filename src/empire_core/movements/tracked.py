@@ -8,9 +8,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import MapItemType, MovementType, NPCOwner
+from empire_core.gamedata.troops import count_troops
 from empire_core.movements.models import MovementArea, MovementOwner, MovementSpy
 from empire_core.protocol.base import enum_or_none, read_or_none
-from empire_core.utils.troops import count_troops
 
 logger = logging.getLogger(__name__)
 
@@ -346,9 +346,9 @@ class Movement(BaseModel):
     def troop_count(self) -> int:
         """Count of actual troops only (excludes equipment/tools).
 
-        Note: the first access fetches troop metadata from the GGE CDN
-        (blocking HTTP, cached afterwards). If the fetch fails, all units
-        are counted and the fetch is retried after a cooldown.
+        Note: without loaded game data, the first access loads it through
+        ``GameData.load`` (blocking HTTP unless cached on disk). If that fails,
+        all units are counted and the load is retried after a cooldown.
         """
         return count_troops(self.units)
 

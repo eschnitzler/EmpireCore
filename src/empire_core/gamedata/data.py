@@ -7,6 +7,9 @@ CDN. That file is ~20 MB, so nothing here is fetched implicitly: call
 What is parsed is trimmed to the combat-relevant tables, plus the raw rows
 that :meth:`GameData.record` returns for the id enums without a model, and
 cached on disk per version, so the download happens once per game patch.
+
+:meth:`GameData.load` is the only loader: troop counts and the id generator
+read the same process-wide copy, so one process downloads the items once.
 """
 
 from __future__ import annotations
@@ -15,6 +18,8 @@ import hashlib
 import json
 import logging
 import os
+import threading
+import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar, overload
@@ -24,8 +29,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from empire_core.enums import Kingdom
 from empire_core.exceptions import AmbiguousLookupError, NetworkError
 from empire_core.protocol.js import js_falsy, js_parse_int
-from empire_core.utils.troops import fetch_items_data, get_items_version
 
+from . import cache, cdn
 from .models import (
     READING_CACHE,
     AllianceBuffDef,
@@ -196,6 +201,11 @@ IdRecord = (
 
 
 _warned_versions: set[str] = set()
+
+_load_lock = threading.Lock()
+_loaded: GameData | None = None
+_failed_at: float | None = None
+"""``time.monotonic()`` of the last failed CDN fetch, None after a success."""
 
 
 def _check_ids_version(version: str) -> None:
@@ -765,51 +775,93 @@ class GameData(BaseModel):
     @classmethod
     def load(cls, *, refresh: bool = False, cache_dir: str | Path | None = None) -> "GameData":
         """
-        Fetch the items payload and return the trimmed tables.
+        The game data for the current items version, downloaded at most once per version.
 
         The version file is checked on every call, so a game patch invalidates
-        the cache on its own. Only a cache miss downloads the full payload.
+        the cache on its own. The data is kept for the process and every caller
+        gets the same instance while the version holds: it is shared, so treat
+        it as read-only and never change its tables or rows. Without a kept copy
+        for the version, the disk cache is tried, and only a miss downloads the
+        full payload. Concurrent loads, in threads or processes sharing
+        ``cache_dir``, make one download between them.
+
+        When the CDN cannot be reached, the data already kept is returned (with
+        a warning), even if a newer version could not be fetched. Only a load
+        with nothing kept, or with ``refresh=True``, raises. After a failed fetch
+        the CDN is not asked again for five minutes.
 
         Args:
-            refresh: Ignore any cached copy and re-download
-            cache_dir: Where to keep trimmed data (default: XDG cache dir)
+            refresh: Ignore the kept and cached copies and any failure backoff, and re-download
+            cache_dir: Where to keep trimmed data (default: XDG cache dir). It is read and
+                written only when the kept copy is not current, so a call that finds it
+                current returns it whatever ``cache_dir`` it was loaded with.
 
         Raises:
-            NetworkError: The CDN could not be reached
+            NetworkError: Nothing is kept (or ``refresh`` is set) and the CDN could not be
+                reached, now or less than five minutes ago
         """
-        directory = Path(cache_dir) if cache_dir is not None else default_cache_dir()
         try:
-            version = get_items_version()
+            return cls._load(refresh, Path(cache_dir) if cache_dir is not None else default_cache_dir())
+        except NetworkError as e:
+            kept = None if refresh else _loaded
+            if kept is None:
+                raise
+            logger.warning(f"Keeping the loaded game data v{kept.version}: {e}")
+            return kept
+
+    @classmethod
+    def _load(cls, refresh: bool, directory: Path) -> "GameData":
+        global _loaded, _failed_at
+        if not refresh and _failed_at is not None and time.monotonic() - _failed_at < cdn.RETRY_AFTER_FAILURE:
+            raise NetworkError(
+                "The items CDN is unavailable: the last fetch failed less than "
+                f"{cdn.RETRY_AFTER_FAILURE:.0f}s ago and is not retried yet"
+            )
+        try:
+            version = cdn.get_items_version()
         except Exception as e:
+            with _load_lock:
+                _failed_at = time.monotonic()
             raise NetworkError(f"Failed to fetch the items version: {e}") from e
 
-        cache_file = directory / CACHE_FILENAME_TEMPLATE.format(version=version)
-        if not refresh:
-            cached = cls._read_cache(cache_file, version)
-            if cached is not None:
-                _check_ids_version(version)
-                return cached
+        with _load_lock:
+            data = _loaded
+            if refresh or data is None or data.version != version:
+                cache_file = directory / CACHE_FILENAME_TEMPLATE.format(version=version)
+                with cache.locked(cache_file.with_suffix(".lock")):
+                    data = None if refresh else cls._read_cache(cache_file, version)
+                    if data is None:
+                        try:
+                            items_data = cdn.fetch_items_data(version)
+                        except Exception as e:
+                            _failed_at = time.monotonic()
+                            raise NetworkError(f"Failed to fetch items data v{version}: {e}") from e
+                        data = cls.parse(version, items_data)
+                        data._write_cache(cache_file)
+                        logger.info(
+                            f"Loaded {len(data.units)} units, {len(data.tools)} tools and "
+                            f"{len(data.dungeons)} camp defenses (v{version})"
+                        )
+                _loaded = data
+            _failed_at = None
+            _check_ids_version(version)
+            return data
 
-        try:
-            items_data = fetch_items_data(version)
-        except Exception as e:
-            raise NetworkError(f"Failed to fetch items data v{version}: {e}") from e
+    @classmethod
+    def loaded(cls) -> "GameData | None":
+        """
+        The data the last :meth:`load` in this process gave, or None; never touches the network.
 
-        data = cls.parse(version, items_data)
-        data._write_cache(cache_file)
-        logger.info(
-            f"Loaded {len(data.units)} units, {len(data.tools)} tools and "
-            f"{len(data.dungeons)} camp defenses (v{version})"
-        )
-        _check_ids_version(version)
-        return data
+        It is the instance :meth:`load` hands every caller, so treat it as read-only.
+        """
+        return _loaded
 
     @classmethod
     def _read_cache(cls, cache_file: Path, version: str) -> "GameData | None":
         if not cache_file.is_file():
             return None
         try:
-            payload = json.loads(cache_file.read_text())
+            payload = json.loads(cache_file.read_text(encoding="utf-8"))
             token = READING_CACHE.set(True)
             try:
                 data = cls.model_validate(payload)
@@ -828,8 +880,7 @@ class GameData(BaseModel):
 
     def _write_cache(self, cache_file: Path) -> None:
         try:
-            cache_file.parent.mkdir(parents=True, exist_ok=True)
-            cache_file.write_text(self.model_dump_json())
+            cache.write_atomic(cache_file, self.model_dump_json())
         except OSError as e:
             # A read-only cache dir must not fail the load.
             logger.warning(f"Could not cache game data to {cache_file}: {e}")

@@ -47,7 +47,7 @@ jobs:
       - name: Compare the items versions
         id: versions
         run: |
-          live=$(uv run --locked python -c "from empire_core.utils.troops import get_items_version; print(get_items_version())")
+          live=$(uv run --locked python -c "from empire_core.gamedata.cdn import get_items_version; print(get_items_version())")
           committed=$(uv run --locked python -c "from empire_core.gamedata.ids import ITEMS_VERSION; print(ITEMS_VERSION)")
           if ! [[ "$live" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
             echo "::error::The live items version is not dotted digits"
@@ -59,12 +59,8 @@ jobs:
 
       - name: Regenerate the ids
         if: steps.versions.outputs.stale == 'true'
-        env:
-          LIVE: ${{ steps.versions.outputs.live }}
         run: |
-          items="$RUNNER_TEMP/items_v$LIVE.json"
-          uv run --locked python -c "import json, sys; from empire_core.utils.troops import fetch_items_data; json.dump(fetch_items_data(sys.argv[1]), open(sys.argv[2], 'w'))" "$LIVE" "$items"
-          uv run --locked python scripts/generate_gamedata_ids.py --items "$items" \
+          uv run --locked python scripts/generate_gamedata_ids.py \
             --diff-names "$RUNNER_TEMP/names.md" --breaking-footer "$RUNNER_TEMP/footer.txt"
 
       - name: Open or update the pull request

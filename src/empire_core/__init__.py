@@ -62,6 +62,7 @@ from empire_core.exceptions import (
     WrongServerError,
 )
 from empire_core.gamedata import GameData, ToolStats, UnitStats
+from empire_core.gamedata.troops import get_troop_ids, troop_data_available
 from empire_core.map.models.areas import MapObject
 from empire_core.map.models.items import MapAreaItem
 from empire_core.map.scanner import ScanResult
@@ -74,7 +75,6 @@ from empire_core.protocol.text import decode_json_text, encode_json_text
 from empire_core.ranking.models import RankingEntry
 from empire_core.spy.service import SpyHandle, SpyResult, SpyService
 from empire_core.state.models import Alliance, Building, Castle, Player, Resources
-from empire_core.utils.troops import get_troop_ids, troop_data_available
 
 try:
     __version__ = version(__package__ or "empire-core")

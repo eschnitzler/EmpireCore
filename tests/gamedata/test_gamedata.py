@@ -1,6 +1,16 @@
 """Game data loading: classification, coercion, caching."""
 
+import errno
+import importlib.util
 import json
+import multiprocessing
+import os
+import sys
+import threading
+import time
+import types
+import uuid
+from pathlib import Path
 from typing import get_args, get_origin
 
 import pytest
@@ -8,7 +18,9 @@ from pydantic import BaseModel
 
 from empire_core.enums import Kingdom
 from empire_core.exceptions import AmbiguousLookupError, NetworkError
-from empire_core.gamedata import GameData, ToolStats, UnitStats, parse_ids, parse_stacks
+from empire_core.gamedata import GameData, ToolStats, UnitStats, cache, cdn, parse_ids, parse_stacks
+from empire_core.gamedata import data as data_module
+from empire_core.gamedata.troops import count_troops, get_troop_ids
 
 
 def _recording_fetch(fetches: list[str]):
@@ -124,13 +136,13 @@ class TestLoading:
     def test_load_writes_and_reuses_the_cache(self, tmp_path, monkeypatch):
         fetches: list[str] = []
 
-        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: "783.01")
+        monkeypatch.setattr("empire_core.gamedata.cdn.get_items_version", lambda: "783.01")
 
         def fake_fetch(version):
             fetches.append(version)
             return PAYLOAD
 
-        monkeypatch.setattr("empire_core.gamedata.data.fetch_items_data", fake_fetch)
+        monkeypatch.setattr("empire_core.gamedata.cdn.fetch_items_data", fake_fetch)
 
         first = GameData.load(cache_dir=tmp_path)
         second = GameData.load(cache_dir=tmp_path)
@@ -141,9 +153,9 @@ class TestLoading:
 
     def test_refresh_bypasses_the_cache(self, tmp_path, monkeypatch):
         fetches: list[str] = []
-        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: "783.01")
+        monkeypatch.setattr("empire_core.gamedata.cdn.get_items_version", lambda: "783.01")
         monkeypatch.setattr(
-            "empire_core.gamedata.data.fetch_items_data",
+            "empire_core.gamedata.cdn.fetch_items_data",
             _recording_fetch(fetches),
         )
 
@@ -155,9 +167,9 @@ class TestLoading:
     def test_new_version_invalidates_the_cache(self, tmp_path, monkeypatch):
         versions = iter(["783.01", "784.00"])
         fetches: list[str] = []
-        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: next(versions))
+        monkeypatch.setattr("empire_core.gamedata.cdn.get_items_version", lambda: next(versions))
         monkeypatch.setattr(
-            "empire_core.gamedata.data.fetch_items_data",
+            "empire_core.gamedata.cdn.fetch_items_data",
             _recording_fetch(fetches),
         )
 
@@ -168,15 +180,15 @@ class TestLoading:
         assert data.version == "784.00"
 
     def test_corrupt_cache_is_ignored(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: "783.01")
-        monkeypatch.setattr("empire_core.gamedata.data.fetch_items_data", lambda version: PAYLOAD)
+        monkeypatch.setattr("empire_core.gamedata.cdn.get_items_version", lambda: "783.01")
+        monkeypatch.setattr("empire_core.gamedata.cdn.fetch_items_data", lambda version: PAYLOAD)
         (tmp_path / "items_v783.01.trimmed.json").write_text("{not json")
 
         assert GameData.load(cache_dir=tmp_path).get_unit(211) is not None
 
     def test_unwritable_cache_still_loads(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: "783.01")
-        monkeypatch.setattr("empire_core.gamedata.data.fetch_items_data", lambda version: PAYLOAD)
+        monkeypatch.setattr("empire_core.gamedata.cdn.get_items_version", lambda: "783.01")
+        monkeypatch.setattr("empire_core.gamedata.cdn.fetch_items_data", lambda version: PAYLOAD)
         blocker = tmp_path / "blocked"
         blocker.write_text("i am a file, not a directory")
 
@@ -186,25 +198,25 @@ class TestLoading:
         def boom():
             raise OSError("dns is having a day")
 
-        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", boom)
+        monkeypatch.setattr("empire_core.gamedata.cdn.get_items_version", boom)
 
         with pytest.raises(NetworkError):
             GameData.load(cache_dir=tmp_path)
 
     def test_items_failure_raises_network_error(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: "783.01")
+        monkeypatch.setattr("empire_core.gamedata.cdn.get_items_version", lambda: "783.01")
 
         def boom(version):
             raise OSError("connection reset")
 
-        monkeypatch.setattr("empire_core.gamedata.data.fetch_items_data", boom)
+        monkeypatch.setattr("empire_core.gamedata.cdn.fetch_items_data", boom)
 
         with pytest.raises(NetworkError):
             GameData.load(cache_dir=tmp_path)
 
     def test_cache_file_holds_only_the_trimmed_tables(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: "783.01")
-        monkeypatch.setattr("empire_core.gamedata.data.fetch_items_data", lambda version: PAYLOAD)
+        monkeypatch.setattr("empire_core.gamedata.cdn.get_items_version", lambda: "783.01")
+        monkeypatch.setattr("empire_core.gamedata.cdn.fetch_items_data", lambda version: PAYLOAD)
 
         GameData.load(cache_dir=tmp_path)
 
@@ -212,6 +224,298 @@ class TestLoading:
         # Trimmed: the combat tables only, never the whole payload.
         assert "version" in cached and "units" in cached and "tools" in cached
         assert "rewards" not in cached and "quests" not in cached
+
+
+def _marking_fetch(downloads: Path, delay: float = 0.0):
+    """A fetch_items_data stand-in that leaves one file per download, so other processes are counted too."""
+
+    def fetch(version: str) -> dict:
+        downloads.mkdir(exist_ok=True)
+        (downloads / uuid.uuid4().hex).touch()
+        time.sleep(delay)
+        return PAYLOAD
+
+    return fetch
+
+
+def _load_in_child(cache_dir: str) -> None:
+    os._exit(0 if GameData.load(cache_dir=cache_dir).get_unit(211) is not None else 1)
+
+
+class TestOneLoader:
+    """GameData.load is the one items download and cache every reader shares."""
+
+    @pytest.fixture
+    def downloads(self, tmp_path, monkeypatch) -> Path:
+        monkeypatch.setattr(cdn, "get_items_version", lambda: "783.01")
+        monkeypatch.setattr(cdn, "fetch_items_data", _marking_fetch(tmp_path / "downloads", delay=0.05))
+        return tmp_path / "downloads"
+
+    def test_loading_and_counting_troops_download_once(self, downloads, tmp_path):
+        loaded = GameData.load(cache_dir=tmp_path)
+
+        assert count_troops({211: 4, 646: 2}) == 4
+        assert get_troop_ids() == {211}
+        assert GameData.load(cache_dir=tmp_path) is loaded
+        assert len(list(downloads.iterdir())) == 1
+
+    def test_troops_first_then_load_downloads_once(self, downloads):
+        assert get_troop_ids() == {211}
+
+        assert GameData.load() is GameData.loaded()
+        assert len(list(downloads.iterdir())) == 1
+
+    def test_a_new_process_reads_the_disk_cache(self, downloads, tmp_path, monkeypatch):
+        GameData.load(cache_dir=tmp_path)
+        monkeypatch.setattr(data_module, "_loaded", None)
+
+        data = GameData.load(cache_dir=tmp_path)
+
+        assert unit_of(data, 211).range_attack == 270
+        assert len(list(downloads.iterdir())) == 1
+
+    def test_a_version_change_downloads_again(self, downloads, tmp_path, monkeypatch):
+        first = GameData.load(cache_dir=tmp_path)
+        monkeypatch.setattr(cdn, "get_items_version", lambda: "784.00")
+
+        second = GameData.load(cache_dir=tmp_path)
+
+        assert (first.version, second.version) == ("783.01", "784.00")
+        assert GameData.loaded() is second
+        assert len(list(downloads.iterdir())) == 2
+        assert {p.name for p in tmp_path.glob("*.json")} == {
+            "items_v783.01.trimmed.json",
+            "items_v784.00.trimmed.json",
+        }
+
+    def test_a_corrupt_cache_is_downloaded_and_rewritten(self, downloads, tmp_path):
+        cache_file = tmp_path / "items_v783.01.trimmed.json"
+        cache_file.write_text('{"version": "783.01", "units": {')
+
+        assert GameData.load(cache_dir=tmp_path).get_unit(211) is not None
+        assert json.loads(cache_file.read_text())["version"] == "783.01"
+        assert len(list(downloads.iterdir())) == 1
+
+    def test_concurrent_threads_share_one_download(self, downloads, tmp_path):
+        results: list[GameData] = []
+        threads = [threading.Thread(target=lambda: results.append(GameData.load(cache_dir=tmp_path))) for _ in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert len(results) == 6
+        assert all(r is results[0] for r in results)
+        assert len(list(downloads.iterdir())) == 1
+
+    @pytest.mark.skipif(sys.platform != "linux", reason="forks a process holding threads")
+    def test_concurrent_processes_share_one_download(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cdn, "get_items_version", lambda: "783.01")
+        monkeypatch.setattr(cdn, "fetch_items_data", _marking_fetch(tmp_path / "downloads", delay=0.3))
+        fork = multiprocessing.get_context("fork")
+        children = [fork.Process(target=_load_in_child, args=(str(tmp_path / "cache"),)) for _ in range(4)]
+        for child in children:
+            child.start()
+        for child in children:
+            child.join(timeout=30)
+
+        assert [child.exitcode for child in children] == [0] * 4
+        assert len(list((tmp_path / "downloads").iterdir())) == 1
+        assert [p.name for p in (tmp_path / "cache").iterdir() if p.suffix == ".tmp"] == []
+
+    def test_a_failure_backs_off_and_refresh_retries(self, tmp_path, monkeypatch):
+        calls: list[str] = []
+
+        def version() -> str:
+            calls.append("version")
+            return "783.01"
+
+        def boom(version):
+            raise OSError("connection reset")
+
+        monkeypatch.setattr(cdn, "get_items_version", version)
+        monkeypatch.setattr(cdn, "fetch_items_data", boom)
+        with pytest.raises(NetworkError):
+            GameData.load(cache_dir=tmp_path)
+        with pytest.raises(NetworkError, match="not retried yet"):
+            GameData.load(cache_dir=tmp_path)
+        assert calls == ["version"]
+
+        monkeypatch.setattr(cdn, "fetch_items_data", lambda version: PAYLOAD)
+        assert GameData.load(cache_dir=tmp_path, refresh=True).get_unit(211) is not None
+
+    def test_the_backoff_ends(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cdn, "get_items_version", lambda: "783.01")
+        monkeypatch.setattr(cdn, "fetch_items_data", lambda version: PAYLOAD)
+        monkeypatch.setattr(data_module, "_failed_at", time.monotonic() - cdn.RETRY_AFTER_FAILURE - 1)
+
+        assert GameData.load(cache_dir=tmp_path).get_unit(211) is not None
+        assert data_module._failed_at is None
+
+    def test_the_loaded_data_outlives_a_failed_version_check(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cdn, "get_items_version", lambda: "783.01")
+        monkeypatch.setattr(cdn, "fetch_items_data", lambda version: PAYLOAD)
+        loaded = GameData.load(cache_dir=tmp_path)
+        calls: list[str] = []
+
+        def boom() -> str:
+            calls.append("version")
+            raise OSError("dns is having a day")
+
+        monkeypatch.setattr(cdn, "get_items_version", boom)
+
+        assert GameData.load(cache_dir=tmp_path) is loaded
+        assert GameData.load(cache_dir=tmp_path) is loaded
+        assert calls == ["version"]
+
+    def test_the_loaded_data_outlives_a_failed_download_of_a_new_version(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cdn, "get_items_version", lambda: "783.01")
+        monkeypatch.setattr(cdn, "fetch_items_data", lambda version: PAYLOAD)
+        loaded = GameData.load(cache_dir=tmp_path)
+
+        def boom(version):
+            raise OSError("connection reset")
+
+        monkeypatch.setattr(cdn, "get_items_version", lambda: "784.00")
+        monkeypatch.setattr(cdn, "fetch_items_data", boom)
+
+        assert GameData.load(cache_dir=tmp_path) is loaded
+        assert GameData.loaded() is loaded
+
+    def test_refresh_raises_even_with_data_loaded(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cdn, "get_items_version", lambda: "783.01")
+        monkeypatch.setattr(cdn, "fetch_items_data", lambda version: PAYLOAD)
+        GameData.load(cache_dir=tmp_path)
+
+        def boom(version):
+            raise OSError("connection reset")
+
+        monkeypatch.setattr(cdn, "fetch_items_data", boom)
+
+        with pytest.raises(NetworkError):
+            GameData.load(cache_dir=tmp_path, refresh=True)
+
+    def test_the_version_is_fetched_outside_the_load_lock(self, tmp_path, monkeypatch):
+        asked = threading.Event()
+
+        def version() -> str:
+            asked.set()
+            return "783.01"
+
+        monkeypatch.setattr(cdn, "get_items_version", version)
+        monkeypatch.setattr(cdn, "fetch_items_data", lambda version: PAYLOAD)
+        with data_module._load_lock:
+            loader = threading.Thread(target=GameData.load, kwargs={"cache_dir": tmp_path})
+            loader.start()
+            assert asked.wait(timeout=5)
+        loader.join(timeout=5)
+
+        assert GameData.loaded() is not None
+
+    def test_a_version_that_is_not_dotted_digits_is_refused(self, tmp_path, monkeypatch):
+        class Response:
+            text = "itemsVersion=../../outside\n"
+
+            def raise_for_status(self) -> None:
+                pass
+
+        monkeypatch.setattr(cdn.requests, "get", lambda url, timeout: Response())
+
+        with pytest.raises(ValueError):
+            cdn.get_items_version()
+        with pytest.raises(NetworkError):
+            GameData.load(cache_dir=tmp_path / "cache")
+        assert not (tmp_path / "cache").exists()
+
+    def test_the_version_is_the_text_after_the_first_equals(self, monkeypatch):
+        class Response:
+            text = "itemsVersion=786.03\n"
+
+            def raise_for_status(self) -> None:
+                pass
+
+        monkeypatch.setattr(cdn.requests, "get", lambda url, timeout: Response())
+
+        assert cdn.get_items_version() == "786.03"
+
+
+class TestCacheLock:
+    def test_a_filesystem_without_locks_still_loads(self, tmp_path, monkeypatch):
+        def no_locks(fd: int) -> None:
+            raise OSError("ENOLCK")
+
+        monkeypatch.setattr(cache, "_acquire", no_locks)
+        monkeypatch.setattr(cdn, "get_items_version", lambda: "783.01")
+        monkeypatch.setattr(cdn, "fetch_items_data", lambda version: PAYLOAD)
+
+        assert GameData.load(cache_dir=tmp_path).get_unit(211) is not None
+        assert (tmp_path / "items_v783.01.trimmed.json").is_file()
+
+
+def _cache_on_windows(monkeypatch, locking) -> types.ModuleType:
+    """A separate copy of the cache module as Windows loads it, with ``msvcrt.locking`` replaced."""
+    monkeypatch.setitem(sys.modules, "msvcrt", types.SimpleNamespace(LK_LOCK=1, LK_UNLCK=0, locking=locking))
+    monkeypatch.setattr(sys, "platform", "win32")
+    spec = importlib.util.spec_from_file_location("_cache_on_windows", cache.__file__)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class TestWindowsLock:
+    def test_a_lock_still_held_is_waited_for(self, monkeypatch):
+        attempts: list[int] = []
+
+        def locking(fd: int, mode: int, size: int) -> None:
+            attempts.append(mode)
+            if len(attempts) < 3:
+                raise OSError(errno.EDEADLK, "Resource deadlock avoided")
+
+        windows = _cache_on_windows(monkeypatch, locking)
+        windows._acquire(5)
+
+        assert attempts == [1, 1, 1]
+
+    def test_any_other_error_loads_without_the_lock(self, tmp_path, monkeypatch):
+        attempts: list[int] = []
+
+        def locking(fd: int, mode: int, size: int) -> None:
+            attempts.append(mode)
+            raise OSError(errno.EACCES, "Permission denied")
+
+        windows = _cache_on_windows(monkeypatch, locking)
+        with pytest.raises(OSError):
+            windows._acquire(5)
+        ran = False
+        with windows.locked(tmp_path / "items.lock"):
+            ran = True
+
+        assert ran and attempts == [1, 1]
+
+
+class TestWriteAtomic:
+    def test_replaces_the_file_and_leaves_no_temp(self, tmp_path):
+        target = tmp_path / "sub" / "items.json"
+        cache.write_atomic(target, "old")
+        cache.write_atomic(target, "new")
+
+        assert target.read_text() == "new"
+        assert [p.name for p in target.parent.iterdir()] == ["items.json"]
+
+    def test_a_failed_write_keeps_the_old_file(self, tmp_path, monkeypatch):
+        target = tmp_path / "items.json"
+        target.write_text("old")
+
+        def broken_replace(src, dst):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(cache.os, "replace", broken_replace)
+        with pytest.raises(OSError):
+            cache.write_atomic(target, "new")
+
+        assert target.read_text() == "old"
+        assert [p.name for p in tmp_path.iterdir()] == ["items.json"]
 
 
 class TestModels:
@@ -487,8 +791,8 @@ class TestToolScalingRoundTrip:
     def test_caching_does_not_rescale(self, tmp_path, monkeypatch):
         # Scaling inside a validator would divide by 100 again on every load,
         # because the cache stores whatever validation produced.
-        monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: "1.0")
-        monkeypatch.setattr("empire_core.gamedata.data.fetch_items_data", lambda version: self.PAYLOAD)
+        monkeypatch.setattr("empire_core.gamedata.cdn.get_items_version", lambda: "1.0")
+        monkeypatch.setattr("empire_core.gamedata.cdn.fetch_items_data", lambda version: self.PAYLOAD)
 
         first = GameData.load(cache_dir=tmp_path)
         second = GameData.load(cache_dir=tmp_path)
@@ -800,3 +1104,13 @@ class TestLeagueTypes:
         assert cached is not None
         league = cached.league_type(1, 80)
         assert league is not None and (league.min_level, league.max_level, league.victory_min) == (10, 69, 16)
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits")
+    def test_the_file_gets_the_umask_permissions(self, tmp_path):
+        previous = os.umask(0o027)
+        try:
+            cache.write_atomic(tmp_path / "items.json", "{}")
+        finally:
+            os.umask(previous)
+
+        assert (tmp_path / "items.json").stat().st_mode & 0o777 == 0o640

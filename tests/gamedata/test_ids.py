@@ -650,10 +650,10 @@ class TestStaleness:
     @pytest.fixture
     def load(self, monkeypatch, tmp_path):
         monkeypatch.setattr("empire_core.gamedata.data._warned_versions", set())
-        monkeypatch.setattr("empire_core.gamedata.data.fetch_items_data", lambda version: PAYLOAD)
+        monkeypatch.setattr("empire_core.gamedata.cdn.fetch_items_data", lambda version: PAYLOAD)
 
         def load(version: str) -> GameData:
-            monkeypatch.setattr("empire_core.gamedata.data.get_items_version", lambda: version)
+            monkeypatch.setattr("empire_core.gamedata.cdn.get_items_version", lambda: version)
             return GameData.load(cache_dir=tmp_path)
 
         return load

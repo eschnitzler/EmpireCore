@@ -9,3 +9,7 @@ Active game events and their scoreboards behind `client.events`.
 ## `events.models`
 
 ::: empire_core.events.models
+
+## `events.titles`
+
+::: empire_core.events.titles

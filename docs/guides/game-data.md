@@ -23,10 +23,20 @@ data.effect_type("fameDefenseBonus")
 data.unit("MeadRanger", 6)               # type and level
 ```
 
-`load_game_data()` is explicit on purpose: the items data is a large download,
-and nothing else in the library fetches it behind your back. It is cached on
-disk per game version, so later calls are cheap. `refresh=True` downloads it
-again, and the data stays on `client.game_data`.
+`load_game_data()` is explicit on purpose: the items data is a large download.
+The one other reader is `Movement.troop_count`, which loads it on first use when
+nothing has yet. Both go through `GameData.load`, so a process downloads the
+data once per game version: it is kept in memory, cached on disk (safe for
+several processes sharing the cache directory), and after a failed download the
+CDN is left alone for five minutes. When the CDN is down, a load returns the data
+already in memory and raises `NetworkError` only when there is none.
+`refresh=True` downloads it again, and the data stays on `client.game_data`.
+
+!!! warning "Shared and read-only"
+
+    Every `GameData.load()` in the process, `client.game_data` and the troop
+    counts share one instance. Read from it, never change its tables or rows:
+    a change shows up for every other caller.
 
 ## Misses and ambiguous keys
 

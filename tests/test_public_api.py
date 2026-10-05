@@ -49,8 +49,8 @@ _DE_FACTO_PUBLIC_SURFACE = [
     # The documented-preferred pool API raises this, and count_troops' docs
     # tell callers to use these two — none may require a deep import.
     ("PoolExhaustedError", "empire_core.pool"),
-    ("troop_data_available", "empire_core.utils.troops"),
-    ("get_troop_ids", "empire_core.utils.troops"),
+    ("troop_data_available", "empire_core.gamedata.troops"),
+    ("get_troop_ids", "empire_core.gamedata.troops"),
 ]
 
 

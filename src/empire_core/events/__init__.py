@@ -1,4 +1,4 @@
-"""Running server events and their scoreboards. The event titles come from ``empire_core.utils.events``."""
+"""Running server events and their scoreboards. The event titles come from ``empire_core.events.titles``."""
 
 from .models import (
     EVENT_CLASSES,

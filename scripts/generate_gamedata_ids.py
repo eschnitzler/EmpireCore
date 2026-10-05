@@ -32,7 +32,6 @@ from pathlib import Path
 
 from empire_core.gamedata import GameData
 from empire_core.protocol.js import js_falsy, js_parse_int
-from empire_core.utils.troops import fetch_items_data, get_items_version
 
 SCRIPT = "scripts/generate_gamedata_ids.py"
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "src" / "empire_core" / "gamedata" / "ids"
@@ -714,12 +713,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.items:
         payload = json.loads(args.items.read_text())
         version = items_version(args.items, payload)
+        if not VERSION.fullmatch(version):
+            raise SystemExit(f"items version {version!r} is not dotted digits")
+        data = GameData.parse(version, payload)
     else:
-        version = get_items_version()
-        payload = fetch_items_data(version)
-    if not VERSION.fullmatch(version):
-        raise SystemExit(f"items version {version!r} is not dotted digits")
-    data = GameData.parse(version, payload)
+        data = GameData.load()
+        if not VERSION.fullmatch(data.version):
+            raise SystemExit(f"items version {data.version!r} is not dotted digits")
 
     table_list = tables(data)
     empty = [t.enum for t in table_list if not t.rows]

@@ -15,6 +15,8 @@ import time
 
 import requests
 
+from empire_core.gamedata.cdn import RETRY_AFTER_FAILURE
+
 logger = logging.getLogger(__name__)
 
 # CDN endpoint for translations
@@ -31,8 +33,6 @@ _translations_fetched_at: dict[str, float] = {}
 # Cached translations are refreshed after this long.
 _CACHE_TTL = 86400.0
 
-# After a failed fetch, the CDN is not asked again for this many seconds.
-_FAILURE_RETRY_INTERVAL = 300.0
 _last_translations_failure_at: dict[str, float] = {}
 
 _TITLE_PREFIX = "event_title_"
@@ -61,7 +61,7 @@ def _get_translations(lang: str = "en", force_refresh: bool = False) -> dict[str
 
     A failure is not fatal: the last cached dict (or an empty one) is
     returned, a warning is logged, and the CDN is not retried for
-    ``_FAILURE_RETRY_INTERVAL`` seconds.
+    ``RETRY_AFTER_FAILURE`` seconds.
 
     Args:
         lang: Language code (default: "en").
@@ -78,7 +78,7 @@ def _get_translations(lang: str = "en", force_refresh: bool = False) -> dict[str
             return cached
 
         failed_at = _last_translations_failure_at.get(lang, 0.0)
-        if not force_refresh and _is_recent(failed_at, _FAILURE_RETRY_INTERVAL):
+        if not force_refresh and _is_recent(failed_at, RETRY_AFTER_FAILURE):
             return cached if cached is not None else {}
 
         try:

@@ -5,6 +5,7 @@ The running events, as the state keeps them, and their scoreboards.
 from __future__ import annotations
 
 from empire_core.enums import RankingType
+from empire_core.events.titles import get_event_titles
 from empire_core.exceptions import EventNotRunningError
 from empire_core.gamedata.ids.events import Event
 from empire_core.ranking.models import (
@@ -18,7 +19,6 @@ from empire_core.ranking.models import (
     SearchRankingListResponse,
 )
 from empire_core.services.base import BaseService
-from empire_core.utils.events import get_event_titles
 
 from .models import (
     EVENT_SCOREBOARDS,
@@ -259,7 +259,7 @@ class EventsService(BaseService):
         The running events with their in-game titles, in the order they started.
 
         The titles come from the game's language CDN (see
-        :func:`~empire_core.utils.events.get_event_titles`); without one, an event is
+        :func:`~empire_core.events.titles.get_event_titles`); without one, an event is
         named by its ``Event`` member, or its id when the library does not know it.
         An empty list means no event is running: a CDN outage only costs the titles.
 
