@@ -8,10 +8,6 @@
 
 ## `client.session`
 
-::: empire_core.client.session
-    options:
-      members: [RELOGIN_FIRST_DELAY, RELOGIN_MAX_DELAY]
-
 ## `client.stream`
 
 ::: empire_core.client.stream

@@ -38,6 +38,7 @@ class ClientEvent(Generic[Unpack[Args]]):
     ``(old, new)`` for ``"incoming_attack_updated"`` and ``"occupation_updated"``,
     ``(movement, captured)`` for ``"occupation_ended"``,
     ``(movement_id, movement)`` for the movement callbacks, ``(error,)`` for ``"session_lost"``,
+    ``(attempt, wait, error)`` for ``"session_retry"``,
     none for ``"disconnect"`` and ``"session_restored"``. From a stream of one registration,
     ``args`` is typed as that registration's callback parameters.
     """

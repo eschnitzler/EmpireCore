@@ -230,8 +230,8 @@ subscription in one `Registry`, its `_registry`, behind one lock: the state's
 a lock of its own for the client and each service. The owner fires an event
 from a snapshot, `self.on_incoming_attack.calls()`, taken under that lock.
 `GameState` queues each callback on the callback thread; a service calls its
-callbacks on the receive thread; the client's session queues `on_session_lost`
-and `on_session_restored` on the state's callback thread. The client's
+callbacks on the receive thread; the client's session queues `on_session_lost`,
+`on_session_retry` and `on_session_restored` on the state's callback thread. The client's
 `Registry` is also the store its connection keeps its disconnect listeners in,
 so the `on_disconnect` callbacks are those listeners: the connection calls them
 between its `on_disconnect` and `after_disconnect` slots, in the order

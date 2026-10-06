@@ -11,7 +11,7 @@ import logging
 import threading
 import time
 import xml.etree.ElementTree as ET
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING, NoReturn
 
 from empire_core.config import LOGIN_DEFAULTS
@@ -40,10 +40,8 @@ logger = logging.getLogger(__name__)
 
 LOBBY_ROOM_NAME = "Lobby"
 
-RELOGIN_FIRST_DELAY = 5.0
-"""Seconds from a drop to the first ``keep_session`` re-login; library policy, the client never logs in by itself."""
-RELOGIN_MAX_DELAY = 300.0
-"""The longest wait between two re-login attempts in seconds; each failed attempt doubles the wait, up to this."""
+# Failures a later login attempt may not meet; any other ends the attempts.
+RETRIED_LOGIN_ERRORS = (LoginCooldownError, NetworkError, EmpireTimeoutError)
 
 
 def _joined_room_id(join_ok: Packet) -> int:
@@ -94,6 +92,8 @@ class Session:
         self._client = client
         # Set by close() and cleared by login(): no re-login may start or go on while set.
         self._closed = threading.Event()
+        # Counts login() calls: a login(retry=True) stops once a newer login() started.
+        self._logins = 0
         # Held while a login connects, while close() or login() marks the client
         # closed, and while a re-login starts or stops keeping the session.
         self._session_lock = threading.RLock()
@@ -105,7 +105,12 @@ class Session:
         # The seconds the last cooldown refusal named, and when it came (time.monotonic()).
         self._login_cooldown: tuple[float, float] | None = None
 
-    def login(self, recaptcha_token: str | Callable[[], str] | None) -> None:
+    @property
+    def restoring(self) -> bool:
+        """See :attr:`EmpireClient.is_restoring_session`."""
+        return self._relogin_running
+
+    def login(self, recaptcha_token: str | Callable[[], str] | None, retry: bool) -> None:
         """See :meth:`EmpireClient.login`."""
         client = self._client
         if not client.username or not (client.password or client.login_token):
@@ -114,22 +119,57 @@ class Session:
         logger.debug(f"Logging in as {client.username}...")
 
         self._stop_relogin()
-        self._closed.clear()
-        try:
-            # The client times the connection from before it opens the socket.
-            started = time.monotonic()
-            with self._session_lock:
-                if not client.connection.connected:
-                    client.connection.connect(timeout=client.config.connection_timeout)
+        with self._session_lock:
+            self._logins += 1
+            login = self._logins
+            self._closed.clear()
+        waits = self._waits()
+        attempt = 0
+        failure: Exception | None = None
+        while True:
+            attempt += 1
+            try:
+                self._login_attempt(login, recaptcha_token)
+                return
+            except Exception as e:
+                # close() or a newer login() owns the connection now.
+                if self._ended(login):
+                    if failure is not None:
+                        raise failure from e
+                    raise
+                # The documented cleanup call (close()) never runs on the raising
+                # path, so without this a failed login leaves an open socket plus
+                # a receive and a keepalive thread pinging an unauthenticated
+                # session forever.
+                self._end_quietly()
+                if not (retry and isinstance(e, RETRIED_LOGIN_ERRORS)):
+                    self._client.state.shutdown()
+                    raise
+                with self._session_lock:
+                    if self._ended(login):
+                        raise
+                    wait = next(waits)
+                    self._retrying("login", attempt, wait, e)
+                failure = e
+                self._closed.wait(wait)
+                if self._ended(login):
+                    raise
 
-            self._login_sequence(started, recaptcha_token)
-        except Exception:
-            # The documented cleanup call (close()) never runs on the raising
-            # path, so without this a failed login leaves an open socket plus
-            # a receive and a keepalive thread pinging an unauthenticated
-            # session forever.
-            self._end_quietly()
-            raise
+    def _ended(self, login: int) -> bool:
+        """Whether :meth:`close` or a newer :meth:`login` ended login number ``login``."""
+        return self._closed.is_set() or login != self._logins
+
+    def _login_attempt(self, login: int, recaptcha_token: str | Callable[[], str] | None) -> None:
+        """Connect unless connected, and log in; ``ConnectionClosedError`` when the login ended before the connect."""
+        client = self._client
+        # The client times the connection from before it opens the socket.
+        started = time.monotonic()
+        with self._session_lock:
+            if self._ended(login):
+                raise ConnectionClosedError("Closed before the login")
+            if not client.connection.connected:
+                client.connection.connect(timeout=client.config.connection_timeout)
+        self._login_sequence(started, recaptcha_token)
 
     def close(self) -> None:
         """See :meth:`EmpireClient.close`."""
@@ -338,27 +378,53 @@ class Session:
             case _:
                 raise LoginError("Auth failed", code)
 
+    def _waits(self) -> Iterator[float]:
+        """The waits before each next login attempt: the configured first delay, doubled after each failure up to
+        the configured cap, or the login cooldown the server named if that is longer.
+
+        Library policy, except the cooldown: the client logs in again only when the player clicks its
+        reconnect dialog (``CastleConnectionLostCommand.execute``, ``onReconnect``, bundle lines 120253, 120256),
+        and shows a refused login's cooldown in a timer dialog (``LLICommand.executeCommand``, bundle line 120673).
+        """
+        config = self._client.config
+        delay = min(config.relogin_first_delay, config.relogin_max_delay)
+        while True:
+            yield max(delay, self.remaining_login_cooldown())
+            delay = min(delay * 2, config.relogin_max_delay)
+
+    def _retrying(self, kind: str, attempt: int, wait: float, error: Exception) -> None:
+        """Report a failed ``kind`` attempt ("login" or "re-login") that is tried again in ``wait`` seconds."""
+        client = self._client
+        logger.warning(f"Client {client.username}: {kind} attempt {attempt} failed ({error}); next in {wait:.0f}s")
+        client.state._fire(client.on_session_retry, attempt, wait, error)
+
     def _restore(self) -> None:
         """Log in again until a login holds, waiting between attempts; :meth:`close` and :meth:`login` end it.
 
         Stops without a login when another one already holds the connection.
         """
         client = self._client
-        delay = RELOGIN_FIRST_DELAY
-        wait = max(delay, self.remaining_login_cooldown())
+        waits = self._waits()
+        wait = next(waits)
+        attempt = 0
+        lost: Exception | None = None
         try:
             while not self._closed.wait(wait):
+                attempt += 1
                 try:
                     restored = self._relogin()
-                except (LoginCooldownError, NetworkError, EmpireTimeoutError) as e:
-                    delay = min(delay * 2, RELOGIN_MAX_DELAY)
-                    wait = max(delay, self.remaining_login_cooldown())
-                    logger.warning(f"Client {client.username}: re-login failed ({e}); next attempt in {wait:.0f}s")
+                except RETRIED_LOGIN_ERRORS as e:
+                    if self._closed.is_set():
+                        return
+                    wait = next(waits)
+                    self._retrying("re-login", attempt, wait, e)
                     continue
                 except Exception as e:
+                    if self._closed.is_set():
+                        return
                     logger.exception(f"Client {client.username}: re-login stopped; the session is not restored")
-                    client.state._fire(client.on_session_lost, e)
-                    return
+                    lost = e
+                    break
                 if restored:
                     logger.info(f"Client {client.username}: session restored")
                     client.state._fire(client.on_session_restored)
@@ -367,6 +433,8 @@ class Session:
             with self._session_lock:
                 if self._relogin_thread is threading.current_thread():
                     self._relogin_running = False
+        if lost is not None:
+            client.state._fire(client.on_session_lost, lost)
 
     def _relogin(self) -> bool:
         """Log in on a new connection and wait for the movement list the server pushes; say whether it held.
@@ -421,9 +489,13 @@ class Session:
             relogin.join()
 
     def _end_quietly(self) -> None:
-        """End the session after a failed login; never masks the failure, and leaves a re-login going."""
+        """End the session after a failed login attempt; never masks the failure, and leaves a re-login going.
+
+        The callback thread stays, so the callbacks of the next attempts run on it in order.
+        """
         try:
-            self._end()
+            self._client.connection.disconnect()
+            self._forget()
         except Exception:
             logger.exception("Cleanup after failed login raised")
 

@@ -10,7 +10,7 @@ import xml.etree.ElementTree as ET
 from typing import Any
 
 import requests
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from empire_core.exceptions import NetworkError
 from empire_core.protocol.js import js_number
@@ -256,8 +256,11 @@ class EmpireConfig(BaseModel):
 
     Instances are mutable: build one and assign to it, or pass field values to
     the constructor. The one exception is the shared :data:`default_config`
-    below, which is frozen.
+    below, which is frozen. An assignment is validated as the constructor
+    validates, and a value the field does not take raises ``ValidationError``.
     """
+
+    model_config = ConfigDict(validate_assignment=True)
 
     # Connection
     game_url: str = "wss://ep-live-us1-game.goodgamestudios.com/"
@@ -272,11 +275,35 @@ class EmpireConfig(BaseModel):
     login_timeout: float = 15.0
     request_timeout: float = 5.0
 
+    # Login retries: library policy, the game client logs in again only when the player clicks
+    # its reconnect dialog (CastleConnectionLostCommand.execute, onReconnect, bundle lines 120253, 120256)
+    relogin_first_delay: float = Field(
+        default=5.0,
+        gt=0,
+        description="Seconds from a drop to the first keep_session re-login, and from a failed "
+        "login(retry=True) attempt to the next; above 0 and at most relogin_max_delay",
+    )
+    relogin_max_delay: float = Field(
+        default=300.0,
+        gt=0,
+        description="The longest wait between two login attempts in seconds; each failure doubles it. "
+        "At least relogin_first_delay: raise this one first when raising both on an existing config",
+    )
+
     # User (Optional defaults)
     username: str | None = None
     # repr=False: keeps the secret out of repr()/str(), which reach logs and the
     # traceback locals captured by error reporters.
     password: str | None = Field(default=None, repr=False)
+
+    @model_validator(mode="after")
+    def relogin_delays_in_order(self) -> "EmpireConfig":
+        """Refuse a first re-login delay longer than the cap on the delays."""
+        if self.relogin_first_delay > self.relogin_max_delay:
+            raise ValueError(
+                f"relogin_first_delay ({self.relogin_first_delay}) is over relogin_max_delay ({self.relogin_max_delay})"
+            )
+        return self
 
     @property
     def build_number(self) -> str:

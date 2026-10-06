@@ -81,7 +81,9 @@ class EmpireClient:
         With ``keep_session=True`` (or the attribute set later), a logged-in
         session that drops is logged in again on a thread of its own, on the
         same client, so callbacks and :meth:`listen` streams carry on.
-        :meth:`on_session_restored` fires once it is back, and
+        :attr:`is_restoring_session` is True while it runs,
+        :meth:`on_session_retry` fires for each failed attempt,
+        :meth:`on_session_restored` once it is back, and
         :meth:`on_session_lost` when it gives up. :meth:`close` ends it, also
         while it waits between attempts, and a :meth:`login` of your own stops
         it before it logs in.
@@ -90,10 +92,13 @@ class EmpireClient:
         (``CastleConnectionLostCommand.execute``, bundle line 120253) it
         empties the game and shows a reconnect dialog, and logs in again only
         when the player clicks it (``onReconnect``, bundle line 120256). So
-        the delays are library policy: the first attempt comes
-        :data:`~empire_core.client.session.RELOGIN_FIRST_DELAY` (5) seconds
-        after the drop, a failed one is retried after twice the last delay, up
-        to :data:`~empire_core.client.session.RELOGIN_MAX_DELAY` (300) seconds.
+        the delays are library policy, set on the config: the first attempt comes
+        ``config.relogin_first_delay`` (5) seconds after the drop, a failed one
+        is retried after twice the last delay, up to ``config.relogin_max_delay``
+        (300) seconds. A longer first delay leaves a person who logged the same
+        account in elsewhere, and so dropped this session, time to play before
+        the re-login drops theirs. ``login(retry=True)`` retries a first login
+        on the same delays.
         A :class:`~empire_core.exceptions.LoginCooldownError` counts as a
         failed attempt too, and is retried no sooner than the seconds the
         refusal named (see :meth:`remaining_login_cooldown`): after
@@ -428,7 +433,7 @@ class EmpireClient:
         with self._streams_lock:
             self._streams.discard(stream)
 
-    def login(self, recaptcha_token: str | Callable[[], str] | None = None) -> None:
+    def login(self, recaptcha_token: str | Callable[[], str] | None = None, *, retry: bool = False) -> None:
         """
         Log in the way the game client does.
 
@@ -445,13 +450,26 @@ class EmpireClient:
         ``gbd``, so it lands shortly after this method returns.
 
         A :attr:`keep_session` re-login still under way, or waiting between
-        attempts, is ended first, so only this login runs.
+        attempts, is ended first, so only this login runs:
+        :attr:`is_restoring_session` turns False, and neither
+        :meth:`on_session_restored` nor :meth:`on_session_lost` fires for it.
 
         Args:
             recaptcha_token: A reCAPTCHA v3 token for the action ``login``, or
                 a function returning one, sent as ``RCT``. The game client
                 always attaches one; the library cannot make one itself, and
-                logins are accepted without it today.
+                logins are accepted without it today. A function is called
+                again for each attempt.
+            retry: Retry a failed login, as :attr:`keep_session` retries a
+                re-login: after a timeout, a network error or a login
+                cooldown, wait and log in again, until a login holds. Each
+                failed attempt fires :meth:`on_session_retry`. Any other
+                failure raises at once. A :meth:`close`, or a newer
+                :meth:`login`, from another thread ends the attempts, also
+                during a wait, and this login raises the last attempt's
+                failure. The game client retries no login by itself
+                (``LLICommand.executeCommand``, bundle line 120651, shows a
+                dialog), so the waits are library policy.
 
         Raises:
             NetworkError: The WebSocket connection could not be established
@@ -472,7 +490,7 @@ class EmpireClient:
         Client: ``BasicSmartfoxClient`` (dll line 7130), ``BasicJoinedRoomCommand`` (dll line 33011),
         ``CastleLoginCommand`` (bundle line 131762)
         """
-        self._session.login(recaptcha_token)
+        self._session.login(recaptcha_token, retry)
 
     def remaining_login_cooldown(self) -> float:
         """Seconds until the login cooldown the server last named is over; 0 when there is none.
@@ -497,6 +515,41 @@ class EmpireClient:
     failure. Runs on the callback thread (see
     :class:`~empire_core.state.manager.GameState`). Registering the same
     callback twice is a no-op, and so is removing one not registered.
+    """
+
+    @property
+    def is_restoring_session(self) -> bool:
+        """Whether a :attr:`keep_session` re-login is running: logging in, or waiting between attempts.
+
+        True from just after the :meth:`on_disconnect` callbacks of a
+        logged-in session that dropped until the session is back (before
+        :meth:`on_session_restored` fires), the attempts give up (before
+        :meth:`on_session_lost` fires), :meth:`close` or a :meth:`login` of
+        your own ends them. False during ``login(retry=True)``, which is not a
+        restore.
+
+        It is still False inside the :meth:`on_disconnect` callbacks, as the
+        re-login starts after them. To follow a restore, register
+        :meth:`on_session_retry`, :meth:`on_session_restored` and
+        :meth:`on_session_lost` instead.
+
+        Library bookkeeping: the client restores no session by itself.
+        """
+        return self._session.restoring
+
+    on_session_retry = Event[int, float, Exception]()
+    """Register a callback for a failed login attempt that is tried again.
+
+    ``callback(attempt, wait, error)`` fires for each failed attempt of a
+    :attr:`keep_session` re-login or of ``login(retry=True)``: the attempts
+    so far, the seconds until the next (the backoff delay, or the server's
+    login cooldown if that is longer), and the attempt's failure. It fires
+    once the failed attempt's connection is closed, on the callback thread
+    (see :class:`~empire_core.state.manager.GameState`), which the attempts
+    keep, so the callbacks run in order. An attempt that :meth:`close` or a
+    :meth:`login` of your own ended does not fire it.
+    Registering the same callback twice is a no-op, and so is removing one
+    not registered.
     """
 
     on_session_restored = Event[()]()

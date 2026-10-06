@@ -8,9 +8,11 @@ import time
 from collections.abc import Callable, Iterator
 
 import pytest
+from pydantic import ValidationError
 
 from empire_core.client import session as session_module
 from empire_core.client.client import EmpireClient
+from empire_core.config import EmpireConfig
 from empire_core.enums import MovementType
 from empire_core.exceptions import (
     AccountBannedError,
@@ -59,13 +61,15 @@ class FakeServer:
         self.attempts = attempts
         self.connects = 0
         self.logins = 0
+        self.recaptchas: list[object] = []
 
     def connect(self, timeout: float = 10.0) -> None:
         self.connects += 1
         new_session(self.client)
 
-    def login_sequence(self, _started: float, _recaptcha: object) -> None:
+    def login_sequence(self, _started: float, recaptcha: object) -> None:
         self.logins += 1
+        self.recaptchas.append(recaptcha)
         if not self.client.connection.connected:
             raise ConnectionClosedError("closed")
         attempt = self.attempts.pop(0)
@@ -128,14 +132,13 @@ class TestRestore:
         drop(client)
 
         assert wait_for(lambda: restored == [True])
-        first = session_module.RELOGIN_FIRST_DELAY
-        assert waits == [first, 2 * first, 4 * first]
+        assert waits == [5.0, 10.0, 20.0]
         assert server.logins == 3
         assert disconnects == [False]
         assert client.state.local_player is not None and client.state.local_player.name == "me"
 
     def test_the_backoff_stops_growing_at_its_cap(self, client, monkeypatch, waits):
-        monkeypatch.setattr(session_module, "RELOGIN_MAX_DELAY", 12.0)
+        client.config = EmpireConfig(relogin_max_delay=12.0)
         serve(client, monkeypatch, *[NetworkError("down")] * 4, [])
         logged_in(client)
 
@@ -255,6 +258,281 @@ class TestRestore:
         assert calls == ["restored"]
 
 
+class TestTiming:
+    def test_the_config_sets_the_first_delay_and_the_cap(self, client, monkeypatch, waits):
+        client.config = EmpireConfig(relogin_first_delay=30.0, relogin_max_delay=45.0)
+        serve(client, monkeypatch, NetworkError("down"), NetworkError("down"), [])
+        logged_in(client)
+
+        drop(client)
+
+        assert wait_for(relogin_done(client))
+        assert waits == [30.0, 45.0, 45.0]
+
+    def test_a_first_delay_left_above_the_cap_waits_the_cap(self, client, monkeypatch, waits):
+        client.config = EmpireConfig(relogin_first_delay=30.0, relogin_max_delay=45.0)
+        with pytest.raises(ValidationError):
+            client.config.relogin_first_delay = 600
+        serve(client, monkeypatch, NetworkError("down"), [])
+        logged_in(client)
+
+        drop(client)
+
+        assert wait_for(relogin_done(client))
+        assert waits == [45.0, 45.0]
+
+    def test_each_failed_attempt_reports_the_wait_before_the_next(self, client, monkeypatch, waits):
+        down = NetworkError("down")
+        serve(client, monkeypatch, down, 55.0, [])
+        retries: list[tuple[int, float, Exception]] = []
+        client.on_session_retry(lambda attempt, wait, error: retries.append((attempt, wait, error)))
+        logged_in(client)
+
+        drop(client)
+
+        assert wait_for(lambda: len(retries) == 2)
+        assert retries[0] == (1, 10.0, down)
+        assert retries[1][:2] == (2, pytest.approx(55.0, abs=0.05))
+        refused = retries[1][2]
+        assert isinstance(refused, LoginCooldownError) and refused.cooldown == 55
+
+    def test_the_callbacks_of_every_attempt_run_on_one_callback_thread(self, client, monkeypatch, waits):
+        serve(client, monkeypatch, NetworkError("down"), NetworkError("down"), [])
+        threads: list[threading.Thread] = []
+        client.on_session_retry(lambda *_args: threads.append(threading.current_thread()))
+        client.on_session_restored(lambda: threads.append(threading.current_thread()))
+        logged_in(client)
+
+        drop(client)
+
+        assert wait_for(lambda: len(threads) == 3)
+        assert len(set(threads)) == 1
+
+    def test_an_attempt_close_ends_is_not_retried(self, client, monkeypatch, waits, caplog):
+        logging_in = threading.Event()
+
+        def login_sequence(_started: float, _recaptcha: object) -> None:
+            logging_in.set()
+            client.connection.request("<verChk/>", "apiOK", timeout=30)
+
+        monkeypatch.setattr(client.connection, "connect", lambda timeout=10.0: new_session(client))
+        monkeypatch.setattr(client._session, "_login_sequence", login_sequence)
+        retries: list[object] = []
+        client.on_session_retry(lambda *args: retries.append(args))
+        logged_in(client)
+        drop(client)
+        assert logging_in.wait(2)
+
+        client.close()
+        time.sleep(0.05)
+
+        assert not client._session._relogin_thread.is_alive()
+        assert retries == []
+        assert "attempt" not in caplog.text
+
+    def test_the_log_tells_a_relogin_from_a_login_retry(self, client, monkeypatch, waits, caplog):
+        serve(client, monkeypatch, NetworkError("down"), [], NetworkError("down"), [])
+        logged_in(client)
+        drop(client)
+        assert wait_for(relogin_done(client))
+        client.close()
+
+        client.login(retry=True)
+
+        assert [r.getMessage() for r in caplog.records if "attempt" in r.getMessage()] == [
+            "Client user: re-login attempt 1 failed (down); next in 10s",
+            "Client user: login attempt 1 failed (down); next in 5s",
+        ]
+
+    @pytest.mark.parametrize(
+        "delays",
+        [
+            {"relogin_first_delay": 0},
+            {"relogin_first_delay": -1},
+            {"relogin_max_delay": 0},
+            {"relogin_first_delay": 600, "relogin_max_delay": 300},
+        ],
+    )
+    def test_the_config_refuses_delays_out_of_order_or_not_above_zero(self, delays):
+        with pytest.raises(ValidationError):
+            EmpireConfig(**delays)
+
+    def test_the_config_checks_the_delays_on_assignment_too(self):
+        config = EmpireConfig()
+
+        with pytest.raises(ValidationError):
+            config.relogin_first_delay = 0
+        with pytest.raises(ValidationError):
+            config.relogin_first_delay = 600
+        config.relogin_max_delay = 900
+        config.relogin_first_delay = 600
+
+        assert (config.relogin_first_delay, config.relogin_max_delay) == (600, 900)
+
+
+class TestRestoringState:
+    def test_true_while_the_relogin_waits_and_false_once_closed(self, client, monkeypatch):
+        client.config = EmpireConfig(relogin_first_delay=60.0)
+        serve(client, monkeypatch, [])
+        logged_in(client)
+        seen_in_disconnect: list[bool] = []
+        client.on_disconnect(lambda: seen_in_disconnect.append(client.is_restoring_session))
+        assert not client.is_restoring_session
+
+        drop(client)
+
+        assert seen_in_disconnect == [False]
+        assert client.is_restoring_session
+        client.close()
+        assert not client.is_restoring_session
+
+    def test_false_by_the_time_the_session_is_restored(self, client, monkeypatch, waits):
+        serve(client, monkeypatch, [])
+        seen: list[bool] = []
+        client.on_session_restored(lambda: seen.append(client.is_restoring_session))
+        logged_in(client)
+
+        drop(client)
+
+        assert wait_for(lambda: seen == [False])
+
+    def test_false_by_the_time_the_session_is_lost(self, client, monkeypatch, waits):
+        serve(client, monkeypatch, AccountBannedError(None))
+        seen: list[bool] = []
+        client.on_session_lost(lambda _error: seen.append(client.is_restoring_session))
+        logged_in(client)
+
+        drop(client)
+
+        assert wait_for(lambda: seen == [False])
+
+    def test_a_login_of_your_own_ends_the_restore(self, client, monkeypatch):
+        client.config = EmpireConfig(relogin_first_delay=60.0)
+        serve(client, monkeypatch, [])
+        logged_in(client)
+        drop(client)
+        assert client.is_restoring_session
+
+        client.login()
+
+        assert not client.is_restoring_session
+        assert client.is_logged_in
+
+
+class TestFirstLoginRetry:
+    def test_a_failed_first_login_is_retried_until_one_holds(self, client, monkeypatch, waits):
+        down = NetworkError("down")
+        slow = EmpireTimeoutError("slow")
+        server = serve(client, monkeypatch, down, slow, 55.0, [])
+        retries: list[tuple[int, float, Exception]] = []
+        client.on_session_retry(lambda attempt, wait, error: retries.append((attempt, wait, error)))
+
+        def token() -> str:
+            return "token"
+
+        client.login(token, retry=True)
+
+        assert client.is_logged_in
+        assert server.logins == 4
+        assert waits[:2] == [5.0, 10.0]
+        assert waits[2] == pytest.approx(55.0, abs=0.05)
+        assert wait_for(lambda: len(retries) == 3)
+        assert retries[:2] == [(1, 5.0, down), (2, 10.0, slow)]
+        assert isinstance(retries[2][2], LoginCooldownError)
+        assert server.recaptchas == [token] * 4
+        assert not client.is_restoring_session
+
+    def test_without_retry_the_first_failure_raises(self, client, monkeypatch, waits):
+        server = serve(client, monkeypatch, NetworkError("down"), [])
+
+        with pytest.raises(NetworkError):
+            client.login()
+
+        assert server.logins == 1
+        assert waits == []
+
+    def test_a_refusal_waiting_does_not_cure_raises_at_once(self, client, monkeypatch, waits):
+        banned = AccountBannedError(None)
+        server = serve(client, monkeypatch, banned, [])
+
+        with pytest.raises(AccountBannedError) as raised:
+            client.login(retry=True)
+
+        assert raised.value is banned
+        assert server.logins == 1
+        assert waits == []
+        assert not client.connection.connected
+
+    def test_close_during_the_wait_raises_the_last_failure_at_once(self, client, monkeypatch):
+        client.config = EmpireConfig(relogin_first_delay=60.0)
+        down = NetworkError("down")
+        server = serve(client, monkeypatch, down, [])
+        retried = threading.Event()
+        client.on_session_retry(lambda *_args: retried.set())
+        raised: list[BaseException] = []
+
+        def login() -> None:
+            try:
+                client.login(retry=True)
+            except Exception as e:
+                raised.append(e)
+
+        login_thread = threading.Thread(target=login)
+        login_thread.start()
+        assert retried.wait(2)
+        started = time.monotonic()
+        client.close()
+        login_thread.join(2)
+
+        assert time.monotonic() - started < 2
+        assert raised == [down]
+        assert server.logins == 1
+        assert not client.connection.connected
+        assert not client.is_logged_in
+
+    def test_a_close_between_the_wait_and_the_next_attempt_raises_the_last_failure(self, client, monkeypatch):
+        down = NetworkError("down")
+        server = serve(client, monkeypatch, down, [])
+
+        class ClosedOnWaking(RecordingEvent):
+            def wait(self, timeout: float | None = None) -> bool:
+                super().wait(timeout)
+                self.set()
+                return False
+
+        client._session._closed = ClosedOnWaking()
+
+        with pytest.raises(NetworkError) as raised:
+            client.login(retry=True)
+
+        assert raised.value is down
+        assert server.logins == 1
+
+    def test_a_newer_login_during_the_wait_ends_the_attempts(self, client, monkeypatch):
+        down = NetworkError("down")
+        server = serve(client, monkeypatch, down, [])
+        retries: list[object] = []
+        client.on_session_retry(lambda *args: retries.append(args))
+
+        class LoggingInWhileWaiting(RecordingEvent):
+            def wait(self, timeout: float | None = None) -> bool:
+                waiting = super().wait(timeout)
+                client.login()
+                return waiting
+
+        closed = LoggingInWhileWaiting()
+        client._session._closed = closed
+
+        with pytest.raises(NetworkError) as raised:
+            client.login(retry=True)
+
+        assert raised.value is down
+        assert server.logins == 2
+        assert closed.waits == [5.0]
+        assert client.is_logged_in
+        assert wait_for(lambda: len(retries) == 1)
+
+
 class TestCooldown:
     def test_a_refusal_is_retried_after_exactly_the_seconds_it_named(self, client, monkeypatch, waits):
         # A kick live: refused with a 55 s cooldown, waited out to the second, restored.
@@ -266,7 +544,7 @@ class TestCooldown:
         drop(client)
 
         assert wait_for(lambda: restored == [True])
-        assert waits[0] == session_module.RELOGIN_FIRST_DELAY
+        assert waits[0] == 5.0
         assert waits[1] == pytest.approx(55.0, abs=0.05)
         assert len(waits) == 2
 
@@ -317,7 +595,7 @@ class TestCooldown:
 
 class TestClose:
     def test_close_during_the_backoff_ends_it_at_once(self, client, monkeypatch):
-        monkeypatch.setattr(session_module, "RELOGIN_FIRST_DELAY", 60.0)
+        client.config = EmpireConfig(relogin_first_delay=60.0)
         server = serve(client, monkeypatch, [])
         logged_in(client)
         drop(client)

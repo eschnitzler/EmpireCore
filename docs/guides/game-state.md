@@ -270,9 +270,22 @@ client.login()
 ```
 
 The game client does not log in again by itself: after a drop it shows a
-reconnect dialog and waits for a click. So the timing is the library's: the
-first attempt comes 5 seconds after the drop, and a failed one is retried after
-twice the last wait, up to 5 minutes. A refusal with a login cooldown counts
+reconnect dialog and waits for a click. So the timing is the library's, set on
+the config: the first attempt comes `relogin_first_delay` seconds after the
+drop (5 by default), and a failed one is retried after twice the last wait, up
+to `relogin_max_delay` (300). A drop is often a kick: the same account logged
+in elsewhere, by a person in the browser. A re-login 5 seconds later kicks that
+person out again, so give them time:
+
+```python
+config = EmpireConfig(relogin_first_delay=600, relogin_max_delay=1800)
+client = EmpireClient(username="user", password="pass", config=config, keep_session=True)
+```
+
+Both delays must be above 0 and the first no longer than the cap; the config
+refuses anything else with a `ValidationError`, also on assignment.
+
+A refusal with a login cooldown counts
 as a failed attempt too, and is retried no sooner than the seconds the server
 named: after the longer of that cooldown and the doubled wait. The cooldown is
 what `client.remaining_login_cooldown()` reports, counting down. Live, a kick
@@ -289,6 +302,33 @@ wait returned at once, with the re-login thread gone and no login after it.
 your own ends attempts still going before it logs in, so only one login runs;
 if it fails it raises, and `on_session_lost` does not fire. Only a session
 that was logged in is restored.
+
+`client.is_restoring_session` tells a session being restored from one given
+up: it is True from just after the `on_disconnect` callbacks until the session
+is back, the attempts give up, or `close()` or a `login()` of your own ends
+them; it is already False when `on_session_restored` or `on_session_lost`
+runs, and still False inside an `on_disconnect` callback, as the re-login
+starts after those. To follow a restore, register the callbacks below.
+`client.on_session_retry(callback)` fires for each failed attempt with
+the attempts so far, the seconds until the next and the failure, so a long
+restore can raise an alert without a timer of your own. An attempt ended by
+`close()` or a `login()` of your own does not fire it; the log says
+`re-login attempt` for a restore and `login attempt` for `login(retry=True)`:
+
+```python
+def retrying(attempt: int, wait: float, error: Exception) -> None:
+    if attempt == 5:
+        print(f"still logged out after {attempt} attempts: {error}")
+
+client.on_session_retry(retrying)
+```
+
+The first login can be retried the same way: `client.login(retry=True)` waits
+and logs in again after a timeout, a network error or a login cooldown, on the
+same delays, until a login holds. Each failed attempt fires `on_session_retry`.
+A refusal that waiting does not cure raises at once, and a `close()` or a
+newer `login()` from another thread ends the attempts and makes `login()`
+raise the last failure.
 
 An attack or occupation announced before the drop is not announced again when
 the restored session lists it: `on_incoming_attack` and `on_occupation_started`
