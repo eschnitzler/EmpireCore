@@ -54,6 +54,7 @@ PUBLIC_MODULES = (
     "empire_core.protocol",
     "empire_core.quests",
     "empire_core.ranking",
+    "empire_core.rewards",
     "empire_core.services",
     "empire_core.spy",
     "empire_core.state",

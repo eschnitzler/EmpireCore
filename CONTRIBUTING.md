@@ -308,7 +308,7 @@ Every service method follows one rule, so callers learn it once:
 - a malformed reply raises `PacketError`;
 - an action the server refuses returns `False` (`BaseService.execute`).
 
-Three kinds of method follow rules of their own, documented on the method:
+Four kinds of method follow rules of their own, documented on the method:
 
 - state read without a request returns `None` while the login data or push it
   comes from has not arrived yet (`client.castle.get_horses()` before a `gpc`);
@@ -316,7 +316,9 @@ Three kinds of method follow rules of their own, documented on the method:
   (`SpyOutcome.COMMAND_FAILED` on a `SpyResult`, the `failed` and `timed_out`
   players of `get_player_details_bulk()`);
 - a best-effort fill goes on without a read the server refuses and names it
-  (`FilledAttack.unread`).
+  (`FilledAttack.unread`);
+- a request the server never answers, waiting for a push instead, returns
+  `None` when no push came in time (`open_activity_chest()`).
 
 Match server errors on `CommandError.error`, never on a number:
 

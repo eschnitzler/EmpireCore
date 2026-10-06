@@ -22,6 +22,7 @@ from empire_core.messages.service import MessagesService
 from empire_core.movements.service import MovementsService
 from empire_core.player.service import PlayerService
 from empire_core.ranking.service import RankingService
+from empire_core.rewards.service import RewardsService
 from empire_core.services.base import BaseService
 from empire_core.spy.service import SpyService
 
@@ -41,6 +42,7 @@ SERVICE_TYPES = {
     "defense": DefenseService,
     "player": PlayerService,
     "events": EventsService,
+    "rewards": RewardsService,
 }
 
 

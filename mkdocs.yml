@@ -172,6 +172,7 @@ nav:
           - Spy: guides/spy.md
           - Map scanning: guides/map-scanning.md
           - Events: guides/events.md
+          - Daily rewards: guides/rewards.md
       - Game state:
           - State and freshness: guides/game-state.md
           - Reacting to movements: guides/movements.md
@@ -202,6 +203,7 @@ nav:
           - Army: reference/army.md
           - Movements: reference/movements.md
           - Messages: reference/messages.md
+          - Rewards: reference/rewards.md
           - Defense: reference/defense.md
           - Combat: reference/combat.md
           - Player: reference/player.md

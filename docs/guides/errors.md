@@ -53,6 +53,7 @@ classDiagram
     EmpireError <|-- NotInAllianceError
     EmpireError <|-- UnsendableGoodsError
     EmpireError <|-- PremiumCommanderCostError
+    EmpireError <|-- LoginBonusUnavailableError
 ```
 
 | Error | When |
@@ -74,6 +75,7 @@ classDiagram
 | `NotInAllianceError` | A call about your own alliance, such as `get_local_members()`, while you are in none; also a `LookupError` |
 | `UnsendableGoodsError` | A [market send](castle.md#goods-one-tab-per-send) carries goods the client would not send; also a `ValueError` |
 | `PremiumCommanderCostError` | A send led by the [premium commander](commanders.md#the-premium-commander) may cost rubies and `spend_rubies` is not set; also a `ValueError` |
+| `LoginBonusUnavailableError` | The [login bonus](rewards.md#daily-login-bonus) was asked for below 1200 XP, or before the player data arrived; the server would not answer |
 
 The library does not leak `pydantic.ValidationError` or raw socket exceptions
 past its own API: catching `EmpireError` covers everything.
@@ -93,7 +95,7 @@ or `NO_SPY_DATA` for `client.spy.get_report()`. Each such method says so in its
 docstring; any other error code raises `CommandError`. Invalid arguments raise
 `ValueError`, and a reply the library cannot read raises `PacketError`.
 
-Three kinds of method follow rules of their own, each documented on the method:
+Four kinds of method follow rules of their own, each documented on the method:
 
 - State read without a request returns `None` while the login data or push it
   comes from has not arrived: `client.castle.get_horses()` before a `gpc` named
@@ -105,6 +107,10 @@ Three kinds of method follow rules of their own, each documented on the method:
   the server refuses is named in the result's `unread`, keyed by `TargetRead`
   with its `CommandError`, so a fill that lacks target data never passes for a
   complete one. A timeout or a dropped connection still raises.
+- [`client.rewards.open_activity_chest()`](rewards.md#activity-chest) sends a
+  request the server never answers and waits for the push that follows: it
+  returns `None` when none came in time, since only that push tells the chest
+  opened.
 
 ```python
 from empire_core import GGEError

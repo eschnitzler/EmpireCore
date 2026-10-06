@@ -93,7 +93,9 @@ _WHOLE_SECTIONS = {
 # (bundle lines 128808, 128748) and BTXCommand bring their txi. The equipment and gem replies
 # BGMCommand, CEQCommand, CGECommand, FRCCommand and SEQCommand (bundle lines 123727, 123783,
 # 123798, 123912, 124019) bring their esl; the kingdom replies KGTCommand, KSTCommand, KUTCommand,
-# MSKCommand and FJFCommand (bundle lines 124654, 124713, 124728, 125795, 127783) their kpi
+# MSKCommand and FJFCommand (bundle lines 124654, 124713, 124728, 125795, 127783) their kpi.
+# RWBCommand (bundle line 124426) brings only its gcu to state; its parseRWB (bundle line 111900)
+# also reads a gui the state does not keep
 _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("arl", "gla", "sdi", "sti"), ("gli",)),
     "seq": ("gli", "gcu", "esl"),
@@ -111,6 +113,7 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("bgm", "ceq", "cge", "frc"), ("esl",)),
     **dict.fromkeys(("kgt", "kst", "kut"), ("gcu", "kpi")),
     **dict.fromkeys(("msk", "fjf"), ("kpi",)),
+    "rwb": ("gcu",),
 }
 
 # Commands whose state the client applies only from a successful reply: SEICommand, SEECommand,

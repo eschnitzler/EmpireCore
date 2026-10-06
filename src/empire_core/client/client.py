@@ -41,6 +41,7 @@ from empire_core.protocol.base import read_or_none
 from empire_core.protocol.models import BaseRequest, BaseResponse, parse_response
 from empire_core.protocol.packet import Packet
 from empire_core.ranking.service import RankingService
+from empire_core.rewards.service import RewardsService
 from empire_core.spy.service import SpyService
 from empire_core.state.manager import GameState
 from empire_core.utils.callbacks import Event, Registry
@@ -118,6 +119,7 @@ class EmpireClient:
     defense: DefenseService
     player: PlayerService
     events: EventsService
+    rewards: RewardsService
 
     def __init__(
         self,
@@ -191,6 +193,7 @@ class EmpireClient:
         self.defense = DefenseService(self)
         self.player = PlayerService(self)
         self.events = EventsService(self)
+        self.rewards = RewardsService(self)
 
     def _register_handler(self, command: str, handler: Callable[[BaseResponse], None]) -> None:
         """

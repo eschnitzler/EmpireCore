@@ -55,6 +55,7 @@ models.
 | [Army](army.md) | `client.army` |
 | [Movements](movements.md) | `client.movements` |
 | [Messages](messages.md) | `client.messages` |
+| [Rewards](rewards.md) | `client.rewards` |
 | [Defense](defense.md) | `client.defense` |
 | [Combat](combat.md) | used by `client.attack` |
 | [Player](player.md) | `client.player` |

@@ -15,6 +15,7 @@ Failure modes are kept distinct so callers can react to them individually:
 - ``ReplyMismatchError``: a reply answers another list than the one asked for.
 - ``UnsendableGoodsError``: a market send carries goods the client would not send.
 - ``PremiumCommanderCostError``: a send led by the premium commander may cost rubies.
+- ``LoginBonusUnavailableError``: the login bonus is asked for below the XP the client asks from.
 """
 
 from enum import IntEnum
@@ -385,6 +386,26 @@ class PremiumCommanderCostError(EmpireError, ValueError):
         self.free_premium_commanders = free_premium_commanders
 
 
+class LoginBonusUnavailableError(EmpireError):
+    """The login bonus was asked for while your XP is below the client's gate, or not known yet.
+
+    The server sends no ``alb`` below it (seen live), so a request would only time out.
+
+    Attributes:
+        xp: your XP from the player data, None before it arrived
+        required_xp: the XP the client asks for the login bonus from
+
+    Client: ``CastleLoginBonusData.REQUIRED_XP`` (bundle line 39163), checked by ``GBDCommand``
+    (bundle line 129389) and ``onUserXpChanged`` (bundle line 39132) before ``C2SGetLoginBonusVO``
+    """
+
+    def __init__(self, xp: int | None, required_xp: int):
+        known = "is not known yet" if xp is None else f"is {xp}"
+        super().__init__(f"the login bonus needs {required_xp} XP; yours {known}")
+        self.xp = xp
+        self.required_xp = required_xp
+
+
 class ReceiveThreadError(EmpireError):
     """Raised when a call that waits for a reply is made on the receive thread.
 
@@ -431,6 +452,7 @@ __all__ = [
     "AttackBelowMinimumError",
     "UnsendableGoodsError",
     "PremiumCommanderCostError",
+    "LoginBonusUnavailableError",
     "ReceiveThreadError",
     "MessageUnavailableError",
     "NotInAllianceError",

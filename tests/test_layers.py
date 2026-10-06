@@ -35,6 +35,7 @@ RANK = {
     "army": 2,
     "movements": 3,
     "messages": 3,
+    "rewards": 3,
     "defense": 4,
     "combat": 5,
     "player": 5,

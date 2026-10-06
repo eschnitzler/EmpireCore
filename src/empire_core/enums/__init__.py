@@ -15,6 +15,7 @@ from .messages import BattleLogAttackType, LogResult, MessageType
 from .movements import MovementType
 from .player import TitleSystem
 from .ranking import RankingType
+from .rewards import LoginBonusSpecial
 from .spy import SpyLogType, SpyOutcome, SpyStep, SpyType
 
 __all__ = [
@@ -69,6 +70,8 @@ __all__ = [
     "TitleSystem",
     # Ranking
     "RankingType",
+    # Rewards
+    "LoginBonusSpecial",
     # Inventory
     "SCEItem",
 ]

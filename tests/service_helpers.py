@@ -103,6 +103,7 @@ class ScriptedConnection:
         self.connected = True
         self.sent: list[str] = []
         self.requested: list[str] = []
+        self.request_frames: list[str] = []
         self.request_payloads: list[tuple[str, dict[str, Any]]] = []
         self.waiters_created: list[str] = []
         self.waiters_canceled: list[str] = []
@@ -129,6 +130,7 @@ class ScriptedConnection:
 
     def request(self, data: str, cmd_id: str, timeout: float = 5.0, accepts: Any = None) -> Packet:
         self.requested.append(cmd_id)
+        self.request_frames.append(data)
         self.accepts.append(accepts)
         self.request_payloads.append((cmd_id, request_payload(data)))
         self.events.append(f"request:{cmd_id}")
@@ -194,10 +196,12 @@ class ScriptedConnection:
 
 
 class StubPlayer:
-    def __init__(self, alliance_id: int = 0, level: int = 0):
+    def __init__(self, alliance_id: int = 0, level: int = 0, xp: int = 0):
         self.alliance_id = alliance_id
         self.level = level
+        self.xp = xp
         self.legendary_level = 0
+        self.model_fields_set = {"alliance_id", "level", "xp", "legendary_level"}
 
 
 def stub_player(alliance_id: int = 0, level: int = 0) -> Player:

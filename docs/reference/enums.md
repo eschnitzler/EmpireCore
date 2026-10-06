@@ -42,6 +42,10 @@ Every finite set of game constants, one module per area.
 
 ::: empire_core.enums.ranking
 
+## `enums.rewards`
+
+::: empire_core.enums.rewards
+
 ## `enums.spy`
 
 ::: empire_core.enums.spy

@@ -43,7 +43,7 @@ class BaseService:
     - a malformed reply raises ``PacketError``;
     - an action the server refuses returns False (see :meth:`execute`).
 
-    Three kinds of method follow rules of their own, each documented on the method:
+    Four kinds of method follow rules of their own, each documented on the method:
 
     - state read without a request returns ``None`` while the login data or push it
       comes from has not arrived yet (``client.castle.get_horses`` before a ``gpc``);
@@ -51,7 +51,9 @@ class BaseService:
       such as ``SpyOutcome.COMMAND_FAILED`` on a ``SpyResult`` or the ``failed`` and
       ``timed_out`` players of ``get_player_details_bulk``;
     - a best-effort fill goes on without a read the server refuses and names it,
-      as ``fill_attack`` does in ``FilledAttack.unread``.
+      as ``fill_attack`` does in ``FilledAttack.unread``;
+    - a request the server never answers, waiting for a push instead, returns ``None``
+      when no push came in time (``open_activity_chest``).
     """
 
     def __init__(self, client: "EmpireClient") -> None:

@@ -12,7 +12,7 @@ beside them.
 client.alliance     client.castle      client.army       client.attack
 client.commanders   client.equipment   client.skills     client.spy
 client.map          client.movements   client.messages   client.player
-client.defense      client.ranking     client.events
+client.defense      client.ranking     client.events     client.rewards
 ```
 
 ## Services
@@ -96,6 +96,12 @@ client.defense      client.ranking     client.events
     ---
 
     The running events and their scoreboards.
+
+-   :material-gift-outline:{ .lg .middle } **[Daily rewards](rewards.md)**
+
+    ---
+
+    The login and startup bonuses, lost and found, the activity chest and the weekly honour reward.
 
 </div>
 
