@@ -460,8 +460,9 @@ class AttackService(BaseService):
             active_raid_boss_id: The boss of the alliance raid-boss event
                 running now, None when none is; ``client.game_data.raid_boss(name)``
                 finds one by name. Tools tied to other raid bosses are left out
-            global_effect_ids: Global effects currently running, from ``bie``;
-                either ids or the raw ``[id, seconds_left, strength]`` rows,
+            global_effect_ids: Global effects currently running, from the
+                ``Event.GLOBAL_EFFECT`` event (``GlobalEffectEvent.effects``);
+                either ids or its raw ``[id, seconds_left, strength]`` ``GE`` rows,
                 which carry the live strength. ``client.game_data.global_effect(name)``
                 finds an id by name.
                 These are the only thing that buffs a unit's attack value
@@ -731,8 +732,8 @@ class AttackService(BaseService):
                 are read with ``gie`` for the general this commander carries
             legend_skill_ids: The player's legend skills. Left out, they are
                 read with ``skl``
-            global_effect_ids: Global effects currently running, see
-                ``client.game_data.global_effect(name)``
+            global_effect_ids: Global effects currently running, from the
+                ``Event.GLOBAL_EFFECT`` event; see ``client.game_data.global_effect(name)``
             support_tools: The support tools the attack will carry, as sent in
                 ``AST``; pass the same list to :meth:`send_attack`
             conquer: A conquest attack carries two extra waves

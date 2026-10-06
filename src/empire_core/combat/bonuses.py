@@ -553,15 +553,20 @@ def global_unit_attack_bonuses(
     No condition is applied: the client resolves an unset area or kingdom to the
     castle the player happens to be looking at, and the one effect row this path
     can reach restricts neither, so there is nothing to check.
-    The strengths in the table are only a fallback: ``bie`` may carry a strength
-    of its own per effect, and ``setEffectStrength`` writes that one value onto
-    every unit in the map.
+    The strengths in the table are only a fallback: each running effect is a
+    ``[id, seconds_left, strength]`` row in the ``GE`` of the global effects
+    event's ``sei`` entry (``Event.GLOBAL_EFFECT``), and ``setEffectStrength``
+    writes a strength above -1 onto every unit in the map
+    (``GlobalEffectEventVO.parseParamObject``, bundle lines 116399-116411). The
+    state reads those rows into ``GlobalEffectEvent.effects``. ``bie`` is not
+    them: it lists only the ids the booster event boosts
+    (``GlobalEffectData.parse_GIE``, bundle lines 143676-143680).
 
     Args:
         game_data: Loaded tables
-        global_effects: Which global effects are active, from ``bie`` - either
-            plain ids, or the ``[id, seconds_left, strength]`` rows themselves,
-            where a strength above -1 replaces the table's
+        global_effects: Which global effects are active - either plain ids, or
+            the ``GE`` rows of the ``Event.GLOBAL_EFFECT`` event, where a
+            strength above -1 replaces the table's
         player_level: The attacker's level, which some effects are bracketed to;
             without it the brackets are ignored
 

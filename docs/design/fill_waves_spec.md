@@ -1467,8 +1467,9 @@ Bloodcrows 34, Berimond 30), 485/486 (`isPvPFight`), 759/760, 763/764, 767/768,
 Siblings: type 149 one row (22006), type 150 five (22007-22011), type 154 one
 (285).
 
-Payload: `bie` at login (`CastleModel.globalEffectData.parse_GIE(n.bie)`,
-`GBDCommand`, BUNDLE line 129381) and the `BIE` command, shape
+Payload: the `sei` entry of the global effects event (`Event.GLOBAL_EFFECT`,
+610), read by `GlobalEffectEventVO.parseParamObject` (BUNDLE lines
+116399-116411), shape
 
 ```
 { "SGE": [globalEffectID, ...],
@@ -1476,7 +1477,12 @@ Payload: `bie` at login (`CastleModel.globalEffectData.parse_GIE(n.bie)`,
 ```
 
 The `strengthOverride` is the **live** strength; the ITEMS value is only the
-fallback when it is `-1`.
+fallback when it is `-1`. The state reads these rows into
+`GlobalEffectEvent.effects` (`client.state.get_event(Event.GLOBAL_EFFECT)`).
+
+`bie` (at login, `GlobalEffectData.parse_GIE(n.bie)`, BUNDLE lines
+143676-143680, and the `BIE` command) is not this payload: its `GE` lists only
+the ids of the effects the global effects booster event makes stronger.
 
 The port's `global_unit_attack_bonuses` (`combat/bonuses.py`) takes either
 plain ids or the `GE` triples, and a strength above `-1` in a triple replaces
