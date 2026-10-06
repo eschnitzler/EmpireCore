@@ -68,8 +68,13 @@ client.on_session_lost(lambda error: print("watcher1 is gone:", error))
 ```
 
 A release closes the client or keeps it as before, and closing ends any
-re-login. A kept client still waiting to log in again when it is next leased
-counts as dropped: the lease closes it and logs in a fresh client. While a
+re-login. A `keep_alive` pool keeps a client released while it logs back in,
+and leaves it to finish: until `client.is_restoring_session` turns False its
+account is not available, so a lease moves on to the next candidate, and one
+for that username alone returns None (`pool.leased()` raises
+`PoolExhaustedError`). A restore that gives up leaves the client logged out,
+and the next lease closes it and logs in a fresh one. To log in afresh without
+waiting, close the client yourself: `pool.get_client(username).close()`. While a
 held client waits out a cooldown, `client.remaining_login_cooldown()` says for
 how long: the seconds the server last named, counting down. A lease that
 fails chains its last failure to the `LoginError` it raises; a

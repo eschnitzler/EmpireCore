@@ -26,8 +26,9 @@ class PoolExhaustedError(EmpireError):
 
     Distinct from :class:`~empire_core.exceptions.LoginError`: nothing was tried
     and nothing failed, there was simply nothing free (none configured, all
-    busy, all inactive, or none matching the requested username/tag). Callers
-    should back off and retry rather than treat it as a credential problem.
+    busy or logging back in, all inactive, or none matching the requested
+    username/tag). Callers should back off and retry rather than treat it as
+    a credential problem.
     """
 
 
@@ -59,11 +60,23 @@ class AccountPool:
         pool still logged in, and the next lease of that account reuses it
         without a login. A kept client whose session dropped meanwhile is
         closed and replaced by a fresh login, so a cooldown on that login sends
-        the lease on to the next candidate as usual. While kept, the connection
-        pings every 60 seconds as the game client does, which keeps an idle
-        session open. :meth:`release_all` closes kept clients too.
+        the lease on to the next candidate as usual. One still logging back in
+        by itself (:attr:`EmpireClient.is_restoring_session`, with
+        ``keep_session``) is left to it: its account is not available until
+        the restore ends, so a lease moves on to the next candidate, and a
+        release keeps it. To force a fresh login instead, close it yourself:
+        ``pool.get_client(username).close()``; the next lease of the account
+        then logs in a new client. While
+        kept, the connection pings every 60 seconds as the game client does,
+        which keeps an idle session open. :meth:`release_all` closes kept clients too.
         Client: ``BasicSmartfoxClient.onJoinRoom`` (dll line 7165) and
         ``activatePing`` (dll line 7167).
+
+        Two moments still treat a client that is logging back in as dropped,
+        closing it and logging in a fresh one: between its drop and the start
+        of its re-login (while its ``on_disconnect`` callbacks run, it is
+        neither logged in nor restoring), and when it drops after a lease saw
+        it logged in but before the lease takes it over.
 
         The next leaseholder gets the same client object. :meth:`leased`
         releases only its own lease, but :meth:`release` cannot tell one
@@ -107,7 +120,7 @@ class AccountPool:
 
     def get_available(self, tag: str | None = None) -> list[Account]:
         """
-        Get list of available (not busy) accounts.
+        Get list of available accounts: not leased, and not waiting for a kept client to log back in.
 
         Args:
             tag: Optional tag to filter accounts.
@@ -131,7 +144,7 @@ class AccountPool:
         available = []
         for idx in cycled_indices:
             acc = all_accs[idx]
-            if acc.username in self._busy:
+            if not self._free(acc.username):
                 continue
             if not acc.active:
                 continue
@@ -156,10 +169,15 @@ class AccountPool:
             acc
             for acc in all_accs
             if acc.username.lower() == wanted
-            and acc.username not in self._busy
+            and self._free(acc.username)
             and acc.active
             and (not tag or acc.has_tag(tag))
         ]
+
+    def _free(self, username: str) -> bool:
+        """Not leased, and no kept client logging back in; called under the lock."""
+        kept = self._clients.get(username)
+        return username not in self._busy and not (kept is not None and kept.is_restoring_session)
 
     def _reserve(self, username: str | None, tag: str | None, tried: set[str]) -> Account | None:
         """Mark the next untried free candidate busy and return it; None when none is left."""
@@ -186,7 +204,8 @@ class AccountPool:
         Marks the account as busy and optionally logs in. If a specific account
         is on cooldown, automatically tries the next available account. A
         client kept by a ``keep_alive`` pool is reused while it is still
-        logged in, also when ``login`` is False.
+        logged in, also when ``login`` is False; while it is logging back in
+        by itself its account is skipped.
 
         Args:
             username: Specific username to lease (optional).
@@ -195,7 +214,8 @@ class AccountPool:
 
         Returns:
             Connected EmpireClient, or None if there were no candidate accounts
-            to try (none configured, all busy, or none matching username/tag).
+            to try (none configured, all busy or logging back in, or none
+            matching username/tag).
 
         Raises:
             LoginError: Every candidate was tried and every one failed. The last
@@ -338,8 +358,9 @@ class AccountPool:
             client: The client to release.
             logout: Whether to close the client. The default closes it, unless
                 the pool was made with ``keep_alive``. A ``keep_alive`` pool
-                keeps a logged-in client released with ``logout=False`` or the
-                default for the next lease; one that is not logged in is closed.
+                keeps a client released with ``logout=False`` or the default
+                for the next lease while it is logged in or logging back in
+                (:attr:`EmpireClient.is_restoring_session`); any other is closed.
         """
         self._release(client, logout, None)
 
@@ -355,7 +376,7 @@ class AccountPool:
         with self._lock:
             held = self._clients.get(username)
             current = held is client and username in self._busy and lease_id in (None, self._lease_ids.get(username))
-            keep = current and self.keep_alive and not logout and client.is_logged_in
+            keep = current and self.keep_alive and not logout and (client.is_logged_in or client.is_restoring_session)
             if current and not keep:
                 del self._clients[username]
         # A keep_alive pool closes every client it does not keep.
@@ -390,7 +411,11 @@ class AccountPool:
             self.release(client, logout=logout)
 
     def get_client(self, username: str) -> EmpireClient | None:
-        """Get a leased or kept client by username."""
+        """Get a leased or kept client by username.
+
+        Closing a kept client that is logging back in ends its restore; the next lease of its account then
+        logs in a new client.
+        """
         with self._lock:
             return self._clients.get(username)
 

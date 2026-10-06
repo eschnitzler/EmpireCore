@@ -358,6 +358,7 @@ class FakeClient:
     def __init__(self, username: str):
         self.username = username
         self.is_logged_in = False
+        self.is_restoring_session = False
         self.closed = False
         self.logins = 0
         self.streams_closed = 0
@@ -371,6 +372,7 @@ class FakeClient:
     def close(self) -> None:
         self.closed = True
         self.is_logged_in = False
+        self.is_restoring_session = False
 
     def close_streams(self) -> None:
         self.streams_closed += 1
@@ -882,6 +884,93 @@ class TestKeepAlive:
         assert made[0].closed
         assert pool.get_client("alpha") is None
         assert pool.busy_count == 0
+
+    @staticmethod
+    def drop(client: FakeClient, *, restoring: bool) -> None:
+        """The session dropped; with ``restoring``, keep_session is logging it back in."""
+        client.is_logged_in = False
+        client.connection.connected = False
+        client.is_restoring_session = restoring
+
+    def test_a_kept_client_logging_back_in_is_skipped_not_closed(self, made):
+        pool = self.pool("alpha", "beta")
+        with pool.leased(username="alpha"):
+            pass
+        self.drop(made[0], restoring=True)
+
+        assert [acc.username for acc in pool.get_available()] == ["beta"]
+        assert pool.lease() is made[1]
+        assert not made[0].closed
+        assert pool.get_client("alpha") is made[0]
+
+    def test_a_lease_of_only_that_account_finds_none(self, made):
+        pool = self.pool("alpha")
+        with pool.leased():
+            pass
+        self.drop(made[0], restoring=True)
+
+        assert pool.lease(username="alpha") is None
+        with pytest.raises(PoolExhaustedError):
+            with pool.leased():
+                pass
+        assert not made[0].closed
+        assert pool.busy_count == 0
+        assert len(made) == 1
+
+    def test_a_restored_client_is_reused_without_a_login(self, made):
+        pool = self.pool("alpha")
+        with pool.leased():
+            pass
+        self.drop(made[0], restoring=True)
+        made[0].is_logged_in = made[0].connection.connected = True
+        made[0].is_restoring_session = False
+
+        assert pool.lease() is made[0]
+        assert made[0].logins == 1
+        assert len(made) == 1
+
+    def test_a_restore_that_gave_up_is_replaced_by_a_fresh_login(self, made):
+        pool = self.pool("alpha")
+        with pool.leased():
+            pass
+        self.drop(made[0], restoring=False)
+
+        assert pool.lease() is made[1]
+        assert made[0].closed
+
+    def test_closing_a_client_logging_back_in_makes_the_next_lease_log_in_afresh(self, made):
+        pool = self.pool("alpha")
+        with pool.leased():
+            pass
+        self.drop(made[0], restoring=True)
+        kept = pool.get_client("alpha")
+        assert kept is made[0]
+
+        kept.close()
+
+        assert pool.lease(username="alpha") is made[1]
+        assert made[1].logins == 1
+
+    def test_a_client_released_while_logging_back_in_is_kept(self, made):
+        pool = self.pool("alpha")
+        client = pool.lease()
+        assert client is not None
+        self.drop(made[0], restoring=True)
+
+        pool.release(client)
+        assert not made[0].closed
+        assert pool.get_client("alpha") is made[0]
+        assert pool.busy_count == 0
+
+    def test_a_client_logging_back_in_is_still_closed_by_a_logout_release(self, made):
+        pool = self.pool("alpha")
+        client = pool.lease()
+        assert client is not None
+        self.drop(made[0], restoring=True)
+
+        pool.release(client, logout=True)
+        assert made[0].closed
+        assert pool.get_client("alpha") is None
 
     def test_default_pool_still_closes_on_release(self, made):
         pool = AccountPool(FakeRegistry([Account(username="alpha", password="p")]))
