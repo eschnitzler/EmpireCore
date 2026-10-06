@@ -25,7 +25,7 @@ from .models import (
     OwnerFaction,
     parse_area_rows,
 )
-from .scanner import ChunkHandler, MapScanner, ScanResult
+from .scanner import ChunkHandler, MapScanner, ScanResult, scan_kingdom_with
 from .service import MapService
 
 __all__ = [
@@ -56,5 +56,6 @@ __all__ = [
     "MapScanner",
     "ScanResult",
     "ChunkHandler",
+    "scan_kingdom_with",
     "MapService",
 ]

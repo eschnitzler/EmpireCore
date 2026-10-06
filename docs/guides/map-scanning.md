@@ -69,14 +69,66 @@ flowchart LR
     B -.->|now and then| A
 ```
 
-For very frequent scans, split `content_chunks` across several logged-in
-accounts, in interleaved slices `chunks[i::n]`, and run their `scan_chunks()`
-calls at the same time. The server limits the request rate per account; see
-[Multiple accounts](multiple-accounts.md).
+## Scanning with several accounts
 
-Scans run in their calling thread, and parsing a chunk's reply holds the GIL:
-a dense chunk takes a few tens of milliseconds. `scripts/bench_map_parse.py`
-times one.
+The server limits the request rate per account, and each client keeps one
+request in flight, so one client scans a kingdom at roughly the pace of its
+round trips. `scan_kingdom_with` spreads one scan over several logged-in
+clients, each on its own thread. Lease them from an
+[`AccountPool`](multiple-accounts.md):
+
+```python
+from contextlib import ExitStack
+
+from empire_core import Kingdom
+from empire_core.map import scan_kingdom_with
+
+with ExitStack() as leases:
+    clients = [leases.enter_context(pool.leased(tag="scanner")) for _ in range(4)]
+    result = scan_kingdom_with(clients, Kingdom.GREEN)
+    # or re-scan known chunks: scan_kingdom_with(clients, Kingdom.GREEN, chunks=discovery.content_chunks)
+print(f"{len(result.items)} items, {len(result.failed_chunks)} failed chunks")
+```
+
+Without `chunks` the clients discover the kingdom together from the castle
+there of the first client that has one; with `chunks` they scan those. Pass
+each client once. Every other argument
+means what it means for `scan_kingdom()`. Each client takes the next chunk
+nobody has taken yet, so the chunks interleave and a slow client takes fewer.
+The result merges every client's chunks; `items` and `content_chunks` come in
+the order the chunks answered.
+
+A chunk that fails on one client is asked again by a client that has not
+tried it, and a client whose session drops, or whose account has not unlocked
+the kingdom, leaves the scan while the others take over its chunk. Only a
+chunk every remaining client has failed, or one left when no client remains, a
+`timeout` passes or `cancel` is set, ends in `failed_chunks`; when every client
+left because it has not unlocked the kingdom, that `CommandError` is raised to
+you. `on_chunk` is called from the clients' threads, one call at a time, so it
+needs no lock of its own. An exception it raises, or a `KeyboardInterrupt`
+while you wait, stops every client after the request it has in flight and is
+raised to you; no chunk reaches `on_chunk` after it.
+
+Parsing a chunk's reply holds the GIL, so threads in one process overlap
+their waits for replies but not their parsing: one process never scans faster
+than the parse time of every chunk added up (`scripts/bench_map_parse.py`
+times one chunk). `scripts/bench_multi_scan.py`
+measures it offline with made-up 50 ms replies and 289 live-shaped chunks:
+
+| Clients | Wall time |
+|---|---|
+| 1 | 16.7 s |
+| 8, threads in one process | 2.4 s |
+| 8, separate processes | 2.1 s |
+
+With replies at 20 ms the one process stays at about 2.2 s, the parse time,
+while separate processes reach 1.1 s. A live scan with 8 accounts in separate
+processes took 2.9 s, against about 16 s for one account. If you need more
+than one process can parse, run a scan per process, each with its interleaved
+slice `chunks[i::n]` of a discovery's `content_chunks`.
+
+Concurrent scans of the same kingdom are not merged into one: each call scans
+on its own clients.
 
 ## Keeping only what you need
 
@@ -155,4 +207,5 @@ gives the row it found.
 
 **API:** [`MapService`](../reference/map.md#empire_core.map.service.MapService),
 [`ScanResult`](../reference/map.md#empire_core.map.scanner.ScanResult),
+[`scan_kingdom_with`](../reference/map.md#empire_core.map.scanner.scan_kingdom_with),
 [`MapAreaItem`](../reference/map.md#empire_core.map.models.items.MapAreaItem)

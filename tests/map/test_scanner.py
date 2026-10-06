@@ -11,7 +11,8 @@ import pytest
 
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
-from empire_core.map.scanner import MapScanner
+from empire_core.map.scanner import MapScanner, scan_kingdom_with
+from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import Packet
 
 
@@ -230,11 +231,16 @@ class TestScanChunks:
 class TestKingdomStartPosition:
     def test_starts_at_the_own_castle_in_that_kingdom(self):
         scanner = _make_scanner(_FakeClient(content_chunks=set(), start_chunk=(5, 6)))
-        assert scanner._get_kingdom_start_position(Kingdom.GREEN) == (450, 540)
+        assert scanner._castle_position(Kingdom.GREEN) == (450, 540)
 
-    def test_falls_back_to_the_map_center_without_a_castle_there(self):
+    def test_there_is_none_without_a_castle_there(self):
         scanner = _make_scanner(_FakeClient(content_chunks=set()))
-        assert scanner._get_kingdom_start_position(Kingdom.FIRE) == (650, 650)
+        assert scanner._castle_position(Kingdom.FIRE) is None
+
+    def test_a_scan_without_a_castle_there_starts_at_the_map_center(self):
+        fake = _FakeClient(content_chunks=set())
+        _make_scanner(fake).scan_kingdom(Kingdom.FIRE, item_types=[])
+        assert fake.connection.requests[0] == _make_scanner(fake).chunk_for_position(650, 650)
 
 
 class TestServerErrorCodes:
@@ -747,3 +753,264 @@ class TestOnChunk:
         )
 
         assert chunks == [(5, 5)]
+
+
+def _drop_after(fake: _FakeClient, answered: int) -> None:
+    """The fake session drops on the request after its ``answered``-th."""
+    answer = fake.connection.request
+
+    def request(data: str, cmd_id: str, timeout: float = 5.0) -> Packet:
+        if len(fake.connection.requests) >= answered:
+            answer(data, cmd_id, timeout)
+            fake.connection.connected = False
+            raise NetworkError("connection reset")
+        return answer(data, cmd_id, timeout)
+
+    fake.connection.request = request  # type: ignore[method-assign]
+
+
+def _hold_first_replies(fakes: list[_FakeClient]) -> None:
+    """Each fake answers its first request only once every fake has sent one, so each takes a chunk."""
+    barrier = threading.Barrier(len(fakes))
+    for fake in fakes:
+        answer = fake.connection.request
+
+        def request(data: str, cmd_id: str, timeout: float = 5.0, answer: Any = answer, fake: Any = fake) -> Packet:
+            reply = answer(data, cmd_id, timeout)
+            if len(fake.connection.requests) == 1:
+                barrier.wait(timeout=5)
+            return reply
+
+        fake.connection.request = request  # type: ignore[method-assign]
+
+
+def _refuse_kingdom(fake: _FakeClient) -> None:
+    """The fake's account has not unlocked the kingdom: every chunk of GRID is refused with 337."""
+    fake.connection.error_codes = dict.fromkeys(GRID, 337)
+
+
+GRID = [(x, y) for x in range(2, 8) for y in range(2, 8)]
+
+
+@pytest.fixture
+def no_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(MapScanner, "RETRY_BACKOFF", 0.0)
+
+
+@pytest.mark.usefixtures("no_backoff")
+class TestScanningWithSeveralClients:
+    """scan_kingdom_with: one scan, its chunks spread over several clients."""
+
+    def test_each_chunk_is_asked_once_and_every_client_takes_some(self):
+        fakes = [_FakeClient(content_chunks=set(GRID[::2])) for _ in range(3)]
+        _hold_first_replies(fakes)
+
+        result = scan_kingdom_with(fakes, Kingdom.GREEN, item_types=[], chunks=GRID)  # type: ignore[arg-type]
+
+        asked = [chunk for fake in fakes for chunk in fake.connection.requests]
+        assert sorted(asked) == sorted(GRID)
+        assert all(fake.connection.requests for fake in fakes)
+        assert result.failed_chunks == ()
+        assert sorted(result.content_chunks) == sorted(GRID[::2])
+        assert len(result.items) == len(GRID[::2])
+
+    def test_a_shared_discovery_finds_what_one_client_finds(self):
+        content = {(x, y) for x in range(4, 9) for y in range(5, 8)} | {(10, 6)}
+        alone = _make_scanner(_FakeClient(content_chunks=content, start_chunk=(5, 5))).scan_kingdom(item_types=[])
+        fakes = [_FakeClient(content_chunks=content, start_chunk=(5, 5), delay=0.002) for _ in range(4)]
+
+        shared = scan_kingdom_with(fakes, item_types=[])  # type: ignore[arg-type]
+
+        assert shared.failed_chunks == ()
+        assert sorted(shared.content_chunks) == sorted(alone.content_chunks)
+        assert sorted((i.x, i.y) for i in shared.items) == sorted((i.x, i.y) for i in alone.items)
+        assert shared.kingdom is Kingdom.GREEN
+
+    def test_the_owner_records_of_every_client_are_merged(self):
+        owners = {(1, 1): {"AI": [], "OI": [{"OID": 1}]}, (2, 2): {"AI": [], "OI": [{"OID": 2}]}}
+        fakes = [_FakeClient(content_chunks=set(), payloads=owners) for _ in range(2)]
+        _hold_first_replies(fakes)
+
+        result = scan_kingdom_with(fakes, chunks=[(1, 1), (2, 2)])  # type: ignore[arg-type]
+
+        assert all(fake.connection.requests for fake in fakes)
+        assert sorted(result.objects) == [1, 2]
+
+    def test_a_dropped_client_leaves_its_chunks_to_the_others(self):
+        fakes = [_FakeClient(content_chunks=set(GRID), delay=0.005) for _ in range(3)]
+        _drop_after(fakes[0], 1)
+
+        result = scan_kingdom_with(fakes, item_types=[], chunks=GRID)  # type: ignore[arg-type]
+
+        assert len(fakes[0].connection.requests) == 2
+        lost = fakes[0].connection.requests[-1]
+        assert lost in fakes[1].connection.requests + fakes[2].connection.requests
+        assert result.failed_chunks == ()
+        assert sorted(result.content_chunks) == sorted(GRID)
+
+    def test_when_every_client_drops_the_rest_is_failed(self):
+        fakes = [_FakeClient(content_chunks=set(GRID), delay=0.002) for _ in range(2)]
+        for fake in fakes:
+            _drop_after(fake, 3)
+
+        result = scan_kingdom_with(fakes, item_types=[], chunks=GRID)  # type: ignore[arg-type]
+
+        assert len(result.content_chunks) == 6
+        assert sorted(result.content_chunks + result.failed_chunks) == sorted(GRID)
+
+    def test_a_chunk_that_fails_goes_to_a_client_that_has_not_tried_it(self):
+        first_ask_fails = {(1, 1): 1}
+        fakes = [_FakeClient(content_chunks={(1, 1)}, error_codes=first_ask_fails) for _ in range(2)]
+        for fake in fakes:
+            fake.connection.error_codes_once = True
+
+        result = scan_kingdom_with(fakes, item_types=[], chunks=[(1, 1)])  # type: ignore[arg-type]
+
+        assert [fake.connection.requests for fake in fakes] == [[(1, 1)], [(1, 1)]]
+        assert result.failed_chunks == ()
+        assert result.content_chunks == ((1, 1),)
+
+    def test_only_a_chunk_every_client_failed_is_failed(self):
+        fakes = [_FakeClient(content_chunks=set(), error_codes={(3, 3): 1}, delay=0.002) for _ in range(3)]
+
+        result = scan_kingdom_with(fakes, chunks=[(1, 1), (2, 2), (3, 3), (4, 4)])  # type: ignore[arg-type]
+
+        assert result.failed_chunks == ((3, 3),)
+        assert [fake.connection.requests.count((3, 3)) for fake in fakes] == [1, 1, 1]
+
+    def test_a_cancel_stops_every_client_and_reports_the_rest(self):
+        fakes = [_FakeClient(content_chunks=set(GRID), delay=0.005) for _ in range(3)]
+        cancel = threading.Event()
+        answered: list[tuple[int, int]] = []
+
+        def count(chunk: tuple[int, int], items: list[Any], objects: dict[int, Any]) -> None:
+            answered.append(chunk)
+            if len(answered) == 4:
+                cancel.set()
+
+        result = scan_kingdom_with(fakes, item_types=[], chunks=GRID, cancel=cancel, on_chunk=count)  # type: ignore[arg-type]
+
+        asked = {chunk for fake in fakes for chunk in fake.connection.requests}
+        assert len(asked) <= 4 + len(fakes)
+        assert set(result.failed_chunks) == set(GRID) - asked
+        assert not [t for t in threading.enumerate() if t.name.startswith("map-scan-")]
+
+    def test_on_chunk_is_called_one_at_a_time(self):
+        fakes = [_FakeClient(content_chunks=set(GRID)) for _ in range(4)]
+        inside = threading.Lock()
+        overlaps: list[tuple[int, int]] = []
+        seen: list[tuple[int, int]] = []
+
+        def hook(chunk: tuple[int, int], items: list[Any], objects: dict[int, Any]) -> None:
+            if not inside.acquire(blocking=False):
+                overlaps.append(chunk)
+                return
+            time.sleep(0.001)
+            seen.append(chunk)
+            inside.release()
+
+        result = scan_kingdom_with(fakes, item_types=[], chunks=GRID, on_chunk=hook)  # type: ignore[arg-type]
+
+        assert overlaps == []
+        assert sorted(seen) == sorted(GRID)
+        assert (result.items, result.objects) == ([], {})
+
+    def test_an_exception_from_the_hook_stops_every_client_and_is_raised(self):
+        fakes = [_FakeClient(content_chunks=set(GRID), delay=0.005) for _ in range(3)]
+
+        def stop(chunk: tuple[int, int], items: list[Any], objects: dict[int, Any]) -> None:
+            raise RuntimeError("enough")
+
+        with pytest.raises(RuntimeError, match="enough"):
+            scan_kingdom_with(fakes, item_types=[], chunks=GRID, on_chunk=stop)  # type: ignore[arg-type]
+        assert sum(len(fake.connection.requests) for fake in fakes) <= 2 * len(fakes)
+
+    def test_a_client_without_the_kingdom_leaves_its_chunks_to_the_others(self):
+        fakes = [_FakeClient(content_chunks=set(GRID), delay=0.002) for _ in range(2)]
+        _refuse_kingdom(fakes[0])
+
+        result = scan_kingdom_with(fakes, Kingdom.FIRE, item_types=[], chunks=GRID)  # type: ignore[arg-type]
+
+        assert len(fakes[0].connection.requests) == 1
+        assert sorted(fakes[1].connection.requests) == sorted(GRID)
+        assert result.failed_chunks == ()
+        assert sorted(result.content_chunks) == sorted(GRID)
+
+    def test_a_kingdom_no_client_has_unlocked_is_raised(self):
+        fakes = [_FakeClient(content_chunks=set(GRID)) for _ in range(2)]
+        for fake in fakes:
+            _refuse_kingdom(fake)
+
+        with pytest.raises(CommandError) as excinfo:
+            scan_kingdom_with(fakes, Kingdom.FIRE, chunks=GRID)  # type: ignore[arg-type]
+        assert excinfo.value.error is GGEError.ADDITIONAL_KINGDOM_NOT_UNLOCKED
+        assert [len(fake.connection.requests) for fake in fakes] == [1, 1]
+
+    def test_a_kingdom_not_unlocked_is_not_raised_when_another_client_dropped(self):
+        fakes = [_FakeClient(content_chunks=set(GRID), delay=0.002) for _ in range(2)]
+        _refuse_kingdom(fakes[0])
+        _drop_after(fakes[1], 2)
+
+        result = scan_kingdom_with(fakes, Kingdom.FIRE, item_types=[], chunks=GRID)  # type: ignore[arg-type]
+
+        assert sorted(result.content_chunks + result.failed_chunks) == sorted(GRID)
+
+    def test_discovery_starts_at_the_first_client_with_a_castle_there(self):
+        content = {(x, y) for x in range(4, 7) for y in range(4, 7)}
+        fakes = [_FakeClient(content_chunks=content, start_chunk=(5, 5)) for _ in range(2)]
+        fakes[0].state.castle.kingdom_id = Kingdom.FIRE
+
+        result = scan_kingdom_with(fakes, item_types=[])  # type: ignore[arg-type]
+
+        assert sorted(result.content_chunks) == sorted(content)
+
+    def test_no_chunk_reaches_on_chunk_after_it_raised(self):
+        fakes = [_FakeClient(content_chunks=set(GRID), delay=0.005) for _ in range(3)]
+        calls: list[tuple[int, int]] = []
+
+        def stop(chunk: tuple[int, int], items: list[Any], objects: dict[int, Any]) -> None:
+            calls.append(chunk)
+            time.sleep(0.02)
+            raise RuntimeError("enough")
+
+        with pytest.raises(RuntimeError, match="enough"):
+            scan_kingdom_with(fakes, item_types=[], chunks=GRID, on_chunk=stop)  # type: ignore[arg-type]
+        assert len(calls) == 1
+
+    def test_an_interrupt_stops_every_client_and_is_raised(self, monkeypatch: pytest.MonkeyPatch):
+        fakes = [_FakeClient(content_chunks=set(GRID), delay=0.005) for _ in range(3)]
+        delivered: list[tuple[int, int]] = []
+        join = threading.Thread.join
+        interrupted: list[bool] = []
+
+        def interrupt_once(thread: threading.Thread, timeout: float | None = None) -> None:
+            if not interrupted:
+                interrupted.append(True)
+                raise KeyboardInterrupt
+            join(thread, timeout)
+
+        monkeypatch.setattr(threading.Thread, "join", interrupt_once)
+        with pytest.raises(KeyboardInterrupt):
+            scan_kingdom_with(
+                fakes,  # type: ignore[arg-type]
+                item_types=[],
+                chunks=GRID,
+                on_chunk=lambda chunk, items, objects: delivered.append(chunk),
+            )
+        monkeypatch.undo()
+
+        asked = sum(len(fake.connection.requests) for fake in fakes)
+        assert not [t for t in threading.enumerate() if t.name.startswith("map-scan-")]
+        assert asked <= 2 * len(fakes)
+        assert len(delivered) <= asked
+
+    def test_no_clients_is_refused(self):
+        with pytest.raises(ValueError):
+            scan_kingdom_with([], chunks=[(1, 1)])
+
+    def test_one_client_twice_is_refused(self):
+        fake = _FakeClient(content_chunks=set())
+
+        with pytest.raises(ValueError, match="once"):
+            scan_kingdom_with([fake, fake], chunks=[(1, 1)])  # type: ignore[list-item]
+        assert fake.connection.requests == []

@@ -4,7 +4,7 @@ import logging
 import threading
 import time
 from collections import deque
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from typing import Any, NamedTuple, Protocol
 
 from empire_core.enums import Kingdom, MapItemType
@@ -84,6 +84,7 @@ class _ChunkResult(NamedTuple):
 
 
 _FAILED = _ChunkResult(ok=False, has_content=False, items=[], objects={})
+_NOT_UNLOCKED = _ChunkResult(ok=False, has_content=False, items=[], objects={})
 
 
 class _Connection(Protocol):
@@ -143,46 +144,13 @@ class MapScanner:
         """Send a chunk request and wait for the matching gaa response."""
         return self.client.request_packet(request, "gaa", timeout=request_timeout)
 
-    def _get_kingdom_start_position(self, kingdom: Kingdom) -> tuple[int, int]:
-        """
-        Get a starting position for scanning a kingdom.
-
-        Uses the bot's own castle position in the target kingdom if available.
-        Falls back to map center (650, 650) if no castle found.
-
-        Args:
-            kingdom: The kingdom to find a starting position for
-
-        Returns:
-            (x, y) tuple for the starting position
-        """
+    def _castle_position(self, kingdom: Kingdom) -> tuple[int, int] | None:
+        """Where the client's first castle in ``kingdom`` stands; None without one."""
         if self.client.state:
-            # Find a castle in the target kingdom
             for castle in self.client.state.get_castles():
                 if castle.kingdom_id == kingdom:
                     return (castle.x, castle.y)
-
-        # No castle in this kingdom - use map center as fallback
-        return (650, 650)
-
-    def _unscanned_chunks(self, queue: deque[tuple[int, int]], visited: set[tuple[int, int]]) -> list[tuple[int, int]]:
-        """
-        Chunks still queued for a scan that was cut short.
-
-        Reported in ``failed_chunks`` so an aborted scan is never mistaken
-        for a complete one. Entries the loop would have skipped anyway
-        (already visited, duplicated, out of range) are left out.
-        """
-        remaining: list[tuple[int, int]] = []
-        seen: set[tuple[int, int]] = set()
-        for cx, cy in queue:
-            if (cx, cy) in visited or (cx, cy) in seen:
-                continue
-            if cx < 0 or cy < 0 or cx > self.MAX_COORD or cy > self.MAX_COORD:
-                continue
-            seen.add((cx, cy))
-            remaining.append((cx, cy))
-        return remaining
+        return None
 
     def _process_chunk(
         self,
@@ -199,7 +167,8 @@ class MapScanner:
 
         Returns (ok, has_content). ``ok=False`` means the request failed
         (as opposed to succeeding with an empty area), or ``cancel`` was set
-        before a retry.
+        before a retry; ``_NOT_UNLOCKED`` that this client has not unlocked
+        the kingdom.
         """
         x1, y1, x2, y2 = self._chunk_bounds(cx, cy)
         request = GetMapAreaRequest(kingdom=kingdom, x1=x1, y1=y1, x2=x2, y2=y2)
@@ -224,7 +193,7 @@ class MapScanner:
                 return _FAILED
 
         if response.error_code == GGEError.ADDITIONAL_KINGDOM_NOT_UNLOCKED:
-            raise CommandError("gaa", response.error_code)
+            return _NOT_UNLOCKED
 
         if response.error_code:
             # Any other non-zero code (cooldown, rate limiting, map not
@@ -395,142 +364,17 @@ class MapScanner:
         raised by ``on_chunk`` ends the scan. The client decides nothing
         here: it reads each chunk into its world map as it arrives.
         """
-        # Get starting position from bot's castle
-        start_x, start_y = self._get_kingdom_start_position(kingdom)
-        start_cx, start_cy = start_x // self.CHUNK_SIZE, start_y // self.CHUNK_SIZE
-
-        # None means castles only (type 1 = player main castles)
-        if item_types is None:
-            item_types = [MapItemType.CASTLE]
-
-        # An empty list, by contrast, means no filtering at all
-        filter_types = set(item_types) if item_types else None
-
-        filter_desc = f"types={list(item_types)}" if item_types else "all types"
-        logger.debug(f"Scanning kingdom {kingdom!r} from chunk ({start_cx}, {start_cy}) for {filter_desc}...")
-
-        # State tracking
-        collected_items: list[MapAreaItem] = []
-        collected_objects: dict[int, MapObject] = {}
-        visited: set[tuple[int, int]] = set()
-        failed_chunks: list[tuple[int, int]] = []
-        connection_lost = False
-        content_chunks: list[tuple[int, int]] = []
-
-        # BFS queue - process one chunk at a time
-        queue: deque[tuple[int, int]] = deque([(start_cx, start_cy)])
-        enqueued: set[tuple[int, int]] = {(start_cx, start_cy)}
-        total_requests = 0
-        items_found = 0
-        start_time = time.time()
-
-        # Track boundaries
-        min_x_found = start_cx
-        max_x_found = start_cx
-        min_y_found = start_cy
-        max_y_found = start_cy
-
-        while queue:
-            if time.time() - start_time > timeout:
-                logger.warning(f"Kingdom scan timeout after {total_requests} requests")
-                failed_chunks.extend(self._unscanned_chunks(queue, visited))
-                break
-
-            if chunk_delay > 0:
-                sleep_unless_cancelled(chunk_delay, cancel)
-            if cancel is not None and cancel.is_set():
-                logger.info(f"Kingdom scan cancelled after {total_requests} requests")
-                failed_chunks.extend(self._unscanned_chunks(queue, visited))
-                break
-
-            cx, cy = queue.popleft()
-
-            if (cx, cy) in visited:
-                continue
-            if cx < 0 or cy < 0 or cx > self.MAX_COORD or cy > self.MAX_COORD:
-                continue
-
-            visited.add((cx, cy))
-            total_requests += 1
-
-            # Process this chunk
-            result = self._process_chunk(
-                cx,
-                cy,
-                kingdom,
-                filter_types,
-                request_timeout,
-                include_unowned_types=include_unowned_types,
-                cancel=cancel,
-            )
-
-            if not result.ok:
-                failed_chunks.append((cx, cy))
-                if not self.client.connection.connected:
-                    connection_lost = True
-                    failed_chunks.extend(self._unscanned_chunks(queue, visited))
-                    break
-            else:
-                items_found += len(result.items)
-                if on_chunk is not None:
-                    on_chunk((cx, cy), result.items, result.objects)
-                else:
-                    collected_items.extend(result.items)
-                    collected_objects.update(result.objects)
-                if result.has_content:
-                    content_chunks.append((cx, cy))
-
-            # A failed chunk is treated as if it had content so BFS keeps
-            # expanding past it instead of silently truncating the region.
-            has_content = result.has_content or not result.ok
-
-            # Update bounds tracking
-            if has_content:
-                min_x_found = min(min_x_found, cx)
-                max_x_found = max(max_x_found, cx)
-                min_y_found = min(min_y_found, cy)
-                max_y_found = max(max_y_found, cy)
-
-            # Add neighbors to queue (BFS expansion)
-            neighbors = [(cx - 1, cy), (cx + 1, cy), (cx, cy - 1), (cx, cy + 1)]
-            for nx, ny in neighbors:
-                if (nx, ny) in enqueued or (nx, ny) in visited:
-                    continue
-                # Always explore if within 2 chunks of known content
-                if min_x_found - 2 <= nx <= max_x_found + 2 and min_y_found - 2 <= ny <= max_y_found + 2:
-                    queue.append((nx, ny))
-                    enqueued.add((nx, ny))
-                # Or if this chunk had content, explore neighbors
-                elif has_content:
-                    queue.append((nx, ny))
-                    enqueued.add((nx, ny))
-
-            # Log progress periodically
-            if total_requests % 50 == 0:
-                elapsed = time.time() - start_time
-                logger.debug(f"Scan progress: {total_requests} chunks, {items_found} items, {elapsed:.1f}s elapsed")
-
-        elapsed = time.time() - start_time
-        _log_incomplete(
-            "Kingdom scan",
-            failed_chunks,
-            cancelled=cancel is not None and cancel.is_set(),
-            connection_lost=connection_lost,
-        )
-        logger.debug(
-            f"Kingdom {kingdom!r} scan complete. "
-            f"Scanned {total_requests} chunks in {elapsed:.1f}s, "
-            f"found {items_found} items. "
-            f"Map bounds: x=[{min_x_found * self.CHUNK_SIZE}-{(max_x_found + 1) * self.CHUNK_SIZE}] "
-            f"y=[{min_y_found * self.CHUNK_SIZE}-{(max_y_found + 1) * self.CHUNK_SIZE}]"
-        )
-        return ScanResult(
-            items=collected_items,
-            objects=collected_objects,
-            kingdom=kingdom,
-            failed_chunks=tuple(failed_chunks),
-            content_chunks=tuple(content_chunks),
-        )
+        return _Scan(
+            [self],
+            kingdom,
+            _filter_types(item_types),
+            include_unowned_types,
+            timeout=timeout,
+            request_timeout=request_timeout,
+            chunk_delay=chunk_delay,
+            cancel=cancel,
+            on_chunk=on_chunk,
+        ).run()
 
     def scan_chunks(
         self,
@@ -567,80 +411,323 @@ class MapScanner:
         chunks, and ``on_chunk`` takes each chunk in place of the result, as
         in scan_kingdom().
         """
-        # None means castles only; an empty list means no filtering at all.
-        if item_types is None:
-            item_types = [MapItemType.CASTLE]
-        filter_types = set(item_types) if item_types else None
-
-        collected_items: list[MapAreaItem] = []
-        collected_objects: dict[int, MapObject] = {}
-        failed_chunks: list[tuple[int, int]] = []
-        connection_lost = False
-        content_chunks: list[tuple[int, int]] = []
-
-        todo: list[tuple[int, int]] = []
-        seen: set[tuple[int, int]] = set()
-        for cx, cy in chunks:
-            if (cx, cy) in seen:
-                continue
-            seen.add((cx, cy))
-            if cx < 0 or cy < 0 or cx > self.MAX_COORD or cy > self.MAX_COORD:
-                continue
-            todo.append((cx, cy))
-
-        start_time = time.time()
-        for i, (cx, cy) in enumerate(todo):
-            if time.time() - start_time > timeout:
-                logger.warning(f"Chunk scan timeout after {i} of {len(todo)} chunks")
-                failed_chunks.extend(todo[i:])
-                break
-
-            if chunk_delay > 0:
-                sleep_unless_cancelled(chunk_delay, cancel)
-            if cancel is not None and cancel.is_set():
-                logger.info(f"Chunk scan cancelled after {i} of {len(todo)} chunks")
-                failed_chunks.extend(todo[i:])
-                break
-
-            result = self._process_chunk(
-                cx,
-                cy,
-                kingdom,
-                filter_types,
-                request_timeout,
-                include_unowned_types=include_unowned_types,
-                cancel=cancel,
-            )
-
-            if not result.ok:
-                failed_chunks.append((cx, cy))
-                if not self.client.connection.connected:
-                    connection_lost = True
-                    failed_chunks.extend(todo[i + 1 :])
-                    break
-            else:
-                if on_chunk is not None:
-                    on_chunk((cx, cy), result.items, result.objects)
-                else:
-                    collected_items.extend(result.items)
-                    collected_objects.update(result.objects)
-                if result.has_content:
-                    content_chunks.append((cx, cy))
-
-        _log_incomplete(
-            "Chunk scan",
-            failed_chunks,
-            cancelled=cancel is not None and cancel.is_set(),
-            connection_lost=connection_lost,
-        )
-        return ScanResult(
-            items=collected_items,
-            objects=collected_objects,
-            kingdom=kingdom,
-            failed_chunks=tuple(failed_chunks),
-            content_chunks=tuple(content_chunks),
-        )
+        return _Scan(
+            [self],
+            kingdom,
+            _filter_types(item_types),
+            include_unowned_types,
+            timeout=timeout,
+            request_timeout=request_timeout,
+            chunk_delay=chunk_delay,
+            cancel=cancel,
+            on_chunk=on_chunk,
+        ).run(chunks=chunks)
 
     def chunk_for_position(self, x: int, y: int) -> tuple[int, int]:
         """Map world coordinates to the chunk that contains them."""
         return (x // self.CHUNK_SIZE, y // self.CHUNK_SIZE)
+
+
+def scan_kingdom_with(
+    clients: Sequence[_Client],
+    kingdom: Kingdom = Kingdom.GREEN,
+    item_types: list[MapItemType] | None = None,
+    timeout: float = 300.0,
+    request_timeout: float = 5.0,
+    chunk_delay: float = 0.0,
+    include_unowned_types: set[MapItemType] | None = None,
+    *,
+    chunks: Iterable[tuple[int, int]] | None = None,
+    cancel: threading.Event | None = None,
+    on_chunk: ChunkHandler | None = None,
+) -> ScanResult:
+    """
+    Scan one kingdom with several logged-in clients at once, each on its own thread.
+
+    Without ``chunks`` the clients discover the kingdom together, breadth-first
+    from the castle there of the first client that has one, as :meth:`MapScanner.scan_kingdom`
+    does; with ``chunks`` (say a discovery's ``content_chunks``) they scan
+    those, as :meth:`MapScanner.scan_chunks` does. Every other argument means
+    what it means there. Each client keeps one request in flight and takes the
+    next chunk not yet taken, so the chunks interleave across the clients and
+    a slow client takes fewer.
+
+    A chunk that fails on one client, after that client's own retries, is
+    asked again by a client that has not tried it. A client whose session
+    drops, or whose account has not unlocked the kingdom (a chunk refused with
+    ADDITIONAL_KINGDOM_NOT_UNLOCKED), leaves the scan and the others take over
+    its chunk. Only a chunk every remaining client has tried, or one left when
+    no client remains, the ``timeout`` passes or ``cancel`` is set, ends in
+    ``failed_chunks``.
+
+    The result merges every client's chunks: ``items`` and ``content_chunks``
+    are in the order the chunks answered, which varies between runs.
+    ``on_chunk`` is called from the clients' threads, one call at a time, so
+    it needs no lock of its own; an exception it raises stops every client
+    after its chunk in flight and is raised here, and no chunk reaches
+    ``on_chunk`` after it. An interrupt (``KeyboardInterrupt``) while waiting
+    stops the clients the same way, each after the request it has in flight,
+    and is raised once they have. Every session leaves the castle it had joined.
+
+    Parsing a chunk's reply holds the GIL, so threads in one process overlap
+    their waits for replies but not their parsing; see the map-scanning guide.
+    The client decides nothing here: one game client is one session and never
+    spreads a scan.
+
+    Raises:
+        ValueError: ``clients`` is empty, or names one client twice
+        CommandError: Every client left with ADDITIONAL_KINGDOM_NOT_UNLOCKED
+    """
+    if not clients:
+        raise ValueError("scan_kingdom_with needs at least one client")
+    if len({id(client) for client in clients}) != len(clients):
+        raise ValueError("scan_kingdom_with takes each client once")
+    scan = _Scan(
+        [MapScanner(client) for client in clients],
+        kingdom,
+        _filter_types(item_types),
+        include_unowned_types,
+        timeout=timeout,
+        request_timeout=request_timeout,
+        chunk_delay=chunk_delay,
+        cancel=cancel,
+        on_chunk=on_chunk,
+    )
+    return scan.run(chunks=chunks)
+
+
+def _filter_types(item_types: list[MapItemType] | None) -> set[MapItemType] | None:
+    """The types a scan keeps: ``None`` asks for castles only, ``[]`` for every type (None here)."""
+    if item_types is None:
+        return {MapItemType.CASTLE}
+    return set(item_types) or None
+
+
+class _Scan:
+    """
+    One scan shared by one or more clients, each taking the next chunk from a shared frontier.
+
+    A chunk that fails on a client goes back to the frontier for a client that
+    has not tried it yet; a client whose session drops, or that has not
+    unlocked the kingdom, leaves the scan. Only a chunk every remaining client
+    has tried ends in ``failed_chunks``. The kingdom not being unlocked is
+    raised once every client has left for it.
+    """
+
+    WAIT_POLL = 0.05
+
+    def __init__(
+        self,
+        scanners: Sequence[MapScanner],
+        kingdom: Kingdom,
+        filter_types: set[MapItemType] | None,
+        include_unowned_types: set[MapItemType] | None,
+        *,
+        timeout: float,
+        request_timeout: float,
+        chunk_delay: float,
+        cancel: threading.Event | None,
+        on_chunk: ChunkHandler | None,
+    ) -> None:
+        self.scanners = scanners
+        self.kingdom = kingdom
+        self.filter_types = filter_types
+        self.include_unowned_types = include_unowned_types
+        self.request_timeout = request_timeout
+        self.chunk_delay = chunk_delay
+        self.cancel = cancel
+        self.on_chunk = on_chunk
+        self.deadline = time.monotonic() + timeout
+
+        self.lock = threading.Condition()
+        self.hook_lock = threading.Lock()
+        self.frontier: deque[tuple[int, int]] = deque()
+        self.enqueued: set[tuple[int, int]] = set()
+        self.tried_by: dict[tuple[int, int], set[int]] = {}
+        self.live = set(range(len(scanners)))
+        self.not_unlocked: set[int] = set()
+        self.active = 0
+        self.discovering = False
+        self.bounds = (0, 0, 0, 0)
+        self.stopped: str | None = None
+        self.error: BaseException | None = None
+
+        self.items: list[MapAreaItem] = []
+        self.objects: dict[int, MapObject] = {}
+        self.failed: list[tuple[int, int]] = []
+        self.content: list[tuple[int, int]] = []
+        self.requests = 0
+        self.items_found = 0
+
+    def run(self, chunks: Iterable[tuple[int, int]] | None = None) -> ScanResult:
+        """Scan ``chunks``, or discover the kingdom breadth-first from the first castle a client has there."""
+        name = "Kingdom scan" if chunks is None else "Chunk scan"
+        if chunks is None:
+            x, y = next(
+                (position for scanner in self.scanners if (position := scanner._castle_position(self.kingdom))),
+                (650, 650),
+            )
+            start = self.scanners[0].chunk_for_position(x, y)
+            self.discovering = True
+            self.bounds = (*start, *start)
+            chunks = [start]
+        for chunk in chunks:
+            self._add(chunk)
+        logger.debug(
+            f"{name} of {self.kingdom!r}: {len(self.frontier)} chunk(s) queued, {len(self.scanners)} client(s)"
+        )
+
+        started = time.monotonic()
+        if len(self.scanners) == 1:
+            self._work(0)
+        else:
+            threads: list[threading.Thread] = []
+            try:
+                for index in range(len(self.scanners)):
+                    threads.append(
+                        threading.Thread(target=self._work, args=(index,), name=f"map-scan-{index}", daemon=True)
+                    )
+                    threads[-1].start()
+                for thread in threads:
+                    thread.join()
+            except BaseException:
+                with self.lock:
+                    self.stopped = "interrupted"
+                    self.lock.notify_all()
+                for thread in threads:
+                    thread.join()
+                raise
+        if self.error is not None:
+            raise self.error
+        if len(self.not_unlocked) == len(self.scanners):
+            raise CommandError("gaa", GGEError.ADDITIONAL_KINGDOM_NOT_UNLOCKED)
+
+        if self.stopped:
+            logger.log(
+                logging.WARNING if self.stopped == "timed out" else logging.INFO,
+                f"{name} {self.stopped} after {self.requests} requests",
+            )
+        failed = self.failed + list(self.frontier)
+        _log_incomplete(name, failed, cancelled=self.stopped == "cancelled", connection_lost=not self.live)
+        logger.debug(
+            f"{name} of {self.kingdom!r} done: {self.requests} chunks in {time.monotonic() - started:.1f}s, "
+            f"found {self.items_found} items"
+        )
+        return ScanResult(
+            items=self.items,
+            objects=self.objects,
+            kingdom=self.kingdom,
+            failed_chunks=tuple(failed),
+            content_chunks=tuple(self.content),
+        )
+
+    def _add(self, chunk: tuple[int, int]) -> None:
+        cx, cy = chunk
+        if chunk in self.enqueued or not (0 <= cx <= MapScanner.MAX_COORD and 0 <= cy <= MapScanner.MAX_COORD):
+            return
+        self.enqueued.add(chunk)
+        self.frontier.append(chunk)
+
+    def _work(self, index: int) -> None:
+        scanner = self.scanners[index]
+        while True:
+            if self.chunk_delay > 0:
+                sleep_unless_cancelled(self.chunk_delay, self.cancel)
+            chunk = self._take(index)
+            if chunk is None:
+                return
+            try:
+                result = scanner._process_chunk(
+                    *chunk,
+                    self.kingdom,
+                    self.filter_types,
+                    self.request_timeout,
+                    include_unowned_types=self.include_unowned_types,
+                    cancel=self.cancel,
+                )
+                if result.ok and self.on_chunk is not None:
+                    with self.hook_lock:
+                        with self.lock:
+                            aborted = self.error is not None or self.stopped == "interrupted"
+                        if not aborted:
+                            self.on_chunk(chunk, result.items, result.objects)
+            except BaseException as e:
+                with self.lock:
+                    self.active -= 1
+                    self.error = self.error or e
+                    self.lock.notify_all()
+                return
+            left = result is _NOT_UNLOCKED or (not result.ok and not scanner.client.connection.connected)
+            self._finish(index, chunk, result, left)
+            if left:
+                return
+
+    def _take(self, index: int) -> tuple[int, int] | None:
+        """The next chunk this client has not tried, waiting while another client may still add one; None to stop."""
+        with self.lock:
+            while True:
+                if self.error is not None or self.stopped:
+                    return None
+                if self.cancel is not None and self.cancel.is_set():
+                    self.stopped = "cancelled"
+                    return None
+                if time.monotonic() > self.deadline:
+                    self.stopped = "timed out"
+                    return None
+                for position, chunk in enumerate(self.frontier):
+                    if index not in self.tried_by.get(chunk, ()):
+                        del self.frontier[position]
+                        self.active += 1
+                        self.requests += 1
+                        return chunk
+                if not self.frontier and not self.active:
+                    return None
+                self.lock.wait(self.WAIT_POLL)
+
+    def _finish(self, index: int, chunk: tuple[int, int], result: _ChunkResult, left: bool) -> None:
+        """Record a chunk's result; ``left`` when its client leaves the scan, its chunk then going to the others."""
+        with self.lock:
+            self.active -= 1
+            if left:
+                self.live.discard(index)
+            if result is _NOT_UNLOCKED:
+                self.not_unlocked.add(index)
+                self.frontier.appendleft(chunk)
+            elif result.ok:
+                self.items_found += len(result.items)
+                if self.on_chunk is None:
+                    self.items.extend(result.items)
+                    self.objects.update(result.objects)
+                if result.has_content:
+                    self.content.append(chunk)
+                self._expand(chunk, result.has_content)
+            else:
+                self.tried_by.setdefault(chunk, set()).add(index)
+                if self.live - self.tried_by[chunk]:
+                    self.frontier.appendleft(chunk)
+                else:
+                    self.failed.append(chunk)
+                    if self.live:
+                        self._expand(chunk, True)
+            if left and self.live:
+                for stranded in [c for c in self.frontier if not self.live - self.tried_by.get(c, set())]:
+                    self.frontier.remove(stranded)
+                    self.failed.append(stranded)
+            self.lock.notify_all()
+
+    def _expand(self, chunk: tuple[int, int], has_content: bool) -> None:
+        """
+        Queue a discovered chunk's neighbours: all of them after content, else those near the content found so far.
+
+        A failed chunk counts as content, so the scan expands past it.
+        """
+        if not self.discovering:
+            return
+        cx, cy = chunk
+        min_x, min_y, max_x, max_y = self.bounds
+        if has_content:
+            min_x, min_y, max_x, max_y = min(min_x, cx), min(min_y, cy), max(max_x, cx), max(max_y, cy)
+            self.bounds = (min_x, min_y, max_x, max_y)
+        for nx, ny in ((cx - 1, cy), (cx + 1, cy), (cx, cy - 1), (cx, cy + 1)):
+            if has_content or (min_x - 2 <= nx <= max_x + 2 and min_y - 2 <= ny <= max_y + 2):
+                self._add((nx, ny))

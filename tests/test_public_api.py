@@ -386,7 +386,7 @@ def _signatures(obj: type | types.FunctionType) -> list[tuple[str, Any]]:
 
 _INTERNAL_TYPES = {
     "empire_core.client.stream.CallbackSource": "EventStream.__init__ takes it, but only the client builds streams",
-    "empire_core.map.scanner._Client": "the structural type of MapScanner's client; callers pass an EmpireClient",
+    "empire_core.map.scanner._Client": "the structural type of a scanning client; callers pass EmpireClients",
 }
 
 

@@ -133,25 +133,23 @@ environment.
 
 ## Scanning with several accounts
 
-The server limits the request rate per account, so frequent map scans go
-faster split across accounts. Give each its interleaved slice of the chunks a
-discovery scan found:
+The server limits the request rate per account, so map scans go faster spread
+over several accounts. Lease them and hand them to `scan_kingdom_with`, which
+gives each its own thread and moves a dropped client's chunks to the others:
 
 ```python
-from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
 
 from empire_core import Kingdom
+from empire_core.map import scan_kingdom_with
 
-chunks = list(discovery.content_chunks)
-names = ["scanner1", "scanner2", "scanner3"]
-
-def scan(index):
-    with pool.leased(username=names[index]) as client:
-        return client.map.scan_chunks(Kingdom.GREEN, chunks[index::len(names)])
-
-with ThreadPoolExecutor(len(names)) as executor:
-    results = list(executor.map(scan, range(len(names))))
+with ExitStack() as leases:
+    clients = [leases.enter_context(pool.leased(tag="scanner")) for _ in range(4)]
+    result = scan_kingdom_with(clients, Kingdom.GREEN)
 ```
+
+See [Map scanning](map-scanning.md#scanning-with-several-accounts) for what
+it returns and how far threads in one process go.
 
 ## Runnable example
 
