@@ -819,6 +819,27 @@ class TestAttacksAcrossARelogin:
 
         assert wait_for(lambda: events[3:] == [("attack", 100), ("occupation", 400)])
 
+    def test_a_reannounce_queued_before_the_relogin_lists_the_movement_fires_once_it_does(
+        self, client, monkeypatch, waits
+    ):
+        serve(client, monkeypatch, [100, 101, (400, OCCUPATION)])
+        events: list[object] = []
+        queued: list[bool] = []
+        client.state.on_incoming_attack(lambda mov: events.append(("attack", mov.movement_id)))
+        client.state.on_occupation_started(lambda mov: events.append(("occupation", mov.movement_id)))
+        client.on_session_restored(lambda: events.append("restored"))
+        client.on_disconnect(
+            lambda: queued.extend([client.state.reannounce(100), client.state.reannounce(100, when_listed=True)])
+        )
+        logged_in(client, 100, (400, OCCUPATION))
+        assert wait_for(lambda: len(events) == 2)
+
+        drop(client)
+
+        assert queued == [False, True]
+        assert wait_for(lambda: "restored" in events)
+        assert events[2:] == [("attack", 100), ("attack", 101), "restored"]
+
 
 class TestStream:
     def test_a_stream_carries_on_across_the_relogin(self, client, monkeypatch, waits):

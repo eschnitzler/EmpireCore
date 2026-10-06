@@ -638,7 +638,7 @@ class MovementState(StateBase):
             self._advance_movements()
             return self._announcer.listed(self._announcer.occupations, self.movements)
 
-    def reannounce(self, movement_id: int) -> bool:
+    def reannounce(self, movement_id: int, *, when_listed: bool = False) -> bool:
         """Fire :meth:`on_incoming_attack` or :meth:`on_occupation_started` again for an announced movement.
 
         For a consumer whose callback could not act on the announcement (an
@@ -648,17 +648,40 @@ class MovementState(StateBase):
         announces it again. A ``client.listen()`` stream gets it as an
         ordinary ``incoming_attack`` or ``occupation_started`` event.
 
+        After a reconnect, a movement announced before it is known again
+        only once a packet lists it: the movement list the server pushes
+        after the login. ``on_session_restored`` fires once that list has
+        come, or once ``config.request_timeout`` passed without it (a
+        warning is logged), so even there it may not be listed yet. Until
+        then the callbacks cannot fire. With ``when_listed`` they are queued
+        instead, and fire once, with the Movement as the next packet that
+        lists it has it, however often this was called. The queued call is
+        dropped without firing if no packet lists the movement before its
+        travel time is over, the server removes it, or it is listed again
+        with its arrival behind it. An :class:`~empire_core.pool.AccountPool`
+        release drops it too.
+
+        Args:
+            movement_id: The movement to announce again.
+            when_listed: Queue the callbacks for an announced movement no
+                packet has listed since a reconnect, instead of returning False.
+
         Returns:
-            True if the callbacks were queued; False if ``movement_id`` is not
-            among :meth:`get_announced_attacks` or :meth:`get_occupations`
-            (never announced, arrived or ended, removed, or not listed again
-            since a reconnect).
+            True if the callbacks were queued, now or with ``when_listed`` for
+            the next listing; False if ``movement_id`` is not announced (never
+            announced, arrived or ended, or removed), or without
+            ``when_listed`` not listed again since a reconnect.
 
         Library bookkeeping: the client announces nothing (see :meth:`on_incoming_attack`).
         """
         with self._lock:
             self._advance_movements()
-            return self._announcer.reannounce(self.movements.get(movement_id))
+            return self._announcer.reannounce(movement_id, self.movements.get(movement_id), when_listed=when_listed)
+
+    def _forget_queued_reannounces(self) -> None:
+        """Drop every :meth:`reannounce` ``when_listed`` call still waiting, as the client is handed on."""
+        with self._lock:
+            self._announcer.reannounce_when_listed.clear()
 
     def get_movement_by_id(self, movement_id: int) -> Movement | None:
         """Get a tracked movement by its ``Movement.movement_id``, as ``client.movements.get_movements()`` lists it."""

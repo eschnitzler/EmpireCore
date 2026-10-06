@@ -126,17 +126,37 @@ If a callback could not act on an announcement (an alert that failed to send),
 `on_occupation_started` again with the movement as state has it now, and returns
 `True`. It returns `False`, firing nothing, for a movement that is not in
 those lists: never announced, arrived, removed, or not listed again since a
-reconnect. Nothing is re-announced on its own: the movement stays announced,
+reconnect (see below). Nothing is re-announced on its own: the movement stays announced,
 and later packets for it fire only the `_updated` callbacks. A re-announcement
 reaches every `on_incoming_attack` or `on_occupation_started` callback and every
 `client.listen()` stream of them as an ordinary `incoming_attack` or
 `occupation_started` event; nothing marks it as a repeat.
 
+After a reconnect a movement is listed again only once the movement list the
+server pushes after the login has come. With `keep_session`,
+`on_session_restored` fires once that list has reached state, or once
+`config.request_timeout` passed without it (a warning is logged), so pass
+`when_listed=True` there too. The same goes for earlier calls, say to retry an
+alert as soon as the session drops: the call returns `True` and the callbacks
+fire once the next packet lists the movement, once however often you asked.
+The queued call is dropped, firing nothing, if no packet lists the movement
+before its travel time is over, the server removes it, or it comes back with
+its arrival behind it:
+
+```python
+def on_drop() -> None:
+    for movement_id in failed_alerts:
+        client.state.reannounce(movement_id, when_listed=True)
+
+client.on_disconnect(on_drop)
+```
+
 What was announced outlives the session: a reconnect, and also `close()`
 followed by `login()`, announces none of it again. A client handed on, as an
 [account pool](multiple-accounts.md) lease is, does not announce to its next
 holder what it announced to the previous one; read `get_announced_attacks()`
-and `get_occupations()`, or call `reannounce`, to catch up.
+and `get_occupations()`, or call `reannounce`, to catch up. The release drops
+the `when_listed` calls still waiting, so the next holder gets none of them.
 
 ## Callback signatures
 

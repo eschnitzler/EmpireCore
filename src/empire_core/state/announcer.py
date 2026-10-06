@@ -68,6 +68,8 @@ class MovementAnnouncer:
         self._fire = fire
         # Movement id -> when it ends (wall clock), in the order announced
         self.announced: dict[int, float] = {}
+        # Announced movement ids to announce again once a packet lists them
+        self.reannounce_when_listed: set[int] = set()
         self._prune_at = math.inf
 
     def events_for(self, mov: Movement) -> AttackEvents | OccupationEvents | None:
@@ -88,7 +90,9 @@ class MovementAnnouncer:
         its attack warnings anew (``CastleArmyData.checkAllAttackMovements``, bundle
         line 133659), so one whose owner record comes later still fires, once; an
         occupation likewise. A later packet for an announced attack or occupation
-        fires the updated callback when it changes what that callback reports.
+        fires the updated callback when it changes what that callback reports,
+        and the announced callbacks if :meth:`reannounce` queued it and it has
+        not arrived.
         """
         mid = new.movement_id
         events = self.events_for(new)
@@ -96,6 +100,10 @@ class MovementAnnouncer:
             self.announced[mid] = max(self.announced[mid], new.estimated_end)
             if events is not None and old is not None and self._changed(old, new):
                 self._fire(events.updated, old, new)
+            if mid in self.reannounce_when_listed:
+                self.reannounce_when_listed.discard(mid)
+                if events is not None and not arrived:
+                    self._fire(events.announced, new)
         elif (
             events is not None
             and not arrived
@@ -108,6 +116,7 @@ class MovementAnnouncer:
 
     def arrived(self, mov: Movement) -> list[QueuedCall]:
         """Forget an arrived movement; the calls to queue after its arrival if it was announced."""
+        self.reannounce_when_listed.discard(mov.movement_id)
         events = self.events_for(mov) if self.announced.pop(mov.movement_id, None) is not None else None
         return events.leaving(mov, arrived=True) if events is not None else []
 
@@ -123,12 +132,14 @@ class MovementAnnouncer:
             if events is not None:
                 leaving = events.leaving(mov, time.time() >= mov.estimated_arrival - ETA_CHANGE_THRESHOLD)
         self.announced.pop(mid, None)
+        self.reannounce_when_listed.discard(mid)
         return leaving
 
     def prune(self, now: float) -> None:
         """Forget announced movements whose end has passed while no session tracked them."""
         if now >= self._prune_at:
             self.announced = {mid: end for mid, end in self.announced.items() if now < end}
+            self.reannounce_when_listed &= self.announced.keys()
             self._prune_at = min(self.announced.values(), default=math.inf)
 
     def listed(self, events: AttackEvents | OccupationEvents, movements: Mapping[int, Movement]) -> list[Movement]:
@@ -136,10 +147,20 @@ class MovementAnnouncer:
         tracked = (movements.get(mid) for mid in self.announced)
         return [mov for mov in tracked if mov is not None and self.events_for(mov) is events]
 
-    def reannounce(self, mov: Movement | None) -> bool:
-        """Fire the announced callbacks again for a tracked movement if it is announced; False if it is not one."""
-        events = self.events_for(mov) if mov is not None and mov.movement_id in self.announced else None
-        if mov is None or events is None:
+    def reannounce(self, mid: int, mov: Movement | None, *, when_listed: bool) -> bool:
+        """Fire the announced callbacks again for an announced movement; False if it is not one.
+
+        ``mov`` is the movement as tracked, None while no packet since a reconnect
+        listed it; ``when_listed`` then queues the callbacks for :meth:`stored`.
+        """
+        if mid not in self.announced:
+            return False
+        if mov is None:
+            if when_listed:
+                self.reannounce_when_listed.add(mid)
+            return when_listed
+        events = self.events_for(mov)
+        if events is None:
             return False
         self._fire(events.announced, mov)
         return True

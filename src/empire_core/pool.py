@@ -368,6 +368,7 @@ class AccountPool:
             return
 
         client.close_streams()
+        client.state._forget_queued_reannounces()
         if logout:
             # Always close: a client leased with login=False (or whose login
             # failed) still holds an open websocket and receive thread.

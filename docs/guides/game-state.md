@@ -333,7 +333,9 @@ raise the last failure.
 An attack or occupation announced before the drop is not announced again when
 the restored session lists it: `on_incoming_attack` and `on_occupation_started`
 fire for the ones that are new. `client.state.reannounce(movement_id)` fires them
-again on purpose. The same holds across `close()` and `login()`; see
+again on purpose; with `when_listed=True` it waits until the restored session
+lists the movement, from `on_session_restored` too, which may come before the
+movement list did. The same holds across `close()` and `login()`; see
 [what was announced](movements.md#what-was-announced-and-announcing-again).
 
 ## From an asyncio program

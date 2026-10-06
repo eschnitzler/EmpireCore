@@ -346,6 +346,14 @@ class FakeConnection:
         self.close_error: BaseException | None = None
 
 
+class FakeState:
+    def __init__(self):
+        self.reannounces_forgotten = 0
+
+    def _forget_queued_reannounces(self) -> None:
+        self.reannounces_forgotten += 1
+
+
 class FakeClient:
     def __init__(self, username: str):
         self.username = username
@@ -354,6 +362,7 @@ class FakeClient:
         self.logins = 0
         self.streams_closed = 0
         self.connection = FakeConnection()
+        self.state = FakeState()
 
     def login(self) -> None:
         self.logins += 1
@@ -769,6 +778,12 @@ class TestKeepAlive:
             pass
         assert made[0].streams_closed == 1
         assert not made[0].closed
+
+    def test_keeping_a_client_drops_the_reannounces_still_waiting(self, made):
+        pool = self.pool("alpha")
+        with pool.leased():
+            pass
+        assert made[0].state.reannounces_forgotten == 1
 
     def test_release_with_logout_closes_the_client(self, made):
         pool = self.pool("alpha")

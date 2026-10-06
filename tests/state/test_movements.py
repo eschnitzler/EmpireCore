@@ -591,6 +591,97 @@ class TestAnnouncedMovements:
         self.settle(state)
         assert fired == []
 
+    @staticmethod
+    def announced_then_reconnected(state: GameState, fired: list[Movement], *payloads: dict) -> None:
+        """Announce ``payloads`` to ``fired``, then reconnect: logged in again, nothing listed yet."""
+        login(state)
+        state.on_incoming_attack(fired.append)
+        state.on_occupation_started(fired.append)
+        for payload in payloads:
+            state.update_from_packet("gam", payload)
+        state.reset()
+        login(state)
+
+    def test_a_queued_reannounce_fires_once_the_movement_is_listed_again(self, state):
+        fired: list[Movement] = []
+        siege = gam_payload(561, movement_type=MovementType.SIEGE)
+        self.announced_then_reconnected(state, fired, gam_payload(560), siege)
+
+        assert state.reannounce(560) is False
+        assert state.reannounce(560, when_listed=True) is True
+        assert state.reannounce(560, when_listed=True) is True
+        assert state.reannounce(561, when_listed=True) is True
+        self.settle(state)
+        assert [mov.movement_id for mov in fired] == [560, 561]
+
+        state.update_from_packet("gam", gam_payload(560, extra={"TT": 300}))
+        state.update_from_packet("gam", siege)
+        state.update_from_packet("gam", gam_payload(560, extra={"TT": 300}))
+        self.settle(state)
+
+        assert [mov.movement_id for mov in fired] == [560, 561, 560, 561]
+        assert fired[2] is not fired[0]
+        assert fired[2].total_time == 300
+
+    def test_a_queued_reannounce_is_dropped_when_the_movement_is_not_listed_before_its_end(self, state):
+        fired: list[Movement] = []
+        self.announced_then_reconnected(state, fired, gam_payload(570))
+        assert state.reannounce(570, when_listed=True) is True
+
+        with later(700):
+            assert state.reannounce(570, when_listed=True) is False
+            state.update_from_packet("gam", gam_payload(570))
+        self.settle(state)
+
+        assert [mov.movement_id for mov in fired] == [570, 570]
+        assert fired[1].created_at > fired[0].created_at
+
+    def test_a_queued_reannounce_is_dropped_when_the_server_removes_the_movement(self, state):
+        fired: list[Movement] = []
+        self.announced_then_reconnected(state, fired, gam_payload(575))
+        assert state.reannounce(575, when_listed=True) is True
+
+        state.update_from_packet("mrm", {"MID": 575})
+
+        assert state.reannounce(575, when_listed=True) is False
+        self.settle(state)
+        assert [mov.movement_id for mov in fired] == [575]
+
+    def test_a_queued_reannounce_is_dropped_when_the_movement_is_listed_with_its_arrival_behind_it(self, state):
+        fired: list[Movement] = []
+        holding = gam_payload(580, movement_type=MovementType.SIEGE, extra={"PT": 600})
+        holding["M"][0]["UM"] = {"PWD": 0, "TWD": 3600}
+        self.announced_then_reconnected(state, fired, gam_payload(580, movement_type=MovementType.SIEGE))
+        assert state.reannounce(580, when_listed=True) is True
+
+        state.update_from_packet("gam", holding)
+        state.update_from_packet("gam", holding)
+        self.settle(state)
+
+        assert [mov.movement_id for mov in fired] == [580]
+        assert [mov.movement_id for mov in state.get_occupations()] == [580]
+
+    def test_a_queued_reannounce_needs_an_announced_movement(self, state):
+        fired: list[Movement] = []
+        self.announced_then_reconnected(state, fired, gam_payload(585, oid=1))
+
+        assert state.reannounce(585, when_listed=True) is False
+        assert state.reannounce(9999, when_listed=True) is False
+        state.update_from_packet("gam", gam_payload(9999))
+        self.settle(state)
+        assert [mov.movement_id for mov in fired] == [9999]
+
+    def test_queued_reannounces_are_dropped_when_the_client_is_handed_on(self, state):
+        fired: list[Movement] = []
+        self.announced_then_reconnected(state, fired, gam_payload(590))
+        assert state.reannounce(590, when_listed=True) is True
+
+        state._forget_queued_reannounces()
+        state.update_from_packet("gam", gam_payload(590))
+        self.settle(state)
+
+        assert [mov.movement_id for mov in fired] == [590]
+
 
 class TestMovementDirection:
     ME = 1
