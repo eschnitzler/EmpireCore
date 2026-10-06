@@ -14,9 +14,16 @@
   <a href="https://eschnitzler.github.io/EmpireCore/"><img src="https://github.com/eschnitzler/EmpireCore/actions/workflows/docs.yml/badge.svg" alt="Docs"></a>
 </p>
 
-<p align="center">
-  <img alt="A run of the quick start: logged in, one castle listed, and the Green kingdom's 8,862 castles scanned in 15.4 seconds" src="https://raw.githubusercontent.com/eschnitzler/EmpireCore/master/docs/assets/terminal.svg" width="560">
-</p>
+> [!WARNING]
+> EmpireCore is in alpha. The API is not stable yet, and a minor release may
+> break it; the [changelog](https://github.com/eschnitzler/EmpireCore/blob/master/CHANGELOG.md)
+> lists every change that does. It talks to the live game servers, so use it
+> at your own risk and with the game's terms of service in mind.
+
+EmpireCore lets Python code play Goodgame Empire the way the game's own client
+does. Log in, read your account and castles, react to incoming attacks and
+other events as they happen, send armies and spies, and run several accounts
+side by side.
 
 ## Why EmpireCore
 
@@ -24,8 +31,11 @@
   field names, so your editor completes them and your type checker checks them.
 - **Behaves like the real game client.** Logins, requests and their checks
   follow the game's own client code, so the server sees what it expects.
-- **Fast.** One account scans the Green kingdom's roughly 8,900 castles in
-  15 to 17 seconds; split across 8 accounts, it takes 2.9 seconds.
+- **Live state and events.** A background thread keeps your account's state
+  current. Register callbacks, or stream events with `asyncio`.
+- **Built to keep running.** `keep_session` logs back in after a dropped
+  connection, and `AccountPool` shares several logged-in accounts across
+  threads.
 
 ## What it covers
 
@@ -43,6 +53,7 @@
 | [`client.alliance`](https://eschnitzler.github.io/EmpireCore/guides/alliance/) | Chat, help requests, members and the treasury |
 | [`client.messages`](https://eschnitzler.github.io/EmpireCore/guides/messages/) | The mailbox, mail and battle reports |
 | [`client.defense`](https://eschnitzler.github.io/EmpireCore/guides/defense/) | Reading and setting castle defense |
+| [`client.rewards`](https://eschnitzler.github.io/EmpireCore/guides/rewards/) | The free daily rewards |
 | [`client.player`, `ranking`, `events`](https://eschnitzler.github.io/EmpireCore/guides/) | Players, highscores and events |
 
 ## Install
@@ -51,23 +62,33 @@
 uv add empire-core        # or: pip install empire-core
 ```
 
-Python 3.10 or newer. EmpireCore is pre-1.0, so a minor release may change the
-API; the [changelog](https://github.com/eschnitzler/EmpireCore/blob/master/CHANGELOG.md)
-lists every change that does.
+Python 3.10 or newer.
 
 ## Quick start
 
 ```python
-from empire_core import EmpireClient, Kingdom, MapItemType
+import time
 
-with EmpireClient(username="you", password="...") as client:
+from empire_core import EmpireClient, Movement
+
+
+def warn(attack: Movement) -> None:
+    print(f"Attack from {attack.source_player_name}, "
+          f"landing in {attack.time_remaining}s")
+
+
+with EmpireClient(
+    username="you", password="...", keep_session=True
+) as client:
     client.login()
 
-    castles = client.castle.get_all()
-    print(f"{len(castles)} castle(s)")
+    for castle in client.castle.get_all():
+        res = client.castle.get_resources(castle.castle_id)
+        print(f"{castle.castle_name}: {res.wood:,} wood, "
+              f"{res.stone:,} stone, {res.food:,} food")
 
-    scan = client.map.scan_kingdom(Kingdom.GREEN, item_types=[MapItemType.CASTLE])
-    print(f"Green kingdom: {len(scan.items):,} castles")
+    client.state.on_incoming_attack(warn)
+    time.sleep(3600)
 ```
 
 **Documentation:** <https://eschnitzler.github.io/EmpireCore/>, with a guide

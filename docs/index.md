@@ -12,9 +12,9 @@ hide:
 
 # EmpireCore
 
-A fully typed Python client for Goodgame Empire. Log in, read your castles,
-scan the map and send attacks, with every request and reply checked against
-the game's own client.
+A fully typed Python client for Goodgame Empire that follows the game's own
+client. Read your account and castles, react to incoming attacks and other
+events as they happen, send armies and spies, and run several accounts at once.
 
 [Get started](getting-started.md){ .md-button .md-button--primary }
 [Guides](guides/index.md){ .md-button }
@@ -24,25 +24,35 @@ the game's own client.
 <div class="ec-hero__code" markdown>
 
 ```python
-from empire_core import EmpireClient, Kingdom, MapItemType
+import time
 
-with EmpireClient(username="you", password="...") as client:
+from empire_core import EmpireClient, Movement
+
+
+def warn(attack: Movement) -> None:
+    print(f"Attack from {attack.source_player_name}, "
+          f"landing in {attack.time_remaining}s")
+
+
+with EmpireClient(
+    username="you", password="...", keep_session=True
+) as client:
     client.login()
 
-    castles = client.castle.get_all()
-    print(f"{len(castles)} castle(s)")
+    for castle in client.castle.get_all():
+        res = client.castle.get_resources(castle.castle_id)
+        print(f"{castle.castle_name}: {res.wood:,} wood, "
+              f"{res.stone:,} stone, {res.food:,} food")
 
-    scan = client.map.scan_kingdom(
-        Kingdom.GREEN, item_types=[MapItemType.CASTLE]
-    )
-    print(f"Green kingdom: {len(scan.items):,} castles")
+    client.state.on_incoming_attack(warn)
+    time.sleep(3600)
 ```
 
 <div class="ec-output" markdown>
 
 ```text
-1 castle(s)
-Green kingdom: 8,862 castles
+Ironhold: 12,400 wood, 9,850 stone, 21,300 food
+Attack from Redmane, landing in 1742s
 ```
 
 </div>
@@ -51,9 +61,15 @@ Green kingdom: 8,862 castles
 
 </div>
 
+!!! warning "EmpireCore is in alpha"
+
+    The API is not stable yet, and a minor release may break it; the
+    [changelog](changelog.md) lists every change that does. EmpireCore talks to
+    the live game servers, so use it at your own risk and with the game's terms
+    of service in mind.
+
 <div class="ec-stats">
-  <div><strong>8,862 castles in 15 s</strong><span>a whole kingdom, one account</span></div>
-  <div><strong>15 services</strong><span>castle, army, attack, spy, map and more</span></div>
+  <div><strong>16 services</strong><span>castle, army, attack, spy, map and more</span></div>
   <div><strong>Python 3.10–3.14</strong><span>typed, with a <code>py.typed</code> marker</span></div>
 </div>
 
@@ -69,25 +85,26 @@ Green kingdom: 8,862 castles
     Requests are built the way the game client builds them, and each model
     names the client code it mirrors.
 
+-   :material-sync:{ .lg } **[Live state and events](guides/game-state.md)**
+
+    A background thread keeps your account's state current. Register callbacks
+    for incoming attacks, chat and more, or stream them with
+    [`asyncio`](guides/game-state.md#from-an-asyncio-program).
+
+-   :material-connection:{ .lg } **[Stays logged in](guides/game-state.md#keeping-the-session)**
+
+    With `keep_session=True` the client logs back in after a dropped
+    connection, and your callbacks keep firing.
+
+-   :material-account-multiple-outline:{ .lg } **[Several accounts](guides/multiple-accounts.md)**
+
+    `AccountPool` hands out one logged-in client per account, safely across
+    threads.
+
 -   :material-alert-circle-outline:{ .lg } **[Clear errors](guides/errors.md)**
 
     One `EmpireError` base for everything the library raises. An empty list
     always means there was nothing there.
-
--   :material-radar:{ .lg } **[Fast map scans](guides/map-scanning.md)**
-
-    Scan a whole kingdom, then re-scan only the parts that held anything.
-    Every chunk that failed is reported.
-
--   :material-sword-cross:{ .lg } **[Fills waves like the game](guides/filling-waves.md)**
-
-    Give `fill_attack` a target's coordinates and it fills every wave the way
-    the game's own button does.
-
--   :material-sync:{ .lg } **[Live state](guides/game-state.md)**
-
-    A background thread keeps your account's state current, with callbacks
-    for incoming attacks.
 
 </div>
 
@@ -97,8 +114,6 @@ Green kingdom: 8,862 castles
 uv add empire-core        # or: pip install empire-core
 ```
 
-EmpireCore is pre-1.0: a minor release may change the API, and the
-[changelog](changelog.md) lists every change that does. Pin a minor line, for
-example `empire-core>=0.42,<0.43`. Next, [Getting started](getting-started.md)
-walks through logging in, reading castles, a first map scan and the errors to
-expect.
+Pin a minor line, for example `empire-core>=0.48,<0.49`, since a minor release
+may change the API. Next, [Getting started](getting-started.md) walks through
+logging in, reading your castles and the errors to expect.
