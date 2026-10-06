@@ -68,6 +68,21 @@ row, your inventory and commanders, and your effects scoped to this target.
 Pass the target's `area_type` so the right command is asked, as the client
 picks it.
 
+With a spy report on the target, `info.spy_army()` splits its defenders by
+position. `SpyArmySection` names the positions and iterates in wire order, so an
+army stored by section name rebuilds the same way:
+
+```python
+from empire_core.army import SpyArmy, SpyArmySection
+
+army = info.spy_army()
+if army is not None:
+    print(army.section(SpyArmySection.KEEP))
+    print(army.wall_total(), [section.value for section in SpyArmySection if section.is_wall])
+    stored = {section.value: [[s.wod_id, s.count] for s in stacks] for section, stacks in army.sections()}
+    rebuilt = SpyArmy.from_spy_data([stored[section.value] for section in SpyArmySection])
+```
+
 ## Presets
 
 The game's attack presets are saved armies, one per slot. `get_presets()`

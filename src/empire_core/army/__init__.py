@@ -1,6 +1,6 @@
 """The army: units, production, the hospital and spy-report armies."""
 
-from empire_core.enums import ProductionListId, SlotType
+from empire_core.enums import ProductionListId, SlotType, SpyArmySection
 
 from .models import (
     BUY_UNIT_PACKAGE_SK,
@@ -80,5 +80,6 @@ __all__ = [
     "SlotType",
     "ArmyService",
     "SpyArmy",
+    "SpyArmySection",
     "UnitStack",
 ]

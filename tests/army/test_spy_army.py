@@ -8,7 +8,7 @@ support and reserve troops the game never counts together.
 
 import pytest
 
-from empire_core.army.spy_army import SpyArmy, UnitStack
+from empire_core.army import SpyArmy, SpyArmySection, UnitStack
 
 
 def _army() -> list:
@@ -83,11 +83,44 @@ class TestTotals:
         labeled = [(name, sum(stack.count for stack in stacks)) for name, stacks in parsed(_army()).sections()]
 
         assert labeled == [
-            ("left", 150),
-            ("middle", 200),
-            ("right", 75),
-            ("keep", 400),
-            ("stronghold", 0),
-            ("support", 25),
-            ("reserve", 10),
+            (SpyArmySection.LEFT, 150),
+            (SpyArmySection.MIDDLE, 200),
+            (SpyArmySection.RIGHT, 75),
+            (SpyArmySection.KEEP, 400),
+            (SpyArmySection.STRONGHOLD, 0),
+            (SpyArmySection.SUPPORT, 25),
+            (SpyArmySection.RESERVE, 10),
         ]
+
+    def test_one_section_is_addressable_by_its_enum(self):
+        army = parsed(_army())
+
+        assert army.section(SpyArmySection.KEEP) == [UnitStack(746, 400)]
+        assert army.section(SpyArmySection("support")) == [UnitStack(602, 25)]
+
+
+class TestSections:
+    def test_the_enum_iterates_in_wire_order(self):
+        assert [section.value for section in SpyArmySection] == [
+            "left",
+            "middle",
+            "right",
+            "keep",
+            "stronghold",
+            "support",
+            "reserve",
+        ]
+
+    def test_the_wall_is_the_three_flanks(self):
+        assert [s for s in SpyArmySection if s.is_wall] == [
+            SpyArmySection.LEFT,
+            SpyArmySection.MIDDLE,
+            SpyArmySection.RIGHT,
+        ]
+
+    def test_an_army_stored_by_section_name_rebuilds_in_wire_order(self):
+        stored = {section.value: entry for section, entry in zip(SpyArmySection, _army(), strict=True)}
+
+        rebuilt = parsed([stored[section.value] for section in SpyArmySection])
+
+        assert rebuilt == parsed(_army())

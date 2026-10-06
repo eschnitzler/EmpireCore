@@ -1,4 +1,4 @@
-"""Spy mission types and spy log subtypes."""
+"""Spy mission types, spy log subtypes and spy-report army positions."""
 
 from enum import Enum, IntEnum
 
@@ -36,6 +36,30 @@ class SpyLogType(IntEnum):
     DEFENCE = 1
     ECO = 2
     PLAGUE_MONK = 3
+
+
+class SpyArmySection(str, Enum):
+    """
+    A position in a spy report's army block, in wire order.
+
+    Iterating the enum gives the order the client shifts the ``S`` entries in;
+    ``RESERVE`` is optional and only read when an entry is left.
+
+    Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line 30699)
+    """
+
+    LEFT = "left"
+    MIDDLE = "middle"
+    RIGHT = "right"
+    KEEP = "keep"
+    STRONGHOLD = "stronghold"
+    SUPPORT = "support"
+    RESERVE = "reserve"
+
+    @property
+    def is_wall(self) -> bool:
+        """One of the flanks (left, middle, right) an attack on the wall meets."""
+        return self in (SpyArmySection.LEFT, SpyArmySection.MIDDLE, SpyArmySection.RIGHT)
 
 
 class SpyStep(str, Enum):

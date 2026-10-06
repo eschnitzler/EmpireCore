@@ -18,12 +18,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from empire_core.army.models.units import wod_amount_pairs
-
-# Order matters: it is the wire order the client relies on.
-SECTION_NAMES = ("left", "middle", "right", "keep", "stronghold", "support", "reserve")
-
-# The flanks an attack on the wall actually meets.
-WALL_SECTIONS = ("left", "middle", "right")
+from empire_core.enums import SpyArmySection
 
 
 @dataclass(frozen=True)
@@ -66,14 +61,19 @@ class SpyArmy:
         if not isinstance(spy_data, list):
             return None
         sections = {
-            name: _stacks(spy_data[index] if index < len(spy_data) else None)
-            for index, name in enumerate(SECTION_NAMES)
+            section.value: _stacks(spy_data[index] if index < len(spy_data) else None)
+            for index, section in enumerate(SpyArmySection)
         }
         return cls(**sections)
 
-    def sections(self) -> list[tuple[str, list[UnitStack]]]:
+    def section(self, section: SpyArmySection) -> list[UnitStack]:
+        """The stacks at one position."""
+        stacks: list[UnitStack] = getattr(self, section.value)
+        return stacks
+
+    def sections(self) -> list[tuple[SpyArmySection, list[UnitStack]]]:
         """Every position in wire order, for display."""
-        return [(name, getattr(self, name)) for name in SECTION_NAMES]
+        return [(section, self.section(section)) for section in SpyArmySection]
 
     def total(self) -> int:
         """Every defender in the castle, wherever they stand."""
@@ -81,7 +81,7 @@ class SpyArmy:
 
     def wall_total(self) -> int:
         """Defenders on the wall: the flanks an attack meets first."""
-        return sum(stack.count for name in WALL_SECTIONS for stack in getattr(self, name))
+        return sum(stack.count for section in SpyArmySection if section.is_wall for stack in self.section(section))
 
 
-__all__ = ["SECTION_NAMES", "WALL_SECTIONS", "SpyArmy", "UnitStack"]
+__all__ = ["SpyArmy", "UnitStack"]

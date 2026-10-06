@@ -16,7 +16,7 @@ from .movements import MovementType
 from .player import TitleSystem
 from .ranking import RankingType
 from .rewards import LoginBonusSpecial
-from .spy import SpyLogType, SpyOutcome, SpyStep, SpyType
+from .spy import SpyArmySection, SpyLogType, SpyOutcome, SpyStep, SpyType
 
 __all__ = [
     # Map / kingdom
@@ -37,6 +37,7 @@ __all__ = [
     "SpyLogType",
     "SpyOutcome",
     "SpyStep",
+    "SpyArmySection",
     # Army
     "ProductionListId",
     "SlotType",
