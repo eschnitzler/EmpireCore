@@ -29,7 +29,7 @@ A `ScanResult` holds:
 | `items` | Every `MapAreaItem` found, read by its area type's layout; empty with [`on_chunk`](#keeping-only-what-you-need). |
 | `objects` | The owner records (`MapObject`) the chunks sent, by player id; empty with `on_chunk`. |
 | `kingdom` | The kingdom scanned; every item carries it too. |
-| `failed_chunks` | Chunks that still failed after their retries. |
+| `failed_chunks` | Chunks that still failed after their retries, or were left unscanned by a timeout, a cancel or a dropped connection. |
 | `content_chunks` | Chunks that answered and held items. |
 
 An item's `owner_id` is below 0 for an NPC owner. `NPCOwner` (in
@@ -40,6 +40,12 @@ Requests go out back to back, as the game client sends its map requests; a
 live scan of 289 chunks at about 17 requests a second ran without a refusal.
 A chunk that times out, or is refused with a cooldown, is retried after a short
 backoff. `chunk_delay` adds a fixed wait before every request if you want one.
+
+A session that drops mid-scan ends the scan with what it has, the rest in
+`failed_chunks`. The drop, a close by the server or a reset connection, is
+logged once, as a warning naming the client and the cause, and
+reported by `client.on_disconnect`; the scan adds one INFO line with the
+number of chunks it left, and the chunks themselves only at DEBUG.
 
 ## Re-scanning cheaply
 

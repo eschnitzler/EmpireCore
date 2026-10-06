@@ -101,6 +101,7 @@ class ScriptedConnection:
         self.subscribers: dict[str, list[Any]] = {}
         self.disconnect_listeners: list[Any] = []
         self.connected = True
+        self.close_error: BaseException | None = None
         self.sent: list[str] = []
         self.requested: list[str] = []
         self.request_frames: list[str] = []

@@ -204,7 +204,9 @@ class Session:
         if not client.connection.run_if_current(generation, forget):
             logger.debug(f"Client {client.username}: drop of an earlier session reported late, ignored")
             return
-        logger.warning(f"Client {client.username} disconnected unexpectedly")
+        cause = client.connection.close_error
+        reason = f" ({str(cause) or type(cause).__name__})" if cause is not None else ""
+        logger.warning(f"Client {client.username} disconnected unexpectedly{reason}")
         self._dropped_logged_in = generation if logged_in else None
 
     def after_drop(self, generation: int) -> None:

@@ -7,6 +7,7 @@ never competes with a host event loop.
 
 import logging
 import re
+import ssl
 import threading
 import time
 from collections.abc import Callable, Iterator
@@ -736,7 +737,13 @@ class Connection:
             except websocket.WebSocketConnectionClosedException as e:
                 if not self._closing:
                     self._close_error = e
-                    logger.warning("Connection closed by server")
+                    logger.debug(f"Connection closed by server: {e}")
+                break
+            except (ConnectionError, ssl.SSLEOFError) as e:
+                # A reset peer is a drop like the clean close above.
+                if self._running and generation == self._generation:
+                    self._close_error = e
+                    logger.debug(f"Connection reset by peer: {e!r}")
                 break
             except (OSError, websocket.WebSocketException) as e:
                 if self._running and generation == self._generation:

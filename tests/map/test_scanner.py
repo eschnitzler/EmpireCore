@@ -292,6 +292,21 @@ class TestPartialScanReporting:
         queued_but_unscanned = {(6, 5), (5, 4), (5, 6)}
         assert queued_but_unscanned <= set(result.failed_chunks)
 
+    def test_an_incomplete_scan_warns_with_the_count_and_lists_chunks_at_debug(self, caplog):
+        chunks = [(1, y) for y in range(12)]
+        fake = _FakeClient(content_chunks=set(), error_codes=dict.fromkeys(chunks, 1))
+
+        with caplog.at_level(logging.DEBUG, logger="empire_core.map.scanner"):
+            _make_scanner(fake).scan_chunks(Kingdom.GREEN, chunks, chunk_delay=0)
+
+        summary = [r for r in caplog.records if "incomplete" in r.getMessage()]
+        listing = [r for r in caplog.records if "failed chunks" in r.getMessage()]
+        assert [(r.levelname, r.getMessage()) for r in summary] == [
+            ("WARNING", "Chunk scan incomplete: 12 chunk(s) failed")
+        ]
+        assert [r.levelname for r in listing] == ["DEBUG"]
+        assert "(1, 9)" in listing[0].getMessage() and "(1, 10)" not in listing[0].getMessage()
+
     def test_complete_scan_reports_no_failures(self):
         fake = _FakeClient(content_chunks={(5, 5)}, start_chunk=(5, 5))
         result = _make_scanner(fake).scan_kingdom(kingdom=Kingdom.GREEN, item_types=[], chunk_delay=0)

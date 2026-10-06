@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import ssl
 import threading
 from collections.abc import Iterator
 
@@ -10,6 +12,7 @@ import pytest
 import websocket
 
 from empire_core.client.client import EmpireClient
+from empire_core.enums import Kingdom
 from empire_core.exceptions import ReceiveThreadError
 from empire_core.protocol.packet import Packet
 from tests.service_helpers import request_payload
@@ -301,3 +304,84 @@ class TestBulkLookupOnTheReceiveThread:
         with pytest.raises(ReceiveThreadError):
             client.player.get_player_details_bulk([1, 2])
         assert socket.sent == []
+
+
+class DroppingSocket(ClosingSocket):
+    """A live socket whose server goes away while a request is in flight."""
+
+    def __init__(self, client: EmpireClient):
+        self.client = client
+
+    def send(self, _data):
+        drop(self.client)
+
+
+class TestADropMidScan:
+    """A session lost during a map scan is one warning, not five records across four loggers."""
+
+    def scan(self, client: EmpireClient, scan, caplog) -> tuple:
+        client.is_logged_in = True
+        client.connection.ws = DroppingSocket(client)  # type: ignore[assignment]
+        client.connection._running = True
+        with caplog.at_level(logging.DEBUG, logger="empire_core"):
+            result = scan()
+        return result, [r for r in caplog.records if r.levelno >= logging.INFO]
+
+    def test_a_chunk_scan_ends_quietly_with_the_chunks_left(self, client, caplog):
+        chunks = [(1, 1), (1, 2), (1, 3)]
+
+        result, records = self.scan(
+            client, lambda: client.map.scan_chunks(Kingdom.GREEN, chunks, request_timeout=1.0), caplog
+        )
+
+        assert result.failed_chunks == tuple(chunks)
+        assert [(r.name, r.levelname) for r in records] == [
+            ("empire_core.client.session", "WARNING"),
+            ("empire_core.map.scanner", "INFO"),
+        ]
+        assert "user" in records[0].getMessage()
+        assert "3 chunk(s)" in records[1].getMessage() and "(1, 2)" not in records[1].getMessage()
+
+    def test_a_kingdom_scan_ends_quietly_with_the_chunks_left(self, client, caplog):
+        result, records = self.scan(client, lambda: client.map.scan_kingdom(Kingdom.GREEN, request_timeout=1.0), caplog)
+
+        assert result.failed_chunks
+        assert [(r.name, r.levelname) for r in records] == [
+            ("empire_core.client.session", "WARNING"),
+            ("empire_core.map.scanner", "INFO"),
+        ]
+
+
+class ResetSocket(ClosingSocket):
+    """A live socket whose peer resets the connection under the next read."""
+
+    def __init__(self, error: OSError):
+        self.error = error
+
+    def recv_data(self):
+        raise self.error
+
+
+class TestAResetPeer:
+    """A reset is a drop like a clean close: one warning naming the cause, no traceback."""
+
+    @pytest.mark.parametrize(
+        "error",
+        [ConnectionResetError(104, "Connection reset by peer"), BrokenPipeError(32, "Broken pipe"), ssl.SSLEOFError()],
+    )
+    def test_is_logged_once_as_the_sessions_drop_warning(self, client, caplog, error):
+        connection = client.connection
+        connection.ws = ResetSocket(error)  # type: ignore[assignment]
+        connection._running = True
+        connection._generation += 1
+
+        with caplog.at_level(logging.DEBUG, logger="empire_core"):
+            connection._recv_loop(connection.ws, connection._generation)  # type: ignore[arg-type]
+
+        assert connection.close_error is error
+        records = [r for r in caplog.records if r.levelno >= logging.INFO]
+        assert all(r.exc_info is None for r in caplog.records)
+        assert [(r.name, r.levelname) for r in records] == [("empire_core.client.session", "WARNING")]
+        assert (
+            records[0].getMessage() == f"Client user disconnected unexpectedly ({str(error) or type(error).__name__})"
+        )

@@ -25,6 +25,23 @@ def _truncated_repr(value: object, limit: int = 200) -> str:
     return text if len(text) <= limit else text[:limit] + "...(truncated)"
 
 
+def _log_incomplete(scan: str, failed_chunks: list[tuple[int, int]], *, cancelled: bool, connection_lost: bool) -> None:
+    """
+    One line for a scan that left chunks unscanned; the chunks themselves only at DEBUG.
+
+    A cancel was asked for and a lost connection is already reported by the
+    session, so neither warns; the chunks are in ``ScanResult.failed_chunks`` either way.
+    """
+    if not failed_chunks:
+        return
+    if connection_lost:
+        logger.info(f"{scan} stopped by a lost connection: {len(failed_chunks)} chunk(s) not scanned")
+    else:
+        level = logging.DEBUG if cancelled else logging.WARNING
+        logger.log(level, f"{scan} incomplete: {len(failed_chunks)} chunk(s) failed")
+    logger.debug(f"{scan} failed chunks, first 10: {failed_chunks[:10]}")
+
+
 def _has_no_player(is_plot_row: Any, occupier_id: Any, owner_id: Any) -> bool | None:
     """
     Whether a map row is a free castle plot, or names an NPC or nobody as its owner; a camp names no owner.
@@ -193,10 +210,10 @@ class MapScanner:
                 response = self._request_chunk(request, request_timeout)
             except (EmpireTimeoutError, NetworkError) as e:
                 if not self.client.connection.connected:
-                    logger.error(f"Connection lost during scan: {e}")
+                    logger.debug(f"Chunk ({cx}, {cy}) lost with the connection: {e}")
                     return _FAILED
                 if last:
-                    logger.error(f"Chunk ({cx}, {cy}) failed after {attempt} retries: {e}")
+                    logger.warning(f"Chunk ({cx}, {cy}) failed after {attempt} retries: {e}")
                     return _FAILED
                 logger.warning(f"Chunk ({cx}, {cy}) request failed: {e}. Retrying...")
             else:
@@ -350,7 +367,9 @@ class MapScanner:
         ``ScanResult.failed_chunks`` so callers can tell a partial scan
         from a complete one. The same applies to chunks left unscanned
         when the overall ``timeout`` expires or the connection drops: an
-        empty ``failed_chunks`` means the scan really did finish.
+        empty ``failed_chunks`` means the scan really did finish. A dropped
+        connection is logged once, as a warning, by the session; the scan
+        itself only notes at INFO how many chunks it left.
 
         ``chunk_delay`` waits that many seconds before each ``gaa`` request;
         by default there is no wait, as the client does not pace its map
@@ -395,6 +414,7 @@ class MapScanner:
         collected_objects: dict[int, MapObject] = {}
         visited: set[tuple[int, int]] = set()
         failed_chunks: list[tuple[int, int]] = []
+        connection_lost = False
         content_chunks: list[tuple[int, int]] = []
 
         # BFS queue - process one chunk at a time
@@ -447,7 +467,7 @@ class MapScanner:
             if not result.ok:
                 failed_chunks.append((cx, cy))
                 if not self.client.connection.connected:
-                    logger.error("Aborting scan: connection lost")
+                    connection_lost = True
                     failed_chunks.extend(self._unscanned_chunks(queue, visited))
                     break
             else:
@@ -491,11 +511,12 @@ class MapScanner:
                 logger.debug(f"Scan progress: {total_requests} chunks, {items_found} items, {elapsed:.1f}s elapsed")
 
         elapsed = time.time() - start_time
-        if failed_chunks:
-            logger.log(
-                logging.DEBUG if cancel is not None and cancel.is_set() else logging.WARNING,
-                f"Kingdom scan incomplete: {len(failed_chunks)} chunk(s) failed: {failed_chunks[:10]}",
-            )
+        _log_incomplete(
+            "Kingdom scan",
+            failed_chunks,
+            cancelled=cancel is not None and cancel.is_set(),
+            connection_lost=connection_lost,
+        )
         logger.debug(
             f"Kingdom {kingdom!r} scan complete. "
             f"Scanned {total_requests} chunks in {elapsed:.1f}s, "
@@ -554,6 +575,7 @@ class MapScanner:
         collected_items: list[MapAreaItem] = []
         collected_objects: dict[int, MapObject] = {}
         failed_chunks: list[tuple[int, int]] = []
+        connection_lost = False
         content_chunks: list[tuple[int, int]] = []
 
         todo: list[tuple[int, int]] = []
@@ -593,7 +615,7 @@ class MapScanner:
             if not result.ok:
                 failed_chunks.append((cx, cy))
                 if not self.client.connection.connected:
-                    logger.error("Aborting scan: connection lost")
+                    connection_lost = True
                     failed_chunks.extend(todo[i + 1 :])
                     break
             else:
@@ -605,11 +627,12 @@ class MapScanner:
                 if result.has_content:
                     content_chunks.append((cx, cy))
 
-        if failed_chunks:
-            logger.log(
-                logging.DEBUG if cancel is not None and cancel.is_set() else logging.WARNING,
-                f"Chunk scan incomplete: {len(failed_chunks)} chunk(s) failed: {failed_chunks[:10]}",
-            )
+        _log_incomplete(
+            "Chunk scan",
+            failed_chunks,
+            cancelled=cancel is not None and cancel.is_set(),
+            connection_lost=connection_lost,
+        )
         return ScanResult(
             items=collected_items,
             objects=collected_objects,
