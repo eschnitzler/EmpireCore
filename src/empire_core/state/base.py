@@ -6,17 +6,28 @@ import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
+from typing import Any, TypeVar
+
+from pydantic import BaseModel
 
 from empire_core.alliance.models.chat import ChatMessageData
 from empire_core.alliance.models.info import AllianceInfo
+from empire_core.attack.models.counter import AttackCounterResponse
 from empire_core.castle.models.collect import MineStatus, ResourceCart
 from empire_core.castle.models.permanent import PermanentCastle
+from empire_core.castle.models.wishing_well import WishingWellResponse
+from empire_core.commanders.models.inventory import NewRelicsResponse
 from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.commanders.models.skills import SkillList
 from empire_core.events.models import SpecialEvent
 from empire_core.movements.models import MovementOwner
 from empire_core.movements.tracked import Movement
+from empire_core.player.models.account import (
+    BoostedGlobalEffectsResponse,
+    DailyResetResponse,
+    OfficerTraining,
+    PlayerGiftsResponse,
+)
 from empire_core.player.models.progress import (
     AchievementsResponse,
     BoosterInfoResponse,
@@ -27,6 +38,7 @@ from empire_core.player.models.progress import (
     ResearchInfoResponse,
     TitleRanksResponse,
 )
+from empire_core.protocol.base import read_or_none
 from empire_core.quests.models import DailyQuests, Quest, QuestBook
 from empire_core.spy.models import MaxSpiesResponse, PlagueMonkInfoResponse
 from empire_core.state.models import Castle, CastleKey, JoinedArea, Player
@@ -44,6 +56,14 @@ CALLBACK_QUEUE_WARN_INTERVAL = 60.0
 # one is called is decided per callback from its signature, so existing
 # ``Callable[[int], None]`` handlers keep working unchanged.
 MovementEventCallback = Callable[[int], Any] | Callable[[int, Movement | None], Any]
+
+
+_M = TypeVar("_M", bound=BaseModel)
+
+
+def read_section(model: type[_M], body: Any, what: str) -> _M | None:
+    """A section block read as ``model``; None, with a warning, when it is no object or does not validate."""
+    return read_or_none(model.model_validate, body, warn=logger, what=what) if isinstance(body, dict) else None
 
 
 class StateBase:
@@ -124,6 +144,13 @@ class StateBase:
         self.achievements: AchievementsResponse | None = None
         self.relocation: RelocationInfoResponse | None = None
         self.plague_monks: PlagueMonkInfoResponse | None = None
+        self.daily_reset: DailyResetResponse | None = None
+        self.attack_counter: AttackCounterResponse | None = None
+        self.officer_training: OfficerTraining | None = None
+        self.boosted_global_effects: BoostedGlobalEffectsResponse | None = None
+        self.player_gifts: PlayerGiftsResponse | None = None
+        self.wishing_well: WishingWellResponse | None = None
+        self.new_relics: NewRelicsResponse | None = None
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}

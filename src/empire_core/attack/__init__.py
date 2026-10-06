@@ -4,6 +4,7 @@ from empire_core.enums import AttackType, AutoSkipCooldownType, LootPriority
 
 from .models import (
     PRESET_NAME_MAX_LENGTH,
+    AttackCounterResponse,
     AttackInfoResponse,
     AttackPreset,
     AttackTargetArea,
@@ -81,4 +82,5 @@ __all__ = [
     "LootPriority",
     "AutoSkipCooldownType",
     "AttackService",
+    "AttackCounterResponse",
 ]

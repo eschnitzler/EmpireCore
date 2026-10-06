@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import time
 from collections.abc import Callable
 from decimal import Decimal
 from enum import IntEnum
@@ -421,6 +422,23 @@ class BaseResponse(BasePayload):
                     "Pass register=False on the class that is parsed manually."
                 )
             _response_registry[cls.command] = cls
+
+
+class TimedPayload(BasePayload):
+    """A read-only block whose times count down from when it was read, as the client counts them from its timer."""
+
+    model_config = ConfigDict(frozen=True)
+
+    received_at: float = Field(
+        default_factory=time.monotonic, description="When the values were read, in time.monotonic() seconds"
+    )
+
+    def _elapsed(self, now: float | None) -> float:
+        return (time.monotonic() if now is None else now) - self.received_at
+
+
+class TimedResponse(BaseResponse, TimedPayload):
+    """A :class:`TimedPayload` that is a command's response."""
 
 
 def get_response_model(command: str) -> type[BaseResponse] | None:

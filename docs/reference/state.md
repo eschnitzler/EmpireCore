@@ -46,6 +46,10 @@ The thread-safe game state that server pushes keep current.
 
 ::: empire_core.state.progress
 
+## `state.account`
+
+::: empire_core.state.account
+
 ## `state.models`
 
 ::: empire_core.state.models

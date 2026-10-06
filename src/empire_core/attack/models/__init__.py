@@ -1,5 +1,6 @@
 """Attacks: sending, pre-calculation, presets and dungeon cooldowns: protocol models."""
 
+from .counter import AttackCounterResponse
 from .dungeon_skips import (
     MinuteSkipDungeonRequest,
     MinuteSkipDungeonResponse,
@@ -74,4 +75,5 @@ __all__ = [
     "GetCapitalConquerInfoResponse",
     "GetMetropolConquerInfoRequest",
     "GetMetropolConquerInfoResponse",
+    "AttackCounterResponse",
 ]

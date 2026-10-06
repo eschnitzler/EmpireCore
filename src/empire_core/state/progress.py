@@ -1,9 +1,6 @@
 """The player's progress: research, boosts, might, points, titles, achievements, relocation and plague monks."""
 
-import logging
-from typing import Any, TypeVar
-
-from pydantic import BaseModel
+from typing import Any
 
 from empire_core.player.models.progress import (
     AchievementProgress,
@@ -17,19 +14,11 @@ from empire_core.player.models.progress import (
     ResearchInfoResponse,
     TitleRanksResponse,
 )
-from empire_core.protocol.base import read_or_none
 from empire_core.protocol.js import js_truthy
 from empire_core.spy.models import PlagueMonkInfoResponse
-from empire_core.state.base import StateBase
+from empire_core.state.base import StateBase, read_section
 
-logger = logging.getLogger(__name__)
-
-_M = TypeVar("_M", bound=BaseModel)
 _PROGRESS_SECTIONS = ("rei", "boi", "gmu", "ufa", "uar", "vli", "gri", "cpi")
-
-
-def _read(model: type[_M], body: Any, what: str) -> _M | None:
-    return read_or_none(model.model_validate, body, warn=logger, what=what) if isinstance(body, dict) else None
 
 
 class ProgressState(StateBase):
@@ -41,17 +30,17 @@ class ProgressState(StateBase):
         it never reads the gbd's ``ufp``
         """
         applied: set[str] = set()
-        if "rei" in data and (research := _read(ResearchInfoResponse, data["rei"], "the research")) is not None:
+        if "rei" in data and (research := read_section(ResearchInfoResponse, data["rei"], "the research")) is not None:
             self.research = research
             applied.add("rei")
         if "boi" in data and self._apply_boosts(data["boi"]):
             applied.add("boi")
         gmu = data.get("gmu")
         if isinstance(gmu, dict) and "MP" in gmu and "HMP" in gmu:
-            if (might := _read(MightPointsResponse, gmu, "the might points")) is not None:
+            if (might := read_section(MightPointsResponse, gmu, "the might points")) is not None:
                 self.might = might
                 applied.add("gmu")
-        if "ufa" in data and (glory := _read(GloryPointsResponse, data["ufa"], "the glory points")) is not None:
+        if "ufa" in data and (glory := read_section(GloryPointsResponse, data["ufa"], "the glory points")) is not None:
             self.glory_points = glory
             applied.add("ufa")
         if "uar" in data and self._apply_title_ranks(data["uar"]):
@@ -59,11 +48,11 @@ class ProgressState(StateBase):
         if "vli" in data and self._apply_achievements(data["vli"]):
             applied.add("vli")
         if js_truthy(gri := data.get("gri")):
-            if (relocation := _read(RelocationInfoResponse, gri, "the relocation info")) is not None:
+            if (relocation := read_section(RelocationInfoResponse, gri, "the relocation info")) is not None:
                 self.relocation = relocation
                 applied.add("gri")
         if js_truthy(cpi := data.get("cpi")):
-            if (monks := _read(PlagueMonkInfoResponse, cpi, "the plague monks")) is not None:
+            if (monks := read_section(PlagueMonkInfoResponse, cpi, "the plague monks")) is not None:
                 self.plague_monks = monks
                 applied.add("cpi")
         return {section for section in _PROGRESS_SECTIONS if section in data} - applied
@@ -73,7 +62,7 @@ class ProgressState(StateBase):
 
         Client: ``CastlePremiumBoostData.parse_BOI`` and ``parse_bfs`` (bundle lines 15202, 15218)
         """
-        boosts = _read(BoosterInfoResponse, body, "the boosters")
+        boosts = read_section(BoosterInfoResponse, body, "the boosters")
         if boosts is None:
             return False
         previous = self.boosts
@@ -92,7 +81,7 @@ class ProgressState(StateBase):
 
         Client: ``BFSCommand`` (bundle line 122569) passes the reply to ``parse_bfs`` (bundle line 15218)
         """
-        if not js_truthy(data) or (festival := _read(Festival, data, "the festival")) is None:
+        if not js_truthy(data) or (festival := read_section(Festival, data, "the festival")) is None:
             return
         boosts = self.boosts if self.boosts is not None else BoosterInfoResponse()
         self.boosts = boosts.model_copy(update={"festival": festival})
@@ -102,7 +91,7 @@ class ProgressState(StateBase):
 
         Client: ``UFPCommand`` (bundle line 121010), ``CastleTitleData.parseUFP`` (bundle line 21039)
         """
-        if (points := _read(FactionPointsResponse, data, "the Berimond points")) is not None:
+        if (points := read_section(FactionPointsResponse, data, "the Berimond points")) is not None:
             self.faction_points = points
 
     def _apply_title_ranks(self, body: Any) -> bool:
@@ -110,7 +99,7 @@ class ProgressState(StateBase):
 
         Client: ``CastleTitleData.parseUAR`` (bundle line 21022), which reads ``ATM`` only when it is sent
         """
-        ranks = _read(TitleRanksResponse, body, "the title ranks")
+        ranks = read_section(TitleRanksResponse, body, "the title ranks")
         if ranks is None:
             return False
         previous = self.title_ranks
@@ -124,7 +113,7 @@ class ProgressState(StateBase):
 
         Client: ``CastleAchievementData.parse_vli``, ``parse_RA`` and ``parse_FA`` (bundle lines 29837-29842)
         """
-        achievements = _read(AchievementsResponse, body, "the achievements")
+        achievements = read_section(AchievementsResponse, body, "the achievements")
         if achievements is None:
             return False
         previous = self.achievements

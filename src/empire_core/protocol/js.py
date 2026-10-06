@@ -187,8 +187,18 @@ ParseInt = Annotated[int, BeforeValidator(js_parse_int_or_zero)]
 """An int read through ``parseInt``, NaN as 0."""
 
 
+def _number_or_zero(value: Any) -> int | float:
+    number = js_number_or_none(value)
+    return 0 if number is None else number
+
+
+ClientNumber = Annotated[int | float, BeforeValidator(_number_or_zero)]
+"""A number read through ``Number()``, an int kept as is; NaN and infinities as 0, as a time the client counts down."""
+
+
 __all__ = [
     "ClientInt",
+    "ClientNumber",
     "ParseInt",
     "js_falsy",
     "js_int",

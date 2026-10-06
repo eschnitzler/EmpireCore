@@ -17,23 +17,16 @@ Each model is read once and never changes; the times in it count from ``received
 from __future__ import annotations
 
 import math
-import time
 from typing import Annotated, Any
 
 from pydantic import BeforeValidator, ConfigDict, Field, field_validator
 
 from empire_core.enums import TitleSystem
-from empire_core.protocol.base import BasePayload, BaseResponse, object_or_none, readable_list
-from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_number_or_none, js_parse_int
+from empire_core.protocol.base import BasePayload, TimedPayload, TimedResponse, object_or_none, readable_list
+from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_parse_int
 
 PERMANENT_BOOSTER_DURATION = 2147483647
 """``BoosterConst.PERMANENT_BOOSTER_DURATION`` (dll): a booster's ``RT`` when it never runs out"""
-
-
-def _number(value: Any) -> int | float:
-    # The client multiplies these by 1000; NaN ends up as no time left
-    number = js_number_or_none(value)
-    return 0 if number is None else number
 
 
 def _numbers(value: Any) -> tuple[int | float, ...]:
@@ -46,7 +39,6 @@ def _ints(value: Any) -> tuple[int, ...]:
     return tuple(entry for entry in _numbers(value) if isinstance(entry, int))
 
 
-Seconds = Annotated[int | float, BeforeValidator(_number)]
 Numbers = Annotated[tuple[int | float, ...], BeforeValidator(_numbers)]
 Ints = Annotated[tuple[int, ...], BeforeValidator(_ints)]
 ParsedInt = Annotated[int | None, BeforeValidator(js_parse_int)]
@@ -59,22 +51,7 @@ def _title_system(value: str) -> TitleSystem | None:
         return None
 
 
-class _Read(BasePayload):
-    model_config = ConfigDict(frozen=True)
-
-    received_at: float = Field(
-        default_factory=time.monotonic, description="When the values were read, in time.monotonic() seconds"
-    )
-
-    def _elapsed(self, now: float | None) -> float:
-        return (time.monotonic() if now is None else now) - self.received_at
-
-
-class _ReadResponse(BaseResponse, _Read):
-    pass
-
-
-class ResearchInfoResponse(_ReadResponse):
+class ResearchInfoResponse(TimedResponse):
     """
     Your research: what is finished and what runs now.
 
@@ -88,7 +65,7 @@ class ResearchInfoResponse(_ReadResponse):
 
     bought_research_ids: Ints = Field(alias="BR", default=(), description="Finished research ids")
     current_research_id: ClientInt = Field(alias="ARID", default=0, description="The research running now, -1 for none")
-    research_seconds: Seconds = Field(
+    research_seconds: ClientNumber = Field(
         alias="ARRT", default=0, description="Seconds left on the running research when the values were read"
     )
 
@@ -101,7 +78,7 @@ class ResearchInfoResponse(_ReadResponse):
         return self.current_research_id != -1 and self.remaining_research_seconds(now) > 0
 
 
-class Booster(_Read):
+class Booster(TimedPayload):
     """
     One booster of a ``boi``'s ``BO`` list.
 
@@ -141,7 +118,7 @@ class Booster(_Read):
         return self.level > 0 if self.is_permanent else self.remaining_seconds(now) >= 0
 
 
-class Festival(_Read):
+class Festival(TimedPayload):
     """
     The running festival: a ``boi``'s ``bfs``, or a ``bfs`` reply.
 
@@ -149,7 +126,7 @@ class Festival(_Read):
     """
 
     festival_type: ClientInt = Field(alias="T", default=0, description="The festival's id, -1 for none")
-    seconds: Seconds = Field(alias="RT", default=0, description="Seconds left when the values were read")
+    seconds: ClientNumber = Field(alias="RT", default=0, description="Seconds left when the values were read")
 
     def remaining_seconds(self, now: float | None = None) -> float:
         """Seconds left, 0 at least."""
@@ -160,7 +137,7 @@ class Festival(_Read):
         return self.remaining_seconds(now) > 0
 
 
-class BoosterInfoResponse(_ReadResponse):
+class BoosterInfoResponse(TimedResponse):
     """
     Your boosters, premium account, production slots and festival.
 
@@ -178,7 +155,7 @@ class BoosterInfoResponse(_ReadResponse):
     command = "boi"
 
     boosters: tuple[Booster, ...] = Field(alias="BO", default=(), description="The boosters this packet lists")
-    premium_seconds: Seconds = Field(
+    premium_seconds: ClientNumber = Field(
         alias="PA", default=0, description="Seconds of premium account left when the values were read"
     )
     premium_type: Any = Field(alias="PT", default=-1, description="The premium account's type, -1 for none")
@@ -237,7 +214,7 @@ class BoosterInfoResponse(_ReadResponse):
         return next((booster for booster in self.boosters if booster.booster_id == booster_id), None)
 
 
-class MightPointsResponse(_ReadResponse):
+class MightPointsResponse(TimedResponse):
     """
     Your might points.
 
@@ -258,7 +235,7 @@ class MightPointsResponse(_ReadResponse):
     )
 
 
-class GloryPointsResponse(_ReadResponse):
+class GloryPointsResponse(TimedResponse):
     """
     Your glory points, which give the glory titles.
 
@@ -280,7 +257,7 @@ class GloryPointsResponse(_ReadResponse):
         return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
-class FactionPointsResponse(_ReadResponse):
+class FactionPointsResponse(TimedResponse):
     """
     Your Berimond (faction) points, which give the Berimond titles.
 
@@ -297,7 +274,7 @@ class FactionPointsResponse(_ReadResponse):
     )
 
 
-class TopTitleRanking(_Read):
+class TopTitleRanking(TimedPayload):
     """
     One title system's top-X standing: a ``uar``'s ``FTM`` (glory) or ``BTM`` (Berimond).
 
@@ -307,7 +284,7 @@ class TopTitleRanking(_Read):
     top_rank: ClientInt = Field(
         alias="CTXT", default=0, description="Your rank for the system's top-X titles, -1 or 0 for none"
     )
-    reset_seconds: Seconds = Field(alias="RS", default=0, description="Seconds until the top-X titles reset")
+    reset_seconds: ClientNumber = Field(alias="RS", default=0, description="Seconds until the top-X titles reset")
     thresholds: tuple[int, ...] = Field(
         alias="NTFP", default=(), description="The points the top-X titles need, highest title first"
     )
@@ -342,7 +319,7 @@ class AllianceCityTitle(BasePayload):
     player_id: Any = Field(alias="PID", default=None, description="The player holding it")
 
 
-class TitleRanksResponse(_ReadResponse):
+class TitleRanksResponse(TimedResponse):
     """
     Your top-X title ranks, Storm Islands title and the title systems your name shows.
 
@@ -398,7 +375,7 @@ class AchievementProgress(BasePayload):
     )
 
 
-class AchievementsResponse(_ReadResponse):
+class AchievementsResponse(TimedResponse):
     """
     Your achievement points, finished achievements and progress.
 
@@ -424,7 +401,7 @@ class AchievementsResponse(_ReadResponse):
         return tuple(readable_list(AchievementProgress, value, accept=lambda entry: isinstance(entry, dict)))
 
 
-class RelocationInfoResponse(_ReadResponse):
+class RelocationInfoResponse(TimedResponse):
     """
     Your castle relocations: how many, the one running and the cooldown.
 
@@ -437,13 +414,13 @@ class RelocationInfoResponse(_ReadResponse):
     command = "gri"
 
     relocation_count: ClientInt = Field(alias="RLC", default=0, description="Relocations made")
-    relocation_seconds: Seconds = Field(
+    relocation_seconds: ClientNumber = Field(
         alias="RD", default=0, description="Seconds left on the running relocation when the values were read"
     )
     relocation_mode: Any = Field(
         alias="JM", default=None, description="The relocation's mode; its time counts only while this is 0"
     )
-    cooldown_seconds: Seconds = Field(
+    cooldown_seconds: ClientNumber = Field(
         alias="RMC", default=0, description="Seconds until you may relocate again, when the values were read"
     )
     destination_x: ClientInt = Field(alias="DX", default=0, description="The relocation's destination X")

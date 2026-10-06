@@ -8,8 +8,9 @@ description: What client.state holds, how to read it safely, and how to tell how
 the castle you joined with its mines and resource carts, movements, special
 currencies, your spy count, active events, your commanders and skills, your
 alliance and its chat, and your progress: research, boosters, might, titles,
-achievements, relocation and plague monks. A background thread applies the
-server's packets to it while your code reads it.
+achievements, relocation and plague monks; and account details such as the
+daily reset, the attack counter and the wishing well. A background thread
+applies the server's packets to it while your code reads it.
 
 ## Read through the accessors
 
@@ -43,17 +44,24 @@ monks = client.state.get_plague_monks()
 quests = client.state.get_quests()          # your active quests, by id
 book = client.state.get_quest_book()        # the quest book's main quests
 daily = client.state.get_daily_quests()     # daily quest level, today's quests
+reset = client.state.get_daily_reset()      # reset.remaining_seconds()
+counter = client.state.get_attack_counter() # attacks counted, the threshold
+training = client.state.get_officer_training()  # None when no program runs; .bonus is its effect
+boosted = client.state.get_boosted_global_effects()  # the GlobalEffect members boosted
+gifts = client.state.get_player_gifts()     # gift packages to send
+well = client.state.get_wishing_well()
+relics = client.state.get_new_relics()
 area = client.state.get_joined_area()       # None until a castle is joined
 mines = client.state.get_mines()            # the joined castle's mines, by object id
 carts = client.state.get_resource_carts()   # its wood, stone and food carts
 ```
 
 The commanders, skills and alliance accessors return copies, and the chat
-messages and progress models are read-only, so changing what you hold changes
-nothing in state, and a newer packet does not change it either. The progress
-models count their times from when they were read (`received_at`, in
-`time.monotonic()` seconds), so `research.remaining_research_seconds()` or
-`booster.is_active()` stay right between packets.
+messages, progress and account models are read-only, so changing what you hold
+changes nothing in state, and a newer packet does not change it either. The
+timed ones count their times from when they were read (`received_at`, in
+`time.monotonic()` seconds), so `research.remaining_research_seconds()`,
+`booster.is_active()` or `reset.remaining_seconds()` stay right between packets.
 
 The attributes behind them (`client.state.local_player`,
 `client.state.castles`, ...) stay readable, but they are live and unlocked.
@@ -94,6 +102,13 @@ every value is as old as the last packet that carried it:
 | Achievements | `vli` (pushed); finished ones add up, progress per achievement | log in again |
 | Relocation | `gri` (pushed) | log in again |
 | Plague monks | `cpi` (pushed), the `cpm` and `sbp` replies | log in again |
+| Daily reset | `drt` (login data only) | log in again |
+| Attack counter | `gai` (pushed) | log in again |
+| Officers' school training | `gatp` (any `gatp` without a running program clears it), `gtp` (its running program; none clears it) | log in again |
+| Boosted global effects | `bie` (pushed) | log in again |
+| Gift packages | `pgl` | log in again |
+| Ruby wishing well | `rww` | log in again |
+| New relics flag | `nrf` (pushed) | log in again |
 | Running events, their scores and ends | `sei`, `tei` (pushed), `see`, `tee`, `pep`, the `fjf` and `bst` replies, `cqs` for the campaign | `client.events.refresh()` |
 | Active quests, the quest book | `qli` (pushed after login, not in the login data), `qst`, `qfi`, the quest popups of `msp` | none |
 | Daily quests | `dql` (pushed) | log in again |

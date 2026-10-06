@@ -97,6 +97,7 @@ from .models import (
     UpgradeBuildingResponse,
     UpgradeWallRequest,
     UpgradeWallResponse,
+    WishingWellResponse,
 )
 from .service import CastleService
 
@@ -202,4 +203,5 @@ __all__ = [
     "TaxInfo",
     "TaxInfoResponse",
     "CastleService",
+    "WishingWellResponse",
 ]

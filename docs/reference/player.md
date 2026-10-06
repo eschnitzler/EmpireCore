@@ -6,6 +6,10 @@ Player profiles and search behind `client.player`.
 
 ::: empire_core.player.service
 
+## `player.models.account`
+
+::: empire_core.player.models.account
+
 ## `player.models.info`
 
 ::: empire_core.player.models.info

@@ -57,3 +57,7 @@ Castles, buildings, resources and transfers behind `client.castle`.
 ## `castle.models.updates`
 
 ::: empire_core.castle.models.updates
+
+## `castle.models.wishing_well`
+
+::: empire_core.castle.models.wishing_well

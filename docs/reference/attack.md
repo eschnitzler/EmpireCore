@@ -6,6 +6,10 @@ Attack info, presets and sending attacks behind `client.attack`.
 
 ::: empire_core.attack.service
 
+## `attack.models.counter`
+
+::: empire_core.attack.models.counter
+
 ## `attack.models.dungeon_skips`
 
 ::: empire_core.attack.models.dungeon_skips

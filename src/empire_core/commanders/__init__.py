@@ -30,6 +30,7 @@ from .models import (
     GetSkillsRequest,
     GetSkillsResponse,
     LeaderBase,
+    NewRelicsResponse,
     ObjectUpdateEvent,
     RelicBonus,
     RelicGem,
@@ -91,4 +92,5 @@ __all__ = [
     "CommandersService",
     "EquipmentService",
     "SkillsService",
+    "NewRelicsResponse",
 ]

@@ -103,6 +103,7 @@ from .updates import (
     SlumLevel,
     UnitsReceived,
 )
+from .wishing_well import WishingWellResponse
 
 __all__ = [
     "SelectCastleRequest",
@@ -199,4 +200,5 @@ __all__ = [
     "StartTaxResponse",
     "TaxInfo",
     "TaxInfoResponse",
+    "WishingWellResponse",
 ]
