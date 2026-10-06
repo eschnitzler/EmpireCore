@@ -4,6 +4,7 @@ import contextlib
 import inspect
 import logging
 import math
+import threading
 import time
 import weakref
 from collections.abc import Callable
@@ -25,6 +26,9 @@ logger = logging.getLogger(__name__)
 # A drifted movement schema would fail on every packet, so the warning is
 # rate-limited to one per this interval; the rest go to debug.
 MOVEMENT_PARSE_WARN_INTERVAL = 60.0
+
+# The movement clock wakes at least this often, as a far-off arrival's wait would overflow Condition.wait
+MOVEMENT_CLOCK_MAX_WAIT = 3600.0
 
 
 class MovementState(StateBase):
@@ -187,10 +191,14 @@ class MovementState(StateBase):
     """Register a callback for movements reaching their target.
 
     The server sends no arrival packet: as in the game client, a movement
-    arrives once its travel time is up. The check runs on every packet
-    and every movement query, so a callback fires with the first of those
-    after arrival. It fires once per movement, and not for a movement
-    first seen after it had already arrived.
+    arrives once its travel time is up (``estimated_arrival``). A timer
+    of the state's own fires it then, with no packet needed, and every
+    packet and movement query checks too. It fires once per movement, and
+    not for a movement first seen after it had already arrived.
+
+    The client checks on its update tick (``CastleArmyData.executeUpdate``,
+    bundle line 133669, running ``updateMapmovements``, line 133670); the
+    timer is the library's way to the same moment.
 
     An army that stays at its target (a stationed support) is kept in
     state until its wait is over (``estimated_end``); every other
@@ -229,6 +237,35 @@ class MovementState(StateBase):
             OccupationEvents(self.on_occupation_started, self.on_occupation_updated, self.on_occupation_ended),
             self._fire,
         )
+
+    def _wake_movement_clock(self) -> None:
+        """Set the movement clock for ``_next_movement_due``, starting it for the first one; under the lock.
+
+        The clock waits on the monotonic clock, set from the wall clock here,
+        so it keeps time even if the wall clock is moved meanwhile.
+        """
+        self._movement_clock_at = time.monotonic() + self._next_movement_due - time.time()
+        if self._movement_clock_thread is not None:
+            self._movement_clock.notify()
+        elif self._next_movement_due < math.inf:
+            self._movement_clock_thread = threading.Thread(
+                target=self._run_movement_clock, name="gge_movement_clock", daemon=True
+            )
+            self._movement_clock_thread.start()
+
+    def _run_movement_clock(self) -> None:
+        """Advance the movements as each one falls due; ends once none is due, or on :meth:`shutdown`."""
+        with self._lock:
+            while self._movement_clock_thread is threading.current_thread():
+                if self._next_movement_due == math.inf:
+                    self._movement_clock_thread = None
+                    return
+                wait = self._movement_clock_at - time.monotonic()
+                if wait > 0:
+                    self._movement_clock.wait(min(wait, MOVEMENT_CLOCK_MAX_WAIT))
+                else:
+                    self._advance_movements()
+                    self._wake_movement_clock()
 
     @staticmethod
     def _accepts_movement(callback: Callable[..., Any]) -> bool:
@@ -356,19 +393,21 @@ class MovementState(StateBase):
         due = times[1] if mid in self._arrival_dispatched else times[0]
         if due < self._next_movement_due:
             self._next_movement_due = due
+            self._wake_movement_clock()
         return times
 
     def _advance_movements(self) -> None:
         """Fire arrivals whose travel time is up and drop movements that are over.
 
-        Runs under the lock on every packet and every movement query. A
-        movement leaves state at ``estimated_end``, which for anything but a
-        stationed army is its arrival. Arrival and end are taken when the
-        movement is stored, so the movements are scanned only once one of
-        them is due; the scan then goes through them in the order they were
-        first seen, as the client's does.
+        Runs under the lock on every packet, every movement query and when
+        the movement clock reaches the next one due. A movement leaves
+        state at ``estimated_end``, which for anything but a stationed army
+        is its arrival. Arrival and end are taken when the movement is
+        stored, so the movements are scanned only once one of them is due;
+        the scan then goes through them in the order they were first seen,
+        as the client's does.
 
-        Client: ``CastleArmyData.updateMapmovements``.
+        Client: ``CastleArmyData.updateMapmovements`` (bundle line 133670).
         """
         now = time.time()
         arrived = []
@@ -391,6 +430,7 @@ class MovementState(StateBase):
                     if due < next_due:
                         next_due = due
             self._next_movement_due = next_due
+            self._wake_movement_clock()
         # After the scan, so an occupation that ends now is still known as announced at its arrival
         self._announcer.prune(now)
         for mov, leaving in arrived:

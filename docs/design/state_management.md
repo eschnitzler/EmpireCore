@@ -138,9 +138,16 @@ the container.
   `estimated_end`: the same moment, except for an army that waits at its
   target (a stationed support, `UM.TWD`), which stays until its wait is over.
   `mrm` removes a movement early.
-* The check runs after every packet, handled or not, and inside every movement
-  query, so arrivals fire with the first packet or query after the travel time
-  is up. `gam` does not remove movements it no longer lists.
+* The check runs after every packet, handled or not, inside every movement
+  query, and on a timer: one `gge_movement_clock` thread per state waits for
+  the next arrival or end, so arrivals fire at the estimated arrival with no
+  packet needed (the client checks on its own update tick,
+  `CastleArmyData.executeUpdate`). The thread starts with the first movement
+  due, ends once none is, and stops on `reset()` and `shutdown()`; it wakes at
+  least hourly, however far off the next one is. While it runs it holds the
+  state, so the state of a client never closed stays in memory until its
+  last movement has passed. `gam` does not remove movements it no longer
+  lists.
 * A packet's movements are stored *before* the check runs, so a movement the
   packet just refreshed is never dropped and re-created, which would re-fire
   `on_incoming_attack` for an attack already alerted on.

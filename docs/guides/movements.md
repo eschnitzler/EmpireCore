@@ -65,9 +65,9 @@ stateDiagram-v2
   It does not fire again on later refreshes, nor when a reconnect lists the
   same attack again.
 - **Arrival.** The server sends no arrival packet: as in the game client, a
-  movement arrives once its travel time is up. The check runs on every packet
-  and every movement query, so the callback fires with the first of those
-  after the arrival. A movement first seen after it arrived does not fire.
+  movement arrives once its travel time is up, and the callback fires then:
+  a timer of the state's own waits for the next arrival, so no packet is
+  needed. A movement first seen after it arrived does not fire.
 - **Stationed supports.** An army that stays at its target is kept in state
   until its wait is over; every other movement is removed before the arrival
   callbacks run.

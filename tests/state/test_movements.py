@@ -1176,6 +1176,105 @@ class TestArrivalScheduling:
         assert wait_for(lambda: arrived == [464])
 
 
+class TestMovementClock:
+    """Arrivals fire at the estimated arrival with no packet or query: CastleArmyData.updateMapmovements
+    (bundle line 133670) drops an arrived movement on the client's own tick, not on a packet."""
+
+    @staticmethod
+    def soon(mid: int, movement_type: int = 0) -> dict:
+        """A movement one second from its target."""
+        return gam_payload(mid, movement_type=movement_type, extra={"PT": 599, "TT": 600})
+
+    def test_an_arrival_fires_at_its_estimate_without_a_packet(self, state):
+        fired_at: list[float] = []
+        state.on_movement_arrived(lambda mid: fired_at.append(time.time()))
+        state.update_from_packet("gam", self.soon(500))
+        due = state.movements[500].estimated_arrival
+
+        assert wait_for(lambda: fired_at, timeout=3)
+        assert fired_at[0] >= due
+        assert 500 not in state.movements
+
+    def test_an_update_that_brings_the_arrival_forward_is_kept_without_a_packet(self, state):
+        arrived: list[int] = []
+        state.on_movement_arrived(arrived.append)
+        state.update_from_packet("gam", gam_payload(501))
+        state.update_from_packet("gam", self.soon(501))
+        assert wait_for(lambda: arrived == [501], timeout=3)
+
+    def test_a_movement_removed_before_its_arrival_does_not_arrive(self, state):
+        arrived: list[int] = []
+        state.on_movement_arrived(arrived.append)
+        state.update_from_packet("gam", self.soon(502))
+        state.update_from_packet("mrm", {"MID": 502})
+        time.sleep(1.3)
+        assert arrived == []
+
+    def test_reset_cancels_the_clock(self, state):
+        arrived: list[int] = []
+        state.on_movement_arrived(arrived.append)
+        state.update_from_packet("gam", self.soon(503))
+        state.reset()
+        assert wait_for(lambda: state._movement_clock_thread is None)
+        time.sleep(1.3)
+        assert arrived == []
+
+    def test_shutdown_stops_the_clock(self, state):
+        arrived: list[int] = []
+        state.on_movement_arrived(arrived.append)
+        state.update_from_packet("gam", self.soon(504))
+        clock = state._movement_clock_thread
+        assert clock is not None
+        state.shutdown()
+        assert wait_for(lambda: not clock.is_alive())
+        time.sleep(1.3)
+        assert arrived == []
+        assert 504 in state.movements
+
+    def test_one_clock_runs_while_movements_are_due_and_none_after(self, state):
+        assert state._movement_clock_thread is None
+        state.update_from_packet("gam", self.soon(505))
+        clock = state._movement_clock_thread
+        assert clock is not None and clock.name == "gge_movement_clock"
+        for mid in range(506, 530):
+            state.update_from_packet("gam", gam_payload(mid))
+        assert state._movement_clock_thread is clock
+        state.update_from_packet("mrm", {"MID": 505})
+        for mid in range(506, 530):
+            state.update_from_packet("mrm", {"MID": mid})
+        assert wait_for(lambda: not clock.is_alive(), timeout=3)
+        assert state._movement_clock_thread is None
+
+    def test_a_far_off_arrival_does_not_stop_the_clock(self, state):
+        # 1e12 s is past threading.TIMEOUT_MAX, which Condition.wait refuses with OverflowError
+        arrived: list[int] = []
+        state.on_movement_arrived(arrived.append)
+        state.update_from_packet("gam", gam_payload(533, extra={"PT": 0, "TT": 10**12}))
+        clock = state._movement_clock_thread
+        assert clock is not None
+        time.sleep(0.1)
+        assert clock.is_alive()
+        state.update_from_packet("gam", self.soon(534))
+        assert wait_for(lambda: arrived == [534], timeout=3)
+        assert state._movement_clock_thread is clock
+
+    def test_an_occupation_ends_captured_at_its_end_without_a_packet(self, state):
+        login(state)
+        events = TestOccupationCallbacks.watch(state)
+        state.update_from_packet("gam", self.soon(531, MovementType.SIEGE))
+        assert wait_for(lambda: len(events) == 3, timeout=3)
+        assert TestOccupationCallbacks.names(events) == [("occupation", 531), ("arrived", 531), ("captured", 531)]
+
+    def test_a_stationed_support_arrives_and_leaves_without_a_packet(self, state):
+        arrived: list[int] = []
+        state.on_movement_arrived(arrived.append)
+        payload = TestStationedMovements.stationed_gam(532, pt=599, tt=600, pwd=0, twd=1)
+        state.update_from_packet("gam", payload)
+        assert wait_for(lambda: arrived == [532], timeout=3)
+        assert 532 in state.movements
+        assert wait_for(lambda: 532 not in state.movements, timeout=3)
+
+
 class TestMovementParseFailures:
     """Schema drift must not silently swallow every incoming attack."""
 

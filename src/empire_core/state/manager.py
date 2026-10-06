@@ -324,8 +324,8 @@ class GameState(
         ``error_code`` is the packet's status; a command the client reads only
         from a successful reply is skipped, unstamped, when it is not 0.
 
-        Every packet, handled or not, also advances movements, so arrivals
-        fire with the server's traffic rather than only on movement packets.
+        Every packet, handled or not, also advances movements, as the
+        movement clock does between packets.
         """
         handler_name = self._DISPATCH.get(cmd_id)
         ok = error_code == 0

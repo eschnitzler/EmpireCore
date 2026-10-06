@@ -77,6 +77,11 @@ class StateBase:
         self._lock = threading.RLock()
         self._set_empty_session()
 
+        # Wakes the thread that advances the movements as one falls due; started with the first
+        self._movement_clock = threading.Condition(self._lock)
+        self._movement_clock_thread: threading.Thread | None = None
+        self._movement_clock_at = math.inf
+
         self._registry = Registry(self._lock)
 
         # One worker, so callbacks run one at a time in packet order, off the
@@ -186,6 +191,7 @@ class StateBase:
         """
         with self._lock:
             self._set_empty_session()
+            self._movement_clock.notify()
 
     def _handle_gbd(self, data: dict[str, Any]) -> set[str]:
         """Apply login data, or one section in the same shape, and return the sections not applied;
@@ -193,7 +199,15 @@ class StateBase:
         raise NotImplementedError
 
     def shutdown(self) -> None:
-        """Shutdown the callback executor. Call when done with the client."""
+        """Stop the movement clock and shut the callback executor down. Call when done with the client.
+
+        Each starts again when next needed, so a client logged in again keeps working. Until this
+        runs (``client.close()`` runs it), the movement clock's thread keeps the state and its callbacks
+        in memory until the last movement it knows of has passed.
+        """
+        with self._lock:
+            self._movement_clock_thread = None
+            self._movement_clock.notify()
         with self._executor_lock:
             if self._callback_executor is not None:
                 self._callback_executor.shutdown(wait=False)
