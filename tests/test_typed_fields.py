@@ -27,6 +27,10 @@ if TYPE_CHECKING:
 _CONTAINERS = (list, tuple, set, frozenset)
 
 ALLOWED: dict[str, str] = {
+    "alliance.models.bookmarks.AddBookmarkRequest.attacker_ids": "player ids",
+    "alliance.models.bookmarks.BookmarkAttackOrder.assigned_attacker_ids": "player ids",
+    "alliance.models.bookmarks.DeleteAllianceBookmarkRequest.entries": "request wire shape: [bookmark_id, notify] rows",
+    "alliance.models.bookmarks.DeleteBookmarkRequest.positions": "request wire shape: [kingdom, x, y] rows",
     "events.models.CampaignEvent.reward_ids": "reward ids: the items' rewards rows have no name to make an enum of",
     "events.models.GetEventPointsResponse.max_points": "points, one per score the event keeps; not ids",
     "events.models.GetEventPointsResponse.own_points": "points, one per score the event keeps; not ids",
@@ -40,7 +44,6 @@ ALLOWED: dict[str, str] = {
     "alliance.models.chronicle.AllianceChronicleEntry.action_values": "#320",
     "alliance.models.info.CrestLayout.colors": "#320",
     "alliance.models.info.CrestLayout.layout_id": "#320",
-    "alliance.models.search.BookmarkAttackOrder.assigned_attacker_ids": "#320",
     "army.models.units.WaveFlank.tools": "#320",
     "army.models.units.WaveFlank.units": "#320",
     "attack.models.info.AttackInfoResponse.defender_legend_skill_ids": "#320",

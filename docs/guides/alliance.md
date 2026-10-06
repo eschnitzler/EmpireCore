@@ -113,15 +113,41 @@ client.alliance.donate(castle_id, AllianceDonation(wood=1000))
 ```
 
 Also on the service: `invite`, `kick_member`, `leave`, `change_diplomacy`,
-`refuse_diplomacy`, `set_auto_war`, `send_newsletter` and `get_bookmarks`.
+`refuse_diplomacy`, `set_auto_war` and `send_newsletter`.
 
-All of these but `get_bookmarks`, and `get_chronicle`, are about your own
+All of these, and `get_chronicle`, are about your own
 alliance, which the client only offers inside one. Outside an alliance they raise
 `NotInAllianceError` without sending anything, and so does a server answer of
 `ALLI_NOT_FOUND` (your alliance id was stale). `set_rank` returns `None` for
 `NO_CHANGE`, the rank the member already has; `kick_member`, `set_rank` and
 `refuse_diplomacy` otherwise return the alliance the reply carries.
 `get_subscriber_count` is sent outside an alliance too, as the client sends it.
+
+## Map bookmarks
+
+`get_bookmarks` lists your own bookmarks and your alliance's. Your own are a
+friend or an enemy; the alliance ones (free attack, defend, attack order) need
+the right to manage bookmarks. A name is 1 to 30 characters
+(`BOOKMARK_NAME_MAX_LENGTH`) and goes out as typed.
+
+```python
+from empire_core.alliance import BookmarkType
+
+added = client.alliance.add_bookmark(640, 655, "Farm", BookmarkType.PLAYER_FRIEND)
+client.alliance.change_bookmark(640, 655, "Barn", BookmarkType.PLAYER_FRIEND)
+client.alliance.delete_bookmark(added)
+```
+
+`add_bookmark` and `change_bookmark` return the bookmark the reply carries and
+raise `CommandError` when the server refuses, such as `BOOKMARK_ALREADY_ADDED`,
+`BOOKMARK_MAX_ENTRYS` (50 own) or `NO_SELF_TARGET`; the alliance list of 20
+has `ALLIANCE_BOOKMARK_MAX_ENTRYS`.
+`change_bookmark` changes only your own bookmarks, as the client does.
+`delete_bookmark` deletes an own bookmark by its position and an alliance one
+by its id, and returns False when the server refuses. An alliance attack order
+takes `attack_in_seconds` (an hour to just under a day) and `attacker_ids`.
+Adding or deleting an alliance bookmark outside an alliance raises
+`NotInAllianceError` without sending anything.
 
 ## Runnable example
 

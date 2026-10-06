@@ -30,6 +30,10 @@ Alliance info, members, chat and help behind `client.alliance`.
 
 ::: empire_core.alliance.models.members
 
+## `alliance.models.bookmarks`
+
+::: empire_core.alliance.models.bookmarks
+
 ## `alliance.models.search`
 
 ::: empire_core.alliance.models.search

@@ -7,8 +7,8 @@ from typing import Any
 
 import pytest
 
+from empire_core.alliance.models.bookmarks import GetBookmarksResponse
 from empire_core.alliance.models.diplomacy import AllianceDonation
-from empire_core.alliance.models.search import GetBookmarksResponse
 from empire_core.client.client import EmpireClient
 from empire_core.enums import AllianceRank, BookmarkType, DiplomacyStatus, Kingdom
 from empire_core.exceptions import (
