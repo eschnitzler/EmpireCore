@@ -34,7 +34,7 @@ from empire_core.quests.models import Quest
 from empire_core.ranking.models import GetHighscoreResponse, GetRankingListResponse, LeaderboardScore
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import QuestId
+    from empire_core.gamedata import GlobalEffect, QuestId
 
 
 class Scoreboard(BaseModel):
@@ -880,7 +880,7 @@ class GlobalEffectTimer(BaseModel):
 
     model_config = ConfigDict(frozen=True, populate_by_name=True)
 
-    effect_id: int = Field(description="The global effect")
+    effect_id: EnumOrInt["GlobalEffect"] = Field(description="The global effect")
     end_time: float = Field(description="When it ends, in time.monotonic() seconds")
     strength: int = Field(description="Its strength, -1 for the effect's own")
     seen: bool = Field(description="Whether you have seen it")
@@ -896,7 +896,9 @@ class GlobalEffectEvent(SpecialEvent):
     is_trigger = True
 
     effects: tuple[GlobalEffectTimer, ...] = Field(default=(), alias="GE", description="The effects")
-    seen_effect_ids: tuple[int, ...] = Field(default=(), alias="SGE", description="The effects you have seen")
+    seen_effect_ids: tuple[EnumOrInt["GlobalEffect"], ...] = Field(
+        default=(), alias="SGE", description="The effects you have seen"
+    )
 
     @classmethod
     def accepts(cls, entry: dict[str, Any]) -> bool:
@@ -939,7 +941,7 @@ class GlobalEffectBoost(BaseModel):
 
     model_config = ConfigDict(frozen=True, populate_by_name=True)
 
-    effect_id: int = Field(alias="GEID", description="The global effect")
+    effect_id: EnumOrInt["GlobalEffect"] = Field(alias="GEID", description="The global effect")
     boost_value: float = Field(alias="BV", description="How much the boost adds")
     cost: int = Field(alias="C2", description="The boost's price in rubies")
 
@@ -972,6 +974,14 @@ class GlobalEffectBuffEvent(SpecialEvent):
         ]
         effects = events.get(Event.GLOBAL_EFFECT)
         values["end_time"] = max(effects.end_time, now) if effects is not None else 0.0
+
+    def boost_value(self, effect_id: GlobalEffect | int) -> float:
+        """
+        What the boost adds to a global effect's strength: the first matching boost's, 0 for one it lists none for.
+
+        Client: ``GlobalEffectBuffEventVO.getBoostValueForGlobalEffect`` (bundle line 116390)
+        """
+        return next((boost.boost_value for boost in self.boosts if boost.effect_id == effect_id), 0.0)
 
 
 class AllianceTournamentEvent(ScoredEvent):

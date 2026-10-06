@@ -101,6 +101,11 @@ defense the units are then chosen against.
   the flank it stands on, and only the middle flank meets the gate at all.
 - **Tools are filtered by the target**: many may only be carried against
   particular kingdoms and area types, or not against camps.
+- **Global effects buff units**: the fill methods read the running ones from
+  state, the timers of the `Event.GLOBAL_EFFECT` event, or take your own as
+  `global_effects` (`GlobalEffectTimer`s). A timer that has ended counts for
+  nothing. The booster's boost to the effects `bie` lists is added from state:
+  each such effect's strength plus its `GlobalEffectBuffEvent.boost_value`.
 
 ## The courtyard wave
 

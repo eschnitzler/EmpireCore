@@ -7,6 +7,9 @@ from __future__ import annotations
 
 import logging
 import math
+import time
+from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 from empire_core.army.models.units import AttackWave
 from empire_core.army.spy_army import SpyArmy
@@ -54,15 +57,20 @@ from empire_core.combat import fill_waves as solve_waves
 from empire_core.combat.capacity import ALIEN_INVASION_AREA_TYPES, OTHER_PLAYER_INFO_AREA_TYPES, LegendaryFight
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import AttackType, CombatEffectType, Flank, Kingdom, LootPriority, MapItemType
+from empire_core.events.models import GlobalEffectBuffEvent, GlobalEffectEvent, GlobalEffectTimer
 from empire_core.exceptions import (
     AttackBelowMinimumError,
     AttackInProgressError,
     CommandError,
     GameDataNotLoadedError,
 )
+from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.text import SMARTFOX_INVALID_CHARS, is_smartfox_valid
 from empire_core.services.base import BaseService
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import GameData, GlobalEffect
 
 logger = logging.getLogger(__name__)
 
@@ -376,7 +384,7 @@ class AttackService(BaseService):
         wave_bonus: int = 0,
         general_skill_ids: list[int] | None = None,
         legend_skill_ids: list[int] | None = None,
-        global_effect_ids: list[int] | list[list[int]] | None = None,
+        global_effects: Iterable[GlobalEffectTimer] | None = None,
         support_tools: list[int] | None = None,
         target_is_player: bool = False,
         owner_id: int | None = None,
@@ -460,12 +468,11 @@ class AttackService(BaseService):
             active_raid_boss_id: The boss of the alliance raid-boss event
                 running now, None when none is; ``client.game_data.raid_boss(name)``
                 finds one by name. Tools tied to other raid bosses are left out
-            global_effect_ids: Global effects currently running, from the
-                ``Event.GLOBAL_EFFECT`` event (``GlobalEffectEvent.effects``);
-                either ids or its raw ``[id, seconds_left, strength]`` ``GE`` rows,
-                which carry the live strength. ``client.game_data.global_effect(name)``
-                finds an id by name.
-                These are the only thing that buffs a unit's attack value
+            global_effects: The global effects running, as the timers of
+                ``GlobalEffectEvent.effects``; the ``Event.GLOBAL_EFFECT`` event's
+                in state when not given. A timer that has ended counts for nothing.
+                These are the only thing that buffs a unit's attack value. The
+                booster's boost to the ones ``bie`` lists is read from state
             flank_bonus_percent: Extra flank bonus, added to whatever the
                 general contributes
             front_bonus_percent: Extra middle bonus, added the same way
@@ -564,11 +571,7 @@ class AttackService(BaseService):
         ) + support_tool_waves(game_data, tools)
         wave_bonus += math.floor(extra_waves)
 
-        unit_attack_bonuses = (
-            global_unit_attack_bonuses(game_data, global_effect_ids, player_level=attacker_level)
-            if global_effect_ids
-            else None
-        )
+        unit_attack_bonuses = self._unit_attack_bonuses(game_data, self._global_effects(global_effects), attacker_level)
 
         if inventory is None:
             inventory = self.read_inventory(castle_id, timeout=timeout)
@@ -592,6 +595,44 @@ class AttackService(BaseService):
             target_is_player=target_is_player,
             active_raid_boss_id=active_raid_boss_id,
         )
+
+    def _global_effects(self, global_effects: Iterable[GlobalEffectTimer] | None) -> list[GlobalEffectTimer]:
+        """``global_effects``, or the timers of the ``Event.GLOBAL_EFFECT`` event in state when None.
+
+        Client: ``GlobalEffectData.eventVO`` (bundle line 143672), which ``getBonusByEffectType`` reads
+        """
+        if global_effects is None:
+            running = self.client.state.get_event(Event.GLOBAL_EFFECT)
+            global_effects = running.effects if isinstance(running, GlobalEffectEvent) else ()
+        return list(global_effects)
+
+    def _unit_attack_bonuses(
+        self, game_data: GameData, global_effects: list[GlobalEffectTimer], player_level: int
+    ) -> dict[int, float] | None:
+        """
+        The per-unit attack bonuses of the global effects whose timers have not ended, with the booster's boost to
+        each one ``bie`` lists; None when no effect buffs a unit.
+
+        An effect whose end has passed counts for nothing, though the event runs on with its last effect. The boost
+        is none while the booster event is not running, where the client's ``parse_GIE`` would throw.
+
+        Client: ``GlobalEffectData.getBonusByEffectType`` (bundle lines 143660-143664), ``parse_GIE`` (bundle
+        lines 143676-143680)
+        """
+        now = time.monotonic()
+        running = [
+            (timer.effect_id, int(timer.end_time - now), timer.strength)
+            for timer in global_effects
+            if timer.end_time >= now
+        ]
+        boosted = self.client.state.get_boosted_global_effects()
+        booster = self.client.state.get_event(Event.GLOBAL_EFFECT_BUFF)
+        boosts: dict[GlobalEffect | int, float] = (
+            {effect_id: booster.boost_value(effect_id) for effect_id in boosted.global_effect_ids}
+            if boosted is not None and isinstance(booster, GlobalEffectBuffEvent)
+            else {}
+        )
+        return global_unit_attack_bonuses(game_data, running, player_level=player_level, boosts=boosts) or None
 
     def read_inventory(self, castle_id: int, *, timeout: float = 5.0) -> Inventory:
         """
@@ -645,7 +686,7 @@ class AttackService(BaseService):
         commander: Commander | None = None,
         general_skill_ids: list[int] | None = None,
         legend_skill_ids: list[int] | None = None,
-        global_effect_ids: list[int] | list[list[int]] | None = None,
+        global_effects: Iterable[GlobalEffectTimer] | None = None,
         support_tools: list[int] | None = None,
         conquer: bool = False,
         active_raid_boss_id: int | None = None,
@@ -732,8 +773,10 @@ class AttackService(BaseService):
                 are read with ``gie`` for the general this commander carries
             legend_skill_ids: The player's legend skills. Left out, they are
                 read with ``skl``
-            global_effect_ids: Global effects currently running, from the
-                ``Event.GLOBAL_EFFECT`` event; see ``client.game_data.global_effect(name)``
+            global_effects: The global effects running, as the timers of
+                ``GlobalEffectEvent.effects``; the ``Event.GLOBAL_EFFECT`` event's
+                in state when not given. The booster's boost to the ones ``bie``
+                lists is read from state
             support_tools: The support tools the attack will carry, as sent in
                 ``AST``; pass the same list to :meth:`send_attack`
             conquer: A conquest attack carries two extra waves
@@ -835,6 +878,7 @@ class AttackService(BaseService):
             if target.inventory is not None
             else self.read_inventory(castle_id, timeout=timeout)
         )
+        global_effects = self._global_effects(global_effects)
         waves = self.fill_waves(
             castle_id,
             level=target.level,
@@ -849,7 +893,7 @@ class AttackService(BaseService):
             commander=commander,
             general_skill_ids=general_skill_ids,
             legend_skill_ids=legend_skill_ids,
-            global_effect_ids=global_effect_ids,
+            global_effects=global_effects,
             support_tools=support_tools,
             target_is_player=target.is_player,
             owner_id=owner_id,
@@ -879,11 +923,7 @@ class AttackService(BaseService):
             options=options,
             # The courtyard runs the same pick as a flank, so a buffed unit is
             # worth as much here as it is out front.
-            unit_attack_bonuses=(
-                global_unit_attack_bonuses(game_data, global_effect_ids, player_level=attacker_level)
-                if global_effect_ids
-                else None
-            ),
+            unit_attack_bonuses=self._unit_attack_bonuses(game_data, global_effects, attacker_level),
         )
         # Client: CastleFightScreenVO.targetOwnerLevel (bundle line 30562)
         owner_level = (

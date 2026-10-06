@@ -1482,11 +1482,20 @@ fallback when it is `-1`. The state reads these rows into
 
 `bie` (at login, `GlobalEffectData.parse_GIE(n.bie)`, BUNDLE lines
 143676-143680, and the `BIE` command) is not this payload: its `GE` lists only
-the ids of the effects the global effects booster event makes stronger.
+the ids of the effects the global effects booster event makes stronger. For
+each, `addBuffStrengthValue` (BUNDLE lines 143711-143718) writes
+`int(strength + BV)` onto every key of a copy of the map, `strength` being the
+first key's (after any override) and `BV` the first `GEB` entry of the booster
+event (`Event.GLOBAL_EFFECT_BUFF`, 612) for that id, 0 without one
+(`getBoostValueForGlobalEffect`, BUNDLE line 116390). The `bonus` getter
+returns that copy while `bie` lists the id (BUNDLE line 143712).
 
 The port's `global_unit_attack_bonuses` (`combat/bonuses.py`) takes either
 plain ids or the `GE` triples, and a strength above `-1` in a triple replaces
-the ITEMS value.
+the ITEMS value; its `boosts` add the booster. The attack service reads the
+`GlobalEffectTimer`s of the event (unless given) and the boosts from state, and
+leaves out a timer whose end has passed, as `getBonusByEffectType` skips it
+(BUNDLE line 143664).
 
 ### 3.10 Test cases
 

@@ -12,8 +12,10 @@ from empire_core.client.client import EmpireClient
 from empire_core.client.session import Session
 from empire_core.config import EmpireConfig
 from empire_core.enums import Kingdom
+from empire_core.events.models import SpecialEvent
 from empire_core.exceptions import EmpireTimeoutError
 from empire_core.network.connection import ResponseWaiter
+from empire_core.player.models.account import BoostedGlobalEffectsResponse
 from empire_core.protocol.models import AttackWave, WaveFlank
 from empire_core.protocol.packet import Packet
 from empire_core.state.manager import GameState
@@ -253,6 +255,8 @@ class StubState:
         self.castles = castles if castles is not None else []
         self.events: list[str] = []
         self.updates: list[tuple[str, object]] = []
+        self.special_events: dict[int, SpecialEvent] = {}
+        self.boosted_global_effects: BoostedGlobalEffectsResponse | None = None
 
     def update_from_packet(self, cmd_id: str, payload: object, error_code: int = 0) -> None:
         self.updates.append((cmd_id, payload))
@@ -265,6 +269,12 @@ class StubState:
 
     def get_boosts(self) -> None:
         return None
+
+    def get_event(self, event: int) -> SpecialEvent | None:
+        return self.special_events.get(int(event))
+
+    def get_boosted_global_effects(self) -> BoostedGlobalEffectsResponse | None:
+        return self.boosted_global_effects
 
     def get_last_packet_time(self, cmd_id: str) -> None:
         return None

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, ClassVar, cast
 
 import pytest
@@ -10,6 +11,7 @@ import pytest
 from empire_core.army.spy_army import SpyArmy
 from empire_core.combat import TargetRead
 from empire_core.enums import Kingdom
+from empire_core.events import GlobalEffectTimer
 from empire_core.exceptions import (
     AmbiguousCastleError,
     AttackBelowMinimumError,
@@ -961,10 +963,55 @@ class TestFillAttack(FillClient):
         client.game_data = GameData.parse("test", payload)
 
         plain = client.attack.fill_attack(12345, target_level=13)
-        buffed = client.attack.fill_attack(12345, target_level=13, global_effect_ids=[5])
+        running = GlobalEffectTimer(effect_id=5, end_time=time.monotonic() + 3600, strength=-1, seen=False)
+        ended = running.model_copy(update={"end_time": time.monotonic() - 1})
+        buffed = client.attack.fill_attack(12345, target_level=13, global_effects=[running])
+        over = client.attack.fill_attack(12345, target_level=13, global_effects=[ended])
 
         assert plain.yard[0][0] == 601
         assert buffed.yard[0][0] == 602
+        assert over.yard[0][0] == 601
+
+    @pytest.mark.parametrize(
+        ("boosted", "booster", "picked"),
+        [
+            ([5], [{"GEID": 5, "BV": 50.0, "C2": 2500}], 602),
+            ([], [{"GEID": 5, "BV": 50.0, "C2": 2500}], 601),
+            ([5], None, 601),
+        ],
+    )
+    def test_the_booster_from_state_strengthens_a_boosted_effect(self, boosted, booster, picked):
+        # Effect 5 alone leaves 602 short of 601; bie listing it adds the 612 event's BV.
+        from empire_core.gamedata import GameData
+        from empire_core.state.manager import GameState
+
+        payload = {
+            "units": [
+                {"wodID": 601, "name": "Barracks", "role": "melee", "meleeAttack": "100", "fightType": "0"},
+                {"wodID": 602, "name": "Barracks", "role": "melee", "meleeAttack": "90", "fightType": "0"},
+            ],
+            "effecttypes": [{"effectTypeID": "148", "name": "attackBonusUnit"}],
+            "effects": [{"effectID": "273", "name": "attackBonusUnit", "effectTypeID": "148", "capID": "99"}],
+            "globalEffects": [{"globalEffectID": "5", "name": "attackBoostSpeermanBowman", "effects": "273&602+5"}],
+        }
+        triggers: list[dict[str, Any]] = [{"TRID": 610, "GE": [[5, 47884, 5.0]], "SGE": []}]
+        if booster is not None:
+            triggers.append({"TRID": 612, "GEB": booster})
+        state = GameState()
+        try:
+            state.update_from_packet("tei", {"TE": triggers})
+            state.update_from_packet("bie", {"GE": boosted})
+            client = self.build([[601, 100_000], [602, 100_000]])
+            client.state.special_events = state.get_events()
+            client.state.boosted_global_effects = state.get_boosted_global_effects()
+        finally:
+            state.shutdown()
+        client.game_data = GameData.parse("test", payload)
+
+        filled = client.attack.fill_attack(12345, target_level=13)
+
+        assert filled.yard[0][0] == picked
+        assert filled.waves[0].model_dump(by_alias=True)["L"]["U"][0][0] == picked
 
     def test_the_row_supplies_the_area_type_a_tool_is_gated_on(self):
         # The ram may only be carried against an area type 2. A castle row is

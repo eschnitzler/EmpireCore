@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
@@ -24,6 +24,8 @@ from empire_core.enums import CombatEffectType
 from empire_core.gamedata import EffectDef, GameData, GlobalEffectDef, ToolStats, parse_stacks
 
 if TYPE_CHECKING:
+    from empire_core.gamedata import GlobalEffect
+
     from .effects import AttackerFlankEffects
 
 logger = logging.getLogger(__name__)
@@ -538,6 +540,7 @@ def global_unit_attack_bonuses(
     global_effects: Iterable[int | Sequence[int]],
     *,
     player_level: int | None = None,
+    boosts: Mapping[GlobalEffect | int, float] | None = None,
 ) -> dict[int, float]:
     """
     Per-unit attack bonuses from the global effects currently running.
@@ -558,9 +561,16 @@ def global_unit_attack_bonuses(
     event's ``sei`` entry (``Event.GLOBAL_EFFECT``), and ``setEffectStrength``
     writes a strength above -1 onto every unit in the map
     (``GlobalEffectEventVO.parseParamObject``, bundle lines 116399-116411). The
-    state reads those rows into ``GlobalEffectEvent.effects``. ``bie`` is not
-    them: it lists only the ids the booster event boosts
-    (``GlobalEffectData.parse_GIE``, bundle lines 143676-143680).
+    state reads those rows into ``GlobalEffectEvent.effects``.
+
+    A boosted effect - one ``bie`` lists - gets the booster event's boost on top
+    (``GlobalEffectData.parse_GIE``, bundle lines 143676-143680):
+    ``addBuffStrengthValue`` writes the effect's strength (its first unit's) plus
+    the boost onto every unit of the map, as an int (``GlobalEffectVO``, bundle
+    lines 143711-143718), and the effect's ``bonus`` is that buffed copy while
+    ``bie`` lists it (bundle line 143712). Without a boost every unit keeps its
+    own strength, where the client reads the first unit's for all
+    (``EffectValueMap.strength``, bundle line 31649); live maps are uniform.
 
     Args:
         game_data: Loaded tables
@@ -569,6 +579,8 @@ def global_unit_attack_bonuses(
             strength above -1 replaces the table's
         player_level: The attacker's level, which some effects are bracketed to;
             without it the brackets are ignored
+        boosts: What the booster adds to each boosted effect: the effects
+            ``bie`` lists, each with its ``GlobalEffectBuffEvent.boost_value``
 
     Returns:
         ``{wod_id: bonus}``, empty when no listed effect is active
@@ -591,8 +603,12 @@ def global_unit_attack_bonuses(
             effect = game_data.effects.get(int(spec_id)) if spec_id.strip().isdigit() else None
             if effect is None or effect.effect_type_id != CombatEffectType.ATTACK_BONUS_UNIT:
                 continue
-            for wod_id, strength in parse_stacks(value):
-                bonuses[wod_id] = bonuses.get(wod_id, 0.0) + (override if override > -1 else strength)
+            stacks = [(wod_id, override if override > -1 else strength) for wod_id, strength in parse_stacks(value)]
+            if boosts and effect_id in boosts and stacks:
+                buffed = math.trunc(stacks[0][1] + boosts[effect_id])
+                stacks = [(wod_id, buffed) for wod_id, _ in stacks]
+            for wod_id, strength in stacks:
+                bonuses[wod_id] = bonuses.get(wod_id, 0.0) + strength
     return bonuses
 
 

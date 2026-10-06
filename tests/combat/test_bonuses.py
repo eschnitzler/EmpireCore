@@ -22,7 +22,7 @@ from empire_core.combat import (
     parse_effect_spec,
     sceat_skill_bonuses,
 )
-from empire_core.gamedata import EffectDef, GameData
+from empire_core.gamedata import EffectDef, GameData, GlobalEffect
 from empire_core.protocol.models import Commander
 
 # Effect ids invented for the test; effect *types* are the real ones.
@@ -837,7 +837,7 @@ class TestGlobalUnitAttackBonus:
         assert bonuses == {602: 13.0, 608: 13.0, 9: 60.0, 10: 60.0}
 
     def test_a_live_strength_replaces_the_tables(self):
-        # bie sends [id, seconds_left, strength]; one scalar lands on every unit
+        # the GLOBAL_EFFECT event sends [id, seconds_left, strength]; one scalar lands on every unit
         # in the map.
         bonuses = global_unit_attack_bonuses(self.data(), [[5, 3600, 25]])
 
@@ -857,6 +857,29 @@ class TestGlobalUnitAttackBonus:
 
     def test_an_absent_ceiling_is_not_a_bar(self):
         assert global_unit_attack_bonuses(self.data(), [5], player_level=70) == {602: 13.0, 608: 13.0}
+
+    def test_a_boosted_effect_adds_the_boost_to_its_strength(self):
+        # addBuffStrengthValue: the effect's strength plus the booster's BV, on every unit
+        boosts: dict[GlobalEffect | int, float] = {GlobalEffect.ATTACK_BOOST_SPEERMAN_BOWMAN: 50.0}
+
+        assert global_unit_attack_bonuses(self.data(), [5], boosts=boosts) == {602: 63.0, 608: 63.0}
+        assert global_unit_attack_bonuses(self.data(), [[5, 47884, 10]], boosts=boosts) == {602: 60.0, 608: 60.0}
+
+    def test_the_boost_lands_on_the_first_units_strength_as_an_int(self):
+        # setEffectStrength writes one value for every key, and EffectValueMap parses it with parseInt
+        game = GameData.parse(
+            "test",
+            dict(self.PAYLOAD, globalEffects=[{"globalEffectID": "5", "effects": "273&602+13#608+99"}]),
+        )
+
+        assert global_unit_attack_bonuses(game, [5], boosts={5: 2.5}) == {602: 15.0, 608: 15.0}
+        assert global_unit_attack_bonuses(game, [5]) == {602: 13.0, 608: 99.0}
+
+    def test_only_the_boosted_effects_are_boosted(self):
+        bonuses = global_unit_attack_bonuses(self.data(), [5, 9], boosts={GlobalEffect.ATTACK_BOOST_SPEERMAN_BOWMAN: 7})
+
+        assert bonuses == {602: 20.0, 608: 20.0, 9: 60.0, 10: 60.0}
+        assert global_unit_attack_bonuses(self.data(), [9], boosts={5: 50.0}) == {9: 60.0, 10: 60.0}
 
     def test_the_buff_is_added_before_the_multiplier(self):
         # The client adds the flat buff to the raw attack, then multiplies.

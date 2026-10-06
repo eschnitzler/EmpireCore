@@ -23,6 +23,7 @@ from empire_core.events.models import (
     SpecialEvent,
     TempServerEvent,
 )
+from empire_core.gamedata import GlobalEffect
 from empire_core.gamedata.ids.events import Event
 from empire_core.state import events as event_state
 
@@ -198,6 +199,8 @@ class TestTypedEvents:
             (2, 1000 + 47884, 10, False)
         ]
         assert [(b.effect_id, b.boost_value, b.cost) for b in boost.boosts] == [(2, 50.0, 2500)]
+        assert effects.effects[0].effect_id is boost.boosts[0].effect_id is GlobalEffect.SPEED_BOOST_2
+        assert (boost.boost_value(GlobalEffect.SPEED_BOOST_2), boost.boost_value(3)) == (50.0, 0.0)
         assert isinstance(league, KingdomsLeagueEvent)
         assert (league.remaining_days, league.original_days, league.reward_set_id) == (1, 42, 7)
         assert (league.has_alliance_ranking, league.league_type_id, league.end_time) == (True, 1, math.inf)
@@ -395,6 +398,14 @@ class TestTriggerEvents:
         assert ids(state) == [610, 612, 601, 103]
         assert state.get_last_packet_time("tei") is not None
 
+    def test_the_boost_of_an_effect_is_its_first_listed_one(self, state, clock):
+        # getBoostValues returns the first GEB entry with the effect's GEID
+        boosts = [{"GEID": 2, "BV": 50.0, "C2": 2500}, {"GEID": 2, "BV": 10.0, "C2": 900}]
+        effects = {"TRID": 610, "GE": [[2, 100, 10]], "SGE": []}
+        state.update_from_packet("tei", {"TE": [effects, {"TRID": 612, "GEB": boosts}]})
+
+        assert state.get_event(Event.GLOBAL_EFFECT_BUFF).boost_value(2) == 50.0
+
     def test_global_effects_end_with_their_last_effect(self, state, clock):
         tei = {"TE": [{"TRID": 610, "GE": [[2, 100, 10], [3, "300", -1], [4, None, 1]], "SGE": [3]}, {"TRID": 612}]}
         state.update_from_packet("tei", tei)
@@ -406,6 +417,8 @@ class TestTriggerEvents:
             (3, 1300.0, True),
             (4, 1000.0, False),
         ]
+        assert effects.seen_effect_ids == (GlobalEffect.COLLECTOR_TEMP_SERVER_BOOST,)
+        assert effects.seen_effect_ids[0] is GlobalEffect.COLLECTOR_TEMP_SERVER_BOOST
         clock[0] = 1299.0
         assert ids(state) == [610, 612]
         clock[0] = 1300.0

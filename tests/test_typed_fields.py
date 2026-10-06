@@ -101,7 +101,6 @@ ALLOWED: dict[str, str] = {
     "defense.models.MoatDefense.right_slots": "#320",
     "defense.models.WallSection.slots": "#320",
     "defense.models.WallSectionSetup.slots": "#320",
-    "events.models.GlobalEffectEvent.seen_effect_ids": "#320",
     "events.models.LongTermPointEvent.upcoming_event_ids": "#320",
     "events.models.RaidBossEvent.raid_boss_ids": "#320",
     "map.models.items.MapAreaItem.abg_connections": "#320",
