@@ -108,7 +108,8 @@ The smaller services have no guide of their own; their
   leaderboards, `get_ranking_list`, `get_own_ranking_page`,
   `get_ranking_window` and `search_leaderboard`.
 - `client.events`: `refresh()`, `get_active_events()` with the events' in-game
-  titles, `get_league_id(event_id)` for the leaderboards and `get_scores(event)`;
+  titles, `get_league_id(event_id)` for the leaderboards, `get_scores(event)`
+  and `get_own_points(event)` for your own rank and points;
   the running events and their scoreboards have a [guide](events.md).
 
 ## Game state and data

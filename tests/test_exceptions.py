@@ -7,6 +7,7 @@ from empire_core.exceptions import (
     ConnectionClosedError,
     EmpireError,
     EmpireTimeoutError,
+    EventHasNoPointsError,
     NetworkError,
     NotInAllianceError,
     UnknownCastleError,
@@ -39,6 +40,13 @@ def test_unknown_castle_error_is_a_value_error_naming_the_castle():
     assert isinstance(err, ValueError) and isinstance(err, EmpireError)
     assert err.castle_id == 12345
     assert "12345" in str(err)
+
+
+def test_event_has_no_points_error_is_a_value_error_naming_the_event():
+    err = EventHasNoPointsError(138)
+    assert isinstance(err, ValueError) and isinstance(err, EmpireError)
+    assert err.event_id == 138
+    assert "event 138 keeps" in str(err)
 
 
 def test_not_in_alliance_error_is_a_lookup_error():

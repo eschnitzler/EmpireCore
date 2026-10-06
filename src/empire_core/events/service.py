@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from empire_core.enums import RankingType
 from empire_core.events.titles import get_event_titles
-from empire_core.exceptions import EventNotRunningError
+from empire_core.exceptions import EventHasNoPointsError, EventNotRunningError
 from empire_core.gamedata.ids.events import Event
 from empire_core.ranking.models import (
     GetHighscoreRequest,
@@ -22,9 +22,12 @@ from empire_core.services.base import BaseService
 
 from .models import (
     EVENT_SCOREBOARDS,
+    POINT_EVENTS,
     BerimondEvent,
     EventScores,
     GameEvent,
+    GetEventPointsRequest,
+    GetEventPointsResponse,
     Scoreboard,
     SpecialEvent,
     SpecialEventInfoRequest,
@@ -228,6 +231,45 @@ class EventsService(BaseService):
             own = GetRankingWindowRequest(list_type=board, league_type_id=league_id, max_results=page_size, score_id="")
             page = self.request(own, GetRankingWindowResponse, timeout=timeout)
         return EventScores.from_leaderboard(event, board, page)
+
+    def get_own_points(self, event: Event | int, timeout: float = 5.0) -> GetEventPointsResponse:
+        """
+        Ask the server for your rank and points in a running event.
+
+        Works for the events in :data:`POINT_EVENTS`, those without a scoreboard too (the
+        gacha events, the lucky wheel, the alliance tournament). The reply is applied to the
+        event's state before this returns, so ``client.state.get_event(event)`` then holds
+        them read the event's way (``own_rank``, ``own_points``, ``parts``, ...).
+
+        Args:
+            event: The event, e.g. ``Event.POINT_EVENT``
+            timeout: Timeout in seconds
+
+        Returns:
+            The reply: its lists hold one value per score the event keeps, in the order
+            :class:`GetEventPointsResponse` gives
+
+        Raises:
+            EventHasNoPointsError: The event keeps no rank and points (a shop or sale event);
+                nothing is sent, as the server answers none (seen live)
+            EventNotRunningError: The event is not running
+            CommandError: The server refused the request
+            EmpireTimeoutError: No answer within ``timeout``, or only one for another event
+
+        Client: ``C2SPointEventGetPointsVO`` (bundle line 8697), sent by the event dialogs only for
+        a running event (e.g. ``CastleFactionInvasionEventDialog.showLoaded``, bundle line 91529;
+        ``CastleAllianceSamuraiInvasionDialogAllianceSublayer.show``, bundle line 98938);
+        ``PEPCommand.exec`` (bundle line 128209)
+        """
+        if event not in POINT_EVENTS:
+            try:
+                event = Event(int(event))
+            except ValueError:
+                pass
+            raise EventHasNoPointsError(event)
+        if self.client.state.get_event(event) is None:
+            raise EventNotRunningError(int(event))
+        return self.request(GetEventPointsRequest(event_id=int(event)), GetEventPointsResponse, timeout=timeout)
 
     @staticmethod
     def _board(event: Event, scoreboard: Scoreboard, alliance: bool, list_type: RankingType | None) -> RankingType:

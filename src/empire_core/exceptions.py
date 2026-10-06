@@ -10,6 +10,7 @@ Failure modes are kept distinct so callers can react to them individually:
 - ``UnknownCastleError``: a castle is not one of the logged-in player's castles.
 - ``AmbiguousCastleError``: a castle id or position matches castles in several kingdoms.
 - ``EventNotRunningError``: a call needs an event that is not running.
+- ``EventHasNoPointsError``: a call needs an event that keeps your rank and points.
 - ``NotInAllianceError``: a call needs your alliance and you are in none.
 - ``ReplyMismatchError``: a reply answers another list than the one asked for.
 - ``UnsendableGoodsError``: a market send carries goods the client would not send.
@@ -198,6 +199,21 @@ class EventNotRunningError(EmpireError, LookupError):
     def __init__(self, event_id: int):
         self.event_id = event_id
         super().__init__(f"event {event_id} is not running")
+
+
+class EventHasNoPointsError(EmpireError, ValueError):
+    """
+    Raised when a call needs an event that keeps your rank and points, and the event keeps none.
+
+    Attributes:
+        event_id: the event asked about, an ``Event`` member when the event table has it
+    """
+
+    def __init__(self, event_id: int):
+        self.event_id = event_id
+        name = getattr(event_id, "name", None)
+        named = f"event {int(event_id)}" + (f" ({name})" if name else "")
+        super().__init__(f"{named} keeps no rank and points of yours; see empire_core.events.POINT_EVENTS")
 
 
 class NotInAllianceError(EmpireError, LookupError):
@@ -407,6 +423,7 @@ __all__ = [
     "GameDataNotLoadedError",
     "AmbiguousLookupError",
     "EventNotRunningError",
+    "EventHasNoPointsError",
     "UnknownCastleError",
     "AmbiguousCastleError",
     "CommandError",

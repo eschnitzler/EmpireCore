@@ -144,7 +144,8 @@ class EventState(StateBase):
         first for you and the second for your alliance, and ``BLPP`` its boss level points.
         The library reads every value through ``int()``, where the client keeps them as sent.
         Score events the library has no model for (the alliance mobilisation, 129, or the sale
-        days lucky wheel, 89) keep their points only in the client.
+        days lucky wheel, 89) keep their points only in the client
+        and in the reply ``client.events.get_own_points`` returns.
 
         Client: ``PEPCommand.exec`` (bundle lines 128213-128216), which looks the ``EID`` up as sent,
         and the ``setRankAndPoints`` of each class

@@ -15,13 +15,15 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, SerializeAsAn
 from empire_core.enums import RankingType
 from empire_core.exceptions import ReplyMismatchError
 from empire_core.gamedata.ids.events import Event
-from empire_core.protocol.base import BaseRequest
+from empire_core.protocol.base import BaseRequest, BaseResponse, GGECommand
 from empire_core.protocol.js import (
+    ClientInt,
     js_int,
     js_loose_equals,
     js_number,
     js_number_or_none,
     js_parse_int_or_zero,
+    js_same_number,
     js_string,
     js_truthy,
 )
@@ -997,6 +999,46 @@ event's ``eventType``
 """
 
 
+POINT_EVENTS: frozenset[Event] = frozenset(
+    {
+        Event.FACTION,
+        Event.LUCKY_WHEEL,
+        Event.ALLI_TOURNAMENT,
+        Event.POINT_EVENT,
+        Event.BEGGING_KNIGHTS,
+        Event.ALLIANCE_ALIEN_INVASION,
+        Event.ALLIANCE_NOMAD_INVASION,
+        Event.SAMURAI_INVASION,
+        Event.LONG_TERM_POINT_EVENT,
+        Event.FACTION_INVASION,
+        Event.SALE_DAYS_LUCKY_WHEEL,
+        Event.RED_ALLIANCE_ALIEN_INVASION,
+        Event.GACHA_DECO2X2,
+        Event.CHRISTMAS_GACHA,
+        Event.EASTER_GACHA,
+        Event.ALLIANCE_MOBILIZATION_EVENT,
+        Event.SUMMER_GACHA,
+        Event.ANNIVERSARY_GACHA,
+        Event.HALLOWEEN_GACHA,
+        Event.ALLIANCE_RAIDBOSS_EVENT,
+        Event.BLACK_FRIDAY_GACHA,
+        Event.CARNIVAL_GACHA,
+    }
+)
+"""The events that keep your rank and points, the ones a ``pep`` is answered for.
+
+Client: ``CastleSpecialEventFactory.createByEventType`` (bundle line 61602) builds each event as
+its ``eventType`` + ``EventVO``; these are the classes with a ``setRankAndPoints``, which
+``PEPCommand.exec`` (bundle line 128213) calls: ``AScoreEventVO`` (bundle line 15044) and its
+subclasses (the nobility contest, marauders, long-term points, alliance tournament (bundle line
+114412), the invasions (bundle lines 55701, 58926, 114310, 116056), the alliance mobilisation
+(bundle line 5101) and the gacha events, ``AGachaEventVO``, bundle line 15372), ``FactionEventVO``
+(bundle line 7461), ``AllianceRaidbossEventEventVO`` (bundle line 9117) and ``LuckyWheelEventVO``
+(bundle line 59687) with ``SaleDaysLuckyWheelEventVO`` (bundle line 117863). Every other event
+class is an ``ASpecialEventVO`` (bundle line 2953) without one.
+"""
+
+
 def event_class(event_id: int) -> type[SpecialEvent]:
     """The model an event's entries are read into."""
     return EVENT_CLASSES.get(_EVENT_IDS.get(event_id), SpecialEvent)  # type: ignore[arg-type]
@@ -1014,6 +1056,68 @@ class SpecialEventInfoRequest(BaseRequest):
     """
 
     command = "sei"
+
+
+class GetEventPointsRequest(BaseRequest):
+    """
+    Ask for your rank and points in a running event; the server answers with a ``pep``.
+
+    Command: pep
+    Payload: {"EID": event_id}
+
+    Client: ``C2SPointEventGetPointsVO`` (bundle lines 8697-8698), sent as an event's dialog opens
+    (e.g. ``CastlePointEventDialog``, bundle line 117419; ``FactionEventRankingsSublayer.show``,
+    bundle line 95328) and after a marauders' contest payment (``BKPCommand``, bundle line 128199)
+    """
+
+    command = "pep"
+
+    event_id: int = Field(alias="EID", description="The event, e.g. Event.POINT_EVENT")
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a pep reply is about this event: its ``EID``, when sent, is the one asked for.
+
+        Client: ``PEPCommand.exec`` (bundle line 128213) applies a reply to the event its ``EID`` names
+        """
+        if not isinstance(payload, dict) or "EID" not in payload:
+            return True
+        return js_same_number(payload["EID"], self.event_id)
+
+
+class GetEventPointsResponse(BaseResponse):
+    """
+    Your rank and points in an event, pushed as you score and sent in answer to a :class:`GetEventPointsRequest`.
+
+    ``OR``, ``OP`` and ``PT`` are lists, one value per score the event keeps, in this order:
+
+    - a score event (nobility contest, marauders, long-term points, gacha, alliance tournament): your own
+      (``AScoreEventVO.setRankAndPoints``, bundle line 15044; ``AlliTournamentEventVO``, bundle line 114412)
+    - Berimond and the lucky wheel: your own, the first only (``FactionEventVO``, bundle line 7461, into your
+      league; ``LuckyWheelEventVO``, bundle line 59687)
+    - the alien, red alien, nomad and samurai invasions and the alliance mobilisation: yours, then your
+      alliance's; ``PT`` may be sent, these events do not read it (bundle lines 58926, 114310, 55701, 5101)
+    - the Berimond invasion: blue players, red players, then your alliance, ``PT`` per part (bundle line 116056)
+    - the alliance raid boss: yours, then your alliance's (bundle line 9117), and ``BLPP``
+
+    Client: ``PEPCommand.exec`` (bundle lines 128213-128216), which hands the lists to the event's
+    ``setRankAndPoints``; the state applies them the same way (``client.state.get_event``)
+    """
+
+    command: ClassVar[str] = GGECommand.PEP
+
+    event_id: ClientInt = Field(alias="EID", description="The event")
+    own_ranks: list[ClientInt] = Field(
+        default_factory=list, alias="OR", description="Your ranks, one per score in the order above; -1 unranked"
+    )
+    own_points: list[ClientInt] = Field(
+        default_factory=list, alias="OP", description="Your points, one per score in the order above"
+    )
+    max_points: list[ClientInt] | None = Field(
+        default=None, alias="PT", description="The most points each score counts; None when not sent"
+    )
+    boss_level_points: ClientInt | None = Field(
+        default=None, alias="BLPP", description="The points on the raid boss's current level; None for other events"
+    )
 
 
 class GameEvent(BaseModel):

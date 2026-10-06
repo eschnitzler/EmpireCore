@@ -45,7 +45,9 @@ Each event is a model of its kind, with the fields its game dialog reads, and
 | `GlobalEffectEvent`, `GlobalEffectBuffEvent` | `GLOBAL_EFFECT`, `GLOBAL_EFFECT_BUFF` | the effects and their ends, the boosts |
 | `SpecialEvent` | any other | `event_id`, `event`, `end_time`, `raw` |
 
-Your points arrive in the server's `pep` pushes as you score. A later entry
+Your points arrive in the server's `pep` pushes as you score, and
+`client.events.get_own_points(event)` asks for them (see [Your own rank and
+points](#your-own-rank-and-points)). A later entry
 for a running event is read over it the way the game reads it: a field it
 leaves out mostly keeps its value, but the samurai and Berimond invasions build
 their scores anew from every entry, and Berimond's own rank and points start
@@ -95,6 +97,52 @@ board gives besides. Player rows on most boards carry `player_id`, `level`,
 `alliance_name`; the leaderboards (long-term points and donations) carry
 `alliance_name` and the game server in `instance_id`, but no ids.
 
+## Your own rank and points
+
+`client.events.get_own_points(event)` asks the server for your rank and points
+in a running event, as the game does when an event's dialog opens. Only some
+events keep them, `POINT_EVENTS` (in `empire_core.events`), the ones whose game
+model has a rank and points:
+
+| In the game | `Event` |
+|---|---|
+| Battle for Berimond | `FACTION` |
+| Nobility Contest, Marauders' contest, Grand Nobility Prize | `POINT_EVENT`, `BEGGING_KNIGHTS`, `LONG_TERM_POINT_EVENT` |
+| the alliance tournament | `ALLI_TOURNAMENT` |
+| the alien, red alien, nomad, samurai and Berimond invasions | `ALLIANCE_ALIEN_INVASION`, `RED_ALLIANCE_ALIEN_INVASION`, `ALLIANCE_NOMAD_INVASION`, `SAMURAI_INVASION`, `FACTION_INVASION` |
+| the alliance mobilisation and raid boss | `ALLIANCE_MOBILIZATION_EVENT`, `ALLIANCE_RAIDBOSS_EVENT` |
+| the lucky wheels | `LUCKY_WHEEL`, `SALE_DAYS_LUCKY_WHEEL` |
+| the gacha events | `GACHA_DECO2X2`, `CHRISTMAS_GACHA`, `EASTER_GACHA`, `SUMMER_GACHA`, `ANNIVERSARY_GACHA`, `HALLOWEEN_GACHA`, `BLACK_FRIDAY_GACHA`, `CARNIVAL_GACHA` |
+
+Any other event (the shops, sales and skins, the donation event) raises
+`EventHasNoPointsError` without asking, as the server leaves such a request
+unanswered (seen live); one that is not running raises `EventNotRunningError`.
+
+```python
+points = client.events.get_own_points(Event.SAMURAI_INVASION)
+print(points.own_ranks, points.own_points)   # [yours, your alliance's]
+
+event = client.state.get_event(Event.SAMURAI_INVASION)  # updated by the same reply
+print(event.parts["SP"].own_points, event.parts["A"].own_points)
+```
+
+The reply's `own_ranks`, `own_points` and `max_points` are lists with one value
+per score the event keeps (-1 is unranked):
+
+| Events | The values |
+|---|---|
+| the score events (nobility contest, marauders, long-term points, gacha, alliance tournament) | yours |
+| Berimond, the lucky wheel | yours, in the first value only |
+| the alien, red alien, nomad and samurai invasions, the alliance mobilisation | yours, your alliance's |
+| the Berimond invasion | the blue players', the red players', your alliance's |
+| the alliance raid boss | yours, your alliance's, and `boss_level_points` |
+
+The state applies the reply before the call returns, read the event's way:
+`own_rank` and `own_points` on a score event or Berimond, one per part in
+`parts` on an invasion, `score` and `alliance_points` on the raid boss. Events
+the library has no model for (the alliance mobilisation, the lucky wheel) have
+their points only in the reply.
+
 ## Which events have a board
 
 `EVENT_SCOREBOARDS` (in `empire_core.events`) maps each event with a board to
@@ -134,7 +182,7 @@ for event in client.events.get_running_score_events():
 
 The nomad and samurai invasions have only an alliance board in the game. Events
 the game shows no board for are not listed: the lucky wheel and the gacha
-events show only your own rank, and the colossus uses a command of its own. The
+events show only your own rank (`get_own_points` reads it), and the colossus uses a command of its own. The
 kingdoms league, the alliance mobilisation and raid boss events, the
 tournaments and the temporary-server and battle-ground boards are not covered
 yet; the `client.ranking` calls reach their lists directly.
