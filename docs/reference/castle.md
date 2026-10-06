@@ -26,6 +26,10 @@ Castles, buildings, resources and transfers behind `client.castle`.
 
 ::: empire_core.castle.models.details
 
+## `castle.models.kingdoms`
+
+::: empire_core.castle.models.kingdoms
+
 ## `castle.models.market`
 
 ::: empire_core.castle.models.market
@@ -57,6 +61,10 @@ Castles, buildings, resources and transfers behind `client.castle`.
 ## `castle.models.updates`
 
 ::: empire_core.castle.models.updates
+
+## `castle.models.upkeep`
+
+::: empire_core.castle.models.upkeep
 
 ## `castle.models.wishing_well`
 

@@ -11,7 +11,12 @@ from .equipment import (
     RelicGem,
     RelicInfo,
 )
-from .inventory import NewRelicsResponse
+from .inventory import (
+    GemInventoryResponse,
+    GemStack,
+    InventorySpace,
+    NewRelicsResponse,
+)
 from .roster import (
     FACTION_BARON_ID,
     PICTURE_FACTION_CASTELLAN,
@@ -86,4 +91,7 @@ __all__ = [
     "ActivatingSceatSkill",
     "ObjectUpdateEvent",
     "NewRelicsResponse",
+    "GemInventoryResponse",
+    "GemStack",
+    "InventorySpace",
 ]

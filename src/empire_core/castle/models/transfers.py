@@ -57,7 +57,7 @@ class KingdomUnitTransferResponse(BaseResponse):
     Command: kut
     Payload: {"gcu": {...}, "gui": {...}, "kpi": {...}}
 
-    ``gui`` (the source castle's units after) and ``kpi`` are kept as sent.
+    ``gui`` (the source castle's units after) is kept as sent; ``kpi`` updates ``client.state.get_kingdoms()``.
 
     Client: ``KUTCommand.executeCommand`` (bundle line 124732)
     """

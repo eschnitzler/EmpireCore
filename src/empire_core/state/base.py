@@ -14,9 +14,12 @@ from empire_core.alliance.models.chat import ChatMessageData
 from empire_core.alliance.models.info import AllianceInfo
 from empire_core.attack.models.counter import AttackCounterResponse
 from empire_core.castle.models.collect import MineStatus, ResourceCart
+from empire_core.castle.models.kingdoms import KingdomInfoResponse
 from empire_core.castle.models.permanent import PermanentCastle
+from empire_core.castle.models.tax import TaxInfo
+from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
 from empire_core.castle.models.wishing_well import WishingWellResponse
-from empire_core.commanders.models.inventory import NewRelicsResponse
+from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace, NewRelicsResponse
 from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.commanders.models.skills import SkillList
 from empire_core.events.models import SpecialEvent
@@ -28,6 +31,7 @@ from empire_core.player.models.account import (
     OfficerTraining,
     PlayerGiftsResponse,
 )
+from empire_core.player.models.economy import LootBoxesResponse, MercenaryMissionsResponse
 from empire_core.player.models.progress import (
     AchievementsResponse,
     BoosterInfoResponse,
@@ -151,6 +155,14 @@ class StateBase:
         self.player_gifts: PlayerGiftsResponse | None = None
         self.wishing_well: WishingWellResponse | None = None
         self.new_relics: NewRelicsResponse | None = None
+        self.gems: GemInventoryResponse | None = None
+        self.loot_boxes: LootBoxesResponse | None = None
+        self.inventory_space: InventorySpace | None = None
+        self.kingdoms: KingdomInfoResponse | None = None
+        self.mercenary_missions: MercenaryMissionsResponse | None = None
+        self.tax: TaxInfo | None = None
+        self.construction_item_expiry: ConstructionItemExpiryResponse | None = None
+        self.resource_pool: ResourcePoolResponse | None = None
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}

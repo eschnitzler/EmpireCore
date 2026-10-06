@@ -8,8 +8,9 @@ description: What client.state holds, how to read it safely, and how to tell how
 the castle you joined with its mines and resource carts, movements, special
 currencies, your spy count, active events, your commanders and skills, your
 alliance and its chat, and your progress: research, boosters, might, titles,
-achievements, relocation and plague monks; and account details such as the
-daily reset, the attack counter and the wishing well. A background thread
+achievements, relocation and plague monks; account details such as the
+daily reset, the attack counter and the wishing well; and your inventory and
+economy: gems, loot boxes, kingdoms, mercenary missions and tax. A background thread
 applies the server's packets to it while your code reads it.
 
 ## Read through the accessors
@@ -51,6 +52,14 @@ boosted = client.state.get_boosted_global_effects()  # the GlobalEffect members 
 gifts = client.state.get_player_gifts()     # gift packages to send
 well = client.state.get_wishing_well()
 relics = client.state.get_new_relics()
+gems = client.state.get_gems()              # gems and relic gems held
+boxes = client.state.get_loot_boxes()       # loot boxes and key progress
+space = client.state.get_inventory_space()  # equipment and gem inventory space
+kingdoms = client.state.get_kingdoms()      # unlocks, transfers between kingdoms
+missions = client.state.get_mercenary_missions()  # each mission's rewards are Collectables
+tax = client.state.get_tax()                # a copy; remaining_seconds as of its packet
+expiry = client.state.get_construction_item_expiry()
+pool = client.state.get_resource_pool()     # the goods the citizen in your castle carries
 area = client.state.get_joined_area()       # None until a castle is joined
 mines = client.state.get_mines()            # the joined castle's mines, by object id
 carts = client.state.get_resource_carts()   # its wood, stone and food carts
@@ -109,6 +118,14 @@ every value is as old as the last packet that carried it:
 | Gift packages | `pgl` | log in again |
 | Ruby wishing well | `rww` | log in again |
 | New relics flag | `nrf` (pushed) | log in again |
+| Gems and relic gems | `ggm`, `gec` (pushed; adds or takes gems away) | log in again |
+| Loot boxes, key progress | `gls` (pushed, also before the login data); a `gls` updates only the key progress it lists | log in again |
+| Equipment and gem inventory space | `esl` (pushed), the `bgm`, `ceq`, `cge`, `frc` and `seq` replies | log in again |
+| Kingdoms, transfers between them | `kpi`, the `kgt`, `kst`, `kut`, `msk` and `fjf` replies; a `kpi` updates only the kingdoms it lists | log in again |
+| Mercenary missions | `mpe` | log in again |
+| Tax collection | `txi`, the `txs`, `txc` and `btx` replies | `client.castle.get_tax_info()` |
+| Construction item expiry | `nec` (pushed) | log in again |
+| Resource citizen | `irc` (pushed every 30 seconds or so); joining a castle (`jaa`) clears it | none |
 | Running events, their scores and ends | `sei`, `tei` (pushed), `see`, `tee`, `pep`, the `fjf` and `bst` replies, `cqs` for the campaign | `client.events.refresh()` |
 | Active quests, the quest book | `qli` (pushed after login, not in the login data), `qst`, `qfi`, the quest popups of `msp` | none |
 | Daily quests | `dql` (pushed) | log in again |

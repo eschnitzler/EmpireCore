@@ -56,6 +56,11 @@ from .details import (
     SafeAmount,
     StorageCapacity,
 )
+from .kingdoms import (
+    KingdomInfoResponse,
+    KingdomTransfer,
+    KingdomUnlock,
+)
 from .market import (
     CreateMarketMovementRequest,
     CreateMarketMovementResponse,
@@ -102,6 +107,10 @@ from .updates import (
     DamagedBuildings,
     SlumLevel,
     UnitsReceived,
+)
+from .upkeep import (
+    ConstructionItemExpiryResponse,
+    ResourcePoolResponse,
 )
 from .wishing_well import WishingWellResponse
 
@@ -201,4 +210,9 @@ __all__ = [
     "TaxInfo",
     "TaxInfoResponse",
     "WishingWellResponse",
+    "KingdomInfoResponse",
+    "KingdomTransfer",
+    "KingdomUnlock",
+    "ConstructionItemExpiryResponse",
+    "ResourcePoolResponse",
 ]

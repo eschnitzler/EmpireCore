@@ -8,6 +8,13 @@ from .account import (
     PlayerGift,
     PlayerGiftsResponse,
 )
+from .economy import (
+    LootBoxAmount,
+    LootBoxesResponse,
+    LootBoxKeys,
+    MercenaryMission,
+    MercenaryMissionsResponse,
+)
 from .info import (
     GetPlayerInfoRequest,
     GetPlayerInfoResponse,
@@ -64,4 +71,9 @@ __all__ = [
     "OfficerTraining",
     "PlayerGift",
     "PlayerGiftsResponse",
+    "LootBoxAmount",
+    "LootBoxKeys",
+    "LootBoxesResponse",
+    "MercenaryMission",
+    "MercenaryMissionsResponse",
 ]

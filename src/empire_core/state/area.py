@@ -58,7 +58,8 @@ class AreaState(StateBase):
     def _handle_jaa(self, data: Any) -> None:
         """Apply a join's reply: the joined area, and its mines and resource carts when it sends them.
 
-        A reply without ``gsm`` or ``rci`` leaves the mines or carts as they were, as the client does.
+        A reply without ``gsm`` or ``rci`` leaves the mines or carts as they were, as the client does. It
+        drops the resource citizen's goods (``CastleResourcePoolData.reset``).
 
         Client: ``JAACommand.executeCommand`` (bundle line 130190), ``AreaFactory.parseAreaInfo``
         (bundle line 130226), ``AreaDataUpdater.parseJAA`` (bundle line 131496)
@@ -68,6 +69,7 @@ class AreaState(StateBase):
         reply = read_or_none(SelectCastleResponse.model_validate, data, warn=logger, what="a jaa reply")
         if reply is None:
             return
+        self.resource_pool = None
         kingdom = enum_or_none(Kingdom, reply.kingdom_id)
         castle_id = None
         area = data.get("gca")
