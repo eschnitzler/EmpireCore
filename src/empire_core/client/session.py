@@ -200,6 +200,7 @@ class Session:
         def forget() -> None:
             self._forget()
             client.messages._reset()
+            client.rewards._reset()
 
         if not client.connection.run_if_current(generation, forget):
             logger.debug(f"Client {client.username}: drop of an earlier session reported late, ignored")

@@ -24,6 +24,7 @@ from empire_core.rewards import (
     GetStartupBonusResponse,
     GetWeeklyHonorResponse,
     LoginBonusSpecial,
+    PendingRewardsInfo,
 )
 from empire_core.state.manager import GameState
 from tests.service_helpers import StubPlayer, StubState, conn, make_client, xt_packet
@@ -481,3 +482,84 @@ class TestWeeklyHonor:
         player = state.get_local_player()
         assert player is not None and player.coins == 900
         state.shutdown()
+
+
+def mailbox_client(script=None, *rows):
+    """A client whose mailbox holds the sne ``rows``."""
+    client = make_client(script)
+    client._on_packet(xt_packet("sne", {"MSG": list(rows)}))
+    return client
+
+
+def patch_note(collected=0, message_id=41):
+    return [message_id, 125, f"7+87+{collected}", "", -1, 5, 0, 0, 0]
+
+
+class TestPatchNoteRewards:
+    GPN = {"R": {"C2": [50], "U": [[664, 10]], "SO": "-1"}}
+
+    def test_read_the_rewards(self):
+        client = mailbox_client({"gpn": xt_packet("gpn", self.GPN)}, patch_note())
+
+        rewards = client.rewards.get_patch_note_rewards(41)
+
+        assert [(item.kind, item.item, item.amount) for item in rewards] == [
+            (CollectableKind.RUBIES, None, 50),
+            (CollectableKind.UNITS, Unit.KINGSCROSSBOWMAN, 10),
+        ]
+        assert conn(client).request_payloads == [("gpn", {"PNID": 87})]
+
+    def test_collect_reads_then_collects(self):
+        client = mailbox_client({"gpn": xt_packet("gpn", self.GPN), "cpn": xt_packet("cpn", {})}, patch_note())
+
+        assert client.rewards.collect_patch_note_rewards(41) is True
+        assert conn(client).request_payloads == [("gpn", {"PNID": 87}), ("cpn", {"PNID": 87, "MID": 41})]
+
+    def test_a_refused_collect_is_false(self):
+        script = {"gpn": xt_packet("gpn", self.GPN), "cpn": xt_packet("cpn", {}, error_code=1)}
+        client = mailbox_client(script, patch_note())
+        assert client.rewards.collect_patch_note_rewards(41) is False
+
+    def test_a_collected_patch_note_sends_nothing(self):
+        client = mailbox_client(None, patch_note(collected=1))
+
+        with pytest.raises(ValueError, match="was collected"):
+            client.rewards.collect_patch_note_rewards(41)
+        assert conn(client).request_payloads == []
+
+    def test_a_patch_note_without_rewards_is_not_collected(self):
+        client = mailbox_client({"gpn": xt_packet("gpn", {"R": {}})}, patch_note())
+
+        with pytest.raises(ValueError, match="no rewards"):
+            client.rewards.collect_patch_note_rewards(41)
+        assert conn(client).request_payloads == [("gpn", {"PNID": 87})]
+
+    @pytest.mark.parametrize("row", [[41, 1, "7+87+0", "", -1, 5, 0, 0, 0], [41, 125, "7+x+0", "", -1, 5, 0, 0, 0]])
+    def test_no_patch_note_sends_nothing(self, row):
+        client = mailbox_client(None, row)
+
+        with pytest.raises(ValueError, match="no patch note"):
+            client.rewards.get_patch_note_rewards(41)
+        assert conn(client).request_payloads == []
+
+
+class TestPendingRewards:
+    def test_the_push_is_kept_and_announced(self):
+        client = make_client()
+        seen: list[PendingRewardsInfo] = []
+        client.rewards.on_pending_rewards(seen.append)
+        assert client.rewards.pending_rewards is None
+
+        client._on_packet(xt_packet("pre", {"AMT": 3}))
+
+        assert client.rewards.pending_rewards == 3
+        assert [info.amount for info in seen] == [3]
+        client.rewards.on_pending_rewards.remove(seen.append)
+
+    def test_a_dropped_session_forgets_the_count(self):
+        client = make_client()
+        client._on_packet(xt_packet("pre", {"AMT": 3}))
+
+        client._session.dropped(conn(client).generation)
+
+        assert client.rewards.pending_rewards is None

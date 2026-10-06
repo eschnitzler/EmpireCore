@@ -1,6 +1,6 @@
 # Rewards
 
-The free daily rewards behind `client.rewards`.
+The free rewards behind `client.rewards`.
 
 ## `rewards.service`
 

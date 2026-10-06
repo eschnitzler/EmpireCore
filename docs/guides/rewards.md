@@ -1,5 +1,5 @@
 ---
-description: Reading and collecting the free daily rewards: the login bonus, the startup bonus, lost and found, the activity chest and the weekly honour reward.
+description: Reading and collecting the free rewards: the login and startup bonuses, lost and found, the activity chest, the weekly honour reward, patch note rewards, and the pending rewards count.
 ---
 
 # Daily rewards
@@ -9,7 +9,9 @@ with the request the dialog's button sends. None of these requests costs
 anything: they carry only ids, so there is no `spend_rubies` to pass.
 
 The client enables a collect button only when the read says the reward is
-there; the library leaves that check to you and to the server. A collect the
+there. Where the library knows what the client checks, it refuses the collect
+without sending it (each section says which); the rest is left to you and to
+the server. A collect the
 server refuses returns False, or raises `CommandError` where the call returns
 the reply's data.
 
@@ -103,3 +105,40 @@ if honor.is_ready:
 
 The client offers it only to a player with honour. The reply's coins and rubies
 reach `client.state`.
+
+## Patch note rewards
+
+A patch note arrives as mail (`MessageType.PATCH_NOTES`), and many carry a
+reward. Its header says which patch note it is and whether its rewards were
+collected; the rewards themselves are read with a request:
+
+```python
+for message in client.messages.mailbox:
+    header = message.patch_note_header()
+    if header is None or header.collected:
+        continue
+    print(client.rewards.get_patch_note_rewards(message.message_id))
+    client.rewards.collect_patch_note_rewards(message.message_id)
+```
+
+`collect_patch_note_rewards` does what the patch note's dialog does: it reads
+the rewards first and collects only when there are some. A patch note whose
+header says it was collected, or one without rewards, raises `ValueError`
+without the collect being sent, as does a message id that is no patch note in
+the mailbox. The mailbox copy keeps its header after a collect.
+
+## Event announcements
+
+An event announcement is mail too (`MessageType.EVENT_ANNOUNCEMENT`); its
+`event_announcement_header()` names the announced event and when the
+announcement ends. Its reward has no call here: the current game client has no
+class for the announcement event, so it never offers the claim, and the library
+does not send a request the client never sends.
+
+## Pending rewards
+
+The server pushes how many rewards wait in the reward hub (`pre`).
+`client.rewards.pending_rewards` holds the last count, None until the first
+push, and `on_pending_rewards` calls you with each push. The hub lists and
+hands out the rewards over a web service of its own, which the library does
+not reach.

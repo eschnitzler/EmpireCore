@@ -1,6 +1,6 @@
 """
-The free daily rewards: the login bonus, the startup bonus, lost and found, the activity chest and the
-weekly honour reward.
+The free rewards: the login bonus, the startup bonus, lost and found, the activity chest, the weekly
+honour reward, the patch note rewards, and the pending rewards count.
 
 Commands:
 - alb / clb: The daily login bonus and picking one of its rewards
@@ -8,6 +8,8 @@ Commands:
 - lfe / clf: Lost and found and collecting an item from it
 - uac / uoa: The activity chest (pushed) and opening it
 - gwh / rwb: Your weekly honour rank and redeeming its reward
+- gpn / cpn: A patch note's rewards and collecting them
+- pre: How many rewards wait in the reward hub (pushed)
 
 None of these requests carries a cost: each VO holds only the ids below, and the one reply with
 coins and rubies (rwb) brings the totals after the reward.
@@ -23,7 +25,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from empire_core.army.models.units import UnitInventoryBlock
 from empire_core.enums import CollectableKind, LoginBonusSpecial
-from empire_core.gamedata import Collectable
+from empire_core.gamedata import Collectable, CollectableObject
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, readable_list
 from empire_core.protocol.js import ClientInt, ParseInt, js_loose_equals, js_number, js_number_or_none
 
@@ -551,6 +553,98 @@ class RedeemWeeklyHonorResponse(BaseResponse):
     unit_inventory: UnitInventoryBlock = Field(alias="gui", default=None, description="Units after the reward")
 
 
+# =============================================================================
+# GPN / CPN - Patch note rewards
+# =============================================================================
+
+
+class GetPatchNoteRewardsRequest(BaseRequest):
+    """
+    Ask for a patch note's rewards.
+
+    Command: gpn
+    Payload: {"PNID": patch note id}
+
+    Client: ``C2SGetPatchNoteRewardsVO`` (bundle line 136140), sent by
+    ``CastleChangelistDialog.requestRewards`` (bundle line 136088) when the patch note's dialog opens
+    """
+
+    command = "gpn"
+
+    patch_note_id: int = Field(alias="PNID", description="The patch note's PatchNoteHeader.patch_note_id")
+
+
+class GetPatchNoteRewardsResponse(BaseResponse):
+    """
+    A patch note's rewards.
+
+    Command: gpn
+
+    Client: ``GPNCommand.executeCommand`` (bundle line 125302) reads ``R`` with
+    ``CollectableParserS2CParamObject.createList``
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    command = "gpn"
+
+    rewards: CollectableObject = Field(alias="R", default=(), description="The rewards, in the order sent")
+
+
+class CollectPatchNoteRewardsRequest(BaseRequest):
+    """
+    Collect a patch note's rewards.
+
+    Command: cpn
+    Payload: {"PNID": patch note id, "MID": message id}
+
+    Client: ``C2SCollectPatchNoteRewardsVO`` (bundle line 136131), sent by
+    ``CastleChangelistDialog.collectRewards`` (bundle line 136119)
+    """
+
+    command = "cpn"
+
+    patch_note_id: int = Field(alias="PNID", description="The patch note's PatchNoteHeader.patch_note_id")
+    message_id: int = Field(alias="MID", description="The patch note message's MessageInfo.message_id")
+
+
+class CollectPatchNoteRewardsResponse(BaseResponse):
+    """
+    Acknowledgement of collected patch note rewards; the client reads nothing from it.
+
+    Command: cpn
+    Client: ``CPNCommand.executeCommand`` (bundle line 125269)
+    """
+
+    command = "cpn"
+
+
+# =============================================================================
+# PRE - Pending rewards
+# =============================================================================
+
+
+class PendingRewardsInfo(BaseResponse):
+    """
+    How many rewards wait in the reward hub. The server pushes it; nothing asks for it.
+
+    The rewards themselves are listed and collected over the reward hub's web service, not
+    over this connection.
+
+    Command: pre
+
+    Client: ``PRECommand.executeCommand`` (bundle line 120837) passes ``AMT`` (``CommKeys.AMOUNT``,
+    dll line 18945; read at bundle line 120838) to ``RewardHubData.setAmountOfPendingRewards`` (bundle line 29786);
+    ``CastleRewardHubMicroservice`` (bundle line 12885) fetches the rewards themselves
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    command = "pre"
+
+    amount: ClientInt = Field(alias="AMT", default=0, description="How many rewards wait")
+
+
 __all__ = [
     "LOGIN_BONUS_REQUIRED_XP",
     "ActivityChestInfo",
@@ -558,12 +652,16 @@ __all__ = [
     "CollectLoginBonusResponse",
     "CollectLostAndFoundRequest",
     "CollectLostAndFoundResponse",
+    "CollectPatchNoteRewardsRequest",
+    "CollectPatchNoteRewardsResponse",
     "CollectStartupBonusRequest",
     "CollectStartupBonusResponse",
     "GetLoginBonusRequest",
     "GetLoginBonusResponse",
     "GetLostAndFoundRequest",
     "GetLostAndFoundResponse",
+    "GetPatchNoteRewardsRequest",
+    "GetPatchNoteRewardsResponse",
     "GetStartupBonusRequest",
     "GetStartupBonusResponse",
     "GetWeeklyHonorRequest",
@@ -573,6 +671,7 @@ __all__ = [
     "LostAndFoundItem",
     "OpenActivityChestRequest",
     "OpenActivityChestResponse",
+    "PendingRewardsInfo",
     "RedeemWeeklyHonorRequest",
     "RedeemWeeklyHonorResponse",
 ]

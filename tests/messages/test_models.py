@@ -5,7 +5,14 @@ import copy
 import pytest
 
 from empire_core.enums import Kingdom, LogResult, MapItemType, MessageType, SpyLogType
-from empire_core.messages.models import SPY_VALIDITY, SpyLogHeader, repair_header
+from empire_core.gamedata import Event
+from empire_core.messages.models import (
+    SPY_VALIDITY,
+    EventAnnouncementHeader,
+    PatchNoteHeader,
+    SpyLogHeader,
+    repair_header,
+)
 from empire_core.protocol.base import parse_response
 from empire_core.protocol.models import (
     ForwardSpyLogRequest,
@@ -259,3 +266,55 @@ class TestSpyLogHeader:
 
         assert header is not None
         assert (header.log_type, header.result, header.area_type) == (None, None, 2)
+
+
+class TestPatchNoteHeader:
+    """MessageChangelistVO.parseMessageHeader: teaserId+patchNoteId+collected."""
+
+    @pytest.mark.parametrize(
+        ("header", "expected"),
+        [
+            ("7+87+0", PatchNoteHeader(7, 87, False)),
+            ("7+87+1", PatchNoteHeader(7, 87, True)),
+            ("-1+88", PatchNoteHeader(-1, 88, False)),
+            ("x", PatchNoteHeader(None, None, False)),
+        ],
+    )
+    def test_the_header(self, header, expected):
+        assert MessageInfo.model_validate([1, MessageType.PATCH_NOTES, header]).patch_note_header() == expected
+
+    def test_no_header_without_a_patch_note(self):
+        assert MessageInfo.model_validate([1, 1, "7+87+0"]).patch_note_header() is None
+
+
+class TestEventAnnouncementHeader:
+    """MessageEventAnnouncementVO.parseMessageHeader: subtype#eventId#durationTS."""
+
+    def test_the_header(self):
+        header = MessageInfo.model_validate([1, MessageType.EVENT_ANNOUNCEMENT, "0#80#1700000000"])
+
+        assert header.event_announcement_header() == EventAnnouncementHeader(Event.SAMURAI_INVASION, 1700000000)
+
+    def test_an_unknown_event_is_kept_as_its_id(self):
+        header = MessageInfo.model_validate([1, MessageType.EVENT_ANNOUNCEMENT, "0#99999"]).event_announcement_header()
+
+        assert header == EventAnnouncementHeader(99999, None)
+
+    def test_expiry_by_the_wall_clock(self):
+        header = EventAnnouncementHeader(Event.SAMURAI_INVASION, 1000)
+
+        assert not header.is_expired(now=1000) and header.is_expired(now=1001)
+        assert not EventAnnouncementHeader(None, None).is_expired()
+
+    def test_an_empty_end_has_expired_and_a_missing_one_never_does(self):
+        # The client compares now > durationTS: "" reads as 0, a missing part as undefined (never true).
+        def header(raw: str) -> EventAnnouncementHeader | None:
+            return MessageInfo.model_validate([1, MessageType.EVENT_ANNOUNCEMENT, raw]).event_announcement_header()
+
+        empty, missing = header("0#80#"), header("0#80")
+
+        assert empty is not None and empty.is_expired(now=1)
+        assert missing is not None and not missing.is_expired(now=10**12)
+
+    def test_no_header_without_an_announcement(self):
+        assert MessageInfo.model_validate([1, MessageType.PATCH_NOTES, "0#80#1"]).event_announcement_header() is None

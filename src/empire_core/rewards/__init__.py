@@ -1,4 +1,4 @@
-"""Free daily rewards: login and startup bonuses, lost and found, the activity chest and the weekly honour reward."""
+"""Free rewards: login and startup bonuses, lost and found, the activity chest, weekly honour, patch notes, ..."""
 
 from empire_core.enums import LoginBonusSpecial
 
@@ -9,12 +9,16 @@ from .models import (
     CollectLoginBonusResponse,
     CollectLostAndFoundRequest,
     CollectLostAndFoundResponse,
+    CollectPatchNoteRewardsRequest,
+    CollectPatchNoteRewardsResponse,
     CollectStartupBonusRequest,
     CollectStartupBonusResponse,
     GetLoginBonusRequest,
     GetLoginBonusResponse,
     GetLostAndFoundRequest,
     GetLostAndFoundResponse,
+    GetPatchNoteRewardsRequest,
+    GetPatchNoteRewardsResponse,
     GetStartupBonusRequest,
     GetStartupBonusResponse,
     GetWeeklyHonorRequest,
@@ -24,6 +28,7 @@ from .models import (
     LostAndFoundItem,
     OpenActivityChestRequest,
     OpenActivityChestResponse,
+    PendingRewardsInfo,
     RedeemWeeklyHonorRequest,
     RedeemWeeklyHonorResponse,
 )
@@ -37,12 +42,16 @@ __all__ = [
     "CollectLoginBonusResponse",
     "CollectLostAndFoundRequest",
     "CollectLostAndFoundResponse",
+    "CollectPatchNoteRewardsRequest",
+    "CollectPatchNoteRewardsResponse",
     "CollectStartupBonusRequest",
     "CollectStartupBonusResponse",
     "GetLoginBonusRequest",
     "GetLoginBonusResponse",
     "GetLostAndFoundRequest",
     "GetLostAndFoundResponse",
+    "GetPatchNoteRewardsRequest",
+    "GetPatchNoteRewardsResponse",
     "GetStartupBonusRequest",
     "GetStartupBonusResponse",
     "GetWeeklyHonorRequest",
@@ -52,6 +61,7 @@ __all__ = [
     "LostAndFoundItem",
     "OpenActivityChestRequest",
     "OpenActivityChestResponse",
+    "PendingRewardsInfo",
     "RedeemWeeklyHonorRequest",
     "RedeemWeeklyHonorResponse",
     "RewardsService",

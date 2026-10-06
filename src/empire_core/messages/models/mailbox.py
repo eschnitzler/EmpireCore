@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -20,6 +21,8 @@ from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model
 from empire_core.army.models.units import SpyPositions
 from empire_core.commanders.models.roster import Castellan
 from empire_core.enums import BattleLogAttackType, Kingdom, LogResult, MapItemType, MessageType, SpyLogType
+from empire_core.gamedata.ids.events import Event
+from empire_core.gamedata.lenient import known
 from empire_core.map.models import MapObject
 from empire_core.protocol.base import (
     BasePayload,
@@ -199,6 +202,14 @@ class MessageInfo(BasePayload):
         """This message's battle log header, or None when it is no readable battle log."""
         return BattleLogHeader.from_message(self)
 
+    def patch_note_header(self) -> PatchNoteHeader | None:
+        """This message's patch note header, or None when it is no patch note."""
+        return PatchNoteHeader.from_message(self)
+
+    def event_announcement_header(self) -> EventAnnouncementHeader | None:
+        """This message's event announcement header, or None when it is no event announcement."""
+        return EventAnnouncementHeader.from_message(self)
+
 
 @dataclass(frozen=True)
 class SpyLogHeader:
@@ -343,6 +354,71 @@ class BattleLogHeader:
             owner_id=js_parse_int(area[1]) if len(area) > 1 else None,
             area_name=area[2] if len(area) > 2 else "",
         )
+
+
+@dataclass(frozen=True)
+class PatchNoteHeader:
+    """
+    What a patch note's header says: ``teaserId+patchNoteId+collected``.
+
+    A number the header lacks, or that ``parseInt`` cannot read, is None.
+
+    Client: ``MessageChangelistVO.parseMessageHeader`` (bundle line 136053), reached through
+    ``CastleMessageFactory.parseMessage`` (bundle line 135102)
+    """
+
+    teaser_id: int | None
+    patch_note_id: int | None
+    collected: bool = False
+
+    @classmethod
+    def from_message(cls, message: MessageInfo) -> PatchNoteHeader | None:
+        """The header of a patch note, or None when the message is no patch note."""
+        if message.message_type != MessageType.PATCH_NOTES:
+            return None
+        parts = message.decoded_header.split("+")
+        return cls(
+            teaser_id=js_parse_int(parts[0]),
+            patch_note_id=js_parse_int(parts[1]) if len(parts) > 1 else None,
+            collected=len(parts) > 2 and js_parse_int(parts[2]) == 1,
+        )
+
+
+@dataclass(frozen=True)
+class EventAnnouncementHeader:
+    """
+    What an event announcement's header says: ``subtype#eventId#durationTS``.
+
+    ``event`` is None when the header has no event part; ``end_timestamp`` is None when it has
+    no end the client can compare, and such an announcement never expires, as for the client.
+
+    Client: ``MessageEventAnnouncementVO.parseMessageHeader`` (bundle line 136509), split on
+    ``MessageConst.SUBTYPE_META_DATA_SPLITTER`` (dll line 19516)
+    """
+
+    event: Event | int | None
+    end_timestamp: int | float | None
+
+    @classmethod
+    def from_message(cls, message: MessageInfo) -> EventAnnouncementHeader | None:
+        """The header of an event announcement, or None when the message is no event announcement."""
+        if message.message_type != MessageType.EVENT_ANNOUNCEMENT:
+            return None
+        parts = message.decoded_header.split("#")
+        return cls(
+            event=known(Event, js_int(parts[1])) if len(parts) > 1 else None,
+            end_timestamp=js_number_or_none(parts[2]) if len(parts) > 2 else None,
+        )
+
+    def is_expired(self, now: float | None = None) -> bool:
+        """
+        Whether the announced event's time is over, by the wall clock (``now`` in unix seconds).
+
+        Client: ``EventAnnouncementData.isAvailable`` (bundle line 53097), ``now / 1000 > durationTS``
+        """
+        if self.end_timestamp is None:
+            return False
+        return (time.time() if now is None else now) > self.end_timestamp
 
 
 class SystemNotificationEvent(BaseResponse):
@@ -834,6 +910,8 @@ __all__ = [
     "SPY_VALIDITY",
     "SpyLogHeader",
     "BattleLogHeader",
+    "PatchNoteHeader",
+    "EventAnnouncementHeader",
     "SpyReportArea",
     "SpyReportResponse",
     "SystemNotificationEvent",

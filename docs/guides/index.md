@@ -101,7 +101,7 @@ client.defense      client.ranking     client.events     client.rewards
 
     ---
 
-    The login and startup bonuses, lost and found, the activity chest and the weekly honour reward.
+    The login and startup bonuses, lost and found, the activity chest, the weekly honour reward and patch note rewards.
 
 </div>
 

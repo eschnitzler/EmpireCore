@@ -1,5 +1,5 @@
 """
-The free daily rewards: read whether each is available, and collect it.
+The free rewards: read whether each is available, and collect it.
 
 Nothing here spends rubies: no request of these rewards carries a cost, so none needs a
 ``spend_rubies`` guard. Each collect sends what the client's button sends; the client only
@@ -31,11 +31,14 @@ from .models import (
     CollectLoginBonusRequest,
     CollectLoginBonusResponse,
     CollectLostAndFoundRequest,
+    CollectPatchNoteRewardsRequest,
     CollectStartupBonusRequest,
     GetLoginBonusRequest,
     GetLoginBonusResponse,
     GetLostAndFoundRequest,
     GetLostAndFoundResponse,
+    GetPatchNoteRewardsRequest,
+    GetPatchNoteRewardsResponse,
     GetStartupBonusRequest,
     GetStartupBonusResponse,
     GetWeeklyHonorRequest,
@@ -43,6 +46,7 @@ from .models import (
     LoginBonus,
     LostAndFoundItem,
     OpenActivityChestRequest,
+    PendingRewardsInfo,
     RedeemWeeklyHonorRequest,
     RedeemWeeklyHonorResponse,
 )
@@ -50,7 +54,8 @@ from .models import (
 
 class RewardsService(BaseService):
     """
-    The daily login bonus, the startup bonus, lost and found, the activity chest and the weekly honour reward.
+    The daily login bonus, the startup bonus, lost and found, the activity chest, the weekly honour
+    reward, the patch note rewards, and the pending rewards count.
 
     Reached as client.rewards.
     """
@@ -58,8 +63,20 @@ class RewardsService(BaseService):
     def __init__(self, client) -> None:
         super().__init__(client)
         self._activity_chest: ActivityChestInfo | None = None
+        self._pending_rewards: int | None = None
         self._activity_lock = threading.Lock()
         self.on_response("uac", self._handle_activity_chest)
+        self.on_response("pre", self._handle_pending_rewards)
+
+    def _reset(self) -> None:
+        """
+        Forget the pending rewards count; the client resets it when the session drops.
+
+        Client: ``CastleDestroyGameCommand`` (bundle line 120270) resets every model, and
+        ``RewardHubData.reset`` (bundle line 29783) zeroes the count
+        """
+        with self._activity_lock:
+            self._pending_rewards = None
 
     # =========================================================================
     # Daily login bonus
@@ -342,6 +359,105 @@ class RewardsService(BaseService):
         ``CastleWeeklyHighscoreRewardDialog.collect`` (bundle line 45392); ``RWBCommand`` (bundle line 124426)
         """
         return self.request(RedeemWeeklyHonorRequest(), RedeemWeeklyHonorResponse, timeout=timeout)
+
+    # =========================================================================
+    # Patch note rewards
+    # =========================================================================
+
+    def get_patch_note_rewards(self, message_id: int, timeout: float = 5.0) -> tuple[Collectable, ...]:
+        """
+        Get a patch note's rewards; the header's ``collected`` says whether they were collected.
+
+        Args:
+            message_id: A patch note's ``MessageInfo.message_id`` in ``client.messages.mailbox``
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``message_id`` is no patch note in the mailbox, or its header names no patch
+                note id; nothing is sent
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleChangelistDialog.requestRewards`` (bundle line 136088) sends
+        ``C2SGetPatchNoteRewardsVO`` (bundle line 136140) when the dialog opens; ``GPNCommand``
+        (bundle line 125302)
+        """
+        patch_note_id, _ = self._patch_note(message_id)
+        request = GetPatchNoteRewardsRequest(patch_note_id=patch_note_id)
+        return self.request(request, GetPatchNoteRewardsResponse, timeout=timeout).rewards
+
+    def collect_patch_note_rewards(self, message_id: int, timeout: float = 5.0) -> bool:
+        """
+        Collect a patch note's rewards.
+
+        As the dialog does, the rewards are read first (a ``gpn``), and only a patch note not
+        collected yet that has rewards is collected. The mailbox copy of the message keeps its
+        header: the client marks only its own copy collected.
+
+        Args:
+            message_id: A patch note's ``MessageInfo.message_id`` in ``client.messages.mailbox``
+            timeout: Timeout in seconds for each request
+
+        Returns:
+            True when the server accepted it, False when it refused it
+
+        Raises:
+            ValueError: ``message_id`` is no patch note in the mailbox, its header names no patch
+                note id or says it was collected, or it has no rewards; the collect is not sent
+            CommandError / EmpireTimeoutError / ConnectionClosedError: the reward read failed;
+                see :meth:`EmpireClient.send`
+
+        Client: ``CastleChangelistDialog.collectRewards`` (bundle line 136119) sends
+        ``C2SCollectPatchNoteRewardsVO`` (bundle line 136131) from a button enabled only while the
+        header's ``collected`` is false and shown only with rewards (``updateCollectButton``,
+        bundle line 136114); ``CPNCommand`` (bundle line 125269)
+        """
+        patch_note_id, collected = self._patch_note(message_id)
+        if collected:
+            raise ValueError(f"the patch note {message_id} was collected")
+        if not self.get_patch_note_rewards(message_id, timeout=timeout):
+            raise ValueError(f"the patch note {message_id} has no rewards")
+        request = CollectPatchNoteRewardsRequest(patch_note_id=patch_note_id, message_id=message_id)
+        return self.execute(request, timeout=timeout)
+
+    def _patch_note(self, message_id: int) -> tuple[int, bool]:
+        message = next((m for m in self.client.messages.mailbox if m.message_id == message_id), None)
+        header = None if message is None else message.patch_note_header()
+        if header is None or header.patch_note_id is None:
+            raise ValueError(f"message {message_id} is no patch note in the mailbox")
+        return header.patch_note_id, header.collected
+
+    # =========================================================================
+    # Pending rewards
+    # =========================================================================
+
+    @property
+    def pending_rewards(self) -> int | None:
+        """
+        How many rewards wait in the reward hub, from the last ``pre`` push; None until one arrived.
+
+        The reward hub lists and hands out the rewards over its web service, which the library
+        does not reach.
+
+        Client: ``RewardHubData.getAmountOfPendingRewards`` (bundle line 29787)
+        """
+        with self._activity_lock:
+            return self._pending_rewards
+
+    on_pending_rewards = Event[PendingRewardsInfo]()
+    """
+    Call ``callback`` with each ``pre`` push, after :attr:`pending_rewards` is updated.
+
+    Detach it again with ``on_pending_rewards.remove(callback)``, a no-op if it is not registered.
+
+    Client: ``PRECommand.executeCommand`` (bundle line 120837) dispatches ``PRE_ARRIVED``
+    """
+
+    def _handle_pending_rewards(self, response: BaseResponse) -> None:
+        if not isinstance(response, PendingRewardsInfo):
+            return
+        with self._activity_lock:
+            self._pending_rewards = response.amount
+        self._fire(self.on_pending_rewards, response)
 
 
 __all__ = ["RewardsService"]
