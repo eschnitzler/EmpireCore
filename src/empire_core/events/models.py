@@ -8,13 +8,15 @@ from __future__ import annotations
 import math
 import time
 from collections.abc import Mapping
-from typing import Annotated, Any, ClassVar, NoReturn, TypeVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, NoReturn, TypeVar
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, SerializeAsAny
 
 from empire_core.enums import RankingType
 from empire_core.exceptions import ReplyMismatchError
+from empire_core.gamedata import EnumOrInt
 from empire_core.gamedata.ids.events import Event
+from empire_core.map.models.areas import MapObject
 from empire_core.protocol.base import BaseRequest, BaseResponse, GGECommand
 from empire_core.protocol.js import (
     ClientInt,
@@ -22,12 +24,17 @@ from empire_core.protocol.js import (
     js_loose_equals,
     js_number,
     js_number_or_none,
+    js_parse_int,
     js_parse_int_or_zero,
     js_same_number,
     js_string,
     js_truthy,
 )
+from empire_core.quests.models import Quest
 from empire_core.ranking.models import GetHighscoreResponse, GetRankingListResponse, LeaderboardScore
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import QuestId
 
 
 class Scoreboard(BaseModel):
@@ -452,7 +459,9 @@ class ScoredEvent(SpecialEvent, _ScoreFields):
 
 class PointEvent(ScoredEvent):
     """
-    The nobility contest.
+    The nobility contest, and the base of :class:`LuckyWheelEvent`: the lucky wheels keep the same score
+    (``LuckyWheelEventVO`` holds a ``LuckyWheelPointEventTypeScoreEventVO``, an
+    ``APointEventTypeScoreEventVO``; bundle lines 59673, 117131).
 
     Client: ``APointEventTypeScoreEventVO.parseBasicsFromParamObject`` (bundle line 59997)
     """
@@ -965,6 +974,417 @@ class GlobalEffectBuffEvent(SpecialEvent):
         values["end_time"] = max(effects.end_time, now) if effects is not None else 0.0
 
 
+class AllianceTournamentEvent(ScoredEvent):
+    """
+    The alliance tournament: your own score, and your alliance's in ``parts["A"]``, which the ``pep`` pushes update.
+
+    Client: ``AlliTournamentEventVO.parseData`` (bundle line 114401) reads ``A`` into its
+    ``ALeagueTypeScoreEventVO`` (kept from entry to entry), ``setRankAndPoints`` (bundle line 114412)
+    """
+
+    @classmethod
+    def accepts(cls, entry: dict[str, Any]) -> bool:
+        # AlliTournamentEventVO.parseData (bundle line 114401) hands n.A to its score, which throws without it
+        return entry.get("A") is not None
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        parts = dict(values.get("parts") or {})
+        parts["A"] = EventPart.parse(entry["A"], parts.get("A"))
+        values["parts"] = parts
+
+    def with_points(self, ranks: Any, points: Any, maxima: Any) -> SpecialEvent:
+        alliance = _with_points(self.parts.get("A", EventPart()), ranks, points, None)
+        return self.model_copy(update={"parts": ReadOnlyDict({**self.parts, "A": alliance})})
+
+
+class AllianceMobilizationEvent(ScoredEvent):
+    """
+    The alliance mobilisation: ``parts["SP"]`` is your score and ``parts["A"]`` your alliance's,
+    both rebuilt from every entry in the league of ``A.LID`` with the entry's ``RSID``.
+
+    The client keeps an alliance score per league of the event's league types, and none for a
+    league outside them; the state has no game data, so it keeps the one for your league
+    whenever ``A.LID`` is 1 or more.
+
+    Client: ``AllianceMobilizationEventEventVO.parseData`` (bundle lines 5074-5081),
+    ``setRankAndPoints`` (bundle line 5101)
+    """
+
+    _rebuilt_parts = ("SP", "A")
+
+    subdivision_id: int = Field(default=0, description="Your alliance's subdivision, from the entry's A")
+    division_round_id: int = Field(default=0, alias="DRI", description="The division round")
+
+    @classmethod
+    def accepts(cls, entry: dict[str, Any]) -> bool:
+        # parseData reads A.LID and writes SP.LID, so a missing A or SP throws
+        return entry.get("A") is not None and entry.get("SP") is not None
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        alliance, own = _dict(entry["A"]), _dict(entry["SP"])
+        league, reward_set = js_int(alliance.get("LID")), js_int(entry.get("RSID"))
+        values["league_id"] = league
+        values["subdivision_id"] = js_int(alliance.get("SDI"))
+        values["division_round_id"] = js_int(entry.get("DRI"))
+        parts = {"SP": EventPart.parse({**own, "LID": league, "RSID": reward_set})}
+        if league >= 1:
+            parts["A"] = EventPart.parse({**alliance, "LID": league, "RSID": reward_set}, sub_type=1)
+        values["parts"] = parts
+
+    def with_points(self, ranks: Any, points: Any, maxima: Any) -> SpecialEvent:
+        parts = dict(self.parts)
+        for index, key in enumerate(("SP", "A")):
+            if key in parts:
+                parts[key] = _with_points(parts[key], ranks, points, None, index)
+        return self.model_copy(update={"parts": ReadOnlyDict(parts)})
+
+
+class LuckyWheelEvent(PointEvent):
+    """
+    The lucky wheel (15) and the sale days lucky wheel (89): a point event score and the wheel's state.
+
+    The client keeps the wheel's win class and its progress as sent; the library reads them as numbers.
+
+    Client: ``LuckyWheelEventVO.parseData``, ``parseParamObject`` and ``setRankAndPoints`` (bundle lines
+    59674, 59686, 59687), ``LuckyWheelData.parseBasics`` (bundle line 17562); ``SaleDaysLuckyWheelEventVO``
+    (bundle line 117842) reads the same
+    """
+
+    _reads_kl = False
+
+    has_visited_pro_mode: bool = Field(default=False, alias="HVPM", description="Whether you opened the pro mode")
+    has_free_spin: bool = Field(default=False, alias="HFS", description="Whether a free spin is waiting")
+    pro_mode: bool = Field(default=False, alias="PMA", description="Whether the pro mode is on")
+    win_class: int = Field(default=0, alias="CWC", description="The wheel's current win class")
+    win_class_progress: float = Field(default=0.0, alias="WCP", description="The progress towards the next win class")
+    jackpot_set_id: int = Field(default=0, alias="JSID", description="The next jackpot set")
+    jackpot_spin_set_id: int = Field(default=0, alias="JHID", description="The jackpot set of the next jackpot spin")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values.update(
+            has_visited_pro_mode=js_truthy(entry.get("HVPM")),
+            has_free_spin=js_truthy(entry.get("HFS")),
+            pro_mode=js_truthy(entry.get("PMA")),
+            win_class=js_int(entry.get("CWC")),
+            win_class_progress=js_number(entry.get("WCP")),
+            jackpot_set_id=js_int(entry.get("JSID")),
+            jackpot_spin_set_id=js_int(entry.get("JHID")),
+        )
+
+    def with_points(self, ranks: Any, points: Any, maxima: Any) -> SpecialEvent:
+        return _with_points(self, ranks, points, None)  # type: ignore[no-any-return]
+
+
+class ArtifactEvent(SpecialEvent):
+    """
+    An artifact event: the parts of the artifact you have found.
+
+    Client: ``ArtifactEventVO.parseBasicsFromParamObject`` and ``parseParamObject`` (bundle lines 59141, 59161)
+    """
+
+    _reads_kl = False
+
+    artifact_league_id: int = Field(default=0, alias="ALID", description="Your artifact league")
+    parts_found: int = Field(default=0, alias="PF", description="The artifact parts you have found")
+    skin_id: int = Field(default=0, alias="SID", description="The event's skin")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values["artifact_league_id"] = js_int(entry.get("ALID"))
+        values["parts_found"] = js_int(entry.get("PF"))
+        values["skin_id"] = js_int(entry.get("SID"))
+
+
+class SeasonEvent(SpecialEvent):
+    """
+    A season event: the Thornking (2), the Sea Queen (4) or the Underworld (64).
+
+    Client: ``ASeasonEventVO.parseParamObject`` (bundle line 31376); ``ThornkingEventVO``,
+    ``SeaqueenEventVO`` and ``UnderworldEventVO.parseParamObject`` (bundle lines 118454, 117975, 118678)
+    read ``UL.MID`` first, the Thornking's through ``int()`` and the others' as sent; the library
+    reads every one through ``int()``
+    """
+
+    _reads_kl = False
+
+    unlocked: bool = Field(default=False, description="Whether the event is open to you, from UL.UL")
+    reward_id: int | None = Field(default=None, alias="RID", description="The reward the event's end gives")
+    finished: bool = Field(default=False, alias="F", description="Whether you have finished the event")
+    map_id: int | None = Field(default=None, description="The event's treasure map, from UL.MID")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        if js_truthy(unlock := entry.get("UL")):
+            unlock = _dict(unlock)
+            if js_truthy(unlock.get("MID")):
+                values["map_id"] = js_int(unlock["MID"])
+            values["unlocked"] = js_truthy(unlock.get("UL"))
+        if js_truthy(entry.get("RID")):
+            values["reward_id"] = js_int(entry["RID"])
+        values["finished"] = js_int(entry.get("F")) == 1
+
+
+class FameBoosterEvent(SpecialEvent):
+    """The fame booster. Client: ``FameboosterEventVO.parseParamObject`` (bundle line 116103)"""
+
+    _reads_kl = False
+
+    bonus_percent: int = Field(default=0, alias="GBP", description="The extra glory, in percent")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values["bonus_percent"] = js_int(entry.get("GBP"))
+
+
+class AllianceBonusEvent(SpecialEvent):
+    """
+    An alliance payment bonus: the prime alliance bonus (45) or the alliance payment bonus (55).
+
+    Client: ``PrimeAlliBonusEventVO`` and ``AlliPaymentBonusEventVO.parseParamObject`` (bundle lines 117469, 114367)
+    """
+
+    _reads_kl = False
+
+    bonus_percent: int = Field(default=0, alias="APP", description="The bonus, in percent")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values["bonus_percent"] = js_int(entry.get("APP"))
+
+
+class DiscountSaleEvent(SpecialEvent):
+    """
+    A prime sale with one discount: the relic enchanter sale (88) or the season pass sale (599).
+
+    Client: ``RelicEnchanterPrimeSaleEventVO`` and ``SeasonPassPrimeSaleEventVO.parseParamObject``
+    (bundle lines 117746, 118084)
+    """
+
+    _reads_kl = False
+
+    discount: int = Field(default=0, alias="DIS", description="The discount, in percent")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values["discount"] = js_int(entry.get("DIS"))
+
+
+class SkipForFreeEvent(SpecialEvent):
+    """Free skips. Client: ``SkipForFreeEventVO.parseParamObject`` (bundle line 118150)"""
+
+    _reads_kl = False
+
+    free_skip_seconds: int = Field(
+        default=0, alias="SEC", description="A wait this long or shorter is skipped for free"
+    )
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values["free_skip_seconds"] = js_int(entry.get("SEC"))
+
+
+class GiftEvent(SpecialEvent):
+    """The Goodgame gift. Client: ``GGSGiftEventVO.parseParamObject`` (bundle line 116370)"""
+
+    _reads_kl = False
+
+    collected: bool = Field(default=False, alias="AC", description="Whether you have collected the gift")
+    skin_id: int | None = Field(default=None, alias="SID", description="The gift's skin, None before one is sent")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values["collected"] = js_number(entry.get("AC")) > 0
+        if js_truthy(entry.get("SID")):
+            values["skin_id"] = js_parse_int(entry["SID"])
+
+
+class FortuneTellerEvent(SpecialEvent):
+    """The fortune teller. Client: ``FortuneTellerEventVO.parseParamObject`` (bundle line 116134)"""
+
+    tries: int = Field(default=0, alias="FTDC", description="Today's readings")
+    daily_reset_time: float | None = Field(
+        default=None, alias="STR", description="When the readings reset, in time.monotonic() seconds; None without STR"
+    )
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values["tries"] = js_int(entry.get("FTDC"))
+        seconds = js_number_or_none(entry.get("STR"))
+        values["daily_reset_time"] = None if seconds is None else now + seconds
+
+
+class TournamentRank(BaseModel):
+    """
+    One place of the tournament of fame's ranking: ``[rank, fame points, owner record]``.
+
+    Client: ``TournamentEventVO.parseParamObject`` (bundle line 118596), ``CastleOtherPlayerData.parseOwnerInfo``
+    (bundle line 138996), which reads nothing from a record without an ``OID``
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    rank: int = Field(description="The place")
+    fame_points: int = Field(description="The fame the player has earned, read through int()")
+    owner: MapObject | None = Field(default=None, description="The player; None for a record without an OID")
+
+    @classmethod
+    def from_row(cls, row: list[Any]) -> TournamentRank:
+        """A ranking row; a missing fame or owner reads as 0 or None."""
+        record = row[2] if len(row) > 2 else None
+        owner = MapObject.model_validate(record) if isinstance(record, dict) and js_truthy(record.get("OID")) else None
+        return cls(rank=js_int(row[0]), fame_points=js_int(row[1] if len(row) > 1 else None), owner=owner)
+
+
+class TournamentEvent(SpecialEvent):
+    """
+    The tournament of fame: the ranking, your place and the fame you have earned.
+
+    Client: ``TournamentEventVO.parseParamObject`` (bundle lines 118593-118598)
+    """
+
+    _reads_kl = False
+
+    own_rank: int = Field(default=0, alias="OR", description="Your rank")
+    own_fame_points: int = Field(default=0, alias="OEP", description="The fame you have earned")
+    booby_prize_min_fame: int = Field(default=0, alias="MFB", description="The fame the consolation prize needs")
+    ranking: tuple[TournamentRank, ...] = Field(
+        default=(),
+        alias="R",
+        description="The ranking by place; an entry's rows replace the places they name, the others stay",
+    )
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values["own_rank"] = js_int(entry.get("OR"))
+        values["own_fame_points"] = js_int(entry.get("OEP"))
+        values["booby_prize_min_fame"] = js_int(entry.get("MFB"))
+        rows = entry.get("R")
+        if isinstance(rows, list):
+            places = {place.rank: place for place in values.get("ranking", ())}
+            for row in rows:
+                if isinstance(row, list) and row:
+                    place = TournamentRank.from_row(row)
+                    places[place.rank] = place
+            values["ranking"] = tuple(sorted(places.values(), key=lambda place: place.rank))
+
+
+class CampaignEvent(SpecialEvent):
+    """
+    A time-limited campaign: its quests, in the order they open, and its end reward.
+
+    A ``cqs`` push reads its campaign over it again (see :meth:`with_campaign`).
+
+    Client: ``TimeLimitedCampaignEventEventVO.parseParamObject`` and ``sortByOrder`` (bundle lines
+    118536-118549), which sorts by ``ST`` and then ``CQID``, a quest without ``ST`` last
+    """
+
+    _reads_kl = False
+
+    reward_ids: tuple[int, ...] = Field(default=(), alias="RIDS", description="The campaign's rewards")
+    reward_collected: bool = Field(default=False, alias="COL", description="Whether you collected the end reward")
+    end_reward_value: int = Field(default=0, alias="ERV", description="The end reward's value")
+    quests: tuple[Quest, ...] = Field(default=(), alias="CQS", description="The campaign's quests, in campaign order")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        cls._read_campaign(values, entry, now)
+
+    @staticmethod
+    def _read_campaign(values: dict[str, Any], entry: dict[str, Any], now: float) -> None:
+        ids, listed = entry.get("RIDS"), entry.get("CQS")
+        quests = (
+            [Quest.from_entry(quest, now) for quest in listed if isinstance(quest, dict)]
+            if isinstance(listed, list)
+            else []
+        )
+        quests.sort(
+            key=lambda quest: (quest.campaign_timestamp is None, quest.campaign_timestamp or 0, quest.campaign_quest_id)
+        )
+        values.update(
+            reward_ids=[js_int(rid) for rid in ids] if isinstance(ids, list) else [],
+            reward_collected=js_loose_equals(entry.get("COL"), 1),
+            end_reward_value=js_int(entry.get("ERV")),
+            quests=quests,
+        )
+
+    def with_campaign(self, data: dict[str, Any], now: float) -> CampaignEvent:
+        """The event after a ``cqs`` push with this payload. Client: ``parseCQS`` (bundle line 118555)"""
+        values: dict[str, Any] = dict(self)
+        self._read_campaign(values, data, now)
+        values["updated_at"] = time.time()
+        return type(self)(**values)
+
+
+class CampaignQuestEvent(SpecialEvent):
+    """
+    The time-limited campaign's quest event; its end is the end of the campaign quests it names.
+
+    Client: ``TimeLimitedCampaignQuestEventEventVO.parseParamObject`` (bundle line 118576);
+    ``CastleQuestVO.remainingSeconds`` (bundle line 52592)
+    """
+
+    _reads_kl = False
+
+    quest_ids: tuple[EnumOrInt["QuestId"], ...] = Field(
+        default=(), alias="CQS", description="The campaign quests it times, each QID read through int()"
+    )
+
+    @classmethod
+    def accepts(cls, entry: dict[str, Any]) -> bool:
+        # parseParamObject reads CQS.length
+        return entry.get("CQS") is not None
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        listed = entry["CQS"]
+        values["quest_ids"] = [js_int(_dict(quest).get("QID")) for quest in listed] if isinstance(listed, list) else []
+
+
 _EVENT_IDS: dict[int, Event] = {int(e): e for e in Event}
 
 EVENT_CLASSES: dict[Event, type[SpecialEvent]] = {
@@ -991,6 +1411,25 @@ EVENT_CLASSES: dict[Event, type[SpecialEvent]] = {
     Event.SEASON_LEAGUE: KingdomsLeagueEvent,
     Event.GLOBAL_EFFECT: GlobalEffectEvent,
     Event.GLOBAL_EFFECT_BUFF: GlobalEffectBuffEvent,
+    Event.ALLI_TOURNAMENT: AllianceTournamentEvent,
+    Event.ALLIANCE_MOBILIZATION_EVENT: AllianceMobilizationEvent,
+    Event.LUCKY_WHEEL: LuckyWheelEvent,
+    Event.SALE_DAYS_LUCKY_WHEEL: LuckyWheelEvent,
+    **dict.fromkeys(
+        (Event.ARTIFACT_19, Event.ARTIFACT_23, Event.ARTIFACT_29, Event.ARTIFACT_30, Event.ARTIFACT_67), ArtifactEvent
+    ),
+    **dict.fromkeys((Event.THORNKING, Event.SEAQUEEN, Event.UNDERWORLD), SeasonEvent),
+    Event.FAMEBOOSTER: FameBoosterEvent,
+    Event.PRIME_ALLI_BONUS: AllianceBonusEvent,
+    Event.ALLI_PAYMENT_BONUS: AllianceBonusEvent,
+    Event.RELIC_ENCHANTER_PRIME_SALE: DiscountSaleEvent,
+    Event.SEASON_PASS_PRIME_SALE: DiscountSaleEvent,
+    Event.SKIP_FOR_FREE: SkipForFreeEvent,
+    Event.GGS_GIFT: GiftEvent,
+    Event.FORTUNE_TELLER: FortuneTellerEvent,
+    Event.TOURNAMENT: TournamentEvent,
+    Event.TIME_LIMITED_CAMPAIGN_EVENT: CampaignEvent,
+    Event.TIME_LIMITED_CAMPAIGN_QUEST_EVENT: CampaignQuestEvent,
 }
 """The model each event's entries are read into; any other event is a plain :class:`SpecialEvent`.
 
@@ -1090,8 +1529,9 @@ class GetEventPointsResponse(BaseResponse):
 
     ``OR``, ``OP`` and ``PT`` are lists, one value per score the event keeps, in this order:
 
-    - a score event (nobility contest, marauders, long-term points, gacha, alliance tournament): your own
-      (``AScoreEventVO.setRankAndPoints``, bundle line 15044; ``AlliTournamentEventVO``, bundle line 114412)
+    - a score event (nobility contest, marauders, long-term points, gacha): your own
+      (``AScoreEventVO.setRankAndPoints``, bundle line 15044)
+    - the alliance tournament: your alliance's, the first only (``AlliTournamentEventVO``, bundle line 114412)
     - Berimond and the lucky wheel: your own, the first only (``FactionEventVO``, bundle line 7461, into your
       league; ``LuckyWheelEventVO``, bundle line 59687)
     - the alien, red alien, nomad and samurai invasions and the alliance mobilisation: yours, then your

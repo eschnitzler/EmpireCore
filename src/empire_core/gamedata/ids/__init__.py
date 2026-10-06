@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from .buildings import Building
     from .construction_items import ConstructionItem
     from .currencies import Currency, CurrencyId
+    from .daily_quests import DailyQuestId
     from .difficulty_types import DifficultyType
     from .effect_types import EffectType
     from .effects import Effect
@@ -48,7 +49,9 @@ if TYPE_CHECKING:
     from .generals import General
     from .global_effects import GlobalEffect
     from .legend_skills import LegendSkill
+    from .loot_box_types import LootBoxType
     from .loot_boxes import LootBox
+    from .quests import QuestId
     from .raid_bosses import RaidBoss
     from .researches import Research
     from .tools import Tool
@@ -63,6 +66,7 @@ _MODULES = {
     "ConstructionItem": "construction_items",
     "Currency": "currencies",
     "CurrencyId": "currencies",
+    "DailyQuestId": "daily_quests",
     "DifficultyType": "difficulty_types",
     "Effect": "effects",
     "EffectType": "effect_types",
@@ -74,6 +78,8 @@ _MODULES = {
     "GlobalEffect": "global_effects",
     "LegendSkill": "legend_skills",
     "LootBox": "loot_boxes",
+    "LootBoxType": "loot_box_types",
+    "QuestId": "quests",
     "RaidBoss": "raid_bosses",
     "Research": "researches",
     "Tool": "tools",
@@ -105,6 +111,7 @@ __all__ = [
     "ConstructionItem",
     "Currency",
     "CurrencyId",
+    "DailyQuestId",
     "DifficultyType",
     "Effect",
     "EffectType",
@@ -117,6 +124,8 @@ __all__ = [
     "ITEMS_VERSION",
     "LegendSkill",
     "LootBox",
+    "LootBoxType",
+    "QuestId",
     "RaidBoss",
     "Research",
     "Tool",

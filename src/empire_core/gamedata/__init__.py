@@ -9,6 +9,7 @@ if TYPE_CHECKING:
         ConstructionItem,
         Currency,
         CurrencyId,
+        DailyQuestId,
         DifficultyType,
         Effect,
         EffectType,
@@ -20,6 +21,8 @@ if TYPE_CHECKING:
         GlobalEffect,
         LegendSkill,
         LootBox,
+        LootBoxType,
+        QuestId,
         RaidBoss,
         Research,
         Tool,
@@ -28,7 +31,9 @@ if TYPE_CHECKING:
     )
 
 from .cdn import fetch_items_data, get_items_version
+from .collectables import Collectable, CollectableObject, CollectableRows
 from .data import CAMP_TABLES, RAW_TABLES, GameData, IdRecord, default_cache_dir
+from .lenient import EnumOrInt, EnumOrStr
 from .models import (
     AllianceBuffDef,
     AttackSlotDef,
@@ -65,6 +70,11 @@ from .models import (
 from .troops import count_troops, get_troop_ids, troop_data_available
 
 __all__ = [
+    "Collectable",
+    "CollectableObject",
+    "CollectableRows",
+    "EnumOrInt",
+    "EnumOrStr",
     "count_troops",
     "fetch_items_data",
     "get_items_version",
@@ -76,6 +86,9 @@ __all__ = [
     "EquipmentGroup",
     "Event",
     "LootBox",
+    "LootBoxType",
+    "QuestId",
+    "DailyQuestId",
     "Research",
     "Currency",
     "CurrencyId",
@@ -135,6 +148,7 @@ _IDS = frozenset(
         "ConstructionItem",
         "Currency",
         "CurrencyId",
+        "DailyQuestId",
         "DifficultyType",
         "Effect",
         "EffectType",
@@ -147,6 +161,8 @@ _IDS = frozenset(
         "ITEMS_VERSION",
         "LegendSkill",
         "LootBox",
+        "LootBoxType",
+        "QuestId",
         "RaidBoss",
         "Research",
         "Tool",

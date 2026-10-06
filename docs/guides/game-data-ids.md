@@ -18,7 +18,9 @@ GeneralSkill.TORIL_ASPECTOFTHE_DRAGON_L1
 Units, tools, effects, effect types, currencies (`Currency` by key,
 `CurrencyId` by id), generals, general abilities and skills, legend skills,
 raid bosses, global effects, buildings, researches, construction items,
-events, loot boxes, equipment groups and event difficulty types each have one.
+events, loot boxes and their types, equipment groups, event difficulty types,
+quests (`QuestId`) and daily quests (`DailyQuestId`) each have one. The rewards
+table has no name to make one of, so reward ids stay ints.
 
 ## Names
 
@@ -26,7 +28,8 @@ Member names come from the row, in `UPPER_SNAKE`. Research names start with the
 items file's own note, which is partly German, and end in group and level
 (`Research.RECRUITMENT_SPEED_G41_L1`), which keep them unique. Where two rows
 would get the same name, both carry their id (`GlobalEffect.SPEED_BOOST_2`,
-`GlobalEffect.SPEED_BOOST_11`).
+`GlobalEffect.SPEED_BOOST_11`). Quests are named after what their first
+condition counts, so most carry their id (`QuestId.BUILDINGS_44`).
 
 ## Members are plain values
 
@@ -45,6 +48,31 @@ General.TORIL.rarity_id              # 4
 Stats and costs are not baked in, as balance patches change them, and nothing
 here downloads the game data. For the full row, ask a loaded `GameData`; see
 [Full rows for generated ids](game-data.md#full-rows-for-generated-ids).
+
+## Ids in models
+
+Models type the ids they read with these enums, leniently: a field typed
+`EnumOrInt[Kingdom]` holds the member for an id the enum has, and the plain int
+for one it lacks (a client release newer than the enums), with a warning logged
+once per id, so a packet never fails over it. `EnumOrStr[Currency]` does the
+same for keys. Name a generated enum by its name in quotes
+(`EnumOrInt["QuestId"]`) to load its module only when a value arrives.
+
+Rewards, costs and goods are `Collectable`s: the `kind` (a `CollectableKind`),
+the `amount`, and the `item` the entry names, typed for the kinds that name one
+(a `Unit` or `Tool` for units, a `Currency`, a `BoosterId`, a `LootBox`, ...):
+
+```python
+from empire_core.gamedata import Collectable
+
+rewards = Collectable.from_object({"U": [[664, 5]], "MS2": [1], "C1": [2000]})
+[(reward.kind, reward.item, reward.amount) for reward in rewards]
+# [(CollectableKind.UNITS, Unit.KINGSCROSSBOWMAN, 5),
+#  (CollectableKind.CURRENCY, Currency.MS2, 1), (CollectableKind.COINS, None, 2000)]
+```
+
+An entry under a key the client has no type for is kept as
+`CollectableKind.OTHER`, with its `key` and the entry as sent in `value`.
 
 ## Keeping them current
 

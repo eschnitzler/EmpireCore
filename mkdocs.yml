@@ -195,6 +195,7 @@ nav:
       - Areas:
           - Map: reference/map.md
           - Ranking: reference/ranking.md
+          - Quests: reference/quests.md
           - Events: reference/events.md
           - Commanders: reference/commanders.md
           - Castle: reference/castle.md

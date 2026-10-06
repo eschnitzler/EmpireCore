@@ -1,11 +1,11 @@
-"""The running events: sei and tei entries, see and tee ends, pep scores, and their callbacks."""
+"""The running events: sei and tei entries, see and tee ends, pep scores, cqs campaigns, and their callbacks."""
 
 import logging
 import time
 from collections.abc import Callable
 from typing import Any
 
-from empire_core.events.models import KingdomsLeagueEvent, SpecialEvent, event_class
+from empire_core.events.models import CampaignEvent, KingdomsLeagueEvent, SpecialEvent, event_class
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase
@@ -38,14 +38,15 @@ class EventState(StateBase):
     """
 
     on_events_updated = callbacks.Event[dict[int, SpecialEvent]]()
-    """Register a callback for every ``sei``, non-empty ``tei`` and ``pep`` applied.
+    """Register a callback for every ``sei``, non-empty ``tei``, ``pep`` and ``cqs`` applied.
 
     Called with every running event (a copy of :meth:`get_events`), after the
     :meth:`on_event_added` and :meth:`on_event_removed` callbacks of the same packet.
 
     Client: ``onEventDataParsed`` (bundle line 139818) sends ``REFRESH_SPECIALEVENT`` for every
     event and ``SERVER_DATA_PARSED``; ``AScoreEventVO.setRankAndPoints`` (bundle line 15044)
-    sends ``UPDATE_POINTS`` for a ``pep``
+    sends ``UPDATE_POINTS`` for a ``pep``; ``CQSCommand.exec`` (bundle line 126495) sends
+    ``CAMPAIGN_UPDATED`` for a ``cqs``
     """
 
     def _handle_sei(self, data: Any) -> None:
@@ -140,12 +141,11 @@ class EventState(StateBase):
         """Handle 'point event points': your rank (``OR``), points (``OP``) and the event's most points (``PT``).
 
         Each event reads them as its client class does: a score event its first of each, an
-        invasion one per part in order, Berimond the first rank and points, the raid boss the
-        first for you and the second for your alliance, and ``BLPP`` its boss level points.
-        The library reads every value through ``int()``, where the client keeps them as sent.
-        Score events the library has no model for (the alliance mobilisation, 129, or the sale
-        days lucky wheel, 89) keep their points only in the client
-        and in the reply ``client.events.get_own_points`` returns.
+        invasion one per part in order, Berimond and the lucky wheels the first rank and points,
+        the raid boss and the alliance mobilisation the first for you and the second for your
+        alliance, the alliance tournament the first for your alliance, and ``BLPP`` the raid boss's
+        level points. The library reads every value through ``int()``, where the client keeps them
+        as sent.
 
         Client: ``PEPCommand.exec`` (bundle lines 128213-128216), which looks the ``EID`` up as sent,
         and the ``setRankAndPoints`` of each class
@@ -159,6 +159,20 @@ class EventState(StateBase):
         if data.get("BLPP") is not None and "boss_level_points" in type(updated).model_fields:
             updated = updated.model_copy(update={"boss_level_points": js_int(data["BLPP"])})
         self.events = {**self.events, event.event_id: updated}
+        self._fire(self.on_events_updated, dict(self.events))
+
+    def _handle_cqs(self, data: Any) -> None:
+        """Handle a campaign quest status: the running time-limited campaign reads its campaign from it again.
+
+        Client: ``CQSCommand.exec`` (bundle line 126495) does nothing without the campaign running;
+        ``TimeLimitedCampaignEventEventVO.parseCQS`` (bundle line 118555)
+        """
+        self._expire_events()
+        campaign = self.events.get(Event.TIME_LIMITED_CAMPAIGN_EVENT)
+        if not (isinstance(campaign, CampaignEvent) and isinstance(data, dict)):
+            return
+        self.events = {**self.events, campaign.event_id: campaign.with_campaign(data, _clock())}
+        self._events_updated_at = time.time()
         self._fire(self.on_events_updated, dict(self.events))
 
     def _sent_event(self, eid: Any) -> SpecialEvent | None:

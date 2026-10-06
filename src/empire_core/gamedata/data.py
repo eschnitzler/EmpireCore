@@ -72,6 +72,7 @@ if TYPE_CHECKING:
         ConstructionItem,
         Currency,
         CurrencyId,
+        DailyQuestId,
         DifficultyType,
         Effect,
         EffectType,
@@ -83,6 +84,8 @@ if TYPE_CHECKING:
         GlobalEffect,
         LegendSkill,
         LootBox,
+        LootBoxType,
+        QuestId,
         RaidBoss,
         Research,
         Tool,
@@ -176,6 +179,9 @@ ROW_TABLES = {
     "loot_boxes": ("lootBoxes", "lootBoxID"),
     "equipment_groups": ("equipment_groups", "itemGroupID"),
     "difficulty_types": ("eventAutoScalingDifficultyTypes", "difficultyTypeID"),
+    "loot_box_types": ("lootBoxTypes", "lootBoxTypeID"),
+    "quests": ("quests", "questID"),
+    "daily_quests": ("dailyactivities", "dailyQuestID"),
 }
 """GameData field -> (items table, id column) for the tables kept as raw rows, keyed by id."""
 
@@ -327,7 +333,10 @@ class GameData(BaseModel):
     loot_boxes: dict[int, dict[str, Any]] = Field(default_factory=dict)
     equipment_groups: dict[int, dict[str, Any]] = Field(default_factory=dict)
     difficulty_types: dict[int, dict[str, Any]] = Field(default_factory=dict)
-    """These six are raw items rows by id (see ROW_TABLES), for the id enums GameData has no model for."""
+    loot_box_types: dict[int, dict[str, Any]] = Field(default_factory=dict)
+    quests: dict[int, dict[str, Any]] = Field(default_factory=dict)
+    daily_quests: dict[int, dict[str, Any]] = Field(default_factory=dict)
+    """These nine are raw items rows by id (see ROW_TABLES), for the id enums GameData has no model for."""
     titles: dict[int, dict[str, Any]] = Field(default_factory=dict)
     """Raw ``titles`` rows by ``titleID``."""
 
@@ -619,7 +628,10 @@ class GameData(BaseModel):
     @overload
     def record(self, member: Building) -> FortificationDef | dict[str, Any] | None: ...
     @overload
-    def record(self, member: Research | Event | LootBox | EquipmentGroup | DifficultyType) -> dict[str, Any] | None: ...
+    def record(
+        self,
+        member: Research | Event | LootBox | LootBoxType | EquipmentGroup | DifficultyType | QuestId | DailyQuestId,
+    ) -> dict[str, Any] | None: ...
 
     def record(self, member: Enum) -> IdRecord | None:
         """
@@ -633,8 +645,9 @@ class GameData(BaseModel):
         ``RaidBoss`` RaidBossDef, ``GlobalEffect`` GlobalEffectDef and
         ``ConstructionItem`` ConstructionItemDef. A ``Building`` that is a wall,
         gate or moat gives its FortificationDef. Anything else - other buildings,
-        and every ``Research``, ``Event``, ``LootBox``, ``EquipmentGroup`` and
-        ``DifficultyType`` - gives the items row as a dict, unparsed.
+        and every ``Research``, ``Event``, ``LootBox``, ``LootBoxType``,
+        ``EquipmentGroup``, ``DifficultyType``, ``QuestId`` and ``DailyQuestId`` -
+        gives the items row as a dict, unparsed.
 
         Raises:
             TypeError: ``member`` is not a member of an id enum
@@ -675,6 +688,9 @@ class GameData(BaseModel):
             ids.LootBox: self.loot_boxes.get,
             ids.EquipmentGroup: self.equipment_groups.get,
             ids.DifficultyType: self.difficulty_types.get,
+            ids.LootBoxType: self.loot_box_types.get,
+            ids.QuestId: self.quests.get,
+            ids.DailyQuestId: self.daily_quests.get,
         }
         found: list[IdRecord | None] = []
         for member in members:

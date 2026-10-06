@@ -43,6 +43,16 @@ Each event is a model of its kind, with the fields its game dialog reads, and
 | `DonationEvent` | `DONATION_EVENT` | `setting_id` |
 | `KingdomsLeagueEvent` | `SEASON_LEAGUE` | `remaining_days`, `original_days`, `has_alliance_ranking` |
 | `GlobalEffectEvent`, `GlobalEffectBuffEvent` | `GLOBAL_EFFECT`, `GLOBAL_EFFECT_BUFF` | the effects and their ends, the boosts |
+| `AllianceTournamentEvent` | `ALLI_TOURNAMENT` | your alliance's score in `parts["A"]` |
+| `AllianceMobilizationEvent` | `ALLIANCE_MOBILIZATION_EVENT` | your and your alliance's scores in `parts` (`SP` and `A`), `subdivision_id`, `division_round_id` |
+| `LuckyWheelEvent` | `LUCKY_WHEEL`, `SALE_DAYS_LUCKY_WHEEL` | the point event score, `has_free_spin`, `pro_mode`, `win_class`, the jackpot sets |
+| `SeasonEvent` | `THORNKING`, `SEAQUEEN`, `UNDERWORLD` | `unlocked`, `finished`, `map_id`, `reward_id` |
+| `ArtifactEvent` | the artifact events | `parts_found`, `artifact_league_id`, `skin_id` |
+| `TournamentEvent` | `TOURNAMENT` | `own_rank`, `own_fame_points`, `booby_prize_min_fame`, the `ranking` (each a `TournamentRank`) |
+| `CampaignEvent`, `CampaignQuestEvent` | `TIME_LIMITED_CAMPAIGN_EVENT`, `TIME_LIMITED_CAMPAIGN_QUEST_EVENT` | the campaign's `quests` (each a `Quest`), its reward ids; the quests (`QuestId`) the quest event times |
+| `FameBoosterEvent`, `AllianceBonusEvent` | `FAMEBOOSTER`; `PRIME_ALLI_BONUS`, `ALLI_PAYMENT_BONUS` | `bonus_percent` |
+| `DiscountSaleEvent` | `RELIC_ENCHANTER_PRIME_SALE`, `SEASON_PASS_PRIME_SALE` | `discount` |
+| `SkipForFreeEvent`, `GiftEvent`, `FortuneTellerEvent` | `SKIP_FOR_FREE`, `GGS_GIFT`, `FORTUNE_TELLER` | `free_skip_seconds`; `collected`; `tries`, `daily_reset_time` |
 | `SpecialEvent` | any other | `event_id`, `event`, `end_time`, `raw` |
 
 Your points arrive in the server's `pep` pushes as you score, and
@@ -51,7 +61,7 @@ points](#your-own-rank-and-points)). A later entry
 for a running event is read over it the way the game reads it: a field it
 leaves out mostly keeps its value, but the samurai and Berimond invasions build
 their scores anew from every entry, and Berimond's own rank and points start
-over with each one. The models never change: each packet replaces them.
+over with each one. A `cqs` push reads the running campaign's quests again. The models never change: each packet replaces them.
 
 `client.events.refresh()` asks the server for the events again and returns
 them once its answer is applied. `client.events.get_active_events()` lists the
@@ -131,17 +141,17 @@ per score the event keeps (-1 is unranked):
 
 | Events | The values |
 |---|---|
-| the score events (nobility contest, marauders, long-term points, gacha, alliance tournament) | yours |
+| the score events (nobility contest, marauders, long-term points, gacha) | yours |
 | Berimond, the lucky wheel | yours, in the first value only |
+| the alliance tournament | your alliance's, in the first value only |
 | the alien, red alien, nomad and samurai invasions, the alliance mobilisation | yours, your alliance's |
 | the Berimond invasion | the blue players', the red players', your alliance's |
 | the alliance raid boss | yours, your alliance's, and `boss_level_points` |
 
 The state applies the reply before the call returns, read the event's way:
-`own_rank` and `own_points` on a score event or Berimond, one per part in
-`parts` on an invasion, `score` and `alliance_points` on the raid boss. Events
-the library has no model for (the alliance mobilisation, the lucky wheel) have
-their points only in the reply.
+`own_rank` and `own_points` on a score event, Berimond or a lucky wheel, one per
+part in `parts` on an invasion, the alliance mobilisation or the alliance
+tournament, `score` and `alliance_points` on the raid boss.
 
 ## Which events have a board
 

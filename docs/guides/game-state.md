@@ -40,6 +40,9 @@ ranks = client.state.get_title_ranks()      # top-X ranks, Storm Islands title
 achievements = client.state.get_achievements()
 relocation = client.state.get_relocation()
 monks = client.state.get_plague_monks()
+quests = client.state.get_quests()          # your active quests, by id
+book = client.state.get_quest_book()        # the quest book's main quests
+daily = client.state.get_daily_quests()     # daily quest level, today's quests
 area = client.state.get_joined_area()       # None until a castle is joined
 mines = client.state.get_mines()            # the joined castle's mines, by object id
 carts = client.state.get_resource_carts()   # its wood, stone and food carts
@@ -91,7 +94,9 @@ every value is as old as the last packet that carried it:
 | Achievements | `vli` (pushed); finished ones add up, progress per achievement | log in again |
 | Relocation | `gri` (pushed) | log in again |
 | Plague monks | `cpi` (pushed), the `cpm` and `sbp` replies | log in again |
-| Running events, their scores and ends | `sei`, `tei` (pushed), `see`, `tee`, `pep`, the `fjf` and `bst` replies | `client.events.refresh()` |
+| Running events, their scores and ends | `sei`, `tei` (pushed), `see`, `tee`, `pep`, the `fjf` and `bst` replies, `cqs` for the campaign | `client.events.refresh()` |
+| Active quests, the quest book | `qli` (pushed after login, not in the login data), `qst`, `qfi`, the quest popups of `msp` | none |
+| Daily quests | `dql` (pushed) | log in again |
 | Movements | `gam`, `abr`/`asr`, your sends' replies | `client.movements.get_movements()` |
 
 Every player section is sent inside the login data (`gbd`) and again as a push
@@ -179,6 +184,24 @@ snapshot stays as it was.
 `.remove(callback)`) call you back on the callback thread when an event
 starts, ends, or a packet updates the events; `get_events_last_updated()` says
 when one last did. The [events guide](events.md) lists the models.
+
+## Quests
+
+`client.state.get_quests()` maps each active quest's id to a `Quest`: its
+`progress` (one counter per condition, in the order the game data lists the
+conditions), `completed`, `failed`, `locked`, and its `end_time` for a quest
+with a time limit. The game data holds the quests' conditions and rewards; the
+state keeps only what the server sends. `get_daily_quests()` gives your daily
+quest level, today's daily quests and each reward threshold's rewards (each a
+`Collectable`). Quest ids are `QuestId` and `DailyQuestId` members, or plain ints
+for quests newer than the generated enums; the quest book's main quest ids stay
+ints, as their game-data rows have no name.
+
+`on_quests_updated` fires for every quest list, `on_quest_started` for each
+quest a `qst` starts, `on_quest_progress` when a `qpg` names an active quest
+(it changes nothing: the counters come with the next quest list),
+`on_quest_finished` when a `qfi` or a quest popup finishes one, and
+`on_daily_quests_updated` for every `dql`.
 
 ## Disconnects
 

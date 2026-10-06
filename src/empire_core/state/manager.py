@@ -15,6 +15,7 @@ from empire_core.state.events import EventCallback, EventsCallback, EventState
 from empire_core.state.movements import MOVEMENT_PARSE_WARN_INTERVAL, MovementState
 from empire_core.state.player import PlayerState
 from empire_core.state.progress import ProgressState
+from empire_core.state.quests import QuestState
 
 __all__ = ["MOVEMENT_PARSE_WARN_INTERVAL", "EventCallback", "EventsCallback", "GameState", "MovementEventCallback"]
 # gbd sections stamped under their own id, whether they came in a gbd or as a push.
@@ -46,6 +47,7 @@ _TRACKED_SECTIONS = (
     "vli",
     "gri",
     "cpi",
+    "dql",
 )
 
 _PLAYER_SECTIONS = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce"})
@@ -57,7 +59,7 @@ _SECTION_PUSHES = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "u
 # GLICommand, SKLCommand, AINCommand, ACNCommand, CALCommand, ACLCommand (bundle lines 123977,
 # 129742, 121462, 121332, 121668, 121302), REICommand, BOICommand, GMUCommand, UFACommand,
 # UARCommand, VLICommand, GRICommand, CPICommand (bundle lines 126862, 122629, 129605, 129859,
-# 120997, 121145, 129654, 128524)
+# 120997, 121145, 129654, 128524), DQLCommand (bundle line 126512)
 _WHOLE_SECTIONS = {
     "gli": "gli",
     "skl": "skl",
@@ -66,6 +68,7 @@ _WHOLE_SECTIONS = {
     "cal": "ain",
     "acl": "acl",
     **{section: section for section in ("rei", "boi", "gmu", "ufa", "uar", "vli", "gri", "cpi")},
+    "dql": "dql",
 }
 
 # Replies that carry a gbd section under its own key, applied only on success: ARLCommand,
@@ -101,16 +104,27 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
 # reaches the movement handler, its cpi only a successful one. Also the castle pushes and replies:
 # RUECommand, KIKCommand, GSMCommand, RCICommand, CMRCommand, RCCCommand, JAACommand, FBECommand,
 # CBXCommand, GDBCommand, GCBCommand, CSLCommand and GABCommand (bundle lines 125647, 123114,
-# 125752, 123196, 125737, 123181, 130190, 122880, 123345, 122998, 122968, 122715, 122923)
+# 125752, 123196, 125737, 123181, 130190, 122880, 123345, 122998, 122968, 122715, 122923). And the
+# quest ones: QLICommand, QSTCommand, QPGCommand, QFICommand, MSPCommand, CQSCommand (bundle lines
+# 126587, 126619, 126603, 126566, 125438, 126495)
 _SUCCESS_ONLY = frozenset(
     {"sei", "see", "tei", "tee", "pep", "fjf", "bst", "acm", "aqi", "ufp", "bfs", *_WHOLE_SECTIONS}
     | (set(_NESTED_SECTIONS) - {"cpm"})
     | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "fbe", "cbx", "gdb", "gcb", "csl", "gab"}
+    | {"qli", "qst", "qpg", "qfi", "msp", "cqs"}
 )
 
 
 class GameState(
-    MovementState, CastleState, AreaState, PlayerState, EventState, CommanderState, AllianceState, ProgressState
+    MovementState,
+    CastleState,
+    AreaState,
+    PlayerState,
+    EventState,
+    CommanderState,
+    AllianceState,
+    ProgressState,
+    QuestState,
 ):
     """
     Manages game state parsed from server packets.
@@ -122,7 +136,7 @@ class GameState(
     several fields at once (or iterate a container) should use the snapshot
     accessors — ``get_local_player()``, ``get_special_currencies()``, ``get_castles()``,
     ``get_all_movements()``, ``get_events()``, ``get_alliance_chat()``, ``get_commanders()``,
-    ``get_skills()``, ``get_own_alliance()`` — which copy under the lock, or hand out read-only
+    ``get_skills()``, ``get_own_alliance()``, ``get_quests()`` — which copy under the lock, or hand out read-only
     models (``get_research()``, ``get_boosts()`` and the other progress accessors). Mutation paths swap
     containers instead of editing them in place, so an unlocked reader that
     already holds one never sees it change underneath.
@@ -176,7 +190,11 @@ class GameState(
     plague monks                         ``cpi``, ``cpm``, ``sbp``    re-login
     running events, scores, ends         ``sei``/``tei`` (pushed),    ``client.events.refresh()``
                                          ``see``/``tee``, ``pep``,
-                                         ``fjf``, ``bst``
+                                         ``fjf``, ``bst``, ``cqs``
+    active quests, quest book            ``qli`` (pushed after        --
+                                         login), ``qst``, ``qfi``,
+                                         ``msp``
+    daily quests                         ``dql`` (pushed)             re-login
     movements                            ``gam``, ``abr``/``asr``,    ``client.movements.get_movements()``
                                          your sends' replies
                                          (``cra``, ``cds``, ...)
@@ -250,6 +268,12 @@ class GameState(
         "gcb": "_handle_gcb",
         # Any map read leaves the joined castle, refused or not
         "gaa": "_handle_gaa",
+        "qli": "_handle_qli",
+        "qst": "_handle_qst",
+        "qpg": "_handle_qpg",
+        "qfi": "_handle_qfi",
+        "msp": "_handle_msp",
+        "cqs": "_handle_cqs",
     }
 
     def update_from_packet(self, cmd_id: str, payload: dict[str, Any], error_code: int = 0) -> None:
@@ -311,6 +335,7 @@ class GameState(
                 ("acl", self._parse_chat_history(data)),
                 ("gli", self._parse_commanders(data)),
                 ("skl", self._parse_skills(data)),
+                ("dql", self._parse_daily_quests(data)),
                 # CastleVIPData.parse_VIP (bundle line 47527) ignores a vip that is not set
                 ("vip", isinstance(data.get("vip"), dict)),
             )
@@ -428,17 +453,18 @@ class GameState(
         Accepts the wire ids this manager tracks — "gbd", "gam", "dcl", "abr", "asr", the send replies ("cra",
         "cam", "abgcam", "cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm",
         "mfc", "glu", "mir", "fjf", "bst", "sce", "see", "tee", "pep", "acm", "aqi", "acn", "cal", "ufp", "bfs",
+        the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the campaign's "cqs",
         the castle pushes "rue", "kik", "fbe", "cbx", "gdb", "gcb", the joined area's "jaa", "cmr", "rcc" and
         the map read "gaa" (refused too) — and the login sections "gpi", "gxp", "gcu", "vip", "gal", "gcl",
         "gho", "uap", "gpc", "gms", "sei", "tei", "gli", "skl", "ain", "acl", "rei", "boi", "gmu", "ufa", "uar",
-        "vli", "gri" and "cpi", stamped whether they came inside a gbd, as a push of their own or inside a reply
+        "vli", "gri", "cpi" and "dql", stamped whether they came inside a gbd, as a push of their own or inside a reply
         that carries one ("sei" from a fjf or bst, "gli" from an arl, "ain" from an akm, "rei" from a res, ...),
         plus "gac", which only comes inside a gbd. "gsm" and "rci" are stamped whenever mines or resource carts
         are applied, from their push or a jaa, cmr or rcc reply; "csl" and "gab" from their push or a jaa, the
         push even when no area was joined to apply it to. A send reply is stamped even when the server refused
         the send; the commands the client reads only from a successful reply (the event ones, the login section
-        ones, the castle ones, "acm", "aqi", "ufp" and "bfs") are not, nor is a login section that was not
-        applied: unreadable, not valid, or another alliance's "ain". ``None`` means none was ever seen;
+        ones, the castle ones, the quest ones, "acm", "aqi", "ufp" and "bfs") are not, nor is a login section that
+        was not applied: unreadable, not valid, or another alliance's "ain". ``None`` means none was ever seen;
         packets this manager ignores are never recorded.
         """
         with self._lock:

@@ -158,6 +158,11 @@ def research_name(label: str, group_id: int, level: int) -> str:
     return f"{stem}_G{group_id}{level_suffix(level)}"
 
 
+def condition_name(conditions: str) -> str:
+    """``collectFame+225000#lootResource+2400`` -> ``COLLECT_FAME``: what the first condition counts."""
+    return to_snake(conditions.split("#")[0].split("+")[0])
+
+
 def building_rows(data: GameData) -> list[Row]:
     rows = []
     for wod_id, row in data.buildings.items():
@@ -398,6 +403,59 @@ def tables(data: GameData) -> list[Table]:
                 for loot_box_id, row in data.loot_boxes.items()
             ],
             (Attr("rarity", "int", "The ``rarity`` column."),),
+        ),
+        Table(
+            "loot_box_types",
+            "LootBoxType",
+            "L",
+            "Loot box type ids from the ``lootBoxTypes`` table, named from ``lootBoxTheme``; keys count per type.",
+            "``LootBoxTypeVO.parseXML`` (bundle line 58900)",
+            [
+                Row(to_snake(str_column(row, "lootBoxTheme")) or f"L{type_id}", type_id, str(type_id))
+                for type_id, row in data.loot_box_types.items()
+            ],
+        ),
+        Table(
+            "quests",
+            "QuestId",
+            "Q",
+            "Quest ids from the ``quests`` table, named from what the first condition counts; most names "
+            "carry their id, as many quests count the same thing. Named QuestId, as ``empire_core.quests.Quest`` "
+            "is your running quest.",
+            "``CastleQuestData.generateQuestXMLList`` (bundle line 20192), ``CastleQuestVO.fillFromParamXML`` "
+            "(bundle line 52452)",
+            [
+                Row(
+                    condition_name(str_column(row, "conditions")) or "QUEST",
+                    quest_id,
+                    str(quest_id),
+                    (int_column(row, "questSeriesID", -1), int_column(row, "eventID", 0)),
+                )
+                for quest_id, row in data.quests.items()
+            ],
+            (
+                Attr("series_id", "int", "The quest series it belongs to; -1 for none."),
+                Attr("event_id", "int", "The event it belongs to, an ``Event`` value; 0 for none."),
+            ),
+        ),
+        Table(
+            "daily_quests",
+            "DailyQuestId",
+            "D",
+            "Daily quest ids from the ``dailyactivities`` table, named from what the first condition counts. "
+            "Named DailyQuestId, as ``empire_core.quests.DailyQuest`` is today's quest.",
+            "``CastleDailyQuestData.createXmlQuestDic`` (bundle line 134082), ``DailyQuestVO.fillFromParamXML`` "
+            "(bundle line 134124)",
+            [
+                Row(
+                    condition_name(str_column(row, "conditions")) or "DAILY_QUEST",
+                    quest_id,
+                    str(quest_id),
+                    (int_column(row, "triggerKingdomID", 0),),
+                )
+                for quest_id, row in data.daily_quests.items()
+            ],
+            (Attr("trigger_kingdom_id", "int", "The kingdom the quest counts in, a ``Kingdom`` value; -1 for any."),),
         ),
         Table(
             "equipment_groups",

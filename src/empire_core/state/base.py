@@ -27,6 +27,7 @@ from empire_core.player.models.progress import (
     ResearchInfoResponse,
     TitleRanksResponse,
 )
+from empire_core.quests.models import DailyQuests, Quest, QuestBook
 from empire_core.spy.models import MaxSpiesResponse, PlagueMonkInfoResponse
 from empire_core.state.models import Castle, CastleKey, JoinedArea, Player
 from empire_core.utils.callbacks import BoundEvent, Registry
@@ -101,6 +102,11 @@ class StateBase:
         # Running events by id, in the order they started; swapped, never edited
         self.events: dict[int, SpecialEvent] = {}
         self._events_updated_at: float | None = None
+
+        # Active quests by id, the quest book and the daily quests; each replaced, never edited
+        self.quests: dict[int, Quest] = {}
+        self.quest_book: QuestBook | None = None
+        self.daily_quests: DailyQuests | None = None
 
         # Login sections kept as their models; each replaced, never edited, and copied when handed out
         self.commanders: CommanderRoster | None = None

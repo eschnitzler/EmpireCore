@@ -48,6 +48,7 @@ models.
 |---|---|
 | [Map](map.md) | `client.map` |
 | [Ranking](ranking.md) | `client.ranking` |
+| [Quests](quests.md) | read from `client.state` |
 | [Events](events.md) | `client.events` |
 | [Commanders](commanders.md) | `client.commanders`, `client.equipment`, `client.skills` |
 | [Castle](castle.md) | `client.castle` |

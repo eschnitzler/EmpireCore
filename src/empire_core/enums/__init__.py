@@ -7,6 +7,7 @@ import nothing but :mod:`enum`, so any module can import them without a cycle.
 from .alliance import AllianceChronicleAction, AllianceRank, BookmarkType, DiplomacyStatus, HelpType, OnlineState
 from .army import ProductionListId, SlotType
 from .castle import BuildingState, ExpansionType, MarketScope, Resource, ResourceCartType, TaxStatus
+from .collectables import BoosterId, CollectableKind
 from .combat import AttackType, AutoSkipCooldownType, CombatEffectType, Flank, LootPriority
 from .commanders import EquipmentSlot, EquipmentType, Rareness, SCEItem, WearerType
 from .map import Kingdom, MapItemType, NPCOwner, PeaceModeStatus
@@ -45,6 +46,9 @@ __all__ = [
     "Resource",
     "ResourceCartType",
     "TaxStatus",
+    # Collectables
+    "BoosterId",
+    "CollectableKind",
     # Commanders / equipment
     "EquipmentSlot",
     "WearerType",

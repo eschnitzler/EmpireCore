@@ -14,6 +14,10 @@ Every finite set of game constants, one module per area.
 
 ::: empire_core.enums.castle
 
+## `enums.collectables`
+
+::: empire_core.enums.collectables
+
 ## `enums.combat`
 
 ::: empire_core.enums.combat

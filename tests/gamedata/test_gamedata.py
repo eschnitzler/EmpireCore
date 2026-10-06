@@ -223,7 +223,7 @@ class TestLoading:
         cached = json.loads((tmp_path / "items_v783.01.trimmed.json").read_text())
         # Trimmed: the combat tables only, never the whole payload.
         assert "version" in cached and "units" in cached and "tools" in cached
-        assert "rewards" not in cached and "quests" not in cached
+        assert "rewards" not in cached and "mainquests" not in cached
 
 
 def _marking_fetch(downloads: Path, delay: float = 0.0):

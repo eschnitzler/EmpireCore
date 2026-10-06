@@ -63,6 +63,15 @@ IDS_PAYLOAD: dict[str, Any] = {
         {"eventID": "74", "eventType": "Paymentreward"},
     ],
     "lootBoxes": [{"lootBoxID": "1", "name": "MysteryBoxBronze", "rarity": "1"}],
+    "lootBoxTypes": [{"lootBoxTypeID": "1", "lootBoxTheme": "MysteryBox", "lootBoxKeyPayoutThreshold": "10"}],
+    "quests": [
+        {"questID": "3047", "questSeriesID": "159", "conditions": "buyRubies+1"},
+        {"questID": "3600", "eventID": "129", "comment1": "AME", "conditions": "spendCurrency1+1000"},
+    ],
+    "dailyactivities": [
+        {"dailyQuestID": "1", "triggerKingdomID": "-1", "conditions": "login+1"},
+        {"dailyQuestID": "7", "triggerKingdomID": "0", "conditions": "countDungeons+1"},
+    ],
     "equipment_groups": [{"itemGroupID": "102", "name": "AttackPVP", "wearerID": "2", "slotID": "6"}],
     "eventAutoScalingDifficultyTypes": [{"difficultyTypeID": "2", "name": "easyPlus"}],
     "constructionItems": [
@@ -84,6 +93,9 @@ TABLE_OF: dict[str, str] = {
     "EquipmentGroup": "equipment_groups",
     "Event": "events",
     "LootBox": "loot_boxes",
+    "LootBoxType": "loot_box_types",
+    "QuestId": "quests",
+    "DailyQuestId": "daily_quests",
     "Research": "researches",
     "Unit": "units",
     "Tool": "tools",
@@ -192,6 +204,8 @@ class TestMemberData:
         assert ids.ConstructionItem.BARRACKS_COST_G1_L1.rareness_id == 1
         assert (ids.EquipmentGroup.ATTACK_PVP.wearer_id, ids.EquipmentGroup.ATTACK_PVP.slot_id) == (2, 6)
         assert ids.LootBox.MYSTERY_BOX_BRONZE_R1.rarity == 1
+        assert (ids.QuestId.BUY_RUBIES.series_id, ids.QuestId.SPEND_CURRENCY1.event_id) == (159, 129)
+        assert ids.DailyQuestId.COUNT_DUNGEONS_7.trigger_kingdom_id == Kingdom.GREEN
         assert any(tool.category == "Defence" for tool in ids.Tool)
 
     def test_columns_the_name_says_are_not_baked_in(self):
@@ -205,7 +219,9 @@ class TestMemberData:
             assert not hasattr(member, dropped), (member, dropped)
 
     @pytest.mark.parametrize(
-        "enum", ["EffectType", "RaidBoss", "GlobalEffect", "Event", "DifficultyType"], ids=lambda name: name
+        "enum",
+        ["EffectType", "RaidBoss", "GlobalEffect", "Event", "DifficultyType", "LootBoxType"],
+        ids=lambda name: name,
     )
     def test_an_enum_without_columns_is_plain(self, enum):
         text = Path(str(sys.modules[getattr(ids, enum).__module__].__file__)).read_text()
@@ -259,7 +275,7 @@ class TestMemberData:
     def test_the_enums_load_lazily(self):
         code = (
             "import sys, empire_core, empire_core.gamedata as g\n"
-            "heavy = [f'empire_core.gamedata.ids.{m}' for m in ('units', 'tools', 'effects', 'buildings')]\n"
+            "heavy = [f'empire_core.gamedata.ids.{m}' for m in ('units', 'tools', 'effects', 'buildings', 'quests')]\n"
             "assert not any(m in sys.modules for m in heavy)\n"
             "import empire_core.gamedata.ids.events\n"
             "assert not any(m in sys.modules for m in heavy)\n"
@@ -311,6 +327,9 @@ class TestRecords:
         assert d.record(ids.LootBox.MYSTERY_BOX_BRONZE_R1) == IDS_PAYLOAD["lootBoxes"][0]
         assert d.record(ids.EquipmentGroup.ATTACK_PVP) == IDS_PAYLOAD["equipment_groups"][0]
         assert d.record(ids.DifficultyType.EASY_PLUS) == IDS_PAYLOAD["eventAutoScalingDifficultyTypes"][0]
+        assert d.record(ids.LootBoxType.MYSTERY_BOX) == IDS_PAYLOAD["lootBoxTypes"][0]
+        assert d.record(ids.QuestId.BUY_RUBIES) == IDS_PAYLOAD["quests"][0]
+        assert d.record(ids.DailyQuestId.LOGIN) == IDS_PAYLOAD["dailyactivities"][0]
 
     def test_an_id_the_data_lacks_is_none(self, lookup_data):
         assert lookup_data.record(ids.Unit.VETERAN_SABERSLASHER) is None
