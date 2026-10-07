@@ -1,6 +1,6 @@
 """Messages: the mailbox, mail, spy reports and battle reports."""
 
-from empire_core.enums import BattleLogAttackType, LogResult, MessageType
+from empire_core.enums import AttackAdvisorType, AutoSkipCooldownType, BattleLogAttackType, LogResult, MessageType
 
 from .models import (
     ATTACKER_FRONT,
@@ -54,6 +54,7 @@ from .models import (
     SpyLogHeader,
     SpyReportArea,
     SpyReportResponse,
+    SupporterWounded,
     SystemNotificationEvent,
     UnitsBySide,
     repair_header,
@@ -87,6 +88,8 @@ __all__ = [
     "SpyReportResponse",
     "SystemNotificationEvent",
     "MessageType",
+    "AttackAdvisorType",
+    "AutoSkipCooldownType",
     "LogResult",
     "BattleLogAttackType",
     "ATTACKER_FRONT",
@@ -114,6 +117,7 @@ __all__ = [
     "MiddlePlayerWave",
     "MiddleWave",
     "SideUnits",
+    "SupporterWounded",
     "UnitsBySide",
     "BattleLogHeader",
     "PatchNoteHeader",

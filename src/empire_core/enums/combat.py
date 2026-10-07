@@ -60,6 +60,23 @@ class AutoSkipCooldownType(IntEnum):
     RUBIES = 2
 
 
+class AttackAdvisorType(IntEnum):
+    """
+    The attack advisor that sent an attack, the AAT field.
+
+    NONE is the client's default for an attack no advisor sent; it has no constant.
+
+    Client: ``AttackAdvisorConst.ADVISOR_TYPE_*`` (dll line 18832), the default ``_advisorType=0``
+    (bundle line 30619), read as ``advisorType>0`` (bundle line 14344)
+    """
+
+    NONE = 0
+    NOMAD = 1
+    SAMURAI = 2
+    BERIMOND = 3
+    BARON = 4
+
+
 class Flank(IntEnum):
     """
     Battle flanks.

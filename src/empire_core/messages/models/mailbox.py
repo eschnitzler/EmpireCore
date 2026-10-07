@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
+from empire_core.alliance.models.bookmarks import Bookmark
 from empire_core.army.models.units import SpyPositions
 from empire_core.commanders.models.roster import Castellan
 from empire_core.enums import BattleLogAttackType, Kingdom, LogResult, MapItemType, MessageType, SpyLogType
@@ -744,15 +745,26 @@ class ReadMessageResponse(BaseResponse):
 
     Command: rms
 
-    Client: ``RMSCommand.executeCommand`` (bundle line 125454) hands ``MTXT`` and
+    Client: ``RMSCommand.executeCommand`` (bundle line 125455) hands ``MTXT`` and
     ``ABI`` on; ``CastleReadDialog.displayCurrentMessage`` (bundle line 138112)
-    decodes ``MTXT`` as chat text
+    decodes ``MTXT`` as chat text. Only the attack order dialogs read ``ABI``, through
+    ``CastleBookmarkData.parseBookmarkObject`` (bundle lines 53040, 91271, 33427-33429)
     """
 
     command = "rms"
 
     body: str | None = Field(alias="MTXT", default=None, description="The body, still encoded")
-    extra: Any = Field(alias="ABI", default=None, description="The type-specific block some messages carry, as sent")
+    bookmark: Bookmark | None = Field(
+        alias="ABI", default=None, description="An alliance attack order's bookmark; None for other messages"
+    )
+
+    @field_validator("bookmark", mode="wrap")
+    @classmethod
+    def _bookmark(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> Bookmark | None:
+        # parseBookmarkObject reads nothing from a falsy block
+        if object_or_none(value) is None:
+            return None
+        return read_or_none(handler, value, warn=logger, what="the bookmark of a message")
 
     @property
     def decoded_body(self) -> str:

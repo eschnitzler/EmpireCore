@@ -5,14 +5,16 @@ from typing import Any
 
 import pytest
 
-from empire_core.enums import TitleSystem
+from empire_core.enums import PremiumAccountType, TitleSystem
 from empire_core.gamedata import Achievement, Research, Title
 from empire_core.player import PERMANENT_BOOSTER_DURATION, BoosterInfoResponse
 from empire_core.player.models.progress import (
     AchievementsResponse,
     AllianceCityTitle,
     IslandTitle,
+    RelocationInfoResponse,
     ResearchInfoResponse,
+    TitleRanksResponse,
 )
 
 # Shapes as a live login's gbd sends them, values changed
@@ -54,12 +56,12 @@ class TestLoginSections:
         boosts = state.get_boosts()
         assert [b.booster_id for b in boosts.boosters] == [19, 11]
         assert (boosts.bought_tool_slots, boosts.permanent_tool_slots, boosts.permanent_unit_slots) == (1, 1, 2)
-        assert not boosts.is_premium_active() and boosts.premium_account_type() == -1
+        assert not boosts.is_premium_active() and boosts.premium_account_type() is None
         assert boosts.festival is not None and not boosts.festival.is_active()
 
         assert state.get_might().might_points == 1000
         assert state.get_glory_points().glory_points == 7000
-        assert state.get_title_ranks().prefix_title_system is TitleSystem.FACTION
+        assert state.get_title_ranks().prefix_system is TitleSystem.FACTION
         assert state.get_title_ranks().island_title.held_title_id == -1
         assert state.get_achievements().achievement_points == 300
         assert state.get_relocation().relocation_count == 3
@@ -210,11 +212,27 @@ class TestModels:
     def test_the_alliance_city_title(self):
         assert AllianceCityTitle.model_validate({"TID": 112, "PID": 7}).title_id is Title.GUARDIAN_OF_THE_SWORD
         assert AllianceCityTitle.model_validate({"TID": "112"}).title_id is None
+        assert AllianceCityTitle.model_validate({"PID": "7"}).player_id == 7
+        assert AllianceCityTitle.model_validate({}).player_id is None
+
+    def test_the_top_player_and_title_systems(self):
+        ranks = TitleRanksResponse.model_validate({"FTM": {"TOID": 42}, "PFX": "ISLE", "SFX": "NEW", "BTM": {}})
+        assert (ranks.glory.top_player_id, ranks.faction.top_player_id) == (42, None)
+        assert (ranks.prefix_system, ranks.suffix_system) == (TitleSystem.ISLAND, "NEW")
+        assert TitleRanksResponse.model_validate({"PFX": 3}).prefix_system is None
 
     def test_premium_account(self):
         boosts = BoosterInfoResponse.model_validate({"BO": [], "PA": 60, "PT": 2})
-        assert boosts.is_premium_active() and boosts.premium_account_type() == 2
-        assert boosts.premium_account_type(boosts.received_at + 61) == -1
+        assert boosts.is_premium_active() and boosts.premium_account_type() is PremiumAccountType.GOLD
+        assert boosts.premium_account_type(boosts.received_at + 61) is None
+
+    @pytest.mark.parametrize(("sent", "read"), [(-1, None), (None, None), (0, PremiumAccountType.BRONZE), (5, 5)])
+    def test_premium_type(self, sent, read):
+        assert BoosterInfoResponse.model_validate({"PT": sent}).premium_type == read
+
+    @pytest.mark.parametrize(("sent", "read"), [(0, 0), ("1", 1), (None, None)])
+    def test_relocation_mode(self, sent, read):
+        assert RelocationInfoResponse.model_validate({"JM": sent}).relocation_mode == read
 
     def test_relocation_time_counts_only_in_mode_0(self, state):
         state.update_from_packet("gri", {"RLC": 1, "RMC": 0, "RD": 600, "JM": 1})

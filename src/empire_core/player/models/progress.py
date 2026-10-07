@@ -21,8 +21,8 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import BeforeValidator, ConfigDict, Field, field_validator
 
-from empire_core.enums import TitleSystem
-from empire_core.gamedata import EnumOrInt
+from empire_core.enums import PremiumAccountType, TitleSystem
+from empire_core.gamedata import EnumOrInt, EnumOrStr
 from empire_core.protocol.base import BasePayload, TimedPayload, TimedResponse, object_or_none, readable_list
 from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_parse_int
 
@@ -46,13 +46,6 @@ def _ints(value: Any) -> tuple[int, ...]:
 Numbers = Annotated[tuple[int | float, ...], BeforeValidator(_numbers)]
 Ints = Annotated[tuple[int, ...], BeforeValidator(_ints)]
 ParsedInt = Annotated[int | None, BeforeValidator(js_parse_int)]
-
-
-def _title_system(value: str) -> TitleSystem | None:
-    try:
-        return TitleSystem(value)
-    except ValueError:
-        return None
 
 
 class ResearchInfoResponse(TimedResponse):
@@ -154,7 +147,7 @@ class BoosterInfoResponse(TimedResponse):
     (``bcs``, ``bds``, ``bis``, ``bms``, ``brs``, ``ovs``, ``ups``, ``btx``).
 
     Client: ``CastlePremiumBoostData.parse_BOI`` (bundle line 15202), ``PremiumAccountVO.parseServerInfo``,
-    ``isActive``, ``remainingTimeInSeconds`` and ``premiumAccountType`` (bundle lines 90230-90234),
+    ``isActive``, ``remainingTimeInSeconds`` and ``premiumAccountType`` (bundle lines 90230-90235),
     ``parse_bfs`` (bundle line 15218)
     """
 
@@ -164,7 +157,9 @@ class BoosterInfoResponse(TimedResponse):
     premium_seconds: ClientNumber = Field(
         alias="PA", default=0, description="Seconds of premium account left when the values were read"
     )
-    premium_type: Any = Field(alias="PT", default=-1, description="The premium account's type, -1 for none")
+    premium_type: EnumOrInt[PremiumAccountType] | None = Field(
+        alias="PT", default=None, description="The premium account's type; None when the packet names none"
+    )
     unit_slots: Numbers = Field(
         alias="SU", default=(), description="Unit production slots: above 0 bought, below 0 permanent"
     )
@@ -183,6 +178,12 @@ class BoosterInfoResponse(TimedResponse):
     def _festival(cls, value: Any) -> Any:
         return object_or_none(value)
 
+    @field_validator("premium_type", mode="before")
+    @classmethod
+    def _premium_type(cls, value: Any) -> Any:
+        # PremiumAccountVO starts at _accountType=-1, which names no account (bundle line 90229)
+        return None if value is None or js_loose_equals(value, -1) else value
+
     def premium_remaining_seconds(self, now: float | None = None) -> float:
         """Seconds of premium account left, 0 when it is not active."""
         return max(0.0, self.premium_seconds - self._elapsed(now))
@@ -191,9 +192,9 @@ class BoosterInfoResponse(TimedResponse):
         """Whether the premium account runs."""
         return self.premium_remaining_seconds(now) > 0
 
-    def premium_account_type(self, now: float | None = None) -> Any:
-        """The premium account's type while it runs, else -1."""
-        return self.premium_type if self.is_premium_active(now) else -1
+    def premium_account_type(self, now: float | None = None) -> PremiumAccountType | int | None:
+        """The premium account's type while it runs, else None."""
+        return self.premium_type if self.is_premium_active(now) else None
 
     @property
     def bought_unit_slots(self) -> int:
@@ -294,12 +295,20 @@ class TopTitleRanking(TimedPayload):
     thresholds: tuple[int, ...] = Field(
         alias="NTFP", default=(), description="The points the top-X titles need, highest title first"
     )
-    top_player_id: Any = Field(alias="TOID", default=None, description="The player holding the system's top title")
+    top_player_id: int | None = Field(
+        alias="TOID", default=None, description="The player holding the system's top title; None when not sent"
+    )
 
     @field_validator("thresholds", mode="before")
     @classmethod
     def _thresholds(cls, value: Any) -> Any:
         return tuple(js_int(entry) for entry in value) if isinstance(value, list) else ()
+
+    @field_validator("top_player_id", mode="before")
+    @classmethod
+    def _player_id(cls, value: Any) -> Any:
+        # assignTop1PlayerID stores TOID as sent (bundle line 21042); the client compares player ids with ==
+        return None if value is None else js_parse_int(value)
 
 
 class IslandTitle(BasePayload):
@@ -331,13 +340,19 @@ class AllianceCityTitle(BasePayload):
     title_id: EnumOrInt["Title"] | None = Field(
         alias="TID", default=None, description="The alliance city title; None for none"
     )
-    player_id: Any = Field(alias="PID", default=None, description="The player holding it")
+    player_id: int | None = Field(alias="PID", default=None, description="The player holding it; None when not sent")
 
     @field_validator("title_id", mode="before")
     @classmethod
     def _title(cls, value: Any) -> Any:
         # Client: _allPossibleTitles.get(e.TID), keyed by the int title ids
         return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+    @field_validator("player_id", mode="before")
+    @classmethod
+    def _player_id(cls, value: Any) -> Any:
+        # Client: e.PID==userData.playerID (bundle line 21035)
+        return None if value is None else js_parse_int(value)
 
 
 class TitleRanksResponse(TimedResponse):
@@ -357,8 +372,12 @@ class TitleRanksResponse(TimedResponse):
     alliance_city_title: AllianceCityTitle | None = Field(
         alias="ATM", default=None, description="The alliance city title; None when not sent"
     )
-    prefix_system: Any = Field(alias="PFX", default=None, description="The title system shown before your name")
-    suffix_system: Any = Field(alias="SFX", default=None, description="The title system shown after your name")
+    prefix_system: EnumOrStr[TitleSystem] | None = Field(
+        alias="PFX", default=None, description="The title system shown before your name; None when not sent"
+    )
+    suffix_system: EnumOrStr[TitleSystem] | None = Field(
+        alias="SFX", default=None, description="The title system shown after your name; None when not sent"
+    )
 
     @field_validator("glory", "faction", "island_title", mode="before")
     @classmethod
@@ -370,15 +389,11 @@ class TitleRanksResponse(TimedResponse):
     def _city(cls, value: Any) -> Any:
         return object_or_none(value)
 
-    @property
-    def prefix_title_system(self) -> TitleSystem | None:
-        """``prefix_system`` as a :class:`TitleSystem`, None for any other value."""
-        return _title_system(self.prefix_system) if isinstance(self.prefix_system, str) else None
-
-    @property
-    def suffix_title_system(self) -> TitleSystem | None:
-        """``suffix_system`` as a :class:`TitleSystem`, None for any other value."""
-        return _title_system(self.suffix_system) if isinstance(self.suffix_system, str) else None
+    @field_validator("prefix_system", "suffix_system", mode="before")
+    @classmethod
+    def _system(cls, value: Any) -> Any:
+        # parseUAR stores PFX and SFX as sent and compares them with the title system names (bundle line 21143)
+        return value if isinstance(value, str) else None
 
 
 class AchievementProgress(BasePayload):
@@ -440,8 +455,13 @@ class RelocationInfoResponse(TimedResponse):
     relocation_seconds: ClientNumber = Field(
         alias="RD", default=0, description="Seconds left on the running relocation when the values were read"
     )
-    relocation_mode: Any = Field(
-        alias="JM", default=None, description="The relocation's mode; its time counts only while this is 0"
+    relocation_mode: int | None = Field(
+        alias="JM",
+        default=None,
+        description=(
+            "The relocation's mode: its time counts only while this is 0, and the client redraws the map"
+            " at OX/OY for 1; None when not sent"
+        ),
     )
     cooldown_seconds: ClientNumber = Field(
         alias="RMC", default=0, description="Seconds until you may relocate again, when the values were read"
@@ -449,9 +469,15 @@ class RelocationInfoResponse(TimedResponse):
     destination_x: ClientInt = Field(alias="DX", default=0, description="The relocation's destination X")
     destination_y: ClientInt = Field(alias="DY", default=0, description="The relocation's destination Y")
 
+    @field_validator("relocation_mode", mode="before")
+    @classmethod
+    def _mode(cls, value: Any) -> Any:
+        # parse_GRI compares 0==e.JM, GRICommand 1==int(JM); neither names the values (bundle lines 9910, 129650)
+        return None if value is None else js_int(value)
+
     def remaining_relocation_seconds(self, now: float | None = None) -> float:
         """Seconds left on the running relocation, 0 when none runs."""
-        if not js_loose_equals(self.relocation_mode, 0):
+        if self.relocation_mode != 0:
             return 0
         return max(0.0, self.relocation_seconds - self._elapsed(now))
 

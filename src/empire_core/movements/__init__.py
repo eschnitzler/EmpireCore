@@ -1,6 +1,6 @@
 """Army movements."""
 
-from empire_core.enums import MovementType
+from empire_core.enums import AttackAdvisorType, MovementType
 
 from .models import (
     CancelMovementRequest,
@@ -37,5 +37,6 @@ __all__ = [
     "Movement",
     "MovementResources",
     "MovementType",
+    "AttackAdvisorType",
     "MovementsService",
 ]

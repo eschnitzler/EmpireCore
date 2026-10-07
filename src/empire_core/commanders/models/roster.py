@@ -147,6 +147,36 @@ class SelectedAbility(BasePayload):
         return [self.slot_id, -1 if self.ability_id is None else int(self.ability_id)]
 
 
+class AlienEquipment(BasePayload):
+    """
+    Alien (``AIE``) or temporary (``TAE``) equipment: ``[effect_id, values]`` rows, or
+    ``[hero_rows, equipment_rows]`` when it carries a hero.
+
+    The block is split in two when it has two entries that are each empty or start with an
+    array; otherwise every row is an equipment bonus.
+
+    Client: ``LordVO.parseLord`` (bundle lines 26471-26477), ``AlienLordHeroVO.parseAlienBoniData``
+    (bundle line 67502), ``AlienLordEquipmentVO.parseAlienBoniData`` (bundle line 67479)
+    """
+
+    hero_bonuses: tuple[EquipmentBonus, ...] = Field(default=(), description="The hero's bonuses")
+    bonuses: tuple[EquipmentBonus, ...] = Field(default=(), description="The equipment's bonuses")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _split(cls, data: Any) -> Any:
+        if not isinstance(data, list):
+            return data
+        if len(data) == 2 and all(isinstance(part, list) and (not part or isinstance(part[0], list)) for part in data):
+            return {"hero_bonuses": data[0], "bonuses": data[1]}
+        return {"bonuses": data}
+
+    @field_validator("hero_bonuses", "bonuses", mode="before")
+    @classmethod
+    def _rows(cls, value: Any) -> Any:
+        return tuple(readable_list(EquipmentBonus, value))
+
+
 class LeaderBase(BasePayload):
     """
     Fields shared by every gli entry.
@@ -177,19 +207,13 @@ class LeaderBase(BasePayload):
     effects: CommanderEffects = Field(alias="E", default_factory=list, description="The commander's own effects")
     area_effects: CommanderEffects = Field(alias="AE", default_factory=list, description="Area effects")
     equipment: list[Equipment] = Field(alias="EQ", default_factory=list, description="Equipped items")
-    alien_equipment: list[Any] | None = Field(
-        alias="AIE",
-        default=None,
-        description=(
-            "Alien equipment: [effect_id, values] rows, or [hero_rows, equipment_rows]; applies when equipment is empty"
-        ),
+    alien_equipment: AlienEquipment | None = Field(
+        alias="AIE", default=None, description="Alien equipment; applies when equipment is empty"
     )
-    temporary_equipment: list[Any] | None = Field(
+    temporary_equipment: AlienEquipment | None = Field(
         alias="TAE",
         default=None,
-        description=(
-            "Temporary equipment, same layout as alien_equipment; applies when equipment and alien_equipment are absent"
-        ),
+        description="Temporary equipment; applies when equipment is empty and alien_equipment absent",
     )
     alien_gem_ids: tuple[EnumOrInt["Gem"], ...] = Field(
         alias="GEM", default=(), description="The gems added to the alien or temporary equipment"
@@ -327,35 +351,24 @@ class LeaderBase(BasePayload):
         by_slot = {item.slot: item for item in self.equipment if item.slot in _SLOT_ORDER}
         return [by_slot[slot] for slot in _SLOT_ORDER if slot in by_slot]
 
-    def _alien_rows(self) -> tuple[list[Any], list[Any]]:
-        block = self.alien_equipment if self.alien_equipment is not None else self.temporary_equipment
-        if not self.uses_alien_equipment or block is None:
-            return [], []
-        if len(block) == 2 and all(
-            isinstance(part, list) and (not part or isinstance(part[0], list)) for part in block
-        ):
-            return block[0], block[1]
-        return [], block
+    @property
+    def active_alien_equipment(self) -> AlienEquipment | None:
+        """The alien or temporary equipment standing in for an empty ``EQ``, None when none does."""
+        if not self.uses_alien_equipment:
+            return None
+        return self.alien_equipment if self.alien_equipment is not None else self.temporary_equipment
 
     @property
     def alien_hero_bonuses(self) -> list[EquipmentBonus]:
-        """
-        The hero half of ``AIE``/``TAE`` when it is sent as ``[hero_rows, equipment_rows]``.
-
-        Client: ``LordVO.parseLord`` (bundle line 26451), ``AlienLordHeroVO.parseAlienBoniData``
-        (bundle line 67502)
-        """
-        return readable_list(EquipmentBonus, self._alien_rows()[0])
+        """The hero bonuses of the active alien or temporary equipment."""
+        block = self.active_alien_equipment
+        return [] if block is None else list(block.hero_bonuses)
 
     @property
     def alien_bonuses(self) -> list[EquipmentBonus]:
-        """
-        The equipment bonuses of ``AIE``/``TAE``, empty when ``EQ`` has items.
-
-        Client: ``LordVO.parseLord`` (bundle line 26451), ``AlienLordEquipmentVO.parseAlienBoniData``
-        (bundle line 67479)
-        """
-        return readable_list(EquipmentBonus, self._alien_rows()[1])
+        """The equipment bonuses of the active alien or temporary equipment, empty when ``EQ`` has items."""
+        block = self.active_alien_equipment
+        return [] if block is None else list(block.bonuses)
 
     @field_validator("equipment", mode="before")
     @classmethod
