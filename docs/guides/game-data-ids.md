@@ -19,8 +19,11 @@ Units, tools, effects, effect types, currencies (`Currency` by key,
 `CurrencyId` by id), generals, general abilities and skills, legend skills,
 raid bosses, global effects, buildings, researches, construction items,
 events, loot boxes and their types, equipment groups, event difficulty types,
-quests (`QuestId`) and daily quests (`DailyQuestId`) each have one. The rewards
-table has no name to make one of, so reward ids stay ints.
+quests (`QuestId`), daily quests (`DailyQuestId`), main quests (`MainQuest`),
+gems, sceat skills, achievements, horses, titles and alliance crest layouts and
+colours each have one. The 27,000 rewards have none: the game shows no text
+for a reward, and the notes some rows carry name where it is given, not the
+reward. Reward ids stay ints; the game reads each as the collectables it holds.
 
 ## Names
 
@@ -35,6 +38,15 @@ and level (`Research.BEEFSTORAGE_G193_L1`). Where two rows
 would get the same name, both carry their id (`GlobalEffect.SPEED_BOOST_2`,
 `GlobalEffect.SPEED_BOOST_11`). Quests are named after what their first
 condition counts, so most carry their id (`QuestId.BUILDINGS_44`).
+
+Tables whose rows have no name column are named from the text the game shows
+for them: gems (`Gem.GEM_OF_THE_GLORIOUS_DEFENDER_L6`, a unique one by its own
+name), sceat skills, achievements (the series' name, the step as its level),
+titles (`Title.KNIGHT`), crest layouts and main quests. Where the game has no
+text, a designer note names the row (`Horse.WARHORSE_STABLE1`, as the game
+names a horse only by its place in the travel dialog;
+`AllianceCrestLayout.FREE_1`), and a crest colour, which has neither, is named
+by its id and carries its hex colour (`AllianceCrestColor.COLOR_1.color`).
 
 ## Members are plain values
 

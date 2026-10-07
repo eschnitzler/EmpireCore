@@ -36,12 +36,13 @@ taking its `len()` validates every row once. Besides the ones above, these are
 `tools`, `effects`, `effect_types`, `currencies` (by `CurrencyId`),
 `general_abilities`, `general_skills`, `legend_skills`, `raid_bosses`,
 `global_effects`, `construction_items`, `loot_boxes`, `loot_box_types`,
-`equipment_groups` and `difficulty_types`. `titles` and `scaling_camps` are
-`Table`s keyed by plain id, as their rows have no name to make an enum of.
+`equipment_groups`, `difficulty_types`, `titles`, `gems`, `sceat_skills`,
+`horses`, `achievements`, `alliance_crest_layouts` and `alliance_crest_colors`.
+`scaling_camps` is a `Table` keyed by plain id.
 
-`gems`, `equipment_effects`, `relic_effects`, `alliance_buffs`, `sceat_skills`
-and `horses` are plain dicts by plain id, validated at load: there is no
-generated enum for them yet. `raw("specialcamps")` returns a table that is not
+`equipment_effects`, `relic_effects` and `alliance_buffs` are plain dicts by
+plain id, validated at load, as the game names none of their rows.
+`raw("specialcamps")` returns a table that is not
 modeled yet, exactly as the items file has it.
 
 A row's bonuses are its `effects`, typed `EffectValue`s: the effect and the
@@ -110,6 +111,7 @@ except AmbiguousLookupError as e:
 
 Units and tools have no unique name either. Their type repeats across levels,
 and event variants share a type with no level to tell them apart. Horses have
-no named lookup yet; use `get_horse` by id.
+no named lookup: the game tells them apart only by their place in the travel
+dialog, so use `get_horse` or the `Horse` enum.
 
 **API:** [`GameData`](../reference/gamedata.md#empire_core.gamedata.data.GameData)

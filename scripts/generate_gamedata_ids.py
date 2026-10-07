@@ -10,9 +10,11 @@ Generate the ``empire_core.gamedata.ids`` enums from the items data.
 Each table becomes one module. Member names come from the row's name columns,
 UPPER_SNAKE; names that still collide after that all get the row id appended,
 so no member keeps a bare name another row also claims. Where a table's names
-would be codes (currency keys, the researches' German notes), a row is named
-from the game's English text instead, by the text id the client shows for it;
-a row without its own text keeps the code name. The texts come from the live
+would be codes (currency keys, the researches' German notes) or it has none
+(gems, sceat skills, achievements, titles, crest layouts, main quests), a row
+is named from the game's English text instead, by the text id the client
+shows for it; a row without its own text keeps the code name, a designer
+note, or its id. The texts come from the live
 language file (or ``--texts``), and the ones used are kept in
 ``scripts/gamedata_ids_texts.json``, so ``--items X --texts`` that file
 regenerates the same names offline, and a renamed text shows up as a diff. Each member also
@@ -37,7 +39,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from empire_core.gamedata import CurrencyDef, GameData, QuestCondition
+from empire_core.gamedata import AchievementCondition, CurrencyDef, GameData, QuestCondition
+from empire_core.gamedata.tables import row_id
 from empire_core.texts import fetch_texts
 
 SCRIPT = "scripts/generate_gamedata_ids.py"
@@ -102,7 +105,12 @@ class Texts:
 
 
 def text_name(text: str) -> str:
-    """``Toril's general shard`` -> ``Torils general shard``; a leading number goes last (``generals XP 1000``)."""
+    """
+    ``Toril's general shard`` -> ``Torils general shard``; a leading number goes last (``generals XP 1000``).
+
+    A ``{0}`` placeholder is left out: the caller names what fills it, such as a level.
+    """
+    text = re.sub(r"\{\d+\}", "", text)
     text = re.sub(r"(?<=\d),(?=\d{3})", "", re.sub(r"['\u2019]", "", text))
     return re.sub(r"^(\d+)\s+(.+)$", r"\2 \1", text)
 
@@ -225,9 +233,104 @@ def currency_names(data: GameData, texts: Texts | None) -> list[tuple[str, Curre
     return named
 
 
-def condition_name(conditions: Sequence[QuestCondition]) -> str:
+def condition_name(conditions: Sequence[QuestCondition] | Sequence[AchievementCondition]) -> str:
     """``collectFame+225000#lootResource+2400`` -> ``COLLECT_FAME``: what the first condition counts."""
     return to_snake(conditions[0].condition_type) if conditions else ""
+
+
+def named(texts: Texts | None, text_id: str) -> str | None:
+    """The English text ``text_id`` names, made a name; None when there is none."""
+    text = texts.get(text_id) if texts is not None else None
+    return text_name(text) if text else None
+
+
+def gem_rows(data: GameData, texts: Texts | None) -> list[Row]:
+    """
+    A unique gem (level 0) by ``gem_unique_<reuseAssetOfGemID, else its id>``; any other by
+    ``gem_effect_name_gem<FirstEffect>`` (``_100`` when it always triggers) and its level, which fills its ``{0}``.
+
+    Client: ``CastleGemVO.nameString``, ``isUnique`` and ``reuseAssetOfGemID`` (bundle lines 28321, 28324,
+    28372), ``GemBonusVO.gemTypeString`` (bundle line 46814)
+    """
+    rows = []
+    for row in data.gems.values():
+        gem_id = int(row.gem_id)
+        if row.level == 0:
+            asset_id = row.reuse_asset_of_gem_id if row.reuse_asset_of_gem_id > 0 else gem_id
+            name = named(texts, f"gem_unique_{asset_id}")
+        else:
+            effect = data.effects.get(row.effects[0].effect_id) if row.effects else None
+            always = "_100" if row.trigger_chance == 100 else ""
+            gem_type = f"gem{effect.name[:1].upper()}{effect.name[1:]}" if effect else ""
+            name = named(texts, f"gem_effect_name_{gem_type}{always}") if gem_type else None
+            name = name + level_suffix(row.level) if name else None
+        rows.append(Row(name or f"GEM_{gem_id}", gem_id, str(gem_id), (row.level, row.set_id)))
+    return rows
+
+
+def sceat_skill_rows(data: GameData, texts: Texts | None) -> list[Row]:
+    """
+    ``dialog_legendTemple_sceat_<skillGroupID>_name`` and level.
+
+    Client: ``CastleSceatSkillVO.nameTextID`` (bundle line 23110)
+    """
+    return [
+        Row(
+            (named(texts, f"dialog_legendTemple_sceat_{s.skill_group_id}_name") or f"SCEAT_G{s.skill_group_id}")
+            + level_suffix(s.level),
+            int(s.skill_id),
+            str(s.skill_id),
+            (s.skill_group_id, s.skill_tree_id, s.level),
+        )
+        for s in data.sceat_skills.values()
+    ]
+
+
+def achievement_rows(data: GameData, texts: Texts | None) -> list[Row]:
+    """
+    The series' ``achievementName_<achievementSeriesID>`` and the step as its level, else what it counts.
+
+    Client: ``AchievementSerieVO.nameString`` and ``level`` (bundle lines 92822, 92843); the main series
+    (``CastleAchievementData.MAIN_ACHIEVMENT_SERIESID``, bundle line 29884) has no text of its own.
+    """
+    return [
+        Row(
+            (named(texts, f"achievementName_{a.series_id}") or condition_name(a.conditions) or f"SERIES_{a.series_id}")
+            + level_suffix(a.series_number),
+            int(a.achievement_id),
+            str(a.achievement_id),
+            (a.series_id, a.series_number),
+        )
+        for a in data.achievements.values()
+    ]
+
+
+def horse_rows(data: GameData) -> list[Row]:
+    """The ``comment2`` and ``comment1`` notes, e.g. ``WARHORSE_STABLE1``; the client reads neither."""
+    return [
+        Row(
+            "_".join(part for part in (h.label, to_snake(h.building_label)) if part) or f"HORSE_{h.wod_id}",
+            int(h.wod_id),
+            str(h.wod_id),
+        )
+        for h in data.horses.values()
+    ]
+
+
+def main_quest_rows(data: GameData, texts: Texts | None) -> list[Row]:
+    """
+    ``mainquest_<id>_title``, the title the quest book's chapter dialog shows (bundle line 93386).
+
+    The client parses no ``mainquests`` rows; the ids are the chapters the quest book lists
+    (``CastleQuestBookMainQuestListVO.parseListsFromParamObject``, bundle line 52419).
+    """
+    rows = []
+    for entry in data.raw("mainquests"):
+        quest_id = row_id(entry.get("mainQuestID"))
+        rows.append(
+            Row(named(texts, f"mainquest_{quest_id}_title") or f"MAIN_QUEST_{quest_id}", quest_id, str(quest_id))
+        )
+    return rows
 
 
 def building_rows(data: GameData) -> list[Row]:
@@ -528,6 +631,111 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             ),
         ),
         Table(
+            "gems",
+            "Gem",
+            "G",
+            "Gem ids from the ``gems`` table, named from the game's English name and, unless unique, level.",
+            "``CastleGemVO.parseXML`` (bundle line 28287); names from ``CastleGemVO.nameString`` (bundle line 28321)",
+            gem_rows(data, texts),
+            (Attr("level", "int", "Gem level; 0 for a unique gem."), Attr("set_id", "int", "Its set; -1 for none.")),
+        ),
+        Table(
+            "sceat_skills",
+            "SceatSkill",
+            "S",
+            "Sceat skill ids from the ``sceatSkills`` table, named from the game's English name and level.",
+            "``CastleSceatSkillVO.parseXML`` (bundle line 23074); names from ``nameTextID`` (bundle line 23110)",
+            sceat_skill_rows(data, texts),
+            (
+                Attr("skill_group_id", "int", "The group its levels share."),
+                Attr("skill_tree_id", "int", "The tree it sits in."),
+                LEVEL,
+            ),
+        ),
+        Table(
+            "achievements",
+            "Achievement",
+            "A",
+            "Achievement ids from the ``achievements`` table, named from the series' English name and the step "
+            "as its level; the main series from what it counts.",
+            "``AchievementVO.fillFromParamXML`` (bundle line 92882); names from ``AchievementSerieVO.nameString`` "
+            "(bundle line 92822)",
+            achievement_rows(data, texts),
+            (
+                Attr("series_id", "int", "The series it is a step of."),
+                Attr("series_number", "int", "Its step in the series."),
+            ),
+        ),
+        Table(
+            "horses",
+            "Horse",
+            "H",
+            "Travel booster ``wodID`` values from the ``horses`` table, the ``HBW`` movements send, named from "
+            "the ``comment2`` and ``comment1`` notes: the game names a horse by its place in the travel dialog.",
+            "``HorseTravelboosterVO.parseXmlNode`` (bundle line 118814); "
+            "``ACastlePostActionDialog.calculateTooltip`` (bundle line 27269)",
+            horse_rows(data),
+        ),
+        Table(
+            "titles",
+            "Title",
+            "T",
+            "Title ids from the ``titles`` table, named from the game's English title.",
+            "``TitleVO.parseXml`` (bundle line 62705); names from ``TitleVO.textID`` (bundle line 62756)",
+            [
+                Row(
+                    named(texts, f"playerTitle_{t.title_id}") or f"TITLE_{t.title_id}",
+                    int(t.title_id),
+                    str(t.title_id),
+                    (str(getattr(t.title_system, "value", t.title_system)),),
+                )
+                for t in data.titles.values()
+            ],
+            (Attr("title_system", "str", "Its title system, a ``TitleSystem`` value."),),
+        ),
+        Table(
+            "alliance_crests",
+            "AllianceCrestLayout",
+            "L",
+            "Alliance crest layout ids from the ``allianceCoatLayouts`` table, named from the game's English "
+            "name, else the ``comment1`` note.",
+            "``AllianceCrestLayoutVO.parseXML`` (bundle line 111024); names from "
+            "``CollectableItemAllianceCrestLayoutVO.getNameTextId`` (bundle line 89359)",
+            [
+                Row(
+                    named(texts, f"allianceCoat_Layout_name_{c.layout_id}") or c.label or f"LAYOUT_{c.layout_id}",
+                    int(c.layout_id),
+                    str(c.layout_id),
+                    (c.color_count,),
+                )
+                for c in data.alliance_crest_layouts.values()
+            ],
+            (Attr("color_count", "int", "Colours it takes."),),
+        ),
+        Table(
+            "alliance_crests",
+            "AllianceCrestColor",
+            "C",
+            "Alliance crest colour ids from the ``allianceCoatColors`` table. The game names no colour, so each "
+            "is named by its id and carries its hex colour.",
+            "``AllianceCrestColorVO.parseXML`` (bundle line 111012)",
+            [
+                Row(f"COLOR_{c.color_id}", int(c.color_id), str(c.color_id), (c.color,))
+                for c in data.alliance_crest_colors.values()
+            ],
+            (Attr("color", "str", "The colour as hex text, e.g. 0xDBDACA."),),
+        ),
+        Table(
+            "main_quests",
+            "MainQuest",
+            "M",
+            "Main quest ids from the ``mainquests`` table, the quest book's chapters, named from the game's "
+            "English title.",
+            "``CastleQuestBookMainQuestListVO.parseListsFromParamObject`` (bundle line 52419); names from "
+            "``mainquest_<id>_title`` (bundle line 93386)",
+            main_quest_rows(data, texts),
+        ),
+        Table(
             "difficulty_types",
             "DifficultyType",
             "D",
@@ -631,10 +839,11 @@ member, e.g. ``game_data.units[Unit.MEAD_RANGER_L6]``.
 :func:`is_current` says whether a loaded :class:`GameData` is that version. For
 anything newer, use the named lookups on :class:`GameData`.
 
-Gems, equipment, horses, relic effects, alliance buffs and sceat skills have
-no enum, as their rows have no name; look them up by id on :class:`GameData`
-(``gems``, ``equipment_effects``, ``get_horse``, ``relic_effects``,
-``alliance_buffs``, ``sceat_skills``).
+Equipment, relic effects and alliance buffs have no enum, as the game names
+none of their rows; look them up by id on :class:`GameData`
+(``equipment_effects``, ``relic_effects``, ``alliance_buffs``). Nor do the
+27,000 rewards: the game shows no text for one, and the notes some rows carry
+name where it is given, not the reward.
 
 Regenerate with ``uv run python scripts/generate_gamedata_ids.py``."""
 

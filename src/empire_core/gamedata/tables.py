@@ -1,6 +1,7 @@
 """
 Typed rows of the items tables the generated id enums name: buildings, researches, events, loot boxes,
-equipment groups, difficulty types, quests and daily quests, plus titles and difficulty scaling camps.
+equipment groups, difficulty types, quests, daily quests, titles, achievements and alliance crest layouts
+and colours, plus difficulty scaling camps.
 
 Each model reads the columns its client value object reads, with the same defaults; the costs and
 rewards the client reads through its items collectable parsers (``CollectableParserX2CList`` and
@@ -32,6 +33,9 @@ from .models import READING_CACHE, EffectSpecRow, EffectValue, _parse_int_or_def
 
 if TYPE_CHECKING:
     from .ids import (
+        Achievement,
+        AllianceCrestColor,
+        AllianceCrestLayout,
         Building,
         DailyQuestId,
         DifficultyType,
@@ -41,6 +45,8 @@ if TYPE_CHECKING:
         LootBoxType,
         QuestId,
         Research,
+        SceatSkill,
+        Title,
     )
 
 
@@ -155,7 +161,7 @@ class BuildingDef(EffectSpecRow):
     available_in_map_ids: tuple[int, ...] = Field(
         alias="mapIDs", default=(), description="The maps it may be built on; empty for any"
     )
-    sceat_skill_id: int = Field(
+    sceat_skill_id: GameDataId["SceatSkill"] = Field(
         alias="sceatSkillLocked", default=0, description="The sceat skill that unlocks it; 0 for none"
     )
     construction_item_group_ids: tuple[int, ...] = Field(
@@ -646,12 +652,10 @@ class TitleDef(EffectSpecRow):
     """
     A title of the glory, Berimond or Storm Islands title systems.
 
-    Titles have no id enum: their rows have no name to make one of.
-
     Client: ``TitleVO.parseXml`` (bundle lines 62705-62713)
     """
 
-    title_id: int = Field(alias="titleID", description="The title")
+    title_id: GameDataId["Title"] = Field(alias="titleID", description="The title")
     title_system: GameDataKey[TitleSystem] = Field(alias="type", default="-1", description="Its title system")
     threshold: int = Field(default=-1, description="Points from which it is held; -1 for a top-X title")
     display_type: GameDataKey[TitleDisplayType] = Field(
@@ -661,7 +665,7 @@ class TitleDef(EffectSpecRow):
     decay: int = Field(default=-1, description="Its point decay")
     is_positive: bool = Field(alias="isPositive", default=False, description="It is a positive title")
     top_x: int = Field(alias="topX", default=-1, description="The top ranks that hold it; -1 or 0 for a points title")
-    previous_title_id: int = Field(
+    previous_title_id: GameDataId["Title"] = Field(
         alias="previousTitleID", default=-1, description="The title below it in its system; -1 for the first"
     )
     reward_id: int = Field(alias="rewardID", default=-1, description="Its reward; -1 for none")
@@ -688,6 +692,140 @@ class TitleDef(EffectSpecRow):
     @classmethod
     def _text_column(cls, value: object) -> str:
         return _text(value, "-1")
+
+
+class AchievementCondition(_Row):
+    """
+    One thing an achievement counts: a ``type+amount+params`` part of its ``conditions``.
+
+    Client: ``AchievementConditionVO`` (bundle line 92956)
+    """
+
+    condition_type: str = Field(description="What it counts, e.g. achievementPoints")
+    amount: int = Field(default=0, description="How many it needs")
+    params: tuple[str, ...] = Field(default=(), description="Its further parameters, which differ for each type")
+
+    @classmethod
+    def parse_list(cls, value: object) -> list[AchievementCondition] | object:
+        """
+        Each ``#``-separated condition of a ``conditions`` column; an empty part is left out.
+
+        Client: ``AchievementVO.fillFromParamXML`` (bundle lines 92883-92887)
+        """
+        if not isinstance(value, str):
+            return value
+        conditions = []
+        for part in value.split("#"):
+            if part:
+                condition_type, _, rest = part.partition("+")
+                amount, *params = rest.split("+")
+                conditions.append(
+                    cls(condition_type=condition_type, amount=_parse_int_or_default(amount, 0), params=tuple(params))
+                )
+        return conditions
+
+
+class AchievementDef(_Row):
+    """
+    One step of an achievement series.
+
+    Client: ``AchievementVO.fillFromParamXML`` (bundle lines 92882-92887) and
+    ``AchievementSerieVO.fillFromParamXML`` (bundle line 92817), grouped by series in
+    ``CastleAchievementData`` (bundle lines 29820-29827)
+    """
+
+    achievement_id: GameDataId["Achievement"] = Field(alias="achievementID", description="The achievement")
+    series_id: int = Field(alias="achievementSeriesID", default=0, description="The series it is a step of")
+    series_number: int = Field(alias="achievementSeriesNumber", default=0, description="Its step in the series")
+    achievements_in_series: int = Field(
+        alias="numberOfAchievementsInSeries", default=0, description="Steps in the series"
+    )
+    required_achievement_id: GameDataId["Achievement"] = Field(
+        alias="requiredAchievementID", default=0, description="The step before it; -1 or 0 for none"
+    )
+    achievement_points: int = Field(alias="achievementPoints", default=0, description="Achievement points it gives")
+    category: str = Field(default="", description="The series' category, e.g. achievement or event")
+    conditions: tuple[AchievementCondition, ...] = Field(default=(), description="What it counts")
+
+    @field_validator("achievement_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator(
+        "series_id", "series_number", "achievements_in_series", "required_achievement_id", "achievement_points",
+        mode="before",
+    )  # fmt: skip
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value)
+
+    @field_validator("conditions", mode="before")
+    @classmethod
+    def _conditions(cls, value: object) -> object:
+        return AchievementCondition.parse_list(value)
+
+
+class AllianceCrestColorDef(_Row):
+    """
+    A colour an alliance crest can use.
+
+    Client: ``AllianceCrestColorVO.parseXML`` (bundle line 111012), keyed by id in
+    ``CastleAllianceCrestData.parseXML`` (bundle lines 110965-110970)
+    """
+
+    color_id: GameDataId["AllianceCrestColor"] = Field(alias="allianceCoatColorID", description="The colour")
+    color: str = Field(default="", description="The colour as hex text, e.g. 0xDBDACA")
+
+    @field_validator("color_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("color", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value)
+
+
+class AllianceCrestLayoutDef(EffectSpecRow):
+    """
+    A layout an alliance crest can use, and the bonuses it grants.
+
+    Client: ``AllianceCrestLayoutVO.parseXML`` and ``parseEffects`` (bundle lines 111024-111032), keyed by id
+    in ``CastleAllianceCrestData.parseXML`` (bundle lines 110958-110963)
+    """
+
+    layout_id: GameDataId["AllianceCrestLayout"] = Field(alias="allianceCoatLayoutID", description="The layout")
+    color_count: int = Field(alias="noofColors", default=0, description="Colours it takes")
+    event_id: GameDataId["Event"] = Field(
+        alias="eventID", default=0, description="The event that awards it; 0 for none"
+    )
+    max_duration: int = Field(
+        alias="maxDuration", default=0, description="Seconds it is held once won; 0 for a layout that does not expire"
+    )
+    effect_icon_id: int = Field(alias="effectIconID", default=0, description="The icon its bonus shows")
+    label: str = Field(alias="comment1", default="", description="Designer label the game does not read, e.g. nomad")
+
+    @field_validator("layout_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("color_count", "event_id", "max_duration", "effect_icon_id", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("label", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value)
 
 
 class ScalingCampDef(_Row):
@@ -753,6 +891,10 @@ class ScalingCampDef(_Row):
 
 __all__ = [
     "row_id",
+    "AchievementCondition",
+    "AchievementDef",
+    "AllianceCrestColorDef",
+    "AllianceCrestLayoutDef",
     "BuildingDef",
     "DailyQuestDef",
     "DifficultyTypeDef",

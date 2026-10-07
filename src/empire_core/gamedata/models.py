@@ -37,12 +37,15 @@ if TYPE_CHECKING:
         EffectType,
         EquipmentGroup,
         Event,
+        Gem,
         General,
         GeneralAbility,
         GeneralSkill,
         GlobalEffect,
+        Horse,
         LegendSkill,
         RaidBoss,
+        SceatSkill,
         Tool,
         Unit,
     )
@@ -789,7 +792,7 @@ class GlobalEffectDef(EffectSpecRow):
 class SceatSkillDef(EffectSpecRow):
     """One level of a sceat skill, from the Hall of Legends trees."""
 
-    skill_id: int = Field(alias="skillID")
+    skill_id: GameDataId["SceatSkill"] = Field(alias="skillID", description="The sceat skill")
     skill_group_id: int = Field(alias="skillGroupID", default=0)
     level: int = 0
     skill_tree_id: int = Field(alias="skillTreeID", default=0)
@@ -883,10 +886,14 @@ class GemDef(EffectSpecRow):
 
     Its ``effects`` name plain effect ids.
 
-    Client: ``CastleGemVO.parseXML`` (bundle line 28287)
+    Client: ``CastleGemVO.parseXML`` (bundle lines 28287-28291)
     """
 
-    gem_id: int = Field(alias="gemID", description="Gem id, as in Equipment.gem_id")
+    gem_id: GameDataId["Gem"] = Field(alias="gemID", description="The gem, as in Equipment.gem_id")
+    level: int = Field(alias="gemLevelID", default=0, description="Gem level; 0 for a unique gem")
+    reuse_asset_of_gem_id: GameDataId["Gem"] = Field(
+        alias="reuseAssetOfGemID", default=-1, description="The gem whose look and name it shares; -1 for its own"
+    )
     set_id: int = Field(alias="setID", default=-1, description="Equipment set the gem counts toward; -1 for none")
     trigger_chance: int = Field(
         alias="triggerChance", default=100, description="Trigger chance; the effect totals do not apply it"
@@ -943,18 +950,22 @@ class HorseStats(_Row):
     """
     A travel booster - the value behind the ``HBW`` field on movements.
 
-    There is no lookup by name: what tells the horse variants apart is not
-    traced yet, so look one up by id with ``GameData.get_horse``.
+    The game names a horse by its button's place in the travel dialog
+    (``ACastlePostActionDialog.calculateTooltip``, bundle line 27269), not by
+    its row, so the ``Horse`` enum is named from the two designer labels.
 
     Client: ``HorseTravelboosterVO.parseXmlNode`` (bundle line 118814) after
     ``AVisualVO.parseXmlNode`` (bundle line 17800), read from the ``horses`` table
     """
 
-    wod_id: int = Field(alias="wodID", description="The horse's wod id, the value sent as HBW")
+    wod_id: GameDataId["Horse"] = Field(alias="wodID", description="The horse, the value sent as HBW")
     source: str = Field(alias="name", default="", description="The row's name, Horse for every row")
     group: str = Field(default="", description="The row's group, Travelbooster for every row")
     label: str = Field(
         alias="comment2", default="", description="Designer label the game does not read, e.g. Warhorse or Fast Ship"
+    )
+    building_label: str = Field(
+        alias="comment1", default="", description="Designer label the game does not read, e.g. Stable1 or Harbor3"
     )
     horse_type: str = Field(alias="type", default="", description="The horse's type within its building")
     unit_boost: int = Field(alias="unitBoost", default=0, description="Travel speed bonus percent for troops")
@@ -980,7 +991,7 @@ class HorseStats(_Row):
             raise ValueError(f"wodID {value!r} has no leading integer")
         return parsed
 
-    @field_validator("source", "group", "label", mode="before")
+    @field_validator("source", "group", "label", "building_label", mode="before")
     @classmethod
     def _string_attribute(cls, value: object) -> object:
         return value or ""

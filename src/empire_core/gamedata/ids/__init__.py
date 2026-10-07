@@ -21,10 +21,11 @@ member, e.g. ``game_data.units[Unit.MEAD_RANGER_L6]``.
 :func:`is_current` says whether a loaded :class:`GameData` is that version. For
 anything newer, use the named lookups on :class:`GameData`.
 
-Gems, equipment, horses, relic effects, alliance buffs and sceat skills have
-no enum, as their rows have no name; look them up by id on :class:`GameData`
-(``gems``, ``equipment_effects``, ``get_horse``, ``relic_effects``,
-``alliance_buffs``, ``sceat_skills``).
+Equipment, relic effects and alliance buffs have no enum, as the game names
+none of their rows; look them up by id on :class:`GameData`
+(``equipment_effects``, ``relic_effects``, ``alliance_buffs``). Nor do the
+27,000 rewards: the game shows no text for one, and the notes some rows carry
+name where it is given, not the reward.
 
 Regenerate with ``uv run python scripts/generate_gamedata_ids.py``.
 """
@@ -37,6 +38,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from empire_core.gamedata.data import GameData
 
+    from .achievements import Achievement
+    from .alliance_crests import AllianceCrestColor, AllianceCrestLayout
     from .buildings import Building
     from .construction_items import ConstructionItem
     from .currencies import Currency, CurrencyId
@@ -46,16 +49,21 @@ if TYPE_CHECKING:
     from .effects import Effect
     from .equipment_groups import EquipmentGroup
     from .events import Event
+    from .gems import Gem
     from .general_abilities import GeneralAbility
     from .general_skills import GeneralSkill
     from .generals import General
     from .global_effects import GlobalEffect
+    from .horses import Horse
     from .legend_skills import LegendSkill
     from .loot_box_types import LootBoxType
     from .loot_boxes import LootBox
+    from .main_quests import MainQuest
     from .quests import QuestId
     from .raid_bosses import RaidBoss
     from .researches import Research
+    from .sceat_skills import SceatSkill
+    from .titles import Title
     from .tools import Tool
     from .units import Unit
 
@@ -64,6 +72,9 @@ ITEMS_VERSION = "786.03"
 
 # Each enum's module, imported on first use: together they hold thousands of members
 _MODULES = {
+    "Achievement": "achievements",
+    "AllianceCrestColor": "alliance_crests",
+    "AllianceCrestLayout": "alliance_crests",
     "Building": "buildings",
     "ConstructionItem": "construction_items",
     "Currency": "currencies",
@@ -74,16 +85,21 @@ _MODULES = {
     "EffectType": "effect_types",
     "EquipmentGroup": "equipment_groups",
     "Event": "events",
+    "Gem": "gems",
     "General": "generals",
     "GeneralAbility": "general_abilities",
     "GeneralSkill": "general_skills",
     "GlobalEffect": "global_effects",
+    "Horse": "horses",
     "LegendSkill": "legend_skills",
     "LootBox": "loot_boxes",
     "LootBoxType": "loot_box_types",
+    "MainQuest": "main_quests",
     "QuestId": "quests",
     "RaidBoss": "raid_bosses",
     "Research": "researches",
+    "SceatSkill": "sceat_skills",
+    "Title": "titles",
     "Tool": "tools",
     "Unit": "units",
 }
@@ -109,6 +125,9 @@ if not TYPE_CHECKING:
 
 
 __all__ = [
+    "Achievement",
+    "AllianceCrestColor",
+    "AllianceCrestLayout",
     "Building",
     "ConstructionItem",
     "Currency",
@@ -119,17 +138,22 @@ __all__ = [
     "EffectType",
     "EquipmentGroup",
     "Event",
+    "Gem",
     "General",
     "GeneralAbility",
     "GeneralSkill",
     "GlobalEffect",
+    "Horse",
     "ITEMS_VERSION",
     "LegendSkill",
     "LootBox",
     "LootBoxType",
+    "MainQuest",
     "QuestId",
     "RaidBoss",
     "Research",
+    "SceatSkill",
+    "Title",
     "Tool",
     "Unit",
     "is_current",
