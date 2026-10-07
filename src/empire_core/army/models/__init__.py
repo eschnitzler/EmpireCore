@@ -38,7 +38,6 @@ from .units import (
     GetUnitsResponse,
     UnitInventory,
     WaveFlank,
-    wod_amount_pairs,
 )
 
 __all__ = [
@@ -69,7 +68,6 @@ __all__ = [
     "CancelProductionResponse",
     "AttackWave",
     "WaveFlank",
-    "wod_amount_pairs",
     "BUY_UNIT_PACKAGE_SK",
     "UnitInventory",
     "GetUnitsRequest",

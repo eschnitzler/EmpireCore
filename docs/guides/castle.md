@@ -93,14 +93,16 @@ from empire_core import Resource
 goods = {Resource.WOOD: 1000, Resource.STONE: 500}
 client.castle.send_resources(source_castle_id, target_x, target_y, goods)
 
+from empire_core.gamedata import Unit
+
 commander = client.commanders.get_commanders()[0]
 client.castle.send_support(
     source_castle_id, target_x, target_y,
-    units=[[620, 50]], commander_id=commander.commander_id,
+    units={Unit.SWORDMAN: 50}, commander_id=commander.commander_id,
 )
 client.castle.send_troops(
     source_x, source_y, target_x, target_y,
-    units=[[620, 50]], commander_id=commander.commander_id,
+    units={Unit.SWORDMAN: 50}, commander_id=commander.commander_id,
 )
 ```
 

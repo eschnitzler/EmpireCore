@@ -35,7 +35,7 @@ from empire_core.army.models.production import (
 from empire_core.army.models.units import DismissUnitsRequest, GetUnitsRequest, GetUnitsResponse
 from empire_core.castle.models.actions import SelectCastleRequest, SelectCastleResponse
 from empire_core.enums import Kingdom, ProductionListId, SlotType
-from empire_core.protocol.base import UnitCount
+from empire_core.gamedata import UnitOrTool
 from empire_core.services.base import BaseService
 
 
@@ -78,7 +78,7 @@ class ArmyService(BaseService):
     # Unit Inventory
     # =========================================================================
 
-    def get_units(self, castle_id: int, timeout: float = 5.0) -> list[UnitCount]:
+    def get_units(self, castle_id: int, timeout: float = 5.0) -> dict[UnitOrTool, int]:
         """
         Get the available unit inventory for a castle.
 
@@ -91,9 +91,9 @@ class ArmyService(BaseService):
             timeout: Timeout in seconds
 
         Returns:
-            List of UnitCount objects
+            The castle's units and tools, ``{Unit or Tool: amount}``
         """
-        return self.get_units_response(castle_id, timeout=timeout).get_inventory()
+        return self.get_units_response(castle_id, timeout=timeout).units
 
     def get_units_response(self, castle_id: int, timeout: float = 5.0) -> GetUnitsResponse:
         """

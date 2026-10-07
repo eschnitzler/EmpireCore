@@ -482,7 +482,6 @@ from empire_core.protocol.base import (
     GGECommand,
     PlayerInfo,
     Position,
-    UnitCount,
     get_response_model,
     parse_response,
 )
@@ -554,7 +553,6 @@ __all__ = [
     "BaseRequest",
     "BaseResponse",
     "Position",
-    "UnitCount",
     "PlayerInfo",
     "get_response_model",
     "parse_response",

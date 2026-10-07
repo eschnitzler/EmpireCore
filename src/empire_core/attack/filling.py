@@ -5,6 +5,9 @@ support tools and the estimate of the target's defense.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
 from empire_core.attack.targeting import _row_item, _Target
 from empire_core.combat import (
     DefenderFlankEffects,
@@ -14,15 +17,18 @@ from empire_core.combat import (
     spied_castle_defense,
 )
 from empire_core.enums import Flank
-from empire_core.gamedata import GameData, ToolStats
+from empire_core.gamedata import EMPTY_WOD_ID, GameData, ToolStats
 from empire_core.map.models.items import MapAreaItem
 
+if TYPE_CHECKING:
+    from empire_core.gamedata import Tool
 
-def _support_tools(game_data: GameData, wod_ids: list[int] | None) -> list[ToolStats]:
+
+def _support_tools(game_data: GameData, wod_ids: Sequence[Tool | int | None] | None) -> list[ToolStats]:
     """The tools behind an ``AST`` list; ``toolsSupportWodIds`` sends -1 for an empty slot."""
     tools = []
-    for wod_id in wod_ids or []:
-        if wod_id == -1:
+    for wod_id in wod_ids or ():
+        if wod_id is None or wod_id == EMPTY_WOD_ID:
             continue
         tool = game_data.get_tool(wod_id)
         if tool is None:

@@ -14,10 +14,10 @@ priorities and castellan:
 castle = client.state.get_castles()[0]
 defense = client.defense.get_own_defense(castle.x, castle.y, castle.id)
 
-print(defense.keep.slots)            # [[wod_id, amount], ...], [-1, 0] for an empty slot
+print(defense.keep.slots)            # (WodAmount(item=..., amount=...), ...), one per slot
 print(defense.wall.left.unit_percent)
 print(defense.moat.middle_slots)
-print(defense.inventory())           # {wod_id: amount}
+print(defense.inventory())           # {Unit or Tool: amount}
 ```
 
 ## Changing it
@@ -27,8 +27,10 @@ them, so read the setup, change what you want and send it back. Each returns
 the setup the server stored:
 
 ```python
+from empire_core.gamedata import Tool, WodAmount
+
 keep = defense.keep
-keep.slots[0] = [651, 20]            # 20 of tool 651 in the first keep slot
+keep.slots = (WodAmount(Tool.ELITESHIELDS, 20), *keep.slots[1:])   # the first keep slot
 client.defense.set_keep(castle.x, castle.y, castle.id, keep)
 
 wall = defense.wall
@@ -38,8 +40,10 @@ client.defense.set_wall(castle.x, castle.y, castle.id, wall)
 client.defense.set_moat(castle.x, castle.y, castle.id, defense.moat)
 ```
 
-Each slot list keeps its slots in the order the reply sent them, empty ones
-too: the game reads a slot by its position. The wall's unit percents are
+Each slot list is a tuple of `WodAmount` pairs in the order the reply sent
+them, empty ones too: the game reads a slot by its position. An empty slot is
+`WodAmount(None, 0)` (`EMPTY_SLOT`), sent back as `[-1, 0]`; a pair unpacks
+as `tool, amount = slot`. The wall's unit percents are
 whole numbers, as the game's slider sends them. The library checks neither
 the tools against your inventory nor the slots against the castle's level;
 that is left to the server.

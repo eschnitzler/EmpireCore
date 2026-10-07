@@ -238,7 +238,7 @@ class TestCastleActions:
     def test_send_support_builds_the_documented_payload(self):
         client = make_client()
 
-        assert client.castle.send_support(12345, 700, 710, [[487, 100]], commander_id=5, wait_time=6) is True
+        assert client.castle.send_support(12345, 700, 710, {487: 100}, commander_id=5, wait_time=6) is True
 
         command, payload = conn(client).request_payloads[0]
         assert command == "cds"
@@ -253,20 +253,20 @@ class TestCastleActions:
 
     def test_send_support_with_feathers_sends_no_horses(self):
         client = make_client()
-        client.castle.send_support(12345, 700, 710, [[487, 1]], commander_id=5, horse_booster_id=3, feathers=True)
+        client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=3, feathers=True)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
 
     def test_send_support_without_feathers_keeps_the_horses(self):
         client = make_client()
-        client.castle.send_support(12345, 700, 710, [[487, 1]], commander_id=5, horse_booster_id=3)
+        client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=3)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (3, 0)
 
     def test_send_support_with_the_premium_commander(self):
         client = make_client()
         client.castle.send_support(
-            12345, 700, 710, [[487, 1]], commander_id=-14, use_premium_commander=True, spend_rubies=True
+            12345, 700, 710, {487: 1}, commander_id=-14, use_premium_commander=True, spend_rubies=True
         )
         payload = conn(client).request_payloads[0][1]
         assert (payload["LID"], payload["BPC"]) == (-14, 1)
@@ -275,6 +275,6 @@ class TestCastleActions:
         client = make_client()
 
         with pytest.raises(ValidationError):
-            client.castle.send_support(12345, 700, 710, [[487, 1]], commander_id=5, wait_time=13)
+            client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, wait_time=13)
 
         assert conn(client).requested == []

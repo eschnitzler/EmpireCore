@@ -14,19 +14,19 @@ Each entry's layout depends on its kind (``[unit_id, amount]`` under ``U``, an a
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from enum import Enum
 from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainValidator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer, PlainValidator
 
 from empire_core.enums import BoosterId, CollectableKind, Rareness
 from empire_core.protocol.js import js_int, js_number_or_none, js_truthy
 
-from .lenient import known
+from .lenient import EnumOrInt, known
 
 if TYPE_CHECKING:
-    from .ids import Building, ConstructionItem, Currency, LootBox, Tool, Unit
+    from .ids import Building, ConstructionItem, Currency, CurrencyId, LootBox, Tool, Unit
 
     CollectableItem = Unit | Tool | Building | ConstructionItem | Currency | LootBox | BoosterId | Rareness | int | str
 else:
@@ -440,8 +440,36 @@ CollectableObject = Annotated[tuple[Collectable, ...], BeforeValidator(_collecta
 """A model field read from a reward object, ``{key: [entry, ...]}`` (see :meth:`Collectable.from_object`)."""
 
 
+def _currency_rows(value: Any) -> Any:
+    """``[[currency_id, amount], ...]`` as ``{currency_id: amount}``; a mapping is taken as it is."""
+    if isinstance(value, Mapping) or not isinstance(value, list | tuple):
+        return value
+    totals: dict[int, int] = {}
+    for row in value:
+        if isinstance(row, list | tuple) and row:
+            currency_id = js_int(row[0])
+            totals[currency_id] = totals.get(currency_id, 0) + js_int(row[1] if len(row) > 1 else None)
+    return totals
+
+
+def _rows_of(amounts: dict[CurrencyId | int, int]) -> list[list[int]]:
+    return [[currency_id, amount] for currency_id, amount in amounts.items()]
+
+
+CurrencyAmounts = Annotated[
+    dict[EnumOrInt["CurrencyId"], int], BeforeValidator(_currency_rows), PlainSerializer(_rows_of)
+]
+"""Currencies by id and amount, sent as ``[[currency_id, amount], ...]`` in insertion order.
+
+Unlike :data:`CollectableRows`, the rows name the currency by its ``currencyID``, not a server key.
+
+Client: ``CastleFightScreenVO.addCollectorBooster`` (bundle line 30584) pushes ``[currency_id, amount]``
+"""
+
+
 __all__ = [
     "MINUTE_SKIP_FIRST_ID",
+    "CurrencyAmounts",
     "Collectable",
     "CollectableItem",
     "CollectableObject",

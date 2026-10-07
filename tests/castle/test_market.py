@@ -20,6 +20,7 @@ from empire_core.castle.models.support import SendSupportResponse, SendTroopsReq
 from empire_core.castle.models.transfers import KingdomUnitTransferRequest, KingdomUnitTransferResponse
 from empire_core.enums import Kingdom, MarketScope, Resource, ResourceCartType
 from empire_core.exceptions import UnsendableGoodsError
+from empire_core.gamedata import WodAmount
 from empire_core.protocol.models import parse_response
 from tests.service_helpers import StubPlayer, StubState, conn, make_client, xt_packet
 
@@ -191,14 +192,17 @@ class TestKingdomUnitTransfer:
     def test_the_request_follows_the_client(self):
         # C2SKingdomUnitTransferVO: SCID, SKID, TKID and CID initialised, A set after them
         payload = KingdomUnitTransferRequest(
-            source_castle_id=1234, source_kingdom_id=Kingdom.GREEN, target_kingdom_id=Kingdom.ICE, units=[[1, 5]]
+            source_castle_id=1234,
+            source_kingdom_id=Kingdom.GREEN,
+            target_kingdom_id=Kingdom.ICE,
+            units=(WodAmount(1, 5),),
         ).to_payload()
         assert payload == {"SCID": 1234, "SKID": 0, "TKID": 2, "CID": -1, "A": [[1, 5]]}
         assert list(payload) == ["SCID", "SKID", "TKID", "CID", "A"]
 
     def test_transfer_units_to_kingdom(self):
         client = make_client(castles=[(1234, Kingdom.ICE)])
-        assert client.castle.transfer_units_to_kingdom(1234, Kingdom.FIRE, [[620, 10]]) is True
+        assert client.castle.transfer_units_to_kingdom(1234, Kingdom.FIRE, {620: 10}) is True
         assert conn(client).request_payloads == [
             ("kut", {"SCID": 1234, "SKID": 2, "TKID": 3, "CID": -1, "A": [[620, 10]]})
         ]
@@ -223,7 +227,7 @@ class TestSendTroops:
             target_y=205,
             kingdom_id=Kingdom.GREEN,
             commander_id=5,
-            units=[[620, 10]],
+            units=(WodAmount(620, 10),),
         ).to_payload()
         assert list(payload) == ["SX", "SY", "TX", "TY", "KID", "LID", "WT", "HBW", "BPC", "PTT", "SD", "A"]
         assert payload == {
@@ -243,7 +247,7 @@ class TestSendTroops:
 
     def test_send_troops_pays_nothing_by_default(self):
         client = make_client()
-        assert client.castle.send_troops(100, 200, 110, 205, [[620, 10], [649, 2]], commander_id=5) is True
+        assert client.castle.send_troops(100, 200, 110, 205, {620: 10, 649: 2}, commander_id=5) is True
         assert conn(client).request_payloads == [
             (
                 "cat",
@@ -266,7 +270,7 @@ class TestSendTroops:
 
     def test_feathers_send_no_horse(self):
         client = make_client()
-        client.castle.send_troops(100, 200, 110, 205, [[620, 1]], commander_id=5, horse_booster_id=3, feathers=True)
+        client.castle.send_troops(100, 200, 110, 205, {620: 1}, commander_id=5, horse_booster_id=3, feathers=True)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
 
@@ -277,7 +281,7 @@ class TestSendTroops:
             200,
             110,
             205,
-            [[620, 1]],
+            {620: 1},
             commander_id=-14,
             kingdom_id=Kingdom.ICE,
             use_premium_commander=True,
@@ -297,7 +301,7 @@ class TestSendTroops:
 
     def test_a_refusal_is_false(self):
         client = make_client({"cat": xt_packet("cat", error_code=92)})
-        assert client.castle.send_troops(100, 200, 110, 205, [[620, 1]], commander_id=5) is False
+        assert client.castle.send_troops(100, 200, 110, 205, {620: 1}, commander_id=5) is False
 
     def test_the_reply(self):
         # CATCommand reads O, A and gcu

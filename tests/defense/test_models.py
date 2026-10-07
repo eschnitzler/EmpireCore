@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from empire_core.enums import Kingdom
+from empire_core.gamedata import EMPTY_SLOT, WodAmount
 from empire_core.protocol.js import js_int
 from empire_core.protocol.models import (
     ChangeKeepDefenseRequest,
@@ -83,7 +84,7 @@ class TestDefenseRequests:
             GetDefenseRequest.model_validate({"CX": 1, "CY": 2, "AID": 3, "KID": 11})
 
     def test_dfk_keys_and_defaults_follow_the_client(self):
-        request = ChangeKeepDefenseRequest(castle_x=1, castle_y=2, area_id=3, slots=[[-1, 0]] * 3)
+        request = ChangeKeepDefenseRequest(castle_x=1, castle_y=2, area_id=3, slots=(EMPTY_SLOT,) * 3)
         assert list(request.to_payload().items()) == [
             ("CX", 1),
             ("CY", 2),
@@ -95,7 +96,7 @@ class TestDefenseRequests:
         ]
 
     def test_dfw_nests_each_wall_section(self):
-        section = WallSectionSetup(slots=[[-1, 0]], unit_percent=50, unit_composition=50)
+        section = WallSectionSetup(slots=(EMPTY_SLOT,), unit_percent=50, unit_composition=50)
         request = ChangeWallDefenseRequest(
             castle_x=1, castle_y=2, area_id=3, left=section, middle=section, right=section
         )
@@ -113,9 +114,25 @@ class TestDefenseRequests:
 
     def test_dfm_sends_three_slot_lists(self):
         request = ChangeMoatDefenseRequest(
-            castle_x=1, castle_y=2, area_id=3, left_slots=[[-1, 0]], middle_slots=[[-1, 0]], right_slots=[[-1, 0]]
+            castle_x=1, castle_y=2, area_id=3, left_slots=(EMPTY_SLOT,), middle_slots=(EMPTY_SLOT,), right_slots=()
         )
-        assert request.to_payload() == {"CX": 1, "CY": 2, "AID": 3, "LS": [[-1, 0]], "MS": [[-1, 0]], "RS": [[-1, 0]]}
+        assert request.to_payload() == {"CX": 1, "CY": 2, "AID": 3, "LS": [[-1, 0]], "MS": [[-1, 0]], "RS": []}
+
+    def test_slots_go_out_as_built_duplicates_and_empty_slots_kept(self):
+        # getSlotList writes one [wodId, amount] per slot, -1 and 0 for an empty one
+        slots = (WodAmount(651, 20), EMPTY_SLOT, WodAmount(651, 5))
+        request = ChangeKeepDefenseRequest(castle_x=1, castle_y=2, area_id=3, slots=slots, support_tool_slots=slots)
+        assert (
+            request.to_packet().split("%")[5].endswith('"S":[[651,20],[-1,0],[651,5]],"STS":[[651,20],[-1,0],[651,5]]}')
+        )
+
+    def test_a_read_setup_goes_back_byte_for_byte(self):
+        keep = KeepDefense.model_validate({"S": [[651, 20], [-1, 0], [651, 5]], "STS": [[-1, 0]]})
+        assert keep.slots == ((651, 20), (None, 0), (651, 5))
+        request = ChangeKeepDefenseRequest(
+            castle_x=1, castle_y=2, area_id=3, slots=keep.slots, support_tool_slots=keep.support_tool_slots
+        )
+        assert json.loads(request.to_packet().split("%")[5])["S"] == [[651, 20], [-1, 0], [651, 5]]
 
     def test_no_request_sends_a_castle_id(self):
         assert "CID" not in GetDefenseRequest(castle_x=1, castle_y=2, area_id=3).to_payload()
@@ -140,13 +157,13 @@ class TestLiveDefenseReply:
     def test_nested_wall_keep_and_moat(self):
         response = GetDefenseResponse.model_validate(LIVE_DFC)
         assert response.wall is not None and response.keep is not None and response.moat is not None
-        assert response.wall.middle.slots == [[-1, 0]]
+        assert response.wall.middle.slots == (EMPTY_SLOT,)
         assert (response.wall.left.unit_percent, response.wall.middle.unit_percent) == (25, 50)
         assert (response.wall.unit_count, response.wall.unit_slot_count, response.wall.defense) == (13, 20, 30)
-        assert response.keep.support_tool_slots == [[-1, 0]] * 3
+        assert response.keep.support_tool_slots == (EMPTY_SLOT,) * 3
         assert response.keep.unit_composition == 50
         assert response.keep.keep_unit_slot_count == 10000
-        assert response.moat.right_slots == [[-1, 0]]
+        assert response.moat.right_slots == (EMPTY_SLOT,)
         assert response.moat.defense == 0
 
     def test_standalone_replies_reuse_the_nested_blocks(self):

@@ -413,7 +413,7 @@ class GameData(BaseModel):
     relic_effects: dict[int, RelicEffectDef] = Field(default_factory=dict)
     equipment_sets: dict[int, list[EquipmentSetDef]] = Field(default_factory=dict)
     """Each equipment set's threshold rows by set id, in the order listed."""
-    fortifications: dict[int, FortificationDef] = Field(default_factory=dict)
+    fortifications: dict[GameDataId["Building"], FortificationDef] = Field(default_factory=dict)
     alliance_buffs: dict[int, AllianceBuffDef] = Field(default_factory=dict)
     attack_slots: dict[int, AttackSlotDef] = Field(default_factory=dict)
     tool_categories: dict[int, ToolCategoryDef] = Field(default_factory=dict)

@@ -19,15 +19,12 @@ from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model
 from empire_core.army.models.units import SpyPositions, UnitInventory
 from empire_core.commanders.models.roster import Castellan, CommanderRoster
 from empire_core.enums import Kingdom
+from empire_core.gamedata import UnitOrTool, WodAmountSlots
 from empire_core.movements.models import MovementArea
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, read_or_none
 from empire_core.protocol.js import ClientInt, js_int, row_is_at
 
 logger = logging.getLogger(__name__)
-
-
-Slot = list[int]
-"""One container slot: ``[wod_id, amount]``, ``[-1, 0]`` when empty."""
 
 
 # =============================================================================
@@ -89,7 +86,7 @@ class WallSection(BasePayload):
     Client: ``CastleDefenceData.parse_DFW`` (bundle line 134250)
     """
 
-    slots: list[Slot] = Field(alias="S", default_factory=list, description="Wall tool slots")
+    slots: WodAmountSlots = Field(alias="S", default=(), description="Wall tool slots")
     unit_percent: ClientInt = Field(alias="UP", default=0, description="Share of the wall's units on this section")
     unit_composition: ClientInt = Field(alias="UC", default=0, description="Unit composition of this section")
 
@@ -124,8 +121,8 @@ class KeepDefense(BaseResponse):
 
     command = "dfk"
 
-    slots: list[Slot] = Field(alias="S", default_factory=list, description="Keep tool slots")
-    support_tool_slots: list[Slot] = Field(alias="STS", default_factory=list, description="Keep support-tool slots")
+    slots: WodAmountSlots = Field(alias="S", default=(), description="Keep tool slots")
+    support_tool_slots: WodAmountSlots = Field(alias="STS", default=(), description="Keep support-tool slots")
     alliance_unit_yard_limit: ClientInt = Field(alias="AUYL", default=0, description="Alliance unit yard limit")
     unit_yard_limit: ClientInt = Field(alias="UYL", default=0, description="Unit yard limit")
     unit_count: ClientInt = Field(alias="U", default=0, description="Units in the keep")
@@ -158,9 +155,9 @@ class MoatDefense(BaseResponse):
 
     command = "dfm"
 
-    left_slots: list[Slot] = Field(alias="LS", default_factory=list, description="Left moat slots")
-    middle_slots: list[Slot] = Field(alias="MS", default_factory=list, description="Middle moat slots")
-    right_slots: list[Slot] = Field(alias="RS", default_factory=list, description="Right moat slots")
+    left_slots: WodAmountSlots = Field(alias="LS", default=(), description="Left moat slots")
+    middle_slots: WodAmountSlots = Field(alias="MS", default=(), description="Middle moat slots")
+    right_slots: WodAmountSlots = Field(alias="RS", default=(), description="Right moat slots")
     defense: ClientInt = Field(alias="D", default=0, description="Moat defence, as a whole number")
 
 
@@ -222,8 +219,8 @@ class GetDefenseResponse(BaseResponse):
         """The castellan's id, ``int(L.ID)``; -1 when none is set, as the client starts from."""
         return self.castellan.commander_id if self.castellan else self.listed_castellan_id
 
-    def inventory(self) -> dict[int, int]:
-        """The castle's units as ``{wod_id: amount}``, the only inventory ``parse_DFC`` reads."""
+    def inventory(self) -> dict[UnitOrTool, int]:
+        """The castle's units as ``{Unit or Tool: amount}``, the only inventory ``parse_DFC`` reads."""
         return dict(self.unit_inventory.units)
 
 
@@ -260,8 +257,8 @@ class ChangeKeepDefenseRequest(BaseRequest):
         description="Minimum attacking units before the keep's tools are used",
     )
     unit_composition: int = Field(alias="UC", default=50, description="Keep unit composition")
-    slots: list[Slot] = Field(alias="S", description="Keep tool slots")
-    support_tool_slots: list[Slot] = Field(alias="STS", default_factory=list, description="Keep support-tool slots")
+    slots: WodAmountSlots = Field(alias="S", description="Keep tool slots")
+    support_tool_slots: WodAmountSlots = Field(alias="STS", default=(), description="Keep support-tool slots")
 
 
 class WallSectionSetup(BasePayload):
@@ -271,7 +268,7 @@ class WallSectionSetup(BasePayload):
     Client: ``C2SDefenceWallVO`` (bundle line 66616)
     """
 
-    slots: list[Slot] = Field(alias="S", description="Wall tool slots")
+    slots: WodAmountSlots = Field(alias="S", description="Wall tool slots")
     unit_percent: int = Field(alias="UP", description="Share of the wall's units on this section")
     unit_composition: int = Field(alias="UC", description="Unit composition of this section")
 
@@ -320,9 +317,9 @@ class ChangeMoatDefenseRequest(BaseRequest):
         alias="AID",
         description="The castle's id: CastleInfo.castle_id from client.castle.get_all() or Castle.id",
     )
-    left_slots: list[Slot] = Field(alias="LS", description="Left moat slots")
-    middle_slots: list[Slot] = Field(alias="MS", description="Middle moat slots")
-    right_slots: list[Slot] = Field(alias="RS", description="Right moat slots")
+    left_slots: WodAmountSlots = Field(alias="LS", description="Left moat slots")
+    middle_slots: WodAmountSlots = Field(alias="MS", description="Middle moat slots")
+    right_slots: WodAmountSlots = Field(alias="RS", description="Right moat slots")
 
 
 # =============================================================================

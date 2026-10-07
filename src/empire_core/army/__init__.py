@@ -36,7 +36,6 @@ from .models import (
     UnitInventory,
     WaveFlank,
     WoundedUnits,
-    wod_amount_pairs,
 )
 from .service import ArmyService
 from .spy_army import SpyArmy, UnitStack
@@ -69,7 +68,6 @@ __all__ = [
     "DoubleProductionSlotResponse",
     "CancelProductionRequest",
     "CancelProductionResponse",
-    "wod_amount_pairs",
     "BUY_UNIT_PACKAGE_SK",
     "UnitInventory",
     "GetUnitsRequest",
