@@ -82,3 +82,21 @@ def test_threads_reading_one_row_get_the_same_object(table):
     with ThreadPoolExecutor(8) as pool:
         rows = list(pool.map(lambda _: table[171], range(64)))
     assert all(row is rows[0] for row in rows)
+
+
+def test_rows_without_an_id_and_repeated_ids_are_warned_once_per_table(caplog):
+    units = [
+        {"wodID": "1", "type": "A"},
+        {"type": "NoId"},
+        {"wodID": "x", "type": "Bad"},
+        "junk",
+        {"wodID": "1", "type": "B"},
+    ]
+    with caplog.at_level(logging.WARNING, logger="empire_core.gamedata.data"):
+        data = GameData.parse("786.03", {"units": units})
+
+    assert data.units[1].unit_type == "B"
+    assert [r.getMessage() for r in caplog.records] == [
+        "units: left out 3 rows without a numeric wodID (None, 'x', 'junk')",
+        "units: 1 ids have more than one row, the last is kept: 1",
+    ]
