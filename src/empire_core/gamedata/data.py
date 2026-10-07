@@ -68,6 +68,10 @@ from .models import (
 )
 from .table import Table
 from .tables import (
+    AchievementCondition,
+    AchievementDef,
+    AllianceCrestColorDef,
+    AllianceCrestLayoutDef,
     BuildingDef,
     DailyQuestDef,
     DifficultyTypeDef,
@@ -85,6 +89,9 @@ from .tables import (
 
 if TYPE_CHECKING:
     from .ids import (
+        Achievement,
+        AllianceCrestColor,
+        AllianceCrestLayout,
         Building,
         ConstructionItem,
         CurrencyId,
@@ -94,16 +101,20 @@ if TYPE_CHECKING:
         EffectType,
         EquipmentGroup,
         Event,
+        Gem,
         General,
         GeneralAbility,
         GeneralSkill,
         GlobalEffect,
+        Horse,
         LegendSkill,
         LootBox,
         LootBoxType,
         QuestId,
         RaidBoss,
         Research,
+        SceatSkill,
+        Title,
         Tool,
         Unit,
     )
@@ -155,6 +166,10 @@ _CACHED_MODELS = (
     QuestCondition,
     TitleDef,
     ScalingCampDef,
+    AchievementCondition,
+    AchievementDef,
+    AllianceCrestColorDef,
+    AllianceCrestLayoutDef,
     EffectValue,
     EquipmentEffectValue,
 )
@@ -273,6 +288,12 @@ _TABLES: dict[str, _TableSource] = {
     "quests": _TableSource("quests", QuestDef, "quest_id"),
     "daily_quests": _TableSource("dailyactivities", DailyQuestDef, "quest_id"),
     "titles": _TableSource("titles", TitleDef, "title_id"),
+    "gems": _TableSource("gems", GemDef, "gem_id"),
+    "sceat_skills": _TableSource("sceatSkills", SceatSkillDef, "skill_id"),
+    "horses": _TableSource("horses", HorseStats, "wod_id"),
+    "achievements": _TableSource("achievements", AchievementDef, "achievement_id"),
+    "alliance_crest_colors": _TableSource("allianceCoatColors", AllianceCrestColorDef, "color_id"),
+    "alliance_crest_layouts": _TableSource("allianceCoatLayouts", AllianceCrestLayoutDef, "layout_id"),
     "scaling_camps": _TableSource("eventAutoScalingCamps", ScalingCampDef, "scaling_camp_id"),
 }
 """The GameData tables read lazily, by attribute name: each a :class:`Table` built from these rows."""
@@ -297,11 +318,12 @@ RAW_TABLES = (
     "specialcamps",
     "eventAutoScalingUnitPairings",
     "eventAutoScalingToolPairings",
+    "mainquests",
 )
 """
-Tables kept verbatim. The client parses no ``bossdungeons`` or pairing rows, so their meaning is the
-server's; it reads ``specialcamps`` into two value objects by row type (``FactionEventVO.parseAdditionalXmlFromRoot``,
-bundle line 7400), which are not modeled yet.
+Tables kept verbatim. The client parses no ``bossdungeons``, pairing or ``mainquests`` rows, so their
+meaning is the server's; it reads ``specialcamps`` into two value objects by row type
+(``FactionEventVO.parseAdditionalXmlFromRoot``, bundle line 7400), which are not modeled yet.
 """
 
 R = TypeVar("R", bound=BaseModel)
@@ -389,15 +411,12 @@ class GameData(BaseModel):
     effect_caps: dict[int, EffectCapDef] = Field(default_factory=dict)
     equipment_effects: dict[int, EquipmentEffectDef] = Field(default_factory=dict)
     relic_effects: dict[int, RelicEffectDef] = Field(default_factory=dict)
-    gems: dict[int, GemDef] = Field(default_factory=dict)
     equipment_sets: dict[int, list[EquipmentSetDef]] = Field(default_factory=dict)
     """Each equipment set's threshold rows by set id, in the order listed."""
     fortifications: dict[int, FortificationDef] = Field(default_factory=dict)
     alliance_buffs: dict[int, AllianceBuffDef] = Field(default_factory=dict)
-    sceat_skills: dict[int, SceatSkillDef] = Field(default_factory=dict)
     attack_slots: dict[int, AttackSlotDef] = Field(default_factory=dict)
     tool_categories: dict[int, ToolCategoryDef] = Field(default_factory=dict)
-    horses: dict[int, HorseStats] = Field(default_factory=dict)
     default_lords: dict[int, DefaultLordDef] = Field(default_factory=dict)
     vip_levels: dict[int, VipLevelDef] = Field(default_factory=dict)
     dungeons: list[DungeonDefence] = Field(default_factory=list)
@@ -517,9 +536,39 @@ class GameData(BaseModel):
         return self._table("daily_quests")
 
     @cached_property
-    def titles(self) -> Table[int, TitleDef]:
-        """Titles by ``titleID``; they have no enum, as their rows have no name."""
+    def titles(self) -> Table[GameDataId["Title"], TitleDef]:
+        """Titles by ``Title``."""
         return self._table("titles")
+
+    @cached_property
+    def gems(self) -> Table[GameDataId["Gem"], GemDef]:
+        """Gems by ``Gem``."""
+        return self._table("gems")
+
+    @cached_property
+    def sceat_skills(self) -> Table[GameDataId["SceatSkill"], SceatSkillDef]:
+        """Sceat skill levels by ``SceatSkill``."""
+        return self._table("sceat_skills")
+
+    @cached_property
+    def horses(self) -> Table[GameDataId["Horse"], HorseStats]:
+        """Travel boosters by ``Horse``, the value movements send as ``HBW``."""
+        return self._table("horses")
+
+    @cached_property
+    def achievements(self) -> Table[GameDataId["Achievement"], AchievementDef]:
+        """Achievement series steps by ``Achievement``."""
+        return self._table("achievements")
+
+    @cached_property
+    def alliance_crest_colors(self) -> Table[GameDataId["AllianceCrestColor"], AllianceCrestColorDef]:
+        """Alliance crest colours by ``AllianceCrestColor``."""
+        return self._table("alliance_crest_colors")
+
+    @cached_property
+    def alliance_crest_layouts(self) -> Table[GameDataId["AllianceCrestLayout"], AllianceCrestLayoutDef]:
+        """Alliance crest layouts by ``AllianceCrestLayout``."""
+        return self._table("alliance_crest_layouts")
 
     @cached_property
     def scaling_camps(self) -> Table[int, ScalingCampDef]:
@@ -656,8 +705,8 @@ class GameData(BaseModel):
     # Game-data ids change between client releases, so these find a row by
     # the key that identifies it instead. Names match exactly. A miss returns
     # None; a key that matches more than one row raises AmbiguousLookupError
-    # with every matching id. Horses have none yet: what separates their
-    # variants is not traced, so use get_horse by id.
+    # with every matching id. Horses have none: the game tells them apart by
+    # their place in the travel dialog, so use get_horse or the Horse enum.
 
     def general(self, name: str) -> GeneralDef | None:
         """A general by its ``generalName``, e.g. ``"Toril"``."""
@@ -794,7 +843,6 @@ class GameData(BaseModel):
                 r.equipment_effect_id: r for r in _rows(items_data.get("equipment_effects"), EquipmentEffectDef)
             },
             relic_effects={r.relic_effect_id: r for r in _rows(items_data.get("relicEffects"), RelicEffectDef)},
-            gems={r.gem_id: r for r in _rows(items_data.get("gems"), GemDef)},
             equipment_sets=equipment_sets,
             fortifications={
                 row.wod_id: row
@@ -809,10 +857,8 @@ class GameData(BaseModel):
                 )
             },
             alliance_buffs={r.alliance_buff_id: r for r in _rows(items_data.get("alliancebuffs"), AllianceBuffDef)},
-            sceat_skills={r.skill_id: r for r in _rows(items_data.get("sceatSkills"), SceatSkillDef)},
             attack_slots={r.slot_id: r for r in _rows(items_data.get("attackSetupSlots"), AttackSlotDef)},
             tool_categories={r.tool_category_id: r for r in _rows(items_data.get("toolCategories"), ToolCategoryDef)},
-            horses={r.wod_id: r for r in _rows(items_data.get("horses"), HorseStats)},
             default_lords={r.lord_id: r for r in _rows(items_data.get("lords"), DefaultLordDef)},
             vip_levels={r.vip_level_id: r for r in _rows(items_data.get("viplevels"), VipLevelDef)},
             dungeons=_rows(items_data.get("dungeons"), DungeonDefence),

@@ -107,6 +107,33 @@ IDS_PAYLOAD: dict[str, Any] = {
             "rarenessID": "1",
         },
     ],
+    "gems": [
+        {"gemID": "12", "comment2": "Lizard's eye", "gemLevelID": "0", "setID": "40", "effects": "1&10"},
+        {"gemID": "55", "gemLevelID": "6", "wearerID": "1", "triggerChance": "30", "effects": "1&13"},
+    ],
+    "sceatSkills": [{"skillID": "41", "skillGroupID": "1", "level": "1", "skillTreeID": "3", "effects": "294&1942"}],
+    "achievements": [
+        {
+            "achievementID": "1",
+            "achievementSeriesID": "0",
+            "achievementSeriesNumber": "1",
+            "conditions": "achievementPoints+100",
+        },
+        {
+            "achievementID": "1107",
+            "achievementSeriesID": "373",
+            "achievementSeriesNumber": "6",
+            "conditions": "defeatNomadOnDifficulty+800+309",
+        },
+    ],
+    "horses": [{"wodID": 1002, "comment1": "Stable1", "comment2": "Warhorse", "name": "Horse", "type": "2"}],
+    "titles": [{"titleID": "0", "type": "FAME", "displayType": "prefix", "mightValue": "25"}],
+    "allianceCoatLayouts": [
+        {"allianceCoatLayoutID": "1", "comment1": "free", "noofColors": "1", "isDefault": "1"},
+        {"allianceCoatLayoutID": "9", "comment1": "nomad", "eventID": "72", "noofColors": "2", "effects": "413&1000"},
+    ],
+    "allianceCoatColors": [{"allianceCoatColorID": "1", "color": "0xDBDACA"}],
+    "mainquests": [{"mainQuestID": "3", "IDsForAnnounced": "93", "IDsForRunning": "95", "IDsForDone": "106"}],
 }
 
 # Which GameData table each enum's values index.
@@ -132,7 +159,15 @@ TABLE_OF: dict[str, str] = {
     "LegendSkill": "legend_skills",
     "RaidBoss": "raid_bosses",
     "GlobalEffect": "global_effects",
+    "Gem": "gems",
+    "SceatSkill": "sceat_skills",
+    "Achievement": "achievements",
+    "Horse": "horses",
+    "Title": "titles",
+    "AllianceCrestLayout": "alliance_crest_layouts",
+    "AllianceCrestColor": "alliance_crest_colors",
 }
+"""Which GameData table each enum's values index; ``Currency`` keys and ``MainQuest`` (no table) aside."""
 
 
 def _cached_game_data() -> GameData | None:
@@ -142,7 +177,7 @@ def _cached_game_data() -> GameData | None:
 
 class TestPackage:
     def test_every_enum_is_exported_from_gamedata(self):
-        assert {e.__name__ for e in ENUMS} == set(TABLE_OF) | {"Currency"}
+        assert {e.__name__ for e in ENUMS} == set(TABLE_OF) | {"Currency", "MainQuest"}
         for enum in ENUMS:
             assert getattr(gamedata, enum.__name__) is enum
         assert gamedata.ITEMS_VERSION == ids.ITEMS_VERSION
@@ -187,6 +222,9 @@ class TestPackage:
             if enum is ids.Currency:
                 keys = {row.json_key for row in data.currencies.values()}
                 assert {m.value for m in enum} <= keys
+                continue
+            if enum is ids.MainQuest:
+                assert {m.value for m in enum} == {int(row["mainQuestID"]) for row in data.raw("mainquests")}
                 continue
             table = getattr(data, TABLE_OF[enum.__name__])
             assert {m.value for m in enum} == set(table), enum.__name__
@@ -466,6 +504,52 @@ class TestGenerator:
         assert self.members(items, "EquipmentGroup") == {"ATTACK_PVP": 102}
         assert self.members(items, "DifficultyType") == {"EASY_PLUS": 2}
         assert self.members(items, "ConstructionItem") == {"BARRACKS_COST_G1_L1": 1}
+
+    def test_tables_the_game_names_nothing_of_fall_back_on_notes_conditions_and_ids(self, items):
+        assert self.members(items, "Gem") == {"GEM_12": 12, "GEM_55": 55}
+        assert self.members(items, "SceatSkill") == {"SCEAT_G1_L1": 41}
+        assert self.members(items, "Achievement") == {"ACHIEVEMENT_POINTS_L1": 1, "DEFEAT_NOMAD_ON_DIFFICULTY_L6": 1107}
+        assert self.members(items, "Horse") == {"WARHORSE_STABLE1": 1002}
+        assert self.members(items, "Title") == {"TITLE_0": 0}
+        assert self.members(items, "AllianceCrestLayout") == {"FREE": 1, "NOMAD": 9}
+        assert self.members(items, "AllianceCrestColor") == {"COLOR_1": 1}
+        assert self.members(items, "MainQuest") == {"MAIN_QUEST_3": 3}
+
+    def test_unnamed_tables_are_named_from_the_text_the_game_shows(self):
+        texts = {
+            "gem_unique_12": "Lizard's eye",
+            "gem_effect_name_gemFameDefenseBonus": "Gem of the glorious defender: {0}",
+            "dialog_legendTemple_sceat_1_name": "New heights",
+            "achievementName_373": "Nomad vanquisher",
+            "playerTitle_0": "Knight",
+            "allianceCoat_Layout_name_9": "Nomad's Wrath Emblem",
+            "mainquest_3_title": "The lovely Beatrice",
+        }
+        named = {
+            "Gem": {"LIZARDS_EYE": 12, "GEM_OF_THE_GLORIOUS_DEFENDER_L6": 55},
+            "SceatSkill": {"NEW_HEIGHTS_L1": 41},
+            "Achievement": {"ACHIEVEMENT_POINTS_L1": 1, "NOMAD_VANQUISHER_L6": 1107},
+            "Title": {"KNIGHT": 0},
+            "AllianceCrestLayout": {"FREE": 1, "NOMADS_WRATH_EMBLEM": 9},
+            "MainQuest": {"THE_LOVELY_BEATRICE": 3},
+        }
+        for enum, members in named.items():
+            assert self.text_members(IDS_PAYLOAD, texts, enum) == members, enum
+
+    def test_a_gem_that_always_triggers_and_one_reusing_a_look_have_their_own_texts(self):
+        payload = {
+            "effects": [{"effectID": "1", "name": "fameDefenseBonus", "effectTypeID": "0"}],
+            "gems": [
+                {"gemID": "5", "gemLevelID": "3", "effects": "1&10"},
+                {"gemID": "6", "gemLevelID": "0", "reuseAssetOfGemID": "12"},
+            ],
+        }
+        texts = {
+            "gem_effect_name_gemFameDefenseBonus_100": "Gem of glory: {0}",
+            "gem_unique_12": "Lizard's eye",
+            "gem_unique_6": "Not its name",
+        }
+        assert self.text_members(payload, texts, "Gem") == {"GEM_OF_GLORY_L3": 5, "LIZARDS_EYE": 6}
 
     def test_research_names_are_unique_by_group_and_level(self):
         # Two groups share a note; group and level keep them apart, and a row without a note still gets a name
