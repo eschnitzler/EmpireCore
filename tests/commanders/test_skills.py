@@ -1,6 +1,7 @@
 """Generals and player skills: the gie and skl payloads, as the client reads them, and the general commands."""
 
 import json
+import logging
 
 import pytest
 
@@ -40,12 +41,13 @@ class TestGenerals:
     LIVE = {
         "G": [
             # GASAIDS arrives as [slot, ability] pairs; a live payload rejected
-            # a list[int] model outright.
+            # a list[int] model outright. SIDS are Toril's generalSkills ids in items 786.03,
+            # and 10317, an id the enum lacks
             {
                 "GID": 101,
                 "XP": 2520,
                 "ST": 2,
-                "SIDS": [10317, 10311, 10314],
+                "SIDS": [101001, 101013, 10317],
                 "GASAIDS": [[101031, 10073], [101033, 10303], [101032, 10263]],
                 "W": 40,
                 "D": 3,
@@ -58,13 +60,20 @@ class TestGenerals:
         response = GetGeneralsResponse.model_validate(self.LIVE)
 
         assert [g.general_id for g in response.generals] == [101, 102]
-        assert response.skill_ids(101) == (10317, 10311, 10314)
+        assert response.skill_ids(101) == (
+            GeneralSkill.TORIL_COURTYARD_SIZE_LEGENDARY_L1,
+            GeneralSkill.TORIL_REINFORCEMENT_WAVE_LEGENDARY_L1,
+            10317,
+        )
+        assert type(response.skill_ids(101)[2]) is int
 
-    def test_skills_are_general_skills_and_an_unknown_one_stays_an_int(self):
-        general = General.model_validate({"GID": 101, "SIDS": [10110201, 999]})
+    def test_skills_are_general_skills_and_an_unknown_one_stays_an_int(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            general = General.model_validate({"GID": 101, "SIDS": [10110201, 9999901]})
 
-        assert general.skill_ids == (GeneralSkill.TORIL_ASPECTOFTHE_DRAGON_L1, 999)
+        assert general.skill_ids == (GeneralSkill.TORIL_ASPECTOFTHE_DRAGON_L1, 9999901)
         assert type(general.skill_ids[1]) is int
+        assert "GeneralSkill has no member 9999901" in caplog.text
 
     def test_the_selected_abilities_are_pairs(self):
         general = GetGeneralsResponse.model_validate(self.LIVE).generals[0]
