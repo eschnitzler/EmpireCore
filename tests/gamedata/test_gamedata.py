@@ -1026,7 +1026,8 @@ class TestNamedLookups:
 
         def row_models(annotation) -> set[type]:
             if get_origin(annotation) is None and isinstance(annotation, type) and issubclass(annotation, BaseModel):
-                return {annotation}
+                nested = {model for field in annotation.model_fields.values() for model in row_models(field.annotation)}
+                return {annotation, *nested}
             return {model for arg in get_args(annotation) for model in row_models(arg)}
 
         cached = {model for field in GameData.model_fields.values() for model in row_models(field.annotation)}

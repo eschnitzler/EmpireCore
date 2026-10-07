@@ -1,6 +1,6 @@
 # Game data
 
-The items data: lookups by name, typed rows, and the generated id enums.
+The items data: typed tables, lookups by name, and the generated id enums.
 
 ## `gamedata.data`
 
@@ -9,6 +9,10 @@ The items data: lookups by name, typed rows, and the generated id enums.
 ## `gamedata.models`
 
 ::: empire_core.gamedata.models
+
+## `gamedata.tables`
+
+::: empire_core.gamedata.tables
 
 ## `gamedata.collectables`
 
