@@ -316,7 +316,8 @@ class MapScanner:
         so read this carefully:
 
         - ``None`` (the default) is the *most* restrictive: it collects
-          player main castles only (``MapItemType.CASTLE``).
+          player main castles only, ``MapItemType.CASTLE`` in the green
+          kingdom and ``MapItemType.KINGDOM_CASTLE`` in the others.
         - ``[]`` (empty list) is the *least* restrictive: it disables
           filtering and collects every item type.
         - a non-empty list collects exactly those types.
@@ -496,10 +497,14 @@ def scan_kingdom_with(
     return scan.run(chunks=chunks)
 
 
+_MAIN_CASTLE_TYPES = frozenset({MapItemType.CASTLE, MapItemType.KINGDOM_CASTLE})
+"""A player's main castle in a kingdom (``CastleList.getMainCastleByKingdomID``, bundle line 10861)."""
+
+
 def _filter_types(item_types: list[MapItemType] | None) -> set[MapItemType] | None:
-    """The types a scan keeps: ``None`` asks for castles only, ``[]`` for every type (None here)."""
+    """The types a scan keeps: ``None`` asks for main castles only, ``[]`` for every type (None here)."""
     if item_types is None:
-        return {MapItemType.CASTLE}
+        return set(_MAIN_CASTLE_TYPES)
     return set(item_types) or None
 
 
