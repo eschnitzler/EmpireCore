@@ -20,11 +20,12 @@ import logging
 import os
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, NamedTuple, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from empire_core.enums import Kingdom, UnitRole
 from empire_core.exceptions import AmbiguousLookupError, NetworkError
@@ -65,6 +66,7 @@ from .models import (
     UnitStats,
     VipLevelDef,
 )
+from .table import Table
 from .tables import (
     BuildingDef,
     DailyQuestDef,
@@ -78,6 +80,7 @@ from .tables import (
     ResearchDef,
     ScalingCampDef,
     TitleDef,
+    row_id,
 )
 
 if TYPE_CHECKING:
@@ -153,14 +156,64 @@ def _schema_fingerprint() -> str:
     The cache holds parsed models keyed by field name, so a model that gains a
     column reads back the old file with that column at its default - silently,
     and wrongly, and a changed default leaves the old default in the file.
-    Fingerprinting the field names and defaults, and GameData's own tables,
-    means any such change invalidates the cache instead.
+    Fingerprinting the field names, aliases and defaults, and GameData's own
+    tables, means any such change invalidates the cache instead. The aliases
+    count because the lazily read tables keep only the columns they name.
     """
-    tables = [f"GameData:{','.join(sorted(GameData.model_fields))}"]
+    tables = [f"GameData:{','.join(sorted(GameData.model_fields))}", f"tables:{sorted(TABLES.items())}"]
     for model in _CACHED_MODELS:
-        fields = ",".join(f"{name}={field.default!r}" for name, field in sorted(model.model_fields.items()))
+        fields = ",".join(
+            f"{name}={field.alias}={field.default!r}" for name, field in sorted(model.model_fields.items())
+        )
         tables.append(f"{model.__name__}:{fields}")
     return hashlib.sha256(";".join(tables).encode()).hexdigest()[:12]
+
+
+class TableSource(NamedTuple):
+    """Where a lazily read table's rows come from."""
+
+    items_table: str
+    model: type[BaseModel]
+    id_field: str
+
+    def __repr__(self) -> str:
+        return f"{self.items_table}:{self.model.__name__}.{self.id_field}"
+
+    def rows(self, entries: object) -> dict[int, dict[str, Any]]:
+        """
+        The table's rows by id, each trimmed to the columns the model reads.
+
+        A row whose id is missing or not a number is left out; of two rows with one id, the last is kept.
+        """
+        fields = self.model.model_fields
+        columns = {field.alias or name for name, field in fields.items()}
+        id_column = fields[self.id_field].alias or self.id_field
+        rows: dict[int, dict[str, Any]] = {}
+        for entry in entries if isinstance(entries, list) else ():
+            if not isinstance(entry, dict):
+                continue
+            try:
+                key = row_id(entry.get(id_column))
+            except ValueError:
+                continue
+            rows[key] = {column: value for column, value in entry.items() if column in columns}
+        return rows
+
+
+TABLES: dict[str, TableSource] = {
+    "buildings": TableSource("buildings", BuildingDef, "building_id"),
+    "researches": TableSource("researches", ResearchDef, "research_id"),
+    "events": TableSource("events", EventDef, "event_id"),
+    "loot_boxes": TableSource("lootBoxes", LootBoxDef, "loot_box_id"),
+    "loot_box_types": TableSource("lootBoxTypes", LootBoxTypeDef, "loot_box_type_id"),
+    "equipment_groups": TableSource("equipment_groups", EquipmentGroupDef, "group_id"),
+    "difficulty_types": TableSource("eventAutoScalingDifficultyTypes", DifficultyTypeDef, "difficulty_type_id"),
+    "quests": TableSource("quests", QuestDef, "quest_id"),
+    "daily_quests": TableSource("dailyactivities", DailyQuestDef, "quest_id"),
+    "titles": TableSource("titles", TitleDef, "title_id"),
+    "scaling_camps": TableSource("eventAutoScalingCamps", ScalingCampDef, "scaling_camp_id"),
+}
+"""The GameData tables read lazily, by attribute name: each a :class:`Table` built from these rows."""
 
 
 # Camp tables that share the NpcCampDefence shape.
@@ -259,6 +312,10 @@ class GameData(BaseModel):
     The tables the id enums name are keyed by their enum: a row whose id the enum
     lacks (items newer than the enums) is keyed by its plain int, and as the
     enums are IntEnums, a plain id from a packet indexes every table.
+
+    The tables in :data:`TABLES` are read-only :class:`Table` mappings that
+    validate a row the first time it is read, so loading costs no validation
+    for them.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -298,18 +355,66 @@ class GameData(BaseModel):
     event_camps: dict[str, dict[int, EventCampDef]] = Field(default_factory=dict)
     league_brackets: list[LeagueBracketDef] = Field(default_factory=list)
     raw_tables: dict[str, list] = Field(default_factory=dict)
-    buildings: dict[GameDataId["Building"], BuildingDef] = Field(default_factory=dict)
-    researches: dict[GameDataId["Research"], ResearchDef] = Field(default_factory=dict)
-    events: dict[GameDataId["Event"], EventDef] = Field(default_factory=dict)
-    loot_boxes: dict[GameDataId["LootBox"], LootBoxDef] = Field(default_factory=dict)
-    loot_box_types: dict[GameDataId["LootBoxType"], LootBoxTypeDef] = Field(default_factory=dict)
-    equipment_groups: dict[GameDataId["EquipmentGroup"], EquipmentGroupDef] = Field(default_factory=dict)
-    difficulty_types: dict[GameDataId["DifficultyType"], DifficultyTypeDef] = Field(default_factory=dict)
-    quests: dict[GameDataId["QuestId"], QuestDef] = Field(default_factory=dict)
-    daily_quests: dict[GameDataId["DailyQuestId"], DailyQuestDef] = Field(default_factory=dict)
-    titles: dict[int, TitleDef] = Field(default_factory=dict)
-    scaling_camps: dict[int, ScalingCampDef] = Field(default_factory=dict)
-    """The ``eventAutoScalingCamps`` rows, by the scaling camp id a map row names."""
+    _table_rows: dict[str, Mapping[int, dict[str, Any]]] = PrivateAttr(default_factory=dict)
+
+    def _table(self, name: str) -> Table[Any, Any]:
+        source = TABLES[name]
+        return Table(source.model, source.id_field, self._table_rows.get(name, {}), name=name)
+
+    @cached_property
+    def buildings(self) -> Table[GameDataId["Building"], BuildingDef]:
+        """Buildings, towers, gates, moats and decorations by ``Building``."""
+        return self._table("buildings")
+
+    @cached_property
+    def researches(self) -> Table[GameDataId["Research"], ResearchDef]:
+        """Research levels by ``Research``."""
+        return self._table("researches")
+
+    @cached_property
+    def events(self) -> Table[GameDataId["Event"], EventDef]:
+        """Events by ``Event``."""
+        return self._table("events")
+
+    @cached_property
+    def loot_boxes(self) -> Table[GameDataId["LootBox"], LootBoxDef]:
+        """Loot boxes by ``LootBox``."""
+        return self._table("loot_boxes")
+
+    @cached_property
+    def loot_box_types(self) -> Table[GameDataId["LootBoxType"], LootBoxTypeDef]:
+        """Loot box types by ``LootBoxType``."""
+        return self._table("loot_box_types")
+
+    @cached_property
+    def equipment_groups(self) -> Table[GameDataId["EquipmentGroup"], EquipmentGroupDef]:
+        """Equipment item groups by ``EquipmentGroup``."""
+        return self._table("equipment_groups")
+
+    @cached_property
+    def difficulty_types(self) -> Table[GameDataId["DifficultyType"], DifficultyTypeDef]:
+        """Event difficulty types by ``DifficultyType``."""
+        return self._table("difficulty_types")
+
+    @cached_property
+    def quests(self) -> Table[GameDataId["QuestId"], QuestDef]:
+        """Quests by ``QuestId``."""
+        return self._table("quests")
+
+    @cached_property
+    def daily_quests(self) -> Table[GameDataId["DailyQuestId"], DailyQuestDef]:
+        """Daily quests by ``DailyQuestId``."""
+        return self._table("daily_quests")
+
+    @cached_property
+    def titles(self) -> Table[int, TitleDef]:
+        """Titles by ``titleID``; they have no enum, as their rows have no name."""
+        return self._table("titles")
+
+    @cached_property
+    def scaling_camps(self) -> Table[int, ScalingCampDef]:
+        """The ``eventAutoScalingCamps`` rows, by the scaling camp id a map row names."""
+        return self._table("scaling_camps")
 
     # ------------------------------------------------------------------
     # Lookups
@@ -590,7 +695,7 @@ class GameData(BaseModel):
         for row in _rows(items_data.get("equipment_sets"), EquipmentSetDef):
             equipment_sets.setdefault(row.set_id, []).append(row)
 
-        return cls(
+        data = cls(
             version=version,
             schema_fingerprint=_schema_fingerprint(),
             units=units,
@@ -644,23 +749,9 @@ class GameData(BaseModel):
             },
             league_brackets=_rows(items_data.get("leaguetypes"), LeagueBracketDef),
             raw_tables={table: items_data[table] for table in RAW_TABLES if isinstance(items_data.get(table), list)},
-            buildings={r.building_id: r for r in _rows(items_data.get("buildings"), BuildingDef)},
-            researches={r.research_id: r for r in _rows(items_data.get("researches"), ResearchDef)},
-            events={r.event_id: r for r in _rows(items_data.get("events"), EventDef)},
-            loot_boxes={r.loot_box_id: r for r in _rows(items_data.get("lootBoxes"), LootBoxDef)},
-            loot_box_types={r.loot_box_type_id: r for r in _rows(items_data.get("lootBoxTypes"), LootBoxTypeDef)},
-            equipment_groups={r.group_id: r for r in _rows(items_data.get("equipment_groups"), EquipmentGroupDef)},
-            difficulty_types={
-                r.difficulty_type_id: r
-                for r in _rows(items_data.get("eventAutoScalingDifficultyTypes"), DifficultyTypeDef)
-            },
-            quests={r.quest_id: r for r in _rows(items_data.get("quests"), QuestDef)},
-            daily_quests={r.quest_id: r for r in _rows(items_data.get("dailyactivities"), DailyQuestDef)},
-            titles={r.title_id: r for r in _rows(items_data.get("titles"), TitleDef)},
-            scaling_camps={
-                r.scaling_camp_id: r for r in _rows(items_data.get("eventAutoScalingCamps"), ScalingCampDef)
-            },
         )
+        data._table_rows = {name: source.rows(items_data.get(source.items_table)) for name, source in TABLES.items()}
+        return data
 
     @classmethod
     def load(cls, *, refresh: bool = False, cache_dir: str | Path | None = None) -> "GameData":
@@ -752,12 +843,14 @@ class GameData(BaseModel):
             return None
         try:
             payload = json.loads(cache_file.read_text(encoding="utf-8"))
+            table_rows = payload.pop("table_rows", {})
             token = READING_CACHE.set(True)
             try:
                 data = cls.model_validate(payload)
             finally:
                 READING_CACHE.reset(token)
-        except (OSError, ValueError) as e:
+            data._table_rows = {name: {int(key): row for key, row in rows.items()} for name, rows in table_rows.items()}
+        except (OSError, ValueError, AttributeError) as e:
             logger.warning(f"Ignoring unreadable game data cache {cache_file}: {e}")
             return None
         if data.version != version:
@@ -770,10 +863,11 @@ class GameData(BaseModel):
 
     def _write_cache(self, cache_file: Path) -> None:
         try:
-            cache.write_atomic(cache_file, self.model_dump_json())
+            payload = {**self.model_dump(mode="json"), "table_rows": self._table_rows}
+            cache.write_atomic(cache_file, json.dumps(payload, separators=(",", ":")))
         except OSError as e:
             # A read-only cache dir must not fail the load.
             logger.warning(f"Could not cache game data to {cache_file}: {e}")
 
 
-__all__ = ["GameData", "default_cache_dir"]
+__all__ = ["GameData", "TABLES", "TableSource", "default_cache_dir"]

@@ -417,22 +417,28 @@ def effect_value_bonuses(effects: Iterable[EffectValue | EquipmentEffectValue]) 
     A single number is the bonus's value. Anything else is a keyed value,
     ``wod_id+value`` pairs joined by ``#``, which the bonus keeps flattened as
     ``EffectValueMap.parseFromValueString`` reads it (bundle line 31617): a
-    part without a ``+`` adds a 0. An equipment effect id is marked
+    part without a ``+``, or whose value is no number, adds a 0; a part whose
+    id is no number is left out. An equipment effect id is marked
     ``via_equipment``.
     """
     bonuses = []
     for entry in effects:
-        parts = [part for part in entry.values if part]
-        if not parts:
+        pairs = [(first, _second(part)) for part in entry.values if part and (first := part[0]) is not None]
+        if not pairs:
             continue
         via_equipment = isinstance(entry, EquipmentEffectValue)
         effect_id = entry.equipment_effect_id if isinstance(entry, EquipmentEffectValue) else entry.effect_id
-        if len(entry.values) == 1 and len(parts[0]) == 1:
-            bonuses.append(Bonus(effect_id=effect_id, value=parts[0][0], via_equipment=via_equipment))
+        if len(entry.values) == 1 and len(entry.values[0]) == 1:
+            bonuses.append(Bonus(effect_id=effect_id, value=pairs[0][0], via_equipment=via_equipment))
             continue
-        flat = tuple(float(n) for part in parts for n in (part[0], part[1] if len(part) > 1 else 0))
+        flat = tuple(float(n) for pair in pairs for n in pair)
         bonuses.append(Bonus(effect_id=effect_id, value=flat[0], raw_values=flat, via_equipment=via_equipment))
     return bonuses
+
+
+def _second(part: tuple[int | float | None, ...]) -> int | float:
+    """The value of a ``wod_id+value`` part, 0 when it has none."""
+    return part[1] if len(part) > 1 and part[1] is not None else 0
 
 
 def _spec_bonuses(rows: Iterable) -> list[Bonus]:
@@ -585,9 +591,9 @@ def global_unit_attack_bonuses(
             if effect is None or effect.effect_type_id != CombatEffectType.ATTACK_BONUS_UNIT:
                 continue
             stacks = [
-                (int(part[0]), override if override > -1 else (part[1] if len(part) > 1 else 0))
+                (int(part[0]), override if override > -1 else _second(part))
                 for part in spec.values
-                if part
+                if part and part[0] is not None
             ]
             if boosts and effect_id in boosts and stacks:
                 buffed = math.trunc(stacks[0][1] + boosts[effect_id])

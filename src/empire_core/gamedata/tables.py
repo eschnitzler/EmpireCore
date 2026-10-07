@@ -44,10 +44,12 @@ if TYPE_CHECKING:
     )
 
 
-def _row_id(value: object) -> int:
+def row_id(value: object) -> int:
     """The row's own id, ``parseInt`` of it; a row without one is skipped, as nothing can look it up."""
     if isinstance(value, int) and not isinstance(value, bool):
         return value
+    if type(value) is str and value.isascii() and value.isdigit():
+        return int(value)
     parsed = None if js_falsy(value) else js_parse_int(value)
     if parsed is None:
         raise ValueError(f"row id {value!r} has no leading integer")
@@ -186,7 +188,7 @@ class BuildingDef(EffectSpecRow):
     @field_validator("building_id", mode="before")
     @classmethod
     def _id(cls, value: object) -> int:
-        return _row_id(value)
+        return row_id(value)
 
     @field_validator(
         "level", "required_level", "required_legend_level", "early_unlock_required_level", "upgrade_building_id",
@@ -288,7 +290,7 @@ class ResearchDef(EffectSpecRow):
     @field_validator("research_id", mode="before")
     @classmethod
     def _id(cls, value: object) -> int:
-        return _row_id(value)
+        return row_id(value)
 
     @field_validator(
         "group_id", "level", "min_research_tower_level", "required_level", "required_legend_level",
@@ -342,7 +344,7 @@ class EventDef(_Row):
     @field_validator("event_id", mode="before")
     @classmethod
     def _id(cls, value: object) -> int:
-        return _row_id(value)
+        return row_id(value)
 
     @field_validator(
         "min_level", "max_level", "sort_order", "crossplay_min_level", "extension_unlock", mode="before"
@@ -391,7 +393,7 @@ class LootBoxDef(_Row):
     @field_validator("loot_box_id", mode="before")
     @classmethod
     def _id(cls, value: object) -> int:
-        return _row_id(value)
+        return row_id(value)
 
     @field_validator("loot_box_type_id", "tombola_id", "key_tombola_id", "rarity", "draws", "sort_order", mode="before")
     @classmethod
@@ -420,7 +422,7 @@ class LootBoxTypeDef(_Row):
     @field_validator("loot_box_type_id", mode="before")
     @classmethod
     def _id(cls, value: object) -> int:
-        return _row_id(value)
+        return row_id(value)
 
     @field_validator("key_payout_threshold", mode="before")
     @classmethod
@@ -450,7 +452,7 @@ class EquipmentGroupDef(_Row):
     @field_validator("group_id", mode="before")
     @classmethod
     def _id(cls, value: object) -> int:
-        return _row_id(value)
+        return row_id(value)
 
     @field_validator("wearer_id", "slot_id", "pic_id", "drop_rate", mode="before")
     @classmethod
@@ -477,7 +479,7 @@ class DifficultyTypeDef(_Row):
     @field_validator("difficulty_type_id", mode="before")
     @classmethod
     def _id(cls, value: object) -> int:
-        return _row_id(value)
+        return row_id(value)
 
     @field_validator("sort_order", mode="before")
     @classmethod
@@ -561,7 +563,7 @@ class QuestDef(_Row):
     @field_validator("quest_id", mode="before")
     @classmethod
     def _id(cls, value: object) -> int:
-        return _row_id(value)
+        return row_id(value)
 
     @field_validator(
         "series_id", "series_number", "quests_in_series", "trigger_kingdom", "map_id", "required_level",
@@ -616,7 +618,7 @@ class DailyQuestDef(_Row):
     @field_validator("quest_id", mode="before")
     @classmethod
     def _id(cls, value: object) -> int:
-        return _row_id(value)
+        return row_id(value)
 
     @field_validator("trigger_kingdom", "daily_task_points", mode="before")
     @classmethod
@@ -668,7 +670,7 @@ class TitleDef(EffectSpecRow):
     @field_validator("title_id", mode="before")
     @classmethod
     def _id(cls, value: object) -> int:
-        return _row_id(value)
+        return row_id(value)
 
     @field_validator(
         "threshold", "decay", "top_x", "previous_title_id", "reward_id", "might_value", mode="before"
@@ -735,7 +737,7 @@ class ScalingCampDef(_Row):
     @field_validator("scaling_camp_id", mode="before")
     @classmethod
     def _id(cls, value: object) -> int:
-        return _row_id(value)
+        return row_id(value)
 
     @field_validator(
         "rank", "level", "cool_down", "event_id", "cooldown_increase", "cooldown_increase_cap", "skip_cost",
@@ -750,6 +752,7 @@ class ScalingCampDef(_Row):
 
 
 __all__ = [
+    "row_id",
     "BuildingDef",
     "DailyQuestDef",
     "DifficultyTypeDef",

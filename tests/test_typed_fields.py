@@ -180,7 +180,7 @@ def _bare(annotation: Any, *, inside: bool = False) -> bool:
     if origin is Annotated:
         return _bare(get_args(annotation)[0], inside=inside)
     if origin in (typing.Union, types.UnionType):
-        if set(get_args(annotation)) == {int, float}:
+        if set(get_args(annotation)) - {type(None)} == {int, float}:
             return False
         return any(_bare(arg, inside=inside) for arg in get_args(annotation))
     if origin in _CONTAINERS:
@@ -232,3 +232,4 @@ def test_the_check_finds_bare_fields():
     assert not _bare(int) and not _bare(str) and not _bare(dict[str, int]) and not _bare(tuple[int | float, ...])
     assert not _bare(tuple[EnumOrInt[empire_core.enums.Kingdom], ...])
     assert not _bare(tuple[EnumOrInt["QuestId"], ...])
+    assert not _bare(tuple[int | float | None, ...])
