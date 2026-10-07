@@ -19,14 +19,15 @@ from empire_core.protocol.packet import Packet
 
 FIXTURES = Path(__file__).resolve().parent.parent / "data"
 
-# sha256 of the dense reply's model_dump(mode="json") with sorted keys, as v0.45.0 parsed it
-V0_45_DIGEST = "534b5284e4fe2bd12f86127d61f0bf941cc7bc4902c219b202dde3fbb020d837"
+# sha256 of the dense reply's model_dump(mode="json") with sorted keys, as v0.45.0 parsed it; since v0.50 a
+# crest without a layout and a castle without a tower connection dump None, not 0 and []
+V0_45_DIGEST = "4aeb54137dbdf7bd33f919d246f0827d225bae300888e079203ed88754b967d9"
 
 # sha256 of a one-chunk scan of the live-shaped reply (see _scan_digest), as v0.45.0 scanned it
 V0_45_SCAN_DIGESTS = {
-    "castles": "f0100860ee57b3cf906909800fb8f9213de0f0cbb59609de8c29b33bb1be4c5a",
-    "every type": "00c10f4a10df32821d391099a82b1e5100299adf1da7ef56f33903b763e87d5b",
-    "castles, unowned too": "1848517c30ea3645ce828c2a6b75381bf74d706498ee78c3416bd8e476fae159",
+    "castles": "e81da072ec549b6c0890235ee98894b50eb776480e9dab402d7685d34d7f7ee0",
+    "every type": "6e1bbdf201c80b8a1e4de7a90368c65f4865b249057da303234e4761fd181e56",
+    "castles, unowned too": "9c903580f8c193f5f285f0e455a48723f4af9636aad0d452050371ebdcb9ba77",
 }
 SCANS: dict[str, dict[str, Any]] = {
     "castles": {},

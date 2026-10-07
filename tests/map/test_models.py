@@ -5,14 +5,21 @@ from typing import Any
 import pytest
 
 from empire_core.enums import Kingdom, MapItemType, PeaceModeStatus
-from empire_core.gamedata import AllianceCrestColor
+from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout
 from empire_core.map.models.areas import (
     FindNextMapObjectRequest,
     FindNextMapObjectResponse,
     GetMapAreaRequest,
     GetMapAreaResponse,
 )
-from empire_core.map.models.items import ROW_PARSERS, MapAreaItem, parse_area_rows
+from empire_core.map.models.items import (
+    ROW_PARSERS,
+    AbgCastleConnection,
+    AbgTowerConnection,
+    MapAreaItem,
+    parse_area_rows,
+)
+from empire_core.map.models.owners import AllianceCrest
 from empire_core.protocol.models import parse_response
 
 # A castle row in the layout InteractiveMapobjectVO.parseAreaInfo (bundle line 3631) reads:
@@ -197,6 +204,15 @@ class TestOwnerRecordConversions:
         assert [owner.owner_id for owner in response.owners] == [6]
 
 
+class TestAllianceCrest:
+    @pytest.mark.parametrize(
+        ("sent", "read"), [({"ACLI": 4}, AllianceCrestLayout.FREE_4), ({"ACLI": 0}, None), ({}, None)]
+    )
+    def test_the_layout_is_an_enum_and_0_none(self, sent, read):
+        # fillWithData reads int(e.ACLI); no layout has id 0
+        assert AllianceCrest.model_validate(sent).layout_id is read
+
+
 class TestOwnerRecordLeniency:
     """Values the client reads through parseInt, int() or raw must not fail a whole reply."""
 
@@ -287,7 +303,13 @@ class TestCastleStyleRows:
             50,
         )
         assert (item.outpost_type, item.occupier_id, item.kingdom, item.skin_id) == (0, -1, Kingdom.ICE, 77)
-        assert (item.abg_tower_connection, item.has_sabotage_protection, item.is_occupied) == ([], True, False)
+        assert (item.abg_tower_connection, item.has_sabotage_protection, item.is_occupied) == (None, True, False)
+
+    def test_an_alliance_battle_ground_castle_reads_its_tower_connection(self):
+        row = list(CASTLE_ROW)
+        row[18] = [10, "11", 1, "250"]
+        item = MapAreaItem.from_list(row)
+        assert item.abg_tower_connection == AbgCastleConnection(x=10, y=11, is_attackable=True, tower_points=250)
 
     def test_castle_rows_floor_keep_wall_and_gate(self):
         item = MapAreaItem.from_list([1, 1, 2, 3, 4, 0, 0, 0, 2, 1, "c"])
@@ -569,10 +591,22 @@ class TestCampRows:
             MapItemType.ALLIANCE_BATTLE_GROUND_TOWER, 900, "tower", 1, "4", "3000", "Alliance", [2, [1, 2]], [[5, 6]]
         )
         assert (item.location_id, item.name, item.is_attackable, item.victory_count) == (900, "tower", True, 4)
-        assert (item.alliance_id, item.alliance_name, item.abg_connections) == (3000, "Alliance", [[5, 6]])
+        assert (item.alliance_id, item.alliance_name, item.abg_connections) == (
+            3000,
+            "Alliance",
+            (AbgTowerConnection(x=5, y=6),),
+        )
         assert item.alliance_crest is not None
         assert (item.alliance_crest.layout_id, item.alliance_crest.color_ids) == (2, [1, 2])
         assert item.owner_id is None
+
+    def test_an_alliance_battle_ground_tower_reads_its_connections(self):
+        connections = [[5, 6, "Someone", 1], [7, 8, "Other", "0"], "bad"]
+        item = _row(MapItemType.ALLIANCE_BATTLE_GROUND_TOWER, 900, "t", 1, 4, 3000, "A", [2, [1]], connections)
+        assert item.abg_connections == (
+            AbgTowerConnection(x=5, y=6, player_name="Someone", is_defeated=True),
+            AbgTowerConnection(x=7, y=8, player_name="Other", is_defeated=False),
+        )
 
     @pytest.mark.parametrize("area_type", [MapItemType.EMPTY, MapItemType.DYNAMIC, MapItemType.ARE_PORTAL])
     def test_position_only_rows(self, area_type):

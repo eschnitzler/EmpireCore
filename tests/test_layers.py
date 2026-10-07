@@ -27,9 +27,9 @@ PACKAGE = Path(empire_core.__file__).parent
 # but it sits in the chain: attack uses it, and it uses map, commanders and army.
 RANK = {
     "map": 0,
-    "ranking": 0,
+    "ranking": 1,
     "quests": 0,
-    "events": 1,
+    "events": 2,
     "commanders": 1,
     "castle": 1,
     "army": 2,

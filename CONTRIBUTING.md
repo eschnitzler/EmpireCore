@@ -30,10 +30,10 @@ src/empire_core/
 └── utils/                 # event titles and troop data from the CDN
 ```
 
-Areas import only areas below them (map, ranking and events at the bottom, then
-commanders and castle, army, movements, defense, combat and player, attack and
-alliance, messages, and spy at the top); `tests/test_layers.py` enforces the
-order. Library code imports models from their area, never from
+Areas import only areas below them (map and quests at the bottom, then ranking,
+commanders and castle, events and army, movements and rewards, defense, combat and
+player, attack and alliance, messages, and spy at the top); `tests/test_layers.py`
+enforces the order. Library code imports models from their area, never from
 `empire_core.protocol.models`.
 
 Design notes for the trickier layers live in [`docs/design/`](https://eschnitzler.github.io/EmpireCore/internals/) —

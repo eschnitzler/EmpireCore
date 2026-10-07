@@ -79,7 +79,6 @@ from empire_core.pool import AccountPool, PoolExhaustedError
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import Packet
 from empire_core.protocol.text import decode_json_text, encode_json_text
-from empire_core.ranking.models import RankingEntry
 from empire_core.spy.service import SpyHandle, SpyResult, SpyService
 from empire_core.state.models import Alliance, Building, Castle, Player, Resources
 
@@ -145,7 +144,6 @@ __all__ = [
     "CastleInfo",
     "AllianceInfo",
     "AllianceMember",
-    "RankingEntry",
     "MapAreaItem",
     "MapObject",
     "SpyReportArea",

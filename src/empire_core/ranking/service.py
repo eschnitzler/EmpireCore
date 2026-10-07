@@ -14,8 +14,9 @@ from .models import (
     GetRankingListResponse,
     GetRankingWindowRequest,
     GetRankingWindowResponse,
+    HighscoreRow,
+    LeaderboardScore,
     LeaderboardSearchResult,
-    RankingEntry,
     SearchRankingListRequest,
     SearchRankingListResponse,
 )
@@ -34,7 +35,7 @@ class RankingService(BaseService):
         search_value: str,
         league_type_id: int = -1,
         timeout: float = 5.0,
-    ) -> list[RankingEntry]:
+    ) -> list[HighscoreRow]:
         """
         Search for a highscore entry (e.g. player rank).
 
@@ -45,7 +46,7 @@ class RankingService(BaseService):
             timeout: Timeout in seconds
 
         Returns:
-            List of matching entries
+            The page's rows, each in its list's layout (see ``HIGHSCORE_ROW_LAYOUTS``)
 
         Note: 'hgh' is shared with the alliance-search command. Requests for it
         run one at a time, but after one times out its late reply can be taken
@@ -54,7 +55,7 @@ class RankingService(BaseService):
         (see ``GetHighscoreRequest``).
         """
         request = GetHighscoreRequest(list_type=list_type, league_type_id=league_type_id, search_value=search_value)
-        return self.request(request, GetHighscoreResponse, timeout=timeout).entries
+        return list(self.request(request, GetHighscoreResponse, timeout=timeout).rows)
 
     def get_ranking_list(
         self,
@@ -65,7 +66,7 @@ class RankingService(BaseService):
         sub_division_id: int | None = None,
         event_id: int | None = None,
         timeout: float = 5.0,
-    ) -> list[RankingEntry]:
+    ) -> list[LeaderboardScore]:
         """
         Get a page of an event leaderboard, from a rank.
 
@@ -105,7 +106,7 @@ class RankingService(BaseService):
             sub_division_id=sub_division_id,
             event_id=event_id,
         )
-        return self.request(request, GetRankingListResponse, timeout=timeout).entries
+        return self.request(request, GetRankingListResponse, timeout=timeout).scores
 
     def get_own_ranking_page(
         self,
@@ -115,7 +116,7 @@ class RankingService(BaseService):
         sub_division_id: int | None = None,
         event_id: int | None = None,
         timeout: float = 5.0,
-    ) -> list[RankingEntry]:
+    ) -> list[LeaderboardScore]:
         """
         Get the page of an event leaderboard that holds your own score.
 
@@ -156,7 +157,7 @@ class RankingService(BaseService):
         sub_division_id: int | None = None,
         event_id: int | None = None,
         timeout: float = 5.0,
-    ) -> list[RankingEntry]:
+    ) -> list[LeaderboardScore]:
         """
         Get the page of an event leaderboard around a score, e.g. a search hit.
 
@@ -183,7 +184,7 @@ class RankingService(BaseService):
             sub_division_id=sub_division_id,
             event_id=event_id,
         )
-        return self.request(request, GetRankingWindowResponse, timeout=timeout).entries
+        return self.request(request, GetRankingWindowResponse, timeout=timeout).scores
 
     def search_leaderboard(
         self,
