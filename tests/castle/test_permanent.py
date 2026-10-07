@@ -10,7 +10,7 @@ import pytest
 from empire_core.castle.models import PermanentCastleDataResponse
 from empire_core.enums import Kingdom
 from empire_core.exceptions import GameDataNotLoadedError, UnknownCastleError
-from empire_core.gamedata import GameData
+from empire_core.gamedata import GameData, Horse
 from empire_core.state.manager import GameState
 from tests.service_helpers import make_client
 from tests.state.state_helpers import gcl_payload
@@ -53,7 +53,7 @@ class TestPermanentCastleData:
             {"A": [{"AID": 2001, "KID": 0, "U": {"U": [], "L": []}, "UH": [1003, 1001]}]}
         ).castles
 
-        assert castle.horse_ids == [1003, 1001]
+        assert castle.horse_ids == [Horse.COURSER_STABLE1, Horse.HORSE_STABLE1]
 
     def test_entries_that_are_no_number_are_dropped(self):
         # The client looks each id up in its game data, where no such entry has a row

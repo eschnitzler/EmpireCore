@@ -96,13 +96,13 @@ class TestCommanders:
 class TestSkills:
     def test_login_section_push_and_ego(self, state):
         state.update_from_packet("gbd", {**PLAYER, "skl": SKILLS})
-        assert state.get_skills().legend_skill_ids == [251, 221]
+        assert state.get_skills().legend_skill_ids == (251, 221)
 
         state.update_from_packet("skl", {**SKILLS, "SID": [1]})
-        assert state.get_skills().legend_skill_ids == [1]
+        assert state.get_skills().legend_skill_ids == (1,)
 
         state.update_from_packet("ego", {"skl": {**SKILLS, "SID": [2]}})
-        assert state.get_skills().legend_skill_ids == [2]
+        assert state.get_skills().legend_skill_ids == (2,)
 
     def test_a_falsy_section_is_not_read(self, state):
         # GBDCommand.exec and EGOCommand: n.skl&&parse_SKL(n.skl)
@@ -242,11 +242,11 @@ class TestSnapshots:
         state.update_from_packet("skl", SKILLS)
 
         state.get_commanders().commanders.clear()
-        state.get_skills().legend_skill_ids.append(999)
+        state.get_skills().reset_count = 999
         state.get_own_alliance().members.clear()
 
         assert len(state.get_commanders().commanders) == 1
-        assert 999 not in state.get_skills().legend_skill_ids
+        assert state.get_skills().reset_count == 1
         assert state.get_own_alliance().members
 
 

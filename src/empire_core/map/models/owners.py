@@ -6,12 +6,16 @@ A player's crest, faction standing, castle positions and alliance crest.
 from __future__ import annotations
 
 from contextlib import suppress
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Annotated, Any, NamedTuple
 
-from pydantic import Field, TypeAdapter, ValidationError, field_validator
+from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, field_validator
 
+from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, list_or_empty, object_or_none
-from empire_core.protocol.js import ClientInt, ParseInt, js_truthy
+from empire_core.protocol.js import ClientInt, ParseInt, js_int, js_truthy
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import AllianceCrestColor
 
 
 class OwnerCrest(BasePayload):
@@ -106,12 +110,13 @@ class AllianceCrest(BasePayload):
     An alliance's crest: a layout and its colours.
 
     Client: ``AllianceCrestVO.fillWithData`` (bundle line 11233); ``fillFromArray``
-    (bundle line 11237) reads the same two values from ``[layout_id, color_ids]``.
+    (bundle line 11237) reads the same two values from ``[layout_id, color_ids]``; each colour is
+    looked up through ``int()`` (bundle line 11216).
     """
 
     layout_id: ClientInt = Field(alias="ACLI", default=0, description="Crest layout id")
-    color_ids: list[ClientInt] = Field(
-        alias="ACCS", default_factory=list, description="Colour ids, one per layout colour"
+    color_ids: list[Annotated[EnumOrInt["AllianceCrestColor"], BeforeValidator(js_int)]] = Field(
+        alias="ACCS", default_factory=list, description="The colours, one per layout colour"
     )
 
     @field_validator("color_ids", mode="before")

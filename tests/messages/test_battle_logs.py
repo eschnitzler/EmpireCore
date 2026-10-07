@@ -7,6 +7,7 @@ import copy
 import pytest
 
 from empire_core.enums import BattleLogAttackType, LogResult, MapItemType, MessageType
+from empire_core.gamedata import Gem
 from empire_core.messages.models import BattleLogMeta
 from empire_core.protocol.base import parse_response
 from empire_core.protocol.models import (
@@ -242,7 +243,7 @@ class TestMiddleLog:
             "LID": LOG_ID,
             "W": [],
             "SD": [[1, [620, 4, -4]], [2]],
-            "AGT": [[1, 2]],
+            "AGT": [12, "13", 999],
             "DGT": 0,
             "ALS": [5],
             "DUST": 1,
@@ -256,8 +257,8 @@ class TestMiddleLog:
         assert log.support_tools.defender.units == []
         # Client: e.RW || [0, 0, 0]
         assert (log.reinforcements.soldiers, log.reinforcements.tools_used) == (0, 0)
-        assert (log.attacker_triggered_gems, log.defender_triggered_gems) == ([[1, 2]], None)
-        assert (log.attacker_legend_skill_ids, log.defender_legend_skill_ids) == ([5], [])
+        assert (log.attacker_triggered_gems, log.defender_triggered_gems) == ((Gem.LIZARDS_EYE_12, 999), ())
+        assert (log.attacker_legend_skill_ids, log.defender_legend_skill_ids) == ((5,), ())
         assert log.defender_used_support_tools is True
         (ability,) = log.attacker_abilities
         assert ability.ability_id == 33

@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 
 from empire_core.enums import Kingdom, MapItemType, PeaceModeStatus
+from empire_core.gamedata import AllianceCrestColor
 from empire_core.map.models.areas import (
     FindNextMapObjectRequest,
     FindNextMapObjectResponse,
@@ -81,6 +82,7 @@ class TestGoldenMapArea:
         owner = GetMapAreaResponse.model_validate({"KID": 0, "AI": [], "OI": [record]}).owners[0]
         assert owner.alliance_emblem is not None and owner.alliance_emblem.crest is not None
         assert (owner.alliance_emblem.crest.layout_id, owner.alliance_emblem.crest.color_ids) == (4, [3, 7, 11])
+        assert owner.alliance_emblem.crest.color_ids[0] is AllianceCrestColor.COLOR_3
 
     def test_owner_record_blocks_that_are_not_objects_read_as_none(self):
         record = {**self.OWNER, "E": 0, "aee": [], "FN": 1}

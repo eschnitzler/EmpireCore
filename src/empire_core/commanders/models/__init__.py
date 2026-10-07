@@ -32,6 +32,7 @@ from .roster import (
     LeaderBase,
     RenameCommanderRequest,
     RenameCommanderResponse,
+    SelectedAbility,
 )
 from .skills import (
     ActivatingSceatSkill,
@@ -45,7 +46,6 @@ from .skills import (
     GetSkillsResponse,
     ObjectUpdateEvent,
     ResetGeneralSkillsRequest,
-    SelectedAbility,
     SetGeneralAbilitiesRequest,
     SkillList,
     UnlockGeneralSkillRequest,

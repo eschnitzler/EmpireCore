@@ -41,7 +41,7 @@ from empire_core.castle.models.objects import (
 )
 from empire_core.enums import BuildingState, ExpansionType, Kingdom, MapItemType
 from empire_core.exceptions import CommandError
-from empire_core.gamedata import Currency
+from empire_core.gamedata import ConstructionItem, Currency
 from empire_core.protocol.models import parse_response
 from tests.service_helpers import conn, make_client, xt_packet
 
@@ -161,6 +161,20 @@ class TestCastleBuildings:
         )
         assert castle.find(9) is not None and castle.find(99) is None
         assert len(castle.all_objects()) == 7
+        assert castle.construction_items == ()
+
+    def test_construction_items_by_building(self):
+        # ABasicBuildingVO.parseConstructionItems (bundle lines 18000-18010): OID, then CIL entries of CID, S and RS
+        castle = CastleBuildings.model_validate(
+            {"CI": [{"OID": 5, "CIL": [{"CID": 1, "S": 0}, {"CID": 9999999, "S": "2", "RS": 3600}, "junk"]}, None]}
+        )
+        (building,) = castle.construction_items
+        assert building.object_id == 5
+        assert [(item.construction_item_id, item.slot, item.remaining_seconds) for item in building.items] == [
+            (ConstructionItem(1), 0, 0),
+            (9999999, 2, 3600),
+        ]
+        assert isinstance(building.items[0].construction_item_id, ConstructionItem)
 
 
 # =============================================================================

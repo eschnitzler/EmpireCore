@@ -491,6 +491,17 @@ def list_or_empty(value: Any) -> Any:
     return value if isinstance(value, list) else []
 
 
+def int_entries(value: Any) -> list[int]:
+    """
+    The int entries of a reply array, else no entries.
+
+    For an id array the client looks up as sent in a table keyed by int ids: any other entry finds nothing.
+    """
+    if not isinstance(value, list):
+        return []
+    return [entry for entry in value if isinstance(entry, int) and not isinstance(entry, bool)]
+
+
 _M = TypeVar("_M", bound=BaseModel)
 
 
@@ -632,6 +643,7 @@ __all__ = [
     "PlayerInfo",
     # Utilities
     "enum_or_none",
+    "int_entries",
     "list_or_empty",
     "object_or_none",
     "read_or_none",

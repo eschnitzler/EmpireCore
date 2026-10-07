@@ -3,7 +3,7 @@ counter reset (kik) and unlocked units and horses (gpc)."""
 
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
@@ -13,10 +13,14 @@ from empire_core.castle.models.permanent import PermanentCastle, PermanentCastle
 from empire_core.castle.models.updates import UnitsReceived
 from empire_core.enums import Kingdom
 from empire_core.exceptions import AmbiguousCastleError
+from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import enum_or_none, read_or_none
 from empire_core.protocol.js import js_int, js_loose_equals, js_truthy
 from empire_core.state.base import StateBase
 from empire_core.state.models import Castle, CastleKey, Resources
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Horse
 
 logger = logging.getLogger(__name__)
 
@@ -237,8 +241,8 @@ class CastleState(StateBase):
             key = self._castle_key(castle_id)
             return None if key is None else self.permanent_castles.get(key)
 
-    def get_castle_horse_ids(self, castle_id: int) -> list[int] | None:
-        """Wod ids of the horses one of your castles can send movements with, as gpc sent them.
+    def get_castle_horse_ids(self, castle_id: int) -> list[EnumOrInt["Horse"]] | None:
+        """The horses one of your castles can send movements with, as gpc sent them.
 
         Look each up with ``client.game_data.get_horse``, or use
         ``client.castle.get_horses``. ``None`` when :meth:`get_permanent_castle` is.

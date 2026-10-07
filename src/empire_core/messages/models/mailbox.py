@@ -21,6 +21,7 @@ from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model
 from empire_core.army.models.units import SpyPositions
 from empire_core.commanders.models.roster import Castellan
 from empire_core.enums import BattleLogAttackType, Kingdom, LogResult, MapItemType, MessageType, SpyLogType
+from empire_core.gamedata import EnumOrInt
 from empire_core.gamedata.ids.events import Event
 from empire_core.gamedata.lenient import known
 from empire_core.map.models import MapObject
@@ -29,6 +30,7 @@ from empire_core.protocol.base import (
     BaseRequest,
     BaseResponse,
     enum_or_none,
+    int_entries,
     list_or_empty,
     object_or_none,
     read_or_none,
@@ -39,6 +41,7 @@ from empire_core.protocol.text import decode_json_text, encode_json_text
 
 if TYPE_CHECKING:
     from empire_core.army.spy_army import SpyArmy
+    from empire_core.gamedata import LegendSkill
 
 logger = logging.getLogger(__name__)
 
@@ -609,7 +612,9 @@ class SpyReportResponse(BaseResponse):
         default=None,
         description="The castellan defending the spied area, without its equipment; None when there is none",
     )
-    legend_skill_ids: list[int] = Field(alias="LS", default_factory=list, description="The defender's legend skill ids")
+    legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
+        alias="LS", default=(), description="The defender's legend skills"
+    )
     resources: list[Any] = Field(
         alias="R",
         default_factory=list,
@@ -632,10 +637,16 @@ class SpyReportResponse(BaseResponse):
             data = {**data, "AI": {**data["AI"], "DAR": data["DAR"]}}
         return data
 
-    @field_validator("legend_skill_ids", "resources", mode="before")
+    @field_validator("resources", mode="before")
     @classmethod
     def _list_or_empty(cls, value: Any) -> Any:
         return list_or_empty(value)
+
+    @field_validator("legend_skill_ids", mode="before")
+    @classmethod
+    def _skill_ids(cls, value: Any) -> Any:
+        # Client: e.LS&&(this._legendSkills=e.LS) (bundle line 60579), each looked up as sent by getSkillByID
+        return int_entries(value)
 
     @field_validator("defending_castellan", mode="wrap")
     @classmethod

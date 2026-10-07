@@ -12,18 +12,20 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
 from empire_core.commanders.models.roster import Castellan, Commander
 from empire_core.enums import BattleLogAttackType, LogResult, MapItemType, MessageType
+from empire_core.gamedata import EnumOrInt
 from empire_core.map.models import MapObject
 from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
     BaseResponse,
     enum_or_none,
+    int_entries,
     list_or_empty,
     object_or_none,
     read_or_none,
@@ -39,6 +41,9 @@ from empire_core.protocol.js import (
 )
 
 from .mailbox import SpyReportArea
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Gem, GeneralAbility, LegendSkill
 
 logger = logging.getLogger(__name__)
 
@@ -487,7 +492,9 @@ class BattleLogAbility(BasePayload):
     Client: ``BattleLogAbilityVO.parseFromParamOj`` (bundle line 138584)
     """
 
-    ability_id: Any = Field(default=None, description="The ability id, as the server sends it")
+    ability_id: EnumOrInt["GeneralAbility"] | None = Field(
+        default=None, description="The ability; None when the entry names none"
+    )
     wave_values: list[AbilityWaveValue] = Field(default_factory=list, description="Where it took effect")
 
     @model_validator(mode="before")
@@ -1038,13 +1045,17 @@ class BattleLogMiddleResponse(BaseResponse):
     seconds_since_battle: int | float | None = Field(
         alias="PS", default=None, description="Seconds since the battle; None when the reply has none"
     )
-    attacker_triggered_gems: Any = Field(alias="AGT", default=None, description="The attacker's gems that triggered")
-    defender_triggered_gems: Any = Field(alias="DGT", default=None, description="The defender's gems that triggered")
-    attacker_legend_skill_ids: list[Any] = Field(
-        alias="ALS", default_factory=list, description="The attacker's legend skill ids"
+    attacker_triggered_gems: tuple[EnumOrInt["Gem"], ...] = Field(
+        alias="AGT", default=(), description="The attacker's gems that triggered"
     )
-    defender_legend_skill_ids: list[Any] = Field(
-        alias="DLS", default_factory=list, description="The defender's legend skill ids"
+    defender_triggered_gems: tuple[EnumOrInt["Gem"], ...] = Field(
+        alias="DGT", default=(), description="The defender's gems that triggered"
+    )
+    attacker_legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
+        alias="ALS", default=(), description="The attacker's legend skills"
+    )
+    defender_legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
+        alias="DLS", default=(), description="The defender's legend skills"
     )
     defender_used_support_tools: bool = Field(
         alias="DUST", default=False, description="The defender used support tools"
@@ -1095,16 +1106,15 @@ class BattleLogMiddleResponse(BaseResponse):
     def _seconds(cls, value: Any) -> Any:
         return js_number_or_none(value) if js_truthy(value) else None
 
-    @field_validator("attacker_triggered_gems", "defender_triggered_gems", mode="before")
+    @field_validator(
+        "attacker_triggered_gems", "defender_triggered_gems", "attacker_legend_skill_ids", "defender_legend_skill_ids",
+        mode="before",
+    )  # fmt: skip
     @classmethod
-    def _gems(cls, value: Any) -> Any:
-        # Client: e.DGT && (this._defenderTriggeredGems = e.DGT)
-        return value if js_truthy(value) else None
-
-    @field_validator("attacker_legend_skill_ids", "defender_legend_skill_ids", mode="before")
-    @classmethod
-    def _skills(cls, value: Any) -> Any:
-        return list_or_empty(value)
+    def _ids(cls, value: Any) -> Any:
+        # Client: e.DGT && (this._defenderTriggeredGems = e.DGT), the same for AGT, DLS and ALS (bundle line
+        # 138372); each id is looked up as sent (bundle lines 135787, 26254)
+        return int_entries(value)
 
     @field_validator("attacker_abilities", "defender_abilities", mode="before")
     @classmethod
