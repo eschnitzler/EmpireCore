@@ -10,10 +10,16 @@ a guess.
 from __future__ import annotations
 
 from contextvars import ContextVar
+from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
-from empire_core.protocol.js import js_falsy, js_number, js_parse_int
+from empire_core.protocol.js import js_falsy, js_number, js_number_or_none, js_parse_int
+
+from .lenient import GameDataId
+
+if TYPE_CHECKING:
+    from .ids import Effect
 
 # BasicUnitVO.FIGHTTYPE_OFF / FIGHTTYPE_DEF (bundle line 19345)
 FIGHT_TYPE_OFFENSIVE = 0
@@ -238,7 +244,7 @@ class ToolStats(_UnitRow):
 
     ``GameData.parse`` takes the ``units`` rows with ``slotTypes`` as tools;
     the client's ``ToolUnitVO`` rows are those named Workshop, Dworkshop,
-    Elitetool and Eventtool. ``raw_effects`` is kept as the ``effectID&value`` string; resolve it through
+    Elitetool and Eventtool. ``effects`` name plain effect ids; resolve them through
     :attr:`~empire_core.gamedata.data.GameData.effects`.
 
     The ``raw_*_bonus`` columns are percentages. The client scales them by
@@ -279,11 +285,7 @@ class ToolStats(_UnitRow):
         default=True,
         description="Usable against an NPC target",
     )
-    raw_effects: str = Field(
-        alias="effects",
-        default="",
-        description="Comma-separated effectID&value pairs",
-    )
+    effects: tuple[EffectValue, ...] = Field(default=(), description="The tool's own effects")
     raw_wall_bonus: int = Field(alias="wallBonus", default=0, description="Wall protection cancelled, in percent")
     raw_gate_bonus: int = Field(alias="gateBonus", default=0, description="Gate protection cancelled, in percent")
     raw_moat_bonus: int = Field(alias="moatBonus", default=0, description="Moat protection cancelled, in percent")
@@ -322,10 +324,16 @@ class ToolStats(_UnitRow):
         # String(getValueOrDefault("typ", t, "0", true))
         return str(value) if value else "0"
 
-    @field_validator("raw_slot_types", "raw_allowed_to_attack", "raw_effects", mode="before")
+    @field_validator("raw_slot_types", "raw_allowed_to_attack", mode="before")
     @classmethod
     def _string_column(cls, value: object) -> object:
         return value or ""
+
+    @field_validator("effects", mode="before")
+    @classmethod
+    def _effects(cls, value: object) -> object:
+        # ToolUnitVO.parseEffects (bundle line 6647)
+        return EffectValue.parse_list(value)
 
     @field_validator("tool_category", mode="before")
     @classmethod
@@ -587,15 +595,121 @@ class EffectCapDef(_Row):
         return self.max_total_bonus is None
 
 
+def _effect_number(text: str) -> int | float | None:
+    """A number of an effect value, an int when it is whole; None for empty text or no number."""
+    number = js_number_or_none(text) if text.strip() else None
+    return int(number) if isinstance(number, float) and number.is_integer() else number
+
+
+class _EffectEntry(_Row):
+    """One ``id&value`` entry of an ``effects`` column; subclasses name the id."""
+
+    id_field: ClassVar[str]
+
+    values: tuple[tuple[int | float, ...], ...] = Field(
+        default=(),
+        description="The value's numbers: one tuple per #-separated part, split at +; () for no value",
+    )
+
+    @classmethod
+    def parse_list(cls, value: object) -> object:
+        """
+        Each non-empty ``,``-separated entry of an ``effects`` column whose id is a number.
+
+        The id is ``parseInt`` of the text before ``&``. A number in the value that is not one, which
+        the client reads as NaN, is left out.
+        """
+        if not isinstance(value, str):
+            return () if value is None else value
+        entries = []
+        for part in value.split(","):
+            raw_id, _, raw_value = part.partition("&")
+            entry_id = js_parse_int(raw_id) if part else None
+            if entry_id is None:
+                continue
+            values = (
+                tuple(
+                    tuple(n for piece in item.split("+") if (n := _effect_number(piece)) is not None)
+                    for item in raw_value.split("#")
+                )
+                if raw_value
+                else ()
+            )
+            entries.append(cls.model_validate({cls.id_field: entry_id, "values": values}))
+        return entries
+
+    @property
+    def value(self) -> int | float | None:
+        """The first number, the strength of a plain value; None for no value."""
+        return self.values[0][0] if self.values and self.values[0] else None
+
+
+class EffectValue(_EffectEntry):
+    """
+    One bonus of an items row: an effect and its value, an ``effectID&value`` entry of the ``effects`` column.
+
+    The client reads the value with the class its effect's type names (``BonusVO.parseFromValueString``,
+    bundle line 5706): one number (``EffectValueSimple``, bundle line 17751), ``wodID+value`` pairs joined
+    by ``#`` (``EffectValueWodID`` and ``EffectValueMap``, bundle lines 17699 and 31617) or ids joined by
+    ``#`` (``EffectValueIdList``, bundle line 62242). Which one applies needs the effect types table, so
+    ``values`` keeps the numbers in that structure: ``10`` is ``((10,),)``, ``686+30#687+30`` is
+    ``((686, 30), (687, 30))`` and ``1#2`` is ``((1,), (2,))``.
+    """
+
+    id_field: ClassVar[str] = "effect_id"
+
+    effect_id: GameDataId["Effect"] = Field(description="The effect")
+
+
+class EquipmentEffectValue(_EffectEntry):
+    """
+    One bonus of an equipment set or default commander: an equipment effect id and its value.
+
+    The id indexes ``GameData.equipment_effects``, not the effects table; equipment effects have no enum.
+
+    Client: ``EquipmentBonusVO.parseEquipmentFromValueString`` (bundle line 20940)
+    """
+
+    id_field: ClassVar[str] = "equipment_effect_id"
+
+    equipment_effect_id: int = Field(description="The equipment effect, a GameData.equipment_effects key")
+
+
 class EffectSpecRow(_Row):
     """
-    Base for tables whose bonuses are an ``effectID&value`` string.
+    Base for tables whose bonuses are an ``effects`` column of ``effectID&value`` entries, comma separated.
 
-    Construction items, alliance buffs, global effects, sceat skills and
-    buildings all encode their bonuses this way, comma separated.
+    Construction items, alliance buffs, global effects, sceat skills, general skills and gems name plain
+    effect ids this way, each parsed with ``BonusVO.parseFromValueString`` (bundle line 5706): construction
+    items in ``ConstructionItemVO.parseBoni`` (bundle line 47721), alliance buffs in
+    ``AllianceBuffVO.fillFromParamXml`` (bundle line 70575), global effects in ``GlobalEffectVO.parseXml``
+    (bundle line 143698), sceat skills in ``CastleSceatSkillVO.parseBoni`` (bundle line 23075), general
+    skills in ``GeneralSkillVO.parseXML`` (bundle line 113368) and gems in ``CastleGemVO.parseXML`` (bundle
+    line 28295).
     """
 
-    raw_effects: str = Field(alias="effects", default="")
+    effects: tuple[EffectValue, ...] = Field(default=(), description="The bonuses it grants")
+
+    @field_validator("effects", mode="before")
+    @classmethod
+    def _effects(cls, value: object) -> object:
+        return EffectValue.parse_list(value)
+
+
+class EquipmentEffectSpecRow(_Row):
+    """
+    Base for tables whose ``effects`` column names equipment effect ids: equipment sets and default commanders.
+
+    Client: ``XmlEquipmentSetVO.addEffect`` (bundle line 144229), ``DefaultLordVO.parseFromXml`` (bundle line
+    102001)
+    """
+
+    effects: tuple[EquipmentEffectValue, ...] = Field(default=(), description="The bonuses it grants")
+
+    @field_validator("effects", mode="before")
+    @classmethod
+    def _effects(cls, value: object) -> object:
+        return EquipmentEffectValue.parse_list(value)
 
 
 class ConstructionItemDef(EffectSpecRow):
@@ -734,7 +848,7 @@ class GemDef(EffectSpecRow):
     )
 
 
-class EquipmentSetDef(EffectSpecRow):
+class EquipmentSetDef(EquipmentEffectSpecRow):
     """
     One threshold of an equipment set: the bonuses worn items of the set grant from ``needed_items`` on.
 
@@ -848,7 +962,7 @@ class HorseStats(_Row):
         return value if isinstance(value, bool) else _parse_int_or_default(value, 0) != 0
 
 
-class DefaultLordDef(EffectSpecRow):
+class DefaultLordDef(EquipmentEffectSpecRow):
     """
     A default commander, one of the negative commander ids.
 
@@ -1161,6 +1275,9 @@ __all__ = [
     "ConstructionItemDef",
     "CurrencyDef",
     "EffectSpecRow",
+    "EffectValue",
+    "EquipmentEffectSpecRow",
+    "EquipmentEffectValue",
     "GeneralAbilityDef",
     "RaidBossDef",
     "FortificationDef",

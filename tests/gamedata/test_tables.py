@@ -6,7 +6,11 @@ from empire_core.enums import EquipmentSlot, Kingdom, MapItemType, WearerType
 from empire_core.gamedata import (
     BuildingDef,
     DailyQuestDef,
+    Effect,
+    EffectValue,
+    EquipmentEffectValue,
     EquipmentGroupDef,
+    EquipmentSetDef,
     EventDef,
     GameData,
     QuestCondition,
@@ -109,3 +113,42 @@ def test_a_scaling_camp_gives_its_level():
     assert data.scaling_camp_level(8) is None and data.scaling_camp_level(0) is None
     assert data.scaling_camps[7].shogun_points_needed_for_level_up == -1
     assert "eventAutoScalingCamps" not in data.raw_tables
+
+
+class TestEffects:
+    def test_an_effects_column_keeps_each_value_s_structure(self):
+        building = BuildingDef.model_validate(
+            {"wodID": "171", "effects": "428&10,373&3+5,113&426#427,507&686+30#687+30", "areaSpecificEffects": "107&-5"}
+        )
+
+        assert [(e.effect_id, e.values) for e in building.effects] == [
+            (Effect.SIGHT_RADIUS_BONUS, ((10,),)),
+            (Effect.CRAFTING_QUEUE_PRODUCTION_BOOST, ((3, 5),)),
+            (Effect.ENABLE_CONSTRUCTION_ITEM_RECIPES, ((426,), (427,))),
+            (Effect.DEFENSE_SUPPORT_UNITS_WEAK, ((686, 30), (687, 30))),
+        ]
+        assert building.area_specific_effects == (
+            EffectValue(effect_id=Effect.RECRUITMENT_TIME_BONUS, values=((-5,),)),
+        )
+
+    def test_an_entry_without_a_value_is_kept_and_one_without_an_id_left_out(self):
+        effects = ResearchDef.model_validate({"researchID": "1", "effects": "12&,x&3,,99,5&1.5"}).effects
+
+        assert [(e.effect_id, e.values, e.value) for e in effects] == [
+            (12, (), None),
+            (99, (), None),
+            (5, ((1.5,),), 1.5),
+        ]
+
+    def test_equipment_sets_name_equipment_effects(self):
+        row = EquipmentSetDef.model_validate({"setID": "3", "effects": "422&513+5#514+5"})
+
+        assert row.effects == (EquipmentEffectValue(equipment_effect_id=422, values=((513, 5), (514, 5))),)
+
+    def test_effects_survive_the_cache(self, tmp_path):
+        data = GameData.parse("786.03", {"titles": [{"titleID": "1", "effects": "504&20,22001&602+13#608+13"}]})
+        data._write_cache(tmp_path / "cache.json")
+
+        again = GameData._read_cache(tmp_path / "cache.json", "786.03")
+
+        assert again is not None and again.titles[1].effects == data.titles[1].effects
