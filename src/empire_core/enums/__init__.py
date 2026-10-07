@@ -10,6 +10,17 @@ from .castle import BuildingState, ExpansionType, MarketScope, Resource, Resourc
 from .collectables import BoosterId, CollectableKind
 from .combat import AttackType, AutoSkipCooldownType, CombatEffectType, Flank, LootPriority
 from .commanders import EquipmentSlot, EquipmentType, Rareness, WearerType
+from .gamedata import (
+    BuildingGroundType,
+    BuildingGroup,
+    PlayerRelation,
+    QuestConditionType,
+    RelicEffectType,
+    TitleDisplayType,
+    ToolCategory,
+    ToolSide,
+    UnitRole,
+)
 from .map import Kingdom, MapItemType, NPCOwner, PeaceModeStatus
 from .messages import BattleLogAttackType, LogResult, MessageType
 from .movements import MovementType
@@ -73,5 +84,14 @@ __all__ = [
     "RankingType",
     # Rewards
     "LoginBonusSpecial",
-    # Inventory
+    # Game data
+    "BuildingGroundType",
+    "BuildingGroup",
+    "PlayerRelation",
+    "QuestConditionType",
+    "RelicEffectType",
+    "TitleDisplayType",
+    "ToolCategory",
+    "ToolSide",
+    "UnitRole",
 ]

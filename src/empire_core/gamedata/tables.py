@@ -14,10 +14,20 @@ from typing import TYPE_CHECKING
 
 from pydantic import Field, ValidationInfo, field_validator
 
-from empire_core.enums import EquipmentSlot, Kingdom, MapItemType, WearerType
+from empire_core.enums import (
+    BuildingGroundType,
+    BuildingGroup,
+    EquipmentSlot,
+    Kingdom,
+    MapItemType,
+    QuestConditionType,
+    TitleDisplayType,
+    TitleSystem,
+    WearerType,
+)
 from empire_core.protocol.js import js_falsy, js_int, js_number_or_none, js_parse_int, js_string
 
-from .lenient import GameDataId
+from .lenient import GameDataId, GameDataKey
 from .models import READING_CACHE, EffectSpecRow, EffectValue, _parse_int_or_default, _Row
 
 if TYPE_CHECKING:
@@ -90,7 +100,7 @@ class BuildingDef(EffectSpecRow):
 
     building_id: GameDataId["Building"] = Field(alias="wodID", description="The building")
     name: str = Field(default="", description="Building name, shared across levels, e.g. Keep")
-    group: str = Field(default="", description="Building group, e.g. Building, Tower or Moat")
+    group: GameDataKey[BuildingGroup] = Field(default="", description="Building group, e.g. Building or Tower")
     building_type: str = Field(alias="type", default="", description="Building type, e.g. Level1; empty for none")
     level: int = Field(default=-1, description="Upgrade level; -1 when the row has none")
     required_level: int = Field(alias="requiredLevel", default=0, description="Player level needed to build it")
@@ -161,8 +171,8 @@ class BuildingDef(EffectSpecRow):
     wall_bonus: int = Field(alias="wallBonus", default=0, description="Wall protection, in percent")
     moat_bonus: int = Field(alias="moatBonus", default=0, description="Moat protection, in percent")
     build_duration: int = Field(alias="buildDuration", default=0, description="Build time in seconds")
-    building_ground_type: str = Field(
-        alias="buildingGroundType", default="", description="The ground it stands on; empty for the default"
+    building_ground_type: GameDataKey[BuildingGroundType] = Field(
+        alias="buildingGroundType", default=BuildingGroundType.NONE, description="The ground it stands on"
     )
     district_type_id: int = Field(alias="districtTypeID", default=0, description="The district type it belongs to")
     is_district: bool = Field(alias="isDistrict", default=False, description="It is a district")
@@ -487,7 +497,7 @@ class QuestCondition(_Row):
     Client: ``ABasicQuestConditionVO.loadFromParamArray`` (bundle line 52833)
     """
 
-    condition_type: str = Field(description="What it counts, e.g. buyRubies")
+    condition_type: GameDataKey[QuestConditionType] = Field(description="What it counts, e.g. buyRubies")
     amount: int = Field(default=0, description="How many it needs")
     raw_data: str = Field(
         default="", description="Its |-separated parameters, which mean something different for each type"
@@ -640,9 +650,11 @@ class TitleDef(EffectSpecRow):
     """
 
     title_id: int = Field(alias="titleID", description="The title")
-    title_system: str = Field(alias="type", default="-1", description="Its title system, a TitleSystem value")
+    title_system: GameDataKey[TitleSystem] = Field(alias="type", default="-1", description="Its title system")
     threshold: int = Field(default=-1, description="Points from which it is held; -1 for a top-X title")
-    display_type: str = Field(alias="displayType", default="-1", description="How it is shown")
+    display_type: GameDataKey[TitleDisplayType] = Field(
+        alias="displayType", default="-1", description="Whether it goes before or after the name"
+    )
     forced: bool = Field(default=False, description="It is a forced title")
     decay: int = Field(default=-1, description="Its point decay")
     is_positive: bool = Field(alias="isPositive", default=False, description="It is a positive title")
