@@ -582,7 +582,7 @@ class TestFillAttack(FillClient):
         client = self.build([[601, 100_000], [611, 500], [612, 500]])
         client.game_data = GameData.parse("test", payload)
         row = [1, 5, 6, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
-        army = SpyArmy.from_spy_data([[[601, 10]], [], [], [], [], [], []])
+        army = SpyArmy.model_validate([[[601, 10]], [], [], [], [], [], []])
         # A castellan worth +200% wall protection.
         castellan = Commander.model_validate({"ID": 1, "E": [[515, [200.0], "EQ"]], "EQ": [], "AE": []})
 
@@ -623,7 +623,7 @@ class TestFillAttack(FillClient):
         client = self.build([[601, 100_000], [611, 500], [612, 500]])
         client.game_data = GameData.parse("test", payload)
         row = [1, 5, 6, 900, 4242, 1, 1, 1, 0, 0, "small castle"]
-        army = SpyArmy.from_spy_data([[[601, 10]], [], [], [], [], [], []])
+        army = SpyArmy.model_validate([[[601, 10]], [], [], [], [], [], []])
 
         plain = client.attack.fill_attack(12345, target_level=13, target_is_player=True, target_row=row, spy_army=army)
         skilled = client.attack.fill_attack(
@@ -901,7 +901,7 @@ class TestFillAttack(FillClient):
             target_level=13,
             target_owner_legend_level=0,
             target_row=row,
-            spy_army=SpyArmy.from_spy_data([[], [], [], [], [], [], []]),
+            spy_army=SpyArmy.model_validate([[], [], [], [], [], [], []]),
             defending_castellan=Commander.model_validate({"ID": 1}),
             area_bonuses=[],
             general_skill_ids=[],

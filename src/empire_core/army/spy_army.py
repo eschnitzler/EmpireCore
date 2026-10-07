@@ -14,74 +14,84 @@ where a castle is actually strong.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
+from typing import Annotated, Any
+
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
 from empire_core.enums import SpyArmySection
-from empire_core.gamedata import wod_amount_pairs
+from empire_core.gamedata import WodAmount, wod_amount_pairs
 
 
-@dataclass(frozen=True)
-class UnitStack:
-    """A count of one unit type at one position."""
-
-    wod_id: int
-    count: int
-
-
-def _stacks(entry: Any) -> list[UnitStack]:
+def _stacks(value: Any) -> Any:
     """
     One position's stacks, read as the client reads them.
 
-    Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line 30699) fills a
-    ``UnitInventoryList``, whose ``addUnit`` skips an amount of 0 or less (bundle line 21826).
+    Client: ``AUnitInventory.fillFromWodAmountArray`` (bundle line 42572) into a
+    ``UnitInventoryList``, whose ``addUnit`` skips an amount of 0 or less and
+    appends without adding up an id sent twice (bundle line 21826).
     """
-    return [UnitStack(wod_id, count) for wod_id, count in wod_amount_pairs(entry) if count > 0]
+    if isinstance(value, tuple) and all(isinstance(stack, WodAmount) for stack in value):
+        return value
+    return tuple(WodAmount(wod_id, amount) for wod_id, amount in wod_amount_pairs(value) if amount > 0)
 
 
-@dataclass
-class SpyArmy:
-    """A spied castle's defenders, by the position they hold."""
+SpyStacks = Annotated[tuple[WodAmount, ...], BeforeValidator(_stacks)]
+"""One position of a spied army: its stacks in the order sent, an id sent twice kept twice."""
 
-    left: list[UnitStack] = field(default_factory=list)
-    middle: list[UnitStack] = field(default_factory=list)
-    right: list[UnitStack] = field(default_factory=list)
-    keep: list[UnitStack] = field(default_factory=list)
-    stronghold: list[UnitStack] = field(default_factory=list)
-    support: list[UnitStack] = field(default_factory=list)
-    reserve: list[UnitStack] = field(default_factory=list)
 
+class SpyArmy(BaseModel):
+    """
+    A spied castle's defenders, by the position they hold.
+
+    Reads a report's ``S`` block: ``SpyArmy.model_validate(report_s)``. A block shorter
+    than the full seven positions is normal (the server omits trailing ones), so a
+    missing position is empty.
+
+    Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line 30699)
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    left: SpyStacks = Field(default=(), description="Defenders on the left wall flank")
+    middle: SpyStacks = Field(default=(), description="Defenders on the middle wall flank")
+    right: SpyStacks = Field(default=(), description="Defenders on the right wall flank")
+    keep: SpyStacks = Field(default=(), description="Defenders in the keep (courtyard)")
+    stronghold: SpyStacks = Field(default=(), description="Units in the stronghold")
+    support: SpyStacks = Field(default=(), description="Alliance support, which holds every flank")
+    reserve: SpyStacks = Field(default=(), description="The reserve, when the report lists one")
+
+    @model_validator(mode="before")
     @classmethod
-    def from_spy_data(cls, spy_data: Any) -> "SpyArmy | None":
-        """Split a report's ``S`` block by position, or None if it is unusable.
+    def _by_position(cls, data: Any) -> Any:
+        if not isinstance(data, list):
+            return data
+        return {section.value: data[index] for index, section in enumerate(SpyArmySection) if index < len(data)}
 
-        A report shorter than the full seven positions is normal — the server
-        omits trailing ones — so missing sections stay empty.
-        """
-        if not isinstance(spy_data, list):
-            return None
-        sections = {
-            section.value: _stacks(spy_data[index] if index < len(spy_data) else None)
-            for index, section in enumerate(SpyArmySection)
-        }
-        return cls(**sections)
-
-    def section(self, section: SpyArmySection) -> list[UnitStack]:
+    def section(self, section: SpyArmySection) -> tuple[WodAmount, ...]:
         """The stacks at one position."""
-        stacks: list[UnitStack] = getattr(self, section.value)
+        stacks: tuple[WodAmount, ...] = getattr(self, section.value)
         return stacks
 
-    def sections(self) -> list[tuple[SpyArmySection, list[UnitStack]]]:
+    def sections(self) -> list[tuple[SpyArmySection, tuple[WodAmount, ...]]]:
         """Every position in wire order, for display."""
         return [(section, self.section(section)) for section in SpyArmySection]
 
     def total(self) -> int:
         """Every defender in the castle, wherever they stand."""
-        return sum(stack.count for _, stacks in self.sections() for stack in stacks)
+        return sum(stack.amount for _, stacks in self.sections() for stack in stacks)
 
     def wall_total(self) -> int:
         """Defenders on the wall: the flanks an attack meets first."""
-        return sum(stack.count for section in SpyArmySection if section.is_wall for stack in self.section(section))
+        return sum(stack.amount for section in SpyArmySection if section.is_wall for stack in self.section(section))
 
 
-__all__ = ["SpyArmy", "UnitStack"]
+def _spied(value: Any) -> Any:
+    # Client: parseArmyInfo reads the positions only when e && 0 != e.length
+    return value if value else None
+
+
+SpyArmyBlock = Annotated[SpyArmy | None, BeforeValidator(_spied)]
+"""A reply's ``S`` block as a :class:`SpyArmy`, None when it is missing or empty (no spy report)."""
+
+
+__all__ = ["SpyArmy", "SpyArmyBlock", "SpyStacks"]

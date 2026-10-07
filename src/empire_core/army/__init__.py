@@ -38,7 +38,7 @@ from .models import (
     WoundedUnits,
 )
 from .service import ArmyService
-from .spy_army import SpyArmy, UnitStack
+from .spy_army import SpyArmy, SpyArmyBlock, SpyStacks
 
 __all__ = [
     "AttackWave",
@@ -79,5 +79,6 @@ __all__ = [
     "ArmyService",
     "SpyArmy",
     "SpyArmySection",
-    "UnitStack",
+    "SpyArmyBlock",
+    "SpyStacks",
 ]

@@ -278,18 +278,16 @@ class TestAttackInfoBlocks:
         # UnitInventoryList.addUnit skips an amount of 0
         info = GetAttackInfoResponse.model_validate({"S": [[[487, "20"], "junk", [488, "x"]], "junk", [[10, 1]]]})
 
-        assert info.spy_data == [[[487, 20]], [], [[10, 1]]]
-        army = info.spy_army()
+        army = info.spy_army
         assert army is not None
-        assert [(s.wod_id, s.count) for s in army.left] == [(487, 20)]
-        assert [(s.wod_id, s.count) for s in army.right] == [(10, 1)]
+        assert (army.left, army.middle, army.right, army.keep) == (((487, 20),), (), ((10, 1),), ())
 
     def test_a_null_spy_block_is_no_report(self):
         from empire_core.protocol.models import GetAttackInfoResponse
 
         info = GetAttackInfoResponse.model_validate({"S": None, "AS": 30, "LS": [5]})
 
-        assert info.spy_army() is None
+        assert info.spy_army is None
         assert (info.spy_age_seconds, info.defender_legend_skill_ids) == (-1, ())
 
     def test_attacker_effects_are_typed(self):

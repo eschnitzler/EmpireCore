@@ -166,7 +166,7 @@ class CastleState(StateBase):
                     production=area.production if area else ResourceProduction(),
                     safe=area.safe_amount if area else SafeAmount(),
                 )
-                if info.raw_units:
+                if info.units:
                     castle.units = info.units
                 castle.details = info
                 self._castle_details_at[key] = time.time()

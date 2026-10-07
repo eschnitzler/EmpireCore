@@ -164,7 +164,7 @@ def fortification_bonuses(
     )
 
 
-Stacks = Iterable[tuple[int, int]]
+Stacks = Iterable[tuple[int | None, int]]
 
 
 def tool_defense_bonus(game_data: GameData, tool: ToolStats) -> float:
@@ -233,7 +233,7 @@ def defender_flank_effects(
 
     for wod_id, count in stacks:
         # UnitInventoryList.addUnit (bundle line 21826) drops an entry with no count.
-        if count <= 0:
+        if count <= 0 or wod_id is None:
             continue
         unit = game_data.get_unit(wod_id)
         if unit is None:
@@ -433,7 +433,7 @@ def spied_castle_defense(
 
     # Support troops hold every flank, the courtyard included, as the client
     # concatenates them onto each.
-    support = [(stack.wod_id, stack.count) for stack in spy_army.support]
+    support = list(spy_army.support)
     per_flank = {
         Flank.LEFT: spy_army.left,
         Flank.MIDDLE: spy_army.middle,
@@ -443,7 +443,7 @@ def spied_castle_defense(
     result = {}
     for flank, stacks in per_flank.items():
         items = defender_flank_effects(
-            [(stack.wod_id, stack.count) for stack in stacks] + support,
+            [*stacks, *support],
             game_data,
             wall_bonus=wall_bonus,
             gate_bonus=gate_bonus,

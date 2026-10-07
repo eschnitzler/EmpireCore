@@ -10,7 +10,7 @@ import pytest
 from empire_core.castle.models import PermanentCastleDataResponse
 from empire_core.enums import Kingdom
 from empire_core.exceptions import GameDataNotLoadedError, UnknownCastleError
-from empire_core.gamedata import GameData, Horse
+from empire_core.gamedata import GameData, Horse, Tool
 from empire_core.state.manager import GameState
 from tests.service_helpers import make_client
 from tests.state.state_helpers import gcl_payload
@@ -45,8 +45,8 @@ class TestPermanentCastleData:
         [castle] = PermanentCastleDataResponse.model_validate(LIVE_GPC).castles
 
         assert (castle.castle_id, castle.kingdom_id, castle.horse_ids) == (2001, Kingdom.GREEN, [])
-        assert castle.units.unlocked_unit_ids[:3] == [640, 641, 611]
-        assert castle.units.locked_unit_ids[-1] == 148
+        assert castle.units.unlocked_units[:3] == (640, 641, 611)
+        assert castle.units.locked_units[-1] == 148
 
     def test_horse_ids_keep_the_order_sent(self):
         [castle] = PermanentCastleDataResponse.model_validate(
@@ -61,8 +61,8 @@ class TestPermanentCastleData:
             {"A": [{"AID": 2001, "KID": 0, "U": {"U": [620, "x", None], "L": [True]}, "UH": [1001, "1002", 1003.0]}]}
         ).castles
 
-        assert castle.units.unlocked_unit_ids == [620]
-        assert castle.units.locked_unit_ids == []
+        assert castle.units.unlocked_units == (Tool.SHIELDS,)
+        assert castle.units.locked_units == ()
         assert castle.horse_ids == [1001, 1003]
 
     def test_missing_units_and_horses_read_as_none_unlocked(self):
@@ -70,7 +70,7 @@ class TestPermanentCastleData:
         [castle] = PermanentCastleDataResponse.model_validate({"A": [{"AID": "2001", "KID": "2"}]}).castles
 
         assert (castle.castle_id, castle.kingdom_id) == (2001, Kingdom.ICE)
-        assert castle.units.unlocked_unit_ids == [] and castle.horse_ids == []
+        assert castle.units.unlocked_units == () and castle.horse_ids == []
 
     def test_an_unreadable_castle_costs_only_itself(self):
         payload = {"A": [{"KID": 0}, {"AID": 2002, "KID": 99}, None, {"AID": 2001, "KID": 0, "UH": [1001]}]}
@@ -99,7 +99,7 @@ class TestPermanentCastleState:
 
         assert list(game_state.permanent_castles) == [(Kingdom.GREEN, 2001)]
         permanent = game_state.get_permanent_castle(2001)
-        assert permanent is not None and permanent.units.unlocked_unit_ids[0] == 640
+        assert permanent is not None and permanent.units.unlocked_units[0] == 640
         assert game_state.get_castle_horse_ids(2001) == []
         assert game_state.get_last_packet_time("gpc") is not None
 

@@ -11,6 +11,7 @@ from empire_core.castle.models.buildings import BuildResponse, CollectExtensionG
 from empire_core.castle.models.details import CastleProductionArea, GetDetailedCastleResponse
 from empire_core.castle.models.objects import ConstructionList
 from empire_core.enums import Kingdom
+from empire_core.gamedata import Unit
 from tests.service_helpers import conn, make_client, xt_packet
 
 
@@ -103,5 +104,15 @@ class TestDetailedCastleListLeniency:
         assert [c.castle_id for c in response.castles] == [7, 1, 8]
         first = response.castles[0]
         # AUnitInventory.fillFromWodAmountArray: array entries only, through int()
-        assert first.raw_units == [[1, 2], [3]] and first.units == {1: 2}
+        assert first.units == {1: 2}
         assert response.castles[2].production_area is None
+
+    def test_a_unit_sent_twice_adds_up_like_the_client(self):
+        # DetailedCastleVO.parseData fills a UnitInventoryDictionary, whose addUnit adds (bundle lines 5533-5535)
+        response = GetDetailedCastleResponse.model_validate(
+            {"C": [{"KID": 0, "AI": [{"AID": 7, "AC": [[601, 2], [601, 3], [652, 0]], "SHI": [[601, 1], [601, 1]]}]}]}
+        )
+        castle = response.castles[0]
+        assert castle.units == {Unit.SWORDMAN: 5}
+        assert castle.stronghold_units == {Unit.SWORDMAN: 2}
+        assert all(isinstance(unit, Unit) for unit in castle.units)

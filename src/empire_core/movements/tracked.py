@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import MapItemType, MovementType, NPCOwner
-from empire_core.gamedata import WodAmounts
+from empire_core.gamedata import SupportToolSlots, WodAmounts
 from empire_core.gamedata.troops import count_troops
 from empire_core.movements.models import MovementArea, MovementOwner, MovementSpy
 from empire_core.protocol.base import enum_or_none, read_or_none
@@ -180,7 +180,9 @@ class Movement(BaseModel):
 
     attack_type: int | None = Field(default=None, description="AttackType value")
     is_shadow: bool = Field(default=False, description="Shadow movement")
-    support_tool_ids: list[int] = Field(default_factory=list, description="Support tools sent along")
+    support_tools: SupportToolSlots = Field(
+        default=(), description="Support tools sent along, as the attack sent them; None for an empty slot"
+    )
     auto_skip_cooldown_type: int = Field(default=0, description="Auto-skip cooldown type (AutoSkipCooldownType)")
     advisor_type: int = Field(default=0, description="Attack advisor type; 0 for none")
     advisor_movement_count: int = Field(default=0, description="Attacks in the advisor series")

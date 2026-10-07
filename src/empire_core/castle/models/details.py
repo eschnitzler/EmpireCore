@@ -12,6 +12,7 @@ from typing import Any
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from empire_core.exceptions import AmbiguousCastleError
+from empire_core.gamedata import WodAmounts
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
 from empire_core.protocol.js import js_int, js_number, js_number_or_none, js_truthy
 
@@ -280,7 +281,9 @@ class DetailedCastleInfo(BasePayload):
     ``B``, ``WS``, ``DW`` and ``H`` (through ``Boolean()``); ``KID`` is the
     kingdom block the entry is listed under. The server also sends ``OGT``,
     ``AOT``, ``HI`` and ``TU``, which the client does not read from this reply:
-    it reads hospital and travelling units from ``gui``.
+    it reads hospital and travelling units from ``gui`` (``CastleMilitaryData.parse_GUI``,
+    bundle line 138833). Each unit array reads as an inventory: an id sent twice adds up
+    (``UnitInventoryDictionary``, bundle lines 5533-5538).
 
     Client: ``CastleUserCastleListDetailed.parseData`` (bundle line 140906),
     ``DetailedCastleVO.parseData`` (bundle line 140973)
@@ -309,17 +312,19 @@ class DetailedCastleInfo(BasePayload):
     abandon_outpost_seconds: int = Field(
         alias="AOT", default=-1, description="Seconds until the outpost is abandoned, -1 when it is not"
     )
-    raw_units: list[list[int]] = Field(
-        alias="AC", default_factory=list, description="Stationed units as [wod id, count] pairs"
+    units: WodAmounts = Field(alias="AC", default_factory=dict, description="Units and tools stationed here")
+    stronghold_units: WodAmounts = Field(
+        alias="SHI", default_factory=dict, description="Units in the stronghold (safe house)"
     )
-    raw_stronghold_units: list[list[int]] = Field(
-        alias="SHI", default_factory=list, description="Stronghold units as [wod id, count] pairs"
+    hospital_units: WodAmounts = Field(
+        alias="HI",
+        default_factory=dict,
+        description="Wounded units in the hospital; the client reads them from gui, not from this reply",
     )
-    raw_hospital_units: list[list[int]] = Field(
-        alias="HI", default_factory=list, description="Wounded units as [wod id, count] pairs"
-    )
-    raw_travelling_units: list[list[int]] = Field(
-        alias="TU", default_factory=list, description="Travelling units as [wod id, count] pairs"
+    travelling_units: WodAmounts = Field(
+        alias="TU",
+        default_factory=dict,
+        description="Units on their way in (gui's in_production); the client reads them from gui, not from this reply",
     )
     production_area: CastleProductionArea | None = Field(
         alias="gpa", default=None, description="The castle's production area; None when the entry has none"
@@ -329,14 +334,6 @@ class DetailedCastleInfo(BasePayload):
         "castle_id", "kingdom_id", "defense_value", "market_carriages", *_RESOURCE_KEYS, mode="before"
     )(js_int)
 
-    @field_validator("raw_units", "raw_stronghold_units", "raw_hospital_units", "raw_travelling_units", mode="before")
-    @classmethod
-    def _wod_amounts(cls, value: Any) -> list[list[int]]:
-        # AUnitInventory.fillFromWodAmountArray: array entries only, each value through int()
-        if not isinstance(value, list):
-            return []
-        return [[js_int(v) for v in entry] for entry in value if isinstance(entry, list)]
-
     @field_validator("production_area", mode="before")
     @classmethod
     def _area(cls, value: Any) -> Any:
@@ -345,30 +342,6 @@ class DetailedCastleInfo(BasePayload):
     _flags = field_validator(
         "has_barracks", "has_siege_workshop", "has_defense_workshop", "has_hospital", mode="before"
     )(js_truthy)
-
-    @staticmethod
-    def _pairs(rows: list[list[int]]) -> dict[int, int]:
-        return {row[0]: row[1] for row in rows if len(row) >= 2}
-
-    @property
-    def units(self) -> dict[int, int]:
-        """Units stationed here as {unit_id: count}, from the ``AC`` pairs."""
-        return self._pairs(self.raw_units)
-
-    @property
-    def stronghold_units(self) -> dict[int, int]:
-        """Units in the safe house / stronghold (``SHI``)."""
-        return self._pairs(self.raw_stronghold_units)
-
-    @property
-    def hospital_units(self) -> dict[int, int]:
-        """Wounded units in the hospital (``HI``)."""
-        return self._pairs(self.raw_hospital_units)
-
-    @property
-    def travelling_units(self) -> dict[int, int]:
-        """Units currently travelling (``TU``)."""
-        return self._pairs(self.raw_travelling_units)
 
 
 class GetDetailedCastleResponse(BaseResponse):

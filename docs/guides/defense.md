@@ -18,6 +18,7 @@ print(defense.keep.slots)            # (WodAmount(item=..., amount=...), ...), o
 print(defense.wall.left.unit_percent)
 print(defense.moat.middle_slots)
 print(defense.inventory())           # {Unit or Tool: amount}
+print(defense.range_priority)        # (Unit.X, ...): the order the game places ranged units in
 ```
 
 ## Changing it
@@ -53,6 +54,13 @@ that is left to the server.
 `client.defense.get_support_defense_info(target_x, target_y)` reads the
 defense of an alliance member's castle, as the game does before you send
 support. The server refuses your own castle with `NO_SELF_DESTRUCTION` (92).
+
+```python
+info = client.defense.get_support_defense_info(700, 710)
+army = info.defense_positions        # a SpyArmy by position, None when the reply lists none
+if army is not None:
+    print(army.total(), army.wall_total(), army.keep)
+```
 
 **API:** [`DefenseService`](../reference/defense.md#empire_core.defense.service.DefenseService),
 [`GetDefenseResponse`](../reference/defense.md#empire_core.defense.models.GetDefenseResponse)

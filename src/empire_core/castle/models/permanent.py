@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from empire_core.enums import Kingdom
-from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata import EnumOrInt, UnitOrTool
 from empire_core.protocol.base import BaseResponse, readable_list
 from empire_core.protocol.js import ClientInt, js_int
 
@@ -37,19 +37,20 @@ class CastleUnitUnlocks(BaseModel):
     """
     The units and tools a castle can recruit, and those it has still locked.
 
-    Client: ``CastleUnitsVO.parseParamObject`` (bundle line 139200)
+    Client: ``CastleUnitsVO.parseParamObject`` (bundle lines 139200-139207) looks each id up among
+    the ``units`` rows and keeps the soldiers, auxiliaries and tools
     """
 
     model_config = ConfigDict(populate_by_name=True)
 
-    unlocked_unit_ids: list[int] = Field(
-        alias="U", default_factory=list, description="Wod ids of the units and tools the castle can recruit"
+    unlocked_units: tuple[UnitOrTool, ...] = Field(
+        alias="U", default=(), description="The units and tools the castle can recruit"
     )
-    locked_unit_ids: list[int] = Field(
-        alias="L", default_factory=list, description="Wod ids of the units and tools still locked there"
+    locked_units: tuple[UnitOrTool, ...] = Field(
+        alias="L", default=(), description="The units and tools still locked there"
     )
 
-    @field_validator("unlocked_unit_ids", "locked_unit_ids", mode="before")
+    @field_validator("unlocked_units", "locked_units", mode="before")
     @classmethod
     def _ids(cls, value: Any) -> list[int]:
         return _wod_ids(value)

@@ -346,7 +346,7 @@ def _read_precalculation(service: AttackService, target: "_Target", *, timeout: 
         # AttackDialogUnitPicker adds the stronghold units into the same inventory it fills from
         target.inventory = _merged(info.inventory(), info.stronghold_inventory())
     if target.spy_army is None:
-        target.spy_army = info.spy_army()
+        target.spy_army = info.spy_army
     if target.castellan is None:
         target.castellan = info.defending_castellan()
     if target.level is None or target.owner_legend_level is None:
@@ -360,7 +360,7 @@ def _read_precalculation(service: AttackService, target: "_Target", *, timeout: 
                 target.is_player = True
             if target.owner_legend_level is None and "legendary_level" in record.model_fields_set:
                 target.owner_legend_level = record.legendary_level
-    if target.defender_legend_skill_ids is None and info.spy_army() is not None:
+    if target.defender_legend_skill_ids is None and info.spy_army is not None:
         target.defender_legend_skill_ids = info.defender_legend_skill_ids
     if target.area_bonuses is None:
         target.area_bonuses = info.attacker_bonuses()

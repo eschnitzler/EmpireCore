@@ -25,12 +25,12 @@ class TestTargetReading(FillClient):
         from empire_core.attack.targeting import _Target
 
         client = self.build([[601, 100_000]])
-        army = SpyArmy.from_spy_data([[[601, 10]], [], [], [], [], [], []])
+        army = SpyArmy.model_validate([[[601, 10]], [], [], [], [], [], []])
 
         def info(spy):
             return SimpleNamespace(
                 target_row=lambda: None,
-                spy_army=lambda: spy,
+                spy_army=spy,
                 defending_castellan=lambda: None,
                 attacker_bonuses=lambda: [],
                 owner_records=lambda: [],
