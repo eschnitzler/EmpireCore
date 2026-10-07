@@ -2,7 +2,7 @@
 
 import pytest
 
-from empire_core.army.spy_army import SpyArmy, UnitStack
+from empire_core.army.spy_army import SpyArmy
 from empire_core.gamedata.models import EquipmentEffectDef
 from empire_core.movements.models import MovementOwner
 from empire_core.protocol.models import AllianceInfo, General, MessageInfo
@@ -75,9 +75,8 @@ class TestTruthyFlags:
 
 def test_spy_army_reads_pairs_through_int_and_drops_empty_stacks():
     # AUnitInventory.fillFromWodAmountArray (bundle line 42572) into a UnitInventoryList (bundle line 21826)
-    army = SpyArmy.from_spy_data([[["652", "100"], [746, 0], [602, -3], [601, 2.9]]])
-    assert army is not None
-    assert army.left == [UnitStack(652, 100), UnitStack(601, 2)]
+    army = SpyArmy.model_validate([[["652", "100"], [746, 0], [602, -3], [601, 2.9]]])
+    assert army.left == ((652, 100), (601, 2))
 
 
 @pytest.mark.parametrize(("value", "expected"), [("12abc", 12), ("1e3", 1), ("", 0), ("abc", 0)])

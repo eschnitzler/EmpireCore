@@ -1035,7 +1035,7 @@ class TestMovementWrapperBlocks:
             },
         )
         assert (mov.attack_type, mov.is_shadow, mov.force_cancelable) == (0, True, True)
-        assert (mov.support_tool_ids, mov.auto_skip_cooldown_type) == ([651, 652], 2)
+        assert (mov.support_tools, mov.auto_skip_cooldown_type) == ((651, 652), 2)
         assert (mov.advisor_type, mov.advisor_movement_count, mov.advisor_movement_number) == (1, 3, 3)
         assert mov.advisor_is_last
         assert mov.commander is not None
@@ -1050,7 +1050,7 @@ class TestMovementWrapperBlocks:
         fired: list[Movement] = []
         state.on_incoming_attack(fired.append)
         mov = self.stored(state, AST="junk", GA={"M": [[1, 2]]})
-        assert mov.units == {1: 2} and mov.support_tool_ids == []
+        assert mov.units == {1: 2} and mov.support_tools == ()
         assert wait_for(lambda: len(fired) == 1)
 
     def test_the_spy_details_are_kept(self, state):

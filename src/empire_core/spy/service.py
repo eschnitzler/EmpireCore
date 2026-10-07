@@ -100,7 +100,7 @@ class SpyResult:
     @property
     def army(self) -> SpyArmy | None:
         """The report's defenders by position, or None without a report or army."""
-        return self.report.army() if self.report is not None else None
+        return self.report.army if self.report is not None else None
 
 
 @dataclass(eq=False)

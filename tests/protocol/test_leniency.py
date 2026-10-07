@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from empire_core.alliance.models.chat import AllianceChatLogResponse, AllianceChatMessageResponse
 from empire_core.alliance.models.info import AllianceInfo, AllianceMember, GetAllianceInfoResponse
 from empire_core.alliance.models.search import AllianceSearchResult
+from empire_core.army import SpyArmy
 from empire_core.castle.models.actions import RelocateCastleRequest
 from empire_core.castle.models.castles import CastleInfo, GetCastlesResponse, PlayerCastle
 from empire_core.castle.models.details import GetDetailedCastleResponse
@@ -327,9 +328,11 @@ class TestMalformedNestedResponsePayloads:
     def test_drifted_unit_array_reads_as_the_client_reads_it(self):
         # AUnitInventory.fillFromWodAmountArray: array entries only, each value through int()
         junk = GetDetailedCastleResponse.model_validate({"C": [{"AI": [{"AID": 1, "AC": "junk"}]}]})
-        assert junk.castles[0].raw_units == []
-        drifted = GetDetailedCastleResponse.model_validate({"C": [{"AI": [{"AID": 1, "AC": [[201, "x"]]}]}]})
-        assert drifted.castles[0].raw_units == [[201, 0]]
+        assert junk.castles[0].units == {}
+        drifted = GetDetailedCastleResponse.model_validate(
+            {"C": [{"AI": [{"AID": 1, "AC": [[201, "x"], [202, "3"]]}]}]}
+        )
+        assert drifted.castles[0].units == {202: 3}
 
     def test_dcl_castle_without_an_id_is_skipped(self):
         response = GetDetailedCastleResponse.model_validate({"C": [{"AI": [{"W": 1.0}, {"AID": 2}]}]})
@@ -398,35 +401,27 @@ class TestDriftedPayloadsMustNotCrashAccessors:
         # Skipped silently is a hole too: the drop must be visible, once.
         assert caplog.text.count("Skipped 1/2") == 1
 
-    def test_string_unit_count_does_not_crash_the_defense_total(self):
-        response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[487, 100]], [[488, "20"]]]})
-        assert response.get_total_defenders() >= 100
+    @staticmethod
+    def _army(payload: dict) -> SpyArmy:
+        army = GetSupportDefenseResponse.model_validate(payload).defense_positions
+        assert army is not None
+        return army
 
-    def test_string_unit_count_does_not_crash_the_per_position_grouping(self):
-        response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[488, "20"]]]})
-        assert response.get_units_by_position() == [{488: 20}]
+    def test_string_unit_count_does_not_crash_the_defense_total(self):
+        assert self._army({"SCID": 1, "S": [[[487, 100]], [[488, "20"]]]}).total() == 120
 
     def test_defense_rows_of_the_wrong_shape_are_already_skipped(self):
-        response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[487]], ["junk"], [[487, 5]]]})
-        assert response.get_total_defenders() == 5
+        assert self._army({"SCID": 1, "S": [[[487]], ["junk"], [[487, 5]]]}).total() == 5
 
     def test_unreadable_defense_counts_read_as_zero_like_the_client(self):
         # fillFromWodAmountArray reads int() of each value, and UnitInventoryList.addUnit skips 0
-        response = GetSupportDefenseResponse.model_validate(
-            {"SCID": 7, "S": [[[487, "x"], [488, None], [489, 5]], ["junk"]]}
-        )
-        assert response.defense_positions == [[[489, 5]], []]
-        assert response.get_total_defenders() == 5
-
-    def test_zero_counts_are_left_out_of_the_per_position_grouping(self):
-        response = GetSupportDefenseResponse.model_validate({"SCID": 7, "S": [[[487, "x"], [488, 20]]]})
-        assert response.get_units_by_position() == [{488: 20}]
+        army = self._army({"SCID": 7, "S": [[[487, "x"], [488, None], [489, 5]], ["junk"]]})
+        assert (army.left, army.middle) == (((489, 5),), ())
+        assert army.total() == 5
 
     def test_clean_defense_payloads_log_nothing(self, caplog):
-        response = GetSupportDefenseResponse.model_validate({"SCID": 1, "S": [[[487, 100]]]})
-        with caplog.at_level(logging.WARNING, logger="empire_core.defense.models"):
-            assert response.get_total_defenders() == 100
-            assert response.get_units_by_position() == [{487: 100}]
+        with caplog.at_level(logging.WARNING):
+            assert self._army({"SCID": 1, "S": [[[487, 100]]]}).total() == 100
         assert not [r for r in caplog.records if r.levelno == logging.WARNING]
 
 

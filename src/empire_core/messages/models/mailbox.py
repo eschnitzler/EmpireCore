@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
-from empire_core.army.models.units import SpyPositions
+from empire_core.army.spy_army import SpyArmyBlock
 from empire_core.commanders.models.roster import Castellan
 from empire_core.enums import BattleLogAttackType, Kingdom, LogResult, MapItemType, MessageType, SpyLogType
 from empire_core.gamedata import EnumOrInt
@@ -40,7 +40,6 @@ from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_numbe
 from empire_core.protocol.text import decode_json_text, encode_json_text
 
 if TYPE_CHECKING:
-    from empire_core.army.spy_army import SpyArmy
     from empire_core.gamedata import LegendSkill
 
 logger = logging.getLogger(__name__)
@@ -598,11 +597,10 @@ class SpyReportResponse(BaseResponse):
         alias="SA", default=0, description="Accuracy percent, or damage percent for sabotage and plague monks"
     )
     risk: ClientInt = Field(alias="SR", default=0, description="Risk of being caught, percent")
-    spy_data: SpyPositions = Field(
+    army: SpyArmyBlock = Field(
         alias="S",
-        default_factory=list,
-        description="Spied defenders as [wod_id, amount] pairs per position: left, middle, right, keep, "
-        "stronghold, support, then an optional reserve",
+        default=None,
+        description="The spied defenders by the position they hold; None when the report has no army",
     )
     seconds_since_spy: int = Field(
         alias="AS", default=-1, description="Seconds between the spying and this reply; -1 without an army"
@@ -675,22 +673,14 @@ class SpyReportResponse(BaseResponse):
     @model_validator(mode="after")
     def _no_age_without_an_army(self) -> SpyReportResponse:
         # Client: parseArmyInfo keeps AS only for a non-empty S, else sets -1
-        if not self.spy_data:
+        if self.army is None:
             self.seconds_since_spy = -1
         return self
 
     @property
     def has_army(self) -> bool:
         """Whether the report lists the spied army."""
-        return bool(self.spy_data)
-
-    def army(self) -> SpyArmy | None:
-        """The spied defenders, split by the position they hold, or None when the report has no army."""
-        from empire_core.army.spy_army import SpyArmy
-
-        if not self.spy_data:
-            return None
-        return SpyArmy.from_spy_data(self.spy_data)
+        return self.army is not None
 
     @property
     def remaining_validity_seconds(self) -> int:

@@ -783,7 +783,7 @@ class TestSpiedCastleDefence:
     }
 
     def defense(self, **kwargs) -> dict[Flank, DefenderFlankEffects]:
-        army = SpyArmy.from_spy_data(self.ARMY)
+        army = SpyArmy.model_validate(self.ARMY)
         assert army is not None
         game = GameData.parse("test", self.PAYLOAD)
         return spied_castle_defense(game, army, wall_bonus=0.5, gate_bonus=0.4, moat_bonus=0.3, area_type=1, **kwargs)

@@ -10,6 +10,7 @@ import weakref
 from collections.abc import Callable
 from typing import Any
 
+from empire_core.gamedata import UnitOrTool
 from empire_core.movements.models import MovementArea, MovementOwner, MovementWrapper
 from empire_core.movements.tracked import Movement, MovementResources
 from empire_core.protocol.base import read_or_none, readable_list
@@ -544,15 +545,15 @@ class MovementState(StateBase):
 
         army = next((b.visible_army for b in (block("FA"), block("GA")) if b and b.visible_army), None)
         if army is not None:
-            pairs = [*army.left, *army.middle, *army.right, *army.courtyard]
+            parts = [army.left, army.middle, army.right, army.courtyard]
         elif (travel := block("A")) is not None:
-            pairs = travel.travel_units
+            parts = [travel.travel_units]
         else:
-            pairs = []
-        units: dict[int, int] = {}
-        for pair in pairs:
-            if len(pair) >= 2:
-                units[pair[0]] = units.get(pair[0], 0) + pair[1]
+            parts = []
+        units: dict[UnitOrTool, int] = {}
+        for part in parts:
+            for unit, amount in part.items():
+                units[unit] = units.get(unit, 0) + amount
         fields["units"] = units
 
         if (gs := block("GS")) is not None and gs.army_size is not None:
@@ -590,7 +591,7 @@ class MovementState(StateBase):
         if (fc := block("FC")) is not None:
             fields["force_cancelable"] = fc.force_cancelable
         if (ast := block("AST")) is not None:
-            fields["support_tool_ids"] = ast.support_tools
+            fields["support_tools"] = ast.support_tools
         if (asct := block("ASCT")) is not None:
             fields["auto_skip_cooldown_type"] = asct.auto_skip_cooldown_type
         # Client: SpyMapmovementVO.parseSpyInfo (bundle line 43748)

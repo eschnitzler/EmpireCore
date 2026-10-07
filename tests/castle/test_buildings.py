@@ -62,7 +62,6 @@ class TestBuildingRow:
         assert (row.construction_seconds_left, row.state, row.hit_points) == (30, BuildingState.BUILD_IN_PROGRESS, 100)
         assert (row.construction_boost_at_start, row.efficiency, row.damage_type) == (1.5, 100, 0)
         assert (row.district_id, row.district_slot_id, row.upgrade_target_wod_id) == (0, 0, 102)
-        assert row.raw_data == FULL_ROW
 
     def test_a_wrapped_row(self):
         # IsoHelperData.createIsoObjectVOByServer reads e.O when there is one
@@ -109,8 +108,16 @@ class TestBuildingRow:
 class TestConstructionList:
     def test_slots(self):
         slots = ConstructionList.model_validate({"OIDL": [5, -1, -2, "9"], "SSC": 2})
-        assert (slots.object_ids, slots.slot_count) == ([5, -1, -2, 9], 2)
+        assert ([slot.object_id for slot in slots.slots], slots.slot_count) == ([5, -1, -2, 9], 2)
         assert (slots.free_slots, slots.building_object_ids) == (1, [5, 9])
+        # ConstructionSlotVO: free at -1, locked at -2, waiting from the slot count on
+        assert [(slot.is_free, slot.is_locked, slot.is_waiting) for slot in slots.slots] == [
+            (False, False, False),
+            (True, False, False),
+            (False, True, True),
+            (False, False, True),
+        ]
+        assert [slot.position for slot in slots.slots] == [0, 1, 2, 3]
 
     def test_the_slot_count_defaults_to_1(self):
         # AreaDataConstructionList.parseSCL: e.SSC ? e.SSC : 1
@@ -329,7 +336,7 @@ class TestBuildingReplies:
         assert isinstance(reply, BuildResponse)
         assert reply.building is not None and reply.building.object_id == 6
         assert reply.resources is not None and reply.resources.wood == 5
-        assert reply.construction_list is not None and reply.construction_list.object_ids == [6]
+        assert reply.construction_list is not None and [slot.object_id for slot in reply.construction_list.slots] == [6]
         assert reply.currencies is not None and (reply.currencies.coins, reply.currencies.rubies) == (10, 3)
 
     def test_eup(self):

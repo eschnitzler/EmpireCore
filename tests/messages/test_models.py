@@ -4,8 +4,9 @@ import copy
 
 import pytest
 
+from empire_core.army import SpyArmy
 from empire_core.enums import Kingdom, LogResult, MapItemType, MessageType, SpyLogType
-from empire_core.gamedata import Event
+from empire_core.gamedata import Event, WodAmount
 from empire_core.messages.models import (
     SPY_VALIDITY,
     EventAnnouncementHeader,
@@ -96,24 +97,25 @@ class TestSpyReportResponse:
                 "LS": [7, 9],
             }
         )
-        assert response.spy_data[0] == [[487, 100], [620, 3]]
-        assert response.spy_data[6] == [[10, 1]]
+        assert response.army is not None
+        assert response.army.left == ((487, 100), (620, 3))
+        assert response.army.reserve == ((10, 1),)
         castellan = response.defending_castellan
         assert castellan is not None
         assert (castellan.commander_id, castellan.wearer_id, castellan.picture_id) == (2, 1, 4)
 
     def test_non_array_pairs_are_skipped_like_the_client(self):
         response = SpyReportResponse.model_validate({"S": [[[487, 100], "junk"], "junk"]})
-        assert response.spy_data == [[[487, 100]], []]
+        assert response.army == SpyArmy(left=(WodAmount(487, 100),))
 
     def test_pairs_are_read_through_int_like_the_client(self):
         response = SpyReportResponse.model_validate({"S": [[[487, "100"], [488, "x"], [489]], [[490, 0]]]})
-        assert response.spy_data == [[[487, 100]], []]
+        assert response.army == SpyArmy(left=(WodAmount(487, 100),))
 
     def test_unreadable_castellan_keeps_the_report(self):
         response = SpyReportResponse.model_validate({"S": [[[487, 100]]], "B": {"N": "no id"}})
         assert response.defending_castellan is None
-        assert response.spy_data == [[[487, 100]]]
+        assert response.army == SpyArmy(left=(WodAmount(487, 100),))
 
     def test_the_full_report_as_the_server_sends_it(self):
         report = SpyReportResponse.model_validate(BSD_NPC_CAMP_REPORT)
@@ -141,9 +143,9 @@ class TestSpyReportResponse:
         assert (area.area_type, area.x, area.y, area.kingdom) == (MapItemType.DUNGEON, 501, 297, Kingdom.GREEN)
         assert (area.owner_id, area.level, area.map_id, area.skin_id) == (-211, 2, -1, 0)
         assert (area.area_subtype, area.special_camp_id, area.name) == (0, -1, "")
-        army = report.army()
+        army = report.army
         assert army is not None
-        assert [stack.count for stack in army.left] == [1]
+        assert [amount for _unit, amount in army.left] == [1]
         assert report.is_fresh
         assert report.remaining_validity_seconds == SPY_VALIDITY
 
@@ -156,7 +158,7 @@ class TestSpyReportResponse:
         report = SpyReportResponse.model_validate(payload)
 
         assert (report.seconds_since_spy, report.remaining_validity_seconds, report.is_fresh) == (-1, 0, False)
-        assert report.army() is None
+        assert report.army is None and not report.has_army
 
     def test_an_old_report_is_no_longer_fresh(self):
         report = SpyReportResponse.model_validate({**BSD_NPC_CAMP_REPORT, "AS": SPY_VALIDITY + 5})

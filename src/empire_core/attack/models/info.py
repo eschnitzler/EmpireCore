@@ -12,7 +12,8 @@ from typing import TYPE_CHECKING
 from pydantic import Field, PrivateAttr, ValidatorFunctionWrapHandler, field_validator, model_validator
 from pydantic.functional_validators import ModelWrapValidatorHandler
 
-from empire_core.army.models.units import SpyPositions, UnitInventory
+from empire_core.army.models.units import UnitInventory
+from empire_core.army.spy_army import SpyArmyBlock
 from empire_core.commanders.models.roster import Commander, CommanderEffects, CommanderRoster
 from empire_core.enums import Kingdom
 from empire_core.gamedata import EnumOrInt
@@ -21,7 +22,6 @@ from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, read_or_none, readable_list
 
 if TYPE_CHECKING:
-    from empire_core.army.spy_army import SpyArmy
     from empire_core.combat import Bonus
     from empire_core.gamedata import LegendSkill
 
@@ -126,11 +126,10 @@ class AttackInfoResponse(BaseResponse):
         default_factory=list,
         description="Area effects on this attack, already scoped to the target",
     )
-    spy_data: SpyPositions = Field(
+    spy_army: SpyArmyBlock = Field(
         alias="S",
-        default_factory=list,
-        description="Spied defenders as [wod_id, amount] pairs per position: left, middle, right, keep, "
-        "stronghold, support, then an optional reserve",
+        default=None,
+        description="The spied defenders by the position they hold; None without a spy report",
     )
     spy_age_seconds: int = Field(
         alias="AS",
@@ -193,7 +192,7 @@ class AttackInfoResponse(BaseResponse):
     @model_validator(mode="after")
     def _no_spy_report_without_an_army(self) -> "AttackInfoResponse":
         """Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` sets the age and legend skills only when S is not empty."""
-        if not self.spy_data:
+        if self.spy_army is None:
             self.spy_age_seconds = -1
             self.defender_legend_skill_ids = ()
         return self
@@ -210,19 +209,6 @@ class AttackInfoResponse(BaseResponse):
 
         return effect_bonuses(self.attacker_effects)
 
-    def spy_army(self) -> "SpyArmy | None":
-        """
-        The spied defenders, split by the position they hold, or None without a spy report.
-
-        Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` fills the positions only
-        when ``S`` is not empty (bundle line 30699).
-        """
-        from empire_core.army.spy_army import SpyArmy
-
-        if not self.spy_data:
-            return None
-        return SpyArmy.from_spy_data(self.spy_data)
-
     def defending_castellan(self) -> Commander | None:
         """
         The castellan holding the target, from ``abe`` or else ``B``.
@@ -235,7 +221,7 @@ class AttackInfoResponse(BaseResponse):
         bundle line 30632), ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line
         30699), ``LordFactory.createLord`` (bundle line 26399).
         """
-        if not self.spy_data:
+        if self.spy_army is None:
             return None
         return self.spied_castellan if self._castellan_from_abe else self.spied_castellan_fallback
 
