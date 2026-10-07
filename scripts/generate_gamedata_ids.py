@@ -33,12 +33,12 @@ import re
 import sys
 import textwrap
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from empire_core.gamedata import CurrencyDef, GameData
-from empire_core.protocol.js import js_falsy, js_parse_int
+from empire_core.gamedata import CurrencyDef, GameData, QuestCondition
+from empire_core.protocol.js import js_parse_int
 from empire_core.texts import fetch_texts
 
 SCRIPT = "scripts/generate_gamedata_ids.py"
@@ -48,6 +48,11 @@ LINE_LENGTH = 120
 VERSION = re.compile(r"\d+(\.\d+)*")
 
 Value = int | str
+
+
+def id_text(row_id: int) -> str:
+    """A row id as digits, also for an id already read as its enum (``str`` of one names the member before 3.11)."""
+    return str(int(row_id))
 
 
 @dataclass(frozen=True)
@@ -161,19 +166,6 @@ def level_suffix(level: int) -> str:
 LEVEL = Attr("level", "int", "Upgrade level; -1 when the row has none.")
 
 
-def int_column(row: dict, key: str, default: int) -> int:
-    """``parseInt(getValueOrDefault(key, row, default))``, NaN read as the default."""
-    value = row.get(key)
-    parsed = None if js_falsy(value) else js_parse_int(value)
-    return default if parsed is None else parsed
-
-
-def str_column(row: dict, key: str) -> str:
-    """``getStringAttribute(key, row)``: a missing or empty value reads as ""."""
-    value = row.get(key)
-    return "" if js_falsy(value) else str(value)
-
-
 def building_name(name: str, building_type: str, level: int) -> str:
     """Name plus level; a type other than ``Level<n>`` names the building too (``Deco`` rows)."""
     base = to_snake(name)
@@ -206,17 +198,17 @@ def research_rows(data: GameData, texts: Texts | None) -> list[Row]:
     title names a group, so a title two groups share falls back on the research id.
     """
     rows = []
-    for research_id, row in data.researches.items():
-        group_id, level = int_column(row, "groupID", -1), int_column(row, "level", -1)
-        first_effect = js_parse_int(re.split(r"[&,#]", str_column(row, "effects"))[0])
+    for row in data.researches.values():
+        research_id, group_id, level = int(row.research_id), row.group_id, row.level
+        first_effect = js_parse_int(re.split(r"[&,#]", row.raw_effects)[0])
         effect = data.effects.get(first_effect) if first_effect is not None else None
         recipe = effect is not None and effect.effect_type_id in RECIPE_EFFECT_TYPES
         title = None if texts is None or recipe else texts.get(f"research_{group_id}_title")
         if title:
             base = text_name(title) + level_suffix(level)
         else:
-            base = research_name(str_column(row, "comment2"), group_id, level)
-        rows.append(Row(base, research_id, str(research_id), (group_id, level)))
+            base = research_name(row.label, group_id, level)
+        rows.append(Row(base, research_id, id_text(research_id), (group_id, level)))
     return rows
 
 
@@ -239,21 +231,21 @@ def currency_names(data: GameData, texts: Texts | None) -> list[tuple[str, Curre
     return named
 
 
-def condition_name(conditions: str) -> str:
+def condition_name(conditions: Sequence[QuestCondition]) -> str:
     """``collectFame+225000#lootResource+2400`` -> ``COLLECT_FAME``: what the first condition counts."""
-    return to_snake(conditions.split("#")[0].split("+")[0])
+    return to_snake(conditions[0].condition_type) if conditions else ""
 
 
 def building_rows(data: GameData) -> list[Row]:
-    rows = []
-    for wod_id, row in data.buildings.items():
-        building_type = str_column(row, "type")
-        if building_type == "-":
-            building_type = ""
-        level = int_column(row, "level", -1)
-        name = building_name(str_column(row, "name"), building_type, level)
-        rows.append(Row(name, wod_id, str(wod_id), (str_column(row, "group"), level)))
-    return rows
+    return [
+        Row(
+            building_name(b.name, b.building_type, b.level),
+            int(b.building_id),
+            id_text(b.building_id),
+            (b.group, b.level),
+        )
+        for b in data.buildings.values()
+    ]
 
 
 def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
@@ -277,7 +269,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "Unit ``wodID`` values from the ``units`` table (rows without ``slotTypes``).",
             "``SoldierUnitVO.parseXmlNode`` (bundle line 12531)",
             [
-                Row(to_snake(u.unit_type) + level_suffix(u.level), u.wod_id, str(u.wod_id), (u.level, u.role))
+                Row(to_snake(u.unit_type) + level_suffix(u.level), u.wod_id, id_text(u.wod_id), (u.level, u.role))
                 for u in data.units.values()
             ],
             (LEVEL, Attr("role", "str", "melee or ranged.")),
@@ -289,7 +281,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "Tool ``wodID`` values from the ``units`` table (rows with ``slotTypes``).",
             "``ToolUnitVO.parseXmlNode`` (bundle line 6538)",
             [
-                Row(to_snake(t.tool_type) + level_suffix(t.level), t.wod_id, str(t.wod_id), (t.level, t.category))
+                Row(to_snake(t.tool_type) + level_suffix(t.level), t.wod_id, id_text(t.wod_id), (t.level, t.category))
                 for t in data.tools.values()
             ],
             (LEVEL, Attr("category", "str", 'Attack or Defence; "0" when the row has none.')),
@@ -300,7 +292,10 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "E",
             "Effect ids from the ``effects`` table.",
             "``EffectVO.parseXML`` (bundle line 41702)",
-            [Row(to_snake(e.name), e.effect_id, str(e.effect_id), (e.effect_type_id,)) for e in data.effects.values()],
+            [
+                Row(to_snake(e.name), e.effect_id, id_text(e.effect_id), (e.effect_type_id,))
+                for e in data.effects.values()
+            ],
             (Attr("effect_type_id", "int", "The effect type it modifies, an ``EffectType`` value."),),
         ),
         Table(
@@ -309,7 +304,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "E",
             "Effect type ids from the ``effecttypes`` table.",
             "``CastleEffectTypeVO`` (bundle line 111835)",
-            [Row(to_snake(t.name), t.effect_type_id, str(t.effect_type_id)) for t in data.effect_types.values()],
+            [Row(to_snake(t.name), t.effect_type_id, id_text(t.effect_type_id)) for t in data.effect_types.values()],
         ),
         Table(
             "currencies",
@@ -319,7 +314,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "name; coins and rubies are not in it.",
             "``CurrencyData.getXmlCurrencyByKey`` (bundle line 141194); names from ``currency_name_<assetName or "
             "Name>`` (``CollectableItemGenericCurrencyVO.getNameTextId``, bundle line 5267)",
-            [Row(key, row.json_key, str(row.currency_id), (row.currency_id,)) for key, row in currencies],
+            [Row(key, row.json_key, id_text(row.currency_id), (row.currency_id,)) for key, row in currencies],
             (Attr("currency_id", "int", "The currency's id, as other tables reference it."),),
             str_enum=True,
         ),
@@ -329,7 +324,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "C",
             "Currency ids from the ``currencies`` table, as other tables reference them; names match ``Currency``.",
             "``XmlCurrencyVO.parseXml`` (bundle line 141282)",
-            [Row(key, row.currency_id, str(row.currency_id), (row.json_key,)) for key, row in currencies],
+            [Row(key, row.currency_id, id_text(row.currency_id), (row.json_key,)) for key, row in currencies],
             (Attr("json_key", "str", "The key the server uses for it, a ``Currency`` value."),),
         ),
         Table(
@@ -338,7 +333,10 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "G",
             "General ids from the ``generals`` table.",
             "``GeneralXmlVO.fillFromParamXml`` (bundle line 33102)",
-            [Row(to_snake(g.name), g.general_id, str(g.general_id), (g.rarity_id,)) for g in data.generals.values()],
+            [
+                Row(to_snake(g.name), g.general_id, id_text(g.general_id), (g.rarity_id,))
+                for g in data.generals.values()
+            ],
             (Attr("rarity_id", "int", "The ``generalRarityID`` column."),),
         ),
         Table(
@@ -351,7 +349,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
                 Row(
                     to_snake(a.name) + level_suffix(a.level),
                     a.ability_id,
-                    str(a.ability_id),
+                    id_text(a.ability_id),
                     (a.ability_group_id, a.level),
                 )
                 for a in data.general_abilities.values()
@@ -368,7 +366,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
                 Row(
                     f"{general_of(s.general_id)}_{to_snake(s.name)}{level_suffix(s.level)}",
                     s.skill_id,
-                    str(s.skill_id),
+                    id_text(s.skill_id),
                     (s.general_id, s.level),
                 )
                 for s in data.general_skills.values()
@@ -385,7 +383,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
                 Row(
                     f"{to_snake(s.effect_type)}_T{s.skill_tree_id}_G{s.skill_group_id}{level_suffix(s.level)}",
                     s.skill_id,
-                    str(s.skill_id),
+                    id_text(s.skill_id),
                     (s.skill_tree_id, s.skill_group_id, s.level),
                 )
                 for s in data.legend_skills.values()
@@ -402,7 +400,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "R",
             "Alliance raid boss ids from the ``raidBosses`` table.",
             "``AllianceRaidbossVO.parseXML`` (bundle line 113835)",
-            [Row(to_snake(b.name), b.raid_boss_id, str(b.raid_boss_id)) for b in data.raid_bosses.values()],
+            [Row(to_snake(b.name), b.raid_boss_id, id_text(b.raid_boss_id)) for b in data.raid_bosses.values()],
         ),
         Table(
             "global_effects",
@@ -410,7 +408,10 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "G",
             "Global effect ids from the ``globalEffects`` table.",
             "``GlobalEffectVO.parseXml`` (bundle line 143690)",
-            [Row(to_snake(g.name), g.global_effect_id, str(g.global_effect_id)) for g in data.global_effects.values()],
+            [
+                Row(to_snake(g.name), g.global_effect_id, id_text(g.global_effect_id))
+                for g in data.global_effects.values()
+            ],
         ),
         Table(
             "buildings",
@@ -443,7 +444,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
                 Row(
                     f"{to_snake(c.name)}_G{c.group_id}{level_suffix(c.level)}",
                     c.construction_item_id,
-                    str(c.construction_item_id),
+                    id_text(c.construction_item_id),
                     (c.group_id, c.level, c.rareness_id),
                 )
                 for c in data.construction_items.values()
@@ -462,8 +463,8 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "``CastleSpecialEventData.storeXmlEvents`` (bundle line 139777) keys rows by ``eventID``, "
             "``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle line 2959) reads ``eventType``",
             [
-                Row(to_snake(str_column(row, "eventType")) or f"E{event_id}", event_id, str(event_id))
-                for event_id, row in data.events.items()
+                Row(to_snake(e.event_type) or f"E{e.event_id}", int(e.event_id), id_text(e.event_id))
+                for e in data.events.values()
             ],
         ),
         Table(
@@ -473,13 +474,8 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "Loot box ids from the ``lootBoxes`` table, named name and rarity.",
             "``LootBoxVO.parseXML`` (bundle line 112502)",
             [
-                Row(
-                    f"{to_snake(str_column(row, 'name'))}_R{int_column(row, 'rarity', 0)}",
-                    loot_box_id,
-                    str(loot_box_id),
-                    (int_column(row, "rarity", 0),),
-                )
-                for loot_box_id, row in data.loot_boxes.items()
+                Row(f"{to_snake(b.name)}_R{b.rarity}", int(b.loot_box_id), id_text(b.loot_box_id), (b.rarity,))
+                for b in data.loot_boxes.values()
             ],
             (Attr("rarity", "int", "The ``rarity`` column."),),
         ),
@@ -490,8 +486,8 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "Loot box type ids from the ``lootBoxTypes`` table, named from ``lootBoxTheme``; keys count per type.",
             "``LootBoxTypeVO.parseXML`` (bundle line 58900)",
             [
-                Row(to_snake(str_column(row, "lootBoxTheme")) or f"L{type_id}", type_id, str(type_id))
-                for type_id, row in data.loot_box_types.items()
+                Row(to_snake(t.theme) or f"L{t.loot_box_type_id}", int(t.loot_box_type_id), id_text(t.loot_box_type_id))
+                for t in data.loot_box_types.values()
             ],
         ),
         Table(
@@ -505,12 +501,12 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "(bundle line 52452)",
             [
                 Row(
-                    condition_name(str_column(row, "conditions")) or "QUEST",
-                    quest_id,
-                    str(quest_id),
-                    (int_column(row, "questSeriesID", -1), int_column(row, "eventID", 0)),
+                    condition_name(q.conditions) or "QUEST",
+                    int(q.quest_id),
+                    id_text(q.quest_id),
+                    (q.series_id, int(q.event_id)),
                 )
-                for quest_id, row in data.quests.items()
+                for q in data.quests.values()
             ],
             (
                 Attr("series_id", "int", "The quest series it belongs to; -1 for none."),
@@ -527,12 +523,12 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "(bundle line 134124)",
             [
                 Row(
-                    condition_name(str_column(row, "conditions")) or "DAILY_QUEST",
-                    quest_id,
-                    str(quest_id),
-                    (int_column(row, "triggerKingdomID", 0),),
+                    condition_name(q.conditions) or "DAILY_QUEST",
+                    int(q.quest_id),
+                    id_text(q.quest_id),
+                    (int(q.trigger_kingdom),),
                 )
-                for quest_id, row in data.daily_quests.items()
+                for q in data.daily_quests.values()
             ],
             (Attr("trigger_kingdom_id", "int", "The kingdom the quest counts in, a ``Kingdom`` value; -1 for any."),),
         ),
@@ -543,13 +539,8 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "Equipment item group ids from the ``equipment_groups`` table, as equipment effects name them.",
             "``XmlEquipmentGroupVO.parseXml`` (bundle line 144187)",
             [
-                Row(
-                    to_snake(str_column(row, "name")),
-                    group_id,
-                    str(group_id),
-                    (int_column(row, "wearerID", -1), int_column(row, "slotID", -1)),
-                )
-                for group_id, row in data.equipment_groups.items()
+                Row(to_snake(g.name), int(g.group_id), id_text(g.group_id), (int(g.wearer_id), int(g.slot_id)))
+                for g in data.equipment_groups.values()
             ],
             (
                 Attr("wearer_id", "int", "Who wears it, a ``WearerType`` value."),
@@ -563,8 +554,8 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "Event difficulty type ids from the ``eventAutoScalingDifficultyTypes`` table.",
             "``EventAutoScalingDifficultyTypeVO.parseXML`` (bundle line 38258)",
             [
-                Row(to_snake(str_column(row, "name")), type_id, str(type_id))
-                for type_id, row in data.difficulty_types.items()
+                Row(to_snake(t.name), int(t.difficulty_type_id), id_text(t.difficulty_type_id))
+                for t in data.difficulty_types.values()
             ],
         ),
     ]
@@ -653,8 +644,8 @@ Most members also carry their row's fixed id and number columns, e.g.
 ``Unit.MEAD_RANGER_L6.role`` and ``.level`` or ``Tool.X.category``, so
 ``[t for t in Tool if t.category == "Defence"]`` works without game data.
 Anything a balance patch can change is not baked in: for the full row, load a
-:class:`GameData` (nothing here downloads it) and ask
-``game_data.record(member)``, or ``game_data.records(members)`` for several.
+:class:`GameData` (nothing here downloads it) and index its table with the
+member, e.g. ``game_data.units[Unit.MEAD_RANGER_L6]``.
 
 ``ITEMS_VERSION`` is the items version they were generated from, and
 :func:`is_current` says whether a loaded :class:`GameData` is that version. For

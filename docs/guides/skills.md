@@ -33,7 +33,7 @@ toril = data.general("Toril")
 client.skills.assign_general(commander_id=3, general_id=toril.general_id)
 ```
 
-See [Lookups by name](game-data.md) for the rest.
+See [Lookups by name](game-data.md#lookups-by-name) for the rest.
 
 ## Player skills
 

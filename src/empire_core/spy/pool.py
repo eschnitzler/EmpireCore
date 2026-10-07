@@ -57,7 +57,7 @@ def research_spy_bonus(game_data: GameData, research_ids: Iterable[int]) -> floa
         bonus
         for research_id in research_ids
         if (row := game_data.researches.get(research_id)) is not None
-        for bonus in parse_effect_spec(row.get("effects"))
+        for bonus in parse_effect_spec(row.raw_effects)
     ]
     return resolver.accumulate(bonuses, _AMOUNT_SPIES_BOOST, include_economy=True, ignore_cap=True)
 
@@ -94,7 +94,7 @@ def title_spy_percent(game_data: GameData, title_ids: Iterable[int]) -> float:
         row = game_data.titles.get(title_id)
         if row is None:
             continue
-        for bonus in parse_effect_spec(row.get("effects")):
+        for bonus in parse_effect_spec(row.raw_effects):
             effect = resolver.effect_for(bonus)
             if effect is not None and effect.effect_type_id == _SPY_COUNT_BOOST:
                 bonuses.append(bonus)

@@ -6,18 +6,10 @@ Client: ``CastleTitleData`` (bundle lines 21000-21130)
 
 from __future__ import annotations
 
-from typing import Any
-
 from empire_core.enums import TitleSystem
 from empire_core.gamedata import GameData
-from empire_core.protocol.js import js_parse_int
 
 from .models.progress import FactionPointsResponse, GloryPointsResponse, TitleRanksResponse
-
-
-def _number(row: dict[str, Any], key: str) -> int | None:
-    # TitleVO.parseXml (bundle line 62705): parseInt of the value, "-1" when it is missing
-    return js_parse_int(row.get(key, "-1"))
 
 
 def titles_in_order(game_data: GameData, system: TitleSystem) -> list[int]:
@@ -27,16 +19,12 @@ def titles_in_order(game_data: GameData, system: TitleSystem) -> list[int]:
     Client: ``CastleTitleData.setupNextTitles`` (bundle line 21016) and ``orderTitlesInSystem``
     (bundle line 21058)
     """
-    rows = [row for row in game_data.titles.values() if row.get("type") == system.value]
-    next_ids: dict[int | None, int | None] = {}
-    for row in game_data.titles.values():
-        if (previous := _number(row, "previousTitleID")) != -1:
-            next_ids[previous] = _number(row, "titleID")
+    rows = [row for row in game_data.titles.values() if row.title_system == system.value]
+    next_ids = {row.previous_title_id: row.title_id for row in game_data.titles.values() if row.previous_title_id != -1}
     first: int | None = None
     for row in rows:
-        previous = _number(row, "previousTitleID")
-        if previous is not None and previous < 0:
-            first = _number(row, "titleID")
+        if row.previous_title_id < 0:
+            first = row.title_id
     ordered: list[int] = []
     title_id = first
     while title_id is not None and title_id in game_data.titles and len(ordered) <= len(rows):
@@ -63,12 +51,10 @@ def held_titles(game_data: GameData, system: TitleSystem, points: float | None, 
     held: list[int] = []
     for title_id in titles_in_order(game_data, system):
         row = game_data.titles[title_id]
-        top_x = _number(row, "topX")
-        threshold = _number(row, "threshold")
-        if top_x is not None and top_x > 0:
-            reached = top_rank is not None and top_rank > 0 and top_x >= top_rank
+        if row.top_x > 0:
+            reached = top_rank is not None and top_rank > 0 and row.top_x >= top_rank
         else:
-            reached = points is not None and threshold is not None and threshold <= points
+            reached = points is not None and row.threshold <= points
         if not reached:
             break
         held.append(title_id)
@@ -89,7 +75,7 @@ def island_title_chain(game_data: GameData, island_title_id: int) -> list[int]:
     title_id: int | None = island_title_id
     while title_id is not None and title_id in game_data.titles and title_id not in chain:
         chain.insert(0, title_id)
-        title_id = js_parse_int(game_data.titles[title_id].get("previousTitleID"))
+        title_id = game_data.titles[title_id].previous_title_id
     return chain
 
 

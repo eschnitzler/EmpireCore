@@ -51,8 +51,8 @@ General.TORIL.rarity_id              # 4
 ```
 
 Stats and costs are not baked in, as balance patches change them, and nothing
-here downloads the game data. For the full row, ask a loaded `GameData`; see
-[Full rows for generated ids](game-data.md#full-rows-for-generated-ids).
+here downloads the game data. For the full row, index a loaded `GameData`
+table with the member; see [Game data](game-data.md).
 
 ## Ids in models
 
@@ -84,7 +84,7 @@ An entry under a key the client has no type for is kept as
 `ITEMS_VERSION` is the items version the enums came from, and
 `is_current(game_data)` says whether loaded data matches it; `GameData.load()`
 logs a warning when it does not. Ids added since are not in the enums, but the
-[lookups by name](game-data.md) cover them.
+[lookups by name](game-data.md#lookups-by-name) cover them.
 
 To regenerate from a checkout after a client update:
 

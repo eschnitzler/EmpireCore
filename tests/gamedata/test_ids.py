@@ -19,8 +19,17 @@ from pydantic import BaseModel
 from empire_core import gamedata
 from empire_core.commanders.models.skills import SetGeneralAbilitiesRequest
 from empire_core.enums import Kingdom
-from empire_core.gamedata import GameData, UnitStats, default_cache_dir, ids
-from empire_core.gamedata.data import CACHE_FILENAME_TEMPLATE, ROW_TABLES, rows_by_id
+from empire_core.gamedata import (
+    BuildingDef,
+    GameData,
+    QuestCondition,
+    QuestDef,
+    ScalingCampDef,
+    TitleDef,
+    default_cache_dir,
+    ids,
+)
+from empire_core.gamedata.data import CACHE_FILENAME_TEMPLATE
 from tests.gamedata.test_gamedata import LOOKUP_PAYLOAD, PAYLOAD
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -124,6 +133,23 @@ TABLE_OF: dict[str, str] = {
     "RaidBoss": "raid_bosses",
     "GlobalEffect": "global_effects",
 }
+
+
+TABLES_BY_ENUM = {
+    name: TABLE_OF[name]
+    for name in (
+        "Building",
+        "Research",
+        "Event",
+        "LootBox",
+        "LootBoxType",
+        "EquipmentGroup",
+        "DifficultyType",
+        "QuestId",
+        "DailyQuestId",
+    )
+}
+"""The tables keyed by their enum's members."""
 
 
 def _cached_game_data() -> GameData | None:
@@ -314,100 +340,55 @@ class TestMemberData:
             ids.NotAnEnum  # type: ignore[attr-defined]  # noqa: B018
 
 
-class TestRecords:
-    def test_a_modeled_table_gives_its_model(self, lookup_data):
+class TestTables:
+    def test_every_table_is_keyed_by_its_enum(self, lookup_data):
         d = lookup_data
-        assert d.record(ids.Unit.MEAD_RANGER_L6) is d.units[211]
-        assert d.record(ids.Tool.ELITE_COMBO_RAM_113) is d.tools[113]
-        assert d.record(ids.Effect.FAME_DEFENSE_BONUS) is d.effects[1]
-        assert d.record(ids.EffectType.FAME_DEFENSE_BONUS) is d.effect_types[0]
-        assert d.record(ids.Currency.KHAN_TABLETS) is d.record(ids.CurrencyId.KHAN_TABLETS) is d.currencies[1]
-        assert d.record(ids.General.TORIL) is d.generals[101]
-        assert d.record(ids.GeneralAbility.POWER_SURGE_L1) is d.general_abilities[10011]
-        assert d.record(ids.GeneralSkill.TORIL_ASPECTOFTHE_DRAGON_L1) is d.general_skills[10110201]
-        assert d.record(ids.LegendSkill.GATE_REDUCTION_T0_G1_L1) is d.legend_skills[1]
-        assert d.record(ids.RaidBoss.NECROMANCER) is d.raid_bosses[1]
-        assert d.record(ids.GlobalEffect.SPEED_BOOST_11) is d.global_effects[11]
-        assert d.record(ids.ConstructionItem.BARRACKS_COST_G1_L1) is d.construction_items[1]
-        assert isinstance(d.record(ids.Unit.MEAD_RANGER_L6), UnitStats)
+        assert d.buildings[ids.Building.KEEP_L1].building_id is ids.Building.KEEP_L1
+        assert d.researches[ids.Research.STRENGTH_TRAINING_L1].label == "recruitment speed"
+        assert d.events[ids.Event.NOMAD_INVASION].event_type == "NomadInvasion"
+        assert d.loot_boxes[ids.LootBox.MYSTERY_BOX_BRONZE_R1].name == "MysteryBoxBronze"
+        assert d.loot_box_types[ids.LootBoxType.MYSTERY_BOX].key_payout_threshold == 10
+        assert d.equipment_groups[ids.EquipmentGroup.ATTACK_PVP].slot_id == 6
+        assert d.difficulty_types[ids.DifficultyType.EASY_PLUS].name == "easyPlus"
+        assert d.quests[ids.QuestId.BUY_RUBIES].series_id == 159
+        assert d.daily_quests[ids.DailyQuestId.LOGIN].trigger_kingdom == -1
+        for enum_name, field in TABLES_BY_ENUM.items():
+            for key in getattr(d, field):
+                assert isinstance(key, getattr(ids, enum_name)), (field, key)
 
-    def test_a_fortification_building_gives_its_model(self, lookup_data):
-        assert lookup_data.record(ids.Building.CASTLEWALL_L1) is lookup_data.fortifications[501]
+    def test_a_plain_id_indexes_a_table(self, lookup_data):
+        assert lookup_data.buildings[171] is lookup_data.buildings[ids.Building.KEEP_L1]
+        assert lookup_data.quests.get(3047) is lookup_data.quests[ids.QuestId.BUY_RUBIES]
 
-    def test_an_unmodeled_table_gives_the_items_row(self, lookup_data):
-        d = lookup_data
-        assert d.record(ids.Building.KEEP_L1) == IDS_PAYLOAD["buildings"][0]
-        assert d.record(ids.Research.STRENGTH_TRAINING_L1) == IDS_PAYLOAD["researches"][1]
-        assert d.record(ids.Event.NOMAD_INVASION) == IDS_PAYLOAD["events"][0]
-        assert d.record(ids.LootBox.MYSTERY_BOX_BRONZE_R1) == IDS_PAYLOAD["lootBoxes"][0]
-        assert d.record(ids.EquipmentGroup.ATTACK_PVP) == IDS_PAYLOAD["equipment_groups"][0]
-        assert d.record(ids.DifficultyType.EASY_PLUS) == IDS_PAYLOAD["eventAutoScalingDifficultyTypes"][0]
-        assert d.record(ids.LootBoxType.MYSTERY_BOX) == IDS_PAYLOAD["lootBoxTypes"][0]
-        assert d.record(ids.QuestId.BUY_RUBIES) == IDS_PAYLOAD["quests"][0]
-        assert d.record(ids.DailyQuestId.LOGIN) == IDS_PAYLOAD["dailyactivities"][0]
+    def test_a_row_the_enum_lacks_is_kept_by_its_plain_id_without_a_warning(self, caplog):
+        payload = {"buildings": [{"wodID": "999999", "name": "Future", "level": "1"}]}
+        with caplog.at_level(logging.WARNING):
+            data = GameData.parse(ids.ITEMS_VERSION, payload)
+        assert type(next(iter(data.buildings))) is int
+        assert data.buildings[999999].name == "Future"
+        assert not caplog.records
 
-    def test_an_id_the_data_lacks_is_none(self, lookup_data):
-        assert lookup_data.record(ids.Unit.VETERAN_SABERSLASHER) is None
-        assert lookup_data.record(ids.Currency.GENERALS_XP_250) is None
-        assert lookup_data.record(next(r for r in ids.Research if r not in (1, 256))) is None
-        assert GameData(version="0").record(ids.Building.KEEP_L1) is None
+    def test_a_row_without_an_id_is_left_out_and_the_last_of_one_id_kept(self):
+        rows = [{"eventType": "NoId"}, "junk", {"eventID": "x"}, {"eventID": "5", "eventType": "A"}]
+        rows += [{"eventID": 5, "eventType": "B"}, {"eventID": "7abc", "eventType": "C"}]
+        events = GameData.parse(ids.ITEMS_VERSION, {"events": rows}).events
+        assert {key: row.event_type for key, row in events.items()} == {5: "B", 7: "C"}
 
-    def test_records_keep_the_order_across_enums(self, lookup_data):
-        d = lookup_data
-        missing = next(e for e in ids.Event if e not in (5, 6, 74))
-        found = d.records(iter([ids.Building.KEEP_L1, ids.Unit.MEAD_RANGER_L6, ids.Currency.KHAN_TABLETS, missing]))
-        assert found == [IDS_PAYLOAD["buildings"][0], d.units[211], d.currencies[1], None]
-        assert d.records([]) == []
-
-    def test_members_of_one_value_in_two_enums_stay_apart(self, lookup_data):
-        # Equal ints that hash alike, which is why records is a list, not a dict
-        d = lookup_data
-        same = [
-            ids.CurrencyId.KHAN_TABLETS,
-            ids.Effect.FAME_DEFENSE_BONUS,
-            ids.RaidBoss.NECROMANCER,
-            ids.LegendSkill(1),
-        ]
-        assert len(set(same)) == 1
-        assert d.records(same) == [d.currencies[1], d.effects[1], d.raid_bosses[1], d.legend_skills[1]]
-
-    @pytest.mark.parametrize("member", [211, "KT", Kingdom.GREEN, None])
-    def test_anything_but_an_id_member_is_refused(self, lookup_data, member):
-        with pytest.raises(TypeError, match="not a member of an empire_core.gamedata.ids enum"):
-            lookup_data.record(member)
-
-    def test_a_currency_member_is_one_member_not_its_letters(self, lookup_data):
-        assert lookup_data.records([ids.Currency.KHAN_TABLETS]) == [lookup_data.currencies[1]]
-        with pytest.raises(TypeError):
-            lookup_data.records(ids.Currency.KHAN_TABLETS)
-
-    def test_every_enum_has_a_lookup(self):
-        data = GameData(version="0")
-        for enum in ENUMS:
-            assert data.record(next(iter(enum))) is None, enum.__name__
-
-    def test_records_survive_the_cache(self, lookup_data, tmp_path):
+    def test_tables_survive_the_cache(self, lookup_data, tmp_path):
+        lookup_data.buildings[999999] = BuildingDef(building_id=999999, name="Future", sort_order=0)
+        lookup_data.titles[0] = TitleDef(title_id=0, top_x=0)
         cache = tmp_path / "items.trimmed.json"
         lookup_data._write_cache(cache)
         again = GameData._read_cache(cache, lookup_data.version)
         assert again is not None
-        members = [
-            ids.Unit.MEAD_RANGER_L6,
-            ids.Currency.KHAN_TABLETS,
-            ids.Building.KEEP_L1,
-            ids.Building.CASTLEWALL_L1,
-            ids.Research.STRENGTH_TRAINING_L1,
-            ids.Event.NOMAD_INVASION,
-            ids.LootBox.MYSTERY_BOX_BRONZE_R1,
-            ids.EquipmentGroup.ATTACK_PVP,
-            ids.DifficultyType.EASY_PLUS,
-        ]
-        assert again.records(members) == lookup_data.records(members)
-        assert all(record is not None for record in again.records(members))
-        assert set(again.buildings) == {171, 172, 301, 401, 501}
+        for field in [*TABLES_BY_ENUM.values(), "titles", "scaling_camps"]:
+            assert getattr(again, field) == getattr(lookup_data, field), field
+        assert set(again.buildings) == {171, 172, 301, 401, 501, 999999}
+        assert type(again.quests[3047].quest_id) is ids.QuestId
+        assert type(next(k for k in again.buildings if k == 999999)) is int
 
     def test_the_fingerprint_covers_the_game_data_tables(self, monkeypatch):
-        # A cache from before a table was added reads back with it empty, so every record would be None
+        # A cache from before a table or column was added reads back with it empty
         from empire_core.gamedata import data as module
 
         before = module._schema_fingerprint()
@@ -418,29 +399,7 @@ class TestRecords:
         monkeypatch.setattr(module, "GameData", Wider)
         assert module._schema_fingerprint() != before
         monkeypatch.undo()
-        monkeypatch.setitem(module.ROW_TABLES, "events", ("events", "otherID"))
-        assert module._schema_fingerprint() != before
-
-
-class TestRowsById:
-    def test_rows_are_keyed_by_parse_int_of_their_id(self):
-        rows = [{"eventID": "x", "eventType": "Nomad"}, "junk", {"eventID": "3", "eventType": "Faction"}]
-        rows += [{"eventType": "NoId"}, {"eventID": "0", "eventType": "Zero"}, {"eventID": "7abc"}]
-        # "0" is truthy text in JavaScript, so 0 is an id; "7abc" reads as 7
-        assert rows_by_id(rows, "eventID") == {3: rows[2], 0: rows[4], 7: rows[5]}
-
-    def test_the_last_of_two_rows_with_one_id_is_kept(self):
-        rows = [{"eventID": "3", "eventType": "A"}, {"eventID": 3, "eventType": "B"}]
-        assert rows_by_id(rows, "eventID") == {3: rows[1]}
-
-    def test_a_table_that_is_not_a_list_is_empty(self):
-        assert rows_by_id({"eventID": "3"}, "eventID") == {}
-        assert rows_by_id(None, "eventID") == {}
-
-    def test_parse_keeps_every_row_table(self):
-        data = GameData.parse(ids.ITEMS_VERSION, IDS_PAYLOAD)
-        for field, (table, _) in ROW_TABLES.items():
-            assert list(getattr(data, field).values()) == IDS_PAYLOAD[table], field
+        assert {BuildingDef, QuestDef, QuestCondition, TitleDef, ScalingCampDef} <= set(module._CACHED_MODELS)
 
 
 class TestGenerator:
