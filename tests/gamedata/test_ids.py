@@ -374,15 +374,23 @@ class TestTables:
         events = GameData.parse(ids.ITEMS_VERSION, {"events": rows}).events
         assert {key: row.event_type for key, row in events.items()} == {5: "B", 7: "C"}
 
-    def test_tables_survive_the_cache(self, lookup_data, tmp_path):
-        lookup_data.buildings[999999] = BuildingDef(building_id=999999, name="Future", sort_order=0)
-        lookup_data.titles[0] = TitleDef(title_id=0, top_x=0)
+    def test_tables_survive_the_cache(self, tmp_path):
+        payload = {
+            **IDS_PAYLOAD,
+            "buildings": [*IDS_PAYLOAD["buildings"], {"wodID": "999999", "name": "Future", "sortOrder": "0"}],
+            "titles": [{"titleID": "0", "topX": "0", "effects": "504&20"}],
+        }
+        lookup_data = GameData.parse(ids.ITEMS_VERSION, payload)
         cache = tmp_path / "items.trimmed.json"
         lookup_data._write_cache(cache)
         again = GameData._read_cache(cache, lookup_data.version)
         assert again is not None
+        assert lookup_data.buildings[171].name == "Keep"
+        # one side has read a table, the other not: equality is the fields and the rows
+        assert again == lookup_data
         for field in [*TABLES_BY_ENUM.values(), "titles", "scaling_camps"]:
             assert getattr(again, field) == getattr(lookup_data, field), field
+        assert again.titles[0].top_x == 0 and again.buildings[999999].sort_order == 0
         assert set(again.buildings) == {171, 172, 301, 401, 501, 999999}
         assert type(again.quests[3047].quest_id) is ids.QuestId
         assert type(again.buildings[401].group) is BuildingGroup

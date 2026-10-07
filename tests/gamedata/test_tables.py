@@ -3,6 +3,7 @@
 import logging
 import sys
 
+from empire_core.combat import Bonus, effect_value_bonuses
 from empire_core.enums import (
     BuildingGroundType,
     BuildingGroup,
@@ -145,6 +146,16 @@ class TestEffects:
         assert building.area_specific_effects == (
             EffectValue(effect_id=Effect.RECRUITMENT_TIME_BONUS, values=((-5,),)),
         )
+
+    def test_a_value_reads_as_the_client_splits_it(self):
+        # BonusVO callers take split("&")[1]; a piece that is no number is the client's NaN
+        effects = ResearchDef.model_validate({"researchID": "1", "effects": "1&2&3,5&5+,7&x+4"}).effects
+
+        assert [(e.effect_id, e.values) for e in effects] == [(1, ((2,),)), (5, ((5, None),)), (7, ((None, 4),))]
+        assert effect_value_bonuses(effects) == [
+            Bonus(effect_id=1, value=2),
+            Bonus(effect_id=5, value=5, raw_values=(5.0, 0.0)),
+        ]
 
     def test_an_entry_without_a_value_is_kept_and_one_without_an_id_left_out(self):
         effects = ResearchDef.model_validate({"researchID": "1", "effects": "12&,x&3,,99,5&1.5"}).effects
