@@ -9,8 +9,8 @@ from typing import Any
 from pydantic import Field, field_validator, model_validator
 
 from empire_core.commanders.models.roster import Commander
-from empire_core.enums import MapItemType, SpyType
-from empire_core.gamedata import CollectableRows, SupportToolSlots, WodAmounts
+from empire_core.enums import AttackAdvisorType, MapItemType, SpyType
+from empire_core.gamedata import CollectableRows, EnumOrInt, SupportToolSlots, WodAmounts
 from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest, OwnerFaction, owner_positions
 from empire_core.protocol.base import (
     BasePayload,
@@ -167,7 +167,9 @@ class MovementUnitInfo(BasePayload):
     )
     wait_passed: int = Field(alias="PWD", default=0, description="Seconds of the wait at the target already passed")
     wait_total: int = Field(alias="TWD", default=0, description="Seconds the army waits at its target")
-    advisor_type: int = Field(alias="AAT", default=0, description="Attack advisor type, 0 for none")
+    advisor_type: EnumOrInt[AttackAdvisorType] = Field(
+        alias="AAT", default=AttackAdvisorType.NONE, description="The attack advisor that sent the attack"
+    )
     advisor_movement_count: int = Field(alias="AAC", default=0, description="Attacks in the advisor series")
     advisor_movement_number: int = Field(alias="AAN", default=0, description="This attack's place in the series")
     advisor_is_last: int = Field(alias="AAL", default=0, description="1 on the series' last attack")

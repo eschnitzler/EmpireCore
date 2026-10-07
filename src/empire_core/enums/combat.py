@@ -1,6 +1,6 @@
 """Attack options and the effect ids the combat maths reads."""
 
-from enum import IntEnum
+from enum import Enum, IntEnum
 
 
 class AttackType(IntEnum):
@@ -60,6 +60,23 @@ class AutoSkipCooldownType(IntEnum):
     RUBIES = 2
 
 
+class AttackAdvisorType(IntEnum):
+    """
+    The attack advisor that sent an attack, the AAT field.
+
+    NONE is the client's default for an attack no advisor sent; it has no constant.
+
+    Client: ``AttackAdvisorConst.ADVISOR_TYPE_*`` (dll line 18832), the default ``_advisorType=0``
+    (bundle line 30619), read as ``advisorType>0`` (bundle line 14344)
+    """
+
+    NONE = 0
+    NOMAD = 1
+    SAMURAI = 2
+    BERIMOND = 3
+    BARON = 4
+
+
 class Flank(IntEnum):
     """
     Battle flanks.
@@ -77,6 +94,23 @@ class Flank(IntEnum):
     YARD = 3
     REINFORCEMENT = 4
     REINFORCEMENT_SUMMARY = 5
+
+
+class BattleLogFlank(str, Enum):
+    """
+    The flank a general's ability took effect on, as a battle log names it.
+
+    Client: ``CastleBattleLogPopUpDialog.getFlankNameBattleLog`` (bundle lines 135871-135877) maps the
+    dialog's flank to these names; -2 and -3, its PW and EW, are the dialog's
+    ``WAVE_INDEX_PRE_ATTACK`` and ``WAVE_INDEX_POST_ATTACK`` (bundle line 135994)
+    """
+
+    LEFT = "L"
+    MIDDLE = "M"
+    RIGHT = "R"
+    YARD = "Y"
+    PRE_ATTACK = "PW"
+    POST_ATTACK = "EW"
 
 
 class CombatEffectType(IntEnum):

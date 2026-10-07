@@ -34,14 +34,14 @@ RANK = {
     "castle": 1,
     "army": 2,
     "movements": 3,
-    "messages": 3,
     "rewards": 3,
     "defense": 4,
     "combat": 5,
     "player": 5,
     "attack": 6,
     "alliance": 6,
-    "spy": 7,
+    "messages": 7,
+    "spy": 8,
 }
 PLUMBING = {"protocol", "enums", "gamedata", "exceptions", "config", "utils", "services", "texts"}
 ABOVE = {"client", "state", "network", "accounts", "pool"}
