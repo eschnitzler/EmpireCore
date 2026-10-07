@@ -5,13 +5,68 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.protocol.base import BasePayload, enum_or_none
-from empire_core.protocol.js import js_int, js_loose_equals, js_truthy
+from empire_core.protocol.base import BasePayload, enum_or_none, readable_list
+from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_truthy
 
 from .owners import AllianceCrest
+
+
+class AbgCastleConnection(BasePayload):
+    """
+    An alliance battle ground castle's line to its tower: a castle row's ``[x, y, is_attackable, tower_points]``.
+
+    The client reads it only on a battle ground server that scores towers.
+
+    Client: ``CastleMapobjectVO.parseAreaInfo`` (bundle lines 18911-18912), ``ABGHelper.isOnABGAndTower``
+    (bundle line 2037)
+    """
+
+    x: ClientInt = Field(default=0, description="Map x of the other end")
+    y: ClientInt = Field(default=0, description="Map y of the other end")
+    is_attackable: bool = Field(default=False, description="The castle can be attacked for tower points")
+    tower_points: ClientInt = Field(default=0, description="The player's tower points")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if not isinstance(data, list):
+            return data
+        row = dict(zip(("x", "y", "is_attackable", "tower_points"), data, strict=False))
+        if "is_attackable" in row:
+            row["is_attackable"] = js_truthy(row["is_attackable"])
+        return row
+
+
+class AbgTowerConnection(BasePayload):
+    """
+    One of an alliance battle ground tower's connections: ``[x, y, player_name, status]``.
+
+    ``is_defeated`` is status 1: the client sums the statuses into ``_defeatedConnections`` and draws
+    status 1 in red.
+
+    Client: ``ABGAllianceTowerMapobjectVO.parseConnections`` (bundle lines 32285-32291),
+    ``ABGTowerConnectionVO.fillFromConnectionValues`` (bundle line 25482)
+    """
+
+    x: ClientInt = Field(default=0, description="Map x of the connected castle")
+    y: ClientInt = Field(default=0, description="Map y of the connected castle")
+    player_name: str | None = Field(default=None, description="The connected castle's player; None when not sent")
+    is_defeated: bool = Field(default=False, description="The connection is defeated")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if not isinstance(data, list):
+            return data
+        row = dict(zip(("x", "y", "player_name", "is_defeated"), data, strict=False))
+        if "is_defeated" in row:
+            row["is_defeated"] = js_int(row["is_defeated"]) == 1
+        if not isinstance(row.get("player_name"), str):
+            row["player_name"] = None
+        return row
 
 
 class _Row:
@@ -67,8 +122,8 @@ def _castle(row: _Row) -> dict[str, Any]:
         return {"is_plot_row": True, "occupier_id": row.raw(3)}
     fields = _interactive(row)
     connection = row.raw(18)
-    if isinstance(connection, list):
-        fields["abg_tower_connection"] = connection
+    if isinstance(connection, list) and connection:
+        fields["abg_tower_connection"] = AbgCastleConnection.model_validate(connection)
     return fields
 
 
@@ -356,7 +411,7 @@ def _abg_tower(row: _Row) -> dict[str, Any]:
         "alliance_id": row.as_int(7),
         "alliance_name": row.raw(8),
         "alliance_crest": {"ACLI": crest[0], "ACCS": crest[1]} if isinstance(crest, list) and len(crest) > 1 else None,
-        "abg_connections": row.raw(10),
+        "abg_connections": tuple(readable_list(AbgTowerConnection, row.raw(10), accept=lambda e: isinstance(e, list))),
     }
 
 
@@ -472,7 +527,7 @@ class MapAreaItem(BasePayload):
     )
     skin_id: int | None = Field(default=None, description="Unique id of the castle skin equipment it shows")
     has_sabotage_protection: bool | None = Field(default=None, description="Temporary sabotage protection is on")
-    abg_tower_connection: list[Any] | None = Field(
+    abg_tower_connection: AbgCastleConnection | None = Field(
         default=None, description="On an alliance battle ground: the castle's tower connection"
     )
     abg_mine_out_seconds: int | None = Field(
@@ -515,7 +570,9 @@ class MapAreaItem(BasePayload):
     alliance_id: int | None = Field(default=None, description="Id of the alliance holding the tower")
     alliance_name: str | None = Field(default=None, description="Name of the alliance holding the tower")
     alliance_crest: AllianceCrest | None = Field(default=None, description="Crest of the alliance holding the tower")
-    abg_connections: list[Any] | None = Field(default=None, description="The alliance tower's connections")
+    abg_connections: tuple[AbgTowerConnection, ...] | None = Field(
+        default=None, description="The alliance tower's connections to the castles around it"
+    )
     raw_data: list[Any] = Field(default_factory=list, description="The whole row as sent")
 
     @classmethod

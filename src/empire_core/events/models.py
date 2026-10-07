@@ -25,13 +25,19 @@ from empire_core.protocol.js import (
     js_number,
     js_number_or_none,
     js_parse_int,
-    js_parse_int_or_zero,
     js_same_number,
     js_string,
     js_truthy,
 )
 from empire_core.quests.models import Quest
-from empire_core.ranking.models import GetHighscoreResponse, GetRankingListResponse, LeaderboardScore
+from empire_core.ranking.models import (
+    GetHighscoreResponse,
+    GetRankingListResponse,
+    HighscoreAllianceRow,
+    HighscoreRow,
+    HighscoreTournamentRow,
+    LeaderboardScore,
+)
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Event, GlobalEffect, QuestId, RaidBoss
@@ -137,37 +143,28 @@ class EventScore(BaseModel):
     instance_id: int | None = Field(default=None, description="The game server the player is on, on leaderboard rows")
 
     @classmethod
-    def from_player_row(cls, row: Any) -> EventScore | None:
-        """A ``hgh`` player row, or None for one that is not a list."""
-        if not isinstance(row, list) or not row:
-            return None
-        has_points = len(row) > 2
-        owner = row[2] if has_points else row[1] if len(row) > 1 else None
-        owner = owner if isinstance(owner, dict) else {}
+    def from_highscore_row(cls, row: HighscoreRow) -> EventScore:
+        """A ``hgh`` row: a player's, or an alliance's on an alliance board."""
+        if isinstance(row, HighscoreAllianceRow):
+            return cls(
+                rank=row.rank,
+                points=row.score,
+                name=row.alliance.name,
+                alliance_id=row.alliance.alliance_id,
+                alliance_name=row.alliance.name,
+                member_count=row.alliance.member_count,
+            )
+        if isinstance(row, HighscoreTournamentRow):
+            return cls(rank=row.rank, points=row.score, name=row.player_name, player_id=row.player_id)
+        owner = row.owner or MapObject()
         return cls(
-            rank=js_int(row[0]),
-            points=js_int(row[1]) if has_points else 0,
-            name="" if owner.get("N") is None else js_string(owner["N"]),
-            player_id=js_parse_int_or_zero(owner.get("OID")),
-            alliance_id=js_parse_int_or_zero(owner.get("AID")),
-            alliance_name=js_string(owner.get("AN") or ""),
-            level=js_parse_int_or_zero(owner.get("L")),
-        )
-
-    @classmethod
-    def from_alliance_row(cls, row: Any) -> EventScore | None:
-        """A ``hgh`` alliance row, or None for one that is not a list."""
-        if not isinstance(row, list) or not row:
-            return None
-        info = row[2] if len(row) > 2 and isinstance(row[2], list) else []
-        name = js_string(info[1]) if len(info) > 1 and info[1] is not None else ""
-        return cls(
-            rank=js_int(row[0]),
-            points=js_int(row[1]) if len(row) > 1 else 0,
-            name=name,
-            alliance_id=js_int(info[0]) if info else 0,
-            alliance_name=name,
-            member_count=js_int(info[2]) if len(info) > 2 else 0,
+            rank=row.rank,
+            points=row.score,
+            name=owner.owner_name or "",
+            player_id=owner.owner_id or 0,
+            alliance_id=owner.alliance_id or 0,
+            alliance_name=owner.alliance_name,
+            level=owner.level,
         )
 
     @classmethod
@@ -196,7 +193,7 @@ class EventScores(BaseModel):
     @classmethod
     def from_highscore(cls, event: Event, list_type: RankingType, reply: GetHighscoreResponse) -> EventScores:
         """
-        A ``hgh`` reply; rows that cannot be read are skipped.
+        A ``hgh`` reply.
 
         A reply for another of the event's boards is read as that board, as the
         dialogs adopt the list a reply names.
@@ -213,9 +210,7 @@ class EventScores(BaseModel):
             if board is None or reply.list_type not in board.lists:
                 raise ReplyMismatchError(int(list_type), reply.list_type)
             list_type = RankingType(reply.list_type)
-        alliance = board is not None and list_type == board.alliance_list
-        read = EventScore.from_alliance_row if alliance else EventScore.from_player_row
-        rows = [score for score in map(read, reply.raw_list) if score is not None]
+        rows = [EventScore.from_highscore_row(row) for row in reply.rows]
         league = None if reply.league_type_id == -1 else reply.league_type_id
         last_rank = js_int(reply.last_rank) if reply.last_rank is not None else None
         return cls(event=event, list_type=list_type, league_id=league, total=last_rank, scores=rows)
