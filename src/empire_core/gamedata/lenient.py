@@ -7,8 +7,8 @@ warning once per id. Name a generated enum by its name in quotes (``EnumOrInt["Q
 enum imported under ``TYPE_CHECKING``) so its module loads only when a value arrives; the
 largest of them hold thousands of members.
 
-Inside the items tables ``GameDataId[E]`` does the same without the warning: loading items newer
-than the enums already warns once for the whole version.
+Inside the items tables ``GameDataId[E]`` and ``GameDataKey[E]`` do the same without the warning:
+loading items newer than the enums already warns once for the whole version.
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ def known(enums: type[_E] | Iterable[type[_E]], value: Any, *, warn: bool = True
 
 
 class LenientEnum:
-    """The validator behind ``EnumOrInt``, ``EnumOrStr`` and ``GameDataId``: reads the id, then looks its member up."""
+    """The validator behind the lenient types: reads the id, then looks its member up."""
 
     def __init__(self, enum: type[Enum] | str, base: type[int] | type[str], *, warn: bool = True) -> None:
         self._enum = enum
@@ -83,6 +83,7 @@ if TYPE_CHECKING:
     EnumOrInt = Union[_E, int]
     EnumOrStr = Union[_E, str]
     GameDataId = Union[_E, int]
+    GameDataKey = Union[_E, str]
 else:
 
     class EnumOrInt:
@@ -103,5 +104,11 @@ else:
         def __class_getitem__(cls, enum: type[Enum] | str) -> Any:
             return Annotated[int, PlainValidator(LenientEnum(enum, int, warn=False))]
 
+    class GameDataKey:
+        """``GameDataKey[E]``: ``EnumOrStr[E]`` for a fixed text column of the items tables, kept without a warning."""
 
-__all__ = ["EnumOrInt", "EnumOrStr", "GameDataId", "LenientEnum", "known"]
+        def __class_getitem__(cls, enum: type[Enum] | str) -> Any:
+            return Annotated[str, PlainValidator(LenientEnum(enum, str, warn=False))]
+
+
+__all__ = ["EnumOrInt", "EnumOrStr", "GameDataId", "GameDataKey", "LenientEnum", "known"]

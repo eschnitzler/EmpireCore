@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from empire_core.enums import Kingdom
+from empire_core.enums import Kingdom, UnitRole
 from empire_core.exceptions import AmbiguousLookupError, NetworkError
 
 from . import cache, cdn
@@ -328,7 +328,8 @@ class GameData(BaseModel):
     def is_tool(self, wod_id: int) -> bool:
         return wod_id in self.tools
 
-    def units_by_role(self, role: str) -> list[UnitStats]:
+    def units_by_role(self, role: UnitRole) -> list[UnitStats]:
+        """Every unit of one role (``SoldierUnitVO.role``, bundle line 12590)."""
         return [unit for unit in self.units.values() if unit.role == role]
 
     def get_horse(self, wod_id: int) -> HorseStats | None:
