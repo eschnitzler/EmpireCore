@@ -5,6 +5,8 @@ Game-data ids as enums, so they autocomplete.
 
 One enum per items table, each member named from the row in UPPER_SNAKE;
 where two rows would share a name, both carry their id (``SPEED_BOOST_2``).
+Currencies and researches are named from the game's English text
+(``Currency.SKIP_5_MINUTES`` is ``"MS2"``), where the row has its own.
 Members are plain ints (``Currency`` members plain strs), so they go on the
 wire and into models as their value.
 

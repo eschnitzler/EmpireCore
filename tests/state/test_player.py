@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from empire_core.enums import Kingdom
+from empire_core.gamedata import Currency
 from empire_core.state.models import Player
 from tests.state.state_helpers import gam_payload, gcl_payload
 
@@ -440,6 +441,12 @@ class TestSpecialCurrencies:
     def test_live_sce_shape(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": self.LIVE_SCE})
         assert state.get_special_currencies() == {"GRT": 2, "STL": 100, "PTT": 1604, "MS1": 197, "SLWT": 6, "KTK": 5}
+
+    def test_keys_are_currencies_and_an_unknown_key_is_kept(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": [["PTT", 3], ["NEWKEY", 4]]})
+        currencies = state.get_special_currencies()
+        assert currencies == {Currency.FAST_TRAVEL_FEATHERS: 3, "NEWKEY": 4}
+        assert [type(key) for key in currencies] == [Currency, str]
 
     def test_push_updates_amounts(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": self.LIVE_SCE})

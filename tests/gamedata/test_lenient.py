@@ -20,7 +20,7 @@ class Ids(BaseModel):
 def test_a_known_id_is_its_member():
     ids = Ids.model_validate({"kingdom": 2, "quests": [3047, "3600"], "currency": "KT"})
 
-    assert ids.kingdom is Kingdom.ICE and ids.currency is Currency.KT
+    assert ids.kingdom is Kingdom.ICE and ids.currency is Currency.KHAN_TABLETS
     assert ids.quests == (QuestId.BUY_RUBIES, QuestId.SPEND_CURRENCY1)
 
 
@@ -41,7 +41,7 @@ def test_anything_but_an_id_fails(value):
 
 
 def test_members_go_on_the_wire_as_their_values():
-    ids = Ids(kingdom=Kingdom.ICE, quests=(QuestId.BUY_RUBIES, 9), currency=Currency.KT)
+    ids = Ids(kingdom=Kingdom.ICE, quests=(QuestId.BUY_RUBIES, 9), currency=Currency.KHAN_TABLETS)
 
     assert ids.model_dump(mode="json") == {"kingdom": 2, "quests": [3047, 9], "currency": "KT"}
 

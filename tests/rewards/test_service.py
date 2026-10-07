@@ -80,7 +80,7 @@ class TestLoginBonusRewards:
         first, second = bonus.days
         assert [(item.kind, item.item, item.amount) for item in first.rewards] == [
             (CollectableKind.UNITS, Unit.KINGSCROSSBOWMAN, 5),
-            (CollectableKind.CURRENCY, Currency.MS2, 1),
+            (CollectableKind.CURRENCY, Currency.SKIP_5_MINUTES, 1),
             (CollectableKind.COINS, None, 2000),
             (CollectableKind.OTHER, None, 1),
         ]

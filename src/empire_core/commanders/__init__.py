@@ -1,6 +1,6 @@
 """Commanders, castellans, generals, skills and equipment."""
 
-from empire_core.enums import EquipmentSlot, EquipmentType, Rareness, SCEItem, WearerType
+from empire_core.enums import EquipmentSlot, EquipmentType, Rareness, WearerType
 
 from .models import (
     FACTION_BARON_ID,
@@ -91,7 +91,6 @@ __all__ = [
     "WearerType",
     "EquipmentType",
     "Rareness",
-    "SCEItem",
     "CommandersService",
     "EquipmentService",
     "SkillsService",

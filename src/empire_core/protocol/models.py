@@ -354,7 +354,6 @@ from empire_core.enums import (
     ProductionListId,
     RankingType,
     Rareness,
-    SCEItem,
     SlotType,
     SpyLogType,
     SpyType,
@@ -867,7 +866,6 @@ __all__ = [
     "Rareness",
     "RelicBonus",
     "WearerType",
-    "SCEItem",
     # Ranking
     "RankingType",
     "RankingEntry",
