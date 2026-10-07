@@ -44,7 +44,7 @@ if TYPE_CHECKING:
 
 from .cdn import fetch_items_data, get_items_version
 from .collectables import Collectable, CollectableObject, CollectableRows
-from .data import CAMP_TABLES, RAW_TABLES, GameData, default_cache_dir
+from .data import CAMP_TABLES, RAW_TABLES, TABLES, GameData, TableSource, default_cache_dir
 from .lenient import EnumOrInt, EnumOrStr, GameDataId, GameDataKey
 from .models import (
     AllianceBuffDef,
@@ -81,6 +81,7 @@ from .models import (
     parse_ids,
     parse_stacks,
 )
+from .table import Table
 from .tables import (
     BuildingDef,
     DailyQuestDef,
@@ -171,6 +172,9 @@ __all__ = [
     "LegendSkillDef",
     "NpcCampDefence",
     "RAW_TABLES",
+    "TABLES",
+    "Table",
+    "TableSource",
     "RaidBossDef",
     "RelicEffectDef",
     "ToolCategoryDef",

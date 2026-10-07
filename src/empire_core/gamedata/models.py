@@ -79,6 +79,8 @@ def _parse_int_or_default(value: object, default: int) -> int:
     """
     if READING_CACHE.get() and isinstance(value, int) and not isinstance(value, bool):
         return value
+    if type(value) is str and value.isascii() and value.isdigit():
+        return int(value)
     if js_falsy(value):
         return default
     parsed = js_parse_int(value)
@@ -599,6 +601,8 @@ class EffectCapDef(_Row):
 
 def _effect_number(text: str) -> int | float | None:
     """A number of an effect value, an int when it is whole; None for empty text or no number."""
+    if text.isascii() and text.isdigit():
+        return int(text)
     number = js_number_or_none(text) if text.strip() else None
     return int(number) if isinstance(number, float) and number.is_integer() else number
 
@@ -626,7 +630,7 @@ class _EffectEntry(_Row):
         entries = []
         for part in value.split(","):
             raw_id, _, raw_value = part.partition("&")
-            entry_id = js_parse_int(raw_id) if part else None
+            entry_id = int(raw_id) if raw_id.isascii() and raw_id.isdigit() else js_parse_int(raw_id) if part else None
             if entry_id is None:
                 continue
             values = (
@@ -637,7 +641,7 @@ class _EffectEntry(_Row):
                 if raw_value
                 else ()
             )
-            entries.append(cls.model_validate({cls.id_field: entry_id, "values": values}))
+            entries.append({cls.id_field: entry_id, "values": values})
         return entries
 
     @property
