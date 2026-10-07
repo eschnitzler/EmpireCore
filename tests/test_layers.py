@@ -43,7 +43,7 @@ RANK = {
     "alliance": 6,
     "spy": 7,
 }
-PLUMBING = {"protocol", "enums", "gamedata", "exceptions", "config", "utils", "services"}
+PLUMBING = {"protocol", "enums", "gamedata", "exceptions", "config", "utils", "services", "texts"}
 ABOVE = {"client", "state", "network", "accounts", "pool"}
 AGGREGATOR = "empire_core.protocol.models"
 

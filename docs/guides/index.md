@@ -146,6 +146,12 @@ The smaller services have no guide of their own; their
 
     Game-data ids as enums, for autocomplete.
 
+-   :material-translate:{ .lg .middle } **[Game texts](texts.md)**
+
+    ---
+
+    The game's own texts and error messages, in any language.
+
 </div>
 
 ## Beyond one client

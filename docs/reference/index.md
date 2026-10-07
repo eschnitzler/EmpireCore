@@ -18,7 +18,7 @@ wire key each one is read from and what it holds.
       `alliance`, `spy`, ...) exports its service, its request and response
       models and its enums.
     - `empire_core.enums`, `gamedata`, `combat`, `protocol`, `state`,
-      `services`, `accounts`, `config`, `pool` and `exceptions` export the
+      `services`, `texts`, `accounts`, `config`, `pool` and `exceptions` export the
       same way.
 
     The modules inside them (`empire_core.map.models.items`,
@@ -36,6 +36,7 @@ wire key each one is read from and what it holds.
 | [Exceptions](exceptions.md) | Every error, and the server's error codes as `GGEError` |
 | [Enums](enums.md) | Game constants, one module per area |
 | [Game data](gamedata.md) | `GameData`, its row models and the generated ids |
+| [Texts](texts.md) | The game's texts and error messages from its language file |
 | [Protocol](protocol.md) | Request and response bases, packets, codecs and the connection |
 | [Utilities](utils.md) | Internal: cancelling long calls |
 

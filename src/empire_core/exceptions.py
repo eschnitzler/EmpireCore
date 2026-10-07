@@ -23,6 +23,7 @@ from typing import Any
 
 from empire_core.enums import Kingdom
 from empire_core.protocol.errors import GGEError
+from empire_core.texts import cached_text
 
 
 class EmpireError(Exception):
@@ -57,7 +58,23 @@ class LoginError(EmpireError):
                 self.error = None
             name = self.error.name if self.error is not None else "UNKNOWN_ERROR"
             message = f"{message}: {name} ({code})"
+            game_message = self.game_message()
+            if game_message:
+                message = f"{message}: {' '.join(game_message.split())}"
         super().__init__(message)
+
+    def game_message(self, lang: str = "en") -> str | None:
+        """
+        The game's message for :attr:`code` in ``lang``, if those texts are already loaded.
+
+        Never fetches: load them first with :func:`empire_core.texts.get_texts`. None for no
+        code, texts not loaded, or a code the game has no message for.
+
+        Client: ``CastleHandleServerErrorCommand.performDefaultError`` (bundle line 120328)
+        shows ``Localize.text("errorCode_"+code)`` when that text exists
+        """
+        code = self.code
+        return None if code is None else cached_text(f"errorCode_{code}", lang=lang)
 
 
 class LoginCooldownError(LoginError):
@@ -65,9 +82,7 @@ class LoginCooldownError(LoginError):
 
     def __init__(self, cooldown: int, message: str = "Login cooldown active"):
         self.cooldown = cooldown
-        super().__init__(f"{message}: Retry in {cooldown}s")
-        self.code = GGEError.LOGIN_COOLDOWN_ACTIVE.value
-        self.error = GGEError.LOGIN_COOLDOWN_ACTIVE
+        super().__init__(f"{message}: Retry in {cooldown}s", GGEError.LOGIN_COOLDOWN_ACTIVE.value)
 
 
 class AccountBannedError(LoginError):
@@ -85,9 +100,7 @@ class AccountBannedError(LoginError):
         self.remaining_seconds = remaining_seconds
         self.deleted = deleted
         detail = "account deleted" if deleted else f"{remaining_seconds}s remaining"
-        super().__init__(f"Account is banned ({detail})")
-        self.code = GGEError.IS_BANNED.value
-        self.error = GGEError.IS_BANNED
+        super().__init__(f"Account is banned ({detail})", GGEError.IS_BANNED.value)
 
 
 class WrongServerError(LoginError):
@@ -103,9 +116,9 @@ class WrongServerError(LoginError):
 
     def __init__(self, instance_id: float | None):
         self.instance_id = instance_id
-        super().__init__(f"Account is on another server (instance {instance_id})")
-        self.code = GGEError.EXISTING_MAPPING_WRONG_SERVER.value
-        self.error = GGEError.EXISTING_MAPPING_WRONG_SERVER
+        super().__init__(
+            f"Account is on another server (instance {instance_id})", GGEError.EXISTING_MAPPING_WRONG_SERVER.value
+        )
 
 
 class VersionCheckStatus(IntEnum):
@@ -292,6 +305,10 @@ class CommandError(EmpireError):
         payload: the error reply's payload when the server sent one. Some
             commands explain the error in it, e.g. ``cra`` for
             ``ATTACK_IN_PROGRESS``; see ``CreateAttackResponse``.
+
+    The message ends with the game's English text for the code, on one line, when
+    those texts are already loaded; :meth:`game_message` gives it as the game has
+    it, in any loaded language.
     """
 
     def __init__(self, command: str, code: int, payload: Any = None):
@@ -303,7 +320,23 @@ class CommandError(EmpireError):
         except ValueError:
             self.error = None
         name = self.error.name if self.error is not None else "UNKNOWN_ERROR"
-        super().__init__(f"Server error {name} ({code}) for command '{command}'")
+        message = f"Server error {name} ({code}) for command '{command}'"
+        game_message = self.game_message()
+        super().__init__(f"{message}: {' '.join(game_message.split())}" if game_message else message)
+
+    def game_message(self, lang: str = "en") -> str | None:
+        """
+        The game's message for :attr:`code` in ``lang``, if those texts are already loaded.
+
+        Never fetches: load them first with :func:`empire_core.texts.get_texts`. None when
+        they are not loaded or the game has no message for the code. Placeholders the
+        client fills for a few codes (a time, a count) stay as ``{0}``.
+
+        Client: ``CastleCommand.showErrorDialog`` (bundle line 202) hands the code to
+        ``CastleHandleServerErrorCommand.performDefaultError`` (bundle line 120328), which
+        shows ``Localize.text("errorCode_"+code)`` when that text exists
+        """
+        return cached_text(f"errorCode_{self.code}", lang=lang)
 
 
 class AttackInProgressError(CommandError):

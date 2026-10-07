@@ -26,6 +26,7 @@ src/empire_core/
 │   └── base.py            # BaseService
 ├── network/               # WebSocket connection, receive loop, redaction
 ├── state/                 # Thread-safe game state
+├── texts.py               # The game's texts from its language file
 └── utils/                 # event titles and troop data from the CDN
 ```
 
