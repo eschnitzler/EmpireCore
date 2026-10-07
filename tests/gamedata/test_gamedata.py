@@ -3,6 +3,7 @@
 import errno
 import importlib.util
 import json
+import logging
 import multiprocessing
 import os
 import sys
@@ -16,7 +17,7 @@ from typing import get_args, get_origin
 import pytest
 from pydantic import BaseModel
 
-from empire_core.enums import Kingdom
+from empire_core.enums import Kingdom, ToolCategory, ToolSide, UnitRole
 from empire_core.exceptions import AmbiguousLookupError, NetworkError
 from empire_core.gamedata import (
     Effect,
@@ -138,8 +139,19 @@ class TestParsing:
 
     def test_units_by_role(self):
         data = GameData.parse("783.01", PAYLOAD)
-        assert [u.wod_id for u in data.units_by_role("ranged")] == [211]
-        assert data.units_by_role("melee") == []
+        assert [u.wod_id for u in data.units_by_role(UnitRole.RANGED)] == [211]
+        assert data.units_by_role(UnitRole.MELEE) == []
+        assert data.units[211].role is UnitRole.RANGED and data.units[211].is_ranged
+
+    def test_fixed_text_columns_are_enums_and_a_new_value_is_kept(self, caplog):
+        tool = ToolStats.model_validate({"wodID": 1, "typ": "Defence", "toolCategory": "COMBO", "slotTypes": "1"})
+        with caplog.at_level(logging.WARNING):
+            newer = ToolStats.model_validate({"wodID": 2, "typ": "Siege", "toolCategory": "Mythic"})
+
+        assert (tool.category, tool.tool_category) == (ToolSide.DEFENCE, ToolCategory.COMBO)
+        assert tool.is_defense_tool and not tool.is_attack_tool
+        assert (newer.category, newer.tool_category) == ("Siege", "mythic")
+        assert type(newer.category) is str and not caplog.records
 
 
 class TestLoading:

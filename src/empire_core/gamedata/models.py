@@ -14,9 +14,10 @@ from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
+from empire_core.enums import PlayerRelation, RelicEffectType, ToolCategory, ToolSide, UnitRole
 from empire_core.protocol.js import js_falsy, js_number, js_number_or_none, js_parse_int
 
-from .lenient import GameDataId
+from .lenient import GameDataId, GameDataKey
 
 if TYPE_CHECKING:
     from .ids import Effect
@@ -151,7 +152,7 @@ class UnitStats(_UnitRow):
     """
 
     unit_type: str = Field(alias="type", default="", description="Unit type, e.g. MeadRanger; shared across levels")
-    role: str = Field(default="", description="melee or ranged")
+    role: GameDataKey[UnitRole] = Field(default="", description="Melee or ranged; empty for none")
     melee_attack: int = Field(alias="meleeAttack", default=0, description="Base melee attack")
     range_attack: int = Field(alias="rangeAttack", default=0, description="Base ranged attack")
     melee_defense: int = Field(alias="meleeDefence", default=0, description="Base defence against melee")
@@ -205,11 +206,11 @@ class UnitStats(_UnitRow):
 
     @property
     def is_melee(self) -> bool:
-        return self.role == "melee"
+        return self.role == UnitRole.MELEE
 
     @property
     def is_ranged(self) -> bool:
-        return self.role == "ranged"
+        return self.role == UnitRole.RANGED
 
     @property
     def is_allround(self) -> bool:
@@ -259,10 +260,10 @@ class ToolStats(_UnitRow):
     tool_type: str = Field(
         alias="type", default="", description="Tool type, e.g. Ladder; shared across levels, keys the per-wave limit"
     )
-    category: str = Field(
+    category: GameDataKey[ToolSide] = Field(
         alias="typ",
         default="0",
-        description='Attack or Defence; "0" when the row has none',
+        description='Attack or defence; "0" when the row has none',
     )
     raw_slot_types: str = Field(alias="slotTypes", default="", description="Comma-separated slot types the tool fits")
     raw_allowed_to_attack: str = Field(
@@ -270,10 +271,10 @@ class ToolStats(_UnitRow):
         default="",
         description="space+areaType pairs joined by #; see allowed_targets",
     )
-    tool_category: str = Field(
+    tool_category: GameDataKey[ToolCategory] = Field(
         alias="toolCategory",
         default="",
-        description="Tool category name in lower case, e.g. basic",
+        description="Tool category, e.g. basic; empty for none",
     )
     amount_per_wave: int = Field(
         alias="amountPerWave",
@@ -442,12 +443,12 @@ class ToolStats(_UnitRow):
     @property
     def is_attack_tool(self) -> bool:
         """``typ`` is ``ClientConstCastle.ATTACK_TOOL``."""
-        return self.category == "Attack"
+        return self.category == ToolSide.ATTACK
 
     @property
     def is_defense_tool(self) -> bool:
         """``typ`` is ``ClientConstCastle.DEFENSE_TOOL``."""
-        return self.category == "Defence"
+        return self.category == ToolSide.DEFENCE
 
     def fits_slot(self, slot_type: int) -> bool:
         """Whether this tool may go in the given slot type (``ToolUnitVO.isToolForSlotType``, bundle line 6541)."""
@@ -470,7 +471,9 @@ class EffectDef(_Row):
     is_pvp_fight: bool = Field(alias="isPvPFight", default=False)
     is_pve_fight: bool = Field(alias="isPvEFight", default=False)
     raw_space_ids: str = Field(alias="spaceIDs", default="")
-    player_relation: str = Field(alias="playerRelation", default="")
+    player_relation: GameDataKey[PlayerRelation] = Field(
+        alias="playerRelation", default="", description="The relationship to the target it needs; empty for any"
+    )
     raw_raid_boss_ids: str = Field(
         alias="raidBossID",
         default="",
@@ -507,12 +510,11 @@ class EffectDef(_Row):
             return True
         return space_id in allowed
 
-    def applies_to_relation(self, relation: str | None) -> bool:
+    def applies_to_relation(self, relation: PlayerRelation | str | None) -> bool:
         """
         Whether the effect counts given the relationship to the target.
 
-        Values seen: ``sameAlliance``, ``allianceInWar``, ``samePlayer``. An
-        unconditioned effect always counts; passing None leaves conditioned
+        An unconditioned effect always counts; passing None leaves conditioned
         ones in, since the relationship is unknown rather than absent.
         """
         if not self.player_relation or relation is None:
@@ -798,7 +800,9 @@ class RelicEffectDef(_Row):
     effect_id: int = Field(alias="effectID", default=0)
     minimum_value: float = Field(alias="minimumValue", default=0)
     maximum_value: float = Field(alias="maximumValue", default=0)
-    relic_effect_type: str = Field(alias="relicEffectType", default="")
+    relic_effect_type: GameDataKey[RelicEffectType] = Field(
+        alias="relicEffectType", default="", description="Its kind; empty for none"
+    )
 
 
 class EquipmentEffectDef(_Row):

@@ -1,12 +1,26 @@
 """The typed rows of the tables the id enums name, read as the client reads them."""
 
+import logging
 import sys
 
-from empire_core.enums import EquipmentSlot, Kingdom, MapItemType, WearerType
+from empire_core.enums import (
+    BuildingGroundType,
+    BuildingGroup,
+    EquipmentSlot,
+    Kingdom,
+    MapItemType,
+    PlayerRelation,
+    QuestConditionType,
+    RelicEffectType,
+    TitleDisplayType,
+    TitleSystem,
+    WearerType,
+)
 from empire_core.gamedata import (
     BuildingDef,
     DailyQuestDef,
     Effect,
+    EffectDef,
     EffectValue,
     EquipmentEffectValue,
     EquipmentGroupDef,
@@ -15,6 +29,7 @@ from empire_core.gamedata import (
     GameData,
     QuestCondition,
     QuestDef,
+    RelicEffectDef,
     ResearchDef,
     TitleDef,
     ids,
@@ -152,3 +167,34 @@ class TestEffects:
         again = GameData._read_cache(tmp_path / "cache.json", "786.03")
 
         assert again is not None and again.titles[1].effects == data.titles[1].effects
+
+
+class TestFixedTextColumns:
+    def test_a_building_s_group_and_ground_are_enums(self):
+        building = BuildingDef.model_validate({"wodID": "1", "group": "Tower", "buildingGroundType": "MILITARY"})
+
+        assert (building.group, building.building_ground_type) == (BuildingGroup.TOWER, BuildingGroundType.MILITARY)
+        assert BuildingDef.model_validate({"wodID": "1"}).building_ground_type is BuildingGroundType.NONE
+
+    def test_a_value_the_client_does_not_name_is_kept_as_text_without_a_warning(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            building = BuildingDef.model_validate({"wodID": "1", "group": "Ground"})
+            quest = QuestDef.model_validate({"questID": "1", "conditions": "buyRubies+1#login+1"})
+
+        assert building.group == "Ground" and type(building.group) is str
+        assert [c.condition_type for c in quest.conditions] == [QuestConditionType.BUY_RUBIES, "login"]
+        assert not caplog.records
+
+    def test_a_title_s_system_and_display_type_are_enums(self):
+        title = TitleDef.model_validate({"titleID": "1", "type": "ISLE", "displayType": "prefix"})
+
+        assert (title.title_system, title.display_type) == (TitleSystem.ISLAND, TitleDisplayType.PREFIX)
+
+    def test_effect_relations_and_relic_effect_types_are_enums(self):
+        effect = EffectDef.model_validate({"effectID": "1", "playerRelation": "sameAlliance"})
+        relic = RelicEffectDef.model_validate({"id": "4", "relicEffectType": "unitTool"})
+
+        assert effect.player_relation is PlayerRelation.SAME_ALLIANCE
+        assert effect.applies_to_relation(PlayerRelation.SAME_ALLIANCE)
+        assert not effect.applies_to_relation(PlayerRelation.SAME_PLAYER)
+        assert relic.relic_effect_type is RelicEffectType.UNIT_TOOL

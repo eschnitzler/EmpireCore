@@ -19,7 +19,7 @@ def titles_in_order(game_data: GameData, system: TitleSystem) -> list[int]:
     Client: ``CastleTitleData.setupNextTitles`` (bundle line 21016) and ``orderTitlesInSystem``
     (bundle line 21058)
     """
-    rows = [row for row in game_data.titles.values() if row.title_system == system.value]
+    rows = [row for row in game_data.titles.values() if row.title_system == system]
     next_ids = {row.previous_title_id: row.title_id for row in game_data.titles.values() if row.previous_title_id != -1}
     first: int | None = None
     for row in rows:
