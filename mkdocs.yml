@@ -179,6 +179,7 @@ nav:
       - Game data:
           - Lookups by name: guides/game-data.md
           - Generated ids: guides/game-data-ids.md
+          - Game texts: guides/texts.md
       - Beyond one client:
           - Multiple accounts: guides/multiple-accounts.md
           - Protocol models: guides/protocol-models.md
@@ -191,6 +192,7 @@ nav:
           - Exceptions: reference/exceptions.md
           - Enums: reference/enums.md
           - Game data: reference/gamedata.md
+          - Texts: reference/texts.md
           - Protocol: reference/protocol.md
           - Utilities: reference/utils.md
       - Areas:

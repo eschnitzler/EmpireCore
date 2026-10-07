@@ -58,6 +58,7 @@ PUBLIC_MODULES = (
     "empire_core.services",
     "empire_core.spy",
     "empire_core.state",
+    "empire_core.texts",
 )
 # What these hold that callers need is exported from the root or an area.
 PRIVATE_MODULES = ("empire_core.client", "empire_core.network", "empire_core.utils")

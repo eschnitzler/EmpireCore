@@ -26,6 +26,10 @@ except ConnectionClosedError:
 `CommandError.error` is the matching `GGEError` member, or `None` for a code
 this library does not know yet, so branch on it instead of on numbers.
 
+Once the game's texts are loaded, the message ends with the text the game
+shows for the code, and `e.game_message(lang)` gives it; see
+[Game texts](texts.md#error-messages).
+
 ## The hierarchy
 
 ```mermaid
