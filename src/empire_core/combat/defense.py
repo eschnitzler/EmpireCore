@@ -16,7 +16,7 @@ from empire_core.enums import CombatEffectType, Flank, Kingdom, MapItemType
 from empire_core.gamedata import GameData, NpcCampDefence, ToolStats
 from empire_core.map.models.items import MapAreaItem
 
-from .bonuses import Bonus, EffectResolver, commander_bonuses, parse_effect_spec
+from .bonuses import Bonus, EffectResolver, commander_bonuses, effect_value_bonuses
 from .effects import DefenderFlankEffects
 
 if TYPE_CHECKING:
@@ -180,7 +180,7 @@ def tool_defense_bonus(game_data: GameData, tool: ToolStats) -> float:
     ``ToolEffectType.DEFENSE_BONUS``.
     """
     total = 0.0
-    for bonus in parse_effect_spec(tool.raw_effects):
+    for bonus in effect_value_bonuses(tool.effects):
         effect = game_data.effects.get(bonus.effect_id)
         if effect is not None and effect.effect_type_id == CombatEffectType.DEFENSE_BONUS:
             total += bonus.value

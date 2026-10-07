@@ -38,6 +38,18 @@ The other tables: `tools`, `effects`, `effect_types`, `currencies`,
 name to make an enum of. `raw("specialcamps")` returns a table that is not
 modeled yet, exactly as the items file has it.
 
+A row's bonuses are its `effects`, typed `EffectValue`s: the effect and the
+numbers of its value, one tuple per `#`-separated part.
+`empire_core.combat.effect_value_bonuses` turns them into the `Bonus`es the
+combat maths reads:
+
+```python
+from empire_core.gamedata import ConstructionItem
+
+item = data.construction_items[ConstructionItem.BARRACKS_COST_G1_L1]
+[(e.effect_id, e.value) for e in item.effects]
+```
+
 `load_game_data()` is explicit on purpose: the items data is a large download.
 The one other reader is `Movement.troop_count`, which loads it on first use when
 nothing has yet. Both go through `GameData.load`, so a process downloads the

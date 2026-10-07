@@ -18,7 +18,7 @@ from empire_core.enums import EquipmentSlot, Kingdom, MapItemType, WearerType
 from empire_core.protocol.js import js_falsy, js_int, js_number_or_none, js_parse_int, js_string
 
 from .lenient import GameDataId
-from .models import READING_CACHE, _parse_int_or_default, _Row
+from .models import READING_CACHE, EffectSpecRow, EffectValue, _parse_int_or_default, _Row
 
 if TYPE_CHECKING:
     from .ids import (
@@ -73,7 +73,7 @@ def _text(value: object, default: str = "") -> str:
     return default if js_falsy(value) else js_string(value)
 
 
-class BuildingDef(_Row):
+class BuildingDef(EffectSpecRow):
     """
     A building: what every building, tower, gate, moat and decoration row has in common.
 
@@ -84,7 +84,8 @@ class BuildingDef(_Row):
     and ``tempServerCostStone`` (temporary server repair costs).
 
     Client: ``AVisualVO.parseXmlNode`` (bundle line 17800), ``AShopVO.parseXmlNode`` (bundle lines
-    31713-31715), ``ABasicBuildingVO.parseXmlNode`` (bundle lines 17842-17850)
+    31713-31715), ``ABasicBuildingVO.parseXmlNode``, ``parseEffects`` and
+    ``parseAreaSpecificEffects`` (bundle lines 17842-17864)
     """
 
     building_id: GameDataId["Building"] = Field(alias="wodID", description="The building")
@@ -166,11 +167,10 @@ class BuildingDef(_Row):
     district_type_id: int = Field(alias="districtTypeID", default=0, description="The district type it belongs to")
     is_district: bool = Field(alias="isDistrict", default=False, description="It is a district")
     is_relic_building: bool = Field(alias="isRelicBuilding", default=False, description="It is a relic building")
-    raw_effects: str = Field(alias="effects", default="", description="Comma-separated effectID&value pairs")
-    raw_area_specific_effects: str = Field(
+    area_specific_effects: tuple[EffectValue, ...] = Field(
         alias="areaSpecificEffects",
-        default="",
-        description="Comma-separated effectID&value pairs that count only where their effect's conditions hold",
+        default=(),
+        description="Bonuses that count only where their effect's conditions hold",
     )
 
     @field_validator("building_id", mode="before")
@@ -228,11 +228,16 @@ class BuildingDef(_Row):
         number = js_number_or_none(value)
         return sys.float_info.max if number is None else number
 
-    @field_validator("name", "group", "shop_category", "building_ground_type", "raw_effects",
-                     "raw_area_specific_effects", mode="before")  # fmt: skip
+    @field_validator("name", "group", "shop_category", "building_ground_type", mode="before")
     @classmethod
     def _text_column(cls, value: object, info: ValidationInfo) -> str:
         return _text(value, cls.model_fields[str(info.field_name)].default)
+
+    @field_validator("area_specific_effects", mode="before")
+    @classmethod
+    def _area_effects(cls, value: object) -> object:
+        # ABasicBuildingVO.parseAreaSpecificEffects (bundle line 17858)
+        return EffectValue.parse_list(value)
 
     @field_validator("building_type", mode="before")
     @classmethod
@@ -241,7 +246,7 @@ class BuildingDef(_Row):
         return "" if text == "-" else text
 
 
-class ResearchDef(_Row):
+class ResearchDef(EffectSpecRow):
     """
     One level of a research.
 
@@ -269,7 +274,6 @@ class ResearchDef(_Row):
     only_with_research_expert: bool = Field(
         alias="onlyWithResearchExpert", default=False, description="It needs the research expert"
     )
-    raw_effects: str = Field(alias="effects", default="", description="Comma-separated effectID&value pairs")
 
     @field_validator("research_id", mode="before")
     @classmethod
@@ -295,7 +299,7 @@ class ResearchDef(_Row):
     def _expert(cls, value: object) -> bool:
         return _is_one(value)
 
-    @field_validator("label", "raw_effects", mode="before")
+    @field_validator("label", mode="before")
     @classmethod
     def _text_column(cls, value: object) -> str:
         return _text(value)
@@ -626,7 +630,7 @@ class DailyQuestDef(_Row):
         return QuestCondition.parse_list(value)
 
 
-class TitleDef(_Row):
+class TitleDef(EffectSpecRow):
     """
     A title of the glory, Berimond or Storm Islands title systems.
 
@@ -648,7 +652,6 @@ class TitleDef(_Row):
     )
     reward_id: int = Field(alias="rewardID", default=-1, description="Its reward; -1 for none")
     might_value: int = Field(alias="mightValue", default=-1, description="Might points it gives")
-    raw_effects: str = Field(alias="effects", default="", description="Comma-separated effectID&value pairs")
 
     @field_validator("title_id", mode="before")
     @classmethod
@@ -671,11 +674,6 @@ class TitleDef(_Row):
     @classmethod
     def _text_column(cls, value: object) -> str:
         return _text(value, "-1")
-
-    @field_validator("raw_effects", mode="before")
-    @classmethod
-    def _effects(cls, value: object) -> str:
-        return _text(value)
 
 
 class ScalingCampDef(_Row):

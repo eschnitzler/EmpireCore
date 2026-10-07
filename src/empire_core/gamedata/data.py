@@ -42,7 +42,9 @@ from .models import (
     EffectCapDef,
     EffectDef,
     EffectTypeDef,
+    EffectValue,
     EquipmentEffectDef,
+    EquipmentEffectValue,
     EquipmentSetDef,
     EventCampDef,
     FortificationDef,
@@ -138,6 +140,8 @@ _CACHED_MODELS = (
     QuestCondition,
     TitleDef,
     ScalingCampDef,
+    EffectValue,
+    EquipmentEffectValue,
 )
 """Every row model the cache stores; the fingerprint covers each one's fields."""
 

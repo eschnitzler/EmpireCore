@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, NamedTuple, Protocol
 from empire_core.enums import CombatEffectType, MapItemType
 from empire_core.gamedata import GameData, ToolStats
 
-from .bonuses import parse_effect_spec
+from .bonuses import effect_value_bonuses
 from .effects import AttackerFlankEffects, DefenderFlankEffects
 
 if TYPE_CHECKING:
@@ -116,7 +116,7 @@ def conditioned_effect_bonus(
     at all, so without this they look useless to the strategies.
     """
     total = 0.0
-    for bonus in parse_effect_spec(tool.raw_effects):
+    for bonus in effect_value_bonuses(tool.effects):
         effect = game_data.effects.get(bonus.effect_id)
         if effect is None or effect.effect_type_id != effect_type:
             continue
@@ -278,16 +278,9 @@ def is_tool_usable_against_active_raid_boss(
     Returns:
         True when the tool may be used
     """
-    spec = tool.raw_effects
     tied = False
-    for segment in spec.split(","):
-        if not segment:
-            continue
-        try:
-            effect_id = int(segment.split("&")[0])
-        except ValueError:
-            continue
-        effect = game_data.effects.get(effect_id)
+    for entry in tool.effects:
+        effect = game_data.effects.get(entry.effect_id)
         if effect is None:
             continue
         if not effect.raid_boss_ids:

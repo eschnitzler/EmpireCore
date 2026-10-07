@@ -12,6 +12,7 @@ from empire_core.combat import (
     attacker_flank_effects,
     commander_bonuses,
     construction_item_bonuses,
+    effect_value_bonuses,
     equipment_set_bonuses,
     general_passive_bonuses,
     general_skill_bonuses,
@@ -19,10 +20,9 @@ from empire_core.combat import (
     global_unit_attack_bonuses,
     legend_skill_value,
     parse_bonus_entries,
-    parse_effect_spec,
     sceat_skill_bonuses,
 )
-from empire_core.gamedata import EffectDef, GameData, GlobalEffect
+from empire_core.gamedata import DefaultLordDef, EffectDef, GameData, GlobalEffect, GlobalEffectDef
 from empire_core.protocol.models import Commander
 
 # Effect ids invented for the test; effect *types* are the real ones.
@@ -589,17 +589,27 @@ def source_data() -> GameData:
     return GameData.parse("test", SOURCE_PAYLOAD)
 
 
+def spec_bonuses(effects: str | None) -> list[Bonus]:
+    """The bonuses of an ``effects`` column, read through a row that has one."""
+    return effect_value_bonuses(GlobalEffectDef.model_validate({"globalEffectID": 1, "effects": effects}).effects)
+
+
 class TestEffectSpec:
     def test_single_and_multiple(self):
-        assert parse_effect_spec("66&30") == [Bonus(effect_id=66, value=30)]
-        assert parse_effect_spec("100&13,110&4") == [
+        assert spec_bonuses("66&30") == [Bonus(effect_id=66, value=30)]
+        assert spec_bonuses("100&13,110&4") == [
             Bonus(effect_id=100, value=13),
             Bonus(effect_id=110, value=4),
         ]
 
     def test_junk_is_skipped(self):
-        assert parse_effect_spec("66&30,broken,&,7&") == [Bonus(effect_id=66, value=30)]
-        assert parse_effect_spec(None) == []
+        assert spec_bonuses("66&30,broken,&,7&") == [Bonus(effect_id=66, value=30)]
+        assert spec_bonuses(None) == []
+
+    def test_an_equipment_effect_is_marked(self):
+        row = DefaultLordDef.model_validate({"lordID": "-14", "effects": "12&5"})
+
+        assert effect_value_bonuses(row.effects) == [Bonus(effect_id=12, value=5, via_equipment=True)]
 
 
 class TestSources:
@@ -986,7 +996,7 @@ class TestKeyedEffectValues:
         assert bonus.strength(36) == 40.0
 
     def test_a_keyed_spec_string_is_parsed_as_pairs(self):
-        bonus = parse_effect_spec("22001&602+13#608+13")[0]
+        bonus = spec_bonuses("22001&602+13#608+13")[0]
 
         assert bonus.raw_values == (602.0, 13.0, 608.0, 13.0)
         assert bonus.strength(148) == 13.0
