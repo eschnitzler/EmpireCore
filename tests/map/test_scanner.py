@@ -528,6 +528,12 @@ class TestItemTypeFiltering:
         result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=None, chunk_delay=0)
         assert result.items == []
 
+    def test_none_keeps_the_main_castles_of_other_kingdoms(self):
+        rows = [[int(MapItemType.KINGDOM_CASTLE), 95, 95, 4242], [int(MapItemType.DUNGEON), 96, 96, 7]]
+        fake = _FakeClient(content_chunks=set(), payloads={(1, 1): {"AI": rows, "OI": []}})
+        result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.ICE, chunks=[(1, 1)], item_types=None, chunk_delay=0)
+        assert [i.item_type for i in result.items] == [MapItemType.KINGDOM_CASTLE]
+
     def test_camps_survive_the_unowned_filter(self):
         # A live camp row carries an espionage age of -1 where an owned
         # location carries an id, so the unowned filter must not drop it.
