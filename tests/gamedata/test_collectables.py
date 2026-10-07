@@ -32,11 +32,11 @@ class TestRewardObject:
 
         assert _short(rewards) == [
             (CollectableKind.UNITS, Unit.KINGSCROSSBOWMAN, 5),
-            (CollectableKind.CURRENCY, Currency.MS2, 1),
+            (CollectableKind.CURRENCY, Currency.SKIP_5_MINUTES, 1),
             (CollectableKind.COINS, None, 2000),
             (CollectableKind.OTHER, None, 1),
         ]
-        assert rewards[0].item is Unit.KINGSCROSSBOWMAN and rewards[1].item is Currency.MS2
+        assert rewards[0].item is Unit.KINGSCROSSBOWMAN and rewards[1].item is Currency.SKIP_5_MINUTES
 
     def test_a_key_the_client_has_no_type_for_is_kept(self):
         # HF is the hidden food a quest grants; the client's parser has no type for it and drops it
@@ -81,7 +81,7 @@ class TestRows:
         assert _short(Collectable.from_rows([0, 5, 0, 100, 0, 0, 0, 0, 3])) == [
             (CollectableKind.STONE, None, 5),
             (CollectableKind.COINS, None, 100),
-            (CollectableKind.CURRENCY, Currency.KT, 3),
+            (CollectableKind.CURRENCY, Currency.KHAN_TABLETS, 3),
         ]
 
     @pytest.mark.parametrize("value", [None, [], {"S": 4}, [[1, 2]], [["S"]]])
@@ -95,8 +95,8 @@ class TestKinds:
         [
             ("C2", 45, CollectableKind.RUBIES, None, 45),
             ("c2", 45, CollectableKind.RUBIES, None, 45),
-            ("MS", ["MS3", 5], CollectableKind.CURRENCY, Currency.MS3, 5),
-            ("KT", [1, 7], CollectableKind.CURRENCY, Currency.KT, 7),
+            ("MS", ["MS3", 5], CollectableKind.CURRENCY, Currency.SKIP_10_MINUTES, 5),
+            ("KT", [1, 7], CollectableKind.CURRENCY, Currency.KHAN_TABLETS, 7),
             ("D", [171, 2], CollectableKind.BUILDING, Building.KEEP_L1, 2),
             ("CI", 1, CollectableKind.CONSTRUCTION_ITEM, ConstructionItem(1), 1),
             ("LB", [1, 4], CollectableKind.LOOT_BOX, LootBox.MYSTERY_BOX_BRONZE_R1, 4),

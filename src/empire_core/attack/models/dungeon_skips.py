@@ -7,11 +7,17 @@ Commands:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from pydantic import Field, field_serializer, field_validator
 
 from empire_core.enums import Kingdom
+from empire_core.gamedata import EnumOrStr
 from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.base import BaseRequest, BaseResponse
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Currency
 
 # =============================================================================
 # MSD / SDC - Dungeon cooldown skips
@@ -51,9 +57,9 @@ class MinuteSkipDungeonRequest(BaseRequest):
     y: int = Field(alias="Y", description="Dungeon map y")
     map_id: int = Field(alias="MID", default=-1, description="Treasure-map id, -1 for an ordinary dungeon")
     node_id: int = Field(alias="NID", default=-1, description="Treasure-map node id, -1 for an ordinary dungeon")
-    minute_skip: str = Field(
+    minute_skip: EnumOrStr["Currency"] = Field(
         alias="MST",
-        description="JSON key of the minute-skip currency used, MS1 to MS7 in the item data (see SCEItem)",
+        description="The minute skip used, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``; sent as its key",
     )
     kingdom_id: Kingdom = Field(alias="KID", description="Kingdom id")
 

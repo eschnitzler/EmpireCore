@@ -1,14 +1,20 @@
 """
 Generate the ``empire_core.gamedata.ids`` enums from the items data.
 
-    uv run python scripts/generate_gamedata_ids.py                  # the version GameData.load() fetches
-    uv run python scripts/generate_gamedata_ids.py --items items_v786.03.json
+    uv run python scripts/generate_gamedata_ids.py                  # the versions the game serves now
+    uv run python scripts/generate_gamedata_ids.py --items items_v786.03.json --texts scripts/gamedata_ids_texts.json
     uv run python scripts/generate_gamedata_ids.py --check          # exit 1 if the package is out of date
     uv run python scripts/generate_gamedata_ids.py --diff-names names.md --breaking-footer footer.txt
 
 Each table becomes one module. Member names come from the row's name columns,
 UPPER_SNAKE; names that still collide after that all get the row id appended,
-so no member keeps a bare name another row also claims. Each member also
+so no member keeps a bare name another row also claims. Where a table's names
+would be codes (currency keys, the researches' German notes), a row is named
+from the game's English text instead, by the text id the client shows for it;
+a row without its own text keeps the code name. The texts come from the live
+language file (or ``--texts``), and the ones used are kept in
+``scripts/gamedata_ids_texts.json``, so ``--items X --texts`` that file
+regenerates the same names offline, and a renamed text shows up as a diff. Each member also
 carries its row's fixed id and number columns to filter on (a level, a unit's
 role, a tool's category), but not the name and type text its name is built
 from; an enum with none is plain ``NAME = id``. Output is sorted
@@ -25,16 +31,18 @@ import keyword
 import re
 import sys
 import textwrap
-from collections import defaultdict
-from collections.abc import Iterable
+from collections import Counter, defaultdict
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from empire_core.gamedata import GameData
+from empire_core.gamedata import CurrencyDef, GameData
 from empire_core.protocol.js import js_falsy, js_parse_int
+from empire_core.texts import fetch_texts
 
 SCRIPT = "scripts/generate_gamedata_ids.py"
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "src" / "empire_core" / "gamedata" / "ids"
+DEFAULT_SNAPSHOT = Path(__file__).resolve().parent / "gamedata_ids_texts.json"
 LINE_LENGTH = 120
 VERSION = re.compile(r"\d+(\.\d+)*")
 
@@ -72,6 +80,30 @@ class Table:
     rows: list[Row]
     attrs: tuple[Attr, ...] = ()
     str_enum: bool = False
+
+
+class Texts:
+    """The English texts members are named from; remembers each one a name used, for the snapshot."""
+
+    def __init__(self, texts: Mapping[str, object]) -> None:
+        # The client looks texts up case-insensitively: GlobalizeTextProcessor.setTexts (dll line 22936)
+        self._texts = {key.lower(): str(value) for key, value in texts.items() if key != "@metadata"}
+        self.used: dict[str, str] = {}
+
+    def get(self, text_id: str) -> str | None:
+        found = self._texts.get(text_id.lower())
+        if not found:
+            return None
+        self.used[text_id] = found
+        return found
+
+    def snapshot(self) -> str:
+        return json.dumps(dict(sorted(self.used.items())), indent=2, ensure_ascii=False) + "\n"
+
+
+def text_name(text: str) -> str:
+    """``Toril's general shard`` -> ``Torils general shard``, ``1,000 generals XP`` -> ``1000 generals XP``."""
+    return re.sub(r"(?<=\d),(?=\d{3})", "", re.sub(r"['\u2019]", "", text))
 
 
 def to_snake(text: str) -> str:
@@ -158,6 +190,53 @@ def research_name(label: str, group_id: int, level: int) -> str:
     return f"{stem}_G{group_id}{level_suffix(level)}"
 
 
+# EffectTypeEnum.EFFECT_TYPE_ENABLE_CONSTRUCTIONITEM_RECIPE_ID and EFFECT_TYPE_ENABLE_CRAFTINGRECIPE (bundle line 1322)
+RECIPE_EFFECT_TYPES = {116, 170}
+
+
+def research_rows(data: GameData, texts: Texts | None) -> list[Row]:
+    """
+    ``<title>_L<level>`` from ``research_<groupID>_title``, else :func:`research_name`.
+
+    Only rows the client builds as a ``ResearchVO`` have that title: ``CastleResearchData.createResearchVO``
+    (bundle line 139322) builds a blueprint or crafting-recipe research, named from other tables, when the
+    first effect enables recipes, and ``ResearchVO.nameTextId`` (bundle line 61480) is the title. The
+    title names a group, so a title two groups share falls back on the research id.
+    """
+    rows = []
+    for research_id, row in data.researches.items():
+        group_id, level = int_column(row, "groupID", -1), int_column(row, "level", -1)
+        first_effect = js_parse_int(re.split(r"[&,#]", str_column(row, "effects"))[0])
+        effect = data.effects.get(first_effect) if first_effect is not None else None
+        recipe = effect is not None and effect.effect_type_id in RECIPE_EFFECT_TYPES
+        title = None if texts is None or recipe else texts.get(f"research_{group_id}_title")
+        if title:
+            base = text_name(title) + level_suffix(level)
+        else:
+            base = research_name(str_column(row, "comment2"), group_id, level)
+        rows.append(Row(base, research_id, str(research_id), (group_id, level)))
+    return rows
+
+
+def currency_names(data: GameData, texts: Texts | None) -> list[tuple[str, CurrencyDef]]:
+    """
+    (name, row) for every currency the server keys: its English name, else its key.
+
+    The client names a currency ``"currency_name_" + (assetName or Name)``
+    (``CollectableItemGenericCurrencyVO.getNameTextId`` and ``getNameOrAssetName``, bundle lines 5267
+    and 5273). A text id several currencies share (the 80 decoration catalysts) names none of them.
+    """
+    rows = [row for row in data.currencies.values() if row.json_key]
+    text_ids = {row.currency_id: f"currency_name_{row.asset_name or row.name}" for row in rows}
+    shared = {text_id for text_id, n in Counter(t.lower() for t in text_ids.values()).items() if n > 1}
+    named = []
+    for row in rows:
+        text_id = text_ids[row.currency_id]
+        text = None if texts is None or text_id.lower() in shared else texts.get(text_id)
+        named.append((text_name(text) if text else row.json_key.upper(), row))
+    return named
+
+
 def condition_name(conditions: str) -> str:
     """``collectFame+225000#lootResource+2400`` -> ``COLLECT_FAME``: what the first condition counts."""
     return to_snake(conditions.split("#")[0].split("+")[0])
@@ -175,14 +254,18 @@ def building_rows(data: GameData) -> list[Row]:
     return rows
 
 
-def tables(data: GameData) -> list[Table]:
-    """Every table the ids package covers, from ``data`` parsed from the full items file."""
+def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
+    """
+    Every table the ids package covers, from ``data`` parsed from the full items file.
+
+    Without ``texts`` every row keeps its code name.
+    """
     general_names = {row.general_id: row.name for row in data.generals.values()}
 
     def general_of(general_id: int) -> str:
         return to_snake(general_names.get(general_id) or f"G{general_id}")
 
-    currencies = [(row.json_key.upper(), row) for row in data.currencies.values() if row.json_key]
+    currencies = currency_names(data, texts)
 
     return [
         Table(
@@ -230,8 +313,10 @@ def tables(data: GameData) -> list[Table]:
             "currencies",
             "Currency",
             "C",
-            "Currency keys from the ``currencies`` table, the key the server uses; coins and rubies are not in it.",
-            "``CurrencyData.getXmlCurrencyByKey`` (bundle line 141194)",
+            "Currency keys from the ``currencies`` table, the key the server uses, named from the game's English "
+            "name; coins and rubies are not in it.",
+            "``CurrencyData.getXmlCurrencyByKey`` (bundle line 141194); names from ``currency_name_<assetName or "
+            "Name>`` (``CollectableItemGenericCurrencyVO.getNameTextId``, bundle line 5267)",
             [Row(key, row.json_key, str(row.currency_id), (row.currency_id,)) for key, row in currencies],
             (Attr("currency_id", "int", "The currency's id, as other tables reference it."),),
             str_enum=True,
@@ -339,19 +424,11 @@ def tables(data: GameData) -> list[Table]:
             "researches",
             "Research",
             "R",
-            "Research ids from the ``researches`` table, named from the ``comment2`` note, group and level.",
-            "``AResearchVO.fillFromParamXML`` (bundle line 61502), which does not read ``comment2``",
-            [
-                Row(
-                    research_name(
-                        str_column(row, "comment2"), int_column(row, "groupID", -1), int_column(row, "level", -1)
-                    ),
-                    research_id,
-                    str(research_id),
-                    (int_column(row, "groupID", -1), int_column(row, "level", -1)),
-                )
-                for research_id, row in data.researches.items()
-            ],
+            "Research ids from the ``researches`` table, named from the game's English title and level; a "
+            "blueprint or recipe research from the ``comment2`` note, group and level.",
+            "``AResearchVO.fillFromParamXML`` (bundle line 61502), which does not read ``comment2``; titles "
+            "from ``ResearchVO.nameTextId`` (bundle line 61480)",
+            research_rows(data, texts),
             (Attr("group_id", "int", "The group the research's levels share."), LEVEL),
         ),
         Table(
@@ -565,6 +642,8 @@ Game-data ids as enums, so they autocomplete.
 
 One enum per items table, each member named from the row in UPPER_SNAKE;
 where two rows would share a name, both carry their id (``SPEED_BOOST_2``).
+Currencies and researches are named from the game's English text
+(``Currency.SKIP_5_MINUTES`` is ``"MS2"``), where the row has its own.
 Members are plain ints (``Currency`` members plain strs), so they go on the
 wire and into models as their value.
 
@@ -631,9 +710,9 @@ def render_init(version: str, table_list: list[Table]) -> str:
     return "\n".join(out) + "\n"
 
 
-def render(data: GameData) -> dict[str, str]:
+def render(data: GameData, texts: Texts | None = None) -> dict[str, str]:
     """File name -> contents for the whole package."""
-    table_list = tables(data)
+    table_list = tables(data, texts)
     by_module: dict[str, list[Table]] = defaultdict(list)
     for t in table_list:
         by_module[t.module].append(t)
@@ -759,6 +838,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--items", type=Path, help="a full items_v<version>.json (default: download the current one)")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="package directory to write")
+    parser.add_argument(
+        "--texts", type=Path, help="the English language file, or a snapshot of it (default: download the current one)"
+    )
+    parser.add_argument("--snapshot", type=Path, default=DEFAULT_SNAPSHOT, help="where to keep the texts names used")
     parser.add_argument("--check", action="store_true", help="write nothing; exit 1 if the package would change")
     parser.add_argument(
         "--diff-names", type=Path, help="write a Markdown list of renamed, removed and added members here"
@@ -779,20 +862,23 @@ def main(argv: list[str] | None = None) -> int:
         if not VERSION.fullmatch(data.version):
             raise SystemExit(f"items version {data.version!r} is not dotted digits")
 
-    table_list = tables(data)
+    texts = Texts(json.loads(args.texts.read_text()) if args.texts else fetch_texts("en"))
+    table_list = tables(data, texts)
     empty = [t.enum for t in table_list if not t.rows]
     if empty:
         raise SystemExit(f"no rows for {', '.join(empty)}; is this the full items file?")
-    files = render(data)
+    files = render(data, texts)
+    snapshot = texts.snapshot()
+    snapshot_stale = not args.snapshot.is_file() or args.snapshot.read_text() != snapshot
     changes = name_changes(files, args.out)
     if args.diff_names:
         args.diff_names.write_text(names_report(changes))
     if args.breaking_footer:
         args.breaking_footer.write_text(breaking_footer(changes))
     if args.check:
-        changed = stale(files, args.out)
-        for name in changed:
-            print(f"out of date: {args.out / name}", file=sys.stderr)
+        changed = [args.out / name for name in stale(files, args.out)] + ([args.snapshot] if snapshot_stale else [])
+        for path in changed:
+            print(f"out of date: {path}", file=sys.stderr)
         if changed:
             print(names_report(changes), file=sys.stderr)
             print(f"Regenerate for items {data.version}: uv run python {SCRIPT}", file=sys.stderr)
@@ -800,6 +886,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{args.out} is up to date with items {data.version}", file=sys.stderr)
         return 0
     write(files, args.out)
+    if snapshot_stale:
+        args.snapshot.write_text(snapshot)
     for t in table_list:
         print(f"{t.enum}: {len(t.rows)} members, {collided(t)} with an id suffix", file=sys.stderr)
     print(f"Wrote {len(files)} files for items {data.version} to {args.out}", file=sys.stderr)

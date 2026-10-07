@@ -9,7 +9,7 @@ from .army import ProductionListId, SlotType
 from .castle import BuildingState, ExpansionType, MarketScope, Resource, ResourceCartType, TaxStatus
 from .collectables import BoosterId, CollectableKind
 from .combat import AttackType, AutoSkipCooldownType, CombatEffectType, Flank, LootPriority
-from .commanders import EquipmentSlot, EquipmentType, Rareness, SCEItem, WearerType
+from .commanders import EquipmentSlot, EquipmentType, Rareness, WearerType
 from .map import Kingdom, MapItemType, NPCOwner, PeaceModeStatus
 from .messages import BattleLogAttackType, LogResult, MessageType
 from .movements import MovementType
@@ -74,5 +74,4 @@ __all__ = [
     # Rewards
     "LoginBonusSpecial",
     # Inventory
-    "SCEItem",
 ]

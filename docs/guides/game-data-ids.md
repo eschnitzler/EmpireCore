@@ -10,7 +10,7 @@ For autocomplete, the ids of one items version are also generated as enums:
 from empire_core.gamedata import Currency, General, GeneralSkill, Unit
 
 General.TORIL                        # 101
-Currency.GXP1                        # "GXP1", the key the server uses
+Currency.SKIP_5_MINUTES              # "MS2", the key the server uses
 Unit.MEAD_RANGER_L6                  # 211: type plus level
 GeneralSkill.TORIL_ASPECTOFTHE_DRAGON_L1
 ```
@@ -24,9 +24,14 @@ table has no name to make one of, so reward ids stay ints.
 
 ## Names
 
-Member names come from the row, in `UPPER_SNAKE`. Research names start with the
-items file's own note, which is partly German, and end in group and level
-(`Research.RECRUITMENT_SPEED_G41_L1`), which keep them unique. Where two rows
+Member names come from the row, in `UPPER_SNAKE`. Where the row only has a
+code, the name is the game's English text for it, the one the game shows:
+currencies are named from their name (`Currency.SKIP_5_MINUTES` for `MS2`,
+`Currency.FAST_TRAVEL_FEATHERS` for `PTT`), researches from their title and level
+(`Research.STRENGTH_TRAINING_L1`). A row the game has no text of its own for
+keeps its code (`Currency.DC1` to `DC80`, the decoration catalysts, share one
+name), and a blueprint or recipe research keeps the items file's note, group
+and level (`Research.BEEFSTORAGE_G193_L1`). Where two rows
 would get the same name, both carry their id (`GlobalEffect.SPEED_BOOST_2`,
 `GlobalEffect.SPEED_BOOST_11`). Quests are named after what their first
 condition counts, so most carry their id (`QuestId.BUILDINGS_44`).
@@ -68,7 +73,7 @@ from empire_core.gamedata import Collectable
 rewards = Collectable.from_object({"U": [[664, 5]], "MS2": [1], "C1": [2000]})
 [(reward.kind, reward.item, reward.amount) for reward in rewards]
 # [(CollectableKind.UNITS, Unit.KINGSCROSSBOWMAN, 5),
-#  (CollectableKind.CURRENCY, Currency.MS2, 1), (CollectableKind.COINS, None, 2000)]
+#  (CollectableKind.CURRENCY, Currency.SKIP_5_MINUTES, 1), (CollectableKind.COINS, None, 2000)]
 ```
 
 An entry under a key the client has no type for is kept as
@@ -84,16 +89,19 @@ logs a warning when it does not. Ids added since are not in the enums, but the
 To regenerate from a checkout after a client update:
 
 ```bash
-# downloads the current items
+# downloads the current items and English texts
 uv run python scripts/generate_gamedata_ids.py
-uv run python scripts/generate_gamedata_ids.py --items items_v786.03.json
+# offline, with the texts the committed names came from
+uv run python scripts/generate_gamedata_ids.py --items items_v786.03.json --texts scripts/gamedata_ids_texts.json
 # exits 1 if the ids are out of date
 uv run python scripts/generate_gamedata_ids.py --check
 ```
 
-A weekly workflow compares the live items version with `ITEMS_VERSION` and,
-when they differ, opens a pull request with the regenerated ids, listing every
-member renamed, removed or added. `--diff-names names.md` writes the same list
+The names come from the game's [texts](texts.md), but the generator keeps only
+the texts it used, in `scripts/gamedata_ids_texts.json`, next to it. A weekly
+workflow regenerates the ids from the live items and texts and, when the ids
+or those texts changed, opens a pull request with them, listing every member
+renamed, removed or added. `--diff-names names.md` writes the same list
 locally.
 
 **API:** [Generated ids](../reference/gamedata.md#generated-ids)

@@ -25,6 +25,7 @@ from tests.gamedata.test_gamedata import LOOKUP_PAYLOAD, PAYLOAD
 
 ROOT = Path(__file__).resolve().parents[2]
 IDS_DIR = ROOT / "src" / "empire_core" / "gamedata" / "ids"
+SNAPSHOT = ROOT / "scripts" / "gamedata_ids_texts.json"
 
 
 def _load_script():
@@ -41,6 +42,20 @@ def _load_script():
 gen = _load_script()
 
 ENUMS = [getattr(ids, name) for name in ids.__all__ if isinstance(getattr(ids, name), type)]
+
+
+def committed_texts():
+    """The texts the committed names came from."""
+    return gen.Texts(json.loads(SNAPSHOT.read_text()))
+
+
+@pytest.fixture(autouse=True)
+def no_live_texts(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _forbidden(lang: str = "en") -> dict[str, str]:
+        raise AssertionError("the generator fetched the live language file; pass --texts")
+
+    monkeypatch.setattr(gen, "fetch_texts", _forbidden)
+
 
 # Rows of the tables GameData does not model, as the items payload has them, from v786.03.
 IDS_PAYLOAD: dict[str, Any] = {
@@ -135,18 +150,18 @@ class TestPackage:
             assert path.read_text().startswith(header), path.name
 
     def test_known_ids(self):
-        assert ids.Currency.GXP1 == "GXP1"
+        assert ids.Currency.C_250_GENERALS_XP == "GXP1"
         assert ids.General.TORIL == 101
         assert ids.Unit.MEAD_RANGER_L6 == 211
         assert (ids.GlobalEffect.SPEED_BOOST_2, ids.GlobalEffect.SPEED_BOOST_11) == (2, 11)
-        assert ids.CurrencyId[ids.Currency.KT.name] == 1
+        assert ids.CurrencyId[ids.Currency.KHAN_TABLETS.name] == 1
 
     def test_the_suite_fixtures_name_the_same_ids(self):
         payload = dict(IDS_PAYLOAD)
         payload["units"] = [*payload["units"], *PAYLOAD["units"]]
         data = GameData.parse(ids.ITEMS_VERSION, payload)
         checked = 0
-        for table in gen.tables(data):
+        for table in gen.tables(data, committed_texts()):
             enum = getattr(ids, table.enum)
             for name, value in gen.members(table):
                 if name in enum.__members__:
@@ -178,7 +193,7 @@ class TestPackage:
         if data.version != ids.ITEMS_VERSION:
             pytest.skip(f"{path} is items v{data.version}, not v{ids.ITEMS_VERSION}")
         committed = {file.name: file.read_text() for file in IDS_DIR.glob("*.py")}
-        assert gen.render(data) == committed
+        assert gen.render(data, committed_texts()) == committed
 
 
 @pytest.fixture
@@ -193,14 +208,14 @@ class TestMemberData:
         assert (ids.Unit.MEAD_RANGER_L6.level, ids.Unit.MEAD_RANGER_L6.role) == (6, "ranged")
         assert ids.General.TORIL.rarity_id == 4
         assert ids.GeneralSkill.TORIL_ASPECTOFTHE_DRAGON_L1.general_id == ids.General.TORIL
-        assert ids.Currency.KT.currency_id == ids.CurrencyId.KT
-        assert ids.CurrencyId.KT.json_key == ids.Currency.KT
+        assert ids.Currency.KHAN_TABLETS.currency_id == ids.CurrencyId.KHAN_TABLETS
+        assert ids.CurrencyId.KHAN_TABLETS.json_key == ids.Currency.KHAN_TABLETS
         assert (ids.Building.KEEP_L1.value, ids.Building.KEEP_L1.group, ids.Building.KEEP_L1.level) == (
             171,
             "Building",
             1,
         )
-        assert (ids.Research.RECRUITMENT_SPEED_G41_L1.group_id, ids.Research.RECRUITMENT_SPEED_G41_L1.level) == (41, 1)
+        assert (ids.Research.STRENGTH_TRAINING_L1.group_id, ids.Research.STRENGTH_TRAINING_L1.level) == (41, 1)
         assert ids.ConstructionItem.BARRACKS_COST_G1_L1.rareness_id == 1
         assert (ids.EquipmentGroup.ATTACK_PVP.wearer_id, ids.EquipmentGroup.ATTACK_PVP.slot_id) == (2, 6)
         assert ids.LootBox.MYSTERY_BOX_BRONZE_R1.rarity == 1
@@ -232,7 +247,7 @@ class TestMemberData:
         payload = dict(IDS_PAYLOAD)
         payload["units"] = [*payload["units"], *PAYLOAD["units"]]
         data = GameData.parse(ids.ITEMS_VERSION, payload)
-        for table in gen.tables(data):
+        for table in gen.tables(data, committed_texts()):
             enum = getattr(ids, table.enum)
             for row in table.rows:
                 member = enum._value2member_map_.get(row.value)
@@ -240,7 +255,7 @@ class TestMemberData:
                     assert tuple(getattr(member, a.name) for a in table.attrs) == row.attrs, member
 
     def test_members_are_their_values(self):
-        unit, currency, event = ids.Unit.MEAD_RANGER_L6, ids.Currency.KT, ids.Event.NOMAD_INVASION
+        unit, currency, event = ids.Unit.MEAD_RANGER_L6, ids.Currency.KHAN_TABLETS, ids.Event.NOMAD_INVASION
         assert unit == 211 and hash(unit) == hash(211) and {211: "x"}[unit] == "x"
         assert event == 5 and isinstance(event, int)
         assert currency == "KT" and hash(currency) == hash("KT")
@@ -269,7 +284,7 @@ class TestMemberData:
 
     def test_game_data_lookups_take_members(self, lookup_data):
         assert lookup_data.get_unit(ids.Unit.MEAD_RANGER_L6) is lookup_data.units[211]
-        assert lookup_data.currency(ids.Currency.KT) is lookup_data.currencies[1]
+        assert lookup_data.currency(ids.Currency.KHAN_TABLETS) is lookup_data.currencies[1]
         assert lookup_data.generals.get(ids.General.TORIL) is lookup_data.generals[101]
 
     def test_the_enums_load_lazily(self):
@@ -306,7 +321,7 @@ class TestRecords:
         assert d.record(ids.Tool.ELITE_COMBO_RAM_113) is d.tools[113]
         assert d.record(ids.Effect.FAME_DEFENSE_BONUS) is d.effects[1]
         assert d.record(ids.EffectType.FAME_DEFENSE_BONUS) is d.effect_types[0]
-        assert d.record(ids.Currency.KT) is d.record(ids.CurrencyId.KT) is d.currencies[1]
+        assert d.record(ids.Currency.KHAN_TABLETS) is d.record(ids.CurrencyId.KHAN_TABLETS) is d.currencies[1]
         assert d.record(ids.General.TORIL) is d.generals[101]
         assert d.record(ids.GeneralAbility.POWER_SURGE_L1) is d.general_abilities[10011]
         assert d.record(ids.GeneralSkill.TORIL_ASPECTOFTHE_DRAGON_L1) is d.general_skills[10110201]
@@ -322,7 +337,7 @@ class TestRecords:
     def test_an_unmodeled_table_gives_the_items_row(self, lookup_data):
         d = lookup_data
         assert d.record(ids.Building.KEEP_L1) == IDS_PAYLOAD["buildings"][0]
-        assert d.record(ids.Research.RECRUITMENT_SPEED_G41_L1) == IDS_PAYLOAD["researches"][1]
+        assert d.record(ids.Research.STRENGTH_TRAINING_L1) == IDS_PAYLOAD["researches"][1]
         assert d.record(ids.Event.NOMAD_INVASION) == IDS_PAYLOAD["events"][0]
         assert d.record(ids.LootBox.MYSTERY_BOX_BRONZE_R1) == IDS_PAYLOAD["lootBoxes"][0]
         assert d.record(ids.EquipmentGroup.ATTACK_PVP) == IDS_PAYLOAD["equipment_groups"][0]
@@ -333,21 +348,26 @@ class TestRecords:
 
     def test_an_id_the_data_lacks_is_none(self, lookup_data):
         assert lookup_data.record(ids.Unit.VETERAN_SABERSLASHER) is None
-        assert lookup_data.record(ids.Currency.GXP1) is None
+        assert lookup_data.record(ids.Currency.C_250_GENERALS_XP) is None
         assert lookup_data.record(next(r for r in ids.Research if r not in (1, 256))) is None
         assert GameData(version="0").record(ids.Building.KEEP_L1) is None
 
     def test_records_keep_the_order_across_enums(self, lookup_data):
         d = lookup_data
         missing = next(e for e in ids.Event if e not in (5, 6, 74))
-        found = d.records(iter([ids.Building.KEEP_L1, ids.Unit.MEAD_RANGER_L6, ids.Currency.KT, missing]))
+        found = d.records(iter([ids.Building.KEEP_L1, ids.Unit.MEAD_RANGER_L6, ids.Currency.KHAN_TABLETS, missing]))
         assert found == [IDS_PAYLOAD["buildings"][0], d.units[211], d.currencies[1], None]
         assert d.records([]) == []
 
     def test_members_of_one_value_in_two_enums_stay_apart(self, lookup_data):
         # Equal ints that hash alike, which is why records is a list, not a dict
         d = lookup_data
-        same = [ids.CurrencyId.KT, ids.Effect.FAME_DEFENSE_BONUS, ids.RaidBoss.NECROMANCER, ids.LegendSkill(1)]
+        same = [
+            ids.CurrencyId.KHAN_TABLETS,
+            ids.Effect.FAME_DEFENSE_BONUS,
+            ids.RaidBoss.NECROMANCER,
+            ids.LegendSkill(1),
+        ]
         assert len(set(same)) == 1
         assert d.records(same) == [d.currencies[1], d.effects[1], d.raid_bosses[1], d.legend_skills[1]]
 
@@ -357,9 +377,9 @@ class TestRecords:
             lookup_data.record(member)
 
     def test_a_currency_member_is_one_member_not_its_letters(self, lookup_data):
-        assert lookup_data.records([ids.Currency.KT]) == [lookup_data.currencies[1]]
+        assert lookup_data.records([ids.Currency.KHAN_TABLETS]) == [lookup_data.currencies[1]]
         with pytest.raises(TypeError):
-            lookup_data.records(ids.Currency.KT)
+            lookup_data.records(ids.Currency.KHAN_TABLETS)
 
     def test_every_enum_has_a_lookup(self):
         data = GameData(version="0")
@@ -373,10 +393,10 @@ class TestRecords:
         assert again is not None
         members = [
             ids.Unit.MEAD_RANGER_L6,
-            ids.Currency.KT,
+            ids.Currency.KHAN_TABLETS,
             ids.Building.KEEP_L1,
             ids.Building.CASTLEWALL_L1,
-            ids.Research.RECRUITMENT_SPEED_G41_L1,
+            ids.Research.STRENGTH_TRAINING_L1,
             ids.Event.NOMAD_INVASION,
             ids.LootBox.MYSTERY_BOX_BRONZE_R1,
             ids.EquipmentGroup.ATTACK_PVP,
@@ -515,6 +535,88 @@ class TestGenerator:
         assert self.members(items, "Currency") == {"KT": "KT", "DD": "DD"}
         assert self.members(items, "CurrencyId") == {"KT": 1, "DD": 100000}
 
+    def text_members(self, payload: dict[str, Any], texts: dict[str, str], enum: str) -> dict[str, object]:
+        table = next(t for t in gen.tables(GameData.parse("786.03", payload), gen.Texts(texts)) if t.enum == enum)
+        return dict(gen.members(table))
+
+    def test_currencies_are_named_from_their_english_name(self):
+        payload = {
+            "currencies": [
+                {"currencyID": "1001", "Name": "1MinSkip", "JSONKey": "MS1", "assetName": "1MinSkip"},
+                {"currencyID": "10001", "Name": "ShardToril", "JSONKey": "STL"},
+                {"currencyID": "7003", "Name": "GenXP1000", "JSONKey": "GXP3", "assetName": "GenXP1000"},
+                {"currencyID": "100001", "Name": "DecoCatalyst1", "JSONKey": "DC1", "assetName": "DecoCatalyst"},
+                {"currencyID": "100002", "Name": "DecoCatalyst2", "JSONKey": "DC2", "assetName": "DecoCatalyst"},
+                {"currencyID": "8", "Name": "CastlePassageToken", "JSONKey": "CPT"},
+            ]
+        }
+        texts = {
+            "currency_name_1minskip": "Skip 1 minute",
+            "currency_name_ShardToril": "Toril's general shard",
+            "currency_name_GenXP1000": "1,000 generals XP",
+            "currency_name_DecoCatalyst": "Decoration catalyst",
+        }
+        named = {
+            "SKIP_1_MINUTE": "MS1",
+            "TORILS_GENERAL_SHARD": "STL",
+            "C_1000_GENERALS_XP": "GXP3",
+            "DC1": "DC1",
+            "DC2": "DC2",
+            "CPT": "CPT",
+        }
+        assert self.text_members(payload, texts, "Currency") == named
+        by_id = self.text_members(payload, texts, "CurrencyId")
+        assert by_id == {name: int(row["currencyID"]) for name, row in zip(named, payload["currencies"], strict=True)}
+
+    def test_researches_are_named_from_their_title_unless_they_unlock_recipes(self):
+        payload = {
+            "effects": [
+                {"effectID": "107", "name": "recruitSpeedBoost", "effectTypeID": "19"},
+                {"effectID": "700", "name": "enableCraftingRecipes", "effectTypeID": "170"},
+            ],
+            "researches": [
+                {
+                    "researchID": "256",
+                    "comment2": "recruitment speed",
+                    "groupID": "41",
+                    "level": "1",
+                    "effects": "107&-5",
+                },
+                {
+                    "researchID": "257",
+                    "comment2": "recruitment speed",
+                    "groupID": "41",
+                    "level": "2",
+                    "effects": "107&-6",
+                },
+                {"researchID": "900", "comment2": "Beefstorage", "groupID": "193", "level": "1", "effects": "700&3"},
+                {"researchID": "10001", "comment2": "UNWALKABLE 001", "groupID": "1001", "level": "1"},
+            ],
+        }
+        texts = {"research_41_title": "Strength training", "research_193_title": "Not a recipe's name"}
+        assert self.text_members(payload, texts, "Research") == {
+            "STRENGTH_TRAINING_L1": 256,
+            "STRENGTH_TRAINING_L2": 257,
+            "BEEFSTORAGE_G193_L1": 900,
+            "UNWALKABLE_001_G1001_L1": 10001,
+        }
+
+    def test_a_title_two_research_groups_share_falls_back_on_the_id(self):
+        payload = {
+            "researches": [
+                {"researchID": "10", "groupID": "7", "level": "1"},
+                {"researchID": "11", "groupID": "8", "level": "1"},
+            ]
+        }
+        texts = {"research_7_title": "Genius", "research_8_title": "Genius"}
+        assert self.text_members(payload, texts, "Research") == {"GENIUS_L1_10": 10, "GENIUS_L1_11": 11}
+
+    def test_the_texts_used_are_the_snapshot(self):
+        texts = gen.Texts({"@metadata": {"versionNo": "1"}, "Currency_Name_KhanTablet": "Khan tablets", "unused": "x"})
+        assert texts.get("currency_name_KhanTablet") == "Khan tablets"
+        assert texts.get("missing") is None
+        assert json.loads(texts.snapshot()) == {"currency_name_KhanTablet": "Khan tablets"}
+
     def test_output_is_deterministic_and_importable(self, items, tmp_path, monkeypatch):
         first = gen.render(items)
         reversed_payload = {key: list(reversed(rows)) for key, rows in IDS_PAYLOAD.items()}
@@ -579,8 +681,51 @@ class TestCheck:
         path.write_text(json.dumps(IDS_PAYLOAD))
         return path
 
+    @pytest.fixture(autouse=True)
+    def texts_file(self, tmp_path) -> Path:
+        path = tmp_path / "lang_en.json"
+        path.write_text(
+            json.dumps({"currency_name_KhanTablet": "Khan tablets", "research_41_title": "Strength training"})
+        )
+        return path
+
     def run(self, items_file: Path, out: Path, *extra: str) -> int:
-        return gen.main(["--items", str(items_file), "--out", str(out), *extra])
+        texts, snapshot = out.parent / "lang_en.json", out.parent / "snapshot.json"
+        return gen.main(
+            ["--items", str(items_file), "--out", str(out), "--texts", str(texts), "--snapshot", str(snapshot), *extra]
+        )
+
+    def test_the_snapshot_keeps_only_the_texts_names_used(self, items_file, tmp_path):
+        out = tmp_path / "ids"
+        assert self.run(items_file, out) == 0
+        assert json.loads((tmp_path / "snapshot.json").read_text()) == {
+            "currency_name_KhanTablet": "Khan tablets",
+            "research_41_title": "Strength training",
+        }
+        assert "    KHAN_TABLETS = " in (out / "currencies.py").read_text()
+
+    def test_generating_from_the_snapshot_changes_nothing(self, items_file, tmp_path):
+        out = tmp_path / "ids"
+        assert self.run(items_file, out) == 0
+        (tmp_path / "lang_en.json").write_text((tmp_path / "snapshot.json").read_text())
+        assert self.run(items_file, out, "--check") == 0
+
+    def test_check_notices_a_renamed_text(self, items_file, tmp_path):
+        out = tmp_path / "ids"
+        assert self.run(items_file, out) == 0
+        snapshot = (tmp_path / "snapshot.json").read_text()
+        (tmp_path / "lang_en.json").write_text(json.dumps({"currency_name_KhanTablet": "Khan slabs"}))
+        names = tmp_path / "names.md"
+        assert self.run(items_file, out, "--check", "--diff-names", str(names)) == 1
+        assert "- `Currency.KHAN_TABLETS` -> `Currency.KHAN_SLABS`" in names.read_text()
+        assert "- `Research.STRENGTH_TRAINING_L1` -> `Research.RECRUITMENT_SPEED_G41_L1`" in names.read_text()
+        assert (tmp_path / "snapshot.json").read_text() == snapshot
+
+    def test_check_notices_a_stale_snapshot(self, items_file, tmp_path):
+        out = tmp_path / "ids"
+        assert self.run(items_file, out) == 0
+        (tmp_path / "snapshot.json").write_text("{}\n")
+        assert self.run(items_file, out, "--check") == 1
 
     def test_check_passes_on_what_it_would_write(self, items_file, tmp_path):
         out = tmp_path / "ids"
@@ -605,7 +750,7 @@ class TestCheck:
         after = {path.name: path.read_text() for path in out.glob("*.py")} if out.exists() else {}
         assert after == before
 
-    def test_name_changes_against_the_committed_package(self, items_file, tmp_path):
+    def test_name_changes_against_the_committed_package(self, items_file, texts_file, tmp_path):
         out = tmp_path / "ids"
         assert self.run(items_file, out) == 0
         payload = json.loads(items_file.read_text())
@@ -625,7 +770,8 @@ class TestCheck:
         items_file.write_text(json.dumps(payload))
         assert self.run(items_file, out, "--check", "--diff-names", str(names), "--breaking-footer", str(footer)) == 1
 
-        changes = gen.name_changes(gen.render(GameData.parse("786.03", payload)), out)
+        texts = gen.Texts(json.loads(texts_file.read_text()))
+        changes = gen.name_changes(gen.render(GameData.parse("786.03", payload), texts), out)
         assert changes.renamed == [
             ("Event.NOMAD_INVASION", "Event.NOMAD_ATTACK"),
             ("Event.PAYMENTREWARD_6", "Event.PAYMENTREWARD"),
@@ -658,7 +804,7 @@ class TestCheck:
         if not path:
             pytest.skip("EMPIRE_CORE_ITEMS_JSON is not set")
             return
-        assert gen.main(["--items", path, "--check"]) == 0
+        assert gen.main(["--items", path, "--texts", str(SNAPSHOT), "--check"]) == 0
 
 
 class TestStaleness:

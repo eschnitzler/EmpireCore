@@ -66,7 +66,7 @@ from empire_core.gamedata import Building, General, Research, Unit
 
 data.record(Unit.MEAD_RANGER_L6)                  # UnitStats
 data.record(General.TORIL)                        # GeneralDef
-data.record(Research.RECRUITMENT_SPEED_G41_L1)    # the items row, as a dict
+data.record(Research.STRENGTH_TRAINING_L1)        # the items row, as a dict
 data.records([Unit.MEAD_RANGER_L6, Building.KEEP_L1])
 ```
 

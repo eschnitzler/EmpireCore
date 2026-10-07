@@ -22,17 +22,21 @@ Commands:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, field_serializer, field_validator
 
 from empire_core.enums import ExpansionType
+from empire_core.gamedata import EnumOrStr
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock
 from empire_core.protocol.js import ClientInt, js_int
 
 from .details import CastleProductionArea
 from .objects import BuildingRow, CastleBuildings, ConstructionList, block_or_none, building_or_none, building_rows
 from .resources import CastleResources
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Currency
 
 _OBJECT_ID = "The building's object id, a BuildingRow.object_id from client.castle.join(...).buildings"
 _PRIVATE_OFFER = "The private offer the purchase uses, -1 for none"
@@ -370,9 +374,9 @@ class TimeSkipBuildingRequest(BaseRequest):
     command = "msb"
 
     object_id: int = Field(alias="OID", description=_OBJECT_ID)
-    minute_skip: str = Field(
+    minute_skip: EnumOrStr["Currency"] = Field(
         alias="MST",
-        description="JSON key of the minute-skip currency used, MS1 to MS7 in the item data (see SCEItem)",
+        description="The minute skip used, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``; sent as its key",
     )
 
 

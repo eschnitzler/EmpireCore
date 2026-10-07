@@ -41,6 +41,7 @@ from empire_core.castle.models.objects import (
 )
 from empire_core.enums import BuildingState, ExpansionType, Kingdom, MapItemType
 from empire_core.exceptions import CommandError
+from empire_core.gamedata import Currency
 from empire_core.protocol.models import parse_response
 from tests.service_helpers import conn, make_client, xt_packet
 
@@ -284,7 +285,7 @@ class TestJoinArea:
         (DestroyBuildingRequest(object_id=42), {"OID": 42}),
         (FastCompleteRequest(object_id=42), {"OID": 42, "FS": 0}),
         # C2SMinuteSkipBuildingVO: OID is initialised, MST set after it
-        (TimeSkipBuildingRequest(object_id=42, minute_skip="MS2"), {"OID": 42, "MST": "MS2"}),
+        (TimeSkipBuildingRequest(object_id=42, minute_skip=Currency.SKIP_5_MINUTES), {"OID": 42, "MST": "MS2"}),
         (UpgradeWallRequest(object_id=42), {"OID": 42, "PO": -1, "PWR": 0}),
         (RepairBuildingRequest(object_id=42), {"OID": 42, "PO": -1, "PWR": 0}),
         (RepairAllRequest(), {}),
@@ -390,7 +391,7 @@ class TestBuildingService:
             (lambda c: c.castle.sell_decoration(42), "sbd", {"OID": 42}),
             (lambda c: c.castle.destroy_building(42), "edo", {"OID": 42}),
             (lambda c: c.castle.finish_construction(42, free_skip=True), "fco", {"OID": 42, "FS": 1}),
-            (lambda c: c.castle.skip_construction_time(42, "MS3"), "msb", {"OID": 42, "MST": "MS3"}),
+            (lambda c: c.castle.skip_construction_time(42, Currency.SKIP_10_MINUTES), "msb", {"OID": 42, "MST": "MS3"}),
             (lambda c: c.castle.upgrade_defense(42), "eud", {"OID": 42, "PO": -1, "PWR": 0}),
             (lambda c: c.castle.repair_building(42), "rbu", {"OID": 42, "PO": -1, "PWR": 0}),
             (lambda c: c.castle.repair_all(), "ira", {}),

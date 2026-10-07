@@ -93,7 +93,7 @@ from empire_core.exceptions import (
     UnknownCastleError,
     UnsendableGoodsError,
 )
-from empire_core.gamedata import HorseStats
+from empire_core.gamedata import Currency, HorseStats
 from empire_core.services.base import BaseService
 
 _CLASSIC_GOODS = (Resource.WOOD.value, Resource.STONE.value, Resource.FOOD.value)
@@ -414,14 +414,14 @@ class CastleService(BaseService):
         """Finish a building's running construction at once, for rubies or with an event's free skip."""
         return self.execute(FastCompleteRequest(object_id=object_id, free_skip=free_skip), timeout=timeout)
 
-    def skip_construction_time(self, object_id: int, minute_skip: str, timeout: float = 5.0) -> bool:
+    def skip_construction_time(self, object_id: int, minute_skip: Currency | str, timeout: float = 5.0) -> bool:
         """
         Shorten a building's running construction with a minute skip.
 
         Args:
             object_id: The building's object id
-            minute_skip: JSON key of the minute-skip currency to use, MS1 to MS7
-                (``SCEItem.SKIP_1_MIN`` and the others)
+            minute_skip: The minute skip to use, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``;
+                its key (``"MS1"``) also works, for a skip newer than the generated enum
             timeout: Timeout in seconds
         """
         return self.execute(TimeSkipBuildingRequest(object_id=object_id, minute_skip=minute_skip), timeout=timeout)
