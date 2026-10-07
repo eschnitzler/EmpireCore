@@ -201,8 +201,8 @@ class DefenseService(BaseService):
             timeout: Timeout in seconds
 
         Returns:
-            GetSupportDefenseResponse with defense info.
-            Use response.get_total_defenders() to get total troop count.
+            GetSupportDefenseResponse with defense info: ``defense_positions.total()``
+            counts every defender.
 
         Raises:
             ValueError: No source coordinates given and no own castle known

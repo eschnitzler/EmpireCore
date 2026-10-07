@@ -77,13 +77,13 @@ class TestSpySuccessPath:
         assert result.message_id == 9001
         report = result.report
         assert report is not None
-        assert report.spy_data == [[[487, 100]], [], [], [], [], []]
+        assert report.army is not None and report.army.left == ((487, 100),) and report.army.total() == 100
         assert report.defending_castellan is not None
         assert (report.defending_castellan.commander_id, report.defending_castellan.wins) == (2, 3)
         assert report.area is not None
         assert report.area.name == "Enemy Keep"
         assert result.army is not None
-        assert result.army.left[0].count == 100
+        assert result.army.left[0].amount == 100
         assert result.mission is not None
         assert result.mission.movement_id == 5001
 

@@ -70,7 +70,7 @@ class TestCreateAttackReply:
         movement = reply.attack_movement
         assert movement is not None
         assert (movement.movement.target_id, movement.movement.total_time) == (-210, 71)
-        assert movement.full_army is not None and movement.full_army.left == [[10, 2]]
+        assert movement.full_army is not None and movement.full_army.left == {10: 2}
         assert reply.leader is not None and reply.leader.commander_id == 0
 
     def test_the_currencies_are_kept(self):
@@ -549,7 +549,7 @@ class TestAttackInfo:
         info = GetAttackInfoResponse.model_validate(dict(self.SPIED, S=[]))
 
         assert info.spy_age_seconds == -1
-        assert info.spy_army() is None
+        assert info.spy_army is None
         assert info.defending_castellan() is None
         assert info.defender_legend_skill_ids == ()
 
@@ -642,7 +642,7 @@ class TestTargetPrecalculation:
         assert info.home_workshop_level == 1
         assert info.target_row() == [2, 620, 231, -1, 0, -1, 0]
         assert info.inventory() == {10: 10, 614: 2, 611: 1, 651: 300, 649: 300, 648: 300}
-        assert info.spy_army() is None and info.spy_age_seconds == -1
+        assert info.spy_army is None and info.spy_age_seconds == -1
 
     def test_the_live_ali_reply_carries_owner_records(self):
         from empire_core.protocol.models import GetLandmarkAttackInfoResponse

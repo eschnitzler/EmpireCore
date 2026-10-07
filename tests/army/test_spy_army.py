@@ -7,8 +7,9 @@ support and reserve troops the game never counts together.
 """
 
 import pytest
+from pydantic import ValidationError
 
-from empire_core.army import SpyArmy, SpyArmySection, UnitStack
+from empire_core.army import SpyArmy, SpyArmySection
 
 
 def _army() -> list:
@@ -24,36 +25,33 @@ def _army() -> list:
 
 
 def parsed(spy_data: list) -> SpyArmy:
-    """Parse and narrow: every case below expects a usable report."""
-    army = SpyArmy.from_spy_data(spy_data)
-    assert army is not None
-    return army
+    return SpyArmy.model_validate(spy_data)
 
 
 class TestPositionalParsing:
     def test_each_position_lands_in_its_own_section(self):
         army = parsed(_army())
 
-        assert army.left == [UnitStack(652, 100), UnitStack(746, 50)]
-        assert army.middle == [UnitStack(602, 200)]
-        assert army.right == [UnitStack(652, 75)]
-        assert army.keep == [UnitStack(746, 400)]
-        assert army.stronghold == []
-        assert army.support == [UnitStack(602, 25)]
-        assert army.reserve == [UnitStack(652, 10)]
+        assert army.left == ((652, 100), (746, 50))
+        assert army.middle == ((602, 200),)
+        assert army.right == ((652, 75),)
+        assert army.keep == ((746, 400),)
+        assert army.stronghold == ()
+        assert army.support == ((602, 25),)
+        assert army.reserve == ((652, 10),)
 
     def test_reserve_is_optional(self):
         army = parsed(_army()[:6])
 
-        assert army.reserve == []
-        assert army.support == [UnitStack(602, 25)]
+        assert army.reserve == ()
+        assert army.support == ((602, 25),)
 
     def test_a_short_report_leaves_later_sections_empty(self):
         army = parsed([[[652, 5]]])
 
-        assert army.left == [UnitStack(652, 5)]
-        assert army.middle == []
-        assert army.keep == []
+        assert army.left == ((652, 5),)
+        assert army.middle == ()
+        assert army.keep == ()
 
     def test_empty_report_is_not_an_error(self):
         army = parsed([])
@@ -63,12 +61,17 @@ class TestPositionalParsing:
 
     @pytest.mark.parametrize("bad", [None, "nonsense", 42])
     def test_unusable_payloads_are_rejected(self, bad):
-        assert SpyArmy.from_spy_data(bad) is None
+        with pytest.raises(ValidationError):
+            SpyArmy.model_validate(bad)
+
+    def test_an_id_sent_twice_stays_two_stacks(self):
+        # UnitInventoryList.addUnit appends; it does not add up like the inventory dictionary
+        assert parsed([[[652, 1], [652, 2]]]).left == ((652, 1), (652, 2))
 
     def test_malformed_stacks_are_skipped_not_fatal(self):
         army = parsed([[[652, 100], "junk", [], [746]], []])
 
-        assert army.left == [UnitStack(652, 100)]
+        assert army.left == ((652, 100),)
 
 
 class TestTotals:
@@ -80,7 +83,7 @@ class TestTotals:
         assert parsed(_army()).total() == 860
 
     def test_sections_are_addressable_for_display(self):
-        labeled = [(name, sum(stack.count for stack in stacks)) for name, stacks in parsed(_army()).sections()]
+        labeled = [(name, sum(stack.amount for stack in stacks)) for name, stacks in parsed(_army()).sections()]
 
         assert labeled == [
             (SpyArmySection.LEFT, 150),
@@ -95,8 +98,8 @@ class TestTotals:
     def test_one_section_is_addressable_by_its_enum(self):
         army = parsed(_army())
 
-        assert army.section(SpyArmySection.KEEP) == [UnitStack(746, 400)]
-        assert army.section(SpyArmySection("support")) == [UnitStack(602, 25)]
+        assert army.section(SpyArmySection.KEEP) == ((746, 400),)
+        assert army.section(SpyArmySection("support")) == ((602, 25),)
 
 
 class TestSections:

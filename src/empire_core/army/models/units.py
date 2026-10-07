@@ -13,7 +13,7 @@ from typing import Annotated, Any
 
 from pydantic import BeforeValidator, Field
 
-from empire_core.gamedata import WodAmounts, WodAmountSlots, wod_amount_pairs
+from empire_core.gamedata import WodAmounts, WodAmountSlots
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none
 
 BUY_UNIT_PACKAGE_SK = 73
@@ -44,29 +44,6 @@ class GetUnitsRequest(BaseRequest):
     """
 
     command = "gui"
-
-
-def _spy_positions(value: object) -> object:
-    """
-    One wod/amount array per position, each pair read through ``int()``.
-
-    Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line 30699) hands each
-    position to ``AUnitInventory.fillFromWodAmountArray`` (bundle line 42572),
-    which skips entries that are not arrays and reads ``int(i[0])``, ``int(i[1])``,
-    into a ``UnitInventoryList``, whose ``addUnit`` skips an amount of 0 or less
-    (bundle line 21826). A position that is not an array fills nothing, so it
-    reads as empty; it is kept, since the client reads positions by order.
-    """
-    if value is None:
-        return []
-    if not isinstance(value, list):
-        return value
-    return [[[wod_id, amount] for wod_id, amount in wod_amount_pairs(position) if amount > 0] for position in value]
-
-
-SpyPositions = Annotated[list[list[list[int]]], BeforeValidator(_spy_positions)]
-"""A spy report's ``S``: ``[wod_id, amount]`` pairs per position, in the order
-left, middle, right, keep, stronghold, support, then an optional reserve."""
 
 
 class UnitInventory(BasePayload):

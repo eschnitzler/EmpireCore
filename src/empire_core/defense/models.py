@@ -12,17 +12,21 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
-from empire_core.army.models.units import SpyPositions, UnitInventory
+from empire_core.army.models.units import UnitInventory
+from empire_core.army.spy_army import SpyArmyBlock
 from empire_core.commanders.models.roster import Castellan, CommanderRoster
 from empire_core.enums import Kingdom
-from empire_core.gamedata import UnitOrTool, WodAmountSlots
+from empire_core.gamedata import EnumOrInt, UnitOrTool, WodAmountSlots
 from empire_core.movements.models import MovementArea
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, read_or_none
 from empire_core.protocol.js import ClientInt, js_int, row_is_at
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Unit
 
 logger = logging.getLogger(__name__)
 
@@ -187,8 +191,12 @@ class GetDefenseResponse(BaseResponse):
     wall: WallDefense | None = Field(alias="dfw", default=None, description="Wall setup")
     keep: KeepDefense | None = Field(alias="dfk", default=None, description="Keep setup")
     moat: MoatDefense | None = Field(alias="dfm", default=None, description="Moat setup")
-    range_priority: list[int] = Field(alias="PR", default_factory=list, description="Ranged unit priority")
-    melee_priority: list[int] = Field(alias="PM", default_factory=list, description="Melee unit priority")
+    range_priority: tuple[EnumOrInt["Unit"], ...] = Field(
+        alias="PR", default=(), description="The ranged units in the order the castle places them on the wall"
+    )
+    melee_priority: tuple[EnumOrInt["Unit"], ...] = Field(
+        alias="PM", default=(), description="The melee units in the order the castle places them on the wall"
+    )
     gate_defense: ClientInt = Field(alias="GD", default=0, description="Gate defence, as a whole number")
     castellan: Castellan | None = Field(
         alias="L",
@@ -382,11 +390,10 @@ class GetSupportDefenseResponse(BaseResponse):
     command = "sdi"
 
     castle_id: int = Field(alias="SCID", default=0)
-    defense_positions: SpyPositions = Field(
+    defense_positions: SpyArmyBlock = Field(
         alias="S",
-        default_factory=list,
-        description="Defenders as [wod_id, amount] pairs per position: left, middle, right, keep, "
-        "stronghold, support, then an optional reserve",
+        default=None,
+        description="The castle's defenders by the position they hold; None when the reply lists none",
     )
     castellan: Castellan | None = Field(
         alias="B",
@@ -425,15 +432,6 @@ class GetSupportDefenseResponse(BaseResponse):
             return None
         return read_or_none(handler, value, warn=logger, what="the castellan of an sdi reply")
 
-    def get_total_defenders(self) -> int:
-        """
-        Calculate total number of defending troops.
-
-        Returns:
-            Total count of all units across all defense positions.
-        """
-        return sum(count for position in self.defense_positions for _, count in position)
-
     def get_max_defense(self) -> int:
         """
         Get the maximum defense capacity for this castle.
@@ -445,21 +443,6 @@ class GetSupportDefenseResponse(BaseResponse):
             Maximum number of troops that can defend this castle.
         """
         return self.yard_limit
-
-    def get_units_by_position(self) -> list[dict[int, int]]:
-        """
-        Get unit counts grouped by defense position.
-
-        Returns:
-            One dict per position, each mapping unit_id -> count for that position.
-        """
-        result = []
-        for position in self.defense_positions:
-            units: dict[int, int] = {}
-            for unit_id, count in position:
-                units[unit_id] = units.get(unit_id, 0) + count
-            result.append(units)
-        return result
 
 
 __all__ = [

@@ -759,7 +759,7 @@ class AttackService(BaseService):
                 control, which sizes the courtyard from the area's own defense
                 level rather than its current owner's
             spy_army: A spied castle's defenders per flank, from
-                ``get_attack_info(...).spy_army()``. Without it a castle target
+                ``get_attack_info(...).spy_army``. Without it a castle target
                 is modeled as fortification alone, with no defending army
             defending_castellan: The castellan holding the target, from
                 ``get_attack_info(...).defending_castellan()``. Its equipment

@@ -10,7 +10,7 @@ description: Castles, resources, buildings, the construction queue and moving go
 castles = client.castle.get_all()    # list[CastleInfo]
 
 details = client.castle.get_details(castle_id=12345)  # UnknownCastleError when it is not yours
-print(f"Wood: {details.wood}, units: {details.units}")
+print(f"Wood: {details.wood}, units: {details.units}")   # {Unit or Tool: amount}
 
 resources = client.castle.get_resources(castle_id=12345)
 print(f"Wood: {resources.wood}, Stone: {resources.stone}")

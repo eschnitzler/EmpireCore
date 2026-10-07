@@ -10,6 +10,7 @@ from pydantic import Field, field_validator, model_validator
 
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import MapItemType, SpyType
+from empire_core.gamedata import SupportToolSlots, WodAmounts
 from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest, OwnerFaction, owner_positions
 from empire_core.protocol.base import (
     BasePayload,
@@ -142,15 +143,16 @@ class MovementRecord(BasePayload):
 
 
 class MovementArmy(BasePayload):
-    """A visible army: three flanks of ``[unit_id, count]`` pairs plus the courtyard wave.
+    """A visible army: three flanks plus the courtyard wave, each ``{Unit or Tool: amount}``.
 
-    Client: ``CastleCompactArmyVO.parseSimpleArmy`` / ``parseYardWave``.
+    Client: ``CastleCompactArmyVO.parseSimpleArmy`` / ``parseYardWave`` (bundle lines 67525,
+    67529) read each into a ``UnitInventoryDictionary``, which adds up an id sent twice.
     """
 
-    left: list[list[int]] = Field(alias="L", default_factory=list, description="Left flank")
-    middle: list[list[int]] = Field(alias="M", default_factory=list, description="Middle")
-    right: list[list[int]] = Field(alias="R", default_factory=list, description="Right flank")
-    courtyard: list[list[int]] = Field(alias="RW", default_factory=list, description="Courtyard (yard) wave")
+    left: WodAmounts = Field(alias="L", default_factory=dict, description="Left flank")
+    middle: WodAmounts = Field(alias="M", default_factory=dict, description="Middle")
+    right: WodAmounts = Field(alias="R", default_factory=dict, description="Right flank")
+    courtyard: WodAmounts = Field(alias="RW", default_factory=dict, description="Courtyard (yard) wave")
 
 
 class MovementUnitInfo(BasePayload):
@@ -232,10 +234,14 @@ class MovementWrapper(BasePayload):
     attack_type: int | None = Field(alias="ATT", default=None, description="AttackType value of an attack")
     is_shadow: bool = Field(alias="SM", default=False, description="Shadow movement")
     force_cancelable: bool = Field(alias="FC", default=False, description="The movement can be force-cancelled")
-    support_tools: list[int] = Field(alias="AST", default_factory=list, description="Support tool ids sent along")
+    support_tools: SupportToolSlots = Field(
+        alias="AST",
+        default=(),
+        description="Support tools sent along, as the attack sent them; None for an empty slot",
+    )
     auto_skip_cooldown_type: int = Field(alias="ASCT", default=0, description="Auto-skip cooldown type")
-    travel_units: list[list[int]] = Field(
-        alias="A", default_factory=list, description="Units of a travel movement as [unit_id, count]"
+    travel_units: WodAmounts = Field(
+        alias="A", default_factory=dict, description="Units and tools of a travel movement"
     )
     travel_goods: MovementGoods = Field(alias="G", default_factory=list, description="Loot a travel movement carries")
     market: MovementMarket | None = Field(alias="MM", default=None, description="Market transport cargo")

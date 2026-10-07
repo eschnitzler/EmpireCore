@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from empire_core.enums import BuildingState
 from empire_core.gamedata import EnumOrInt
@@ -100,7 +100,6 @@ class BuildingRow(BasePayload):
     district_id: int = Field(default=0, description="Object id of the district the building sits in, 0 for none")
     district_slot_id: int = Field(default=0, description="The building's slot in its district")
     upgrade_target_wod_id: int = Field(default=-1, description="Wod id the building is upgrading to, -1 for none")
-    raw_data: list[Any] = Field(default_factory=list, description="The whole row, wod id first")
 
     @property
     def is_in_district(self) -> bool:
@@ -132,7 +131,6 @@ class BuildingRow(BasePayload):
             "district_id": district_id,
             "district_slot_id": js_int(at(15)),
             "upgrade_target_wod_id": js_int(row[_UPGRADE_TARGET_INDEX]) if len(row) > _UPGRADE_TARGET_INDEX else -1,
-            "raw_data": list(row),
         }
         if len(row) > _FIRST_BUILDING_INDEX:
             values.update(
@@ -169,44 +167,73 @@ def building_rows(value: Any) -> list[BuildingRow]:
     return [row for row in rows if row is not None]
 
 
+class ConstructionSlot(BasePayload):
+    """
+    One construction slot of a castle.
+
+    Client: ``ConstructionSlotVO`` (bundle lines 131242-131250), filled by
+    ``AreaDataConstructionList.parseList`` (bundle line 131170)
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    position: int = Field(description="The slot's place in the list, from 0")
+    object_id: int = Field(
+        description="Object id of the building under construction there; FREE_SLOT (-1) or LOCKED_SLOT (-2)"
+    )
+    is_waiting: bool = Field(
+        default=False, description="A waiting slot: its position is at or past the castle's construction slots"
+    )
+
+    @property
+    def is_free(self) -> bool:
+        """Whether nothing is being built there (``ConstructionConst.SLOTSTATEUNLOCKED``)."""
+        return self.object_id == FREE_SLOT
+
+    @property
+    def is_locked(self) -> bool:
+        """Whether the slot is still locked (``ConstructionConst.SLOTSTATELOCKED``)."""
+        return self.object_id == LOCKED_SLOT
+
+
 class ConstructionList(BasePayload):
     """
     A castle's construction slots, the ``scl`` block.
 
-    Each slot holds the object id of the building under construction there,
-    ``FREE_SLOT`` (-1) when it is free or ``LOCKED_SLOT`` (-2) when it is
-    locked. Slots past ``slot_count`` are waiting slots.
-
     Client: ``AreaDataConstructionList.parseSCL`` / ``parseList`` (bundle
-    lines 131173, 131166), ``ConstructionSlotVO`` (bundle line 131244)
+    lines 131173, 131166), which read each ``OIDL`` entry through ``int()``
+    into a ``ConstructionSlotVO`` at its position
     """
 
-    object_ids: list[int] = Field(
-        alias="OIDL", default_factory=list, description="Per slot, the object id under construction there"
-    )
+    slots: tuple[ConstructionSlot, ...] = Field(alias="OIDL", default=(), description="The slots, in order")
     slot_count: int | float = Field(alias="SSC", default=1, description="Number of construction slots")
 
-    @field_validator("object_ids", mode="before")
+    @model_validator(mode="before")
     @classmethod
-    def _ints(cls, value: Any) -> Any:
-        return [js_int(entry) for entry in value] if isinstance(value, list) else []
-
-    @field_validator("slot_count", mode="before")
-    @classmethod
-    def _at_least_one(cls, value: Any) -> int | float:
+    def _slots(cls, data: Any) -> Any:
+        if not isinstance(data, dict) or "slots" in data:
+            return data
         # e.SSC ? e.SSC : 1, kept as a number
-        number = js_number_or_none(value) if js_truthy(value) else None
-        return 1 if number is None else number
+        count = js_number_or_none(data.get("SSC")) if js_truthy(data.get("SSC")) else None
+        count = 1 if count is None else count
+        ids = data.get("OIDL")
+        if not isinstance(ids, list):
+            ids = []
+        slots = [
+            {"position": position, "object_id": js_int(entry), "is_waiting": position >= count}
+            for position, entry in enumerate(ids)
+        ]
+        return {**data, "OIDL": slots, "SSC": count}
 
     @property
     def free_slots(self) -> int:
         """Number of free slots."""
-        return sum(1 for oid in self.object_ids if oid == FREE_SLOT)
+        return sum(1 for slot in self.slots if slot.is_free)
 
     @property
     def building_object_ids(self) -> list[int]:
         """Object ids of the buildings under construction."""
-        return [oid for oid in self.object_ids if oid not in (FREE_SLOT, LOCKED_SLOT)]
+        return [slot.object_id for slot in self.slots if not (slot.is_free or slot.is_locked)]
 
 
 class FieldEfficiency(_ProductionAreaSection):

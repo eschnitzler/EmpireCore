@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from empire_core.enums import SpyType
+from empire_core.gamedata import Tool, Unit
 from empire_core.protocol.base import Position, parse_response
 from empire_core.protocol.models import (
     CancelMovementRequest,
@@ -68,7 +69,7 @@ class TestMalformedMovementBatch:
         assert record.source_area is not None and record.source_area.position == Position(x=1, y=2)
         assert record.target_area is not None and (record.target_area.area_type, record.target_area.y) == (2, 4)
         assert record.source_area.row[10] == "Home"
-        assert wrapper.visible_army is not None and wrapper.visible_army.courtyard == [[3, 1]]
+        assert wrapper.visible_army is not None and wrapper.visible_army.courtyard == {3: 1}
         assert wrapper.unit_info is not None and wrapper.unit_info.wait_total == 0
         assert response.owners[0].name == "me"
 
@@ -134,12 +135,12 @@ class TestMalformedMovementBatch:
     def test_travel_units_and_loot(self):
         travel = {**GOOD_MOVEMENT, "A": [[216, 500]], "G": [["W", 8], ["C1", 28]]}
         wrapper = GetMovementsResponse.model_validate({"M": [travel]}).movements[0]
-        assert wrapper.travel_units == [[216, 500]]
+        assert wrapper.travel_units == {216: 500}
         assert wrapper.travel_goods == [("W", 8), ("C1", 28)]
 
     def test_full_army_wins_over_army(self):
         wrapper = GetMovementsResponse.model_validate({"M": [{**GOOD_MOVEMENT, "FA": {"M": [[9, 1]]}}]}).movements[0]
-        assert wrapper.visible_army is not None and wrapper.visible_army.middle == [[9, 1]]
+        assert wrapper.visible_army is not None and wrapper.visible_army.middle == {9: 1}
 
     def test_hidden_army_reports_only_a_size(self):
         hidden = {"M": GOOD_MOVEMENT["M"], "GS": 250}
@@ -259,3 +260,17 @@ class TestCancelMovement:
 
     def test_mcm_parses_to_the_reply_model(self):
         assert isinstance(parse_response("mcm", {"A": RECALLED_MOVEMENT}), CancelMovementResponse)
+
+
+class TestMovementArmies:
+    def test_each_flank_adds_up_an_id_sent_twice(self):
+        # CastleCompactArmyVO.parseSimpleArmy fills a UnitInventoryDictionary per flank (bundle line 67525)
+        wrapper = GetMovementsResponse.model_validate(
+            {"M": [{**GOOD_MOVEMENT, "GA": {"L": [[601, 5], [601, 2]], "M": [], "R": [], "RW": []}}]}
+        ).movements[0]
+        assert wrapper.visible_army is not None
+        assert wrapper.visible_army.left == {Unit.SWORDMAN: 7}
+
+    def test_support_tools_keep_their_slots(self):
+        wrapper = GetMovementsResponse.model_validate({"M": [{**GOOD_MOVEMENT, "AST": [620, -1]}]}).movements[0]
+        assert wrapper.support_tools == (Tool.SHIELDS, None)

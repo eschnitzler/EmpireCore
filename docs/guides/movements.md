@@ -251,5 +251,11 @@ client.movements.recall(movement_id)
 (attacks only within 600 seconds of leaving, with exceptions) and your
 supports in either direction.
 
+A visible army reads as the game reads it: `Movement.units` is
+`{Unit or Tool: amount}` over every flank and the courtyard, and
+`Movement.support_tools` the support tools the attack was sent with, one per
+slot (None for an empty one). A `MovementWrapper` from `get_movements()`
+keeps the flanks apart (`visible_army.left`, ..., each `{Unit or Tool: amount}`).
+
 **API:** [`MovementsService`](../reference/movements.md#empire_core.movements.service.MovementsService),
 [`Movement`](../reference/movements.md#empire_core.movements.tracked.Movement)

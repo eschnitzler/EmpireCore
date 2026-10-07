@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from empire_core.enums import Kingdom
-from empire_core.gamedata import EMPTY_SLOT, WodAmount
+from empire_core.gamedata import EMPTY_SLOT, Unit, WodAmount
 from empire_core.protocol.js import js_int
 from empire_core.protocol.models import (
     ChangeKeepDefenseRequest,
@@ -146,8 +146,10 @@ class TestLiveDefenseReply:
         assert (response.area.x, response.area.y, response.area.object_id) == (635, 242, 16655114)
         assert response.home_defense_workshop_level == 1
         assert response.gate_defense == 30
-        assert response.range_priority == [1337, 788, 674]
-        assert response.melee_priority == [787, 336, 369]
+        # parse_DFC keeps PR and PM; the allocator places each through int() as a unit (bundle lines 70838-70852)
+        assert response.range_priority == (1337, 788, 674)
+        assert response.melee_priority == (787, 336, 369)
+        assert all(isinstance(unit, Unit) for unit in response.range_priority + response.melee_priority)
         assert response.castellan_id == 1
         assert response.castellan is not None
         assert (response.castellan.wins, response.castellan.defeats, len(response.castellan.area_effects)) == (1, 11, 2)
@@ -222,9 +224,11 @@ class TestSupportDefenseReply:
     def test_every_block_is_typed(self):
         response = GetSupportDefenseResponse.model_validate(self.PAYLOAD)
 
-        assert response.defense_positions[0] == [[487, 50], [488, 3]]
-        assert response.get_units_by_position()[3] == {601: 7}
-        assert response.get_total_defenders() == 70
+        army = response.defense_positions
+        assert army is not None
+        assert army.left == ((487, 50), (488, 3))
+        assert army.keep == ((601, 7),)
+        assert army.total() == 70
         assert response.castellan is not None
         assert (response.castellan.commander_id, [e.effect_id for e in response.castellan.area_effects]) == (
             1003,
@@ -266,18 +270,28 @@ class TestGoldenSupportDefense:
 
     def test_total_defenders_sums_every_position(self):
         response = GetSupportDefenseResponse.model_validate(GOLDEN_SDI)
-        assert response.get_total_defenders() == 5174 + 20 + 347 + 10
+        assert response.defense_positions is not None
+        assert response.defense_positions.total() == 5174 + 20 + 347 + 10
 
-    def test_units_are_grouped_per_position(self):
+    def test_units_are_read_per_position(self):
         response = GetSupportDefenseResponse.model_validate(GOLDEN_SDI)
-        assert response.get_units_by_position() == [{487: 5174, 488: 20}, {487: 347}, {}, {301: 10}, {}, {}]
+        assert response.defense_positions is not None
+        assert [stacks for _section, stacks in response.defense_positions.sections()] == [
+            ((487, 5174), (488, 20)),
+            ((487, 347),),
+            (),
+            ((301, 10),),
+            (),
+            (),
+            (),
+        ]
 
     def test_capacity_fields(self):
         response = GetSupportDefenseResponse.model_validate(GOLDEN_SDI)
         assert (response.yard_limit, response.available_yard_limit, response.wall_limit) == (12000, 3000, 5000)
         assert response.get_max_defense() == 12000
 
-    def test_empty_defense_is_zero_not_an_error(self):
-        response = GetSupportDefenseResponse.model_validate({"SCID": 1})
-        assert response.get_total_defenders() == 0
-        assert response.get_units_by_position() == []
+    def test_no_defense_block_is_none(self):
+        # parseArmyInfo reads the positions only for a non-empty S
+        assert GetSupportDefenseResponse.model_validate({"SCID": 1}).defense_positions is None
+        assert GetSupportDefenseResponse.model_validate({"S": []}).defense_positions is None
