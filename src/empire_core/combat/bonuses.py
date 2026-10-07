@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict
 from empire_core.commanders.models.equipment import Equipment
 from empire_core.commanders.models.roster import Commander, CommanderEffect
 from empire_core.enums import CombatEffectType
-from empire_core.gamedata import EffectDef, GameData, GlobalEffectDef, ToolStats, parse_stacks
+from empire_core.gamedata import EffectDef, EffectValue, EquipmentEffectValue, GameData, GlobalEffectDef, ToolStats
 
 if TYPE_CHECKING:
     from empire_core.gamedata import GlobalEffect
@@ -410,49 +410,33 @@ class EffectResolver:
         return wall, gate, moat
 
 
-def parse_effect_spec(spec: str | None) -> list[Bonus]:
+def effect_value_bonuses(effects: Iterable[EffectValue | EquipmentEffectValue]) -> list[Bonus]:
     """
-    Parse the ``effectID&value`` encoding, comma separated.
+    The bonuses of an items row's ``effects``: one per entry with a value.
 
-    Construction items, alliance buffs, global effects, sceat skills, general
-    skills and buildings all describe their bonuses this way.
+    A single number is the bonus's value. Anything else is a keyed value,
+    ``wod_id+value`` pairs joined by ``#``, which the bonus keeps flattened as
+    ``EffectValueMap.parseFromValueString`` reads it (bundle line 31617): a
+    part without a ``+`` adds a 0. An equipment effect id is marked
+    ``via_equipment``.
     """
     bonuses = []
-    for part in str(spec or "").split(","):
-        part = part.strip()
-        if "&" not in part:
+    for entry in effects:
+        parts = [part for part in entry.values if part]
+        if not parts:
             continue
-        bonus = _parse_spec_segment(part)
-        if bonus is None:
-            logger.debug(f"Skipping unparseable effect spec segment {part!r}")
+        via_equipment = isinstance(entry, EquipmentEffectValue)
+        effect_id = entry.equipment_effect_id if isinstance(entry, EquipmentEffectValue) else entry.effect_id
+        if len(entry.values) == 1 and len(parts[0]) == 1:
+            bonuses.append(Bonus(effect_id=effect_id, value=parts[0][0], via_equipment=via_equipment))
             continue
-        bonuses.append(bonus)
+        flat = tuple(float(n) for part in parts for n in (part[0], part[1] if len(part) > 1 else 0))
+        bonuses.append(Bonus(effect_id=effect_id, value=flat[0], raw_values=flat, via_equipment=via_equipment))
     return bonuses
 
 
-def _parse_spec_segment(part: str) -> Bonus | None:
-    """One ``effectID&value`` segment, or None when it does not read as one."""
-    raw_id, _, raw_value = part.partition("&")
-    raw_value = raw_value.strip()
-    try:
-        effect_id = int(raw_id.strip())
-    except ValueError:
-        return None
-    if "+" in raw_value or "#" in raw_value:
-        # A keyed effect: "<wod_id>+<value>#<wod_id>+<value>".
-        pairs = parse_stacks(raw_value)
-        if not pairs:
-            return None
-        flat = tuple(float(number) for pair in pairs for number in pair)
-        return Bonus(effect_id=effect_id, value=flat[0], raw_values=flat)
-    try:
-        return Bonus(effect_id=effect_id, value=float(raw_value))
-    except ValueError:
-        return None
-
-
 def _spec_bonuses(rows: Iterable) -> list[Bonus]:
-    return [bonus for row in rows if row is not None for bonus in parse_effect_spec(row.raw_effects)]
+    return [bonus for row in rows if row is not None for bonus in effect_value_bonuses(row.effects)]
 
 
 def construction_item_bonuses(game_data: GameData, item_ids: Iterable[int]) -> list[Bonus]:
@@ -501,7 +485,7 @@ def general_passive_bonuses(game_data: GameData, skill_ids: Iterable[int]) -> li
         skill = game_data.general_skills.get(skill_id)
         if skill is None:
             continue
-        boni = parse_effect_spec(skill.raw_effects)
+        boni = effect_value_bonuses(skill.effects)
         if any(
             (effect := game_data.effects.get(bonus.effect_id)) is not None
             and effect.effect_type_id == CombatEffectType.UNLOCK_ABILITY
@@ -596,14 +580,15 @@ def global_unit_attack_bonuses(
             continue
         if player_level is not None and not _within_level_bracket(row, player_level):
             continue
-        for part in str(row.raw_effects or "").split(","):
-            spec_id, _, value = part.strip().partition("&")
-            if not value:
-                continue
-            effect = game_data.effects.get(int(spec_id)) if spec_id.strip().isdigit() else None
+        for spec in row.effects:
+            effect = game_data.effects.get(spec.effect_id)
             if effect is None or effect.effect_type_id != CombatEffectType.ATTACK_BONUS_UNIT:
                 continue
-            stacks = [(wod_id, override if override > -1 else strength) for wod_id, strength in parse_stacks(value)]
+            stacks = [
+                (int(part[0]), override if override > -1 else (part[1] if len(part) > 1 else 0))
+                for part in spec.values
+                if part
+            ]
             if boosts and effect_id in boosts and stacks:
                 buffed = math.trunc(stacks[0][1] + boosts[effect_id])
                 stacks = [(wod_id, buffed) for wod_id, _ in stacks]
@@ -688,7 +673,7 @@ def commander_bonuses(
         if default is None:
             return list(area_effects or [])
         return [
-            *(bonus.model_copy(update={"via_equipment": True}) for bonus in parse_effect_spec(default.raw_effects)),
+            *effect_value_bonuses(default.effects),
             *effect_bonuses(commander.effects),
             *(area_effects if area_effects else effect_bonuses(commander.area_effects)),
         ]
@@ -712,7 +697,7 @@ def commander_bonuses(
         for gem_id in commander.alien_gem_ids:
             row = game_data.gems.get(gem_id) if isinstance(gem_id, int) and not isinstance(gem_id, bool) else None
             if row is not None:
-                bonuses.extend(parse_effect_spec(row.raw_effects))
+                bonuses.extend(effect_value_bonuses(row.effects))
 
     bonuses.extend(effect_bonuses(commander.effects))
     bonuses.extend(area_effects if area_effects else effect_bonuses(commander.area_effects))
@@ -750,11 +735,11 @@ def equipment_set_bonuses(game_data: GameData, items: Iterable[Equipment]) -> li
             gems_counted.add(gem.gem_id)
             counts[gem.set_id] = counts.get(gem.set_id, 0) + 1
     return [
-        bonus.model_copy(update={"via_equipment": True})
+        bonus
         for set_id, count in counts.items()
         for row in game_data.equipment_sets.get(set_id, [])
         if row.needed_items <= count
-        for bonus in parse_effect_spec(row.raw_effects)
+        for bonus in effect_value_bonuses(row.effects)
     ]
 
 
@@ -781,7 +766,7 @@ def gem_bonuses(game_data: GameData, item: Equipment) -> list[Bonus]:
     if not item.has_gem:
         return []
     row = game_data.gems.get(item.gem_id)
-    return parse_effect_spec(row.raw_effects) if row is not None else []
+    return effect_value_bonuses(row.effects) if row is not None else []
 
 
 def effect_bonuses(effects: Iterable[CommanderEffect]) -> list[Bonus]:
@@ -834,7 +819,7 @@ def tool_effect_strength(game_data: GameData, tool: ToolStats, effect_type: Comb
     as ``effectID&value`` (``ToolUnitVO.parseEffects``, bundle line 6644).
     """
     total = 0.0
-    for bonus in parse_effect_spec(tool.raw_effects):
+    for bonus in effect_value_bonuses(tool.effects):
         effect = game_data.effects.get(bonus.effect_id)
         if effect is not None and effect.effect_type_id == effect_type:
             total += bonus.strength(effect_type)
@@ -944,7 +929,7 @@ __all__ = [
     "global_unit_attack_bonuses",
     "legend_skill_value",
     "parse_bonus_entries",
-    "parse_effect_spec",
+    "effect_value_bonuses",
     "sceat_skill_bonuses",
     "support_tool_waves",
     "tool_effect_strength",
