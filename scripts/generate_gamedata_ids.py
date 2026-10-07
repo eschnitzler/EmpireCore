@@ -38,7 +38,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from empire_core.gamedata import CurrencyDef, GameData, QuestCondition
-from empire_core.protocol.js import js_parse_int
 from empire_core.texts import fetch_texts
 
 SCRIPT = "scripts/generate_gamedata_ids.py"
@@ -195,7 +194,7 @@ def research_rows(data: GameData, texts: Texts | None) -> list[Row]:
     rows = []
     for row in data.researches.values():
         research_id, group_id, level = int(row.research_id), row.group_id, row.level
-        first_effect = js_parse_int(re.split(r"[&,#]", row.raw_effects)[0])
+        first_effect = row.effects[0].effect_id if row.effects else None
         effect = data.effects.get(first_effect) if first_effect is not None else None
         recipe = effect is not None and effect.effect_type_id in RECIPE_EFFECT_TYPES
         title = None if texts is None or recipe else texts.get(f"research_{group_id}_title")

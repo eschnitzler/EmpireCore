@@ -18,7 +18,17 @@ from pydantic import BaseModel
 
 from empire_core.enums import Kingdom
 from empire_core.exceptions import AmbiguousLookupError, NetworkError
-from empire_core.gamedata import GameData, ToolStats, UnitStats, cache, cdn, parse_ids, parse_stacks
+from empire_core.gamedata import (
+    Effect,
+    EffectValue,
+    GameData,
+    ToolStats,
+    UnitStats,
+    cache,
+    cdn,
+    parse_ids,
+    parse_stacks,
+)
 from empire_core.gamedata import data as data_module
 from empire_core.gamedata.troops import count_troops, get_troop_ids
 
@@ -596,10 +606,13 @@ class TestModels:
         assert extra.allowed_targets == ((0, 21), (1, -1))
         assert extra.is_allowed_by_attack_target(1, 7)
 
-    def test_tool_effects_are_the_raw_effect_string(self):
+    def test_tool_effects_are_typed_effect_values(self):
         tool = ToolStats.model_validate({"wodID": 1, "effects": "632&275,504&1"})
-        assert tool.raw_effects == "632&275,504&1"
-        assert ToolStats.model_validate({"wodID": 1}).raw_effects == ""
+        assert tool.effects == (
+            EffectValue(effect_id=Effect.KILL_DEFENDING_MELEE_TROOPS_YARD, values=((275,),)),
+            EffectValue(effect_id=Effect.ATTACK_BOOST_YARD, values=((1,),)),
+        )
+        assert ToolStats.model_validate({"wodID": 1}).effects == ()
 
     def test_tool_without_slot_types_has_none(self):
         tool = ToolStats.model_validate({"wodID": 1})
@@ -734,7 +747,7 @@ class TestCombatTables:
     def test_general_skills_are_modeled_now(self):
         data = GameData.parse("783.01", FULL_PAYLOAD)
 
-        assert data.general_skills[10110201].raw_effects == "400&10201"
+        assert data.general_skills[10110201].effects == (EffectValue(effect_id=400, values=((10201,),)),)
 
     def test_gems_are_keyed_by_gem_id(self):
         payload = dict(
@@ -756,7 +769,8 @@ class TestCombatTables:
         gems = GameData.parse("783.01", payload).gems
 
         assert sorted(gems) == [333, 334]
-        assert (gems[333].set_id, gems[333].trigger_chance, gems[333].raw_effects) == (38, 100, "504&20,55&15")
+        assert (gems[333].set_id, gems[333].trigger_chance) == (38, 100)
+        assert [(e.effect_id, e.value) for e in gems[333].effects] == [(504, 20), (55, 15)]
         # CastleGemVO.parseXML defaults: no set, always triggers.
         assert (gems[334].set_id, gems[334].trigger_chance) == (-1, 100)
 
