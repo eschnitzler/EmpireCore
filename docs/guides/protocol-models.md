@@ -47,9 +47,10 @@ its alias, and both are accepted when you build one:
 
 ```python
 from empire_core import AttackWave, WaveFlank
+from empire_core.gamedata import Unit, WodAmount
 
-AttackWave(left=WaveFlank(units=[[487, 100]]))
-AttackWave(L=WaveFlank(U=[[487, 100]]))       # the same wave, by wire keys
+AttackWave(left=WaveFlank(units=WodAmount.slots({Unit.SWORDMAN: 100})))
+AttackWave.model_validate({"L": {"U": [[601, 100]]}})   # the same wave, from its wire form
 ```
 
 Prefer field names: with pydantic's mypy plugin, mypy checks those calls for

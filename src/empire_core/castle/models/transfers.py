@@ -9,6 +9,7 @@ from __future__ import annotations
 from pydantic import Field
 
 from empire_core.enums import Kingdom
+from empire_core.gamedata import WodAmountSlots
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock
 
 # =============================================================================
@@ -47,7 +48,7 @@ class KingdomUnitTransferRequest(BaseRequest):
     target_castle_id: int = Field(
         alias="CID", default=-1, description="Object id of a picked target castle, -1 for none"
     )
-    units: list[list[int]] = Field(alias="A", description="The units, as [wod id, amount] pairs")
+    units: WodAmountSlots = Field(alias="A", description="The units, one pair per unit")
 
 
 class KingdomUnitTransferResponse(BaseResponse):

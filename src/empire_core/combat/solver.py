@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from empire_core.army.models.units import AttackWave, WaveFlank
 from empire_core.enums import Flank
 from empire_core.exceptions import CommandError
-from empire_core.gamedata import GameData
+from empire_core.gamedata import EMPTY_SLOT, GameData, WodAmount, WodAmountSlots
 
 from .capacity import (
     TOOL_SLOT_LEVELS_FLANK,
@@ -285,8 +285,8 @@ def fill_wave(
 
     Returns:
         An :class:`AttackWave` ready for ``send_attack``. Each container holds
-        one ``[wod_id, count]`` pair per slot, locked slots included, with
-        ``[-1, 0]`` for an empty one, as the client sends it.
+        one :class:`WodAmount` per slot, locked slots included, with
+        ``EMPTY_SLOT`` (``[-1, 0]`` on the wire) for an empty one, as the client sends it.
 
     Client: ``CastleAttackWaveVO.getWaveInfoObject`` (bundle line 99930) and
     ``CastleFightItemContainer.getSlotList`` (bundle line 20573), which lists
@@ -303,8 +303,8 @@ def fill_wave(
         Flank.MIDDLE: options.fill_middle,
     }
 
-    units: dict[Flank, list[list[int]]] = {}
-    tools: dict[Flank, list[list[int]]] = {}
+    units: dict[Flank, list[WodAmount]] = {}
+    tools: dict[Flank, list[WodAmount]] = {}
     # One per-tool-type budget for the whole wave, as getSumOfToolsByTool reads
     # all three containers.
     used_per_type: dict[str, int] = {}
@@ -350,20 +350,20 @@ def fill_wave(
         )
         check_flank(placed_tools, placed_units, inventory, game_data=game_data, used_per_type=used_per_type)
 
-        units[flank] = [[wod_id, count] for wod_id, count in placed_units]
-        tools[flank] = [[wod_id, count] for wod_id, count in placed_tools]
+        units[flank] = [WodAmount(item=wod_id, amount=count) for wod_id, count in placed_units]
+        tools[flank] = [WodAmount(item=wod_id, amount=count) for wod_id, count in placed_tools]
 
     for flank in wanted:
         middle = flank == Flank.MIDDLE
         unit_slots = len(UNIT_SLOT_LEVELS_MIDDLE if middle else UNIT_SLOT_LEVELS_FLANK)
         tool_slots = len(TOOL_SLOT_LEVELS_MIDDLE if middle else TOOL_SLOT_LEVELS_FLANK)
-        units[flank] += [[-1, 0]] * (unit_slots - len(units[flank]))
-        tools[flank] += [[-1, 0]] * (tool_slots - len(tools[flank]))
+        units[flank] += [EMPTY_SLOT] * (unit_slots - len(units[flank]))
+        tools[flank] += [EMPTY_SLOT] * (tool_slots - len(tools[flank]))
 
     return AttackWave(
-        left=WaveFlank(units=units[Flank.LEFT], tools=tools[Flank.LEFT]),
-        middle=WaveFlank(units=units[Flank.MIDDLE], tools=tools[Flank.MIDDLE]),
-        right=WaveFlank(units=units[Flank.RIGHT], tools=tools[Flank.RIGHT]),
+        left=WaveFlank(units=tuple(units[Flank.LEFT]), tools=tuple(tools[Flank.LEFT])),
+        middle=WaveFlank(units=tuple(units[Flank.MIDDLE]), tools=tuple(tools[Flank.MIDDLE])),
+        right=WaveFlank(units=tuple(units[Flank.RIGHT]), tools=tuple(tools[Flank.RIGHT])),
     )
 
 
@@ -376,7 +376,7 @@ def fill_yard_wave(
     defender: DefenderFlankEffects | None = None,
     options: FillOptions | None = None,
     unit_attack_bonuses: Mapping[int, float] | None = None,
-) -> list[list[int]]:
+) -> tuple[WodAmount, ...]:
     """
     Fill the courtyard wave, which goes out in ``cra``'s RW field.
 
@@ -395,8 +395,8 @@ def fill_yard_wave(
         unit_attack_bonuses: Per-unit attack buffs from active global effects
 
     Returns:
-        One ``[wod_id, count]`` pair per slot, in slot order, for the RW field.
-        The client sends every slot, so an empty one goes out as ``[-1, 0]``.
+        One :class:`WodAmount` per slot, in slot order, for the RW field.
+        The client sends every slot, so an empty one goes out as ``[-1, 0]`` (``EMPTY_SLOT``).
     """
     stacks = fill_flank_with_soldiers(
         capacity,
@@ -408,8 +408,8 @@ def fill_yard_wave(
         options=options,
         unit_attack_bonuses=unit_attack_bonuses,
     )
-    filled = [[wod_id, count] for wod_id, count in stacks]
-    return filled + [[-1, 0]] * (slots - len(filled))
+    filled = tuple(WodAmount(item=wod_id, amount=count) for wod_id, count in stacks)
+    return filled + (EMPTY_SLOT,) * (slots - len(filled))
 
 
 def fill_waves(
@@ -501,7 +501,7 @@ def wave_limit_violations(
     waves: Sequence[AttackWave],
     capacity: WaveCapacity,
     *,
-    yard: Sequence[Sequence[int]] | None = None,
+    yard: Sequence[WodAmount] | None = None,
     yard_capacity: int | None = None,
 ) -> list[str]:
     """
@@ -523,18 +523,21 @@ def wave_limit_violations(
     """
     problems = []
     for index, wave in enumerate(waves):
-        payload = wave.model_dump(by_alias=True)
-        for name, flank in (("L", Flank.LEFT), ("M", Flank.MIDDLE), ("R", Flank.RIGHT)):
-            units = sum(count for _wod_id, count in payload[name]["U"])
+        for name, flank, side in (
+            ("L", Flank.LEFT, wave.left),
+            ("M", Flank.MIDDLE, wave.middle),
+            ("R", Flank.RIGHT, wave.right),
+        ):
+            units = sum(slot.amount for slot in side.units)
             allowed = capacity.soldier_capacity(flank)
             if units > allowed:
                 problems.append(f"wave {index} {name}: {units} units, limit {allowed}")
-            tools = sum(count for _wod_id, count in payload[name]["T"])
+            tools = sum(slot.amount for slot in side.tools)
             allowed = capacity.tool_capacity(flank)
             if tools > allowed:
                 problems.append(f"wave {index} {name}: {tools} tools, limit {allowed}")
     if yard is not None and yard_capacity is not None:
-        placed = sum(pair[1] for pair in yard if len(pair) > 1 and pair[0] != -1)
+        placed = sum(slot.amount for slot in yard if slot.item is not None)
         if placed > yard_capacity:
             problems.append(f"courtyard: {placed} units, limit {yard_capacity}")
     return problems
@@ -564,7 +567,7 @@ class FilledAttack(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     waves: list[AttackWave] = Field(default_factory=list)
-    yard: list[list[int]] = Field(default_factory=list)
+    yard: WodAmountSlots = Field(default=(), description="The courtyard wave's unit slots, for send_attack's yard_wave")
     min_soldiers: int = Field(default=0, description="The fewest units the waves must carry together")
     unread: dict[TargetRead, CommandError] = Field(
         default_factory=dict,
@@ -575,7 +578,7 @@ class FilledAttack(BaseModel):
 
     def unit_count(self) -> int:
         """Units committed across every wave and the courtyard."""
-        return sum(wave.unit_count() for wave in self.waves) + sum(count for _wod_id, count in self.yard)
+        return sum(wave.unit_count() for wave in self.waves) + sum(slot.amount for slot in self.yard)
 
     def wave_unit_count(self) -> int:
         """Units across the waves alone, which is what the minimum counts."""

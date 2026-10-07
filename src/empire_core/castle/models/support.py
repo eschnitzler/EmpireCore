@@ -12,6 +12,7 @@ from typing import Any
 from pydantic import Field
 
 from empire_core.enums import Kingdom
+from empire_core.gamedata import WodAmountSlots
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock
 from empire_core.protocol.js import movement_targets
 
@@ -74,7 +75,7 @@ class SendSupportRequest(BaseRequest):
     use_premium_commander: int = Field(alias="BPC", default=0, description="1 when the premium commander leads")
     feathers: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
     slowdown: int = Field(alias="SD", default=0, description="Seconds the arrival is delayed by")
-    units: list[list[int]] = Field(alias="A")
+    units: WodAmountSlots = Field(alias="A", description="The units, then any tools, one pair per filled slot")
 
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a cds reply is the movement this sent: its target area (``A.M.TA``) is ``TX``/``TY``.
@@ -163,7 +164,7 @@ class SendTroopsRequest(BaseRequest):
     use_premium_commander: int = Field(alias="BPC", default=0, description="1 when the premium commander leads")
     feathers: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
     slowdown: int = Field(alias="SD", default=0, description="Seconds the arrival is delayed by")
-    units: list[list[int]] = Field(alias="A", description="The units and tools, as [wod_id, amount] pairs")
+    units: WodAmountSlots = Field(alias="A", description="The units, then any tools, one pair per filled slot")
 
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a cat reply is the movement this sent: its target area (``A.M.TA``) is ``TX``/``TY``.

@@ -65,7 +65,7 @@ def main() -> int:
                 tools = [pair for pair in payload[flank]["T"] if pair[0] != -1]
                 if units or tools:
                     print(f"  wave {index} {flank}: units {units} tools {tools}")
-        placed = [pair for pair in filled.yard if pair[0] != -1]
+        placed = [(unit, amount) for unit, amount in filled.yard if unit is not None]
         print(f"  courtyard: {placed or 'empty'}")
 
         if not really_send:

@@ -17,8 +17,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from empire_core.army.models.units import wod_amount_pairs
 from empire_core.enums import SpyArmySection
+from empire_core.gamedata import wod_amount_pairs
 
 
 @dataclass(frozen=True)

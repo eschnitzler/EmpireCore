@@ -13,8 +13,8 @@ from typing import Annotated, Any
 
 from pydantic import BeforeValidator, Field
 
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, UnitCount, object_or_none
-from empire_core.protocol.js import js_int
+from empire_core.gamedata import WodAmounts, WodAmountSlots, wod_amount_pairs
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none
 
 BUY_UNIT_PACKAGE_SK = 73
 """``SK`` of every ``bup``: each client caller leaves ``C2SBuyUnitPackageVO``'s
@@ -44,40 +44,6 @@ class GetUnitsRequest(BaseRequest):
     """
 
     command = "gui"
-
-
-def wod_amount_pairs(value: object) -> list[tuple[int, int]]:
-    """
-    ``[[wod_id, amount], ...]`` as ``(wod_id, amount)`` pairs, before any inventory adds them up.
-
-    Client: ``AUnitInventory.fillFromWodAmountArray`` (bundle line 42572), which
-    skips entries that are not arrays and reads ``int(i[0])``, ``int(i[1])``.
-    """
-    if not isinstance(value, list):
-        return []
-    return [
-        (js_int(entry[0] if entry else None), js_int(entry[1] if len(entry) > 1 else None))
-        for entry in value
-        if isinstance(entry, list)
-    ]
-
-
-def _wod_amounts(value: object) -> object:
-    """
-    ``[[wod_id, amount], ...]`` as ``{wod_id: amount}``.
-
-    Client: :func:`wod_amount_pairs` into a ``UnitInventoryDictionary``: ``addUnit``
-    clamps at 0, ``changeUnitAmount`` adds (bundle lines 5533-5535) and
-    ``setUnit`` drops a total of 0 or less (bundle line 5538).
-    """
-    totals: dict[int, int] = {}
-    for wod_id, amount in wod_amount_pairs(value):
-        totals[wod_id] = totals.get(wod_id, 0) + max(0, amount)
-    return {wod_id: amount for wod_id, amount in totals.items() if amount > 0}
-
-
-WodAmounts = Annotated[dict[int, int], BeforeValidator(_wod_amounts)]
-"""A wod/amount array read as ``{wod_id: amount}``, as the client's unit inventories do."""
 
 
 def _spy_positions(value: object) -> object:
@@ -129,26 +95,6 @@ class GetUnitsResponse(BaseResponse, UnitInventory):
     """
 
     command = "gui"
-
-    @staticmethod
-    def _as_counts(amounts: dict[int, int]) -> list[UnitCount]:
-        return [UnitCount(unit_id=wod_id, count=amount) for wod_id, amount in amounts.items()]
-
-    def get_inventory(self) -> list[UnitCount]:
-        """Available units and tools."""
-        return self._as_counts(self.units)
-
-    def get_in_production(self) -> list[UnitCount]:
-        """Units on their way in."""
-        return self._as_counts(self.in_production)
-
-    def get_stronghold(self) -> list[UnitCount]:
-        """Units stored in the stronghold."""
-        return self._as_counts(self.stronghold)
-
-    def get_hospital(self) -> list[UnitCount]:
-        """Wounded units in the hospital."""
-        return self._as_counts(self.hospital)
 
 
 UnitInventoryBlock = Annotated[UnitInventory | None, BeforeValidator(object_or_none)]
@@ -203,11 +149,14 @@ class WaveFlank(BasePayload):
     """
     One flank of an attack wave.
 
-    Payload: {"T": [[tool_id, count], ...], "U": [[unit_id, count], ...]}
+    Payload: {"T": [[tool_id, count], ...], "U": [[unit_id, count], ...]}, one pair per slot
+
+    Client: ``CastleAttackWaveVO.getWaveInfoObject`` (bundle line 99930) sends each
+    container's ``getSlotList()`` (bundle line 20573)
     """
 
-    tools: list[list[int]] = Field(alias="T", default_factory=list)
-    units: list[list[int]] = Field(alias="U", default_factory=list)
+    tools: WodAmountSlots = Field(alias="T", default=(), description="The tool slots, [-1, 0] for an empty one")
+    units: WodAmountSlots = Field(alias="U", default=(), description="The unit slots, [-1, 0] for an empty one")
 
 
 class AttackWave(BasePayload):
@@ -224,10 +173,8 @@ class AttackWave(BasePayload):
     middle: WaveFlank = Field(alias="M", default_factory=WaveFlank)
 
     def unit_count(self) -> int:
-        """Total units across all three flanks; non-pair entries count as zero."""
-        return sum(
-            entry[1] for flank in (self.left, self.middle, self.right) for entry in flank.units if len(entry) >= 2
-        )
+        """Total units across all three flanks."""
+        return sum(slot.amount for flank in (self.left, self.middle, self.right) for slot in flank.units)
 
     def is_complete(self) -> bool:
         """
@@ -241,7 +188,6 @@ class AttackWave(BasePayload):
 __all__ = [
     "AttackWave",
     "WaveFlank",
-    "wod_amount_pairs",
     "BUY_UNIT_PACKAGE_SK",
     "UnitInventory",
     "GetUnitsRequest",

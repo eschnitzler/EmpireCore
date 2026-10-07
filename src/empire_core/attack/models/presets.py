@@ -14,6 +14,7 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from empire_core.army.models.units import AttackWave, WaveFlank
+from empire_core.gamedata import SupportToolSlots, WodAmount, WodAmountSlots
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
 
 # =============================================================================
@@ -39,13 +40,13 @@ def _pairs(flat: list[int]) -> list[list[int]]:
     return [[flat[i], flat[i + 1] if i + 1 < len(flat) else 0] for i in range(0, len(flat), 2)]
 
 
-def _filled(slots: list[list[int]]) -> list[list[int]]:
+def _filled(slots: tuple[WodAmount, ...]) -> tuple[WodAmount, ...]:
     """The slots holding something; the client skips a slot whose wod id is -1."""
-    return [[slot[0], slot[1]] for slot in slots if len(slot) >= 2 and slot[0] != -1]
+    return tuple(slot for slot in slots if slot.item is not None)
 
 
-def _flat(pairs: list[list[int]]) -> list[int]:
-    return [value for wod_id, count in _filled(pairs) for value in (wod_id, count)]
+def _flat(slots: tuple[WodAmount, ...]) -> list[int]:
+    return [value for item, amount in slots if item is not None for value in (item, amount)]
 
 
 class PresetArmy(BaseModel):
@@ -63,15 +64,15 @@ class PresetArmy(BaseModel):
     constructor and ``flanks`` getter (bundle lines 99925, 99983)
     """
 
-    middle_tools: list[list[int]] = Field(default_factory=list, description="Middle tools as [wod_id, count] pairs")
-    left_tools: list[list[int]] = Field(default_factory=list, description="Left tools as [wod_id, count] pairs")
-    right_tools: list[list[int]] = Field(default_factory=list, description="Right tools as [wod_id, count] pairs")
-    middle_units: list[list[int]] = Field(default_factory=list, description="Middle units as [wod_id, count] pairs")
-    left_units: list[list[int]] = Field(default_factory=list, description="Left units as [wod_id, count] pairs")
-    right_units: list[list[int]] = Field(default_factory=list, description="Right units as [wod_id, count] pairs")
-    support_tools: list[int] = Field(
-        default_factory=lambda: [-1, -1, -1],
-        description="Support tool wod ids; [-1, -1, -1] when the preset has none",
+    middle_tools: WodAmountSlots = Field(default=(), description="Middle tool slots")
+    left_tools: WodAmountSlots = Field(default=(), description="Left tool slots")
+    right_tools: WodAmountSlots = Field(default=(), description="Right tool slots")
+    middle_units: WodAmountSlots = Field(default=(), description="Middle unit slots")
+    left_units: WodAmountSlots = Field(default=(), description="Left unit slots")
+    right_units: WodAmountSlots = Field(default=(), description="Right unit slots")
+    support_tools: SupportToolSlots = Field(
+        default=(None, None, None),
+        description="Support tools, one per slot; None for an empty slot, as a preset without any has",
     )
 
     @classmethod
@@ -81,14 +82,16 @@ class PresetArmy(BaseModel):
         def part(index: int) -> list[list[int]]:
             return _pairs(arrays[index]) if index < len(arrays) and isinstance(arrays[index], list) else []
 
-        return cls(
-            middle_tools=part(0),
-            left_tools=part(1),
-            right_tools=part(2),
-            middle_units=part(3),
-            left_units=part(4),
-            right_units=part(5),
-            support_tools=list(arrays[6]) if len(arrays) == 7 else [-1, -1, -1],
+        return cls.model_validate(
+            {
+                "middle_tools": part(0),
+                "left_tools": part(1),
+                "right_tools": part(2),
+                "middle_units": part(3),
+                "left_units": part(4),
+                "right_units": part(5),
+                "support_tools": arrays[6] if len(arrays) == 7 else (None, None, None),
+            }
         )
 
     @classmethod

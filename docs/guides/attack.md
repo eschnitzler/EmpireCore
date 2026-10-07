@@ -10,6 +10,7 @@ library fill them the way the game's own button does.
 
 ```python
 from empire_core import AttackWave, WaveFlank
+from empire_core.gamedata import Tool, Unit, WodAmount
 
 commanders = client.commanders.get_commanders()
 
@@ -18,14 +19,24 @@ accepted = client.attack.send_attack(
     source_y=510,
     target_x=700,
     target_y=710,
-    waves=[AttackWave(left=WaveFlank(units=[[487, 100]], tools=[[301, 5]]))],
+    waves=[
+        AttackWave(
+            left=WaveFlank(units=WodAmount.slots({Unit.SWORDMAN: 100}), tools=WodAmount.slots({Tool.RAM: 5}))
+        )
+    ],
     commander_id=commanders[0].commander_id,
 )
 ```
 
 An `AttackWave` has a `left`, `middle` and `right` flank, and each
-`WaveFlank` holds `units` and `tools` as `[wod_id, amount]` pairs. The wire
-keys (`L`, `M`, `R`, `U`, `T`) are accepted as well. Waves go front to back.
+`WaveFlank` holds its `units` and `tools` slots as `WodAmount` pairs, one per
+slot in order: `WodAmount.slots({Unit.SWORDMAN: 100})` builds them from a
+mapping, and an empty slot is `EMPTY_SLOT` (`[-1, 0]` on the wire). Waves go
+front to back.
+
+The courtyard wave, the support tools and collector boosters read the same
+way: `yard_wave={Unit.SWORDMAN: 300}`, `support_tools=(Tool.X, None, None)`
+with None for an empty slot, `collector_booster={CurrencyId.SAMURAI_MEDAL_BOOSTER: 5}`.
 
 The attack is sent in the kingdom of your area at the source position, looked
 up in your castle list; pass `kingdom_id` to name it yourself. With no area of
@@ -94,7 +105,7 @@ for preset in client.attack.get_presets():
     army = preset.army()               # PresetArmy, or None for an empty slot
     print(preset.index, preset.name, army.to_wave() if army else None)
 
-client.attack.save_preset(0, AttackWave(left=WaveFlank(units=[[487, 100]])))
+client.attack.save_preset(0, AttackWave(left=WaveFlank(units=WodAmount.slots({Unit.SWORDMAN: 100}))))
 client.attack.rename_preset(0, "Farm")
 ```
 

@@ -15,6 +15,7 @@ from pydantic.functional_validators import ModelWrapValidatorHandler
 from empire_core.army.models.units import AttackWave
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import AttackType, AutoSkipCooldownType, Kingdom, LootPriority
+from empire_core.gamedata import CurrencyAmounts, SupportToolSlots, WodAmountSlots
 from empire_core.movements.models import MovementOwner, MovementWrapper
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, read_or_none, readable_list
 from empire_core.protocol.js import js_truthy, movement_targets
@@ -86,14 +87,18 @@ class CreateAttackRequest(BaseRequest):
     collector_attack: int = Field(alias="ICA", default=0, description="1 for a collector event attack")
     countdown: int = Field(alias="CD", default=99, description="Always 99")
     waves: list[AttackWave] = Field(alias="A", default_factory=list, description="The attack waves, front to back")
-    collector_booster: list[list[int]] = Field(
+    collector_booster: CurrencyAmounts = Field(
         alias="BKS",
-        default_factory=list,
-        description="Collector event boosters as [currency_id, amount], such as 31 (samurai medal booster)",
+        default_factory=dict,
+        description="Collector event boosters by currency, such as CurrencyId.SAMURAI_MEDAL_BOOSTER",
     )
-    support_tools: list[int] = Field(alias="AST", default_factory=list, description="Support tool wod ids")
-    yard_wave: list[list[int]] = Field(
-        alias="RW", default_factory=list, description="The courtyard wave as [unit_id, count] pairs"
+    support_tools: SupportToolSlots = Field(
+        alias="AST",
+        default=(),
+        description="Support tools, one per slot, None for an empty one; the client sends every slot",
+    )
+    yard_wave: WodAmountSlots = Field(
+        alias="RW", default=(), description="The courtyard wave's unit slots, [-1, 0] for an empty one"
     )
     auto_skip_cooldown: AutoSkipCooldownType = Field(
         alias="ASCT",

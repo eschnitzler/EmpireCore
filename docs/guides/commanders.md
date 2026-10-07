@@ -48,12 +48,13 @@ Otherwise it costs rubies, and the game asks first.
 
 ```python
 from empire_core.commanders import PREMIUM_COMMANDER_ID
+from empire_core.gamedata import Unit
 
 client.load_game_data()                          # the VIP levels come from the items payload
 print(client.commanders.free_premium_commanders())  # None before the login data
 if client.commanders.premium_commander_is_free():
     client.castle.send_support(
-        source_castle_id, target_x, target_y, units=[[620, 50]],
+        source_castle_id, target_x, target_y, units={Unit.SWORDMAN: 50},
         commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True,
     )
 ```

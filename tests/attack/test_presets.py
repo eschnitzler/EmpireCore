@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from empire_core.protocol.models import AttackWave, PresetArmy, WaveFlank
+from empire_core.gamedata import WodAmount
+from empire_core.protocol.models import AttackWave, PresetArmy
 from tests.service_helpers import conn, make_client, xt_packet
 
 GAS = {
@@ -23,14 +24,14 @@ class TestGetPresets:
 
         assert [(p.index, p.name) for p in presets] == [(0, "Farm"), (1, None)]
         army = presets[0].army()
-        assert army is not None and army.middle_units == [[10, 20]]
+        assert army is not None and army.middle_units == ((10, 20),)
         assert conn(client).request_payloads == [("gas", {})]
 
 
 class TestSavePreset:
     def test_saves_a_wave_as_the_client_does(self):
         client = make_client()
-        wave = AttackWave(middle=WaveFlank(tools=[[1, 2], [-1, 0]], units=[[10, 20]]), right=WaveFlank(units=[[12, 7]]))
+        wave = AttackWave.model_validate({"M": {"T": [[1, 2], [-1, 0]], "U": [[10, 20]]}, "R": {"U": [[12, 7]]}})
 
         assert client.attack.save_preset(3, wave) is True
 
@@ -38,7 +39,7 @@ class TestSavePreset:
 
     def test_saves_a_preset_army(self):
         client = make_client()
-        client.attack.save_preset(0, PresetArmy(left_units=[[10, 5]]))
+        client.attack.save_preset(0, PresetArmy(left_units=(WodAmount(10, 5),)))
         assert conn(client).request_payloads == [("sas", {"S": 0, "A": "[[],[],[],[],[10,5],[]]"})]
 
     def test_a_refusal_is_false(self):

@@ -16,7 +16,7 @@ from empire_core.events.models import SpecialEvent
 from empire_core.exceptions import EmpireTimeoutError
 from empire_core.network.connection import ResponseWaiter
 from empire_core.player.models.account import BoostedGlobalEffectsResponse
-from empire_core.protocol.models import AttackWave, WaveFlank
+from empire_core.protocol.models import AttackWave
 from empire_core.protocol.packet import Packet
 from empire_core.state.manager import GameState
 from empire_core.state.models import Castle, Player
@@ -393,8 +393,5 @@ GOLDEN_GCL: dict[str, Any] = {
 
 
 def wave(units=None, tools=None, middle_units=None):
-    return AttackWave(
-        left=WaveFlank(units=units or [], tools=tools or []),
-        middle=WaveFlank(units=middle_units or []),
-        right=WaveFlank(),
-    )
+    """A wave from wire-shaped [wod_id, amount] pairs."""
+    return AttackWave.model_validate({"L": {"U": units or [], "T": tools or []}, "M": {"U": middle_units or []}})

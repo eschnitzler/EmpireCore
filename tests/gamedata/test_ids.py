@@ -770,7 +770,8 @@ class TestCheck:
     def test_a_table_whose_enum_is_not_generated_yet_generates(self, items_file, tmp_path, monkeypatch):
         # As before Horse's first generation: the package has no Horse, and HorseStats has not looked it up
         (validator,) = HorseStats.model_fields["wod_id"].metadata
-        monkeypatch.setattr(validator.func, "_enum", "Horse")
+        monkeypatch.setattr(validator.func, "_named", ("Horse",))
+        monkeypatch.setattr(validator.func, "_enums", None)
         monkeypatch.delitem(ids._MODULES, "Horse")
         monkeypatch.delattr(ids, "Horse", raising=False)
         with pytest.raises(AttributeError):

@@ -7,6 +7,7 @@ import pytest
 from empire_core.defense.models import GetDefenseResponse, GetSupportDefenseResponse, MoatDefense
 from empire_core.enums import Kingdom
 from empire_core.exceptions import CommandError
+from empire_core.gamedata import WodAmount
 from tests.defense.test_models import LIVE_DFC
 from tests.service_helpers import conn, make_client, xt_packet
 
@@ -68,7 +69,7 @@ class TestSetDefense:
         client = make_client({"dfc": xt_packet("dfc", LIVE_DFC), "dfk": xt_packet("dfk", reply)})
         keep = client.defense.get_own_defense(635, 242, 16655114).keep
         assert keep is not None
-        keep.slots[0] = [651, 20]
+        keep.slots = (WodAmount(651, 20), *keep.slots[1:])
         keep.unit_composition = 70
 
         stored = client.defense.set_keep(635, 242, 16655114, keep)
@@ -85,7 +86,7 @@ class TestSetDefense:
             ("S", [[651, 20], [-1, 0], [-1, 0]]),
             ("STS", [[-1, 0], [-1, 0], [-1, 0]]),
         ]
-        assert stored.slots[0] == [651, 20]
+        assert stored.slots[0] == (651, 20)
 
     def test_set_wall_sends_each_section(self):
         client = make_client({"dfc": xt_packet("dfc", LIVE_DFC), "dfw": xt_packet("dfw", LIVE_DFC["dfw"])})

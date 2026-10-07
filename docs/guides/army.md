@@ -12,14 +12,18 @@ raises `UnknownCastleError`.
 ## Units
 
 ```python
-units = client.army.get_units(castle_id=12345)     # list[UnitCount]
-for unit in units:
-    print(unit.unit_id, unit.count)
+from empire_core.gamedata import Unit
+
+units = client.army.get_units(castle_id=12345)     # {Unit or Tool: amount}
+for unit, amount in units.items():
+    print(unit, amount)
+print(units.get(Unit.PEASANT, 0))
 ```
 
 `get_units` covers the soldiers and tools at home. Units in production, in the
 stronghold or in the hospital are reported separately by
-`get_units_response(castle_id)`. `dismiss_units` dismisses units of the castle
+`get_units_response(castle_id)`, as `in_production`, `stronghold` and
+`hospital`, each the same `{Unit or Tool: amount}` mapping. `dismiss_units` dismisses units of the castle
 or of its stronghold.
 
 ## Recruitment

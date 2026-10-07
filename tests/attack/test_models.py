@@ -5,7 +5,8 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from empire_core.gamedata import Currency
+from empire_core.gamedata import EMPTY_SLOT, Currency, CurrencyId, Tool, Unit, WodAmount
+from empire_core.protocol.base import json_text
 from empire_core.protocol.models import (
     AttackPreset,
     AttackType,
@@ -99,16 +100,16 @@ class TestAttackPresets:
         army = preset.army()
         assert army is not None
         assert preset.name == "Farm"
-        assert army.support_tools == [7, 8, -1]
-        assert army.middle_tools[0] == [1, 2]
-        assert army.left_tools[1] == [5, 6]
-        assert army.right_tools == []
-        assert army.middle_units[1] == [11, 21]
+        assert army.support_tools == (7, 8, None)
+        assert army.middle_tools[0] == (1, 2)
+        assert army.left_tools[1] == (5, 6)
+        assert army.right_tools == ()
+        assert army.middle_units[1] == (11, 21)
 
     def test_six_arrays_have_no_support_tools(self):
         army = AttackPreset.model_validate({"S": 0, "A": SIX_ARRAYS}).army()
         assert army is not None
-        assert army.support_tools == [-1, -1, -1]
+        assert army.support_tools == (None, None, None)
 
     def test_unparsable_army_reads_as_none(self):
         assert AttackPreset.model_validate({"S": 0, "A": "not json"}).army() is None
@@ -118,17 +119,19 @@ class TestAttackPresets:
         assert [preset.index for preset in response.presets] == [1]
 
     def test_save_from_wave_matches_the_client(self):
-        wave = AttackWave(
-            middle=WaveFlank(tools=[[1, 2], [-1, 0]], units=[[10, 20], [-1, 0], [11, 5]]),
-            left=WaveFlank(tools=[[-1, 0]], units=[[-1, 0], [-1, 0]]),
-            right=WaveFlank(tools=[[3, 4]], units=[[12, 7]]),
+        wave = AttackWave.model_validate(
+            {
+                "M": {"T": [[1, 2], [-1, 0]], "U": [[10, 20], [-1, 0], [11, 5]]},
+                "L": {"T": [[-1, 0]], "U": [[-1, 0], [-1, 0]]},
+                "R": {"T": [[3, 4]], "U": [[12, 7]]},
+            }
         )
         request = SavePresetRequest.create(3, PresetArmy.from_wave(wave))
         assert request.command == "sas"
         assert request.to_payload() == {"S": 3, "A": WAVE_SAVED_AS}
 
     def test_save_from_a_padded_wave_drops_the_empty_slots(self):
-        wave = AttackWave(middle=WaveFlank(tools=[[-1, 0]] * 3, units=[[10, 20]] + [[-1, 0]] * 5))
+        wave = AttackWave(middle=WaveFlank(tools=(EMPTY_SLOT,) * 3, units=(WodAmount(10, 20),) + (EMPTY_SLOT,) * 5))
         assert PresetArmy.from_wave(wave).to_arrays() == [[], [], [], [10, 20], [], []]
 
     def test_save_round_trips_through_the_reply(self):
@@ -189,9 +192,41 @@ class TestAttackRequestShapes:
             target_x=3,
             target_y=4,
             waves=[AttackWave()],
-            collector_booster=[[31, 2], [32, 0]],
+            collector_booster={CurrencyId.SAMURAI_MEDAL_BOOSTER: 2, CurrencyId.SHOGUN_POINTS_BOOSTER: 0},
         )
         assert request.to_payload()["BKS"] == [[31, 2], [32, 0]]
+
+    def test_a_cra_goes_out_byte_for_byte_with_its_empty_slots(self):
+        # getSlotList sends [-1, 0] per empty slot, toolsSupportWodIds -1 per empty support slot
+        sent = (
+            '{"SX":1,"SY":2,"TX":3,"TY":4,"KID":0,"LID":0,"WT":0,"HBW":-1,"BPC":0,"ATT":0,"AV":0,"LP":0,'
+            '"FC":0,"PTT":0,"SD":0,"ICA":0,"CD":99,'
+            '"A":[{"L":{"T":[[-1,0]],"U":[[601,10],[-1,0],[601,10]]},"R":{"T":[],"U":[]},"M":{"T":[],"U":[]}}],'
+            '"BKS":[[31,2]],"AST":[-1,1,-1],"RW":[[601,3],[-1,0]],"ASCT":0}'
+        )
+        request = CreateAttackRequest.model_validate(json.loads(sent))
+        assert request.waves[0].left.units[1].item is None
+        assert request.support_tools == (None, 1, None)
+        assert json_text(request.to_payload()) == sent
+
+        built = CreateAttackRequest(
+            commander_id=0,
+            source_x=1,
+            source_y=2,
+            target_x=3,
+            target_y=4,
+            waves=[
+                AttackWave(
+                    left=WaveFlank(
+                        tools=(EMPTY_SLOT,), units=(WodAmount(Unit(601), 10), EMPTY_SLOT, WodAmount(Unit(601), 10))
+                    )
+                )
+            ],
+            collector_booster={CurrencyId.SAMURAI_MEDAL_BOOSTER: 2},
+            support_tools=(None, Tool(1), None),
+            yard_wave=WodAmount.slots({Unit(601): 3}) + (EMPTY_SLOT,),
+        )
+        assert json_text(built.to_payload()) == sent
 
     def test_wave_keys_follow_the_client_order(self):
         # CastleAttackWaveVO.getWaveInfoObject builds {L, R, M}, each {T, U}
