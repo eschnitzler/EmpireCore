@@ -13,11 +13,20 @@ from __future__ import annotations
 import logging
 from typing import Any, ClassVar
 
-from pydantic import Field, field_serializer, field_validator, model_validator
+from pydantic import Field, ValidationError, ValidationInfo, field_serializer, field_validator, model_validator
 
 from empire_core.enums import RankingType
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, GGECommand, list_or_empty, readable_list
-from empire_core.protocol.js import ClientInt, js_falsy, js_int, js_loose_equals
+from empire_core.map.models import MapObject
+from empire_core.protocol.base import (
+    BasePayload,
+    BaseRequest,
+    BaseResponse,
+    GGECommand,
+    list_or_empty,
+    read_or_none,
+    readable_list,
+)
+from empire_core.protocol.js import ClientInt, js_falsy, js_int, js_loose_equals, js_string, js_truthy
 from empire_core.protocol.text import encode_json_text
 
 logger = logging.getLogger(__name__)
@@ -40,105 +49,181 @@ def _not_skipped(payload: Any, list_type: RankingType, league_type_id: int | Non
     return not (other_list and js_loose_equals(reply_league, league_type_id))
 
 
-class RankingEntry:
-    """A ranking entry with optional global-list and highscore details.
+def _owner_or_none(value: Any) -> MapObject | None:
+    # WorldMapOwnerInfoVO.fillFromParamObject reads keys off an object; anything else names no owner
+    return read_or_none(MapObject.model_validate, value) if isinstance(value, dict) else None
 
-    Global lists identify the server with ``instance_id`` and the paging key
-    with ``score_id``. Neither is an owner ID; ``entity_id`` remains unknown
-    (0) when the payload does not contain one.
+
+class HighscoreAlliance(BasePayload):
+    """
+    An alliance on a highscore list: ``[alliance_id, name, member_count, fame]``.
+
+    Client: ``AllianceHighscoreInfoVO.fillFromParamObject`` (bundle line 27680), which reads
+    nothing from a value that is not an array
     """
 
-    def __init__(self, raw: list | dict) -> None:
-        self.raw = raw
-        self.rank: int = -1
-        self.score: int = -1
-        self.entity_id: int = 0
-        self.name: str = ""
-        self.alliance_id: int = 0
-        self.alliance_name: str = ""
-        self.instance_id: int | None = None
-        self.score_id: int | str | None = None
-        self.level: int = 0
-        self.legend_level: int = 0
-        self.honor: int = 0
-        self.might: int = 0
-        self.member_count: int = 0
-        self.fame: int = 0
+    alliance_id: ClientInt = Field(default=0, description="Alliance id")
+    name: str = Field(default="", description="Alliance name")
+    member_count: ClientInt = Field(default=0, description="Number of members")
+    fame: ClientInt = Field(default=0, description="The alliance's current fame points")
 
-        try:
-            # llsp/llsw format: {"R": rank, "S": score, "P": name, "A": alliance, ...}
-            if isinstance(raw, dict):
-                self.rank = raw.get("R", -1)
-                self.score = raw.get("S", -1)
-                self.name = raw.get("P", "")
-                self.alliance_name = raw.get("A", "")
-                self.instance_id = raw.get("I")
-                self.score_id = raw.get("SI")
-                return
-
-            # hgh format: list-based entries
-            # Some list types prepend an extra value before [Rank, Score, details].
-            # Cargo (LT=13) uses offset=1: [cargoValue, Rank, Score, {details}].
-            # Detect by checking whether raw[3] is the complex field while raw[2] is not.
-            o = (
-                1
-                if (len(raw) >= 4 and isinstance(raw[3], (dict, list)) and not isinstance(raw[2], (dict, list)))
-                else 0
-            )
-
-            details = raw[o + 2] if len(raw) >= o + 3 else None
-
-            if isinstance(details, dict):
-                self.rank = raw[o]
-                self.score = raw[o + 1]
-                self.entity_id = details.get("OID", 0)
-                self.name = details.get("N", "")
-                self.alliance_id = details.get("AID", 0)
-                self.alliance_name = details.get("AN", "")
-                self.level = details.get("L", 0)
-                self.legend_level = details.get("LL", 0)
-                self.honor = details.get("H", 0)
-                self.might = details.get("MP", 0)
-
-            elif isinstance(details, list):
-                self.rank = raw[o]
-                self.score = raw[o + 1]
-                self.entity_id = details[0] if len(details) > 0 else 0
-                self.member_count = details[2] if len(details) > 2 else 0
-                self.fame = details[3] if len(details) > 3 else 0
-                if len(details) > 1:
-                    name_field = details[1]
-                    if isinstance(name_field, list):
-                        self.name = str(name_field[0]) if len(name_field) > 0 else ""
-                    else:
-                        self.name = str(name_field) if name_field is not None else ""
-
-            elif len(raw) >= o + 4:
-                self.rank = raw[o]
-                self.score = raw[o + 1]
-                self.entity_id = raw[o + 2]
-                self.name = str(raw[o + 3]) if raw[o + 3] is not None else ""
-
-            else:
-                logger.warning(f"Unknown RankingEntry format: {raw}")
-
-        except (IndexError, ValueError, TypeError) as e:
-            logger.error(f"Failed to parse RankingEntry: {raw} - Error: {e}")
-
-    def __repr__(self) -> str:
-        return f"RankingEntry(rank={self.rank}, name='{self.name}', score={self.score})"
-
+    @model_validator(mode="before")
     @classmethod
-    def unranked(cls, name: str) -> "RankingEntry":
-        """Create a synthetic entry for a player with no ranking score."""
-        entry = cls({})
-        entry.raw = []
-        entry.score = 0
-        entry.entity_id = 0
-        entry.name = name
-        entry.alliance_id = 0
-        entry.alliance_name = ""
-        return entry
+    def _from_row(cls, data: Any) -> Any:
+        if not isinstance(data, list):
+            return data
+        return dict(zip(("alliance_id", "name", "member_count", "fame"), data, strict=False))
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _text(cls, value: Any) -> Any:
+        return "" if value is None else js_string(value)
+
+
+class HighscorePlayerRow(BasePayload):
+    """
+    A player's row: ``[rank, score, owner_record, display_name?, shown_rank?]``, or ``[rank, owner_record]``
+    without a score.
+
+    Client: ``CastleHighscoreDialog.onGetHighscoreData`` (bundle lines 27559-27568),
+    ``CastleGenericHighscoreDialog.onGetHighscoreData`` (bundle lines 30827-30836),
+    ``CastleSingleplayerRankingItem.update`` (bundle line 91695) for the row without a score,
+    ``TempServerEventDialogRankingItem.updateWithNewData`` (bundle lines 118343-118344) for the
+    display name and the shown rank, which 0 leaves at ``rank``
+    """
+
+    rank: ClientInt = Field(default=0, description="Rank on the list")
+    score: ClientInt = Field(default=0, description="The listed value; 0 on a row without one")
+    owner: MapObject | None = Field(default=None, description="The player's owner record; None when unreadable")
+    display_name: str | None = Field(
+        default=None, description="The name the temporary server lists show; None when the row has none"
+    )
+    shown_rank: int | None = Field(
+        default=None, description="The rank the previous-run and temporary server lists show; None to show rank"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if not isinstance(data, list):
+            return data
+        if len(data) <= 2:
+            return {"rank": data[0] if data else None, "owner": data[1] if len(data) > 1 else None}
+        shown = js_int(data[4]) if len(data) > 4 else 0
+        return {
+            "rank": data[0],
+            "score": data[1],
+            "owner": data[2],
+            "display_name": data[3] if len(data) > 3 and isinstance(data[3], str) and data[3] else None,
+            "shown_rank": shown or None,
+        }
+
+    @field_validator("owner", mode="before")
+    @classmethod
+    def _owner(cls, value: Any) -> Any:
+        return value if isinstance(value, MapObject) else _owner_or_none(value)
+
+
+class HighscoreAllianceRow(BasePayload):
+    """
+    An alliance's row: ``[rank, score, alliance]``.
+
+    Client: ``CastleHighscoreDialog.onGetHighscoreData`` (bundle lines 27541-27558),
+    ``CastleAllianceRankingItem.update`` (bundle line 91645), the generic alliance highscore
+    dialog (bundle lines 38131-38134)
+    """
+
+    rank: ClientInt = Field(default=0, description="Rank on the list")
+    score: ClientInt = Field(default=0, description="The listed value")
+    alliance: HighscoreAlliance = Field(default_factory=HighscoreAlliance, description="The alliance")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if not isinstance(data, list):
+            return data
+        return dict(zip(("rank", "score", "alliance"), data, strict=False))
+
+    @field_validator("alliance", mode="before")
+    @classmethod
+    def _alliance(cls, value: Any) -> Any:
+        return value if isinstance(value, (list, HighscoreAlliance)) else {}
+
+
+class HighscoreIslandRow(HighscoreAllianceRow):
+    """
+    A Storm Islands alliance row: ``[is_stormlord, rank, score, alliance]``.
+
+    Client: ``CastleEilandAllianceRankingItem.update`` (bundle lines 98076-98079), shown for
+    ``HighscoreConst.ALLIANCE_AQUA_POINTS`` (bundle line 98052)
+    """
+
+    is_stormlord: bool = Field(default=False, description="The alliance holds the Storm Islands")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if not isinstance(data, list):
+            return data
+        return {
+            "is_stormlord": js_truthy(data[0]) if data else False,
+            **dict(zip(("rank", "score", "alliance"), data[1:], strict=False)),
+        }
+
+
+class HighscoreTournamentRow(BasePayload):
+    """
+    A tournament row: ``[rank, score, player_id, player_name]``, with no owner record.
+
+    Client: ``ACastleTournamentRankListItem.parseItemData`` (bundle line 59120),
+    ``CastleTournamentRankListItem.parseItemData`` (bundle line 118660)
+    """
+
+    rank: ClientInt = Field(default=0, description="Rank on the list")
+    score: ClientInt = Field(default=0, description="Tournament points")
+    player_id: ClientInt = Field(default=0, description="The player's id")
+    player_name: str = Field(default="", description="The player's name")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if not isinstance(data, list):
+            return data
+        return dict(zip(("rank", "score", "player_id", "player_name"), data, strict=False))
+
+    @field_validator("player_name", mode="before")
+    @classmethod
+    def _text(cls, value: Any) -> Any:
+        return "" if value is None else js_string(value)
+
+
+HighscoreRow = HighscorePlayerRow | HighscoreAllianceRow | HighscoreIslandRow | HighscoreTournamentRow
+"""One row of a ``hgh`` reply; :data:`HIGHSCORE_ROW_LAYOUTS` and the row's shape pick which."""
+
+
+_RowModel = (
+    type[HighscorePlayerRow] | type[HighscoreAllianceRow] | type[HighscoreIslandRow] | type[HighscoreTournamentRow]
+)
+
+
+HIGHSCORE_ROW_LAYOUTS: dict[int, _RowModel] = {
+    RankingType.ALLIANCE_AQUA_POINTS: HighscoreIslandRow,
+    RankingType.TOURNAMENT_FAME: HighscoreTournamentRow,
+}
+"""
+The lists whose rows have a layout of their own.
+
+Every other list's row is an alliance's when its third entry is an array, else a player's, as
+``SeasonLeagueMainDialogRanksItem`` tells them apart (bundle lines 91889, 91908); the other
+dialogs each read one of those two layouts.
+"""
+
+
+def _row_model(list_type: int | None, row: list[Any]) -> _RowModel:
+    layout = HIGHSCORE_ROW_LAYOUTS.get(list_type) if list_type is not None else None
+    if layout is not None:
+        return layout
+    return HighscoreAllianceRow if len(row) > 2 and isinstance(row[2], list) else HighscorePlayerRow
 
 
 class GetHighscoreRequest(BaseRequest):
@@ -181,12 +266,12 @@ class GetHighscoreRequest(BaseRequest):
 
 class GetHighscoreResponse(BaseResponse):
     """
-    Response for hgh command.
+    A page of a highscore list, the reply to ``hgh``.
 
-    Client: ``HGHCommand.executeCommand`` (bundle line 124377),
-    ``CastleSingleplayerRankingItem.update`` (bundle line 91695),
-    ``CastleAllianceRankingItem.update`` (bundle line 91645),
-    ``CastleEilandAllianceRankingItem.update`` (bundle line 98076)
+    The client has no row parser of its own: each dialog reads the rows in its list's
+    layout, so the rows are read by :data:`HIGHSCORE_ROW_LAYOUTS` and their shape.
+
+    Client: ``HGHCommand.executeCommand`` (bundle line 124377)
     """
 
     command: ClassVar[str] = GGECommand.HGH
@@ -195,24 +280,30 @@ class GetHighscoreResponse(BaseResponse):
     league_type_id: int = Field(alias="LID", default=-1, description="League type id; -1 for none")
     last_rank: int | None = Field(alias="LR", default=None)
     search_value: str | None = Field(alias="SV", default=None)
-    raw_list: list[Any] = Field(
-        alias="L",
-        default_factory=list,
-        description=(
-            "Ranking rows, kept raw: their layout depends on the list, e.g. [rank, score, owner "
-            "record], [rank, owner record], [rank, score, alliance row] or [value, rank, score, "
-            "alliance row]"
-        ),
-    )
+    rows: tuple[HighscoreRow, ...] = Field(alias="L", default=(), description="The page's rows, in the list's layout")
 
     @field_validator("league_type_id", mode="before")
     @classmethod
     def _falsy_league_reads_as_minus_one(cls, value: Any) -> int:
         return -1 if js_falsy(value) else js_int(value)
 
-    @property
-    def entries(self) -> list[RankingEntry]:
-        return [RankingEntry(item) for item in self.raw_list]
+    @field_validator("rows", mode="plain")
+    @classmethod
+    def _rows(cls, value: Any, info: ValidationInfo) -> tuple[HighscoreRow, ...]:
+        list_type = info.data.get("list_type")
+        rows: list[HighscoreRow] = []
+        unreadable: list[Any] = []
+        for row in value if isinstance(value, list) else ():
+            if not isinstance(row, list):
+                unreadable.append(row)
+                continue
+            try:
+                rows.append(_row_model(list_type, row).model_validate(row))
+            except ValidationError:
+                unreadable.append(row)
+        if unreadable:
+            logger.warning(f"Skipped {len(unreadable)} unreadable highscore rows, first: {unreadable[0]!r:.200}")
+        return tuple(rows)
 
 
 class GetRankingListRequest(BaseRequest):
@@ -434,10 +525,6 @@ class GetRankingListResponse(BaseResponse):
         if not isinstance(value, list):
             return []
         return [row if isinstance(row, dict) else {} for row in value]
-
-    @property
-    def entries(self) -> list[RankingEntry]:
-        return [RankingEntry(score.model_dump(by_alias=True, exclude_none=True)) for score in self.scores]
 
 
 class GetRankingWindowResponse(GetRankingListResponse):

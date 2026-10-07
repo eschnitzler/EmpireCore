@@ -11,11 +11,16 @@ from empire_core.enums import RankingType
 from empire_core.protocol.base import get_response_model
 from empire_core.protocol.models import GetHighscoreRequest, GetRankingListRequest
 from empire_core.ranking.models import (
+    HIGHSCORE_ROW_LAYOUTS,
     GetHighscoreResponse,
     GetRankingListResponse,
     GetRankingWindowRequest,
     GetRankingWindowResponse,
-    RankingEntry,
+    HighscoreAlliance,
+    HighscoreAllianceRow,
+    HighscoreIslandRow,
+    HighscorePlayerRow,
+    HighscoreTournamentRow,
     SearchRankingListRequest,
     SearchRankingListResponse,
 )
@@ -296,82 +301,64 @@ class TestResponseLeague:
         assert GetRankingListResponse.model_validate({"LT": 53, "LID": lid, "L": []}).league_type_id == expected
 
 
-class TestGoldenRankingPayloads:
-    def test_dict_details_layout(self):
-        payload = {"L": [[1, 999999, {"OID": 7001, "N": "LeaderGuy", "AID": 301, "AN": "PACT"}]]}
-        entry = GetHighscoreResponse.model_validate(payload).entries[0]
-        assert (entry.rank, entry.score, entry.entity_id, entry.name) == (1, 999999, 7001, "LeaderGuy")
-        assert (entry.alliance_id, entry.alliance_name) == (301, "PACT")
+class TestHighscoreRows:
+    def test_a_player_row(self):
+        payload = {"LT": 6, "L": [[1, 999999, {"OID": 7001, "N": "LeaderGuy", "AID": 301, "AN": "PACT", "L": 70}]]}
+        (row,) = GetHighscoreResponse.model_validate(payload).rows
+        assert isinstance(row, HighscorePlayerRow) and row.owner is not None
+        assert (row.rank, row.score, row.owner.owner_id, row.owner.owner_name) == (1, 999999, 7001, "LeaderGuy")
+        assert (row.owner.alliance_id, row.owner.alliance_name, row.owner.level) == (301, "PACT", 70)
+        assert (row.display_name, row.shown_rank) == (None, None)
 
-    def test_list_details_layout(self):
-        payload = {"L": [[2, 888888, [7002, "OfficerGal"]]]}
-        entry = GetHighscoreResponse.model_validate(payload).entries[0]
-        assert (entry.rank, entry.score, entry.entity_id, entry.name) == (2, 888888, 7002, "OfficerGal")
+    def test_a_player_row_without_a_score(self):
+        # CastleSingleplayerRankingItem.update: [rank, owner] reads the score as 0
+        (row,) = GetHighscoreResponse.model_validate({"LT": 54, "L": [[3, {"OID": 5, "N": "x"}]]}).rows
+        assert isinstance(row, HighscorePlayerRow) and row.owner is not None
+        assert (row.rank, row.score, row.owner.owner_id) == (3, 0, 5)
 
-    def test_nested_name_field_is_flattened(self):
-        payload = {"L": [[2, 888888, [7002, ["OfficerGal"]]]]}
-        assert GetHighscoreResponse.model_validate(payload).entries[0].name == "OfficerGal"
+    def test_the_temporary_server_name_and_shown_rank(self):
+        payload = {"LT": 76, "L": [[4, 50, {"OID": 5, "N": "x"}, "Shown", 2], [5, 40, {"OID": 6}, "", 0]]}
+        first, second = GetHighscoreResponse.model_validate(payload).rows
+        assert isinstance(first, HighscorePlayerRow) and isinstance(second, HighscorePlayerRow)
+        assert (first.display_name, first.shown_rank) == ("Shown", 2)
+        assert (second.display_name, second.shown_rank) == (None, None)
 
-    def test_cargo_layout_has_a_leading_extra_value(self):
-        # LT=13 prepends the cargo value: [cargo, rank, score, {details}].
-        payload = {"L": [[5000, 3, 777777, {"OID": 7003, "N": "AfkDude"}]]}
-        entry = GetHighscoreResponse.model_validate(payload).entries[0]
-        assert (entry.rank, entry.score, entry.entity_id, entry.name) == (3, 777777, 7003, "AfkDude")
+    @pytest.mark.parametrize("list_type", [10, 11, 12, 56, 77])
+    def test_an_alliance_row(self, list_type):
+        payload = {"LT": list_type, "L": [[1, 8000, [8, "Alliance", 65, 1234, {"BGT": 1}]]]}
+        (row,) = GetHighscoreResponse.model_validate(payload).rows
+        assert type(row) is HighscoreAllianceRow
+        assert (row.rank, row.score) == (1, 8000)
+        assert row.alliance == HighscoreAlliance(alliance_id=8, name="Alliance", member_count=65, fame=1234)
 
-    def test_flat_layout(self):
-        payload = {"L": [[4, 666, 7004, "FlatGuy"]]}
-        entry = GetHighscoreResponse.model_validate(payload).entries[0]
-        assert (entry.rank, entry.score, entry.entity_id, entry.name) == (4, 666, 7004, "FlatGuy")
+    def test_a_storm_islands_row_starts_with_the_stormlord_flag(self):
+        payload = {"LT": 13, "L": [[1, 3, 777777, [8, "Isle", 10, 5]], [0, 4, 6, [9, "Other"]]]}
+        first, second = GetHighscoreResponse.model_validate(payload).rows
+        assert isinstance(first, HighscoreIslandRow) and isinstance(second, HighscoreIslandRow)
+        assert (first.is_stormlord, first.rank, first.score, first.alliance.name) == (True, 3, 777777, "Isle")
+        assert (second.is_stormlord, second.alliance.alliance_id) == (False, 9)
 
-    def test_ranking_list_dict_layout(self):
-        payload = {"L": [{"R": 3, "S": 500, "P": "SomePlayer", "A": "SomeAlliance"}], "T": 12345}
-        response = GetRankingListResponse.model_validate(payload)
-        assert response.total == 12345
-        entry = response.entries[0]
-        assert (entry.rank, entry.score, entry.name, entry.alliance_name) == (3, 500, "SomePlayer", "SomeAlliance")
+    def test_a_tournament_row_names_the_player_flat(self):
+        (row,) = GetHighscoreResponse.model_validate({"LT": 20, "L": [[4, 666, 7004, "FlatGuy"]]}).rows
+        assert isinstance(row, HighscoreTournamentRow)
+        assert (row.rank, row.score, row.player_id, row.player_name) == (4, 666, 7004, "FlatGuy")
 
-    def test_unranked_synthetic_entry(self):
-        entry = RankingEntry.unranked("Nobody")
-        assert (entry.rank, entry.score, entry.name) == (-1, 0, "Nobody")
-
-
-class TestRankingEntryDriftedLayouts:
-    """RankingEntry parses four different shapes and must never raise."""
-
-    @pytest.mark.parametrize(
-        "raw",
-        [
-            {},
-            [],
-            [1],
-            [1, 2],
-            None,
-            "abcd",
-            [1, 2, None],
-            [None, None, {}],
-            [1, 2, {"unexpected": "keys"}],
-            [[1, 2], [3, 4]],
-        ],
-    )
-    def test_drifted_entries_never_raise(self, raw):
-        entry = RankingEntry(raw)
-        assert entry.raw is raw
-        assert repr(entry)
-
-    @pytest.mark.parametrize("raw", [[], [1, 2]])
-    def test_unknown_layout_is_logged_and_left_unranked(self, raw, caplog):
+    def test_a_row_that_is_not_a_list_is_skipped_and_said_so(self, caplog):
+        payload = {"LT": 6, "L": [None, "abc", [1, 2, {"OID": 3}], [None, None, {}]]}
         with caplog.at_level(logging.WARNING, logger="empire_core.ranking.models"):
-            entry = RankingEntry(raw)
-        assert entry.rank == -1
-        assert "Unknown RankingEntry format" in caplog.text
+            rows = GetHighscoreResponse.model_validate(payload).rows
+        assert [row.rank for row in rows] == [1, 0]
+        assert "Skipped 2 unreadable highscore rows" in caplog.text
 
-    def test_a_layout_that_raises_internally_is_logged_as_an_error(self, caplog):
-        with caplog.at_level(logging.ERROR, logger="empire_core.ranking.models"):
-            # Deliberately not a list/dict: the point of the test is that an
-            # unparseable layout degrades to rank -1 rather than raising.
-            entry = RankingEntry(None)  # type: ignore[arg-type]
-        assert entry.rank == -1
-        assert "Failed to parse RankingEntry" in caplog.text
+    def test_an_owner_that_is_not_an_object_reads_as_none(self):
+        (row,) = GetHighscoreResponse.model_validate({"LT": 6, "L": [[1, 2, "x"]]}).rows
+        assert isinstance(row, HighscorePlayerRow) and row.owner is None
+
+    def test_the_layouts_are_registered_by_list(self):
+        assert HIGHSCORE_ROW_LAYOUTS == {
+            RankingType.ALLIANCE_AQUA_POINTS: HighscoreIslandRow,
+            RankingType.TOURNAMENT_FAME: HighscoreTournamentRow,
+        }
 
 
 class TestLeaderboardLeniency:

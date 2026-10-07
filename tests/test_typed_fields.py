@@ -90,8 +90,6 @@ ALLOWED: dict[str, str] = {
     "defense.models.MoatDefense.right_slots": "#320",
     "defense.models.WallSection.slots": "#320",
     "defense.models.WallSectionSetup.slots": "#320",
-    "map.models.items.MapAreaItem.abg_connections": "#320",
-    "map.models.items.MapAreaItem.abg_tower_connection": "#320",
     "map.models.items.MapAreaItem.protector_positions": "opaque: the client reads only its length",
     "map.models.items.MapAreaItem.raw_data": "the row as sent, for readers that parse it as the client does",
     "messages.models.battle_logs.BattleLogShortResponse.auto_skip_costs": "#320",
@@ -115,7 +113,6 @@ ALLOWED: dict[str, str] = {
     "movements.tracked.Movement.goods": "#320",
     "movements.tracked.Movement.support_tool_ids": "#320",
     "player.models.progress.TopTitleRanking.thresholds": "points, one per top-X title of the system; not ids",
-    "ranking.models.GetHighscoreResponse.raw_list": "#320",
 }
 
 

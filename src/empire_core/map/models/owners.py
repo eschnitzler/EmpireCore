@@ -15,7 +15,7 @@ from empire_core.protocol.base import BasePayload, list_or_empty, object_or_none
 from empire_core.protocol.js import ClientInt, ParseInt, js_int, js_truthy
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import AllianceCrestColor
+    from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout
 
 
 class OwnerCrest(BasePayload):
@@ -114,10 +114,18 @@ class AllianceCrest(BasePayload):
     looked up through ``int()`` (bundle line 11216).
     """
 
-    layout_id: ClientInt = Field(alias="ACLI", default=0, description="Crest layout id")
+    layout_id: EnumOrInt["AllianceCrestLayout"] | None = Field(
+        alias="ACLI", default=None, description="The crest layout; None when the crest names none (0)"
+    )
     color_ids: list[Annotated[EnumOrInt["AllianceCrestColor"], BeforeValidator(js_int)]] = Field(
         alias="ACCS", default_factory=list, description="The colours, one per layout colour"
     )
+
+    @field_validator("layout_id", mode="before")
+    @classmethod
+    def _layout(cls, value: Any) -> Any:
+        # fillWithData reads int(e.ACLI), so a missing layout is 0, which no layout has
+        return js_int(value) or None
 
     @field_validator("color_ids", mode="before")
     @classmethod
