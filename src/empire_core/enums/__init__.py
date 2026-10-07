@@ -8,7 +8,15 @@ from .alliance import AllianceChronicleAction, AllianceRank, BookmarkType, Diplo
 from .army import ProductionListId, SlotType
 from .castle import BuildingState, ExpansionType, MarketScope, Resource, ResourceCartType, TaxStatus
 from .collectables import BoosterId, CollectableKind, RewardGrantType
-from .combat import AttackType, AutoSkipCooldownType, CombatEffectType, Flank, LootPriority
+from .combat import (
+    AttackAdvisorType,
+    AttackType,
+    AutoSkipCooldownType,
+    BattleLogFlank,
+    CombatEffectType,
+    Flank,
+    LootPriority,
+)
 from .commanders import EquipmentSlot, EquipmentType, Rareness, WearerType
 from .gamedata import (
     BuildingGroundType,
@@ -24,7 +32,7 @@ from .gamedata import (
 from .map import Kingdom, MapItemType, NPCOwner, PeaceModeStatus
 from .messages import BattleLogAttackType, LogResult, MessageType
 from .movements import MovementType
-from .player import TitleSystem
+from .player import PremiumAccountType, TitleSystem
 from .ranking import RankingType
 from .rewards import LoginBonusSpecial
 from .spy import SpyArmySection, SpyLogType, SpyOutcome, SpyStep, SpyType
@@ -41,7 +49,9 @@ __all__ = [
     "AttackType",
     "LootPriority",
     "AutoSkipCooldownType",
+    "AttackAdvisorType",
     "Flank",
+    "BattleLogFlank",
     "CombatEffectType",
     # Spy
     "SpyType",
@@ -81,6 +91,7 @@ __all__ = [
     "BattleLogAttackType",
     # Player
     "TitleSystem",
+    "PremiumAccountType",
     # Ranking
     "RankingType",
     # Rewards

@@ -16,9 +16,19 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, ValidationInfo, ValidatorFunctionWrapHandler, field_validator, model_validator
 
+from empire_core.commanders.models.equipment import Equipment
 from empire_core.commanders.models.roster import Castellan, Commander
-from empire_core.enums import BattleLogAttackType, CollectableKind, LogResult, MapItemType, MessageType
-from empire_core.gamedata import Collectable, CollectableRows, CurrencyIdRows, EnumOrInt
+from empire_core.enums import (
+    AttackAdvisorType,
+    AutoSkipCooldownType,
+    BattleLogAttackType,
+    BattleLogFlank,
+    CollectableKind,
+    LogResult,
+    MapItemType,
+    MessageType,
+)
+from empire_core.gamedata import Collectable, CollectableRows, CurrencyIdRows, EnumOrInt, EnumOrStr
 from empire_core.gamedata.collectables import MINUTE_SKIP_FIRST_ID
 from empire_core.map.models import MapObject
 from empire_core.protocol.base import (
@@ -34,6 +44,7 @@ from empire_core.protocol.base import (
 )
 from empire_core.protocol.js import (
     ClientInt,
+    ClientNumber,
     js_int,
     js_loose_equals,
     js_number_or_none,
@@ -473,17 +484,26 @@ class AbilityWaveValue(BasePayload):
     """
     Where a general's ability took effect: ``[wave_id, value, flank_name]``.
 
-    Client: ``BattleLogAbilityVO.parseFromParamOj`` (bundle line 138584)
+    Client: ``BattleLogAbilityVO.parseFromParamOj`` (bundle line 138588); ``getValueForWave`` and
+    ``isTriggerdInWave`` (bundle lines 138593-138595) match the wave and the flank name;
+    ``CastleBattleLogPopUpDialog.getFlankNameBattleLog`` (bundle lines 135871-135877) names the flanks
     """
 
-    wave_id: Any = Field(default=None, description="The wave, as the server sends it")
-    value: Any = Field(default=None, description="The ability's value in that wave, as the server sends it")
-    flank_name: Any = Field(default=None, description="The flank, as the server names it")
+    wave_id: ClientInt = Field(default=0, description="The wave's number in the battle")
+    value: ClientNumber = Field(default=0, description="The ability's value in that wave")
+    flank_name: EnumOrStr[BattleLogFlank] | None = Field(
+        default=None, description="The flank; None when the entry names none"
+    )
 
     @model_validator(mode="before")
     @classmethod
     def _from_row(cls, data: Any) -> Any:
         return _row(("wave_id", "value", "flank_name"), data)
+
+    @field_validator("flank_name", mode="before")
+    @classmethod
+    def _name(cls, value: Any) -> Any:
+        return value if isinstance(value, str) else None
 
 
 class BattleLogAbility(BasePayload):
@@ -677,6 +697,22 @@ class BattleLogMeta:
         )
 
 
+class SupporterWounded(BasePayload):
+    """
+    Soldiers a supporting player had wounded: a ``WSU`` row, ``[player_id, wounded_units]``.
+
+    Client: ``BattleLogVO.updateSupporterWoundedUnitCount`` (bundle lines 138329-138332)
+    """
+
+    player_id: ClientInt = Field(default=0, description="The supporting player")
+    wounded_units: ClientInt = Field(default=0, description="Soldiers wounded instead of lost")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        return _row(("player_id", "wounded_units"), data)
+
+
 class BattleLogShortResponse(BaseResponse):
     """
     A battle report's short log: who fought, who won, the loot and the area.
@@ -694,7 +730,8 @@ class BattleLogShortResponse(BaseResponse):
 
     Client: ``BLSCommand.executeCommand`` (bundle lines 125190-125196),
     ``CastleMessageData.parseBattleLogShort`` (bundle line 134992),
-    ``BattleLogVO.fillFromParamObject`` (bundle line 138294)
+    ``BattleLogVO.fillFromParamObject`` (bundle line 138294), which reads ``EQF`` and ``GF`` (bundle
+    line 138304) and ``ASCT``, ``AAT``, ``AAC`` and ``AAN`` (bundle line 138312)
     """
 
     command = "bls"
@@ -711,8 +748,10 @@ class BattleLogShortResponse(BaseResponse):
     owners: list[MapObject] = Field(alias="PI", default_factory=list, description="The players' owner records")
     honor: ClientInt = Field(alias="H", default=0, description="Honor won or lost")
     survival_rate: ClientInt = Field(alias="SR", default=0, description="Survival rate, percent")
-    found_equipment: Any = Field(alias="EQF", default=None, description="Equipment found in the battle, as sent")
-    found_gem: Any = Field(alias="GF", default=None, description="Gem found in the battle, as sent")
+    found_equipment: Equipment | None = Field(
+        alias="EQF", default=None, description="Equipment found in the battle; None for none"
+    )
+    found_gem: EnumOrInt["Gem"] | None = Field(alias="GF", default=None, description="Gem found in the battle")
     found_minute_skip: Collectable | None = Field(
         alias="MSF", default=None, description="The time skip found in the battle, one of its currency; None for none"
     )
@@ -733,8 +772,8 @@ class BattleLogShortResponse(BaseResponse):
     defender_only_auxiliaries: bool = Field(
         alias="DUA", default=False, description="The defender fought with auxiliaries only"
     )
-    supporters_wounded: list[Any] = Field(
-        alias="WSU", default_factory=list, description="[player_id, wounded_units] rows for the supporting players"
+    supporters_wounded: tuple[SupporterWounded, ...] = Field(
+        alias="WSU", default=(), description="Soldiers each supporting player had wounded"
     )
     attacking_commander: Commander | None = Field(alias="AL", default=None, description="The attacking commander")
     defending_castellan: Castellan | None = Field(alias="DB", default=None, description="The defending castellan")
@@ -746,10 +785,14 @@ class BattleLogShortResponse(BaseResponse):
     auto_skip_rubies: ClientInt = Field(
         alias="ASC", default=0, description="Rubies the auto-skip cost; 0 or less for none"
     )
-    auto_skip_type: Any = Field(alias="ASCT", default=None, description="The auto-skip type, as sent")
-    advisor_type: Any = Field(alias="AAT", default=0, description="The attack advisor type; 0 for none")
-    advisor_movement_count: Any = Field(alias="AAC", default=0, description="Movements the attack advisor sent")
-    advisor_movement_number: Any = Field(alias="AAN", default=0, description="This movement's number among them")
+    auto_skip_type: EnumOrInt[AutoSkipCooldownType] | None = Field(
+        alias="ASCT", default=None, description="How the target's cooldown was skipped; None when the reply has none"
+    )
+    advisor_type: EnumOrInt[AttackAdvisorType] = Field(
+        alias="AAT", default=AttackAdvisorType.NONE, description="The attack advisor that sent the attack"
+    )
+    advisor_movement_count: ClientInt = Field(alias="AAC", default=0, description="Movements the attack advisor sent")
+    advisor_movement_number: ClientInt = Field(alias="AAN", default=0, description="This movement's number among them")
     attacker_alliance_subscribers: ClientInt = Field(
         alias="AAS", default=0, description="Subscribed members of the attacker's alliance"
     )
@@ -854,15 +897,38 @@ class BattleLogShortResponse(BaseResponse):
     def _meta(cls, value: Any) -> Any:
         return value if isinstance(value, str) else ""
 
-    @field_validator("supporters_wounded", mode="before")
+    @field_validator("auto_skip_costs", mode="before")
     @classmethod
     def _list(cls, value: Any) -> Any:
         return list_or_empty(value)
+
+    @field_validator("supporters_wounded", mode="before")
+    @classmethod
+    def _supporters(cls, value: Any) -> Any:
+        return tuple(
+            readable_list(
+                SupporterWounded, value, accept=lambda e: isinstance(e, list), warn=logger, what="wounded supporters"
+            )
+        )
 
     @field_validator("advisor_type", "advisor_movement_count", "advisor_movement_number", mode="before")
     @classmethod
     def _or_zero(cls, value: Any) -> Any:
         return _js_or(value, 0)
+
+    @field_validator("found_equipment", mode="wrap")
+    @classmethod
+    def _found_equipment(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> Equipment | None:
+        # Client: e.EQF && CastleEquipmentFactory.createEquipmentVO(e.EQF)
+        if not js_truthy(value) or not isinstance(value, list):
+            return None
+        return read_or_none(handler, value, warn=logger, what="the equipment found in a battle")
+
+    @field_validator("found_gem", mode="before")
+    @classmethod
+    def _found_gem(cls, value: Any) -> Any:
+        # Client: e.GF && gemData.getGemVO(e.GF)
+        return value if js_truthy(value) else None
 
     @field_validator("participants", mode="before")
     @classmethod
@@ -994,10 +1060,7 @@ class BattleLogShortResponse(BaseResponse):
 
         Client: ``BattleLogVO.updateSupporterWoundedUnitCount`` (bundle line 138329)
         """
-        for row in self.supporters_wounded:
-            if isinstance(row, list) and row and row[0] == player_id:
-                return js_int(row[1] if len(row) > 1 else None)
-        return -1
+        return next((row.wounded_units for row in self.supporters_wounded if row.player_id == player_id), -1)
 
 
 # =============================================================================

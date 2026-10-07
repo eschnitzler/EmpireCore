@@ -5,6 +5,7 @@ import logging
 from empire_core.army.models.units import AttackWave
 from empire_core.attack.models.send import CreateAttackResponse
 from empire_core.combat import Bonus, commander_bonuses
+from empire_core.commanders import AlienEquipment
 from empire_core.commanders.models.roster import GetCommandersResponse
 from empire_core.gamedata import GameData
 from empire_core.protocol.models import (
@@ -62,7 +63,7 @@ class TestEquipment:
         # The factory switches on row[1] with ===, so "6" is not a hero slot
         string_slot = Equipment.model_validate([1, "6", 2, 10, 0, [], 802, 22, 0, -1, -1, "242&25"])
 
-        assert (hero.alien_string, weapon.alien_string, relic_hero.alien_string) == (1, None, None)
+        assert (hero.alien_string, weapon.alien_string, relic_hero.alien_string) == ("1", None, None)
         assert string_slot.alien_string is None
 
     def test_a_unique_temporary_item(self):
@@ -191,10 +192,17 @@ class TestAlienEquipment:
         assert commander.alien_hero_bonuses == []
         assert [b.effect_id for b in commander.alien_bonuses] == [53, 54]
 
+    def test_the_block_is_split_into_hero_and_equipment_bonuses(self):
+        block = AlienEquipment.model_validate([[[242, [25.0]]], [[53, [25.0]], [54, 10]]])
+        assert [b.effect_id for b in block.hero_bonuses] == [242]
+        assert [(b.effect_id, b.values) for b in block.bonuses] == [(53, [25.0]), (54, [10])]
+
     def test_aie_wins_over_tae_even_when_empty(self):
         commander = Commander.model_validate({"ID": 1, "AIE": [], "TAE": [[53, [25.0]]]})
 
-        assert commander.temporary_equipment == [[53, [25.0]]]
+        assert commander.alien_equipment == AlienEquipment()
+        assert commander.temporary_equipment is not None
+        assert [b.effect_id for b in commander.temporary_equipment.bonuses] == [53]
         assert commander.alien_bonuses == []
 
     def test_equipment_in_eq_hides_the_alien_block(self):
