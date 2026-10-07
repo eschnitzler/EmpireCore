@@ -101,7 +101,6 @@ _ROOT_NAMES = (
     "SpyResult",
     "CastleInfo",
     "AllianceMember",
-    "RankingEntry",
     "decode_json_text",
     "encode_json_text",
     "troop_data_available",

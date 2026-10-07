@@ -73,8 +73,6 @@ ALLOWED: dict[str, str] = {
     "commanders.models.equipment.EquipmentBonus.values": "laid out by the effect type's value class (bundle line 1294)",
     "commanders.models.equipment.RelicBonus.values": "laid out by the effect type's value class (bundle line 1294)",
     "commanders.models.roster.CommanderEffect.values": "laid out by the effect type's value class (bundle line 1294)",
-    "map.models.items.MapAreaItem.abg_connections": "#320",
-    "map.models.items.MapAreaItem.abg_tower_connection": "#320",
     "map.models.items.MapAreaItem.protector_positions": "opaque: the client reads only its length",
     "map.models.items.MapAreaItem.raw_data": "the row as sent, for readers that parse it as the client does",
     "messages.models.battle_logs.ForwardBattleLogRequest.player_ids": "player ids",
@@ -83,7 +81,6 @@ ALLOWED: dict[str, str] = {
     "messages.models.mailbox.ForwardSpyLogRequest.player_ids": "player ids",
     "movements.models.MovementArea.row": "#320",
     "player.models.progress.TopTitleRanking.thresholds": "points, one per top-X title of the system; not ids",
-    "ranking.models.GetHighscoreResponse.raw_list": "#320",
 }
 
 

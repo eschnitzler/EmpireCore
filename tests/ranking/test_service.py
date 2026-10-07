@@ -6,6 +6,7 @@ import pytest
 
 from empire_core.enums import RankingType
 from empire_core.exceptions import CommandError
+from empire_core.ranking import HighscorePlayerRow
 from tests.service_helpers import conn, make_client, xt_packet
 
 # =============================================================================
@@ -20,10 +21,10 @@ class TestRankingService:
 
         entries = client.ranking.get_highscore(list_type=RankingType.PLAYER_MIGHT_POINTS, search_value="LeaderGuy")
 
-        assert len(entries) == 1
-        entry = entries[0]
-        assert (entry.rank, entry.score, entry.entity_id) == (1, 999999, 7001)
-        assert (entry.name, entry.alliance_id, entry.alliance_name) == ("LeaderGuy", 301, "PACT")
+        (row,) = entries
+        assert isinstance(row, HighscorePlayerRow) and row.owner is not None
+        assert (row.rank, row.score, row.owner.owner_id) == (1, 999999, 7001)
+        assert (row.owner.owner_name, row.owner.alliance_id, row.owner.alliance_name) == ("LeaderGuy", 301, "PACT")
 
     def test_highscore_sends_list_type_league_and_search_value(self):
         client = make_client({"hgh": xt_packet("hgh", {"L": []})})
@@ -49,7 +50,7 @@ class TestRankingService:
         )
 
         assert (entries[0].rank, entries[0].score) == (3, 500)
-        assert (entries[0].name, entries[0].alliance_name) == ("SomePlayer", "SomeAlliance")
+        assert (entries[0].player_name, entries[0].alliance_name) == ("SomePlayer", "SomeAlliance")
         assert conn(client).request_payloads == [("llsp", {"LT": 53, "LID": 3, "M": 8, "R": 3})]
 
     def test_the_donation_ranking_sends_no_league(self):
@@ -77,7 +78,7 @@ class TestRankingService:
             list_type=RankingType.LONG_TERM_POINT_EVENT, max_results=8, league_type_id=2
         )
 
-        assert (entries[0].rank, entries[0].name) == (17, "Player")
+        assert (entries[0].rank, entries[0].player_name) == (17, "Player")
         assert conn(client).request_payloads == [("llsw", {"LT": 53, "LID": 2, "M": 8, "SI": ""})]
 
     def test_search_then_page_to_a_hit(self):
@@ -97,7 +98,7 @@ class TestRankingService:
             league_type_id=hit.league_type_id,
         )
 
-        assert entries[0].name == "Someone"
+        assert entries[0].player_name == "Someone"
         assert conn(client).request_payloads == [
             ("slse", {"LT": 53, "SV": "Some"}),
             ("llsw", {"LT": 53, "LID": 3, "M": 8, "SI": "977"}),
