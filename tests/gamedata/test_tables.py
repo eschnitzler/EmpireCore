@@ -209,3 +209,48 @@ class TestFixedTextColumns:
         assert effect.applies_to_relation(PlayerRelation.SAME_ALLIANCE)
         assert not effect.applies_to_relation(PlayerRelation.SAME_PLAYER)
         assert relic.relic_effect_type is RelicEffectType.UNIT_TOOL
+
+
+class TestReferencedIds:
+    PAYLOAD = {
+        "effects": [
+            {"effectID": "1", "effectTypeID": "0", "areaTypeID": "1,12", "spaceIDs": "0,2", "raidBossID": "1,x"}
+        ],
+        "equipment_effects": [{"equipmentEffectID": "9", "effectID": "1", "wearerID": "2", "itemGroupID": "102,4711"}],
+        "relicEffects": [{"id": "4", "effectID": "1"}],
+        "generalSkills": [{"skillID": "10110201", "generalID": "101"}],
+        "lords": [{"lordID": "-14", "wearerID": "1"}],
+        "dungeons": [{"countVictories": "0", "kID": "2"}],
+        "leaguetypes": [{"leaguetypeID": "1", "eventID": "5"}],
+        "buildings": [{"wodID": "501", "name": "Castlewall", "wallBonus": "30"}],
+        "units": [{"wodID": "1", "slotTypes": "1,9"}],
+    }
+
+    def test_ids_rows_reference_are_their_enums(self):
+        data = GameData.parse("786.03", self.PAYLOAD)
+
+        effect = data.effects[1]
+        assert effect.effect_type_id is ids.EffectType(0)
+        assert effect.area_type_ids == (MapItemType.CASTLE, MapItemType.KINGDOM_CASTLE)
+        assert effect.space_ids == (Kingdom.GREEN, Kingdom.ICE)
+        assert effect.raid_boss_ids == (ids.RaidBoss.NECROMANCER,)
+        equipment = data.equipment_effects[9]
+        assert (equipment.effect_id, equipment.wearer_id) == (ids.Effect(1), WearerType.COMMANDER)
+        assert equipment.item_group_ids == (ids.EquipmentGroup.ATTACK_PVP, 4711)
+        assert data.relic_effects[4].effect_id is ids.Effect(1)
+        assert data.general_skills[10110201].general_id is ids.General.TORIL
+        assert data.default_lords[-14].wearer_id is WearerType.CASTELLAN
+        assert data.dungeons[0].kingdom_id is Kingdom.ICE
+        assert data.league_brackets[0].event_id is ids.Event.NOMAD_INVASION
+        assert type(data.fortifications[501].wod_id) is ids.Building
+        assert data.tools[1].slot_types == (1, 9)
+
+    def test_they_survive_the_cache(self, tmp_path):
+        data = GameData.parse("786.03", self.PAYLOAD)
+        data._write_cache(tmp_path / "cache.json")
+
+        again = GameData._read_cache(tmp_path / "cache.json", "786.03")
+
+        assert again is not None and again == data
+        assert again.equipment_effects[9].item_group_ids == (ids.EquipmentGroup.ATTACK_PVP, 4711)
+        assert again.dungeons[0].kingdom_id is Kingdom.ICE
