@@ -2,6 +2,18 @@
 
 from typing import TYPE_CHECKING
 
+from empire_core.enums import (
+    BuildingGroundType,
+    BuildingGroup,
+    PlayerRelation,
+    QuestConditionType,
+    RelicEffectType,
+    TitleDisplayType,
+    ToolCategory,
+    ToolSide,
+    UnitRole,
+)
+
 if TYPE_CHECKING:
     from .ids import (
         ITEMS_VERSION,
@@ -33,7 +45,7 @@ if TYPE_CHECKING:
 from .cdn import fetch_items_data, get_items_version
 from .collectables import Collectable, CollectableObject, CollectableRows
 from .data import CAMP_TABLES, RAW_TABLES, GameData, default_cache_dir
-from .lenient import EnumOrInt, EnumOrStr, GameDataId
+from .lenient import EnumOrInt, EnumOrStr, GameDataId, GameDataKey
 from .models import (
     AllianceBuffDef,
     AttackSlotDef,
@@ -86,12 +98,22 @@ from .tables import (
 from .troops import count_troops, get_troop_ids, troop_data_available
 
 __all__ = [
+    "BuildingGroundType",
+    "BuildingGroup",
+    "PlayerRelation",
+    "QuestConditionType",
+    "RelicEffectType",
+    "TitleDisplayType",
+    "ToolCategory",
+    "ToolSide",
+    "UnitRole",
     "Collectable",
     "CollectableObject",
     "CollectableRows",
     "EnumOrInt",
     "EnumOrStr",
     "GameDataId",
+    "GameDataKey",
     "count_troops",
     "fetch_items_data",
     "get_items_version",

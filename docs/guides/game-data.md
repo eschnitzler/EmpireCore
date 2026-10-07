@@ -50,6 +50,14 @@ item = data.construction_items[ConstructionItem.BARRACKS_COST_G1_L1]
 [(e.effect_id, e.value) for e in item.effects]
 ```
 
+Text columns the client compares against fixed values are enums from
+`empire_core.enums`: a unit's `role` is a `UnitRole`, a tool's `category` a
+`ToolSide` and `tool_category` a `ToolCategory`, a building's `group` a
+`BuildingGroup`, a quest condition's `condition_type` a `QuestConditionType`,
+and so on. A value the client does not name (a newer release, or a type only the
+server reads) stays plain text, so `data.units_by_role(UnitRole.MELEE)` and
+comparisons keep working.
+
 `load_game_data()` is explicit on purpose: the items data is a large download.
 The one other reader is `Movement.troop_count`, which loads it on first use when
 nothing has yet. Both go through `GameData.load`, so a process downloads the

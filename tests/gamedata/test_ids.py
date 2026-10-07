@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from empire_core import gamedata
 from empire_core.commanders.models.skills import SetGeneralAbilitiesRequest
-from empire_core.enums import Kingdom
+from empire_core.enums import BuildingGroup, Kingdom, QuestConditionType
 from empire_core.gamedata import (
     BuildingDef,
     GameData,
@@ -385,6 +385,8 @@ class TestTables:
             assert getattr(again, field) == getattr(lookup_data, field), field
         assert set(again.buildings) == {171, 172, 301, 401, 501, 999999}
         assert type(again.quests[3047].quest_id) is ids.QuestId
+        assert type(again.buildings[401].group) is BuildingGroup
+        assert type(again.quests[3047].conditions[0].condition_type) is QuestConditionType
         assert type(next(k for k in again.buildings if k == 999999)) is int
 
     def test_the_fingerprint_covers_the_game_data_tables(self, monkeypatch):

@@ -26,6 +26,10 @@ Every finite set of game constants, one module per area.
 
 ::: empire_core.enums.commanders
 
+## `enums.gamedata`
+
+::: empire_core.enums.gamedata
+
 ## `enums.map`
 
 ::: empire_core.enums.map
