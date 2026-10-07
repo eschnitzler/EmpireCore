@@ -294,7 +294,7 @@ class LeaderBase(BasePayload):
     @classmethod
     def _gem_list(cls, value: Any) -> Any:
         # AlienLordEquipmentVO.parseGemBoniData looks each id up as sent (bundle lines 67486-67490)
-        return int_entries(value)
+        return int_entries(value, warn=logger, what="alien gems")
 
     _equipment_sent: bool = PrivateAttr(default=False)
 
