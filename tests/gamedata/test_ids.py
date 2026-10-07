@@ -23,6 +23,7 @@ from empire_core.enums import BuildingGroup, Kingdom, QuestConditionType
 from empire_core.gamedata import (
     BuildingDef,
     GameData,
+    HorseStats,
     QuestCondition,
     QuestDef,
     ScalingCampDef,
@@ -765,6 +766,23 @@ class TestCheck:
         assert self.run(items_file, out) == 0
         (tmp_path / "snapshot.json").write_text("{}\n")
         assert self.run(items_file, out, "--check") == 1
+
+    def test_a_table_whose_enum_is_not_generated_yet_generates(self, items_file, tmp_path, monkeypatch):
+        # As before Horse's first generation: the package has no Horse, and HorseStats has not looked it up
+        (validator,) = HorseStats.model_fields["wod_id"].metadata
+        monkeypatch.setattr(validator.func, "_enum", "Horse")
+        monkeypatch.delitem(ids._MODULES, "Horse")
+        monkeypatch.delattr(ids, "Horse", raising=False)
+        with pytest.raises(AttributeError):
+            ids.Horse  # noqa: B018
+
+        out = tmp_path / "ids"
+        assert self.run(items_file, out) == 0
+        assert "class Horse(IntEnum):" in (out / "horses.py").read_text()
+        assert "    WARHORSE_STABLE1 = 1002\n" in (out / "horses.py").read_text()
+        assert '"Horse": "horses",' in (out / "__init__.py").read_text()
+        with pytest.raises(AttributeError):
+            ids.Horse  # noqa: B018
 
     def test_check_passes_on_what_it_would_write(self, items_file, tmp_path):
         out = tmp_path / "ids"
