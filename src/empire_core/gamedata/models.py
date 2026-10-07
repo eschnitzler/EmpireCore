@@ -20,7 +20,20 @@ from empire_core.protocol.js import js_falsy, js_number, js_number_or_none, js_p
 from .lenient import GameDataId, GameDataKey
 
 if TYPE_CHECKING:
-    from .ids import Effect
+    from .ids import (
+        ConstructionItem,
+        CurrencyId,
+        Effect,
+        EffectType,
+        General,
+        GeneralAbility,
+        GeneralSkill,
+        GlobalEffect,
+        LegendSkill,
+        RaidBoss,
+        Tool,
+        Unit,
+    )
 
 # BasicUnitVO.FIGHTTYPE_OFF / FIGHTTYPE_DEF (bundle line 19345)
 FIGHT_TYPE_OFFENSIVE = 0
@@ -153,6 +166,8 @@ class UnitStats(_UnitRow):
     Client: ``SoldierUnitVO.parseXmlNode`` (bundle line 12531), after ``BasicUnitVO.parseXmlNode`` (bundle line 19211)
     """
 
+    wod_id: GameDataId["Unit"] = Field(alias="wodID", description="The unit; required")
+
     unit_type: str = Field(alias="type", default="", description="Unit type, e.g. MeadRanger; shared across levels")
     role: GameDataKey[UnitRole] = Field(default="", description="Melee or ranged; empty for none")
     melee_attack: int = Field(alias="meleeAttack", default=0, description="Base melee attack")
@@ -258,6 +273,8 @@ class ToolStats(_UnitRow):
     Client: ``ToolUnitVO.parseXmlNode`` (bundle line 6538), after ``BasicUnitVO.parseXmlNode`` (bundle line 19211);
     ``ToolUnitVO.parseEffects`` (bundle line 6644)
     """
+
+    wod_id: GameDataId["Tool"] = Field(alias="wodID", description="The tool; required")
 
     tool_type: str = Field(
         alias="type", default="", description="Tool type, e.g. Ladder; shared across levels, keys the per-wave limit"
@@ -465,7 +482,7 @@ class EffectDef(_Row):
     modifies, and the cap says what it stacks with.
     """
 
-    effect_id: int = Field(alias="effectID")
+    effect_id: GameDataId["Effect"] = Field(alias="effectID", description="The effect")
     name: str = ""
     effect_type_id: int = Field(alias="effectTypeID", default=0)
     cap_id: int | None = Field(alias="capID", default=None)
@@ -568,7 +585,7 @@ class EffectDef(_Row):
 class EffectTypeDef(_Row):
     """An effect type, e.g. ``fameDefenseBonus``."""
 
-    effect_type_id: int = Field(alias="effectTypeID")
+    effect_type_id: GameDataId["EffectType"] = Field(alias="effectTypeID", description="The effect type")
     name: str = ""
     sort_category: int | None = Field(alias="sortCategory", default=None)
     combat_type: int | None = Field(alias="combatType", default=None)
@@ -726,7 +743,9 @@ class ConstructionItemDef(EffectSpecRow):
     +2% per level, so a level 15 one is the +30% a player sees on the flanks.
     """
 
-    construction_item_id: int = Field(alias="constructionItemID")
+    construction_item_id: GameDataId["ConstructionItem"] = Field(
+        alias="constructionItemID", description="The construction item"
+    )
     name: str = ""
     group_id: int = Field(alias="constructionItemGroupID", default=0)
     level: int = 0
@@ -747,7 +766,7 @@ class AllianceBuffDef(EffectSpecRow):
 class GlobalEffectDef(EffectSpecRow):
     """A global (event) effect, active for everyone while its event runs."""
 
-    global_effect_id: int = Field(alias="globalEffectID")
+    global_effect_id: GameDataId["GlobalEffect"] = Field(alias="globalEffectID", description="The global effect")
     name: str = ""
     boost_value: float = Field(alias="boostValue", default=0)
     min_level: int = Field(alias="minLevel", default=0)
@@ -767,7 +786,7 @@ class SceatSkillDef(EffectSpecRow):
 class GeneralSkillDef(EffectSpecRow):
     """One level of a general's skill."""
 
-    skill_id: int = Field(alias="skillID")
+    skill_id: GameDataId["GeneralSkill"] = Field(alias="skillID", description="The general skill")
     general_id: int = Field(alias="generalID", default=0)
     name: str = ""
     skill_group_id: int = Field(alias="skillGroupID", default=0)
@@ -878,7 +897,7 @@ class EquipmentSetDef(EquipmentEffectSpecRow):
 class LegendSkillDef(_Row):
     """One level of a legend skill, e.g. ``gateReduction``."""
 
-    skill_id: int = Field(alias="skillID")
+    skill_id: GameDataId["LegendSkill"] = Field(alias="skillID", description="The legend skill")
     level: int = 0
     tier: int = 0
     skill_tree_id: int = Field(alias="skillTreeID", default=0)
@@ -995,7 +1014,9 @@ class GeneralAbilityDef(_Row):
     ``abilityID`` in ``GeneralsData`` (bundle line 113021)
     """
 
-    ability_id: int = Field(alias="abilityID", default=0, description="Ability id, the value set_abilities sends")
+    ability_id: GameDataId["GeneralAbility"] = Field(
+        alias="abilityID", default=0, description="The ability, the value set_abilities sends"
+    )
     name: str = Field(default="", description="Ability name, unique per level")
     ability_group_id: int = Field(alias="abilityGroupID", default=0, description="The group the levels share")
     level: int = Field(default=0, description="Ability level")
@@ -1029,7 +1050,9 @@ class CurrencyDef(_Row):
     ``currencies`` table by ``CurrencyData.parseXml`` (bundle line 141151)
     """
 
-    currency_id: int = Field(alias="currencyID", default=-1, description="Currency id; -1 when unset")
+    currency_id: GameDataId["CurrencyId"] = Field(
+        alias="currencyID", default=-1, description="The currency; -1 when unset"
+    )
     name: str = Field(alias="Name", default="", description="Internal name")
     json_key: str = Field(alias="JSONKey", default="", description="The key the server uses for it, e.g. GXP1")
     asset_name: str = Field(alias="assetName", default="", description="Icon asset name")
@@ -1077,7 +1100,7 @@ class RaidBossDef(_Row):
     ``raidBosses`` table by ``RaidBossData`` (bundle line 113671)
     """
 
-    raid_boss_id: int = Field(alias="raidBossID", default=0, description="Raid boss id")
+    raid_boss_id: GameDataId["RaidBoss"] = Field(alias="raidBossID", default=0, description="The raid boss")
     name: str = Field(default="", description="Internal name, unique")
     rarity: int = Field(default=0, description="Rarity")
 
@@ -1094,7 +1117,7 @@ class GeneralDef(_Row):
     Client: ``GeneralXmlVO.fillFromParamXml`` (bundle line 33102)
     """
 
-    general_id: int = Field(alias="generalID")
+    general_id: GameDataId["General"] = Field(alias="generalID", description="The general")
     name: str = Field(
         alias="generalName",
         default="",

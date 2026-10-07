@@ -244,7 +244,7 @@ class TestLoading:
 
         cached = json.loads((tmp_path / "items_v783.01.trimmed.json").read_text())
         # Trimmed: the combat tables only, never the whole payload.
-        assert "version" in cached and "units" in cached and "tools" in cached
+        assert "version" in cached and "units" in cached["table_rows"] and "tools" in cached["table_rows"]
         assert "rewards" not in cached and "mainquests" not in cached
 
 
