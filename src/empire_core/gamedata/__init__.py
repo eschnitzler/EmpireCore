@@ -81,6 +81,7 @@ from .models import (
     parse_ids,
     parse_stacks,
 )
+from .table import Table
 from .tables import (
     BuildingDef,
     DailyQuestDef,
@@ -171,6 +172,7 @@ __all__ = [
     "LegendSkillDef",
     "NpcCampDefence",
     "RAW_TABLES",
+    "Table",
     "RaidBossDef",
     "RelicEffectDef",
     "ToolCategoryDef",

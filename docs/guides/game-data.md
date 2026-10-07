@@ -29,6 +29,11 @@ still loaded, keyed by its plain int; loading such items logs one warning for
 the version. Several rows at once are a comprehension:
 `[data.units[u] for u in (Unit.MEAD_RANGER_L6, Unit.VETERAN_SABERSLASHER)]`.
 
+Most tables are read-only `Table` mappings that validate a row the first time
+it is read, so loading the game data stays cheap: `data.buildings[171]`
+validates one building, while iterating a table or taking its `len()`
+validates every row once.
+
 The other tables: `tools`, `effects`, `effect_types`, `currencies`,
 `general_abilities`, `general_skills`, `legend_skills`, `raid_bosses`,
 `global_effects`, `construction_items`, `loot_boxes`, `loot_box_types`,

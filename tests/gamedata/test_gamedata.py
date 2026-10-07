@@ -1048,7 +1048,7 @@ class TestNamedLookups:
         assert boss is not None and boss.raid_boss_id == 1
 
     def test_the_fingerprint_covers_every_cached_table(self):
-        from empire_core.gamedata.data import _CACHED_MODELS
+        from empire_core.gamedata.data import _CACHED_MODELS, TABLES
 
         def row_models(annotation) -> set[type]:
             if get_origin(annotation) is None and isinstance(annotation, type) and issubclass(annotation, BaseModel):
@@ -1057,6 +1057,7 @@ class TestNamedLookups:
             return {model for arg in get_args(annotation) for model in row_models(arg)}
 
         cached = {model for field in GameData.model_fields.values() for model in row_models(field.annotation)}
+        cached |= {model for source in TABLES.values() for model in row_models(source.model)}
 
         assert cached == set(_CACHED_MODELS)
 
