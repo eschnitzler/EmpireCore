@@ -18,7 +18,7 @@ from empire_core.gamedata import Collectable, EnumOrInt
 from empire_core.protocol.js import js_int, js_loose_equals, js_truthy
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import DailyQuestId, QuestId
+    from empire_core.gamedata import DailyQuestId, MainQuest, QuestId
 
 
 class Quest(BaseModel):
@@ -86,16 +86,24 @@ class Quest(BaseModel):
 
 class QuestBook(BaseModel):
     """
-    The quest book's main quests: those announced, running and finished.
+    The quest book's main quests, its chapters: those announced, running and finished.
 
-    Client: ``CastleQuestBookMainQuestListVO.parseListsFromParamObject`` (bundle line 52419)
+    Client: ``CastleQuestBookMainQuestListVO.parseListsFromParamObject`` (bundle line 52419). An id is a
+    main quest's ``mainQuestID``: the book and the main quest dialog load the same ``Quest_<id><status>``
+    picture (bundle lines 52435, 93389)
     """
 
     model_config = ConfigDict(frozen=True, populate_by_name=True)
 
-    announced_quest_ids: tuple[int, ...] = Field(default=(), alias="ANN", description="The main quests announced")
-    running_quest_ids: tuple[int, ...] = Field(default=(), alias="R", description="The main quests running")
-    finished_quest_ids: tuple[int, ...] = Field(default=(), alias="D", description="The main quests finished")
+    announced_quest_ids: tuple[EnumOrInt["MainQuest"], ...] = Field(
+        default=(), alias="ANN", description="The main quests announced"
+    )
+    running_quest_ids: tuple[EnumOrInt["MainQuest"], ...] = Field(
+        default=(), alias="R", description="The main quests running"
+    )
+    finished_quest_ids: tuple[EnumOrInt["MainQuest"], ...] = Field(
+        default=(), alias="D", description="The main quests finished"
+    )
 
     @classmethod
     def from_section(cls, section: dict[str, Any]) -> QuestBook | None:

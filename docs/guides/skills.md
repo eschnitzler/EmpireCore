@@ -16,7 +16,9 @@ for general in generals.generals:
 ```
 
 Give a commander a general, or take it away with `general_id=-1`, then choose
-the general's abilities as `(slot_id, ability_id)` pairs:
+the general's abilities as `(slot_id, ability_id)` pairs, `-1` or `None` to
+clear a slot. A general's `selected_abilities` are its slots, each a
+`SelectedAbility` whose `ability_id` is a `GeneralAbility`, or None when empty:
 
 ```python
 client.skills.assign_general(commander_id=3, general_id=101)
@@ -41,6 +43,9 @@ See [Lookups by name](game-data.md#lookups-by-name) for the rest.
 skills = client.skills.get_skills()
 print(skills.legend_skill_ids, skills.total_points, skills.reset_count)
 ```
+
+`legend_skill_ids` are `LegendSkill` members and `sceat_skill_ids` `SceatSkill`
+members; a general's `skill_ids` are `GeneralSkill` members.
 
 The login data carries the list too, and state keeps the last one the server
 sent, so `client.state.get_skills()` reads it without a request (None before

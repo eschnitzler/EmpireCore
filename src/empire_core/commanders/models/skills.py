@@ -13,12 +13,14 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, field_validator, model_validator
 
+from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none, readable_list
 from empire_core.protocol.js import ClientInt, js_loose_equals
 
-from .roster import CommanderRoster
+from .roster import CommanderRoster, SelectedAbility
 
 if TYPE_CHECKING:
+    from empire_core.gamedata import GeneralSkill, LegendSkill, SceatSkill
     from empire_core.gamedata.models import GeneralDef
 
 logger = logging.getLogger(__name__)
@@ -46,26 +48,6 @@ class GetGeneralsRequest(BaseRequest):
     command = "gie"
 
 
-class SelectedAbility(BasePayload):
-    """
-    One ability slot of a general: a ``[slot_id, ability_id]`` entry of ``GASAIDS``.
-
-    Client: ``GeneralVO.parseData`` (bundle line 26666) keeps the pairs, and
-    ``GeneralVO.getSelectedAbilities`` (bundle line 26769) reads ``[0]`` as the
-    slot and ``[1]`` as the ability.
-    """
-
-    slot_id: int = Field(description="The slot, matched against the general's attack and defense slots")
-    ability_id: int = Field(description="The ability, -1 for an empty slot")
-
-    @model_validator(mode="before")
-    @classmethod
-    def _from_row(cls, data: Any) -> Any:
-        if isinstance(data, list) and len(data) >= 2:
-            return {"slot_id": data[0], "ability_id": data[1]}
-        return data
-
-
 class General(BasePayload):
     """
     One general, as ``GeneralVO.parseData`` reads it.
@@ -85,7 +67,7 @@ class General(BasePayload):
     )
     is_new: bool = Field(alias="IN", default=False, description="The general is new")
     has_level_up: bool = Field(alias="LU", default=False, description="The general has levelled up")
-    skill_ids: list[int] = Field(alias="SIDS", default_factory=list, description="Unlocked skill ids")
+    skill_ids: tuple[EnumOrInt["GeneralSkill"], ...] = Field(alias="SIDS", default=(), description="Unlocked skills")
     selected_abilities: list[SelectedAbility] = Field(
         alias="GASAIDS", default_factory=list, description="The general's ability slots, filled or empty"
     )
@@ -141,7 +123,7 @@ class General(BasePayload):
 
         Client: ``GeneralVO.getSelectedAbilities`` (bundle line 26769) skips a slot whose ability id is not above 0.
         """
-        return [slot.ability_id for slot in self.selected_abilities if slot.ability_id > 0]
+        return [slot.ability_id for slot in self.selected_abilities if slot.ability_id is not None]
 
     def attack_ability_ids(self, general_def: GeneralDef) -> list[int]:
         """
@@ -160,7 +142,9 @@ class General(BasePayload):
         return self._ability_ids_in(general_def.defense_slots)
 
     def _ability_ids_in(self, slots: tuple[int, ...]) -> list[int]:
-        return [slot.ability_id for slot in self.selected_abilities if slot.slot_id in slots and slot.ability_id > 0]
+        return [
+            slot.ability_id for slot in self.selected_abilities if slot.slot_id in slots and slot.ability_id is not None
+        ]
 
 
 class AssignGeneralRequest(BaseRequest):
@@ -229,7 +213,9 @@ class SetGeneralAbilitiesRequest(BaseRequest):
             "client.skills.get_generals()"
         ),
     )
-    abilities: list[list[int]] = Field(alias="SAIDS", description="[slot_id, ability_id] pairs, -1 for no ability")
+    abilities: list[SelectedAbility] = Field(
+        alias="SAIDS", description="Every slot the dialog shows, each sent as [slot_id, ability_id], -1 for none"
+    )
 
 
 class UnlockGeneralSkillRequest(BaseRequest):
@@ -316,12 +302,12 @@ class GetGeneralsResponse(BaseResponse):
     def _readable_generals(cls, value: Any) -> Any:
         return readable_list(General, value, warn=logger, what="generals")
 
-    def skill_ids(self, general_id: int) -> list[int]:
+    def skill_ids(self, general_id: int) -> tuple[EnumOrInt["GeneralSkill"], ...]:
         """The skills one general has unlocked, empty when it is not listed."""
         for general in self.generals:
             if general.general_id == general_id:
                 return general.skill_ids
-        return []
+        return ()
 
 
 class GetSkillsRequest(BaseRequest):
@@ -358,11 +344,11 @@ class SkillList(BasePayload):
     Client: ``CastleLegendSkillData.parse_SKL`` (bundle line 112051)
     """
 
-    legend_skill_ids: list[int] = Field(
-        alias="SID", default_factory=list, description="Legend skills, which apply only in a legendary fight"
+    legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
+        alias="SID", default=(), description="Legend skills, which apply only in a legendary fight"
     )
-    sceat_skill_ids: list[int] = Field(
-        alias="SIDS", default_factory=list, description="Hall of Legends sceat skills, which always apply"
+    sceat_skill_ids: tuple[EnumOrInt["SceatSkill"], ...] = Field(
+        alias="SIDS", default=(), description="Hall of Legends sceat skills, which always apply"
     )
     total_points: ClientInt = Field(alias="SP", default=0, description="Skill points")
     seconds_until_reset: int | float = Field(

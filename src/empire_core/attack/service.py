@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import math
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 from empire_core.army.models.units import AttackWave
@@ -382,8 +382,8 @@ class AttackService(BaseService):
         commander: Commander | None = None,
         conquer: bool = False,
         wave_bonus: int = 0,
-        general_skill_ids: list[int] | None = None,
-        legend_skill_ids: list[int] | None = None,
+        general_skill_ids: Sequence[int] | None = None,
+        legend_skill_ids: Sequence[int] | None = None,
         global_effects: Iterable[GlobalEffectTimer] | None = None,
         support_tools: list[int] | None = None,
         target_is_player: bool = False,
@@ -682,10 +682,10 @@ class AttackService(BaseService):
         area_bonuses: list[Bonus] | None = None,
         spy_army: SpyArmy | None = None,
         defending_castellan: Commander | None = None,
-        defender_legend_skill_ids: list[int] | None = None,
+        defender_legend_skill_ids: Sequence[int] | None = None,
         commander: Commander | None = None,
-        general_skill_ids: list[int] | None = None,
-        legend_skill_ids: list[int] | None = None,
+        general_skill_ids: Sequence[int] | None = None,
+        legend_skill_ids: Sequence[int] | None = None,
         global_effects: Iterable[GlobalEffectTimer] | None = None,
         support_tools: list[int] | None = None,
         conquer: bool = False,

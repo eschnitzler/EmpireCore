@@ -7,13 +7,17 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from empire_core.enums import Kingdom
+from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BaseResponse, readable_list
 from empire_core.protocol.js import ClientInt, js_int
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Horse
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +70,8 @@ class PermanentCastle(BaseModel):
     units: CastleUnitUnlocks = Field(
         alias="U", default_factory=CastleUnitUnlocks, description="Units and tools unlocked and locked there"
     )
-    horse_ids: list[int] = Field(
-        alias="UH", default_factory=list, description="Wod ids of the horses the castle's movements can use"
+    horse_ids: list[EnumOrInt["Horse"]] = Field(
+        alias="UH", default_factory=list, description="The horses the castle's movements can use"
     )
 
     @field_validator("kingdom_id", mode="before")
@@ -82,7 +86,7 @@ class PermanentCastle(BaseModel):
 
     @field_validator("horse_ids", mode="before")
     @classmethod
-    def _horses(cls, value: Any) -> list[int]:
+    def _horses(cls, value: Any) -> Any:
         return _wod_ids(value)
 
 

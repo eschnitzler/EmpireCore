@@ -3,7 +3,7 @@
 import pytest
 
 from empire_core.enums import CollectableKind
-from empire_core.gamedata import DailyQuestId
+from empire_core.gamedata import DailyQuestId, MainQuest
 from empire_core.quests import DailyQuest, DailyQuests, Quest, QuestBook
 
 
@@ -57,6 +57,9 @@ class TestQuestBook:
         book = QuestBook.from_section({"ANN": [9], "R": [5, 6], "D": [1]})
 
         assert book == QuestBook(announced_quest_ids=(9,), running_quest_ids=(5, 6), finished_quest_ids=(1,))
+        # Ids the main quests know are their members; one newer than the enum stays an int
+        assert book.running_quest_ids == (MainQuest.TRUE_HAPPINESS, MainQuest.THE_EVERWINTER_GLACIER)
+        assert type(book.announced_quest_ids[0]) is int
 
     @pytest.mark.parametrize("section", [{"R": [5], "D": [1]}, {"ANN": None, "R": [5], "D": [1]}, {}])
     def test_a_missing_list_makes_none(self, section):

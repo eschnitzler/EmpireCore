@@ -7,15 +7,19 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 from empire_core.enums import BuildingState
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, read_or_none
-from empire_core.protocol.js import ClientInt, js_int, js_number, js_number_or_none, js_truthy
+from empire_core.gamedata import EnumOrInt
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, read_or_none, readable_list
+from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_number, js_number_or_none, js_truthy
 
 from .details import _ProductionAreaSection
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import ConstructionItem
 
 logger = logging.getLogger(__name__)
 
@@ -224,19 +228,51 @@ class FieldEfficiency(_ProductionAreaSection):
 _BUILDING_GROUPS = ("BD", "D", "G", "T", "BG", "FP")
 
 
+class PlacedConstructionItem(BasePayload):
+    """
+    A construction item on a building: one ``CIL`` entry.
+
+    Client: ``ABasicBuildingVO.parseConstructionItems`` (bundle lines 18005-18010), which puts the item at
+    its slot type's first index plus ``int(S)`` and gives a temporary item the ``RS`` seconds left
+    """
+
+    construction_item_id: EnumOrInt["ConstructionItem"] = Field(alias="CID", description="The construction item")
+    slot: ClientInt = Field(alias="S", default=0, description="Its slot among the slots of its item's slot type")
+    remaining_seconds: ClientNumber = Field(
+        alias="RS", default=0, description="Seconds a temporary item has left; 0 for a permanent one"
+    )
+
+
+class BuildingConstructionItems(BasePayload):
+    """
+    The construction items on one building: one ``CI`` entry.
+
+    Client: ``ABasicBuildingVO.parseConstructionItems`` (bundle lines 18000-18006), which takes the entry
+    whose ``OID`` is the building's
+    """
+
+    object_id: ClientInt = Field(alias="OID", description="The building's object id")
+    items: tuple[PlacedConstructionItem, ...] = Field(alias="CIL", default=(), description="Its construction items")
+
+    @field_validator("items", mode="before")
+    @classmethod
+    def _readable(cls, value: Any) -> Any:
+        return readable_list(PlacedConstructionItem, value, accept=lambda entry: isinstance(entry, dict))
+
+
 class CastleBuildings(BasePayload):
     """
     A castle's buildings, the ``gca`` block.
 
-    The block's ``A`` (the castle's map row), ``O`` (its owner) and ``CI``
-    (construction items) are kept as sent.
+    The block's ``A`` (the castle's map row) and ``O`` (its owner) are kept as sent.
 
     Client: ``AreaDataUpdater.parseGCA`` (bundle line 131497),
     ``IsoDataObjectGroupInnerBuilding.parseGCA`` (bundle line 80810),
     ``IsoDataObjectGroupDefence.parseGCA`` (bundle line 80220),
     ``IsoDataObjectGroupGround.parseGCA`` (bundle line 80771),
     ``IsoDataObjectGroupFixedPosition.parseGCA`` (bundle line 80743),
-    ``AreaDataStorageItem.parseGCA`` (bundle line 131381)
+    ``AreaDataStorageItem.parseGCA`` (bundle line 131381), ``AreaDataUpdater.parseConstructionItems``
+    (bundle line 131524)
     """
 
     buildings: list[BuildingRow] = Field(alias="BD", default_factory=list, description="Buildings inside the walls")
@@ -250,7 +286,9 @@ class CastleBuildings(BasePayload):
     construction_list: ConstructionList | None = Field(
         alias="scl", default=None, description="The construction slots; None when the block has none"
     )
-    construction_items: Any = Field(alias="CI", default=None, description="Construction items")
+    construction_items: tuple[BuildingConstructionItems, ...] = Field(
+        alias="CI", default=(), description="The construction items on each building that has any"
+    )
     field_efficiency: FieldEfficiency = Field(
         default_factory=FieldEfficiency, description="Resource field efficiency per resource"
     )
@@ -264,6 +302,11 @@ class CastleBuildings(BasePayload):
     @classmethod
     def _construction_list(cls, value: Any) -> ConstructionList | None:
         return block_or_none(ConstructionList, value)
+
+    @field_validator("construction_items", mode="before")
+    @classmethod
+    def _construction_items(cls, value: Any) -> Any:
+        return readable_list(BuildingConstructionItems, value, accept=lambda entry: isinstance(entry, dict))
 
     @model_validator(mode="before")
     @classmethod
@@ -316,7 +359,9 @@ __all__ = [
     "FREE_SLOT",
     "LOCKED_SLOT",
     "BuildingRow",
+    "BuildingConstructionItems",
     "CastleBuildings",
+    "PlacedConstructionItem",
     "ConstructionList",
     "FieldEfficiency",
     "ShowConstructionListRequest",

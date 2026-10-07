@@ -170,7 +170,7 @@ class TestAlienEquipment:
 
         assert [(b.effect_id, b.values) for b in commander.alien_bonuses] == [(53, [25.0]), (54, [10])]
         assert commander.alien_hero_bonuses == []
-        assert commander.alien_gem_ids == [12, 13]
+        assert commander.alien_gem_ids == (12, 13)
 
     def test_a_two_part_block_splits_hero_and_equipment(self):
         commander = Commander.model_validate({"ID": 1, "AIE": [[[242, [25.0]]], [[53, [25.0]]]]})
@@ -210,7 +210,7 @@ class TestAlienEquipment:
         )
 
         assert commander.name == "x"
-        assert (commander.alien_equipment, commander.alien_gem_ids) == (None, [])
+        assert (commander.alien_equipment, commander.alien_gem_ids) == (None, ())
         assert [b.effect_id for b in commander.alien_bonuses] == [54]
 
 
@@ -396,19 +396,19 @@ class TestGeneralData:
         assert (commander.general_xp, commander.general_old_xp) == (1200, 900)
         assert commander.general_has_level_up is True
         assert commander.general_is_new is False
-        assert commander.general_skill_ids == [3, 4]
-        assert commander.general_ability_ids == []
+        assert commander.general_skill_ids == (3, 4)
+        assert commander.general_selected_abilities == ()
 
     def test_a_default_commander_with_a_general_has_the_client_defaults(self):
         commander = Commander.model_validate({"DLID": -45, "GID": 115})
         assert (commander.general_xp, commander.general_old_xp) == (0, 0)
         assert (commander.general_is_new, commander.general_has_level_up) == (False, False)
-        assert (commander.general_skill_ids, commander.general_ability_ids) == ([], [])
+        assert (commander.general_skill_ids, commander.general_selected_abilities) == ((), ())
 
     def test_sent_values_read_as_parse_data_reads_them(self):
         commander = Commander.model_validate({"ID": 1, "SIDS": None, "IN": "1", "XP": None})
         assert commander.general_xp == 0
-        assert commander.general_skill_ids == []
+        assert commander.general_skill_ids == ()
         assert commander.general_is_new is True
 
     def test_an_entry_without_general_data_leaves_it_none(self):

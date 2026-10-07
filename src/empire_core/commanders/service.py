@@ -31,6 +31,7 @@ from empire_core.commanders.models.roster import (
     GetCommandersResponse,
     RenameCommanderRequest,
     RenameCommanderResponse,
+    SelectedAbility,
 )
 from empire_core.commanders.models.skills import (
     AddGeneralXpRequest,
@@ -354,14 +355,14 @@ class SkillsService(BaseService):
             timeout=timeout,
         )
 
-    def set_abilities(self, general_id: int, abilities: Iterable[tuple[int, int]], timeout: float = 5.0) -> bool:
+    def set_abilities(self, general_id: int, abilities: Iterable[tuple[int, int | None]], timeout: float = 5.0) -> bool:
         """
         Choose a general's abilities.
 
         Args:
             general_id: An owned general's ``General.general_id`` from :meth:`get_generals`;
                 ``client.game_data.general(name)`` finds its ``generalID`` by name
-            abilities: ``(slot_id, ability_id)`` pairs, ``-1`` to clear a slot.
+            abilities: ``(slot_id, ability_id)`` pairs, ``-1`` or ``None`` to clear a slot.
                 The client sends every slot it shows. An ability id comes from
                 ``client.game_data.general_ability(name, level)``
             timeout: Timeout in seconds
@@ -369,8 +370,8 @@ class SkillsService(BaseService):
         Returns:
             True if the server accepted the change
         """
-        pairs = [[slot_id, ability_id] for slot_id, ability_id in abilities]
-        return self.execute(SetGeneralAbilitiesRequest(general_id=general_id, abilities=pairs), timeout=timeout)
+        slots = [SelectedAbility(slot_id=slot_id, ability_id=ability_id) for slot_id, ability_id in abilities]
+        return self.execute(SetGeneralAbilitiesRequest(general_id=general_id, abilities=slots), timeout=timeout)
 
     def unlock_skill(self, skill_id: int, timeout: float = 5.0) -> bool:
         """

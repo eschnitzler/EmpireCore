@@ -27,7 +27,7 @@ class TestSkillListUpdates:
 
         client._on_packet(xt_packet("skl", {"SID": [3], "SIDS": [90], "SP": 10, "RS": 0, "RC": 1}))
 
-        assert [(s.legend_skill_ids, s.reset_count) for s in seen] == [([3], 1)]
+        assert [(s.legend_skill_ids, s.reset_count) for s in seen] == [((3,), 1)]
 
     def test_the_skl_block_of_an_ego_push_reaches_the_callback(self):
         client = make_client()

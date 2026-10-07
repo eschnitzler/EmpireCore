@@ -17,6 +17,7 @@ import pytest
 from pydantic import BaseModel
 
 from empire_core import gamedata
+from empire_core.commanders import SelectedAbility
 from empire_core.commanders.models.skills import SetGeneralAbilitiesRequest
 from empire_core.enums import BuildingGroup, Kingdom, QuestConditionType
 from empire_core.gamedata import (
@@ -314,7 +315,8 @@ class TestMemberData:
 
     def test_members_go_on_the_wire_as_plain_values(self):
         request = SetGeneralAbilitiesRequest(
-            general_id=ids.General.TORIL, abilities=[[0, ids.GeneralAbility.POWER_SURGE_L1]]
+            general_id=ids.General.TORIL,
+            abilities=[SelectedAbility(slot_id=0, ability_id=ids.GeneralAbility.POWER_SURGE_L1)],
         )
         payload = request.to_payload()
         assert payload == {"GID": 101, "SAIDS": [[0, 10011]]}

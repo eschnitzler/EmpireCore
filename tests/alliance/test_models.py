@@ -16,6 +16,7 @@ from empire_core.alliance.models.help import (
 )
 from empire_core.alliance.models.info import AllianceInfo, AllianceMember, AllianceStorage, GetAllianceInfoResponse
 from empire_core.enums import AllianceChronicleAction, AllianceRank, HelpType
+from empire_core.gamedata import AllianceCrestLayout
 from empire_core.protocol.models import parse_response
 
 
@@ -406,6 +407,7 @@ class TestAllianceInfoOffersAndCrests:
             (4, 86400, True, [1, 2]),
             (5, 0, False, None),
         ]
+        assert info.crest_layouts[0].layout_id is AllianceCrestLayout.FREE_4
 
     def test_the_crest_and_its_fallback(self):
         info = AllianceInfo.model_validate(
