@@ -81,13 +81,19 @@ class TestMailbox:
 
 class TestMail:
     def test_read(self):
-        client = make_client({"rms": xt_packet("rms", {"MTXT": "Hi &quot;you&quot;<br />bye", "ABI": {"X": 1}})})
+        client = make_client(
+            {
+                "rms": xt_packet(
+                    "rms", {"MTXT": "Hi &quot;you&quot;<br />bye", "ABI": {"KID": 1, "X": 5, "Y": 6, "BID": 9}}
+                )
+            }
+        )
 
         reply = client.messages.read(501)
 
         assert conn(client).request_payloads == [("rms", {"MID": 501})]
         assert reply.decoded_body == 'Hi "you"\nbye'
-        assert reply.extra == {"X": 1}
+        assert reply.bookmark is not None and (reply.bookmark.x, reply.bookmark.bookmark_id) == (5, 9)
 
     @pytest.mark.parametrize("code", [66, 225])
     def test_a_missing_or_old_message_is_unavailable(self, code):

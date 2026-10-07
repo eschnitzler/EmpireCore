@@ -7,7 +7,16 @@ import logging
 
 import pytest
 
-from empire_core.enums import BattleLogAttackType, CollectableKind, LogResult, MapItemType, MessageType
+from empire_core.enums import (
+    AttackAdvisorType,
+    AutoSkipCooldownType,
+    BattleLogAttackType,
+    BattleLogFlank,
+    CollectableKind,
+    LogResult,
+    MapItemType,
+    MessageType,
+)
 from empire_core.gamedata import Currency, Gem
 from empire_core.messages.models import BattleLogMeta
 from empire_core.protocol.base import parse_response
@@ -211,9 +220,29 @@ class TestShortLog:
         assert BattleLogShortResponse.model_validate({**BLS, "MSF": 0}).found_minute_skip is None
 
     def test_supporters_wounded(self):
-        log = BattleLogShortResponse.model_validate({**BLS, "WSU": [[7, 12], [8, 3]]})
+        log = BattleLogShortResponse.model_validate({**BLS, "WSU": [[7, 12], ["8", "3"], "bad"]})
+        assert [(row.player_id, row.wounded_units) for row in log.supporters_wounded] == [(7, 12), (8, 3)]
         assert log.supporter_wounded_units(8) == 3
         assert log.supporter_wounded_units(9) == -1
+
+    def test_advisor_and_auto_skip(self):
+        log = BattleLogShortResponse.model_validate({**BLS, "AAT": 4, "AAC": 3, "AAN": "2", "ASCT": 1})
+        assert (log.advisor_type, log.advisor_movement_count, log.advisor_movement_number) == (
+            AttackAdvisorType.BARON,
+            3,
+            2,
+        )
+        assert log.auto_skip_type is AutoSkipCooldownType.MINUTE_SKIP
+        plain = BattleLogShortResponse.model_validate({k: v for k, v in BLS.items() if k not in ("AAT", "ASCT")})
+        assert (plain.advisor_type, plain.auto_skip_type) == (AttackAdvisorType.NONE, None)
+
+    def test_found_equipment_and_gem(self):
+        row = [1, 2, 2, 4, 0, [[53, [25.0]]], -1, -1, 0, -1, -1, 0]
+        log = BattleLogShortResponse.model_validate({**BLS, "EQF": row, "GF": 999})
+        assert log.found_equipment is not None and log.found_equipment.bonuses[0].effect_id == 53
+        assert log.found_gem == 999
+        plain = BattleLogShortResponse.model_validate({**BLS, "EQF": 0, "GF": 0})
+        assert (plain.found_equipment, plain.found_gem) == (None, None)
 
     def test_unreadable_parts_cost_only_themselves(self):
         payload = {**BLS, "AI": {"AT": "nope"}, "AL": 0, "PBI": [*BLS["PBI"], "bad"], "PI": [{"N": "no id"}]}
@@ -288,7 +317,21 @@ class TestMiddleLog:
         assert log.defender_used_support_tools is True
         (ability,) = log.attacker_abilities
         assert ability.ability_id == 33
-        assert [(v.wave_id, v.value, v.flank_name) for v in ability.wave_values] == [(1, 20, "L"), (2, 15, "M")]
+        assert [(v.wave_id, v.value, v.flank_name) for v in ability.wave_values] == [
+            (1, 20, BattleLogFlank.LEFT),
+            (2, 15, BattleLogFlank.MIDDLE),
+        ]
+
+    def test_an_ability_wave_value_reads_the_wave_as_a_number(self):
+        log = BattleLogMiddleResponse.model_validate({"AA": [[33, [["2", "7.5", 3], []]]]})
+        (ability,) = log.attacker_abilities
+        assert [(v.wave_id, v.value, v.flank_name) for v in ability.wave_values] == [(2, 7.5, None), (0, 0, None)]
+
+    def test_an_ability_wave_value_keeps_a_flank_name_the_client_does_not_give(self, caplog):
+        log = BattleLogMiddleResponse.model_validate({"AA": [[33, [[1, 5, "EW"], [1, 5, "Q"]]]]})
+        (ability,) = log.attacker_abilities
+        assert [v.flank_name for v in ability.wave_values] == [BattleLogFlank.POST_ATTACK, "Q"]
+        assert "BattleLogFlank has no member 'Q'" in caplog.text
 
     def test_a_short_wave_side_has_no_flanks(self):
         log = BattleLogMiddleResponse.model_validate({"W": [[[5], [6, [1, 0, 0]]]]})

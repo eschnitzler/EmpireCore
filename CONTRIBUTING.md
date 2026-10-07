@@ -31,8 +31,8 @@ src/empire_core/
 ```
 
 Areas import only areas below them (map, ranking and events at the bottom, then
-commanders and castle, army, movements and messages, defense, combat and player,
-attack and alliance, and spy at the top); `tests/test_layers.py` enforces the
+commanders and castle, army, movements, defense, combat and player, attack and
+alliance, messages, and spy at the top); `tests/test_layers.py` enforces the
 order. Library code imports models from their area, never from
 `empire_core.protocol.models`.
 

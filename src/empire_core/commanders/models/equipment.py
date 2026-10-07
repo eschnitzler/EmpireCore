@@ -15,7 +15,7 @@ from pydantic import BeforeValidator, Field, ValidatorFunctionWrapHandler, field
 
 from empire_core.enums import EquipmentSlot, EquipmentType, Rareness, WearerType
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, enum_or_none, read_or_none, readable_list
-from empire_core.protocol.js import ClientInt, js_int
+from empire_core.protocol.js import ClientInt, js_int, js_string
 
 logger = logging.getLogger(__name__)
 
@@ -145,8 +145,9 @@ class Equipment(BasePayload):
     Index 5 holds the bonuses: a relic item (index 11 is 3) lists them as
     ``relic_bonuses`` (``[relic_effect_id, power, values]``), any other item as
     ``bonuses`` (``[effect_id, values]``). A hero item (slot 6, not a relic)
-    also keeps index 11 as ``alien_string``; the type is still read from it
-    through ``int()``.
+    also keeps index 11 as ``alien_string``, which the client matches against the
+    unique heroes (``CastleEquipmentData.getUniqueHerosByAlienString``, bundle
+    line 143843); the type is still read from it through ``int()``.
 
     Client: ``BasicEquipmentVO.parseEquipFromArray`` (bundle line 7115),
     ``CastleEquipmentFactory.createEquipmentVO`` (bundle line 18134),
@@ -180,9 +181,12 @@ class Equipment(BasePayload):
     relic_info: RelicInfo | None = Field(
         default=None, description="A relic item's type, category, might and gem; None for other items"
     )
-    alien_string: Any = Field(
+    alien_string: str | None = Field(
         default=None,
-        description="A hero item's alien string; None for other items",
+        description=(
+            'A hero item\'s alien string, "effect_id&value" pairs joined by ","; None for other items.'
+            " A number the server sends there is kept as its text"
+        ),
     )
 
     @field_validator("relic_info", mode="wrap")
@@ -191,6 +195,12 @@ class Equipment(BasePayload):
         if not isinstance(value, list):
             return None
         return read_or_none(handler, value)
+
+    @field_validator("alien_string", mode="before")
+    @classmethod
+    def _alien_text(cls, value: Any) -> Any:
+        # getUniqueHerosByAlienString compares it with == to the text it builds (bundle lines 67506, 143847)
+        return None if value is None else js_string(value)
 
     @property
     def is_permanent(self) -> bool:

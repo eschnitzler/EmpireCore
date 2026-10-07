@@ -1,6 +1,6 @@
 """Players: player info, search, the shared player profile and your progress."""
 
-from empire_core.enums import TitleSystem
+from empire_core.enums import PremiumAccountType, TitleSystem
 
 from .models import (
     PERMANENT_BOOSTER_DURATION,
@@ -63,6 +63,7 @@ __all__ = [
     "ResearchInfoResponse",
     "TitleRanksResponse",
     "TitleSystem",
+    "PremiumAccountType",
     "TopTitleRanking",
     "PlayerDetailsBulkResult",
     "PlayerService",

@@ -26,6 +26,7 @@ from .battle_logs import (
     MiddlePlayerWave,
     MiddleWave,
     SideUnits,
+    SupporterWounded,
     UnitsBySide,
 )
 from .mailbox import (
@@ -85,6 +86,7 @@ __all__ = [
     "MiddlePlayerWave",
     "MiddleWave",
     "SideUnits",
+    "SupporterWounded",
     "UnitsBySide",
     "BattleLogHeader",
     "MAX_SUBJECT_LENGTH",
