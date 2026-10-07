@@ -491,15 +491,20 @@ def list_or_empty(value: Any) -> Any:
     return value if isinstance(value, list) else []
 
 
-def int_entries(value: Any) -> list[int]:
+def int_entries(value: Any, *, warn: logging.Logger, what: str) -> list[int]:
     """
-    The int entries of a reply array, else no entries.
+    The int entries of an id array the client looks up as sent in a table keyed by int ids, else no entries.
 
-    For an id array the client looks up as sent in a table keyed by int ids: any other entry finds nothing.
+    Any other entry finds no row there, and the client then throws on the missing row; skipping it is a
+    deliberate leniency, counted in one warning that shows the first.
     """
     if not isinstance(value, list):
         return []
-    return [entry for entry in value if isinstance(entry, int) and not isinstance(entry, bool)]
+    ids = [entry for entry in value if isinstance(entry, int) and not isinstance(entry, bool)]
+    if len(ids) < len(value):
+        first = next(entry for entry in value if not isinstance(entry, int) or isinstance(entry, bool))
+        warn.warning(f"Skipped {len(value) - len(ids)}/{len(value)} {what} that are not ids, first: {first!r:.200}")
+    return ids
 
 
 _M = TypeVar("_M", bound=BaseModel)

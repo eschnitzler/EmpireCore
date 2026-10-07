@@ -14,7 +14,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
+from pydantic import Field, ValidationInfo, ValidatorFunctionWrapHandler, field_validator, model_validator
 
 from empire_core.commanders.models.roster import Castellan, Commander
 from empire_core.enums import BattleLogAttackType, LogResult, MapItemType, MessageType
@@ -1111,10 +1111,10 @@ class BattleLogMiddleResponse(BaseResponse):
         mode="before",
     )  # fmt: skip
     @classmethod
-    def _ids(cls, value: Any) -> Any:
+    def _ids(cls, value: Any, info: ValidationInfo) -> Any:
         # Client: e.DGT && (this._defenderTriggeredGems = e.DGT), the same for AGT, DLS and ALS (bundle line
         # 138372); each id is looked up as sent (bundle lines 135787, 26254)
-        return int_entries(value)
+        return int_entries(value, warn=logger, what=f"{info.field_name} of a battle log")
 
     @field_validator("attacker_abilities", "defender_abilities", mode="before")
     @classmethod
