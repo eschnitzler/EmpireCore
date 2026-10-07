@@ -15,7 +15,7 @@ ITEMS_BASE_URL = "https://empire-html5.goodgamestudios.com/default/items"
 _VERSION = re.compile(r"\d+(\.\d+)*")
 
 RETRY_AFTER_FAILURE = 300.0
-"""Seconds a failed CDN fetch is not retried, for the items and the language file alike."""
+"""Seconds a failed CDN fetch of the items is not retried."""
 
 
 def get_items_version() -> str:
