@@ -24,7 +24,6 @@ from empire_core.protocol.base import (
     Position,
     TimedPayload,
     TimedResponse,
-    UnitCount,
     get_response_model,
     parse_response,
 )
@@ -56,7 +55,6 @@ __all__ = [
     "RegisterResponse",
     "TimedPayload",
     "TimedResponse",
-    "UnitCount",
     "decode_json_text",
     "encode_json_text",
     "get_response_model",

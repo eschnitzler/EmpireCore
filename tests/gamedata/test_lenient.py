@@ -8,7 +8,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from empire_core.enums import Kingdom
-from empire_core.gamedata import Currency, EnumOrInt, EnumOrStr, GameDataId, QuestId
+from empire_core.gamedata import Currency, EnumOrInt, EnumOrStr, GameDataId, QuestId, Tool, Unit
 
 
 class Ids(BaseModel):
@@ -69,3 +69,17 @@ def test_a_game_data_id_keeps_an_unknown_id_without_a_warning(caplog):
     assert row.quest == 4712 and type(row.quest) is int
     assert Row.model_validate({"quest": 3047}).quest is QuestId.BUY_RUBIES
     assert not caplog.records
+
+
+def test_two_enums_look_an_id_up_in_each_in_turn(caplog):
+    class Stack(BaseModel):
+        item: EnumOrInt[Unit, Tool]
+
+    with caplog.at_level(logging.WARNING, logger="empire_core.gamedata.lenient"):
+        unit, tool, unknown = (Stack.model_validate({"item": wod_id}).item for wod_id in (601, "1", 4713))
+
+    assert (unit, tool, unknown) == (Unit.SWORDMAN, Tool.NOMAD_TABLET_BOOST, 4713)
+    assert type(unknown) is int
+    assert [record.getMessage() for record in caplog.records if "4713" in record.getMessage()] == [
+        "Unit/Tool has no member 4713; kept as the plain value (newer game data?)"
+    ]

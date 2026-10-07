@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import math
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING
 
 from empire_core.army.models.units import AttackWave
@@ -64,13 +64,14 @@ from empire_core.exceptions import (
     CommandError,
     GameDataNotLoadedError,
 )
+from empire_core.gamedata import WodAmount, WodAmountMapping
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.text import SMARTFOX_INVALID_CHARS, is_smartfox_valid
 from empire_core.services.base import BaseService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import GameData, GlobalEffect
+    from empire_core.gamedata import CurrencyId, GameData, GlobalEffect, Tool
 
 logger = logging.getLogger(__name__)
 
@@ -99,11 +100,11 @@ class AttackService(BaseService):
         share_battle_view: bool = False,
         loot_priority: LootPriority = LootPriority.NO,
         slowdown: int = 0,
-        yard_wave: list[list[int]] | None = None,
+        yard_wave: WodAmountMapping | Sequence[WodAmount] | None = None,
         capacity: WaveCapacity | None = None,
         yard_capacity: int | None = None,
-        support_tools: list[int] | None = None,
-        collector_booster: list[list[int]] | None = None,
+        support_tools: Sequence[Tool | int | None] | None = None,
+        collector_booster: Mapping[CurrencyId, int] | None = None,
         send_anyway: bool = False,
         min_soldiers: int | None = None,
         timeout: float = 5.0,
@@ -156,14 +157,15 @@ class AttackService(BaseService):
             loot_priority: Resource to loot first (``CombatConst.LOOT_PRIO_*``); the
                 client offers the choice from player level 20
             slowdown: Seconds the arrival is delayed by
-            yard_wave: Courtyard wave as [unit_id, count] pairs
+            yard_wave: The courtyard wave, one slot per entry: ``FilledAttack.yard``, or
+                ``{Unit.X: 100}``
             capacity: The capacities these waves were sized against. Given one,
                 an overfull army, or one below the minimum for its level, is
                 refused here rather than by the server
             yard_capacity: The courtyard's capacity, checked the same way
-            support_tools: Support tool WOD IDs
-            collector_booster: Collector event boosters as [currency_id, amount];
-                the id is a ``currencyID``, e.g. ``client.game_data.currency("SMB")``
+            support_tools: The support tools, one per slot, None (or -1) for an empty one
+            collector_booster: Collector event boosters by currency and amount, e.g.
+                ``{CurrencyId.SAMURAI_MEDAL_BOOSTER: 5}``
             send_anyway: Send although one of your attacks is already on its way
                 there (``FC`` 1), as the client's confirmation dialog does
             min_soldiers: The fewest units the waves must carry together, such
@@ -199,13 +201,14 @@ class AttackService(BaseService):
         source area's ``kingdomID`` as ``KID``
         """
         filled_waves = [w for w in waves if w.is_complete()]
+        yard = WodAmount.slots(yard_wave or ())
         if not filled_waves:
             raise ValueError("Attack has no units in any wave")
 
         if capacity is not None:
             # The client refuses to send an overfull army and shows a dialog
             # instead; without this the server rejects it with no explanation.
-            problems = wave_limit_violations(filled_waves, capacity, yard=yard_wave, yard_capacity=yard_capacity)
+            problems = wave_limit_violations(filled_waves, capacity, yard=yard, yard_capacity=yard_capacity)
             if problems:
                 raise ValueError("Attack exceeds what a wave may carry: " + "; ".join(problems))
 
@@ -234,9 +237,9 @@ class AttackService(BaseService):
             share_battle_view=1 if share_battle_view else 0,
             loot_priority=loot_priority,
             slowdown=slowdown,
-            yard_wave=yard_wave or [],
-            support_tools=support_tools or [],
-            collector_booster=collector_booster or [],
+            yard_wave=yard,
+            support_tools=tuple(support_tools or ()),
+            collector_booster=dict((collector_booster or {}).items()),
             send_anyway=1 if send_anyway else 0,
         )
 
@@ -385,7 +388,7 @@ class AttackService(BaseService):
         general_skill_ids: Sequence[int] | None = None,
         legend_skill_ids: Sequence[int] | None = None,
         global_effects: Iterable[GlobalEffectTimer] | None = None,
-        support_tools: list[int] | None = None,
+        support_tools: Sequence[Tool | int | None] | None = None,
         target_is_player: bool = False,
         owner_id: int | None = None,
         owner_legend_level: int = 0,
@@ -687,7 +690,7 @@ class AttackService(BaseService):
         general_skill_ids: Sequence[int] | None = None,
         legend_skill_ids: Sequence[int] | None = None,
         global_effects: Iterable[GlobalEffectTimer] | None = None,
-        support_tools: list[int] | None = None,
+        support_tools: Sequence[Tool | int | None] | None = None,
         conquer: bool = False,
         active_raid_boss_id: int | None = None,
         tool_bonus: float = 0.0,

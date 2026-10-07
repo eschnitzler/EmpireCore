@@ -1,7 +1,8 @@
 """
 No model field is a bare id list or a raw row: ids are enums, rewards and goods are Collectables.
 
-A field typed ``Any``, or a list, tuple or set of ``int`` or ``Any`` (nested ones too), fails
+A field typed ``Any``, or a list, tuple or set of ``int`` or ``Any`` (nested ones too), or a dict
+keyed by a bare ``int``, fails
 unless :data:`ALLOWED` names it with a reason: player ids, coordinates, a request's wire shape,
 counters, a value that is opaque. ``EnumOrInt[...]`` is an enum, not an int, and ``int | float``
 a number, not an id. The ``#320`` entries
@@ -19,7 +20,15 @@ from typing import TYPE_CHECKING, Annotated, Any, get_args, get_origin
 from pydantic import BaseModel, PlainValidator
 
 import empire_core
-from empire_core.gamedata import EnumOrInt
+from empire_core.enums import Kingdom
+from empire_core.gamedata import (
+    CurrencyAmounts,
+    EnumOrInt,
+    SupportToolSlots,
+    UnitOrTool,
+    WodAmounts,
+    WodAmountSlots,
+)
 from empire_core.gamedata.lenient import LenientEnum
 
 if TYPE_CHECKING:
@@ -36,6 +45,20 @@ ALLOWED: dict[str, str] = {
     "events.models.GetEventPointsResponse.max_points": "points, one per score the event keeps; not ids",
     "events.models.GetEventPointsResponse.own_points": "points, one per score the event keeps; not ids",
     "events.models.GetEventPointsResponse.own_ranks": "ranks, one per score the event keeps; not ids",
+    "gamedata.data.GameData.alliance_buffs": "keyed by alliance buff id: alliance buffs have no name for an enum",
+    "gamedata.data.GameData.attack_slots": "keyed by attack slot id: attack slots have no name for an enum",
+    "gamedata.data.GameData.default_lords": "keyed by lord id: default commanders have no name for an enum",
+    "gamedata.data.GameData.effect_caps": "keyed by effect cap id: effect caps have no name for an enum",
+    "gamedata.data.GameData.equipment_effects": (
+        "keyed by equipment effect id: equipment effects have no name for an enum"
+    ),
+    "gamedata.data.GameData.equipment_sets": "keyed by equipment set id: equipment sets have no name for an enum",
+    "gamedata.data.GameData.relic_effects": "keyed by relic effect id: relic effects have no name for an enum",
+    "gamedata.data.GameData.tool_categories": (
+        "keyed by toolCategoryID, the row id of the items' toolCategories table, which the client never reads; "
+        "a unit names its category by text (BasicUnitVO.toolCategory, bundle line 19343), typed as ToolCategory"
+    ),
+    "gamedata.data.GameData.vip_levels": "keyed by VIP level number, 1 and up; not ids",
     "gamedata.collectables.Collectable.value": "opaque: the entry as sent, for OTHER and the kinds not read here",
     "gamedata.models.ToolStats.slot_types": "attack-screen slot types: the client names none of them",
     "gamedata.tables.BuildingDef.available_in_map_ids": "map ids: no items table names maps",
@@ -46,19 +69,8 @@ ALLOWED: dict[str, str] = {
     "quests.models.Quest.progress": "counters, one per condition of the quest",
     "alliance.models.chronicle.AllianceChronicleEntry.action_values": "arguments of the chronicle text, as sent",
     "alliance.models.info.CrestLayout.colors": "stored, never read by the client; live replies send ACCS",
-    "army.models.units.WaveFlank.tools": "#320",
-    "army.models.units.WaveFlank.units": "#320",
+    "state.models.Player.castles": "keyed by (kingdom, castle id); castle ids are the player's areas, not game data",
     "attack.models.info.AttackInfoResponse.spy_data": "#320",
-    "attack.models.presets.PresetArmy.left_tools": "#320",
-    "attack.models.presets.PresetArmy.left_units": "#320",
-    "attack.models.presets.PresetArmy.middle_tools": "#320",
-    "attack.models.presets.PresetArmy.middle_units": "#320",
-    "attack.models.presets.PresetArmy.right_tools": "#320",
-    "attack.models.presets.PresetArmy.right_units": "#320",
-    "attack.models.presets.PresetArmy.support_tools": "#320",
-    "attack.models.send.CreateAttackRequest.collector_booster": "#320",
-    "attack.models.send.CreateAttackRequest.support_tools": "#320",
-    "attack.models.send.CreateAttackRequest.yard_wave": "#320",
     "castle.models.details.DetailedCastleInfo.raw_hospital_units": "#320",
     "castle.models.details.DetailedCastleInfo.raw_stronghold_units": "#320",
     "castle.models.details.DetailedCastleInfo.raw_travelling_units": "#320",
@@ -68,31 +80,15 @@ ALLOWED: dict[str, str] = {
     "castle.models.objects.ConstructionList.object_ids": "#320",
     "castle.models.permanent.CastleUnitUnlocks.locked_unit_ids": "#320",
     "castle.models.permanent.CastleUnitUnlocks.unlocked_unit_ids": "#320",
-    "castle.models.support.SendSupportRequest.units": "#320",
-    "castle.models.support.SendTroopsRequest.units": "#320",
-    "castle.models.transfers.KingdomUnitTransferRequest.units": "#320",
-    "combat.solver.FilledAttack.yard": "#320",
     "commanders.models.equipment.Equipment.alien_string": "#320",
     "commanders.models.equipment.EquipmentBonus.values": "laid out by the effect type's value class (bundle line 1294)",
     "commanders.models.equipment.RelicBonus.values": "laid out by the effect type's value class (bundle line 1294)",
     "commanders.models.roster.CommanderEffect.values": "laid out by the effect type's value class (bundle line 1294)",
     "commanders.models.roster.LeaderBase.alien_equipment": "#320",
     "commanders.models.roster.LeaderBase.temporary_equipment": "#320",
-    "defense.models.ChangeKeepDefenseRequest.slots": "#320",
-    "defense.models.ChangeKeepDefenseRequest.support_tool_slots": "#320",
-    "defense.models.ChangeMoatDefenseRequest.left_slots": "#320",
-    "defense.models.ChangeMoatDefenseRequest.middle_slots": "#320",
-    "defense.models.ChangeMoatDefenseRequest.right_slots": "#320",
     "defense.models.GetDefenseResponse.melee_priority": "#320",
     "defense.models.GetDefenseResponse.range_priority": "#320",
     "defense.models.GetSupportDefenseResponse.defense_positions": "#320",
-    "defense.models.KeepDefense.slots": "#320",
-    "defense.models.KeepDefense.support_tool_slots": "#320",
-    "defense.models.MoatDefense.left_slots": "#320",
-    "defense.models.MoatDefense.middle_slots": "#320",
-    "defense.models.MoatDefense.right_slots": "#320",
-    "defense.models.WallSection.slots": "#320",
-    "defense.models.WallSectionSetup.slots": "#320",
     "map.models.items.MapAreaItem.abg_connections": "#320",
     "map.models.items.MapAreaItem.abg_tower_connection": "#320",
     "map.models.items.MapAreaItem.protector_positions": "opaque: the client reads only its length",
@@ -211,6 +207,8 @@ def _bare(annotation: Any, *, inside: bool = False) -> bool:
         return any(_bare(arg, inside=inside) for arg in get_args(annotation))
     if origin in _CONTAINERS:
         return any(_bare(arg, inside=True) for arg in get_args(annotation) if arg is not Ellipsis)
+    if origin is dict:
+        return _bare(get_args(annotation)[0], inside=True)
     return inside and annotation is int
 
 
@@ -282,6 +280,9 @@ def test_the_check_finds_bare_fields():
     assert _bare(list[list[int]]) and _bare(list[tuple[int, int]]) and _bare(list[int] | None)
     assert _bare(Annotated[tuple[int, ...], "meta"]) and _bare(tuple[Annotated[int, "meta"], ...])
     assert not _bare(int) and not _bare(str) and not _bare(dict[str, int]) and not _bare(tuple[int | float, ...])
-    assert not _bare(tuple[EnumOrInt[empire_core.enums.Kingdom], ...])
+    assert not _bare(tuple[EnumOrInt[Kingdom], ...])
+    assert _bare(dict[int, int]) and _bare(dict[tuple[Kingdom, int], str])
+    assert not _bare(dict[Kingdom, int]) and not _bare(WodAmounts) and not _bare(WodAmountSlots)
+    assert not _bare(SupportToolSlots) and not _bare(CurrencyAmounts) and not _bare(tuple[UnitOrTool, ...])
     assert not _bare(tuple[EnumOrInt["QuestId"], ...])
     assert not _bare(tuple[int | float | None, ...])

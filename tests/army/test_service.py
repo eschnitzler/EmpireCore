@@ -6,6 +6,7 @@ import pytest
 
 from empire_core.enums import Kingdom
 from empire_core.exceptions import AmbiguousCastleError, CommandError, UnknownCastleError
+from empire_core.gamedata import Tool, Unit
 from empire_core.protocol.models import ProductionListId, SlotType
 from tests.service_helpers import conn, make_client, xt_packet
 
@@ -32,13 +33,11 @@ class TestArmyService:
 
         response = client.army.get_units_response(12345)
 
-        assert [(u.unit_id, u.count) for u in response.get_inventory()] == [
-            (107, 86058),
-            (178, 38712),
-        ]
-        assert [(u.unit_id, u.count) for u in response.get_in_production()] == [(105, 12)]
-        assert [(u.unit_id, u.count) for u in response.get_stronghold()] == [(646, 500)]
-        assert [(u.unit_id, u.count) for u in response.get_hospital()] == [(627, 7)]
+        assert response.units == {107: 86058, 178: 38712}
+        assert response.in_production == {105: 12}
+        assert response.stronghold == {646: 500}
+        assert response.hospital == {627: 7}
+        assert all(isinstance(unit, (Unit, Tool)) for unit in response.units)
 
     def test_a_refused_join_raises_instead_of_reading_another_castle(self):
         script = {"jaa": xt_packet("jaa", error_code=21), "gui": xt_packet("gui", {"I": [[1, 1]]})}
@@ -55,7 +54,7 @@ class TestArmyService:
 
         units = client.army.get_units(12345)
 
-        assert [(u.unit_id, u.count) for u in units] == [(487, 100), (488, 20), (301, 5)]
+        assert list(units.items()) == [(487, 100), (488, 20), (301, 5)]
         # gui names no castle (C2SGetUnitInventoryVO), so the castle is joined first
         assert [command for command, _ in conn(client).request_payloads] == ["jaa", "gui"]
         assert conn(client).request_payloads[-1] == ("gui", {})

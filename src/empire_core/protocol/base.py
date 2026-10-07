@@ -606,15 +606,6 @@ def enum_or_none(enum: type[_E], value: int) -> _E | None:
         return None
 
 
-class UnitCount(BaseModel):
-    """A unit type and count pair."""
-
-    unit_id: int = Field(alias="UID")
-    count: int = Field(alias="C")
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
 class PlayerInfo(BaseModel):
     """Basic player information."""
 
@@ -644,7 +635,6 @@ __all__ = [
     "BaseResponse",
     # Common types
     "Position",
-    "UnitCount",
     "PlayerInfo",
     # Utilities
     "enum_or_none",

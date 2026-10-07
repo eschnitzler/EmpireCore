@@ -29,7 +29,7 @@ from empire_core.combat import (
 )
 from empire_core.combat.capacity import OTHER_PLAYER_INFO_AREA_TYPES
 from empire_core.enums import MapItemType
-from empire_core.gamedata import GameData
+from empire_core.gamedata import EMPTY_SLOT, GameData, WodAmount
 from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.models import AttackWave, Commander, WaveFlank
 from tests.combat.combat_helpers import SOLVER_PAYLOAD, placed, solver_data
@@ -406,12 +406,12 @@ class TestYardWave:
 
         yard = fill_yard_wave(inv, game, 3349)
 
-        assert yard == [[601, 3349]] + [[-1, 0]] * 7
+        assert yard == ((601, 3349),) + (EMPTY_SLOT,) * 7
         assert inv.available(601) == 10_000 - 3349
 
     def test_every_slot_goes_out_even_when_empty(self):
         game = GameData.parse("test", SOLVER_PAYLOAD)
-        assert fill_yard_wave(Inventory({}), game, 3349) == [[-1, 0]] * 8
+        assert fill_yard_wave(Inventory({}), game, 3349) == (EMPTY_SLOT,) * 8
 
 
 class TestYardRounding:
@@ -475,13 +475,13 @@ class TestAreaTypeLevelFloor:
 class TestWaveLimitViolations:
     def test_a_legal_attack_reports_nothing(self):
         capacity = WaveCapacity.for_level(70)
-        wave = AttackWave(left=WaveFlank(units=[[601, capacity.flank_soldiers]]))
+        wave = AttackWave(left=WaveFlank(units=(WodAmount(601, capacity.flank_soldiers),)))
 
         assert wave_limit_violations([wave], capacity) == []
 
     def test_an_overfull_flank_is_named(self):
         capacity = WaveCapacity.for_level(70)
-        wave = AttackWave(left=WaveFlank(units=[[601, capacity.flank_soldiers + 1]]))
+        wave = AttackWave(left=WaveFlank(units=(WodAmount(601, capacity.flank_soldiers + 1),)))
 
         problems = wave_limit_violations([wave], capacity)
 
@@ -490,7 +490,7 @@ class TestWaveLimitViolations:
 
     def test_an_overfull_courtyard_is_named(self):
         capacity = WaveCapacity.for_level(70)
-        yard = [[601, 5000]] + [[-1, 0]] * 7
+        yard = [WodAmount(601, 5000)] + [EMPTY_SLOT] * 7
 
         problems = wave_limit_violations([], capacity, yard=yard, yard_capacity=4489)
 
@@ -499,7 +499,7 @@ class TestWaveLimitViolations:
     def test_empty_courtyard_slots_do_not_count(self):
         capacity = WaveCapacity.for_level(70)
 
-        assert wave_limit_violations([], capacity, yard=[[-1, 0]] * 8, yard_capacity=0) == []
+        assert wave_limit_violations([], capacity, yard=[EMPTY_SLOT] * 8, yard_capacity=0) == []
 
 
 class TestCastellanDefence:

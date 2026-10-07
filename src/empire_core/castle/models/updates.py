@@ -16,6 +16,7 @@ from typing import Any
 
 from pydantic import Field, field_validator
 
+from empire_core.gamedata import UnitOrTool
 from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.js import ClientInt
 
@@ -38,7 +39,7 @@ class UnitsReceived(BaseResponse):
 
     castle_id: ClientInt = Field(alias="AID", default=0, description="The castle's object id")
     kingdom_id: ClientInt = Field(alias="SID", default=0, description="The castle's kingdom")
-    wod_id: ClientInt = Field(alias="WID", default=0, description="The unit's wod id")
+    wod_id: UnitOrTool = Field(alias="WID", default=0, description="The unit or tool")
     amount: ClientInt = Field(alias="NUA", default=0, description="How many of the unit the castle now holds")
 
 

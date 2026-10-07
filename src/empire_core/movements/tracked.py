@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import MapItemType, MovementType, NPCOwner
+from empire_core.gamedata import WodAmounts
 from empire_core.gamedata.troops import count_troops
 from empire_core.movements.models import MovementArea, MovementOwner, MovementSpy
 from empire_core.protocol.base import enum_or_none, read_or_none
@@ -148,7 +149,7 @@ class Movement(BaseModel):
 
     local_player_id: int = Field(default=-1, description="Player id of the receiving account, -1 if unknown")
 
-    units: dict[int, int] = Field(default_factory=dict, description="Unit id to count")
+    units: WodAmounts = Field(default_factory=dict, description="Units and tools, by how many")
     estimated_size: int = Field(default=0, description="Army size estimate when the army is hidden")
     resources: MovementResources = Field(default_factory=MovementResources, description="Goods carried")
 

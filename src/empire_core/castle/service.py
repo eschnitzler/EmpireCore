@@ -27,6 +27,8 @@ others) can be read with ``client.request``.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from empire_core.castle.models.actions import (
     JoinAreaRequest,
     RenameCastleRequest,
@@ -93,7 +95,7 @@ from empire_core.exceptions import (
     UnknownCastleError,
     UnsendableGoodsError,
 )
-from empire_core.gamedata import Currency, HorseStats
+from empire_core.gamedata import Currency, HorseStats, WodAmount, WodAmountMapping
 from empire_core.services.base import BaseService
 
 _CLASSIC_GOODS = (Resource.WOOD.value, Resource.STONE.value, Resource.FOOD.value)
@@ -666,7 +668,7 @@ class CastleService(BaseService):
         source_castle_id: int,
         target_x: int,
         target_y: int,
-        units: list[list[int]],
+        units: WodAmountMapping | Sequence[WodAmount],
         commander_id: int,
         wait_time: int = 12,
         use_premium_commander: bool = False,
@@ -692,7 +694,7 @@ class CastleService(BaseService):
                 from ``client.castle.get_all()`` or ``Castle.id`` from ``client.state.get_castles()``
             target_x: Target X coordinate
             target_y: Target Y coordinate
-            units: List of [unit_id, count] pairs
+            units: The units, then any tools: ``{Unit.X: 100}``, or pairs one per slot
             commander_id: Commander to lead the support, a ``Commander.commander_id``
                 from ``client.commanders.get_commanders()``.
                 There is no default: ``0`` is a real commander (the free starting
@@ -719,7 +721,7 @@ class CastleService(BaseService):
             source_castle_id=source_castle_id,
             target_x=target_x,
             target_y=target_y,
-            units=units,
+            units=WodAmount.slots(units),
             wait_time=wait_time,
             use_premium_commander=1 if use_premium_commander else 0,
             horse_booster_id=-1 if feathers else horse_booster_id,
@@ -740,7 +742,7 @@ class CastleService(BaseService):
         source_y: int,
         target_x: int,
         target_y: int,
-        units: list[list[int]],
+        units: WodAmountMapping | Sequence[WodAmount],
         commander_id: int,
         *,
         kingdom_id: Kingdom = Kingdom.GREEN,
@@ -779,7 +781,7 @@ class CastleService(BaseService):
             source_y: Map y of the area the troops leave from
             target_x: Map x of the area they go to
             target_y: Map y of the area they go to
-            units: The units, then any tools, as [wod_id, amount] pairs
+            units: The units, then any tools: ``{Unit.X: 100}``, or pairs one per slot
             commander_id: Commander to lead them, a ``Commander.commander_id``
                 from ``client.commanders.get_commanders()``; ``0`` is the free
                 starting one
@@ -811,7 +813,7 @@ class CastleService(BaseService):
             use_premium_commander=1 if use_premium_commander else 0,
             feathers=1 if feathers else 0,
             slowdown=slowdown,
-            units=units,
+            units=WodAmount.slots(units),
         )
         return self.client.commanders.premium_send(
             commander_id,
@@ -824,7 +826,7 @@ class CastleService(BaseService):
         self,
         source_castle_id: int,
         target_kingdom_id: Kingdom,
-        units: list[list[int]],
+        units: WodAmountMapping | Sequence[WodAmount],
         *,
         target_castle_id: int = -1,
         timeout: float = 5.0,
@@ -835,7 +837,7 @@ class CastleService(BaseService):
         Args:
             source_castle_id: The castle the units leave from, one of yours
             target_kingdom_id: The kingdom to send them to
-            units: The units, as [wod id, amount] pairs
+            units: The units, ``{Unit.X: 100}``
             target_castle_id: Object id of a picked target castle, -1 for none
             timeout: Timeout in seconds
 
@@ -851,7 +853,7 @@ class CastleService(BaseService):
             source_kingdom_id=self._require_own_castle(source_castle_id).kingdom_id,
             target_kingdom_id=target_kingdom_id,
             target_castle_id=target_castle_id,
-            units=units,
+            units=WodAmount.slots(units),
         )
         return self.execute(request, timeout=timeout)
 

@@ -6,7 +6,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
 from empire_core.enums import Kingdom
-from empire_core.gamedata import EnumOrStr
+from empire_core.gamedata import EnumOrStr, WodAmounts
 from empire_core.protocol.js import js_parse_int
 
 if TYPE_CHECKING:
@@ -144,7 +144,7 @@ class Castle(BaseModel):
 
     resources: Resources = Field(default_factory=Resources, description="The castle's resources")
     buildings: list[Building] = Field(default_factory=list)
-    units: dict[int, int] = Field(default_factory=dict, description="Units stationed here, by wod id")
+    units: WodAmounts = Field(default_factory=dict, description="Units and tools stationed here")
     open_gate_counter: int = Field(
         default=0, alias="OGC", description="How often the gate has been opened since the last Monday reset"
     )
@@ -263,9 +263,9 @@ class Player(BaseModel):
 
     honor: int = Field(default=0, alias="H", description="Honor")
     ranking: int = Field(default=0, alias="RP", description="Ranking points")
-    beginner_protection: dict[int, bool] = Field(
+    beginner_protection: dict[Kingdom, bool] = Field(
         default_factory=dict,
-        description="Kingdom id -> whether the player is under beginner protection there",
+        description="Whether the player is under beginner protection, by kingdom",
     )
 
     PF: int = Field(

@@ -9,6 +9,7 @@ import pytest
 from empire_core.combat import WaveCapacity
 from empire_core.enums import Kingdom
 from empire_core.exceptions import AmbiguousCastleError, AttackBelowMinimumError, CommandError, UnknownCastleError
+from empire_core.gamedata import EMPTY_SLOT, Unit, WodAmount
 from empire_core.protocol.models import AttackType, Commander, CreateAttackRequest, CreateAttackResponse, MapItemType
 from tests.service_helpers import LIVE_ADI, conn, make_client, placed, stub_player, wave, xt_packet
 
@@ -189,12 +190,19 @@ class TestAttackService:
 
     def test_the_courtyard_wave_rides_in_rw(self):
         client = make_client(castles=OWN)
-        yard = [[487, 300], [601, 200]] + [[-1, 0]] * 6
+        yard = WodAmount.slots({487: 300, 601: 200}) + (EMPTY_SLOT,) * 6
 
         client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 0, yard_wave=yard)
 
         # Every slot goes out, empty ones included.
-        assert conn(client).request_payloads[0][1]["RW"] == yard
+        assert conn(client).request_payloads[0][1]["RW"] == [[487, 300], [601, 200]] + [[-1, 0]] * 6
+
+    def test_a_courtyard_wave_reads_naturally_as_a_mapping(self):
+        client = make_client(castles=OWN)
+
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 0, yard_wave={Unit(487): 300})
+
+        assert conn(client).request_payloads[0][1]["RW"] == [[487, 300]]
 
     def test_no_courtyard_wave_sends_an_empty_rw(self):
         client = make_client(castles=OWN)
@@ -258,7 +266,7 @@ class TestAttackService:
 
         with pytest.raises(AttackBelowMinimumError):
             client.attack.send_attack(
-                500, 510, 700, 710, [wave(units=[[487, 7]])], 3, yard_wave=[[487, 50]], min_soldiers=8
+                500, 510, 700, 710, [wave(units=[[487, 7]])], 3, yard_wave={487: 50}, min_soldiers=8
             )
         assert client.attack.send_attack(
             500, 510, 700, 710, [wave(units=[[487, 4]]), wave(units=[[487, 4]])], 3, min_soldiers=8

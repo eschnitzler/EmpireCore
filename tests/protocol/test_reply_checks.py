@@ -91,9 +91,9 @@ class TestMovementSends:
         attack = CreateAttackRequest(source_x=632, source_y=243, target_x=633, target_y=244, commander_id=0)
         assert attack.accepts_reply({"AAM": movement(TARGET, OWN)})
         assert not attack.accepts_reply({"AAM": movement([2, 1, 1], OWN)})
-        support = SendSupportRequest(source_castle_id=2001, target_x=633, target_y=244, commander_id=0, units=[])
+        support = SendSupportRequest(source_castle_id=2001, target_x=633, target_y=244, commander_id=0, units=())
         assert support.accepts_reply({"A": movement(TARGET, OWN)})
-        troops = SendTroopsRequest(source_x=632, source_y=243, target_x=633, target_y=244, commander_id=0, units=[])
+        troops = SendTroopsRequest(source_x=632, source_y=243, target_x=633, target_y=244, commander_id=0, units=())
         assert not troops.accepts_reply({"A": movement(OWN, TARGET)})
 
     def test_a_reply_without_a_movement_is_taken(self):

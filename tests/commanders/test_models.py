@@ -2,7 +2,7 @@
 
 import logging
 
-from empire_core.army.models.units import AttackWave, WaveFlank
+from empire_core.army.models.units import AttackWave
 from empire_core.attack.models.send import CreateAttackResponse
 from empire_core.combat import Bonus, commander_bonuses
 from empire_core.commanders.models.roster import GetCommandersResponse
@@ -340,9 +340,9 @@ class TestDriftedEquipmentEntries:
 
     def test_a_flank_entry_that_is_not_a_pair_counts_as_no_units(self):
         # A padded or truncated slot must not raise out of the wave check.
-        assert AttackWave(left=WaveFlank(units=[[487]])).unit_count() == 0
-        assert AttackWave(left=WaveFlank(units=[[487, 5, 1], [488, 2]])).unit_count() == 7
-        assert AttackWave(left=WaveFlank(units=[[-1, 0]])).is_complete() is False
+        assert AttackWave.model_validate({"L": {"U": [[487]]}}).unit_count() == 0
+        assert AttackWave.model_validate({"L": {"U": [[487, 5, 1], [488, 2]]}}).unit_count() == 7
+        assert AttackWave.model_validate({"L": {"U": [[-1, 0]]}}).is_complete() is False
 
     def test_a_movement_without_a_usable_id_reports_none(self):
         assert CreateAttackResponse.model_validate({"AAM": {"M": []}}).movement_id is None
