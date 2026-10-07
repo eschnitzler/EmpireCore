@@ -646,7 +646,7 @@ class SpyReportResponse(BaseResponse):
     @classmethod
     def _skill_ids(cls, value: Any) -> Any:
         # Client: e.LS&&(this._legendSkills=e.LS) (bundle line 60579), each looked up as sent by getSkillByID
-        return int_entries(value)
+        return int_entries(value, warn=logger, what="legend skills of a spy report")
 
     @field_validator("defending_castellan", mode="wrap")
     @classmethod

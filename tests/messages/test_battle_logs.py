@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 
 import pytest
 
@@ -238,7 +239,7 @@ class TestMiddleLog:
         assert log.defender_used_support_tools is False
         assert (log.attacker_abilities, log.defender_abilities) == ([], [])
 
-    def test_optional_parts(self):
+    def test_optional_parts(self, caplog):
         payload = {
             "LID": LOG_ID,
             "W": [],
@@ -249,7 +250,8 @@ class TestMiddleLog:
             "DUST": 1,
             "AA": [[33, [[1, 20, "L"], [2, 15, "M"]]], "bad"],
         }
-        log = BattleLogMiddleResponse.model_validate(payload)
+        with caplog.at_level(logging.WARNING):
+            log = BattleLogMiddleResponse.model_validate(payload)
 
         assert log.courtyard.has_defender_info is False
         assert log.pre_combat_wave is None
@@ -258,6 +260,8 @@ class TestMiddleLog:
         # Client: e.RW || [0, 0, 0]
         assert (log.reinforcements.soldiers, log.reinforcements.tools_used) == (0, 0)
         assert (log.attacker_triggered_gems, log.defender_triggered_gems) == ((Gem.LIZARDS_EYE_12, 999), ())
+        # getGemVO finds no gem for "13" and the client then throws; it is skipped, and said so
+        assert "Skipped 1/3 attacker_triggered_gems of a battle log that are not ids, first: '13'" in caplog.text
         assert (log.attacker_legend_skill_ids, log.defender_legend_skill_ids) == ((5,), ())
         assert log.defender_used_support_tools is True
         (ability,) = log.attacker_abilities
