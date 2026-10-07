@@ -5,6 +5,8 @@ import math
 import time
 from typing import Any
 
+from empire_core.gamedata import Currency
+from empire_core.gamedata.lenient import known
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.spy.models import MaxSpiesResponse
 from empire_core.state.base import StateBase
@@ -177,8 +179,9 @@ class PlayerState(StateBase):
 
         Client: ``CurrencyData.parseSCE`` (bundle line 141182), which sets each
         ``int(amount)`` on the generic currency with that key in the item data, so
-        an unreadable amount is 0 and ``"12.7"`` is 12. The library keeps keys the
-        item data lacks, which the client ignores.
+        an unreadable amount is 0 and ``"12.7"`` is 12. A key is its ``Currency``
+        member; the library keeps a key the generated enum lacks as its str (the
+        client ignores keys its item data lacks).
 
         Returns:
             The number of special currencies known afterwards.
@@ -189,7 +192,7 @@ class PlayerState(StateBase):
         updated = dict(player.special_currencies)
         for entry in entries:
             if isinstance(entry, list) and entry:
-                updated[str(entry[0])] = js_int(entry[1] if len(entry) > 1 else None)
+                updated[known(Currency, str(entry[0]))] = js_int(entry[1] if len(entry) > 1 else None)
         player.special_currencies = updated
         return len(updated)
 
@@ -280,11 +283,12 @@ class PlayerState(StateBase):
                 }
             )
 
-    def get_special_currencies(self) -> dict[str, int]:
-        """Get a snapshot of the special currencies (sce currency key -> amount).
+    def get_special_currencies(self) -> dict[Currency | str, int]:
+        """Get a snapshot of the special currencies (``Currency`` -> amount).
 
-        These are the generic currencies from ``sce`` (``PTT``, ``MS1``,
-        ``LWT``, ...), not items. Empty before login, or if no sce packet has
+        These are the generic currencies from ``sce`` (``Currency.FAST_TRAVEL_FEATHERS``,
+        ``Currency.SKIP_1_MINUTE``, ...), not items; a key newer than the generated
+        enum is kept as its str. Empty before login, or if no sce packet has
         arrived yet — use ``get_last_packet_time("sce")`` to tell those apart
         from "empty".
         """

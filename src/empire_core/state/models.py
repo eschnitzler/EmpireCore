@@ -1,12 +1,16 @@
 """The state's models: the local player, castles, resources and buildings."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
 from empire_core.enums import Kingdom
+from empire_core.gamedata import EnumOrStr
 from empire_core.protocol.js import js_parse_int
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Currency
 
 
 class Resources(BaseModel):
@@ -239,10 +243,11 @@ class Player(BaseModel):
     coins: int = Field(default=0, description="Coins")
     rubies: int = Field(default=0, description="Rubies")
 
-    special_currencies: dict[str, int] = Field(
+    special_currencies: dict[EnumOrStr["Currency"], int] = Field(
         default_factory=dict,
         description=(
-            "Special currency key -> amount (PTT, MS1, LWT, ...); generic currencies in the item data, not items"
+            "Special currency -> amount (Currency.FAST_TRAVEL_FEATHERS, Currency.SKIP_1_MINUTE, ...), generic "
+            "currencies in the item data, not items; a key newer than the generated enum stays a str"
         ),
     )
 

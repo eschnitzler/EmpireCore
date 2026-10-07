@@ -66,7 +66,7 @@ class TestLoginSections:
         assert rewards == [
             (CollectableKind.STONE, None, 100),
             (CollectableKind.VIP_POINTS, None, 15),
-            (CollectableKind.CURRENCY, Currency.MS3, 2),
+            (CollectableKind.CURRENCY, Currency.SKIP_10_MINUTES, 2),
         ]
         assert missions.missions[1].rewards[0].item is Unit(602)
         assert 4990 < missions.remaining_next_missions_seconds() <= 5001

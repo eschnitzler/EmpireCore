@@ -5,6 +5,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
+from empire_core.gamedata import Currency
 from empire_core.protocol.models import (
     AttackPreset,
     AttackType,
@@ -34,15 +35,24 @@ from empire_core.protocol.models import (
 
 class TestDungeonCooldownSkips:
     def test_minute_skip_sends_the_client_keys_with_kingdom_as_string(self):
-        request = MinuteSkipDungeonRequest(minute_skip="MS2", kingdom_id=Kingdom.ICE, x=100, y=200)
+        request = MinuteSkipDungeonRequest(minute_skip=Currency.SKIP_5_MINUTES, kingdom_id=Kingdom.ICE, x=100, y=200)
         payload = request.to_payload()
         assert list(payload.items()) == [("X", 100), ("Y", 200), ("MID", -1), ("NID", -1), ("MST", "MS2"), ("KID", "2")]
 
     def test_minute_skip_on_a_treasure_map_node(self):
-        request = MinuteSkipDungeonRequest(minute_skip="MS1", kingdom_id=Kingdom.GREEN, x=5, y=6, map_id=3, node_id=12)
+        request = MinuteSkipDungeonRequest(
+            minute_skip=Currency.SKIP_1_MINUTE, kingdom_id=Kingdom.GREEN, x=5, y=6, map_id=3, node_id=12
+        )
         assert request.to_payload()["MID"] == 3
         assert request.to_payload()["NID"] == 12
         assert json.loads(request.to_packet().split("%")[5])["KID"] == "0"
+
+    def test_minute_skip_takes_a_key_and_keeps_one_the_enum_lacks(self):
+        known = MinuteSkipDungeonRequest(minute_skip="MS7", kingdom_id=Kingdom.GREEN, x=5, y=6)
+        newer = MinuteSkipDungeonRequest(minute_skip="MS8", kingdom_id=Kingdom.GREEN, x=5, y=6)
+        assert known.minute_skip is Currency.SKIP_24_HOURS
+        assert newer.minute_skip == "MS8" and not isinstance(newer.minute_skip, Currency)
+        assert json.loads(known.to_packet().split("%")[5])["MST"] == "MS7"
 
     def test_full_skip_sends_the_client_keys_with_kingdom_as_number(self):
         request = SkipDungeonCooldownRequest(x=100, y=200, kingdom_id=Kingdom.ICE)
