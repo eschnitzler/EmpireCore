@@ -177,7 +177,7 @@ nav:
           - State and freshness: guides/game-state.md
           - Reacting to movements: guides/movements.md
       - Game data:
-          - Lookups by name: guides/game-data.md
+          - Game data: guides/game-data.md
           - Generated ids: guides/game-data-ids.md
           - Game texts: guides/texts.md
       - Beyond one client:

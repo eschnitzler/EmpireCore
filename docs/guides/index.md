@@ -134,11 +134,11 @@ The smaller services have no guide of their own; their
 
     Callbacks for incoming attacks, arrivals, recalls and removals.
 
--   :material-magnify:{ .lg .middle } **[Lookups by name](game-data.md)**
+-   :material-magnify:{ .lg .middle } **[Game data](game-data.md)**
 
     ---
 
-    Generals, skills, units and more, by the key that names them.
+    Units, buildings, researches, quests and more, as typed tables keyed by their ids.
 
 -   :material-format-list-numbered:{ .lg .middle } **[Generated ids](game-data-ids.md)**
 

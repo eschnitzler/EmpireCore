@@ -14,8 +14,8 @@ Most members also carry their row's fixed id and number columns, e.g.
 ``Unit.MEAD_RANGER_L6.role`` and ``.level`` or ``Tool.X.category``, so
 ``[t for t in Tool if t.category == "Defence"]`` works without game data.
 Anything a balance patch can change is not baked in: for the full row, load a
-:class:`GameData` (nothing here downloads it) and ask
-``game_data.record(member)``, or ``game_data.records(members)`` for several.
+:class:`GameData` (nothing here downloads it) and index its table with the
+member, e.g. ``game_data.units[Unit.MEAD_RANGER_L6]``.
 
 ``ITEMS_VERSION`` is the items version they were generated from, and
 :func:`is_current` says whether a loaded :class:`GameData` is that version. For

@@ -32,8 +32,8 @@ if TYPE_CHECKING:
 
 from .cdn import fetch_items_data, get_items_version
 from .collectables import Collectable, CollectableObject, CollectableRows
-from .data import CAMP_TABLES, RAW_TABLES, GameData, IdRecord, default_cache_dir
-from .lenient import EnumOrInt, EnumOrStr
+from .data import CAMP_TABLES, RAW_TABLES, GameData, default_cache_dir
+from .lenient import EnumOrInt, EnumOrStr, GameDataId
 from .models import (
     AllianceBuffDef,
     AttackSlotDef,
@@ -67,6 +67,20 @@ from .models import (
     parse_ids,
     parse_stacks,
 )
+from .tables import (
+    BuildingDef,
+    DailyQuestDef,
+    DifficultyTypeDef,
+    EquipmentGroupDef,
+    EventDef,
+    LootBoxDef,
+    LootBoxTypeDef,
+    QuestCondition,
+    QuestDef,
+    ResearchDef,
+    ScalingCampDef,
+    TitleDef,
+)
 from .troops import count_troops, get_troop_ids, troop_data_available
 
 __all__ = [
@@ -75,6 +89,7 @@ __all__ = [
     "CollectableRows",
     "EnumOrInt",
     "EnumOrStr",
+    "GameDataId",
     "count_troops",
     "fetch_items_data",
     "get_items_version",
@@ -126,7 +141,6 @@ __all__ = [
     "GeneralAbilityDef",
     "GeneralDef",
     "HorseStats",
-    "IdRecord",
     "LeagueBracketDef",
     "LegendSkillDef",
     "NpcCampDefence",
@@ -137,6 +151,18 @@ __all__ = [
     "ToolStats",
     "UnitStats",
     "VipLevelDef",
+    "BuildingDef",
+    "DailyQuestDef",
+    "DifficultyTypeDef",
+    "EquipmentGroupDef",
+    "EventDef",
+    "LootBoxDef",
+    "LootBoxTypeDef",
+    "QuestCondition",
+    "QuestDef",
+    "ResearchDef",
+    "ScalingCampDef",
+    "TitleDef",
     "default_cache_dir",
     "parse_ids",
     "parse_stacks",

@@ -6,6 +6,9 @@ A client release can send an id the generated enums do not have yet. A field typ
 warning once per id. Name a generated enum by its name in quotes (``EnumOrInt["QuestId"]``, the
 enum imported under ``TYPE_CHECKING``) so its module loads only when a value arrives; the
 largest of them hold thousands of members.
+
+Inside the items tables ``GameDataId[E]`` does the same without the warning: loading items newer
+than the enums already warns once for the whole version.
 """
 
 from __future__ import annotations
@@ -27,17 +30,19 @@ _E = TypeVar("_E", bound=Enum)
 _warned: set[tuple[str, object]] = set()
 
 
-def known(enums: type[_E] | Iterable[type[_E]], value: Any) -> _E | Any:
+def known(enums: type[_E] | Iterable[type[_E]], value: Any, *, warn: bool = True) -> _E | Any:
     """
     The member of the first of ``enums`` that has ``value``, else ``value`` itself.
 
-    A value none of them has is logged once per enum name and value.
+    A value none of them has is logged once per enum name and value, unless ``warn`` is False.
     """
     candidates = [enums] if isinstance(enums, type) else list(enums)
     for enum in candidates:
         member = enum._value2member_map_.get(value)
         if member is not None:
             return member
+    if not warn:
+        return value
     names = "/".join(enum.__name__ for enum in candidates)
     if (names, value) not in _warned:
         _warned.add((names, value))
@@ -46,11 +51,12 @@ def known(enums: type[_E] | Iterable[type[_E]], value: Any) -> _E | Any:
 
 
 class LenientEnum:
-    """The validator behind ``EnumOrInt`` and ``EnumOrStr``: reads the id, then looks its member up."""
+    """The validator behind ``EnumOrInt``, ``EnumOrStr`` and ``GameDataId``: reads the id, then looks its member up."""
 
-    def __init__(self, enum: type[Enum] | str, base: type[int] | type[str]) -> None:
+    def __init__(self, enum: type[Enum] | str, base: type[int] | type[str], *, warn: bool = True) -> None:
         self._enum = enum
         self.base = base
+        self.warn = warn
 
     @property
     def enum(self) -> type[Enum]:
@@ -67,15 +73,16 @@ class LenientEnum:
             number = js_parse_int(value) if isinstance(value, str) else value
             if isinstance(number, bool) or not isinstance(number, int):
                 raise ValueError(f"{value!r} is not an id of {self.enum.__name__}")
-            return known(self.enum, int(number))
+            return known(self.enum, int(number), warn=self.warn)
         if not isinstance(value, str):
             raise ValueError(f"{value!r} is not a key of {self.enum.__name__}")
-        return known(self.enum, value)
+        return known(self.enum, value, warn=self.warn)
 
 
 if TYPE_CHECKING:
     EnumOrInt = Union[_E, int]
     EnumOrStr = Union[_E, str]
+    GameDataId = Union[_E, int]
 else:
 
     class EnumOrInt:
@@ -90,5 +97,11 @@ else:
         def __class_getitem__(cls, enum: type[Enum] | str) -> Any:
             return Annotated[str, PlainValidator(LenientEnum(enum, str))]
 
+    class GameDataId:
+        """``GameDataId[E]``: ``EnumOrInt[E]`` for an id inside the items tables, kept without a warning."""
 
-__all__ = ["EnumOrInt", "EnumOrStr", "LenientEnum", "known"]
+        def __class_getitem__(cls, enum: type[Enum] | str) -> Any:
+            return Annotated[int, PlainValidator(LenientEnum(enum, int, warn=False))]
+
+
+__all__ = ["EnumOrInt", "EnumOrStr", "GameDataId", "LenientEnum", "known"]
