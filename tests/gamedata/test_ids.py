@@ -135,23 +135,6 @@ TABLE_OF: dict[str, str] = {
 }
 
 
-TABLES_BY_ENUM = {
-    name: TABLE_OF[name]
-    for name in (
-        "Building",
-        "Research",
-        "Event",
-        "LootBox",
-        "LootBoxType",
-        "EquipmentGroup",
-        "DifficultyType",
-        "QuestId",
-        "DailyQuestId",
-    )
-}
-"""The tables keyed by their enum's members."""
-
-
 def _cached_game_data() -> GameData | None:
     cache = default_cache_dir() / CACHE_FILENAME_TEMPLATE.format(version=ids.ITEMS_VERSION)
     return GameData._read_cache(cache, ids.ITEMS_VERSION)
@@ -352,9 +335,10 @@ class TestTables:
         assert d.difficulty_types[ids.DifficultyType.EASY_PLUS].name == "easyPlus"
         assert d.quests[ids.QuestId.BUY_RUBIES].series_id == 159
         assert d.daily_quests[ids.DailyQuestId.LOGIN].trigger_kingdom == -1
-        for enum_name, field in TABLES_BY_ENUM.items():
+        for enum_name, field in TABLE_OF.items():
+            enum = getattr(ids, enum_name)
             for key in getattr(d, field):
-                assert isinstance(key, getattr(ids, enum_name)), (field, key)
+                assert type(key) is (enum if key in enum._value2member_map_ else int), (field, key)
 
     def test_a_plain_id_indexes_a_table(self, lookup_data):
         assert lookup_data.buildings[171] is lookup_data.buildings[ids.Building.KEEP_L1]
@@ -388,7 +372,7 @@ class TestTables:
         assert lookup_data.buildings[171].name == "Keep"
         # one side has read a table, the other not: equality is the fields and the rows
         assert again == lookup_data
-        for field in [*TABLES_BY_ENUM.values(), "titles", "scaling_camps"]:
+        for field in [*TABLE_OF.values(), "titles", "scaling_camps"]:
             assert getattr(again, field) == getattr(lookup_data, field), field
         assert again.titles[0].top_x == 0 and again.buildings[999999].sort_order == 0
         assert set(again.buildings) == {171, 172, 301, 401, 501, 999999}

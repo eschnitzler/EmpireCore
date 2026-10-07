@@ -86,14 +86,26 @@ from .tables import (
 if TYPE_CHECKING:
     from .ids import (
         Building,
+        ConstructionItem,
+        CurrencyId,
         DailyQuestId,
         DifficultyType,
+        Effect,
+        EffectType,
         EquipmentGroup,
         Event,
+        General,
+        GeneralAbility,
+        GeneralSkill,
+        GlobalEffect,
+        LegendSkill,
         LootBox,
         LootBoxType,
         QuestId,
+        RaidBoss,
         Research,
+        Tool,
+        Unit,
     )
 
 logger = logging.getLogger(__name__)
@@ -160,7 +172,7 @@ def _schema_fingerprint() -> str:
     tables, means any such change invalidates the cache instead. The aliases
     count because the lazily read tables keep only the columns they name.
     """
-    tables = [f"GameData:{','.join(sorted(GameData.model_fields))}", f"tables:{sorted(TABLES.items())}"]
+    tables = [f"GameData:{','.join(sorted(GameData.model_fields))}", f"tables:{sorted(_TABLES.items())}"]
     for model in _CACHED_MODELS:
         fields = ",".join(
             f"{name}={field.alias}={field.default!r}" for name, field in sorted(model.model_fields.items())
@@ -169,49 +181,99 @@ def _schema_fingerprint() -> str:
     return hashlib.sha256(";".join(tables).encode()).hexdigest()[:12]
 
 
-class TableSource(NamedTuple):
+def _is_tool(entry: dict[str, Any]) -> bool:
+    """A ``units`` row with ``slotTypes`` is a tool, the others are units."""
+    return bool(entry.get("slotTypes"))
+
+
+def _is_unit(entry: dict[str, Any]) -> bool:
+    return not _is_tool(entry)
+
+
+class _TableSource(NamedTuple):
     """Where a lazily read table's rows come from."""
 
     items_table: str
     model: type[BaseModel]
     id_field: str
+    where: Callable[[dict[str, Any]], bool] | None = None
+    """Keeps only the items rows it is true for, when the table is part of an items table."""
 
     def __repr__(self) -> str:
-        return f"{self.items_table}:{self.model.__name__}.{self.id_field}"
+        where = f" where {self.where.__name__}" if self.where else ""
+        return f"{self.items_table}:{self.model.__name__}.{self.id_field}{where}"
 
-    def rows(self, entries: object) -> dict[int, dict[str, Any]]:
+    def rows(self, name: str, entries: object) -> dict[int, dict[str, Any]]:
         """
         The table's rows by id, each trimmed to the columns the model reads.
 
-        A row whose id is missing or not a number is left out; of two rows with one id, the last is kept.
+        A row whose id is missing or not a number is left out; of two rows with one id, the last is kept,
+        as the client's tables keep it. Either is warned once per table.
         """
         fields = self.model.model_fields
         columns = {field.alias or name for name, field in fields.items()}
         id_column = fields[self.id_field].alias or self.id_field
         rows: dict[int, dict[str, Any]] = {}
+        without_id: list[object] = []
+        replaced: list[int] = []
         for entry in entries if isinstance(entries, list) else ():
             if not isinstance(entry, dict):
+                # a non-row reads as an empty row: counted once, by the table an empty row belongs to
+                if self.where is None or self.where({}):
+                    without_id.append(entry)
+                continue
+            if self.where is not None and not self.where(entry):
                 continue
             try:
                 key = row_id(entry.get(id_column))
             except ValueError:
+                without_id.append(entry.get(id_column))
                 continue
+            if key in rows:
+                replaced.append(key)
             rows[key] = {column: value for column, value in entry.items() if column in columns}
+        if without_id:
+            logger.warning(
+                "%s: left out %d rows without a numeric %s (%s)",
+                name,
+                len(without_id),
+                id_column,
+                ", ".join(repr(value) for value in without_id[:5]),
+            )
+        if replaced:
+            logger.warning(
+                "%s: %d ids have more than one row, the last is kept: %s",
+                name,
+                len(replaced),
+                ", ".join(map(str, sorted(set(replaced))[:10])),
+            )
         return rows
 
 
-TABLES: dict[str, TableSource] = {
-    "buildings": TableSource("buildings", BuildingDef, "building_id"),
-    "researches": TableSource("researches", ResearchDef, "research_id"),
-    "events": TableSource("events", EventDef, "event_id"),
-    "loot_boxes": TableSource("lootBoxes", LootBoxDef, "loot_box_id"),
-    "loot_box_types": TableSource("lootBoxTypes", LootBoxTypeDef, "loot_box_type_id"),
-    "equipment_groups": TableSource("equipment_groups", EquipmentGroupDef, "group_id"),
-    "difficulty_types": TableSource("eventAutoScalingDifficultyTypes", DifficultyTypeDef, "difficulty_type_id"),
-    "quests": TableSource("quests", QuestDef, "quest_id"),
-    "daily_quests": TableSource("dailyactivities", DailyQuestDef, "quest_id"),
-    "titles": TableSource("titles", TitleDef, "title_id"),
-    "scaling_camps": TableSource("eventAutoScalingCamps", ScalingCampDef, "scaling_camp_id"),
+_TABLES: dict[str, _TableSource] = {
+    "units": _TableSource("units", UnitStats, "wod_id", _is_unit),
+    "tools": _TableSource("units", ToolStats, "wod_id", _is_tool),
+    "effects": _TableSource("effects", EffectDef, "effect_id"),
+    "effect_types": _TableSource("effecttypes", EffectTypeDef, "effect_type_id"),
+    "construction_items": _TableSource("constructionItems", ConstructionItemDef, "construction_item_id"),
+    "global_effects": _TableSource("globalEffects", GlobalEffectDef, "global_effect_id"),
+    "general_skills": _TableSource("generalSkills", GeneralSkillDef, "skill_id"),
+    "legend_skills": _TableSource("legendskills", LegendSkillDef, "skill_id"),
+    "generals": _TableSource("generals", GeneralDef, "general_id"),
+    "general_abilities": _TableSource("generalAbilities", GeneralAbilityDef, "ability_id"),
+    "currencies": _TableSource("currencies", CurrencyDef, "currency_id"),
+    "raid_bosses": _TableSource("raidBosses", RaidBossDef, "raid_boss_id"),
+    "buildings": _TableSource("buildings", BuildingDef, "building_id"),
+    "researches": _TableSource("researches", ResearchDef, "research_id"),
+    "events": _TableSource("events", EventDef, "event_id"),
+    "loot_boxes": _TableSource("lootBoxes", LootBoxDef, "loot_box_id"),
+    "loot_box_types": _TableSource("lootBoxTypes", LootBoxTypeDef, "loot_box_type_id"),
+    "equipment_groups": _TableSource("equipment_groups", EquipmentGroupDef, "group_id"),
+    "difficulty_types": _TableSource("eventAutoScalingDifficultyTypes", DifficultyTypeDef, "difficulty_type_id"),
+    "quests": _TableSource("quests", QuestDef, "quest_id"),
+    "daily_quests": _TableSource("dailyactivities", DailyQuestDef, "quest_id"),
+    "titles": _TableSource("titles", TitleDef, "title_id"),
+    "scaling_camps": _TableSource("eventAutoScalingCamps", ScalingCampDef, "scaling_camp_id"),
 }
 """The GameData tables read lazily, by attribute name: each a :class:`Table` built from these rows."""
 
@@ -313,9 +375,9 @@ class GameData(BaseModel):
     lacks (items newer than the enums) is keyed by its plain int, and as the
     enums are IntEnums, a plain id from a packet indexes every table.
 
-    The tables in :data:`TABLES` are read-only :class:`Table` mappings that
-    validate a row the first time it is read, so loading costs no validation
-    for them.
+    The tables keyed by id enums, ``titles`` and ``scaling_camps`` are read-only
+    :class:`~empire_core.gamedata.table.Table` mappings that validate a row the
+    first time it is read, so loading costs no validation for them.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -324,10 +386,6 @@ class GameData(BaseModel):
     schema_fingerprint: str = ""
     """Hash of the table fields, so a cache from older tables is not reused."""
 
-    units: dict[int, UnitStats] = Field(default_factory=dict)
-    tools: dict[int, ToolStats] = Field(default_factory=dict)
-    effects: dict[int, EffectDef] = Field(default_factory=dict)
-    effect_types: dict[int, EffectTypeDef] = Field(default_factory=dict)
     effect_caps: dict[int, EffectCapDef] = Field(default_factory=dict)
     equipment_effects: dict[int, EquipmentEffectDef] = Field(default_factory=dict)
     relic_effects: dict[int, RelicEffectDef] = Field(default_factory=dict)
@@ -335,20 +393,12 @@ class GameData(BaseModel):
     equipment_sets: dict[int, list[EquipmentSetDef]] = Field(default_factory=dict)
     """Each equipment set's threshold rows by set id, in the order listed."""
     fortifications: dict[int, FortificationDef] = Field(default_factory=dict)
-    construction_items: dict[int, ConstructionItemDef] = Field(default_factory=dict)
     alliance_buffs: dict[int, AllianceBuffDef] = Field(default_factory=dict)
-    global_effects: dict[int, GlobalEffectDef] = Field(default_factory=dict)
     sceat_skills: dict[int, SceatSkillDef] = Field(default_factory=dict)
-    general_skills: dict[int, GeneralSkillDef] = Field(default_factory=dict)
-    legend_skills: dict[int, LegendSkillDef] = Field(default_factory=dict)
     attack_slots: dict[int, AttackSlotDef] = Field(default_factory=dict)
     tool_categories: dict[int, ToolCategoryDef] = Field(default_factory=dict)
     horses: dict[int, HorseStats] = Field(default_factory=dict)
     default_lords: dict[int, DefaultLordDef] = Field(default_factory=dict)
-    generals: dict[int, GeneralDef] = Field(default_factory=dict)
-    general_abilities: dict[int, GeneralAbilityDef] = Field(default_factory=dict)
-    currencies: dict[int, CurrencyDef] = Field(default_factory=dict)
-    raid_bosses: dict[int, RaidBossDef] = Field(default_factory=dict)
     vip_levels: dict[int, VipLevelDef] = Field(default_factory=dict)
     dungeons: list[DungeonDefence] = Field(default_factory=list)
     camps: dict[str, list[NpcCampDefence]] = Field(default_factory=dict)
@@ -358,8 +408,68 @@ class GameData(BaseModel):
     _table_rows: dict[str, Mapping[int, dict[str, Any]]] = PrivateAttr(default_factory=dict)
 
     def _table(self, name: str) -> Table[Any, Any]:
-        source = TABLES[name]
+        source = _TABLES[name]
         return Table(source.model, source.id_field, self._table_rows.get(name, {}), name=name)
+
+    @cached_property
+    def units(self) -> Table[GameDataId["Unit"], UnitStats]:
+        """Combat units by ``Unit``: the ``units`` rows without ``slotTypes``."""
+        return self._table("units")
+
+    @cached_property
+    def tools(self) -> Table[GameDataId["Tool"], ToolStats]:
+        """Siege and defence tools by ``Tool``: the ``units`` rows with ``slotTypes``."""
+        return self._table("tools")
+
+    @cached_property
+    def effects(self) -> Table[GameDataId["Effect"], EffectDef]:
+        """Effects by ``Effect``."""
+        return self._table("effects")
+
+    @cached_property
+    def effect_types(self) -> Table[GameDataId["EffectType"], EffectTypeDef]:
+        """Effect types by ``EffectType``."""
+        return self._table("effect_types")
+
+    @cached_property
+    def construction_items(self) -> Table[GameDataId["ConstructionItem"], ConstructionItemDef]:
+        """Construction items by ``ConstructionItem``."""
+        return self._table("construction_items")
+
+    @cached_property
+    def global_effects(self) -> Table[GameDataId["GlobalEffect"], GlobalEffectDef]:
+        """Global effects by ``GlobalEffect``."""
+        return self._table("global_effects")
+
+    @cached_property
+    def general_skills(self) -> Table[GameDataId["GeneralSkill"], GeneralSkillDef]:
+        """General skill levels by ``GeneralSkill``."""
+        return self._table("general_skills")
+
+    @cached_property
+    def legend_skills(self) -> Table[GameDataId["LegendSkill"], LegendSkillDef]:
+        """Legend skill levels by ``LegendSkill``."""
+        return self._table("legend_skills")
+
+    @cached_property
+    def generals(self) -> Table[GameDataId["General"], GeneralDef]:
+        """Generals by ``General``."""
+        return self._table("generals")
+
+    @cached_property
+    def general_abilities(self) -> Table[GameDataId["GeneralAbility"], GeneralAbilityDef]:
+        """General ability levels by ``GeneralAbility``."""
+        return self._table("general_abilities")
+
+    @cached_property
+    def currencies(self) -> Table[GameDataId["CurrencyId"], CurrencyDef]:
+        """Currencies by ``CurrencyId``; coins and rubies are not in it."""
+        return self._table("currencies")
+
+    @cached_property
+    def raid_bosses(self) -> Table[GameDataId["RaidBoss"], RaidBossDef]:
+        """Alliance raid bosses by ``RaidBoss``."""
+        return self._table("raid_bosses")
 
     @cached_property
     def buildings(self) -> Table[GameDataId["Building"], BuildingDef]:
@@ -672,25 +782,6 @@ class GameData(BaseModel):
     @classmethod
     def parse(cls, version: str, items_data: dict) -> "GameData":
         """Trim a full items payload down to the combat-relevant tables."""
-        units: dict[int, UnitStats] = {}
-        tools: dict[int, ToolStats] = {}
-        skipped = 0
-        for entry in items_data.get("units", []):
-            if not isinstance(entry, dict) or entry.get("wodID") is None:
-                skipped += 1
-                continue
-            try:
-                if entry.get("slotTypes"):
-                    tool = ToolStats.model_validate(entry)
-                    tools[tool.wod_id] = tool
-                else:
-                    unit = UnitStats.model_validate(entry)
-                    units[unit.wod_id] = unit
-            except ValueError:
-                # One malformed entry must not cost the whole table.
-                skipped += 1
-        if skipped:
-            logger.warning(f"Skipped {skipped} unparseable items entries (v{version})")
         equipment_sets: dict[int, list[EquipmentSetDef]] = {}
         for row in _rows(items_data.get("equipment_sets"), EquipmentSetDef):
             equipment_sets.setdefault(row.set_id, []).append(row)
@@ -698,10 +789,6 @@ class GameData(BaseModel):
         data = cls(
             version=version,
             schema_fingerprint=_schema_fingerprint(),
-            units=units,
-            tools=tools,
-            effects={r.effect_id: r for r in _rows(items_data.get("effects"), EffectDef)},
-            effect_types={r.effect_type_id: r for r in _rows(items_data.get("effecttypes"), EffectTypeDef)},
             effect_caps={r.cap_id: r for r in _rows(items_data.get("effectCaps"), EffectCapDef)},
             equipment_effects={
                 r.equipment_effect_id: r for r in _rows(items_data.get("equipment_effects"), EquipmentEffectDef)
@@ -721,22 +808,12 @@ class GameData(BaseModel):
                     FortificationDef,
                 )
             },
-            construction_items={
-                r.construction_item_id: r for r in _rows(items_data.get("constructionItems"), ConstructionItemDef)
-            },
             alliance_buffs={r.alliance_buff_id: r for r in _rows(items_data.get("alliancebuffs"), AllianceBuffDef)},
-            global_effects={r.global_effect_id: r for r in _rows(items_data.get("globalEffects"), GlobalEffectDef)},
             sceat_skills={r.skill_id: r for r in _rows(items_data.get("sceatSkills"), SceatSkillDef)},
-            general_skills={r.skill_id: r for r in _rows(items_data.get("generalSkills"), GeneralSkillDef)},
-            legend_skills={r.skill_id: r for r in _rows(items_data.get("legendskills"), LegendSkillDef)},
             attack_slots={r.slot_id: r for r in _rows(items_data.get("attackSetupSlots"), AttackSlotDef)},
             tool_categories={r.tool_category_id: r for r in _rows(items_data.get("toolCategories"), ToolCategoryDef)},
             horses={r.wod_id: r for r in _rows(items_data.get("horses"), HorseStats)},
             default_lords={r.lord_id: r for r in _rows(items_data.get("lords"), DefaultLordDef)},
-            generals={r.general_id: r for r in _rows(items_data.get("generals"), GeneralDef)},
-            general_abilities={r.ability_id: r for r in _rows(items_data.get("generalAbilities"), GeneralAbilityDef)},
-            currencies={r.currency_id: r for r in _rows(items_data.get("currencies"), CurrencyDef)},
-            raid_bosses={r.raid_boss_id: r for r in _rows(items_data.get("raidBosses"), RaidBossDef)},
             vip_levels={r.vip_level_id: r for r in _rows(items_data.get("viplevels"), VipLevelDef)},
             dungeons=_rows(items_data.get("dungeons"), DungeonDefence),
             camps={
@@ -750,7 +827,9 @@ class GameData(BaseModel):
             league_brackets=_rows(items_data.get("leaguetypes"), LeagueBracketDef),
             raw_tables={table: items_data[table] for table in RAW_TABLES if isinstance(items_data.get(table), list)},
         )
-        data._table_rows = {name: source.rows(items_data.get(source.items_table)) for name, source in TABLES.items()}
+        data._table_rows = {
+            name: source.rows(name, items_data.get(source.items_table)) for name, source in _TABLES.items()
+        }
         return data
 
     @classmethod
@@ -820,8 +899,8 @@ class GameData(BaseModel):
                         data = cls.parse(version, items_data)
                         data._write_cache(cache_file)
                         logger.info(
-                            f"Loaded {len(data.units)} units, {len(data.tools)} tools and "
-                            f"{len(data.dungeons)} camp defenses (v{version})"
+                            f"Loaded {len(data._table_rows['units'])} units, {len(data._table_rows['tools'])} "
+                            f"tools and {len(data.dungeons)} camp defenses (v{version})"
                         )
                 _loaded = data
             _failed_at = None
@@ -870,4 +949,4 @@ class GameData(BaseModel):
             logger.warning(f"Could not cache game data to {cache_file}: {e}")
 
 
-__all__ = ["GameData", "TABLES", "TableSource", "default_cache_dir"]
+__all__ = ["GameData", "default_cache_dir"]

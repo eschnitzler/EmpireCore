@@ -29,18 +29,19 @@ still loaded, keyed by its plain int; loading such items logs one warning for
 the version. Several rows at once are a comprehension:
 `[data.units[u] for u in (Unit.MEAD_RANGER_L6, Unit.VETERAN_SABERSLASHER)]`.
 
-Most tables are read-only `Table` mappings that validate a row the first time
-it is read, so loading the game data stays cheap: `data.buildings[171]`
-validates one building, while iterating a table or taking its `len()`
-validates every row once.
-
-The other tables: `tools`, `effects`, `effect_types`, `currencies`,
+Every table keyed by a generated enum is a read-only `Table` that validates a
+row the first time it is read, so loading the game data stays cheap:
+`data.buildings[171]` validates one building, while iterating a table or
+taking its `len()` validates every row once. Besides the ones above, these are
+`tools`, `effects`, `effect_types`, `currencies` (by `CurrencyId`),
 `general_abilities`, `general_skills`, `legend_skills`, `raid_bosses`,
 `global_effects`, `construction_items`, `loot_boxes`, `loot_box_types`,
-`equipment_groups` and `difficulty_types` by their enums; `titles`,
-`scaling_camps`, `gems`, `equipment_effects`, `relic_effects`,
-`alliance_buffs`, `sceat_skills` and `horses` by plain id, as their rows have no
-name to make an enum of. `raw("specialcamps")` returns a table that is not
+`equipment_groups` and `difficulty_types`. `titles` and `scaling_camps` are
+`Table`s keyed by plain id, as their rows have no name to make an enum of.
+
+`gems`, `equipment_effects`, `relic_effects`, `alliance_buffs`, `sceat_skills`
+and `horses` are plain dicts by plain id, validated at load: there is no
+generated enum for them yet. `raw("specialcamps")` returns a table that is not
 modeled yet, exactly as the items file has it.
 
 A row's bonuses are its `effects`, typed `EffectValue`s: the effect and the
@@ -51,8 +52,8 @@ combat maths reads:
 ```python
 from empire_core.gamedata import ConstructionItem
 
-item = data.construction_items[ConstructionItem.BARRACKS_COST_G1_L1]
-[(e.effect_id, e.value) for e in item.effects]
+item = data.construction_items[ConstructionItem.KEEP_UNIT_WALL_COUNT_G6_L1]
+[(e.effect_id, e.value) for e in item.effects]   # [(Effect.UNIT_WALL_ABSOLUTE_AMOUNT, 3)]
 ```
 
 Text columns the client compares against fixed values are enums from
