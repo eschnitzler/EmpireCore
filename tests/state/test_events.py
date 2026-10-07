@@ -23,7 +23,7 @@ from empire_core.events.models import (
     SpecialEvent,
     TempServerEvent,
 )
-from empire_core.gamedata import GlobalEffect
+from empire_core.gamedata import GlobalEffect, RaidBoss
 from empire_core.gamedata.ids.events import Event
 from empire_core.state import events as event_state
 
@@ -167,6 +167,7 @@ class TestTypedEvents:
         assert raid.score == part(league_id=1, leaderboard_reward_set_id=1, reward_set_id=5)
         assert (raid.league_id, raid.subdivision_id, raid.division_round_id) == (1, 14, 11)
         assert (raid.raid_boss_ids, raid.boss_level_points, raid.kingdoms_league_mode) == ((1, 2, 3), 0, False)
+        assert all(isinstance(boss, RaidBoss) for boss in raid.raid_boss_ids)
 
     def test_the_temporary_server(self, state, clock):
         state.update_from_packet("sei", LIVE_SEI)

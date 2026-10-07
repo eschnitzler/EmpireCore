@@ -6,7 +6,14 @@ from typing import Any
 import pytest
 
 from empire_core.enums import TitleSystem
+from empire_core.gamedata import Achievement, Research, Title
 from empire_core.player import PERMANENT_BOOSTER_DURATION, BoosterInfoResponse
+from empire_core.player.models.progress import (
+    AchievementsResponse,
+    AllianceCityTitle,
+    IslandTitle,
+    ResearchInfoResponse,
+)
 
 # Shapes as a live login's gbd sends them, values changed
 LOGIN: dict[str, Any] = {
@@ -185,6 +192,24 @@ class TestModels:
         assert timed.is_active(start + 3599.5) and not timed.is_active(start + 3600.5)
         assert permanent.is_permanent and permanent.is_active(start + 10**9)
         assert permanent.remaining_seconds() == math.inf
+
+    def test_ids_are_their_game_data_enums(self):
+        assert ResearchInfoResponse.model_validate({"BR": [256, "x", 999999]}).bought_research_ids == (
+            Research.STRENGTH_TRAINING_L1,
+            999999,
+        )
+        assert isinstance(AchievementsResponse.model_validate({"FA": [1]}).finished_achievement_ids[0], Achievement)
+
+    @pytest.mark.parametrize(("sent", "title"), [(50, Title.STORM_LORD), (0, Title.KNIGHT), (-1, None), ("50", None)])
+    def test_the_island_title_is_one_above_minus_1(self, sent, title):
+        # CastleTitleData.parseIslandDataFromServer: TID > -1 names a title
+        island = IslandTitle.model_validate({"TID": sent})
+        assert island.title_id == title
+        assert island.held_title_id == (-1 if title is None else title)
+
+    def test_the_alliance_city_title(self):
+        assert AllianceCityTitle.model_validate({"TID": 112, "PID": 7}).title_id is Title.GUARDIAN_OF_THE_SWORD
+        assert AllianceCityTitle.model_validate({"TID": "112"}).title_id is None
 
     def test_premium_account(self):
         boosts = BoosterInfoResponse.model_validate({"BO": [], "PA": 60, "PT": 2})

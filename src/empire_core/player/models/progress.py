@@ -17,13 +17,17 @@ Each model is read once and never changes; the times in it count from ``received
 from __future__ import annotations
 
 import math
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import BeforeValidator, ConfigDict, Field, field_validator
 
 from empire_core.enums import TitleSystem
+from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, TimedPayload, TimedResponse, object_or_none, readable_list
 from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_parse_int
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Achievement, Research, Title
 
 PERMANENT_BOOSTER_DURATION = 2147483647
 """``BoosterConst.PERMANENT_BOOSTER_DURATION`` (dll): a booster's ``RT`` when it never runs out"""
@@ -63,7 +67,9 @@ class ResearchInfoResponse(TimedResponse):
 
     command = "rei"
 
-    bought_research_ids: Ints = Field(alias="BR", default=(), description="Finished research ids")
+    bought_research_ids: Annotated[tuple[EnumOrInt["Research"], ...], BeforeValidator(_ints)] = Field(
+        alias="BR", default=(), description="Finished researches"
+    )
     current_research_id: ClientInt = Field(alias="ARID", default=0, description="The research running now, -1 for none")
     research_seconds: ClientNumber = Field(
         alias="ARRT", default=0, description="Seconds left on the running research when the values were read"
@@ -297,26 +303,41 @@ class TopTitleRanking(TimedPayload):
 
 
 class IslandTitle(BasePayload):
-    """A ``uar``'s ``ITM``. Client: ``CastleTitleData.parseIslandDataFromServer`` (bundle line 21023)"""
+    """A ``uar``'s ``ITM``. Client: ``CastleTitleData.parseIslandDataFromServer`` (bundle lines 21023-21027)"""
 
     model_config = ConfigDict(frozen=True)
 
-    title_id: Any = Field(alias="TID", default=-1, description="Your Storm Islands title, -1 for none")
+    title_id: EnumOrInt["Title"] | None = Field(
+        alias="TID", default=None, description="Your Storm Islands title; None for none"
+    )
+
+    @field_validator("title_id", mode="before")
+    @classmethod
+    def _held(cls, value: Any) -> Any:
+        # Client: TID > -1 names a title
+        return value if isinstance(value, int) and not isinstance(value, bool) and value > -1 else None
 
     @property
     def held_title_id(self) -> int:
-        """The title id when it is above -1, else -1."""
-        tid = self.title_id
-        return tid if isinstance(tid, int) and not isinstance(tid, bool) and tid > -1 else -1
+        """The title id, -1 for none."""
+        return -1 if self.title_id is None else self.title_id
 
 
 class AllianceCityTitle(BasePayload):
-    """A ``uar``'s ``ATM``. Client: ``CastleTitleData.parseAllianceCityDataFromServer`` (bundle line 21026)"""
+    """A ``uar``'s ``ATM``. Client: ``CastleTitleData.parseAllianceCityDataFromServer`` (bundle lines 21028-21036)"""
 
     model_config = ConfigDict(frozen=True)
 
-    title_id: Any = Field(alias="TID", default=None, description="The alliance city title")
+    title_id: EnumOrInt["Title"] | None = Field(
+        alias="TID", default=None, description="The alliance city title; None for none"
+    )
     player_id: Any = Field(alias="PID", default=None, description="The player holding it")
+
+    @field_validator("title_id", mode="before")
+    @classmethod
+    def _title(cls, value: Any) -> Any:
+        # Client: _allPossibleTitles.get(e.TID), keyed by the int title ids
+        return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
 class TitleRanksResponse(TimedResponse):
@@ -390,7 +411,9 @@ class AchievementsResponse(TimedResponse):
     command = "vli"
 
     achievement_points: ClientInt = Field(alias="AVP", default=0, description="Achievement points")
-    finished_achievement_ids: Ints = Field(alias="FA", default=(), description="Finished achievements")
+    finished_achievement_ids: Annotated[tuple[EnumOrInt["Achievement"], ...], BeforeValidator(_ints)] = Field(
+        alias="FA", default=(), description="Finished achievements"
+    )
     progress: tuple[AchievementProgress, ...] = Field(
         alias="RA", default=(), description="Progress of the achievements this packet lists"
     )

@@ -15,6 +15,7 @@ from pydantic.functional_validators import ModelWrapValidatorHandler
 from empire_core.army.models.units import SpyPositions, UnitInventory
 from empire_core.commanders.models.roster import Commander, CommanderEffects, CommanderRoster
 from empire_core.enums import Kingdom
+from empire_core.gamedata import EnumOrInt
 from empire_core.map.models.areas import MapObject
 from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, read_or_none, readable_list
@@ -22,6 +23,7 @@ from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, re
 if TYPE_CHECKING:
     from empire_core.army.spy_army import SpyArmy
     from empire_core.combat import Bonus
+    from empire_core.gamedata import LegendSkill
 
 
 logger = logging.getLogger(__name__)
@@ -143,10 +145,10 @@ class AttackInfoResponse(BaseResponse):
     spied_castellan_fallback: Commander | None = Field(
         alias="B", default=None, description="The castellan defending the target when spied_castellan is missing"
     )
-    defender_legend_skill_ids: list[int] = Field(
+    defender_legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
         alias="LS",
-        default_factory=list,
-        description="The defender's legend skill ids, part of the spy report",
+        default=(),
+        description="The defender's legend skills, part of the spy report",
     )
     kings_tower_bonus: float = Field(alias="KTB", default=0, description="Kings tower bonus")
     home_workshop_level: int = Field(
@@ -193,7 +195,7 @@ class AttackInfoResponse(BaseResponse):
         """Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` sets the age and legend skills only when S is not empty."""
         if not self.spy_data:
             self.spy_age_seconds = -1
-            self.defender_legend_skill_ids = []
+            self.defender_legend_skill_ids = ()
         return self
 
     def attacker_bonuses(self) -> list["Bonus"]:

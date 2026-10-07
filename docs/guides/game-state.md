@@ -22,7 +22,7 @@ underneath you mid-iteration:
 player = client.state.get_local_player()    # None until the login data arrives
 castles = client.state.get_castles()
 unlocks = client.state.get_permanent_castle(castle_id)    # unlocked units, horses
-horse_ids = client.state.get_castle_horse_ids(castle_id)  # the horses' wod ids
+horse_ids = client.state.get_castle_horse_ids(castle_id)  # the castle's horses, Horse members
 movements = client.state.get_all_movements()
 attacks = client.state.get_incoming_attacks()
 announced = client.state.get_announced_attacks()  # what on_incoming_attack reported

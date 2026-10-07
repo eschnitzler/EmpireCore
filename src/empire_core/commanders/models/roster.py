@@ -9,16 +9,35 @@ from __future__ import annotations
 
 import logging
 from functools import partial
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import BeforeValidator, Field, PrivateAttr, ValidationInfo, field_validator, model_validator
+from pydantic import (
+    BeforeValidator,
+    Field,
+    PrivateAttr,
+    ValidationInfo,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from empire_core.enums import EquipmentSlot, Kingdom
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, list_or_empty, readable_list
+from empire_core.gamedata import EnumOrInt
+from empire_core.protocol.base import (
+    BasePayload,
+    BaseRequest,
+    BaseResponse,
+    int_entries,
+    list_or_empty,
+    readable_list,
+)
 from empire_core.protocol.js import ClientInt, js_loose_equals, js_truthy
 
 from .equipment import Equipment, EquipmentBonus
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Gem, GeneralAbility, GeneralSkill
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +111,42 @@ CommanderEffects = Annotated[list[CommanderEffect], BeforeValidator(partial(read
 effects it cannot resolve (``LordVO.parseRawEffects``, bundle line 26483)."""
 
 
+class SelectedAbility(BasePayload):
+    """
+    One ability slot of a general: a ``[slot_id, ability_id]`` pair, as ``GASAIDS`` sends it and ``SAIDS`` takes it.
+
+    It serializes back to the pair, with ``-1`` for an empty slot.
+
+    Client: ``GeneralVO.parseData`` (bundle line 26666) keeps the pairs, and
+    ``GeneralVO.getSelectedAbilities`` (bundle lines 26769-26771) reads ``[0]`` as the
+    slot and ``[1]`` as the ability, counting it only above 0; ``GeneralsAbilityDialog.onSave``
+    (bundle line 27850) sends ``-1`` for a cleared slot.
+    """
+
+    slot_id: int = Field(description="The slot, matched against the general's attack and defense slots")
+    ability_id: EnumOrInt["GeneralAbility"] | None = Field(
+        default=None, description="The ability; None for an empty slot"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if isinstance(data, list) and len(data) >= 2:
+            return {"slot_id": data[0], "ability_id": data[1]}
+        return data
+
+    @field_validator("ability_id", mode="before")
+    @classmethod
+    def _empty_slot(cls, value: Any) -> Any:
+        if value is None or (isinstance(value, int | float) and not isinstance(value, bool) and value <= 0):
+            return None
+        return value
+
+    @model_serializer
+    def _as_pair(self) -> list[int]:
+        return [self.slot_id, -1 if self.ability_id is None else int(self.ability_id)]
+
+
 class LeaderBase(BasePayload):
     """
     Fields shared by every gli entry.
@@ -136,8 +191,8 @@ class LeaderBase(BasePayload):
             "Temporary equipment, same layout as alien_equipment; applies when equipment and alien_equipment are absent"
         ),
     )
-    alien_gem_ids: list[Any] = Field(
-        alias="GEM", default_factory=list, description="Gem ids added to the alien or temporary equipment"
+    alien_gem_ids: tuple[EnumOrInt["Gem"], ...] = Field(
+        alias="GEM", default=(), description="The gems added to the alien or temporary equipment"
     )
     general_id: ClientInt | None = Field(
         alias="GID", default=None, description="The assigned general's id; -1 or None for none"
@@ -171,13 +226,13 @@ class LeaderBase(BasePayload):
     general_has_level_up: bool | None = Field(
         alias="LU", default=None, description="The general gained a level; None when the entry does not say"
     )
-    general_skill_ids: list[Any] | None = Field(
-        alias="SIDS", default=None, description="The general's unlocked skill ids; None when the entry has none"
+    general_skill_ids: tuple[EnumOrInt["GeneralSkill"], ...] | None = Field(
+        alias="SIDS", default=None, description="The general's unlocked skills; None when the entry has none"
     )
-    general_ability_ids: list[Any] | None = Field(
+    general_selected_abilities: tuple[SelectedAbility, ...] | None = Field(
         alias="GASAIDS",
         default=None,
-        description="The general's selected slot and ability ids, as sent; None when the entry has none",
+        description="The general's ability slots, filled or empty; None when the entry has none",
     )
 
     @field_validator("general_xp", "general_old_xp", mode="before")
@@ -191,10 +246,16 @@ class LeaderBase(BasePayload):
     def _one_flag(cls, value: Any) -> bool:
         return js_loose_equals(value, 1)
 
-    @field_validator("general_skill_ids", "general_ability_ids", mode="before")
+    @field_validator("general_skill_ids", mode="before")
     @classmethod
     def _id_list(cls, value: Any) -> Any:
         return list_or_empty(value)
+
+    @field_validator("general_selected_abilities", mode="before")
+    @classmethod
+    def _readable_slots(cls, value: Any) -> Any:
+        # The client indexes each entry; one that is not a pair matches no slot and is ignored.
+        return readable_list(SelectedAbility, value)
 
     @model_validator(mode="after")
     def _default_commander_general(self) -> LeaderBase:
@@ -205,8 +266,8 @@ class LeaderBase(BasePayload):
                 ("general_old_xp", 0),
                 ("general_is_new", False),
                 ("general_has_level_up", False),
-                ("general_skill_ids", []),
-                ("general_ability_ids", []),
+                ("general_skill_ids", ()),
+                ("general_selected_abilities", ()),
             ):
                 if getattr(self, name) is None:
                     setattr(self, name, default)
@@ -232,7 +293,8 @@ class LeaderBase(BasePayload):
     @field_validator("alien_gem_ids", mode="before")
     @classmethod
     def _gem_list(cls, value: Any) -> Any:
-        return list_or_empty(value)
+        # AlienLordEquipmentVO.parseGemBoniData looks each id up as sent (bundle lines 67486-67490)
+        return int_entries(value)
 
     _equipment_sent: bool = PrivateAttr(default=False)
 

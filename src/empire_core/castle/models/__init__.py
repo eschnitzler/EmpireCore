@@ -71,10 +71,12 @@ from .market import (
 from .objects import (
     FREE_SLOT,
     LOCKED_SLOT,
+    BuildingConstructionItems,
     BuildingRow,
     CastleBuildings,
     ConstructionList,
     FieldEfficiency,
+    PlacedConstructionItem,
     ShowConstructionListRequest,
     ShowConstructionListResponse,
 )
@@ -130,7 +132,9 @@ __all__ = [
     "FREE_SLOT",
     "LOCKED_SLOT",
     "BuildingRow",
+    "BuildingConstructionItems",
     "CastleBuildings",
+    "PlacedConstructionItem",
     "ConstructionList",
     "FieldEfficiency",
     "ShowConstructionListRequest",

@@ -7,11 +7,12 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import BeforeValidator, Field, PrivateAttr, field_validator, model_validator
 
 from empire_core.enums import AllianceRank, DiplomacyStatus, OnlineState
+from empire_core.gamedata import EnumOrInt
 from empire_core.map.models.items import MapAreaItem, parse_area_rows
 from empire_core.map.models.owners import AllianceCrest
 from empire_core.player.models.profile import PlayerProfileBase
@@ -33,6 +34,9 @@ from empire_core.protocol.js import (
     js_truthy,
 )
 from empire_core.protocol.text import decode_json_text
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import AllianceCrestLayout
 
 logger = logging.getLogger(__name__)
 
@@ -251,10 +255,18 @@ class CrestLayout(BasePayload):
     Client: ``AllianceInfoVO.fillFromParamObject`` (bundle line 25932)
     """
 
-    layout_id: Any = Field(alias="ACLI", default=None, description="Crest layout id")
+    layout_id: EnumOrInt["AllianceCrestLayout"] | None = Field(
+        alias="ACLI", default=None, description="The crest layout; None when the entry names none"
+    )
     seconds_left: int | float = Field(alias="ACLET", default=0, description="Seconds until the layout ends")
     is_active: bool = Field(alias="ACIA", default=False, description="The layout is the one in use")
     colors: Any = Field(alias="ACLCS", default=None, description="The layout's colours, as sent")
+
+    @field_validator("layout_id", mode="before")
+    @classmethod
+    def _layout(cls, value: Any) -> Any:
+        # Client: keys _crestLayoutEndTimeStamps by ACLI as sent (bundle line 25936) and reads it by int layout id
+        return value if isinstance(value, int) and not isinstance(value, bool) else None
 
     @field_validator("seconds_left", mode="before")
     @classmethod

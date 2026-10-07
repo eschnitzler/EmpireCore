@@ -34,7 +34,7 @@ from empire_core.quests.models import Quest
 from empire_core.ranking.models import GetHighscoreResponse, GetRankingListResponse, LeaderboardScore
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import GlobalEffect, QuestId
+    from empire_core.gamedata import Event, GlobalEffect, QuestId, RaidBoss
 
 
 class Scoreboard(BaseModel):
@@ -518,7 +518,7 @@ class LongTermPointEvent(LeagueScoredEvent):
     Client: ``LongTermPointEventEventVO.parseParamObject`` (bundle line 116555)
     """
 
-    upcoming_event_ids: tuple[int, ...] = Field(
+    upcoming_event_ids: tuple[EnumOrInt["Event"], ...] = Field(
         default=(), alias="UE", description="The events whose points count towards it"
     )
 
@@ -743,7 +743,9 @@ class RaidBossEvent(SpecialEvent):
     alliance_rank: int = Field(default=0, description="Your alliance's rank, from the pep pushes")
     subdivision_id: int = Field(default=0, description="Your alliance's subdivision, from the entry's A")
     division_round_id: int = Field(default=0, alias="DRI", description="The division round")
-    raid_boss_ids: tuple[int, ...] = Field(default=(), alias="RBIDS", description="The bosses that can be fought")
+    raid_boss_ids: tuple[EnumOrInt["RaidBoss"], ...] = Field(
+        default=(), alias="RBIDS", description="The bosses that can be fought"
+    )
     boss_level_points: int = Field(default=0, alias="BLPP", description="The points on the current boss level")
 
     @classmethod

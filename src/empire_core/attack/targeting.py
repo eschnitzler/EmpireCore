@@ -6,6 +6,7 @@ pre-calculation and its owner's record.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -180,7 +181,7 @@ class _Target:
     camp_kingdom_id: Kingdom = Kingdom.GREEN
     spy_army: SpyArmy | None = None
     castellan: Commander | None = None
-    defender_legend_skill_ids: list[int] | None = None
+    defender_legend_skill_ids: Sequence[int] | None = None
     area_bonuses: list[Bonus] | None = None
     conquer: bool = False
     inventory: dict[int, int] | None = None

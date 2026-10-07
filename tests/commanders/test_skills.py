@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from empire_core.gamedata import GeneralDef
+from empire_core.gamedata import GeneralAbility, GeneralDef, GeneralSkill, LegendSkill, SceatSkill
 from empire_core.protocol.models import (
     AddGeneralXpRequest,
     AssignGeneralRequest,
@@ -15,6 +15,7 @@ from empire_core.protocol.models import (
     GetSkillsResponse,
     ObjectUpdateEvent,
     ResetGeneralSkillsRequest,
+    SelectedAbility,
     SetGeneralAbilitiesRequest,
     SkillList,
     UnlockGeneralSkillRequest,
@@ -57,7 +58,13 @@ class TestGenerals:
         response = GetGeneralsResponse.model_validate(self.LIVE)
 
         assert [g.general_id for g in response.generals] == [101, 102]
-        assert response.skill_ids(101) == [10317, 10311, 10314]
+        assert response.skill_ids(101) == (10317, 10311, 10314)
+
+    def test_skills_are_general_skills_and_an_unknown_one_stays_an_int(self):
+        general = General.model_validate({"GID": 101, "SIDS": [10110201, 999]})
+
+        assert general.skill_ids == (GeneralSkill.TORIL_ASPECTOFTHE_DRAGON_L1, 999)
+        assert type(general.skill_ids[1]) is int
 
     def test_the_selected_abilities_are_pairs(self):
         general = GetGeneralsResponse.model_validate(self.LIVE).generals[0]
@@ -71,7 +78,11 @@ class TestGenerals:
         ).generals[0]
 
         assert len(general.selected_abilities) == 2
+        assert general.selected_abilities[0].ability_id is None
+        assert isinstance(general.selected_abilities[1].ability_id, GeneralAbility)
         assert general.ability_ids == [10303]
+        # An empty slot goes back on the wire as -1, as GeneralsAbilityDialog.onSave sends it
+        assert [slot.model_dump() for slot in general.selected_abilities] == [[101031, -1], [101033, 10303]]
 
     def test_a_malformed_slot_is_skipped(self):
         general = GetGeneralsResponse.model_validate(
@@ -81,11 +92,11 @@ class TestGenerals:
         assert general.ability_ids == [10303]
 
     def test_a_general_with_nothing_unlocked(self):
-        assert GetGeneralsResponse.model_validate(self.LIVE).skill_ids(102) == []
+        assert GetGeneralsResponse.model_validate(self.LIVE).skill_ids(102) == ()
 
     def test_an_unknown_general_is_not_an_error(self):
         # Sizing a wave must not fail because a general is missing.
-        assert GetGeneralsResponse.model_validate(self.LIVE).skill_ids(999) == []
+        assert GetGeneralsResponse.model_validate(self.LIVE).skill_ids(999) == ()
 
     def test_an_empty_payload(self):
         assert GetGeneralsResponse.model_validate({}).generals == []
@@ -148,16 +159,18 @@ class TestPlayerSkills:
     def test_the_two_lists_are_kept_apart(self):
         response = GetSkillsResponse.model_validate({"SID": [3, 4, 5], "SIDS": [90, 91], "SP": 40, "RS": 7200})
 
-        assert response.legend_skill_ids == [3, 4, 5]
-        assert response.sceat_skill_ids == [90, 91]
+        assert response.legend_skill_ids == (3, 4, 5)
+        assert response.sceat_skill_ids == (90, 91)
+        assert all(isinstance(skill, LegendSkill) for skill in response.legend_skill_ids)
+        assert all(isinstance(skill, SceatSkill) for skill in response.sceat_skill_ids)
         assert response.total_points == 40
         assert response.seconds_until_reset == 7200
 
     def test_a_player_with_no_skills(self):
         response = GetSkillsResponse.model_validate({"SP": 0})
 
-        assert response.legend_skill_ids == []
-        assert response.sceat_skill_ids == []
+        assert response.legend_skill_ids == ()
+        assert response.sceat_skill_ids == ()
         assert response.reset_count == 0
         assert response.activating == []
 
@@ -177,7 +190,7 @@ class TestObjectUpdate:
         event = ObjectUpdateEvent.model_validate({"skl": {"SID": [3], "SIDS": [90], "SP": 10, "RS": 0, "RC": 1}})
 
         assert event.skills is not None
-        assert event.skills.legend_skill_ids == [3]
+        assert event.skills.legend_skill_ids == (3,)
         assert event.skills.reset_count == 1
 
     @pytest.mark.parametrize("payload", [{}, {"skl": None}, {"skl": 0}, {"A": {"OID": 5}}])
@@ -204,7 +217,10 @@ class TestGeneralCommands:
             (AssignGeneralRequest(commander_id=7, general_id=103), "gla", '{"LID": 7, "GID": 103}'),
             (AssignGeneralRequest(commander_id=7), "gla", '{"LID": 7, "GID": -1}'),
             (
-                SetGeneralAbilitiesRequest(general_id=103, abilities=[[101031, 10073], [101033, -1]]),
+                SetGeneralAbilitiesRequest(
+                    general_id=103,
+                    abilities=[SelectedAbility(slot_id=101031, ability_id=10073), SelectedAbility(slot_id=101033)],
+                ),
                 "gaae",
                 '{"GID": 103, "SAIDS": [[101031, 10073], [101033, -1]]}',
             ),
@@ -236,6 +252,6 @@ def test_null_skill_lists_read_as_no_skills():
     from empire_core.commanders.models.skills import GetGeneralsResponse, SkillList
 
     response = GetGeneralsResponse.model_validate({"G": [{"GID": 1}, {"GID": 2, "SIDS": None}, "junk"]})
-    assert [(g.general_id, g.skill_ids) for g in response.generals] == [(1, []), (2, [])]
+    assert [(g.general_id, g.skill_ids) for g in response.generals] == [(1, ()), (2, ())]
     skills = SkillList.model_validate({"SID": None, "SIDS": [5, None], "RS": None})
-    assert (skills.legend_skill_ids, skills.sceat_skill_ids, skills.seconds_until_reset) == ([], [5], 0)
+    assert (skills.legend_skill_ids, skills.sceat_skill_ids, skills.seconds_until_reset) == ((), (5,), 0)

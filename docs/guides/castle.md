@@ -194,6 +194,7 @@ or the spy missions.
 
 On a live account, main and kingdom castles offered horses 1007 to 1009, the
 Storm castle 1030 to 1032, and outposts none. Without game data,
-`client.state.get_castle_horse_ids(castle_id)` gives the bare wod ids.
+`client.state.get_castle_horse_ids(castle_id)` gives the `Horse` members
+(`Horse.HORSE_STABLE3` is 1007).
 
 **API:** [`CastleService`](../reference/castle.md#empire_core.castle.service.CastleService)

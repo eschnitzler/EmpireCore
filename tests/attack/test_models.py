@@ -255,7 +255,7 @@ class TestAttackInfoBlocks:
         info = GetAttackInfoResponse.model_validate({"S": None, "AS": 30, "LS": [5]})
 
         assert info.spy_army() is None
-        assert (info.spy_age_seconds, info.defender_legend_skill_ids) == (-1, [])
+        assert (info.spy_age_seconds, info.defender_legend_skill_ids) == (-1, ())
 
     def test_attacker_effects_are_typed(self):
         from empire_core.combat import Bonus
