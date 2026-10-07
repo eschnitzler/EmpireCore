@@ -29,15 +29,19 @@ from __future__ import annotations
 
 import argparse
 import ast
+import importlib
 import json
 import keyword
 import re
 import sys
 import textwrap
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
+from enum import IntEnum
 from pathlib import Path
+from typing import Any
 
 from empire_core.gamedata import AchievementCondition, CurrencyDef, GameData, QuestCondition
 from empire_core.gamedata.tables import row_id
@@ -88,6 +92,33 @@ class Table:
     rows: list[Row]
     attrs: tuple[Attr, ...] = ()
     str_enum: bool = False
+
+
+@contextmanager
+def enums_not_generated_yet() -> Iterator[None]:
+    """
+    Read the ids of an enum the package lacks as plain ints, so a new table generates from a clean package.
+
+    A table's rows type their id as the table's enum, which reading them looks up in
+    ``empire_core.gamedata.ids``; before its first generation there is none, so an empty one stands in.
+    The fields that looked it up keep the stand-in for the process.
+    """
+    namespace = vars(importlib.import_module("empire_core.gamedata.ids"))
+    lookup = namespace["__getattr__"]
+
+    def stand_in(name: str) -> Any:
+        try:
+            return lookup(name)
+        except AttributeError:
+            if name.startswith("_"):
+                raise
+            return IntEnum(name, {})
+
+    namespace["__getattr__"] = stand_in
+    try:
+        yield
+    finally:
+        namespace["__getattr__"] = lookup
 
 
 class Texts:
@@ -1064,11 +1095,12 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit(f"items version {data.version!r} is not dotted digits")
 
     texts = Texts(json.loads(args.texts.read_text()) if args.texts else fetch_texts("en"))
-    table_list = tables(data, texts)
-    empty = [t.enum for t in table_list if not t.rows]
-    if empty:
-        raise SystemExit(f"no rows for {', '.join(empty)}; is this the full items file?")
-    files = render(data, texts)
+    with enums_not_generated_yet():
+        table_list = tables(data, texts)
+        empty = [t.enum for t in table_list if not t.rows]
+        if empty:
+            raise SystemExit(f"no rows for {', '.join(empty)}; is this the full items file?")
+        files = render(data, texts)
     snapshot = texts.snapshot()
     snapshot_stale = not args.snapshot.is_file() or args.snapshot.read_text() != snapshot
     changes = name_changes(files, args.out)
