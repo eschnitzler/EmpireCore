@@ -6,7 +6,8 @@ unless :data:`ALLOWED` names it with a reason: player ids, coordinates, a reques
 counters, a value that is opaque. ``EnumOrInt[...]`` is an enum, not an int, and ``int | float``
 a number, not an id. The ``#320`` entries
 are older fields that issue still has to type; the list is the remaining debt, so an entry
-whose field is gone or typed fails too.
+whose field is gone or typed fails too. A game-data row field named ``*_id`` that is a plain int
+fails as well, unless :data:`GAME_DATA_SCALAR_IDS` says why no enum types it.
 """
 
 import importlib
@@ -36,6 +37,7 @@ ALLOWED: dict[str, str] = {
     "events.models.GetEventPointsResponse.own_points": "points, one per score the event keeps; not ids",
     "events.models.GetEventPointsResponse.own_ranks": "ranks, one per score the event keeps; not ids",
     "gamedata.collectables.Collectable.value": "opaque: the entry as sent, for OTHER and the kinds not read here",
+    "gamedata.models.ToolStats.slot_types": "attack-screen slot types: the client names none of them",
     "gamedata.tables.BuildingDef.available_in_map_ids": "map ids: no items table names maps",
     "gamedata.tables.BuildingDef.construction_item_group_ids": "construction item groups have no name",
     "gamedata.tables.BuildingDef.low_level_build_durations": "durations in seconds, not ids",
@@ -164,6 +166,61 @@ ALLOWED: dict[str, str] = {
 }
 
 
+GAME_DATA_SCALAR_IDS: dict[str, str] = {
+    "gamedata.models.AllianceBuffDef.alliance_buff_id": "alliance buffs have no name to make an enum of",
+    "gamedata.models.AllianceBuffDef.series_id": "alliance buff series have no table",
+    "gamedata.models.AttackSlotDef.slot_id": "attack slots have no name to make an enum of",
+    "gamedata.models.ConstructionItemDef.effect_group_id": "construction item effect groups have no table",
+    "gamedata.models.ConstructionItemDef.group_id": "construction item groups have no name",
+    "gamedata.models.ConstructionItemDef.rareness_id": "not established that it shares the equipment Rareness ids",
+    "gamedata.models.ConstructionItemDef.slot_type_id": "construction item slot types: the client names none",
+    "gamedata.models.DefaultLordDef.lord_id": "default commanders have no name to make an enum of",
+    "gamedata.models.DungeonDefence.lord_id": "a default commander id, which has no enum",
+    "gamedata.models.EffectCapDef.cap_id": "effect caps have no name to make an enum of",
+    "gamedata.models.EffectDef.cap_id": "effect caps have no name to make an enum of",
+    "gamedata.models.EquipmentEffectDef.equipment_effect_id": "equipment effects have no name to make an enum of",
+    "gamedata.models.EquipmentEffectValue.equipment_effect_id": "equipment effects have no name to make an enum of",
+    "gamedata.models.EquipmentSetDef.row_id": "a row number, not referenced",
+    "gamedata.models.EquipmentSetDef.set_id": "equipment sets have no name to make an enum of",
+    "gamedata.models.EventCampDef.camp_id": "daimyo ranks have no name to make an enum of",
+    "gamedata.models.GemDef.gem_id": "gems have no name to make an enum of",
+    "gamedata.models.GemDef.set_id": "equipment sets have no name to make an enum of",
+    "gamedata.models.GeneralAbilityDef.ability_attack_effect_id": "a generalAbilityEffects row, which has no enum",
+    "gamedata.models.GeneralAbilityDef.ability_defense_effect_id": "a generalAbilityEffects row, which has no enum",
+    "gamedata.models.GeneralAbilityDef.ability_group_id": "ability groups have no table",
+    "gamedata.models.GeneralAbilityDef.ability_trigger_id": "ability triggers: the client names none",
+    "gamedata.models.GeneralDef.rarity_id": "general rarities have no name to make an enum of",
+    "gamedata.models.GeneralSkillDef.skill_group_id": "skill groups have no table",
+    "gamedata.models.HorseStats.wod_id": "horses have no generated enum yet",
+    "gamedata.models.LeagueBracketDef.league_type_id": "a league is a level band per event, not one row",
+    "gamedata.models.LegendSkillDef.skill_group_id": "skill groups have no table",
+    "gamedata.models.LegendSkillDef.skill_tree_id": "skill trees have no table",
+    "gamedata.models.NpcCampDefence.lord_id": "a default commander id, which has no enum",
+    "gamedata.models.RelicEffectDef.relic_effect_id": "relic effects have no name to make an enum of",
+    "gamedata.models.SceatSkillDef.skill_group_id": "skill groups have no table",
+    "gamedata.models.SceatSkillDef.skill_id": "sceat skills have no name to make an enum of",
+    "gamedata.models.SceatSkillDef.skill_tree_id": "skill trees have no table",
+    "gamedata.models.ToolCategoryDef.tool_category_id": "the row id; categories are typed by name (ToolCategory)",
+    "gamedata.models.VipLevelDef.vip_level_id": "a VIP level number",
+    "gamedata.models._UnitRow.wod_id": "the base of UnitStats and ToolStats, which type it as Unit and Tool",
+    "gamedata.tables.BuildingDef.district_type_id": "district types have no table",
+    "gamedata.tables.BuildingDef.sceat_skill_id": "sceat skills have no name to make an enum of",
+    "gamedata.tables.EquipmentGroupDef.pic_id": "a picture, not a row",
+    "gamedata.tables.LootBoxDef.key_tombola_id": "tombolas have no name to make an enum of",
+    "gamedata.tables.LootBoxDef.tombola_id": "tombolas have no name to make an enum of",
+    "gamedata.tables.QuestDef.map_id": "no items table names maps",
+    "gamedata.tables.QuestDef.quest_giver_id": "quest givers: the client names only the selected hero",
+    "gamedata.tables.QuestDef.questbook_tab_id": "quest book tabs have no table",
+    "gamedata.tables.QuestDef.series_id": "quest series have no table",
+    "gamedata.tables.ResearchDef.group_id": "research groups have no table",
+    "gamedata.tables.ScalingCampDef.scaling_camp_id": "scaling camps have no name to make an enum of",
+    "gamedata.tables.TitleDef.previous_title_id": "titles have no name to make an enum of",
+    "gamedata.tables.TitleDef.reward_id": "the items' rewards rows have no name to make an enum of",
+    "gamedata.tables.TitleDef.title_id": "titles have no name to make an enum of",
+}
+"""Game-data row fields named ``*_id`` that hold a plain int, each with why no enum types it."""
+
+
 def _is_lenient(annotation: Any) -> bool:
     return get_origin(annotation) is Annotated and any(
         isinstance(meta, PlainValidator) and isinstance(meta.func, LenientEnum) for meta in annotation.__metadata__
@@ -218,6 +275,32 @@ def test_no_model_field_is_a_bare_id_list_or_a_raw_row():
     )
     stale = sorted(set(ALLOWED) - bare)
     assert not stale, "these are typed or gone now; drop them from ALLOWED:\n" + "\n".join(stale)
+
+
+def _scalar_game_data_ids() -> set[str]:
+    found = set()
+    for model in _models():
+        if not model.__module__.startswith("empire_core.gamedata."):
+            continue
+        for name, field in model.model_fields.items():
+            lenient = any(isinstance(m, PlainValidator) and isinstance(m.func, LenientEnum) for m in field.metadata)
+            annotation = field.annotation
+            args = (
+                set(get_args(annotation)) if get_origin(annotation) in (typing.Union, types.UnionType) else {annotation}
+            )
+            if name.endswith("_id") and not lenient and args - {type(None)} == {int}:
+                owner = next(c for c in model.__mro__ if name in getattr(c, "__annotations__", {}))
+                found.add(f"{owner.__module__.removeprefix('empire_core.')}.{owner.__qualname__}.{name}")
+    return found
+
+
+def test_no_game_data_id_is_a_plain_int():
+    found = _scalar_game_data_ids()
+    unlisted = sorted(found - set(GAME_DATA_SCALAR_IDS))
+    assert not unlisted, "type these with GameDataId, or allow them with a reason:\n" + "\n".join(unlisted)
+    stale = sorted(set(GAME_DATA_SCALAR_IDS) - found)
+    assert not stale, "these are typed or gone now; drop them from GAME_DATA_SCALAR_IDS:\n" + "\n".join(stale)
+    assert all(reason.strip() for reason in GAME_DATA_SCALAR_IDS.values())
 
 
 def test_every_allowed_field_has_a_reason():

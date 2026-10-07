@@ -14,17 +14,29 @@ from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
-from empire_core.enums import PlayerRelation, RelicEffectType, ToolCategory, ToolSide, UnitRole
+from empire_core.enums import (
+    Kingdom,
+    MapItemType,
+    PlayerRelation,
+    RelicEffectType,
+    ToolCategory,
+    ToolSide,
+    UnitRole,
+    WearerType,
+)
 from empire_core.protocol.js import js_falsy, js_number, js_number_or_none, js_parse_int
 
 from .lenient import GameDataId, GameDataKey
 
 if TYPE_CHECKING:
     from .ids import (
+        Building,
         ConstructionItem,
         CurrencyId,
         Effect,
         EffectType,
+        EquipmentGroup,
+        Event,
         General,
         GeneralAbility,
         GeneralSkill,
@@ -74,6 +86,11 @@ def parse_ids(value: str | None) -> tuple[int, ...]:
         except ValueError:
             continue
     return tuple(ids)
+
+
+def _id_list(value: object) -> object:
+    """A comma-separated id column as its ids (:func:`parse_ids`); a list, as the cache has it, as it is."""
+    return list(parse_ids(value)) if value is None or isinstance(value, str) else value
 
 
 READING_CACHE: ContextVar[bool] = ContextVar("reading_game_data_cache", default=False)
@@ -284,7 +301,7 @@ class ToolStats(_UnitRow):
         default="0",
         description='Attack or defence; "0" when the row has none',
     )
-    raw_slot_types: str = Field(alias="slotTypes", default="", description="Comma-separated slot types the tool fits")
+    slot_types: tuple[int, ...] = Field(alias="slotTypes", default=(), description="Attack-screen slot types it fits")
     raw_allowed_to_attack: str = Field(
         alias="allowedToAttack",
         default="",
@@ -344,10 +361,15 @@ class ToolStats(_UnitRow):
         # String(getValueOrDefault("typ", t, "0", true))
         return str(value) if value else "0"
 
-    @field_validator("raw_slot_types", "raw_allowed_to_attack", mode="before")
+    @field_validator("raw_allowed_to_attack", mode="before")
     @classmethod
     def _string_column(cls, value: object) -> object:
         return value or ""
+
+    @field_validator("slot_types", mode="before")
+    @classmethod
+    def _slot_types(cls, value: object) -> object:
+        return _id_list(value)
 
     @field_validator("effects", mode="before")
     @classmethod
@@ -401,11 +423,6 @@ class ToolStats(_UnitRow):
     def off_melee_bonus(self) -> float:
         """Melee attack this tool adds, as a fraction."""
         return self.raw_off_melee_bonus * 0.01
-
-    @property
-    def slot_types(self) -> tuple[int, ...]:
-        """Attack-screen slot types this tool fits."""
-        return parse_ids(self.raw_slot_types)
 
     @property
     def allowed_targets(self) -> tuple[tuple[int | None, int | None], ...]:
@@ -484,25 +501,32 @@ class EffectDef(_Row):
 
     effect_id: GameDataId["Effect"] = Field(alias="effectID", description="The effect")
     name: str = ""
-    effect_type_id: int = Field(alias="effectTypeID", default=0)
+    effect_type_id: GameDataId["EffectType"] = Field(
+        alias="effectTypeID", default=0, description="The effect type it modifies"
+    )
     cap_id: int | None = Field(alias="capID", default=None)
-    raw_area_type_ids: str = Field(alias="areaTypeID", default="")
+    area_type_ids: tuple[GameDataId[MapItemType], ...] = Field(
+        alias="areaTypeID", default=(), description="Area types it applies to; empty for every area"
+    )
     is_pvp_fight: bool = Field(alias="isPvPFight", default=False)
     is_pve_fight: bool = Field(alias="isPvEFight", default=False)
-    raw_space_ids: str = Field(alias="spaceIDs", default="")
+    space_ids: tuple[GameDataId[Kingdom], ...] = Field(
+        alias="spaceIDs",
+        default=(),
+        description="Kingdoms it applies in, as the client compares them with the area's spaceId; empty for every one",
+    )
     player_relation: GameDataKey[PlayerRelation] = Field(
         alias="playerRelation", default="", description="The relationship to the target it needs; empty for any"
     )
-    raw_raid_boss_ids: str = Field(
-        alias="raidBossID",
-        default="",
-        description="Comma-separated raid boss ids the effect is tied to; empty means any raid boss",
+    raid_boss_ids: tuple[GameDataId["RaidBoss"], ...] = Field(
+        alias="raidBossID", default=(), description="Raid bosses it is tied to; empty for none in particular"
     )
 
-    @property
-    def area_type_ids(self) -> tuple[int, ...]:
-        """Area types this effect applies to; empty means every area."""
-        return parse_ids(self.raw_area_type_ids)
+    @field_validator("area_type_ids", "space_ids", "raid_boss_ids", mode="before")
+    @classmethod
+    def _id_lists(cls, value: object) -> object:
+        # EffectVO.parseXML (bundle line 41702): getIntArrayFromString of each, comma separated
+        return _id_list(value)
 
     def applies_to_area(self, area_type: int | None) -> bool:
         """Whether the effect counts against a target of this area type; None or below 0 is every area.
@@ -513,11 +537,6 @@ class EffectDef(_Row):
         if not allowed or area_type is None or area_type < 0:
             return True
         return area_type in allowed
-
-    @property
-    def space_ids(self) -> tuple[int, ...]:
-        """Castle spaces this effect is limited to; empty means every space."""
-        return parse_ids(self.raw_space_ids)
 
     def applies_to_space(self, space_id: int | None) -> bool:
         """Whether the effect counts in this castle space; None or below 0 is every space.
@@ -539,16 +558,6 @@ class EffectDef(_Row):
         if not self.player_relation or relation is None:
             return True
         return self.player_relation == relation
-
-    @property
-    def raid_boss_ids(self) -> tuple[int, ...]:
-        """
-        Raid bosses this effect is tied to; empty means none in particular.
-
-        Client: ``EffectVO.parseXML`` reads ``raidBossID`` as a comma-separated
-        int list (bundle line 41702).
-        """
-        return parse_ids(self.raw_raid_boss_ids)
 
     def is_for_raid_boss(self, raid_boss_id: int) -> bool:
         """
@@ -677,6 +686,10 @@ class EffectValue(_EffectEntry):
     ``#`` (``EffectValueIdList``, bundle line 62242). Which one applies needs the effect types table, so
     ``values`` keeps the numbers in that structure: ``10`` is ``((10,),)``, ``686+30#687+30`` is
     ``((686, 30), (687, 30))`` and ``1#2`` is ``((1,), (2,))``.
+
+    The numbers stay plain even where they are ids: the key of a ``wodID+value`` pair is a wod id
+    (``EffectValueWodID`` reads ``Number`` of it), and an id list names whatever its effect type
+    unlocks, so which table they index depends on the effect type, not on the column.
     """
 
     id_field: ClassVar[str] = "effect_id"
@@ -787,7 +800,7 @@ class GeneralSkillDef(EffectSpecRow):
     """One level of a general's skill."""
 
     skill_id: GameDataId["GeneralSkill"] = Field(alias="skillID", description="The general skill")
-    general_id: int = Field(alias="generalID", default=0)
+    general_id: GameDataId["General"] = Field(alias="generalID", default=0, description="The general it belongs to")
     name: str = ""
     skill_group_id: int = Field(alias="skillGroupID", default=0)
     level: int = 0
@@ -802,7 +815,7 @@ class FortificationDef(_Row):
     reads 70 and protects by 0.70 once scaled.
     """
 
-    wod_id: int = Field(alias="wodID")
+    wod_id: GameDataId["Building"] = Field(alias="wodID", description="The wall, gate or moat")
     label: str = Field(alias="comment2", default="")
     level: int = 0
     wall_bonus: float = Field(alias="wallBonus", default=0)
@@ -820,7 +833,7 @@ class RelicEffectDef(_Row):
     """
 
     relic_effect_id: int = Field(alias="id")
-    effect_id: int = Field(alias="effectID", default=0)
+    effect_id: GameDataId["Effect"] = Field(alias="effectID", default=0, description="The effect it resolves to")
     minimum_value: float = Field(alias="minimumValue", default=0)
     maximum_value: float = Field(alias="maximumValue", default=0)
     relic_effect_type: GameDataKey[RelicEffectType] = Field(
@@ -836,10 +849,14 @@ class EquipmentEffectDef(_Row):
     """
 
     equipment_effect_id: int = Field(alias="equipmentEffectID", description="The id an item's bonus row names")
-    effect_id: int = Field(alias="effectID", default=-1, description="The effect it resolves to; -1 when unset")
+    effect_id: GameDataId["Effect"] = Field(
+        alias="effectID", default=-1, description="The effect it resolves to; -1 when unset"
+    )
     bonus: int = Field(default=0, description="Bonus value")
-    wearer_id: int = Field(alias="wearerID", default=-1, description="Who can roll it (WearerType); -1 when unset")
-    raw_item_group_ids: str = Field(alias="itemGroupID", default="", description="Comma-separated item group ids")
+    wearer_id: GameDataId[WearerType] = Field(alias="wearerID", default=-1, description="Who can roll it")
+    item_group_ids: tuple[GameDataId["EquipmentGroup"], ...] = Field(
+        alias="itemGroupID", default=(), description="The item groups that can roll it"
+    )
     ignore_cap: bool = Field(alias="ignoreCap", default=False, description="The bonus escapes its effect's cap")
 
     @field_validator("bonus", mode="before")
@@ -854,9 +871,10 @@ class EquipmentEffectDef(_Row):
         # CastleXMLUtils.getBooleanAttribute (bundle line 1033): "0" != value
         return value if isinstance(value, bool) else str(value) != "0"
 
-    @property
-    def item_group_ids(self) -> tuple[int, ...]:
-        return parse_ids(self.raw_item_group_ids)
+    @field_validator("item_group_ids", mode="before")
+    @classmethod
+    def _item_groups(cls, value: object) -> object:
+        return _id_list(value)
 
 
 class GemDef(EffectSpecRow):
@@ -1003,7 +1021,7 @@ class DefaultLordDef(EquipmentEffectSpecRow):
 
     lord_id: int = Field(alias="lordID")
     lord_type: str = Field(alias="type", default="")
-    wearer_id: int = Field(alias="wearerID", default=0)
+    wearer_id: GameDataId[WearerType] = Field(alias="wearerID", default=0, description="Who wears it")
 
 
 class GeneralAbilityDef(_Row):
@@ -1147,7 +1165,7 @@ class DungeonDefence(_Row):
     """
 
     count_victories: int = Field(alias="countVictories", default=0)
-    kingdom_id: int = Field(alias="kID", default=0)
+    kingdom_id: GameDataId[Kingdom] = Field(alias="kID", default=0, description="The kingdom")
     lord_id: int = Field(alias="lordID", default=0)
     skip_costs: int = Field(alias="skipCosts", default=0)
     raw_units_left: str = Field(alias="unitsL", default="")
@@ -1262,7 +1280,7 @@ class LeagueBracketDef(_Row):
     league_type_id: int | None = Field(
         alias="leaguetypeID", default=None, description="League type id; None when the row has none"
     )
-    event_id: int | None = Field(
+    event_id: GameDataId["Event"] | None = Field(
         alias="eventID", default=None, description="The event it belongs to; -1 for none, None when the row has none"
     )
     sub_type: int = Field(alias="subType", default=0, description="The event's sub type, e.g. a Berimond faction")
