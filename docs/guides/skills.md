@@ -45,7 +45,8 @@ print(skills.legend_skill_ids, skills.total_points, skills.reset_count)
 ```
 
 `legend_skill_ids` are `LegendSkill` members and `sceat_skill_ids` `SceatSkill`
-members; a general's `skill_ids` are `GeneralSkill` members.
+members, as is the `skill_id` of each sceat skill still being activated
+(`activating`); a general's `skill_ids` are `GeneralSkill` members.
 
 The login data carries the list too, and state keeps the last one the server
 sent, so `client.state.get_skills()` reads it without a request (None before

@@ -10,14 +10,18 @@ Commands:
 from __future__ import annotations
 
 from functools import partial
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import BeforeValidator, ConfigDict, Field, field_validator
 
+from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseResponse, readable_list
 from empire_core.protocol.js import ClientInt, ParseInt, js_int, js_loose_equals
 
 from .equipment import RelicGem
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Gem
 
 
 class GemStack(BasePayload):
@@ -25,7 +29,7 @@ class GemStack(BasePayload):
 
     model_config = ConfigDict(frozen=True)
 
-    gem_id: int = Field(description="The gem's id")
+    gem_id: EnumOrInt["Gem"] = Field(description="The gem")
     amount: int = Field(description="How many you hold")
 
 

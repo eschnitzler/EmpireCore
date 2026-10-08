@@ -6,13 +6,18 @@ Client: ``CastleTitleData`` (bundle lines 21000-21130)
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from empire_core.enums import TitleSystem
 from empire_core.gamedata import GameData
 
 from .models.progress import FactionPointsResponse, GloryPointsResponse, TitleRanksResponse
 
+if TYPE_CHECKING:
+    from empire_core.gamedata import Title
 
-def titles_in_order(game_data: GameData, system: TitleSystem) -> list[int]:
+
+def titles_in_order(game_data: GameData, system: TitleSystem) -> list[Title | int]:
     """
     A title system's title ids, from its first title along each title's next one.
 
@@ -21,11 +26,11 @@ def titles_in_order(game_data: GameData, system: TitleSystem) -> list[int]:
     """
     rows = [row for row in game_data.titles.values() if row.title_system == system]
     next_ids = {row.previous_title_id: row.title_id for row in game_data.titles.values() if row.previous_title_id != -1}
-    first: int | None = None
+    first: Title | int | None = None
     for row in rows:
         if row.previous_title_id < 0:
             first = row.title_id
-    ordered: list[int] = []
+    ordered: list[Title | int] = []
     title_id = first
     while title_id is not None and title_id in game_data.titles and len(ordered) <= len(rows):
         ordered.append(title_id)
@@ -33,7 +38,9 @@ def titles_in_order(game_data: GameData, system: TitleSystem) -> list[int]:
     return ordered
 
 
-def held_titles(game_data: GameData, system: TitleSystem, points: float | None, top_rank: int | None) -> list[int]:
+def held_titles(
+    game_data: GameData, system: TitleSystem, points: float | None, top_rank: int | None
+) -> list[Title | int]:
     """
     The glory or Berimond titles you hold, lowest first.
 
@@ -48,7 +55,7 @@ def held_titles(game_data: GameData, system: TitleSystem, points: float | None, 
 
     Client: ``CastleTitleData.setupThisUsersTitlesinSystem`` (bundle line 21048), with ``TitleVO.isTopXTitle``
     """
-    held: list[int] = []
+    held: list[Title | int] = []
     for title_id in titles_in_order(game_data, system):
         row = game_data.titles[title_id]
         if row.top_x > 0:
@@ -61,7 +68,7 @@ def held_titles(game_data: GameData, system: TitleSystem, points: float | None, 
     return held
 
 
-def island_title_chain(game_data: GameData, island_title_id: int) -> list[int]:
+def island_title_chain(game_data: GameData, island_title_id: int) -> list[Title | int]:
     """
     The island titles you hold with one: it and every title below it, lowest first.
 
@@ -71,8 +78,8 @@ def island_title_chain(game_data: GameData, island_title_id: int) -> list[int]:
 
     Client: ``CastleTitleData.getUsersTitleVectorFromSystem`` for ``ISLAND_TITLE`` (bundle line 21119)
     """
-    chain: list[int] = []
-    title_id: int | None = island_title_id
+    chain: list[Title | int] = []
+    title_id: Title | int | None = island_title_id
     while title_id is not None and title_id in game_data.titles and title_id not in chain:
         chain.insert(0, title_id)
         title_id = game_data.titles[title_id].previous_title_id
@@ -84,7 +91,7 @@ def player_title_ids(
     glory: GloryPointsResponse | None,
     faction: FactionPointsResponse | None,
     ranks: TitleRanksResponse | None,
-) -> list[int]:
+) -> list[Title | int]:
     """
     Every title you hold, as the client lists them: glory, then Berimond, then Storm Islands.
 

@@ -199,6 +199,7 @@ class TestPlayerSkills:
 
         assert response.reset_count == 2
         assert [(s.skill_id, s.remaining_seconds) for s in response.activating] == [(91, 3600)]
+        assert isinstance(response.activating[0].skill_id, SceatSkill)
 
 
 class TestObjectUpdate:

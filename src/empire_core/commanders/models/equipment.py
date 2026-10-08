@@ -9,13 +9,17 @@ from __future__ import annotations
 
 import logging
 from functools import partial
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import BeforeValidator, Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
 from empire_core.enums import EquipmentSlot, EquipmentType, Rareness, WearerType
+from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, enum_or_none, read_or_none, readable_list
 from empire_core.protocol.js import ClientInt, js_int, js_string
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Gem
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +180,7 @@ class Equipment(BasePayload):
     duration_seconds: int | float = Field(
         default=0, description="Seconds until the item expires; below 1 it is permanent"
     )
-    gem_id: ClientInt = Field(default=NO_GEM_ID, description="Slotted gem id; -1 for none")
+    gem_id: EnumOrInt["Gem"] | None = Field(default=None, description="The slotted gem; None for none")
     equipment_type: ClientInt = Field(default=EquipmentType.GENERATED, description="EquipmentType value")
     relic_info: RelicInfo | None = Field(
         default=None, description="A relic item's type, category, might and gem; None for other items"
@@ -196,6 +200,13 @@ class Equipment(BasePayload):
             return None
         return read_or_none(handler, value)
 
+    @field_validator("gem_id", mode="before")
+    @classmethod
+    def _gem(cls, value: Any) -> Any:
+        # Client: int(e[10]), a gem unless NO_GEM_ID (BasicEquipmentVO.parseEquipFromArray, bundle lines 7116-7117)
+        gem_id = js_int(value)
+        return None if gem_id == NO_GEM_ID else gem_id
+
     @field_validator("alien_string", mode="before")
     @classmethod
     def _alien_text(cls, value: Any) -> Any:
@@ -210,7 +221,7 @@ class Equipment(BasePayload):
     @property
     def has_gem(self) -> bool:
         """True when a gem is slotted."""
-        return self.gem_id != NO_GEM_ID
+        return self.gem_id is not None
 
     @property
     def has_set(self) -> bool:

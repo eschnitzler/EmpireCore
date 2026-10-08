@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from empire_core.enums import CollectableKind, SpyType
-from empire_core.gamedata import Tool, Unit
+from empire_core.gamedata import Horse, Title, Tool, Unit
 from empire_core.protocol.base import Position, parse_response
 from empire_core.protocol.models import (
     CancelMovementRequest,
@@ -117,6 +117,7 @@ class TestMalformedMovementBatch:
             "area_type": 1,
         }
         assert record.faction is not None and record.faction.title_id == 103
+        assert (record.title_prefix_id, record.title_suffix_id) == (Title.KNIGHT, None)
 
     def test_spy_and_market_blocks(self):
         spy = GetMovementsResponse.model_validate(
@@ -183,6 +184,14 @@ class TestMalformedMovementBatch:
     def test_unknown_wrapper_keys_are_kept(self):
         wrapper = GetMovementsResponse.model_validate({"M": [{**GOOD_MOVEMENT, "NEW": 1}]}).movements[0]
         assert wrapper.model_extra == {"NEW": 1}
+
+    def test_the_horse_booster_is_a_horse_or_none(self):
+        def horse(sent: Any) -> Any:
+            movement = {**GOOD_MOVEMENT, "M": {**GOOD_MOVEMENT["M"], "HBW": sent}}
+            return GetMovementsResponse.model_validate({"M": [movement]}).movements[0].movement.horse_booster
+
+        # BasicMapmovementVO reads int(t.HBW); -1 is no horse
+        assert (horse(1002), horse("1002"), horse(-1), horse(None)) == (Horse.WARHORSE_STABLE1,) * 2 + (None, None)
 
     def test_numeric_strings_are_coerced_rather_than_rejected(self):
         # GGE has sent numbers as strings before; lax coercion is what keeps a
