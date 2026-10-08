@@ -45,6 +45,12 @@ class TestSlots:
 
         assert army.slots == ((601, 10), (601, 2), (601, 3))
 
+    def test_a_short_pair_reads_its_missing_places_as_0(self):
+        # int(i.shift()) of an empty array is int(undefined), 0: no unit, so an empty slot
+        army = Army.model_validate({"slots": [[], [601]]})
+
+        assert army.slots == (EMPTY_SLOT, WodAmount(Unit.SWORDMAN, 0))
+
     def test_an_empty_slot_logs_no_unknown_id(self, caplog):
         with caplog.at_level(logging.WARNING, logger="empire_core.gamedata.lenient"):
             army = Army.model_validate({"slots": [[-1, 0]]})
@@ -72,6 +78,12 @@ class TestSlots:
         assert Army.model_validate({"slots": {Unit.SWORDMAN: 10}}).slots == ((601, 10),)
         assert WodAmount.slots(slots) == slots
 
+    def test_pairs_as_lists_are_read_as_a_packets_are(self):
+        slots = WodAmount.slots([[601, 10], [-1, 0], [1, 2]])
+
+        assert slots == (WodAmount(Unit.SWORDMAN, 10), EMPTY_SLOT, WodAmount(Tool.NOMAD_TABLET_BOOST, 2))
+        assert all(type(slot) is WodAmount for slot in slots)
+
 
 class TestInventory:
     def test_an_id_sent_twice_adds_up_and_nothing_is_dropped_below_one(self):
@@ -92,6 +104,12 @@ class TestSupportTools:
 
         assert army.support == (None, Tool.NOMAD_TABLET_BOOST, None)
         assert army.model_dump(exclude_none=True)["support"] == [-1, 1, -1]
+
+    def test_a_tool_is_read_through_the_clients_int(self):
+        # parseSupportTools hands each id to fillFromWodAmountArray, which reads int(i[0])
+        army = Army.model_validate({"support": ["-1", "1", None, Tool.LADDER]})
+
+        assert army.support == (None, Tool.NOMAD_TABLET_BOOST, None, Tool.LADDER)
 
 
 class TestCurrencyAmounts:

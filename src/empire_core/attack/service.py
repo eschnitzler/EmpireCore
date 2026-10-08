@@ -104,7 +104,7 @@ class AttackService(BaseService):
         capacity: WaveCapacity | None = None,
         yard_capacity: int | None = None,
         support_tools: Sequence[Tool | int | None] | None = None,
-        collector_booster: Mapping[CurrencyId, int] | None = None,
+        collector_booster: Mapping[CurrencyId, int] | Mapping[int, int] | None = None,
         send_anyway: bool = False,
         min_soldiers: int | None = None,
         timeout: float = 5.0,

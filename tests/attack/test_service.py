@@ -204,6 +204,13 @@ class TestAttackService:
 
         assert conn(client).request_payloads[0][1]["RW"] == [[487, 300]]
 
+    def test_collector_boosters_take_plain_currency_ids_as_units_do(self):
+        client = make_client(castles=OWN)
+
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 0, collector_booster={31: 2})
+
+        assert conn(client).request_payloads[0][1]["BKS"] == [[31, 2]]
+
     def test_no_courtyard_wave_sends_an_empty_rw(self):
         client = make_client(castles=OWN)
 
