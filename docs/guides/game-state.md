@@ -88,6 +88,7 @@ every value is as old as the last packet that carried it:
 | Castle names, positions, the castle list | `gcl`, `mir` (pushed) | log in again |
 | Castle resources, units and details | `dcl` | `client.castle.get_details(castle_id)` |
 | Castle units, as new ones arrive | `rue` (pushed) | `client.castle.get_details(castle_id)` |
+| Castle resources, after an action that spends or brings them | `grc` and the replies that carry one (building, recruiting, research, ...) | `client.castle.get_resources(castle_id)` |
 | Castle open-gate counter | `gcl`, `kik` (pushed, resets it on Mondays) | log in again |
 | Joined castle, slum level, builder discount | `jaa` (the join reply), `csl`, `gab` (pushed) | `client.castle.join(castle_id)` |
 | Joined castle's mines | `gsm` (pushed), the `jaa` and `cmr` replies | `client.castle.join(castle_id)` |
