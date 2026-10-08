@@ -243,7 +243,7 @@ class TestLoading:
         GameData.load(cache_dir=tmp_path)
 
         cached = json.loads((tmp_path / "items_v783.01.trimmed.json").read_text())
-        # Trimmed: the combat tables only, never the whole payload.
+        # The modeled tables only, never the whole payload; typed tables, rewards among them, sit under table_rows
         assert "version" in cached and "units" in cached["table_rows"] and "tools" in cached["table_rows"]
         assert "rewards" not in cached and "mainquests" not in cached
 

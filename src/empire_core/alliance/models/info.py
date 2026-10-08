@@ -36,7 +36,7 @@ from empire_core.protocol.js import (
 from empire_core.protocol.text import decode_json_text
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import AllianceCrestLayout
+    from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout
 
 logger = logging.getLogger(__name__)
 
@@ -249,8 +249,8 @@ class CrestLayout(BasePayload):
     """
     One crest layout the alliance holds: an entry of the ain block's ``ACLS``.
 
-    The client reads the colours from ``ACLCS``; live replies have been seen
-    carrying ``ACCS`` there instead, which stays in the extra fields.
+    The client stores the colours from ``ACLCS`` and never reads them; live replies have been
+    seen carrying ``ACCS`` there instead, which stays in the extra fields.
 
     Client: ``AllianceInfoVO.fillFromParamObject`` (bundle line 25932)
     """
@@ -260,7 +260,9 @@ class CrestLayout(BasePayload):
     )
     seconds_left: int | float = Field(alias="ACLET", default=0, description="Seconds until the layout ends")
     is_active: bool = Field(alias="ACIA", default=False, description="The layout is the one in use")
-    colors: Any = Field(alias="ACLCS", default=None, description="The layout's colours, as sent")
+    color_ids: tuple[Annotated[EnumOrInt["AllianceCrestColor"], BeforeValidator(js_int)], ...] | None = Field(
+        alias="ACLCS", default=None, description="The layout's colours, as ACCS names them; None when unsent"
+    )
 
     @field_validator("layout_id", mode="before")
     @classmethod
@@ -272,6 +274,11 @@ class CrestLayout(BasePayload):
     @classmethod
     def _seconds(cls, value: Any) -> Any:
         return js_number_or_none(value) or 0
+
+    @field_validator("color_ids", mode="before")
+    @classmethod
+    def _colors(cls, value: Any) -> Any:
+        return value if isinstance(value, list) else None
 
     @field_validator("is_active", mode="before")
     @classmethod

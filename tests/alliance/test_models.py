@@ -16,7 +16,7 @@ from empire_core.alliance.models.help import (
 )
 from empire_core.alliance.models.info import AllianceInfo, AllianceMember, AllianceStorage, GetAllianceInfoResponse
 from empire_core.enums import AllianceChronicleAction, AllianceRank, HelpType
-from empire_core.gamedata import AllianceCrestLayout
+from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout
 from empire_core.protocol.models import parse_response
 
 
@@ -403,8 +403,8 @@ class TestAllianceInfoOffersAndCrests:
         info = AllianceInfo.model_validate(
             {"AID": 1, "ACLS": [{"ACLI": 4, "ACLET": 86400, "ACIA": 1, "ACLCS": [1, 2]}, {"ACLI": 5}, 7]}
         )
-        assert [(c.layout_id, c.seconds_left, c.is_active, c.colors) for c in info.crest_layouts] == [
-            (4, 86400, True, [1, 2]),
+        assert [(c.layout_id, c.seconds_left, c.is_active, c.color_ids) for c in info.crest_layouts] == [
+            (4, 86400, True, (AllianceCrestColor.COLOR_1, AllianceCrestColor.COLOR_2)),
             (5, 0, False, None),
         ]
         assert info.crest_layouts[0].layout_id is AllianceCrestLayout.FREE_4
@@ -521,7 +521,7 @@ class TestReviewFollowUps:
 
     def test_live_acls_colours_under_accs_stay_extra(self):
         (layout,) = AllianceInfo.model_validate({"AID": 1, "ACLS": [{"ACLI": 4, "ACCS": [1, 2]}]}).crest_layouts
-        assert layout.colors is None
+        assert layout.color_ids is None
         assert layout.model_extra == {"ACCS": [1, 2]}
 
     def test_a_help_entry_with_a_name_that_is_not_text_is_kept(self):

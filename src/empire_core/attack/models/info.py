@@ -19,7 +19,7 @@ from empire_core.enums import Kingdom
 from empire_core.gamedata import EnumOrInt
 from empire_core.map.models.areas import MapObject
 from empire_core.map.models.items import MapAreaItem
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, read_or_none, readable_list
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, int_entries, read_or_none, readable_list
 
 if TYPE_CHECKING:
     from empire_core.combat import Bonus
@@ -188,6 +188,12 @@ class AttackInfoResponse(BaseResponse):
         if not value:
             return None
         return read_or_none(handler, value, warn=logger, what="the defending castellan of an attack pre-calculation")
+
+    @field_validator("defender_legend_skill_ids", mode="before")
+    @classmethod
+    def _legend_skills(cls, value: object) -> list[int]:
+        # Client: parseArmyInfo(t.S, t.AS, a, t.LS) (bundle line 30633), each looked up as sent by getSkillByID
+        return int_entries(value, warn=logger, what="legend skills of an attack pre-calculation")
 
     @model_validator(mode="after")
     def _no_spy_report_without_an_army(self) -> "AttackInfoResponse":
