@@ -7,12 +7,14 @@ from pydantic import BaseModel
 
 from empire_core.enums import BoosterId, CollectableKind, Rareness
 from empire_core.gamedata import (
+    AllianceCrestLayout,
     Building,
     Collectable,
     CollectableObject,
     CollectableRows,
     ConstructionItem,
     Currency,
+    Gem,
     LootBox,
     Tool,
     Unit,
@@ -146,7 +148,7 @@ class TestRewardRow:
 
         assert [(c.kind, c.item, c.amount, c.duration_seconds) for c in rewards] == [
             (CollectableKind.VIP_TIME, None, 1, 25200),
-            (CollectableKind.ALLIANCE_CREST_LAYOUT, 11, 1, 777600),
+            (CollectableKind.ALLIANCE_CREST_LAYOUT, AllianceCrestLayout.ALIEN_MENACE_EMBLEM, 1, 777600),
             (CollectableKind.EQUIPMENT_UNIQUE, 338, 1, None),
             (CollectableKind.GEM_RANDOM, -4, 1, None),
         ]
@@ -165,6 +167,55 @@ class TestRewardRow:
         ]
 
 
+class TestMerged:
+    """CollectableList.combineDuplicatedItems with each item class's isCombineAbleWith and combineWith."""
+
+    def test_vip_time_and_crest_layouts_add_their_durations(self):
+        merged = Collectable.merged(
+            [
+                Collectable.from_entry("VT", 3600),
+                Collectable.from_entry("VT", 600),
+                Collectable.from_entry("ACL", {"ACLI": 11, "D": 100}),
+                Collectable.from_entry("ACL", {"ACLI": 4, "D": 50}),
+                Collectable.from_entry("ACL", {"ACLI": 11, "D": 20}),
+            ]
+        )
+
+        assert [(c.kind, c.item, c.amount, c.duration_seconds) for c in merged] == [
+            (CollectableKind.VIP_TIME, None, 1, 4200),
+            (CollectableKind.ALLIANCE_CREST_LAYOUT, AllianceCrestLayout.ALIEN_MENACE_EMBLEM, 1, 120),
+            (CollectableKind.ALLIANCE_CREST_LAYOUT, AllianceCrestLayout.FREE_4, 1, 50),
+        ]
+
+    def test_kinds_without_an_override_add_up_by_kind(self):
+        # ACollectableItemLootBoxVO keeps the default, so a second, different box adds into the first
+        merged = Collectable.merged(
+            [
+                Collectable.from_entry("LB", [1, 2]),
+                Collectable.from_entry("LB", [37, 3]),
+                Collectable.from_entry("RP_OLD", [0, 5]),
+                Collectable.from_entry("RP_OLD", [0, 7]),
+            ]
+        )
+
+        assert _short(merged) == [
+            (CollectableKind.LOOT_BOX, LootBox.MYSTERY_BOX_BRONZE_R1, 5),
+            (CollectableKind.RESOURCE_POINTS, None, 12),
+        ]
+
+    def test_one_off_kinds_never_add_up(self):
+        entries = [
+            ("GID", 333),
+            ("GID", 333),
+            ("CS", 5),
+            ("CS", 5),
+            ("B", {"ID": 6, "D": 60}),
+            ("B", {"ID": 6, "D": 60}),
+        ]
+
+        assert len(Collectable.merged([Collectable.from_entry(key, entry) for key, entry in entries])) == 6
+
+
 class TestKinds:
     @pytest.mark.parametrize(
         ("key", "entry", "kind", "item", "amount"),
@@ -179,7 +230,7 @@ class TestKinds:
             ("LB", 1, CollectableKind.LOOT_BOX, LootBox.MYSTERY_BOX_BRONZE_R1, 1),
             ("GE", 3, CollectableKind.EQUIPMENT_RARENESS, Rareness.EPIC, 1),
             ("GE", 12, CollectableKind.HERO_RANDOM, Rareness.HERO_RARE, 1),
-            ("GID", 333, CollectableKind.GEM, 333, 1),
+            ("GID", 333, CollectableKind.GEM, Gem.IGNIS, 1),
             ("GLID", -2, CollectableKind.GEM_RANDOM, 2, 1),
             ("XP", [250], CollectableKind.XP, None, 250),
             ("GT", [7, 2], CollectableKind.GIFT_PACKAGE, 7, 2),

@@ -57,7 +57,7 @@ class MovementArea(BasePayload):
 
     ``area_type``, ``x`` and ``y`` are the first three positions, which every area type has;
     ``item`` is the whole row read by the area type's own parser, None when the client reads
-    no row of that type or a value is of the wrong kind. The row carries no kingdom of its own,
+    no row of that type, or (with a warning) when a value is of the wrong kind. The row carries no kingdom of its own,
     so it is read in the movement's ``KID``: build one from ``{"row": [...], "kingdom": KID}``,
     or from the bare row, read in the green kingdom.
 
@@ -81,10 +81,11 @@ class MovementArea(BasePayload):
         if not isinstance(data, list) or len(data) < 3:
             return data
         try:
-            item = MapAreaItem.from_list(data, enum_or_none(Kingdom, js_int(kingdom)) or Kingdom.GREEN)
+            values = MapAreaItem.row_values(data, enum_or_none(Kingdom, js_int(kingdom)) or Kingdom.GREEN)
         except ValueError:
-            logger.debug(f"Unreadable movement area row {data!r:.200}")
-            item = None
+            # parseWorldMapArea reads no row of this type either, and the movement falls back to a dummy area
+            return {"area_type": data[0], "x": data[1], "y": data[2]}
+        item = read_or_none(lambda row: MapAreaItem(**row), values, warn=logger, what="a movement's area row")
         return {"area_type": data[0], "x": data[1], "y": data[2], "item": item}
 
     @property

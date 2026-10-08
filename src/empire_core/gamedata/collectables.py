@@ -26,9 +26,22 @@ from empire_core.protocol.js import js_int, js_number_or_none, js_parse_int, js_
 from .lenient import EnumOrInt, known
 
 if TYPE_CHECKING:
-    from .ids import Building, ConstructionItem, Currency, CurrencyId, LootBox, Tool, Unit
+    from .ids import AllianceCrestLayout, Building, ConstructionItem, Currency, CurrencyId, Gem, LootBox, Tool, Unit
 
-    CollectableItem = Unit | Tool | Building | ConstructionItem | Currency | LootBox | BoosterId | Rareness | int | str
+    CollectableItem = (
+        Unit
+        | Tool
+        | Building
+        | ConstructionItem
+        | Currency
+        | LootBox
+        | Gem
+        | AllianceCrestLayout
+        | BoosterId
+        | Rareness
+        | int
+        | str
+    )
 else:
 
     def _item(value: Any) -> Any:
@@ -190,6 +203,18 @@ def _booster(entry: Any) -> dict[str, Any]:
     return {"duration_seconds": _number(_at(entry, 1)), "value": entry}
 
 
+def _gem(entry: Any) -> dict[str, Any]:
+    from .ids import Gem
+
+    return {"item": known(Gem, js_int(entry))}
+
+
+def _crest_layout(layout_id: Any) -> Any:
+    from .ids import AllianceCrestLayout
+
+    return known(AllianceCrestLayout, js_int(layout_id))
+
+
 def _rareness(entry: Any) -> dict[str, Any]:
     if _is_id(entry):
         return {"item": known(Rareness, entry)}
@@ -242,7 +267,7 @@ _READERS: dict[CollectableKind, Callable[[Any], dict[str, Any]]] = {
     CollectableKind.LOOT_BOX: _loot_box,
     CollectableKind.EQUIPMENT_RARENESS: _rareness,
     CollectableKind.HERO_RANDOM: _rareness,
-    CollectableKind.GEM: _id,
+    CollectableKind.GEM: _gem,
     CollectableKind.GEM_RANDOM: lambda entry: {"item": -js_int(entry)},
     CollectableKind.EQUIPMENT_UNIQUE: _id,
     CollectableKind.EQUIPMENT_UNIQUE_ENCHANTED: lambda entry: {"item": js_int(_at(entry, 0)), "value": entry},
@@ -257,7 +282,7 @@ _READERS: dict[CollectableKind, Callable[[Any], dict[str, Any]]] = {
     CollectableKind.RESOURCE_POINTS: lambda entry: {"amount": _at(entry, 1)},
     CollectableKind.VIP_TIME: lambda entry: {"duration_seconds": _number(entry)},
     CollectableKind.ALLIANCE_CREST_LAYOUT: lambda entry: {
-        "item": js_int(entry.get("ACLI")) if isinstance(entry, dict) else None,
+        "item": _crest_layout(entry.get("ACLI")) if isinstance(entry, dict) else None,
         "duration_seconds": _number(entry.get("D")) if isinstance(entry, dict) else None,
     },
 }
@@ -314,7 +339,7 @@ _XML_READERS: dict[CollectableKind, Callable[[str], dict[str, Any]]] = {
     CollectableKind.UNITS: _xml_item_and_amount(lambda: (_ids().Unit, _ids().Tool)),
     CollectableKind.LOOT_BOX: _xml_item_and_amount(lambda: _ids().LootBox),
     CollectableKind.EQUIPMENT_RARENESS: lambda text: _rareness(js_int(text)),
-    CollectableKind.GEM: lambda text: {"item": js_int(text)},
+    CollectableKind.GEM: _gem,
     CollectableKind.GEM_RANDOM: lambda text: {"item": -js_int(text)},
     CollectableKind.EQUIPMENT_UNIQUE: lambda text: {"item": js_int(text)},
     CollectableKind.EQUIPMENT_UNIQUE_ENCHANTED: lambda text: {"item": _parts(text)[0], "value": text},
@@ -337,7 +362,7 @@ _XML_READERS: dict[CollectableKind, Callable[[str], dict[str, Any]]] = {
     },
     CollectableKind.GIFT_PACKAGE: lambda text: {"item": _parts(text)[0], "amount": _at(_parts(text), 1)},
     CollectableKind.ALLIANCE_CREST_LAYOUT: lambda text: {
-        "item": _parts(text)[0],
+        "item": _crest_layout(_parts(text)[0]),
         "duration_seconds": _at(_parts(text), 1),
     },
 }
@@ -355,16 +380,33 @@ Client: ``CollectableItemRelicVO`` (bundle line 10481), ``CollectableItemBuildin
 ``CollectableItemGiftPackageVO`` (89066), ``CollectableItemAllianceCrestLayoutVO`` (89335)
 """
 
-_MERGED_BY_KIND = frozenset(
+_NEVER_MERGED = frozenset(
     {
-        *_GOODS,
-        CollectableKind.VIP_POINTS,
-        CollectableKind.XP,
-        CollectableKind.PLAGUE_DOCTORS,
-        CollectableKind.ACHIEVEMENT_POINTS,
-        CollectableKind.PAYMENT_DOUBLER,
+        *_BOOSTER_FAMILY,
+        CollectableKind.RELIC_EQUIPMENT,
+        CollectableKind.EQUIPMENT_RARENESS,
+        CollectableKind.HERO_RANDOM,
+        CollectableKind.EQUIPMENT_UNIQUE,
+        CollectableKind.EQUIPMENT_UNIQUE_ENCHANTED,
+        CollectableKind.GEM,
+        CollectableKind.GEM_RANDOM,
+        CollectableKind.CONSTRUCTION_ITEM_BLUEPRINT,
+        CollectableKind.SKIP_DISCOUNT,
+        CollectableKind.EXTINGUISH_FIRE,
+        CollectableKind.ALIEN_PROTECTION,
+        CollectableKind.CREST_SYMBOL,
+        CollectableKind.ALLIANCE_GIFT,
+        CollectableKind.PERMANENT_UNIT_SLOT,
+        CollectableKind.PERMANENT_TOOL_SLOT,
+        CollectableKind.GIFT_PACKAGE,
+        CollectableKind.OTHER,
     }
 )
+"""The kinds the client never adds up: their item classes' ``isCombineAbleWith`` is false (bundle lines 10512,
+11934, 17778, 21218, 49268, 88255, 88595, 88635, 88660, 88762, 88814, 88840, 88861, 89073). ``OTHER`` has no
+item class at all.
+"""
+
 _MERGED_BY_ITEM = frozenset(
     {
         CollectableKind.CURRENCY,
@@ -372,13 +414,19 @@ _MERGED_BY_ITEM = frozenset(
         CollectableKind.BUILDING,
         CollectableKind.CONSTRUCTION_ITEM,
         CollectableKind.MATERIAL_BAG,
+        CollectableKind.ALLIANCE_CREST_LAYOUT,
     }
 )
-"""The kinds whose duplicates in one list the client adds up: any two of a kind, or two of one item.
-
-Client: ``CollectableList.combineDuplicatedItems`` (bundle line 1887) with ``ACollectableItemVO.isCombineAbleWith``
-(bundle line 3569) and the overrides comparing ids (bundle lines 5271, 10648, 12267, 15487, 88920)
+"""The kinds the client adds up only for one item: the overrides comparing ids (bundle lines 5271, 10648, 12267,
+15487, 88920, 89340). Every other kind adds up by kind alone (``ACollectableItemVO.isCombineAbleWith``, bundle
+line 3569), loot boxes included: ``ACollectableItemLootBoxVO`` keeps that default, so two different boxes add up
+into the first one's box.
 """
+
+_MERGED_DURATIONS = frozenset(
+    {CollectableKind.VIP_TIME, CollectableKind.DUNGEON_PROTECTION, CollectableKind.ALLIANCE_CREST_LAYOUT}
+)
+"""The kinds whose ``combineWith`` adds the durations, not the amounts (bundle lines 45722, 37087, 89342)."""
 
 
 def is_reward_column(column: str) -> bool:
@@ -392,9 +440,9 @@ class Collectable(BaseModel):
 
     ``item`` is what the entry names, for the kinds that name one: the unit or tool for
     ``UNITS``, the ``Currency`` for ``CURRENCY``, the ``BoosterId`` for a booster, the loot box,
-    building or construction item, the rareness of a random equipment, or the id of a gem,
-    equipment, crest symbol, gift package or material bag. ``amount`` is how many; an entry that
-    names an item without a count is 1.
+    building, construction item, gem or crest layout, the rareness of a random equipment, or the
+    id of an equipment, crest symbol, gift package or material bag, which no enum names.
+    ``amount`` is how many; an entry that names an item without a count is 1.
 
     Client: ``CollectableHelper.getTypeByServerKey`` and ``createVO`` (bundle lines 1603-1629),
     then the item class's ``parseServerObject``
@@ -563,28 +611,42 @@ class Collectable(BaseModel):
     @staticmethod
     def merged(collectables: Iterable[Collectable]) -> tuple[Collectable, ...]:
         """
-        The collectables with the duplicates the client adds up added up, each into the first of its kind or item.
+        The collectables with the duplicates the client adds up added up, each into the first it adds up with.
 
-        Client: ``CollectableList.combineDuplicatedItems`` (bundle line 1887)
+        Most kinds add up by kind; currencies, units, buildings, construction items, material bags
+        and crest layouts only for the same item; boosters, equipment, gems, relics and the other
+        one-off kinds never. VIP time, dungeon protection and crest layouts add their durations, the
+        others their amounts. Two different loot boxes add up into the first one's box, as in the
+        client. The client also requires the same grant type, which a collectable does not carry:
+        the collectables of one reward share theirs, so merge only collectables of one grant type.
+
+        Client: ``CollectableList.combineDuplicatedItems`` (bundle line 1887), ``isCombineAbleWith`` and
+        ``combineWith`` of ``ACollectableItemVO`` (bundle lines 3569, 3558) and its overrides
         """
         merged: list[Collectable] = []
         for collectable in collectables:
             same = next(
-                (
-                    index
-                    for index, kept in enumerate(merged)
-                    if kept.kind is collectable.kind
-                    and (
-                        kept.kind in _MERGED_BY_KIND or (kept.kind in _MERGED_BY_ITEM and kept.item == collectable.item)
-                    )
-                ),
+                (index for index, kept in enumerate(merged) if kept._adds_up_with(collectable)),
                 None,
             )
             if same is None:
                 merged.append(collectable)
             else:
-                merged[same] = merged[same].model_copy(update={"amount": merged[same].amount + collectable.amount})
+                merged[same] = merged[same]._added(collectable)
         return tuple(merged)
+
+    def _adds_up_with(self, other: Collectable) -> bool:
+        if self.kind is not other.kind or self.kind in _NEVER_MERGED:
+            return False
+        return self.kind not in _MERGED_BY_ITEM or self.item == other.item
+
+    def _added(self, other: Collectable) -> Collectable:
+        if self.kind in _MERGED_DURATIONS:
+            if self.duration_seconds is None and other.duration_seconds is None:
+                return self
+            duration = (self.duration_seconds or 0) + (other.duration_seconds or 0)
+            return self.model_copy(update={"duration_seconds": duration})
+        return self.model_copy(update={"amount": self.amount + other.amount})
 
     @classmethod
     def _from_xml(cls, kind: CollectableKind, text: str) -> Collectable:
