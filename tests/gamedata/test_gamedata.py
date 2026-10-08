@@ -17,7 +17,7 @@ from typing import get_args, get_origin
 import pytest
 from pydantic import BaseModel
 
-from empire_core.enums import Kingdom, ToolCategory, ToolSide, UnitRole
+from empire_core.enums import CollectableKind, Kingdom, ToolCategory, ToolSide, UnitRole
 from empire_core.exceptions import AmbiguousLookupError, NetworkError
 from empire_core.gamedata import (
     Effect,
@@ -27,6 +27,7 @@ from empire_core.gamedata import (
     UnitStats,
     cache,
     cdn,
+    collectables,
     parse_ids,
     parse_stacks,
 )
@@ -840,16 +841,33 @@ class TestCacheSchemaFingerprint:
     def test_a_stale_cache_is_ignored(self, tmp_path):
         data = GameData.parse("1.0", {"units": [{"wodID": 1, "name": "Barracks", "role": "melee"}]})
         cache = tmp_path / "items_v1.0.trimmed.json"
-        cache.write_text(data.model_dump_json())
+        data._write_cache(cache)
 
         assert GameData._read_cache(cache, "1.0") is not None
 
         # A cache from a model that had fewer columns.
-        stale = data.model_dump()
+        stale = json.loads(cache.read_text())
         stale["schema_fingerprint"] = "0" * 12
         cache.write_text(json.dumps(stale))
 
         assert GameData._read_cache(cache, "1.0") is None
+
+    def test_a_cache_whose_table_text_changed_is_ignored_not_read_late(self, tmp_path, caplog):
+        data = GameData.parse("1.0", {"units": [{"wodID": 1, "name": "Barracks", "role": "melee"}]})
+        cache = tmp_path / "items_v1.0.trimmed.json"
+        data._write_cache(cache)
+        payload = json.loads(cache.read_text())
+        payload["table_rows"]["rewards"] = "{not json"
+        cache.write_text(json.dumps(payload))
+
+        assert GameData._read_cache(cache, "1.0") is None
+        assert "its tables changed after it was written" in caplog.text
+
+    def test_a_new_reward_column_changes_the_fingerprint(self, monkeypatch):
+        before = data_module._schema_fingerprint()
+        monkeypatch.setitem(collectables._KINDS_BY_XML_KEY, "newRewardColumn", CollectableKind.WOOD)
+
+        assert data_module._schema_fingerprint() != before
 
     def test_a_cache_without_a_fingerprint_is_ignored(self, tmp_path):
         # Every cache written before this existed.

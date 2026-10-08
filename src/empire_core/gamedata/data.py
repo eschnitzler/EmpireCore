@@ -31,7 +31,7 @@ from empire_core.enums import Kingdom, UnitRole
 from empire_core.exceptions import AmbiguousLookupError, NetworkError
 
 from . import cache, cdn
-from .collectables import Collectable, is_reward_column
+from .collectables import _KINDS_BY_XML_KEY, _XML_ADD_PREFIX, Collectable, is_reward_column
 from .lenient import GameDataId
 from .models import (
     READING_CACHE,
@@ -190,14 +190,16 @@ def _schema_fingerprint() -> str:
     and wrongly, and a changed default leaves the old default in the file.
     Fingerprinting the field names, aliases and defaults, GameData's own
     tables and how their rows are stored (each table as JSON text, decoded
-    the first time it is read), means any such change invalidates the cache
-    instead. The aliases count because the lazily read tables keep only the
-    columns they name.
+    the first time it is read, under a digest), means any such change invalidates
+    the cache instead. The aliases count because the lazily read tables keep only
+    the columns they name, and the reward columns for the same reason: a ``rewards``
+    row keeps only the columns :func:`is_reward_column` names.
     """
     tables = [
         f"GameData:{','.join(sorted(GameData.model_fields))}",
         f"tables:{sorted(_TABLES.items())}",
-        "table_rows:json-text",
+        f"reward_columns:{sorted(_KINDS_BY_XML_KEY)},{_XML_ADD_PREFIX}*",
+        "table_rows:json-text,sha256",
     ]
     for model in _CACHED_MODELS:
         fields = ",".join(
@@ -205,6 +207,14 @@ def _schema_fingerprint() -> str:
         )
         tables.append(f"{model.__name__}:{fields}")
     return hashlib.sha256(";".join(tables).encode()).hexdigest()[:12]
+
+
+def _tables_digest(texts: Mapping[str, str]) -> str:
+    """A hash of the cached tables' JSON text, so a table changed after it was written is caught on load."""
+    digest = hashlib.sha256()
+    for name in sorted(texts):
+        digest.update(f"{name}\0{texts[name]}\0".encode())
+    return digest.hexdigest()
 
 
 def _is_tool(entry: dict[str, Any]) -> bool:
@@ -1055,6 +1065,7 @@ class GameData(BaseModel):
         try:
             payload = json.loads(cache_file.read_text(encoding="utf-8"))
             table_rows = payload.pop("table_rows", {})
+            table_digest = payload.pop("table_digest", None)
             token = READING_CACHE.set(True)
             try:
                 data = cls.model_validate(payload)
@@ -1071,13 +1082,17 @@ class GameData(BaseModel):
         if not isinstance(table_rows, dict) or not all(isinstance(text, str) for text in table_rows.values()):
             logger.warning(f"Ignoring unreadable game data cache {cache_file}: its tables are not JSON text")
             return None
+        if table_digest != _tables_digest(table_rows):
+            logger.warning(f"Ignoring unreadable game data cache {cache_file}: its tables changed after it was written")
+            return None
         data._table_rows = _TableRows(table_rows)
         logger.debug(f"Loaded game data v{version} from {cache_file}")
         return data
 
     def _write_cache(self, cache_file: Path) -> None:
         try:
-            payload = {**self.model_dump(mode="json"), "table_rows": self._table_rows.as_text()}
+            tables = self._table_rows.as_text()
+            payload = {**self.model_dump(mode="json"), "table_rows": tables, "table_digest": _tables_digest(tables)}
             cache.write_atomic(cache_file, json.dumps(payload, separators=(",", ":")))
         except OSError as e:
             # A read-only cache dir must not fail the load.
