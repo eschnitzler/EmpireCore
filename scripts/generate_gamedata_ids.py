@@ -20,7 +20,10 @@ language file (or ``--texts``), and the ones used are kept in
 regenerates the same names offline, and a renamed text shows up as a diff. Each member also
 carries its row's fixed id and number columns to filter on (a level, a unit's
 role, a tool's category), but not the name and type text its name is built
-from; an enum with none is plain ``NAME = id``. Output is sorted
+from; an enum with none is plain ``NAME = id``. A table with a text id the
+client names its rows by gets ``display_name(lang)``, which reads that text at
+run time; the same text id names the members, and a member carries it as
+``text_id`` where the id does not follow from its value. Output is sorted
 by id and formatted the way ``ruff format`` leaves it, so regenerating from the
 same data changes nothing.
 """
@@ -75,6 +78,38 @@ class Row:
 
 
 @dataclass(frozen=True)
+class DisplayName:
+    """The text id the client names a row by, which names the member and its ``display_name`` reads."""
+
+    key: str
+    """A format string over ``value`` and the member's attributes, e.g. ``event_title_{value}``."""
+    client: str
+    arg: str | None = None
+    """The attribute that fills the text's ``{0}``."""
+    optional: bool = False
+    """Some rows have no text id (an empty ``text_id``)."""
+    shown: str = ""
+    """The text id as the docs show it, when ``key`` is an attribute."""
+
+    def __call__(self, **fields: object) -> str:
+        return self.key.format(**fields)
+
+    @property
+    def documented(self) -> str:
+        return self.shown or re.sub(r"\{(\w+)\}", r"<\1>", self.key)
+
+    @property
+    def stored(self) -> bool:
+        """Members carry the text id as their ``text_id`` attribute rather than build it from their value."""
+        return self.key == "{text_id}"
+
+    @property
+    def expression(self) -> str:
+        """The key as Python over ``self``."""
+        return 'f"' + re.sub(r"\{(\w+)\}", r"{self.\1}", self.key) + '"'
+
+
+@dataclass(frozen=True)
 class Table:
     """One generated enum."""
 
@@ -87,6 +122,7 @@ class Table:
     rows: list[Row]
     attrs: tuple[Attr, ...] = ()
     str_enum: bool = False
+    display: DisplayName | None = None
 
 
 @contextmanager
@@ -197,6 +233,39 @@ def level_suffix(level: int) -> str:
 
 
 LEVEL = Attr("level", "int", "Upgrade level; -1 when the row has none.")
+TEXT_ID = Attr("text_id", "str", "The text id the game names it by, which ``display_name`` reads.")
+
+UNIT_NAME = DisplayName("{text_id}", "``BasicUnitVO.getNameString`` (bundle line 19219)", shown="<type>_name")
+CURRENCY_NAME = DisplayName(
+    "{text_id}",
+    "``CollectableItemGenericCurrencyVO.getNameTextId`` (bundle line 5267)",
+    shown="currency_name_<assetName or Name>",
+)
+GENERAL_NAME = DisplayName("generals_characters_{value}_name", "``GeneralXmlVO.nameTextID`` (bundle line 33105)")
+LEGEND_SKILL_NAME = DisplayName(
+    "dialog_legendTemple_{skill_group_id}_name", "``CastleLegendSkillVO.nameTextID`` (bundle line 48669)"
+)
+RESEARCH_TITLE = DisplayName(
+    "research_{group_id}_title",
+    "``ResearchVO.nameTextId`` (bundle line 61480); a blueprint or recipe research is named from other tables, "
+    "which is not done here",
+)
+EVENT_TITLE = DisplayName("event_title_{value}", "``ASeasonEventVO.seasonNameString`` (bundle line 31389)")
+GEM_NAME = DisplayName(
+    "{text_id}",
+    "``CastleGemVO.nameString`` (bundle line 28321)",
+    arg="level",
+    shown="gem_unique_<reuseAssetOfGemID> or gem_effect_name_<gem type>",
+)
+SCEAT_SKILL_NAME = DisplayName(
+    "dialog_legendTemple_sceat_{skill_group_id}_name", "``CastleSceatSkillVO.nameTextID`` (bundle line 23110)"
+)
+ACHIEVEMENT_NAME = DisplayName("achievementName_{series_id}", "``AchievementSerieVO.nameString`` (bundle line 92822)")
+TITLE_NAME = DisplayName("playerTitle_{value}", "``TitleVO.textID`` (bundle line 62756)")
+CREST_LAYOUT_NAME = DisplayName(
+    "allianceCoat_Layout_name_{value}", "``CollectableItemAllianceCrestLayoutVO.getNameTextId`` (bundle line 89359)"
+)
+MAIN_QUEST_TITLE = DisplayName("mainquest_{value}_title", "the quest book's chapter dialog (bundle line 93386)")
 
 
 def building_name(name: str, building_type: str, level: int) -> str:
@@ -236,31 +305,32 @@ def research_rows(data: GameData, texts: Texts | None) -> list[Row]:
         first_effect = row.effects[0].effect_id if row.effects else None
         effect = data.effects.get(first_effect) if first_effect is not None else None
         recipe = effect is not None and effect.effect_type_id in RECIPE_EFFECT_TYPES
-        title = None if texts is None or recipe else texts.get(f"research_{group_id}_title")
+        text_id = "" if recipe else RESEARCH_TITLE(group_id=group_id)
+        title = texts.get(text_id) if texts is not None and text_id else None
         if title:
             base = text_name(title) + level_suffix(level)
         else:
             base = research_name(row.label, group_id, level)
-        rows.append(Row(base, research_id, str(research_id), (group_id, level)))
+        rows.append(Row(base, research_id, str(research_id), (group_id, level, text_id)))
     return rows
 
 
-def currency_names(data: GameData, texts: Texts | None) -> list[tuple[str, CurrencyDef]]:
+def currency_names(data: GameData, texts: Texts | None) -> list[tuple[str, CurrencyDef, str]]:
     """
-    (name, row) for every currency the server keys: its English name, else its key.
+    (name, row, text id) for every currency the server keys: its English name, else its key.
 
     The client names a currency ``"currency_name_" + (assetName or Name)``
     (``CollectableItemGenericCurrencyVO.getNameTextId`` and ``getNameOrAssetName``, bundle lines 5267
     and 5273). A text id several currencies share (the 80 decoration catalysts) names none of them.
     """
     rows = [row for row in data.currencies.values() if row.json_key]
-    text_ids = {row.currency_id: f"currency_name_{row.asset_name or row.name}" for row in rows}
+    text_ids = {row.currency_id: row.name_text_id for row in rows}
     shared = {text_id for text_id, n in Counter(t.lower() for t in text_ids.values()).items() if n > 1}
     named = []
     for row in rows:
         text_id = text_ids[row.currency_id]
         text = None if texts is None or text_id.lower() in shared else texts.get(text_id)
-        named.append((text_name(text) if text else row.json_key.upper(), row))
+        named.append((text_name(text) if text else row.json_key.upper(), row, text_id))
     return named
 
 
@@ -288,14 +358,16 @@ def gem_rows(data: GameData, texts: Texts | None) -> list[Row]:
         gem_id = int(row.gem_id)
         if row.level == 0:
             asset_id = row.reuse_asset_of_gem_id if row.reuse_asset_of_gem_id > 0 else gem_id
-            name = named(texts, f"gem_unique_{asset_id}")
+            text_id = f"gem_unique_{asset_id}"
+            name = named(texts, text_id)
         else:
             effect = data.effects.get(row.effects[0].effect_id) if row.effects else None
             always = "_100" if row.trigger_chance == 100 else ""
             gem_type = f"gem{effect.name[:1].upper()}{effect.name[1:]}" if effect else ""
-            name = named(texts, f"gem_effect_name_{gem_type}{always}") if gem_type else None
+            text_id = f"gem_effect_name_{gem_type}{always}" if gem_type else ""
+            name = named(texts, text_id) if text_id else None
             name = name + level_suffix(row.level) if name else None
-        rows.append(Row(name or f"GEM_{gem_id}", gem_id, str(gem_id), (row.level, row.set_id)))
+        rows.append(Row(name or f"GEM_{gem_id}", gem_id, str(gem_id), (row.level, row.set_id, text_id)))
     return rows
 
 
@@ -307,7 +379,7 @@ def sceat_skill_rows(data: GameData, texts: Texts | None) -> list[Row]:
     """
     return [
         Row(
-            (named(texts, f"dialog_legendTemple_sceat_{s.skill_group_id}_name") or f"SCEAT_G{s.skill_group_id}")
+            (named(texts, SCEAT_SKILL_NAME(skill_group_id=s.skill_group_id)) or f"SCEAT_G{s.skill_group_id}")
             + level_suffix(s.level),
             int(s.skill_id),
             str(s.skill_id),
@@ -326,7 +398,11 @@ def achievement_rows(data: GameData, texts: Texts | None) -> list[Row]:
     """
     return [
         Row(
-            (named(texts, f"achievementName_{a.series_id}") or condition_name(a.conditions) or f"SERIES_{a.series_id}")
+            (
+                named(texts, ACHIEVEMENT_NAME(series_id=a.series_id))
+                or condition_name(a.conditions)
+                or f"SERIES_{a.series_id}"
+            )
             + level_suffix(a.series_number),
             int(a.achievement_id),
             str(a.achievement_id),
@@ -359,7 +435,7 @@ def main_quest_rows(data: GameData, texts: Texts | None) -> list[Row]:
     for entry in data.raw("mainquests"):
         quest_id = row_id(entry.get("mainQuestID"))
         rows.append(
-            Row(named(texts, f"mainquest_{quest_id}_title") or f"MAIN_QUEST_{quest_id}", quest_id, str(quest_id))
+            Row(named(texts, MAIN_QUEST_TITLE(value=quest_id)) or f"MAIN_QUEST_{quest_id}", quest_id, str(quest_id))
         )
     return rows
 
@@ -392,10 +468,16 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "Unit ``wodID`` values from the ``units`` table (rows without ``slotTypes``).",
             "``SoldierUnitVO.parseXmlNode`` (bundle line 12531)",
             [
-                Row(to_snake(u.unit_type) + level_suffix(u.level), u.wod_id, str(u.wod_id), (u.level, u.role))
+                Row(
+                    to_snake(u.unit_type) + level_suffix(u.level),
+                    u.wod_id,
+                    str(u.wod_id),
+                    (u.level, u.role, u.name_text_id),
+                )
                 for u in data.units.values()
             ],
-            (LEVEL, Attr("role", "str", "melee or ranged.")),
+            (LEVEL, Attr("role", "str", "melee or ranged."), TEXT_ID),
+            display=UNIT_NAME,
         ),
         Table(
             "tools",
@@ -404,10 +486,16 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "Tool ``wodID`` values from the ``units`` table (rows with ``slotTypes``).",
             "``ToolUnitVO.parseXmlNode`` (bundle line 6538)",
             [
-                Row(to_snake(t.tool_type) + level_suffix(t.level), t.wod_id, str(t.wod_id), (t.level, t.category))
+                Row(
+                    to_snake(t.tool_type) + level_suffix(t.level),
+                    t.wod_id,
+                    str(t.wod_id),
+                    (t.level, t.category, t.name_text_id),
+                )
                 for t in data.tools.values()
             ],
-            (LEVEL, Attr("category", "str", 'Attack or Defence; "0" when the row has none.')),
+            (LEVEL, Attr("category", "str", 'Attack or Defence; "0" when the row has none.'), TEXT_ID),
+            display=UNIT_NAME,
         ),
         Table(
             "effects",
@@ -434,9 +522,13 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "name; coins and rubies are not in it.",
             "``CurrencyData.getXmlCurrencyByKey`` (bundle line 141194); names from ``currency_name_<assetName or "
             "Name>`` (``CollectableItemGenericCurrencyVO.getNameTextId``, bundle line 5267)",
-            [Row(key, row.json_key, str(row.currency_id), (row.currency_id,)) for key, row in currencies],
-            (Attr("currency_id", "int", "The currency's id, as other tables reference it."),),
+            [
+                Row(key, row.json_key, str(row.currency_id), (row.currency_id, text_id))
+                for key, row, text_id in currencies
+            ],
+            (Attr("currency_id", "int", "The currency's id, as other tables reference it."), TEXT_ID),
             str_enum=True,
+            display=CURRENCY_NAME,
         ),
         Table(
             "currencies",
@@ -444,8 +536,12 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "C",
             "Currency ids from the ``currencies`` table, as other tables reference them; names match ``Currency``.",
             "``XmlCurrencyVO.parseXml`` (bundle line 141282)",
-            [Row(key, row.currency_id, str(row.currency_id), (row.json_key,)) for key, row in currencies],
-            (Attr("json_key", "str", "The key the server uses for it, a ``Currency`` value."),),
+            [
+                Row(key, row.currency_id, str(row.currency_id), (row.json_key, text_id))
+                for key, row, text_id in currencies
+            ],
+            (Attr("json_key", "str", "The key the server uses for it, a ``Currency`` value."), TEXT_ID),
+            display=CURRENCY_NAME,
         ),
         Table(
             "generals",
@@ -455,6 +551,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "``GeneralXmlVO.fillFromParamXml`` (bundle line 33102)",
             [Row(to_snake(g.name), g.general_id, str(g.general_id), (g.rarity_id,)) for g in data.generals.values()],
             (Attr("rarity_id", "int", "The ``generalRarityID`` column."),),
+            display=GENERAL_NAME,
         ),
         Table(
             "general_abilities",
@@ -510,6 +607,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
                 Attr("skill_group_id", "int", "The group its levels share."),
                 LEVEL,
             ),
+            display=LEGEND_SKILL_NAME,
         ),
         Table(
             "raid_bosses",
@@ -546,7 +644,8 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "``AResearchVO.fillFromParamXML`` (bundle line 61502), which does not read ``comment2``; titles "
             "from ``ResearchVO.nameTextId`` (bundle line 61480)",
             research_rows(data, texts),
-            (Attr("group_id", "int", "The group the research's levels share."), LEVEL),
+            (Attr("group_id", "int", "The group the research's levels share."), LEVEL, TEXT_ID),
+            display=DisplayName("{text_id}", RESEARCH_TITLE.client, optional=True, shown="research_<groupID>_title"),
         ),
         Table(
             "construction_items",
@@ -580,6 +679,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
                 Row(to_snake(e.event_type) or f"E{e.event_id}", int(e.event_id), str(e.event_id))
                 for e in data.events.values()
             ],
+            display=EVENT_TITLE,
         ),
         Table(
             "loot_boxes",
@@ -668,7 +768,12 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "Gem ids from the ``gems`` table, named from the game's English name and, unless unique, level.",
             "``CastleGemVO.parseXML`` (bundle line 28287); names from ``CastleGemVO.nameString`` (bundle line 28321)",
             gem_rows(data, texts),
-            (Attr("level", "int", "Gem level; 0 for a unique gem."), Attr("set_id", "int", "Its set; -1 for none.")),
+            (
+                Attr("level", "int", "Gem level; 0 for a unique gem."),
+                Attr("set_id", "int", "Its set; -1 for none."),
+                TEXT_ID,
+            ),
+            display=GEM_NAME,
         ),
         Table(
             "sceat_skills",
@@ -682,6 +787,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
                 Attr("skill_tree_id", "int", "The tree it sits in."),
                 LEVEL,
             ),
+            display=SCEAT_SKILL_NAME,
         ),
         Table(
             "achievements",
@@ -696,6 +802,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
                 Attr("series_id", "int", "The series it is a step of."),
                 Attr("series_number", "int", "Its step in the series."),
             ),
+            display=ACHIEVEMENT_NAME,
         ),
         Table(
             "horses",
@@ -715,7 +822,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "``TitleVO.parseXml`` (bundle line 62705); names from ``TitleVO.textID`` (bundle line 62756)",
             [
                 Row(
-                    named(texts, f"playerTitle_{t.title_id}") or f"TITLE_{t.title_id}",
+                    named(texts, TITLE_NAME(value=t.title_id)) or f"TITLE_{t.title_id}",
                     int(t.title_id),
                     str(t.title_id),
                     (str(getattr(t.title_system, "value", t.title_system)),),
@@ -723,6 +830,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
                 for t in data.titles.values()
             ],
             (Attr("title_system", "str", "Its title system, a ``TitleSystem`` value."),),
+            display=TITLE_NAME,
         ),
         Table(
             "alliance_crests",
@@ -734,7 +842,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "``CollectableItemAllianceCrestLayoutVO.getNameTextId`` (bundle line 89359)",
             [
                 Row(
-                    named(texts, f"allianceCoat_Layout_name_{c.layout_id}") or c.label or f"LAYOUT_{c.layout_id}",
+                    named(texts, CREST_LAYOUT_NAME(value=c.layout_id)) or c.label or f"LAYOUT_{c.layout_id}",
                     int(c.layout_id),
                     str(c.layout_id),
                     (c.color_count,),
@@ -742,6 +850,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
                 for c in data.alliance_crest_layouts.values()
             ],
             (Attr("color_count", "int", "Colours it takes."),),
+            display=CREST_LAYOUT_NAME,
         ),
         Table(
             "alliance_crests",
@@ -765,6 +874,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "``CastleQuestBookMainQuestListVO.parseListsFromParamObject`` (bundle line 52419); names from "
             "``mainquest_<id>_title`` (bundle line 93386)",
             main_quest_rows(data, texts),
+            display=MAIN_QUEST_TITLE,
         ),
         Table(
             "difficulty_types",
@@ -817,6 +927,46 @@ def wrapped(text: str) -> list[str]:
     return textwrap.wrap(text, LINE_LENGTH, initial_indent="    ", subsequent_indent="    ", break_on_hyphens=False)
 
 
+def display_name_lines(display: DisplayName) -> list[str]:
+    """
+    The ``display_name`` method, the member's text in a language through ``empire_core.texts.text``, and
+    a ``text_id`` property where members do not carry it.
+
+    Client: ``Localize.text`` (dll line 3278), with the text id the client class reads.
+    """
+    key = display.documented
+    text_id: list[str] = []
+    if not display.stored:
+        text_id = [
+            "    @property",
+            "    def text_id(self) -> str:",
+            f'        """The text id of its name, ``{key}``."""',
+            f"        return {display.expression}",
+            "",
+        ]
+    args = ", ".join(["self.text_id", *([f"self.{display.arg}"] if display.arg else []), "lang=lang"])
+    returns = "str | None" if display.optional else "str"
+    doc = [
+        f"The game's name for it in ``lang``, the text ``{key}``"
+        + (f", its ``{{0}}`` filled with the {display.arg}" if display.arg else "")
+        + ("; None for a row without one" if display.optional else "")
+        + ".",
+        "",
+        "Fetches the language file on first use and caches it (:func:`empire_core.texts.text`); a text "
+        "the file lacks, or a failed fetch, gives the text id.",
+        "",
+        f"Client: {display.client}",
+    ]
+    body = f"text({args})"
+    if display.optional:
+        body = f"{body} if self.text_id else None"
+    out = [*text_id, f'    def display_name(self, lang: str = "en") -> {returns}:', '        """']
+    indent = " " * 8
+    for paragraph in doc:
+        out += textwrap.wrap(paragraph, LINE_LENGTH, initial_indent=indent, subsequent_indent=indent) or [""]
+    return [*out, '        """', f"        return {body}"]
+
+
 def class_lines(table: Table, named: list[tuple[str, Value]]) -> list[str]:
     base = "str" if table.str_enum else "int"
     out = [f"class {table.enum}({'str, Enum' if table.str_enum else 'IntEnum'}):"]
@@ -829,6 +979,8 @@ def class_lines(table: Table, named: list[tuple[str, Value]]) -> list[str]:
         out += [f"        member = {base}.__new__(cls, value)", "        member._value_ = value"]
         out += [f"        member.{a.name} = {a.name}" for a in table.attrs]
         out.append("        return member")
+    if table.display:
+        out += ["", *display_name_lines(table.display)]
     by_value = {row.value: row.attrs for row in table.rows}
     if named:
         out.append("")
@@ -844,6 +996,8 @@ def render_module(version: str, enums: Iterable[tuple[Table, list[tuple[str, Val
     if any(t.attrs for t, _ in enums):
         out += ["from __future__ import annotations", ""]
     out.append(f"from enum import {', '.join(bases)}")
+    if any(t.display for t, _ in enums):
+        out += ["", "from empire_core.texts import text"]
     for table, named in enums:
         out += ["", "", *class_lines(table, named)]
     return "\n".join(out) + "\n"
@@ -865,6 +1019,12 @@ Most members also carry their row's fixed id and number columns, e.g.
 Anything a balance patch can change is not baked in: for the full row, load a
 :class:`GameData` (nothing here downloads it) and index its table with the
 member, e.g. ``game_data.units[Unit.MEAD_RANGER_L6]``.
+
+Enums whose rows the game names by a text (units, tools, currencies,
+researches, generals, legend and sceat skills, events, gems, achievements,
+titles, crest layouts, main quests) have ``display_name(lang="en")``, the
+name the game shows: ``Unit.MEAD_RANGER_L6.display_name("de")``. It reads the
+language file, fetched on first use and cached (:mod:`empire_core.texts`).
 
 ``ITEMS_VERSION`` is the items version they were generated from, and
 :func:`is_current` says whether a loaded :class:`GameData` is that version. For

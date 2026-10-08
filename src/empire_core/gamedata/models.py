@@ -230,6 +230,11 @@ class UnitStats(_UnitRow):
     def _type(cls, value: object) -> object:
         return cls._type_attribute(value)
 
+    @property
+    def name_text_id(self) -> str:
+        """The text id of its name, ``<type>_name`` in lower case: ``BasicUnitVO.getNameString`` (bundle line 19219)."""
+        return f"{self.unit_type.lower()}_name"
+
     @field_validator("role", mode="before")
     @classmethod
     def _role(cls, value: object) -> object:
@@ -357,6 +362,11 @@ class ToolStats(_UnitRow):
     @classmethod
     def _type(cls, value: object) -> object:
         return cls._type_attribute(value)
+
+    @property
+    def name_text_id(self) -> str:
+        """The text id of its name, ``<type>_name`` in lower case: ``BasicUnitVO.getNameString`` (bundle line 19219)."""
+        return f"{self.tool_type.lower()}_name"
 
     @field_validator("category", mode="before")
     @classmethod
@@ -1090,6 +1100,16 @@ class CurrencyDef(_Row):
     @classmethod
     def _parse_int(cls, value: object) -> int:
         return _parse_int_or_default(value, -1)
+
+    @property
+    def name_text_id(self) -> str:
+        """
+        The text id of its name, ``currency_name_<assetName or Name>``.
+
+        Client: ``CollectableItemGenericCurrencyVO.getNameTextId`` and ``getNameOrAssetName`` (bundle lines 5267
+        and 5273)
+        """
+        return f"currency_name_{self.asset_name or self.name}"
 
 
 class VipLevelDef(_Row):

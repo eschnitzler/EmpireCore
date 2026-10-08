@@ -48,6 +48,10 @@ names a horse only by its place in the travel dialog;
 `AllianceCrestLayout.FREE_1`), and a crest colour, which has neither, is named
 by its id and carries its hex colour (`AllianceCrestColor.COLOR_1.color`).
 
+The text a member is named from is also its name at run time, in any
+language: `Unit.MEAD_RANGER_L6.display_name("de")`, with its text id as
+`.text_id`. See [Game texts](texts.md#display-names).
+
 ## Members are plain values
 
 Members are plain ints (`Currency` members plain strs), so they go straight

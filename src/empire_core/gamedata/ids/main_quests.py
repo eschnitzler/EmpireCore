@@ -2,6 +2,8 @@
 
 from enum import IntEnum
 
+from empire_core.texts import text
+
 
 class MainQuest(IntEnum):
     """
@@ -10,6 +12,22 @@ class MainQuest(IntEnum):
     Client: ``CastleQuestBookMainQuestListVO.parseListsFromParamObject`` (bundle line 52419); names from
     ``mainquest_<id>_title`` (bundle line 93386)
     """
+
+    @property
+    def text_id(self) -> str:
+        """The text id of its name, ``mainquest_<value>_title``."""
+        return f"mainquest_{self.value}_title"
+
+    def display_name(self, lang: str = "en") -> str:
+        """
+        The game's name for it in ``lang``, the text ``mainquest_<value>_title``.
+
+        Fetches the language file on first use and caches it (:func:`empire_core.texts.text`); a text the file lacks, or
+        a failed fetch, gives the text id.
+
+        Client: the quest book's chapter dialog (bundle line 93386)
+        """
+        return text(self.text_id, lang=lang)
 
     BRAVERY_AND_LUCK_IN_BATTLE = 1
     THE_DAMSEL_IN_DISTRESS = 2

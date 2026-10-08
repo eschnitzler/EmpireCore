@@ -18,6 +18,7 @@ case-insensitive ``GlobalizeTextProcessor``, read through ``Localize.text`` (dll
 """
 
 import logging
+import math
 import re
 import threading
 import time
@@ -224,6 +225,10 @@ def _number(
     Client: ``GlobalizeTextProcessor.number`` (dll line 22959) and ``shortenLargeNumber`` (dll line 23000);
     ``texts`` is read for the ``k`` or ``M`` only when a number is abbreviated, and a missing one is left out.
     """
+    if math.isnan(value):
+        return "NaN"
+    if math.isinf(value):
+        return "-∞" if value < 0 else "∞"
     digits = digits if digits > -1 else FRACTIONAL_DIGITS
     if not compact or -ABBREVIATION_THRESHOLD < value < ABBREVIATION_THRESHOLD:
         return _decimal_text(value, digits, grouping, lang)

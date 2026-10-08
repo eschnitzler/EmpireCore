@@ -76,3 +76,58 @@ except CommandError as e:
 ```
 
 Event titles come from the same file; see [Events](events.md).
+
+## Display names
+
+The [game-data id enums](game-data-ids.md) whose rows the game names by a
+text have `display_name(lang="en")`: units, tools, currencies, researches,
+generals, legend and sceat skills, events, gems, achievements, titles,
+alliance crest layouts and main quests. Each member's `text_id` is the text
+id the game reads for it, so `cached_text(member.text_id)` is the variant
+that never downloads.
+
+```python
+from empire_core.enums import AllianceRank, Kingdom
+from empire_core.gamedata import Currency, Event, Gem, Research, Unit
+from empire_core.texts import cached_text, text
+
+Unit.MEAD_RANGER_L6.display_name()            # "Mead ranger": the type's name, without the level
+Currency.SKIP_5_MINUTES.display_name("de")    # in German
+Gem.GEM_OF_THE_RESERVES_L6.display_name()     # the gem's name with its level filled in
+Event.NOMAD_INVASION.text_id                  # "event_title_5"
+Research.BEEFSTORAGE_G193_L1.display_name()   # None: a blueprint or recipe research is named
+                                              # from other tables, which is not done here
+cached_text(Unit.MEAD_RANGER_L6.text_id)      # None until the English texts are loaded
+
+text(Kingdom.SANDS.text_id)                   # "The Burning Sands"
+text(AllianceRank.COLEADER.text_id)           # "Deputy"
+```
+
+`Kingdom` and `AllianceRank` live with the other hand-written enums, which
+import nothing, so they carry only their `text_id`: read it with `text()`.
+The enum member names come from the same English texts when the enums are
+generated, so a member's name and its English display name agree.
+
+## Effect descriptions
+
+`describe_effect()` writes one bonus with its value the way the game's
+tooltips do, and `describe_effects()` a row's bonuses one per line. It needs a
+loaded [`GameData`](game-data.md) to know what the effect is and how its value
+reads (one number, a value per unit, a list of unlocked ids, ...).
+
+```python
+from empire_core.gamedata import EffectTemplate, GameData, describe_effect, describe_effects
+
+game_data = GameData.load()
+item = game_data.construction_items[1]
+describe_effects(item.effects, game_data)                 # "-5% recruitment costs"
+
+gem = game_data.gems[55]
+describe_effect(gem.effects[0], game_data, EffectTemplate.EQUIPMENT, trigger_chance=gem.trigger_chance)
+```
+
+The template says where the description is shown: `CONSTRUCTION_ITEM`
+(`ci_effect_<name>`, the default), `BUILDING` (`effect_name_<name>`) or
+`EQUIPMENT` (`equip_effect_description_<name>`, also for gems; an equipment
+item's bonus, an `EquipmentEffectValue`, always reads this way). A gem that
+does not always trigger reads its chance first, as in the game.
