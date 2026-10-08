@@ -30,14 +30,17 @@ fills them:
   fraction digits (a half rounds up), and from 100,000 on abbreviated with
   the language's own `k` and `M`.
 - A string that is a text id goes in as that text; any other string as it is.
+  Wrap a name in `PlainText` to put it in as it is either way, as the game
+  does with player and alliance names.
 - `True` and `None` count as the numbers 1 and 0, as in JavaScript.
 
 ```python
-from empire_core.texts import LocalizedNumber, fill, number, text
+from empire_core.texts import LocalizedNumber, PlainText, fill, number, text
 
 text("travelSpeedBonusPerField", 1234.567, 150000)   # "+1,234.57% for every 150k fields"
 text("travelSpeedBonusPerField", 1234, 5, grouping=False)  # "+1234% for every 5 fields"
 text("travelSpeedBonusPerField", LocalizedNumber(250000), 5)  # "+250,000% ...": not abbreviated
+text("dialog_alliance_chronic9", PlainText("12345"))  # "... changed to: 12345", not "12,345"
 
 number(1500000, compact=True)                 # "1.5M"
 number(1234.5, lang="de")                     # "1.234,5"

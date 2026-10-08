@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, ClassVar
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from empire_core.enums import (
+    AllianceBuffType,
     CastleEffect,
     Kingdom,
     MapItemType,
@@ -845,7 +846,9 @@ class AllianceBuffDef(EffectSpecRow):
     """One level of an alliance buff."""
 
     alliance_buff_id: int = Field(alias="allianceBuffID")
-    series_id: int = Field(alias="allianceBuffSeriesID", default=0)
+    series_id: GameDataId[AllianceBuffType] = Field(
+        alias="allianceBuffSeriesID", default=0, description="The upgrade or boost the level belongs to"
+    )
     level: int = 0
     max_level: int = Field(alias="maxLevel", default=0)
 

@@ -17,6 +17,7 @@ from empire_core.protocol.errors import GGEError
 from empire_core.texts import (
     RETRY_AFTER_FAILURE,
     LocalizedNumber,
+    PlainText,
     cached_text,
     fill,
     get_texts,
@@ -161,6 +162,7 @@ class TestLocalizedArguments:
                 "+3.1% for every 250,000 fields",
             ),
             ((LocalizedNumber(250000, compact=True), 0), "+250k% for every 0 fields"),
+            ((PlainText("150000"), PlainText("dialog_OK")), "+150000% for every dialog_OK fields"),
         ],
     )
     def test_like_the_castle_client(
