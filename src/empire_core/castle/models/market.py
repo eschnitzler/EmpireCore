@@ -8,11 +8,12 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from collections.abc import Mapping
+from typing import Annotated, Any
 
-from pydantic import Field, field_validator
+from pydantic import BeforeValidator, Field, PlainSerializer, field_validator
 
-from empire_core.enums import Kingdom, MarketScope
+from empire_core.enums import Kingdom, MarketScope, Resource
 from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
@@ -31,6 +32,29 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # CRM - Send Resources
 # =============================================================================
+
+
+def _resource_rows(value: Any) -> Any:
+    """``[[resource_key, amount], ...]`` as ``{Resource: amount}``, a repeated resource added up."""
+    if isinstance(value, Mapping) or not isinstance(value, list | tuple):
+        return value
+    totals: dict[Any, int] = {}
+    for row in value:
+        if isinstance(row, list | tuple) and len(row) >= 2:
+            totals[row[0]] = totals.get(row[0], 0) + row[1]
+    return totals
+
+
+ResourceAmounts = Annotated[
+    dict[Resource, int],
+    BeforeValidator(_resource_rows),
+    PlainSerializer(lambda amounts: [[resource.value, amount] for resource, amount in amounts.items()]),
+]
+"""Resources by amount, sent as ``[[resource_key, amount], ...]`` in insertion order.
+
+Client: ``CollectableParserC2SCosts.createCostsListForServer`` (bundle line 62921) adds up a repeated
+item (``combineDuplicatedItems``) and then writes ``[itemType.serverKey, amount]`` per item
+"""
 
 
 class CreateMarketMovementRequest(BaseRequest):
@@ -68,8 +92,8 @@ class CreateMarketMovementRequest(BaseRequest):
     )
     feathers: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
     slowdown: int = Field(alias="SD", default=0, description="Seconds the arrival is delayed by")
-    goods: list[list[Any]] = Field(
-        alias="G", description="The resources to send, as [Resource value, amount] pairs such as ['W', 1000]"
+    goods: ResourceAmounts = Field(
+        alias="G", description="The amount of each resource to send, sent as [key, amount] pairs such as ['W', 1000]"
     )
 
 

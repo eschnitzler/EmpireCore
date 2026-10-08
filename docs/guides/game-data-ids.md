@@ -91,6 +91,12 @@ rewards = Collectable.from_object({"U": [[664, 5]], "MS2": [1], "C1": [2000]})
 An entry under a key the client has no type for is kept as
 `CollectableKind.OTHER`, with its `key` and the entry as sent in `value`.
 
+Packets read into the same type: a movement's `goods` and a travel
+movement's loot, a battle report participant's `loot`, a spy report's
+`resources`, the time skip a battle found and what an auto-skip cost
+(`auto_skip_paid`) or refunded (`auto_skip_refunded`). So do the items'
+rewards, through `GameData.reward_list`.
+
 ## Keeping them current
 
 `ITEMS_VERSION` is the items version the enums came from, and

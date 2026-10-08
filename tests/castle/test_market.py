@@ -40,10 +40,19 @@ class TestSendResources:
             horse_booster_id=-1,
             feathers=1,
             slowdown=30,
-            goods=[["W", 100]],
+            goods={Resource.WOOD: 100},
         ).to_payload()
         assert payload == {"KID": 2, "SID": 1234, "TX": 10, "TY": 20, "HBW": -1, "PTT": 1, "SD": 30, "G": [["W", 100]]}
         assert list(payload) == ["KID", "SID", "TX", "TY", "HBW", "PTT", "SD", "G"]
+
+    def test_goods_read_as_the_client_s_cost_rows_add_up(self):
+        # CollectableParserC2SCosts.createCostsListForServer combines a repeated item before sending
+        request = CreateMarketMovementRequest.model_validate(
+            {"SID": 1, "TX": 2, "TY": 3, "G": [["W", 100], ["S", 5], ["W", 20]]}
+        )
+
+        assert request.goods == {Resource.WOOD: 120, Resource.STONE: 5}
+        assert request.to_payload()["G"] == [["W", 120], ["S", 5]]
 
     def test_send_resources(self):
         client = make_client(castles=[(1234, Kingdom.ICE)])

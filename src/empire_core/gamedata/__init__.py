@@ -51,7 +51,7 @@ if TYPE_CHECKING:
     )
 
 from .cdn import fetch_items_data, get_items_version
-from .collectables import Collectable, CollectableObject, CollectableRows, CurrencyAmounts
+from .collectables import Collectable, CollectableObject, CollectableRows, CurrencyAmounts, CurrencyIdRows
 from .data import CAMP_TABLES, RAW_TABLES, GameData, default_cache_dir
 from .lenient import EnumOrInt, EnumOrStr, GameDataId, GameDataKey
 from .models import (
@@ -137,6 +137,7 @@ __all__ = [
     "CollectableObject",
     "CollectableRows",
     "CurrencyAmounts",
+    "CurrencyIdRows",
     "EMPTY_SLOT",
     "EMPTY_WOD_ID",
     "SupportToolSlots",
