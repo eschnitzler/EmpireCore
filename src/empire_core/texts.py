@@ -6,6 +6,7 @@ Usage:
 
     text("errorCode_120")                 # "This player's level is too low."
     text("travelSpeedBonusPerField", 5, 10, lang="de")
+    number(250000, compact=True)          # "250k"
 
 The language file (about 30k keys in English) is fetched on the first call that asks
 for a text in that language, cached for 24 hours, and after a failed fetch left alone
@@ -17,12 +18,17 @@ case-insensitive ``GlobalizeTextProcessor``, read through ``Localize.text`` (dll
 """
 
 import logging
+import math
 import re
 import threading
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from decimal import ROUND_FLOOR, Decimal
 
 import requests
+
+from empire_core.protocol.js import js_number_or_none, js_string
 
 logger = logging.getLogger(__name__)
 
@@ -138,13 +144,12 @@ def fill(template: str, *args: object) -> str:
     ``True`` goes in as ``true``, ``2.0`` as ``2`` and ``None`` as ``null``; a placeholder
     without an argument stays as it is.
 
+    This is the client's plain mode, ``localizeReplacements`` off, as
+    ``BasicEnvironmentGlobals`` (dll line 34326) leaves it; the castle client turns it on,
+    which :func:`text` follows. ``fill(get_texts()[key.lower()], ...)`` fills a text plainly.
+
     Client: ``doReplacements`` (dll line 23045), called by ``GlobalizeTextProcessor.getText``
-    (dll line 22948). This is the client's plain mode. The castle client turns
-    ``localizeReplacements`` on (``CastleEnvironmentGlobals``, bundle line 31500, set in
-    ``BasicFrameOne.initLocalizationModule``, dll line 32214), and then
-    ``GlobalizeTextProcessor.text`` (dll line 22957) formats number arguments for the
-    language (grouping, ``k``/``m`` abbreviations) and reads a string argument that is a
-    text id as that text. Neither is done here.
+    (dll line 22948)
     """
 
     def replace(match: re.Match[str]) -> str:
@@ -163,34 +168,193 @@ def fill(template: str, *args: object) -> str:
     return _PLACEHOLDER.sub(replace, template)
 
 
-def text(key: str, *args: object, lang: str = "en") -> str:
+FRACTIONAL_DIGITS = 2
+"""Most fraction digits a number is written with: ``CastleEnvironmentGlobals.fractionalDigits`` (bundle line 31469)."""
+
+ABBREVIATION_THRESHOLD = 100_000
+"""From this size a compact number is abbreviated: ``BasicEnvironmentGlobals.abbreviationThreshold``, dll line 34330."""
+
+# The two locales whose CLDR data the client carries (dll lines 26326 and 29220, both grouping
+# "#,##0.###"); any other it downloads (dll line 22983), which is not done here
+_NUMBER_SYMBOLS = {"en": (".", ","), "de": (",", ".")}
+_ABBREVIATIONS = ((1_000_000, "generic_mformillion"), (1_000, "generic_kforthousand"))
+
+
+@dataclass(frozen=True)
+class LocalizedNumber:
+    """
+    A number argument :func:`text` writes as set here, where a plain number would take the defaults.
+
+    Client: ``LocalizedNumberVO`` (dll line 22822), composed by ``Localize.number``
+    """
+
+    value: float
+    compact: bool = False
+    """Abbreviate from :data:`ABBREVIATION_THRESHOLD` on, as ``250k``."""
+    fractional_digits: int = 0
+    """Most fraction digits; -1 for :data:`FRACTIONAL_DIGITS`."""
+    right_to_left: bool = False
+    """Put a space before the ``k`` or ``M``, as for a right-to-left language."""
+
+
+def _right_to_left(lang: str) -> bool:
+    """Client: ``LanguageVO.isLanguageWrittenRightToLeft`` (dll line 22789)."""
+    return lang == "ar"
+
+
+def _decimal_text(value: float, digits: int, grouping: bool, lang: str) -> str:
+    """
+    ``value`` rounded to at most ``digits`` fraction digits, trailing zeros dropped, grouped by thousands.
+
+    Client: Globalize's ``numberFormatter`` (dll line 5615) with ``minimumFractionDigits`` 0, as
+    ``CastleEnvironmentGlobals.trailingZeros`` (bundle line 31472) is off. It rounds the decimal
+    digits with ``Math.round`` (dll line 5583), so a half goes up: 2.345 is 2.35, -2.345 is -2.34.
+    """
+    decimal_symbol, group_symbol = _NUMBER_SYMBOLS.get(re.sub(r"_\w+", "", lang), _NUMBER_SYMBOLS["en"])
+    shifted = Decimal(js_string(value)).scaleb(digits) + Decimal("0.5")
+    rounded = shifted.to_integral_value(rounding=ROUND_FLOOR).scaleb(-digits)
+    whole, _, fraction = f"{abs(rounded):f}".partition(".")
+    fraction = fraction.rstrip("0")
+    if grouping:
+        whole = re.sub(r"\B(?=(\d{3})+$)", group_symbol, whole)
+    return ("-" if value < 0 else "") + whole + (decimal_symbol + fraction if fraction else "")
+
+
+def _number(
+    value: float,
+    compact: bool,
+    digits: int,
+    right_to_left: bool,
+    grouping: bool,
+    lang: str,
+    texts: Callable[[], Mapping[str, str]],
+) -> str:
+    """
+    Client: ``GlobalizeTextProcessor.number`` (dll line 22959) and ``shortenLargeNumber`` (dll line 23000);
+    ``texts`` is read for the ``k`` or ``M`` only when a number is abbreviated, and a missing one is left out.
+    """
+    if math.isnan(value):
+        return "NaN"
+    if math.isinf(value):
+        return "-∞" if value < 0 else "∞"
+    digits = digits if digits > -1 else FRACTIONAL_DIGITS
+    if not compact or -ABBREVIATION_THRESHOLD < value < ABBREVIATION_THRESHOLD:
+        return _decimal_text(value, digits, grouping, lang)
+    for scale, key in _ABBREVIATIONS:
+        if value <= -scale or value >= scale:
+            space = " " if right_to_left else ""
+            return _decimal_text(value / scale, digits, grouping, lang) + space + texts().get(key, "")
+    return js_string(value)
+
+
+def number(
+    value: float,
+    *,
+    compact: bool = False,
+    fractional_digits: int = -1,
+    right_to_left: bool = False,
+    grouping: bool = True,
+    lang: str = "en",
+) -> str:
+    """
+    ``value`` as the game writes a number: ``1,234.5``, or with ``compact`` from 100,000 on ``250k`` and ``1.5M``.
+
+    At most two fraction digits (or ``fractional_digits``), a half rounded up, no trailing
+    zeros; ``right_to_left`` puts a space before the ``k`` or ``M``. As in the client, both
+    are the caller's to pass, not taken from ``lang``. Only the English and German symbols
+    are known; any other language writes its numbers as English does. A compact number
+    fetches the language file for its ``k`` or ``M`` on first use, as :func:`text` does.
+
+    Client: ``Localize.number`` (dll line 3280) -> ``GlobalizeTextProcessor.number``
+    (dll line 22959), with the castle client's settings (bundle lines 31469 and 31472)
+    """
+    return _number(value, compact, fractional_digits, right_to_left, grouping, lang, lambda: get_texts(lang))
+
+
+def _localized(value: object, texts: Mapping[str, str], grouping: bool, lang: str) -> str:
+    """
+    One argument as the castle client fills it in: a number written for the language, a text id read as its text.
+
+    Client: ``GlobalizeTextProcessor.text`` (dll line 22957) with ``localizeReplacements`` on
+    (``CastleEnvironmentGlobals``, bundle line 31500, applied in ``BasicFrameOne.initLocalizationModule``,
+    dll line 32214). What reads as a number is what ``Number()`` reads as one: ``"12"``, ``True``,
+    and ``None`` (JavaScript's ``null``, which is 0).
+    """
+    if isinstance(value, LocalizedNumber):
+        localized = value.value
+        return _number(
+            localized, value.compact, value.fractional_digits, value.right_to_left, True, lang, lambda: texts
+        )
+    if value == "":
+        return ""
+    as_number = 0 if value is None else js_number_or_none(value)
+    if as_number is not None:
+        right_to_left = _right_to_left(lang)
+        return _number(as_number, not right_to_left, -1, right_to_left, grouping, lang, lambda: texts)
+    if isinstance(value, str):
+        return texts.get(value.lower()) or value
+    return js_string(value)
+
+
+def _filled(template: str, args: tuple[object, ...], texts: Mapping[str, str], grouping: bool, lang: str) -> str:
+    return fill(template, *(_localized(arg, texts, grouping, lang) for arg in args))
+
+
+def text(key: str, *args: object, lang: str = "en", grouping: bool = True) -> str:
     """
     The game's text for ``key`` in ``lang`` with its placeholders filled, or ``key`` itself when there is none.
 
-    Fetches the language file on first use (see :func:`get_texts`); a CDN outage gives the key.
+    Fills the placeholders as the castle client does: a number argument is written for the
+    language (``1,234.5``, from 100,000 on ``250k``; see :func:`number`), a string that is a
+    text id goes in as that text, and a :class:`LocalizedNumber` as it says. Fetches the
+    language file on first use (see :func:`get_texts`); a CDN outage gives the key.
 
     Args:
         key: The text id, any case (``"errorCode_120"``, ``"currency_name_1MinSkip"``)
         args: Values for the ``{0}``, ``{1}``, ... placeholders
         lang: Language code (default: "en")
+        grouping: Group the digits of a number argument by thousands
 
     Client: ``Localize.text`` (dll line 3278) -> ``GlobalizeTextProcessor.text``
-    (dll line 22952): a missing key reads as the key. Arguments go in as :func:`fill`
-    writes them; right-to-left reordering is not done.
+    (dll line 22952): a missing key reads as the key. Right-to-left reordering is not done.
     """
-    found = get_texts(lang).get(key.lower())
-    return fill(found, *args) if found else key
+    texts = get_texts(lang)
+    found = texts.get(key.lower())
+    return _filled(found, args, texts, grouping, lang) if found else key
 
 
-def cached_text(key: str, *args: object, lang: str = "en") -> str | None:
+def has_text(key: str, lang: str = "en") -> bool:
+    """
+    Whether the language file has a non-empty text for ``key``; fetches it on first use, as :func:`text` does.
+
+    Client: ``Localize.hasText`` (dll line 3279) -> ``GlobalizeTextProcessor.hasText`` (dll line 22945)
+    """
+    return bool(get_texts(lang).get(key.lower()))
+
+
+def cached_text(key: str, *args: object, lang: str = "en", grouping: bool = True) -> str | None:
     """
     Like :func:`text`, but only from texts already loaded: never fetches and never waits.
 
     Returns:
         The filled text, or None when ``lang`` is not loaded or has no text for ``key``
     """
-    found = _texts.get(lang, {}).get(key.lower())
-    return fill(found, *args) if found else None
+    texts = _texts.get(lang, {})
+    found = texts.get(key.lower())
+    return _filled(found, args, texts, grouping, lang) if found else None
 
 
-__all__ = ["CACHE_TTL", "RETRY_AFTER_FAILURE", "cached_text", "fetch_texts", "fill", "get_texts", "text"]
+__all__ = [
+    "ABBREVIATION_THRESHOLD",
+    "CACHE_TTL",
+    "FRACTIONAL_DIGITS",
+    "RETRY_AFTER_FAILURE",
+    "LocalizedNumber",
+    "cached_text",
+    "fetch_texts",
+    "fill",
+    "get_texts",
+    "has_text",
+    "number",
+    "text",
+]
