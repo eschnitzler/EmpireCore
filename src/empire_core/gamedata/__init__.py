@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from empire_core.enums import (
     BuildingGroundType,
     BuildingGroup,
+    CastleEffect,
     PlayerRelation,
     QuestConditionType,
     RelicEffectType,
@@ -53,10 +54,18 @@ if TYPE_CHECKING:
 from .cdn import fetch_items_data, get_items_version
 from .collectables import Collectable, CollectableObject, CollectableRows, CurrencyAmounts, CurrencyIdRows
 from .data import CAMP_TABLES, RAW_TABLES, GameData, default_cache_dir
+from .effect_texts import (
+    EffectTemplate,
+    describe_building,
+    describe_construction_item,
+    describe_effect,
+    describe_effects,
+)
 from .lenient import EnumOrInt, EnumOrStr, GameDataId, GameDataKey
 from .models import (
     AllianceBuffDef,
     AttackSlotDef,
+    CastleEffectValue,
     ConstructionItemDef,
     CurrencyDef,
     DefaultLordDef,
@@ -108,6 +117,7 @@ from .tables import (
     AllianceCrestColorDef,
     AllianceCrestLayoutDef,
     BuildingDef,
+    ConstructionItemRecipeDef,
     DailyQuestDef,
     DifficultyTypeDef,
     EquipmentGroupDef,
@@ -126,6 +136,7 @@ from .troops import count_troops, get_troop_ids, troop_data_available
 
 __all__ = [
     "BuildingGroundType",
+    "CastleEffect",
     "BuildingGroup",
     "PlayerRelation",
     "QuestConditionType",
@@ -192,6 +203,7 @@ __all__ = [
     "Unit",
     "AllianceBuffDef",
     "AttackSlotDef",
+    "CastleEffectValue",
     "ConstructionItemDef",
     "CurrencyDef",
     "FortificationDef",
@@ -203,6 +215,7 @@ __all__ = [
     "DungeonDefence",
     "EffectCapDef",
     "EffectDef",
+    "EffectTemplate",
     "EffectTypeDef",
     "EffectValue",
     "EquipmentEffectValue",
@@ -241,9 +254,14 @@ __all__ = [
     "ResearchDef",
     "RewardDef",
     "RewardId",
+    "ConstructionItemRecipeDef",
     "ScalingCampDef",
     "TitleDef",
     "default_cache_dir",
+    "describe_building",
+    "describe_construction_item",
+    "describe_effect",
+    "describe_effects",
     "parse_ids",
     "parse_stacks",
 ]

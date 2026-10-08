@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from enum import IntEnum
 
+from empire_core.texts import has_text, text
+
 
 class General(IntEnum):
     """
@@ -21,6 +23,23 @@ class General(IntEnum):
         member._value_ = value
         member.rarity_id = rarity_id
         return member
+
+    @property
+    def text_id(self) -> str:
+        """The text id of its name, ``generals_characters_<value>_name``."""
+        return f"generals_characters_{self.value}_name"
+
+    def display_name(self, lang: str = "en") -> str | None:
+        """
+        The game's name for it in ``lang``, the text ``generals_characters_<value>_name``; None when the language file
+        has no such text.
+
+        Fetches the language file on first use and caches it (:func:`empire_core.texts.text`); a text the file lacks, or
+        a failed fetch, gives the text id.
+
+        Client: ``GeneralXmlVO.nameTextID`` (bundle line 33105)
+        """
+        return text(self.text_id, lang=lang) if has_text(self.text_id, lang) else None
 
     TORIL = 101, 4
     LEO = 102, 2

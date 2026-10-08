@@ -41,6 +41,7 @@ if TYPE_CHECKING:
         AllianceCrestColor,
         AllianceCrestLayout,
         Building,
+        ConstructionItem,
         DailyQuestId,
         DifficultyType,
         EquipmentGroup,
@@ -852,6 +853,26 @@ class AllianceCrestLayoutDef(EffectSpecRow):
         return _text(value)
 
 
+class ConstructionItemRecipeDef(_Row):
+    """
+    A recipe that crafts a construction item, one of a blueprint's.
+
+    Client: ``ConstructionItemRecipeVO.parseFromXml`` (bundle line 141060), grouped into blueprints by
+    ``ConstructionItemBlueprintData.parseFromXml`` (bundle line 141026)
+    """
+
+    recipe_id: int = Field(alias="constructionItemRecipeID", description="The recipe, as a research unlocks it")
+    blueprint_id: int = Field(alias="blueprintID", default=0, description="The blueprint it belongs to")
+    construction_item_id: GameDataId["ConstructionItem"] = Field(
+        alias="constructionItemID", default=0, description="The construction item it crafts"
+    )
+
+    @field_validator("recipe_id", "blueprint_id", "construction_item_id", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+
 class ScalingCampDef(_Row):
     """
     A camp of an event's difficulty scaling: the level and costs a chosen difficulty gives it.
@@ -968,6 +989,7 @@ __all__ = [
     "QuestCondition",
     "QuestDef",
     "ResearchDef",
+    "ConstructionItemRecipeDef",
     "ScalingCampDef",
     "TitleDef",
 ]

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from enum import IntEnum
 
+from empire_core.texts import text
+
 
 class SceatSkill(IntEnum):
     """
@@ -27,6 +29,22 @@ class SceatSkill(IntEnum):
         member.skill_tree_id = skill_tree_id
         member.level = level
         return member
+
+    @property
+    def text_id(self) -> str:
+        """The text id of its name, ``dialog_legendTemple_sceat_<skill_group_id>_name``."""
+        return f"dialog_legendTemple_sceat_{self.skill_group_id}_name"
+
+    def display_name(self, lang: str = "en") -> str:
+        """
+        The game's name for it in ``lang``, the text ``dialog_legendTemple_sceat_<skill_group_id>_name``.
+
+        Fetches the language file on first use and caches it (:func:`empire_core.texts.text`); a text the file lacks, or
+        a failed fetch, gives the text id.
+
+        Client: ``CastleSceatSkillVO.nameTextID`` (bundle line 23110)
+        """
+        return text(self.text_id, lang=lang)
 
     NEW_HEIGHTS_L1 = 41, 1, 3, 1
     MASTER_BREWER_L1 = 42, 2, 3, 1

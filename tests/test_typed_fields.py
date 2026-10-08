@@ -122,6 +122,8 @@ GAME_DATA_SCALAR_IDS: dict[str, str] = {
     "gamedata.tables.AllianceCrestLayoutDef.effect_icon_id": "an icon, not a row",
     "gamedata.tables.BuildingDef.district_type_id": "district types have no table",
     "gamedata.tables.EquipmentGroupDef.pic_id": "a picture, not a row",
+    "gamedata.tables.ConstructionItemRecipeDef.blueprint_id": "blueprints have no table; their recipes name them",
+    "gamedata.tables.ConstructionItemRecipeDef.recipe_id": "recipes have no name to make an enum of",
     "gamedata.tables.LootBoxDef.key_tombola_id": "tombolas have no name to make an enum of",
     "gamedata.tables.LootBoxDef.tombola_id": "tombolas have no name to make an enum of",
     "gamedata.tables.QuestDef.map_id": "no items table names maps",
