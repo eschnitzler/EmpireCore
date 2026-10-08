@@ -20,7 +20,6 @@ import os
 import sys
 
 from empire_core import AttackWave, EmpireClient, EmpireError, WaveFlank
-from empire_core.gamedata import WodAmount
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logging.getLogger("websocket").setLevel(logging.WARNING)
@@ -79,7 +78,7 @@ def main() -> int:
         # and tools across the left, middle and right flanks of several waves;
         # waves without units are dropped before sending.
         strongest = max(units, key=lambda unit: units[unit])
-        waves = [AttackWave(left=WaveFlank(units=WodAmount.slots({strongest: min(units[strongest], 10)})))]
+        waves = [AttackWave(left=WaveFlank(units={strongest: min(units[strongest], 10)}))]
 
         print(
             f"\nAttack from {source.castle_name!r} ({source.x}, {source.y}) "

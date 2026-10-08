@@ -136,6 +136,10 @@ kept twice and an empty slot ``[-1, 0]``. A mapping is read as one slot per entr
 Client: ``CastleFightItemContainer.getSlotList`` / ``fillFromParamArray`` (bundle lines 20573, 20554)
 """
 
+WodAmountSlotsInput: TypeAlias = "WodAmountMapping | Iterable[WodAmount | Sequence[int]]"
+"""What a model with :data:`WodAmountSlots` fields takes when built: ``{Unit.SWORDMAN: 100}``,
+``WodAmount`` slots, or ``[wod_id, amount]`` pairs."""
+
 _SLOTS: TypeAdapter[tuple[WodAmount, ...]] = TypeAdapter(WodAmountSlots)
 
 
@@ -190,6 +194,7 @@ __all__ = [
     "WodAmount",
     "WodAmountMapping",
     "WodAmountSlots",
+    "WodAmountSlotsInput",
     "WodAmounts",
     "wod_amount_pairs",
 ]

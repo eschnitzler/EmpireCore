@@ -84,6 +84,21 @@ SIX_ARRAYS = "[[1,2],[],[],[10,20],[],[]]"
 WAVE_SAVED_AS = "[[1,2],[],[3,4],[10,20,11,5],[],[12,7]]"
 
 
+class TestBuildingWithMappings:
+    """A flank and a preset take ``{unit: amount}`` where they hold slots; mypy checks these calls too."""
+
+    def test_a_flank_takes_units_and_tools_by_amount(self):
+        flank = WaveFlank(units={Unit.SWORDMAN: 100}, tools={Tool.RAM: 5})
+        assert flank.units == (WodAmount(Unit.SWORDMAN, 100),)
+        assert flank.tools == (WodAmount(Tool.RAM, 5),)
+        assert flank.to_payload() == {"T": [[611, 5]], "U": [[601, 100]]}
+
+    def test_a_preset_takes_its_slots_by_amount(self):
+        preset = PresetArmy(left_units={Unit.SWORDMAN: 5}, middle_tools=[WodAmount(Tool.RAM, 1), EMPTY_SLOT])
+        assert preset.left_units == (WodAmount(Unit.SWORDMAN, 5),)
+        assert preset.middle_tools == (WodAmount(Tool.RAM, 1), EMPTY_SLOT)
+
+
 class TestAttackPresets:
     def test_get_presets_sends_an_empty_payload(self):
         assert GetPresetsRequest().to_payload() == {}

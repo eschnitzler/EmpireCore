@@ -47,9 +47,9 @@ its alias, and both are accepted when you build one:
 
 ```python
 from empire_core import AttackWave, WaveFlank
-from empire_core.gamedata import Unit, WodAmount
+from empire_core.gamedata import Unit
 
-AttackWave(left=WaveFlank(units=WodAmount.slots({Unit.SWORDMAN: 100})))
+AttackWave(left=WaveFlank(units={Unit.SWORDMAN: 100}))
 AttackWave.model_validate({"L": {"U": [[601, 100]]}})   # the same wave, from its wire form
 ```
 
