@@ -1,6 +1,6 @@
 # Player
 
-Player profiles and search behind `client.player`.
+Player profiles, search and research behind `client.player`.
 
 ## `player.service`
 
@@ -25,6 +25,10 @@ Player profiles and search behind `client.player`.
 ## `player.models.progress`
 
 ::: empire_core.player.models.progress
+
+## `player.models.research`
+
+::: empire_core.player.models.research
 
 ## `player.titles`
 

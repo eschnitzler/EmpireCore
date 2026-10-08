@@ -214,6 +214,33 @@ refuses types 5 and 6 with `ValueError` unless you pass `spend_rubies=True`;
 it does not check for a waiver, so the flag may spend rubies.
 `TAX_DURATIONS` and `TAX_RUBY_COSTS` hold the numbers by tax type.
 
+## Research
+
+Research runs on `client.player`. Start one, or shorten the running one with a
+minute skip from your inventory:
+
+```python
+from empire_core.gamedata import Currency, Research
+
+client.player.start_research(Research.MANEUVER_L1)
+client.player.skip_research(Currency.SKIP_10_MINUTES)
+
+research = client.state.get_research()
+print(research.current_research_id, research.remaining_research_seconds())
+```
+
+Both return False when the server refuses. `start_research` needs the game
+data (`client.load_game_data()`) and looks the research up in it: some
+researches cost rubies themselves (`ResearchDef.cost_rubies`, `costs`), and
+it raises `ValueError` for those unless you pass `spend_rubies=True`. Their
+other costs, legendary tokens included, are paid as the game charges them. It
+never pays missing resources with rubies, and finishing a research at once for
+rubies is left out. `skip_research` raises `ValueError` for a currency that is
+no minute skip, or one you hold none of. Each reply's research reaches
+`client.state.get_research()`.
+
+**API:** [`PlayerService`](../reference/player.md#empire_core.player.service.PlayerService)
+
 ## Horses
 
 `client.castle.get_horses(castle_id)` lists the horses a castle can send
