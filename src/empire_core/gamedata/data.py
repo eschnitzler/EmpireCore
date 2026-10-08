@@ -4,8 +4,8 @@ Static game data from the GGE items payload.
 The client builds its combat maths from ``items_v{version}.json`` on the GGE
 CDN. That file is ~20 MB, so nothing here is fetched implicitly: call
 :meth:`GameData.load` (or :meth:`EmpireClient.load_game_data`) when you want it.
-What is parsed is trimmed to the combat-relevant tables and the tables the
-id enums name, and cached on disk per version, so the download happens once
+What is parsed is trimmed to the combat-relevant tables, the tables the
+id enums name and the rewards, and cached on disk per version, so the download happens once
 per game patch.
 
 :meth:`GameData.load` is the only loader: troop counts and the id generator
@@ -20,7 +20,7 @@ import logging
 import os
 import threading
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, TypeVar
@@ -31,6 +31,7 @@ from empire_core.enums import Kingdom, UnitRole
 from empire_core.exceptions import AmbiguousLookupError, NetworkError
 
 from . import cache, cdn
+from .collectables import Collectable, is_reward_column
 from .lenient import GameDataId
 from .models import (
     READING_CACHE,
@@ -82,6 +83,8 @@ from .tables import (
     QuestCondition,
     QuestDef,
     ResearchDef,
+    RewardDef,
+    RewardId,
     ScalingCampDef,
     TitleDef,
     row_id,
@@ -126,6 +129,7 @@ CACHE_FILENAME_TEMPLATE = "items_v{version}.trimmed.json"
 
 _CACHED_MODELS = (
     UnitStats,
+    Collectable,
     ToolStats,
     EffectDef,
     EffectTypeDef,
@@ -170,6 +174,7 @@ _CACHED_MODELS = (
     AchievementDef,
     AllianceCrestColorDef,
     AllianceCrestLayoutDef,
+    RewardDef,
     EffectValue,
     EquipmentEffectValue,
 )
@@ -183,11 +188,17 @@ def _schema_fingerprint() -> str:
     The cache holds parsed models keyed by field name, so a model that gains a
     column reads back the old file with that column at its default - silently,
     and wrongly, and a changed default leaves the old default in the file.
-    Fingerprinting the field names, aliases and defaults, and GameData's own
-    tables, means any such change invalidates the cache instead. The aliases
-    count because the lazily read tables keep only the columns they name.
+    Fingerprinting the field names, aliases and defaults, GameData's own
+    tables and how their rows are stored (each table as JSON text, decoded
+    the first time it is read), means any such change invalidates the cache
+    instead. The aliases count because the lazily read tables keep only the
+    columns they name.
     """
-    tables = [f"GameData:{','.join(sorted(GameData.model_fields))}", f"tables:{sorted(_TABLES.items())}"]
+    tables = [
+        f"GameData:{','.join(sorted(GameData.model_fields))}",
+        f"tables:{sorted(_TABLES.items())}",
+        "table_rows:json-text",
+    ]
     for model in _CACHED_MODELS:
         fields = ",".join(
             f"{name}={field.alias}={field.default!r}" for name, field in sorted(model.model_fields.items())
@@ -205,6 +216,43 @@ def _is_unit(entry: dict[str, Any]) -> bool:
     return not _is_tool(entry)
 
 
+class _TableRows:
+    """
+    Each lazily read table's rows by id. A table from the cache stays the JSON text it was
+    written as until it is first read, so reading the cache costs no row building at all.
+    """
+
+    __slots__ = ("_lock", "_rows", "_text")
+
+    def __init__(self, tables: Mapping[str, Mapping[int, dict[str, Any]] | str]) -> None:
+        self._rows = {name: rows for name, rows in tables.items() if not isinstance(rows, str)}
+        self._text = {name: text for name, text in tables.items() if isinstance(text, str)}
+        self._lock = threading.Lock()
+
+    def __getitem__(self, name: str) -> Mapping[int, dict[str, Any]]:
+        with self._lock:
+            text = self._text.pop(name, None)
+            if text is not None:
+                self._rows[name] = {int(key): row for key, row in json.loads(text).items()}
+            return self._rows.get(name, {})
+
+    def as_text(self) -> dict[str, str]:
+        """Each table as JSON text, the way the cache stores it."""
+        with self._lock:
+            return {
+                **{name: json.dumps(rows, separators=(",", ":")) for name, rows in self._rows.items()},
+                **self._text,
+            }
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, _TableRows):
+            return NotImplemented
+        names = {*self._rows, *self._text, *other._rows, *other._text}
+        return all(self[name] == other[name] for name in names)
+
+    __hash__ = None  # type: ignore[assignment]
+
+
 class _TableSource(NamedTuple):
     """Where a lazily read table's rows come from."""
 
@@ -213,14 +261,17 @@ class _TableSource(NamedTuple):
     id_field: str
     where: Callable[[dict[str, Any]], bool] | None = None
     """Keeps only the items rows it is true for, when the table is part of an items table."""
+    reads: Callable[[str], bool] | None = None
+    """The columns the model reads beyond its fields, for a row whose columns are not fixed."""
 
     def __repr__(self) -> str:
         where = f" where {self.where.__name__}" if self.where else ""
-        return f"{self.items_table}:{self.model.__name__}.{self.id_field}{where}"
+        reads = f" reading {self.reads.__name__}" if self.reads else ""
+        return f"{self.items_table}:{self.model.__name__}.{self.id_field}{where}{reads}"
 
     def rows(self, name: str, entries: object) -> dict[int, dict[str, Any]]:
         """
-        The table's rows by id, each trimmed to the columns the model reads.
+        The table's rows by id, each trimmed to the columns the model reads (and those ``reads`` names).
 
         A row whose id is missing or not a number is left out; of two rows with one id, the last is kept,
         as the client's tables keep it. Either is warned once per table.
@@ -246,7 +297,11 @@ class _TableSource(NamedTuple):
                 continue
             if key in rows:
                 replaced.append(key)
-            rows[key] = {column: value for column, value in entry.items() if column in columns}
+            rows[key] = {
+                column: value
+                for column, value in entry.items()
+                if column in columns or (self.reads is not None and self.reads(column))
+            }
         if without_id:
             logger.warning(
                 "%s: left out %d rows without a numeric %s (%s)",
@@ -295,6 +350,7 @@ _TABLES: dict[str, _TableSource] = {
     "alliance_crest_colors": _TableSource("allianceCoatColors", AllianceCrestColorDef, "color_id"),
     "alliance_crest_layouts": _TableSource("allianceCoatLayouts", AllianceCrestLayoutDef, "layout_id"),
     "scaling_camps": _TableSource("eventAutoScalingCamps", ScalingCampDef, "scaling_camp_id"),
+    "rewards": _TableSource("rewards", RewardDef, "reward_id", reads=is_reward_column),
 }
 """The GameData tables read lazily, by attribute name: each a :class:`Table` built from these rows."""
 
@@ -397,7 +453,7 @@ class GameData(BaseModel):
     lacks (items newer than the enums) is keyed by its plain int, and as the
     enums are IntEnums, a plain id from a packet indexes every table.
 
-    The tables keyed by id enums, ``titles`` and ``scaling_camps`` are read-only
+    The tables keyed by id enums, ``titles``, ``scaling_camps`` and ``rewards`` are read-only
     :class:`~empire_core.gamedata.table.Table` mappings that validate a row the
     first time it is read, so loading costs no validation for them.
     """
@@ -424,11 +480,11 @@ class GameData(BaseModel):
     event_camps: dict[str, dict[int, EventCampDef]] = Field(default_factory=dict)
     league_brackets: list[LeagueBracketDef] = Field(default_factory=list)
     raw_tables: dict[str, list] = Field(default_factory=dict)
-    _table_rows: dict[str, Mapping[int, dict[str, Any]]] = PrivateAttr(default_factory=dict)
+    _table_rows: _TableRows = PrivateAttr(default_factory=lambda: _TableRows({}))
 
-    def _table(self, name: str) -> Table[Any, Any]:
+    def _table(self, name: str, context: dict[str, Any] | None = None) -> Table[Any, Any]:
         source = _TABLES[name]
-        return Table(source.model, source.id_field, self._table_rows.get(name, {}), name=name)
+        return Table(source.model, source.id_field, self._table_rows[name], name=name, context=context)
 
     @cached_property
     def units(self) -> Table[GameDataId["Unit"], UnitStats]:
@@ -575,9 +631,39 @@ class GameData(BaseModel):
         """The ``eventAutoScalingCamps`` rows, by the scaling camp id a map row names."""
         return self._table("scaling_camps")
 
+    @cached_property
+    def rewards(self) -> Table[RewardId, RewardDef]:
+        """
+        The rewards by id, each with the collectables it gives.
+
+        Client: ``CastleRewardData.parseXml`` (bundle line 142323)
+        """
+        currency_ids = {row.name: row.currency_id for row in self.currencies.values()}
+        return self._table("rewards", context={"currency_ids": currency_ids})
+
     # ------------------------------------------------------------------
     # Lookups
     # ------------------------------------------------------------------
+
+    def reward_list(self, reward_ids: Iterable[int], *, combine: bool = False) -> tuple[Collectable, ...]:
+        """
+        What the rewards give, one after the other: a campaign's ``reward_ids``, a title's ``reward_id``.
+
+        An id with no reward (-1, or one the items lack) gives nothing.
+
+        Args:
+            reward_ids: The rewards, in order
+            combine: Add up the duplicates the client adds up, as some of its dialogs ask for
+
+        Client: ``CastleRewardData.getListByIdArray`` (bundle line 142344)
+        """
+        found = [
+            collectable
+            for reward_id in reward_ids
+            if (reward := self.rewards.get(RewardId(reward_id))) is not None
+            for collectable in reward.collectables
+        ]
+        return Collectable.merged(found) if combine else tuple(found)
 
     def get_unit(self, wod_id: int) -> UnitStats | None:
         return self.units.get(wod_id)
@@ -873,9 +959,9 @@ class GameData(BaseModel):
             league_brackets=_rows(items_data.get("leaguetypes"), LeagueBracketDef),
             raw_tables={table: items_data[table] for table in RAW_TABLES if isinstance(items_data.get(table), list)},
         )
-        data._table_rows = {
-            name: source.rows(name, items_data.get(source.items_table)) for name, source in _TABLES.items()
-        }
+        data._table_rows = _TableRows(
+            {name: source.rows(name, items_data.get(source.items_table)) for name, source in _TABLES.items()}
+        )
         return data
 
     @classmethod
@@ -974,7 +1060,6 @@ class GameData(BaseModel):
                 data = cls.model_validate(payload)
             finally:
                 READING_CACHE.reset(token)
-            data._table_rows = {name: {int(key): row for key, row in rows.items()} for name, rows in table_rows.items()}
         except (OSError, ValueError, AttributeError) as e:
             logger.warning(f"Ignoring unreadable game data cache {cache_file}: {e}")
             return None
@@ -983,12 +1068,16 @@ class GameData(BaseModel):
         if data.schema_fingerprint != _schema_fingerprint():
             logger.info(f"Game data cache {cache_file} predates the current tables; re-parsing")
             return None
+        if not isinstance(table_rows, dict) or not all(isinstance(text, str) for text in table_rows.values()):
+            logger.warning(f"Ignoring unreadable game data cache {cache_file}: its tables are not JSON text")
+            return None
+        data._table_rows = _TableRows(table_rows)
         logger.debug(f"Loaded game data v{version} from {cache_file}")
         return data
 
     def _write_cache(self, cache_file: Path) -> None:
         try:
-            payload = {**self.model_dump(mode="json"), "table_rows": self._table_rows}
+            payload = {**self.model_dump(mode="json"), "table_rows": self._table_rows.as_text()}
             cache.write_atomic(cache_file, json.dumps(payload, separators=(",", ":")))
         except OSError as e:
             # A read-only cache dir must not fail the load.

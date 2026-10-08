@@ -24,6 +24,7 @@ from empire_core.enums import Kingdom
 from empire_core.gamedata import (
     CurrencyAmounts,
     EnumOrInt,
+    RewardId,
     SupportToolSlots,
     UnitOrTool,
     WodAmounts,
@@ -41,7 +42,6 @@ ALLOWED: dict[str, str] = {
     "alliance.models.bookmarks.BookmarkAttackOrder.assigned_attacker_ids": "player ids",
     "alliance.models.bookmarks.DeleteAllianceBookmarkRequest.entries": "request wire shape: [bookmark_id, notify] rows",
     "alliance.models.bookmarks.DeleteBookmarkRequest.positions": "request wire shape: [kingdom, x, y] rows",
-    "events.models.CampaignEvent.reward_ids": "reward ids: no text names a reward (rewardData, bundle line 118536)",
     "events.models.GetEventPointsResponse.max_points": "points, one per score the event keeps; not ids",
     "events.models.GetEventPointsResponse.own_points": "points, one per score the event keeps; not ids",
     "events.models.GetEventPointsResponse.own_ranks": "ranks, one per score the event keeps; not ids",
@@ -161,7 +161,6 @@ GAME_DATA_SCALAR_IDS: dict[str, str] = {
     "gamedata.tables.QuestDef.series_id": "quest series have no table",
     "gamedata.tables.ResearchDef.group_id": "research groups have no table",
     "gamedata.tables.ScalingCampDef.scaling_camp_id": "scaling camps have no name to make an enum of",
-    "gamedata.tables.TitleDef.reward_id": "the items' rewards rows have no name to make an enum of",
 }
 """Game-data row fields named ``*_id`` that hold a plain int, each with why no enum types it."""
 
@@ -265,4 +264,5 @@ def test_the_check_finds_bare_fields():
     assert not _bare(dict[Kingdom, int]) and not _bare(WodAmounts) and not _bare(WodAmountSlots)
     assert not _bare(SupportToolSlots) and not _bare(CurrencyAmounts) and not _bare(tuple[UnitOrTool, ...])
     assert not _bare(tuple[EnumOrInt["QuestId"], ...])
+    assert not _bare(tuple[RewardId, ...])
     assert not _bare(tuple[int | float | None, ...])

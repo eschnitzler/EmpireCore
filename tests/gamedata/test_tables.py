@@ -7,12 +7,14 @@ from empire_core.combat import Bonus, effect_value_bonuses
 from empire_core.enums import (
     BuildingGroundType,
     BuildingGroup,
+    CollectableKind,
     EquipmentSlot,
     Kingdom,
     MapItemType,
     PlayerRelation,
     QuestConditionType,
     RelicEffectType,
+    RewardGrantType,
     TitleDisplayType,
     TitleSystem,
     WearerType,
@@ -120,6 +122,71 @@ def test_a_title_reads_missing_numbers_as_minus_one():
 
     assert (title.threshold, title.top_x, title.previous_title_id, title.reward_id) == (100, -1, -1, -1)
     assert title.display_type == "-1"
+
+
+class TestRewards:
+    ITEMS = {
+        "currencies": [{"currencyID": "29", "Name": "LegendaryMaterial", "JSONKey": "LM"}],
+        "rewards": [
+            {"rewardID": "170", "comment1": "x", "units": "722+5", "hiddenFood": "200"},
+            {"rewardID": "9314", "addC1": "100", "grantType": "2"},
+            {"rewardID": "40054", "addLegendaryMaterial": "540", "currency1": "5"},
+        ],
+        "titles": [{"titleID": "1", "type": "FAME", "rewardID": "9314"}],
+    }
+
+    def test_a_reward_reads_its_collectables_and_grant_type(self):
+        data = GameData.parse("786.03", self.ITEMS)
+
+        assert [(c.kind, c.item, c.amount) for c in data.rewards[170].collectables] == [
+            (CollectableKind.UNITS, ids.Unit.ARROWTHROWER, 5)
+        ]
+        assert (data.rewards[170].grant_type, data.rewards[9314].grant_type) == (
+            RewardGrantType.PLAYER,
+            RewardGrantType.ALLIANCE_MEMBER,
+        )
+
+    def test_an_add_column_names_a_currency_of_the_currencies_table(self):
+        data = GameData.parse("786.03", self.ITEMS)
+
+        assert [(c.kind, c.item, c.amount) for c in data.rewards[40054].collectables] == [
+            (CollectableKind.COINS, None, 5),
+            (CollectableKind.CURRENCY, ids.Currency.UPGRADE_TOKEN, 540),
+        ]
+
+    def test_reward_list_gives_the_rewards_in_order_and_skips_unknown_ids(self):
+        data = GameData.parse("786.03", self.ITEMS)
+
+        rewards = data.reward_list([40054, -1, 170, 9314])
+
+        assert [(c.kind, c.amount) for c in rewards] == [
+            (CollectableKind.COINS, 5),
+            (CollectableKind.CURRENCY, 540),
+            (CollectableKind.UNITS, 5),
+            (CollectableKind.COINS, 100),
+        ]
+        assert [(c.kind, c.amount) for c in data.reward_list([40054, 9314], combine=True)][0] == (
+            CollectableKind.COINS,
+            105,
+        )
+
+    def test_a_title_s_reward(self):
+        data = GameData.parse("786.03", self.ITEMS)
+
+        title = data.titles[1]
+
+        assert title.reward_id == 9314
+        assert [(c.kind, c.amount) for c in data.reward_list([title.reward_id])] == [(CollectableKind.COINS, 100)]
+
+    def test_the_cache_keeps_the_collectable_columns_only(self, tmp_path):
+        GameData.parse("786.03", self.ITEMS)._write_cache(tmp_path / "cache.json")
+
+        again = GameData._read_cache(tmp_path / "cache.json", "786.03")
+
+        assert again is not None and again.reward_list([170, 40054]) == GameData.parse(
+            "786.03", self.ITEMS
+        ).reward_list([170, 40054])
+        assert again._table_rows["rewards"][170] == {"rewardID": "170", "units": "722+5"}
 
 
 def test_a_scaling_camp_gives_its_level():

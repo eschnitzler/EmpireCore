@@ -14,14 +14,14 @@ Each entry's layout depends on its kind (``[unit_id, amount]`` under ``U``, an a
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from enum import Enum
 from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer, PlainValidator
 
 from empire_core.enums import BoosterId, CollectableKind, Rareness
-from empire_core.protocol.js import js_int, js_number_or_none, js_truthy
+from empire_core.protocol.js import js_int, js_number_or_none, js_parse_int, js_parse_int_or_zero, js_truthy
 
 from .lenient import EnumOrInt, known
 
@@ -274,6 +274,117 @@ Client: ``ACollectableItemGoodsVO`` (bundle line 40505), ``CollectableItemGeneri
 ``CollectableItemAllianceCrestLayoutVO`` (89334)
 """
 
+_KINDS_BY_XML_KEY: dict[str, CollectableKind] = {
+    variant: kind
+    for kind in CollectableKind
+    for xml_key in kind.xml_keys
+    for variant in (xml_key, xml_key.lower(), xml_key[:1].upper() + xml_key[1:])
+}
+"""Each kind by the items column it comes under, with the variants ``addObjectToDic`` registers.
+
+Client: ``CollectableEnum.getTypeByXmlKey`` (bundle line 401)
+"""
+
+_XML_ADD_PREFIX = "add"
+"""``ClientConstCollectable.XML_PREFIX_ADD`` (bundle line 3074): ``add<kind or currency name>`` columns."""
+
+
+def _parts(text: str) -> list[int]:
+    return [js_int(part) for part in text.split("+")]
+
+
+def _xml_item_and_amount(enum: Any) -> Callable[[str], dict[str, Any]]:
+    def read(text: str) -> dict[str, Any]:
+        parts = _parts(text)
+        return {"item": known(enum(), parts[0]), "amount": _at(parts, 1)}
+
+    return read
+
+
+def _ids() -> Any:
+    from . import ids
+
+    return ids
+
+
+_XML_READERS: dict[CollectableKind, Callable[[str], dict[str, Any]]] = {
+    CollectableKind.RELIC_EQUIPMENT: lambda text: {"value": text},
+    CollectableKind.BUILDING: lambda text: {"item": known(_ids().Building, js_int(text))},
+    CollectableKind.CONSTRUCTION_ITEM: _xml_item_and_amount(lambda: _ids().ConstructionItem),
+    CollectableKind.UNITS: _xml_item_and_amount(lambda: (_ids().Unit, _ids().Tool)),
+    CollectableKind.LOOT_BOX: _xml_item_and_amount(lambda: _ids().LootBox),
+    CollectableKind.EQUIPMENT_RARENESS: lambda text: _rareness(js_int(text)),
+    CollectableKind.GEM: lambda text: {"item": js_int(text)},
+    CollectableKind.GEM_RANDOM: lambda text: {"item": -js_int(text)},
+    CollectableKind.EQUIPMENT_UNIQUE: lambda text: {"item": js_int(text)},
+    CollectableKind.EQUIPMENT_UNIQUE_ENCHANTED: lambda text: {"item": _parts(text)[0], "value": text},
+    CollectableKind.CREST_SYMBOL: lambda text: {"item": js_int(text)},
+    CollectableKind.ALIEN_PROTECTION: lambda text: {"item": js_int(text)},
+    CollectableKind.VIP_TIME: lambda text: {"duration_seconds": _number(text)},
+    CollectableKind.BOOSTER: lambda text: {
+        "item": known(BoosterId, _parts(text)[0]),
+        "duration_seconds": _at(_parts(text), 1),
+    },
+    CollectableKind.LONG_TERM_POINT_EVENT_BOOSTER: lambda text: {
+        "duration_seconds": _at(_parts(text), 1),
+        "value": text,
+    },
+    CollectableKind.REPUTATION_BOOSTER: lambda text: {"duration_seconds": _at(_parts(text), 1), "value": text},
+    CollectableKind.ALLIANCE_GIFT: lambda text: {"value": text.split("+")[0]},
+    CollectableKind.MATERIAL_BAG: lambda text: {
+        "item": js_parse_int(text.split("+")[0]),
+        "amount": js_parse_int(_at(text.split("+"), 1)),
+    },
+    CollectableKind.GIFT_PACKAGE: lambda text: {"item": _parts(text)[0], "amount": _at(_parts(text), 1)},
+    CollectableKind.ALLIANCE_CREST_LAYOUT: lambda text: {
+        "item": _parts(text)[0],
+        "duration_seconds": _at(_parts(text), 1),
+    },
+}
+"""How each kind reads one ``#``-separated part of its items column, as its item class's ``parseXmlObject``
+does; any other kind reads the part as its amount (``ACollectableItemVO.parseXmlObject``, bundle line 3557).
+
+Client: ``CollectableItemRelicVO`` (bundle line 10481), ``CollectableItemBuildingVO`` (10642),
+``CollectableItemConstructionItemVO`` (12258), ``CollectableItemUnitVO`` (15480), ``ACollectableItemLootBoxVO``
+(52238), ``CollectableItemEquipmentRarenessVO`` (25151), ``CollectableItemGemVO`` (34931),
+``CollectableItemGemRandomVO`` (40615), ``CollectableItemEquipmentUniqueVO`` (52113),
+``CollectableItemEquipmentUniqueEnchantedVO`` (37047), ``CollectableItemCrestSymbolVO`` (88758),
+``CollectableItemAlienProtectionVO`` (88656), ``CollectableItemVipTimeVO`` (45721), ``CollectableItemBoosterVO``
+(88251), ``CollectableItemLongTermPointEventBoosterVO`` (88457), ``CollectableItemReputationBoosterVO`` (88480),
+``CollectableItemAllianceGiftVO`` (88808), ``CollectableItemMaterialBagVO`` (88910),
+``CollectableItemGiftPackageVO`` (89066), ``CollectableItemAllianceCrestLayoutVO`` (89335)
+"""
+
+_MERGED_BY_KIND = frozenset(
+    {
+        *_GOODS,
+        CollectableKind.VIP_POINTS,
+        CollectableKind.XP,
+        CollectableKind.PLAGUE_DOCTORS,
+        CollectableKind.ACHIEVEMENT_POINTS,
+        CollectableKind.PAYMENT_DOUBLER,
+    }
+)
+_MERGED_BY_ITEM = frozenset(
+    {
+        CollectableKind.CURRENCY,
+        CollectableKind.UNITS,
+        CollectableKind.BUILDING,
+        CollectableKind.CONSTRUCTION_ITEM,
+        CollectableKind.MATERIAL_BAG,
+    }
+)
+"""The kinds whose duplicates in one list the client adds up: any two of a kind, or two of one item.
+
+Client: ``CollectableList.combineDuplicatedItems`` (bundle line 1887) with ``ACollectableItemVO.isCombineAbleWith``
+(bundle line 3569) and the overrides comparing ids (bundle lines 5271, 10648, 12267, 15487, 88920)
+"""
+
+
+def is_reward_column(column: str) -> bool:
+    """Whether a ``rewards`` row column holds a collectable: a kind's items column or an ``add`` column."""
+    return column in _KINDS_BY_XML_KEY or column.startswith(_XML_ADD_PREFIX)
+
 
 class Collectable(BaseModel):
     """
@@ -292,7 +403,10 @@ class Collectable(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     kind: CollectableKind = Field(description="What it is")
-    key: str = Field(description="The server key it came under, as sent; the only name an OTHER entry has")
+    key: str = Field(
+        description="The server key it came under, as sent (for a game-data reward, its kind's or currency's); "
+        "the only name an OTHER entry has"
+    )
     amount: int | float = Field(default=1, description="How many")
     item: CollectableItem | None = Field(
         default=None, description="What the entry names; None for a kind that names nothing"
@@ -315,10 +429,13 @@ class Collectable(BaseModel):
         ``LostAndFoundListItemVO.parseData`` (bundle line 144545)
         """
         kind, item = cls._kind(key, entry)
+        return cls._read(kind, key, item, _READERS.get(kind, _opaque)(entry), amount)
+
+    @classmethod
+    def _read(cls, kind: CollectableKind, key: str, item: Any, read: dict[str, Any], amount: Any = None) -> Collectable:
         values: dict[str, Any] = {"kind": kind, "key": key, "item": item}
         if js_truthy(amount) and (count := _number(amount)) is not None:
             values["amount"] = count
-        read = _READERS.get(kind, _opaque)(entry)
         if item is not None:
             read.pop("item", None)
         if "amount" in read:
@@ -394,11 +511,87 @@ class Collectable(BaseModel):
                 continue
             if isinstance(place, CollectableKind):
                 found.append(cls(kind=place, key=place.server_key, amount=count))
-                continue
-            currency = _currency_of_id(place)
-            key = currency.value if not isinstance(currency, int) else str(place)
-            found.append(cls(kind=CollectableKind.CURRENCY, key=key, amount=count, item=currency))
+            else:
+                found.append(cls.of_currency(place, count))
         return tuple(found)
+
+    @classmethod
+    def of_currency(cls, currency_id: int, amount: int | float = 1) -> Collectable:
+        """
+        A currency named by its ``currencyID``, under its server key (the id itself where the key is unknown).
+
+        Client: ``CollectableItemGenericCurrencyVO`` (bundle line 5258) takes the id and amount
+        """
+        currency = _currency_of_id(currency_id)
+        key = str(currency_id) if isinstance(currency, int) else currency.value
+        return cls(kind=CollectableKind.CURRENCY, key=key, amount=amount, item=currency)
+
+    @classmethod
+    def from_reward_row(cls, row: Mapping[str, Any], currency_ids: Mapping[str, int]) -> tuple[Collectable, ...]:
+        """
+        What one ``rewards`` row of the items gives, in the client's order.
+
+        Each column of a kind holds ``#``-separated parts, read as the kind's item class reads them;
+        then each ``add<name>`` column adds one more, of the kind ``name`` names or else the currency
+        whose ``Name`` it is (``currency_ids``, by name); duplicates the client adds up are added up.
+        An ``add`` column naming neither is kept as ``OTHER``, where the client drops it. A random
+        equipment of a hero rareness reads as ``HERO_RANDOM``, as a packet's does. The columns no
+        parser reads (``comment1``, ``hiddenFood``, ``ignore*`` and the like) give nothing.
+
+        Client: ``CollectableParserX2CRewards.createList`` (bundle line 62897) and
+        ``CollectableParserX2CList.createList`` (bundle line 62874) with
+        ``CurrencyData.getXmlCurrencyByName`` (bundle line 141193)
+        """
+        found = [
+            cls._from_xml(kind, part)
+            for column, text in row.items()
+            if (kind := _KINDS_BY_XML_KEY.get(column)) is not None
+            for part in str(text).split("#")
+        ]
+        for column, text in row.items():
+            if not column.startswith(_XML_ADD_PREFIX):
+                continue
+            name = column[len(_XML_ADD_PREFIX) :]
+            if (kind := _KINDS_BY_XML_KEY.get(name)) is not None:
+                found.append(cls._from_xml(kind, str(text)))
+            elif (currency_id := currency_ids.get(name)) is not None:
+                found.append(cls.of_currency(currency_id, js_parse_int_or_zero(text)))
+            else:
+                found.append(cls(kind=CollectableKind.OTHER, key=column, value=text))
+        return cls.merged(found)
+
+    @staticmethod
+    def merged(collectables: Iterable[Collectable]) -> tuple[Collectable, ...]:
+        """
+        The collectables with the duplicates the client adds up added up, each into the first of its kind or item.
+
+        Client: ``CollectableList.combineDuplicatedItems`` (bundle line 1887)
+        """
+        merged: list[Collectable] = []
+        for collectable in collectables:
+            same = next(
+                (
+                    index
+                    for index, kept in enumerate(merged)
+                    if kept.kind is collectable.kind
+                    and (
+                        kept.kind in _MERGED_BY_KIND or (kept.kind in _MERGED_BY_ITEM and kept.item == collectable.item)
+                    )
+                ),
+                None,
+            )
+            if same is None:
+                merged.append(collectable)
+            else:
+                merged[same] = merged[same].model_copy(update={"amount": merged[same].amount + collectable.amount})
+        return tuple(merged)
+
+    @classmethod
+    def _from_xml(cls, kind: CollectableKind, text: str) -> Collectable:
+        read = _XML_READERS.get(kind, lambda part: {"amount": js_int(part)})(text)
+        if kind is CollectableKind.EQUIPMENT_RARENESS and read.get("item") in _HERO_RARENESSES:
+            kind = CollectableKind.HERO_RANDOM
+        return cls._read(kind, kind.server_key, None, read)
 
     @property
     def send_key(self) -> str:
