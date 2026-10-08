@@ -110,7 +110,14 @@ from .tax import (
     TaxInfo,
     TaxInfoResponse,
 )
-from .transfers import KingdomUnitTransferRequest, KingdomUnitTransferResponse
+from .transfers import (
+    KingdomGoodsTransferRequest,
+    KingdomGoodsTransferResponse,
+    KingdomUnitTransferRequest,
+    KingdomUnitTransferResponse,
+    MinuteSkipKingdomTransferRequest,
+    MinuteSkipKingdomTransferResponse,
+)
 from .updates import (
     AreaBooster,
     BuildingEfficiencyChanged,
@@ -189,6 +196,10 @@ __all__ = [
     "MarketInfoResponse",
     "KingdomUnitTransferRequest",
     "KingdomUnitTransferResponse",
+    "KingdomGoodsTransferRequest",
+    "KingdomGoodsTransferResponse",
+    "MinuteSkipKingdomTransferRequest",
+    "MinuteSkipKingdomTransferResponse",
     "GetCastlesRequest",
     "GetCastlesResponse",
     "PlayerCastle",

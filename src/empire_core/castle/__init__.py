@@ -1,6 +1,14 @@
 """Castles: the castle list, castle details, buildings and castle actions."""
 
-from empire_core.enums import BuildingState, ExpansionType, MarketScope, Resource, ResourceCartType, TaxStatus
+from empire_core.enums import (
+    BuildingState,
+    ExpansionType,
+    KingdomTransferType,
+    MarketScope,
+    Resource,
+    ResourceCartType,
+    TaxStatus,
+)
 
 from .models import (
     FREE_SLOT,
@@ -54,6 +62,8 @@ from .models import (
     GetTravelInfoRequest,
     GetTravelInfoResponse,
     JoinAreaRequest,
+    KingdomGoodsTransferRequest,
+    KingdomGoodsTransferResponse,
     KingdomInfoResponse,
     KingdomTransfer,
     KingdomUnitTransferRequest,
@@ -64,6 +74,8 @@ from .models import (
     MarketInfoResponse,
     MineStatus,
     MineStatusList,
+    MinuteSkipKingdomTransferRequest,
+    MinuteSkipKingdomTransferResponse,
     MoveBuildingRequest,
     MoveBuildingResponse,
     PermanentCastle,
@@ -127,6 +139,7 @@ __all__ = [
     "Resource",
     "ResourceCartType",
     "TaxStatus",
+    "KingdomTransferType",
     "SelectCastleRequest",
     "SelectCastleResponse",
     "JoinAreaRequest",
@@ -189,6 +202,10 @@ __all__ = [
     "MarketInfoResponse",
     "KingdomUnitTransferRequest",
     "KingdomUnitTransferResponse",
+    "KingdomGoodsTransferRequest",
+    "KingdomGoodsTransferResponse",
+    "MinuteSkipKingdomTransferRequest",
+    "MinuteSkipKingdomTransferResponse",
     "GetCastlesRequest",
     "GetCastlesResponse",
     "PlayerCastle",
