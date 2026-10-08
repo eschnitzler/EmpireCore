@@ -71,7 +71,7 @@ ALLOWED: dict[str, str] = {
     "state.models.Player.castles": "keyed by (kingdom, castle id); castle ids are the player's areas, not game data",
     "commanders.models.equipment.EquipmentBonus.values": "laid out by the effect type's value class (bundle line 1294)",
     "commanders.models.equipment.RelicBonus.values": "laid out by the effect type's value class (bundle line 1294)",
-    "commanders.models.roster.CommanderEffect.values": "laid out by the effect type's value class (bundle line 1294)",
+    "protocol.base.CommanderEffect.values": "laid out by the effect type's value class (bundle line 1294)",
     "map.models.items.MapAreaItem.protector_positions": "opaque: the client reads only its length",
     "map.models.items.MapAreaItem.raw_data": (
         "the row held by reference so a map scan stays fast (#343, #354); typed accessors parse it as the client does"

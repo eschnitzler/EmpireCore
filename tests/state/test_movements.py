@@ -8,7 +8,8 @@ from unittest.mock import patch
 import pytest
 
 from empire_core.combat import commander_bonuses
-from empire_core.commanders.models.roster import Commander, CommanderEffect
+from empire_core.commanders import CommanderEffect
+from empire_core.commanders.models.roster import Commander
 from empire_core.enums import (
     AttackAdvisorType,
     AutoSkipCooldownType,

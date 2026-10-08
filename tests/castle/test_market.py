@@ -16,11 +16,19 @@ from empire_core.castle.models.market import (
     MarketInfoRequest,
     MarketInfoResponse,
 )
-from empire_core.castle.models.support import SendSupportResponse, SendTroopsRequest, SendTroopsResponse
+from empire_core.castle.models.support import (
+    GetTravelInfoRequest,
+    GetTravelInfoResponse,
+    SendSupportResponse,
+    SendTroopsRequest,
+    SendTroopsResponse,
+)
 from empire_core.castle.models.transfers import KingdomUnitTransferRequest, KingdomUnitTransferResponse
+from empire_core.commanders import CommanderEffect
 from empire_core.enums import Kingdom, MarketScope, Resource, ResourceCartType
-from empire_core.exceptions import UnsendableGoodsError
-from empire_core.gamedata import WodAmount
+from empire_core.exceptions import CommandError, UnsendableGoodsError
+from empire_core.gamedata import Tool, Unit, WodAmount
+from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import parse_response
 from tests.service_helpers import StubPlayer, StubState, conn, make_client, xt_packet
 
@@ -376,3 +384,54 @@ class TestCollect:
 def test_the_support_reply_reads_currencies():
     reply = parse_response("cds", {"gcu": {"C2": 4}, "O": [], "A": {}})
     assert isinstance(reply, SendSupportResponse) and reply.currencies is not None and reply.currencies.rubies == 4
+
+
+# =============================================================================
+# sti
+# =============================================================================
+
+STI_REPLY: dict = {
+    "SCID": 2003,
+    "KID": 0,
+    "gaa": {"AI": [2, 620, 231, -1, 0, -1, 0], "OI": {"OID": 1001, "N": "Me", "L": 70}},
+    "gui": {"I": [[620, 10], [649, 2]], "SHI": [[10, 5]]},
+    "AE": [[63, [10.0], "kingdom"]],
+    "gli": {"C": [{"ID": 5, "WID": 2, "N": "", "EQ": []}], "B": []},
+}
+
+
+class TestTravelInfo:
+    def test_the_request_follows_the_client(self):
+        # C2STroopSupportInfoVO takes the target first but initialises SX, SY, TX, TY, KID
+        payload = GetTravelInfoRequest(
+            source_x=100, source_y=200, target_x=110, target_y=205, kingdom_id=Kingdom.ICE
+        ).to_payload()
+        assert payload == {"SX": 100, "SY": 200, "TX": 110, "TY": 205, "KID": 2}
+        assert list(payload) == ["SX", "SY", "TX", "TY", "KID"]
+
+    def test_get_travel_info(self):
+        client = make_client({"sti": xt_packet("sti", STI_REPLY)})
+        info = client.castle.get_travel_info(100, 200, 110, 205, kingdom_id=Kingdom.SANDS)
+
+        assert conn(client).request_payloads == [("sti", {"SX": 100, "SY": 200, "TX": 110, "TY": 205, "KID": 1})]
+        assert (info.source_castle_id, info.kingdom_id) == (2003, Kingdom.GREEN)
+        assert info.units.units == {Tool.SHIELDS: 10, Tool.ELITELADDER: 2}
+        assert info.units.stronghold == {Unit.ELITE_RANKREWARDRANGE: 5}
+        assert info.target_area.area is not None
+        assert info.target_area.owner is not None and info.target_area.owner.owner_id == 1001
+        assert info.area_effects == [CommanderEffect(effect_id=63, values=[10.0], source="kingdom")]
+        assert "AE" not in (info.model_extra or {})
+
+    def test_the_owner_is_one_record(self):
+        # CastleTroopSupportVO reads gaa.OI with parseOwnerInfo, which takes no record without an OID
+        reply = parse_response("sti", {**STI_REPLY, "gaa": {"OI": {"N": "nobody"}}})
+        assert isinstance(reply, GetTravelInfoResponse)
+        assert reply.target_area.owner is None and reply.target_area.area is None
+        listed = parse_response("sti", {**STI_REPLY, "gaa": {"OI": [{"OID": 1001}]}})
+        assert isinstance(listed, GetTravelInfoResponse) and listed.target_area.owner is None
+
+    def test_a_source_that_is_not_yours_raises(self):
+        client = make_client({"sti": xt_packet("sti", {}, error_code=GGEError.NOT_IN_OWNED_CASTLE)})
+        with pytest.raises(CommandError) as raised:
+            client.castle.get_travel_info(100, 200, 110, 205)
+        assert raised.value.error is GGEError.NOT_IN_OWNED_CASTLE

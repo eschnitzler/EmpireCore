@@ -3,18 +3,21 @@
 Commands:
 - cds: Send support
 - cat: Send troops to another of your own areas
+- sti: Travel pre-calculation for troops sent to another of your own areas
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from empire_core.enums import Kingdom
-from empire_core.gamedata import WodAmountSlots
-from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock
-from empire_core.protocol.js import movement_targets
+from empire_core.gamedata import WodAmounts, WodAmountSlots
+from empire_core.map.models.areas import MapObject
+from empire_core.map.models.items import TargetRow
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CommanderEffects, CurrencyBlock
+from empire_core.protocol.js import js_truthy, movement_targets
 
 # =============================================================================
 # CDS - Send Support (Create Deployment - Support)
@@ -193,7 +196,113 @@ class SendTroopsResponse(BaseResponse):
     currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after")
 
 
+# =============================================================================
+# STI - Troop travel pre-calculation (Troop Support Info)
+# =============================================================================
+
+
+class GetTravelInfoRequest(BaseRequest):
+    """
+    Ask for the pre-calculation of troops sent from one of your areas to another of your own.
+
+    Command: sti
+    Payload: {"SX": source_x, "SY": source_y, "TX": target_x, "TY": target_y, "KID": kingdom_id}
+
+    Keys follow the client's order: the constructor initialises SX, SY, TX, TY
+    and KID, though it takes the target first. ``KID`` is the target's kingdom.
+
+    Client: ``C2STroopSupportInfoVO`` (bundle line 72087), sent by
+    ``CastleStartAttackDialog`` (bundle line 14831)
+    """
+
+    command = "sti"
+
+    source_x: int = Field(alias="SX", description="Map x of the area the troops would leave from")
+    source_y: int = Field(alias="SY", description="Map y of the area the troops would leave from")
+    target_x: int = Field(alias="TX", description="Map x of the area they would go to")
+    target_y: int = Field(alias="TY", description="Map y of the area they would go to")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom both areas sit in")
+
+
+class TravelTargetArea(BasePayload):
+    """
+    The target's map row and its owner, the ``gaa`` block of an ``sti`` reply.
+
+    Unlike an attack pre-calculation's, ``OI`` is one owner record, not a
+    list: the client reads it with ``parseOwnerInfo``, which takes no record
+    without an ``OID``.
+
+    Client: ``CastleTroopSupportVO.fillFromParamObject`` (bundle line 99736),
+    ``CastleOtherPlayerData.parseOwnerInfo`` (bundle line 138996)
+    """
+
+    area: TargetRow = Field(alias="AI", default=None, description="The target's map row")
+    owner: MapObject | None = Field(alias="OI", default=None, description="The target's owner; None when not named")
+
+    @field_validator("owner", mode="before")
+    @classmethod
+    def _owner_record(cls, value: object) -> object:
+        if isinstance(value, dict) and not js_truthy(value.get("OID")):
+            return None
+        return value if isinstance(value, dict | MapObject) else None
+
+
+class TravelUnits(BasePayload):
+    """
+    Your units and tools at the source, the ``gui`` block of an ``sti`` reply.
+
+    Client: ``CastleTroopSupportVO.fillFromParamObject`` (bundle line 99736) reads ``I``
+    into a ``UnitInventoryDictionary`` and ``SHI`` into a ``StrongholdUnitInventory``
+    """
+
+    units: WodAmounts = Field(alias="I", default_factory=dict, description="Units and tools at the source")
+    stronghold: WodAmounts = Field(alias="SHI", default_factory=dict, description="Units stored in its stronghold")
+
+
+class GetTravelInfoResponse(BaseResponse):
+    """
+    The pre-calculation of troops sent between your own areas.
+
+    Command: sti
+    Payload::
+
+        {"SCID": source_castle_id, "KID": ..,
+         "gaa": {"AI": [target map row], "OI": {owner record}},
+         "gui": {"I": [[wod_id, count], ...], "SHI": [[wod_id, count], ...]},
+         "AE": [[effect_id, [value], source_tag], ...],
+         "gli": {"C": [...], "B": [...]}}
+
+    ``gli`` (your commanders) updates ``client.state``; ``AE``, the area
+    effects on the movement, is read as an attack pre-calculation's is. The
+    reply carries no travel time or cost: the client works them out from the
+    distance and the units picked. A source that is not one of your castles is refused with
+    ``NOT_IN_OWNED_CASTLE``.
+
+    Client: ``STICommand.executeCommand`` (bundle line 129099), which passes
+    ``gli`` to ``CastleLordData.parse_GLI``; ``CastleTroopSupportData.parse_STI``
+    (bundle line 38417); ``CastleTroopSupportVO.fillFromParamObject`` (bundle
+    line 99736), whose base ``CastleFightScreenVO.fillFromParamObject`` reads
+    ``AE`` (bundle line 30501)
+    """
+
+    command = "sti"
+
+    source_castle_id: int = Field(alias="SCID", default=0, description="The castle the troops would leave from")
+    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The source castle's kingdom")
+    target_area: TravelTargetArea = Field(
+        alias="gaa", default_factory=lambda: TravelTargetArea(), description="The target's map row and owner"
+    )
+    units: TravelUnits = Field(
+        alias="gui", default_factory=lambda: TravelUnits(), description="Your units and tools at the source"
+    )
+    area_effects: CommanderEffects = Field(alias="AE", default_factory=list, description="Area effects on the movement")
+
+
 __all__ = [
+    "GetTravelInfoRequest",
+    "GetTravelInfoResponse",
+    "TravelTargetArea",
+    "TravelUnits",
     "SendSupportRequest",
     "SendSupportResponse",
     "SendTroopsRequest",

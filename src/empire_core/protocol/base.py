@@ -15,9 +15,10 @@ import time
 from collections.abc import Callable
 from decimal import Decimal
 from enum import IntEnum
+from functools import partial
 from typing import Annotated, Any, ClassVar, TypeVar
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 # Type variable for generic response payloads
 T = TypeVar("T")
@@ -186,6 +187,7 @@ class GGECommand:
     CRM = "crm"  # Send resources to a castle
     CMI = "cmi"  # List your castles' carriages and resources
     KUT = "kut"  # Transfer units to another kingdom
+    STI = "sti"  # Travel pre-calculation for troops sent between your own areas
 
     # Map
     GAM = "gam"  # Get active movements
@@ -595,6 +597,43 @@ CurrencyBlock = Annotated[CurrencyTotals | None, BeforeValidator(object_or_none)
 """A ``gcu`` block, or None when a reply sends none or something that is not an object."""
 
 
+class CommanderEffect(BasePayload):
+    """One entry of a commander's ``E`` or ``AE``: ``[effect_id, values, source]``.
+
+    Client: ``LordVO.parseRawEffects`` (bundle line 26483), ``BonusVO.parseFromValueArray``
+    (bundle line 5707).
+    """
+
+    effect_id: int = Field(description="Effect id")
+    values: list[Any] = Field(
+        default_factory=list,
+        description="Value array; its layout depends on the effect type",
+    )
+    source: str = Field(default="", description="The key of the effect's source")
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def _source_key(cls, value: Any) -> Any:
+        return value if isinstance(value, str) else ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if isinstance(data, (list, tuple)) and data:
+            row = {"effect_id": data[0]}
+            if len(data) > 1:
+                row["values"] = data[1]
+            if len(data) > 2 and data[2] is not None:
+                row["source"] = data[2]
+            return row
+        return data
+
+
+CommanderEffects = Annotated[list[CommanderEffect], BeforeValidator(partial(readable_list, CommanderEffect))]
+"""``[effect_id, values, source]`` rows; unreadable entries are skipped, as the client skips
+effects it cannot resolve (``LordVO.parseRawEffects``, bundle line 26483)."""
+
+
 _E = TypeVar("_E", bound=IntEnum)
 
 
@@ -629,6 +668,8 @@ __all__ = [
     "smartfox_text",
     "CurrencyBlock",
     "CurrencyTotals",
+    "CommanderEffect",
+    "CommanderEffects",
     # Base classes
     "BasePayload",
     "BaseRequest",

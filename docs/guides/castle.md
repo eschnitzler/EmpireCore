@@ -132,7 +132,21 @@ castle's stock are left to the server.
 
 `send_support` sends troops to someone else's area; the server refuses one to
 your own with `NO_SELF_DESTRUCTION` (92). Move troops between your own areas
-with `send_troops`. `get_market_info()` lists each castle's free carriages, and
+with `send_troops`. Before sending, `get_travel_info` asks for what the game's
+send dialog asks for:
+
+```python
+info = client.castle.get_travel_info(source_x, source_y, target_x, target_y)
+print(info.units.units)                 # {Unit or Tool: amount} at the source
+print(info.target_area.owner)           # the target's owner record
+print(info.area_effects)                # CommanderEffect rows on the movement
+```
+
+Your commanders in the reply update [state](game-state.md). The reply has no
+travel time, which the game works out from the units it sends. A source that
+is not yours raises `CommandError` with `NOT_IN_OWNED_CASTLE`.
+
+`get_market_info()` lists each castle's free carriages, and
 `transfer_units_to_kingdom` sends units to another kingdom.
 
 `rename(castle_id, new_name)` renames a castle.
