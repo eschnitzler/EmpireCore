@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from empire_core.commanders.models.roster import Commander
-from empire_core.enums import MapItemType, MovementType, NPCOwner
+from empire_core.enums import AttackAdvisorType, AutoSkipCooldownType, MapItemType, MovementType, NPCOwner
 from empire_core.gamedata import CollectableRows, EnumOrInt, SupportToolSlots, WodAmounts
 from empire_core.gamedata.troops import count_troops
 from empire_core.movements.models import MovementArea, MovementOwner, MovementSpy
@@ -189,8 +189,12 @@ class Movement(BaseModel):
     support_tools: SupportToolSlots = Field(
         default=(), description="Support tools sent along, as the attack sent them; None for an empty slot"
     )
-    auto_skip_cooldown_type: int = Field(default=0, description="Auto-skip cooldown type (AutoSkipCooldownType)")
-    advisor_type: int = Field(default=0, description="Attack advisor type; 0 for none")
+    auto_skip_cooldown_type: EnumOrInt[AutoSkipCooldownType] = Field(
+        default=AutoSkipCooldownType.OFF, description="How the target's cooldown is skipped on arrival"
+    )
+    advisor_type: EnumOrInt[AttackAdvisorType] = Field(
+        default=AttackAdvisorType.NONE, description="The attack advisor that sent the attack"
+    )
     advisor_movement_count: int = Field(default=0, description="Attacks in the advisor series")
     advisor_movement_number: int = Field(default=0, description="This attack's place in the series")
     advisor_is_last: bool = Field(default=False, description="Last attack of the series")

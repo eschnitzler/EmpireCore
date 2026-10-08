@@ -488,7 +488,10 @@ class MovementState(StateBase):
             if self.local_player is not None:
                 data["local_player_id"] = self.local_player.PID
             for key, side in (("TA", "target"), ("SA", "source")):
-                area = read_or_none(MovementArea.model_validate, data[key]) if data.get(key) else None
+                row = data.get(key)
+                area = (
+                    read_or_none(MovementArea.model_validate, {"row": row, "kingdom": data.get("KID")}) if row else None
+                )
                 data[key] = area
                 if area is None:
                     continue

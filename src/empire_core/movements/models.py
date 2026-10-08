@@ -4,13 +4,15 @@ Army movement models: gam, the recall (mcm), and the movement wrappers pushed wi
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, field_validator, model_validator
 
 from empire_core.commanders.models.roster import Commander
-from empire_core.enums import AttackAdvisorType, MapItemType, SpyType
+from empire_core.enums import AttackAdvisorType, AutoSkipCooldownType, Kingdom, SpyType
 from empire_core.gamedata import CollectableRows, EnumOrInt, SupportToolSlots, WodAmounts
+from empire_core.map.models.items import MapAreaItem
 from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest, OwnerFaction, owner_positions
 from empire_core.protocol.base import (
     BasePayload,
@@ -34,6 +36,8 @@ from empire_core.protocol.js import (
 if TYPE_CHECKING:
     from empire_core.gamedata import Horse, Title
 
+logger = logging.getLogger(__name__)
+
 
 class GetMovementsRequest(BaseRequest):
     """
@@ -48,75 +52,59 @@ class GetMovementsRequest(BaseRequest):
     command = "gam"
 
 
-_AREA_LAYOUTS: dict[int, tuple[int | None, int | None, int | None]] = {
-    MapItemType.CASTLE: (3, 4, 10),
-    MapItemType.CAPITAL: (3, 4, 10),
-    MapItemType.OUTPOST: (3, 4, 10),
-    MapItemType.KINGDOM_CASTLE: (3, 4, 10),
-    MapItemType.METROPOL: (3, 4, 10),
-    MapItemType.VILLAGE: (3, 4, None),
-    MapItemType.FACTION_VILLAGE: (None, 3, None),
-    MapItemType.FACTION_TOWER: (None, 3, None),
-    MapItemType.FACTION_CAPITAL: (None, 3, None),
-    MapItemType.KINGS_TOWER: (3, 4, 7),
-    MapItemType.ISLE_RESOURCE: (3, 4, 6),
-    MapItemType.MONUMENT: (3, 4, 9),
-    MapItemType.LABORATORY: (3, 4, 8),
-    MapItemType.ALLIANCE_BATTLE_GROUND_TOWER: (3, None, 4),
-}
-
-
 class MovementArea(BasePayload):
-    """A movement's ``TA`` or ``SA`` area row.
+    """A movement's ``TA`` or ``SA`` area row, read as a map row.
 
-    Only the first three positions mean the same for every area type
-    (``BasicMapobjectVO.parseAreaInfo``); ``object_id``, ``owner_id`` and
-    ``name`` read the positions the area type's own parser uses. A castle
-    row of four or fewer entries is a castle being relocated and has none.
+    ``area_type``, ``x`` and ``y`` are the first three positions, which every area type has;
+    ``item`` is the whole row read by the area type's own parser, None when the client reads
+    no row of that type or a value is of the wrong kind. The row carries no kingdom of its own,
+    so it is read in the movement's ``KID``: build one from ``{"row": [...], "kingdom": KID}``,
+    or from the bare row, read in the green kingdom.
 
-    Client: ``WorldmapObjectFactory.parseWorldMapArea``, ``InteractiveMapobjectVO``,
-    ``KingstowerMapobjectVO``, ``MonumentMapobjectVO``, ``LaboratoryMapobjectVO``,
-    ``ResourceIsleMapobjectVO``, ``VillageMapobjectVO``, ``Faction*MapobjectVO``
-    and ``ABGAllianceTowerMapobjectVO`` ``.parseAreaInfo``.
+    Client: ``BasicMapmovementVO.loadFromParamObject`` reads ``SA`` and ``TA`` with
+    ``WorldmapObjectFactory.parseWorldMapArea`` (bundle lines 19383, 5343), as the map reads its rows
     """
 
     area_type: int = Field(description="Area type")
     x: int = Field(description="Map x")
     y: int = Field(description="Map y")
-    row: list[Any] = Field(description="The whole row, whose layout depends on area_type")
+    item: MapAreaItem | None = Field(
+        default=None, description="The row as its area type's parser reads it; None when it cannot be read"
+    )
 
     @model_validator(mode="before")
     @classmethod
     def _from_row(cls, data: Any) -> Any:
-        if isinstance(data, list) and len(data) >= 3:
-            return {"area_type": data[0], "x": data[1], "y": data[2], "row": data}
-        return data
+        kingdom: Any = None
+        if isinstance(data, dict) and "row" in data:
+            data, kingdom = data["row"], data.get("kingdom")
+        if not isinstance(data, list) or len(data) < 3:
+            return data
+        try:
+            item = MapAreaItem.from_list(data, enum_or_none(Kingdom, js_int(kingdom)) or Kingdom.GREEN)
+        except ValueError:
+            logger.debug(f"Unreadable movement area row {data!r:.200}")
+            item = None
+        return {"area_type": data[0], "x": data[1], "y": data[2], "item": item}
 
     @property
     def position(self) -> Position:
         return Position(x=self.x, y=self.y)
 
-    def _at(self, slot: int) -> Any:
-        layout = _AREA_LAYOUTS.get(self.area_type)
-        if layout is None or (self.area_type == MapItemType.CASTLE and len(self.row) <= 4):
-            return None
-        index = layout[slot]
-        return self.row[index] if index is not None and index < len(self.row) else None
-
     @property
     def object_id(self) -> int | None:
-        value = self._at(0)
-        return value if isinstance(value, int) else None
+        """The map object's id, as the area type's row gives it; None when it gives none."""
+        return self.item.location_id if self.item is not None else None
 
     @property
     def owner_id(self) -> int | None:
-        value = self._at(1)
-        return value if isinstance(value, int) else None
+        """The owner the row names; None when it names none."""
+        return self.item.owner_id if self.item is not None else None
 
     @property
     def name(self) -> str:
-        value = self._at(2)
-        return value if isinstance(value, str) else ""
+        """The object's name; empty when the row has none."""
+        return self.item.name or "" if self.item is not None else ""
 
 
 class MovementRecord(BasePayload):
@@ -139,6 +127,18 @@ class MovementRecord(BasePayload):
     )
     target_area: MovementArea | None = Field(alias="TA", default=None, description="Target area")
     source_area: MovementArea | None = Field(alias="SA", default=None, description="Source area")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _areas_in_the_movements_kingdom(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        rows = {
+            key: {"row": data[key], "kingdom": data.get("KID")}
+            for key in ("TA", "SA")
+            if isinstance(data.get(key), list)
+        }
+        return {**data, **rows}
 
     @field_validator("horse_booster", mode="before")
     @classmethod
@@ -250,7 +250,9 @@ class MovementWrapper(BasePayload):
         default=(),
         description="Support tools sent along, as the attack sent them; None for an empty slot",
     )
-    auto_skip_cooldown_type: int = Field(alias="ASCT", default=0, description="Auto-skip cooldown type")
+    auto_skip_cooldown_type: EnumOrInt[AutoSkipCooldownType] = Field(
+        alias="ASCT", default=AutoSkipCooldownType.OFF, description="How the target's cooldown is skipped on arrival"
+    )
     travel_units: WodAmounts = Field(
         alias="A", default_factory=dict, description="Units and tools of a travel movement"
     )
@@ -266,6 +268,12 @@ class MovementWrapper(BasePayload):
     @classmethod
     def _no_spy_details(cls, value: Any) -> Any:
         return object_or_none(value)
+
+    @field_validator("auto_skip_cooldown_type", mode="before")
+    @classmethod
+    def _auto_skip(cls, value: Any) -> Any:
+        # Client: t.ASCT&&(this._autoSkipCooldownType=t.ASCT), 0 otherwise (ArmyAttackMapmovementVO, bundle line 14369)
+        return js_parse_int(value) or AutoSkipCooldownType.OFF
 
     @property
     def visible_army(self) -> MovementArmy | None:
