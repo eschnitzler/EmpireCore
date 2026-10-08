@@ -8,11 +8,9 @@ Commands:
 from __future__ import annotations
 
 import logging
-from functools import partial
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import (
-    BeforeValidator,
     Field,
     PrivateAttr,
     ValidationInfo,
@@ -28,6 +26,7 @@ from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
     BaseResponse,
+    CommanderEffects,
     int_entries,
     readable_list,
 )
@@ -71,43 +70,6 @@ _SLOT_ORDER = (
     EquipmentSlot.SKIN,
     EquipmentSlot.HERO,
 )
-
-
-class CommanderEffect(BasePayload):
-    """One entry of a commander's ``E`` or ``AE``: ``[effect_id, values, source]``.
-
-    Client: ``LordVO.parseRawEffects`` (bundle line 26483), ``BonusVO.parseFromValueArray``
-    (bundle line 5707).
-    """
-
-    effect_id: int = Field(description="Effect id")
-    values: list[Any] = Field(
-        default_factory=list,
-        description="Value array; its layout depends on the effect type",
-    )
-    source: str = Field(default="", description="The key of the effect's source")
-
-    @field_validator("source", mode="before")
-    @classmethod
-    def _source_key(cls, value: Any) -> Any:
-        return value if isinstance(value, str) else ""
-
-    @model_validator(mode="before")
-    @classmethod
-    def _from_row(cls, data: Any) -> Any:
-        if isinstance(data, (list, tuple)) and data:
-            row = {"effect_id": data[0]}
-            if len(data) > 1:
-                row["values"] = data[1]
-            if len(data) > 2 and data[2] is not None:
-                row["source"] = data[2]
-            return row
-        return data
-
-
-CommanderEffects = Annotated[list[CommanderEffect], BeforeValidator(partial(readable_list, CommanderEffect))]
-"""``[effect_id, values, source]`` rows; unreadable entries are skipped, as the client skips
-effects it cannot resolve (``LordVO.parseRawEffects``, bundle line 26483)."""
 
 
 class SelectedAbility(BasePayload):

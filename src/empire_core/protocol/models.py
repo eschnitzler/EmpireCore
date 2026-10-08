@@ -300,7 +300,6 @@ from empire_core.commanders.models.inventory import (
 from empire_core.commanders.models.roster import (
     Castellan,
     Commander,
-    CommanderEffect,
     CommanderRoster,
     GetCommandersRequest,
     GetCommandersResponse,
@@ -478,6 +477,7 @@ from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
     BaseResponse,
+    CommanderEffect,
     CurrencyTotals,
     GGECommand,
     PlayerInfo,

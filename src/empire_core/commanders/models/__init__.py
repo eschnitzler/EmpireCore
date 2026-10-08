@@ -1,5 +1,7 @@
 """Commanders, castellans, generals, skills and equipment: protocol models."""
 
+from empire_core.protocol.base import CommanderEffect, CommanderEffects
+
 from .equipment import (
     NO_GEM_ID,
     EquipEquipmentRequest,
@@ -25,8 +27,6 @@ from .roster import (
     AlienEquipment,
     Castellan,
     Commander,
-    CommanderEffect,
-    CommanderEffects,
     CommanderRoster,
     GetCommandersRequest,
     GetCommandersResponse,

@@ -89,7 +89,16 @@ from .resources import (
     GetResourcesRequest,
     GetResourcesResponse,
 )
-from .support import SendSupportRequest, SendSupportResponse, SendTroopsRequest, SendTroopsResponse
+from .support import (
+    GetTravelInfoRequest,
+    GetTravelInfoResponse,
+    SendSupportRequest,
+    SendSupportResponse,
+    SendTroopsRequest,
+    SendTroopsResponse,
+    TravelTargetArea,
+    TravelUnits,
+)
 from .tax import (
     TAX_DURATIONS,
     TAX_RUBY_COSTS,
@@ -199,6 +208,10 @@ __all__ = [
     "SendSupportResponse",
     "SendTroopsRequest",
     "SendTroopsResponse",
+    "GetTravelInfoRequest",
+    "GetTravelInfoResponse",
+    "TravelTargetArea",
+    "TravelUnits",
     "AreaBooster",
     "BuildingEfficiencyChanged",
     "BuildingFinished",
