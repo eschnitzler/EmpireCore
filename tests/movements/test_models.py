@@ -254,6 +254,11 @@ class TestMovementAreaLayouts:
         area = MovementArea.model_validate([1, 10, 20, 1001])
         assert (area.object_id, area.owner_id, area.name) == (None, None, "")
 
+    def test_a_row_with_a_value_of_the_wrong_kind_is_warned_about(self, caplog):
+        area = MovementArea.model_validate([23, 10, 20, "x", 7, 1, 30, "Tower"])
+        assert (area.area_type, area.x, area.item, area.object_id, area.name) == (23, 10, None, None, "")
+        assert "Could not read a movement's area row" in caplog.text
+
     def test_a_row_the_map_cannot_read_keeps_its_position(self):
         # 99 is NO_OUTPOST, whose row the client never parses
         area = MovementArea.model_validate([99, 10, 20, 5])
