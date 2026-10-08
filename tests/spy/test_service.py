@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from empire_core.client.client import EmpireClient
-from empire_core.enums import Kingdom, SpyOutcome, SpyStep, SpyType
+from empire_core.enums import CollectableKind, Kingdom, SpyOutcome, SpyStep, SpyType
 from empire_core.exceptions import CommandError, EmpireTimeoutError
 from empire_core.protocol.packet import Packet
 from empire_core.spy import service as spy_module
@@ -757,7 +757,7 @@ class TestEconomyMissions:
 
         assert result.success is True
         assert result.report is not None
-        assert result.report.resources == [["W", 500]]
+        assert [(good.kind, good.amount) for good in result.report.resources] == [(CollectableKind.WOOD, 500)]
 
     @pytest.mark.parametrize("spy_type", [SpyType.SABOTAGE, SpyType.PLAGUE])
     def test_other_mission_types_are_refused(self, no_sleep, spy_type):

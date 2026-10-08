@@ -7,8 +7,8 @@ import logging
 
 import pytest
 
-from empire_core.enums import BattleLogAttackType, LogResult, MapItemType, MessageType
-from empire_core.gamedata import Gem
+from empire_core.enums import BattleLogAttackType, CollectableKind, LogResult, MapItemType, MessageType
+from empire_core.gamedata import Currency, Gem
 from empire_core.messages.models import BattleLogMeta
 from empire_core.protocol.base import parse_response
 from empire_core.protocol.models import (
@@ -132,7 +132,7 @@ class TestShortLog:
         npc, player = log.participants
         assert (npc.player_id, npc.front, npc.start_army_size, npc.lost_units) == (NPC_ID, 0, 79, -79)
         assert player.is_defender and not npc.is_defender
-        assert player.loot == [["C1", 3790]]
+        assert [(good.kind, good.amount) for good in player.loot] == [(CollectableKind.COINS, 3790)]
         assert (player.xp, player.faction_points, player.morale_boost) == (69, -1, -100)
         assert (player.reputation_blue, player.reputation_red) == (0, 0)
         assert log.attackers == [npc]
@@ -187,6 +187,28 @@ class TestShortLog:
         log = BattleLogShortResponse.model_validate(payload)
         assert (log.participants[1].reputation_blue, log.participants[1].reputation_red) == (4, 9)
         assert (log.participants[0].reputation_blue, log.participants[0].reputation_red) == (2, 5)
+
+    def test_auto_skip_costs_split_as_the_client_splits_them(self):
+        # BattleLogVO.fillFromParamObject: ASMS rows above 0 are costs, the others refunds; ASC rubies a cost
+        log = BattleLogShortResponse.model_validate({**BLS, "ASMS": [[1004, 2], [1001, -3]], "ASC": 15})
+
+        assert [(c.item, c.amount) for c in log.auto_skip_costs] == [
+            (Currency.SKIP_30_MINUTES, 2),
+            (Currency.SKIP_1_MINUTE, -3),
+        ]
+        assert [(c.kind, c.item, c.amount) for c in log.auto_skip_paid] == [
+            (CollectableKind.CURRENCY, Currency.SKIP_30_MINUTES, 2),
+            (CollectableKind.RUBIES, None, 15),
+        ]
+        assert [(c.item, c.amount) for c in log.auto_skip_refunded] == [(Currency.SKIP_1_MINUTE, 3)]
+        assert BattleLogShortResponse.model_validate(BLS).auto_skip_paid == ()
+
+    @pytest.mark.parametrize(("sent", "item"), [(4, Currency.SKIP_30_MINUTES), (1004, Currency.SKIP_30_MINUTES)])
+    def test_a_found_minute_skip_is_one_of_its_currency(self, sent, item):
+        skip = BattleLogShortResponse.model_validate({**BLS, "MSF": sent}).found_minute_skip
+
+        assert skip is not None and (skip.kind, skip.item, skip.amount) == (CollectableKind.CURRENCY, item, 1)
+        assert BattleLogShortResponse.model_validate({**BLS, "MSF": 0}).found_minute_skip is None
 
     def test_supporters_wounded(self):
         log = BattleLogShortResponse.model_validate({**BLS, "WSU": [[7, 12], [8, 3]]})

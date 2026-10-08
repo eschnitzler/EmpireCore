@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from empire_core.enums import SpyType
+from empire_core.enums import CollectableKind, SpyType
 from empire_core.gamedata import Tool, Unit
 from empire_core.protocol.base import Position, parse_response
 from empire_core.protocol.models import (
@@ -130,13 +130,19 @@ class TestMalformedMovementBatch:
         ).movements[0]
         assert market.spy is None
         assert market.market is not None and market.market.carriages == 3
-        assert market.market.goods == [("W", 100), ("S", 50)]
+        assert [(good.kind, good.amount) for good in market.market.goods] == [
+            (CollectableKind.WOOD, 100),
+            (CollectableKind.STONE, 50),
+        ]
 
     def test_travel_units_and_loot(self):
         travel = {**GOOD_MOVEMENT, "A": [[216, 500]], "G": [["W", 8], ["C1", 28]]}
         wrapper = GetMovementsResponse.model_validate({"M": [travel]}).movements[0]
         assert wrapper.travel_units == {216: 500}
-        assert wrapper.travel_goods == [("W", 8), ("C1", 28)]
+        assert [(good.kind, good.amount) for good in wrapper.travel_goods] == [
+            (CollectableKind.WOOD, 8),
+            (CollectableKind.COINS, 28),
+        ]
 
     def test_full_army_wins_over_army(self):
         wrapper = GetMovementsResponse.model_validate({"M": [{**GOOD_MOVEMENT, "FA": {"M": [[9, 1]]}}]}).movements[0]
