@@ -290,6 +290,14 @@ class TestAttackInfoBlocks:
         assert info.spy_army is None
         assert (info.spy_age_seconds, info.defender_legend_skill_ids) == (-1, ())
 
+    def test_a_legend_skill_that_is_not_an_id_costs_only_itself(self, caplog):
+        from empire_core.protocol.models import GetAttackInfoResponse
+
+        info = GetAttackInfoResponse.model_validate({"S": [[[487, 20]]], "LS": [101, None, 102]})
+
+        assert info.defender_legend_skill_ids == (101, 102)
+        assert "Skipped 1/3 legend skills of an attack pre-calculation that are not ids" in caplog.text
+
     def test_attacker_effects_are_typed(self):
         from empire_core.combat import Bonus
         from empire_core.protocol.models import GetAttackInfoResponse

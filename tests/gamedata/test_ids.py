@@ -785,6 +785,14 @@ class TestCheck:
         with pytest.raises(AttributeError):
             ids.Horse  # noqa: B018
 
+    def test_only_the_enum_of_a_table_being_generated_stands_in(self, items_file, tmp_path, monkeypatch):
+        (validator,) = HorseStats.model_fields["wod_id"].metadata
+        monkeypatch.setattr(validator.func, "_named", ("Hors",))
+        monkeypatch.setattr(validator.func, "_enums", None)
+
+        with pytest.raises(SystemExit, match="no table generates Hors, which the items tables name"):
+            self.run(items_file, tmp_path / "ids")
+
     def test_check_passes_on_what_it_would_write(self, items_file, tmp_path):
         out = tmp_path / "ids"
         assert self.run(items_file, out) == 0

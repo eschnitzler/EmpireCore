@@ -6,7 +6,8 @@ from enum import IntEnum
 class Horse(IntEnum):
     """
     Travel booster ``wodID`` values from the ``horses`` table, the ``HBW`` movements send, named from the ``comment2``
-    and ``comment1`` notes: the game names a horse by its place in the travel dialog.
+    and ``comment1`` notes: the game names a horse only by its button's place in the travel dialog, the tooltip text
+    ``horse<n>``.
 
     Client: ``HorseTravelboosterVO.parseXmlNode`` (bundle line 118814); ``ACastlePostActionDialog.calculateTooltip``
     (bundle line 27269)

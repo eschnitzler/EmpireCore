@@ -90,16 +90,18 @@ class Table:
 
 
 @contextmanager
-def enums_not_generated_yet() -> Iterator[None]:
+def enums_not_generated_yet() -> Iterator[set[str]]:
     """
     Read the ids of an enum the package lacks as plain ints, so a new table generates from a clean package.
 
     A table's rows type their id as the table's enum, which reading them looks up in
     ``empire_core.gamedata.ids``; before its first generation there is none, so an empty one stands in.
-    The fields that looked it up keep the stand-in for the process.
+    The fields that looked it up keep the stand-in for the process. Yields the names stood in for,
+    which the caller checks are all enums of tables being generated.
     """
     namespace = vars(importlib.import_module("empire_core.gamedata.ids"))
     lookup = namespace["__getattr__"]
+    stood_in: set[str] = set()
 
     def stand_in(name: str) -> Any:
         try:
@@ -107,11 +109,12 @@ def enums_not_generated_yet() -> Iterator[None]:
         except AttributeError:
             if name.startswith("_"):
                 raise
+            stood_in.add(name)
             return IntEnum(name, {})
 
     namespace["__getattr__"] = stand_in
     try:
-        yield
+        yield stood_in
     finally:
         namespace["__getattr__"] = lookup
 
@@ -321,7 +324,8 @@ def achievement_rows(data: GameData, texts: Texts | None) -> list[Row]:
     """
     The series' ``achievementName_<achievementSeriesID>`` and the step as its level, else what it counts.
 
-    Client: ``AchievementSerieVO.nameString`` and ``level`` (bundle lines 92822, 92843); the main series
+    Client: ``AchievementSerieVO.nameString`` (bundle line 92822) and ``addAchievementVO``, which keys a
+    series' steps by ``achievementSeriesNumber`` (bundle line 92818); the main series
     (``CastleAchievementData.MAIN_ACHIEVMENT_SERIESID``, bundle line 29884) has no text of its own.
     """
     return [
@@ -350,7 +354,7 @@ def horse_rows(data: GameData) -> list[Row]:
 
 def main_quest_rows(data: GameData, texts: Texts | None) -> list[Row]:
     """
-    ``mainquest_<id>_title``, the title the quest book's chapter dialog shows (bundle line 93386).
+    ``mainquest_<id>_title``, the title ``CastleMainQuestFinishedDialog`` shows (bundle line 93386).
 
     The client parses no ``mainquests`` rows; the ids are the chapters the quest book lists
     (``CastleQuestBookMainQuestListVO.parseListsFromParamObject``, bundle line 52419).
@@ -702,7 +706,8 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "Horse",
             "H",
             "Travel booster ``wodID`` values from the ``horses`` table, the ``HBW`` movements send, named from "
-            "the ``comment2`` and ``comment1`` notes: the game names a horse by its place in the travel dialog.",
+            "the ``comment2`` and ``comment1`` notes: the game names a horse only by its button's place in the "
+            "travel dialog, the tooltip text ``horse<n>``.",
             "``HorseTravelboosterVO.parseXmlNode`` (bundle line 118814); "
             "``ACastlePostActionDialog.calculateTooltip`` (bundle line 27269)",
             horse_rows(data),
@@ -1076,8 +1081,11 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit(f"items version {data.version!r} is not dotted digits")
 
     texts = Texts(json.loads(args.texts.read_text()) if args.texts else fetch_texts("en"))
-    with enums_not_generated_yet():
+    with enums_not_generated_yet() as stood_in:
         table_list = tables(data, texts)
+        unknown = stood_in - {t.enum for t in table_list}
+        if unknown:
+            raise SystemExit(f"no table generates {', '.join(sorted(unknown))}, which the items tables name")
         empty = [t.enum for t in table_list if not t.rows]
         if empty:
             raise SystemExit(f"no rows for {', '.join(empty)}; is this the full items file?")

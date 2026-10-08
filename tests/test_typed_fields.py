@@ -67,14 +67,15 @@ ALLOWED: dict[str, str] = {
     "gamedata.tables.BuildingDef.low_level_main_castle_cost_rubies": "ruby amounts, not ids",
     "quests.models.DailyQuest.progress": "counters, one per condition of the quest",
     "quests.models.Quest.progress": "counters, one per condition of the quest",
-    "alliance.models.chronicle.AllianceChronicleEntry.action_values": "arguments of the chronicle text, as sent",
-    "alliance.models.info.CrestLayout.colors": "stored, never read by the client; live replies send ACCS",
+    "alliance.models.chronicle.AllianceChronicleEntry.action_values": "#320",
     "state.models.Player.castles": "keyed by (kingdom, castle id); castle ids are the player's areas, not game data",
     "commanders.models.equipment.EquipmentBonus.values": "laid out by the effect type's value class (bundle line 1294)",
     "commanders.models.equipment.RelicBonus.values": "laid out by the effect type's value class (bundle line 1294)",
     "commanders.models.roster.CommanderEffect.values": "laid out by the effect type's value class (bundle line 1294)",
     "map.models.items.MapAreaItem.protector_positions": "opaque: the client reads only its length",
-    "map.models.items.MapAreaItem.raw_data": "the row as sent, for readers that parse it as the client does",
+    "map.models.items.MapAreaItem.raw_data": (
+        "the row held by reference so a map scan stays fast (#343, #354); typed accessors parse it as the client does"
+    ),
     "messages.models.battle_logs.ForwardBattleLogRequest.player_ids": "player ids",
     "messages.models.mailbox.DeleteMessagesRequest.message_ids": "message ids",
     "messages.models.mailbox.DeleteMessagesResponse.message_ids": "message ids",

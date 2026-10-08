@@ -419,6 +419,11 @@ class TestGeneralData:
         assert commander.general_skill_ids == ()
         assert commander.general_is_new is True
 
+    def test_a_skill_entry_that_is_not_an_id_costs_only_itself(self, caplog):
+        commander = Commander.model_validate({"DLID": -45, "GID": 115, "SIDS": [3, "x", 4]})
+        assert commander.general_skill_ids == (3, 4)
+        assert "Skipped 1/3 general skills that are not ids, first: 'x'" in caplog.text
+
     def test_an_entry_without_general_data_leaves_it_none(self):
         # The client reads it only for default or battle-log commanders; a roster entry carries none
         commander = Commander.model_validate({"ID": 1, "GID": 115})
