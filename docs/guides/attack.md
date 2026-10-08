@@ -10,7 +10,7 @@ library fill them the way the game's own button does.
 
 ```python
 from empire_core import AttackWave, WaveFlank
-from empire_core.gamedata import Tool, Unit, WodAmount
+from empire_core.gamedata import Tool, Unit
 
 commanders = client.commanders.get_commanders()
 
@@ -21,7 +21,7 @@ accepted = client.attack.send_attack(
     target_y=710,
     waves=[
         AttackWave(
-            left=WaveFlank(units=WodAmount.slots({Unit.SWORDMAN: 100}), tools=WodAmount.slots({Tool.RAM: 5}))
+            left=WaveFlank(units={Unit.SWORDMAN: 100}, tools={Tool.RAM: 5})
         )
     ],
     commander_id=commanders[0].commander_id,
@@ -30,9 +30,10 @@ accepted = client.attack.send_attack(
 
 An `AttackWave` has a `left`, `middle` and `right` flank, and each
 `WaveFlank` holds its `units` and `tools` slots as `WodAmount` pairs, one per
-slot in order: `WodAmount.slots({Unit.SWORDMAN: 100})` builds them from a
-mapping, and an empty slot is `EMPTY_SLOT` (`[-1, 0]` on the wire). Waves go
-front to back.
+slot in order. Pass a mapping (`units={Unit.SWORDMAN: 100}`) and each entry
+becomes a slot; an empty slot is `EMPTY_SLOT` (`[-1, 0]` on the wire). To
+assign slots to an existing flank, `WodAmount.slots({...})` builds them. Waves
+go front to back.
 
 The courtyard wave, the support tools and collector boosters read the same
 way: `yard_wave={Unit.SWORDMAN: 300}`, `support_tools=(Tool.X, None, None)`
@@ -105,7 +106,7 @@ for preset in client.attack.get_presets():
     army = preset.army()               # PresetArmy, or None for an empty slot
     print(preset.index, preset.name, army.to_wave() if army else None)
 
-client.attack.save_preset(0, AttackWave(left=WaveFlank(units=WodAmount.slots({Unit.SWORDMAN: 100}))))
+client.attack.save_preset(0, AttackWave(left=WaveFlank(units={Unit.SWORDMAN: 100})))
 client.attack.rename_preset(0, "Farm")
 ```
 

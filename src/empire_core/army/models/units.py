@@ -9,11 +9,11 @@ AttackWave and WaveFlank are the waves a cra attack sends.
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import BeforeValidator, Field
 
-from empire_core.gamedata import WodAmounts, WodAmountSlots
+from empire_core.gamedata import WodAmounts, WodAmountSlots, WodAmountSlotsInput
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none
 
 BUY_UNIT_PACKAGE_SK = 73
@@ -134,6 +134,10 @@ class WaveFlank(BasePayload):
 
     tools: WodAmountSlots = Field(alias="T", default=(), description="The tool slots, [-1, 0] for an empty one")
     units: WodAmountSlots = Field(alias="U", default=(), description="The unit slots, [-1, 0] for an empty one")
+
+    if TYPE_CHECKING:
+
+        def __init__(self, *, tools: WodAmountSlotsInput = (), units: WodAmountSlotsInput = ()) -> None: ...
 
 
 class AttackWave(BasePayload):

@@ -9,12 +9,12 @@ Commands:
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from empire_core.army.models.units import AttackWave, WaveFlank
-from empire_core.gamedata import SupportToolSlots, WodAmount, WodAmountSlots
+from empire_core.gamedata import SupportToolSlots, WodAmount, WodAmountSlots, WodAmountSlotsInput
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
 
 # =============================================================================
@@ -74,6 +74,20 @@ class PresetArmy(BaseModel):
         default=(None, None, None),
         description="Support tools, one per slot; None for an empty slot, as a preset without any has",
     )
+
+    if TYPE_CHECKING:
+
+        def __init__(
+            self,
+            *,
+            middle_tools: WodAmountSlotsInput = (),
+            left_tools: WodAmountSlotsInput = (),
+            right_tools: WodAmountSlotsInput = (),
+            middle_units: WodAmountSlotsInput = (),
+            left_units: WodAmountSlotsInput = (),
+            right_units: WodAmountSlotsInput = (),
+            support_tools: SupportToolSlots = (None, None, None),
+        ) -> None: ...
 
     @classmethod
     def from_arrays(cls, arrays: list[list[int]]) -> PresetArmy:

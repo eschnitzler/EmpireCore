@@ -98,6 +98,7 @@ from .stacks import (
     WodAmountMapping,
     WodAmounts,
     WodAmountSlots,
+    WodAmountSlotsInput,
     wod_amount_pairs,
 )
 from .table import Table
@@ -145,6 +146,7 @@ __all__ = [
     "WodAmount",
     "WodAmountMapping",
     "WodAmountSlots",
+    "WodAmountSlotsInput",
     "WodAmounts",
     "wod_amount_pairs",
     "EnumOrInt",
