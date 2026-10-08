@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import MapItemType, MovementType, NPCOwner
-from empire_core.gamedata import SupportToolSlots, WodAmounts
+from empire_core.gamedata import CollectableRows, SupportToolSlots, WodAmounts
 from empire_core.gamedata.troops import count_troops
 from empire_core.movements.models import MovementArea, MovementOwner, MovementSpy
 from empire_core.protocol.base import enum_or_none, read_or_none
@@ -65,9 +65,11 @@ villages and nomad camps are runs of ids (see :class:`~empire_core.enums.NPCOwne
 
 
 class MovementResources(BaseModel):
-    """Resources a movement carries: market goods or travel loot.
+    """Resources a movement carries: the goods among its market goods or travel loot, added up.
 
-    Keys are the client's collectable server keys (``CollectableItem*VO.SERVER_KEY``).
+    Keys are the client's collectable server keys (``CollectableItem*VO.SERVER_KEY``). Goods sent
+    as an old-style amounts list count as well; coins, rubies and currencies are in ``Movement.goods``
+    only.
     """
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
@@ -189,9 +191,7 @@ class Movement(BaseModel):
     advisor_movement_number: int = Field(default=0, description="This attack's place in the series")
     advisor_is_last: bool = Field(default=False, description="Last attack of the series")
     market_carriages: int = Field(default=0, description="Carriages of a market transport")
-    goods: list[tuple[str | int, int]] | list[int] = Field(
-        default_factory=list, description="Goods or loot pairs, kept raw"
-    )
+    goods: CollectableRows = Field(default=(), description="Goods a market transport carries, or loot")
 
     @field_validator("target_area", "source_area", mode="before")
     @classmethod

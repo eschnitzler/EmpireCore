@@ -9,8 +9,8 @@ import pytest
 
 from empire_core.combat import commander_bonuses
 from empire_core.commanders.models.roster import Commander, CommanderEffect
-from empire_core.enums import MapItemType, MovementType, NPCOwner
-from empire_core.gamedata import GameData
+from empire_core.enums import CollectableKind, MapItemType, MovementType, NPCOwner
+from empire_core.gamedata import Currency, GameData
 from empire_core.movements.tracked import Movement
 from empire_core.state.manager import GameState
 from tests.state.state_helpers import arrive, gam_payload, later, login, push_payload, wait_for
@@ -1009,7 +1009,18 @@ class TestMovementWrapperBlocks:
         mov = self.stored(state, A=[[216, 500]], G=[["W", 8], ["S", 7], ["F", 21], ["C1", 28]])
         assert mov.units == {216: 500}
         assert (mov.resources.wood, mov.resources.stone, mov.resources.food) == (8, 7, 21)
-        assert ("C1", 28) in mov.goods
+        assert (CollectableKind.COINS, 28) in [(good.kind, good.amount) for good in mov.goods]
+
+    def test_old_style_goods_and_currencies_count(self, state):
+        # CollectableParserS2COldGoods: wood, stone, food, coins, rubies, coal, oil, glass, khan tablets
+        mov = self.stored(state, G=[5, 0, 3, 100, 0, 0, 2, 0, 7])
+
+        assert (mov.resources.wood, mov.resources.food, mov.resources.oil) == (5, 3, 2)
+        assert [(good.kind, good.item, good.amount) for good in mov.goods][-1] == (
+            CollectableKind.CURRENCY,
+            Currency.KHAN_TABLETS,
+            7,
+        )
 
     def test_market_cargo(self, state):
         mov = self.stored(state, MM={"C": 3, "G": [["A", 40], ["O", 5]]})

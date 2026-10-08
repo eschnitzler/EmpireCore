@@ -633,6 +633,26 @@ CollectableObject = Annotated[tuple[Collectable, ...], BeforeValidator(_collecta
 """A model field read from a reward object, ``{key: [entry, ...]}`` (see :meth:`Collectable.from_object`)."""
 
 
+def _currency_id_rows(value: Any) -> Any:
+    """``[[currency_id, amount], ...]`` as currency collectables, in order, each amount as sent."""
+    if not isinstance(value, list | tuple) or all(isinstance(item, Collectable) for item in value):
+        return value
+    return tuple(
+        Collectable.of_currency(js_int(row[0]), count)
+        for row in value
+        if isinstance(row, list | tuple) and len(row) >= 2 and (count := _number(row[1])) is not None
+    )
+
+
+CurrencyIdRows = Annotated[tuple[Collectable, ...], BeforeValidator(_currency_id_rows)]
+"""A model field read from ``[[currency_id, amount], ...]`` rows, one currency collectable per row, as sent.
+
+Unlike :data:`CurrencyAmounts`, rows are not added up and an amount keeps its sign.
+
+Client: ``CollectableItemGenericCurrencyVO(e[0], e[1])`` per row (bundle line 138308)
+"""
+
+
 def _currency_rows(value: Any) -> Any:
     """``[[currency_id, amount], ...]`` as ``{currency_id: amount}``; a mapping is taken as it is."""
     if isinstance(value, Mapping) or not isinstance(value, list | tuple):
@@ -663,6 +683,7 @@ Client: ``CastleFightScreenVO.addCollectorBooster`` (bundle line 30584) pushes `
 __all__ = [
     "MINUTE_SKIP_FIRST_ID",
     "CurrencyAmounts",
+    "CurrencyIdRows",
     "Collectable",
     "CollectableItem",
     "CollectableObject",

@@ -60,7 +60,7 @@ for message in client.messages.mailbox:
         report = client.messages.get_battle_report(message.message_id, detail="full")
         short = report.short
         for player in short.losers:
-            print(player.player_id, player.lost_units, player.loot)
+            print(player.player_id, player.lost_units, [(good.kind, good.amount) for good in player.loot])
 ```
 
 `detail` picks how much is read:

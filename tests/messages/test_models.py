@@ -130,7 +130,7 @@ class TestSpyReportResponse:
         assert report.seconds_since_spy == 0
         assert report.dungeon_cooldown_seconds == -3023358
         assert report.legend_skill_ids == ()
-        assert report.resources == []
+        assert report.resources == ()
         castellan = report.defending_castellan
         assert castellan is not None
         assert (castellan.commander_id, castellan.general_id) == (-21, 115)

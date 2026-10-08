@@ -607,7 +607,7 @@ class CastleService(BaseService):
         mirrored: ``applySpecialLevelRestrictions`` (bundle line 44289) and
         ``isBoosterArea`` (bundle line 44356).
         """
-        pairs = self._sendable_goods(goods)
+        amounts = self._sendable_goods(goods)
         request = CreateMarketMovementRequest(
             kingdom_id=self._require_own_castle(source_castle_id).kingdom_id,
             source_castle_id=source_castle_id,
@@ -616,14 +616,14 @@ class CastleService(BaseService):
             horse_booster_id=-1 if feathers else horse_booster_id,
             feathers=1 if feathers else 0,
             slowdown=slowdown,
-            goods=pairs,
+            goods=amounts,
         )
         return self.execute(request, timeout=timeout)
 
-    def _sendable_goods(self, goods: dict[Resource, int]) -> list[list[str | int]]:
+    def _sendable_goods(self, goods: dict[Resource, int]) -> dict[Resource, int]:
         if not goods:
             raise UnsendableGoodsError("No goods to send", goods)
-        pairs: list[list[str | int]] = []
+        amounts: dict[Resource, int] = {}
         for key, amount in goods.items():
             try:
                 resource = Resource(key)
@@ -631,8 +631,8 @@ class CastleService(BaseService):
                 raise UnsendableGoodsError(f"{key!r} is not a resource the market sends", goods) from None
             if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
                 raise UnsendableGoodsError(f"{resource.name} amount must be a positive int, got {amount!r}", goods)
-            pairs.append([resource.value, amount])
-        tabs = {index for key, _ in pairs for index, tab in enumerate(_GOODS_TABS) if key in tab}
+            amounts[resource] = amount
+        tabs = {index for key in amounts for index, tab in enumerate(_GOODS_TABS) if key in tab}
         if len(tabs) > 1:
             raise UnsendableGoodsError(
                 "One send carries goods from one tab only: wood, stone and food; coal, oil, glass and iron;"
@@ -641,13 +641,13 @@ class CastleService(BaseService):
             )
         player = self.client.state.get_local_player()
         if player is not None and player.level > 0 and player.legendary_level <= 0:
-            beyond = [key for key, _ in pairs if key not in _CLASSIC_GOODS]
+            beyond = [key.value for key in amounts if key not in _CLASSIC_GOODS]
             if beyond:
                 raise UnsendableGoodsError(
                     f"Only wood, stone and food can be sent below legend level, not {', '.join(map(str, beyond))}",
                     goods,
                 )
-        return pairs
+        return amounts
 
     def get_market_info(self, timeout: float = 5.0) -> list[MarketCastle]:
         """

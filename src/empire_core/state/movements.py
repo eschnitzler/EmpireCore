@@ -10,7 +10,7 @@ import weakref
 from collections.abc import Callable
 from typing import Any
 
-from empire_core.gamedata import UnitOrTool
+from empire_core.gamedata import Collectable, UnitOrTool
 from empire_core.movements.models import MovementArea, MovementOwner, MovementWrapper
 from empire_core.movements.tracked import Movement, MovementResources
 from empire_core.protocol.base import read_or_none, readable_list
@@ -572,16 +572,15 @@ class MovementState(StateBase):
             if info.commander is not None:
                 fields["commander"] = info.commander
 
-        goods: Any = []
+        goods: tuple[Collectable, ...] = ()
         if (mm := block("MM")) is not None and mm.market is not None:
             fields["market_carriages"] = mm.market.carriages
             goods = fields["goods"] = mm.market.goods
         elif (loot := block("G")) is not None:
             goods = fields["goods"] = loot.travel_goods
         amounts: dict[str, int] = {}
-        for entry in goods:
-            if isinstance(entry, tuple) and isinstance(entry[0], str):
-                amounts[entry[0]] = amounts.get(entry[0], 0) + entry[1]
+        for good in goods:
+            amounts[good.kind.server_key] = amounts.get(good.kind.server_key, 0) + int(good.amount)
         fields["resources"] = MovementResources.model_validate(amounts)
 
         if (att := block("ATT")) is not None:

@@ -21,7 +21,7 @@ from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model
 from empire_core.army.spy_army import SpyArmyBlock
 from empire_core.commanders.models.roster import Castellan
 from empire_core.enums import BattleLogAttackType, Kingdom, LogResult, MapItemType, MessageType, SpyLogType
-from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata import CollectableRows, EnumOrInt
 from empire_core.gamedata.ids.events import Event
 from empire_core.gamedata.lenient import known
 from empire_core.map.models import MapObject
@@ -31,7 +31,6 @@ from empire_core.protocol.base import (
     BaseResponse,
     enum_or_none,
     int_entries,
-    list_or_empty,
     object_or_none,
     read_or_none,
     readable_list,
@@ -613,10 +612,11 @@ class SpyReportResponse(BaseResponse):
     legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
         alias="LS", default=(), description="The defender's legend skills"
     )
-    resources: list[Any] = Field(
+    resources: CollectableRows = Field(
         alias="R",
-        default_factory=list,
-        description="What an economy mission saw, as the server's collectable list rows",
+        default=(),
+        description="What an economy mission saw (CastleSpyLogVO.parseSpyLog reads it with "
+        "CollectableParserS2CParamList.createList, bundle line 60579)",
     )
     dungeon_cooldown_seconds: int | None = Field(
         alias="RS",
@@ -634,11 +634,6 @@ class SpyReportResponse(BaseResponse):
         if isinstance(data, dict) and js_truthy(data.get("DAR")) and isinstance(data.get("AI"), dict):
             data = {**data, "AI": {**data["AI"], "DAR": data["DAR"]}}
         return data
-
-    @field_validator("resources", mode="before")
-    @classmethod
-    def _list_or_empty(cls, value: Any) -> Any:
-        return list_or_empty(value)
 
     @field_validator("legend_skill_ids", mode="before")
     @classmethod

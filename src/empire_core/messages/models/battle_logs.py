@@ -17,8 +17,9 @@ from typing import TYPE_CHECKING, Any
 from pydantic import Field, ValidationInfo, ValidatorFunctionWrapHandler, field_validator, model_validator
 
 from empire_core.commanders.models.roster import Castellan, Commander
-from empire_core.enums import BattleLogAttackType, LogResult, MapItemType, MessageType
-from empire_core.gamedata import EnumOrInt
+from empire_core.enums import BattleLogAttackType, CollectableKind, LogResult, MapItemType, MessageType
+from empire_core.gamedata import Collectable, CollectableRows, CurrencyIdRows, EnumOrInt
+from empire_core.gamedata.collectables import MINUTE_SKIP_FIRST_ID
 from empire_core.map.models import MapObject
 from empire_core.protocol.base import (
     BasePayload,
@@ -567,8 +568,10 @@ class BattleParticipant(BasePayload):
     lost_units: ClientInt = Field(
         default=0, description="Soldiers the player lost; the server sends it as 0 or a negative number"
     )
-    loot: list[Any] = Field(
-        default_factory=list, description="What the player looted, as the server's collectable rows"
+    loot: CollectableRows = Field(
+        default=(),
+        description="What the player looted (BattleLogVO.loadFromParamArrayPBI reads it with "
+        "CollectableParserS2CParamList.createList, bundle line 138318)",
     )
     fame_points: ClientInt = Field(default=0, description="Glory points won or lost")
     xp: ClientInt = Field(default=0, description="Experience won")
@@ -598,11 +601,6 @@ class BattleParticipant(BasePayload):
                 row["reputation_blue"] = reputation.get("0")
                 row["reputation_red"] = reputation.get("1")
         return row
-
-    @field_validator("loot", mode="before")
-    @classmethod
-    def _loot(cls, value: Any) -> Any:
-        return list_or_empty(value)
 
     @property
     def is_defender(self) -> bool:
@@ -715,7 +713,9 @@ class BattleLogShortResponse(BaseResponse):
     survival_rate: ClientInt = Field(alias="SR", default=0, description="Survival rate, percent")
     found_equipment: Any = Field(alias="EQF", default=None, description="Equipment found in the battle, as sent")
     found_gem: Any = Field(alias="GF", default=None, description="Gem found in the battle, as sent")
-    found_minute_skip: Any = Field(alias="MSF", default=None, description="Time skip found in the battle, as sent")
+    found_minute_skip: Collectable | None = Field(
+        alias="MSF", default=None, description="The time skip found in the battle, one of its currency; None for none"
+    )
     rage_points: int = Field(alias="RP", default=-1, description="Rage points; -1 when the reply has none")
     jump_disabled: bool = Field(alias="DJ", default=False, description="The client offers no jump to the area")
     seconds_since_battle: int | float | None = Field(
@@ -738,8 +738,10 @@ class BattleLogShortResponse(BaseResponse):
     )
     attacking_commander: Commander | None = Field(alias="AL", default=None, description="The attacking commander")
     defending_castellan: Castellan | None = Field(alias="DB", default=None, description="The defending castellan")
-    auto_skip_costs: list[Any] = Field(
-        alias="ASMS", default_factory=list, description="[currency_id, amount] rows the auto-skip cost or refunded"
+    auto_skip_costs: CurrencyIdRows = Field(
+        alias="ASMS",
+        default=(),
+        description="The currencies the auto-skip cost (an amount above 0) or refunded (0 or below), as sent",
     )
     auto_skip_rubies: ClientInt = Field(
         alias="ASC", default=0, description="Rubies the auto-skip cost; 0 or less for none"
@@ -852,7 +854,7 @@ class BattleLogShortResponse(BaseResponse):
     def _meta(cls, value: Any) -> Any:
         return value if isinstance(value, str) else ""
 
-    @field_validator("supporters_wounded", "auto_skip_costs", mode="before")
+    @field_validator("supporters_wounded", mode="before")
     @classmethod
     def _list(cls, value: Any) -> Any:
         return list_or_empty(value)
@@ -944,6 +946,46 @@ class BattleLogShortResponse(BaseResponse):
     def _won(self, participant: BattleParticipant) -> bool:
         return (self.defender_won and participant.front == DEFENDER_FRONT) or (
             not self.defender_won and participant.front == ATTACKER_FRONT
+        )
+
+    @field_validator("found_minute_skip", mode="before")
+    @classmethod
+    def _minute_skip(cls, value: Any) -> Any:
+        """
+        A number below the minute skips' range counts from its start; one skip either way.
+
+        Client: ``BattleLogVO.fillFromParamObject`` (bundle lines 138304-138305)
+        """
+        if isinstance(value, Collectable) or not js_truthy(value):
+            return value or None
+        number = js_number_or_none(value)
+        if number is None:
+            return None
+        return Collectable.of_currency(
+            js_int(number + MINUTE_SKIP_FIRST_ID if number < MINUTE_SKIP_FIRST_ID else number)
+        )
+
+    @property
+    def auto_skip_paid(self) -> tuple[Collectable, ...]:
+        """
+        What the auto-skip cost: the currencies with an amount above 0, then ``auto_skip_rubies`` when above 0.
+
+        Client: ``BattleLogVO.fillFromParamObject`` (bundle lines 138308-138311), ``_autoSkipCosts[0]``
+        """
+        paid = tuple(cost for cost in self.auto_skip_costs if cost.amount > 0)
+        if self.auto_skip_rubies > 0:
+            paid += (Collectable(kind=CollectableKind.RUBIES, key="C2", amount=self.auto_skip_rubies),)
+        return paid
+
+    @property
+    def auto_skip_refunded(self) -> tuple[Collectable, ...]:
+        """
+        What the auto-skip refunded: the currencies with an amount of 0 or below, as a positive amount.
+
+        Client: ``BattleLogVO.fillFromParamObject`` (bundle lines 138308-138309), ``_autoSkipCosts[1]``
+        """
+        return tuple(
+            cost.model_copy(update={"amount": abs(cost.amount)}) for cost in self.auto_skip_costs if cost.amount <= 0
         )
 
     def supporter_wounded_units(self, player_id: int) -> int:

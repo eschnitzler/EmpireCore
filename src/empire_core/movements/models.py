@@ -10,7 +10,7 @@ from pydantic import Field, field_validator, model_validator
 
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import MapItemType, SpyType
-from empire_core.gamedata import SupportToolSlots, WodAmounts
+from empire_core.gamedata import CollectableRows, SupportToolSlots, WodAmounts
 from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest, OwnerFaction, owner_positions
 from empire_core.protocol.base import (
     BasePayload,
@@ -179,17 +179,15 @@ class MovementUnitInfo(BasePayload):
         return read_or_none(Commander.model_validate, value) if value else None
 
 
-MovementGoods = list[tuple[str | int, int]] | list[int]
-
-
 class MovementMarket(BasePayload):
     """A market transport's cargo: a wrapper's ``MM``.
 
-    Client: ``MarketMapmovementVO.parse_MM``.
+    Client: ``MarketMapmovementVO.parse_MM`` (bundle line 43706), which reads ``G`` with
+    ``CollectableParserS2CParamList.createList`` (bundle line 40560)
     """
 
     carriages: int = Field(alias="C", default=0, description="Market carriages used")
-    goods: MovementGoods = Field(alias="G", default_factory=list, description="Goods carried")
+    goods: CollectableRows = Field(alias="G", default=(), description="Goods carried")
 
 
 class MovementSpy(BasePayload):
@@ -243,7 +241,11 @@ class MovementWrapper(BasePayload):
     travel_units: WodAmounts = Field(
         alias="A", default_factory=dict, description="Units and tools of a travel movement"
     )
-    travel_goods: MovementGoods = Field(alias="G", default_factory=list, description="Loot a travel movement carries")
+    travel_goods: CollectableRows = Field(
+        alias="G",
+        default=(),
+        description="Loot a travel movement carries (ArmyTravelMapMovementVO.loadFromParamObject, bundle line 26798)",
+    )
     market: MovementMarket | None = Field(alias="MM", default=None, description="Market transport cargo")
     spy: MovementSpy | None = Field(alias="S", default=None, description="Spy mission details")
 
@@ -425,7 +427,6 @@ __all__ = [
     "GetMovementsResponse",
     "MovementArea",
     "MovementArmy",
-    "MovementGoods",
     "MovementMarket",
     "MovementOwner",
     "MovementRecord",
