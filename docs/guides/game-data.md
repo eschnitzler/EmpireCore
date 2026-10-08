@@ -43,12 +43,13 @@ taking its `len()` validates every row once. Besides the ones above, these are
 `rewards` is a `Table` by `RewardId`: each `RewardDef` holds the `Collectable`s
 a reward gives, read from the items' reward columns as the client reads them.
 `data.reward_list(ids)` gives what several rewards hold, in order, as the
-client's `getListByIdArray` does; it is how a campaign's `reward_ids` or a
-title's `reward_id` turn into collectables:
+client's `getListByIdArray` does. A campaign and a title turn their rewards
+into collectables with it:
 
 ```python
-data.reward_list(campaign.reward_ids)   # (Collectable(kind=UNITS, item=Unit..., amount=5), ...)
-data.reward_list([data.titles[title].reward_id])
+campaign.rewards(data)                  # (Collectable(kind=UNITS, item=Unit..., amount=5), ...)
+data.titles[title].rewards(data)
+data.reward_list([40054, 170])          # any reward ids
 ```
 
 The cache keeps each table as JSON text until the table is first read, so
