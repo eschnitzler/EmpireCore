@@ -38,7 +38,9 @@ taking its `len()` validates every row once. Besides the ones above, these are
 `global_effects`, `construction_items`, `loot_boxes`, `loot_box_types`,
 `equipment_groups`, `difficulty_types`, `titles`, `gems`, `sceat_skills`,
 `horses`, `achievements`, `alliance_crest_layouts` and `alliance_crest_colors`.
-`scaling_camps` is a `Table` keyed by plain id.
+`scaling_camps` is a `Table` keyed by plain id, and so are
+`daimyo_castle_contracts` and `daimyo_township_contracts`, the daimyo event's
+alliance contracts (`DaimyoContractDef`) in the items' order.
 
 `rewards` is a `Table` by `RewardId`: each `RewardDef` holds the `Collectable`s
 a reward gives, read from the items' reward columns as the client reads them.
@@ -56,7 +58,8 @@ The cache keeps each table as JSON text until the table is first read, so
 loading from the cache does not build rows nobody reads.
 
 `equipment_effects`, `relic_effects` and `alliance_buffs` are plain dicts by
-plain id, validated at load, as the game names none of their rows.
+plain id, validated at load, as the game names none of their rows. An alliance
+buff's `series_id` is the `AllianceBuffType` it is a level of.
 `raw("specialcamps")` returns a table that is not
 modeled yet, exactly as the items file has it.
 

@@ -197,6 +197,19 @@ class LocalizedNumber:
     """Put a space before the ``k`` or ``M``, as for a right-to-left language."""
 
 
+@dataclass(frozen=True)
+class PlainText:
+    """
+    An argument :func:`text` fills in as it is: not read as a text id, nor written as a number.
+
+    For a value the client wraps as shown, such as a player's or an alliance's name.
+
+    Client: ``TextVO`` (dll line 22901), whose ``compose`` returns the string
+    """
+
+    text: str
+
+
 def _right_to_left(lang: str) -> bool:
     """Client: ``LanguageVO.isLanguageWrittenRightToLeft`` (dll line 22789)."""
     return lang == "ar"
@@ -275,11 +288,16 @@ def _localized(value: object, texts: Mapping[str, str], grouping: bool, lang: st
     """
     One argument as the castle client fills it in: a number written for the language, a text id read as its text.
 
+    A :class:`PlainText` or :class:`LocalizedNumber` is composed by itself, as the client composes
+    any ``AbstractTextContentVO``.
+
     Client: ``GlobalizeTextProcessor.text`` (dll line 22957) with ``localizeReplacements`` on
     (``CastleEnvironmentGlobals``, bundle line 31500, applied in ``BasicFrameOne.initLocalizationModule``,
     dll line 32214). What reads as a number is what ``Number()`` reads as one: ``"12"``, ``True``,
     and ``None`` (JavaScript's ``null``, which is 0).
     """
+    if isinstance(value, PlainText):
+        return value.text
     if isinstance(value, LocalizedNumber):
         localized = value.value
         return _number(
@@ -306,8 +324,8 @@ def text(key: str, *args: object, lang: str = "en", grouping: bool = True) -> st
 
     Fills the placeholders as the castle client does: a number argument is written for the
     language (``1,234.5``, from 100,000 on ``250k``; see :func:`number`), a string that is a
-    text id goes in as that text, and a :class:`LocalizedNumber` as it says. Fetches the
-    language file on first use (see :func:`get_texts`); a CDN outage gives the key.
+    text id goes in as that text, a :class:`LocalizedNumber` as it says and a :class:`PlainText`
+    as it is. Fetches the language file on first use (see :func:`get_texts`); a CDN outage gives the key.
 
     Args:
         key: The text id, any case (``"errorCode_120"``, ``"currency_name_1MinSkip"``)
@@ -350,6 +368,7 @@ __all__ = [
     "FRACTIONAL_DIGITS",
     "RETRY_AFTER_FAILURE",
     "LocalizedNumber",
+    "PlainText",
     "cached_text",
     "fetch_texts",
     "fill",

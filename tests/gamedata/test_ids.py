@@ -404,6 +404,7 @@ class TestTables:
             **IDS_PAYLOAD,
             "buildings": [*IDS_PAYLOAD["buildings"], {"wodID": "999999", "name": "Future", "sortOrder": "0"}],
             "titles": [{"titleID": "0", "topX": "0", "effects": "504&20"}],
+            "daimyoCastleAllianceContracts": [{"id": "1", "rank": "2", "enableOnStart": "1"}],
         }
         lookup_data = GameData.parse(ids.ITEMS_VERSION, payload)
         cache = tmp_path / "items.trimmed.json"
@@ -413,9 +414,10 @@ class TestTables:
         assert lookup_data.buildings[171].name == "Keep"
         # one side has read a table, the other not: equality is the fields and the rows
         assert again == lookup_data
-        for field in [*TABLE_OF.values(), "titles", "scaling_camps"]:
+        for field in [*TABLE_OF.values(), "titles", "scaling_camps", "daimyo_castle_contracts"]:
             assert getattr(again, field) == getattr(lookup_data, field), field
         assert again.titles[0].top_x == 0 and again.buildings[999999].sort_order == 0
+        assert again.daimyo_castle_contracts[1].rank == 2 and again.daimyo_castle_contracts[1].enable_on_start
         assert set(again.buildings) == {171, 172, 301, 401, 501, 999999}
         assert type(again.quests[3047].quest_id) is ids.QuestId
         assert type(again.buildings[401].group) is BuildingGroup

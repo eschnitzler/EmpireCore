@@ -966,6 +966,41 @@ class ScalingCampDef(_Row):
         return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
 
 
+class DaimyoContractDef(_Row):
+    """
+    An alliance contract of the daimyo event: one level of a contract rank.
+
+    The contracts of one rank, in the table's order, are that rank's levels.
+
+    Client: ``XmlSamuraiDaimyoContractVO.parseXml`` (bundle line 66377), keyed by id in
+    ``SamuraiDaimyoDataXml.parseXml`` (bundle line 13914)
+    """
+
+    contract_id: int = Field(alias="id", description="The contract")
+    rank: int = Field(default=-1, description="The contract rank it is a level of")
+    enable_on_start: bool = Field(
+        alias="enableOnStart", default=False, description="Open from the event's start, not after another contract"
+    )
+    next_contract_id: int = Field(alias="nextContract", default=-1, description="The contract after it; -1 for none")
+    shogun_points: int = Field(alias="shogunPoints", default=-1, description="Shogun points it takes")
+    war_effort_points: int = Field(alias="warEffortPoints", default=-1, description="War effort points it gives")
+
+    @field_validator("contract_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("rank", "next_contract_id", "shogun_points", "war_effort_points", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, -1)
+
+    @field_validator("enable_on_start", mode="before")
+    @classmethod
+    def _enabled(cls, value: object) -> bool:
+        return _client_bool(value, False)
+
+
 class RewardDef(_Row):
     """
     One reward of the items: what it gives, and to whom.
@@ -1013,6 +1048,7 @@ __all__ = [
     "AllianceCrestLayoutDef",
     "BuildingDef",
     "DailyQuestDef",
+    "DaimyoContractDef",
     "DifficultyTypeDef",
     "EquipmentGroupDef",
     "EventDef",
