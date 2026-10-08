@@ -40,7 +40,7 @@ from empire_core.ranking.models import (
 )
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Event, GlobalEffect, QuestId, RaidBoss
+    from empire_core.gamedata import Collectable, Event, GameData, GlobalEffect, QuestId, RaidBoss
 
 
 class Scoreboard(BaseModel):
@@ -1320,8 +1320,7 @@ class CampaignEvent(SpecialEvent):
 
     A ``cqs`` push reads its campaign over it again (see :meth:`with_campaign`). The client turns
     ``RIDS`` into the rewards' collectables at once (``rewardData.getListByIdArray``); the game data
-    is loaded only on request here, so the ids are kept, and ``data.reward_list(event.reward_ids)``
-    gives the same list.
+    is loaded only on request here, so the ids are kept, and :meth:`rewards` gives the same list.
 
     Client: ``TimeLimitedCampaignEventEventVO.parseParamObject`` and ``sortByOrder`` (bundle lines
     118536-118549), which sorts by ``ST`` and then ``CQID``, a quest without ``ST`` last
@@ -1362,6 +1361,14 @@ class CampaignEvent(SpecialEvent):
             end_reward_value=js_int(entry.get("ERV")),
             quests=quests,
         )
+
+    def rewards(self, data: GameData) -> tuple[Collectable, ...]:
+        """
+        What the campaign's rewards give, in order, as the client lists them.
+
+        Client: ``getListByIdArray(e.RIDS)`` (``TimeLimitedCampaignEventEventVO.parseParamObject``, bundle line 118536)
+        """
+        return data.reward_list(self.reward_ids)
 
     def with_campaign(self, data: dict[str, Any], now: float) -> CampaignEvent:
         """The event after a ``cqs`` push with this payload. Client: ``parseCQS`` (bundle line 118555)"""

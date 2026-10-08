@@ -35,6 +35,7 @@ from .lenient import GameDataId, GameDataKey
 from .models import READING_CACHE, EffectSpecRow, EffectValue, _parse_int_or_default, _Row
 
 if TYPE_CHECKING:
+    from .data import GameData
     from .ids import (
         Achievement,
         AllianceCrestColor,
@@ -684,6 +685,15 @@ class TitleDef(EffectSpecRow):
         description="Its reward, whose collectables GameData.reward_list gives; -1 for none",
     )
     might_value: int = Field(alias="mightValue", default=-1, description="Might points it gives")
+
+    def rewards(self, data: GameData) -> tuple[Collectable, ...]:
+        """
+        What holding the title gives; nothing when it has no reward.
+
+        Client: ``CastleTitleSystemHelper.getTitleRewardText`` reads ``getListById(rewardID)`` when it is
+        above -1 (bundle line 4444)
+        """
+        return data.reward_list((self.reward_id,))
 
     @field_validator("title_id", mode="before")
     @classmethod

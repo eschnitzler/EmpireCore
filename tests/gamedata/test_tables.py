@@ -176,7 +176,8 @@ class TestRewards:
         title = data.titles[1]
 
         assert title.reward_id == 9314
-        assert [(c.kind, c.amount) for c in data.reward_list([title.reward_id])] == [(CollectableKind.COINS, 100)]
+        assert [(c.kind, c.amount) for c in title.rewards(data)] == [(CollectableKind.COINS, 100)]
+        assert TitleDef.model_validate({"titleID": "2", "type": "FAME"}).rewards(data) == ()
 
     def test_the_cache_keeps_the_collectable_columns_only(self, tmp_path):
         GameData.parse("786.03", self.ITEMS)._write_cache(tmp_path / "cache.json")
