@@ -27,3 +27,30 @@ class PremiumAccountType(IntEnum):
     BRONZE = 0
     SILVER = 1
     GOLD = 2
+
+
+class MercenaryMissionState(IntEnum):
+    """
+    Where a mercenary mission stands, an ``mpe`` mission's ``S``.
+
+    Client: ``CastleMercenaryData.MISSION_STATE_DEFAULT`` to ``MISSION_STATE_COLLECTED`` (bundle line 28881)
+    """
+
+    OPEN = 0
+    STARTED = 1
+    COLLECTABLE = 2
+    COLLECTED = 3
+
+
+class MercenaryMissionRarity(IntEnum):
+    """
+    A mercenary mission's rarity, an ``mpe`` mission's ``Q``.
+
+    Client: ``CastleMercenaryMissionItemVO.RARITY_FREE`` to ``RARITY_LEGENDARY`` (bundle line 81149)
+    """
+
+    FREE = 0
+    COMMON = 1
+    RARE = 2
+    EPIC = 3
+    LEGENDARY = 4

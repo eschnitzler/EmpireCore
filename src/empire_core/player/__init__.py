@@ -1,6 +1,6 @@
 """Players: player info, search, the shared player profile and your progress."""
 
-from empire_core.enums import PremiumAccountType, TitleSystem
+from empire_core.enums import MercenaryMissionRarity, MercenaryMissionState, PremiumAccountType, TitleSystem
 
 from .models import (
     PERMANENT_BOOSTER_DURATION,
@@ -23,6 +23,7 @@ from .models import (
     LootBoxKeys,
     MercenaryMission,
     MercenaryMissionsResponse,
+    MercenaryPackageRequest,
     MightPointsResponse,
     OfficerBonus,
     OfficerTraining,
@@ -89,4 +90,7 @@ __all__ = [
     "LootBoxesResponse",
     "MercenaryMission",
     "MercenaryMissionsResponse",
+    "MercenaryPackageRequest",
+    "MercenaryMissionRarity",
+    "MercenaryMissionState",
 ]

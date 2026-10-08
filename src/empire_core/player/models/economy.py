@@ -3,7 +3,8 @@ Loot boxes and mercenary missions, as the login data and their pushes send them.
 
 Commands:
 - gls: your loot boxes and key progress, a push before and a section of ``gbd``
-- mpe: the mercenary missions, a login section of ``gbd`` and a reply
+- mpe: the mercenary missions, a login section of ``gbd`` and a reply; also the request that lists,
+  starts and collects them
 """
 
 from __future__ import annotations
@@ -12,12 +13,17 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ConfigDict, Field, field_validator
 
+from empire_core.enums import MercenaryMissionRarity, MercenaryMissionState
 from empire_core.gamedata import CollectableRows, EnumOrInt
-from empire_core.protocol.base import BasePayload, BaseResponse, TimedPayload, TimedResponse, readable_list
+from empire_core.protocol.base import (
+    BasePayload,
+    BaseRequest,
+    BaseResponse,
+    TimedPayload,
+    TimedResponse,
+    readable_list,
+)
 from empire_core.protocol.js import ClientInt, ClientNumber, js_truthy
-
-MERCENARY_MISSION_COLLECTED = 3
-"""``CastleMercenaryData.MISSION_STATE_COLLECTED`` (bundle line 28881): a mission the client drops"""
 
 if TYPE_CHECKING:
     from empire_core.gamedata import LootBox, LootBoxType
@@ -100,23 +106,44 @@ class MercenaryMission(TimedPayload):
     """
     One mercenary mission, an entry of an ``mpe``'s ``M``.
 
-    Client: ``CastleMercenaryMissionItemVO.fillFromParamObject`` and ``remainingTime`` (bundle lines 81134-81135),
-    ``RARITY_FREE`` to ``RARITY_LEGENDARY`` (0 to 4)
+    Client: ``CastleMercenaryMissionItemVO.fillFromParamObject`` and ``remainingTime`` (bundle lines 81134-81135)
     """
 
     mission_id: ClientInt = Field(alias="ID", default=0, description="The mission's id")
     rewards: CollectableRows = Field(alias="R", default=(), description="The rewards")
     duration_seconds: ClientNumber = Field(alias="D", default=0, description="How long the mission takes")
-    price: ClientNumber = Field(alias="P", default=0, description="The mission price, 0 when free")
-    quality: ClientInt = Field(alias="Q", default=0, description="The mission's rarity, 0 free to 4 legendary")
-    state: ClientInt = Field(alias="S", default=0, description="0 open, 1 running, 2 ready to collect")
+    price: ClientNumber = Field(alias="P", default=0, description="What starting the mission costs in coins")
+    quality: EnumOrInt[MercenaryMissionRarity] = Field(
+        alias="Q", default=MercenaryMissionRarity.FREE, description="The mission's rarity"
+    )
+    state: EnumOrInt[MercenaryMissionState] = Field(
+        alias="S", default=MercenaryMissionState.OPEN, description="Where the mission stood when the values were read"
+    )
     seconds: ClientNumber = Field(
         alias="RD", default=0, description="Seconds the running mission still takes when the values were read"
     )
 
     def remaining_seconds(self, now: float | None = None) -> float:
         """Seconds the mission still takes, 0 at least."""
-        return max(0.0, self.seconds - self._elapsed(now)) if js_truthy(self.seconds) else 0.0
+        return max(0.0, -self.seconds_past_end(now)) if js_truthy(self.seconds) else 0.0
+
+    def seconds_past_end(self, now: float | None = None) -> float:
+        """
+        Seconds since the mission's time ran out, below 0 while it still runs.
+
+        Client: ``CastleMercenaryMissionItemVO.remainingTime`` (bundle line 81135), negated and not clamped
+        """
+        return self._elapsed(now) - self.seconds
+
+    def current_state(self, now: float | None = None) -> MercenaryMissionState | int:
+        """
+        Where the mission stands now: a started mission whose time has run out is collectable.
+
+        Client: ``CastleMercenaryData.parse_MPE`` and ``onMissionFinished`` (bundle lines 28829-28830, 28850)
+        """
+        if self.state == MercenaryMissionState.STARTED and self.remaining_seconds(now) <= 0:
+            return MercenaryMissionState.COLLECTABLE
+        return self.state
 
 
 class MercenaryMissionsResponse(TimedResponse):
@@ -140,11 +167,45 @@ class MercenaryMissionsResponse(TimedResponse):
     @classmethod
     def _missions(cls, value: Any) -> Any:
         missions = readable_list(MercenaryMission, value, accept=_is_object)
-        return tuple(mission for mission in missions if mission.state < MERCENARY_MISSION_COLLECTED)
+        return tuple(mission for mission in missions if mission.state < MercenaryMissionState.COLLECTED)
 
     def remaining_next_missions_seconds(self, now: float | None = None) -> float:
         """Seconds until the client asks for new missions, 0 at least."""
         return max(0.0, self.next_missions_seconds + NEXT_MISSIONS_DELAY - self._elapsed(now))
+
+    def get_mission(self, mission_id: int) -> MercenaryMission | None:
+        """The mission with this id; None when the reply does not list it."""
+        return next((mission for mission in self.missions if mission.mission_id == mission_id), None)
+
+    def current_mission_state(self, now: float | None = None) -> MercenaryMissionState | int:
+        """
+        The furthest any mission stands now: ``OPEN`` while none runs or waits to be collected.
+
+        Client: ``CastleMercenaryData.currentMissionState`` (bundle line 28853), the highest state
+        ``parse_MPE`` read (bundle line 28829), collectable once ``onMissionFinished`` fired (bundle line 28850)
+        """
+        return max((mission.current_state(now) for mission in self.missions), default=MercenaryMissionState.OPEN)
+
+
+class MercenaryPackageRequest(BaseRequest):
+    """
+    List the mercenary missions, or start or collect one.
+
+    Command: mpe
+    Payload: {"MID": mission_id}
+
+    ``MID`` -1 lists the missions. A mission's id starts an open mission, collects a collectable one, and
+    finishes a running one at once for rubies (``CastleMercenarySkipMissionDialog.confirmSkip``, bundle
+    line 87459); ``client.player.start_mission`` and ``collect_mission`` send it only for the first two.
+
+    Client: ``C2SMercenaryPackageVO`` (bundle line 28889); -1 from ``CastleMercenaryData.onNewMissions``
+    and ``CastleMercenaryOverviewDialog.showLoaded`` (bundle lines 28851, 51996), a mission's id from
+    ``CastleMercenaryMissionItem.startMissionCallback`` and ``collectMissionRewards`` (bundle lines 87379, 87382)
+    """
+
+    command = "mpe"
+
+    mission_id: int = Field(alias="MID", default=-1, description="The mission to start or collect, -1 to list them")
 
 
 __all__ = [
@@ -153,4 +214,5 @@ __all__ = [
     "LootBoxesResponse",
     "MercenaryMission",
     "MercenaryMissionsResponse",
+    "MercenaryPackageRequest",
 ]
