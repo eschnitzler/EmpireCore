@@ -95,3 +95,17 @@ class TaxStatus(IntEnum):
     NONE = 0
     COLLECTING = 1
     WAIT_FOR_COLLECT = 2
+
+
+class KingdomTransferType(IntEnum):
+    """
+    What a transfer to another kingdom carries, the ``TT`` of a transfer skip.
+
+    The client names no constant; it passes the numbers itself.
+
+    Client: ``KingdomUnitsTravelMinuteSkipProperties.getMinuteSkipCommand`` (bundle line 37497),
+    ``KingdomGoodsTravelMinuteSkipProperties.getMinuteSkipCommand`` (bundle line 55567)
+    """
+
+    UNITS = 1
+    GOODS = 2

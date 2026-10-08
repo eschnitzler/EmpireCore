@@ -384,7 +384,7 @@ class AttackBelowMinimumError(EmpireError, ValueError):
 
 
 class UnsendableGoodsError(EmpireError, ValueError):
-    """A market send carries goods the client's send dialog would not send.
+    """A market send or kingdom transfer carries goods the client's send dialog would not send.
 
     Attributes:
         goods: the goods as given

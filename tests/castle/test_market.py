@@ -23,10 +23,17 @@ from empire_core.castle.models.support import (
     SendTroopsRequest,
     SendTroopsResponse,
 )
-from empire_core.castle.models.transfers import KingdomUnitTransferRequest, KingdomUnitTransferResponse
-from empire_core.enums import Kingdom, MarketScope, Resource, ResourceCartType
+from empire_core.castle.models.transfers import (
+    KingdomGoodsTransferRequest,
+    KingdomGoodsTransferResponse,
+    KingdomUnitTransferRequest,
+    KingdomUnitTransferResponse,
+    MinuteSkipKingdomTransferRequest,
+    MinuteSkipKingdomTransferResponse,
+)
+from empire_core.enums import Kingdom, KingdomTransferType, MarketScope, Resource, ResourceCartType
 from empire_core.exceptions import CommandError, UnsendableGoodsError
-from empire_core.gamedata import Tool, Unit, WodAmount
+from empire_core.gamedata import Currency, Tool, Unit, WodAmount
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import parse_response
 from tests.service_helpers import StubPlayer, StubState, conn, make_client, xt_packet
@@ -226,6 +233,95 @@ class TestKingdomUnitTransfer:
     def test_the_reply(self):
         reply = parse_response("kut", {"gcu": {"C1": 1}, "gui": {}, "kpi": {}})
         assert isinstance(reply, KingdomUnitTransferResponse) and reply.currencies is not None
+
+
+# =============================================================================
+# kgt
+# =============================================================================
+
+
+class TestKingdomGoodsTransfer:
+    def test_the_request_follows_the_client(self):
+        # C2SKingdomGoodsTransferVO: SCID, SKID and TKID initialised, G set after them
+        payload = KingdomGoodsTransferRequest(
+            source_castle_id=1234,
+            source_kingdom_id=Kingdom.GREEN,
+            target_kingdom_id=Kingdom.ICE,
+            goods={Resource.WOOD: 100, Resource.FOOD: 5},
+        ).to_payload()
+        assert payload == {"SCID": 1234, "SKID": 0, "TKID": 2, "G": [["W", 100], ["F", 5]]}
+        assert list(payload) == ["SCID", "SKID", "TKID", "G"]
+
+    def test_transfer_goods_to_kingdom_reads_the_source_kingdom(self):
+        client = make_client(castles=[(1234, Kingdom.ICE), (99, Kingdom.FIRE)])
+        assert client.castle.transfer_goods_to_kingdom(1234, Kingdom.FIRE, {Resource.STONE: 300}) is True
+        assert conn(client).request_payloads == [("kgt", {"SCID": 1234, "SKID": 2, "TKID": 3, "G": [["S", 300]]})]
+
+    @pytest.mark.parametrize(
+        ("source", "target"),
+        [
+            # CastleTransferResToKingdomProperties.exceptingKingdomIDs: the target kingdom and Berimond
+            (Kingdom.ICE, Kingdom.ICE),
+            (Kingdom.BERIMOND, Kingdom.GREEN),
+        ],
+    )
+    def test_a_source_the_client_leaves_out_raises(self, source, target):
+        client = make_client(castles=[(1234, source), (99, Kingdom.GREEN), (98, Kingdom.ICE)])
+        with pytest.raises(ValueError, match="from a castle in"):
+            client.castle.transfer_goods_to_kingdom(1234, target, {Resource.WOOD: 1})
+        assert conn(client).request_payloads == []
+
+    def test_a_kingdom_without_your_castle_raises(self):
+        # targetInitialized needs a castle of yours in the target kingdom
+        client = make_client(castles=[(1234, Kingdom.GREEN)])
+        with pytest.raises(ValueError, match="No castle of yours"):
+            client.castle.transfer_goods_to_kingdom(1234, Kingdom.SANDS, {Resource.WOOD: 1})
+        assert conn(client).request_payloads == []
+
+    @pytest.mark.parametrize("goods", [{}, {Resource.WOOD: 0}, {Resource.WOOD: 1, Resource.COAL: 1}])
+    def test_goods_are_checked_as_a_market_send(self, goods):
+        player = StubPlayer(level=70)
+        player.legendary_level = 5
+        client = make_client(state=StubState(local_player=player), castles=[(1234, Kingdom.GREEN), (99, Kingdom.FIRE)])
+        with pytest.raises(UnsendableGoodsError):
+            client.castle.transfer_goods_to_kingdom(1234, Kingdom.FIRE, goods)
+        assert conn(client).request_payloads == []
+
+    def test_below_legend_level_only_classic_goods(self):
+        client = make_client(
+            state=StubState(local_player=StubPlayer(level=70)), castles=[(1234, Kingdom.GREEN), (99, Kingdom.FIRE)]
+        )
+        with pytest.raises(UnsendableGoodsError, match="below legend level"):
+            client.castle.transfer_goods_to_kingdom(1234, Kingdom.FIRE, {Resource.COAL: 1})
+
+    def test_the_reply(self):
+        reply = parse_response("kgt", {"gcu": {"C1": 7}, "grc": {"AID": 1234, "W": 900}, "kpi": {"RT": []}})
+        assert isinstance(reply, KingdomGoodsTransferResponse)
+        assert reply.currencies is not None and reply.currencies.coins == 7
+        assert reply.resources is not None and reply.resources.wood == 900
+
+
+# =============================================================================
+# msk
+# =============================================================================
+
+
+class TestKingdomTransferMinuteSkip:
+    def test_the_request_follows_the_client(self):
+        # C2SMinuteSkipKingdomTransferVO: MST, then KID and TT through toString()
+        payload = MinuteSkipKingdomTransferRequest(
+            minute_skip=Currency.SKIP_5_MINUTES, kingdom_id=Kingdom.FIRE, transfer_type=KingdomTransferType.GOODS
+        ).to_payload()
+        assert payload == {"MST": "MS2", "KID": "3", "TT": "2"}
+        assert list(payload) == ["MST", "KID", "TT"]
+
+    def test_skip_kingdom_transfer_time(self):
+        client = make_client()
+        assert client.castle.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.UNITS, "MS1") is True
+        assert conn(client).request_payloads == [("msk", {"MST": "MS1", "KID": "2", "TT": "1"})]
+
+    def test_the_reply(self):
+        assert isinstance(parse_response("msk", {"kpi": {"UT": []}}), MinuteSkipKingdomTransferResponse)
 
 
 # =============================================================================

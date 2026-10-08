@@ -187,6 +187,8 @@ class GGECommand:
     CMI = "cmi"  # List your castles' carriages and resources
     KUT = "kut"  # Transfer units to another kingdom
     STI = "sti"  # Travel pre-calculation for troops sent between your own areas
+    KGT = "kgt"  # Transfer goods to another kingdom
+    MSK = "msk"  # Shorten a transfer to another kingdom with a minute skip
 
     # Map
     GAM = "gam"  # Get active movements

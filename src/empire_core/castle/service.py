@@ -92,8 +92,12 @@ from empire_core.castle.models.tax import (
     TaxInfo,
     TaxInfoResponse,
 )
-from empire_core.castle.models.transfers import KingdomUnitTransferRequest
-from empire_core.enums import ExpansionType, Kingdom, Resource, ResourceCartType
+from empire_core.castle.models.transfers import (
+    KingdomGoodsTransferRequest,
+    KingdomUnitTransferRequest,
+    MinuteSkipKingdomTransferRequest,
+)
+from empire_core.enums import ExpansionType, Kingdom, KingdomTransferType, Resource, ResourceCartType
 from empire_core.exceptions import (
     AmbiguousCastleError,
     GameDataNotLoadedError,
@@ -898,6 +902,88 @@ class CastleService(BaseService):
             target_kingdom_id=target_kingdom_id,
             target_castle_id=target_castle_id,
             units=WodAmount.slots(units),
+        )
+        return self.execute(request, timeout=timeout)
+
+    def transfer_goods_to_kingdom(
+        self,
+        source_castle_id: int,
+        target_kingdom_id: Kingdom,
+        goods: dict[Resource, int],
+        *,
+        timeout: float = 5.0,
+    ) -> bool:
+        """
+        Send goods from one of your castles to your castle in another kingdom.
+
+        The goods pass the checks of :meth:`send_resources`, since the client
+        sends them from the same send component: positive amounts, one tab per
+        send, classic goods only below legend level. The source castle may not
+        sit in the target kingdom or in Berimond, which the client leaves out
+        of its castle picker, and the target kingdom must hold a castle of
+        yours, which the client sends the goods to. The travel tax and the
+        target's storage are left to the server.
+
+        Args:
+            source_castle_id: The castle the goods leave from, one of yours
+            target_kingdom_id: The kingdom to send them to
+            goods: Amount per resource, all from one tab, such as ``{Resource.WOOD: 1000}``
+            timeout: Timeout in seconds
+
+        Raises:
+            UnsendableGoodsError: The goods fail one of the checks of :meth:`send_resources`
+            ValueError: The source castle sits in the target kingdom or in Berimond,
+                or no castle of yours sits in the target kingdom
+            UnknownCastleError: ``source_castle_id`` is not in your castle list
+            AmbiguousCastleError: ``source_castle_id`` repeats across your kingdoms
+
+        Client: ``CastleTransferResourcesDialog.sendResources`` (bundle line 38082) sends the
+        picked castle's ``kingdomID`` as ``SKID``; its castle picker leaves out
+        ``CastleTransferResToKingdomProperties.exceptingKingdomIDs`` (bundle line 55533), and
+        ``targetInitialized`` (bundle line 55553) needs ``getMainCastleByKingdomID`` of the
+        target kingdom; ``CastleSendGoodsComponent.setTabVisibility`` (bundle line 44261)
+        """
+        amounts = self._sendable_goods(goods)
+        source_kingdom = self._require_own_castle(source_castle_id).kingdom_id
+        if source_kingdom in (target_kingdom_id, Kingdom.BERIMOND):
+            raise ValueError(f"Goods cannot be sent to another kingdom from a castle in {source_kingdom.name}")
+        if not any(castle.kingdom_id == target_kingdom_id for castle in self._own_castles()):
+            raise ValueError(f"No castle of yours sits in {Kingdom(target_kingdom_id).name} to receive the goods")
+        request = KingdomGoodsTransferRequest(
+            source_castle_id=source_castle_id,
+            source_kingdom_id=source_kingdom,
+            target_kingdom_id=target_kingdom_id,
+            goods=amounts,
+        )
+        return self.execute(request, timeout=timeout)
+
+    def skip_kingdom_transfer_time(
+        self,
+        kingdom_id: Kingdom,
+        transfer_type: KingdomTransferType,
+        minute_skip: Currency | str,
+        timeout: float = 5.0,
+    ) -> bool:
+        """
+        Shorten the units or goods on their way to a kingdom with a minute skip item.
+
+        Each kingdom has at most one units transfer and one goods transfer on
+        the way; ``client.state.get_kingdoms()`` lists them. The full skip the
+        client also offers (``kst``) costs rubies and is not offered here.
+
+        Args:
+            kingdom_id: The kingdom the transfer goes to
+            transfer_type: ``KingdomTransferType.UNITS`` or ``GOODS``
+            minute_skip: The minute skip to use, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``;
+                its key (``"MS1"``) also works, for a skip newer than the generated enum
+            timeout: Timeout in seconds
+
+        Client: ``KingdomUnitsTravelMinuteSkipProperties.getMinuteSkipCommand`` (bundle line 37497),
+        ``KingdomGoodsTravelMinuteSkipProperties.getMinuteSkipCommand`` (bundle line 55567);
+        ``MSKCommand`` (bundle line 125795)
+        """
+        request = MinuteSkipKingdomTransferRequest(
+            minute_skip=minute_skip, kingdom_id=kingdom_id, transfer_type=transfer_type
         )
         return self.execute(request, timeout=timeout)
 
