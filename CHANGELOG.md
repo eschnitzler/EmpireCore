@@ -2,6 +2,412 @@
 
 <!-- version list -->
 
+## v0.50.0 (2026-10-08)
+
+### Bug Fixes
+
+- **alliance,commanders,attack**: Read the crest colours and skill ids as the client does
+  ([`c2d1ac5`](https://github.com/eschnitzler/EmpireCore/commit/c2d1ac5841350ff687bea9916ffdf98cd200d973))
+
+- **gamedata,castle**: Read short slot pairs, text tool ids and a constructed slot list as the
+  client does
+  ([`8a63979`](https://github.com/eschnitzler/EmpireCore/commit/8a639792c9137e581bb2bcf65dd2f450479c95fc))
+
+- **gamedata,movements**: Name gem and crest layout collectables, merge as the client merges, guard
+  the cache
+  ([`b38ce85`](https://github.com/eschnitzler/EmpireCore/commit/b38ce857f1f001ac07991e8188c8cc249ddc573a))
+
+- **map**: Collect main castles in every kingdom by default
+  ([`1de62ff`](https://github.com/eschnitzler/EmpireCore/commit/1de62ff41bf6fda477e8dc9b9eb1279e249e8829))
+
+- **protocol**: Say when an id array has entries that are not ids
+  ([`4ae50e4`](https://github.com/eschnitzler/EmpireCore/commit/4ae50e482c2a98cfb429a023253b9f19322de69a))
+
+- **scripts**: Generate a new id table from a clean package
+  ([`0b96310`](https://github.com/eschnitzler/EmpireCore/commit/0b96310e4b5b0a442fe509ebbe3a7b3934981ed9))
+
+### Features
+
+- **army**: Build a flank and a preset from units and tools by amount
+  ([`f17cb09`](https://github.com/eschnitzler/EmpireCore/commit/f17cb098091133839fb92d97a97be45db3c745e0))
+
+- **army**: Type army slots and inventories as units and tools
+  ([`c148f48`](https://github.com/eschnitzler/EmpireCore/commit/c148f48febd4095d893e1ee8b089f095912160a4))
+
+- **castle**: Type castle inventories, movement armies and spy armies
+  ([`5327342`](https://github.com/eschnitzler/EmpireCore/commit/5327342c8a58d1bbbf0d52e7b1d7801e98411f6e))
+
+- **events,gamedata**: A campaign's and a title's rewards as collectables
+  ([`cf405e4`](https://github.com/eschnitzler/EmpireCore/commit/cf405e4b37a2e4e686e5698259f715f7a8eef786))
+
+- **gamedata**: Enums for the tables the game names by text
+  ([`7cf8eca`](https://github.com/eschnitzler/EmpireCore/commit/7cf8eca23a8f143593dc613fc5dfd88f4d179194))
+
+- **gamedata**: Key every id-enum table by its enum
+  ([`5f77fbe`](https://github.com/eschnitzler/EmpireCore/commit/5f77fbec0aca0ab3c70f3a8145cd2ccf83fe0235))
+
+- **gamedata**: Name currencies and researches from the game's texts
+  ([`3568a9f`](https://github.com/eschnitzler/EmpireCore/commit/3568a9f6d6cd20005032a56df09ed118bb325526))
+
+- **gamedata**: Parse effects columns into typed effect values
+  ([`c50f619`](https://github.com/eschnitzler/EmpireCore/commit/c50f619845e99c2a167d7adc3baf91bc6ffc23fe))
+
+- **gamedata**: Read the rewards table into collectables
+  ([`5912f24`](https://github.com/eschnitzler/EmpireCore/commit/5912f2435a72ae06165ec65e0c017d47590eeef0))
+
+- **gamedata**: Type the fixed text columns as enums
+  ([`e988705`](https://github.com/eschnitzler/EmpireCore/commit/e988705d62374b0e94aa2d6b83a35b363871c773))
+
+- **gamedata**: Type the ids game-data rows reference
+  ([`09a6d4a`](https://github.com/eschnitzler/EmpireCore/commit/09a6d4ab0ed6c5b2986c64dae41d5f2de79e9bd2))
+
+- **gamedata**: Type the tables the id enums name
+  ([`6337193`](https://github.com/eschnitzler/EmpireCore/commit/6337193d656de04a51c5853a54e822787e5c8924))
+
+- **map,ranking**: Type the battle ground connections and the highscore rows
+  ([`5d6de8c`](https://github.com/eschnitzler/EmpireCore/commit/5d6de8c9d7f355a7d3c26858397c3506b2840121))
+
+- **messages**: Type a message's type as MessageType
+  ([`f83665c`](https://github.com/eschnitzler/EmpireCore/commit/f83665cc3a3b6b24227a5cd46e40d7f70a0a3c4d))
+
+- **messages,commanders,player**: Type the advisor, premium and title codes and the small rows
+  ([`5716903`](https://github.com/eschnitzler/EmpireCore/commit/5716903f823c0090144c267cfb6ce996e4064713))
+
+- **models**: Name the title, gem, sceat skill and horse ids the enums now cover
+  ([`73e88c2`](https://github.com/eschnitzler/EmpireCore/commit/73e88c22c25a994d21f2a11621cc930d83c58ff4))
+
+- **models**: Read goods, loot and currency rows as collectables
+  ([`92ddacc`](https://github.com/eschnitzler/EmpireCore/commit/92ddacc37989ecff1ecae5ab3838af11fc6c5e20))
+
+- **models**: Type the id lists the generated enums now name
+  ([`65cb9ba`](https://github.com/eschnitzler/EmpireCore/commit/65cb9baaa9ff33624d6c7575e3b06a6a8334e821))
+
+- **movements**: Read a movement's area rows as map rows and type its advisor and auto-skip
+  ([`a6401dc`](https://github.com/eschnitzler/EmpireCore/commit/a6401dc0c2e6dc2b70643d625122d65ba8546366))
+
+- **texts**: Display names and effect descriptions from the game's texts
+  ([`6da3aa1`](https://github.com/eschnitzler/EmpireCore/commit/6da3aa19ddd159b7b183639bd3b0404efeaaf3b4))
+
+- **texts**: Fill a text's arguments as the castle client does
+  ([`2cae7b9`](https://github.com/eschnitzler/EmpireCore/commit/2cae7b993f096e2412aeff8efa9a9bb839dc559d))
+
+- **texts**: One loader for the game's language file
+  ([`c25ee9d`](https://github.com/eschnitzler/EmpireCore/commit/c25ee9daebe6ba5f8b73a7a0bfc7a9dfe8f88e87))
+
+### Performance Improvements
+
+- **gamedata**: Read the typed tables lazily
+  ([`ecb6867`](https://github.com/eschnitzler/EmpireCore/commit/ecb68676b7835fe6695d9bee87facea60a4b8fce))
+
+### Testing
+
+- **commanders**: Give the gie fixture real general skill ids
+  ([`3d26fb2`](https://github.com/eschnitzler/EmpireCore/commit/3d26fb265ce28f67e448db49685530d022a0d0d6))
+
+### Breaking Changes
+
+- **alliance,commanders,attack**: CrestLayout.colors is renamed color_ids and is a tuple of
+  AllianceCrestColor (or the int sent) or None, not the list as sent. protocol.base.int_entries
+  takes the keyword-only warn (a logger) and what (the entries' name, for its warning) since
+  83de959f, whose message had no footer for it: call int_entries(value, warn=logger, what="...").
+
+- **army**: WaveFlank.units/tools, PresetArmy.*_units/*_tools, CreateAttackRequest.yard_wave,
+  FilledAttack.yard, fill_yard_wave(), the defense slot fields (WallSection, KeepDefense,
+  MoatDefense and the dfk/dfw/dfm requests) and SendSupportRequest/SendTroopsRequest/
+  KingdomUnitTransferRequest.units are tuples of WodAmount, not [[wod_id, amount]] lists; build them
+  with WodAmount.slots({...}) or WodAmount(item, amount), and an empty slot is EMPTY_SLOT
+  (WodAmount(None, 0)), not [-1, 0]. PresetArmy.support_tools and CreateAttackRequest.support_tools
+  hold None for an empty slot, not -1 (PresetArmy's default is (None, None, None)).
+  CreateAttackRequest. collector_booster and send_attack(collector_booster=) are {CurrencyId:
+  amount}, not [[currency_id, amount]]. send_attack( yard_wave=),
+  send_support/send_troops/transfer_units_to_kingdom(units=) take a mapping such as {Unit.SWORDMAN:
+  100} or WodAmount pairs, not [[wod_id, amount]] lists; wave_limit_violations(yard=) takes
+  WodAmount pairs. protocol.UnitCount is removed: army.get_units() returns {Unit or Tool: amount},
+  and GetUnitsResponse.get_inventory/ get_in_production/get_stronghold/get_hospital are removed,
+  read .units/.in_production/.stronghold/.hospital instead. wod_amount_pairs moved from
+  empire_core.army to empire_core.gamedata. The gui inventories, GetDefenseResponse.inventory(),
+  Castle.units and Movement.units are keyed by Unit/Tool members (IntEnums, so an int id still looks
+  them up); UnitsReceived.wod_id is a Unit/Tool member; Player.beginner_protection is keyed by
+  Kingdom; GameData.fortifications is keyed by Building. LenientEnum.enum is replaced by
+  LenientEnum.enums.
+
+- **castle**: DetailedCastleInfo.raw_units, raw_stronghold_units, raw_hospital_units and
+  raw_travelling_units are removed; units, stronghold_units, hospital_units and travelling_units are
+  now fields, {Unit or Tool: amount}, and an id sent twice adds up. MovementArmy.left/
+  middle/right/courtyard and MovementWrapper.travel_units are {Unit or Tool: amount}, not [[wod_id,
+  amount]] lists. MovementWrapper. support_tools holds None for an empty slot;
+  Movement.support_tool_ids is renamed Movement.support_tools, of the same type. AttackInfoResponse.
+  spy_data and spy_army() are replaced by the field spy_army, and SpyReportResponse.spy_data and
+  army() by the field army, each a SpyArmy or None. GetSupportDefenseResponse.defense_positions is a
+  SpyArmy or None; get_total_defenders() and get_units_by_position() are removed, use
+  defense_positions.total() and .sections(). SpyArmy is a pydantic model: SpyArmy.from_spy_data(S)
+  is SpyArmy.model_validate(S), its positions are tuples of WodAmount, and army.UnitStack is removed
+  (.wod_id/.count are WodAmount's .item/.amount). CastleUnitUnlocks.
+  unlocked_unit_ids/locked_unit_ids are renamed unlocked_units/ locked_units, tuples of Unit or
+  Tool. GetDefenseResponse.range_priority/ melee_priority are tuples of Unit. BuildingRow.raw_data
+  is removed. ConstructionList.object_ids is replaced by slots, a tuple of ConstructionSlot
+  (position, object_id, is_waiting, is_free, is_locked).
+
+- **gamedata**: CampaignEvent.reward_ids is tuple[RewardId, ...] and TitleDef.reward_id is a
+  RewardId (both still ints at runtime); look their collectables up with GameData.reward_list. The
+  game data cache format changed: existing caches are re-parsed once. Table() takes a context.
+
+- **gamedata**: EffectDef.raw_area_type_ids, raw_space_ids and raw_raid_boss_ids,
+  EquipmentEffectDef.raw_item_group_ids and ToolStats.raw_slot_types are removed: read
+  area_type_ids, space_ids, raid_boss_ids, item_group_ids and slot_types, now tuple fields of enum
+  members (slot types of ints). EffectDef.effect_type_id, RelicEffectDef.effect_id,
+  EquipmentEffectDef.effect_id and wearer_id, DefaultLordDef.wearer_id, GeneralSkillDef.general_id,
+  DungeonDefence.kingdom_id, LeagueBracketDef.event_id and FortificationDef.wod_id hold enum members
+  (ints) instead of plain ints.
+
+- **gamedata**: GameData.buildings, researches, events, loot_boxes, loot_box_types,
+  equipment_groups, difficulty_types, quests, daily_quests, titles and scaling_camps are read-only
+  Table mappings (exported from empire_core.gamedata) instead of dicts, and are no longer GameData
+  fields: GameData(buildings=...) and item assignment are gone; build a GameData with
+  GameData.parse. Reading is unchanged (table[id], .get(), in, .items(), len()).
+
+- **gamedata**: GameData.gems, GameData.sceat_skills and GameData.horses are read-only Table
+  mappings keyed by Gem, SceatSkill and Horse instead of dict[int, ...] fields: GameData(gems=...)
+  and item assignment are gone, build with GameData.parse. GameData.titles is keyed by Title.
+  GemDef.gem_id, SceatSkillDef.skill_id, HorseStats.wod_id, TitleDef.title_id and previous_title_id
+  and BuildingDef.sceat_skill_id hold the enum member (an int) instead of a plain int. The cache
+  file moves these tables under "table_rows".
+
+- **gamedata**: GameData.record(), GameData.records(), IdRecord,
+  empire_core.gamedata.data.rows_by_id and ROW_TABLES are removed; index the table with the member
+  instead (game_data.units[Unit.MEAD_RANGER_L6], game_data.buildings[Building.KEEP_L1]), a
+  comprehension for several. GameData.buildings, researches, events, loot_boxes, loot_box_types,
+  equipment_groups, difficulty_types, quests, daily_quests and titles hold BuildingDef, ResearchDef,
+  EventDef, LootBoxDef, LootBoxTypeDef, EquipmentGroupDef, DifficultyTypeDef, QuestDef,
+  DailyQuestDef and TitleDef instead of raw dicts: read fields (row.raw_effects,
+  row.previous_title_id) instead of row.get("effects"). GameData.raw("eventAutoScalingCamps") and
+  RAW_TABLES no longer have that table; use GameData.scaling_camps.
+
+- **gamedata**: GameData.units, tools, effects, effect_types, construction_items, global_effects,
+  general_skills, legend_skills, generals, general_abilities, currencies and raid_bosses are
+  read-only Table mappings keyed by their id enum instead of dict[int, ...] fields:
+  GameData(units=...) and item assignment are gone, build with GameData.parse. UnitStats.wod_id,
+  ToolStats.wod_id, EffectDef.effect_id, EffectTypeDef.effect_type_id,
+  ConstructionItemDef.construction_item_id, GlobalEffectDef.global_effect_id,
+  GeneralSkillDef.skill_id, LegendSkillDef.skill_id, GeneralDef.general_id,
+  GeneralAbilityDef.ability_id, CurrencyDef.currency_id and RaidBossDef.raid_boss_id hold the enum
+  member (an int) instead of a plain int. The cache file moves these tables under "table_rows".
+
+- **gamedata**: GameData.units_by_role(role) takes a UnitRole (UnitRole.MELEE, UnitRole.RANGED)
+  instead of a str. UnitStats.role, ToolStats.category and tool_category, BuildingDef.group and
+  building_ground_type, QuestCondition.condition_type, TitleDef.title_system and display_type,
+  EffectDef.player_relation and RelicEffectDef.relic_effect_type now hold their enum's member (a str
+  subclass, so == "melee" still holds), or the plain text for a value the enum lacks; compare
+  against the members.
+
+- **gamedata**: Raw_effects is removed from ToolStats, EffectSpecRow (ConstructionItemDef,
+  AllianceBuffDef, GlobalEffectDef, SceatSkillDef, GeneralSkillDef, GemDef), EquipmentSetDef,
+  DefaultLordDef, BuildingDef, ResearchDef and TitleDef, and BuildingDef.raw_area_specific_effects
+  is now area_specific_effects: read row.effects, a tuple of EffectValue (EquipmentEffectValue for
+  equipment sets and default commanders). EquipmentSetDef and DefaultLordDef now derive from
+  EquipmentEffectSpecRow instead of EffectSpecRow. empire_core.combat.parse_effect_spec(spec) is
+  removed; use effect_value_bonuses(row.effects).
+
+- **gamedata**: SCEItem is removed; use the generated Currency (from empire_core.gamedata), same
+  values and names, except: FEATHERS -> FAST_TRAVEL_FEATHERS, SKIP_1_MIN -> SKIP_1_MINUTE,
+  SKIP_5_MIN -> SKIP_5_MINUTES, SKIP_10_MIN -> SKIP_10_MINUTES, SKIP_30_MIN -> SKIP_30_MINUTES,
+  SKIP_1_HR -> SKIP_1_HOUR, SKIP_5_HRS -> SKIP_5_HOURS, SKIP_24_HRS -> SKIP_24_HOURS, SCEATS ->
+  SCEAT, CONSTRUCTION_TOKENS -> CONSTRUCTION_TOKEN, UPGRADE_TOKENS -> UPGRADE_TOKEN, RELIC_SHARDS ->
+  RELIC_SPLINTERS, ALLIANCE_COINS -> ALLIANCE_COIN, RIFT_COINS -> RIFT_COIN, PASSAGE_TOKENS ->
+  CASTLE_PASSAGE_TOKEN, BUILD_BOOSTER_RARE -> RARE_BUILD_ITEM_BOOSTER, BUILD_BOOSTER_EPIC ->
+  EPIC_BUILD_ITEM_BOOSTER, BUILD_BOOSTER_LEGENDARY -> LEGENDARY_BUILD_ITEM_BOOSTER,
+  GENERAL_SKILL_RESET -> GENERALS_SKILL_RESET_TOKEN, GENERAL_XP_5K -> GENERALS_XP_5000,
+  GENERAL_XP_10K -> GENERALS_XP_10000, GENERAL_XP_15K -> GENERALS_XP_15000, OFFERING_LUDWIG ->
+  OFFERING_TO_LUDWIG, OFFERING_ULRICH -> OFFERING_TO_ULRICH, OFFERING_BEATRICE ->
+  OFFERING_TO_BEATRICE, OFFERING_SASAKI -> SASAKIS_OFFERING_TO_BEATRICE, OFFERING_TIZI ->
+  TIZIS_OFFERING_TO_ULRICH, OFFERING_HASAN -> HASANS_OFFERING_TO_LUDWIG, OFFERING_DIANA ->
+  DIANAS_OFFERING_TO_ULRICH, OFFERING_ASHIRA -> ASHIRAS_OFFERING_TO_ULRICH, OFFERING_KAELRITH ->
+  KAELRITHS_OFFERING_TO_BEATRICE, OFFERING_BARIN -> BARINS_OFFERING_TO_ULRICH, OFFERING_EDRIC ->
+  EDRICS_OFFERING_TO_LUDWIG, SHARD_TORIL -> TORILS_GENERAL_SHARD, SHARD_LEO -> LEOS_GENERAL_SHARD,
+  SHARD_ALYSSA -> ALYSSAS_GENERAL_SHARD, SHARD_HORATIO -> HORATIOS_GENERAL_SHARD, SHARD_SASAKI ->
+  SASAKIS_GENERAL_SHARD, SHARD_DIANA -> DIANAS_GENERAL_SHARD, SHARD_TOM -> TOMS_GENERAL_SHARD,
+  SHARD_TIZI -> TIZIS_GENERAL_SHARD, SHARD_HASAN -> HASANS_GENERAL_SHARD, SHARD_GARRIK ->
+  GARRIKS_GENERAL_SHARD, SHARD_KAELRITH -> KAELRITHS_GENERAL_SHARD. BREAKING CHANGE:
+  TimeSkipBuildingRequest.minute_skip, MinuteSkipDungeonRequest.minute_skip and
+  castle.skip_construction_time(minute_skip) take a Currency (a key str still works);
+  Player.special_currencies and state.get_special_currencies() are keyed by Currency, a key the enum
+  lacks kept as its str. BREAKING CHANGE: Currency and CurrencyId members are renamed from the
+  server key to the game's English name (values unchanged): AC -> ALLIANCE_COIN, ACO ->
+  ANNIVERSARY_TABLETS, AFT -> ADVISOR_CONTRACT, AIN -> ALLIANCE_INFLUENCE, APT -> APPRENTICE_TOKENS,
+  AS -> ALLIANCE_STATUETTES, AST -> ASHIRAS_OFFERING_TO_ULRICH, BA -> PARTY_BALLOONS, BAB ->
+  BALLOON_BOOSTER, BAT -> BARON_ADVISOR_TOKEN, BC1 -> RARE_BUILD_ITEM_BOOSTER, BC2 ->
+  EPIC_BUILD_ITEM_BOOSTER, BC3 -> LEGENDARY_BUILD_ITEM_BOOSTER, BD -> BASTION_DOUBLOON, BE -> BEADS,
+  BEB -> BEAD_BOOSTER, BEE -> BEES, BERAT -> CHRONICLERS_TOKEN, BRN -> BARINS_OFFERING_TO_ULRICH,
+  BTO -> COPPER_PIECES, BUB -> BUSY_BEES, CC -> FROZEN_CARROT, CMBK -> COMMON_MYSTERY_KEY, CMK ->
+  CARNIVAL_MASK, CO1 -> SCREWS, CO2 -> BLACK_POWDER, CO3 -> SAW, CO4 -> DRILL, CO5 -> CROWBAR, CO6
+  -> LEATHER_STRIPS, CO7 -> CHAINS, CO8 -> METAL_PLATES, CPT -> CASTLE_PASSAGE_TOKEN, DAT ->
+  DIANAS_OFFERING_TO_ULRICH, DC -> DRAGON_CHARMS, DD -> DECORATION_DUST, DDP -> DUTY_POINTS, DG ->
+  DRAGON_GLASS, DGA -> DRAGON_GLASS_ARROWS, DRPT -> FIRE_WYRM_TOKENS, DSAM -> DRAGON_SCALE_ARMOR,
+  DSAW -> DRAGON_SCALE_ARROWS, DSS -> DRAGON_SCALE_SPLINTERS, DST -> DRAGON_SCALE_TILES, EDR ->
+  EDRICS_OFFERING_TO_LUDWIG, EMBK -> EPIC_MYSTERY_KEY, ES -> ESSENCES, ESB -> ESSENCE_BOOSTER, FC ->
+  FUSION_COINS, FD -> FURY_DOUBLOON, FKT -> OFFERING_TO_LUDWIG, FT -> FLORA_TOKENS, FU -> PELTS, FUB
+  -> HUNTING_BOOSTER, GAT -> GARRIKS_OFFERING_TO_LUDWIG, GRT -> GENERALS_SKILL_RESET_TOKEN, GTO ->
+  GOLD_PIECES, GTS -> THORN_TALISMANS, GXP1 -> GENERALS_XP_250, GXP2 -> GENERALS_XP_500, GXP3 ->
+  GENERALS_XP_1000, GXP4 -> GENERALS_XP_2500, GXP5 -> GENERALS_XP_5000, GXP6 -> GENERALS_XP_7500,
+  GXP7 -> GENERALS_XP_10000, GXP8 -> GENERALS_XP_12500, GXP9 -> GENERALS_XP_15000, HAT ->
+  HASANS_OFFERING_TO_LUDWIG, HE -> HERITAGE, HEB -> HERITAGE_BOOSTER, HME -> HOLLOW_MOON_EGG, HWT ->
+  SPOOKY_TOKEN, IAP -> CARGO_POINTS, IDCT -> IMPERIAL_DUCATS, IN -> INFLUENCE, INB ->
+  INFLUENCE_BOOSTER, IPC -> IMPERIAL_PATRONAGE_CHARTER, IT -> GLACIER_TOKEN, KLT ->
+  KAELRITHS_OFFERING_TO_BEATRICE, KM -> KHAN_MEDALS, KT -> KHAN_TABLETS, KTK -> OFFERING_TO_ULRICH,
+  LCS -> LUCKY_SLICE, LFT -> LOTUS_TOKEN, LM -> UPGRADE_TOKEN, LMBK -> LEGENDARY_MYSTERY_KEY, LRC ->
+  LEGENDARY_RIFT_COIN, LT -> CONSTRUCTION_TOKEN, LWT -> TICKETS, MCB -> BRICKS, MCC -> CLAY, MCF ->
+  FINE_SAND, MCP -> PURIFIED_WATER, MCS -> STRAW, MCT -> TIMBER, MEG -> COBBLESTONE, MEP ->
+  PRECIOUS_METALS, MER -> RESIN, MFT -> FARMING_TOOLS, MK -> MERCHANTS_KEY, MLF -> FABRIC, MLM ->
+  MAGMA_STONE, MLS -> SOUL_STONE, MPT -> SUNRISE_TOKENS, MRF -> FLINT, MRG -> GLUE, MRN -> NAILS,
+  MRP -> PAINT, MRR -> ROPE, MS1 -> SKIP_1_MINUTE, MS2 -> SKIP_5_MINUTES, MS3 -> SKIP_10_MINUTES,
+  MS4 -> SKIP_30_MINUTES, MS5 -> SKIP_1_HOUR, MS6 -> SKIP_5_HOURS, MS7 -> SKIP_24_HOURS, NAT ->
+  PATHFINDERS_SEAL, NKT -> MAJESTIC_TOKEN, OFS -> OFFERING_SHARD, OFT -> OKTOBERFEST_TOKEN, ORG ->
+  WISHING_ORANGE, PL -> PLASTER, PPT -> JOLLY_ROGER_TOKENS, PR -> PEARLS, PTK ->
+  OFFERING_TO_BEATRICE, PTT -> FAST_TRAVEL_FEATHERS, QT -> QUEST_TICKET, RC -> RIFT_COIN, RD ->
+  RAMPART_DOUBLOON, RF -> RELIC_SPLINTERS, RL -> REFINED_WOOD, RMBK -> RARE_MYSTERY_KEY, RP ->
+  RIFT_POINT, RS -> REFINED_STONE, RSH -> RIFT_SHARD, RVT -> VILLAGE_TOKENS, SAI ->
+  ALICES_GENERAL_SHARD, SAL -> ALYSSAS_GENERAL_SHARD, SAS -> ASHIRAS_GENERAL_SHARD, SAT ->
+  DAICHIS_SEAL, SB -> SOLDIER_BISCUIT, SBR -> BARINS_GENERAL_SHARD, SD -> SPIRIT_DOUBLOON, SDN ->
+  DIANAS_GENERAL_SHARD, SDR -> EDRICS_GENERAL_SHARD, SGA -> GARRIKS_GENERAL_SHARD, SHS ->
+  HASANS_GENERAL_SHARD, SHT -> HORATIOS_GENERAL_SHARD, SKL -> KAELRITHS_GENERAL_SHARD, SLE ->
+  LEOS_GENERAL_SHARD, SLWT -> AFFLUENCE_TICKETS, SM -> SAMURAI_MEDALS, SMA -> STATUETTE_PENALTY, SMB
+  -> SAMURAI_MEDAL_BOOSTER, SOB -> SOUL_SNATCHER, SOM -> TOMS_GENERAL_SHARD, SOUL -> SOULS, SP ->
+  SHOGUN_POINTS, SPB -> SHOGUN_POINTS_BOOSTER, SPT -> SPRING_BLOSSOMS, SSK -> SASAKIS_GENERAL_SHARD,
+  ST -> SAMURAI_TOKENS, STA -> STATUETTE, STAB -> STATUETTE_BOOSTER, STK ->
+  SASAKIS_OFFERING_TO_BEATRICE, STL -> TORILS_GENERAL_SHARD, STO -> SILVER_PIECES, STP -> SCEAT,
+  STPT -> LUCKY_GOLD_POT, STT -> TIZIS_GENERAL_SHARD, SUN -> UNIVERSAL_GENERAL_SHARD, SVA ->
+  VALENTAS_GENERAL_SHARD, SWT -> SWEET_TREAT, TAT -> TOMS_AND_ALICES_OFFERING_TO_LUDWIG, TD ->
+  TIME_DOUBLOON, TEA -> TEAPOTS, TEAT -> TEA_TIME_BOOSTER, TFA -> TWIN_FLAME_AXES, TO -> TONIC, TOB
+  -> TONIC_BOOSTER, TS -> TALISMANS, TTK -> TIZIS_OFFERING_TO_ULRICH, UGR -> RUNE_GOLD, USR ->
+  RUNESTONE, VAT -> VALENTAS_OFFERING_TO_LUDWIG, VD -> VIGOR_DOUBLOON, WWC -> LUCKY_PENNIES, XST ->
+  WINTERTIDE_CHARMS. BREAKING CHANGE: Research members are renamed from the comment2 note and group
+  to the game's title (values unchanged; _L<n> as before): ADD_PLUNDER_CAPACITY_G48_L* ->
+  HEAVY_DUTY_PACK_L*, AGENTENANZAHL_G21_L* -> GUTTER_RUNNERS_L*, AMOUNT_BOOST_PEASANTS_G32_L* ->
+  CONSCRIPTION_L*, DECREASE_FORGING_COSTS_G34_L* -> ARTISAN_BLACKSMITH_L*,
+  DECREASE_FORGING_COSTS_G44_L* -> FURNACE_L*, ELITEBOWMAN_G6_L* -> VETERAN_BOWMAN_L*,
+  ELITECROSSBOW_G8_L* -> VETERAN_CROSSBOWMAN_L*, ELITEHALBERD_G37_L* -> VETERAN_HALBERDIER_L*,
+  ELITEHEAVYCROSSBOWMAN_G40_L* -> VETERAN_HEAVY_CROSSBOWMAN_L*, ELITELONGBOWMAN_G38_L* ->
+  VETERAN_LONGBOWMAN_L*, ELITEMACE_G7_L* -> VETERAN_MACEMAN_L*, ELITESPEER_G5_L* ->
+  VETERAN_SPEARMAN_L*, ELITESWORDMAN_G29_L* -> VETERAN_SWORDSMAN_L*, ELITETWOHANDEDSWORD_G39_L* ->
+  VETERAN_TWO_HANDED_SWORDSMAN_L*, ELITE_SCHNELLER_G17_L* -> ELITE_TRAINING_L*, FAME_BOOST_G24_L* ->
+  MINSTREL_L*, FAME_BOOST_G53_L* -> PAMPHLETS_L*, FIREBRIGADE_BOOST_G36_L* -> FIRE_PUMP_L*,
+  FOODBOOST_G14_L* -> THREE_FIELD_CROP_ROTATION_L*, GEB_UDEXP_G16_L* -> WHEELBARROW_L*,
+  HOLZBOOST_G12_L* -> PITSAW_L*, HONEYBOOST_G139_L* -> HONEY_POTS_L*, HONOR_BOOST_G25_L* ->
+  BIOGRAPHER_L*, INCREASE_POPULATION_G43_L* -> BUNK_BEDS_L*, KAMPFXP_G3_L* -> CHIVALRY_L*,
+  KARRENGESCHW_G11_L* -> STEEL_TIRES_L*, KARRENKAPAZIT_T_G19_L* -> REINFORCED_AXLE_L*,
+  MAGIC_FIND_BOOST_G28_L* -> TREASURE_SEEKER_L*, MAGIC_FIND_BOOST_G54_L* -> APPRAISER_L*,
+  MEADBOOST_G140_L* -> NORTHMAN_TANKARDS_L*, MILITIA_ELITE_PEASANT_G30_L* -> MILITIA_L*,
+  PERCEPTION_BOOST_SIGHTRANGE_G26_L* -> SCOUT_L*, PL_NDERBONUS_G4_L* -> LOOT_LOG_L*,
+  POPULATION_BOOST_G35_L* -> MEDICINE_L*, PRODUCTION_SPEED_TOOLS_G42_L* -> CRAFTSMANSHIP_L*,
+  PRODUCTIVITY_FOOD_G47_L* -> PLOW_L*, PRODUCTIVITY_STONE_G46_L* -> PICKAXE_L*,
+  PRODUCTIVITY_WOOD_G45_L* -> TREE_NURSERY_L*, RECRUITMENT_SPEED_G41_L* -> STRENGTH_TRAINING_L*,
+  REISEZEIT_KINGDOMS_RESSOURCEN_G23_L* -> CARAVAN_L*, REISEZEIT_KINGDOMS_SOLDATEN_G22_L* ->
+  MARCHING_FORMATION_L*, REKRUTIERUNGSGESCHW_G1_L* -> MANEUVER_L*, RELICAXE_G201_L* ->
+  RELIC_AXEMAN_UPGRADE_L*, RELIC_HAMMER_G202_L* -> RELIC_HAMMERMAN_UPGRADE_L*, RELIC_LONGBOW_G204_L*
+  -> RELIC_LONGBOWMAN_UPGRADE_L*, RELIC_SHORTBOW_G203_L* -> RELIC_SHORTBOWMAN_UPGRADE_L*,
+  RESEARCH_SPEED_BOOST_G33_L* -> GENIUS_L*, RESEARCH_SPEED_BOOST_G49_L* -> THIRST_FOR_KNOWLEDGE_L*,
+  R_12H_STEUEREINTREIBER_G18_L* -> CASH_TRANSPORT_L*, SPIONGESCHW_G10_L* -> SHADY_BUSINESS_L*,
+  STATIONIERUNGSGESCHW_G9_L* -> FORCED_MARCH_L*, STEALTH_BOOST_SIGHTRANGE_G27_L* -> RANGER_L*,
+  STEINBOOST_G13_L* -> WEDGING_L*, STEUERBONUS_G15_L* -> LEVIES_L*, SURVIVOR_RATE_BOOST_G31_L* ->
+  AMBULANCE_COACH_L*, TAX_COLLECTOR_BOOST_G52_L* -> INTEREST_RATES_L*, TOOLGESCHW_G2_L* ->
+  WORKBENCH_L*, TRAVELING_SPEED_TRADING_BARROWS_G51_L* -> POWER_FOOD_L*, WACHENANZAHL_G20_L* ->
+  WORKING_SHIFTS_L*, XP_BOOST_G50_L* -> SHIELD_BEARERS_L*. Refs #320 Refs #328
+
+- **gamedata,castle**: WodAmount.slots() returns WodAmount pairs for [wod_id, amount] lists too
+  (read through int(), -1 an empty slot), where it kept them as given. Corrections to the footers of
+  5c9060cf and db39367a, whose behavior is unchanged here: SpyArmy.from_spy_data is removed, not
+  renamed; use SpyArmy.model_validate(S), which raises on an S that is not a list or object
+  (from_spy_data returned None) and reads an object by field name, so {} is an empty army.
+  Movement.units drops amounts of 0 or less within each flank before the flanks are added up, where
+  it added the raw pairs.
+
+- **gamedata,movements**: Collectable.item is a Gem for GEM and an AllianceCrestLayout for
+  ALLIANCE_CREST_LAYOUT (or the int sent), not the plain int. Collectable.merged (and
+  GameData.reward_list(combine=True)) adds up every kind the client adds up: loot boxes by kind into
+  the first box, resource and achievement points and the like by kind, crest layouts by layout with
+  their durations added, VIP time and dungeon protection by their durations. It no longer adds up
+  any kind the client does not. Behavior changes from cd78a04b without a footer there:
+  MovementArea.name of a village is the name at row index 8 (it was always empty), and
+  Movement.target_area_id/target_name (and the source ones) of an area type the old table did not
+  list, such as a faction camp, now carry the row's object id, owner and name instead of -1 and "".
+  Movement.resources (since 11a09458) counts the goods of an old-style goods list, which it dropped
+  before. Game data caches written before this commit are re-parsed once.
+
+- **map,ranking**: MapAreaItem.abg_tower_connection is an AbgCastleConnection or None (an empty
+  index 18 reads as None), abg_connections a tuple of AbgTowerConnection or None.
+  AllianceCrest.layout_id is an AllianceCrestLayout (or the int sent) or None instead of 0.
+  GetHighscoreResponse.raw_list is renamed rows and holds HighscorePlayerRow, HighscoreAllianceRow,
+  HighscoreIslandRow or HighscoreTournamentRow. RankingEntry is removed, from empire_core,
+  empire_core.ranking and empire_core.protocol.models, with GetHighscoreResponse.entries and
+  GetRankingListResponse.entries: read rows, and GetRankingListResponse.scores (LeaderboardScore).
+  RankingService.get_highscore returns list[HighscoreRow]; get_ranking_list, get_own_ranking_page
+  and get_ranking_window return list[LeaderboardScore] (player_name, not name).
+  EventScore.from_player_row and from_alliance_row are replaced by from_highscore_row, which takes a
+  typed row.
+
+- **messages**: MessageInfo.message_type_enum and the battle log's message_type_enum are removed;
+  message_type is now the MessageType member (a plain int for an unknown type, kept and warned
+  once).
+
+- **messages,commanders,player**: AbilityWaveValue.wave_id is an int (0 when missing), value a
+  number (0 when missing) and flank_name a BattleLogFlank (or the str sent) or None.
+  BattleLogShortResponse.advisor_type is AttackAdvisorType (NONE when absent),
+  advisor_movement_count/number are ints, auto_skip_type is AutoSkipCooldownType or None,
+  found_equipment is Equipment or None, found_gem is a Gem or None, supporters_wounded is a tuple of
+  SupporterWounded (read row.player_id/row.wounded_units). MovementUnitInfo.advisor_type is
+  AttackAdvisorType. ReadMessageResponse.extra is renamed bookmark and is a Bookmark or None.
+  LeaderBase.alien_equipment and temporary_equipment are AlienEquipment or None (read
+  .hero_bonuses/.bonuses); LeaderBase.active_alien_equipment is new. Equipment.alien_string is a str
+  or None (a number arrives as its text). BoosterInfoResponse.premium_type is PremiumAccountType or
+  None (None replaces -1) and premium_account_type() returns None, not
+
+- **models**: CreateMarketMovementRequest.goods is a dict[Resource, int] (pass {Resource.WOOD: 100}
+  instead of [["W", 100]]). MovementMarket.goods, MovementWrapper.travel_goods, Movement.goods,
+  BattleParticipant.loot and SpyReportResponse.resources are tuples of Collectable (read c.kind,
+  c.item, c.amount instead of [key, amount] rows); they default to (). The MovementGoods alias is
+  removed. BattleLogShortResponse.auto_skip_costs is a tuple of currency Collectables;
+  found_minute_skip is a Collectable or None.
+
+- **models**: OwnerFaction.title_id is a Title (or the int sent) or None, not 0, when TID is not a
+  number. MovementOwner.title_prefix_id and title_suffix_id are Title or None (None for -1 or a
+  value that is not an int). MovementRecord.horse_booster_id and Movement.horse_booster_id are
+  renamed horse_booster and are a Horse (or the int sent) or None, not -1. Equipment.gem_id is a Gem
+  (or the int sent) or None, not -1; has_gem reads it. GemStack.gem_id is a Gem (or the int sent).
+  ActivatingSceatSkill.skill_id is a SceatSkill (or the int sent) or None, not 0, when the entry has
+  no ID.
+
+- **models**: These fields hold tuples of enum members (an int each) instead of lists of ints:
+  AttackInfoResponse.defender_legend_skill_ids, BattleLogMiddleResponse.attacker_legend_skill_ids
+  and defender_legend_skill_ids, SpyReportResponse.legend_skill_ids, SkillList.legend_skill_ids and
+  sceat_skill_ids, General.skill_ids (and GetGeneralsResponse.skill_ids() returns a tuple),
+  LeaderBase.alien_gem_ids and general_skill_ids. BattleLogMiddleResponse.attacker_triggered_gems
+  and defender_triggered_gems are tuples of Gem members, () instead of None when absent.
+  LeaderBase.general_ability_ids is renamed general_selected_abilities and holds SelectedAbility
+  entries instead of raw pairs. SelectedAbility.ability_id is None for an empty slot instead of -1,
+  and a SelectedAbility dumps as its [slot_id, ability_id] pair; it now lives in
+  empire_core.commanders.models.roster (still exported from empire_core.commanders).
+  SetGeneralAbilitiesRequest.abilities takes SelectedAbility entries instead of [slot_id,
+  ability_id] lists. BattleLogAbility.ability_id is a GeneralAbility member or None.
+  IslandTitle.title_id is a Title member, None instead of -1 for none (held_title_id still gives
+  -1); AllianceCityTitle.title_id is a Title member, None for an id that is not an int.
+  CrestLayout.layout_id is an AllianceCrestLayout member, None for one that is not an int.
+  CastleBuildings.construction_items is a tuple of BuildingConstructionItems instead of the raw CI
+  value. bought_research_ids, finished_achievement_ids, upcoming_event_ids, raid_boss_ids, the
+  QuestBook lists, PermanentCastle.horse_ids (and GameState.get_castle_horse_ids) and
+  AllianceCrest.color_ids hold Research, Achievement, Event, RaidBoss, MainQuest, Horse and
+  AllianceCrestColor members.
+
+- **movements**: MovementArea.row is removed; read MovementArea.item, a MapAreaItem or None
+  (item.raw_data holds the row as sent). MovementArea.model_validate takes the bare row or {"row":
+  [...], "kingdom": KID}. MovementWrapper.auto_skip_cooldown_type and
+  Movement.auto_skip_cooldown_type are AutoSkipCooldownType (or the int sent); Movement.advisor_type
+  is AttackAdvisorType (or the int sent).
+
+- **texts**: Text() and cached_text() now format number arguments for the language (1,234.5; 250k)
+  and read a string argument that is a text id as its text; for the old plain filling use
+  fill(get_texts(lang)[key.lower()], *args).
+
+
 ## v0.49.0 (2026-10-07)
 
 ### Bug Fixes
