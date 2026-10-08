@@ -54,12 +54,12 @@ class TestMailboxRows:
 
     def test_types_and_subjects(self):
         messages = SystemNotificationEvent.model_validate({"MSG": self.ROWS}).messages
-        assert [m.message_type_enum for m in messages] == [
+        assert [m.message_type for m in messages] == [
             MessageType.USER_IN,
             MessageType.ALLIANCE_NEWSLETTER,
             MessageType.BATTLE_LOG,
             MessageType.LOWLEVEL_UNDERWORLD,
-            None,
+            999,
         ]
         # A type the factory has no case for reads as player mail, whose subject is the whole header
         assert [m.subject for m in messages] == ['Hello "there" again', "Plan  war ", None, "Underworld", "future type"]
