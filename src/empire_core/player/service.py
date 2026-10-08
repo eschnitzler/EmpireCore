@@ -1,5 +1,5 @@
 """
-Other players' details, player search, and starting your research.
+Other players' details, player search, your research and the mercenary camp.
 """
 
 from __future__ import annotations
@@ -8,8 +8,9 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from empire_core.enums import CollectableKind
+from empire_core.enums import CollectableKind, MercenaryMissionState
 from empire_core.exceptions import CommandError, EmpireTimeoutError, GameDataNotLoadedError, PacketError
+from empire_core.player.models.economy import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
 from empire_core.player.models.info import (
     GetPlayerInfoRequest,
     GetPlayerInfoResponse,
@@ -17,10 +18,15 @@ from empire_core.player.models.info import (
     SearchPlayerResponse,
 )
 from empire_core.player.models.research import SkipResearchRequest, StartResearchRequest
+from empire_core.protocol.js import js_truthy
 from empire_core.services.base import BaseService
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Currency, Research
+
+
+# a started mission's RD is rounded, and a collect sent while time remains is a ruby skip
+_COLLECT_MARGIN_SECONDS = 2
 
 
 @dataclass
@@ -42,7 +48,7 @@ class PlayerDetailsBulkResult:
 
 class PlayerService(BaseService):
     """
-    Other players' details, finding a player by name, and starting your research.
+    Other players' details, finding a player by name, your research and the mercenary camp's missions.
 
     Reached as client.player.
     """
@@ -180,6 +186,88 @@ class PlayerService(BaseService):
         """
         self._require_minute_skip(minute_skip)
         return self.execute(SkipResearchRequest(minute_skip=minute_skip), timeout=timeout)
+
+    # =========================================================================
+    # Mercenary camp
+    # =========================================================================
+
+    def list_missions(self, timeout: float = 5.0) -> MercenaryMissionsResponse:
+        """
+        The mercenary camp's missions, and when new ones come.
+
+        Sends ``mpe`` with ``MID`` -1, as the client does when it opens the camp and when new missions
+        are due; the reply also reaches ``client.state.get_mercenary_missions()``.
+
+        Client: ``CastleMercenaryOverviewDialog.showLoaded`` and ``CastleMercenaryData.onNewMissions``
+        (bundle lines 51996, 28851)
+        """
+        return self.request(MercenaryPackageRequest(), MercenaryMissionsResponse, timeout=timeout)
+
+    def start_mission(self, mission_id: int, timeout: float = 5.0) -> bool:
+        """
+        Start an open mercenary mission, paying its price in coins.
+
+        Lists the missions first and decides from that reply, as the client decides from its mission
+        state: only an open mission starts, and only while no mission runs or waits to be collected.
+        While one runs the client would first finish it for rubies; that is left out.
+
+        Args:
+            mission_id: A ``MercenaryMission.mission_id`` from :meth:`list_missions`
+            timeout: Timeout in seconds, for each request
+
+        Raises:
+            ValueError: The missions list no such mission, it is not open, or another mission runs
+                or waits to be collected
+
+        Client: ``CastleMercenaryMissionItem.startMission``, ``showStartAndRefreshButton`` and
+        ``startMissionCallback`` (bundle lines 87377, 87361, 87379)
+        """
+        missions = self.list_missions(timeout=timeout)
+        mission = self._mission(missions, mission_id)
+        if mission.current_state() != MercenaryMissionState.OPEN:
+            raise ValueError(f"mercenary mission {mission_id} is not open")
+        if missions.current_mission_state() != MercenaryMissionState.OPEN:
+            raise ValueError("another mercenary mission runs or waits to be collected")
+        return self.execute(MercenaryPackageRequest(mission_id=mission_id), timeout=timeout)
+
+    def collect_mission(self, mission_id: int, timeout: float = 5.0) -> bool:
+        """
+        Collect a finished mercenary mission's rewards.
+
+        The collect is the same ``mpe`` as the ruby skip of a running mission, which costs
+        ``ceil(remaining seconds / 60 * 5)`` rubies. So this lists the missions first and sends the
+        collect only for one the server lists as collectable, as started with no ``RD`` (finished for
+        the client, and a skip of it would cost 0 rubies), or as started with its time run out at
+        least two seconds ago, since ``RD`` is rounded. A started mission whose ``RD`` still counts
+        down is refused. Another session can still change the mission between the list and the
+        send; that window is not closed.
+
+        Args:
+            mission_id: A ``MercenaryMission.mission_id`` from :meth:`list_missions`
+            timeout: Timeout in seconds, for each request
+
+        Raises:
+            ValueError: The missions list no such mission, or it is not collectable by that rule
+
+        Client: ``CastleMercenaryMissionItem.showCollectButton`` and ``collectMissionRewards``
+        (bundle lines 87365, 87382); ``CastleMercenaryMissionItemVO.fillFromParamObject`` sets no end
+        time without ``RD`` (bundle line 81134); ``CastleMercenarySkipMissionDialog.confirmSkip`` (bundle
+        line 87459) sends the same id, ``MercenaryConst.getSkipC2Cost`` (dll line 19508)
+        """
+        mission = self._mission(self.list_missions(timeout=timeout), mission_id)
+        finished = mission.state == MercenaryMissionState.STARTED and (
+            not js_truthy(mission.seconds) or mission.seconds_past_end() >= _COLLECT_MARGIN_SECONDS
+        )
+        if mission.state != MercenaryMissionState.COLLECTABLE and not finished:
+            raise ValueError(f"mercenary mission {mission_id} is not collectable")
+        return self.execute(MercenaryPackageRequest(mission_id=mission_id), timeout=timeout)
+
+    @staticmethod
+    def _mission(missions: MercenaryMissionsResponse, mission_id: int) -> MercenaryMission:
+        mission = missions.get_mission(mission_id)
+        if mission is None:
+            raise ValueError(f"no mercenary mission {mission_id}")
+        return mission
 
 
 __all__ = ["PlayerDetailsBulkResult", "PlayerService"]

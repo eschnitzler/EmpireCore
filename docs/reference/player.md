@@ -1,6 +1,6 @@
 # Player
 
-Player profiles, search and research behind `client.player`.
+Player profiles, search, research and the mercenary camp behind `client.player`.
 
 ## `player.service`
 

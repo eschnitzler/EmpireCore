@@ -14,6 +14,7 @@ from .economy import (
     LootBoxKeys,
     MercenaryMission,
     MercenaryMissionsResponse,
+    MercenaryPackageRequest,
 )
 from .info import (
     GetPlayerInfoRequest,
@@ -81,4 +82,5 @@ __all__ = [
     "LootBoxesResponse",
     "MercenaryMission",
     "MercenaryMissionsResponse",
+    "MercenaryPackageRequest",
 ]
