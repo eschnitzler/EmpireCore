@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from empire_core.enums import CollectableKind
 from empire_core.events import (
     EVENT_CLASSES,
     AllianceBonusEvent,
@@ -25,7 +26,7 @@ from empire_core.events import (
     SpecialEvent,
     TournamentEvent,
 )
-from empire_core.gamedata import QuestId
+from empire_core.gamedata import GameData, QuestId
 from empire_core.gamedata.ids.events import Event
 from empire_core.map import MapObject
 from empire_core.quests import Quest
@@ -242,6 +243,16 @@ class TestCampaign:
         assert [quest.quest_id for quest in event.quests] == [52, 51, 50]
         assert event.quests[0] == Quest(quest_id=52, progress=(4,), campaign_quest_id=1, campaign_timestamp=10)
         assert (event.reward_ids, event.reward_collected, event.end_reward_value) == ((3, 4), False, 12)
+
+    def test_the_rewards_are_the_reward_rows_collectables_in_order(self, state, clock):
+        sei(state, self.ENTRY)
+        data = GameData.parse(
+            "786.03", {"rewards": [{"rewardID": "3", "addC1": "100"}, {"rewardID": "4", "units": "722+5"}]}
+        )
+
+        rewards = state.get_event(95).rewards(data)
+
+        assert [(c.kind, c.amount) for c in rewards] == [(CollectableKind.COINS, 100), (CollectableKind.UNITS, 5)]
 
     def test_a_cqs_reads_the_campaign_again(self, state, clock):
         sei(state, self.ENTRY)
