@@ -93,6 +93,15 @@ class TestGenerals:
         # An empty slot goes back on the wire as -1, as GeneralsAbilityDialog.onSave sends it
         assert [slot.model_dump() for slot in general.selected_abilities] == [[101031, -1], [101033, 10303]]
 
+    def test_an_ability_sent_as_text_counts_only_above_0(self):
+        # getSelectedAbilities counts [1]>0, which compares text as a number
+        general = GetGeneralsResponse.model_validate(
+            {"G": [{"GID": 101, "GASAIDS": [[101031, "-1"], [101032, "0"], [101033, "10303"]]}]}
+        ).generals[0]
+
+        assert [slot.ability_id for slot in general.selected_abilities] == [None, None, 10303]
+        assert general.ability_ids == [10303]
+
     def test_a_malformed_slot_is_skipped(self):
         general = GetGeneralsResponse.model_validate(
             {"G": [{"GID": 101, "GASAIDS": [10073, [101031], ["x", "y"], [101033, 10303]]}]}

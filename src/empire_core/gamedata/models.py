@@ -950,9 +950,9 @@ class HorseStats(_Row):
     """
     A travel booster - the value behind the ``HBW`` field on movements.
 
-    The game names a horse by its button's place in the travel dialog
-    (``ACastlePostActionDialog.calculateTooltip``, bundle line 27269), not by
-    its row, so the ``Horse`` enum is named from the two designer labels.
+    The game names a horse only by its button's place in the travel dialog, the
+    tooltip text ``horse<n>`` (``ACastlePostActionDialog.calculateTooltip``, bundle
+    line 27269), not by its row, so the ``Horse`` enum is named from the two designer labels.
 
     Client: ``HorseTravelboosterVO.parseXmlNode`` (bundle line 118814) after
     ``AVisualVO.parseXmlNode`` (bundle line 17800), read from the ``horses`` table

@@ -29,10 +29,9 @@ from empire_core.protocol.base import (
     BaseRequest,
     BaseResponse,
     int_entries,
-    list_or_empty,
     readable_list,
 )
-from empire_core.protocol.js import ClientInt, js_loose_equals, js_truthy
+from empire_core.protocol.js import ClientInt, js_loose_equals, js_parse_int, js_truthy
 
 from .equipment import Equipment, EquipmentBonus
 
@@ -138,9 +137,8 @@ class SelectedAbility(BasePayload):
     @field_validator("ability_id", mode="before")
     @classmethod
     def _empty_slot(cls, value: Any) -> Any:
-        if value is None or (isinstance(value, int | float) and not isinstance(value, bool) and value <= 0):
-            return None
-        return value
+        ability_id = js_parse_int(value)
+        return None if ability_id is None or ability_id <= 0 else ability_id
 
     @model_serializer
     def _as_pair(self) -> list[int]:
@@ -272,8 +270,9 @@ class LeaderBase(BasePayload):
 
     @field_validator("general_skill_ids", mode="before")
     @classmethod
-    def _id_list(cls, value: Any) -> Any:
-        return list_or_empty(value)
+    def _skill_list(cls, value: Any) -> Any:
+        # GeneralVO.parseData keeps e.SIDS||[] (bundle line 26666) and looks each skill up by id
+        return int_entries(value, warn=logger, what="general skills")
 
     @field_validator("general_selected_abilities", mode="before")
     @classmethod
