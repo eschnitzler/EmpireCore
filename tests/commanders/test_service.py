@@ -179,7 +179,7 @@ class TestCommandersService:
         assert item.unique_id == 5501
         assert item.set_id == 17
         assert item.enchantment_level == 3
-        assert item.gem_id == -1
+        assert item.gem_id is None
         assert item.equipment_type == 1
         assert item.is_permanent
 

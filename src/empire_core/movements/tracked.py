@@ -2,16 +2,20 @@
 
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import MapItemType, MovementType, NPCOwner
-from empire_core.gamedata import CollectableRows, SupportToolSlots, WodAmounts
+from empire_core.gamedata import CollectableRows, EnumOrInt, SupportToolSlots, WodAmounts
 from empire_core.gamedata.troops import count_troops
 from empire_core.movements.models import MovementArea, MovementOwner, MovementSpy
 from empire_core.protocol.base import enum_or_none, read_or_none
+from empire_core.protocol.js import js_int
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Horse
 
 logger = logging.getLogger(__name__)
 
@@ -130,8 +134,8 @@ class Movement(BaseModel):
     kingdom_id: int = Field(default=0, alias="KID", description="Kingdom id")
     source_id: int = Field(default=-1, alias="SID", description="Player id owning the source area")
     owner_id: int = Field(default=-1, alias="OID", description="Player id owning the movement")
-    horse_booster_id: int = Field(
-        alias="HBW", default=-1, description="The horse booster's wod id, -1 for none or when paid with feathers"
+    horse_booster: EnumOrInt["Horse"] | None = Field(
+        alias="HBW", default=None, description="The horse booster; None for none or when paid with feathers"
     )
 
     target_area: MovementArea | None = Field(
@@ -192,6 +196,13 @@ class Movement(BaseModel):
     advisor_is_last: bool = Field(default=False, description="Last attack of the series")
     market_carriages: int = Field(default=0, description="Carriages of a market transport")
     goods: CollectableRows = Field(default=(), description="Goods a market transport carries, or loot")
+
+    @field_validator("horse_booster", mode="before")
+    @classmethod
+    def _horse(cls, value: Any) -> Any:
+        # Client: int(t.HBW), -1 for no horse (BasicMapmovementVO, bundle lines 19383, 15445)
+        horse = js_int(value)
+        return horse if horse > 0 else None
 
     @field_validator("target_area", "source_area", mode="before")
     @classmethod

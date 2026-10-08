@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from empire_core.enums import Kingdom, MapItemType, PeaceModeStatus
-from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout
+from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout, Title
 from empire_core.map.models.areas import (
     FindNextMapObjectRequest,
     FindNextMapObjectResponse,
@@ -75,6 +75,7 @@ class TestGoldenMapArea:
         ]
         assert owner.faction is not None
         assert (owner.faction.faction_id, owner.faction.title_id, owner.faction.protection_status) == (1, 113, 0)
+        assert isinstance(owner.faction.title_id, Title)
         assert owner.alliance_emblem is None
         assert (owner.prefix_title, owner.suffix_title, owner.via_refer_a_friend) == (None, None, False)
 
@@ -227,6 +228,8 @@ class TestOwnerRecordLeniency:
         assert record.emblem is not None and record.emblem.is_set is True
         assert record.emblem.symbol1_color == 0xFF0000
         assert record.faction is not None and record.faction.protection_status == 0
+        # parseInt(undefined) is NaN, which names no title
+        assert record.faction.title_id is None
         assert record.alliance_emblem is not None and record.alliance_emblem.crest is not None
         assert record.alliance_emblem.crest.color_ids == []
 

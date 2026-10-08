@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from empire_core.castle import KingdomInfoResponse, ResourcePoolResponse, TaxStatus
 from empire_core.commanders import GemInventoryResponse
 from empire_core.enums import CollectableKind, Kingdom
-from empire_core.gamedata import Currency, LootBox, LootBoxType, Tool, Unit
+from empire_core.gamedata import Currency, Gem, LootBox, LootBoxType, Tool, Unit
 from empire_core.player import MercenaryMissionsResponse
 from tests.state.test_castle_pushes import jaa_payload
 
@@ -107,6 +107,7 @@ class TestGems:
         state.update_from_packet("gec", {"GEM": [[101, -1], [102, 2], [103, -1]]})
         gems = state.get_gems()
         assert {stack.gem_id: stack.amount for stack in gems.gems} == {101: 1, 102: 2}
+        assert all(isinstance(stack.gem_id, Gem) for stack in gems.gems)
         assert len(gems.relic_gems) == 1, "a gec keeps the relic gems"
 
     def test_a_gec_cannot_take_more_than_held(self):

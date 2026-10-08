@@ -12,10 +12,10 @@ from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, field
 
 from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, list_or_empty, object_or_none
-from empire_core.protocol.js import ClientInt, ParseInt, js_int, js_truthy
+from empire_core.protocol.js import ClientInt, ParseInt, js_int, js_parse_int, js_truthy
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout
+    from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout, Title
 
 
 class OwnerCrest(BasePayload):
@@ -52,7 +52,15 @@ class OwnerFaction(BasePayload):
     protection_end_seconds: ParseInt = Field(
         alias="PMT", default=0, description="Seconds until faction protection ends"
     )
-    title_id: ParseInt = Field(alias="TID", default=0, description="Faction title id")
+    title_id: EnumOrInt["Title"] | None = Field(
+        alias="TID", default=None, description="The faction title; None when TID is not a number"
+    )
+
+    @field_validator("title_id", mode="before")
+    @classmethod
+    def _title(cls, value: Any) -> Any:
+        # parseInt(e.FN.TID), looked up by getTitleByTitleID (FactionRankingItem.update, bundle line 95431)
+        return js_parse_int(value)
 
 
 class OwnerCastlePosition(NamedTuple):

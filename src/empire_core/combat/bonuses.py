@@ -736,7 +736,7 @@ def equipment_set_bonuses(game_data: GameData, items: Iterable[Equipment]) -> li
     for item in items:
         if item.has_set:
             counts[item.set_id] = counts.get(item.set_id, 0) + 1
-        gem = game_data.gems.get(item.gem_id) if item.relic_info is None and item.has_gem else None
+        gem = game_data.gems.get(item.gem_id) if item.relic_info is None and item.gem_id is not None else None
         if gem is not None and gem.set_id > 0 and gem.gem_id not in gems_counted:
             gems_counted.add(gem.gem_id)
             counts[gem.set_id] = counts.get(gem.set_id, 0) + 1
@@ -769,7 +769,7 @@ def gem_bonuses(game_data: GameData, item: Equipment) -> list[Bonus]:
             return []
         rows = [[bonus.relic_effect_id, bonus.power, bonus.values] for bonus in gem.bonuses]
         return parse_bonus_entries(rows, via_relic=True)
-    if not item.has_gem:
+    if item.gem_id is None:
         return []
     row = game_data.gems.get(item.gem_id)
     return effect_value_bonuses(row.effects) if row is not None else []
