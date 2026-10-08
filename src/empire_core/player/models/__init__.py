@@ -41,8 +41,13 @@ from .progress import (
     TitleRanksResponse,
     TopTitleRanking,
 )
+from .research import SkipResearchRequest, SkipResearchResponse, StartResearchRequest, StartResearchResponse
 
 __all__ = [
+    "SkipResearchRequest",
+    "SkipResearchResponse",
+    "StartResearchRequest",
+    "StartResearchResponse",
     "GetPlayerInfoRequest",
     "GetPlayerInfoResponse",
     "PlayerOwnerInfo",

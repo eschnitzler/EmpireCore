@@ -90,6 +90,7 @@ from .tables import (
     RewardId,
     ScalingCampDef,
     TitleDef,
+    is_research_cost_column,
     row_id,
 )
 
@@ -351,7 +352,7 @@ _TABLES: dict[str, _TableSource] = {
     "currencies": _TableSource("currencies", CurrencyDef, "currency_id"),
     "raid_bosses": _TableSource("raidBosses", RaidBossDef, "raid_boss_id"),
     "buildings": _TableSource("buildings", BuildingDef, "building_id"),
-    "researches": _TableSource("researches", ResearchDef, "research_id"),
+    "researches": _TableSource("researches", ResearchDef, "research_id", reads=is_research_cost_column),
     "events": _TableSource("events", EventDef, "event_id"),
     "loot_boxes": _TableSource("lootBoxes", LootBoxDef, "loot_box_id"),
     "loot_box_types": _TableSource("lootBoxTypes", LootBoxTypeDef, "loot_box_type_id"),
@@ -571,8 +572,9 @@ class GameData(BaseModel):
 
     @cached_property
     def researches(self) -> Table[GameDataId["Research"], ResearchDef]:
-        """Research levels by ``Research``."""
-        return self._table("researches")
+        """Research levels by ``Research``, each with what it costs."""
+        currency_ids = {row.name: row.currency_id for row in self.currencies.values()}
+        return self._table("researches", context={"currency_ids": currency_ids})
 
     @cached_property
     def events(self) -> Table[GameDataId["Event"], EventDef]:

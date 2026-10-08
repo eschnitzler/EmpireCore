@@ -30,7 +30,7 @@ from empire_core.enums import (
 )
 from empire_core.protocol.js import js_falsy, js_int, js_number_or_none, js_parse_int, js_string
 
-from .collectables import Collectable
+from .collectables import _XML_COST_PREFIX, Collectable
 from .lenient import GameDataId, GameDataKey
 from .models import READING_CACHE, EffectSpecRow, EffectValue, _parse_int_or_default, _Row
 
@@ -276,11 +276,26 @@ class BuildingDef(EffectSpecRow):
         return "" if text == "-" else text
 
 
+_TEMP_SERVER_COST_PREFIX = "globalServerCost"
+"""The prefix of a research's temporary server cost columns (``AResearchVO.fillFromParamXML``, bundle line 61509)."""
+
+
+def is_research_cost_column(column: str) -> bool:
+    """Whether a ``researches`` column is a cost: ``cost<name>`` or ``globalServerCost<name>``."""
+    return column.startswith((_XML_COST_PREFIX, _TEMP_SERVER_COST_PREFIX))
+
+
 class ResearchDef(EffectSpecRow):
     """
     One level of a research.
 
-    Client: ``AResearchVO.fillFromParamXML`` (bundle lines 61502-61516)
+    ``costs`` and ``temp_server_costs`` read every cost column of the row (see
+    :meth:`Collectable.from_columns`), a currency named by its ``Name`` (``costLegendaryToken``) by the
+    currency names GameData passes in as validation context (``currency_ids``).
+
+    Client: ``AResearchVO.fillFromParamXML`` (bundle lines 61502-61516); ``getBaseCosts`` (bundle line
+    61530) picks ``temp_server_costs`` on a temporary server, and ``getFinalCosts`` (bundle line 61531)
+    applies discounts to them
     """
 
     research_id: GameDataId["Research"] = Field(alias="researchID", description="The research")
@@ -304,6 +319,23 @@ class ResearchDef(EffectSpecRow):
     only_with_research_expert: bool = Field(
         alias="onlyWithResearchExpert", default=False, description="It needs the research expert"
     )
+    cost_rubies: int = Field(alias="costC2", default=0, description="Rubies it costs")
+    costs: tuple[Collectable, ...] = Field(
+        default=(), description="What it costs, in the items' order: resources, coins, rubies, tokens, ..."
+    )
+    temp_server_costs: tuple[Collectable, ...] = Field(default=(), description="What it costs on a temporary server")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_costs(cls, row: object, info: ValidationInfo) -> object:
+        if not isinstance(row, dict) or "costs" in row:
+            return row
+        currency_ids = (info.context or {}).get("currency_ids", {})
+        return {
+            **row,
+            "costs": Collectable.from_columns(row, _XML_COST_PREFIX, currency_ids),
+            "temp_server_costs": Collectable.from_columns(row, _TEMP_SERVER_COST_PREFIX, currency_ids),
+        }
 
     @field_validator("research_id", mode="before")
     @classmethod
@@ -312,7 +344,7 @@ class ResearchDef(EffectSpecRow):
 
     @field_validator(
         "group_id", "level", "min_research_tower_level", "required_level", "required_legend_level",
-        "research_duration", "temp_server_research_duration", mode="before",
+        "research_duration", "temp_server_research_duration", "cost_rubies", mode="before",
     )  # fmt: skip
     @classmethod
     def _int_column(cls, value: object, info: ValidationInfo) -> int:

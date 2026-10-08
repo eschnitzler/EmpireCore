@@ -313,6 +313,9 @@ Client: ``CollectableEnum.getTypeByXmlKey`` (bundle line 401)
 _XML_ADD_PREFIX = "add"
 """``ClientConstCollectable.XML_PREFIX_ADD`` (bundle line 3074): ``add<kind or currency name>`` columns."""
 
+_XML_COST_PREFIX = "cost"
+"""``ClientConstCollectable.XML_PREFIX_COST`` (bundle line 3074): ``cost<kind or currency name>`` columns."""
+
 
 def _parts(text: str) -> list[int]:
     return [js_int(part) for part in text.split("+")]
@@ -596,17 +599,35 @@ class Collectable(BaseModel):
             if (kind := _KINDS_BY_XML_KEY.get(column)) is not None
             for part in str(text).split("#")
         ]
+        return cls.merged([*found, *cls.from_columns(row, _XML_ADD_PREFIX, currency_ids)])
+
+    @classmethod
+    def from_columns(
+        cls, row: Mapping[str, Any], prefix: str, currency_ids: Mapping[str, int]
+    ) -> tuple[Collectable, ...]:
+        """
+        One collectable per ``<prefix><name>`` column of an items row, in the row's order: a research's
+        ``cost`` columns, a reward's ``add`` columns.
+
+        ``name`` is a kind's items key (``C2``, ``Wood``) or else the ``Name`` of a currency
+        (``LegendaryToken``, by ``currency_ids``). A column naming neither is kept as ``OTHER``, where
+        the client drops it.
+
+        Client: ``CollectableParserX2CList.createList`` (bundle lines 62874-62881) with
+        ``CurrencyData.getXmlCurrencyByName`` (bundle line 141193)
+        """
+        found = []
         for column, text in row.items():
-            if not column.startswith(_XML_ADD_PREFIX):
+            if not column.startswith(prefix):
                 continue
-            name = column[len(_XML_ADD_PREFIX) :]
+            name = column[len(prefix) :]
             if (kind := _KINDS_BY_XML_KEY.get(name)) is not None:
                 found.append(cls._from_xml(kind, str(text)))
             elif (currency_id := currency_ids.get(name)) is not None:
                 found.append(cls.of_currency(currency_id, js_parse_int_or_zero(text)))
             else:
                 found.append(cls(kind=CollectableKind.OTHER, key=column, value=text))
-        return cls.merged(found)
+        return tuple(found)
 
     @staticmethod
     def merged(collectables: Iterable[Collectable]) -> tuple[Collectable, ...]:
