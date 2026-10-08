@@ -1,11 +1,12 @@
 """
-Other players' details and player search.
+Other players' details, player search, and starting your research.
 """
 
 from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from empire_core.exceptions import CommandError, EmpireTimeoutError, PacketError
 from empire_core.player.models.info import (
@@ -14,7 +15,11 @@ from empire_core.player.models.info import (
     SearchPlayerRequest,
     SearchPlayerResponse,
 )
+from empire_core.player.models.research import SkipResearchRequest, StartResearchRequest
 from empire_core.services.base import BaseService
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Currency, Research
 
 
 @dataclass
@@ -36,7 +41,7 @@ class PlayerDetailsBulkResult:
 
 class PlayerService(BaseService):
     """
-    Other players' details, and finding a player by name.
+    Other players' details, finding a player by name, and starting your research.
 
     Reached as client.player.
     """
@@ -114,6 +119,41 @@ class PlayerService(BaseService):
         timeout: float = 5.0,
     ) -> SearchPlayerResponse:
         return self.request(SearchPlayerRequest(player_name=player_name), SearchPlayerResponse, timeout=timeout)
+
+    # =========================================================================
+    # Research
+    # =========================================================================
+
+    def start_research(self, research: Research | int, timeout: float = 5.0) -> bool:
+        """
+        Start a research, paying its costs from your resources.
+
+        Missing resources are never paid with rubies: the request sends ``PWR`` 0, as the research
+        dialog does. The reply's research reaches ``client.state.get_research()``.
+
+        Args:
+            research: The research to start
+            timeout: Timeout in seconds
+
+        Client: ``ResearchInfo.buyResearch`` (bundle line 79704), ``RESCommand`` (bundle line 126872)
+        """
+        return self.execute(StartResearchRequest(research_id=research), timeout=timeout)
+
+    def skip_research(self, minute_skip: Currency | str, timeout: float = 5.0) -> bool:
+        """
+        Shorten the running research with a minute skip from your inventory.
+
+        The reply's research reaches ``client.state.get_research()``.
+
+        Args:
+            minute_skip: The minute skip to use, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``;
+                its key (``"MS1"``) also works, for a skip newer than the generated enum
+            timeout: Timeout in seconds
+
+        Client: ``ResearchMinuteSkipProperties.getMinuteSkipCommand`` (bundle line 79784),
+        ``MSRCommand`` (bundle line 125825)
+        """
+        return self.execute(SkipResearchRequest(minute_skip=minute_skip), timeout=timeout)
 
 
 __all__ = ["PlayerDetailsBulkResult", "PlayerService"]

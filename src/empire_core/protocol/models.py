@@ -460,6 +460,12 @@ from empire_core.player.models.progress import (
     ResearchInfoResponse,
     TitleRanksResponse,
 )
+from empire_core.player.models.research import (
+    SkipResearchRequest,
+    SkipResearchResponse,
+    StartResearchRequest,
+    StartResearchResponse,
+)
 from empire_core.protocol.auth import (
     CheckUsernameAvailableRequest,
     CheckUsernameAvailableResponse,
@@ -691,6 +697,10 @@ __all__ = [
     "RelocationInfoResponse",
     "ResearchInfoResponse",
     "TitleRanksResponse",
+    "SkipResearchRequest",
+    "SkipResearchResponse",
+    "StartResearchRequest",
+    "StartResearchResponse",
     # Attack
     "AttackType",
     "LootPriority",
