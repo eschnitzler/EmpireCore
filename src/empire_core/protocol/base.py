@@ -186,6 +186,7 @@ class GGECommand:
     CRM = "crm"  # Send resources to a castle
     CMI = "cmi"  # List your castles' carriages and resources
     KUT = "kut"  # Transfer units to another kingdom
+    STI = "sti"  # Travel pre-calculation for troops sent between your own areas
 
     # Map
     GAM = "gam"  # Get active movements

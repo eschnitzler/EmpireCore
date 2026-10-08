@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import Field, model_validator
+from pydantic import BeforeValidator, Field, model_validator
 
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.protocol.base import BasePayload, enum_or_none, readable_list
 from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_truthy
 
 from .owners import AllianceCrest
+
+logger = logging.getLogger(__name__)
 
 
 class AbgCastleConnection(BasePayload):
@@ -690,9 +693,29 @@ def parse_area_rows(value: Any, kingdom: Kingdom = Kingdom.GREEN) -> tuple[list[
     return items, skipped
 
 
+def _target_row(value: Any) -> MapAreaItem | None:
+    if isinstance(value, MapAreaItem):
+        return value
+    if not isinstance(value, list):
+        return None
+    try:
+        return MapAreaItem.from_list(value)
+    except ValueError:
+        logger.warning("Could not read the target's map row from a pre-calculation")
+        return None
+
+
+TargetRow = Annotated[MapAreaItem | None, BeforeValidator(_target_row)]
+"""A pre-calculation's ``gaa.AI`` target row, None when the client could not read it.
+
+Client: ``WorldmapObjectFactory.parseWorldMapArea`` (bundle line 5343)
+"""
+
+
 __all__ = [
     "INVASION_AREA_TYPES",
     "ROW_PARSERS",
     "MapAreaItem",
+    "TargetRow",
     "parse_area_rows",
 ]

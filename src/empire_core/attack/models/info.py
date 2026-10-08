@@ -18,7 +18,7 @@ from empire_core.commanders.models.roster import Commander, CommanderEffects, Co
 from empire_core.enums import Kingdom
 from empire_core.gamedata import EnumOrInt
 from empire_core.map.models.areas import MapObject
-from empire_core.map.models.items import MapAreaItem
+from empire_core.map.models.items import TargetRow
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, int_entries, read_or_none, readable_list
 
 if TYPE_CHECKING:
@@ -63,19 +63,8 @@ class AttackTargetArea(BasePayload):
     ``ABICommand`` pass ``OI`` to ``OtherPlayerData.parseOwnerInfoArray``
     """
 
-    area: MapAreaItem | None = Field(alias="AI", default=None, description="The target's map row")
+    area: TargetRow = Field(alias="AI", default=None, description="The target's map row")
     owners: list[MapObject] = Field(alias="OI", default_factory=list, description="Owner records")
-
-    @field_validator("area", mode="before")
-    @classmethod
-    def _parse_row(cls, value: object) -> object:
-        if not isinstance(value, list):
-            return None
-        try:
-            return MapAreaItem.from_list(value)
-        except ValueError:
-            logger.warning("Could not read the target's map row from an attack pre-calculation")
-            return None
 
     @field_validator("owners", mode="before")
     @classmethod

@@ -75,7 +75,12 @@ from empire_core.castle.models.resources import (
     GetResourcesRequest,
     GetResourcesResponse,
 )
-from empire_core.castle.models.support import SendSupportRequest, SendTroopsRequest
+from empire_core.castle.models.support import (
+    GetTravelInfoRequest,
+    GetTravelInfoResponse,
+    SendSupportRequest,
+    SendTroopsRequest,
+)
 from empire_core.castle.models.tax import (
     TAX_DURATIONS,
     TAX_RUBY_COSTS,
@@ -821,6 +826,45 @@ class CastleService(BaseService):
             lambda: self.execute(request, timeout=timeout),
             spend_rubies=spend_rubies,
         )
+
+    def get_travel_info(
+        self,
+        source_x: int,
+        source_y: int,
+        target_x: int,
+        target_y: int,
+        *,
+        kingdom_id: Kingdom = Kingdom.GREEN,
+        timeout: float = 5.0,
+    ) -> GetTravelInfoResponse:
+        """
+        Get the pre-calculation of troops sent from one of your areas to another, before :meth:`send_troops`.
+
+        This is what the client asks for when it opens the dialog to send
+        troops: the target's map row and owner, and your units and tools at the
+        source. The commanders it carries update ``client.state``. The travel
+        time and cost are not in the reply; the client works them out from the
+        units picked.
+
+        Args:
+            source_x: Map x of the area the troops would leave from
+            source_y: Map y of the area the troops would leave from
+            target_x: Map x of the area they would go to
+            target_y: Map y of the area they would go to
+            kingdom_id: The kingdom both areas sit in
+            timeout: Timeout in seconds
+
+        Raises:
+            CommandError: The server refused it, ``NOT_IN_OWNED_CASTLE`` when the
+                source is not one of your areas
+
+        Client: ``C2STroopSupportInfoVO`` (bundle line 72087), sent by
+        ``CastleStartAttackDialog`` (bundle line 14831); ``STICommand`` (bundle line 129095)
+        """
+        request = GetTravelInfoRequest(
+            source_x=source_x, source_y=source_y, target_x=target_x, target_y=target_y, kingdom_id=kingdom_id
+        )
+        return self.request(request, GetTravelInfoResponse, timeout=timeout)
 
     def transfer_units_to_kingdom(
         self,
