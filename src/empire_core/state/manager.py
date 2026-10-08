@@ -50,6 +50,7 @@ _TRACKED_SECTIONS = (
     "gri",
     "cpi",
     "dql",
+    "grc",
     *ACCOUNT_SECTIONS,
     *INVENTORY_SECTIONS,
 )
@@ -66,7 +67,8 @@ _SECTION_PUSHES = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "u
 # 120997, 121145, 129654, 128524), DQLCommand (bundle line 126512), GAICommand, GATPCommand,
 # BIECommand, PGLCommand, RWWCommand, NRFCommand (bundle lines 122051, 126126, 122579, 127961,
 # 126903, 124002), GGMCommand, GLSCommand, ESLCommand, KPICommand, MPECommand, TXICommand,
-# NECCommand, IRCCommand (bundle lines 123957, 124800, 123895, 124684, 125109, 128792, 123294, 123090)
+# NECCommand, IRCCommand (bundle lines 123957, 124800, 123895, 124684, 125109, 128792, 123294, 123090),
+# GRCCommand (bundle line 123065)
 _WHOLE_SECTIONS = {
     "gli": "gli",
     "skl": "skl",
@@ -76,6 +78,7 @@ _WHOLE_SECTIONS = {
     "acl": "acl",
     **{section: section for section in ("rei", "boi", "gmu", "ufa", "uar", "vli", "gri", "cpi")},
     "dql": "dql",
+    "grc": "grc",
     **{section: section for section in ACCOUNT_SECTIONS if section != "drt"},
     **{section: section for section in INVENTORY_SECTIONS},
 }
@@ -95,25 +98,34 @@ _WHOLE_SECTIONS = {
 # 123798, 123912, 124019) bring their esl; the kingdom replies KGTCommand, KSTCommand, KUTCommand,
 # MSKCommand and FJFCommand (bundle lines 124654, 124713, 124728, 125795, 127783) their kpi.
 # RWBCommand (bundle line 124426) brings only its gcu to state; its parseRWB (bundle line 111900)
-# also reads a gui the state does not keep
+# also reads a gui the state does not keep. A castle's resources (grc) wherever AreaDataUpdater.parseGRC
+# (bundle line 131501) gets them: RESCommand, ADOCommand, KGTCommand, KSTCommand, SBPCommand above, and
+# EBUCommand, EUPCommand, EUDCommand, RBUCommand, EBECommand through the area updater (bundle lines 122761,
+# 122861, 122846, 123163, 122744), JAACommand (bundle line 130194), RCCCommand (bundle lines 123182,
+# 28797), BUPCommand, CRMCommand, VFICommand, GDRCommand, CCDCommand, CDECommand (bundle lines 125531,
+# 125982, 121127, 123016, 127640, 127658); a refused crm still reaches the movement handler
 _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("arl", "gla", "sdi", "sti"), ("gli",)),
     "seq": ("gli", "gcu", "esl"),
     **dict.fromkeys(("aci", "abi", "acc", "adi", "aii", "ali", "avi", "cci", "coi", "cti", "gti", "cfi"), ("gli",)),
     "ego": ("skl",),
     **dict.fromkeys(("acd", "akm", "arm"), ("ain",)),
-    "ado": ("gcu", "ain"),
-    "res": ("rei", "gcu"),
+    "ado": ("gcu", "ain", "grc"),
+    "res": ("rei", "gcu", "grc"),
     "msr": ("rei",),
     **dict.fromkeys(("bcs", "bds", "bis", "bms", "brs", "ovs", "ups"), ("gcu", "boi")),
     "btx": ("gcu", "boi", "txi"),
     "cpm": ("cpi",),
-    "sbp": ("gcu", "cpi", "vip"),
+    "sbp": ("gcu", "cpi", "vip", "grc"),
     **dict.fromkeys(("txs", "txc"), ("gcu", "txi")),
     **dict.fromkeys(("bgm", "ceq", "cge", "frc"), ("esl",)),
-    **dict.fromkeys(("kgt", "kst", "kut"), ("gcu", "kpi")),
+    **dict.fromkeys(("kgt", "kst"), ("gcu", "kpi", "grc")),
+    "kut": ("gcu", "kpi"),
     **dict.fromkeys(("msk", "fjf"), ("kpi",)),
     "rwb": ("gcu",),
+    **dict.fromkeys(
+        ("ebu", "eup", "eud", "rbu", "ebe", "jaa", "rcc", "bup", "crm", "vfi", "gdr", "ccd", "cde"), ("grc",)
+    ),
 }
 
 # Commands whose state the client applies only from a successful reply: SEICommand, SEECommand,
@@ -129,7 +141,7 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
 # MSPCommand, CQSCommand (bundle lines 126587, 126619, 126603, 126566, 125438, 126495)
 _SUCCESS_ONLY = frozenset(
     {"sei", "see", "tei", "tee", "pep", "fjf", "bst", "acm", "aqi", "ufp", "bfs", "gtp", *_WHOLE_SECTIONS}
-    | (set(_NESTED_SECTIONS) - {"cpm"})
+    | (set(_NESTED_SECTIONS) - {"cpm", "crm"})
     | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "fbe", "cbx", "gdb", "gcb", "csl", "gab", "gec"}
     | {"qli", "qst", "qpg", "qfi", "msp", "cqs"}
 )
@@ -181,6 +193,8 @@ class GameState(
     castle name/coords, castle list      ``gcl``, ``mir`` (pushed)    re-login
     castle resources/units/details       ``dcl``                      ``client.castle.get_details(id)``
     castle units (also)                  ``rue`` (pushed)             ``client.castle.get_details(id)``
+    castle resources (also)              ``grc``, the replies that    ``client.castle.get_resources(id)``
+                                         carry one (``ebu``, ...)
     castle open-gate counter             ``gcl``, ``kik`` (pushed)    re-login
     castle unlocked units and horses     ``gpc`` (pushed)             re-login
     joined area, slum level, discount    ``jaa``, ``csl``/``gab``     ``client.castle.join(id)``
@@ -378,6 +392,7 @@ class GameState(
                 ("gli", self._parse_commanders(data)),
                 ("skl", self._parse_skills(data)),
                 ("dql", self._parse_daily_quests(data)),
+                ("grc", self._parse_castle_resources(data)),
                 # CastleVIPData.parse_VIP (bundle line 47527) ignores a vip that is not set
                 ("vip", isinstance(data.get("vip"), dict)),
             )
@@ -503,7 +518,7 @@ class GameState(
         "cmr", "rcc" and the map read "gaa" (refused too) — and the login sections "gpi", "gxp", "gcu", "vip",
         "gal", "gcl", "gho", "uap", "gpc", "gms", "sei", "tei", "gli", "skl", "ain", "acl", "rei", "boi", "gmu",
         "ufa", "uar", "vli", "gri", "cpi", "dql", "gai", "gatp", "bie", "pgl", "rww", "nrf", "ggm", "gls", "esl",
-        "kpi", "mpe", "txi", "nec" and "irc", stamped whether they came inside a gbd, as a push of their own or
+        "kpi", "mpe", "txi", "nec", "irc" and "grc", stamped whether they came inside a gbd, as a push of their own or
         inside a reply that carries one ("sei" from a fjf or bst, "gli" from an arl, "ain" from an akm, "rei"
         from a res, "kpi" from a kut, ...), plus "gac" and "drt", which only come inside a gbd. "gsm" and "rci"
         are stamped whenever mines or resource carts are applied, from their push or a jaa, cmr or rcc reply;

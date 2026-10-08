@@ -1,5 +1,5 @@
-"""Castle tracking: the castle list (gcl), castle details (dcl), units received (rue), the open-gate
-counter reset (kik) and unlocked units and horses (gpc)."""
+"""Castle tracking: the castle list (gcl), castle details (dcl), castle resources (grc), units received (rue),
+the open-gate counter reset (kik) and unlocked units and horses (gpc)."""
 
 import logging
 import time
@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from empire_core.castle.models.castles import PlayerCastle
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
 from empire_core.castle.models.permanent import PermanentCastle, PermanentCastleDataResponse
+from empire_core.castle.models.resources import CastleResources
 from empire_core.castle.models.updates import UnitsReceived
 from empire_core.enums import Kingdom
 from empire_core.exceptions import AmbiguousCastleError
@@ -23,6 +24,9 @@ if TYPE_CHECKING:
     from empire_core.gamedata import Horse
 
 logger = logging.getLogger(__name__)
+
+# ClientConstCollectable.GROUP_LIST_RESOURCES (bundle line 3073)
+_STOCK = ("wood", "stone", "food", "coal", "oil", "glass", "iron", "aquamarine", "honey", "mead", "beef")
 
 # TimeConst.MONDAY (ggs.dll line 19802)
 _MONDAY = 2
@@ -171,6 +175,36 @@ class CastleState(StateBase):
                 castle.details = info
                 self._castle_details_at[key] = time.time()
 
+    def _parse_castle_resources(self, data: dict[str, Any]) -> bool:
+        """Apply a ``grc`` block to its castle's stock; whether it was applied.
+
+        Every resource is set, one the block leaves out to 0; capacity, production and the
+        plunder-safe amount stay as the last ``dcl`` and ``gpa`` left them. Only a castle already
+        read from a ``dcl`` is updated; its details time (:meth:`get_castle_last_updated`) is not
+        stamped, as the units are not refreshed, and ``get_last_packet_time("grc")`` dates the block.
+
+        Client: ``AreaDataUpdater.parseGRC`` (bundle lines 131501-131504) hands every block to
+        ``CastleUserCastleListDetailed.updateDetailVO`` (bundle line 140937), which finds the castle by
+        ``AID`` and ``KID`` among those with details and sets each of ``GROUP_LIST_RESOURCES`` to the
+        block's amount or 0. Only the joined area's own storage also checks ``AID`` against the joined
+        area (bundle line 131382); the library keeps no storage of its own for the joined area.
+        """
+        grc = data.get("grc")
+        if not (js_truthy(grc) and isinstance(grc, dict)):
+            return False
+        block = read_or_none(CastleResources.model_validate, grc, warn=logger, what="castle resources")
+        if block is None:
+            return False
+        kingdom = enum_or_none(Kingdom, block.kingdom_id)
+        if kingdom is None:
+            return False
+        key: CastleKey = (kingdom, block.castle_id)
+        castle = self.castles.get(key)
+        if castle is None or key not in self._castle_details_at:
+            return False
+        castle.resources = castle.resources.model_copy(update={name: getattr(block, name) for name in _STOCK})
+        return True
+
     def _handle_rue(self, data: Any) -> None:
         """Apply units received: the castle's new count of one unit, which drops it at 0 or below.
 
@@ -271,6 +305,10 @@ class CastleState(StateBase):
 
     def get_castle_last_updated(self, castle_id: int) -> float | None:
         """When this castle's detail data (resources, units) was last refreshed.
+
+        Only a ``dcl`` stamps it. A reply carrying the castle's ``grc`` (``client.castle.get_resources``,
+        building, recruiting, starting research, ...) updates its resources without stamping this;
+        ``get_last_packet_time("grc")`` says when the last one came.
 
         Returns a wall-clock ``time.time()`` timestamp, or ``None`` if no dcl
         packet ever refreshed this castle — in which case ``resources`` and
