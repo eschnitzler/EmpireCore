@@ -9,7 +9,14 @@ import pytest
 
 from empire_core.combat import commander_bonuses
 from empire_core.commanders.models.roster import Commander, CommanderEffect
-from empire_core.enums import CollectableKind, MapItemType, MovementType, NPCOwner
+from empire_core.enums import (
+    AttackAdvisorType,
+    AutoSkipCooldownType,
+    CollectableKind,
+    MapItemType,
+    MovementType,
+    NPCOwner,
+)
 from empire_core.gamedata import Currency, GameData
 from empire_core.movements.tracked import Movement
 from empire_core.state.manager import GameState
@@ -1048,6 +1055,8 @@ class TestMovementWrapperBlocks:
         assert (mov.attack_type, mov.is_shadow, mov.force_cancelable) == (0, True, True)
         assert (mov.support_tools, mov.auto_skip_cooldown_type) == ((651, 652), 2)
         assert (mov.advisor_type, mov.advisor_movement_count, mov.advisor_movement_number) == (1, 3, 3)
+        assert (mov.advisor_type, mov.auto_skip_cooldown_type) == (AttackAdvisorType.NOMAD, AutoSkipCooldownType.RUBIES)
+        assert isinstance(mov.advisor_type, AttackAdvisorType)
         assert mov.advisor_is_last
         assert mov.commander is not None
         [item] = mov.commander.equipment

@@ -257,5 +257,11 @@ A visible army reads as the game reads it: `Movement.units` is
 slot (None for an empty one). A `MovementWrapper` from `get_movements()`
 keeps the flanks apart (`visible_army.left`, ..., each `{Unit or Tool: amount}`).
 
+`Movement.target_area` and `source_area` read their rows as map rows:
+`target_area.item` is a `MapAreaItem` in the movement's kingdom (None for a row
+the map cannot read). `Movement.horse_booster` is the `Horse` sent along,
+`advisor_type` an `AttackAdvisorType` and `auto_skip_cooldown_type` an
+`AutoSkipCooldownType`.
+
 **API:** [`MovementsService`](../reference/movements.md#empire_core.movements.service.MovementsService),
 [`Movement`](../reference/movements.md#empire_core.movements.tracked.Movement)

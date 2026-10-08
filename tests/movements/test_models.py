@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from empire_core.enums import CollectableKind, SpyType
+from empire_core.enums import AutoSkipCooldownType, CollectableKind, Kingdom, MapItemType, SpyType
 from empire_core.gamedata import Horse, Title, Tool, Unit
 from empire_core.protocol.base import Position, parse_response
 from empire_core.protocol.models import (
@@ -68,7 +68,8 @@ class TestMalformedMovementBatch:
         assert record.owner_id == 17 and record.target_id == -202
         assert record.source_area is not None and record.source_area.position == Position(x=1, y=2)
         assert record.target_area is not None and (record.target_area.area_type, record.target_area.y) == (2, 4)
-        assert record.source_area.row[10] == "Home"
+        assert record.source_area.item is not None and record.source_area.item.name == "Home"
+        assert record.source_area.item.item_type == MapItemType.CASTLE
         assert wrapper.visible_army is not None and wrapper.visible_army.courtyard == {3: 1}
         assert wrapper.unit_info is not None and wrapper.unit_info.wait_total == 0
         assert response.owners[0].name == "me"
@@ -193,6 +194,26 @@ class TestMalformedMovementBatch:
         # BasicMapmovementVO reads int(t.HBW); -1 is no horse
         assert (horse(1002), horse("1002"), horse(-1), horse(None)) == (Horse.WARHORSE_STABLE1,) * 2 + (None, None)
 
+    def test_the_area_rows_are_map_rows_in_the_movements_kingdom(self):
+        # A faction tower's row names no kingdom; the castle's names its own
+        tower = [17, 10, 20, 900, 0, [], 30, 5]
+        movement = {**GOOD_MOVEMENT, "M": {**GOOD_MOVEMENT["M"], "KID": 2, "TA": tower}}
+        record = GetMovementsResponse.model_validate({"M": [movement]}).movements[0].movement
+
+        assert record.target_area is not None and record.target_area.item is not None
+        assert record.target_area.item.kingdom == Kingdom.ICE
+        assert record.source_area is not None and record.source_area.item is not None
+        assert (record.source_area.item.kingdom, record.source_area.item.location_id) == (Kingdom.GREEN, 555)
+
+    def test_the_auto_skip_is_off_unless_sent(self):
+        def auto_skip(sent: Any) -> Any:
+            return GetMovementsResponse.model_validate({"M": [{**GOOD_MOVEMENT, "ASCT": sent}]}).movements[0]
+
+        # Client: t.ASCT&&(this._autoSkipCooldownType=t.ASCT)
+        assert auto_skip(2).auto_skip_cooldown_type is AutoSkipCooldownType.RUBIES
+        assert auto_skip(None).auto_skip_cooldown_type is AutoSkipCooldownType.OFF
+        assert auto_skip("x").auto_skip_cooldown_type is AutoSkipCooldownType.OFF
+
     def test_numeric_strings_are_coerced_rather_than_rejected(self):
         # GGE has sent numbers as strings before; lax coercion is what keeps a
         # whole batch from vanishing when it happens.
@@ -232,6 +253,11 @@ class TestMovementAreaLayouts:
     def test_relocating_castle_row_reads_nothing(self):
         area = MovementArea.model_validate([1, 10, 20, 1001])
         assert (area.object_id, area.owner_id, area.name) == (None, None, "")
+
+    def test_a_row_the_map_cannot_read_keeps_its_position(self):
+        # 99 is NO_OUTPOST, whose row the client never parses
+        area = MovementArea.model_validate([99, 10, 20, 5])
+        assert (area.area_type, area.x, area.y, area.item) == (99, 10, 20, None)
 
 
 def test_gam_sends_no_castle():
