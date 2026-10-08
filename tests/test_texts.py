@@ -14,7 +14,15 @@ import requests
 from empire_core import texts
 from empire_core.exceptions import AccountBannedError, CommandError, LoginCooldownError, LoginError, WrongServerError
 from empire_core.protocol.errors import GGEError
-from empire_core.texts import RETRY_AFTER_FAILURE, cached_text, fill, get_texts, text
+from empire_core.texts import (
+    RETRY_AFTER_FAILURE,
+    LocalizedNumber,
+    cached_text,
+    fill,
+    get_texts,
+    number,
+    text,
+)
 
 LANG_FILE = {
     "@metadata": {"versionNo": "4372"},
@@ -25,6 +33,10 @@ LANG_FILE = {
     "Dialog_OK": "OK",
     "dialog_ok": "Okay",
     "empty": "",
+    "generic_kForThousand": "k",
+    "generic_mForMillion": "M",
+    "kingdomName_Dessert": "The Burning Sands",
+    "ci_effect_recruitCostReduction": "-{0}% recruitment costs",
 }
 
 
@@ -125,6 +137,86 @@ class TestFill:
     )
     def test_like_the_client(self, template: str, args: tuple[object, ...], filled: str) -> None:
         assert fill(template, *args) == filled
+
+    def test_is_plain(self) -> None:
+        assert fill("{0} {1}", 1234567, "dialog_ok") == "1234567 dialog_ok"
+
+
+class TestLocalizedArguments:
+    @pytest.mark.parametrize(
+        ("args", "filled"),
+        [
+            ((5, 10), "+5% for every 10 fields"),
+            ((1234, 2.5), "+1,234% for every 2.5 fields"),
+            ((12.345, 0.004), "+12.35% for every 0 fields"),
+            ((99999, 100000), "+99,999% for every 100k fields"),
+            ((123456, 1500000), "+123.46k% for every 1.5M fields"),
+            ((-250000, "12"), "+-250k% for every 12 fields"),
+            ((True, None), "+1% for every 0 fields"),
+            (("dialog_OK", "not a key"), "+Okay% for every not a key fields"),
+            (("", "currency_name_1MinSkip"), "+% for every Skip 1 minute fields"),
+            (
+                (LocalizedNumber(3.14159, fractional_digits=1), LocalizedNumber(250000)),
+                "+3.1% for every 250,000 fields",
+            ),
+            ((LocalizedNumber(250000, compact=True), 0), "+250k% for every 0 fields"),
+        ],
+    )
+    def test_like_the_castle_client(
+        self, monkeypatch: pytest.MonkeyPatch, args: tuple[object, ...], filled: str
+    ) -> None:
+        stub_cdn(monkeypatch)
+
+        assert text("travelSpeedBonusPerField", *args) == filled
+
+    def test_without_grouping(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        stub_cdn(monkeypatch)
+
+        assert text("travelSpeedBonusPerField", 1234, 99999, grouping=False) == "+1234% for every 99999 fields"
+
+    def test_german_numbers(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        stub_cdn(monkeypatch)
+
+        assert text("travelSpeedBonusPerField", 1234.5, 2500000, lang="de") == (
+            "+1.234,5% for every 2,5M (de) fields (de)"
+        )
+
+    def test_cached_text_localizes_from_the_loaded_texts(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        stub_cdn(monkeypatch)
+        get_texts("en")
+
+        assert cached_text("errorCode_140", 150000) == (
+            "You have to occupy this outpost for 150k before you can surrender it."
+        )
+
+
+class TestNumber:
+    @pytest.mark.parametrize(
+        ("value", "written"),
+        [(0, "0"), (2.5, "2.5"), (2.345, "2.35"), (-2.345, "-2.34"), (1234567.891, "1,234,567.89"), (0.1 + 0.2, "0.3")],
+    )
+    def test_plain(self, value: float, written: str) -> None:
+        assert number(value) == written
+
+    def test_compact_needs_no_texts_below_the_threshold(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        cdn = stub_cdn(monkeypatch)
+
+        assert number(99999.5, compact=True) == "99,999.5"
+        assert cdn.langs == []
+        assert number(100000, compact=True) == "100k"
+        assert number(-1000000, compact=True) == "-1M"
+        assert cdn.langs == ["en"]
+
+    def test_a_missing_abbreviation_text_is_left_out(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(texts, "fetch_texts", lambda lang="en": {})
+
+        assert number(250000, compact=True) == "250"
+
+    def test_digits_and_grouping(self) -> None:
+        assert number(1234.5678, fractional_digits=0) == "1,235"
+        assert number(1234.5678, fractional_digits=3, grouping=False) == "1234.568"
+        assert number(1234.5, lang="de") == "1.234,5"
+        assert number(1234.5, lang="fr") == "1,234.5"
 
 
 class TestCachedText:
