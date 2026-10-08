@@ -14,7 +14,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, SerializeAsAn
 
 from empire_core.enums import RankingType
 from empire_core.exceptions import ReplyMismatchError
-from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata import EnumOrInt, RewardId
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.areas import MapObject
 from empire_core.protocol.base import BaseRequest, BaseResponse, GGECommand
@@ -1323,7 +1323,10 @@ class CampaignEvent(SpecialEvent):
     """
     A time-limited campaign: its quests, in the order they open, and its end reward.
 
-    A ``cqs`` push reads its campaign over it again (see :meth:`with_campaign`).
+    A ``cqs`` push reads its campaign over it again (see :meth:`with_campaign`). The client turns
+    ``RIDS`` into the rewards' collectables at once (``rewardData.getListByIdArray``); the game data
+    is loaded only on request here, so the ids are kept, and ``data.reward_list(event.reward_ids)``
+    gives the same list.
 
     Client: ``TimeLimitedCampaignEventEventVO.parseParamObject`` and ``sortByOrder`` (bundle lines
     118536-118549), which sorts by ``ST`` and then ``CQID``, a quest without ``ST`` last
@@ -1331,7 +1334,11 @@ class CampaignEvent(SpecialEvent):
 
     _reads_kl = False
 
-    reward_ids: tuple[int, ...] = Field(default=(), alias="RIDS", description="The campaign's rewards")
+    reward_ids: tuple[RewardId, ...] = Field(
+        default=(),
+        alias="RIDS",
+        description="The campaign's rewards; GameData.reward_list gives what they hold",
+    )
     reward_collected: bool = Field(default=False, alias="COL", description="Whether you collected the end reward")
     end_reward_value: int = Field(default=0, alias="ERV", description="The end reward's value")
     quests: tuple[Quest, ...] = Field(default=(), alias="CQS", description="The campaign's quests, in campaign order")
@@ -1355,7 +1362,7 @@ class CampaignEvent(SpecialEvent):
             key=lambda quest: (quest.campaign_timestamp is None, quest.campaign_timestamp or 0, quest.campaign_quest_id)
         )
         values.update(
-            reward_ids=[js_int(rid) for rid in ids] if isinstance(ids, list) else [],
+            reward_ids=[RewardId(js_int(rid)) for rid in ids] if isinstance(ids, list) else [],
             reward_collected=js_loose_equals(entry.get("COL"), 1),
             end_reward_value=js_int(entry.get("ERV")),
             quests=quests,

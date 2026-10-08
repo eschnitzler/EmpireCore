@@ -23,9 +23,9 @@ def test_reading_one_row_validates_that_row_alone(table, monkeypatch):
     seen = []
     validate = BuildingDef.model_validate
 
-    def spy(row):
+    def spy(row, **kwargs):
         seen.append(row)
-        return validate(row)
+        return validate(row, **kwargs)
 
     monkeypatch.setattr(BuildingDef, "model_validate", spy)
 

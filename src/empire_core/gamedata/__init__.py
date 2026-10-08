@@ -116,6 +116,8 @@ from .tables import (
     QuestCondition,
     QuestDef,
     ResearchDef,
+    RewardDef,
+    RewardId,
     ScalingCampDef,
     TitleDef,
 )
@@ -234,6 +236,8 @@ __all__ = [
     "QuestCondition",
     "QuestDef",
     "ResearchDef",
+    "RewardDef",
+    "RewardId",
     "ScalingCampDef",
     "TitleDef",
     "default_cache_dir",
