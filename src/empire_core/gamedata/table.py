@@ -29,13 +29,23 @@ class Table(Mapping[K, R], Generic[K, R]):
     come back as the rows' ids: the enum member, or the plain int of an id the enum lacks. A row
     that does not fit its model is left out, as if the table did not have it, with a warning the
     first time it is read. A table is shared by every thread that reads the game data: each row
-    is validated once, so ``table[k] is table[k]`` holds across threads.
+    is validated once, so ``table[k] is table[k]`` holds across threads. ``context`` is passed to
+    each row's validation, for a model that reads a row by another table.
     """
 
-    __slots__ = ("_all", "_id_field", "_lock", "_model", "_name", "_read", "_rows")
+    __slots__ = ("_all", "_context", "_id_field", "_lock", "_model", "_name", "_read", "_rows")
 
-    def __init__(self, model: type[R], id_field: str, rows: Mapping[int, dict[str, Any]], *, name: str = "") -> None:
+    def __init__(
+        self,
+        model: type[R],
+        id_field: str,
+        rows: Mapping[int, dict[str, Any]],
+        *,
+        name: str = "",
+        context: dict[str, Any] | None = None,
+    ) -> None:
         self._model = model
+        self._context = context
         self._id_field = id_field
         self._rows = rows
         self._name = name or model.__name__
@@ -53,7 +63,7 @@ class Table(Mapping[K, R], Generic[K, R]):
 
     def _validate(self, row_id: int) -> R | None:
         try:
-            return self._model.model_validate(self._rows[row_id])
+            return self._model.model_validate(self._rows[row_id], context=self._context)
         except ValidationError as e:
             logger.warning(
                 "%s row %s does not fit %s and is left out: %s",

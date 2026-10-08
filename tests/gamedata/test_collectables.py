@@ -89,6 +89,82 @@ class TestRows:
         assert all(c.kind is CollectableKind.STONE for c in Collectable.from_rows(value))
 
 
+class TestRewardRow:
+    CURRENCY_IDS = {"LegendaryMaterial": 29, "30MinSkip": 1004}
+
+    def _read(self, row: dict[str, str]) -> list[tuple[CollectableKind, object, object]]:
+        return _short(Collectable.from_reward_row(row, self.CURRENCY_IDS))
+
+    def test_each_column_part_by_its_kind(self):
+        # rewards rows of items 786.03: '#' separates parts, '+' an id from its amount
+        row = {
+            "rewardID": "3559",
+            "units": "722+5",
+            "constructionItemIDs": "24#20002",
+            "lootBox": "37+1",
+            "wood": "500",
+        }
+
+        assert self._read(row) == [
+            (CollectableKind.UNITS, Unit.ARROWTHROWER, 5),
+            (CollectableKind.CONSTRUCTION_ITEM, ConstructionItem.BAKERY_STORAGE_G3_L10, 1),
+            (CollectableKind.CONSTRUCTION_ITEM, ConstructionItem.WOF_BAKERY_G2002_L10, 1),
+            (CollectableKind.LOOT_BOX, LootBox.ARE_BOX_GOLD_R1_37, 1),
+            (CollectableKind.WOOD, None, 500),
+        ]
+
+    def test_add_columns_name_a_kind_or_a_currency(self):
+        row = {"rewardID": "1", "addC1": "100", "addLegendaryMaterial": "5", "add30MinSkip": "2"}
+
+        rewards = Collectable.from_reward_row(row, self.CURRENCY_IDS)
+
+        assert _short(rewards) == [
+            (CollectableKind.COINS, None, 100),
+            (CollectableKind.CURRENCY, Currency.UPGRADE_TOKEN, 5),
+            (CollectableKind.CURRENCY, Currency.SKIP_30_MINUTES, 2),
+        ]
+        assert [c.key for c in rewards] == ["C1", "LM", "MS4"]
+
+    def test_an_add_column_naming_nothing_is_kept_as_other(self):
+        (other,) = Collectable.from_reward_row({"addRiftQuestTicket": "2"}, self.CURRENCY_IDS)
+
+        assert (other.kind, other.key, other.value) == (CollectableKind.OTHER, "addRiftQuestTicket", "2")
+
+    def test_columns_no_parser_reads_give_nothing(self):
+        row = {"rewardID": "170", "comment1": "x", "hiddenFood": "200", "ignoreGiftCapacity": "1", "grantType": "2"}
+
+        assert Collectable.from_reward_row(row, {}) == ()
+
+    def test_a_random_equipment_of_a_hero_rareness_is_a_hero_random(self):
+        assert self._read({"equipmentRarenessID": "13"}) == [(CollectableKind.HERO_RANDOM, Rareness.HERO_EPIC, 1)]
+        assert self._read({"equipmentRarenessID": "3"}) == [(CollectableKind.EQUIPMENT_RARENESS, Rareness.EPIC, 1)]
+
+    def test_items_with_a_duration_or_an_id_alone(self):
+        rewards = Collectable.from_reward_row(
+            {"vipTime": "25200", "allianceCoatLayout": "11+777600", "equipmentIDs": "338", "gemLevelIDs": "4"}, {}
+        )
+
+        assert [(c.kind, c.item, c.amount, c.duration_seconds) for c in rewards] == [
+            (CollectableKind.VIP_TIME, None, 1, 25200),
+            (CollectableKind.ALLIANCE_CREST_LAYOUT, 11, 1, 777600),
+            (CollectableKind.EQUIPMENT_UNIQUE, 338, 1, None),
+            (CollectableKind.GEM_RANDOM, -4, 1, None),
+        ]
+
+    def test_duplicates_are_added_up_as_the_client_adds_them(self):
+        # CollectableList.combineDuplicatedItems: goods by kind, units and currencies by item
+        row = {"units": "722+5#722+3#723+1", "currency1": "10", "addC1": "5", "addLegendaryMaterial": "1"}
+
+        assert self._read({**row, "equipmentIDs": "338#338"}) == [
+            (CollectableKind.UNITS, Unit.ARROWTHROWER, 8),
+            (CollectableKind.UNITS, 723, 1),
+            (CollectableKind.COINS, None, 15),
+            (CollectableKind.EQUIPMENT_UNIQUE, 338, 1),
+            (CollectableKind.EQUIPMENT_UNIQUE, 338, 1),
+            (CollectableKind.CURRENCY, Currency.UPGRADE_TOKEN, 1),
+        ]
+
+
 class TestKinds:
     @pytest.mark.parametrize(
         ("key", "entry", "kind", "item", "amount"),

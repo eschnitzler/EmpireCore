@@ -861,6 +861,24 @@ class TestCacheSchemaFingerprint:
 
         assert GameData._read_cache(cache, "1.0") is None
 
+    def test_a_cache_whose_tables_are_not_text_is_ignored(self, tmp_path):
+        cache = tmp_path / "items_v1.0.trimmed.json"
+        GameData.parse("1.0", {"units": [{"wodID": 1, "name": "Barracks"}]})._write_cache(cache)
+        payload = json.loads(cache.read_text())
+        payload["table_rows"]["units"] = json.loads(payload["table_rows"]["units"])
+        cache.write_text(json.dumps(payload))
+
+        assert GameData._read_cache(cache, "1.0") is None
+
+    def test_a_cached_table_is_stored_as_text_and_read_when_first_used(self, tmp_path):
+        cache = tmp_path / "items_v1.0.trimmed.json"
+        GameData.parse("1.0", {"units": [{"wodID": 1, "name": "Barracks"}]})._write_cache(cache)
+
+        cached = GameData._read_cache(cache, "1.0")
+
+        assert cached is not None and json.loads(cache.read_text())["table_rows"]["units"].startswith("{")
+        assert cached.units[1].source == "Barracks"
+
     def test_parsed_values_survive_the_cache(self, tmp_path):
         payload = {
             "units": [

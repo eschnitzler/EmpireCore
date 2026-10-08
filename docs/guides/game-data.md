@@ -40,6 +40,20 @@ taking its `len()` validates every row once. Besides the ones above, these are
 `horses`, `achievements`, `alliance_crest_layouts` and `alliance_crest_colors`.
 `scaling_camps` is a `Table` keyed by plain id.
 
+`rewards` is a `Table` by `RewardId`: each `RewardDef` holds the `Collectable`s
+a reward gives, read from the items' reward columns as the client reads them.
+`data.reward_list(ids)` gives what several rewards hold, in order, as the
+client's `getListByIdArray` does; it is how a campaign's `reward_ids` or a
+title's `reward_id` turn into collectables:
+
+```python
+data.reward_list(campaign.reward_ids)   # (Collectable(kind=UNITS, item=Unit..., amount=5), ...)
+data.reward_list([data.titles[title].reward_id])
+```
+
+The cache keeps each table as JSON text until the table is first read, so
+loading from the cache does not build rows nobody reads.
+
 `equipment_effects`, `relic_effects` and `alliance_buffs` are plain dicts by
 plain id, validated at load, as the game names none of their rows.
 `raw("specialcamps")` returns a table that is not

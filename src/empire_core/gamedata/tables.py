@@ -1,19 +1,20 @@
 """
 Typed rows of the items tables the generated id enums name: buildings, researches, events, loot boxes,
 equipment groups, difficulty types, quests, daily quests, titles, achievements and alliance crest layouts
-and colours, plus difficulty scaling camps.
+and colours, plus difficulty scaling camps and the rewards.
 
-Each model reads the columns its client value object reads, with the same defaults; the costs and
-rewards the client reads through its items collectable parsers (``CollectableParserX2CList`` and
-``CollectableParserX2CRewards``, bundle lines 62874 and 62897) are not read yet.
+Each model reads the columns its client value object reads, with the same defaults. The ``rewards``
+rows are read into collectables (``CollectableParserX2CRewards``, bundle line 62897); the costs and
+other collectable columns the client reads with ``CollectableParserX2CList`` (bundle line 62874) from
+other tables are not read yet.
 """
 
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NewType
 
-from pydantic import Field, ValidationInfo, field_validator
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 
 from empire_core.enums import (
     BuildingGroundType,
@@ -22,12 +23,14 @@ from empire_core.enums import (
     Kingdom,
     MapItemType,
     QuestConditionType,
+    RewardGrantType,
     TitleDisplayType,
     TitleSystem,
     WearerType,
 )
 from empire_core.protocol.js import js_falsy, js_int, js_number_or_none, js_parse_int, js_string
 
+from .collectables import Collectable
 from .lenient import GameDataId, GameDataKey
 from .models import READING_CACHE, EffectSpecRow, EffectValue, _parse_int_or_default, _Row
 
@@ -48,6 +51,13 @@ if TYPE_CHECKING:
         SceatSkill,
         Title,
     )
+
+
+RewardId = NewType("RewardId", int)
+"""The id of a ``rewards`` row, whose collectables :meth:`GameData.reward_list` gives.
+
+The rows have no name, so no generated enum names them; this type marks the id space instead.
+"""
 
 
 def row_id(value: object) -> int:
@@ -668,7 +678,11 @@ class TitleDef(EffectSpecRow):
     previous_title_id: GameDataId["Title"] = Field(
         alias="previousTitleID", default=-1, description="The title below it in its system; -1 for the first"
     )
-    reward_id: int = Field(alias="rewardID", default=-1, description="Its reward; -1 for none")
+    reward_id: RewardId = Field(
+        alias="rewardID",
+        default=RewardId(-1),
+        description="Its reward, whose collectables GameData.reward_list gives; -1 for none",
+    )
     might_value: int = Field(alias="mightValue", default=-1, description="Might points it gives")
 
     @field_validator("title_id", mode="before")
@@ -889,8 +903,47 @@ class ScalingCampDef(_Row):
         return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
 
 
+class RewardDef(_Row):
+    """
+    One reward of the items: what it gives, and to whom.
+
+    ``collectables`` reads every collectable column of the row (see :meth:`Collectable.from_reward_row`),
+    each ``add<currency name>`` column by the currency names GameData passes in as validation context
+    (``currency_ids``); read without them, such a column is kept as ``OTHER``.
+
+    Client: ``RewardVO.fillFromParamXml`` (bundle line 142368), read from the ``rewards`` table by
+    ``CastleRewardData.parseXml`` (bundle line 142323)
+    """
+
+    reward_id: RewardId = Field(alias="rewardID", description="The reward")
+    grant_type: GameDataId[RewardGrantType] = Field(
+        alias="grantType", default=RewardGrantType.PLAYER, description="Who it goes to"
+    )
+    collectables: tuple[Collectable, ...] = Field(default=(), description="What it gives, in the client's order")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_collectables(cls, row: object, info: ValidationInfo) -> object:
+        if not isinstance(row, dict) or "collectables" in row:
+            return row
+        currency_ids = (info.context or {}).get("currency_ids", {})
+        return {**row, "collectables": Collectable.from_reward_row(row, currency_ids)}
+
+    @field_validator("reward_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("grant_type", mode="before")
+    @classmethod
+    def _grant_type(cls, value: object) -> int:
+        return _parse_int_or_default(value, RewardGrantType.PLAYER)
+
+
 __all__ = [
     "row_id",
+    "RewardDef",
+    "RewardId",
     "AchievementCondition",
     "AchievementDef",
     "AllianceCrestColorDef",
