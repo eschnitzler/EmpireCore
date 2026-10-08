@@ -1,5 +1,5 @@
 ---
-description: Castles, resources, buildings, the construction queue and moving goods and troops.
+description: Castles, resources, buildings, the construction queue, moving goods and troops, research and the mercenary camp.
 ---
 
 # Castle
@@ -229,6 +229,31 @@ Both return False when the server refuses. `start_research` pays from your
 resources only: it never pays missing resources with rubies, and finishing a
 research at once for rubies is left out. Each reply's research reaches
 `client.state.get_research()`.
+
+## Mercenary camp
+
+The mercenary camp's missions are on `client.player` too. One request, `mpe`,
+lists them, starts one and collects one:
+
+```python
+missions = client.player.list_missions()
+for mission in missions.missions:
+    print(mission.mission_id, mission.quality, mission.current_state(), mission.price, mission.rewards)
+
+client.player.start_mission(mission_id=3)    # an open mission, paid in coins
+client.player.collect_mission(mission_id=3)  # once its time has run out
+```
+
+Each mission's `rewards` are `Collectable`s, `quality` a `MercenaryMissionRarity`
+and `state` a `MercenaryMissionState` as of the reply; `current_state()` counts a
+started mission whose time has run out as `COLLECTABLE`, as the game does.
+
+Sending a running mission's id finishes it at once for rubies, so both calls
+list the missions first and send nothing the game would not send for free:
+`start_mission` raises `ValueError` unless the mission is open and no other
+mission runs or waits to be collected, and `collect_mission` unless the
+mission's time has run out. Finishing a mission for rubies and swapping one
+for another (240 rubies) are left out.
 
 **API:** [`PlayerService`](../reference/player.md#empire_core.player.service.PlayerService)
 

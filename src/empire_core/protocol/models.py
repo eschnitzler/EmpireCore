@@ -441,6 +441,7 @@ from empire_core.player.models.account import (
 from empire_core.player.models.economy import (
     LootBoxesResponse,
     MercenaryMissionsResponse,
+    MercenaryPackageRequest,
 )
 from empire_core.player.models.info import (
     GetPlayerInfoRequest,
@@ -1003,6 +1004,7 @@ __all__ = [
     "ResourcePoolResponse",
     "LootBoxesResponse",
     "MercenaryMissionsResponse",
+    "MercenaryPackageRequest",
     "ActivityChestInfo",
     "CollectLoginBonusRequest",
     "CollectLoginBonusResponse",
