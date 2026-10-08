@@ -434,7 +434,14 @@ class CastleService(BaseService):
             minute_skip: The minute skip to use, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``;
                 its key (``"MS1"``) also works, for a skip newer than the generated enum
             timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``minute_skip`` is no minute skip, or the special currencies hold none of it
+
+        Client: ``BuildingMinuteSkipProperties.getMinuteSkipCommand`` (bundle line 50021),
+        ``CastleMinuteSkipDialog.showLoaded`` (bundle line 7671)
         """
+        self._require_minute_skip(minute_skip)
         return self.execute(TimeSkipBuildingRequest(object_id=object_id, minute_skip=minute_skip), timeout=timeout)
 
     def upgrade_defense(

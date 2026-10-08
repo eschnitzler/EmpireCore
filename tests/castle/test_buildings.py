@@ -43,6 +43,7 @@ from empire_core.enums import BuildingState, ExpansionType, Kingdom, MapItemType
 from empire_core.exceptions import CommandError
 from empire_core.gamedata import ConstructionItem, Currency
 from empire_core.protocol.models import parse_response
+from empire_core.state.manager import GameState
 from tests.service_helpers import conn, make_client, xt_packet
 
 # wod 101, object 5 at (10, 12), rotation 0, 30 s left, building (2), 100 hp,
@@ -428,6 +429,22 @@ class TestBuildingService:
         client = make_client()
         assert call(client) is True
         assert conn(client).request_payloads == [(command, payload)]
+
+    def test_skip_construction_time_refuses_a_currency_that_is_no_minute_skip(self):
+        client = make_client()
+        with pytest.raises(ValueError, match="no minute skip"):
+            client.castle.skip_construction_time(42, Currency.CONSTRUCTION_TOKEN)
+        assert conn(client).request_payloads == []
+
+    def test_skip_construction_time_refuses_a_minute_skip_you_hold_none_of(self):
+        # CastleMinuteSkipDialog.showLoaded lists only the skips with an amount above 0
+        state = GameState()
+        state.update_from_packet("gbd", {"gpi": {"PID": 1, "PN": "me"}})
+        state.update_from_packet("sce", [["MS3", 0]])  # type: ignore[arg-type]
+        client = make_client(state=state)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="SKIP_10_MINUTES"):
+            client.castle.skip_construction_time(42, Currency.SKIP_10_MINUTES)
+        assert conn(client).request_payloads == []
 
     def test_a_rejected_build_is_false(self):
         client = make_client({"ebu": xt_packet("ebu", error_code=21)})

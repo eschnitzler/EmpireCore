@@ -67,6 +67,8 @@ The joined-castle commands are `build`, `upgrade_building`, `move_building`,
 `skip_construction_time`, `upgrade_defense`, `repair_building`, `repair_all`,
 `buy_expansion`, `open_treasure_chest`, `collect_mine` and
 `collect_resource_cart`. Each returns `True` when the server accepts it.
+`skip_construction_time` raises `ValueError` for a currency that is no minute
+skip and, once the special currencies are known, for one you hold none of.
 
 The join also fills [state](game-state.md#the-joined-castle) with the castle's
 mines and resource carts, and their pushes keep them current, so you can see
