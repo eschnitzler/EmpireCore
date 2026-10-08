@@ -123,6 +123,37 @@ alliance, which the client only offers inside one. Outside an alliance they rais
 `refuse_diplomacy` otherwise return the alliance the reply carries.
 `get_subscriber_count` is sent outside an alliance too, as the client sends it.
 
+## The chronicle
+
+`get_chronicle` returns the entries of your alliance's chronicle, newest first.
+What an entry's `action_values` hold depends on its action; `details` reads
+them as the client does, typed: a `ChronicleDiplomacy` (the other alliance's
+name and a `DiplomacyStatus`), a `ChronicleBuff` (an `AllianceBuffType`, and
+the smithy's level for its upgrade), a `ChronicleAmount`, `ChronicleLevel`,
+`ChroniclePlace`, `ChronicleTournamentPrize`, `ChronicleText`,
+`ChronicleMember` or `ChronicleDaimyoContract`, or `None` where the entry
+carries nothing (the entries about a player name them in `player_name`).
+`describe()` writes the line the overview shows.
+
+```python
+from empire_core.alliance import ChronicleAmount, ChronicleDiplomacy
+
+for entry in client.alliance.get_chronicle():
+    print(entry.describe())             # "1,500 coins have been donated to the alliance funds"
+    match entry.details:
+        case ChronicleAmount(amount=amount):
+            ...
+        case ChronicleDiplomacy(alliance_name=name, status=status):
+            ...
+```
+
+`describe()` fetches the language file on first use, as `empire_core.texts`
+does, and takes `lang`. A completed daimyo contract needs the game data for
+its rank and level: `entry.describe(client.load_game_data())`. On a special server
+with a skin (such as `"Maya"` on an alliance battle ground), pass `skin` for
+the texts the client shows there. An entry no player made (`player_id` -1)
+names an alliance instead: `named_alliance_id` and `named_alliance_name`.
+
 ## Map bookmarks
 
 `get_bookmarks` lists your own bookmarks and your alliance's. Your own are a

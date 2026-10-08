@@ -78,6 +78,7 @@ from .tables import (
     BuildingDef,
     ConstructionItemRecipeDef,
     DailyQuestDef,
+    DaimyoContractDef,
     DifficultyTypeDef,
     EquipmentGroupDef,
     EventDef,
@@ -174,6 +175,7 @@ _CACHED_MODELS = (
     TitleDef,
     ConstructionItemRecipeDef,
     ScalingCampDef,
+    DaimyoContractDef,
     AchievementCondition,
     AchievementDef,
     AllianceCrestColorDef,
@@ -369,6 +371,8 @@ _TABLES: dict[str, _TableSource] = {
     "construction_item_recipes": _TableSource("constructionItemRecipes", ConstructionItemRecipeDef, "recipe_id"),
     "scaling_camps": _TableSource("eventAutoScalingCamps", ScalingCampDef, "scaling_camp_id"),
     "rewards": _TableSource("rewards", RewardDef, "reward_id", reads=is_reward_column),
+    "daimyo_castle_contracts": _TableSource("daimyoCastleAllianceContracts", DaimyoContractDef, "contract_id"),
+    "daimyo_township_contracts": _TableSource("daimyoTownshipAllianceContracts", DaimyoContractDef, "contract_id"),
 }
 """The GameData tables read lazily, by attribute name: each a :class:`Table` built from these rows."""
 
@@ -471,9 +475,9 @@ class GameData(BaseModel):
     lacks (items newer than the enums) is keyed by its plain int, and as the
     enums are IntEnums, a plain id from a packet indexes every table.
 
-    The tables keyed by id enums, ``titles``, ``construction_item_recipes``, ``scaling_camps`` and ``rewards`` are
-    read-only :class:`~empire_core.gamedata.table.Table` mappings that validate a row the
-    first time it is read, so loading costs no validation for them.
+    The tables keyed by id enums, ``titles``, ``construction_item_recipes``, ``scaling_camps``, ``rewards`` and
+    the two daimyo contract tables are read-only :class:`~empire_core.gamedata.table.Table` mappings that
+    validate a row the first time it is read, so loading costs no validation for them.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -653,6 +657,24 @@ class GameData(BaseModel):
     def scaling_camps(self) -> Table[int, ScalingCampDef]:
         """The ``eventAutoScalingCamps`` rows, by the scaling camp id a map row names."""
         return self._table("scaling_camps")
+
+    @cached_property
+    def daimyo_castle_contracts(self) -> Table[int, DaimyoContractDef]:
+        """
+        The daimyo castles' alliance contracts by id, in the items' order.
+
+        Client: ``SamuraiDaimyoDataXml.daimyoCastleAllianceContracts`` (bundle line 13914)
+        """
+        return self._table("daimyo_castle_contracts")
+
+    @cached_property
+    def daimyo_township_contracts(self) -> Table[int, DaimyoContractDef]:
+        """
+        The daimyo townships' alliance contracts by id, in the items' order.
+
+        Client: ``SamuraiDaimyoDataXml.daimyoTownshipAllianceContracts`` (bundle line 13914)
+        """
+        return self._table("daimyo_township_contracts")
 
     @cached_property
     def rewards(self) -> Table[RewardId, RewardDef]:

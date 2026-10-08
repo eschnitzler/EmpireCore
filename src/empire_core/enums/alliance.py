@@ -1,4 +1,4 @@
-"""Alliance ranks, diplomacy, member presence, help requests, bookmarks and the chronicle."""
+"""Alliance ranks, diplomacy, member presence, help requests, bookmarks, buffs and the chronicle."""
 
 from enum import IntEnum
 
@@ -58,6 +58,15 @@ class DiplomacyStatus(IntEnum):
     NEUTRAL = 1
     SOFT_ALLIED = 2
     REAL_ALLIED = 3
+
+    @property
+    def text_id(self) -> str:
+        """
+        The text id of the status's name, ``dialog_allianceDiplomacy_status<n>``: ``"War"`` for ``IN_WAR``.
+
+        Client: ``AllianceActionListItemVO.getActionText`` (bundle line 66342)
+        """
+        return f"dialog_allianceDiplomacy_status{self.value}"
 
 
 class OnlineState(IntEnum):
@@ -174,3 +183,82 @@ class AllianceChronicleAction(IntEnum):
     ALLIANCE_BATTLE_GROUND_MALUS_RESET = 64
     DAIMYO_ALLIANCE_CASTLE_CONTRACT_COMPLETED = 65
     DAIMYO_ALLIANCE_TOWNSHIP_CONTRACT_COMPLETED = 66
+
+
+class AllianceBuffType(IntEnum):
+    """
+    An alliance upgrade or boost: the series an alliance buff's levels belong to.
+
+    Names follow ``AllianceConst.TYPE_*`` (``DAIYMO`` spelled ``DAIMYO``); ``MEMBERS`` raises the member limit and
+    ``FORGE_UPGRADE`` upgrades the alliance smithy.
+
+    Client: ``AllianceConst.TYPE_*`` (dll line 18805), the series ids of
+    ``allianceBuffData.getAllianceBuffVoBySeriesIDAndLevel`` (bundle line 27189); 22 to 25 are
+    ``AllianceRaidConst.BUFF_SERIES_RAID_BOSS_ATTACK_*`` (bundle line 33863)
+    """
+
+    MEMBERS = 0
+    DEFENSE_SPEED_BOOST = 1
+    MARKET_SPEED_BOOST = 2
+    DEPOSIT_BONUS = 3
+    MARAUDER_BONUS = 4
+    ATTACK_SPEED_BOOST = 5
+    FORGE_UPGRADE = 6
+    TEMP_ATTACK_POWER_BOOST = 7
+    TEMP_DEFENSE_POWER_BOOST = 8
+    TEMP_GLORY_BOOST = 9
+    TEMP_DEFENSE_SPEED_BOOST = 10
+    NOBLE_HOUSE = 11
+    RAGE_POINT_BOOST = 12
+    COOLDOWN_REDUCTION_KHAN = 13
+    COOLDOWN_REDUCTION_NOMADS = 14
+    INFLUENCE_POINT_BOOST = 15
+    ALIEN_ATTACK_BOOST = 16
+    DAIMYO_ATTACK_BOOST = 17
+    KHAN_DEFENSE_BOOST = 18
+    HEALING_SPEED_BOOST = 19
+    COOLDOWN_REDUCTION_SAMURAI_CAMP = 20
+    COOLDOWN_REDUCTION_DAIMYO = 21
+    TEMP_RAID_BOSS_COMMON_ATTACK_BOOST = 22
+    TEMP_RAID_BOSS_RARE_ATTACK_BOOST = 23
+    TEMP_RAID_BOSS_EPIC_ATTACK_BOOST = 24
+    TEMP_RAID_BOSS_LEGENDARY_ATTACK_BOOST = 25
+
+    @property
+    def text_id(self) -> str | None:
+        """
+        The text id of the buff's name, None for ``FORGE_UPGRADE`` and ``NOBLE_HOUSE``, which have none.
+
+        Client: ``CastleEffectsHelper.getNameTextId`` (bundle line 4191)
+        """
+        return _BUFF_TEXT_IDS.get(self)
+
+
+_BUFF_TEXT_IDS = {
+    AllianceBuffType.MEMBERS: "dialog_alliance_member",
+    AllianceBuffType.DEFENSE_SPEED_BOOST: "dialog_alliance_defenseBoost",
+    AllianceBuffType.MARKET_SPEED_BOOST: "dialog_alliance_marketBoost",
+    AllianceBuffType.DEPOSIT_BONUS: "dialog_alliance_depositBonus",
+    AllianceBuffType.MARAUDER_BONUS: "dialog_alliance_permanentBoost_lootCapacity",
+    AllianceBuffType.ATTACK_SPEED_BOOST: "dialog_alliance_movementBoost",
+    AllianceBuffType.TEMP_GLORY_BOOST: "dialog_alliance_temporaryBoost_glory",
+    AllianceBuffType.TEMP_DEFENSE_SPEED_BOOST: "dialog_alliance_temporaryBoost_supportTravel",
+    AllianceBuffType.TEMP_ATTACK_POWER_BOOST: "dialog_alliance_temporaryBoost_attackPower",
+    AllianceBuffType.TEMP_DEFENSE_POWER_BOOST: "dialog_alliance_temporaryBoost_defencePower",
+    AllianceBuffType.RAGE_POINT_BOOST: "dialog_alliance_temporaryBoost_allianceRageBoost",
+    AllianceBuffType.COOLDOWN_REDUCTION_KHAN: "dialog_alliance_temporaryBoost_allianceCooldownReductionKhan",
+    AllianceBuffType.COOLDOWN_REDUCTION_NOMADS: "dialog_alliance_temporaryBoost_allianceCooldownReductionNomad",
+    AllianceBuffType.ALIEN_ATTACK_BOOST: "dialog_alliance_temporaryBoost_allianceAttackBoostAliens",
+    AllianceBuffType.DAIMYO_ATTACK_BOOST: "dialog_alliance_temporaryBoost_allianceAttackBoostDaimyo",
+    AllianceBuffType.KHAN_DEFENSE_BOOST: "dialog_alliance_temporaryBoost_allianceDefenseBoostKhan",
+    AllianceBuffType.HEALING_SPEED_BOOST: "dialog_alliance_temporaryBoost_healingSpeedIncreaseBoostPremium",
+    AllianceBuffType.INFLUENCE_POINT_BOOST: "dialog_alliance_temporaryBoost_BGCollectorBoost",
+    AllianceBuffType.COOLDOWN_REDUCTION_SAMURAI_CAMP: "dialog_alliance_temporaryBoost_allianceSamuraiCooldownReduction",
+    AllianceBuffType.COOLDOWN_REDUCTION_DAIMYO: "dialog_alliance_temporaryBoost_allianceDaimyoCooldownReduction",
+    AllianceBuffType.TEMP_RAID_BOSS_COMMON_ATTACK_BOOST: "dialog_alliance_temporaryBoost_TemporaryCommonAttackBonus",
+    AllianceBuffType.TEMP_RAID_BOSS_RARE_ATTACK_BOOST: "dialog_alliance_temporaryBoost_TemporaryRareAttackBonus",
+    AllianceBuffType.TEMP_RAID_BOSS_EPIC_ATTACK_BOOST: "dialog_alliance_temporaryBoost_TemporaryEpicAttackBonus",
+    AllianceBuffType.TEMP_RAID_BOSS_LEGENDARY_ATTACK_BOOST: (
+        "dialog_alliance_temporaryBoost_TemporaryLegendaryAttackBonus"
+    ),
+}

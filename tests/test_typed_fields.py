@@ -5,9 +5,8 @@ A field typed ``Any``, or a list, tuple or set of ``int`` or ``Any`` (nested one
 keyed by a bare ``int``, fails
 unless :data:`ALLOWED` names it with a reason: player ids, coordinates, a request's wire shape,
 counters, a value that is opaque. ``EnumOrInt[...]`` is an enum, not an int, and ``int | float``
-a number, not an id. The ``#320`` entries
-are older fields that issue still has to type; the list is the remaining debt, so an entry
-whose field is gone or typed fails too. A game-data row field named ``*_id`` that is a plain int
+a number, not an id. An entry whose field is gone or typed fails too.
+A game-data row field named ``*_id`` that is a plain int
 fails as well, unless :data:`GAME_DATA_SCALAR_IDS` says why no enum types it.
 """
 
@@ -67,7 +66,10 @@ ALLOWED: dict[str, str] = {
     "gamedata.tables.BuildingDef.low_level_main_castle_cost_rubies": "ruby amounts, not ids",
     "quests.models.DailyQuest.progress": "counters, one per condition of the quest",
     "quests.models.Quest.progress": "counters, one per condition of the quest",
-    "alliance.models.chronicle.AllianceChronicleEntry.action_values": "#320",
+    "alliance.models.chronicle.AllianceChronicleEntry.action_values": (
+        "the client's raw text arguments (bundle line 66358), for describe() and actions without a typed "
+        "view; typed per action by AllianceChronicleEntry.details"
+    ),
     "state.models.Player.castles": "keyed by (kingdom, castle id); castle ids are the player's areas, not game data",
     "commanders.models.equipment.EquipmentBonus.values": "laid out by the effect type's value class (bundle line 1294)",
     "commanders.models.equipment.RelicBonus.values": "laid out by the effect type's value class (bundle line 1294)",
@@ -86,7 +88,6 @@ ALLOWED: dict[str, str] = {
 
 GAME_DATA_SCALAR_IDS: dict[str, str] = {
     "gamedata.models.AllianceBuffDef.alliance_buff_id": "alliance buffs have no name to make an enum of",
-    "gamedata.models.AllianceBuffDef.series_id": "alliance buff series have no table",
     "gamedata.models.AttackSlotDef.slot_id": "attack slots have no name to make an enum of",
     "gamedata.models.ConstructionItemDef.effect_group_id": "construction item effect groups have no table",
     "gamedata.models.ConstructionItemDef.group_id": "construction item groups have no name",
@@ -124,6 +125,8 @@ GAME_DATA_SCALAR_IDS: dict[str, str] = {
     "gamedata.tables.EquipmentGroupDef.pic_id": "a picture, not a row",
     "gamedata.tables.ConstructionItemRecipeDef.blueprint_id": "blueprints have no table; their recipes name them",
     "gamedata.tables.ConstructionItemRecipeDef.recipe_id": "recipes have no name to make an enum of",
+    "gamedata.tables.DaimyoContractDef.contract_id": "daimyo contracts have no name to make an enum of",
+    "gamedata.tables.DaimyoContractDef.next_contract_id": "daimyo contracts have no name to make an enum of",
     "gamedata.tables.LootBoxDef.key_tombola_id": "tombolas have no name to make an enum of",
     "gamedata.tables.LootBoxDef.tombola_id": "tombolas have no name to make an enum of",
     "gamedata.tables.QuestDef.map_id": "no items table names maps",
