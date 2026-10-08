@@ -7,7 +7,7 @@ from empire_core.attack.models.send import CreateAttackResponse
 from empire_core.combat import Bonus, commander_bonuses
 from empire_core.commanders import AlienEquipment
 from empire_core.commanders.models.roster import GetCommandersResponse
-from empire_core.gamedata import GameData
+from empire_core.gamedata import GameData, Gem
 from empire_core.protocol.models import (
     Castellan,
     Commander,
@@ -26,6 +26,15 @@ class TestEquipment:
         assert [(b.effect_id, b.values) for b in item.bonuses] == [(53, [25.0])]
         assert item.relic_bonuses == []
         assert not item.is_relic
+
+    def test_the_slotted_gem_is_a_gem_and_no_gem_is_none(self):
+        # BasicEquipmentVO.parseEquipFromArray: int(e[10]), a gem unless NO_GEM_ID
+        with_gem = Equipment.model_validate([1, 1, 2, 4, 0, [], -1, -1, 0, -1, "101", 0])
+        without = Equipment.model_validate([1, 1, 2, 4, 0, [], -1, -1, 0, -1, -1, 0])
+
+        assert (with_gem.gem_id, with_gem.has_gem) == (Gem.STONE_OF_THE_HUNTER_101, True)
+        assert (without.gem_id, without.has_gem) == (None, False)
+        assert Equipment.model_validate([1, 1, 2]).gem_id is None
 
     def test_a_scalar_value_is_wrapped_like_the_client(self):
         item = Equipment.model_validate([1, 1, 2, 4, 0, [[53, 25.0]]])

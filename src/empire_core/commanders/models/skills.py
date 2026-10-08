@@ -330,7 +330,9 @@ class ActivatingSceatSkill(BasePayload):
     Client: ``CastleLegendSkillData.parse_SKL`` (bundle line 112051)
     """
 
-    skill_id: ClientInt = Field(alias="ID", default=0, description="The sceat skill being activated")
+    skill_id: EnumOrInt["SceatSkill"] | None = Field(
+        alias="ID", default=None, description="The sceat skill being activated; None when the entry names none"
+    )
     remaining_seconds: ClientInt = Field(alias="RS", default=0, description="Seconds until the skill is active")
 
 

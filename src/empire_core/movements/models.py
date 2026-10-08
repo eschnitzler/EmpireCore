@@ -4,7 +4,7 @@ Army movement models: gam, the recall (mcm), and the movement wrappers pushed wi
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, field_validator, model_validator
 
@@ -23,12 +23,16 @@ from empire_core.protocol.base import (
 )
 from empire_core.protocol.js import (
     ClientInt,
+    js_int,
     js_loose_equals,
     js_parse_int,
     js_parse_int_or_zero,
     js_same_number,
     js_truthy,
 )
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Horse, Title
 
 
 class GetMovementsRequest(BaseRequest):
@@ -130,11 +134,18 @@ class MovementRecord(BasePayload):
     kingdom_id: int = Field(alias="KID", default=0, description="Kingdom id")
     source_id: int = Field(alias="SID", default=-1, description="Player id owning the source area")
     owner_id: int = Field(alias="OID", default=-1, description="Player id owning the movement")
-    horse_booster_id: int = Field(
-        alias="HBW", default=-1, description="The horse booster's wod id, -1 for none or when paid with feathers"
+    horse_booster: EnumOrInt["Horse"] | None = Field(
+        alias="HBW", default=None, description="The horse booster; None for none or when paid with feathers"
     )
     target_area: MovementArea | None = Field(alias="TA", default=None, description="Target area")
     source_area: MovementArea | None = Field(alias="SA", default=None, description="Source area")
+
+    @field_validator("horse_booster", mode="before")
+    @classmethod
+    def _horse(cls, value: Any) -> Any:
+        # Client: int(t.HBW), -1 for no horse (BasicMapmovementVO, bundle lines 19383, 15445)
+        horse = js_int(value)
+        return horse if horse > 0 else None
 
     @property
     def is_returning(self) -> bool:
@@ -291,9 +302,19 @@ class MovementOwner(BasePayload):
     achievement_points: int = Field(alias="AVP", default=0)
     relocation_seconds: int = Field(alias="RRD", default=0, description="Seconds until a relocation ends")
     faction: OwnerFaction | None = Field(alias="FN", default=None)
-    title_prefix_id: int | None = Field(alias="PRE", default=None)
-    title_suffix_id: int | None = Field(alias="SUF", default=None)
+    title_prefix_id: EnumOrInt["Title"] | None = Field(
+        alias="PRE", default=None, description="The title shown before the name; None for none"
+    )
+    title_suffix_id: EnumOrInt["Title"] | None = Field(
+        alias="SUF", default=None, description="The title shown after the name; None for none"
+    )
     via_refer_a_friend: bool = Field(alias="IRF", default=False)
+
+    @field_validator("title_prefix_id", "title_suffix_id", mode="before")
+    @classmethod
+    def _title(cls, value: Any) -> Any:
+        # Client: getTitleByTitleID(e.PRE / e.SUF) looks the id up as sent and finds none for -1 (bundle line 10794)
+        return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
     @field_validator("is_searching_alliance", "has_premium", "has_vip", mode="before")
     @classmethod
