@@ -26,6 +26,10 @@ The items data: typed tables, lookups by name, and the generated id enums.
 
 ::: empire_core.gamedata.lenient
 
+## `gamedata.effect_texts`
+
+::: empire_core.gamedata.effect_texts
+
 ## `gamedata.troops`
 
 ::: empire_core.gamedata.troops
