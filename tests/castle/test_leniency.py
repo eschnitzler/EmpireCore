@@ -84,6 +84,15 @@ class TestBuildingReplyLeniency:
         assert ConstructionList.model_validate({"SSC": 2.5}).slot_count == 2.5
         assert ConstructionList.model_validate({"SSC": "3"}).slot_count == 3
 
+    def test_built_by_field_name_it_keeps_what_it_is_given(self):
+        built = ConstructionList(slot_count=3)
+        assert (built.slot_count, built.slots, built.model_extra) == (3, (), {})
+
+        sent = ConstructionList.model_validate({"OIDL": [7, -1, -2], "SSC": 2})
+        assert ConstructionList.model_validate(sent.model_dump(by_alias=True)) == sent
+        assert ConstructionList(slots=sent.slots, slot_count=2) == sent
+        assert [slot.is_waiting for slot in sent.slots] == [False, False, True]
+
 
 class TestDetailedCastleListLeniency:
     def test_one_bad_entry_costs_only_itself(self):

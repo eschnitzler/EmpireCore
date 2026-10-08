@@ -168,6 +168,11 @@ class TestLiveDefenseReply:
         assert response.moat.right_slots == (EMPTY_SLOT,)
         assert response.moat.defense == 0
 
+    def test_an_empty_pair_is_an_empty_slot_not_a_failed_reply(self):
+        response = GetDefenseResponse.model_validate({"dfk": {"S": [[]]}})
+
+        assert response.keep is not None and response.keep.slots == (EMPTY_SLOT,)
+
     def test_standalone_replies_reuse_the_nested_blocks(self):
         assert isinstance(parse_response("dfw", LIVE_DFC["dfw"]), WallDefense)
         assert isinstance(parse_response("dfk", LIVE_DFC["dfk"]), KeepDefense)

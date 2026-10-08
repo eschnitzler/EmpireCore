@@ -211,19 +211,23 @@ class ConstructionList(BasePayload):
     @model_validator(mode="before")
     @classmethod
     def _slots(cls, data: Any) -> Any:
-        if not isinstance(data, dict) or "slots" in data:
+        if not isinstance(data, dict):
             return data
         # e.SSC ? e.SSC : 1, kept as a number
-        count = js_number_or_none(data.get("SSC")) if js_truthy(data.get("SSC")) else None
+        sent_count = data.get("SSC", data.get("slot_count"))
+        count = js_number_or_none(sent_count) if js_truthy(sent_count) else None
         count = 1 if count is None else count
-        ids = data.get("OIDL")
-        if not isinstance(ids, list):
+        ids = data.get("OIDL", data.get("slots"))
+        if not isinstance(ids, list | tuple):
             ids = []
         slots = [
-            {"position": position, "object_id": js_int(entry), "is_waiting": position >= count}
+            entry
+            if isinstance(entry, ConstructionSlot | dict)
+            else {"position": position, "object_id": js_int(entry), "is_waiting": position >= count}
             for position, entry in enumerate(ids)
         ]
-        return {**data, "OIDL": slots, "SSC": count}
+        rest = {key: value for key, value in data.items() if key not in ("OIDL", "slots", "SSC", "slot_count")}
+        return {**rest, "OIDL": slots, "SSC": count}
 
     @property
     def free_slots(self) -> int:

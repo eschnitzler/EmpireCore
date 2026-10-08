@@ -14,12 +14,12 @@ then as a ``Tool`` (:data:`UnitOrTool`).
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from collections.abc import Set as AbstractSet
 from enum import Enum
 from typing import TYPE_CHECKING, Annotated, Any, NamedTuple, Protocol, TypeAlias, runtime_checkable
 
-from pydantic import BeforeValidator, PlainSerializer
+from pydantic import BeforeValidator, PlainSerializer, TypeAdapter
 
 from empire_core.protocol.js import js_int
 
@@ -57,7 +57,7 @@ def wod_amount_pairs(value: object) -> list[tuple[int, int]]:
 @runtime_checkable
 class WodAmountMapping(Protocol):
     """
-    Units and tools by amount, as a caller writes them: ``{Unit.SWORDSMAN: 100, Tool.LADDER: 5}``.
+    Units and tools by amount, as a caller writes them: ``{Unit.SWORDMAN: 100, Tool.LADDER: 5}``.
 
     Any mapping does, keyed by ``Unit``, ``Tool``, both, or plain wod ids.
     """
@@ -81,7 +81,7 @@ class WodAmount(NamedTuple):
     becomes ``item`` None, so it logs no unknown id; :data:`WodAmountSlots` writes it back as the
     same two-entry list.
 
-    Build one as ``WodAmount(Unit.SWORDSMAN, 100)``, or a whole container with :meth:`slots`.
+    Build one as ``WodAmount(Unit.SWORDMAN, 100)``, or a whole container with :meth:`slots`.
 
     Client: ``CastleFightItemContainer.getSlotList`` (bundle line 20573) writes
     ``[getWodId(), getAmount()]`` per slot, -1 and 0 for an empty one (``CastleFightItemVO``,
@@ -100,15 +100,15 @@ class WodAmount(NamedTuple):
         raise AttributeError("WodAmount has no count; the number of units or tools is .amount")
 
     @classmethod
-    def slots(cls, amounts: WodAmountMapping | Iterable[WodAmount]) -> tuple[WodAmount, ...]:
+    def slots(cls, amounts: WodAmountMapping | Iterable[WodAmount | Sequence[int]]) -> tuple[WodAmount, ...]:
         """
-        A container's slots, one per entry in order: ``WodAmount.slots({Unit.SWORDSMAN: 100})``.
+        A container's slots, one per entry in order: ``WodAmount.slots({Unit.SWORDMAN: 100})``.
 
-        Pairs already built are kept as they are, empty slots included.
+        Pairs, built or as ``[wod_id, amount]`` lists, are read as a packet's are, empty slots included.
         """
         if isinstance(amounts, WodAmountMapping):
             return tuple(cls(item, amount) for item, amount in amounts.items())
-        return tuple(amounts)
+        return _SLOTS.validate_python(list(amounts))
 
 
 EMPTY_SLOT = WodAmount(None, 0)
@@ -116,12 +116,13 @@ EMPTY_SLOT = WodAmount(None, 0)
 
 
 def _slots(value: Any) -> Any:
-    # Client: fillFromParamArray shift()s two places off each pair and ignores the rest
+    # Client: fillFromParamArray shift()s two places off each pair and ignores the rest; a place a short
+    # pair lacks is int(undefined), 0, so [] holds no unit and reads as an empty slot
     if isinstance(value, Mapping):
         return WodAmount.slots(value)
     if not isinstance(value, list | tuple):
         return value
-    return [slot[:2] if isinstance(slot, list) else slot for slot in value]
+    return [[*slot, None, None][:2] if isinstance(slot, list) else slot for slot in value]
 
 
 def _wire_pairs(slots: tuple[WodAmount, ...]) -> list[list[int]]:
@@ -134,6 +135,8 @@ kept twice and an empty slot ``[-1, 0]``. A mapping is read as one slot per entr
 
 Client: ``CastleFightItemContainer.getSlotList`` / ``fillFromParamArray`` (bundle lines 20573, 20554)
 """
+
+_SLOTS: TypeAdapter[tuple[WodAmount, ...]] = TypeAdapter(WodAmountSlots)
 
 
 def _merged(value: Any) -> Any:
@@ -160,7 +163,7 @@ and an amount of 0 or less is dropped, as the client's unit inventories do."""
 def _tool_slots(value: Any) -> Any:
     if not isinstance(value, list | tuple):
         return value
-    return tuple(None if tool == EMPTY_WOD_ID else tool for tool in value)
+    return tuple(_wod_id(tool) for tool in value)
 
 
 def _tool_ids(slots: tuple[Tool | int | None, ...]) -> list[int]:
@@ -173,7 +176,9 @@ SupportToolSlots = Annotated[
 """The support tools of an attack, one wod id per slot: None for an empty slot, -1 on the wire.
 
 Client: ``CastleAttackInfoVO.toolsSupportWodIds`` (bundle lines 30678-30680) pushes each slot's
-``wodId`` or -1; ``FightPresetVO.getSupportTools`` (bundle line 141847) defaults to ``[-1,-1,-1]``
+``wodId`` or -1; ``FightPresetVO.getSupportTools`` (bundle line 141847) defaults to ``[-1,-1,-1]``;
+a movement's ``AST`` is read through ``int()`` (``CastleCompactArmyVO.parseSupportTools`` into
+``fillFromWodAmountArray``, bundle lines 67526-67528, 42572), so ``"-1"`` and a missing entry are empty too
 """
 
 
