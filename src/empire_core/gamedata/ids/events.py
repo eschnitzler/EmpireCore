@@ -2,6 +2,8 @@
 
 from enum import IntEnum
 
+from empire_core.texts import has_text, text
+
 
 class Event(IntEnum):
     """
@@ -10,6 +12,24 @@ class Event(IntEnum):
     Client: ``CastleSpecialEventData.storeXmlEvents`` (bundle line 139777) keys rows by ``eventID``,
     ``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle line 2959) reads ``eventType``
     """
+
+    @property
+    def text_id(self) -> str:
+        """The text id of its name, ``event_title_<value>``."""
+        return f"event_title_{self.value}"
+
+    def display_name(self, lang: str = "en") -> str | None:
+        """
+        The game's name for it in ``lang``, the text ``event_title_<value>``; None when the language file has no such
+        text.
+
+        Fetches the language file on first use and caches it (:func:`empire_core.texts.text`); a text the file lacks, or
+        a failed fetch, gives the text id.
+
+        Client: ``"event_title_" + eventID``, as the reward hub, alliance quests and season events name an event (bundle
+        lines 54451, 111097 and 31389)
+        """
+        return text(self.text_id, lang=lang) if has_text(self.text_id, lang) else None
 
     THORNKING = 2
     FACTION = 3

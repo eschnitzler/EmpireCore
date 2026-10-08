@@ -21,6 +21,31 @@ class AllianceRank(IntEnum):
     MEMBER = 8
     APPLICANT = 9
 
+    @property
+    def text_id(self) -> str:
+        """
+        The text id of the rank's name, ``dialog_alliance_rank<n>``, numbered in an order of its own:
+        ``text(AllianceRank.COLEADER.text_id)`` is ``"Deputy"`` (:func:`empire_core.texts.text`).
+
+        Client: ``"dialog_alliance_rank" + CastleAllianceData.getTextIDForRank(rank)`` (bundle line
+        44529), numbered by ``CastleAllianceData.TEXT_IDS_FOR_RANK_IDS`` (bundle line 11626)
+        """
+        return f"dialog_alliance_rank{_RANK_TEXT_NUMBERS[self]}"
+
+
+_RANK_TEXT_NUMBERS = {
+    AllianceRank.LEADER: 0,
+    AllianceRank.GENERAL: 1,
+    AllianceRank.SERGEANT: 2,
+    AllianceRank.MEMBER: 3,
+    AllianceRank.COLEADER: 4,
+    AllianceRank.MARSHAL: 5,
+    AllianceRank.TREASURER: 6,
+    AllianceRank.DIPLOMAT: 7,
+    AllianceRank.RECRUITER: 8,
+    AllianceRank.APPLICANT: 9,
+}
+
 
 class DiplomacyStatus(IntEnum):
     """

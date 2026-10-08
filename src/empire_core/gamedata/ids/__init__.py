@@ -17,6 +17,12 @@ Anything a balance patch can change is not baked in: for the full row, load a
 :class:`GameData` (nothing here downloads it) and index its table with the
 member, e.g. ``game_data.units[Unit.MEAD_RANGER_L6]``.
 
+Enums whose rows the game names by a text (units, tools, currencies,
+researches, generals, legend and sceat skills, events, gems, achievements,
+titles, crest layouts, main quests) have ``display_name(lang="en")``, the
+name the game shows: ``Unit.MEAD_RANGER_L6.display_name("de")``. It reads the
+language file, fetched on first use and cached (:mod:`empire_core.texts`).
+
 ``ITEMS_VERSION`` is the items version they were generated from, and
 :func:`is_current` says whether a loaded :class:`GameData` is that version. For
 anything newer, use the named lookups on :class:`GameData`.
