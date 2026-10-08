@@ -10,6 +10,9 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from empire_core.enums import Kingdom
 from empire_core.exceptions import AmbiguousCastleError, CommandError, UnknownCastleError
+from empire_core.gamedata import Currency
+from empire_core.gamedata.collectables import MINUTE_SKIP_FIRST_ID, MINUTE_SKIP_KEY
+from empire_core.gamedata.lenient import known
 from empire_core.protocol.base import BaseRequest, BaseResponse
 from empire_core.protocol.errors import GGEError
 from empire_core.utils.callbacks import BoundEvent, Registry
@@ -122,6 +125,29 @@ class BaseService:
         if len(kingdoms) > 1:
             raise AmbiguousCastleError(None, list(kingdoms), position=(x, y))
         return kingdoms[0]
+
+    def _require_minute_skip(self, minute_skip: Currency | str) -> None:
+        """
+        Check that ``minute_skip`` is a minute skip, and one you hold once the special currencies are known.
+
+        The client offers only the minute skips (``CurrencyData.getMinuteSkips``, the currency id range
+        1000-1999, bundle lines 141226-141231) that you hold one of at least (``CastleMinuteSkipDialog.showLoaded``,
+        bundle line 7671). A key newer than the generated enum counts when it is ``MS<n>``, the minute skip
+        ``1000 + n`` (``CollectableHelper.getTypeByServerKey``, bundle lines 1604-1605). Before any ``sce``
+        arrived the holdings are unknown and not checked.
+
+        Raises:
+            ValueError: It is no minute skip, or you hold none of it
+        """
+        skip = known(Currency, minute_skip, warn=False)
+        if isinstance(skip, Currency):
+            if not MINUTE_SKIP_FIRST_ID <= skip.currency_id < MINUTE_SKIP_FIRST_ID + 1000:
+                raise ValueError(f"{skip.name} is no minute skip")
+        elif not (minute_skip.startswith(MINUTE_SKIP_KEY) and minute_skip[len(MINUTE_SKIP_KEY) :].isdigit()):
+            raise ValueError(f"{minute_skip!r} is no minute skip")
+        state = self.client.state
+        if state.get_last_packet_time("sce") is not None and state.get_special_currencies().get(skip, 0) < 1:
+            raise ValueError(f"you hold no {getattr(skip, 'name', skip)}")
 
     def send(self, request: BaseRequest, wait: bool = False, timeout: float = 5.0) -> BaseResponse | None:
         """

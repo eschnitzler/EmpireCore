@@ -32,7 +32,7 @@ kingdom from the castle list the server sent at login
   since the library then cannot tell which castle is meant.
 
 That covers `select`, `join`, `get_resources`, `get_details`, `rename`,
-`send_resources`, `transfer_units_to_kingdom`, the `client.army` methods and
+`send_resources`, `transfer_units_to_kingdom`, `transfer_goods_to_kingdom`, the `client.army` methods and
 `client.alliance.donate`.
 
 ## The joined castle
@@ -146,8 +146,37 @@ Your commanders in the reply update [state](game-state.md). The reply has no
 travel time, which the game works out from the units it sends. A source that
 is not yours raises `CommandError` with `NOT_IN_OWNED_CASTLE`.
 
-`get_market_info()` lists each castle's free carriages, and
-`transfer_units_to_kingdom` sends units to another kingdom.
+`get_market_info()` lists each castle's free carriages.
+
+### Other kingdoms
+
+`transfer_units_to_kingdom` sends units to another kingdom and
+`transfer_goods_to_kingdom` goods to your castle there:
+
+```python
+from empire_core.enums import Kingdom, KingdomTransferType
+from empire_core.gamedata import Currency
+
+client.castle.transfer_goods_to_kingdom(castle_id, Kingdom.ICE, {Resource.WOOD: 1000})
+kingdoms = client.state.get_kingdoms()
+for transfer in kingdoms.goods_transfers if kingdoms else ():
+    print(transfer.kingdom_id, transfer.remaining_seconds())
+
+client.castle.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.GOODS, Currency.SKIP_1_HOUR)
+```
+
+The goods pass the same checks as `send_resources` (one tab per send, classic
+goods only below legend level). Like the game, `transfer_goods_to_kingdom`
+raises `ValueError` for a source castle in the target kingdom or in Berimond,
+and for a kingdom with no castle of yours to receive them. The travel tax and
+the target's storage are left to the server.
+
+`skip_kingdom_transfer_time` spends one minute skip item on the units or goods
+on their way to a kingdom. As the game lists only the minute skips you hold, it
+raises `ValueError` for a currency that is no minute skip and, once the special
+currencies (`client.state.get_special_currencies()`) are known, for one you
+hold none of. The full skip the game also offers costs rubies and is not in the
+library.
 
 `rename(castle_id, new_name)` renames a castle.
 
