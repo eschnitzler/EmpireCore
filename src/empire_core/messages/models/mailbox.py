@@ -14,9 +14,9 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
+from pydantic import BeforeValidator, Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
 from empire_core.alliance.models.bookmarks import Bookmark
 from empire_core.army.spy_army import SpyArmyBlock
@@ -120,7 +120,9 @@ class MessageInfo(BasePayload):
     """
 
     message_id: int = Field(description="Message id")
-    message_type: ClientInt = Field(description="Message type id")
+    message_type: Annotated[EnumOrInt[MessageType], BeforeValidator(js_int)] = Field(
+        description="Message type; a plain int for a type the client does not define"
+    )
     header: str = Field(
         default="",
         description="Message header; its layout depends on message_type",
@@ -161,11 +163,6 @@ class MessageInfo(BasePayload):
     @classmethod
     def _int_one_flag(cls, value: Any) -> bool:
         return js_int(value) == 1
-
-    @property
-    def message_type_enum(self) -> MessageType | None:
-        """``message_type`` as a :class:`MessageType`, None for a type the client does not define."""
-        return enum_or_none(MessageType, self.message_type)
 
     @property
     def decoded_header(self) -> str:

@@ -91,7 +91,7 @@ class TestMailboxHeader:
     def test_a_battle_log_row(self):
         message = MessageInfo.model_validate(MAILBOX_ROW)
         assert message.is_battle_log
-        assert message.message_type_enum is MessageType.BATTLE_LOG
+        assert message.message_type is MessageType.BATTLE_LOG
         header = message.battle_log_header()
         assert header is not None
         assert header.area_type == MapItemType.CASTLE
@@ -124,7 +124,7 @@ class TestShortLog:
     def test_live_shape(self):
         log = BattleLogShortResponse.model_validate(BLS)
 
-        assert (log.message_id, log.log_id, log.message_type_enum) == (MESSAGE_ID, LOG_ID, MessageType.BATTLE_LOG)
+        assert (log.message_id, log.log_id, log.message_type) == (MESSAGE_ID, LOG_ID, MessageType.BATTLE_LOG)
         assert log.defender_won is True
         assert log.parsed_meta == BattleLogMeta(MapItemType.CASTLE, BattleLogAttackType.NPC, LogResult.DEFENDER_SUCCESS)
         assert log.seconds_since_battle == 678547

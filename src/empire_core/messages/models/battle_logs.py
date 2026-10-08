@@ -12,9 +12,16 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import Field, ValidationInfo, ValidatorFunctionWrapHandler, field_validator, model_validator
+from pydantic import (
+    BeforeValidator,
+    Field,
+    ValidationInfo,
+    ValidatorFunctionWrapHandler,
+    field_validator,
+    model_validator,
+)
 
 from empire_core.commanders.models.equipment import Equipment
 from empire_core.commanders.models.roster import Castellan, Commander
@@ -738,7 +745,9 @@ class BattleLogShortResponse(BaseResponse):
 
     message_id: int | None = Field(alias="MID", default=None, description="The battle log's message id")
     log_id: ClientInt = Field(alias="LID", default=0, description="The battle log id, for the middle and detail logs")
-    message_type: ClientInt = Field(alias="MT", default=0, description="The message type: 6 for a battle log")
+    message_type: Annotated[EnumOrInt[MessageType], BeforeValidator(js_int)] = Field(
+        alias="MT", default=0, description="The message type: BATTLE_LOG for a battle log"
+    )
     defender_won: bool = Field(alias="DW", default=False, description="The defender won")
     meta: str = Field(
         alias="MS", default="", description="area_type+attack_type+result[+treasure_map_id[+map_area_type]]"
@@ -970,11 +979,6 @@ class BattleLogShortResponse(BaseResponse):
         if not isinstance(value, dict):
             return None
         return read_or_none(handler, value, warn=logger, what="a nested battle log")
-
-    @property
-    def message_type_enum(self) -> MessageType | None:
-        """``message_type`` as a :class:`MessageType`."""
-        return enum_or_none(MessageType, self.message_type)
 
     @property
     def parsed_meta(self) -> BattleLogMeta:
