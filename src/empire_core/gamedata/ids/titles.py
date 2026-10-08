@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from enum import IntEnum
 
+from empire_core.texts import text
+
 
 class Title(IntEnum):
     """
@@ -21,6 +23,22 @@ class Title(IntEnum):
         member._value_ = value
         member.title_system = title_system
         return member
+
+    @property
+    def text_id(self) -> str:
+        """The text id of its name, ``playerTitle_<value>``."""
+        return f"playerTitle_{self.value}"
+
+    def display_name(self, lang: str = "en") -> str:
+        """
+        The game's name for it in ``lang``, the text ``playerTitle_<value>``.
+
+        Fetches the language file on first use and caches it (:func:`empire_core.texts.text`); a text the file lacks, or
+        a failed fetch, gives the text id.
+
+        Client: ``TitleVO.textID`` (bundle line 62756)
+        """
+        return text(self.text_id, lang=lang)
 
     KNIGHT = 0, "FAME"
     CHEVALIER = 1, "FAME"

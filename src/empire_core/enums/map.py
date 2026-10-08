@@ -21,6 +21,28 @@ class Kingdom(IntEnum):
     STORM = 4
     BERIMOND = 10
 
+    @property
+    def text_id(self) -> str:
+        """
+        The text id of the kingdom's name, ``kingdomName_<kingdomName>``: ``text(Kingdom.SANDS.text_id)`` is
+        ``"The Burning Sands"`` (:func:`empire_core.texts.text`).
+
+        Client: ``CastleKingdomVO.kingdomNameString`` (bundle line 134711), with the ``kingdomName``
+        column of the items ``kingdoms`` table (``CastleKingdomVO.fillFromParamXML``, bundle line 134695)
+        """
+        return f"kingdomName_{_KINGDOM_NAMES[self]}"
+
+
+# The items kingdoms table's kingdomName column, by kID
+_KINGDOM_NAMES = {
+    Kingdom.GREEN: "Classic",
+    Kingdom.SANDS: "Dessert",
+    Kingdom.ICE: "Icecream",
+    Kingdom.FIRE: "Volcano",
+    Kingdom.STORM: "Eiland",
+    Kingdom.BERIMOND: "Faction",
+}
+
 
 class MapItemType(IntEnum):
     """

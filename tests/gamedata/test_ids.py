@@ -641,6 +641,31 @@ class TestGenerator:
             "UNWALKABLE_001_G1001_L1": 10001,
         }
 
+    def test_a_blueprint_research_carries_its_blueprints_text_id(self):
+        payload = {
+            "effects": [{"effectID": "113", "name": "enableBlueprints", "effectTypeID": "116"}],
+            "researches": [
+                {"researchID": "8", "comment2": "BeefStorage", "groupID": "193", "level": "1", "effects": "113&1#2"},
+                {"researchID": "9", "comment2": "BeefStorage", "groupID": "193", "level": "2", "effects": "113&3#99"},
+            ],
+            "constructionItemRecipes": [
+                {"constructionItemRecipeID": "1", "blueprintID": "10", "constructionItemID": "77"},
+                {"constructionItemRecipeID": "2", "blueprintID": "10", "constructionItemID": "5"},
+                {"constructionItemRecipeID": "3", "blueprintID": "20", "constructionItemID": "6"},
+            ],
+            "constructionItems": [
+                {"constructionItemID": "5", "name": "beefStorage", "slotTypeID": "1", "isPremium": "1"},
+                {"constructionItemID": "6", "name": "barracksCost", "slotTypeID": "2"},
+            ],
+        }
+        table = next(t for t in gen.tables(GameData.parse("786.03", payload), gen.Texts({})) if t.enum == "Research")
+        # level 1 unlocks recipe 2 (blueprint 10, whose first recipe's item 77 is unknown); level 2 recipe 3,
+        # as 99 is no recipe and the group's ids add up
+        assert [row.attrs[-1] for row in table.rows] == [
+            "ci_blueprint_beefStorage_premium",
+            "ci_blueprint_barracksCost_secondary",
+        ]
+
     def test_a_title_two_research_groups_share_falls_back_on_the_id(self):
         payload = {
             "researches": [

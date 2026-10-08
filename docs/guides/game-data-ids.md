@@ -48,6 +48,12 @@ names a horse only by its place in the travel dialog;
 `AllianceCrestLayout.FREE_1`), and a crest colour, which has neither, is named
 by its id and carries its hex colour (`AllianceCrestColor.COLOR_1.color`).
 
+Enums the game names by a text give that name at run time, in any language:
+`Currency.SKIP_5_MINUTES.display_name("de")`, with its text id as `.text_id`.
+A member named from the English text has the same name in English; one named
+from the items file's code may not (`Unit.MEAD_RANGER_L6` is a "Valkyrie
+ranger"). See [Game texts](texts.md#display-names).
+
 ## Members are plain values
 
 Members are plain ints (`Currency` members plain strs), so they go straight

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from enum import IntEnum
 
+from empire_core.texts import text
+
 
 class AllianceCrestLayout(IntEnum):
     """
@@ -23,6 +25,22 @@ class AllianceCrestLayout(IntEnum):
         member._value_ = value
         member.color_count = color_count
         return member
+
+    @property
+    def text_id(self) -> str:
+        """The text id of its name, ``allianceCoat_Layout_name_<value>``."""
+        return f"allianceCoat_Layout_name_{self.value}"
+
+    def display_name(self, lang: str = "en") -> str:
+        """
+        The game's name for it in ``lang``, the text ``allianceCoat_Layout_name_<value>``.
+
+        Fetches the language file on first use and caches it (:func:`empire_core.texts.text`); a text the file lacks, or
+        a failed fetch, gives the text id.
+
+        Client: ``CollectableItemAllianceCrestLayoutVO.getNameTextId`` (bundle line 89359)
+        """
+        return text(self.text_id, lang=lang)
 
     FREE_1 = 1, 1
     FREE_2 = 2, 2

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from enum import IntEnum
 
+from empire_core.texts import text
+
 
 class Achievement(IntEnum):
     """
@@ -26,6 +28,22 @@ class Achievement(IntEnum):
         member.series_id = series_id
         member.series_number = series_number
         return member
+
+    @property
+    def text_id(self) -> str:
+        """The text id of its name, ``achievementName_<series_id>``."""
+        return f"achievementName_{self.series_id}"
+
+    def display_name(self, lang: str = "en") -> str:
+        """
+        The game's name for it in ``lang``, the text ``achievementName_<series_id>``.
+
+        Fetches the language file on first use and caches it (:func:`empire_core.texts.text`); a text the file lacks, or
+        a failed fetch, gives the text id.
+
+        Client: ``AchievementSerieVO.nameString`` (bundle line 92822)
+        """
+        return text(self.text_id, lang=lang)
 
     ACHIEVEMENT_POINTS_L1 = 1, 0, 1
     ACHIEVEMENT_POINTS_L2 = 2, 0, 2

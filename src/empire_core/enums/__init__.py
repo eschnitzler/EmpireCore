@@ -21,6 +21,7 @@ from .commanders import EquipmentSlot, EquipmentType, Rareness, WearerType
 from .gamedata import (
     BuildingGroundType,
     BuildingGroup,
+    CastleEffect,
     PlayerRelation,
     QuestConditionType,
     RelicEffectType,
@@ -98,6 +99,7 @@ __all__ = [
     "LoginBonusSpecial",
     # Game data
     "BuildingGroundType",
+    "CastleEffect",
     "BuildingGroup",
     "PlayerRelation",
     "QuestConditionType",

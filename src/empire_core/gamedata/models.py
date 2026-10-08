@@ -9,12 +9,15 @@ a guess.
 
 from __future__ import annotations
 
+import math
+from collections.abc import Mapping
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, ClassVar
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from empire_core.enums import (
+    CastleEffect,
     Kingdom,
     MapItemType,
     PlayerRelation,
@@ -24,7 +27,7 @@ from empire_core.enums import (
     UnitRole,
     WearerType,
 )
-from empire_core.protocol.js import js_falsy, js_number, js_number_or_none, js_parse_int
+from empire_core.protocol.js import js_falsy, js_number, js_number_or_none, js_parse_int, js_truthy
 
 from .lenient import GameDataId, GameDataKey
 
@@ -230,6 +233,11 @@ class UnitStats(_UnitRow):
     def _type(cls, value: object) -> object:
         return cls._type_attribute(value)
 
+    @property
+    def name_text_id(self) -> str:
+        """The text id of its name, ``<type>_name`` in lower case: ``BasicUnitVO.getNameString`` (bundle line 19219)."""
+        return f"{self.unit_type.lower()}_name"
+
     @field_validator("role", mode="before")
     @classmethod
     def _role(cls, value: object) -> object:
@@ -357,6 +365,11 @@ class ToolStats(_UnitRow):
     @classmethod
     def _type(cls, value: object) -> object:
         return cls._type_attribute(value)
+
+    @property
+    def name_text_id(self) -> str:
+        """The text id of its name, ``<type>_name`` in lower case: ``BasicUnitVO.getNameString`` (bundle line 19219)."""
+        return f"{self.tool_type.lower()}_name"
 
     @field_validator("category", mode="before")
     @classmethod
@@ -751,12 +764,50 @@ class EquipmentEffectSpecRow(_Row):
         return EquipmentEffectValue.parse_list(value)
 
 
+class CastleEffectValue(_Row):
+    """
+    One fixed bonus of a construction item: a column named after the bonus, and its value.
+
+    Client: ``CastleEffectVO.createFromXML`` (bundle line 79059)
+    """
+
+    effect: CastleEffect = Field(description="The bonus, the column's name")
+    value: float = Field(description="``Number`` of the column; NaN when it is no number")
+
+    @classmethod
+    def from_row(cls, row: Mapping[str, object]) -> list[CastleEffectValue]:
+        """Each bonus column with text in it, in the client's order of the bonuses."""
+        columns = ((effect, row.get(effect.value)) for effect in CastleEffect)
+        return [
+            cls(effect=effect, value=_castle_effect_number(raw))
+            for effect, raw in columns
+            if isinstance(raw, str) and raw
+        ]
+
+
+def _castle_effect_number(text: str) -> float:
+    number = js_number_or_none(text)
+    return math.nan if number is None else float(number)
+
+
+def is_castle_effect_column(column: str) -> bool:
+    """Whether a ``constructionItems`` column is a fixed bonus (:class:`CastleEffectValue`)."""
+    return column in _CASTLE_EFFECT_COLUMNS
+
+
+_CASTLE_EFFECT_COLUMNS = frozenset(effect.value for effect in CastleEffect)
+
+
 class ConstructionItemDef(EffectSpecRow):
     """
     A construction item - the decorations placed on castle buildings.
 
     Their bonuses are real combat bonuses: the flank unit limit item grants
     +2% per level, so a level 15 one is the +30% a player sees on the flanks.
+    Besides ``effects``, many rows grant fixed bonuses in columns of their own
+    (``castle_effects``), which the game lists first.
+
+    Client: ``ConstructionItemVO.fillFromParamXML`` (bundle line 47718)
     """
 
     construction_item_id: GameDataId["ConstructionItem"] = Field(
@@ -768,6 +819,26 @@ class ConstructionItemDef(EffectSpecRow):
     rareness_id: int = Field(alias="rarenessID", default=0)
     slot_type_id: int = Field(alias="slotTypeID", default=0)
     effect_group_id: int = Field(alias="constructionItemEffectGroupID", default=0)
+    is_premium: bool = Field(
+        alias="isPremium", default=False, description="A premium item; any text in the column counts"
+    )
+    castle_effects: tuple[CastleEffectValue, ...] = Field(
+        default=(), description="The fixed bonuses, one per bonus column with text in it"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _castle_effect_columns(cls, data: object) -> object:
+        # ConstructionItemVO.parseEffects (bundle line 47720)
+        if isinstance(data, Mapping) and "castle_effects" not in data:
+            return {**data, "castle_effects": CastleEffectValue.from_row(data)}
+        return data
+
+    @field_validator("is_premium", mode="before")
+    @classmethod
+    def _premium(cls, value: object) -> object:
+        # !!getValueOrDefault("isPremium", ...) (bundle line 47719)
+        return js_truthy(value)
 
 
 class AllianceBuffDef(EffectSpecRow):
@@ -1090,6 +1161,16 @@ class CurrencyDef(_Row):
     @classmethod
     def _parse_int(cls, value: object) -> int:
         return _parse_int_or_default(value, -1)
+
+    @property
+    def name_text_id(self) -> str:
+        """
+        The text id of its name, ``currency_name_<assetName or Name>``.
+
+        Client: ``CollectableItemGenericCurrencyVO.getNameTextId`` and ``getNameOrAssetName`` (bundle lines 5267
+        and 5273)
+        """
+        return f"currency_name_{self.asset_name or self.name}"
 
 
 class VipLevelDef(_Row):

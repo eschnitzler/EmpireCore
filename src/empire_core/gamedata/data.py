@@ -37,6 +37,7 @@ from .models import (
     READING_CACHE,
     AllianceBuffDef,
     AttackSlotDef,
+    CastleEffectValue,
     ConstructionItemDef,
     CurrencyDef,
     DefaultLordDef,
@@ -66,6 +67,7 @@ from .models import (
     ToolStats,
     UnitStats,
     VipLevelDef,
+    is_castle_effect_column,
 )
 from .table import Table
 from .tables import (
@@ -74,6 +76,7 @@ from .tables import (
     AllianceCrestColorDef,
     AllianceCrestLayoutDef,
     BuildingDef,
+    ConstructionItemRecipeDef,
     DailyQuestDef,
     DifficultyTypeDef,
     EquipmentGroupDef,
@@ -169,6 +172,7 @@ _CACHED_MODELS = (
     DailyQuestDef,
     QuestCondition,
     TitleDef,
+    ConstructionItemRecipeDef,
     ScalingCampDef,
     AchievementCondition,
     AchievementDef,
@@ -177,6 +181,7 @@ _CACHED_MODELS = (
     RewardDef,
     EffectValue,
     EquipmentEffectValue,
+    CastleEffectValue,
 )
 """Every row model the cache stores; the fingerprint covers each one's fields."""
 
@@ -335,7 +340,9 @@ _TABLES: dict[str, _TableSource] = {
     "tools": _TableSource("units", ToolStats, "wod_id", _is_tool),
     "effects": _TableSource("effects", EffectDef, "effect_id"),
     "effect_types": _TableSource("effecttypes", EffectTypeDef, "effect_type_id"),
-    "construction_items": _TableSource("constructionItems", ConstructionItemDef, "construction_item_id"),
+    "construction_items": _TableSource(
+        "constructionItems", ConstructionItemDef, "construction_item_id", reads=is_castle_effect_column
+    ),
     "global_effects": _TableSource("globalEffects", GlobalEffectDef, "global_effect_id"),
     "general_skills": _TableSource("generalSkills", GeneralSkillDef, "skill_id"),
     "legend_skills": _TableSource("legendskills", LegendSkillDef, "skill_id"),
@@ -359,6 +366,7 @@ _TABLES: dict[str, _TableSource] = {
     "achievements": _TableSource("achievements", AchievementDef, "achievement_id"),
     "alliance_crest_colors": _TableSource("allianceCoatColors", AllianceCrestColorDef, "color_id"),
     "alliance_crest_layouts": _TableSource("allianceCoatLayouts", AllianceCrestLayoutDef, "layout_id"),
+    "construction_item_recipes": _TableSource("constructionItemRecipes", ConstructionItemRecipeDef, "recipe_id"),
     "scaling_camps": _TableSource("eventAutoScalingCamps", ScalingCampDef, "scaling_camp_id"),
     "rewards": _TableSource("rewards", RewardDef, "reward_id", reads=is_reward_column),
 }
@@ -463,8 +471,8 @@ class GameData(BaseModel):
     lacks (items newer than the enums) is keyed by its plain int, and as the
     enums are IntEnums, a plain id from a packet indexes every table.
 
-    The tables keyed by id enums, ``titles``, ``scaling_camps`` and ``rewards`` are read-only
-    :class:`~empire_core.gamedata.table.Table` mappings that validate a row the
+    The tables keyed by id enums, ``titles``, ``construction_item_recipes``, ``scaling_camps`` and ``rewards`` are
+    read-only :class:`~empire_core.gamedata.table.Table` mappings that validate a row the
     first time it is read, so loading costs no validation for them.
     """
 
@@ -635,6 +643,11 @@ class GameData(BaseModel):
     def alliance_crest_layouts(self) -> Table[GameDataId["AllianceCrestLayout"], AllianceCrestLayoutDef]:
         """Alliance crest layouts by ``AllianceCrestLayout``."""
         return self._table("alliance_crest_layouts")
+
+    @cached_property
+    def construction_item_recipes(self) -> Table[int, ConstructionItemRecipeDef]:
+        """The ``constructionItemRecipes`` rows, by the recipe id a blueprint research unlocks."""
+        return self._table("construction_item_recipes")
 
     @cached_property
     def scaling_camps(self) -> Table[int, ScalingCampDef]:
