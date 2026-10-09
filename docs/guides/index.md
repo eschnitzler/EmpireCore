@@ -118,6 +118,29 @@ The smaller services have no guide of their own; their
   and `get_own_points(event)` for your own rank and points;
   the running events and their scoreboards have a [guide](events.md).
 
+## Spending rubies
+
+No call spends rubies unless you pass `spend_rubies=True`, the one name for
+that consent everywhere. Without it a call that would spend them raises
+`ValueError` (`PremiumCommanderCostError` for the premium commander) before
+anything is sent. Where the price can be known, from [game data](game-data.md)
+or state, only a call that costs rubies needs the flag; where it cannot, the
+call always does.
+
+| Rubies are spent on | Calls | Needs the flag |
+|---|---|---|
+| A ruby price of the item | `castle.build`, `upgrade_building`, `upgrade_defense`, `army.produce_units`, `heal_units` | when the game data prices it in rubies |
+| Missing resources | `castle.build`, `upgrade_building`, `upgrade_defense`, `repair_building`, `army.produce_units` | with the flag they are paid with rubies; without it never |
+| Finishing at once | `castle.finish_construction` | over 240 seconds left |
+| | `castle.repair_all`, `army.skip_heal`, `double_production_slot` | always |
+| | `army.heal_all` | a price above 0 |
+| Travel | `castle.send_resources`, `send_support`, `send_troops`, `attack.send_attack`, the `client.spy` sends | a horse that costs rubies (not paid with feathers), any slowdown, the premium commander when none is free |
+| The rest | `castle.buy_expansion`, `rename`, `start_tax`, `player.start_research`, `alliance.donate` | a premium expansion; a rename with no premium account; tax types 5 and 6; a ruby research; donated rubies |
+
+Pricing from game data needs `client.load_game_data()` first, or the call
+raises `GameDataNotLoadedError`. Minute skips are items, not rubies, and need
+no flag.
+
 ## Game state and data
 
 <div class="grid cards" markdown>

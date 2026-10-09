@@ -40,11 +40,12 @@ from empire_core.castle.models.objects import (
     ShowConstructionListRequest,
 )
 from empire_core.enums import BuildingState, ExpansionType, Kingdom, MapItemType
-from empire_core.exceptions import CommandError
-from empire_core.gamedata import ConstructionItem, Currency
+from empire_core.exceptions import CommandError, GameDataNotLoadedError
+from empire_core.gamedata import ConstructionItem, Currency, GameData
 from empire_core.protocol.models import parse_response
 from empire_core.state.manager import GameState
-from tests.service_helpers import conn, make_client, xt_packet
+from empire_core.state.models import JoinedArea
+from tests.service_helpers import conn, make_client, stub_player, xt_packet
 
 # wod 101, object 5 at (10, 12), rotation 0, 30 s left, building (2), 100 hp,
 # boost 150, efficiency 100, damage 0, production speed 55, district 0 slot 0, upgrading to 102
@@ -399,36 +400,121 @@ class TestBuildingReplies:
 # =============================================================================
 
 
+# 101 upgrades for free to 102; 103 upgrades to 104 for rubies; 105 costs rubies to build;
+# 106 costs rubies only at player level 2 (its low level costs are 0, 20, -1)
+BUILDING_ITEMS = {
+    "buildings": [
+        {"wodID": "101", "name": "Dwelling", "upgradeWodID": "102"},
+        {"wodID": "102", "name": "Dwelling"},
+        {"wodID": "103", "name": "Tower", "upgradeWodID": "104"},
+        {"wodID": "104", "name": "Tower", "costC2": "500"},
+        {"wodID": "105", "name": "Decoration", "costC2": "900"},
+        {"wodID": "106", "name": "Dwelling", "lowLevelMainCastleCostC2": "0,20,-1"},
+    ]
+}
+# objects 42 (wod 101) and 43 (wod 103); 44 builds with 240 s left, 45 with 241 s
+JOINED_CASTLE = {
+    "KID": 0,
+    "gca": {"BD": [[101, 42, 1, 1, 0, 0], [103, 43, 2, 2, 0, 0], [101, 44, 3, 3, 0, 240], [101, 45, 4, 4, 0, 241]]},
+}
+
+
+def building_client(script: dict[str, Any] | None = None) -> Any:
+    client = make_client({"jaa": xt_packet("jaa", JOINED_CASTLE), **(script or {})})
+    client.state.joined_area = JoinedArea(kingdom_id=Kingdom.GREEN, castle_id=12345)
+    client.game_data = GameData.parse("test", BUILDING_ITEMS)
+    return client
+
+
+REJOIN = ("jaa", {"CID": 12345, "KID": 0})
+
+
 class TestBuildingService:
     @pytest.mark.parametrize(
-        ("call", "command", "payload"),
+        ("call", "sent"),
         [
             (
                 lambda c: c.castle.build(101, 5, 6),
-                "ebu",
-                {"WID": 101, "X": 5, "Y": 6, "R": 0, "PWR": 0, "PO": -1, "DOID": -1},
+                [("ebu", {"WID": 101, "X": 5, "Y": 6, "R": 0, "PWR": 0, "PO": -1, "DOID": -1})],
             ),
-            (lambda c: c.castle.upgrade_building(42, pay_with_rubies=True), "eup", {"OID": 42, "PWR": 1, "PO": -1}),
-            (lambda c: c.castle.move_building(42, 3, 4, 1), "emo", {"OID": 42, "X": 3, "Y": 4, "R": 1}),
-            (lambda c: c.castle.sell_decoration(42), "sbd", {"OID": 42}),
-            (lambda c: c.castle.destroy_building(42), "edo", {"OID": 42}),
-            (lambda c: c.castle.finish_construction(42, free_skip=True), "fco", {"OID": 42, "FS": 1}),
-            (lambda c: c.castle.skip_construction_time(42, Currency.SKIP_10_MINUTES), "msb", {"OID": 42, "MST": "MS3"}),
-            (lambda c: c.castle.upgrade_defense(42), "eud", {"OID": 42, "PO": -1, "PWR": 0}),
-            (lambda c: c.castle.repair_building(42), "rbu", {"OID": 42, "PO": -1, "PWR": 0}),
-            (lambda c: c.castle.repair_all(), "ira", {}),
             (
-                lambda c: c.castle.buy_expansion(3, 4, expansion_type=ExpansionType.PREMIUM),
-                "ebe",
-                {"X": 3, "Y": 4, "R": 0, "CT": 0},
+                lambda c: c.castle.build(105, 5, 6, spend_rubies=True),
+                [("ebu", {"WID": 105, "X": 5, "Y": 6, "R": 0, "PWR": 1, "PO": -1, "DOID": -1})],
             ),
-            (lambda c: c.castle.open_treasure_chest(42), "etc", {"OID": 42}),
+            (lambda c: c.castle.upgrade_building(42), [REJOIN, ("eup", {"OID": 42, "PWR": 0, "PO": -1})]),
+            (lambda c: c.castle.upgrade_building(43, spend_rubies=True), [("eup", {"OID": 43, "PWR": 1, "PO": -1})]),
+            (lambda c: c.castle.move_building(42, 3, 4, 1), [("emo", {"OID": 42, "X": 3, "Y": 4, "R": 1})]),
+            (lambda c: c.castle.sell_decoration(42), [("sbd", {"OID": 42})]),
+            (lambda c: c.castle.destroy_building(42), [("edo", {"OID": 42})]),
+            (lambda c: c.castle.finish_construction(44), [REJOIN, ("fco", {"OID": 44, "FS": 1})]),
+            (lambda c: c.castle.finish_construction(45, spend_rubies=True), [REJOIN, ("fco", {"OID": 45, "FS": 0})]),
+            (
+                lambda c: c.castle.skip_construction_time(42, Currency.SKIP_10_MINUTES),
+                [("msb", {"OID": 42, "MST": "MS3"})],
+            ),
+            (lambda c: c.castle.upgrade_defense(42), [REJOIN, ("eud", {"OID": 42, "PO": -1, "PWR": 0})]),
+            (lambda c: c.castle.repair_building(42), [("rbu", {"OID": 42, "PO": -1, "PWR": 0})]),
+            (lambda c: c.castle.repair_building(42, spend_rubies=True), [("rbu", {"OID": 42, "PO": -1, "PWR": 1})]),
+            (lambda c: c.castle.repair_all(spend_rubies=True), [("ira", {})]),
+            (lambda c: c.castle.buy_expansion(3, 4), [("ebe", {"X": 3, "Y": 4, "R": 0, "CT": 1})]),
+            (
+                lambda c: c.castle.buy_expansion(3, 4, expansion_type=ExpansionType.PREMIUM, spend_rubies=True),
+                [("ebe", {"X": 3, "Y": 4, "R": 0, "CT": 0})],
+            ),
+            (lambda c: c.castle.open_treasure_chest(42), [("etc", {"OID": 42})]),
         ],
     )
-    def test_actions_send_the_client_payload(self, call: Any, command: str, payload: dict[str, Any]):
-        client = make_client()
+    def test_actions_send_the_client_payload(self, call: Any, sent: list[tuple[str, dict[str, Any]]]):
+        client = building_client()
         assert call(client) is True
-        assert conn(client).request_payloads == [(command, payload)]
+        assert conn(client).request_payloads == sent
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda c: c.castle.build(105, 5, 6),
+            lambda c: c.castle.build(999, 5, 6),
+            lambda c: c.castle.upgrade_building(43),
+            lambda c: c.castle.upgrade_defense(43),
+            lambda c: c.castle.upgrade_building(46),
+            lambda c: c.castle.finish_construction(45),
+            lambda c: c.castle.finish_construction(46),
+            lambda c: c.castle.repair_all(),
+            lambda c: c.castle.buy_expansion(3, 4, expansion_type=ExpansionType.PREMIUM),
+        ],
+    )
+    def test_a_call_that_spends_rubies_is_refused_before_the_action(self, call: Any):
+        client = building_client()
+        with pytest.raises(ValueError, match="spend_rubies=True"):
+            call(client)
+        assert {command for command, _ in conn(client).request_payloads} <= {"jaa"}
+
+    def test_the_build_price_follows_the_player_level(self):
+        # ABasicBuildingVO.costC2: the low level cost at the player's level, unless it is -1
+        client = building_client()
+        client.state.local_player = stub_player(level=1)
+        assert client.castle.build(106, 5, 6) is True
+        client.state.local_player = stub_player(level=2)
+        with pytest.raises(ValueError, match="20 rubies"):
+            client.castle.build(106, 5, 6)
+        client.state.local_player = stub_player(level=3)
+        assert client.castle.build(106, 5, 6) is True
+
+    def test_with_no_castle_joined_an_upgrade_needs_spend_rubies(self):
+        client = building_client()
+        client.state.joined_area = None
+        with pytest.raises(ValueError, match="spend_rubies=True"):
+            client.castle.upgrade_building(42)
+        assert conn(client).request_payloads == []
+
+    def test_pricing_a_building_needs_the_game_data(self):
+        client = building_client()
+        client.game_data = None
+        with pytest.raises(GameDataNotLoadedError):
+            client.castle.build(101, 5, 6)
+        with pytest.raises(GameDataNotLoadedError):
+            client.castle.upgrade_building(42)
+        assert conn(client).request_payloads == []
 
     def test_skip_construction_time_refuses_a_currency_that_is_no_minute_skip(self):
         client = make_client()
@@ -447,5 +533,5 @@ class TestBuildingService:
         assert conn(client).request_payloads == []
 
     def test_a_rejected_build_is_false(self):
-        client = make_client({"ebu": xt_packet("ebu", error_code=21)})
+        client = building_client({"ebu": xt_packet("ebu", error_code=21)})
         assert client.castle.build(101, 5, 6) is False

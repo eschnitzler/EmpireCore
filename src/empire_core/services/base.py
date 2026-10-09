@@ -9,8 +9,8 @@ from collections.abc import Callable, Collection
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from empire_core.enums import GGEError, Kingdom
-from empire_core.exceptions import AmbiguousCastleError, CommandError, UnknownCastleError
-from empire_core.gamedata import Currency
+from empire_core.exceptions import AmbiguousCastleError, CommandError, GameDataNotLoadedError, UnknownCastleError
+from empire_core.gamedata import Currency, GameData
 from empire_core.gamedata.collectables import MINUTE_SKIP_FIRST_ID, MINUTE_SKIP_KEY
 from empire_core.gamedata.lenient import known
 from empire_core.protocol.base import BaseRequest, BaseResponse
@@ -23,6 +23,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 R = TypeVar("R", bound=BaseResponse)
+
+# TravelConst.SLOWDOWN_C2_COSTS (dll line 19872)
+_SLOWDOWN_RUBIES = 200
 
 
 class BaseService:
@@ -147,6 +150,55 @@ class BaseService:
         state = self.client.state
         if state.get_last_packet_time("sce") is not None and state.get_special_currencies().get(skip, 0) < 1:
             raise ValueError(f"you hold no {getattr(skip, 'name', skip)}")
+
+    @staticmethod
+    def _require_spend_rubies(spend_rubies: bool, cost: str | None) -> None:
+        """
+        Refuse a call that spends rubies unless ``spend_rubies`` allows it; ``cost`` says what
+        spends them ("a slowdown costs 200 rubies"), None when nothing does.
+
+        Raises:
+            ValueError: ``cost`` is not None and ``spend_rubies`` is False
+        """
+        if cost is not None and not spend_rubies:
+            raise ValueError(f"{cost}; pass spend_rubies=True to spend them")
+
+    def _require_game_data(self, needed_for: str) -> GameData:
+        """
+        Raises:
+            GameDataNotLoadedError: ``client.load_game_data()`` has not been called
+        """
+        game_data = self.client.game_data
+        if game_data is None:
+            raise GameDataNotLoadedError(f"{needed_for} needs the items payload: call client.load_game_data() first")
+        return game_data
+
+    def _travel_ruby_cost(self, horse_booster_id: int, feathers: bool, slowdown: int) -> str | None:
+        """
+        What of a movement's horse and slowdown costs rubies, None when neither does.
+
+        A slowdown costs ``TravelConst.SLOWDOWN_C2_COSTS`` rubies. A horse costs rubies when its
+        ``HorseStats.cost_factor_c2`` is above 0, unless paid with feathers; one the game data
+        lacks counts as costing them.
+
+        Raises:
+            GameDataNotLoadedError: A horse is picked without feathers and ``client.load_game_data()``
+                has not been called
+
+        Client: ``ACastlePostActionDialog.getTotalCostsC2`` (bundle line 27330), the horse's
+        ``getBoostCostC2`` per dialog (bundle lines 33395, 38397, 38477), 0 when
+        ``isPayedWithPegasusTickets``; ``SLOWDOWN_C2_COSTS`` is 200 (dll line 19872)
+        """
+        if slowdown > 0:
+            return f"a slowdown costs {_SLOWDOWN_RUBIES} rubies"
+        if feathers or horse_booster_id == -1:
+            return None
+        horse = self._require_game_data("Pricing a horse").get_horse(horse_booster_id)
+        if horse is None:
+            return f"horse {horse_booster_id} is not in the game data and may cost rubies"
+        if horse.cost_factor_c2 > 0:
+            return f"horse {horse_booster_id} costs rubies unless paid with feathers"
+        return None
 
     def send(self, request: BaseRequest, wait: bool = False, timeout: float = 5.0) -> BaseResponse | None:
         """

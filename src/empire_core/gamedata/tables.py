@@ -110,8 +110,8 @@ class BuildingDef(EffectSpecRow):
     The per-building columns the client's building subclasses read on top (storage, production,
     hospital capacity, ...) are not read; ``fortifications`` has the walls, gates and moats. Nor are the
     collectable lists ``AShopVO.parseXmlNode`` reads with its items parsers: the ``cost*`` columns
-    (``costs``), the ``sell*`` columns other than ``sellC1`` (the sell list) and ``tempServerCostWood``
-    and ``tempServerCostStone`` (temporary server repair costs).
+    (``costs``) other than ``costC2``, the ``sell*`` columns other than ``sellC1`` (the sell list) and
+    ``tempServerCostWood`` and ``tempServerCostStone`` (temporary server repair costs).
 
     Client: ``AVisualVO.parseXmlNode`` (bundle line 17800), ``AShopVO.parseXmlNode`` (bundle lines
     31713-31715), ``ABasicBuildingVO.parseXmlNode``, ``parseEffects`` and
@@ -156,6 +156,7 @@ class BuildingDef(EffectSpecRow):
         alias="constructionExpert", default=False, description="Building it needs the construction expert"
     )
     sell_coins: int = Field(alias="sellC1", default=0, description="Coins for selling it")
+    cost_rubies: int = Field(alias="costC2", default=0, description="Rubies it costs to build or upgrade to")
     sort_order: float = Field(
         alias="sortOrder",
         default=1_000_000,
@@ -211,7 +212,7 @@ class BuildingDef(EffectSpecRow):
     @field_validator(
         "level", "required_level", "required_legend_level", "early_unlock_required_level", "upgrade_building_id",
         "downgrade_building_id", "xp", "might_value", "maximum_count", "slum_level_needed", "sell_coins",
-        "wall_bonus", "moat_bonus", "build_duration", "district_type_id", mode="before",
+        "cost_rubies", "wall_bonus", "moat_bonus", "build_duration", "district_type_id", mode="before",
     )  # fmt: skip
     @classmethod
     def _int_column(cls, value: object, info: ValidationInfo) -> int:
@@ -274,6 +275,24 @@ class BuildingDef(EffectSpecRow):
     def _type(cls, value: object) -> str:
         text = _text(value)
         return "" if text == "-" else text
+
+    def rubies_to_build(self, player_level: int | None) -> int:
+        """
+        The rubies it costs to build, before cost effects: ``low_level_main_castle_cost_rubies`` for the
+        player's level when it names one, else ``cost_rubies``, and 0 at level 0. With the level unknown,
+        the most either could be.
+
+        Client: ``ABasicBuildingVO.costC2`` (bundle lines 17950-17953)
+        """
+        if player_level is None:
+            return max((self.cost_rubies, *self.low_level_main_castle_cost_rubies))
+        if player_level == 0:
+            return 0
+        if len(self.low_level_main_castle_cost_rubies) >= player_level:
+            low_level = self.low_level_main_castle_cost_rubies[player_level - 1]
+            if low_level > -1:
+                return low_level
+        return self.cost_rubies
 
 
 _TEMP_SERVER_COST_PREFIX = "globalServerCost"
