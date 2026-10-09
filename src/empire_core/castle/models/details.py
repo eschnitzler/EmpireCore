@@ -7,7 +7,7 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -40,7 +40,9 @@ class GetDetailedCastleRequest(BaseRequest):
 
     command = "dcl"
 
-    cd: int = Field(alias="CD", default=1, description="The client's CD flag, 1 by default")
+    cd: int = Field(
+        validation_alias="CD", serialization_alias="CD", default=1, description="The client's CD flag, 1 by default"
+    )
 
 
 # Server keys of ClientConstCollectable.GROUP_LIST_RESOURCES, by field name.
@@ -62,23 +64,23 @@ _RESOURCE_KEYS = {
 class _ProductionAreaSection(BasePayload):
     """A per-resource slice of a block; validated from the whole block."""
 
-    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+    model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True, extra="ignore")
 
 
 class ResourceProduction(_ProductionAreaSection):
     """Hourly production per resource; the client reads ``D<key>`` / 10."""
 
-    wood: float = Field(alias="DW", default=0.0)
-    stone: float = Field(alias="DS", default=0.0)
-    food: float = Field(alias="DF", default=0.0)
-    coal: float = Field(alias="DC", default=0.0)
-    oil: float = Field(alias="DO", default=0.0)
-    glass: float = Field(alias="DG", default=0.0)
-    iron: float = Field(alias="DI", default=0.0)
-    aquamarine: float = Field(alias="DA", default=0.0)
-    honey: float = Field(alias="DHONEY", default=0.0)
-    mead: float = Field(alias="DMEAD", default=0.0)
-    beef: float = Field(alias="DBEEF", default=0.0)
+    wood: float = Field(validation_alias="DW", serialization_alias="DW", default=0.0)
+    stone: float = Field(validation_alias="DS", serialization_alias="DS", default=0.0)
+    food: float = Field(validation_alias="DF", serialization_alias="DF", default=0.0)
+    coal: float = Field(validation_alias="DC", serialization_alias="DC", default=0.0)
+    oil: float = Field(validation_alias="DO", serialization_alias="DO", default=0.0)
+    glass: float = Field(validation_alias="DG", serialization_alias="DG", default=0.0)
+    iron: float = Field(validation_alias="DI", serialization_alias="DI", default=0.0)
+    aquamarine: float = Field(validation_alias="DA", serialization_alias="DA", default=0.0)
+    honey: float = Field(validation_alias="DHONEY", serialization_alias="DHONEY", default=0.0)
+    mead: float = Field(validation_alias="DMEAD", serialization_alias="DMEAD", default=0.0)
+    beef: float = Field(validation_alias="DBEEF", serialization_alias="DBEEF", default=0.0)
 
     @field_validator("*", mode="before")
     @classmethod
@@ -89,17 +91,17 @@ class ResourceProduction(_ProductionAreaSection):
 class StorageCapacity(_ProductionAreaSection):
     """Storage capacity per resource (``MR<key>``), a number as sent; anything else reads as 0."""
 
-    wood: int | float = Field(alias="MRW", default=0)
-    stone: int | float = Field(alias="MRS", default=0)
-    food: int | float = Field(alias="MRF", default=0)
-    coal: int | float = Field(alias="MRC", default=0)
-    oil: int | float = Field(alias="MRO", default=0)
-    glass: int | float = Field(alias="MRG", default=0)
-    iron: int | float = Field(alias="MRI", default=0)
-    aquamarine: int | float = Field(alias="MRA", default=0)
-    honey: int | float = Field(alias="MRHONEY", default=0)
-    mead: int | float = Field(alias="MRMEAD", default=0)
-    beef: int | float = Field(alias="MRBEEF", default=0)
+    wood: int | float = Field(validation_alias="MRW", serialization_alias="MRW", default=0)
+    stone: int | float = Field(validation_alias="MRS", serialization_alias="MRS", default=0)
+    food: int | float = Field(validation_alias="MRF", serialization_alias="MRF", default=0)
+    coal: int | float = Field(validation_alias="MRC", serialization_alias="MRC", default=0)
+    oil: int | float = Field(validation_alias="MRO", serialization_alias="MRO", default=0)
+    glass: int | float = Field(validation_alias="MRG", serialization_alias="MRG", default=0)
+    iron: int | float = Field(validation_alias="MRI", serialization_alias="MRI", default=0)
+    aquamarine: int | float = Field(validation_alias="MRA", serialization_alias="MRA", default=0)
+    honey: int | float = Field(validation_alias="MRHONEY", serialization_alias="MRHONEY", default=0)
+    mead: int | float = Field(validation_alias="MRMEAD", serialization_alias="MRMEAD", default=0)
+    beef: int | float = Field(validation_alias="MRBEEF", serialization_alias="MRBEEF", default=0)
 
     @field_validator("*", mode="before")
     @classmethod
@@ -111,17 +113,17 @@ class StorageCapacity(_ProductionAreaSection):
 class ProductionBonus(_ProductionAreaSection):
     """Production bonus per resource in percent (``<key>M``); 100 means no bonus."""
 
-    wood: float = Field(alias="WM", default=0.0)
-    stone: float = Field(alias="SM", default=0.0)
-    food: float = Field(alias="FM", default=0.0)
-    coal: float = Field(alias="CM", default=0.0)
-    oil: float = Field(alias="OM", default=0.0)
-    glass: float = Field(alias="GM", default=0.0)
-    iron: float = Field(alias="IM", default=0.0)
-    aquamarine: float = Field(alias="AM", default=0.0)
-    honey: float = Field(alias="HONEYM", default=0.0)
-    mead: float = Field(alias="MEADM", default=0.0)
-    beef: float = Field(alias="BEEFM", default=0.0)
+    wood: float = Field(validation_alias="WM", serialization_alias="WM", default=0.0)
+    stone: float = Field(validation_alias="SM", serialization_alias="SM", default=0.0)
+    food: float = Field(validation_alias="FM", serialization_alias="FM", default=0.0)
+    coal: float = Field(validation_alias="CM", serialization_alias="CM", default=0.0)
+    oil: float = Field(validation_alias="OM", serialization_alias="OM", default=0.0)
+    glass: float = Field(validation_alias="GM", serialization_alias="GM", default=0.0)
+    iron: float = Field(validation_alias="IM", serialization_alias="IM", default=0.0)
+    aquamarine: float = Field(validation_alias="AM", serialization_alias="AM", default=0.0)
+    honey: float = Field(validation_alias="HONEYM", serialization_alias="HONEYM", default=0.0)
+    mead: float = Field(validation_alias="MEADM", serialization_alias="MEADM", default=0.0)
+    beef: float = Field(validation_alias="BEEFM", serialization_alias="BEEFM", default=0.0)
 
     @field_validator("*", mode="before")
     @classmethod
@@ -137,17 +139,17 @@ class SafeAmount(_ProductionAreaSection):
     measure is not confirmed.
     """
 
-    wood: float = Field(alias="SAFE_W", default=0.0)
-    stone: float = Field(alias="SAFE_S", default=0.0)
-    food: float = Field(alias="SAFE_F", default=0.0)
-    coal: float = Field(alias="SAFE_C", default=0.0)
-    oil: float = Field(alias="SAFE_O", default=0.0)
-    glass: float = Field(alias="SAFE_G", default=0.0)
-    iron: float = Field(alias="SAFE_I", default=0.0)
-    aquamarine: float = Field(alias="SAFE_A", default=0.0)
-    honey: float = Field(alias="SAFE_HONEY", default=0.0)
-    mead: float = Field(alias="SAFE_MEAD", default=0.0)
-    beef: float = Field(alias="SAFE_BEEF", default=0.0)
+    wood: float = Field(validation_alias="SAFE_W", serialization_alias="SAFE_W", default=0.0)
+    stone: float = Field(validation_alias="SAFE_S", serialization_alias="SAFE_S", default=0.0)
+    food: float = Field(validation_alias="SAFE_F", serialization_alias="SAFE_F", default=0.0)
+    coal: float = Field(validation_alias="SAFE_C", serialization_alias="SAFE_C", default=0.0)
+    oil: float = Field(validation_alias="SAFE_O", serialization_alias="SAFE_O", default=0.0)
+    glass: float = Field(validation_alias="SAFE_G", serialization_alias="SAFE_G", default=0.0)
+    iron: float = Field(validation_alias="SAFE_I", serialization_alias="SAFE_I", default=0.0)
+    aquamarine: float = Field(validation_alias="SAFE_A", serialization_alias="SAFE_A", default=0.0)
+    honey: float = Field(validation_alias="SAFE_HONEY", serialization_alias="SAFE_HONEY", default=0.0)
+    mead: float = Field(validation_alias="SAFE_MEAD", serialization_alias="SAFE_MEAD", default=0.0)
+    beef: float = Field(validation_alias="SAFE_BEEF", serialization_alias="SAFE_BEEF", default=0.0)
 
     @field_validator("*", mode="before")
     @classmethod
@@ -190,41 +192,85 @@ class CastleProductionArea(BasePayload):
     ``DetailedCastleVO.parseGpaData`` (bundle line 140979)
     """
 
-    population: int = Field(alias="P", default=0, description="Population")
-    neutral_deco_points: int = Field(alias="NDP", default=0, description="Decoration points")
-    sickness: int = Field(alias="S", default=0, description="Sickness")
-    riot: int = Field(alias="R", default=0, description="Riot")
-    guards: int = Field(alias="GRD", default=0, description="Guards, before research boosts")
-    build_speed_percent: int = Field(alias="BDB", default=100, description="Construction speed in percent")
-    metropolis_food_bonus: float = Field(alias="MP", default=0.0, description="A metropolis's food production bonus")
-    unit_capacity: int = Field(alias="US", default=0, description="How many units the castle holds")
-    auxiliary_capacity: int = Field(alias="AUS", default=0, description="How many auxiliaries the castle holds")
-    morale: int = Field(alias="M", default=0, description="Morale")
+    population: int = Field(validation_alias="P", serialization_alias="P", default=0, description="Population")
+    neutral_deco_points: int = Field(
+        validation_alias="NDP", serialization_alias="NDP", default=0, description="Decoration points"
+    )
+    sickness: int = Field(validation_alias="S", serialization_alias="S", default=0, description="Sickness")
+    riot: int = Field(validation_alias="R", serialization_alias="R", default=0, description="Riot")
+    guards: int = Field(
+        validation_alias="GRD", serialization_alias="GRD", default=0, description="Guards, before research boosts"
+    )
+    build_speed_percent: int = Field(
+        validation_alias="BDB", serialization_alias="BDB", default=100, description="Construction speed in percent"
+    )
+    metropolis_food_bonus: float = Field(
+        validation_alias="MP", serialization_alias="MP", default=0.0, description="A metropolis's food production bonus"
+    )
+    unit_capacity: int = Field(
+        validation_alias="US", serialization_alias="US", default=0, description="How many units the castle holds"
+    )
+    auxiliary_capacity: int = Field(
+        validation_alias="AUS",
+        serialization_alias="AUS",
+        default=0,
+        description="How many auxiliaries the castle holds",
+    )
+    morale: int = Field(validation_alias="M", serialization_alias="M", default=0, description="Morale")
     faction_buff: float = Field(
-        alias="RFPPA",
+        validation_alias="RFPPA",
+        serialization_alias="RFPPA",
         default=0.0,
         description="Faction strength balance, 0 to 1: below 0.5 boosts red faction morale, above 0.5 blue",
     )
-    food_consumption_delta: float = Field(alias="DFC", default=0.0, description="Food consumption per hour, times 10")
+    food_consumption_delta: float = Field(
+        validation_alias="DFC",
+        serialization_alias="DFC",
+        default=0.0,
+        description="Food consumption per hour, times 10",
+    )
     food_consumption_reduction_percent: int = Field(
-        alias="FCR", default=100, description="Food consumption in percent of the base"
+        validation_alias="FCR",
+        serialization_alias="FCR",
+        default=100,
+        description="Food consumption in percent of the base",
     )
     mead_consumption_delta: float = Field(
-        alias="DMEADC", default=0.0, description="Mead consumption per hour, times 10"
+        validation_alias="DMEADC",
+        serialization_alias="DMEADC",
+        default=0.0,
+        description="Mead consumption per hour, times 10",
     )
     mead_consumption_reduction_percent: int = Field(
-        alias="MEADCR", default=100, description="Mead consumption in percent of the base"
+        validation_alias="MEADCR",
+        serialization_alias="MEADCR",
+        default=100,
+        description="Mead consumption in percent of the base",
     )
     beef_consumption_delta: float = Field(
-        alias="DBEEFC", default=0.0, description="Beef consumption per hour, times 10"
+        validation_alias="DBEEFC",
+        serialization_alias="DBEEFC",
+        default=0.0,
+        description="Beef consumption per hour, times 10",
     )
     beef_consumption_reduction_percent: int = Field(
-        alias="BEEFCR", default=100, description="Beef consumption in percent of the base"
+        validation_alias="BEEFCR",
+        serialization_alias="BEEFCR",
+        default=100,
+        description="Beef consumption in percent of the base",
     )
-    barracks_speed: float = Field(alias="RS1", default=0.0, description="Barracks production speed")
-    workshop_speed: float = Field(alias="RS2", default=0.0, description="Siege workshop production speed")
-    defense_workshop_speed: float = Field(alias="RS3", default=0.0, description="Defense workshop production speed")
-    hospital_speed: float = Field(alias="RSH", default=0.0, description="Hospital healing speed")
+    barracks_speed: float = Field(
+        validation_alias="RS1", serialization_alias="RS1", default=0.0, description="Barracks production speed"
+    )
+    workshop_speed: float = Field(
+        validation_alias="RS2", serialization_alias="RS2", default=0.0, description="Siege workshop production speed"
+    )
+    defense_workshop_speed: float = Field(
+        validation_alias="RS3", serialization_alias="RS3", default=0.0, description="Defense workshop production speed"
+    )
+    hospital_speed: float = Field(
+        validation_alias="RSH", serialization_alias="RSH", default=0.0, description="Hospital healing speed"
+    )
     production: ResourceProduction = Field(default_factory=ResourceProduction, description="Production per hour")
     storage_capacity: StorageCapacity = Field(default_factory=StorageCapacity, description="Storage capacity")
     production_bonus_percent: ProductionBonus = Field(
@@ -289,45 +335,75 @@ class DetailedCastleInfo(BasePayload):
     ``DetailedCastleVO.parseData`` (bundle line 140973)
     """
 
-    castle_id: int = Field(alias="AID", description="The castle's object id")
-    kingdom_id: int = Field(alias="KID", default=0, description="The castle's kingdom")
-    wood: int = Field(alias="W", default=0, description="Wood in stock")
-    stone: int = Field(alias="S", default=0, description="Stone in stock")
-    food: int = Field(alias="F", default=0, description="Food in stock")
-    coal: int = Field(alias="C", default=0, description="Coal in stock")
-    oil: int = Field(alias="O", default=0, description="Oil in stock")
-    glass: int = Field(alias="G", default=0, description="Glass in stock")
-    iron: int = Field(alias="I", default=0, description="Iron in stock")
-    aquamarine: int = Field(alias="A", default=0, description="Aquamarine in stock")
-    honey: int = Field(alias="HONEY", default=0, description="Honey in stock")
-    mead: int = Field(alias="MEAD", default=0, description="Mead in stock")
-    beef: int = Field(alias="BEEF", default=0, description="Beef in stock")
-    defense_value: int = Field(alias="D", default=0, description="Defense value")
-    has_barracks: bool = Field(alias="B", default=False, description="Whether the castle has barracks")
-    has_siege_workshop: bool = Field(alias="WS", default=False, description="Whether it has a siege workshop")
-    has_defense_workshop: bool = Field(alias="DW", default=False, description="Whether it has a defense workshop")
-    has_hospital: bool = Field(alias="H", default=False, description="Whether it has a hospital")
-    market_carriages: int = Field(alias="MC", default=0, description="The castle's market carriages")
-    open_gate_seconds: int = Field(alias="OGT", default=0, description="Seconds the gate stays open")
-    abandon_outpost_seconds: int = Field(
-        alias="AOT", default=-1, description="Seconds until the outpost is abandoned, -1 when it is not"
+    castle_id: int = Field(validation_alias="AID", serialization_alias="AID", description="The castle's object id")
+    kingdom_id: int = Field(
+        validation_alias="KID", serialization_alias="KID", default=0, description="The castle's kingdom"
     )
-    units: WodAmounts = Field(alias="AC", default_factory=dict, description="Units and tools stationed here")
+    wood: int = Field(validation_alias="W", serialization_alias="W", default=0, description="Wood in stock")
+    stone: int = Field(validation_alias="S", serialization_alias="S", default=0, description="Stone in stock")
+    food: int = Field(validation_alias="F", serialization_alias="F", default=0, description="Food in stock")
+    coal: int = Field(validation_alias="C", serialization_alias="C", default=0, description="Coal in stock")
+    oil: int = Field(validation_alias="O", serialization_alias="O", default=0, description="Oil in stock")
+    glass: int = Field(validation_alias="G", serialization_alias="G", default=0, description="Glass in stock")
+    iron: int = Field(validation_alias="I", serialization_alias="I", default=0, description="Iron in stock")
+    aquamarine: int = Field(validation_alias="A", serialization_alias="A", default=0, description="Aquamarine in stock")
+    honey: int = Field(validation_alias="HONEY", serialization_alias="HONEY", default=0, description="Honey in stock")
+    mead: int = Field(validation_alias="MEAD", serialization_alias="MEAD", default=0, description="Mead in stock")
+    beef: int = Field(validation_alias="BEEF", serialization_alias="BEEF", default=0, description="Beef in stock")
+    defense_value: int = Field(validation_alias="D", serialization_alias="D", default=0, description="Defense value")
+    has_barracks: bool = Field(
+        validation_alias="B", serialization_alias="B", default=False, description="Whether the castle has barracks"
+    )
+    has_siege_workshop: bool = Field(
+        validation_alias="WS", serialization_alias="WS", default=False, description="Whether it has a siege workshop"
+    )
+    has_defense_workshop: bool = Field(
+        validation_alias="DW", serialization_alias="DW", default=False, description="Whether it has a defense workshop"
+    )
+    has_hospital: bool = Field(
+        validation_alias="H", serialization_alias="H", default=False, description="Whether it has a hospital"
+    )
+    market_carriages: int = Field(
+        validation_alias="MC", serialization_alias="MC", default=0, description="The castle's market carriages"
+    )
+    open_gate_seconds: int = Field(
+        validation_alias="OGT", serialization_alias="OGT", default=0, description="Seconds the gate stays open"
+    )
+    abandon_outpost_seconds: int = Field(
+        validation_alias="AOT",
+        serialization_alias="AOT",
+        default=-1,
+        description="Seconds until the outpost is abandoned, -1 when it is not",
+    )
+    units: WodAmounts = Field(
+        validation_alias="AC",
+        serialization_alias="AC",
+        default_factory=dict,
+        description="Units and tools stationed here",
+    )
     stronghold_units: WodAmounts = Field(
-        alias="SHI", default_factory=dict, description="Units in the stronghold (safe house)"
+        validation_alias="SHI",
+        serialization_alias="SHI",
+        default_factory=dict,
+        description="Units in the stronghold (safe house)",
     )
     hospital_units: WodAmounts = Field(
-        alias="HI",
+        validation_alias="HI",
+        serialization_alias="HI",
         default_factory=dict,
         description="Wounded units in the hospital; the client reads them from gui, not from this reply",
     )
     travelling_units: WodAmounts = Field(
-        alias="TU",
+        validation_alias="TU",
+        serialization_alias="TU",
         default_factory=dict,
         description="Units on their way in (gui's in_production); the client reads them from gui, not from this reply",
     )
     production_area: CastleProductionArea | None = Field(
-        alias="gpa", default=None, description="The castle's production area; None when the entry has none"
+        validation_alias="gpa",
+        serialization_alias="gpa",
+        default=None,
+        description="The castle's production area; None when the entry has none",
     )
 
     _whole_numbers = field_validator(
@@ -356,7 +432,7 @@ class GetDetailedCastleResponse(BaseResponse):
 
     command = "dcl"
 
-    player_id: int = Field(alias="PID", default=0)
+    player_id: int = Field(validation_alias="PID", serialization_alias="PID", default=0)
     castles: list[DetailedCastleInfo] = Field(default_factory=list)
 
     @model_validator(mode="before")

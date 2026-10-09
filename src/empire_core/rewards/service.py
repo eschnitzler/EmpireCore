@@ -10,6 +10,7 @@ the rest.
 from __future__ import annotations
 
 import threading
+from typing import TYPE_CHECKING
 
 from empire_core.enums import CollectableKind, LoginBonusSpecial
 from empire_core.exceptions import (
@@ -51,6 +52,9 @@ from .models import (
     RedeemWeeklyHonorResponse,
 )
 
+if TYPE_CHECKING:
+    from empire_core.client.client import EmpireClient
+
 
 class RewardsService(BaseService):
     """
@@ -60,7 +64,7 @@ class RewardsService(BaseService):
     Reached as client.rewards.
     """
 
-    def __init__(self, client) -> None:
+    def __init__(self, client: EmpireClient) -> None:
         super().__init__(client)
         self._activity_chest: ActivityChestInfo | None = None
         self._pending_rewards: int | None = None

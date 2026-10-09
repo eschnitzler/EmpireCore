@@ -42,15 +42,32 @@ class TaxInfo(BasePayload):
     """
 
     tax_type: int = Field(
-        alias="TT", default=0, description="The running or finished collection's tax type, 0 to 6; -1 for none"
+        validation_alias="TT",
+        serialization_alias="TT",
+        default=0,
+        description="The running or finished collection's tax type, 0 to 6; -1 for none",
     )
     remaining_seconds: int = Field(
-        alias="RT", default=0, description="Seconds until the collection is done, as of the reply"
+        validation_alias="RT",
+        serialization_alias="RT",
+        default=0,
+        description="Seconds until the collection is done, as of the reply",
     )
-    expected_income: int = Field(alias="EM", default=0, description="Coins the collection brings before boosts")
-    population: int = Field(alias="PO", default=0, description="The population the income is based on")
-    is_boosted: bool = Field(alias="IB", default=False, description="Whether the collector was bribed")
-    vip_bonus: int = Field(alias="VB", default=0, description="The VIP tax bonus in percent")
+    expected_income: int = Field(
+        validation_alias="EM",
+        serialization_alias="EM",
+        default=0,
+        description="Coins the collection brings before boosts",
+    )
+    population: int = Field(
+        validation_alias="PO", serialization_alias="PO", default=0, description="The population the income is based on"
+    )
+    is_boosted: bool = Field(
+        validation_alias="IB", serialization_alias="IB", default=False, description="Whether the collector was bribed"
+    )
+    vip_bonus: int = Field(
+        validation_alias="VB", serialization_alias="VB", default=0, description="The VIP tax bonus in percent"
+    )
 
     _ints = field_validator(
         "tax_type", "remaining_seconds", "expected_income", "population", "vip_bonus", mode="before"
@@ -128,7 +145,12 @@ class TaxInfoResponse(BaseResponse):
 
     command = "txi"
 
-    tax: TaxInfo = Field(alias="TX", default_factory=TaxInfo, description="The tax collection status")
+    tax: TaxInfo = Field(
+        validation_alias="TX",
+        serialization_alias="TX",
+        default_factory=TaxInfo,
+        description="The tax collection status",
+    )
 
     _tax = field_validator("tax", mode="before")(_tax_info)
 
@@ -151,8 +173,12 @@ class StartTaxRequest(BaseRequest):
 
     command = "txs"
 
-    tax_type: int = Field(alias="TT", description="The tax type, 0 to 6, an index into TAX_DURATIONS")
-    tx: int = Field(alias="TX", default=3, description="The client's TX value, always 3")
+    tax_type: int = Field(
+        validation_alias="TT", serialization_alias="TT", description="The tax type, 0 to 6, an index into TAX_DURATIONS"
+    )
+    tx: int = Field(
+        validation_alias="TX", serialization_alias="TX", default=3, description="The client's TX value, always 3"
+    )
 
 
 class StartTaxResponse(BaseResponse):
@@ -167,9 +193,14 @@ class StartTaxResponse(BaseResponse):
 
     command = "txs"
 
-    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after the start")
+    currencies: CurrencyBlock = Field(
+        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after the start"
+    )
     tax_info: TaxInfoResponse | None = Field(
-        alias="txi", default=None, description="The tax status after the start; None when the reply has none"
+        validation_alias="txi",
+        serialization_alias="txi",
+        default=None,
+        description="The tax status after the start; None when the reply has none",
     )
 
     _block = field_validator("tax_info", mode="before")(_tax_block)
@@ -194,7 +225,9 @@ class CollectTaxRequest(BaseRequest):
 
     command = "txc"
 
-    tr: int = Field(alias="TR", default=29, description="The client's TR value, always 29")
+    tr: int = Field(
+        validation_alias="TR", serialization_alias="TR", default=29, description="The client's TR value, always 29"
+    )
 
 
 class CollectTaxResponse(BaseResponse):
@@ -209,11 +242,16 @@ class CollectTaxResponse(BaseResponse):
 
     command = "txc"
 
-    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after collecting")
-    tax_info: TaxInfoResponse | None = Field(
-        alias="txi", default=None, description="The tax status after collecting; None when the reply has none"
+    currencies: CurrencyBlock = Field(
+        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after collecting"
     )
-    collected: int = Field(alias="CT", default=0, description="Coins collected")
+    tax_info: TaxInfoResponse | None = Field(
+        validation_alias="txi",
+        serialization_alias="txi",
+        default=None,
+        description="The tax status after collecting; None when the reply has none",
+    )
+    collected: int = Field(validation_alias="CT", serialization_alias="CT", default=0, description="Coins collected")
 
     _block = field_validator("tax_info", mode="before")(_tax_block)
     _collected = field_validator("collected", mode="before")(js_int)

@@ -56,29 +56,45 @@ class SendSupportRequest(BaseRequest):
     command = "cds"
 
     source_castle_id: int = Field(
-        alias="SID",
+        validation_alias="SID",
+        serialization_alias="SID",
         description=(
             "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
             "client.state.get_castles()"
         ),
     )
-    target_x: int = Field(alias="TX")
-    target_y: int = Field(alias="TY")
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY")
     commander_id: int = Field(
-        alias="LID",
+        validation_alias="LID",
+        serialization_alias="LID",
         description=(
             "A Commander.commander_id from client.commanders.get_commanders(); "
             "0 is the free starting commander, -14 the premium one"
         ),
     )
-    wait_time: int = Field(alias="WT", default=12, ge=0, le=12)
+    wait_time: int = Field(validation_alias="WT", serialization_alias="WT", default=12, ge=0, le=12)
     horse_booster_id: int = Field(
-        alias="HBW", default=-1, description="The horse booster's wod id, -1 for none or when paid with feathers"
+        validation_alias="HBW",
+        serialization_alias="HBW",
+        default=-1,
+        description="The horse booster's wod id, -1 for none or when paid with feathers",
     )
-    use_premium_commander: int = Field(alias="BPC", default=0, description="1 when the premium commander leads")
-    feathers: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
-    slowdown: int = Field(alias="SD", default=0, description="Seconds the arrival is delayed by")
-    units: WodAmountSlots = Field(alias="A", description="The units, then any tools, one pair per filled slot")
+    use_premium_commander: int = Field(
+        validation_alias="BPC", serialization_alias="BPC", default=0, description="1 when the premium commander leads"
+    )
+    feathers: int = Field(
+        validation_alias="PTT",
+        serialization_alias="PTT",
+        default=0,
+        description="1 when the horse is paid with feathers",
+    )
+    slowdown: int = Field(
+        validation_alias="SD", serialization_alias="SD", default=0, description="Seconds the arrival is delayed by"
+    )
+    units: WodAmountSlots = Field(
+        validation_alias="A", serialization_alias="A", description="The units, then any tools, one pair per filled slot"
+    )
 
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a cds reply is the movement this sent: its target area (``A.M.TA``) is ``TX``/``TY``.
@@ -104,7 +120,9 @@ class SendSupportResponse(BaseResponse):
 
     command = "cds"
 
-    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after")
+    currencies: CurrencyBlock = Field(
+        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after"
+    )
 
 
 # =============================================================================
@@ -148,26 +166,52 @@ class SendTroopsRequest(BaseRequest):
 
     command = "cat"
 
-    source_x: int = Field(alias="SX", description="Map x of the area the troops leave from")
-    source_y: int = Field(alias="SY", description="Map y of the area the troops leave from")
-    target_x: int = Field(alias="TX", description="Map x of the area they go to")
-    target_y: int = Field(alias="TY", description="Map y of the area they go to")
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom both areas sit in")
+    source_x: int = Field(
+        validation_alias="SX", serialization_alias="SX", description="Map x of the area the troops leave from"
+    )
+    source_y: int = Field(
+        validation_alias="SY", serialization_alias="SY", description="Map y of the area the troops leave from"
+    )
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Map x of the area they go to")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Map y of the area they go to")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID",
+        serialization_alias="KID",
+        default=Kingdom.GREEN,
+        description="The kingdom both areas sit in",
+    )
     commander_id: int = Field(
-        alias="LID",
+        validation_alias="LID",
+        serialization_alias="LID",
         description=(
             "A Commander.commander_id from client.commanders.get_commanders(); "
             "0 is the free starting commander, -14 the premium one"
         ),
     )
-    wait_time: int = Field(alias="WT", default=0, description="Wait time at the target")
-    horse_booster_id: int = Field(
-        alias="HBW", default=-1, description="The horse booster's wod id, -1 for none or when paid with feathers"
+    wait_time: int = Field(
+        validation_alias="WT", serialization_alias="WT", default=0, description="Wait time at the target"
     )
-    use_premium_commander: int = Field(alias="BPC", default=0, description="1 when the premium commander leads")
-    feathers: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
-    slowdown: int = Field(alias="SD", default=0, description="Seconds the arrival is delayed by")
-    units: WodAmountSlots = Field(alias="A", description="The units, then any tools, one pair per filled slot")
+    horse_booster_id: int = Field(
+        validation_alias="HBW",
+        serialization_alias="HBW",
+        default=-1,
+        description="The horse booster's wod id, -1 for none or when paid with feathers",
+    )
+    use_premium_commander: int = Field(
+        validation_alias="BPC", serialization_alias="BPC", default=0, description="1 when the premium commander leads"
+    )
+    feathers: int = Field(
+        validation_alias="PTT",
+        serialization_alias="PTT",
+        default=0,
+        description="1 when the horse is paid with feathers",
+    )
+    slowdown: int = Field(
+        validation_alias="SD", serialization_alias="SD", default=0, description="Seconds the arrival is delayed by"
+    )
+    units: WodAmountSlots = Field(
+        validation_alias="A", serialization_alias="A", description="The units, then any tools, one pair per filled slot"
+    )
 
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a cat reply is the movement this sent: its target area (``A.M.TA``) is ``TX``/``TY``.
@@ -193,7 +237,9 @@ class SendTroopsResponse(BaseResponse):
 
     command = "cat"
 
-    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after")
+    currencies: CurrencyBlock = Field(
+        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after"
+    )
 
 
 # =============================================================================
@@ -217,11 +263,24 @@ class GetTravelInfoRequest(BaseRequest):
 
     command = "sti"
 
-    source_x: int = Field(alias="SX", description="Map x of the area the troops would leave from")
-    source_y: int = Field(alias="SY", description="Map y of the area the troops would leave from")
-    target_x: int = Field(alias="TX", description="Map x of the area they would go to")
-    target_y: int = Field(alias="TY", description="Map y of the area they would go to")
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom both areas sit in")
+    source_x: int = Field(
+        validation_alias="SX", serialization_alias="SX", description="Map x of the area the troops would leave from"
+    )
+    source_y: int = Field(
+        validation_alias="SY", serialization_alias="SY", description="Map y of the area the troops would leave from"
+    )
+    target_x: int = Field(
+        validation_alias="TX", serialization_alias="TX", description="Map x of the area they would go to"
+    )
+    target_y: int = Field(
+        validation_alias="TY", serialization_alias="TY", description="Map y of the area they would go to"
+    )
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID",
+        serialization_alias="KID",
+        default=Kingdom.GREEN,
+        description="The kingdom both areas sit in",
+    )
 
 
 class TravelTargetArea(BasePayload):
@@ -236,8 +295,15 @@ class TravelTargetArea(BasePayload):
     ``CastleOtherPlayerData.parseOwnerInfo`` (bundle line 138996)
     """
 
-    area: TargetRow = Field(alias="AI", default=None, description="The target's map row")
-    owner: MapObject | None = Field(alias="OI", default=None, description="The target's owner; None when not named")
+    area: TargetRow = Field(
+        validation_alias="AI", serialization_alias="AI", default=None, description="The target's map row"
+    )
+    owner: MapObject | None = Field(
+        validation_alias="OI",
+        serialization_alias="OI",
+        default=None,
+        description="The target's owner; None when not named",
+    )
 
     @field_validator("owner", mode="before")
     @classmethod
@@ -255,8 +321,15 @@ class TravelUnits(BasePayload):
     into a ``UnitInventoryDictionary`` and ``SHI`` into a ``StrongholdUnitInventory``
     """
 
-    units: WodAmounts = Field(alias="I", default_factory=dict, description="Units and tools at the source")
-    stronghold: WodAmounts = Field(alias="SHI", default_factory=dict, description="Units stored in its stronghold")
+    units: WodAmounts = Field(
+        validation_alias="I", serialization_alias="I", default_factory=dict, description="Units and tools at the source"
+    )
+    stronghold: WodAmounts = Field(
+        validation_alias="SHI",
+        serialization_alias="SHI",
+        default_factory=dict,
+        description="Units stored in its stronghold",
+    )
 
 
 class GetTravelInfoResponse(BaseResponse):
@@ -287,15 +360,36 @@ class GetTravelInfoResponse(BaseResponse):
 
     command = "sti"
 
-    source_castle_id: int = Field(alias="SCID", default=0, description="The castle the troops would leave from")
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The source castle's kingdom")
+    source_castle_id: int = Field(
+        validation_alias="SCID",
+        serialization_alias="SCID",
+        default=0,
+        description="The castle the troops would leave from",
+    )
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID",
+        serialization_alias="KID",
+        default=Kingdom.GREEN,
+        description="The source castle's kingdom",
+    )
     target_area: TravelTargetArea = Field(
-        alias="gaa", default_factory=lambda: TravelTargetArea(), description="The target's map row and owner"
+        validation_alias="gaa",
+        serialization_alias="gaa",
+        default_factory=lambda: TravelTargetArea(),
+        description="The target's map row and owner",
     )
     units: TravelUnits = Field(
-        alias="gui", default_factory=lambda: TravelUnits(), description="Your units and tools at the source"
+        validation_alias="gui",
+        serialization_alias="gui",
+        default_factory=lambda: TravelUnits(),
+        description="Your units and tools at the source",
     )
-    area_effects: CommanderEffects = Field(alias="AE", default_factory=list, description="Area effects on the movement")
+    area_effects: CommanderEffects = Field(
+        validation_alias="AE",
+        serialization_alias="AE",
+        default_factory=list,
+        description="Area effects on the movement",
+    )
 
 
 __all__ = [

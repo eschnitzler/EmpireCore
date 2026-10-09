@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -86,7 +86,7 @@ class LoginBonusDay(BasePayload):
     ``[{REW}, {PICK}, {ALLI}, {VIP}]``
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     day: int = Field(description="The day of the week, 0 to 6")
     rewards: tuple[Collectable, ...] = Field(default=(), description="The rewards to pick one from (REW)")
@@ -106,8 +106,15 @@ class LoginBonus(BasePayload):
     Client: ``CastleLoginBonusData.parseALB`` (bundle lines 39133-39139)
     """
 
-    day_index: ClientInt = Field(alias="D", default=0, description="Days of the bonus so far; today is day_index % 7")
-    days: tuple[LoginBonusDay, ...] = Field(alias="R", default=(), description="The week's days, in order")
+    day_index: ClientInt = Field(
+        validation_alias="D",
+        serialization_alias="D",
+        default=0,
+        description="Days of the bonus so far; today is day_index % 7",
+    )
+    days: tuple[LoginBonusDay, ...] = Field(
+        validation_alias="R", serialization_alias="R", default=(), description="The week's days, in order"
+    )
 
     @field_validator("days", mode="before")
     @classmethod
@@ -181,10 +188,23 @@ class CollectLoginBonusRequest(BaseRequest):
 
     command = "clb"
 
-    unit_id: int = Field(alias="ID", default=-1, description="The unit's id for a units reward, else -1")
-    reward_key: str | None = Field(alias="I", default=None, description="The picked reward's Collectable.send_key")
+    unit_id: int = Field(
+        validation_alias="ID",
+        serialization_alias="ID",
+        default=-1,
+        description="The unit's id for a units reward, else -1",
+    )
+    reward_key: str | None = Field(
+        validation_alias="I",
+        serialization_alias="I",
+        default=None,
+        description="The picked reward's Collectable.send_key",
+    )
     special: LoginBonusSpecial | None = Field(
-        alias="SP", default=None, description="The alliance or VIP bonus instead of a reward"
+        validation_alias="SP",
+        serialization_alias="SP",
+        default=None,
+        description="The alliance or VIP bonus instead of a reward",
     )
 
     def to_payload(self) -> dict[str, Any]:
@@ -203,7 +223,9 @@ class CollectLoginBonusResponse(BaseResponse):
 
     command = "clb"
 
-    login_bonus: LoginBonus | None = Field(alias="alb", default=None, description="The login bonus after the pick")
+    login_bonus: LoginBonus | None = Field(
+        validation_alias="alb", serialization_alias="alb", default=None, description="The login bonus after the pick"
+    )
 
     @field_validator("login_bonus", mode="before")
     @classmethod
@@ -240,14 +262,22 @@ class GetStartupBonusResponse(BaseResponse):
     (bundle line 113943); the dialog's collect button (bundle line 57258)
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     command = "sli"
 
     next_reward_id: ClientInt = Field(
-        alias="NRR", default=0, description="The next reward's beginnerLoginRewardID; -1 once all are collected"
+        validation_alias="NRR",
+        serialization_alias="NRR",
+        default=0,
+        description="The next reward's beginnerLoginRewardID; -1 once all are collected",
     )
-    can_collect: bool = Field(alias="CC", default=False, description="Whether the next reward can be collected now")
+    can_collect: bool = Field(
+        validation_alias="CC",
+        serialization_alias="CC",
+        default=False,
+        description="Whether the next reward can be collected now",
+    )
 
     @field_validator("can_collect", mode="before")
     @classmethod
@@ -297,16 +327,26 @@ class LostAndFoundItem(BasePayload):
     Client: ``LostAndFoundListItemVO.parseData`` and ``remainingTimeInSeconds`` (bundle lines 144545-144549)
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
-    item_id: ClientInt = Field(alias="LFID", default=0, description="The entry's id, to collect it")
+    item_id: ClientInt = Field(
+        validation_alias="LFID", serialization_alias="LFID", default=0, description="The entry's id, to collect it"
+    )
     reward: Collectable = Field(description="The item, from its server key (ROT) and entry (ROV)")
-    seconds: int | float = Field(alias="ET", default=0, description="Seconds until it expires, when read")
+    seconds: int | float = Field(
+        validation_alias="ET", serialization_alias="ET", default=0, description="Seconds until it expires, when read"
+    )
     received_time: int | float | None = Field(
-        alias="CT", default=None, description="When it arrived, unix seconds; None when not sent"
+        validation_alias="CT",
+        serialization_alias="CT",
+        default=None,
+        description="When it arrived, unix seconds; None when not sent",
     )
     equipment_elapsed: ClientInt = Field(
-        alias="LFES", default=0, description="Seconds a timed equipment has run while here"
+        validation_alias="LFES",
+        serialization_alias="LFES",
+        default=0,
+        description="Seconds a timed equipment has run while here",
     )
     received_at: float = Field(
         default_factory=time.monotonic, description="When the values were read, in time.monotonic() seconds"
@@ -361,7 +401,12 @@ class GetLostAndFoundResponse(BaseResponse):
 
     command = "lfe"
 
-    items: list[LostAndFoundItem] = Field(alias="lfe", default_factory=list, description="The items, in the order sent")
+    items: list[LostAndFoundItem] = Field(
+        validation_alias="lfe",
+        serialization_alias="lfe",
+        default_factory=list,
+        description="The items, in the order sent",
+    )
 
     @field_validator("items", mode="before")
     @classmethod
@@ -383,7 +428,9 @@ class CollectLostAndFoundRequest(BaseRequest):
 
     command = "clf"
 
-    item_id: int = Field(alias="LFID", description="The item's LostAndFoundItem.item_id")
+    item_id: int = Field(
+        validation_alias="LFID", serialization_alias="LFID", description="The item's LostAndFoundItem.item_id"
+    )
 
 
 class CollectLostAndFoundResponse(BaseResponse):
@@ -412,14 +459,22 @@ class ActivityChestInfo(BaseResponse):
     ``isActive`` and ``remainingTimeTillNextActivityBonus`` (bundle lines 110921-110932)
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     command = "uac"
 
     next_reward_id: ClientInt = Field(
-        alias="CID", default=0, description="The next chest's activityRewardID; -1 without one"
+        validation_alias="CID",
+        serialization_alias="CID",
+        default=0,
+        description="The next chest's activityRewardID; -1 without one",
     )
-    seconds: int | float = Field(alias="TTU", default=0, description="Seconds until it can be opened, when read")
+    seconds: int | float = Field(
+        validation_alias="TTU",
+        serialization_alias="TTU",
+        default=0,
+        description="Seconds until it can be opened, when read",
+    )
     received_at: float = Field(
         default_factory=time.monotonic, description="When the values were read, in time.monotonic() seconds"
     )
@@ -498,16 +553,26 @@ class GetWeeklyHonorResponse(BaseResponse):
     ``isReadyToCollect`` and ``nextRewardRemainingTime`` (bundle lines 111899-111912)
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     command = "gwh"
 
     last_week_rank: ParseInt = Field(
-        alias="LWR", default=0, description="Last week's rank, whose reward waits; 0 when none waits"
+        validation_alias="LWR",
+        serialization_alias="LWR",
+        default=0,
+        description="Last week's rank, whose reward waits; 0 when none waits",
     )
-    current_rank: ParseInt = Field(alias="CWR", default=0, description="This week's rank so far")
-    seconds: ParseInt = Field(alias="RT", default=0, description="Seconds until the next reward, when read")
-    league_id: ParseInt = Field(alias="LID", default=0, description="Your league")
+    current_rank: ParseInt = Field(
+        validation_alias="CWR", serialization_alias="CWR", default=0, description="This week's rank so far"
+    )
+    seconds: ParseInt = Field(
+        validation_alias="RT",
+        serialization_alias="RT",
+        default=0,
+        description="Seconds until the next reward, when read",
+    )
+    league_id: ParseInt = Field(validation_alias="LID", serialization_alias="LID", default=0, description="Your league")
     received_at: float = Field(
         default_factory=time.monotonic, description="When the values were read, in time.monotonic() seconds"
     )
@@ -549,8 +614,12 @@ class RedeemWeeklyHonorResponse(BaseResponse):
 
     command = "rwb"
 
-    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after the reward")
-    unit_inventory: UnitInventoryBlock = Field(alias="gui", default=None, description="Units after the reward")
+    currencies: CurrencyBlock = Field(
+        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after the reward"
+    )
+    unit_inventory: UnitInventoryBlock = Field(
+        validation_alias="gui", serialization_alias="gui", default=None, description="Units after the reward"
+    )
 
 
 # =============================================================================
@@ -571,7 +640,11 @@ class GetPatchNoteRewardsRequest(BaseRequest):
 
     command = "gpn"
 
-    patch_note_id: int = Field(alias="PNID", description="The patch note's PatchNoteHeader.patch_note_id")
+    patch_note_id: int = Field(
+        validation_alias="PNID",
+        serialization_alias="PNID",
+        description="The patch note's PatchNoteHeader.patch_note_id",
+    )
 
 
 class GetPatchNoteRewardsResponse(BaseResponse):
@@ -584,11 +657,13 @@ class GetPatchNoteRewardsResponse(BaseResponse):
     ``CollectableParserS2CParamObject.createList``
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     command = "gpn"
 
-    rewards: CollectableObject = Field(alias="R", default=(), description="The rewards, in the order sent")
+    rewards: CollectableObject = Field(
+        validation_alias="R", serialization_alias="R", default=(), description="The rewards, in the order sent"
+    )
 
 
 class CollectPatchNoteRewardsRequest(BaseRequest):
@@ -604,8 +679,14 @@ class CollectPatchNoteRewardsRequest(BaseRequest):
 
     command = "cpn"
 
-    patch_note_id: int = Field(alias="PNID", description="The patch note's PatchNoteHeader.patch_note_id")
-    message_id: int = Field(alias="MID", description="The patch note message's MessageInfo.message_id")
+    patch_note_id: int = Field(
+        validation_alias="PNID",
+        serialization_alias="PNID",
+        description="The patch note's PatchNoteHeader.patch_note_id",
+    )
+    message_id: int = Field(
+        validation_alias="MID", serialization_alias="MID", description="The patch note message's MessageInfo.message_id"
+    )
 
 
 class CollectPatchNoteRewardsResponse(BaseResponse):
@@ -638,11 +719,13 @@ class PendingRewardsInfo(BaseResponse):
     ``CastleRewardHubMicroservice`` (bundle line 12885) fetches the rewards themselves
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     command = "pre"
 
-    amount: ClientInt = Field(alias="AMT", default=0, description="How many rewards wait")
+    amount: ClientInt = Field(
+        validation_alias="AMT", serialization_alias="AMT", default=0, description="How many rewards wait"
+    )
 
 
 __all__ = [

@@ -83,7 +83,7 @@ class TestGoldenMapArea:
         # CF and HF are read only from the player's own fame replies, TI from gca.O
         from empire_core.map.models.areas import MapObject
 
-        assert not any(field.alias in ("CF", "HF", "TI") for field in MapObject.model_fields.values())
+        assert not any(field.serialization_alias in ("CF", "HF", "TI") for field in MapObject.model_fields.values())
 
     def test_owner_record_alliance_crest(self):
         record = {**self.OWNER, "aee": {"ACCA": {"ACLI": "4", "ACCS": [3, 7, 11]}}}

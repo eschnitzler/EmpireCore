@@ -9,7 +9,7 @@ import logging
 import math
 import time
 from collections.abc import Iterable, Mapping, Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from empire_core.army.models.units import AttackWave
 from empire_core.army.spy_army import SpyArmy
@@ -682,7 +682,7 @@ class AttackService(BaseService):
         target_owner_legend_level: int | None = None,
         camp_victories: int | None = None,
         camp_kingdom_id: Kingdom = Kingdom.GREEN,
-        target_row: list | None = None,
+        target_row: list[Any] | None = None,
         area_type: MapItemType | int | None = None,
         landmark_min_level: int = 0,
         under_conquer_control: bool = False,

@@ -10,6 +10,7 @@ troops a flank holds.
 from __future__ import annotations
 
 import math
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict
 
@@ -134,7 +135,7 @@ overrides.
 """
 
 
-def owner_id_from_row(row: list | None) -> int | None:
+def owner_id_from_row(row: list[Any] | None) -> int | None:
     """
     The target owner's player id, as the client's map object reads it.
 
@@ -178,7 +179,7 @@ class LegendaryFight(BaseModel):
     not a level of 70.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     unit_amount: bool
     """
@@ -506,7 +507,7 @@ class WaveCapacity(BaseModel):
         capacity.unit_slots(Flank.LEFT)           # 2
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     level: int
     flank_soldiers: int

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 import threading
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from empire_core.enums import GGEError
 from empire_core.exceptions import CommandError, MessageUnavailableError
@@ -39,6 +39,9 @@ from empire_core.protocol.base import BaseResponse
 from empire_core.services.base import BaseService
 from empire_core.utils.callbacks import Event
 
+if TYPE_CHECKING:
+    from empire_core.client.client import EmpireClient
+
 _WHITESPACE = re.compile(r"\s")
 
 BattleReportDetail = Literal["short", "middle", "full"]
@@ -58,7 +61,7 @@ class MessagesService(BaseService):
     ``parse_SNE`` (bundle line 134961)
     """
 
-    def __init__(self, client) -> None:
+    def __init__(self, client: EmpireClient) -> None:
         super().__init__(client)
         self._mailbox: dict[int, MessageInfo] = {}
         self._mailbox_lock = threading.Lock()

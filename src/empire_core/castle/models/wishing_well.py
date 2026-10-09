@@ -27,9 +27,12 @@ class WishingWellResponse(TimedResponse):
 
     command = "rww"
 
-    level: ClientInt = Field(alias="L", default=-1, description="The wishing well's level, -1 for none")
+    level: ClientInt = Field(
+        validation_alias="L", serialization_alias="L", default=-1, description="The wishing well's level, -1 for none"
+    )
     seconds: ClientNumber = Field(
-        alias="RT",
+        validation_alias="RT",
+        serialization_alias="RT",
         default=-1,
         description="Seconds left when the values were read: -1 ready to start, 0 ready to collect",
     )

@@ -7,7 +7,7 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
@@ -175,7 +175,7 @@ class ConstructionSlot(BasePayload):
     ``AreaDataConstructionList.parseList`` (bundle line 131170)
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     position: int = Field(description="The slot's place in the list, from 0")
     object_id: int = Field(
@@ -205,8 +205,12 @@ class ConstructionList(BasePayload):
     into a ``ConstructionSlotVO`` at its position
     """
 
-    slots: tuple[ConstructionSlot, ...] = Field(alias="OIDL", default=(), description="The slots, in order")
-    slot_count: int | float = Field(alias="SSC", default=1, description="Number of construction slots")
+    slots: tuple[ConstructionSlot, ...] = Field(
+        validation_alias="OIDL", serialization_alias="OIDL", default=(), description="The slots, in order"
+    )
+    slot_count: int | float = Field(
+        validation_alias="SSC", serialization_alias="SSC", default=1, description="Number of construction slots"
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -243,17 +247,17 @@ class ConstructionList(BasePayload):
 class FieldEfficiency(_ProductionAreaSection):
     """Resource field efficiency per resource (``RA<key>``)."""
 
-    wood: ClientInt = Field(alias="RAW", default=0)
-    stone: ClientInt = Field(alias="RAS", default=0)
-    food: ClientInt = Field(alias="RAF", default=0)
-    coal: ClientInt = Field(alias="RAC", default=0)
-    oil: ClientInt = Field(alias="RAO", default=0)
-    glass: ClientInt = Field(alias="RAG", default=0)
-    iron: ClientInt = Field(alias="RAI", default=0)
-    aquamarine: ClientInt = Field(alias="RAA", default=0)
-    honey: ClientInt = Field(alias="RAHONEY", default=0)
-    mead: ClientInt = Field(alias="RAMEAD", default=0)
-    beef: ClientInt = Field(alias="RABEEF", default=0)
+    wood: ClientInt = Field(validation_alias="RAW", serialization_alias="RAW", default=0)
+    stone: ClientInt = Field(validation_alias="RAS", serialization_alias="RAS", default=0)
+    food: ClientInt = Field(validation_alias="RAF", serialization_alias="RAF", default=0)
+    coal: ClientInt = Field(validation_alias="RAC", serialization_alias="RAC", default=0)
+    oil: ClientInt = Field(validation_alias="RAO", serialization_alias="RAO", default=0)
+    glass: ClientInt = Field(validation_alias="RAG", serialization_alias="RAG", default=0)
+    iron: ClientInt = Field(validation_alias="RAI", serialization_alias="RAI", default=0)
+    aquamarine: ClientInt = Field(validation_alias="RAA", serialization_alias="RAA", default=0)
+    honey: ClientInt = Field(validation_alias="RAHONEY", serialization_alias="RAHONEY", default=0)
+    mead: ClientInt = Field(validation_alias="RAMEAD", serialization_alias="RAMEAD", default=0)
+    beef: ClientInt = Field(validation_alias="RABEEF", serialization_alias="RABEEF", default=0)
 
 
 _BUILDING_GROUPS = ("BD", "D", "G", "T", "BG", "FP")
@@ -267,10 +271,20 @@ class PlacedConstructionItem(BasePayload):
     its slot type's first index plus ``int(S)`` and gives a temporary item the ``RS`` seconds left
     """
 
-    construction_item_id: EnumOrInt["ConstructionItem"] = Field(alias="CID", description="The construction item")
-    slot: ClientInt = Field(alias="S", default=0, description="Its slot among the slots of its item's slot type")
+    construction_item_id: EnumOrInt["ConstructionItem"] = Field(
+        validation_alias="CID", serialization_alias="CID", description="The construction item"
+    )
+    slot: ClientInt = Field(
+        validation_alias="S",
+        serialization_alias="S",
+        default=0,
+        description="Its slot among the slots of its item's slot type",
+    )
     remaining_seconds: ClientNumber = Field(
-        alias="RS", default=0, description="Seconds a temporary item has left; 0 for a permanent one"
+        validation_alias="RS",
+        serialization_alias="RS",
+        default=0,
+        description="Seconds a temporary item has left; 0 for a permanent one",
     )
 
 
@@ -282,8 +296,12 @@ class BuildingConstructionItems(BasePayload):
     whose ``OID`` is the building's
     """
 
-    object_id: ClientInt = Field(alias="OID", description="The building's object id")
-    items: tuple[PlacedConstructionItem, ...] = Field(alias="CIL", default=(), description="Its construction items")
+    object_id: ClientInt = Field(
+        validation_alias="OID", serialization_alias="OID", description="The building's object id"
+    )
+    items: tuple[PlacedConstructionItem, ...] = Field(
+        validation_alias="CIL", serialization_alias="CIL", default=(), description="Its construction items"
+    )
 
     @field_validator("items", mode="before")
     @classmethod
@@ -306,19 +324,35 @@ class CastleBuildings(BasePayload):
     (bundle line 131524)
     """
 
-    buildings: list[BuildingRow] = Field(alias="BD", default_factory=list, description="Buildings inside the walls")
-    walls: list[BuildingRow] = Field(alias="D", default_factory=list, description="The wall and the moat")
-    gates: list[BuildingRow] = Field(alias="G", default_factory=list, description="The gate")
-    towers: list[BuildingRow] = Field(alias="T", default_factory=list, description="The towers")
-    grounds: list[BuildingRow] = Field(alias="BG", default_factory=list, description="Ground tiles and expansions")
+    buildings: list[BuildingRow] = Field(
+        validation_alias="BD", serialization_alias="BD", default_factory=list, description="Buildings inside the walls"
+    )
+    walls: list[BuildingRow] = Field(
+        validation_alias="D", serialization_alias="D", default_factory=list, description="The wall and the moat"
+    )
+    gates: list[BuildingRow] = Field(
+        validation_alias="G", serialization_alias="G", default_factory=list, description="The gate"
+    )
+    towers: list[BuildingRow] = Field(
+        validation_alias="T", serialization_alias="T", default_factory=list, description="The towers"
+    )
+    grounds: list[BuildingRow] = Field(
+        validation_alias="BG", serialization_alias="BG", default_factory=list, description="Ground tiles and expansions"
+    )
     fixed_positions: list[BuildingRow] = Field(
-        alias="FP", default_factory=list, description="Objects at fixed positions"
+        validation_alias="FP", serialization_alias="FP", default_factory=list, description="Objects at fixed positions"
     )
     construction_list: ConstructionList | None = Field(
-        alias="scl", default=None, description="The construction slots; None when the block has none"
+        validation_alias="scl",
+        serialization_alias="scl",
+        default=None,
+        description="The construction slots; None when the block has none",
     )
     construction_items: tuple[BuildingConstructionItems, ...] = Field(
-        alias="CI", default=(), description="The construction items on each building that has any"
+        validation_alias="CI",
+        serialization_alias="CI",
+        default=(),
+        description="The construction items on each building that has any",
     )
     field_efficiency: FieldEfficiency = Field(
         default_factory=FieldEfficiency, description="Resource field efficiency per resource"

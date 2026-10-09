@@ -717,7 +717,7 @@ def test_state_models_expose_snake_case_aliases_for_wire_fields(model_name: str)
     instance = model_cls()
     for snake, wire in _SNAKE_CASE_ALIASES[model_name]:
         if snake in fields:
-            assert fields[snake].alias == wire, f"{model_name}.{snake} is not aliased to {wire}"
+            assert fields[snake].serialization_alias == wire, f"{model_name}.{snake} is not aliased to {wire}"
             value = {str: "x", Kingdom: Kingdom.STORM}.get(fields[snake].annotation, 7)
             assert getattr(model_cls.model_validate({wire: value}), snake) == value
         else:

@@ -18,6 +18,7 @@ import logging
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
+from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
@@ -95,6 +96,9 @@ from empire_core.protocol.base import BaseRequest, BaseResponse
 from empire_core.services.base import BaseService
 from empire_core.utils.callbacks import Event
 
+if TYPE_CHECKING:
+    from empire_core.client.client import EmpireClient
+
 logger = logging.getLogger(__name__)
 
 AllianceHelpUpdate = (
@@ -142,7 +146,7 @@ class AllianceService(BaseService):
         client.alliance.on_chat_message(on_message)
     """
 
-    def __init__(self, client) -> None:
+    def __init__(self, client: EmpireClient) -> None:
         super().__init__(client)
         self._members: dict[int, AllianceMember] = {}
         self._members_alliance_id: int | None = None
