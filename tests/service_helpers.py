@@ -14,6 +14,7 @@ from empire_core.config import EmpireConfig
 from empire_core.enums import Kingdom
 from empire_core.events.models import SpecialEvent
 from empire_core.exceptions import EmpireTimeoutError
+from empire_core.gamedata import GameData
 from empire_core.network.connection import ResponseWaiter
 from empire_core.player.models.account import BoostedGlobalEffectsResponse
 from empire_core.protocol.models import AttackWave
@@ -257,6 +258,7 @@ class StubState:
         self.updates: list[tuple[str, object]] = []
         self.special_events: dict[int, SpecialEvent] = {}
         self.boosted_global_effects: BoostedGlobalEffectsResponse | None = None
+        self.boosts: Any = None
 
     def update_from_packet(self, cmd_id: str, payload: object, error_code: int = 0) -> None:
         self.updates.append((cmd_id, payload))
@@ -267,8 +269,8 @@ class StubState:
     def get_castles(self) -> list[Castle]:
         return list(self.castles)
 
-    def get_boosts(self) -> None:
-        return None
+    def get_boosts(self) -> Any:
+        return self.boosts
 
     def get_event(self, event: int) -> SpecialEvent | None:
         return self.special_events.get(int(event))
@@ -285,6 +287,22 @@ class StubState:
 
     def reset(self) -> None:
         self.events.append("reset")
+
+
+COIN_HORSE = 1001
+"""A horse paid in coins, as items 786.03 has it."""
+RUBY_HORSE = 1002
+"""A horse paid in rubies, as items 786.03 has it."""
+
+
+def with_horses(client: EmpireClient) -> EmpireClient:
+    """Give ``client`` game data with :data:`COIN_HORSE` and :data:`RUBY_HORSE`."""
+    rows = [
+        {"wodID": str(COIN_HORSE), "costFactorC1": "1", "costFactorC2": "0.0"},
+        {"wodID": str(RUBY_HORSE), "costFactorC1": "0", "costFactorC2": "1.0"},
+    ]
+    client.game_data = GameData.parse("test", {"horses": rows})
+    return client
 
 
 def make_client(

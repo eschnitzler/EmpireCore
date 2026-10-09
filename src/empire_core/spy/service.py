@@ -440,9 +440,13 @@ class SpyService(BaseService):
         horse_booster_id: int = -1,
         feathers: bool = False,
         slowdown: int = 0,
+        spend_rubies: bool = False,
     ) -> SendSpyResponse:
         """
         Send one spy mission as given, without planning it or waiting for its report.
+
+        A horse that costs rubies, unless paid with feathers, and a slowdown spend rubies;
+        see "Spending rubies" in the guides.
 
         Args:
             source_castle_id: The castle the spies leave from, one of yours
@@ -454,10 +458,14 @@ class SpyService(BaseService):
             accuracy_or_damage: Accuracy percent (50-100), or damage percent (10-50) for sabotage
             horse_booster_id: A horse's wod id to speed the spies up (-1 = none)
             feathers: Use the instant spy horse and pay for it with feathers; wins over ``horse_booster_id``
-            slowdown: Seconds to delay the arrival by
+            slowdown: Seconds to delay the arrival by; costs rubies
+            spend_rubies: Allow a horse or slowdown that costs rubies
 
         Raises:
             ValueError: For ``SpyType.PLAGUE``
+            ValueError: The horse or slowdown costs rubies and ``spend_rubies`` is False
+            GameDataNotLoadedError: A horse is picked without feathers and ``client.load_game_data()``
+                has not been called
             CommandError: The server refused the mission
 
         Client: ``CastlePostSpyDialog.spyCastle`` (bundle line 38459), ``C2SCreateSpyMovementVO``
@@ -465,6 +473,7 @@ class SpyService(BaseService):
         """
         if spy_type == SpyType.PLAGUE:
             raise ValueError("the client sends plague monks with cpm, not csm")
+        self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
         request = SendSpyRequest(
             castle_id=source_castle_id,
             target_x=target_x,
@@ -492,6 +501,7 @@ class SpyService(BaseService):
         horse_booster_id: int = -1,
         feathers: bool = False,
         slowdown: int = 0,
+        spend_rubies: bool = False,
         wait_for_spies: float | None = None,
         cancel: threading.Event | None = None,
     ) -> SpyHandle:
@@ -513,7 +523,8 @@ class SpyService(BaseService):
             spy_type: MILITARY or ECO
             horse_booster_id: A horse's wod id to speed the spies up (-1 = none)
             feathers: Use the instant spy horse and pay for it with feathers
-            slowdown: Seconds to delay the arrival by
+            slowdown: Seconds to delay the arrival by; costs rubies
+            spend_rubies: Allow a horse or slowdown that costs rubies; see "Spending rubies" in the guides
             wait_for_spies: Most seconds to keep asking ``ssi`` while no spy is at
                 home or the risk is over ``risk_tolerance``; None asks once
             cancel: Ends the mission's wait when set, as ``SpyHandle.cancel``
@@ -523,10 +534,14 @@ class SpyService(BaseService):
             The mission's handle; when nothing was sent, ``handle.result`` says why.
 
         Raises:
-            ValueError: For a spy type other than MILITARY or ECO
+            ValueError: For a spy type other than MILITARY or ECO, or the horse or slowdown costs
+                rubies and ``spend_rubies`` is False, before anything is sent
+            GameDataNotLoadedError: A horse is picked without feathers and ``client.load_game_data()``
+                has not been called
         """
         if spy_type not in (SpyType.MILITARY, SpyType.ECO):
             raise ValueError(f"send_instant_spy sends MILITARY or ECO missions, not {spy_type!r}")
+        self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
         handle = SpyHandle(target_x, target_y, target_kingdom, spy_type, cancel_event=cancel or threading.Event())
         max_risk = risk_tolerance if risk_tolerance is not None else MAX_RISK_SPY
 
@@ -586,6 +601,7 @@ class SpyService(BaseService):
                 horse_booster_id=horse_booster_id,
                 feathers=feathers,
                 slowdown=slowdown,
+                spend_rubies=spend_rubies,
             )
         except EmpireError as e:
             handle.result = SpyResult(SpyOutcome.COMMAND_FAILED, SpyStep.CSM, error=e)
@@ -673,6 +689,7 @@ class SpyService(BaseService):
         horse_booster_id: int = -1,
         feathers: bool = False,
         slowdown: int = 0,
+        spend_rubies: bool = False,
         max_wait: float | None = None,
         wait_for_spies: float | None = None,
         cancel: threading.Event | None = None,
@@ -686,7 +703,8 @@ class SpyService(BaseService):
         Nothing is paid unless asked: by default the spies travel without a
         horse. ``feathers`` uses the instant spy horse, paid with feathers,
         which the client sends as ``HBW`` -1 with ``PTT`` 1 and which wins over
-        ``horse_booster_id``, as in the client.
+        ``horse_booster_id``, as in the client. A horse that costs rubies and a
+        slowdown need ``spend_rubies``; see "Spending rubies" in the guides.
 
         The mission is costed with the client's risk floor for the target:
         none for an NPC area such as a robber baron camp, 5% for a player's
@@ -736,7 +754,8 @@ class SpyService(BaseService):
             horse_booster_id: A horse's wod id to speed the spies up (-1 = none);
                 sent as -1 whenever feathers are used, as the client does
             feathers: Use the instant spy horse and pay for it with feathers
-            slowdown: Seconds to delay the arrival by
+            slowdown: Seconds to delay the arrival by; costs rubies
+            spend_rubies: Allow a horse or slowdown that costs rubies
             max_wait: Most seconds to wait for the report after the csm reply;
                 None waits for the trip plus 10s
             wait_for_spies: Most seconds to keep asking ``ssi`` while no spy is at
@@ -750,6 +769,9 @@ class SpyService(BaseService):
 
         Returns:
             SpyResult with the report or why there is none.
+
+        Raises:
+            ValueError / GameDataNotLoadedError: See :meth:`send_instant_spy`
         """
         handle = self.send_instant_spy(
             source_castle_id,
@@ -762,6 +784,7 @@ class SpyService(BaseService):
             horse_booster_id=horse_booster_id,
             feathers=feathers,
             slowdown=slowdown,
+            spend_rubies=spend_rubies,
             wait_for_spies=wait_for_spies,
             cancel=cancel,
         )
@@ -779,6 +802,7 @@ class SpyService(BaseService):
         horse_booster_id: int = -1,
         feathers: bool = False,
         slowdown: int = 0,
+        spend_rubies: bool = False,
     ) -> SpyResult:
         """
         Send a sabotage mission with the fewest spies that reach the pool's lowest risk.
@@ -799,10 +823,14 @@ class SpyService(BaseService):
             risk_tolerance: Ceiling on the chance of being caught, as a percentage
             horse_booster_id: A horse's wod id to speed the spies up (-1 = none)
             feathers: Use the instant spy horse and pay for it with feathers
-            slowdown: Seconds to delay the arrival by
+            slowdown: Seconds to delay the arrival by; costs rubies
+            spend_rubies: Allow a horse or slowdown that costs rubies; see "Spending rubies" in the guides
 
         Raises:
-            ValueError: A damage the client would not send
+            ValueError: A damage the client would not send, or the horse or slowdown costs rubies
+                and ``spend_rubies`` is False, before anything is sent
+            GameDataNotLoadedError: A horse is picked without feathers and ``client.load_game_data()``
+                has not been called
 
         Client: ``CastleSpyDialogSabotageState.updateSpyVO`` and ``spyCastle`` (bundle lines
         72203-72205), ``ACastleSpyDialogState.updateSliderForDamage`` (bundle line 34360),
@@ -810,6 +838,7 @@ class SpyService(BaseService):
         """
         if not MIN_DAMAGE <= damage <= MAX_DAMAGE:
             raise ValueError(f"sabotage damage must be {MIN_DAMAGE}-{MAX_DAMAGE}, got {damage}")
+        self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
         max_risk = risk_tolerance if risk_tolerance is not None else MAX_RISK_SABOTAGE
         try:
             screen = self.get_screen_info(target_x, target_y, target_kingdom)
@@ -835,6 +864,7 @@ class SpyService(BaseService):
                 horse_booster_id=horse_booster_id,
                 feathers=feathers,
                 slowdown=slowdown,
+                spend_rubies=spend_rubies,
             )
         except EmpireError as e:
             return SpyResult(SpyOutcome.COMMAND_FAILED, SpyStep.CSM, error=e)

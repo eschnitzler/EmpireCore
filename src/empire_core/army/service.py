@@ -143,36 +143,53 @@ class ArmyService(BaseService):
         list_id: ProductionListId,
         wod_id: int,
         amount: int,
-        pay_with_rubies: bool = False,
+        *,
+        spend_rubies: bool = False,
         private_offer_id: int = -1,
         timeout: float = 5.0,
     ) -> bool:
         """
         Produce units or tools.
 
+        Spends rubies when the unit or tool has a ruby price (``cost_rubies`` or, on a temporary
+        server, ``temp_server_cost_rubies`` in the game data, refused on either kind of server), and
+        with ``spend_rubies`` on missing resources; see "Spending rubies" in the guides.
+
         Args:
             castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
             list_id: SOLDIERS, TOOLS or AUXILIARIES
             wod_id: Unit or tool wod id
             amount: How many to produce
-            pay_with_rubies: Pay rubies for missing resources, as the client's
-                resource wait dialog does
-            private_offer_id: With ``pay_with_rubies``, the id of the active
+            spend_rubies: Allow a ruby price, and pay rubies for missing resources as the
+                client's resource wait dialog does
+            private_offer_id: With ``spend_rubies``, the id of the active
                 resource merchant private offer; -1 when there is none
             timeout: Timeout in seconds
 
-        Client: ``C2SBuyUnitPackageVO`` (bundle line 35277); the ruby path is
-        ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35218)
+        Raises:
+            ValueError: The list is the hospital, or the unit has a ruby price or is not in the
+                game data, and ``spend_rubies`` is False
+            GameDataNotLoadedError: ``spend_rubies`` is False and ``client.load_game_data()`` has not been called
+
+        Client: ``C2SBuyUnitPackageVO`` (bundle line 35277); ``BasicUnitVO.basicCostC2`` (bundle line
+        19248); the ruby path is ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35218)
         """
         if list_id == ProductionListId.HOSPITAL:
             raise ValueError("bup produces soldiers, tools or auxiliaries; the hospital list is healed with heal_units")
+        if not spend_rubies:
+            game_data = self._require_game_data("Pricing a unit")
+            row = game_data.get_unit(wod_id) or game_data.get_tool(wod_id)
+            if row is None:
+                self._require_spend_rubies(spend_rubies, f"wod id {wod_id} is not in the game data and may cost rubies")
+            elif max(row.cost_rubies, row.temp_server_cost_rubies) > 0:
+                self._require_spend_rubies(spend_rubies, f"wod id {wod_id} costs rubies")
         kingdom_id = self._join_castle(castle_id, timeout)
         request = ProduceUnitsRequest(
             list_id=list_id,
             wod_id=wod_id,
             amount=amount,
-            private_offer_id=private_offer_id if pay_with_rubies else -1,
-            pay_with_rubies=1 if pay_with_rubies else 0,
+            private_offer_id=private_offer_id if spend_rubies else -1,
+            pay_with_rubies=1 if spend_rubies else 0,
             kingdom_id=kingdom_id,
             castle_id=castle_id,
         )
@@ -220,19 +237,29 @@ class ArmyService(BaseService):
         list_id: ProductionListId,
         slot_type: SlotType,
         position: int,
+        *,
+        spend_rubies: bool = False,
         timeout: float = 5.0,
     ) -> bool:
         """
-        Double the units of a production slot. Costs rubies.
+        Double the units of a production slot, for rubies; see "Spending rubies" in the guides.
 
         Args:
             castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
             slot_type: PRODUCTION for the slot producing now, QUEUE for a queued one
             position: 0 for the slot producing now, else the slot's
                 ``ProductionSlot.position``
+            spend_rubies: Allow the rubies it costs; without it nothing is sent
+            timeout: Timeout in seconds
 
-        Client: ``RecruitmentHelper.boostCurrentSlot`` (bundle line 23165)
+        Raises:
+            ValueError: ``spend_rubies`` is False
+
+        Client: ``RecruitmentHelper.boostCurrentSlot`` (bundle line 23165), after
+        ``CastleRecruitDialogUnits.handleBoostSlot`` (bundle line 23692) prices it with
+        ``getUnitDoublingCosts`` (bundle line 23546), always in rubies
         """
+        self._require_spend_rubies(spend_rubies, "doubling a production slot costs rubies")
         kingdom_id = self._join_castle(castle_id, timeout)
         request = DoubleProductionSlotRequest(
             list_id=list_id, position=position, castle_id=castle_id, kingdom_id=kingdom_id, slot_type=slot_type
@@ -243,29 +270,56 @@ class ArmyService(BaseService):
     # Hospital
     # =========================================================================
 
-    def heal_units(self, castle_id: int, wod_id: int, amount: int, timeout: float = 5.0) -> bool:
+    def heal_units(
+        self, castle_id: int, wod_id: int, amount: int, *, spend_rubies: bool = False, timeout: float = 5.0
+    ) -> bool:
         """
         Queue wounded units for healing.
 
+        A unit whose ``UnitStats.healing_cost_rubies`` is above 0 heals for rubies; see "Spending
+        rubies" in the guides. A subscription that waives it is not checked.
+
         Args:
             castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+            wod_id: The wounded unit's wod id
+            amount: How many to heal
+            spend_rubies: Allow healing a unit that costs rubies
+            timeout: Timeout in seconds
 
-        Client: ``CastleRecruitSelectedUnitComponent.onReviveClick`` (bundle line 51105)
+        Raises:
+            ValueError: The unit heals for rubies, or is not in the game data, and ``spend_rubies`` is False
+            GameDataNotLoadedError: ``spend_rubies`` is False and ``client.load_game_data()`` has not been called
+
+        Client: ``CastleRecruitSelectedUnitComponent.onReviveClick`` (bundle line 51105), priced at
+        ``healingCostC2`` per unit (bundle line 51110)
         """
+        if not spend_rubies:
+            unit = self._require_game_data("Pricing a heal").get_unit(wod_id)
+            if unit is None:
+                self._require_spend_rubies(spend_rubies, f"unit {wod_id} is not in the game data and may cost rubies")
+            elif unit.healing_cost_rubies > 0:
+                self._require_spend_rubies(spend_rubies, f"healing unit {wod_id} costs rubies")
         self._join_castle(castle_id, timeout)
         return self.execute(HealUnitsRequest(wod_id=wod_id, amount=amount), timeout=timeout)
 
-    def heal_all(self, castle_id: int, ruby_cost: int, timeout: float = 5.0) -> bool:
+    def heal_all(self, castle_id: int, ruby_cost: int, *, spend_rubies: bool = False, timeout: float = 5.0) -> bool:
         """
-        Heal every wounded unit at once, for rubies.
+        Heal every wounded unit at once, for rubies; see "Spending rubies" in the guides.
 
         Args:
             castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
             ruby_cost: The price the client would show (see ``HealAllRequest``);
                 the server refuses a price that no longer matches the hospital
+            spend_rubies: Allow a ``ruby_cost`` above 0
+            timeout: Timeout in seconds
 
-        Client: ``CastleHospitalReviveAllDialog.reviveAll`` (bundle line 83667)
+        Raises:
+            ValueError: ``ruby_cost`` is above 0 and ``spend_rubies`` is False
+
+        Client: ``CastleHospitalReviveAllDialog.reviveAll`` (bundle line 83667), with the price from
+        ``CastleRecruitDialogHospital.openReviveAllDialog`` (bundle lines 83509-83513)
         """
+        self._require_spend_rubies(spend_rubies, f"healing all costs {ruby_cost} rubies" if ruby_cost > 0 else None)
         self._join_castle(castle_id, timeout)
         return self.execute(HealAllRequest(ruby_cost=ruby_cost), timeout=timeout)
 
@@ -281,15 +335,24 @@ class ArmyService(BaseService):
         self._join_castle(castle_id, timeout)
         return self.execute(CancelHealRequest(position=position), timeout=timeout)
 
-    def skip_heal(self, castle_id: int, position: int, timeout: float = 5.0) -> bool:
+    def skip_heal(self, castle_id: int, position: int, *, spend_rubies: bool = False, timeout: float = 5.0) -> bool:
         """
-        Finish a hospital slot now, by its ``HospitalSlot.position``. Costs rubies.
+        Finish a hospital slot now, by its ``HospitalSlot.position``, for rubies; see "Spending
+        rubies" in the guides.
 
         Args:
             castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+            position: The slot's ``HospitalSlot.position``
+            spend_rubies: Allow the rubies it costs; without it nothing is sent
+            timeout: Timeout in seconds
 
-        Client: ``CastleRecruitDialogHospital`` (bundle line 83504)
+        Raises:
+            ValueError: ``spend_rubies`` is False
+
+        Client: ``CastleRecruitDialogHospital.skipCurrentSlot`` (bundle line 83504), priced in rubies
+        by ``updateSkipTooltip`` (bundle line 83582)
         """
+        self._require_spend_rubies(spend_rubies, "finishing a hospital slot costs rubies")
         self._join_castle(castle_id, timeout)
         return self.execute(SkipHealRequest(position=position), timeout=timeout)
 
