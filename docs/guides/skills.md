@@ -32,7 +32,8 @@ look them up by name:
 ```python
 data = client.load_game_data()
 toril = data.general("Toril")
-client.skills.assign_general(commander_id=3, general_id=toril.general_id)
+if toril is not None:
+    client.skills.assign_general(commander_id=3, general_id=toril.general_id)
 ```
 
 See [Lookups by name](game-data.md#lookups-by-name) for the rest.

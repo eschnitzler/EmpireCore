@@ -177,9 +177,9 @@ cart's `remaining_seconds` count down from when they arrived, as in the game:
 import time
 
 client.castle.join(castle_id)
-sent_at = client.state.get_last_packet_time("gsm")
+sent_at = client.state.get_last_packet_time("gsm")  # None until a gsm arrived
 for object_id, mine in client.state.get_mines().items():
-    if mine.next_collect_seconds >= 0 and mine.next_collect_seconds <= time.time() - sent_at:
+    if sent_at is not None and 0 <= mine.next_collect_seconds <= time.time() - sent_at:
         client.castle.collect_mine(object_id)
 ```
 
