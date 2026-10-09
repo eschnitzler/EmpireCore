@@ -208,6 +208,11 @@ if samurai is not None:
     print(samurai.parts["A"].league_id, samurai.parts["A"].own_points)
 ```
 
+`get_event` is typed by the event you pass: `get_event(Event.SAMURAI_INVASION)`
+is a `SamuraiInvasionEvent | None` to mypy and pyright, so its fields complete
+in the editor. An event without a model of its own, or a bare id, is a
+`SpecialEvent | None`.
+
 An event starts with the `sei` (or, for the kingdoms league and the global
 effects, `tei`) entry that names it, and later entries are read over it the way
 the game reads them: a field the entry leaves out mostly keeps its value. It
