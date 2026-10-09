@@ -7,7 +7,8 @@ the arguments its callbacks take::
     on_chat_message = Event[AllianceChatMessageResponse]()
     on_disconnect = Event[()]()
 
-``owner.on_chat_message(callback)`` registers, ``owner.on_chat_message.remove(callback)``
+``owner.on_chat_message(callback)`` registers and returns the callback, so
+``@owner.on_chat_message`` works as a decorator; ``owner.on_chat_message.remove(callback)``
 unregisters, and the owner fires the event through ``owner.on_chat_message.calls()``, a
 snapshot taken under the store's lock. The store is the owner's ``_registry``.
 
@@ -78,8 +79,10 @@ class BoundEvent(Generic[C]):
     name: str
     registry: Registry
 
-    def __call__(self, callback: C) -> None:
+    def __call__(self, callback: C) -> C:
+        """Register ``callback`` and return it, so the event also works as a decorator."""
         self.registry.add(self.name, callback)
+        return callback
 
     def remove(self, callback: C) -> None:
         self.registry.remove(self.name, callback)
