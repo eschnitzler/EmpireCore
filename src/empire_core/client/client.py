@@ -338,20 +338,20 @@ class EmpireClient:
 
     @overload
     def listen(
-        self, source: Callable[[Callable[[Unpack[Args]], Any]], None], /, *, maxsize: int = 0
+        self, source: Callable[[Callable[[Unpack[Args]], Any]], object], /, *, maxsize: int = 0
     ) -> EventStream[Unpack[Args]]: ...
 
     @overload
     def listen(
         self,
-        *sources: Callable[[Callable[..., Any]], None],
+        *sources: Callable[[Callable[..., Any]], object],
         names: Iterable[str] | None = None,
         maxsize: int = 0,
     ) -> EventStream[Unpack[tuple[Any, ...]]]: ...
 
     def listen(
         self,
-        *sources: Callable[..., None],
+        *sources: Callable[..., object],
         names: Iterable[str] | None = None,
         maxsize: int = 0,
     ) -> EventStream[Unpack[tuple[Any, ...]]]:
