@@ -52,7 +52,7 @@ class CallbackSource:
     """An event the client, its state or a service declares as ``on_<name>``."""
 
     name: str
-    register: Callable[[Callable[..., Any]], None]
+    register: Callable[[Callable[..., Any]], object]
     unregister: Callable[[Callable[..., Any]], None]
     on_callback_thread: bool
 

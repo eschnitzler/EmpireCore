@@ -96,6 +96,20 @@ class TestRemove:
         client.alliance.on_chat_message.remove(seen.append)
         assert client.alliance.on_chat_message.calls() == []
 
+    def test_registering_returns_the_callback_so_an_event_decorates(self, client: EmpireClient):
+        @client.state.on_incoming_attack
+        def on_attack(movement: Movement) -> None: ...
+
+        @client.state.on_movement_arrived
+        def on_arrived(movement_id: int, movement: Movement | None) -> None: ...
+
+        assert client.state.on_incoming_attack.calls() == [on_attack]
+        assert client.state.on_movement_arrived.calls() == [on_arrived]
+        assert client.alliance.on_chat_message(print) is print
+        assert_type(on_attack, Callable[[Movement], object])
+        client.state.on_incoming_attack.remove(on_attack)
+        assert client.state.on_incoming_attack.calls() == []
+
     def test_the_client_registers_each_callback_once_and_ignores_an_unknown_removal(self, client):
         lost: list[Exception] = []
         client.on_session_lost(lost.append)
