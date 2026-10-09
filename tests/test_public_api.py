@@ -74,7 +74,7 @@ _ROOT_NAMES = (
     "AccountPool",
     "PoolExhaustedError",
     "Account",
-    "accounts",
+    "account_registry",
     "EmpireError",
     "NetworkError",
     "ConnectionClosedError",
