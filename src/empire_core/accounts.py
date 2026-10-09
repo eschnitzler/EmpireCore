@@ -193,7 +193,7 @@ class AccountRegistry:
         _warn_on_loose_permissions(target_path)
 
         try:
-            with open(target_path, "r") as f:
+            with open(target_path, encoding="utf-8") as f:
                 data = json.load(f)
 
             if not isinstance(data, list):

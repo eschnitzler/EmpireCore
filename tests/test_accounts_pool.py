@@ -1,11 +1,14 @@
 """Tests for account loading, login configuration, and the account pool."""
 
+import builtins
+import importlib
 import json
 import logging
 import os
 import stat
 import threading
 import time
+from typing import IO, Any
 
 import pytest
 from pydantic import ValidationError
@@ -14,6 +17,9 @@ from empire_core.accounts import Account, AccountRegistry
 from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, default_config, generate_aid, resolve_aid
 from empire_core.exceptions import LoginCooldownError, LoginError
 from empire_core.pool import AccountPool, PoolExhaustedError
+
+# empire_core.accounts as an attribute is the root's registry object, so reach the module itself
+accounts_module = importlib.import_module("empire_core.accounts")
 
 
 @pytest.fixture
@@ -77,6 +83,18 @@ class TestAccountRegistryEnv:
         registry.load(file_path=str(accounts_file))
         assert registry.get_by_username("on") is not None
         assert registry.get_by_username("off") is None
+
+    def test_the_file_is_read_as_utf8_whatever_the_platform_default(self, tmp_path, monkeypatch):
+        accounts_file = tmp_path / "accounts.json"
+        accounts_file.write_text(json.dumps([{"username": "Jérôme", "password": "p"}], ensure_ascii=False), "utf-8")
+
+        def platform_open(file: str, mode: str = "r", encoding: str | None = None) -> IO[Any]:
+            return builtins.open(file, mode, encoding=encoding or "cp1252")  # noqa: SIM115
+
+        monkeypatch.setattr(accounts_module, "open", platform_open, raising=False)
+        registry = AccountRegistry()
+        registry.load(file_path=str(accounts_file))
+        assert registry.get_by_username("Jérôme") is not None
 
     def test_malformed_file_entry_does_not_log_password(self, tmp_path, caplog):
         accounts_file = tmp_path / "accounts.json"
