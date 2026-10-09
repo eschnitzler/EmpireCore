@@ -46,8 +46,8 @@ LEVEL_70_ALB = {
 }
 
 
-# Skaar's alb, as captured live (two of its days)
-SKAAR_ALB = {
+# An alb as captured live (two of its days)
+LIVE_ALB = {
     "D": 1,
     "R": [
         {
@@ -75,7 +75,7 @@ ALB = {
 
 class TestLoginBonusRewards:
     def test_skaars_login_bonus(self):
-        bonus = GetLoginBonusResponse.model_validate(SKAAR_ALB)
+        bonus = GetLoginBonusResponse.model_validate(LIVE_ALB)
 
         first, second = bonus.days
         assert [(item.kind, item.item, item.amount) for item in first.rewards] == [
@@ -91,8 +91,8 @@ class TestLoginBonusRewards:
         assert [item.send_key for item in second.rewards] == ["U", "F", "MS3"]
 
     def test_a_units_reward_is_sent_with_its_unit(self):
-        client = leveled_client({"clb": xt_packet("clb", {"alb": SKAAR_ALB})})
-        today = GetLoginBonusResponse.model_validate(SKAAR_ALB).today
+        client = leveled_client({"clb": xt_packet("clb", {"alb": LIVE_ALB})})
+        today = GetLoginBonusResponse.model_validate(LIVE_ALB).today
         assert today is not None
 
         client.rewards.collect_login_bonus(today.rewards[0])
