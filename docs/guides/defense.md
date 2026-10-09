@@ -14,9 +14,10 @@ priorities and castellan:
 castle = client.state.get_castles()[0]
 defense = client.defense.get_own_defense(castle.x, castle.y, castle.id)
 
-print(defense.keep.slots)            # (WodAmount(item=..., amount=...), ...), one per slot
-print(defense.wall.left.unit_percent)
-print(defense.moat.middle_slots)
+if defense.keep and defense.wall and defense.moat:   # None when the reply has no such block
+    print(defense.keep.slots)        # (WodAmount(item=..., amount=...), ...), one per slot
+    print(defense.wall.left.unit_percent)
+    print(defense.moat.middle_slots)
 print(defense.inventory())           # {Unit or Tool: amount}
 print(defense.range_priority)        # (Unit.X, ...): the order the game places ranged units in
 ```
