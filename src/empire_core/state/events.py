@@ -3,9 +3,43 @@
 import logging
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
-from empire_core.events.models import CampaignEvent, KingdomsLeagueEvent, SpecialEvent, event_class
+from typing_extensions import overload
+
+from empire_core.events.models import (
+    AlienInvasionEvent,
+    AllianceBonusEvent,
+    AllianceMobilizationEvent,
+    AllianceTournamentEvent,
+    ArtifactEvent,
+    BeggingKnightsEvent,
+    BerimondEvent,
+    CampaignEvent,
+    CampaignQuestEvent,
+    DiscountSaleEvent,
+    DonationEvent,
+    FactionInvasionEvent,
+    FameBoosterEvent,
+    FortuneTellerEvent,
+    GachaEvent,
+    GiftEvent,
+    GlobalEffectBuffEvent,
+    GlobalEffectEvent,
+    KingdomsLeagueEvent,
+    LongTermPointEvent,
+    LuckyWheelEvent,
+    NomadInvasionEvent,
+    PointEvent,
+    RaidBossEvent,
+    SamuraiInvasionEvent,
+    SeasonEvent,
+    SkipForFreeEvent,
+    SpecialEvent,
+    TempServerEvent,
+    TournamentEvent,
+    event_class,
+)
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase
@@ -222,8 +256,95 @@ class EventState(StateBase):
             self._expire_events()
             return dict(self.events)
 
+    @overload
+    def get_event(self, event: Literal[Event.FACTION]) -> BerimondEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.POINT_EVENT]) -> PointEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.BEGGING_KNIGHTS]) -> BeggingKnightsEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.LONG_TERM_POINT_EVENT]) -> LongTermPointEvent | None: ...
+    @overload
+    def get_event(
+        self, event: Literal[Event.ALLIANCE_ALIEN_INVASION, Event.RED_ALLIANCE_ALIEN_INVASION]
+    ) -> AlienInvasionEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.ALLIANCE_NOMAD_INVASION]) -> NomadInvasionEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.SAMURAI_INVASION]) -> SamuraiInvasionEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.FACTION_INVASION]) -> FactionInvasionEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.ALLIANCE_RAIDBOSS_EVENT]) -> RaidBossEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.TEMP_SERVER]) -> TempServerEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.DONATION_EVENT]) -> DonationEvent | None: ...
+    @overload
+    def get_event(
+        self,
+        event: Literal[
+            Event.GACHA_DECO2X2,
+            Event.CHRISTMAS_GACHA,
+            Event.EASTER_GACHA,
+            Event.SUMMER_GACHA,
+            Event.ANNIVERSARY_GACHA,
+            Event.HALLOWEEN_GACHA,
+            Event.BLACK_FRIDAY_GACHA,
+            Event.CARNIVAL_GACHA,
+        ],
+    ) -> GachaEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.SEASON_LEAGUE]) -> KingdomsLeagueEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.GLOBAL_EFFECT]) -> GlobalEffectEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.GLOBAL_EFFECT_BUFF]) -> GlobalEffectBuffEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.ALLI_TOURNAMENT]) -> AllianceTournamentEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.ALLIANCE_MOBILIZATION_EVENT]) -> AllianceMobilizationEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.LUCKY_WHEEL, Event.SALE_DAYS_LUCKY_WHEEL]) -> LuckyWheelEvent | None: ...
+    @overload
+    def get_event(
+        self,
+        event: Literal[Event.ARTIFACT_19, Event.ARTIFACT_23, Event.ARTIFACT_29, Event.ARTIFACT_30, Event.ARTIFACT_67],
+    ) -> ArtifactEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.THORNKING, Event.SEAQUEEN, Event.UNDERWORLD]) -> SeasonEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.FAMEBOOSTER]) -> FameBoosterEvent | None: ...
+    @overload
+    def get_event(
+        self, event: Literal[Event.PRIME_ALLI_BONUS, Event.ALLI_PAYMENT_BONUS]
+    ) -> AllianceBonusEvent | None: ...
+    @overload
+    def get_event(
+        self, event: Literal[Event.RELIC_ENCHANTER_PRIME_SALE, Event.SEASON_PASS_PRIME_SALE]
+    ) -> DiscountSaleEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.SKIP_FOR_FREE]) -> SkipForFreeEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.GGS_GIFT]) -> GiftEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.FORTUNE_TELLER]) -> FortuneTellerEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.TOURNAMENT]) -> TournamentEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.TIME_LIMITED_CAMPAIGN_EVENT]) -> CampaignEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.TIME_LIMITED_CAMPAIGN_QUEST_EVENT]) -> CampaignQuestEvent | None: ...
+    @overload
+    def get_event(self, event: Event | int) -> SpecialEvent | None: ...
+
     def get_event(self, event: Event | int) -> SpecialEvent | None:
-        """A running event, or None when it is not running."""
+        """A running event, or None when it is not running.
+
+        Typed as the model of its type (:data:`~empire_core.events.models.EVENT_CLASSES`) when
+        ``event`` names one, so ``get_event(Event.SAMURAI_INVASION)`` is a
+        ``SamuraiInvasionEvent | None``; any other event or a bare id is a ``SpecialEvent``.
+        """
         with self._lock:
             self._expire_events()
             return self.events.get(int(event))
