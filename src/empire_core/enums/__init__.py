@@ -1,8 +1,14 @@
 """Game enumerations.
 
-Every public enum lives in this package, one module per area. The modules
-import nothing but :mod:`enum`, so any module can import them without a cycle.
+Every public enum is exported here. The hand-written ones live in this package, one
+module per area; those modules import nothing but :mod:`enum`, so any module can
+import them without a cycle. The generated game-data id enums (``Unit``, ``Tool``,
+``Research``, ...) live in :mod:`empire_core.gamedata` and load on first use here too.
 """
+
+from typing import TYPE_CHECKING
+
+from empire_core.utils.lazy import lazy_exports
 
 from .alliance import (
     AllianceBuffType,
@@ -32,12 +38,15 @@ from .combat import (
     CombatEffectType,
     Flank,
     LootPriority,
+    TargetRead,
 )
 from .commanders import EquipmentSlot, EquipmentType, Rareness, WearerType
+from .errors import GGEError
 from .gamedata import (
     BuildingGroundType,
     BuildingGroup,
     CastleEffect,
+    EffectTemplate,
     PlayerRelation,
     QuestConditionType,
     RelicEffectType,
@@ -46,6 +55,7 @@ from .gamedata import (
     ToolSide,
     UnitRole,
 )
+from .login import VersionCheckStatus
 from .map import Kingdom, MapItemType, NPCOwner, PeaceModeStatus
 from .messages import BattleLogAttackType, LogResult, MessageType
 from .movements import MovementType
@@ -53,6 +63,40 @@ from .player import MercenaryMissionRarity, MercenaryMissionState, PremiumAccoun
 from .ranking import RankingType
 from .rewards import LoginBonusSpecial
 from .spy import SpyArmySection, SpyLogType, SpyOutcome, SpyStep, SpyType
+
+if TYPE_CHECKING:
+    from empire_core.gamedata.ids import (
+        Achievement,
+        AllianceCrestColor,
+        AllianceCrestLayout,
+        Building,
+        ConstructionItem,
+        Currency,
+        CurrencyId,
+        DailyQuestId,
+        DifficultyType,
+        Effect,
+        EffectType,
+        EquipmentGroup,
+        Event,
+        Gem,
+        General,
+        GeneralAbility,
+        GeneralSkill,
+        GlobalEffect,
+        Horse,
+        LegendSkill,
+        LootBox,
+        LootBoxType,
+        MainQuest,
+        QuestId,
+        RaidBoss,
+        Research,
+        SceatSkill,
+        Title,
+        Tool,
+        Unit,
+    )
 
 __all__ = [
     # Map / kingdom
@@ -70,6 +114,10 @@ __all__ = [
     "Flank",
     "BattleLogFlank",
     "CombatEffectType",
+    "TargetRead",
+    # Errors and the login
+    "GGEError",
+    "VersionCheckStatus",
     # Spy
     "SpyType",
     "SpyLogType",
@@ -128,4 +176,39 @@ __all__ = [
     "ToolCategory",
     "ToolSide",
     "UnitRole",
+    "EffectTemplate",
+    # Game-data ids, generated
+    "Achievement",
+    "AllianceCrestColor",
+    "AllianceCrestLayout",
+    "Building",
+    "ConstructionItem",
+    "Currency",
+    "CurrencyId",
+    "DailyQuestId",
+    "DifficultyType",
+    "Effect",
+    "EffectType",
+    "EquipmentGroup",
+    "Event",
+    "Gem",
+    "General",
+    "GeneralAbility",
+    "GeneralSkill",
+    "GlobalEffect",
+    "Horse",
+    "LegendSkill",
+    "LootBox",
+    "LootBoxType",
+    "MainQuest",
+    "QuestId",
+    "RaidBoss",
+    "Research",
+    "SceatSkill",
+    "Title",
+    "Tool",
+    "Unit",
 ]
+
+if not TYPE_CHECKING:
+    __getattr__ = lazy_exports(__name__, "empire_core.gamedata.ids", __all__[__all__.index("Achievement") :])

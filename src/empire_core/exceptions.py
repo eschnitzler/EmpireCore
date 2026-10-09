@@ -18,11 +18,9 @@ Failure modes are kept distinct so callers can react to them individually:
 - ``LoginBonusUnavailableError``: the login bonus is asked for below the XP the client asks from.
 """
 
-from enum import IntEnum
 from typing import Any
 
-from empire_core.enums import Kingdom
-from empire_core.protocol.errors import GGEError
+from empire_core.enums import GGEError, Kingdom, VersionCheckStatus
 from empire_core.texts import cached_text
 
 
@@ -44,7 +42,7 @@ class LoginError(EmpireError):
 
     Attributes:
         code: the server's status code when the server refused the login, else None
-        error: the matching :class:`~empire_core.protocol.errors.GGEError` member,
+        error: the matching :class:`~empire_core.enums.errors.GGEError` member,
             or None for no code or a code this library does not know yet
     """
 
@@ -119,18 +117,6 @@ class WrongServerError(LoginError):
         super().__init__(
             f"Account is on another server (instance {instance_id})", GGEError.EXISTING_MAPPING_WRONG_SERVER.value
         )
-
-
-class VersionCheckStatus(IntEnum):
-    """
-    The version check (``vck``) refusals, which are not ``GGEError`` codes.
-
-    Client: ``VCKCommand.VERSION_TOO_LOW`` and ``VERSION_TOO_HIGH`` (dll line 14473),
-    matched by ``CastleVCKCommand.executeCommand`` (bundle line 120444)
-    """
-
-    VERSION_TOO_LOW = 1
-    VERSION_TOO_HIGH = 2
 
 
 class ClientVersionError(LoginError):
@@ -291,7 +277,7 @@ class CommandError(EmpireError):
     Attributes:
         command: the command that failed (e.g. ``"gaa"``).
         code: the raw numeric status code sent by the server.
-        error: the matching :class:`~empire_core.protocol.errors.GGEError`
+        error: the matching :class:`~empire_core.enums.errors.GGEError`
             member, or ``None`` when the server sent a code this library does
             not know yet. Branch on it instead of on magic numbers::
 

@@ -8,13 +8,12 @@ import logging
 from collections.abc import Callable, Collection
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from empire_core.enums import Kingdom
+from empire_core.enums import GGEError, Kingdom
 from empire_core.exceptions import AmbiguousCastleError, CommandError, UnknownCastleError
 from empire_core.gamedata import Currency
 from empire_core.gamedata.collectables import MINUTE_SKIP_FIRST_ID, MINUTE_SKIP_KEY
 from empire_core.gamedata.lenient import known
 from empire_core.protocol.base import BaseRequest, BaseResponse
-from empire_core.protocol.errors import GGEError
 from empire_core.utils.callbacks import BoundEvent, Registry
 
 if TYPE_CHECKING:

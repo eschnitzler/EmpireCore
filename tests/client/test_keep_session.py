@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from empire_core.client import session as session_module
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
-from empire_core.enums import MovementType
+from empire_core.enums import GGEError, MovementType
 from empire_core.exceptions import (
     AccountBannedError,
     ConnectionClosedError,
@@ -21,7 +21,6 @@ from empire_core.exceptions import (
     LoginCooldownError,
     NetworkError,
 )
-from empire_core.protocol.errors import GGEError
 from tests.client.test_disconnect import arrive_packet, drop, new_session
 from tests.service_helpers import xt_packet
 from tests.state.state_helpers import gam_payload, wait_for

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pydantic import ValidationError
 
 from empire_core.army.spy_army import SpyArmy
-from empire_core.enums import Kingdom, SpyLogType, SpyOutcome, SpyStep, SpyType, TitleSystem
+from empire_core.enums import GGEError, Kingdom, SpyLogType, SpyOutcome, SpyStep, SpyType, TitleSystem
 from empire_core.exceptions import CommandError, EmpireError, GameDataNotLoadedError
 from empire_core.messages.models import (
     ForwardSpyLogRequest,
@@ -27,7 +27,6 @@ from empire_core.messages.models import (
 from empire_core.movements.models import MovementRecord
 from empire_core.player.titles import held_titles
 from empire_core.protocol.base import parse_response
-from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import Packet
 from empire_core.services.base import BaseService
 from empire_core.utils.cancel import sleep_unless_cancelled
