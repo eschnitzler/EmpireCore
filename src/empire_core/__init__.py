@@ -27,6 +27,7 @@ from empire_core.config import EmpireConfig, NetworkInstance, fetch_network_inst
 from empire_core.enums import (
     AttackType,
     EquipmentSlot,
+    GGEError,
     Kingdom,
     LootPriority,
     MapItemType,
@@ -76,11 +77,10 @@ from empire_core.map.scanner import ScanResult
 from empire_core.messages.models import SpyReportArea, SpyReportResponse
 from empire_core.movements.tracked import Movement, MovementResources
 from empire_core.pool import AccountPool, PoolExhaustedError
-from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import Packet
 from empire_core.protocol.text import decode_json_text, encode_json_text
 from empire_core.spy.service import SpyHandle, SpyResult, SpyService
-from empire_core.state.models import Alliance, Building, Castle, Player, Resources
+from empire_core.state.models import Alliance, Castle, Player, Resources
 
 try:
     __version__ = version(__package__ or "empire-core")
@@ -135,7 +135,6 @@ __all__ = [
     "Player",
     "Castle",
     "Resources",
-    "Building",
     "Alliance",
     "Movement",
     "MovementResources",

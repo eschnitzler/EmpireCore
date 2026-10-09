@@ -12,8 +12,8 @@ import pytest
 import requests
 
 from empire_core import texts
+from empire_core.enums import GGEError
 from empire_core.exceptions import AccountBannedError, CommandError, LoginCooldownError, LoginError, WrongServerError
-from empire_core.protocol.errors import GGEError
 from empire_core.texts import (
     RETRY_AFTER_FAILURE,
     LocalizedNumber,

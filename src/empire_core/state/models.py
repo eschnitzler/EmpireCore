@@ -1,4 +1,4 @@
-"""The state's models: the local player, castles, resources and buildings."""
+"""The state's models: the local player, castles and resources."""
 
 from typing import TYPE_CHECKING, Any
 
@@ -77,17 +77,6 @@ class Resources(BaseModel):
         return self.safe.food
 
 
-class Building(BaseModel):
-    """Represents a building in a castle."""
-
-    id: int
-    level: int = 0
-
-    # Building status (if available)
-    upgrading: bool = False
-    upgrade_finish_time: int | None = None
-
-
 class Alliance(BaseModel):
     """The local player's alliance membership, from the ``gal`` login section.
 
@@ -143,7 +132,6 @@ class Castle(BaseModel):
     y: int = Field(default=0, alias="Y", description="Map y")
 
     resources: Resources = Field(default_factory=Resources, description="The castle's resources")
-    buildings: list[Building] = Field(default_factory=list)
     units: WodAmounts = Field(default_factory=dict, description="Units and tools stationed here")
     open_gate_counter: int = Field(
         default=0, alias="OGC", description="How often the gate has been opened since the last Monday reset"

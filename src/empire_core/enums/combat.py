@@ -161,3 +161,17 @@ class CombatEffectType(IntEnum):
     MELEE_DEFENSE_MALUS = 215
     RANGE_DEFENSE_MALUS = 217
     ABILITY_PLUNDER = 1026
+
+
+class TargetRead(str, Enum):
+    """
+    A read ``fill_attack`` makes of its target, naming what it filled without in ``FilledAttack.unread``.
+
+    ``TILE`` is the map scan (``gaa``), ``PRECALCULATION`` the attack pre-calculation,
+    ``GENERAL_SKILLS`` the general's skills (``gie``) and ``LEGEND_SKILLS`` the player's (``skl``).
+    """
+
+    TILE = "tile"
+    PRECALCULATION = "precalculation"
+    GENERAL_SKILLS = "general_skills"
+    LEGEND_SKILLS = "legend_skills"

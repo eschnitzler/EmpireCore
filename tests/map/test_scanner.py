@@ -9,10 +9,9 @@ from typing import Any
 
 import pytest
 
-from empire_core.enums import Kingdom, MapItemType
+from empire_core.enums import GGEError, Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
 from empire_core.map.scanner import MapScanner, scan_kingdom_with
-from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import Packet
 
 

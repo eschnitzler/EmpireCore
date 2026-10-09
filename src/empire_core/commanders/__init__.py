@@ -1,6 +1,9 @@
 """Commanders, castellans, generals, skills and equipment."""
 
+from typing import TYPE_CHECKING
+
 from empire_core.enums import EquipmentSlot, EquipmentType, Rareness, WearerType
+from empire_core.utils.lazy import lazy_exports
 
 from .models import (
     FACTION_BARON_ID,
@@ -23,7 +26,6 @@ from .models import (
     EquipmentBonus,
     GemInventoryResponse,
     GemStack,
-    General,
     GetCommandersRequest,
     GetCommandersResponse,
     GetEquipmentInventoryRequest,
@@ -36,6 +38,7 @@ from .models import (
     LeaderBase,
     NewRelicsResponse,
     ObjectUpdateEvent,
+    OwnedGeneral,
     RelicBonus,
     RelicGem,
     RelicInfo,
@@ -48,6 +51,9 @@ from .models import (
     UnlockGeneralSkillRequest,
 )
 from .service import CommandersService, EquipmentService, SkillsService
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Gem, GeneralAbility, GeneralSkill, LegendSkill, SceatSkill
 
 __all__ = [
     "NO_GEM_ID",
@@ -74,7 +80,7 @@ __all__ = [
     "GetCommandersResponse",
     "RenameCommanderRequest",
     "RenameCommanderResponse",
-    "General",
+    "OwnedGeneral",
     "SelectedAbility",
     "GetGeneralsRequest",
     "GetGeneralsResponse",
@@ -100,4 +106,15 @@ __all__ = [
     "GemInventoryResponse",
     "GemStack",
     "InventorySpace",
+    "Gem",
+    "GeneralAbility",
+    "GeneralSkill",
+    "LegendSkill",
+    "SceatSkill",
 ]
+
+
+if not TYPE_CHECKING:
+    __getattr__ = lazy_exports(
+        __name__, "empire_core.gamedata.ids", ("Gem", "GeneralAbility", "GeneralSkill", "LegendSkill", "SceatSkill")
+    )

@@ -48,7 +48,7 @@ class GetGeneralsRequest(BaseRequest):
     command = "gie"
 
 
-class General(BasePayload):
+class OwnedGeneral(BasePayload):
     """
     One general, as ``GeneralVO.parseData`` reads it.
 
@@ -103,7 +103,7 @@ class General(BasePayload):
         return readable_list(SelectedAbility, value)
 
     @model_validator(mode="after")
-    def _star_level_from_fixed_level(self) -> General:
+    def _star_level_from_fixed_level(self) -> OwnedGeneral:
         """
         Derive the star level from the fixed level when ST is falsy.
 
@@ -167,7 +167,7 @@ class AssignGeneralRequest(BaseRequest):
         alias="GID",
         default=-1,
         description=(
-            "The general, an owned general's General.general_id from client.skills.get_generals(); -1 unassigns the "
+            "The general, an OwnedGeneral.general_id from client.skills.get_generals(); -1 unassigns the "
             "commander's general"
         ),
     )
@@ -209,8 +209,7 @@ class SetGeneralAbilitiesRequest(BaseRequest):
     general_id: int = Field(
         alias="GID",
         description=(
-            "The general whose abilities are chosen, an owned general's General.general_id from "
-            "client.skills.get_generals()"
+            "The general whose abilities are chosen, an OwnedGeneral.general_id from client.skills.get_generals()"
         ),
     )
     abilities: list[SelectedAbility] = Field(
@@ -252,8 +251,7 @@ class ResetGeneralSkillsRequest(BaseRequest):
     general_id: int = Field(
         alias="GID",
         description=(
-            "The general whose skills are reset, an owned general's General.general_id from "
-            "client.skills.get_generals()"
+            "The general whose skills are reset, an OwnedGeneral.general_id from client.skills.get_generals()"
         ),
     )
 
@@ -274,9 +272,7 @@ class AddGeneralXpRequest(BaseRequest):
 
     general_id: int = Field(
         alias="GID",
-        description=(
-            "The general to give xp to, an owned general's General.general_id from client.skills.get_generals()"
-        ),
+        description=("The general to give xp to, an OwnedGeneral.general_id from client.skills.get_generals()"),
     )
     currency_id: int = Field(alias="CID", description="The xp item, a currency")
     amount: int = Field(alias="AMT", description="How many of the xp item to use")
@@ -295,12 +291,12 @@ class GetGeneralsResponse(BaseResponse):
 
     command = "gie"
 
-    generals: list[General] = Field(alias="G", default_factory=list, description="The player's generals")
+    generals: list[OwnedGeneral] = Field(alias="G", default_factory=list, description="The player's generals")
 
     @field_validator("generals", mode="before")
     @classmethod
     def _readable_generals(cls, value: Any) -> Any:
-        return readable_list(General, value, warn=logger, what="generals")
+        return readable_list(OwnedGeneral, value, warn=logger, what="generals")
 
     def skill_ids(self, general_id: int) -> tuple[EnumOrInt["GeneralSkill"], ...]:
         """The skills one general has unlocked, empty when it is not listed."""
@@ -418,7 +414,7 @@ class ObjectUpdateEvent(BaseResponse):
 
 
 __all__ = [
-    "General",
+    "OwnedGeneral",
     "SelectedAbility",
     "GetGeneralsRequest",
     "GetGeneralsResponse",

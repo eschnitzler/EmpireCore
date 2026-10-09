@@ -12,7 +12,7 @@ from __future__ import annotations
 import threading
 from typing import TypeVar
 
-from empire_core.enums import Kingdom, MapItemType
+from empire_core.enums import GGEError, Kingdom, MapItemType
 from empire_core.exceptions import CommandError
 from empire_core.map.models.areas import (
     MAX_FINDABLE_ENEMY_INDEX,
@@ -28,7 +28,6 @@ from empire_core.map.models.areas import (
 from empire_core.map.models.items import parse_area_rows
 from empire_core.map.scanner import ChunkHandler, MapScanner, ScanResult
 from empire_core.protocol.base import BaseRequest
-from empire_core.protocol.errors import GGEError
 from empire_core.services.base import BaseService
 
 _F = TypeVar("_F", bound=FindNextMapObjectResponse)

@@ -303,3 +303,16 @@ class CastleEffect(str, Enum):
     DISTRICT_SLOTS = "districtSlots"
     MEADREDUCTION = "Meadreduction"
     BEEFREDUCTION = "Beefreduction"
+
+
+class EffectTemplate(Enum):
+    """Which of the game's texts describes an effect, by where it is shown."""
+
+    CONSTRUCTION_ITEM = "ci_effect_"
+    """``ci_effect_<name>``: a construction item's bonuses (``ConstructionItemVO.effectText``, bundle line 47766)."""
+    BUILDING = "effect_name_"
+    """``effect_name_<name>``, with the effect's cap when it has one: a decoration's effects
+    (``ADecoBuildingVO.createAdditionalEffectItems``, bundle line 11897)."""
+    EQUIPMENT = "equip_effect_description_"
+    """``equip_effect_description_<name>``: an equipment item's or a gem's bonus (``BonusVO.descriptionText``,
+    ``EquipmentBonusVO.descriptionText`` and ``GemBonusVO.descriptionText``, bundle lines 5711, 20944 and 46807)."""

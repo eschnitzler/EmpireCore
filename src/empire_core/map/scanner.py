@@ -7,11 +7,10 @@ from collections import deque
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any, NamedTuple, Protocol
 
-from empire_core.enums import Kingdom, MapItemType
+from empire_core.enums import GGEError, Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
 from empire_core.map.models.areas import GetMapAreaRequest, MapObject
 from empire_core.map.models.items import MapAreaItem
-from empire_core.protocol.errors import GGEError
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.protocol.packet import Packet
 from empire_core.utils.cancel import sleep_unless_cancelled

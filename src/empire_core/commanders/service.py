@@ -339,7 +339,7 @@ class SkillsService(BaseService):
         Args:
             commander_id: A ``Commander.commander_id`` from
                 ``client.commanders.get_commanders()``
-            general_id: An owned general's ``General.general_id`` from :meth:`get_generals`;
+            general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
                 ``client.game_data.general(name)`` finds its ``generalID`` by name
             timeout: Timeout in seconds
 
@@ -360,7 +360,7 @@ class SkillsService(BaseService):
         Choose a general's abilities.
 
         Args:
-            general_id: An owned general's ``General.general_id`` from :meth:`get_generals`;
+            general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
                 ``client.game_data.general(name)`` finds its ``generalID`` by name
             abilities: ``(slot_id, ability_id)`` pairs, ``-1`` or ``None`` to clear a slot.
                 The client sends every slot it shows. An ability id comes from
@@ -395,7 +395,7 @@ class SkillsService(BaseService):
         Reset a general's skill tree.
 
         Args:
-            general_id: An owned general's ``General.general_id`` from :meth:`get_generals`;
+            general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
                 ``client.game_data.general(name)`` finds its ``generalID`` by name
             timeout: Timeout in seconds
 
@@ -409,7 +409,7 @@ class SkillsService(BaseService):
         Feed a general xp items.
 
         Args:
-            general_id: An owned general's ``General.general_id`` from :meth:`get_generals`;
+            general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
                 ``client.game_data.general(name)`` finds its ``generalID`` by name
             currency_id: The xp item's ``currencyID``, e.g.
                 ``client.game_data.currency("GXP1").currency_id``

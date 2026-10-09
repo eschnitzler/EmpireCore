@@ -8,6 +8,7 @@ import re
 import threading
 from typing import Literal
 
+from empire_core.enums import GGEError
 from empire_core.exceptions import CommandError, MessageUnavailableError
 from empire_core.messages.models import (
     MAX_SUBJECT_LENGTH,
@@ -35,7 +36,6 @@ from empire_core.messages.models import (
     SystemNotificationEvent,
 )
 from empire_core.protocol.base import BaseResponse
-from empire_core.protocol.errors import GGEError
 from empire_core.services.base import BaseService
 from empire_core.utils.callbacks import Event
 

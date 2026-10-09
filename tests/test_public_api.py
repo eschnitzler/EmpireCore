@@ -21,6 +21,7 @@ import sys
 import textwrap
 import types
 from dataclasses import fields
+from enum import Enum
 from pathlib import Path
 from typing import Annotated, Any, get_args, get_origin, get_type_hints
 
@@ -28,6 +29,7 @@ import pytest
 
 import empire_core
 from empire_core.enums import Kingdom
+from empire_core.gamedata.lenient import LenientEnum
 from empire_core.services import BaseService
 
 REPO = Path(__file__).resolve().parent.parent
@@ -87,7 +89,6 @@ _ROOT_NAMES = (
     "Player",
     "Castle",
     "Resources",
-    "Building",
     "Alliance",
     "Movement",
     "MovementResources",
@@ -353,10 +354,10 @@ def _type_checking_names(module_name: str) -> dict[str, Any]:
 def _hints(obj: Any) -> dict[str, Any]:
     """The resolved hints, names imported only under TYPE_CHECKING included."""
     try:
-        return get_type_hints(obj)
+        return get_type_hints(obj, include_extras=True)
     except NameError:
         own = vars(sys.modules[obj.__module__])
-        return get_type_hints(obj, localns={**_type_checking_names(obj.__module__), **own})
+        return get_type_hints(obj, localns={**_type_checking_names(obj.__module__), **own}, include_extras=True)
 
 
 def _library_types(hint: Any) -> set[type]:
@@ -411,6 +412,98 @@ def test_every_type_a_public_signature_names_is_public() -> None:
                     if id(found) not in public_ids and path not in _INTERNAL_TYPES:
                         problems.add(f"{where} ({name}): {path} is not public")
     assert not problems, "\n".join(sorted(problems))
+
+
+def test_a_public_name_is_one_object_on_every_public_path() -> None:
+    """``from empire_core.x import Name`` and ``from empire_core.y import Name`` give the same object."""
+    paths: dict[str, dict[int, list[str]]] = {}
+    for module in PUBLIC_PATHS:
+        for name in _public_names(module):
+            obj = getattr(importlib.import_module(module), name)
+            paths.setdefault(name, {}).setdefault(id(obj), []).append(module)
+    clashes = {name: list(found.values()) for name, found in paths.items() if len(found) > 1}
+    assert not clashes, clashes
+
+
+def test_every_public_enum_is_exported_from_enums() -> None:
+    from empire_core import enums
+
+    missing = sorted(
+        f"{name} ({obj.__module__})"
+        for name, obj in _exports()
+        if inspect.isclass(obj) and issubclass(obj, Enum) and getattr(enums, name, None) is not obj
+    )
+    assert not missing, f"not exported from empire_core.enums: {missing}"
+    assert {name for name, obj in _exports() if inspect.isclass(obj) and issubclass(obj, Enum)} <= set(enums.__all__)
+
+
+def _enums_in(hint: Any) -> set[type[Enum]]:
+    """The library enums a hint names, the ones behind ``EnumOrInt[...]`` and its kin included."""
+    if get_origin(hint) is Annotated:
+        hint, *metadata = get_args(hint)
+        lenient = {
+            enum
+            for meta in metadata
+            if isinstance(getattr(meta, "func", None), LenientEnum)
+            for enum in meta.func.enums
+        }
+        return lenient | _enums_in(hint)
+    if get_origin(hint) is not None or isinstance(hint, types.UnionType):
+        return {enum for arg in get_args(hint) for enum in _enums_in(arg)}
+    if inspect.isclass(hint) and issubclass(hint, Enum) and hint.__module__.split(".")[0] == "empire_core":
+        return {hint}
+    return set()
+
+
+def _enum_uses() -> dict[str, set[type[Enum]]]:
+    """The enums each public module's own classes and functions name in their fields and signatures."""
+    uses: dict[str, set[type[Enum]]] = {}
+    classes = [obj for _, obj in _exports() if inspect.isclass(obj)]
+    defined = {klass for obj in classes for klass in obj.__mro__ if klass.__module__.split(".")[0] == "empire_core"}
+    for klass in defined:
+        own = set(vars(klass).get("__annotations__", {}))
+        hints = [hint for name, hint in _hints(klass).items() if name in own and not name.startswith("_")]
+        for name, member in vars(klass).items():
+            if name.startswith("_") and name != "__init__":
+                continue
+            member = member.fget if isinstance(member, property) else getattr(member, "__func__", member)
+            if inspect.isfunction(member):
+                hints += _hints(member).values()
+        uses.setdefault(_module_of(klass), set()).update(enum for hint in hints for enum in _enums_in(hint))
+    for _, obj in _exports():
+        if inspect.isfunction(obj):
+            uses.setdefault(_module_of(obj), set()).update(
+                enum for hint in _hints(obj).values() for enum in _enums_in(hint)
+            )
+    return uses
+
+
+def _module_of(obj: Any) -> str:
+    return ".".join(obj.__module__.split(".")[:2])
+
+
+def test_every_enum_a_public_module_uses_is_exported_from_it_and_from_enums() -> None:
+    """An enum in a public field or signature imports from ``empire_core.enums`` and from the area that uses it."""
+    from empire_core import enums
+
+    problems = []
+    for module, used in sorted(_enum_uses().items()):
+        if module not in PUBLIC_MODULES or module == "empire_core.enums":
+            continue
+        area = importlib.import_module(module)
+        for enum in sorted(used, key=lambda enum: enum.__name__):
+            if getattr(area, enum.__name__, None) is not enum or enum.__name__ not in area.__all__:
+                problems.append(f"{module} uses {enum.__name__} but does not export it")
+            if getattr(enums, enum.__name__, None) is not enum:
+                problems.append(f"empire_core.enums does not export {enum.__name__}")
+    assert not problems, "\n".join(problems)
+
+
+def test_the_enum_check_sees_lenient_fields() -> None:
+    from empire_core.commanders import OwnedGeneral
+    from empire_core.gamedata import GeneralSkill
+
+    assert GeneralSkill in _enums_in(get_type_hints(OwnedGeneral, include_extras=True)["skill_ids"])
 
 
 def test_top_level_movement_is_the_state_model_consumers_use() -> None:
@@ -512,8 +605,8 @@ def test_every_declared_exception_is_part_of_the_public_api() -> None:
 
 
 def test_command_error_exposes_the_resolved_gge_error() -> None:
+    from empire_core.enums import GGEError
     from empire_core.exceptions import CommandError
-    from empire_core.protocol.errors import GGEError
 
     err = CommandError("cra", 55)
     assert err.code == 55

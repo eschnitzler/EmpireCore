@@ -1,14 +1,19 @@
 """Castles: the castle list, castle details, buildings and castle actions."""
 
+from typing import TYPE_CHECKING
+
 from empire_core.enums import (
     BuildingState,
     ExpansionType,
+    Kingdom,
     KingdomTransferType,
+    MapItemType,
     MarketScope,
     Resource,
     ResourceCartType,
     TaxStatus,
 )
+from empire_core.utils.lazy import lazy_exports
 
 from .models import (
     FREE_SLOT,
@@ -124,6 +129,9 @@ from .models import (
     WishingWellResponse,
 )
 from .service import CastleService
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import ConstructionItem, Currency, Horse, Tool, Unit
 
 __all__ = [
     "AreaBooster",
@@ -245,4 +253,17 @@ __all__ = [
     "KingdomUnlock",
     "ConstructionItemExpiryResponse",
     "ResourcePoolResponse",
+    "Kingdom",
+    "MapItemType",
+    "ConstructionItem",
+    "Currency",
+    "Horse",
+    "Tool",
+    "Unit",
 ]
+
+
+if not TYPE_CHECKING:
+    __getattr__ = lazy_exports(
+        __name__, "empire_core.gamedata.ids", ("ConstructionItem", "Currency", "Horse", "Tool", "Unit")
+    )
