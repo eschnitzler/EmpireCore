@@ -19,6 +19,14 @@ client.state.on_incoming_attack(on_attack)
 client.state.on_movement_arrived(on_arrived)
 ```
 
+Registering returns the callback, so each one also works as a decorator:
+
+```python
+@client.state.on_incoming_attack
+def on_attack(movement):
+    print(f"{movement.troop_count} troops incoming")
+```
+
 Each one unregisters with its `.remove`, as in
 `client.state.on_incoming_attack.remove(on_attack)`; removing a callback not
 registered raises `ValueError`.
