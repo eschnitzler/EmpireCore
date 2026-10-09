@@ -20,7 +20,7 @@ from empire_core.gamedata import (
     Unit,
 )
 
-# The login bonus's first day as Skaar's alb sent it
+# The login bonus's first day as a live alb sent it
 LOGIN_BONUS_REWARDS = {"U": [[664, 5]], "MS2": [1], "C1": [2000], "HF": [240]}
 
 
