@@ -469,19 +469,24 @@ class AllianceService(BaseService):
         with self._own_alliance():
             return self.execute(SendNewsletterRequest.create(subject, text), timeout=timeout, raise_on=_ALLIANCE_GONE)
 
-    def donate(self, castle_id: int, donation: AllianceDonation, timeout: float = 5.0) -> DonateResponse:
+    def donate(
+        self, castle_id: int, donation: AllianceDonation, *, spend_rubies: bool = False, timeout: float = 5.0
+    ) -> DonateResponse:
         """
         Donate resources from one of your castles to the alliance treasury.
+
+        Donating ``AllianceDonation.rubies`` spends them; see "Spending rubies" in the guides.
 
         Args:
             castle_id: The donating castle, a ``Castle.id`` from ``client.state.get_castles()``
             donation: The amounts; the client sends nothing when every amount is 0
+            spend_rubies: Allow a donation of rubies
             timeout: Timeout in seconds
 
         Raises:
             UnknownCastleError: ``castle_id`` is not in your castle list
             AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
-            ValueError: every amount is 0
+            ValueError: every amount is 0, or rubies are donated and ``spend_rubies`` is False
             NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
 
@@ -491,6 +496,9 @@ class AllianceService(BaseService):
         request = DonateRequest.create(castle_id, self._require_own_castle(castle_id).kingdom_id, donation)
         if not request.resources:
             raise ValueError("a donation needs an amount above 0")
+        self._require_spend_rubies(
+            spend_rubies, f"donating {donation.rubies} rubies spends them" if donation.rubies > 0 else None
+        )
         with self._own_alliance():
             return self.request(request, DonateResponse, timeout=timeout)
 

@@ -21,12 +21,14 @@ client does, and raise ``UnknownCastleError`` for an id not in it, or
 
 Building methods act on the castle joined last (:meth:`CastleService.join`)
 and name buildings by object id, a ``BuildingRow.object_id`` from
-``join(...).buildings``. Their typed replies (``BuildResponse`` and the
+``join(...).buildings``; ``upgrade_building``, ``upgrade_defense`` and
+``finish_construction`` take the castle and join it themselves. Their typed replies (``BuildResponse`` and the
 others) can be read with ``client.request``.
 """
 
 from __future__ import annotations
 
+import time
 from collections.abc import Sequence
 
 from empire_core.castle.models.actions import (
@@ -64,6 +66,7 @@ from empire_core.castle.models.market import (
     MarketInfoResponse,
 )
 from empire_core.castle.models.objects import (
+    BuildingRow,
     ConstructionList,
     ShowConstructionListRequest,
     ShowConstructionListResponse,
@@ -97,15 +100,29 @@ from empire_core.castle.models.transfers import (
     KingdomUnitTransferRequest,
     MinuteSkipKingdomTransferRequest,
 )
-from empire_core.enums import ExpansionType, Kingdom, KingdomTransferType, Resource, ResourceCartType
+from empire_core.enums import (
+    BuildingState,
+    ExpansionType,
+    Kingdom,
+    KingdomTransferType,
+    Resource,
+    ResourceCartType,
+)
 from empire_core.exceptions import (
     AmbiguousCastleError,
     GameDataNotLoadedError,
     UnknownCastleError,
     UnsendableGoodsError,
 )
-from empire_core.gamedata import Currency, HorseStats, WodAmount, WodAmountMapping
+from empire_core.gamedata import BuildingDef, Currency, HorseStats, WodAmount, WodAmountMapping
 from empire_core.services.base import BaseService
+
+# PlayerConst.CHANGE_CASTLE_NAME_C2 (dll line 19599)
+_RENAME_RUBIES = 2500
+# ConstructionConst.FREE_SKIP_TIME (dll line 18962)
+_FREE_SKIP_SECONDS = 240
+_BUILDING = (BuildingState.BUILD_STOPPED, BuildingState.BUILD_IN_PROGRESS)
+_UPGRADING = (BuildingState.UPGRADE_STOPPED, BuildingState.UPGRADE_IN_PROGRESS)
 
 _CLASSIC_GOODS = (Resource.WOOD.value, Resource.STONE.value, Resource.FOOD.value)
 _GOODS_TABS = (
@@ -268,30 +285,50 @@ class CastleService(BaseService):
     # Castle Modification
     # =========================================================================
 
-    def rename(self, castle_id: int, new_name: str, *, is_initial_name: bool = False, timeout: float = 5.0) -> bool:
+    def rename(
+        self,
+        castle_id: int,
+        new_name: str,
+        *,
+        is_initial_name: bool = False,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> bool:
         """
         Rename one of your castles.
 
         Looks the castle up in the castle list for the type and kingdom the
         server needs, so this costs one extra round trip. Pass
         ``is_initial_name=True`` to name a newly acquired castle, such as a
-        monument or laboratory, instead of renaming one.
+        monument or laboratory, instead of renaming one. A rename costs
+        ``PlayerConst.CHANGE_CASTLE_NAME_C2`` (2500) rubies unless a premium account runs;
+        see "Spending rubies" in the guides.
 
         Args:
             castle_id: One of your castles, from ``client.castle.get_all()``
                 (``CastleInfo.castle_id``)
             new_name: The new name
-            is_initial_name: Name a newly acquired castle instead of renaming one
+            is_initial_name: Name a newly acquired castle instead of renaming one, which is free
+            spend_rubies: Allow a rename while no premium account is known to run
             timeout: Timeout in seconds
 
         Raises:
+            ValueError: A rename, no premium account is known to run, and ``spend_rubies`` is False
             UnknownCastleError: ``castle_id`` is not one of your castles.
             AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
 
+        Client: ``CastleRenameCastleDialog.showLoaded`` and ``sendCommand`` (bundle lines 57219, 57231)
+        price a rename, sent with 1; ``CastleNameCastleDialog.sendCommand`` (bundle line 32589) sends
+        the first name with 0 and shows no price; ``CHANGE_CASTLE_NAME_C2`` (dll line 19599)
+
         Example:
-            if client.castle.rename(12345, "My Fortress"):
+            if client.castle.rename(12345, "My Fortress", spend_rubies=True):
                 print("Castle renamed!")
         """
+        if not is_initial_name:
+            boosts = self.client.state.get_boosts()
+            if boosts is None or not boosts.is_premium_active():
+                self._require_spend_rubies(spend_rubies, f"renaming a castle costs {_RENAME_RUBIES} rubies")
         matches = [c for c in self.get_all(timeout=timeout) if c.castle_id == castle_id]
         if len(matches) > 1:
             raise AmbiguousCastleError(castle_id, [c.kingdom_id for c in matches])
@@ -364,6 +401,77 @@ class CastleService(BaseService):
         """
         return self.request(ShowConstructionListRequest(), ShowConstructionListResponse, timeout=timeout)
 
+    def _castle_object(self, castle_id: int, object_id: int, timeout: float) -> BuildingRow | None:
+        """Join the castle and read the object from the join's reply; None when the reply has no such object."""
+        buildings = self.join(castle_id, timeout=timeout).buildings
+        return None if buildings is None else buildings.find(object_id)
+
+    def _player_level(self) -> int | None:
+        player = self.client.state.get_local_player()
+        return player.level if player is not None and player.level > 0 else None
+
+    def _next_level(self, row: BuildingRow) -> BuildingDef | None:
+        """
+        The level a building upgrades to: the row's upgrade target while it upgrades, else its ``upgradeWodID``.
+
+        Client: ``ABasicBuildingVO.upgradeTargetWodId`` and ``getUpgradeVO`` (bundle lines 17918-17922)
+        """
+        buildings = self._require_game_data("Pricing an upgrade").buildings
+        if row.state in _UPGRADING and row.upgrade_target_wod_id > 0:
+            return buildings.get(row.upgrade_target_wod_id)
+        current = buildings.get(row.wod_id)
+        return None if current is None else buildings.get(current.upgrade_building_id)
+
+    def _building_ruby_cost(self, wod_id: int) -> str | None:
+        building = self._require_game_data("Pricing a building").buildings.get(wod_id)
+        if building is None:
+            return f"building {wod_id} is not in the game data and may cost rubies"
+        rubies = building.rubies_to_build(self._player_level())
+        return f"building {wod_id} costs {rubies} rubies" if rubies > 0 else None
+
+    def _upgrade_ruby_cost(self, row: BuildingRow | None, object_id: int) -> str | None:
+        if row is None:
+            return f"object {object_id} is not in the castle, so its upgrade may cost rubies"
+        upgrade = self._next_level(row)
+        if upgrade is None:
+            return f"building {row.wod_id} has no next level in the game data, so its upgrade may cost rubies"
+        rubies = upgrade.rubies_to_build(self._player_level())
+        return f"upgrading to building {upgrade.building_id} costs {rubies} rubies" if rubies > 0 else None
+
+    def _construction_seconds_left(self, row: BuildingRow | None) -> int | None:
+        """
+        The seconds left of a running build or upgrade when its row was sent; None when any input is unknown.
+
+        The duration is the build time (``BuildingDef.seconds_to_build`` at your level), the upgrade
+        target's for an upgrade, divided by the boost at its start, less the seconds done.
+
+        Client: ``ABasicBuildingVO.getTimeLeftForBuilding`` and ``setStateEndTime`` (bundle lines
+        17967-17976, 17990-17996), ``getBuildDuration`` (bundle line 17956), ``getUpgradeDuration``
+        (bundle lines 17963-17964)
+        """
+        level = self._player_level()
+        if row is None or level is None or row.construction_completed_seconds is None:
+            return None
+        boost = row.construction_boost_at_start
+        if boost is None or boost <= 0:
+            return None
+        if row.state in _BUILDING:
+            building = self._require_game_data("Timing a construction").buildings.get(row.wod_id)
+        elif row.state in _UPGRADING:
+            building = self._next_level(row)
+        else:
+            return None
+        if building is None:
+            return None
+        return int(building.seconds_to_build(level) / boost) - row.construction_completed_seconds
+
+    def _join_and_price_upgrade(self, castle_id: int, object_id: int, spend_rubies: bool, timeout: float) -> None:
+        if not spend_rubies:
+            self._require_game_data("Pricing an upgrade")
+        row = self._castle_object(castle_id, object_id, timeout)
+        if not spend_rubies:
+            self._require_spend_rubies(spend_rubies, self._upgrade_ruby_cost(row, object_id))
+
     def build(
         self,
         wod_id: int,
@@ -371,7 +479,7 @@ class CastleService(BaseService):
         y: int,
         rotation: int = 0,
         *,
-        pay_with_rubies: bool = False,
+        spend_rubies: bool = False,
         private_offer_id: int = -1,
         district_object_id: int = -1,
         timeout: float = 5.0,
@@ -379,33 +487,77 @@ class CastleService(BaseService):
         """
         Place a new building in the joined castle.
 
+        Spends rubies when the building has a ruby price (``BuildingDef.rubies_to_build`` at your
+        level), and with ``spend_rubies`` on missing resources; see "Spending rubies" in the guides.
+
         Args:
             wod_id: The building type's wod id
             x: Castle grid x, -1 when placing into a district
             y: Castle grid y, -1 when placing into a district
             rotation: Rotation
-            pay_with_rubies: Pay the missing resources with rubies
+            spend_rubies: Allow a ruby price, and pay the missing resources with rubies
             private_offer_id: The private offer the purchase uses, -1 for none
             district_object_id: Object id of the district to place into, -1 for none
             timeout: Timeout in seconds
+
+        Raises:
+            ValueError: The building has a ruby price, or is not in the game data, and ``spend_rubies`` is False
+            GameDataNotLoadedError: ``spend_rubies`` is False and ``client.load_game_data()`` has not been called
+
+        Client: ``IsoServerCommands.buyObjectFromShop`` (bundle line 63766); ``ABasicBuildingVO.costC2``
+        (bundle lines 17950-17953)
         """
+        if not spend_rubies:
+            self._require_spend_rubies(spend_rubies, self._building_ruby_cost(wod_id))
         request = BuildRequest(
             wod_id=wod_id,
             x=x,
             y=y,
             rotation=rotation,
-            pay_with_rubies=pay_with_rubies,
+            pay_with_rubies=spend_rubies,
             private_offer_id=private_offer_id,
             district_object_id=district_object_id,
         )
         return self.execute(request, timeout=timeout)
 
     def upgrade_building(
-        self, object_id: int, *, pay_with_rubies: bool = False, private_offer_id: int = -1, timeout: float = 5.0
+        self,
+        castle_id: int,
+        object_id: int,
+        *,
+        spend_rubies: bool = False,
+        private_offer_id: int = -1,
+        timeout: float = 5.0,
     ) -> bool:
-        """Upgrade a building in the joined castle."""
+        """
+        Upgrade a building in one of your castles.
+
+        Joins the castle first, as the client is inside it, and prices the building from the
+        join's reply: the level it upgrades to, by ``BuildingDef.rubies_to_build`` at your level,
+        needs ``spend_rubies`` when it has a ruby price; see "Spending rubies" in the guides.
+        ``spend_rubies`` also pays missing resources with rubies.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+            object_id: The building's object id
+            spend_rubies: Allow a ruby price, and pay the missing resources with rubies
+            private_offer_id: The prime sale offer the upgrade uses, -1 for none
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: The next level has a ruby price, or the building or its next level is not
+                known, and ``spend_rubies`` is False
+            GameDataNotLoadedError: ``spend_rubies`` is False and ``client.load_game_data()`` has not been called
+            UnknownCastleError / AmbiguousCastleError / CommandError: see :meth:`join`
+
+        Client: ``RingMenuButtonUpgradeBuilding.onClick`` (bundle line 50092),
+        ``IsoServerCommands.upgradeBuilding`` (bundle line 63774); the price is the next level's
+        ``costC2``, ``BuildingCostHelper.getUpgradeCostList`` (bundle lines 41106-41116) through
+        ``AShopVO.getCost`` (bundle line 31766) and ``ABasicBuildingVO.costC2`` (bundle lines 17950-17953)
+        """
+        self._join_and_price_upgrade(castle_id, object_id, spend_rubies, timeout)
         request = UpgradeBuildingRequest(
-            object_id=object_id, pay_with_rubies=pay_with_rubies, private_offer_id=private_offer_id
+            object_id=object_id, pay_with_rubies=spend_rubies, private_offer_id=private_offer_id
         )
         return self.execute(request, timeout=timeout)
 
@@ -421,9 +573,43 @@ class CastleService(BaseService):
         """Start taking a building in the joined castle down."""
         return self.execute(DestroyBuildingRequest(object_id=object_id), timeout=timeout)
 
-    def finish_construction(self, object_id: int, *, free_skip: bool = False, timeout: float = 5.0) -> bool:
-        """Finish a building's running construction at once, for rubies or with an event's free skip."""
-        return self.execute(FastCompleteRequest(object_id=object_id, free_skip=free_skip), timeout=timeout)
+    def finish_construction(
+        self, castle_id: int, object_id: int, *, spend_rubies: bool = False, timeout: float = 5.0
+    ) -> bool:
+        """
+        Finish a building's running build or upgrade at once.
+
+        Joins the castle first, as the client is inside it, and works out the time left from the
+        join's reply as the client does. With at most ``FREE_SKIP_TIME`` (240) seconds left it
+        finishes for free, sent as a free skip; with more left, or the time left not known (a
+        repair or tear-down, an unknown building or player level), it costs rubies; see "Spending
+        rubies" in the guides. A subscription that lengthens the free time is not checked.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+            object_id: The building's object id
+            spend_rubies: Allow finishing a construction that costs rubies
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: More than 240 seconds are left, or the time left is not known, and
+                ``spend_rubies`` is False
+            GameDataNotLoadedError: ``client.load_game_data()`` has not been called
+            UnknownCastleError / AmbiguousCastleError / CommandError: see :meth:`join`
+
+        Client: ``IsoServerCommands.fastCompleteBuilding`` (bundle line 63773) sends ``FS`` 1 when
+        ``CastleSpecialEventData.hasSkipForFree`` (bundle line 139853), which ``calculateSkipCosts``
+        (bundle line 139849) decides from ``getTimeLeftForBuilding`` (bundle line 17967);
+        ``FREE_SKIP_TIME`` (dll line 18962)
+        """
+        self._require_game_data("Timing a construction")
+        row = self._castle_object(castle_id, object_id, timeout)
+        received = time.monotonic()
+        seconds_left = self._construction_seconds_left(row)
+        free = seconds_left is not None and seconds_left - (time.monotonic() - received) <= _FREE_SKIP_SECONDS
+        cost = None if free else f"finishing with over {_FREE_SKIP_SECONDS} seconds left, or unknown, costs rubies"
+        self._require_spend_rubies(spend_rubies, cost)
+        return self.execute(FastCompleteRequest(object_id=object_id, free_skip=free), timeout=timeout)
 
     def skip_construction_time(self, object_id: int, minute_skip: Currency | str, timeout: float = 5.0) -> bool:
         """
@@ -445,25 +631,85 @@ class CastleService(BaseService):
         return self.execute(TimeSkipBuildingRequest(object_id=object_id, minute_skip=minute_skip), timeout=timeout)
 
     def upgrade_defense(
-        self, object_id: int, *, pay_with_rubies: bool = False, private_offer_id: int = -1, timeout: float = 5.0
+        self,
+        castle_id: int,
+        object_id: int,
+        *,
+        spend_rubies: bool = False,
+        private_offer_id: int = -1,
+        timeout: float = 5.0,
     ) -> bool:
-        """Upgrade the joined castle's wall, gate or one of its towers, by its object id."""
+        """
+        Upgrade a wall, gate or tower of one of your castles, by its object id.
+
+        Joins the castle first, as the client is inside it, and prices the building from the
+        join's reply: the level it upgrades to, by ``BuildingDef.rubies_to_build`` at your level,
+        needs ``spend_rubies`` when it has a ruby price; see "Spending rubies" in the guides.
+        ``spend_rubies`` also pays missing resources with rubies.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+            object_id: The wall's, gate's or tower's object id
+            spend_rubies: Allow a ruby price, and pay the missing resources with rubies
+            private_offer_id: The private offer the upgrade uses, -1 for none
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: The next level has a ruby price, or the object or its next level is not
+                known, and ``spend_rubies`` is False
+            GameDataNotLoadedError: ``spend_rubies`` is False and ``client.load_game_data()`` has not been called
+            UnknownCastleError / AmbiguousCastleError / CommandError: see :meth:`join`
+
+        Client: ``C2SIsoUpgradeDefenceVO``, sent with ``PWR`` 1 by
+        ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35220); the price
+        as for :meth:`upgrade_building`
+        """
+        self._join_and_price_upgrade(castle_id, object_id, spend_rubies, timeout)
         request = UpgradeWallRequest(
-            object_id=object_id, private_offer_id=private_offer_id, pay_with_rubies=pay_with_rubies
+            object_id=object_id, private_offer_id=private_offer_id, pay_with_rubies=spend_rubies
         )
         return self.execute(request, timeout=timeout)
 
     def repair_building(
-        self, object_id: int, *, pay_with_rubies: bool = False, private_offer_id: int = -1, timeout: float = 5.0
+        self, object_id: int, *, spend_rubies: bool = False, private_offer_id: int = -1, timeout: float = 5.0
     ) -> bool:
-        """Repair a damaged building in the joined castle."""
+        """
+        Repair a damaged building in the joined castle.
+
+        Args:
+            object_id: The building's object id
+            spend_rubies: Pay the missing resources with rubies; see "Spending rubies" in the guides
+            private_offer_id: The private offer the repair uses, -1 for none
+            timeout: Timeout in seconds
+
+        Client: ``IsoServerCommands.repairBuilding`` (bundle line 63770); with rubies,
+        ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35221)
+        """
         request = RepairBuildingRequest(
-            object_id=object_id, private_offer_id=private_offer_id, pay_with_rubies=pay_with_rubies
+            object_id=object_id, private_offer_id=private_offer_id, pay_with_rubies=spend_rubies
         )
         return self.execute(request, timeout=timeout)
 
-    def repair_all(self, timeout: float = 5.0) -> bool:
-        """Repair every damaged building in the joined castle at once."""
+    def repair_all(self, *, spend_rubies: bool = False, timeout: float = 5.0) -> bool:
+        """
+        Repair every damaged building in the joined castle at once, for rubies; see "Spending
+        rubies" in the guides.
+
+        The price follows the damage's total repair time and is not worked out here, so this
+        always needs ``spend_rubies``.
+
+        Args:
+            spend_rubies: Allow the rubies it costs; without it nothing is sent
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``spend_rubies`` is False
+
+        Client: ``CastleRepairTipDialog`` (bundle lines 97414, 97430) prices it with
+        ``AreaData.getTotalRepairCostC2`` (bundle line 131460), ``ConstructionConst.getRepairAllCostsC2``
+        (dll lines 18966-18969)
+        """
+        self._require_spend_rubies(spend_rubies, "repairing every building at once costs rubies")
         return self.execute(RepairAllRequest(), timeout=timeout)
 
     def buy_expansion(
@@ -472,9 +718,29 @@ class CastleService(BaseService):
         y: int,
         rotation: int = 0,
         expansion_type: ExpansionType = ExpansionType.NORMAL,
+        *,
+        spend_rubies: bool = False,
         timeout: float = 5.0,
     ) -> bool:
-        """Buy an expansion of the joined castle's grounds, with resources (NORMAL) or rubies (PREMIUM)."""
+        """
+        Buy an expansion of the joined castle's grounds, with resources (NORMAL) or rubies (PREMIUM).
+
+        Args:
+            x: Castle grid x of the expansion
+            y: Castle grid y of the expansion
+            rotation: Rotation
+            expansion_type: NORMAL or PREMIUM; PREMIUM costs rubies, see "Spending rubies" in the guides
+            spend_rubies: Allow a PREMIUM expansion
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``expansion_type`` is PREMIUM and ``spend_rubies`` is False
+
+        Client: ``CastleExpansionVE`` (bundle line 86849) needs ``userHasC2ForBuy`` for a premium
+        expansion before ``sendBuyRequestToServer`` (bundle line 86854)
+        """
+        premium = expansion_type == ExpansionType.PREMIUM
+        self._require_spend_rubies(spend_rubies, "a premium expansion costs rubies" if premium else None)
         return self.execute(
             BuyExtensionRequest(x=x, y=y, rotation=rotation, expansion_type=expansion_type), timeout=timeout
         )
@@ -576,10 +842,14 @@ class CastleService(BaseService):
         horse_booster_id: int = -1,
         feathers: bool = False,
         slowdown: int = 0,
+        spend_rubies: bool = False,
         timeout: float = 5.0,
     ) -> bool:
         """
         Send resources from one of your castles to a castle on the map, by carriage.
+
+        A horse that costs rubies, unless paid with feathers, and a slowdown spend rubies;
+        see "Spending rubies" in the guides.
 
         Nothing is sent when the goods fail a check the client makes before
         sending: an amount that is not a positive int (the client drops zeros
@@ -605,13 +875,17 @@ class CastleService(BaseService):
             horse_booster_id: The horse's wod id, -1 for none; sent as -1 whenever
                 feathers are used, as the client does
             feathers: Pay for the horse with feathers
-            slowdown: Seconds to delay the arrival by
+            slowdown: Seconds to delay the arrival by; costs rubies
+            spend_rubies: Allow a horse or slowdown that costs rubies
             timeout: Timeout in seconds
 
         Raises:
             UnsendableGoodsError: The goods fail one of the checks above
             UnknownCastleError: ``source_castle_id`` is not in your castle list
             AmbiguousCastleError: ``source_castle_id`` repeats across your kingdoms
+            ValueError: The horse or slowdown costs rubies and ``spend_rubies`` is False
+            GameDataNotLoadedError: A horse is picked without feathers and ``client.load_game_data()``
+                has not been called
 
         Client: ``CastlePostSendGoodsDialog.sendGoods`` (bundle line 33378), which
         sends ``castleList.getKingdomIdByCastleId`` of the source castle as ``KID``;
@@ -624,6 +898,7 @@ class CastleService(BaseService):
         ``isBoosterArea`` (bundle line 44356).
         """
         amounts = self._sendable_goods(goods)
+        self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
         request = CreateMarketMovementRequest(
             kingdom_id=self._require_own_castle(source_castle_id).kingdom_id,
             source_castle_id=source_castle_id,
@@ -703,7 +978,8 @@ class CastleService(BaseService):
 
         A support led by the premium commander is refused before sending when it
         may cost rubies, unless ``spend_rubies`` is True; see
-        ``client.commanders.premium_send``.
+        ``client.commanders.premium_send``. So is a horse that costs rubies, unless
+        paid with feathers, and a slowdown; see "Spending rubies" in the guides.
 
         Args:
             source_castle_id: The castle the troops leave from, one of yours: ``CastleInfo.castle_id``
@@ -723,16 +999,19 @@ class CastleService(BaseService):
             horse_booster_id: Type of horses for speed bonus (-1 = none, default: -1);
                 sent as -1 whenever feathers are used, as the client does
             feathers: Pay for the movement with feathers
-            slowdown: Movement slowdown modifier (0 = none, default: 0)
+            slowdown: Movement slowdown modifier (0 = none, default: 0); costs rubies
             timeout: Timeout in seconds
-            spend_rubies: Send with the premium commander even when it may cost rubies
+            spend_rubies: Send even when the premium commander, the horse or the slowdown costs rubies
 
         Raises:
             PremiumCommanderCostError: The premium commander leads, may cost rubies,
                 and ``spend_rubies`` is False
+            ValueError: The horse or slowdown costs rubies and ``spend_rubies`` is False
             GameDataNotLoadedError: The premium commander leads, VIP time runs and
-                ``client.load_game_data()`` has not been called
+                ``client.load_game_data()`` has not been called; or a horse is picked without feathers
+                before it was called
         """
+        self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
         request = SendSupportRequest(
             source_castle_id=source_castle_id,
             target_x=target_x,
@@ -785,6 +1064,9 @@ class CastleService(BaseService):
         sit in the same kingdom; to move troops between kingdoms use
         :meth:`transfer_units_to_kingdom`.
 
+        Rubies as for :meth:`send_support`: the premium commander, a horse that costs
+        rubies unless paid with feathers, and a slowdown need ``spend_rubies``.
+
         Client: ``CastleTroopSupportData.sendTroops`` (bundle line 38420); the
         targets from the ``canBeTroupsSended`` overrides (``CastleMapobjectVO``
         bundle line 18917, ``OutpostMapobjectVO`` 18819, ``KingstowerMapobjectVO``
@@ -805,19 +1087,22 @@ class CastleService(BaseService):
             use_premium_commander: Lead with the premium commander (``commander_id``
                 -14). It uses one of your free premium commanders, or costs rubies
                 when none is left and no premium account runs
-            spend_rubies: Send with the premium commander even when it may cost rubies
+            spend_rubies: Send even when the premium commander, the horse or the slowdown costs rubies
             horse_booster_id: The horse's wod id, -1 for none; sent as -1 whenever
                 feathers are used, as the client does
             feathers: Pay for the horse with feathers
-            slowdown: Seconds to delay the arrival by
+            slowdown: Seconds to delay the arrival by; costs rubies
             timeout: Timeout in seconds
 
         Raises:
             PremiumCommanderCostError: The premium commander leads, may cost rubies,
                 and ``spend_rubies`` is False; see ``client.commanders.premium_send``
+            ValueError: The horse or slowdown costs rubies and ``spend_rubies`` is False
             GameDataNotLoadedError: The premium commander leads, VIP time runs and
-                ``client.load_game_data()`` has not been called
+                ``client.load_game_data()`` has not been called; or a horse is picked without feathers
+                before it was called
         """
+        self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
         request = SendTroopsRequest(
             source_x=source_x,
             source_y=source_y,

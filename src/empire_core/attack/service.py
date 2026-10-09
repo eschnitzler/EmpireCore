@@ -126,7 +126,9 @@ class AttackService(BaseService):
         client sends it with ``BPC`` 1 (``use_premium_commander``), which uses a
         free premium commander or costs rubies, so it is never a default. Led by
         it, the attack is refused before sending when it may cost rubies, unless
-        ``spend_rubies`` is True; see ``client.commanders.premium_send``.
+        ``spend_rubies`` is True; see ``client.commanders.premium_send``. So is a horse
+        that costs rubies, unless paid with feathers, and a slowdown; see "Spending rubies"
+        in the guides.
 
         Known gap: for a conquer attack (``AttackType.CONQUER``, which ``CastleAttackData.sendAttack``,
         bundle line 133852, sends exactly when ``isConquerAttack``, bundle line 30550) the client sends
@@ -155,7 +157,7 @@ class AttackService(BaseService):
             share_battle_view: Let others watch the battle
             loot_priority: Resource to loot first (``CombatConst.LOOT_PRIO_*``); the
                 client offers the choice from player level 20
-            slowdown: Seconds the arrival is delayed by
+            slowdown: Seconds the arrival is delayed by; costs rubies
             yard_wave: The courtyard wave, one slot per entry: ``FilledAttack.yard``, or
                 ``{Unit.X: 100}``
             capacity: The capacities these waves were sized against. Given one,
@@ -172,7 +174,7 @@ class AttackService(BaseService):
                 ``combat.min_attack_soldiers(...)``; taken from ``capacity``
                 when not given. Without either nothing is checked
             timeout: Timeout in seconds
-            spend_rubies: Send with the premium commander even when it may cost rubies
+            spend_rubies: Send even when the premium commander, the horse or the slowdown costs rubies
 
         Returns:
             True when the server accepted the attack, False when it rejected it,
@@ -188,8 +190,10 @@ class AttackService(BaseService):
             PremiumCommanderCostError: The premium commander leads, may cost rubies,
                 and ``spend_rubies`` is False
             GameDataNotLoadedError: The premium commander leads, VIP time runs and
-                ``client.load_game_data()`` has not been called
-            ValueError: No wave carries any units, or a container is overfull
+                ``client.load_game_data()`` has not been called; or a horse is picked without feathers
+                before it was called
+            ValueError: No wave carries any units, a container is overfull, or the horse or
+                slowdown costs rubies and ``spend_rubies`` is False
             UnknownCastleError: No ``kingdom_id`` given and no area of yours in
                 the castle list is at the source position
             AmbiguousCastleError: No ``kingdom_id`` given and areas of yours sit
@@ -219,6 +223,7 @@ class AttackService(BaseService):
             if soldiers < min_soldiers:
                 raise AttackBelowMinimumError(min_soldiers, soldiers)
 
+        self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
         kingdom_id = self._own_area_kingdom(source_x, source_y, kingdom_id)
         request = CreateAttackRequest(
             source_x=source_x,

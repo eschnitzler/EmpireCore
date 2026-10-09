@@ -11,7 +11,18 @@ from empire_core.enums import Kingdom
 from empire_core.exceptions import AmbiguousCastleError, AttackBelowMinimumError, CommandError, UnknownCastleError
 from empire_core.gamedata import EMPTY_SLOT, Unit, WodAmount
 from empire_core.protocol.models import AttackType, Commander, CreateAttackRequest, CreateAttackResponse, MapItemType
-from tests.service_helpers import LIVE_ADI, conn, make_client, placed, stub_player, wave, xt_packet
+from tests.service_helpers import (
+    COIN_HORSE,
+    LIVE_ADI,
+    RUBY_HORSE,
+    conn,
+    make_client,
+    placed,
+    stub_player,
+    wave,
+    with_horses,
+    xt_packet,
+)
 
 OWN = [(12345, Kingdom.GREEN, 500, 510)]
 
@@ -293,12 +304,24 @@ class TestAttackService:
         assert (payload["PTT"], payload["HBW"]) == (1, -1)
 
     def test_horses_survive_without_feathers(self):
-        client = make_client(castles=OWN)
+        client = with_horses(make_client(castles=OWN))
 
-        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3, horse_booster_id=2, feathers=False)
+        client.attack.send_attack(
+            500, 510, 700, 710, [wave(units=[[487, 1]])], 3, horse_booster_id=COIN_HORSE, feathers=False
+        )
 
         payload = conn(client).request_payloads[0][1]
-        assert (payload["PTT"], payload["HBW"]) == (0, 2)
+        assert (payload["PTT"], payload["HBW"]) == (0, COIN_HORSE)
+
+    @pytest.mark.parametrize("kwargs", [{"horse_booster_id": RUBY_HORSE}, {"slowdown": 30}])
+    def test_a_horse_or_slowdown_that_costs_rubies_needs_spend_rubies(self, kwargs):
+        # CastlePostAttackDialog.getBoostCostC2, ACastlePostActionDialog.getTotalCostsC2
+        client = with_horses(make_client(castles=OWN))
+        waves = [wave(units=[[487, 1]])]
+        with pytest.raises(ValueError, match="spend_rubies=True"):
+            client.attack.send_attack(500, 510, 700, 710, waves, 3, **kwargs)
+        assert conn(client).request_payloads == []
+        assert client.attack.send_attack(500, 510, 700, 710, waves, 3, spend_rubies=True, **kwargs) is True
 
     def test_conquer_attack_type(self):
         client = make_client(castles=OWN)

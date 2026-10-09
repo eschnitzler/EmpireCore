@@ -60,7 +60,7 @@ class BuildingRow(BasePayload):
 
     - 0 wod id, 1 object id, 2 x, 3 y, 4 rotation (1 for a building inside a
       district); each through ``int()``
-    - 5 seconds until construction completes, 6 state, 7 hit points, 8 the
+    - 5 seconds of the running construction done, 6 state, 7 hit points, 8 the
       construction boost at the start, times 100, 9 efficiency, 10 damage type
       (0 when absent)
     - 11 onwards: values the building's type reads, such as a unit-producing
@@ -78,7 +78,7 @@ class BuildingRow(BasePayload):
     Client: ``IsoHelperData.createIsoObjectVOByServer`` (bundle line 63049),
     ``AVisualVO.parseServerObject`` (bundle line 17801),
     ``AIsoObjectVO.parseServerObject`` (bundle line 11265),
-    ``ABasicBuildingVO.parseServerObject`` (bundle line 17866),
+    ``ABasicBuildingVO.parseServerObject`` (bundle lines 17866-17868, index 5 is ``_constructionCompletionInSec``),
     ``AUnitProductionBuildingVO.parseServerObject`` (bundle line 36254)
     """
 
@@ -87,8 +87,8 @@ class BuildingRow(BasePayload):
     x: int = Field(default=0, description="Castle grid x")
     y: int = Field(default=0, description="Castle grid y")
     rotation: int = Field(default=0, description="Rotation")
-    construction_seconds_left: int | None = Field(
-        default=None, description="Seconds until the running construction completes"
+    construction_completed_seconds: int | None = Field(
+        default=None, description="Seconds of the running construction done when the row was sent"
     )
     state: BuildingState | None = Field(default=None, description="What the building is doing")
     hit_points: int | None = Field(default=None, description="Hit points, 100 when undamaged")
@@ -134,7 +134,7 @@ class BuildingRow(BasePayload):
         }
         if len(row) > _FIRST_BUILDING_INDEX:
             values.update(
-                construction_seconds_left=js_int(at(5)),
+                construction_completed_seconds=js_int(at(5)),
                 state=_building_state(at(6)),
                 hit_points=js_int(at(7)),
                 construction_boost_at_start=js_number(at(8)) / 100,

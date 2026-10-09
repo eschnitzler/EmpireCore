@@ -5,12 +5,30 @@ from __future__ import annotations
 import pytest
 
 from empire_core.enums import Kingdom
-from empire_core.exceptions import AmbiguousCastleError, CommandError, UnknownCastleError
-from empire_core.gamedata import Tool, Unit
+from empire_core.exceptions import AmbiguousCastleError, CommandError, GameDataNotLoadedError, UnknownCastleError
+from empire_core.gamedata import GameData, Tool, Unit
 from empire_core.protocol.models import ProductionListId, SlotType
 from tests.service_helpers import conn, make_client, xt_packet
 
 OWN = [(12345, Kingdom.GREEN)]
+
+# 620 and 649 cost no rubies; 700 costs rubies, 702 on a temporary server, and 701 heals for them
+ITEMS = {
+    "units": [
+        {"wodID": "620", "name": "Barracks", "type": "Swordsman"},
+        {"wodID": "649", "name": "Workshop", "type": "Ladder", "slotTypes": "1"},
+        {"wodID": "700", "name": "Eventunit", "type": "Elite", "costC2": "1337"},
+        {"wodID": "701", "name": "Barracks", "type": "Veteran", "healingCostC2": "5"},
+        {"wodID": "702", "name": "Eventtool", "type": "Ram", "slotTypes": "1", "tempServerCostC2": "50"},
+    ]
+}
+
+
+def army_client(script=None, castles=OWN):
+    client = make_client(script, castles=castles)
+    client.game_data = GameData.parse("test", ITEMS)
+    return client
+
 
 # =============================================================================
 # ArmyService
@@ -92,7 +110,7 @@ class TestArmyService:
             ),
             (
                 lambda s: s.produce_units(
-                    12345, ProductionListId.TOOLS, 649, 20, pay_with_rubies=True, private_offer_id=88
+                    12345, ProductionListId.TOOLS, 649, 20, spend_rubies=True, private_offer_id=88
                 ),
                 "bup",
                 {"LID": 1, "WID": 649, "AMT": 20, "PO": 88, "PWR": 1, "SK": 73, "SID": 0, "AID": 12345},
@@ -105,24 +123,33 @@ class TestArmyService:
                 {"LID": 0, "S": 0, "ST": "production"},
             ),
             (
-                lambda s: s.double_production_slot(12345, ProductionListId.SOLDIERS, SlotType.QUEUE, 2),
+                lambda s: s.double_production_slot(
+                    12345, ProductionListId.SOLDIERS, SlotType.QUEUE, 2, spend_rubies=True
+                ),
                 "bou",
                 {"LID": 0, "S": 2, "AID": 12345, "SID": 0, "ST": "queue"},
             ),
             (lambda s: s.heal_units(12345, 620, 12), "hru", {"U": 620, "A": 12}),
             (lambda s: s.cancel_heal(12345, 1), "hcs", {"S": 1}),
-            (lambda s: s.skip_heal(12345, 2), "hss", {"S": 2}),
+            (lambda s: s.skip_heal(12345, 2, spend_rubies=True), "hss", {"S": 2}),
             (lambda s: s.dismiss_wounded(12345, 620, 5), "hdu", {"U": 620, "A": 5}),
             (
                 lambda s: s.dismiss_wounded_units(12345, {620: 5, 621: 3}),
                 "hdu",
                 {"UT": [{"U": 620, "A": 5}, {"U": 621, "A": 3}]},
             ),
-            (lambda s: s.heal_all(12345, 417), "hra", {"C2": 417}),
+            (lambda s: s.heal_all(12345, 417, spend_rubies=True), "hra", {"C2": 417}),
+            (lambda s: s.heal_all(12345, 0), "hra", {"C2": 0}),
+            (lambda s: s.heal_units(12345, 701, 3, spend_rubies=True), "hru", {"U": 701, "A": 3}),
+            (
+                lambda s: s.produce_units(12345, ProductionListId.SOLDIERS, 700, 1, spend_rubies=True),
+                "bup",
+                {"LID": 0, "WID": 700, "AMT": 1, "PO": -1, "PWR": 1, "SK": 73, "SID": 0, "AID": 12345},
+            ),
         ],
     )
     def test_actions_join_the_castle_then_send_the_client_payload(self, call, command, expected):
-        client = make_client(castles=OWN)
+        client = army_client()
 
         assert call(client.army) is True
 
@@ -130,10 +157,10 @@ class TestArmyService:
         assert list(conn(client).request_payloads[-1][1]) == list(expected)
 
     def test_the_castle_kingdom_goes_into_bup_and_bou(self):
-        client = make_client(castles=[(777, Kingdom.GREEN), (12345, Kingdom.ICE)])
+        client = army_client(castles=[(777, Kingdom.GREEN), (12345, Kingdom.ICE)])
 
         client.army.produce_units(12345, ProductionListId.SOLDIERS, 620, 1)
-        client.army.double_production_slot(12345, ProductionListId.SOLDIERS, SlotType.PRODUCTION, 0)
+        client.army.double_production_slot(12345, ProductionListId.SOLDIERS, SlotType.PRODUCTION, 0, spend_rubies=True)
 
         sent = conn(client).request_payloads
         assert sent[0] == ("jaa", {"CID": 12345, "KID": 2})
@@ -145,22 +172,56 @@ class TestArmyService:
             (lambda s: s.produce_units(12345, ProductionListId.SOLDIERS, 620, 1), "bup"),
             (lambda s: s.heal_units(12345, 620, 1), "hru"),
             (lambda s: s.dismiss_wounded(12345, 620, 1), "hdu"),
-            (lambda s: s.heal_all(12345, 10), "hra"),
+            (lambda s: s.heal_all(12345, 10, spend_rubies=True), "hra"),
         ],
     )
     def test_rejected_actions_are_false(self, call, command):
-        client = make_client({command: xt_packet(command, error_code=21)}, castles=OWN)
+        client = army_client({command: xt_packet(command, error_code=21)})
         assert call(client.army) is False
 
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda s: s.produce_units(12345, ProductionListId.SOLDIERS, 700, 1),
+            lambda s: s.produce_units(12345, ProductionListId.TOOLS, 702, 1),
+            lambda s: s.produce_units(12345, ProductionListId.SOLDIERS, 999, 1),
+            lambda s: s.double_production_slot(12345, ProductionListId.SOLDIERS, SlotType.PRODUCTION, 0),
+            lambda s: s.heal_units(12345, 701, 1),
+            lambda s: s.heal_units(12345, 999, 1),
+            lambda s: s.heal_all(12345, 417),
+            lambda s: s.skip_heal(12345, 0),
+        ],
+    )
+    def test_a_call_that_spends_rubies_is_refused_before_anything_is_sent(self, call):
+        client = army_client()
+
+        with pytest.raises(ValueError, match="spend_rubies=True"):
+            call(client.army)
+        assert conn(client).request_payloads == []
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda s: s.produce_units(12345, ProductionListId.SOLDIERS, 620, 1),
+            lambda s: s.heal_units(12345, 620, 1),
+        ],
+    )
+    def test_pricing_a_unit_needs_the_game_data(self, call):
+        client = make_client(castles=OWN)
+
+        with pytest.raises(GameDataNotLoadedError):
+            call(client.army)
+        assert conn(client).request_payloads == []
+
     def test_a_castle_not_in_the_castle_list_raises_before_joining(self):
-        client = make_client(castles=[(777, Kingdom.ICE)])
+        client = army_client(castles=[(777, Kingdom.ICE)])
 
         with pytest.raises(UnknownCastleError):
             client.army.heal_units(12345, 620, 1)
         assert conn(client).request_payloads == []
 
     def test_an_id_repeated_across_your_kingdoms_raises_before_joining(self):
-        client = make_client(castles=[(12345, Kingdom.STORM), (12345, Kingdom.BERIMOND)])
+        client = army_client(castles=[(12345, Kingdom.STORM), (12345, Kingdom.BERIMOND)])
 
         with pytest.raises(AmbiguousCastleError):
             client.army.produce_units(12345, ProductionListId.SOLDIERS, 620, 1)
@@ -168,7 +229,7 @@ class TestArmyService:
         assert conn(client).request_payloads == []
 
     def test_a_refused_join_sends_no_action(self):
-        client = make_client({"jaa": xt_packet("jaa", error_code=21)}, castles=OWN)
+        client = army_client({"jaa": xt_packet("jaa", error_code=21)})
 
         with pytest.raises(CommandError):
             client.army.heal_units(12345, 620, 1)
