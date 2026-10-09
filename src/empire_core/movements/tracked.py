@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -76,19 +76,19 @@ class MovementResources(BaseModel):
     only.
     """
 
-    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore", populate_by_name=True)
 
-    wood: int = Field(default=0, alias="W")
-    stone: int = Field(default=0, alias="S")
-    food: int = Field(default=0, alias="F")
-    coal: int = Field(default=0, alias="C")
-    oil: int = Field(default=0, alias="O")
-    glass: int = Field(default=0, alias="G")
-    iron: int = Field(default=0, alias="I")
-    aquamarine: int = Field(default=0, alias="A")
-    honey: int = Field(default=0, alias="HONEY")
-    mead: int = Field(default=0, alias="MEAD")
-    beef: int = Field(default=0, alias="BEEF")
+    wood: int = Field(default=0, validation_alias="W", serialization_alias="W")
+    stone: int = Field(default=0, validation_alias="S", serialization_alias="S")
+    food: int = Field(default=0, validation_alias="F", serialization_alias="F")
+    coal: int = Field(default=0, validation_alias="C", serialization_alias="C")
+    oil: int = Field(default=0, validation_alias="O", serialization_alias="O")
+    glass: int = Field(default=0, validation_alias="G", serialization_alias="G")
+    iron: int = Field(default=0, validation_alias="I", serialization_alias="I")
+    aquamarine: int = Field(default=0, validation_alias="A", serialization_alias="A")
+    honey: int = Field(default=0, validation_alias="HONEY", serialization_alias="HONEY")
+    mead: int = Field(default=0, validation_alias="MEAD", serialization_alias="MEAD")
+    beef: int = Field(default=0, validation_alias="BEEF", serialization_alias="BEEF")
 
     @property
     def total(self) -> int:
@@ -123,26 +123,52 @@ class Movement(BaseModel):
     works when building one.
     """
 
-    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore", populate_by_name=True)
 
-    movement_id: int = Field(default=-1, alias="MID", description="Movement id")
-    movement_type: int = Field(default=0, alias="T", description="MovementType value")
-    progress_time: int = Field(default=0, alias="PT", description="Seconds travelled at last_updated")
-    total_time: int = Field(default=0, alias="TT", description="Seconds the trip takes")
-    direction: int = Field(default=0, alias="D", description="1 = returning home, 0 = heading to the target")
-    target_id: int = Field(default=-1, alias="TID", description="Player id owning the target area")
-    kingdom_id: int = Field(default=0, alias="KID", description="Kingdom id")
-    source_id: int = Field(default=-1, alias="SID", description="Player id owning the source area")
-    owner_id: int = Field(default=-1, alias="OID", description="Player id owning the movement")
+    movement_id: int = Field(default=-1, validation_alias="MID", serialization_alias="MID", description="Movement id")
+    movement_type: int = Field(
+        default=0, validation_alias="T", serialization_alias="T", description="MovementType value"
+    )
+    progress_time: int = Field(
+        default=0, validation_alias="PT", serialization_alias="PT", description="Seconds travelled at last_updated"
+    )
+    total_time: int = Field(
+        default=0, validation_alias="TT", serialization_alias="TT", description="Seconds the trip takes"
+    )
+    direction: int = Field(
+        default=0,
+        validation_alias="D",
+        serialization_alias="D",
+        description="1 = returning home, 0 = heading to the target",
+    )
+    target_id: int = Field(
+        default=-1, validation_alias="TID", serialization_alias="TID", description="Player id owning the target area"
+    )
+    kingdom_id: int = Field(default=0, validation_alias="KID", serialization_alias="KID", description="Kingdom id")
+    source_id: int = Field(
+        default=-1, validation_alias="SID", serialization_alias="SID", description="Player id owning the source area"
+    )
+    owner_id: int = Field(
+        default=-1, validation_alias="OID", serialization_alias="OID", description="Player id owning the movement"
+    )
     horse_booster: EnumOrInt["Horse"] | None = Field(
-        alias="HBW", default=None, description="The horse booster; None for none or when paid with feathers"
+        validation_alias="HBW",
+        serialization_alias="HBW",
+        default=None,
+        description="The horse booster; None for none or when paid with feathers",
     )
 
     target_area: MovementArea | None = Field(
-        default=None, alias="TA", description="Target area row; None when there is none"
+        default=None,
+        validation_alias="TA",
+        serialization_alias="TA",
+        description="Target area row; None when there is none",
     )
     source_area: MovementArea | None = Field(
-        default=None, alias="SA", description="Source area row; None when there is none"
+        default=None,
+        validation_alias="SA",
+        serialization_alias="SA",
+        description="Source area row; None when there is none",
     )
 
     target_area_id: int = Field(default=-1, description="Target area id")

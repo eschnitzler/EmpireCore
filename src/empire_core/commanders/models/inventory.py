@@ -10,7 +10,7 @@ Commands:
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 
 from pydantic import BeforeValidator, ConfigDict, Field, field_validator
 
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 class GemStack(BasePayload):
     """How many of one gem you hold."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     gem_id: EnumOrInt["Gem"] = Field(description="The gem")
     amount: int = Field(description="How many you hold")
@@ -65,13 +65,15 @@ class GemInventoryResponse(BaseResponse):
     off from the first entry of that gem on; here the gems are counted per id.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     command = "ggm"
 
-    gems: tuple[GemStack, ...] = Field(alias="GEM", default=(), description="The gems you hold, per gem id")
+    gems: tuple[GemStack, ...] = Field(
+        validation_alias="GEM", serialization_alias="GEM", default=(), description="The gems you hold, per gem id"
+    )
     relic_gems: Annotated[tuple[RelicGem, ...], BeforeValidator(partial(readable_list, RelicGem))] = Field(
-        alias="RGEM", default=(), description="The relic gems you hold"
+        validation_alias="RGEM", serialization_alias="RGEM", default=(), description="The relic gems you hold"
     )
 
     @field_validator("gems", mode="before")
@@ -106,16 +108,23 @@ class InventorySpace(BasePayload):
     ``filledInventorySpace``, bundle lines 143839, 143841).
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     equipment_space: ParseInt = Field(
-        alias="E",
+        validation_alias="E",
+        serialization_alias="E",
         default=0,
         description="Free equipment inventory space; negative when you hold more than fits, full at 0 or less",
     )
-    equipment_total_space: ParseInt = Field(alias="TE", default=0, description="Total equipment inventory space")
-    gem_space: ClientInt = Field(alias="G", default=0, description="Free gem inventory space, as sent")
-    gem_total_space: ClientInt = Field(alias="TG", default=0, description="Total gem inventory space")
+    equipment_total_space: ParseInt = Field(
+        validation_alias="TE", serialization_alias="TE", default=0, description="Total equipment inventory space"
+    )
+    gem_space: ClientInt = Field(
+        validation_alias="G", serialization_alias="G", default=0, description="Free gem inventory space, as sent"
+    )
+    gem_total_space: ClientInt = Field(
+        validation_alias="TG", serialization_alias="TG", default=0, description="Total gem inventory space"
+    )
 
 
 class NewRelicsResponse(BaseResponse):
@@ -127,11 +136,13 @@ class NewRelicsResponse(BaseResponse):
     Client: ``NRFCommand`` (bundle line 124002), ``CastleEquipmentData.parseNRF`` (bundle line 143756)
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     command = "nrf"
 
-    has_new_relics: bool = Field(alias="NR", default=False, description="Whether new relics wait to be seen")
+    has_new_relics: bool = Field(
+        validation_alias="NR", serialization_alias="NR", default=False, description="Whether new relics wait to be seen"
+    )
 
     @field_validator("has_new_relics", mode="before")
     @classmethod

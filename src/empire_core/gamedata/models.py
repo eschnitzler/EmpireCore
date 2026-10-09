@@ -125,7 +125,7 @@ def _parse_int_or_default(value: object, default: int) -> int:
 
 
 class _Row(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+    model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True, extra="ignore")
 
 
 class _UnitRow(_Row):
@@ -136,22 +136,27 @@ class _UnitRow(_Row):
     ``BasicUnitVO.basicCostC2`` (bundle line 19248) takes the temporary server's ruby cost there
     """
 
-    wod_id: int = Field(alias="wodID", description="Unit or tool id; required")
+    wod_id: int = Field(validation_alias="wodID", serialization_alias="wodID", description="Unit or tool id; required")
     source: str = Field(
-        alias="name",
+        validation_alias="name",
+        serialization_alias="name",
         default="",
         description="The row's name, e.g. Barracks or Eventtool",
     )
     level: int = Field(default=-1, description="Upgrade level; -1 when the row has none")
     speed: int = Field(default=0, description="Base travel speed, before research bonuses")
     fight_type: int = Field(
-        alias="fightType",
+        validation_alias="fightType",
+        serialization_alias="fightType",
         default=FIGHT_TYPE_OFFENSIVE,
         description="0 offensive, 1 defensive",
     )
-    cost_rubies: int = Field(alias="costC2", default=0, description="Rubies one costs to produce")
+    cost_rubies: int = Field(
+        validation_alias="costC2", serialization_alias="costC2", default=0, description="Rubies one costs to produce"
+    )
     temp_server_cost_rubies: int = Field(
-        alias="tempServerCostC2",
+        validation_alias="tempServerCostC2",
+        serialization_alias="tempServerCostC2",
         default=0,
         description="Rubies one costs to produce on a temporary server; the client takes cost_rubies when absent",
     )
@@ -197,26 +202,62 @@ class UnitStats(_UnitRow):
     Client: ``SoldierUnitVO.parseXmlNode`` (bundle line 12531), after ``BasicUnitVO.parseXmlNode`` (bundle line 19211)
     """
 
-    wod_id: GameDataId["Unit"] = Field(alias="wodID", description="The unit; required")
+    wod_id: GameDataId["Unit"] = Field(
+        validation_alias="wodID", serialization_alias="wodID", description="The unit; required"
+    )
 
-    unit_type: str = Field(alias="type", default="", description="Unit type, e.g. MeadRanger; shared across levels")
+    unit_type: str = Field(
+        validation_alias="type",
+        serialization_alias="type",
+        default="",
+        description="Unit type, e.g. MeadRanger; shared across levels",
+    )
     role: GameDataKey[UnitRole] = Field(default="", description="Melee or ranged; empty for none")
-    melee_attack: int = Field(alias="meleeAttack", default=0, description="Base melee attack")
-    range_attack: int = Field(alias="rangeAttack", default=0, description="Base ranged attack")
-    melee_defense: int = Field(alias="meleeDefence", default=0, description="Base defence against melee")
-    range_defense: int = Field(alias="rangeDefence", default=0, description="Base defence against ranged")
-    loot_value: int = Field(alias="lootValue", default=0, description="Loot one unit carries")
-    mead_supply: int = Field(alias="meadSupply", default=0, description="Mead upkeep")
-    beef_supply: int = Field(alias="beefSupply", default=0, description="Beef upkeep")
+    melee_attack: int = Field(
+        validation_alias="meleeAttack", serialization_alias="meleeAttack", default=0, description="Base melee attack"
+    )
+    range_attack: int = Field(
+        validation_alias="rangeAttack", serialization_alias="rangeAttack", default=0, description="Base ranged attack"
+    )
+    melee_defense: int = Field(
+        validation_alias="meleeDefence",
+        serialization_alias="meleeDefence",
+        default=0,
+        description="Base defence against melee",
+    )
+    range_defense: int = Field(
+        validation_alias="rangeDefence",
+        serialization_alias="rangeDefence",
+        default=0,
+        description="Base defence against ranged",
+    )
+    loot_value: int = Field(
+        validation_alias="lootValue", serialization_alias="lootValue", default=0, description="Loot one unit carries"
+    )
+    mead_supply: int = Field(
+        validation_alias="meadSupply", serialization_alias="meadSupply", default=0, description="Mead upkeep"
+    )
+    beef_supply: int = Field(
+        validation_alias="beefSupply", serialization_alias="beefSupply", default=0, description="Beef upkeep"
+    )
     food_supply: int = Field(
-        alias="foodSupply",
+        validation_alias="foodSupply",
+        serialization_alias="foodSupply",
         default=0,
         description="Food upkeep, before the global food-consumption effect",
     )
     healing_cost_coins: int = Field(
-        alias="healingCostC1", default=0, description="Coin cost to heal one, before cost effects"
+        validation_alias="healingCostC1",
+        serialization_alias="healingCostC1",
+        default=0,
+        description="Coin cost to heal one, before cost effects",
     )
-    healing_cost_rubies: int = Field(alias="healingCostC2", default=0, description="Ruby cost to heal one")
+    healing_cost_rubies: int = Field(
+        validation_alias="healingCostC2",
+        serialization_alias="healingCostC2",
+        default=0,
+        description="Ruby cost to heal one",
+    )
     hybrid: bool = Field(default=False, description="Fits either flank")
 
     @field_validator(
@@ -310,49 +351,95 @@ class ToolStats(_UnitRow):
     ``ToolUnitVO.parseEffects`` (bundle line 6644)
     """
 
-    wod_id: GameDataId["Tool"] = Field(alias="wodID", description="The tool; required")
+    wod_id: GameDataId["Tool"] = Field(
+        validation_alias="wodID", serialization_alias="wodID", description="The tool; required"
+    )
 
     tool_type: str = Field(
-        alias="type", default="", description="Tool type, e.g. Ladder; shared across levels, keys the per-wave limit"
+        validation_alias="type",
+        serialization_alias="type",
+        default="",
+        description="Tool type, e.g. Ladder; shared across levels, keys the per-wave limit",
     )
     category: GameDataKey[ToolSide] = Field(
-        alias="typ",
+        validation_alias="typ",
+        serialization_alias="typ",
         default="0",
         description='Attack or defence; "0" when the row has none',
     )
-    slot_types: tuple[int, ...] = Field(alias="slotTypes", default=(), description="Attack-screen slot types it fits")
+    slot_types: tuple[int, ...] = Field(
+        validation_alias="slotTypes",
+        serialization_alias="slotTypes",
+        default=(),
+        description="Attack-screen slot types it fits",
+    )
     raw_allowed_to_attack: str = Field(
-        alias="allowedToAttack",
+        validation_alias="allowedToAttack",
+        serialization_alias="allowedToAttack",
         default="",
         description="space+areaType pairs joined by #; see allowed_targets",
     )
     tool_category: GameDataKey[ToolCategory] = Field(
-        alias="toolCategory",
+        validation_alias="toolCategory",
+        serialization_alias="toolCategory",
         default="",
         description="Tool category, e.g. basic; empty for none",
     )
     amount_per_wave: int = Field(
-        alias="amountPerWave",
+        validation_alias="amountPerWave",
+        serialization_alias="amountPerWave",
         default=-1,
         description="The row's per-wave limit; -1 when absent. per_wave_limit is the limit that applies",
     )
     can_attack_npc: bool = Field(
-        alias="canBeUsedToAttackNPC",
+        validation_alias="canBeUsedToAttackNPC",
+        serialization_alias="canBeUsedToAttackNPC",
         default=True,
         description="Usable against an NPC target",
     )
     effects: tuple[EffectValue, ...] = Field(default=(), description="The tool's own effects")
-    raw_wall_bonus: int = Field(alias="wallBonus", default=0, description="Wall protection cancelled, in percent")
-    raw_gate_bonus: int = Field(alias="gateBonus", default=0, description="Gate protection cancelled, in percent")
-    raw_moat_bonus: int = Field(alias="moatBonus", default=0, description="Moat protection cancelled, in percent")
+    raw_wall_bonus: int = Field(
+        validation_alias="wallBonus",
+        serialization_alias="wallBonus",
+        default=0,
+        description="Wall protection cancelled, in percent",
+    )
+    raw_gate_bonus: int = Field(
+        validation_alias="gateBonus",
+        serialization_alias="gateBonus",
+        default=0,
+        description="Gate protection cancelled, in percent",
+    )
+    raw_moat_bonus: int = Field(
+        validation_alias="moatBonus",
+        serialization_alias="moatBonus",
+        default=0,
+        description="Moat protection cancelled, in percent",
+    )
     raw_def_range_bonus: int = Field(
-        alias="defRangeBonus", default=0, description="Defender ranged strength cancelled, in percent"
+        validation_alias="defRangeBonus",
+        serialization_alias="defRangeBonus",
+        default=0,
+        description="Defender ranged strength cancelled, in percent",
     )
     raw_def_melee_bonus: int = Field(
-        alias="defMeleeBonus", default=0, description="Defender melee strength cancelled, in percent"
+        validation_alias="defMeleeBonus",
+        serialization_alias="defMeleeBonus",
+        default=0,
+        description="Defender melee strength cancelled, in percent",
     )
-    raw_off_range_bonus: int = Field(alias="offRangeBonus", default=0, description="Ranged attack added, in percent")
-    raw_off_melee_bonus: int = Field(alias="offMeleeBonus", default=0, description="Melee attack added, in percent")
+    raw_off_range_bonus: int = Field(
+        validation_alias="offRangeBonus",
+        serialization_alias="offRangeBonus",
+        default=0,
+        description="Ranged attack added, in percent",
+    )
+    raw_off_melee_bonus: int = Field(
+        validation_alias="offMeleeBonus",
+        serialization_alias="offMeleeBonus",
+        default=0,
+        description="Melee attack added, in percent",
+    )
 
     @field_validator(
         "amount_per_wave",
@@ -523,27 +610,42 @@ class EffectDef(_Row):
     modifies, and the cap says what it stacks with.
     """
 
-    effect_id: GameDataId["Effect"] = Field(alias="effectID", description="The effect")
+    effect_id: GameDataId["Effect"] = Field(
+        validation_alias="effectID", serialization_alias="effectID", description="The effect"
+    )
     name: str = ""
     effect_type_id: GameDataId["EffectType"] = Field(
-        alias="effectTypeID", default=0, description="The effect type it modifies"
+        validation_alias="effectTypeID",
+        serialization_alias="effectTypeID",
+        default=0,
+        description="The effect type it modifies",
     )
-    cap_id: int | None = Field(alias="capID", default=None)
+    cap_id: int | None = Field(validation_alias="capID", serialization_alias="capID", default=None)
     area_type_ids: tuple[GameDataId[MapItemType], ...] = Field(
-        alias="areaTypeID", default=(), description="Area types it applies to; empty for every area"
+        validation_alias="areaTypeID",
+        serialization_alias="areaTypeID",
+        default=(),
+        description="Area types it applies to; empty for every area",
     )
-    is_pvp_fight: bool = Field(alias="isPvPFight", default=False)
-    is_pve_fight: bool = Field(alias="isPvEFight", default=False)
+    is_pvp_fight: bool = Field(validation_alias="isPvPFight", serialization_alias="isPvPFight", default=False)
+    is_pve_fight: bool = Field(validation_alias="isPvEFight", serialization_alias="isPvEFight", default=False)
     space_ids: tuple[GameDataId[Kingdom], ...] = Field(
-        alias="spaceIDs",
+        validation_alias="spaceIDs",
+        serialization_alias="spaceIDs",
         default=(),
         description="Kingdoms it applies in, as the client compares them with the area's spaceId; empty for every one",
     )
     player_relation: GameDataKey[PlayerRelation] = Field(
-        alias="playerRelation", default="", description="The relationship to the target it needs; empty for any"
+        validation_alias="playerRelation",
+        serialization_alias="playerRelation",
+        default="",
+        description="The relationship to the target it needs; empty for any",
     )
     raid_boss_ids: tuple[GameDataId["RaidBoss"], ...] = Field(
-        alias="raidBossID", default=(), description="Raid bosses it is tied to; empty for none in particular"
+        validation_alias="raidBossID",
+        serialization_alias="raidBossID",
+        default=(),
+        description="Raid bosses it is tied to; empty for none in particular",
     )
 
     @field_validator("area_type_ids", "space_ids", "raid_boss_ids", mode="before")
@@ -618,10 +720,12 @@ class EffectDef(_Row):
 class EffectTypeDef(_Row):
     """An effect type, e.g. ``fameDefenseBonus``."""
 
-    effect_type_id: GameDataId["EffectType"] = Field(alias="effectTypeID", description="The effect type")
+    effect_type_id: GameDataId["EffectType"] = Field(
+        validation_alias="effectTypeID", serialization_alias="effectTypeID", description="The effect type"
+    )
     name: str = ""
-    sort_category: int | None = Field(alias="sortCategory", default=None)
-    combat_type: int | None = Field(alias="combatType", default=None)
+    sort_category: int | None = Field(validation_alias="sortCategory", serialization_alias="sortCategory", default=None)
+    combat_type: int | None = Field(validation_alias="combatType", serialization_alias="combatType", default=None)
 
     @property
     def is_economy(self) -> bool:
@@ -641,8 +745,10 @@ class EffectCapDef(_Row):
     why the field is optional rather than defaulting to zero.
     """
 
-    cap_id: int = Field(alias="capID")
-    max_total_bonus: float | None = Field(alias="maxTotalBonus", default=None)
+    cap_id: int = Field(validation_alias="capID", serialization_alias="capID")
+    max_total_bonus: float | None = Field(
+        validation_alias="maxTotalBonus", serialization_alias="maxTotalBonus", default=None
+    )
 
     @property
     def is_uncapped(self) -> bool:
@@ -819,16 +925,25 @@ class ConstructionItemDef(EffectSpecRow):
     """
 
     construction_item_id: GameDataId["ConstructionItem"] = Field(
-        alias="constructionItemID", description="The construction item"
+        validation_alias="constructionItemID",
+        serialization_alias="constructionItemID",
+        description="The construction item",
     )
     name: str = ""
-    group_id: int = Field(alias="constructionItemGroupID", default=0)
+    group_id: int = Field(
+        validation_alias="constructionItemGroupID", serialization_alias="constructionItemGroupID", default=0
+    )
     level: int = 0
-    rareness_id: int = Field(alias="rarenessID", default=0)
-    slot_type_id: int = Field(alias="slotTypeID", default=0)
-    effect_group_id: int = Field(alias="constructionItemEffectGroupID", default=0)
+    rareness_id: int = Field(validation_alias="rarenessID", serialization_alias="rarenessID", default=0)
+    slot_type_id: int = Field(validation_alias="slotTypeID", serialization_alias="slotTypeID", default=0)
+    effect_group_id: int = Field(
+        validation_alias="constructionItemEffectGroupID", serialization_alias="constructionItemEffectGroupID", default=0
+    )
     is_premium: bool = Field(
-        alias="isPremium", default=False, description="A premium item; any text in the column counts"
+        validation_alias="isPremium",
+        serialization_alias="isPremium",
+        default=False,
+        description="A premium item; any text in the column counts",
     )
     castle_effects: tuple[CastleEffectValue, ...] = Field(
         default=(), description="The fixed bonuses, one per bonus column with text in it"
@@ -852,41 +967,55 @@ class ConstructionItemDef(EffectSpecRow):
 class AllianceBuffDef(EffectSpecRow):
     """One level of an alliance buff."""
 
-    alliance_buff_id: int = Field(alias="allianceBuffID")
+    alliance_buff_id: int = Field(validation_alias="allianceBuffID", serialization_alias="allianceBuffID")
     series_id: GameDataId[AllianceBuffType] = Field(
-        alias="allianceBuffSeriesID", default=0, description="The upgrade or boost the level belongs to"
+        validation_alias="allianceBuffSeriesID",
+        serialization_alias="allianceBuffSeriesID",
+        default=0,
+        description="The upgrade or boost the level belongs to",
     )
     level: int = 0
-    max_level: int = Field(alias="maxLevel", default=0)
+    max_level: int = Field(validation_alias="maxLevel", serialization_alias="maxLevel", default=0)
 
 
 class GlobalEffectDef(EffectSpecRow):
     """A global (event) effect, active for everyone while its event runs."""
 
-    global_effect_id: GameDataId["GlobalEffect"] = Field(alias="globalEffectID", description="The global effect")
+    global_effect_id: GameDataId["GlobalEffect"] = Field(
+        validation_alias="globalEffectID", serialization_alias="globalEffectID", description="The global effect"
+    )
     name: str = ""
-    boost_value: float = Field(alias="boostValue", default=0)
-    min_level: int = Field(alias="minLevel", default=0)
-    max_level: int = Field(alias="maxLevel", default=0)
+    boost_value: float = Field(validation_alias="boostValue", serialization_alias="boostValue", default=0)
+    min_level: int = Field(validation_alias="minLevel", serialization_alias="minLevel", default=0)
+    max_level: int = Field(validation_alias="maxLevel", serialization_alias="maxLevel", default=0)
 
 
 class SceatSkillDef(EffectSpecRow):
     """One level of a sceat skill, from the Hall of Legends trees."""
 
-    skill_id: GameDataId["SceatSkill"] = Field(alias="skillID", description="The sceat skill")
-    skill_group_id: int = Field(alias="skillGroupID", default=0)
+    skill_id: GameDataId["SceatSkill"] = Field(
+        validation_alias="skillID", serialization_alias="skillID", description="The sceat skill"
+    )
+    skill_group_id: int = Field(validation_alias="skillGroupID", serialization_alias="skillGroupID", default=0)
     level: int = 0
-    skill_tree_id: int = Field(alias="skillTreeID", default=0)
+    skill_tree_id: int = Field(validation_alias="skillTreeID", serialization_alias="skillTreeID", default=0)
     tier: int = 0
 
 
 class GeneralSkillDef(EffectSpecRow):
     """One level of a general's skill."""
 
-    skill_id: GameDataId["GeneralSkill"] = Field(alias="skillID", description="The general skill")
-    general_id: GameDataId["General"] = Field(alias="generalID", default=0, description="The general it belongs to")
+    skill_id: GameDataId["GeneralSkill"] = Field(
+        validation_alias="skillID", serialization_alias="skillID", description="The general skill"
+    )
+    general_id: GameDataId["General"] = Field(
+        validation_alias="generalID",
+        serialization_alias="generalID",
+        default=0,
+        description="The general it belongs to",
+    )
     name: str = ""
-    skill_group_id: int = Field(alias="skillGroupID", default=0)
+    skill_group_id: int = Field(validation_alias="skillGroupID", serialization_alias="skillGroupID", default=0)
     level: int = 0
     tier: int = 0
 
@@ -899,12 +1028,14 @@ class FortificationDef(_Row):
     reads 70 and protects by 0.70 once scaled.
     """
 
-    wod_id: GameDataId["Building"] = Field(alias="wodID", description="The wall, gate or moat")
-    label: str = Field(alias="comment2", default="")
+    wod_id: GameDataId["Building"] = Field(
+        validation_alias="wodID", serialization_alias="wodID", description="The wall, gate or moat"
+    )
+    label: str = Field(validation_alias="comment2", serialization_alias="comment2", default="")
     level: int = 0
-    wall_bonus: float = Field(alias="wallBonus", default=0)
-    gate_bonus: float = Field(alias="gateBonus", default=0)
-    moat_bonus: float = Field(alias="moatBonus", default=0)
+    wall_bonus: float = Field(validation_alias="wallBonus", serialization_alias="wallBonus", default=0)
+    gate_bonus: float = Field(validation_alias="gateBonus", serialization_alias="gateBonus", default=0)
+    moat_bonus: float = Field(validation_alias="moatBonus", serialization_alias="moatBonus", default=0)
 
 
 class RelicEffectDef(_Row):
@@ -916,12 +1047,17 @@ class RelicEffectDef(_Row):
     effect. Resolving in the wrong space yields a plausible, wrong answer.
     """
 
-    relic_effect_id: int = Field(alias="id")
-    effect_id: GameDataId["Effect"] = Field(alias="effectID", default=0, description="The effect it resolves to")
-    minimum_value: float = Field(alias="minimumValue", default=0)
-    maximum_value: float = Field(alias="maximumValue", default=0)
+    relic_effect_id: int = Field(validation_alias="id", serialization_alias="id")
+    effect_id: GameDataId["Effect"] = Field(
+        validation_alias="effectID", serialization_alias="effectID", default=0, description="The effect it resolves to"
+    )
+    minimum_value: float = Field(validation_alias="minimumValue", serialization_alias="minimumValue", default=0)
+    maximum_value: float = Field(validation_alias="maximumValue", serialization_alias="maximumValue", default=0)
     relic_effect_type: GameDataKey[RelicEffectType] = Field(
-        alias="relicEffectType", default="", description="Its kind; empty for none"
+        validation_alias="relicEffectType",
+        serialization_alias="relicEffectType",
+        default="",
+        description="Its kind; empty for none",
     )
 
 
@@ -932,16 +1068,33 @@ class EquipmentEffectDef(_Row):
     Client: ``XmlEquipmentEffectVO.parseXml`` (bundle line 144158)
     """
 
-    equipment_effect_id: int = Field(alias="equipmentEffectID", description="The id an item's bonus row names")
+    equipment_effect_id: int = Field(
+        validation_alias="equipmentEffectID",
+        serialization_alias="equipmentEffectID",
+        description="The id an item's bonus row names",
+    )
     effect_id: GameDataId["Effect"] = Field(
-        alias="effectID", default=-1, description="The effect it resolves to; -1 when unset"
+        validation_alias="effectID",
+        serialization_alias="effectID",
+        default=-1,
+        description="The effect it resolves to; -1 when unset",
     )
     bonus: int = Field(default=0, description="Bonus value")
-    wearer_id: GameDataId[WearerType] = Field(alias="wearerID", default=-1, description="Who can roll it")
-    item_group_ids: tuple[GameDataId["EquipmentGroup"], ...] = Field(
-        alias="itemGroupID", default=(), description="The item groups that can roll it"
+    wearer_id: GameDataId[WearerType] = Field(
+        validation_alias="wearerID", serialization_alias="wearerID", default=-1, description="Who can roll it"
     )
-    ignore_cap: bool = Field(alias="ignoreCap", default=False, description="The bonus escapes its effect's cap")
+    item_group_ids: tuple[GameDataId["EquipmentGroup"], ...] = Field(
+        validation_alias="itemGroupID",
+        serialization_alias="itemGroupID",
+        default=(),
+        description="The item groups that can roll it",
+    )
+    ignore_cap: bool = Field(
+        validation_alias="ignoreCap",
+        serialization_alias="ignoreCap",
+        default=False,
+        description="The bonus escapes its effect's cap",
+    )
 
     @field_validator("bonus", mode="before")
     @classmethod
@@ -970,14 +1123,32 @@ class GemDef(EffectSpecRow):
     Client: ``CastleGemVO.parseXML`` (bundle lines 28287-28291)
     """
 
-    gem_id: GameDataId["Gem"] = Field(alias="gemID", description="The gem, as in Equipment.gem_id")
-    level: int = Field(alias="gemLevelID", default=0, description="Gem level; 0 for a unique gem")
-    reuse_asset_of_gem_id: GameDataId["Gem"] = Field(
-        alias="reuseAssetOfGemID", default=-1, description="The gem whose look and name it shares; -1 for its own"
+    gem_id: GameDataId["Gem"] = Field(
+        validation_alias="gemID", serialization_alias="gemID", description="The gem, as in Equipment.gem_id"
     )
-    set_id: int = Field(alias="setID", default=-1, description="Equipment set the gem counts toward; -1 for none")
+    level: int = Field(
+        validation_alias="gemLevelID",
+        serialization_alias="gemLevelID",
+        default=0,
+        description="Gem level; 0 for a unique gem",
+    )
+    reuse_asset_of_gem_id: GameDataId["Gem"] = Field(
+        validation_alias="reuseAssetOfGemID",
+        serialization_alias="reuseAssetOfGemID",
+        default=-1,
+        description="The gem whose look and name it shares; -1 for its own",
+    )
+    set_id: int = Field(
+        validation_alias="setID",
+        serialization_alias="setID",
+        default=-1,
+        description="Equipment set the gem counts toward; -1 for none",
+    )
     trigger_chance: int = Field(
-        alias="triggerChance", default=100, description="Trigger chance; the effect totals do not apply it"
+        validation_alias="triggerChance",
+        serialization_alias="triggerChance",
+        default=100,
+        description="Trigger chance; the effect totals do not apply it",
     )
 
 
@@ -993,37 +1164,52 @@ class EquipmentSetDef(EquipmentEffectSpecRow):
     (bundle line 20940).
     """
 
-    row_id: int = Field(alias="ID", default=-1, description="Row id")
-    set_id: int = Field(alias="setID", description="Equipment set id, as in Equipment.set_id and GemDef.set_id")
+    row_id: int = Field(validation_alias="ID", serialization_alias="ID", default=-1, description="Row id")
+    set_id: int = Field(
+        validation_alias="setID",
+        serialization_alias="setID",
+        description="Equipment set id, as in Equipment.set_id and GemDef.set_id",
+    )
     needed_items: int = Field(
-        alias="neededItems", default=0, description="Set items and gems worn from which the bonuses apply"
+        validation_alias="neededItems",
+        serialization_alias="neededItems",
+        default=0,
+        description="Set items and gems worn from which the bonuses apply",
     )
 
 
 class LegendSkillDef(_Row):
     """One level of a legend skill, e.g. ``gateReduction``."""
 
-    skill_id: GameDataId["LegendSkill"] = Field(alias="skillID", description="The legend skill")
+    skill_id: GameDataId["LegendSkill"] = Field(
+        validation_alias="skillID", serialization_alias="skillID", description="The legend skill"
+    )
     level: int = 0
     tier: int = 0
-    skill_tree_id: int = Field(alias="skillTreeID", default=0)
-    skill_group_id: int = Field(alias="skillGroupID", default=0)
-    effect_type: str = Field(alias="effectType", default="")
-    total_effect_value: float = Field(alias="totalEffectValue", default=0)
-    total_cost_skill_points: int = Field(alias="totalCostSkillPoints", default=0)
+    skill_tree_id: int = Field(validation_alias="skillTreeID", serialization_alias="skillTreeID", default=0)
+    skill_group_id: int = Field(validation_alias="skillGroupID", serialization_alias="skillGroupID", default=0)
+    effect_type: str = Field(validation_alias="effectType", serialization_alias="effectType", default="")
+    total_effect_value: float = Field(
+        validation_alias="totalEffectValue", serialization_alias="totalEffectValue", default=0
+    )
+    total_cost_skill_points: int = Field(
+        validation_alias="totalCostSkillPoints", serialization_alias="totalCostSkillPoints", default=0
+    )
 
 
 class AttackSlotDef(_Row):
     """An attack-screen slot and what unlocking it costs."""
 
-    slot_id: int = Field(alias="slotID", description="Attack slot id")
-    cost_rubies: int = Field(alias="costC2", default=0, description="Rubies to unlock the slot")
+    slot_id: int = Field(validation_alias="slotID", serialization_alias="slotID", description="Attack slot id")
+    cost_rubies: int = Field(
+        validation_alias="costC2", serialization_alias="costC2", default=0, description="Rubies to unlock the slot"
+    )
 
 
 class ToolCategoryDef(_Row):
     """A tool category, e.g. ``basic``."""
 
-    tool_category_id: int = Field(alias="toolCategoryID")
+    tool_category_id: int = Field(validation_alias="toolCategoryID", serialization_alias="toolCategoryID")
     name: str = ""
 
 
@@ -1039,27 +1225,67 @@ class HorseStats(_Row):
     ``AVisualVO.parseXmlNode`` (bundle line 17800), read from the ``horses`` table
     """
 
-    wod_id: GameDataId["Horse"] = Field(alias="wodID", description="The horse, the value sent as HBW")
-    source: str = Field(alias="name", default="", description="The row's name, Horse for every row")
+    wod_id: GameDataId["Horse"] = Field(
+        validation_alias="wodID", serialization_alias="wodID", description="The horse, the value sent as HBW"
+    )
+    source: str = Field(
+        validation_alias="name",
+        serialization_alias="name",
+        default="",
+        description="The row's name, Horse for every row",
+    )
     group: str = Field(default="", description="The row's group, Travelbooster for every row")
     label: str = Field(
-        alias="comment2", default="", description="Designer label the game does not read, e.g. Warhorse or Fast Ship"
+        validation_alias="comment2",
+        serialization_alias="comment2",
+        default="",
+        description="Designer label the game does not read, e.g. Warhorse or Fast Ship",
     )
     building_label: str = Field(
-        alias="comment1", default="", description="Designer label the game does not read, e.g. Stable1 or Harbor3"
+        validation_alias="comment1",
+        serialization_alias="comment1",
+        default="",
+        description="Designer label the game does not read, e.g. Stable1 or Harbor3",
     )
-    horse_type: str = Field(alias="type", default="", description="The horse's type within its building")
-    unit_boost: int = Field(alias="unitBoost", default=0, description="Travel speed bonus percent for troops")
-    market_boost: int = Field(alias="marketBoost", default=0, description="Travel speed bonus percent for traders")
-    spy_boost: int = Field(alias="spyBoost", default=0, description="Travel speed bonus percent for spies")
+    horse_type: str = Field(
+        validation_alias="type",
+        serialization_alias="type",
+        default="",
+        description="The horse's type within its building",
+    )
+    unit_boost: int = Field(
+        validation_alias="unitBoost",
+        serialization_alias="unitBoost",
+        default=0,
+        description="Travel speed bonus percent for troops",
+    )
+    market_boost: int = Field(
+        validation_alias="marketBoost",
+        serialization_alias="marketBoost",
+        default=0,
+        description="Travel speed bonus percent for traders",
+    )
+    spy_boost: int = Field(
+        validation_alias="spyBoost",
+        serialization_alias="spyBoost",
+        default=0,
+        description="Travel speed bonus percent for spies",
+    )
     cost_factor_c1: float = Field(
-        alias="costFactorC1", default=0, description="Coin cost multiplier; 0 when not paid in coins"
+        validation_alias="costFactorC1",
+        serialization_alias="costFactorC1",
+        default=0,
+        description="Coin cost multiplier; 0 when not paid in coins",
     )
     cost_factor_c2: float = Field(
-        alias="costFactorC2", default=0, description="Ruby cost multiplier; 0 when not paid in rubies"
+        validation_alias="costFactorC2",
+        serialization_alias="costFactorC2",
+        default=0,
+        description="Ruby cost multiplier; 0 when not paid in rubies",
     )
     is_instant_spy_horse: bool = Field(
-        alias="isInstantSpyHorse",
+        validation_alias="isInstantSpyHorse",
+        serialization_alias="isInstantSpyHorse",
         default=False,
         description="Can be paid with feathers as well as rubies",
     )
@@ -1111,9 +1337,11 @@ class DefaultLordDef(EquipmentEffectSpecRow):
     effect with ``EquipmentBonusVO.parseEquipmentFromValueString``.
     """
 
-    lord_id: int = Field(alias="lordID")
-    lord_type: str = Field(alias="type", default="")
-    wearer_id: GameDataId[WearerType] = Field(alias="wearerID", default=0, description="Who wears it")
+    lord_id: int = Field(validation_alias="lordID", serialization_alias="lordID")
+    lord_type: str = Field(validation_alias="type", serialization_alias="type", default="")
+    wearer_id: GameDataId[WearerType] = Field(
+        validation_alias="wearerID", serialization_alias="wearerID", default=0, description="Who wears it"
+    )
 
 
 class GeneralAbilityDef(_Row):
@@ -1125,18 +1353,42 @@ class GeneralAbilityDef(_Row):
     """
 
     ability_id: GameDataId["GeneralAbility"] = Field(
-        alias="abilityID", default=0, description="The ability, the value set_abilities sends"
+        validation_alias="abilityID",
+        serialization_alias="abilityID",
+        default=0,
+        description="The ability, the value set_abilities sends",
     )
     name: str = Field(default="", description="Ability name, unique per level")
-    ability_group_id: int = Field(alias="abilityGroupID", default=0, description="The group the levels share")
+    ability_group_id: int = Field(
+        validation_alias="abilityGroupID",
+        serialization_alias="abilityGroupID",
+        default=0,
+        description="The group the levels share",
+    )
     level: int = Field(default=0, description="Ability level")
-    ability_trigger_id: int = Field(alias="abilityTriggerID", default=0, description="What triggers the ability")
-    trigger_per_wave: int = Field(alias="triggerPerWave", default=0, description="Triggers per wave")
+    ability_trigger_id: int = Field(
+        validation_alias="abilityTriggerID",
+        serialization_alias="abilityTriggerID",
+        default=0,
+        description="What triggers the ability",
+    )
+    trigger_per_wave: int = Field(
+        validation_alias="triggerPerWave",
+        serialization_alias="triggerPerWave",
+        default=0,
+        description="Triggers per wave",
+    )
     ability_attack_effect_id: int = Field(
-        alias="abilityAttackEffectID", default=0, description="Effect while attacking"
+        validation_alias="abilityAttackEffectID",
+        serialization_alias="abilityAttackEffectID",
+        default=0,
+        description="Effect while attacking",
     )
     ability_defense_effect_id: int = Field(
-        alias="abilityDefenseEffectID", default=0, description="Effect while defending"
+        validation_alias="abilityDefenseEffectID",
+        serialization_alias="abilityDefenseEffectID",
+        default=0,
+        description="Effect while defending",
     )
 
     @field_validator(
@@ -1161,11 +1413,21 @@ class CurrencyDef(_Row):
     """
 
     currency_id: GameDataId["CurrencyId"] = Field(
-        alias="currencyID", default=-1, description="The currency; -1 when unset"
+        validation_alias="currencyID",
+        serialization_alias="currencyID",
+        default=-1,
+        description="The currency; -1 when unset",
     )
-    name: str = Field(alias="Name", default="", description="Internal name")
-    json_key: str = Field(alias="JSONKey", default="", description="The key the server uses for it, e.g. GXP1")
-    asset_name: str = Field(alias="assetName", default="", description="Icon asset name")
+    name: str = Field(validation_alias="Name", serialization_alias="Name", default="", description="Internal name")
+    json_key: str = Field(
+        validation_alias="JSONKey",
+        serialization_alias="JSONKey",
+        default="",
+        description="The key the server uses for it, e.g. GXP1",
+    )
+    asset_name: str = Field(
+        validation_alias="assetName", serialization_alias="assetName", default="", description="Icon asset name"
+    )
 
     @field_validator("currency_id", mode="before")
     @classmethod
@@ -1193,11 +1455,24 @@ class VipLevelDef(_Row):
     read from the ``viplevels`` table by ``CastleVIPData.parseVIPLevels`` (bundle line 47518)
     """
 
-    vip_level_id: int = Field(alias="vipLevelID", default=-1, description="VIP level, 1 and up")
-    min_points: int = Field(alias="thresholdMin", default=0, description="The fewest VIP points at this level")
-    max_points: int = Field(alias="thresholdMax", default=0, description="The most VIP points at this level")
+    vip_level_id: int = Field(
+        validation_alias="vipLevelID", serialization_alias="vipLevelID", default=-1, description="VIP level, 1 and up"
+    )
+    min_points: int = Field(
+        validation_alias="thresholdMin",
+        serialization_alias="thresholdMin",
+        default=0,
+        description="The fewest VIP points at this level",
+    )
+    max_points: int = Field(
+        validation_alias="thresholdMax",
+        serialization_alias="thresholdMax",
+        default=0,
+        description="The most VIP points at this level",
+    )
     free_premium_commanders_per_day: int = Field(
-        alias="freePremiumGeneralsPerDay",
+        validation_alias="freePremiumGeneralsPerDay",
+        serialization_alias="freePremiumGeneralsPerDay",
         default=0,
         description="Premium commanders a day that cost no rubies while VIP time runs",
     )
@@ -1220,7 +1495,9 @@ class RaidBossDef(_Row):
     ``raidBosses`` table by ``RaidBossData`` (bundle line 113671)
     """
 
-    raid_boss_id: GameDataId["RaidBoss"] = Field(alias="raidBossID", default=0, description="The raid boss")
+    raid_boss_id: GameDataId["RaidBoss"] = Field(
+        validation_alias="raidBossID", serialization_alias="raidBossID", default=0, description="The raid boss"
+    )
     name: str = Field(default="", description="Internal name, unique")
     rarity: int = Field(default=0, description="Rarity")
 
@@ -1237,17 +1514,20 @@ class GeneralDef(_Row):
     Client: ``GeneralXmlVO.fillFromParamXml`` (bundle line 33102)
     """
 
-    general_id: GameDataId["General"] = Field(alias="generalID", description="The general")
+    general_id: GameDataId["General"] = Field(
+        validation_alias="generalID", serialization_alias="generalID", description="The general"
+    )
     name: str = Field(
-        alias="generalName",
+        validation_alias="generalName",
+        serialization_alias="generalName",
         default="",
         description="Internal name, unique per general",
     )
-    raw_attack_slots: str = Field(alias="attackSlots", default="")
-    raw_defense_slots: str = Field(alias="defenseSlots", default="")
-    rarity_id: int = Field(alias="generalRarityID", default=0)
-    max_level: int = Field(alias="maxLevel", default=0)
-    max_star_level: int = Field(alias="maxStarLevel", default=0)
+    raw_attack_slots: str = Field(validation_alias="attackSlots", serialization_alias="attackSlots", default="")
+    raw_defense_slots: str = Field(validation_alias="defenseSlots", serialization_alias="defenseSlots", default="")
+    rarity_id: int = Field(validation_alias="generalRarityID", serialization_alias="generalRarityID", default=0)
+    max_level: int = Field(validation_alias="maxLevel", serialization_alias="maxLevel", default=0)
+    max_star_level: int = Field(validation_alias="maxStarLevel", serialization_alias="maxStarLevel", default=0)
 
     @property
     def attack_slots(self) -> tuple[int, ...]:
@@ -1266,17 +1546,19 @@ class DungeonDefence(_Row):
     through the parsed properties.
     """
 
-    count_victories: int = Field(alias="countVictories", default=0)
-    kingdom_id: GameDataId[Kingdom] = Field(alias="kID", default=0, description="The kingdom")
-    lord_id: int = Field(alias="lordID", default=0)
-    skip_costs: int = Field(alias="skipCosts", default=0)
-    raw_units_left: str = Field(alias="unitsL", default="")
-    raw_units_middle: str = Field(alias="unitsM", default="")
-    raw_units_right: str = Field(alias="unitsR", default="")
-    raw_units_keep: str = Field(alias="unitsK", default="")
-    raw_tools_left: str = Field(alias="toolL", default="")
-    raw_tools_middle: str = Field(alias="toolM", default="")
-    raw_tools_right: str = Field(alias="toolR", default="")
+    count_victories: int = Field(validation_alias="countVictories", serialization_alias="countVictories", default=0)
+    kingdom_id: GameDataId[Kingdom] = Field(
+        validation_alias="kID", serialization_alias="kID", default=0, description="The kingdom"
+    )
+    lord_id: int = Field(validation_alias="lordID", serialization_alias="lordID", default=0)
+    skip_costs: int = Field(validation_alias="skipCosts", serialization_alias="skipCosts", default=0)
+    raw_units_left: str = Field(validation_alias="unitsL", serialization_alias="unitsL", default="")
+    raw_units_middle: str = Field(validation_alias="unitsM", serialization_alias="unitsM", default="")
+    raw_units_right: str = Field(validation_alias="unitsR", serialization_alias="unitsR", default="")
+    raw_units_keep: str = Field(validation_alias="unitsK", serialization_alias="unitsK", default="")
+    raw_tools_left: str = Field(validation_alias="toolL", serialization_alias="toolL", default="")
+    raw_tools_middle: str = Field(validation_alias="toolM", serialization_alias="toolM", default="")
+    raw_tools_right: str = Field(validation_alias="toolR", serialization_alias="toolR", default="")
 
     @property
     def units_left(self) -> list[tuple[int, int]]:
@@ -1327,17 +1609,17 @@ class NpcCampDefence(_Row):
     Covers the nomad, samurai, faction invasion and alliance invasion camps.
     """
 
-    count_victory: int = Field(alias="countVictory", default=0)
-    def_strength: int = Field(alias="defStrength", default=0)
-    raw_defense_units: str = Field(alias="defenceUnits", default="")
-    raw_defense_tools: str = Field(alias="defenceTools", default="")
-    wall_bonus: float = Field(alias="wallBonus", default=0)
-    gate_bonus: float = Field(alias="gateBonus", default=0)
-    lord_id: int = Field(alias="lordID", default=0)
+    count_victory: int = Field(validation_alias="countVictory", serialization_alias="countVictory", default=0)
+    def_strength: int = Field(validation_alias="defStrength", serialization_alias="defStrength", default=0)
+    raw_defense_units: str = Field(validation_alias="defenceUnits", serialization_alias="defenceUnits", default="")
+    raw_defense_tools: str = Field(validation_alias="defenceTools", serialization_alias="defenceTools", default="")
+    wall_bonus: float = Field(validation_alias="wallBonus", serialization_alias="wallBonus", default=0)
+    gate_bonus: float = Field(validation_alias="gateBonus", serialization_alias="gateBonus", default=0)
+    lord_id: int = Field(validation_alias="lordID", serialization_alias="lordID", default=0)
     guards: int = 0
-    unit_wall_count: int = Field(alias="unitWallCount", default=0)
-    cool_down: int = Field(alias="coolDown", default=0)
-    dungeon_level: int = Field(alias="dungeonlevel", default=0)
+    unit_wall_count: int = Field(validation_alias="unitWallCount", serialization_alias="unitWallCount", default=0)
+    cool_down: int = Field(validation_alias="coolDown", serialization_alias="coolDown", default=0)
+    dungeon_level: int = Field(validation_alias="dungeonlevel", serialization_alias="dungeonlevel", default=0)
 
     @property
     def defense_unit_ids(self) -> tuple[int, ...]:
@@ -1356,14 +1638,14 @@ class EventCampDef(_Row):
     fortification that comes with it, are looked up here.
     """
 
-    camp_id: int = Field(alias="id", default=0)
+    camp_id: int = Field(validation_alias="id", serialization_alias="id", default=0)
     rank: int = 0
     level: int = 0
-    wall_bonus: float = Field(alias="wallBonus", default=0)
-    gate_bonus: float = Field(alias="gateBonus", default=0)
-    moat_bonus: float = Field(alias="moatBonus", default=0)
+    wall_bonus: float = Field(validation_alias="wallBonus", serialization_alias="wallBonus", default=0)
+    gate_bonus: float = Field(validation_alias="gateBonus", serialization_alias="gateBonus", default=0)
+    moat_bonus: float = Field(validation_alias="moatBonus", serialization_alias="moatBonus", default=0)
     guards: int = 0
-    unit_wall_count: int = Field(alias="unitWallCount", default=0)
+    unit_wall_count: int = Field(validation_alias="unitWallCount", serialization_alias="unitWallCount", default=0)
 
 
 class LeagueBracketDef(_Row):
@@ -1380,16 +1662,47 @@ class LeagueBracketDef(_Row):
     """
 
     league_type_id: int | None = Field(
-        alias="leaguetypeID", default=None, description="League type id; None when the row has none"
+        validation_alias="leaguetypeID",
+        serialization_alias="leaguetypeID",
+        default=None,
+        description="League type id; None when the row has none",
     )
     event_id: GameDataId["Event"] | None = Field(
-        alias="eventID", default=None, description="The event it belongs to; -1 for none, None when the row has none"
+        validation_alias="eventID",
+        serialization_alias="eventID",
+        default=None,
+        description="The event it belongs to; -1 for none, None when the row has none",
     )
-    sub_type: int = Field(alias="subType", default=0, description="The event's sub type, e.g. a Berimond faction")
-    min_level: int = Field(alias="minLevel", default=0, description="Lowest player level in the league")
-    max_level: int = Field(alias="maxLevel", default=0, description="Highest player level in the league")
-    victory_min: int = Field(alias="countVictoryMin", default=0, description="Lower victory count")
-    victory_max: int = Field(alias="countVictoryMax", default=0, description="Upper victory count")
+    sub_type: int = Field(
+        validation_alias="subType",
+        serialization_alias="subType",
+        default=0,
+        description="The event's sub type, e.g. a Berimond faction",
+    )
+    min_level: int = Field(
+        validation_alias="minLevel",
+        serialization_alias="minLevel",
+        default=0,
+        description="Lowest player level in the league",
+    )
+    max_level: int = Field(
+        validation_alias="maxLevel",
+        serialization_alias="maxLevel",
+        default=0,
+        description="Highest player level in the league",
+    )
+    victory_min: int = Field(
+        validation_alias="countVictoryMin",
+        serialization_alias="countVictoryMin",
+        default=0,
+        description="Lower victory count",
+    )
+    victory_max: int = Field(
+        validation_alias="countVictoryMax",
+        serialization_alias="countVictoryMax",
+        default=0,
+        description="Upper victory count",
+    )
 
     @field_validator("league_type_id", "event_id", mode="before")
     @classmethod

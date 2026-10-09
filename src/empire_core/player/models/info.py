@@ -9,7 +9,7 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import ConfigDict, Field, field_serializer, field_validator, model_validator
 
@@ -88,7 +88,8 @@ class GetPlayerInfoRequest(BaseRequest):
     command = "gdi"
 
     player_id: int = Field(
-        alias="PID",
+        validation_alias="PID",
+        serialization_alias="PID",
         description=(
             "A player's id, e.g. MapObject.owner_id from a map scan or client.player.search_player_by_name(), "
             "or AllianceMember.player_id"
@@ -123,11 +124,12 @@ class GetPlayerInfoResponse(BaseResponse):
 
     command = "gdi"
 
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
+    model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True, extra="allow")
 
-    owner: PlayerOwnerInfo | None = Field(alias="O", default=None)
+    owner: PlayerOwnerInfo | None = Field(validation_alias="O", serialization_alias="O", default=None)
     castle_list: GetCastlesResponse = Field(
-        alias="gcl",
+        validation_alias="gcl",
+        serialization_alias="gcl",
         default_factory=GetCastlesResponse,
         description="The player's castles, outposts and landmarks, shaped as a GetCastlesResponse",
     )
@@ -253,7 +255,7 @@ class SearchPlayerRequest(BaseRequest):
 
     command = "wsp"
 
-    player_name: str = Field(alias="PN", description="The player's name, as typed")
+    player_name: str = Field(validation_alias="PN", serialization_alias="PN", description="The player's name, as typed")
 
     @field_serializer("player_name")
     def _encoded_name(self, value: str) -> str:
@@ -274,15 +276,20 @@ class SearchPlayerResponse(BaseResponse):
 
     command = "wsp"
 
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
+    model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True, extra="allow")
 
     area: MapArea = Field(
-        alias="gaa",
+        validation_alias="gaa",
+        serialization_alias="gaa",
         default_factory=MapArea,
         description="The found player's map rows and owner records",
     )
-    x: int | None = Field(alias="X", default=None, description="Map x of the found player's castle")
-    y: int | None = Field(alias="Y", default=None, description="Map y of the found player's castle")
+    x: int | None = Field(
+        validation_alias="X", serialization_alias="X", default=None, description="Map x of the found player's castle"
+    )
+    y: int | None = Field(
+        validation_alias="Y", serialization_alias="Y", default=None, description="Map y of the found player's castle"
+    )
 
     @field_validator("area", mode="before")
     @classmethod

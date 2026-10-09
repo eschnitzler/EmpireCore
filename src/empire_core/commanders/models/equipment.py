@@ -254,7 +254,7 @@ class Equipment(BasePayload):
         return row
 
     @classmethod
-    def from_list(cls, data: list) -> "Equipment":
+    def from_list(cls, data: list[Any]) -> "Equipment":
         """Parse from an EQ array entry, tolerating short entries."""
         return cls.model_validate(data)
 
@@ -301,7 +301,8 @@ class GetEquipmentInventoryResponse(BaseResponse):
     command = "gei"
 
     items: list[Equipment] = Field(
-        alias="I",
+        validation_alias="I",
+        serialization_alias="I",
         default_factory=list,
         description="Inventory items",
     )
@@ -338,17 +339,21 @@ class EquipEquipmentRequest(BaseRequest):
     command = "eeq"
 
     equipment_id: int = Field(
-        alias="EID",
+        validation_alias="EID",
+        serialization_alias="EID",
         description=(
             "Equipment.equipment_id: of an inventory item from client.equipment.get_inventory() to "
             "equip, of a worn one from client.commanders.get_all() to take off"
         ),
     )
     commander_id: int = Field(
-        alias="LID",
+        validation_alias="LID",
+        serialization_alias="LID",
         description="The commander_id of a Commander or Castellan from client.commanders.get_all()",
     )
-    equip: int = Field(alias="E", description="1 puts the item on the leader, 0 takes it off")
+    equip: int = Field(
+        validation_alias="E", serialization_alias="E", description="1 puts the item on the leader, 0 takes it off"
+    )
 
     @field_validator("equip", mode="before")
     @classmethod

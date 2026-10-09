@@ -7,6 +7,7 @@ everything else reads the game data through it.
 """
 
 import re
+from typing import Any
 
 import requests
 
@@ -38,7 +39,7 @@ def get_items_version() -> str:
     return version
 
 
-def fetch_items_data(version: str) -> dict:
+def fetch_items_data(version: str) -> dict[str, Any]:
     """The full ``items_v{version}.json`` payload."""
     response = requests.get(f"{ITEMS_BASE_URL}/items_v{version}.json", timeout=30)
     response.raise_for_status()

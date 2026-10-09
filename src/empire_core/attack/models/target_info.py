@@ -37,11 +37,13 @@ class GetDungeonAttackInfoRequest(BaseRequest):
 
     command = "adi"
 
-    source_x: int = Field(alias="SX", description="Attacking castle's map x")
-    source_y: int = Field(alias="SY", description="Attacking castle's map y")
-    target_x: int = Field(alias="TX", description="Target map x")
-    target_y: int = Field(alias="TY", description="Target map y")
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
+    source_x: int = Field(validation_alias="SX", serialization_alias="SX", description="Attacking castle's map x")
+    source_y: int = Field(validation_alias="SY", serialization_alias="SY", description="Attacking castle's map y")
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Target map y")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target"
+    )
 
 
 class GetDungeonAttackInfoResponse(GetAttackInfoResponse):
@@ -69,11 +71,13 @@ class GetBossDungeonAttackInfoRequest(BaseRequest):
 
     command = "abi"
 
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
-    source_x: int = Field(alias="SX", description="Attacking castle's map x")
-    source_y: int = Field(alias="SY", description="Attacking castle's map y")
-    target_x: int = Field(alias="TX", description="Target map x")
-    target_y: int = Field(alias="TY", description="Target map y")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target"
+    )
+    source_x: int = Field(validation_alias="SX", serialization_alias="SX", description="Attacking castle's map x")
+    source_y: int = Field(validation_alias="SY", serialization_alias="SY", description="Attacking castle's map y")
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Target map y")
 
 
 class GetBossDungeonAttackInfoResponse(GetAttackInfoResponse):
@@ -101,11 +105,13 @@ class GetLandmarkAttackInfoRequest(BaseRequest):
 
     command = "ali"
 
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
-    target_x: int = Field(alias="TX", description="Target map x")
-    target_y: int = Field(alias="TY", description="Target map y")
-    source_x: int = Field(alias="SX", description="Attacking castle's map x")
-    source_y: int = Field(alias="SY", description="Attacking castle's map y")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target"
+    )
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Target map y")
+    source_x: int = Field(validation_alias="SX", serialization_alias="SX", description="Attacking castle's map x")
+    source_y: int = Field(validation_alias="SY", serialization_alias="SY", description="Attacking castle's map y")
 
 
 class GetLandmarkAttackInfoResponse(GetAttackInfoResponse):
@@ -135,9 +141,11 @@ class GetVillageAttackInfoRequest(BaseRequest):
 
     command = "avi"
 
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
-    target_x: int = Field(alias="TX", description="Target map x")
-    target_y: int = Field(alias="TY", description="Target map y")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target"
+    )
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Target map y")
 
 
 class GetVillageAttackInfoResponse(GetAttackInfoResponse):
@@ -167,9 +175,11 @@ class GetIslandAttackInfoRequest(BaseRequest):
 
     command = "aii"
 
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
-    target_x: int = Field(alias="TX", description="Target map x")
-    target_y: int = Field(alias="TY", description="Target map y")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target"
+    )
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Target map y")
 
 
 class GetIslandAttackInfoResponse(GetAttackInfoResponse):
@@ -202,9 +212,11 @@ class GetOutpostConquerInfoRequest(BaseRequest):
 
     command = "coi"
 
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
-    target_x: int = Field(alias="TX", description="Target map x")
-    target_y: int = Field(alias="TY", description="Target map y")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target"
+    )
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Target map y")
 
 
 class GetOutpostConquerInfoResponse(AttackInfoResponse):
@@ -223,8 +235,12 @@ class GetOutpostConquerInfoResponse(AttackInfoResponse):
 
     command = "coi"
 
-    available_barons: int = Field(alias="AB", default=0, description="Barons free to lead the conquest")
-    max_barons: int = Field(alias="MB", default=0, description="Most barons the player may hold")
+    available_barons: int = Field(
+        validation_alias="AB", serialization_alias="AB", default=0, description="Barons free to lead the conquest"
+    )
+    max_barons: int = Field(
+        validation_alias="MB", serialization_alias="MB", default=0, description="Most barons the player may hold"
+    )
 
 
 class GetCapitalConquerInfoRequest(BaseRequest):
@@ -240,9 +256,11 @@ class GetCapitalConquerInfoRequest(BaseRequest):
 
     command = "cci"
 
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
-    target_x: int = Field(alias="TX", description="Target map x")
-    target_y: int = Field(alias="TY", description="Target map y")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target"
+    )
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Target map y")
 
 
 class GetCapitalConquerInfoResponse(GetAttackInfoResponse):
@@ -272,9 +290,11 @@ class GetMetropolConquerInfoRequest(BaseRequest):
 
     command = "cti"
 
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
-    target_x: int = Field(alias="TX", description="Target map x")
-    target_y: int = Field(alias="TY", description="Target map y")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target"
+    )
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Target map y")
 
 
 class GetMetropolConquerInfoResponse(GetAttackInfoResponse):

@@ -12,7 +12,7 @@ The timed models count from ``received_at``, as the client counts from its timer
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -36,7 +36,10 @@ class DailyResetResponse(TimedResponse):
     command = "drt"
 
     seconds: ClientNumber = Field(
-        alias="STR", default=0, description="Seconds until the daily reset when the values were read"
+        validation_alias="STR",
+        serialization_alias="STR",
+        default=0,
+        description="Seconds until the daily reset when the values were read",
     )
 
     def remaining_seconds(self, now: float | None = None) -> float:
@@ -52,7 +55,7 @@ class OfficerBonus(BasePayload):
     effect up by id and reads the values with ``BonusVO.parseFromValueArray``
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     effect: EnumOrInt["Effect"] = Field(description="The effect")
     values: tuple[int | float, ...] = Field(default=(), description="The effect's values, in the effect's order")
@@ -79,10 +82,17 @@ class OfficerTraining(TimedPayload):
     ``OfficersSchoolData.getBonusByEffectType`` (bundle line 144634)
     """
 
-    slot_id: ClientInt = Field(alias="S", default=-1, description="The program's slot, -1 for none")
-    bonus: OfficerBonus | None = Field(alias="E", default=None, description="The program's bonus; None for none")
+    slot_id: ClientInt = Field(
+        validation_alias="S", serialization_alias="S", default=-1, description="The program's slot, -1 for none"
+    )
+    bonus: OfficerBonus | None = Field(
+        validation_alias="E", serialization_alias="E", default=None, description="The program's bonus; None for none"
+    )
     seconds: ClientNumber = Field(
-        alias="RS", default=-1, description="Seconds the program runs when the values were read, -1 for none"
+        validation_alias="RS",
+        serialization_alias="RS",
+        default=-1,
+        description="Seconds the program runs when the values were read, -1 for none",
     )
 
     @field_validator("bonus", mode="before")
@@ -113,12 +123,12 @@ class BoostedGlobalEffectsResponse(BaseResponse):
     skips a block without ``GE``, and ``isEffectBoosted`` (bundle line 143643)
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     command = "bie"
 
     global_effect_ids: tuple[EnumOrInt["GlobalEffect"], ...] = Field(
-        alias="GE", default=(), description="The boosted global effects"
+        validation_alias="GE", serialization_alias="GE", default=(), description="The boosted global effects"
     )
 
     @field_validator("global_effect_ids", mode="before")
@@ -135,7 +145,7 @@ class PlayerGift(BasePayload):
     Client: ``PlayerGiftVO.parseFromArray`` (bundle line 52178)
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     package_id: ClientInt = Field(default=0, description="The event package's id")
     amount: ClientInt = Field(default=0, description="How many you hold")
@@ -158,13 +168,18 @@ class PlayerGiftsResponse(BaseResponse):
     block without ``G``; ``sendablePackageAmount`` (bundle line 113613), read at bundle line 44174
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     command = "pgl"
 
-    gifts: tuple[PlayerGift, ...] = Field(alias="G", default=(), description="The gift packages you hold")
+    gifts: tuple[PlayerGift, ...] = Field(
+        validation_alias="G", serialization_alias="G", default=(), description="The gift packages you hold"
+    )
     sendable_amount: ClientNumber = Field(
-        alias="RA", default=0, description="Gift packages you may still send; none at 0 or less"
+        validation_alias="RA",
+        serialization_alias="RA",
+        default=0,
+        description="Gift packages you may still send; none at 0 or less",
     )
 
     @field_validator("gifts", mode="before")

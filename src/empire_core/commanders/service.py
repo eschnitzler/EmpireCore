@@ -16,6 +16,7 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Callable, Iterable
+from typing import TYPE_CHECKING
 
 from empire_core.commanders.models.equipment import (
     EquipEquipmentRequest,
@@ -51,6 +52,9 @@ from empire_core.exceptions import GameDataNotLoadedError, PremiumCommanderCostE
 from empire_core.protocol.base import BaseResponse
 from empire_core.services.base import BaseService
 from empire_core.utils.callbacks import Event
+
+if TYPE_CHECKING:
+    from empire_core.client.client import EmpireClient
 
 
 class CommandersService(BaseService):
@@ -125,7 +129,7 @@ class CommandersService(BaseService):
             RenameCommanderRequest(commander_id=commander_id, name=name), RenameCommanderResponse, timeout=timeout
         )
 
-    def __init__(self, client) -> None:
+    def __init__(self, client: EmpireClient) -> None:
         super().__init__(client)
         self._premium_send_lock = threading.Lock()
         # Premium sends this client made since the vip stamped at that time: (vip stamp, count)
@@ -312,7 +316,7 @@ class SkillsService(BaseService):
     Reached as client.skills.
     """
 
-    def __init__(self, client) -> None:
+    def __init__(self, client: EmpireClient) -> None:
         super().__init__(client)
         self.on_response("skl", self._handle_skill_list)
         self.on_response("ego", self._handle_skill_list)

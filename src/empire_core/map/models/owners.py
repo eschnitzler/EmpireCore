@@ -24,21 +24,42 @@ class OwnerCrest(BasePayload):
     Client: ``CrestVO.loadFromParamObject`` (bundle line 10587).
     """
 
-    is_set: bool = Field(alias="IS", default=False, description="False means the tutorial crest is shown")
+    is_set: bool = Field(
+        validation_alias="IS",
+        serialization_alias="IS",
+        default=False,
+        description="False means the tutorial crest is shown",
+    )
 
     @field_validator("is_set", mode="before")
     @classmethod
     def _truthy(cls, value: Any) -> bool:
         return js_truthy(value)
 
-    symbol_type: ClientInt = Field(alias="SPT", default=0, description="Symbol layout type")
-    symbol1: ClientInt = Field(alias="S1", default=0, description="First symbol id")
-    symbol1_color: ClientInt = Field(alias="SC1", default=0, description="First symbol's colour")
-    symbol2: ClientInt = Field(alias="S2", default=0, description="Second symbol id")
-    symbol2_color: ClientInt = Field(alias="SC2", default=0, description="Second symbol's colour")
-    background_type: ClientInt = Field(alias="BGT", default=0, description="Background layout type")
-    background_color1: ClientInt = Field(alias="BGC1", default=0, description="First background colour")
-    background_color2: ClientInt = Field(alias="BGC2", default=0, description="Second background colour")
+    symbol_type: ClientInt = Field(
+        validation_alias="SPT", serialization_alias="SPT", default=0, description="Symbol layout type"
+    )
+    symbol1: ClientInt = Field(
+        validation_alias="S1", serialization_alias="S1", default=0, description="First symbol id"
+    )
+    symbol1_color: ClientInt = Field(
+        validation_alias="SC1", serialization_alias="SC1", default=0, description="First symbol's colour"
+    )
+    symbol2: ClientInt = Field(
+        validation_alias="S2", serialization_alias="S2", default=0, description="Second symbol id"
+    )
+    symbol2_color: ClientInt = Field(
+        validation_alias="SC2", serialization_alias="SC2", default=0, description="Second symbol's colour"
+    )
+    background_type: ClientInt = Field(
+        validation_alias="BGT", serialization_alias="BGT", default=0, description="Background layout type"
+    )
+    background_color1: ClientInt = Field(
+        validation_alias="BGC1", serialization_alias="BGC1", default=0, description="First background colour"
+    )
+    background_color2: ClientInt = Field(
+        validation_alias="BGC2", serialization_alias="BGC2", default=0, description="Second background colour"
+    )
 
 
 class OwnerFaction(BasePayload):
@@ -47,13 +68,21 @@ class OwnerFaction(BasePayload):
     Client: ``WorldMapOwnerInfoVO.fillFromParamObject`` (bundle line 10794), which reads each key through ``parseInt``.
     """
 
-    faction_id: ParseInt = Field(alias="FID", default=0, description="Faction id")
-    protection_status: ParseInt = Field(alias="PMS", default=0, description="Faction protection status")
+    faction_id: ParseInt = Field(validation_alias="FID", serialization_alias="FID", default=0, description="Faction id")
+    protection_status: ParseInt = Field(
+        validation_alias="PMS", serialization_alias="PMS", default=0, description="Faction protection status"
+    )
     protection_end_seconds: ParseInt = Field(
-        alias="PMT", default=0, description="Seconds until faction protection ends"
+        validation_alias="PMT",
+        serialization_alias="PMT",
+        default=0,
+        description="Seconds until faction protection ends",
     )
     title_id: EnumOrInt["Title"] | None = Field(
-        alias="TID", default=None, description="The faction title; None when TID is -1 or not a number"
+        validation_alias="TID",
+        serialization_alias="TID",
+        default=None,
+        description="The faction title; None when TID is -1 or not a number",
     )
 
     @field_validator("title_id", mode="before")
@@ -125,10 +154,16 @@ class AllianceCrest(BasePayload):
     """
 
     layout_id: EnumOrInt["AllianceCrestLayout"] | None = Field(
-        alias="ACLI", default=None, description="The crest layout; None when the crest names none (0)"
+        validation_alias="ACLI",
+        serialization_alias="ACLI",
+        default=None,
+        description="The crest layout; None when the crest names none (0)",
     )
     color_ids: list[Annotated[EnumOrInt["AllianceCrestColor"], BeforeValidator(js_int)]] = Field(
-        alias="ACCS", default_factory=list, description="The colours, one per layout colour"
+        validation_alias="ACCS",
+        serialization_alias="ACCS",
+        default_factory=list,
+        description="The colours, one per layout colour",
     )
 
     @field_validator("layout_id", mode="before")
@@ -152,7 +187,9 @@ class AllianceEmblem(BasePayload):
     reads only ``ACCA``, and only for a player in an alliance.
     """
 
-    crest: AllianceCrest | None = Field(alias="ACCA", default=None, description="The alliance's current crest")
+    crest: AllianceCrest | None = Field(
+        validation_alias="ACCA", serialization_alias="ACCA", default=None, description="The alliance's current crest"
+    )
 
     @field_validator("crest", mode="before")
     @classmethod

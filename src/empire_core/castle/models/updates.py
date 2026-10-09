@@ -37,10 +37,21 @@ class UnitsReceived(BaseResponse):
 
     command = "rue"
 
-    castle_id: ClientInt = Field(alias="AID", default=0, description="The castle's object id")
-    kingdom_id: ClientInt = Field(alias="SID", default=0, description="The castle's kingdom")
-    wod_id: UnitOrTool = Field(alias="WID", default=0, description="The unit or tool")
-    amount: ClientInt = Field(alias="NUA", default=0, description="How many of the unit the castle now holds")
+    castle_id: ClientInt = Field(
+        validation_alias="AID", serialization_alias="AID", default=0, description="The castle's object id"
+    )
+    kingdom_id: ClientInt = Field(
+        validation_alias="SID", serialization_alias="SID", default=0, description="The castle's kingdom"
+    )
+    wod_id: UnitOrTool = Field(
+        validation_alias="WID", serialization_alias="WID", default=0, description="The unit or tool"
+    )
+    amount: ClientInt = Field(
+        validation_alias="NUA",
+        serialization_alias="NUA",
+        default=0,
+        description="How many of the unit the castle now holds",
+    )
 
 
 class BuildingXP(BaseResponse):
@@ -57,8 +68,10 @@ class BuildingXP(BaseResponse):
 
     command = "cbx"
 
-    object_id: int = Field(alias="OID", default=-1, description="The building's object id")
-    xp: int | float = Field(alias="XP", default=0, description="The XP gained")
+    object_id: int = Field(
+        validation_alias="OID", serialization_alias="OID", default=-1, description="The building's object id"
+    )
+    xp: int | float = Field(validation_alias="XP", serialization_alias="XP", default=0, description="The XP gained")
 
 
 class BuildingFinished(BuildingXP):
@@ -88,7 +101,9 @@ class DamagedBuildings(BaseResponse):
 
     command = "gdb"
 
-    buildings: list[BuildingRow] = Field(alias="B", default_factory=list, description="The changed buildings")
+    buildings: list[BuildingRow] = Field(
+        validation_alias="B", serialization_alias="B", default_factory=list, description="The changed buildings"
+    )
 
     @field_validator("buildings", mode="before")
     @classmethod
@@ -123,7 +138,9 @@ class SlumLevel(BaseResponse):
 
     command = "csl"
 
-    level: int = Field(alias="SL", default=-1, description="The slum level, -1 for none")
+    level: int = Field(
+        validation_alias="SL", serialization_alias="SL", default=-1, description="The slum level, -1 for none"
+    )
 
 
 class AreaBooster(BaseResponse):
@@ -139,7 +156,9 @@ class AreaBooster(BaseResponse):
 
     command = "gab"
 
-    builder_discount: int | float = Field(alias="B", default=0, description="The builder discount")
+    builder_discount: int | float = Field(
+        validation_alias="B", serialization_alias="B", default=0, description="The builder discount"
+    )
 
 
 __all__ = [

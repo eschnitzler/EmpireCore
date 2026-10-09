@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import math
 from collections.abc import Iterable, Mapping, Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict
 
@@ -86,7 +86,7 @@ class Bonus(BaseModel):
     reduction in another - so the space has to travel with the bonus.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     effect_id: int
     value: float
@@ -126,7 +126,7 @@ def _first_number(candidate: object) -> float | None:
     return next(iter(_numbers(candidate)), None)
 
 
-def parse_bonus_entries(entries: Iterable, *, via_relic: bool = False, via_equipment: bool = False) -> list[Bonus]:
+def parse_bonus_entries(entries: Iterable[Any], *, via_relic: bool = False, via_equipment: bool = False) -> list[Bonus]:
     """
     Parse the bonus encodings the server uses.
 
@@ -442,7 +442,7 @@ def _second(part: tuple[int | float | None, ...]) -> int | float:
     return part[1] if len(part) > 1 and part[1] is not None else 0
 
 
-def _spec_bonuses(rows: Iterable) -> list[Bonus]:
+def _spec_bonuses(rows: Iterable[Any]) -> list[Bonus]:
     return [bonus for row in rows if row is not None for bonus in effect_value_bonuses(row.effects)]
 
 

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 from empire_core.combat import is_npc_pvp_player, owner_id_from_row
 from empire_core.enums import MapItemType, NPCOwner
@@ -221,7 +222,7 @@ def risk_target_flags(owner_id: int, area_type: int | None) -> tuple[bool, bool]
     return dungeon, player_target
 
 
-def row_risk_flags(row: list | None) -> tuple[bool, bool] | None:
+def row_risk_flags(row: list[Any] | None) -> tuple[bool, bool] | None:
     """
     The client's ``(isDungeon, isPlayer)`` for a target's map row, or None where its owner is not traced here.
 

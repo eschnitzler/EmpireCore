@@ -91,9 +91,9 @@ class AllianceMember(PlayerProfileBase):
 class AllianceBuilding(BasePayload):
     """Alliance building info from ABL array."""
 
-    building_type: int = Field(alias="BT", default=0)
-    level: int = Field(alias="L", default=0)
-    cooldown: int = Field(alias="CD", default=-1)
+    building_type: int = Field(validation_alias="BT", serialization_alias="BT", default=0)
+    level: int = Field(validation_alias="L", serialization_alias="L", default=0)
+    cooldown: int = Field(validation_alias="CD", serialization_alias="CD", default=-1)
 
 
 # =============================================================================
@@ -118,25 +118,46 @@ class AllianceStorage(BasePayload):
     ``ACollectableItemVO.amount`` (bundle line 3575)
     """
 
-    wood: StorageAmount = Field(alias="W", default=0, description="Wood")
-    stone: StorageAmount = Field(alias="S", default=0, description="Stone")
-    coins: StorageAmount = Field(alias="C1", default=0, description="Coins")
-    rubies: StorageAmount = Field(alias="C2", default=0, description="Rubies")
-    iron: StorageAmount = Field(alias="I", default=0, description="Iron")
-    oil: StorageAmount = Field(alias="O", default=0, description="Olive oil")
-    glass: StorageAmount = Field(alias="G", default=0, description="Glass")
-    coal: StorageAmount = Field(alias="C", default=0, description="Charcoal")
-    fury_doubloons: StorageAmount = Field(alias="FD", default=0, description="Fury doubloons")
-    time_doubloons: StorageAmount = Field(alias="TD", default=0, description="Time doubloons")
-    spirit_doubloons: StorageAmount = Field(alias="SD", default=0, description="Spirit doubloons")
-    vigor_doubloons: StorageAmount = Field(alias="VD", default=0, description="Vigor doubloons")
-    bastion_doubloons: StorageAmount = Field(alias="BD", default=0, description="Bastion doubloons")
-    rampart_doubloons: StorageAmount = Field(alias="RD", default=0, description="Rampart doubloons")
-    alliance_coins: StorageAmount = Field(alias="AC", default=0, description="Alliance coins")
-    rift_coins: StorageAmount = Field(alias="RC", default=0, description="Rift coins")
-    legendary_rift_coins: StorageAmount = Field(alias="LRC", default=0, description="Legendary rift coins")
+    wood: StorageAmount = Field(validation_alias="W", serialization_alias="W", default=0, description="Wood")
+    stone: StorageAmount = Field(validation_alias="S", serialization_alias="S", default=0, description="Stone")
+    coins: StorageAmount = Field(validation_alias="C1", serialization_alias="C1", default=0, description="Coins")
+    rubies: StorageAmount = Field(validation_alias="C2", serialization_alias="C2", default=0, description="Rubies")
+    iron: StorageAmount = Field(validation_alias="I", serialization_alias="I", default=0, description="Iron")
+    oil: StorageAmount = Field(validation_alias="O", serialization_alias="O", default=0, description="Olive oil")
+    glass: StorageAmount = Field(validation_alias="G", serialization_alias="G", default=0, description="Glass")
+    coal: StorageAmount = Field(validation_alias="C", serialization_alias="C", default=0, description="Charcoal")
+    fury_doubloons: StorageAmount = Field(
+        validation_alias="FD", serialization_alias="FD", default=0, description="Fury doubloons"
+    )
+    time_doubloons: StorageAmount = Field(
+        validation_alias="TD", serialization_alias="TD", default=0, description="Time doubloons"
+    )
+    spirit_doubloons: StorageAmount = Field(
+        validation_alias="SD", serialization_alias="SD", default=0, description="Spirit doubloons"
+    )
+    vigor_doubloons: StorageAmount = Field(
+        validation_alias="VD", serialization_alias="VD", default=0, description="Vigor doubloons"
+    )
+    bastion_doubloons: StorageAmount = Field(
+        validation_alias="BD", serialization_alias="BD", default=0, description="Bastion doubloons"
+    )
+    rampart_doubloons: StorageAmount = Field(
+        validation_alias="RD", serialization_alias="RD", default=0, description="Rampart doubloons"
+    )
+    alliance_coins: StorageAmount = Field(
+        validation_alias="AC", serialization_alias="AC", default=0, description="Alliance coins"
+    )
+    rift_coins: StorageAmount = Field(
+        validation_alias="RC", serialization_alias="RC", default=0, description="Rift coins"
+    )
+    legendary_rift_coins: StorageAmount = Field(
+        validation_alias="LRC", serialization_alias="LRC", default=0, description="Legendary rift coins"
+    )
     alliance_influence: StorageAmount = Field(
-        alias="AIN", default=0, description="Alliance influence; only on alliance battle ground servers"
+        validation_alias="AIN",
+        serialization_alias="AIN",
+        default=0,
+        description="Alliance influence; only on alliance battle ground servers",
     )
 
 
@@ -199,15 +220,21 @@ class AllianceDiplomacyStatus(BasePayload):
     ``OtherAllianceStatusListItemVO`` (bundle line 66330).
     """
 
-    alliance_id: ClientInt = Field(alias="AID", default=0, description="The other alliance")
-    alliance_name: str | None = Field(alias="AN", default=None, description="The other alliance's name")
+    alliance_id: ClientInt = Field(
+        validation_alias="AID", serialization_alias="AID", default=0, description="The other alliance"
+    )
+    alliance_name: str | None = Field(
+        validation_alias="AN", serialization_alias="AN", default=None, description="The other alliance's name"
+    )
     status: ClientInt = Field(
-        alias="AS",
+        validation_alias="AS",
+        serialization_alias="AS",
         default=0,
         description="0 at war, 1 neutral, 2 soft allied, 3 real allied",
     )
     status_confirmed: ClientInt = Field(
-        alias="AC",
+        validation_alias="AC",
+        serialization_alias="AC",
         default=0,
         description="1 once agreed, 0 while only requested",
     )
@@ -226,8 +253,15 @@ class PeaceOffer(BasePayload):
     and ``TS`` into a ``PeaceOfferVO`` (bundle line 42688)
     """
 
-    tribute: ClientInt = Field(alias="T", default=0, description="The tribute percentage, negative when demanded")
-    remaining_seconds: int | float = Field(alias="TS", default=0, description="Seconds until the offer ends")
+    tribute: ClientInt = Field(
+        validation_alias="T",
+        serialization_alias="T",
+        default=0,
+        description="The tribute percentage, negative when demanded",
+    )
+    remaining_seconds: int | float = Field(
+        validation_alias="TS", serialization_alias="TS", default=0, description="Seconds until the offer ends"
+    )
 
     @field_validator("remaining_seconds", mode="before")
     @classmethod
@@ -256,12 +290,22 @@ class CrestLayout(BasePayload):
     """
 
     layout_id: EnumOrInt["AllianceCrestLayout"] | None = Field(
-        alias="ACLI", default=None, description="The crest layout; None when the entry names none"
+        validation_alias="ACLI",
+        serialization_alias="ACLI",
+        default=None,
+        description="The crest layout; None when the entry names none",
     )
-    seconds_left: int | float = Field(alias="ACLET", default=0, description="Seconds until the layout ends")
-    is_active: bool = Field(alias="ACIA", default=False, description="The layout is the one in use")
+    seconds_left: int | float = Field(
+        validation_alias="ACLET", serialization_alias="ACLET", default=0, description="Seconds until the layout ends"
+    )
+    is_active: bool = Field(
+        validation_alias="ACIA", serialization_alias="ACIA", default=False, description="The layout is the one in use"
+    )
     color_ids: tuple[Annotated[EnumOrInt["AllianceCrestColor"], BeforeValidator(js_int)], ...] | None = Field(
-        alias="ACLCS", default=None, description="The layout's colours, as ACCS names them; None when unsent"
+        validation_alias="ACLCS",
+        serialization_alias="ACLCS",
+        default=None,
+        description="The layout's colours, as ACCS names them; None when unsent",
     )
 
     @field_validator("layout_id", mode="before")
@@ -296,11 +340,14 @@ class AllianceCrests(BasePayload):
     """
 
     crest: AllianceCrest | None = Field(
-        alias="ACCA",
+        validation_alias="ACCA",
+        serialization_alias="ACCA",
         default=None,
         description="The current crest; None when unsent, where the client draws a random one",
     )
-    fallback_crest: AllianceCrest | None = Field(alias="ACFB", default=None, description="The fallback crest")
+    fallback_crest: AllianceCrest | None = Field(
+        validation_alias="ACFB", serialization_alias="ACFB", default=None, description="The fallback crest"
+    )
 
     @field_validator("crest", mode="before")
     @classmethod
@@ -341,9 +388,13 @@ class AllianceInfo(BasePayload):
     ``CastleAllianceData.parseAllianceInfo`` (bundle line 11609) for ``RT``
     """
 
-    alliance_id: ParseInt = Field(alias="AID", default=0, description="Alliance id")
-    name: str = Field(alias="N", default="", description="Alliance name")
-    members: list[AllianceMember] = Field(alias="M", default_factory=list, description="Members, highest rank first")
+    alliance_id: ParseInt = Field(
+        validation_alias="AID", serialization_alias="AID", default=0, description="Alliance id"
+    )
+    name: str = Field(validation_alias="N", serialization_alias="N", default="", description="Alliance name")
+    members: list[AllianceMember] = Field(
+        validation_alias="M", serialization_alias="M", default_factory=list, description="Members, highest rank first"
+    )
 
     @field_validator("members", mode="before")
     @classmethod
@@ -359,34 +410,88 @@ class AllianceInfo(BasePayload):
         )
         return sorted(members, key=_rank_order)
 
-    fame_points: ClientInt = Field(alias="CF", default=0, description="Alliance fame points")
-    highest_fame_points: ParseInt = Field(alias="HF", default=0, description="Highest fame points reached")
-    might: ParseInt = Field(alias="MP", default=0, description="Alliance might points")
-    highest_alliance_might: ParseInt = Field(alias="HAMP", default=0, description="Highest might points reached")
-    description: str = Field(alias="D", default="", description="The alliance's description, decoded as chat text")
-    announcement: str = Field(alias="A", default=" ", description='The alliance\'s announcement; " " when it has none')
-    language: str = Field(alias="ALL", default="en", description="The alliance's language code")
-    external_member_level: ParseInt = Field(alias="ML", default=0, description="External member level")
+    fame_points: ClientInt = Field(
+        validation_alias="CF", serialization_alias="CF", default=0, description="Alliance fame points"
+    )
+    highest_fame_points: ParseInt = Field(
+        validation_alias="HF", serialization_alias="HF", default=0, description="Highest fame points reached"
+    )
+    might: ParseInt = Field(
+        validation_alias="MP", serialization_alias="MP", default=0, description="Alliance might points"
+    )
+    highest_alliance_might: ParseInt = Field(
+        validation_alias="HAMP", serialization_alias="HAMP", default=0, description="Highest might points reached"
+    )
+    description: str = Field(
+        validation_alias="D",
+        serialization_alias="D",
+        default="",
+        description="The alliance's description, decoded as chat text",
+    )
+    announcement: str = Field(
+        validation_alias="A",
+        serialization_alias="A",
+        default=" ",
+        description='The alliance\'s announcement; " " when it has none',
+    )
+    language: str = Field(
+        validation_alias="ALL", serialization_alias="ALL", default="en", description="The alliance's language code"
+    )
+    external_member_level: ParseInt = Field(
+        validation_alias="ML", serialization_alias="ML", default=0, description="External member level"
+    )
     status_to_own_alliance: ParseInt = Field(
-        alias="DOA",
+        validation_alias="DOA",
+        serialization_alias="DOA",
         default=0,
         description="Diplomacy status towards the player's own alliance, a DiplomacyStatus value",
     )
-    is_searching_members: bool = Field(alias="IS", default=False, description="The alliance is looking for players")
-    is_accepting_members: bool = Field(alias="IA", default=False, description="Players may apply to join")
-    application_count: ParseInt = Field(alias="AA", default=12, description="Pending applications")
-    auto_war: bool = Field(alias="AW", default=False, description="Auto war is on")
-    aqua_points: int | float = Field(alias="AP", default=0, description="Aqua points")
-    free_renames: ClientInt = Field(alias="FR", default=0, description="Free alliance renames left")
-    can_be_invited_to_hard_pact: bool = Field(alias="HP", default=False, description="Open to hard pact invitations")
-    can_be_invited_to_soft_pact: bool = Field(alias="SP", default=False, description="Open to soft pact invitations")
-    is_able_to_forge: bool = Field(alias="MF", default=False, description="The alliance forge can be used")
-    is_forge_inventory_full: bool = Field(alias="IF", default=False, description="The alliance forge inventory is full")
-    soft_relic_forge_uses: ClientInt = Field(alias="SRFU", default=0, description="Soft relic forge uses")
-    hard_relic_forge_uses: ClientInt = Field(alias="HRFU", default=0, description="Hard relic forge uses")
-    is_king_alliance: bool = Field(alias="KA", default=False, description="The alliance holds the king title")
+    is_searching_members: bool = Field(
+        validation_alias="IS",
+        serialization_alias="IS",
+        default=False,
+        description="The alliance is looking for players",
+    )
+    is_accepting_members: bool = Field(
+        validation_alias="IA", serialization_alias="IA", default=False, description="Players may apply to join"
+    )
+    application_count: ParseInt = Field(
+        validation_alias="AA", serialization_alias="AA", default=12, description="Pending applications"
+    )
+    auto_war: bool = Field(validation_alias="AW", serialization_alias="AW", default=False, description="Auto war is on")
+    aqua_points: int | float = Field(
+        validation_alias="AP", serialization_alias="AP", default=0, description="Aqua points"
+    )
+    free_renames: ClientInt = Field(
+        validation_alias="FR", serialization_alias="FR", default=0, description="Free alliance renames left"
+    )
+    can_be_invited_to_hard_pact: bool = Field(
+        validation_alias="HP", serialization_alias="HP", default=False, description="Open to hard pact invitations"
+    )
+    can_be_invited_to_soft_pact: bool = Field(
+        validation_alias="SP", serialization_alias="SP", default=False, description="Open to soft pact invitations"
+    )
+    is_able_to_forge: bool = Field(
+        validation_alias="MF", serialization_alias="MF", default=False, description="The alliance forge can be used"
+    )
+    is_forge_inventory_full: bool = Field(
+        validation_alias="IF",
+        serialization_alias="IF",
+        default=False,
+        description="The alliance forge inventory is full",
+    )
+    soft_relic_forge_uses: ClientInt = Field(
+        validation_alias="SRFU", serialization_alias="SRFU", default=0, description="Soft relic forge uses"
+    )
+    hard_relic_forge_uses: ClientInt = Field(
+        validation_alias="HRFU", serialization_alias="HRFU", default=0, description="Hard relic forge uses"
+    )
+    is_king_alliance: bool = Field(
+        validation_alias="KA", serialization_alias="KA", default=False, description="The alliance holds the king title"
+    )
     refresh_seconds: ClientInt = Field(
-        alias="RT",
+        validation_alias="RT",
+        serialization_alias="RT",
         default=0,
         description="Seconds until the alliance should be requested again; 0 when none is set",
     )
@@ -430,12 +535,20 @@ class AllianceInfo(BasePayload):
         return value or " "
 
     peace_offer: PeaceOffer | None = Field(
-        alias="PO", default=None, description="The open peace offer with your alliance; None when there is none"
+        validation_alias="PO",
+        serialization_alias="PO",
+        default=None,
+        description="The open peace offer with your alliance; None when there is none",
     )
     crest_layouts: list[CrestLayout] = Field(
-        alias="ACLS", default_factory=list, description="The crest layouts the alliance holds"
+        validation_alias="ACLS",
+        serialization_alias="ACLS",
+        default_factory=list,
+        description="The crest layouts the alliance holds",
     )
-    crests: AllianceCrests | None = Field(alias="aee", default=None, description="The alliance's crest")
+    crests: AllianceCrests | None = Field(
+        validation_alias="aee", serialization_alias="aee", default=None, description="The alliance's crest"
+    )
 
     @field_validator("peace_offer", "crests", mode="before")
     @classmethod
@@ -450,32 +563,56 @@ class AllianceInfo(BasePayload):
         )
 
     storage: AllianceStorage | None = Field(
-        alias="STO",
+        validation_alias="STO",
+        serialization_alias="STO",
         default=None,
         description="Alliance storage",
     )
-    buildings: list[AllianceBuilding] = Field(alias="ABL", default_factory=list, description="Alliance buffs")
+    buildings: list[AllianceBuilding] = Field(
+        validation_alias="ABL", serialization_alias="ABL", default_factory=list, description="Alliance buffs"
+    )
 
     member_info: list[AllianceMemberInfo] = Field(
-        alias="AMI", default_factory=list, description="Donations, activity and landmark counts per member"
+        validation_alias="AMI",
+        serialization_alias="AMI",
+        default_factory=list,
+        description="Donations, activity and landmark counts per member",
     )
     alliance_diplomacy: list[AllianceDiplomacyStatus] = Field(
-        alias="ADL", default_factory=list, description="The alliance's standing with other alliances"
+        validation_alias="ADL",
+        serialization_alias="ADL",
+        default_factory=list,
+        description="The alliance's standing with other alliances",
     )
     capitals: list[MapAreaItem] = Field(
-        alias="ACA", default_factory=list, description="Map rows of the alliance's capitals"
+        validation_alias="ACA",
+        serialization_alias="ACA",
+        default_factory=list,
+        description="Map rows of the alliance's capitals",
     )
     metropolises: list[MapAreaItem] = Field(
-        alias="ATC", default_factory=list, description="Map rows of the alliance's metropolises"
+        validation_alias="ATC",
+        serialization_alias="ATC",
+        default_factory=list,
+        description="Map rows of the alliance's metropolises",
     )
     kings_towers: list[MapAreaItem] = Field(
-        alias="AKT", default_factory=list, description="Map rows of the alliance's kings towers"
+        validation_alias="AKT",
+        serialization_alias="AKT",
+        default_factory=list,
+        description="Map rows of the alliance's kings towers",
     )
     monuments: list[MapAreaItem] = Field(
-        alias="AMO", default_factory=list, description="Map rows of the alliance's monuments"
+        validation_alias="AMO",
+        serialization_alias="AMO",
+        default_factory=list,
+        description="Map rows of the alliance's monuments",
     )
     laboratories: list[MapAreaItem] = Field(
-        alias="ALA", default_factory=list, description="Map rows of the alliance's laboratories"
+        validation_alias="ALA",
+        serialization_alias="ALA",
+        default_factory=list,
+        description="Map rows of the alliance's laboratories",
     )
 
     @property
@@ -589,7 +726,8 @@ class GetAllianceInfoRequest(BaseRequest):
     command = "ain"
 
     alliance_id: int = Field(
-        alias="AID",
+        validation_alias="AID",
+        serialization_alias="AID",
         description=(
             "Your own is client.alliance.local_alliance_id; another is an AllianceSearchResult.alliance_id "
             "from client.alliance.search_alliances()"
@@ -621,7 +759,9 @@ class GetAllianceInfoResponse(BaseResponse):
 
     command = "ain"
 
-    alliance: AllianceInfo | None = Field(alias="A", default=None, description="The alliance; None without an AID")
+    alliance: AllianceInfo | None = Field(
+        validation_alias="A", serialization_alias="A", default=None, description="The alliance; None without an AID"
+    )
 
     @field_validator("alliance", mode="before")
     @classmethod

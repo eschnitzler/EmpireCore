@@ -53,9 +53,14 @@ class BookmarkAttackOrder(BasePayload):
     Client: ``CastleBookmarkAttackOrderDetailsVO.parseParamObject`` (bundle line 68503)
     """
 
-    assigned_attacker_ids: list[int] = Field(alias="M", default_factory=list, description="The players sent to attack")
+    assigned_attacker_ids: list[int] = Field(
+        validation_alias="M", serialization_alias="M", default_factory=list, description="The players sent to attack"
+    )
     attack_in_seconds: int | float | None = Field(
-        alias="TI", default=None, description="Seconds until the attack; None when the reply has no number for it"
+        validation_alias="TI",
+        serialization_alias="TI",
+        default=None,
+        description="Seconds until the attack; None when the reply has no number for it",
     )
 
     @field_validator("assigned_attacker_ids", mode="before")
@@ -78,19 +83,35 @@ class Bookmark(BasePayload):
     (bundle line 68469) reads the rest.
     """
 
-    kingdom: ClientInt = Field(alias="KID", default=0, description="The bookmarked area's kingdom")
-    x: ClientInt = Field(alias="X", default=0, description="Map x")
-    y: ClientInt = Field(alias="Y", default=0, description="Map y")
-    area: MapAreaItem | None = Field(alias="AI", default=None, description="The bookmarked map row")
+    kingdom: ClientInt = Field(
+        validation_alias="KID", serialization_alias="KID", default=0, description="The bookmarked area's kingdom"
+    )
+    x: ClientInt = Field(validation_alias="X", serialization_alias="X", default=0, description="Map x")
+    y: ClientInt = Field(validation_alias="Y", serialization_alias="Y", default=0, description="Map y")
+    area: MapAreaItem | None = Field(
+        validation_alias="AI", serialization_alias="AI", default=None, description="The bookmarked map row"
+    )
     owner: PlayerProfileBase | None = Field(
-        alias="OI", default=None, description="The owner record of the bookmarked area"
+        validation_alias="OI",
+        serialization_alias="OI",
+        default=None,
+        description="The owner record of the bookmarked area",
     )
-    name: str | None = Field(alias="N", default=None, description="The bookmark's name")
+    name: str | None = Field(
+        validation_alias="N", serialization_alias="N", default=None, description="The bookmark's name"
+    )
     bookmark_type: int | None = Field(
-        alias="TY", default=None, description="What the bookmark marks, a BookmarkType value"
+        validation_alias="TY",
+        serialization_alias="TY",
+        default=None,
+        description="What the bookmark marks, a BookmarkType value",
     )
-    bookmark_id: ClientInt = Field(alias="BID", default=0, description="The bookmark's id")
-    creator_id: ClientInt = Field(alias="C", default=0, description="The player who made it; 0 when unsent")
+    bookmark_id: ClientInt = Field(
+        validation_alias="BID", serialization_alias="BID", default=0, description="The bookmark's id"
+    )
+    creator_id: ClientInt = Field(
+        validation_alias="C", serialization_alias="C", default=0, description="The player who made it; 0 when unsent"
+    )
     attack_order: BookmarkAttackOrder | None = Field(
         default=None, description="The attack order; only on alliance attack order bookmarks"
     )
@@ -156,9 +177,11 @@ class GetBookmarksResponse(BaseResponse):
 
     command = "gbl"
 
-    own_bookmarks: list[Bookmark] = Field(alias="BL", default_factory=list, description="Your own bookmarks")
+    own_bookmarks: list[Bookmark] = Field(
+        validation_alias="BL", serialization_alias="BL", default_factory=list, description="Your own bookmarks"
+    )
     alliance_bookmarks: list[Bookmark] = Field(
-        alias="ABL", default_factory=list, description="Your alliance's bookmarks"
+        validation_alias="ABL", serialization_alias="ABL", default_factory=list, description="Your alliance's bookmarks"
     )
 
     @field_validator("own_bookmarks", "alliance_bookmarks", mode="before")
@@ -225,19 +248,30 @@ class AddBookmarkRequest(BaseRequest):
 
     command = "bad"
 
-    kingdom: int = Field(alias="K", description="The kingdom")
-    x: int = Field(alias="X", description="Map x")
-    y: int = Field(alias="Y", description="Map y")
-    bookmark_type: int = Field(alias="TY", description="What it marks, a BookmarkType value")
+    kingdom: int = Field(validation_alias="K", serialization_alias="K", description="The kingdom")
+    x: int = Field(validation_alias="X", serialization_alias="X", description="Map x")
+    y: int = Field(validation_alias="Y", serialization_alias="Y", description="Map y")
+    bookmark_type: int = Field(
+        validation_alias="TY", serialization_alias="TY", description="What it marks, a BookmarkType value"
+    )
     attack_in_seconds: int = Field(
-        alias="TI", default=-1, description="Seconds until the attack order's attack; -1 for any other bookmark"
+        validation_alias="TI",
+        serialization_alias="TI",
+        default=-1,
+        description="Seconds until the attack order's attack; -1 for any other bookmark",
     )
     message_attackers: int = Field(
-        alias="IM", default=0, description="1 to send the attack order's attackers a message, else 0"
+        validation_alias="IM",
+        serialization_alias="IM",
+        default=0,
+        description="1 to send the attack order's attackers a message, else 0",
     )
-    name: str = Field(alias="N", description="The bookmark's name")
+    name: str = Field(validation_alias="N", serialization_alias="N", description="The bookmark's name")
     attacker_ids: list[int] = Field(
-        alias="M", default_factory=list, description="The players the attack order sends; empty for any other"
+        validation_alias="M",
+        serialization_alias="M",
+        default_factory=list,
+        description="The players the attack order sends; empty for any other",
     )
 
 
@@ -269,11 +303,15 @@ class ChangeBookmarkRequest(BaseRequest):
 
     command = "bch"
 
-    kingdom: int = Field(alias="KID", description="The bookmark's kingdom")
-    x: int = Field(alias="X", description="Map x")
-    y: int = Field(alias="Y", description="Map y")
-    friend: bool = Field(alias="IF", description="True for a friend bookmark, False for an enemy one")
-    name: str = Field(alias="DN", description="The new name")
+    kingdom: int = Field(validation_alias="KID", serialization_alias="KID", description="The bookmark's kingdom")
+    x: int = Field(validation_alias="X", serialization_alias="X", description="Map x")
+    y: int = Field(validation_alias="Y", serialization_alias="Y", description="Map y")
+    friend: bool = Field(
+        validation_alias="IF",
+        serialization_alias="IF",
+        description="True for a friend bookmark, False for an enemy one",
+    )
+    name: str = Field(validation_alias="DN", serialization_alias="DN", description="The new name")
 
 
 class ChangeBookmarkResponse(BaseResponse, Bookmark):
@@ -302,7 +340,9 @@ class DeleteBookmarkRequest(BaseRequest):
 
     command = "bde"
 
-    positions: list[list[int]] = Field(alias="BM", description="Each bookmark's [kingdom, x, y]")
+    positions: list[list[int]] = Field(
+        validation_alias="BM", serialization_alias="BM", description="Each bookmark's [kingdom, x, y]"
+    )
 
 
 class BookmarkPosition(BasePayload):
@@ -312,9 +352,9 @@ class BookmarkPosition(BasePayload):
     Client: ``CastleBookmarkData.parse_BDE`` (bundle line 33445) reads ``K``, ``X`` and ``Y``
     """
 
-    kingdom: ClientInt = Field(alias="K", default=0, description="The kingdom")
-    x: ClientInt = Field(alias="X", default=0, description="Map x")
-    y: ClientInt = Field(alias="Y", default=0, description="Map y")
+    kingdom: ClientInt = Field(validation_alias="K", serialization_alias="K", default=0, description="The kingdom")
+    x: ClientInt = Field(validation_alias="X", serialization_alias="X", default=0, description="Map x")
+    y: ClientInt = Field(validation_alias="Y", serialization_alias="Y", default=0, description="Map y")
 
 
 class DeleteBookmarkResponse(BaseResponse):
@@ -329,7 +369,9 @@ class DeleteBookmarkResponse(BaseResponse):
 
     command = "bde"
 
-    deleted: list[BookmarkPosition] = Field(alias="BM", default_factory=list, description="The positions deleted")
+    deleted: list[BookmarkPosition] = Field(
+        validation_alias="BM", serialization_alias="BM", default_factory=list, description="The positions deleted"
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -362,7 +404,9 @@ class DeleteAllianceBookmarkRequest(BaseRequest):
 
     command = "abd"
 
-    entries: list[list[int]] = Field(alias="BM", description="Each bookmark's [bookmark_id, notify]")
+    entries: list[list[int]] = Field(
+        validation_alias="BM", serialization_alias="BM", description="Each bookmark's [bookmark_id, notify]"
+    )
 
 
 class DeleteAllianceBookmarkResponse(BaseResponse):

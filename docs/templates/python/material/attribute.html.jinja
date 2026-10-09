@@ -3,10 +3,12 @@
 {% block docstring scoped %}
   {% set pydantic = attribute.extra.griffe_pydantic or {} %}
   {% set constraints = pydantic.constraints or {} %}
-  {% if constraints.alias or constraints.validation_alias %}
+  {% set wire = constraints.serialization_alias or constraints.alias %}
+  {% set read_from = constraints.validation_alias if constraints.validation_alias != wire else None %}
+  {% if wire or read_from %}
     <p class="ec-wire-key">
-      {% if constraints.alias %}Wire key <code>{{ constraints.alias | string | trim("'\"") }}</code>{% endif %}
-      {% if constraints.validation_alias %}Read from <code>{{ constraints.validation_alias | string }}</code>{% endif %}
+      {% if wire %}Wire key <code>{{ wire | string | trim("'\"") }}</code>{% endif %}
+      {% if read_from %}Read from <code>{{ read_from | string }}</code>{% endif %}
     </p>
   {% endif %}
   {{ super() }}

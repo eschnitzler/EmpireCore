@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -39,7 +39,7 @@ class AllianceChatMessageRequest(BaseRequest):
 
     command = "acm"
 
-    message: str = Field(alias="M")
+    message: str = Field(validation_alias="M", serialization_alias="M")
 
     @classmethod
     def create(cls, text: str) -> "AllianceChatMessageRequest":
@@ -57,13 +57,23 @@ class ChatMessageData(BasePayload):
     ``CastleChatData.getParsedMessage`` (bundle line 111301).
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
-    player_id: ClientInt = Field(alias="PID", default=0, description="The sender's player id")
-    player_name: str = Field(alias="PN", default="", description="The sender's name")
-    message_text: str = Field(alias="MT", default="", description="The message text as sent, still encoded")
+    player_id: ClientInt = Field(
+        validation_alias="PID", serialization_alias="PID", default=0, description="The sender's player id"
+    )
+    player_name: str = Field(
+        validation_alias="PN", serialization_alias="PN", default="", description="The sender's name"
+    )
+    message_text: str = Field(
+        validation_alias="MT",
+        serialization_alias="MT",
+        default="",
+        description="The message text as sent, still encoded",
+    )
     age_seconds: int | float | None = Field(
-        alias="MA",
+        validation_alias="MA",
+        serialization_alias="MA",
         default=None,
         description="Seconds since the message was sent; None when the reply has no number for it",
     )
@@ -112,7 +122,7 @@ class AllianceChatMessageResponse(BaseResponse):
 
     command = "acm"
 
-    chat_message: ChatMessageData | None = Field(alias="CM", default=None)
+    chat_message: ChatMessageData | None = Field(validation_alias="CM", serialization_alias="CM", default=None)
 
     @property
     def player_name(self) -> str:
@@ -172,7 +182,10 @@ class AllianceChatLogResponse(BaseResponse):
     command = "acl"
 
     chat_log: list[ChatMessageData] = Field(
-        alias="CM", default_factory=list, description="The messages, in the order the reply lists them"
+        validation_alias="CM",
+        serialization_alias="CM",
+        default_factory=list,
+        description="The messages, in the order the reply lists them",
     )
 
     @field_validator("chat_log", mode="before")
