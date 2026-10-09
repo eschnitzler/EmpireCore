@@ -148,7 +148,7 @@ class EmpireClient:
             self.config.game_url, keepalive_zone=self.config.default_zone, listeners=self._registry
         )
         self.state = GameState()
-        self.game_data: GameData | None = None
+        self._game_data: GameData | None = None
         self.is_logged_in = False
         # Log in again by itself after a drop (see the class docstring).
         self.keep_session = keep_session
@@ -596,27 +596,46 @@ class EmpireClient:
     ) -> None:
         self.close()
 
+    @property
+    def game_data(self) -> GameData | None:
+        """
+        The static game data the services read, or None while none is loaded.
+
+        The data the process loaded (:meth:`GameData.loaded`, which
+        :meth:`load_game_data` and every :meth:`GameData.load` fill), the same
+        instance the troop counts read. Setting it attaches data of your own,
+        e.g. ``GameData.parse`` of a saved payload, which this client then reads
+        instead; setting None goes back to the process's data.
+        """
+        return self._game_data if self._game_data is not None else GameData.loaded()
+
+    @game_data.setter
+    def game_data(self, data: GameData | None) -> None:
+        self._game_data = data
+
     def load_game_data(self, *, refresh: bool = False, cache_dir: str | Path | None = None) -> GameData:
         """
-        Load the static game data (unit and tool stats) and attach it.
+        Load the static game data (unit and tool stats): the one entry point to call before the APIs that need it.
 
-        Explicit by design: the items payload is a large download. Kept for the
-        process and cached on disk per game version (see :meth:`GameData.load`),
-        so this is cheap after the first call.
+        Explicit by design: the items payload is a large download. It is
+        :meth:`GameData.load`, so the data is kept for the process and cached on
+        disk per game version, and this is cheap after the first call. Code
+        without a client calls :meth:`GameData.load` itself; either way
+        ``client.game_data`` and the troop counts read what it loaded.
 
         Args:
             refresh: Ignore any cached copy and any failure backoff, and re-download
             cache_dir: Where to keep trimmed data (default: XDG cache dir)
 
         Returns:
-            The loaded data, also available as ``client.game_data``
+            The loaded data, also available as ``client.game_data`` unless data of
+            your own is attached there
 
         Raises:
             NetworkError: Nothing is loaded (or refresh is set) and the CDN could not be
                 reached, now or less than five minutes ago
         """
-        self.game_data = GameData.load(refresh=refresh, cache_dir=cache_dir)
-        return self.game_data
+        return GameData.load(refresh=refresh, cache_dir=cache_dir)
 
     def frame(self, request: BaseRequest) -> str:
         """

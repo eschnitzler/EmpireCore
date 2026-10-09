@@ -7,6 +7,7 @@ import pytest
 from empire_core.enums import CollectableKind
 from empire_core.exceptions import GameDataNotLoadedError
 from empire_core.gamedata import Currency, GameData, Research
+from empire_core.gamedata import data as data_module
 from empire_core.player import (
     SkipResearchRequest,
     SkipResearchResponse,
@@ -99,6 +100,15 @@ class TestService:
         assert conn(client).request_payloads == [("res", {"RID": 1, "PO": -1, "PWR": 0})]
         research = client.state.get_research()
         assert research is not None and research.current_research_id == 172
+
+    def test_start_research_reads_game_data_the_process_loaded(self, monkeypatch: pytest.MonkeyPatch):
+        """A GameData.load() made without the client reaches its services too."""
+        client = make_client({"res": xt_packet("res", {"rei": REI, "gcu": {}})}, state=GameState())  # type: ignore[arg-type]
+        conn(client).on_packet = client._on_packet
+        monkeypatch.setattr(data_module, "_loaded", game_data())
+
+        assert client.player.start_research(Research.MANEUVER_L1) is True
+        assert conn(client).request_payloads == [("res", {"RID": 1, "PO": -1, "PWR": 0})]
 
     def test_start_research_needs_the_game_data(self):
         client = make_client()

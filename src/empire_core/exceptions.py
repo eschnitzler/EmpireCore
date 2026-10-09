@@ -170,8 +170,8 @@ class GameDataNotLoadedError(EmpireError):
     """
     Raised when an API needs the static game data and it has not been loaded.
 
-    Call :meth:`EmpireClient.load_game_data` first: it is explicit because the
-    items payload is a large download.
+    Call :meth:`EmpireClient.load_game_data` (or :meth:`GameData.load`, which
+    it calls) first: it is explicit because the items payload is a large download.
     """
 
 
