@@ -43,7 +43,8 @@ def get_troop_ids(force_refresh: bool = False) -> set[int]:
     """
     The ``wodID`` of every troop: the ids of the loaded game data's ``units``.
 
-    Uses the game data already loaded in the process, and loads it through
+    Uses the game data already loaded in the process (:meth:`GameData.loaded`,
+    which ``client.game_data`` reads too), and loads it through
     :meth:`GameData.load` when there is none.
 
     Args:

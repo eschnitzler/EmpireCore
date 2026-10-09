@@ -83,14 +83,24 @@ and so on. A value the client does not name (a newer release, or a type only the
 server reads) stays plain text, so `data.units_by_role(UnitRole.MELEE)` and
 comparisons keep working.
 
-`load_game_data()` is explicit on purpose: the items data is a large download.
-The one other reader is `Movement.troop_count`, which loads it on first use when
-nothing has yet. Both go through `GameData.load`, so a process downloads the
-data once per game version: it is kept in memory, cached on disk (safe for
-several processes sharing the cache directory), and after a failed download the
-CDN is left alone for five minutes. When the CDN is down, a load returns the data
-already in memory and raises `NetworkError` only when there is none.
-`refresh=True` downloads it again, and the data stays on `client.game_data`.
+`client.load_game_data()` is the one call to make, before the APIs that need the
+data (they raise `GameDataNotLoadedError` without it). It is explicit on
+purpose: the items data is a large download. It calls `GameData.load`, which
+keeps the data for the process: a process downloads it once per game version,
+caches it on disk (safe for several processes sharing the cache directory), and
+after a failed download leaves the CDN alone for five minutes. When the CDN is
+down, a load returns the data already in memory and raises `NetworkError` only
+when there is none. `refresh=True` downloads it again.
+
+Everything else reads that one copy:
+
+- `client.game_data` is what the process loaded, so a `GameData.load()` made
+  without the client (in a script with no client yet, say) serves its services
+  too. Assigning `client.game_data` attaches data of your own, such as
+  `GameData.parse` of a saved payload, to that client only.
+- `GameData.loaded()` returns it, or `None`, without touching the network.
+- `get_troop_ids()`, `count_troops()` and `Movement.troop_count` read it, and
+  load it on first use when nothing has been loaded yet.
 
 !!! warning "Shared and read-only"
 
