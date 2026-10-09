@@ -59,7 +59,7 @@ class TestBaseResponse:
     def test_to_payload_uses_aliases(self):
         class AliasedResponse(BaseResponse, register=False):
             command = "test_alias_cmd"
-            castle_id: int = Field(alias="CID", default=0)
+            castle_id: int = Field(validation_alias="CID", serialization_alias="CID", default=0)
 
         response = AliasedResponse(castle_id=5)
         assert response.to_payload()["CID"] == 5

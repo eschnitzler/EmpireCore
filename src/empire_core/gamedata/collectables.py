@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
 from enum import Enum
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer, PlainValidator
 
@@ -451,7 +451,7 @@ class Collectable(BaseModel):
     then the item class's ``parseServerObject``
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     kind: CollectableKind = Field(description="What it is")
     key: str = Field(

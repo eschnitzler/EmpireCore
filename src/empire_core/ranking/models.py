@@ -249,14 +249,17 @@ class GetHighscoreRequest(BaseRequest):
 
     command: ClassVar[str] = GGECommand.HGH
 
-    list_type: RankingType = Field(alias="LT", description="The highscore list")
+    list_type: RankingType = Field(validation_alias="LT", serialization_alias="LT", description="The highscore list")
     league_type_id: int = Field(
-        alias="LID",
+        validation_alias="LID",
+        serialization_alias="LID",
         default=-1,
         description="The league, a level band (see GameData.league_type); -1 for none",
     )
     search_value: str = Field(
-        alias="SV", description='A name, or a rank as text; "-1" asks for the page around your own rank'
+        validation_alias="SV",
+        serialization_alias="SV",
+        description='A name, or a rank as text; "-1" asks for the page around your own rank',
     )
 
     @field_serializer("search_value")
@@ -276,11 +279,15 @@ class GetHighscoreResponse(BaseResponse):
 
     command: ClassVar[str] = GGECommand.HGH
 
-    list_type: int | None = Field(alias="LT", default=None)
-    league_type_id: int = Field(alias="LID", default=-1, description="League type id; -1 for none")
-    last_rank: int | None = Field(alias="LR", default=None)
-    search_value: str | None = Field(alias="SV", default=None)
-    rows: tuple[HighscoreRow, ...] = Field(alias="L", default=(), description="The page's rows, in the list's layout")
+    list_type: int | None = Field(validation_alias="LT", serialization_alias="LT", default=None)
+    league_type_id: int = Field(
+        validation_alias="LID", serialization_alias="LID", default=-1, description="League type id; -1 for none"
+    )
+    last_rank: int | None = Field(validation_alias="LR", serialization_alias="LR", default=None)
+    search_value: str | None = Field(validation_alias="SV", serialization_alias="SV", default=None)
+    rows: tuple[HighscoreRow, ...] = Field(
+        validation_alias="L", serialization_alias="L", default=(), description="The page's rows, in the list's layout"
+    )
 
     @field_validator("league_type_id", mode="before")
     @classmethod
@@ -343,17 +350,28 @@ class GetRankingListRequest(BaseRequest):
 
     command: ClassVar[str] = GGECommand.LLSP
 
-    list_type: RankingType = Field(alias="LT", description="The highscore list")
+    list_type: RankingType = Field(validation_alias="LT", serialization_alias="LT", description="The highscore list")
     league_type_id: int = Field(
-        alias="LID",
+        validation_alias="LID",
+        serialization_alias="LID",
         description="The event's league, a level band (see GameData.league_type); -1 for the donation ranking",
     )
-    max_results: int = Field(alias="M", description="Entries per page")
-    rank: int = Field(alias="R", default=1, description="The first rank on the page")
-    sub_division_id: int | None = Field(
-        alias="SDI", default=None, description="The alliance event subdivision, for its subdivision ranking"
+    max_results: int = Field(validation_alias="M", serialization_alias="M", description="Entries per page")
+    rank: int = Field(
+        validation_alias="R", serialization_alias="R", default=1, description="The first rank on the page"
     )
-    event_id: int | None = Field(alias="EID", default=None, description="The alliance mobilisation or raid event")
+    sub_division_id: int | None = Field(
+        validation_alias="SDI",
+        serialization_alias="SDI",
+        default=None,
+        description="The alliance event subdivision, for its subdivision ranking",
+    )
+    event_id: int | None = Field(
+        validation_alias="EID",
+        serialization_alias="EID",
+        default=None,
+        description="The alliance mobilisation or raid event",
+    )
 
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a reply is for this request, as the client tells.
@@ -390,22 +408,34 @@ class GetRankingWindowRequest(BaseRequest):
 
     command: ClassVar[str] = GGECommand.LLSW
 
-    list_type: RankingType = Field(alias="LT", description="The highscore list")
+    list_type: RankingType = Field(validation_alias="LT", serialization_alias="LT", description="The highscore list")
     league_type_id: int | None = Field(
-        alias="LID",
+        validation_alias="LID",
+        serialization_alias="LID",
         description=(
             "The event's league, or a search hit's, a level band (see GameData.league_type); "
             "-1 for the donation ranking, None for a hit without one"
         ),
     )
-    max_results: int = Field(alias="M", description="Entries per page")
+    max_results: int = Field(validation_alias="M", serialization_alias="M", description="Entries per page")
     score_id: str = Field(
-        alias="SI", default="", description="The score to page around, from a search result; empty for your own"
+        validation_alias="SI",
+        serialization_alias="SI",
+        default="",
+        description="The score to page around, from a search result; empty for your own",
     )
     sub_division_id: int | None = Field(
-        alias="SDI", default=None, description="The alliance event subdivision, for its subdivision ranking"
+        validation_alias="SDI",
+        serialization_alias="SDI",
+        default=None,
+        description="The alliance event subdivision, for its subdivision ranking",
     )
-    event_id: int | None = Field(alias="EID", default=None, description="The alliance mobilisation or raid event")
+    event_id: int | None = Field(
+        validation_alias="EID",
+        serialization_alias="EID",
+        default=None,
+        description="The alliance mobilisation or raid event",
+    )
 
     @field_serializer("score_id")
     def _encoded_score_id(self, value: str) -> str:
@@ -440,12 +470,20 @@ class SearchRankingListRequest(BaseRequest):
 
     command: ClassVar[str] = GGECommand.SLSE
 
-    list_type: RankingType = Field(alias="LT", description="The highscore list")
-    search_value: str = Field(alias="SV", description="The name to search for")
+    list_type: RankingType = Field(validation_alias="LT", serialization_alias="LT", description="The highscore list")
+    search_value: str = Field(validation_alias="SV", serialization_alias="SV", description="The name to search for")
     sub_division_id: int | None = Field(
-        alias="SDI", default=None, description="The alliance event subdivision, for its subdivision ranking"
+        validation_alias="SDI",
+        serialization_alias="SDI",
+        default=None,
+        description="The alliance event subdivision, for its subdivision ranking",
     )
-    event_id: int | None = Field(alias="EID", default=None, description="The alliance mobilisation or raid event")
+    event_id: int | None = Field(
+        validation_alias="EID",
+        serialization_alias="EID",
+        default=None,
+        description="The alliance mobilisation or raid event",
+    )
 
     @field_serializer("search_value")
     def _encoded_search_value(self, value: str) -> str:
@@ -473,15 +511,23 @@ class LeaderboardScore(BasePayload):
     ``LeaderBoardDataProvider.onScoreDataReceived`` (bundle line 75957).
     """
 
-    rank: ClientInt = Field(alias="R", default=-1, description="Rank on the list")
-    score: int | float = Field(alias="S", default=-1, description="Points")
-    player_name: str = Field(alias="P", default="", description="Player name")
-    alliance_name: str = Field(alias="A", default="", description="Alliance name, empty without one")
+    rank: ClientInt = Field(validation_alias="R", serialization_alias="R", default=-1, description="Rank on the list")
+    score: int | float = Field(validation_alias="S", serialization_alias="S", default=-1, description="Points")
+    player_name: str = Field(validation_alias="P", serialization_alias="P", default="", description="Player name")
+    alliance_name: str = Field(
+        validation_alias="A", serialization_alias="A", default="", description="Alliance name, empty without one"
+    )
     instance_id: ClientInt | None = Field(
-        alias="I", default=None, description="Game server (instance) the player is on"
+        validation_alias="I",
+        serialization_alias="I",
+        default=None,
+        description="Game server (instance) the player is on",
     )
     score_id: int | str | None = Field(
-        alias="SI", default=None, description="Paging key that search results are matched against; not an owner id"
+        validation_alias="SI",
+        serialization_alias="SI",
+        default=None,
+        description="Paging key that search results are matched against; not an owner id",
     )
 
     @model_validator(mode="before")
@@ -508,10 +554,16 @@ class GetRankingListResponse(BaseResponse):
 
     command: ClassVar[str] = GGECommand.LLSP
 
-    list_type: int | None = Field(alias="LT", default=None)
-    league_type_id: int | None = Field(alias="LID", default=None, description="League type id; None for none")
-    scores: list[LeaderboardScore] = Field(alias="L", default_factory=list, description="The page's entries")
-    total: int = Field(alias="T", default=0, description="Number of scores on the whole list")
+    list_type: int | None = Field(validation_alias="LT", serialization_alias="LT", default=None)
+    league_type_id: int | None = Field(
+        validation_alias="LID", serialization_alias="LID", default=None, description="League type id; None for none"
+    )
+    scores: list[LeaderboardScore] = Field(
+        validation_alias="L", serialization_alias="L", default_factory=list, description="The page's entries"
+    )
+    total: int = Field(
+        validation_alias="T", serialization_alias="T", default=0, description="Number of scores on the whole list"
+    )
 
     @field_validator("league_type_id", mode="before")
     @classmethod
@@ -551,8 +603,12 @@ class LeaderboardSearchResult(BasePayload):
     Client: ``LeaderBoardDataProvider.onSearchDataReceived`` (bundle line 75952)
     """
 
-    league_type_id: int | None = Field(alias="LID", default=None, description="The league the scores are in")
-    score_ids: list[str] = Field(alias="L", default_factory=list, description="The matching scores' ids")
+    league_type_id: int | None = Field(
+        validation_alias="LID", serialization_alias="LID", default=None, description="The league the scores are in"
+    )
+    score_ids: list[str] = Field(
+        validation_alias="L", serialization_alias="L", default_factory=list, description="The matching scores' ids"
+    )
 
     @field_validator("score_ids", mode="before")
     @classmethod
@@ -574,10 +630,15 @@ class SearchRankingListResponse(BaseResponse):
 
     command: ClassVar[str] = GGECommand.SLSE
 
-    list_type: int | None = Field(alias="LT", default=None)
-    league_type_id: int = Field(alias="LID", default=-1, description="League type id; -1 for none")
+    list_type: int | None = Field(validation_alias="LT", serialization_alias="LT", default=None)
+    league_type_id: int = Field(
+        validation_alias="LID", serialization_alias="LID", default=-1, description="League type id; -1 for none"
+    )
     results: list[LeaderboardSearchResult] = Field(
-        alias="L", default_factory=list, description="The matches, grouped by league, in the client's order"
+        validation_alias="L",
+        serialization_alias="L",
+        default_factory=list,
+        description="The matches, grouped by league, in the client's order",
     )
 
     @field_validator("league_type_id", mode="before")

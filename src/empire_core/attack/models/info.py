@@ -7,7 +7,7 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, PrivateAttr, ValidatorFunctionWrapHandler, field_validator, model_validator
 from pydantic.functional_validators import ModelWrapValidatorHandler
@@ -55,11 +55,13 @@ class GetAttackInfoRequest(BaseRequest):
 
     command = "aci"
 
-    target_x: int = Field(alias="TX", description="Target map x")
-    target_y: int = Field(alias="TY", description="Target map y")
-    source_x: int = Field(alias="SX", description="Attacking castle's map x")
-    source_y: int = Field(alias="SY", description="Attacking castle's map y")
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Target map y")
+    source_x: int = Field(validation_alias="SX", serialization_alias="SX", description="Attacking castle's map x")
+    source_y: int = Field(validation_alias="SY", serialization_alias="SY", description="Attacking castle's map y")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target"
+    )
 
 
 class AttackTargetArea(BasePayload):
@@ -71,8 +73,12 @@ class AttackTargetArea(BasePayload):
     ``ABICommand`` pass ``OI`` to ``OtherPlayerData.parseOwnerInfoArray``
     """
 
-    area: TargetRow = Field(alias="AI", default=None, description="The target's map row")
-    owners: list[MapObject] = Field(alias="OI", default_factory=list, description="Owner records")
+    area: TargetRow = Field(
+        validation_alias="AI", serialization_alias="AI", default=None, description="The target's map row"
+    )
+    owners: list[MapObject] = Field(
+        validation_alias="OI", serialization_alias="OI", default_factory=list, description="Owner records"
+    )
 
     @field_validator("owners", mode="before")
     @classmethod
@@ -114,52 +120,77 @@ class AttackInfoResponse(BaseResponse):
     ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line 30699).
     """
 
-    source_castle_id: int = Field(alias="SCID", default=0, description="Attacking castle's id")
-    target_x: int = Field(alias="TX", default=0, description="Target map x")
-    target_y: int = Field(alias="TY", default=0, description="Target map y")
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The attacking castle's kingdom")
+    source_castle_id: int = Field(
+        validation_alias="SCID", serialization_alias="SCID", default=0, description="Attacking castle's id"
+    )
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", default=0, description="Target map x")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", default=0, description="Target map y")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID",
+        serialization_alias="KID",
+        default=Kingdom.GREEN,
+        description="The attacking castle's kingdom",
+    )
     attacker_effects: CommanderEffects = Field(
-        alias="AE",
+        validation_alias="AE",
+        serialization_alias="AE",
         default_factory=list,
         description="Area effects on this attack, already scoped to the target",
     )
     spy_army: SpyArmyBlock = Field(
-        alias="S",
+        validation_alias="S",
+        serialization_alias="S",
         default=None,
         description="The spied defenders by the position they hold; None without a spy report",
     )
     spy_age_seconds: int = Field(
-        alias="AS",
+        validation_alias="AS",
+        serialization_alias="AS",
         default=-1,
         description="Seconds since the target was spied; -1 when there is no spy report",
     )
     spied_castellan: Commander | None = Field(
-        alias="abe",
+        validation_alias="abe",
+        serialization_alias="abe",
         default=None,
         description="The castellan defending the target, preferred over spied_castellan_fallback",
     )
     spied_castellan_fallback: Commander | None = Field(
-        alias="B", default=None, description="The castellan defending the target when spied_castellan is missing"
+        validation_alias="B",
+        serialization_alias="B",
+        default=None,
+        description="The castellan defending the target when spied_castellan is missing",
     )
     defender_legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
-        alias="LS",
+        validation_alias="LS",
+        serialization_alias="LS",
         default=(),
         description="The defender's legend skills, part of the spy report",
     )
-    kings_tower_bonus: float = Field(alias="KTB", default=0, description="Kings tower bonus")
+    kings_tower_bonus: float = Field(
+        validation_alias="KTB", serialization_alias="KTB", default=0, description="Kings tower bonus"
+    )
     home_workshop_level: int = Field(
-        alias="HAWL", default=0, description="Level of the attacking castle's workshop, which unlocks support tools"
+        validation_alias="HAWL",
+        serialization_alias="HAWL",
+        default=0,
+        description="Level of the attacking castle's workshop, which unlocks support tools",
     )
     target_area: AttackTargetArea = Field(
-        alias="gaa", default_factory=lambda: AttackTargetArea(), description="The target's map row and owner records"
+        validation_alias="gaa",
+        serialization_alias="gaa",
+        default_factory=lambda: AttackTargetArea(),
+        description="The target's map row and owner records",
     )
     unit_inventory: UnitInventory = Field(
-        alias="gui",
+        validation_alias="gui",
+        serialization_alias="gui",
         default_factory=UnitInventory,
         description="The attacker's units and tools, and its stronghold units",
     )
     commander_roster: CommanderRoster = Field(
-        alias="gli",
+        validation_alias="gli",
+        serialization_alias="gli",
         default_factory=CommanderRoster,
         description="The attacker's commanders and castellans",
     )
@@ -228,7 +259,7 @@ class AttackInfoResponse(BaseResponse):
             return None
         return self.spied_castellan if self._castellan_from_abe else self.spied_castellan_fallback
 
-    def target_row(self) -> list:
+    def target_row(self) -> list[Any]:
         """
         The target's raw map row from ``gaa.AI``, or an empty list.
 
@@ -278,7 +309,9 @@ class GetAttackInfoResponse(AttackInfoResponse):
 
     command = "aci"
 
-    morality: float = Field(alias="MB", default=0, description="Morality bonus of the attack")
+    morality: float = Field(
+        validation_alias="MB", serialization_alias="MB", default=0, description="Morality bonus of the attack"
+    )
 
 
 __all__ = [

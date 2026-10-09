@@ -8,6 +8,7 @@ Commands:
 from __future__ import annotations
 
 import math
+from typing import ClassVar
 
 from pydantic import ConfigDict, Field
 
@@ -26,16 +27,24 @@ class AttackCounterResponse(BaseResponse):
     ``AttackDialogWaveHandler.fillAttackCosts`` (bundle line 102551)
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     command = "gai"
 
-    attack_count: ClientNumber = Field(alias="AC", default=0, description="Attacks counted")
+    attack_count: ClientNumber = Field(
+        validation_alias="AC", serialization_alias="AC", default=0, description="Attacks counted"
+    )
     attack_count_threshold: ClientNumber = Field(
-        alias="ACTH", default=0, description="Attacks counted before travel costs grow"
+        validation_alias="ACTH",
+        serialization_alias="ACTH",
+        default=0,
+        description="Attacks counted before travel costs grow",
     )
     growth_rate: ClientNumber = Field(
-        alias="ACGR", default=0, description="How fast the travel costs grow per attack past the threshold"
+        validation_alias="ACGR",
+        serialization_alias="ACGR",
+        default=0,
+        description="How fast the travel costs grow per attack past the threshold",
     )
 
     @property

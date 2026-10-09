@@ -7,7 +7,7 @@ Commands:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import ConfigDict, Field, field_validator
 
@@ -24,20 +24,54 @@ class KingdomUnlock(TimedPayload):
     Client: ``CastleKingdomVO.parseUnlockInfo`` (bundle line 134696); ``hasContor`` read at bundle line 50209
     """
 
-    kingdom_id: EnumOrInt[Kingdom] = Field(alias="KID", default=-1, description="The kingdom; -1 when not sent")
-    is_unlocked: bool = Field(alias="U", default=False, description="Whether the kingdom is unlocked")
+    kingdom_id: EnumOrInt[Kingdom] = Field(
+        validation_alias="KID", serialization_alias="KID", default=-1, description="The kingdom; -1 when not sent"
+    )
+    is_unlocked: bool = Field(
+        validation_alias="U", serialization_alias="U", default=False, description="Whether the kingdom is unlocked"
+    )
     has_warehouse: bool = Field(
-        alias="C", default=False, description="Whether the kingdom has a warehouse, which its resource villages need"
+        validation_alias="C",
+        serialization_alias="C",
+        default=False,
+        description="Whether the kingdom has a warehouse, which its resource villages need",
     )
-    slum_level: ClientInt = Field(alias="SL", default=0, description="The kingdom's slum level")
-    paid_wood: ClientNumber = Field(alias="SPW", default=0, description="Wood paid towards the next slum level")
-    paid_stone: ClientNumber = Field(alias="SPS", default=0, description="Stone paid towards the next slum level")
-    paid_food: ClientNumber = Field(alias="SPF", default=0, description="Food paid towards the next slum level")
-    paid_coins: ClientNumber = Field(alias="SPC1", default=0, description="Coins paid towards the next slum level")
+    slum_level: ClientInt = Field(
+        validation_alias="SL", serialization_alias="SL", default=0, description="The kingdom's slum level"
+    )
+    paid_wood: ClientNumber = Field(
+        validation_alias="SPW",
+        serialization_alias="SPW",
+        default=0,
+        description="Wood paid towards the next slum level",
+    )
+    paid_stone: ClientNumber = Field(
+        validation_alias="SPS",
+        serialization_alias="SPS",
+        default=0,
+        description="Stone paid towards the next slum level",
+    )
+    paid_food: ClientNumber = Field(
+        validation_alias="SPF",
+        serialization_alias="SPF",
+        default=0,
+        description="Food paid towards the next slum level",
+    )
+    paid_coins: ClientNumber = Field(
+        validation_alias="SPC1",
+        serialization_alias="SPC1",
+        default=0,
+        description="Coins paid towards the next slum level",
+    )
     reset_seconds: ClientNumber = Field(
-        alias="KRS", default=0, description="Seconds until the kingdom resets when the values were read; 0 for none"
+        validation_alias="KRS",
+        serialization_alias="KRS",
+        default=0,
+        description="Seconds until the kingdom resets when the values were read; 0 for none",
     )
-    reward_set: ClientNumber = Field(alias="CRS", default=0, description="The kingdom's reward set; 0 for none")
+    reward_set: ClientNumber = Field(
+        validation_alias="CRS", serialization_alias="CRS", default=0, description="The kingdom's reward set; 0 for none"
+    )
 
     @field_validator("kingdom_id", mode="before")
     @classmethod
@@ -68,10 +102,21 @@ class KingdomTransfer(TimedPayload):
     goods with ``CollectableParserS2CParamList``
     """
 
-    kingdom_id: EnumOrInt[Kingdom] = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom they go to")
-    seconds: ClientInt = Field(alias="RS", default=0, description="Seconds until they arrive when the values were read")
-    units: tuple[Collectable, ...] = Field(alias="I", default=(), description="The units and tools; units only")
-    goods: CollectableRows = Field(alias="G", default=(), description="The goods; goods only")
+    kingdom_id: EnumOrInt[Kingdom] = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="The kingdom they go to"
+    )
+    seconds: ClientInt = Field(
+        validation_alias="RS",
+        serialization_alias="RS",
+        default=0,
+        description="Seconds until they arrive when the values were read",
+    )
+    units: tuple[Collectable, ...] = Field(
+        validation_alias="I", serialization_alias="I", default=(), description="The units and tools; units only"
+    )
+    goods: CollectableRows = Field(
+        validation_alias="G", serialization_alias="G", default=(), description="The goods; goods only"
+    )
 
     @field_validator("kingdom_id", mode="before")
     @classmethod
@@ -112,16 +157,18 @@ class KingdomInfoResponse(BaseResponse):
     Client: ``KPICommand`` (bundle line 124684), ``CastleKingdomData.parse_KPI`` (bundle line 134539)
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     command = "kpi"
 
-    kingdoms: tuple[KingdomUnlock, ...] = Field(alias="UL", default=(), description="The kingdoms this packet lists")
+    kingdoms: tuple[KingdomUnlock, ...] = Field(
+        validation_alias="UL", serialization_alias="UL", default=(), description="The kingdoms this packet lists"
+    )
     unit_transfers: tuple[KingdomTransfer, ...] = Field(
-        alias="UT", default=(), description="Units on their way to another kingdom"
+        validation_alias="UT", serialization_alias="UT", default=(), description="Units on their way to another kingdom"
     )
     goods_transfers: tuple[KingdomTransfer, ...] = Field(
-        alias="RT", default=(), description="Goods on their way to another kingdom"
+        validation_alias="RT", serialization_alias="RT", default=(), description="Goods on their way to another kingdom"
     )
 
     @field_validator("kingdoms", mode="before")

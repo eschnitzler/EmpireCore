@@ -45,13 +45,16 @@ class SelectCastleRequest(BaseRequest):
     response_command = "jaa"
 
     castle_id: int = Field(
-        alias="CID",
+        validation_alias="CID",
+        serialization_alias="CID",
         description=(
             "The castle to join, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
             "client.state.get_castles()"
         ),
     )
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="The castle's kingdom"
+    )
 
 
 class JoinAreaRequest(BaseRequest):
@@ -88,9 +91,11 @@ class JoinAreaRequest(BaseRequest):
 
     command = "jaa"
 
-    x: int = Field(alias="PX", description="Map x")
-    y: int = Field(alias="PY", description="Map y")
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom it lies in")
+    x: int = Field(validation_alias="PX", serialization_alias="PX", description="Map x")
+    y: int = Field(validation_alias="PY", serialization_alias="PY", description="Map y")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="The kingdom it lies in"
+    )
 
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a jaa reply is for this area: its ``KID`` and, when sent, the joined area's row position.
@@ -134,30 +139,56 @@ class SelectCastleResponse(BaseResponse):
 
     command = "jaa"
 
-    kingdom_id: int = Field(alias="KID", default=0, description="The joined area's kingdom")
+    kingdom_id: int = Field(
+        validation_alias="KID", serialization_alias="KID", default=0, description="The joined area's kingdom"
+    )
     area_type: MapItemType | None = Field(
-        alias="T", default=None, description="The joined area's type; None for one MapItemType lacks"
+        validation_alias="T",
+        serialization_alias="T",
+        default=None,
+        description="The joined area's type; None for one MapItemType lacks",
     )
     buildings: CastleBuildings | None = Field(
-        alias="gca", default=None, description="The area's buildings; None when the reply has none"
+        validation_alias="gca",
+        serialization_alias="gca",
+        default=None,
+        description="The area's buildings; None when the reply has none",
     )
     resources: CastleResources | None = Field(
-        alias="grc", default=None, description="The area's resources; None when the reply has none"
+        validation_alias="grc",
+        serialization_alias="grc",
+        default=None,
+        description="The area's resources; None when the reply has none",
     )
     production_area: CastleProductionArea | None = Field(
-        alias="gpa", default=None, description="The area's production area; None when the reply has none"
+        validation_alias="gpa",
+        serialization_alias="gpa",
+        default=None,
+        description="The area's production area; None when the reply has none",
     )
     slum_level: SlumLevel | None = Field(
-        alias="csl", default=None, description="The area's slum level; None when the reply has none"
+        validation_alias="csl",
+        serialization_alias="csl",
+        default=None,
+        description="The area's slum level; None when the reply has none",
     )
     area_booster: AreaBooster | None = Field(
-        alias="gab", default=None, description="The area's builder discount; None when the reply has none"
+        validation_alias="gab",
+        serialization_alias="gab",
+        default=None,
+        description="The area's builder discount; None when the reply has none",
     )
     mines: MineStatusList | None = Field(
-        alias="gsm", default=None, description="The area's mines; None when the reply has none"
+        validation_alias="gsm",
+        serialization_alias="gsm",
+        default=None,
+        description="The area's mines; None when the reply has none",
     )
     resource_carts: ResourceCartInfo | None = Field(
-        alias="rci", default=None, description="The area's resource carts; None when the reply has none"
+        validation_alias="rci",
+        serialization_alias="rci",
+        default=None,
+        description="The area's resource carts; None when the reply has none",
     )
 
     @field_validator("area_type", mode="before")
@@ -226,14 +257,23 @@ class RenameCastleRequest(BaseRequest):
     command = "arc"
 
     castle_id: int = Field(
-        alias="CID", description="The castle to rename, a CastleInfo.castle_id from client.castle.get_all()"
+        validation_alias="CID",
+        serialization_alias="CID",
+        description="The castle to rename, a CastleInfo.castle_id from client.castle.get_all()",
     )
     is_rename: int = Field(
-        alias="P", default=1, description="1 to rename, 0 to name a newly acquired castle such as a monument"
+        validation_alias="P",
+        serialization_alias="P",
+        default=1,
+        description="1 to rename, 0 to name a newly acquired castle such as a monument",
     )
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
-    castle_type: MapItemType = Field(alias="AT", description="The castle's area type")
-    castle_name: str = Field(alias="N", description="The new name")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="The castle's kingdom"
+    )
+    castle_type: MapItemType = Field(
+        validation_alias="AT", serialization_alias="AT", description="The castle's area type"
+    )
+    castle_name: str = Field(validation_alias="N", serialization_alias="N", description="The new name")
 
     @field_serializer("castle_name")
     def _encoded_name(self, value: str) -> str:
@@ -264,9 +304,13 @@ class RenameCastleResponse(BaseResponse):
 
     command = "arc"
 
-    castle_id: int = Field(alias="CID", description="The renamed castle")
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
-    is_rename: int = Field(alias="P", default=1, description="1 for a rename, 0 for a first naming")
+    castle_id: int = Field(validation_alias="CID", serialization_alias="CID", description="The renamed castle")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="The castle's kingdom"
+    )
+    is_rename: int = Field(
+        validation_alias="P", serialization_alias="P", default=1, description="1 for a rename, 0 for a first naming"
+    )
 
 
 # =============================================================================
@@ -289,8 +333,8 @@ class RelocateCastleRequest(BaseRequest):
 
     command = "rst"
 
-    x: int = Field(alias="PX", description="Map x of the new position")
-    y: int = Field(alias="PY", description="Map y of the new position")
+    x: int = Field(validation_alias="PX", serialization_alias="PX", description="Map x of the new position")
+    y: int = Field(validation_alias="PY", serialization_alias="PY", description="Map y of the new position")
 
 
 class RelocateCastleResponse(BaseResponse):

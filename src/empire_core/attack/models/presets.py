@@ -157,13 +157,19 @@ class AttackPreset(BasePayload):
     ``FightPresetVO.update`` / ``deserialize`` (bundle lines 141830, 141836)
     """
 
-    index: int = Field(alias="S", description="Preset slot index")
+    index: int = Field(validation_alias="S", serialization_alias="S", description="Preset slot index")
     name: str | None = Field(
-        alias="SN",
+        validation_alias="SN",
+        serialization_alias="SN",
         default=None,
         description="Preset name; None or empty means the game's default name",
     )
-    raw_army: str | None = Field(alias="A", default=None, description="The army as a JSON string, see PresetArmy")
+    raw_army: str | None = Field(
+        validation_alias="A",
+        serialization_alias="A",
+        default=None,
+        description="The army as a JSON string, see PresetArmy",
+    )
 
     def army(self) -> PresetArmy | None:
         """The decoded army, or None when the slot is empty or ``A`` does not parse."""
@@ -194,7 +200,9 @@ class GetPresetsResponse(BaseResponse):
 
     command = "gas"
 
-    presets: list[AttackPreset] = Field(alias="S", default_factory=list, description="Unlocked preset slots")
+    presets: list[AttackPreset] = Field(
+        validation_alias="S", serialization_alias="S", default_factory=list, description="Unlocked preset slots"
+    )
 
     @field_validator("presets", mode="before")
     @classmethod
@@ -215,8 +223,10 @@ class SavePresetRequest(BaseRequest):
 
     command = "sas"
 
-    index: int = Field(alias="S", description="Preset slot index")
-    raw_army: str = Field(alias="A", description="The army as a compact JSON string")
+    index: int = Field(validation_alias="S", serialization_alias="S", description="Preset slot index")
+    raw_army: str = Field(
+        validation_alias="A", serialization_alias="A", description="The army as a compact JSON string"
+    )
 
     @classmethod
     def create(cls, index: int, army: PresetArmy) -> SavePresetRequest:
@@ -260,8 +270,8 @@ class RenamePresetRequest(BaseRequest):
 
     command = "upan"
 
-    index: int = Field(alias="S", description="Preset slot index")
-    name: str = Field(alias="SN", description="The new name")
+    index: int = Field(validation_alias="S", serialization_alias="S", description="Preset slot index")
+    name: str = Field(validation_alias="SN", serialization_alias="SN", description="The new name")
 
 
 class RenamePresetResponse(BaseResponse):

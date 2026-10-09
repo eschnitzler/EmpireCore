@@ -19,7 +19,7 @@ logger = logging.getLogger("tests.readers")
 
 
 class Row(BasePayload):
-    row_id: int = Field(alias="ID")
+    row_id: int = Field(validation_alias="ID", serialization_alias="ID")
 
 
 class TestReadableList:

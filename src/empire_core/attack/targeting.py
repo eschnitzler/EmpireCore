@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from empire_core.army.spy_army import SpyArmy
 from empire_core.attack.models.info import AttackInfoResponse, GetAttackInfoRequest, GetAttackInfoResponse
@@ -147,7 +147,7 @@ def _precalculation(area_type: int, conquer: bool) -> _Precalculation:
     return found
 
 
-def _row_item(row: list | None) -> MapAreaItem | None:
+def _row_item(row: list[Any] | None) -> MapAreaItem | None:
     """A target's map row as the client reads it, or None when there is none it can read."""
     if not row:
         return None
@@ -171,7 +171,7 @@ class _Target:
     kingdom_id: Kingdom | None = None
     source_x: int | None = None
     source_y: int | None = None
-    row: list | None = None
+    row: list[Any] | None = None
     area_type: int | None = None
     level: int | None = None
     owner_legend_level: int | None = None

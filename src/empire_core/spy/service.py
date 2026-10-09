@@ -10,6 +10,7 @@ import threading
 import time
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
@@ -50,6 +51,9 @@ from .risk import (
     plan_mission,
     plan_sabotage,
 )
+
+if TYPE_CHECKING:
+    from empire_core.client.client import EmpireClient
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +208,7 @@ def _names_target(
 class SpyService(BaseService):
     """Spy missions planned for risk, sabotage, and reading spy reports."""
 
-    def __init__(self, client) -> None:
+    def __init__(self, client: EmpireClient) -> None:
         super().__init__(client)
         self._logs_changed = threading.Condition()
         self._missions: list[SpyHandle] = []
