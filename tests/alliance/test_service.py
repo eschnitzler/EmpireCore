@@ -10,7 +10,7 @@ import pytest
 from empire_core.alliance.models.bookmarks import GetBookmarksResponse
 from empire_core.alliance.models.diplomacy import AllianceDonation
 from empire_core.client.client import EmpireClient
-from empire_core.enums import AllianceRank, BookmarkType, DiplomacyStatus, Kingdom
+from empire_core.enums import AllianceRank, BookmarkType, DiplomacyStatus, GGEError, Kingdom
 from empire_core.exceptions import (
     AmbiguousCastleError,
     CommandError,
@@ -18,7 +18,6 @@ from empire_core.exceptions import (
     PacketError,
     UnknownCastleError,
 )
-from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import AllianceChatMessageResponse, AllianceMember, HelpType
 from tests.service_helpers import StubPlayer, StubState, conn, make_client, request_payload, xt_packet
 

@@ -8,7 +8,8 @@ Every import counts: module level, inside functions and under TYPE_CHECKING.
 - ``protocol.base`` imports nothing from empire_core.
 - Only the client and the tests import the ``protocol.models`` aggregator. Nothing in the
   library imports the ``empire_core`` root.
-- Every area has an ``__init__``, and the enums import only ``enum``.
+- Every area has an ``__init__``, and the enums import only ``enum``. The package ``__init__``
+  also names the generated id enums, which it imports on first use.
 
 A second test checks that ``import empire_core`` fills the whole response registry.
 """
@@ -148,11 +149,24 @@ def _init_and_enum_violations() -> list[str]:
             bad.append(f"empire_core.{area}: no __init__")
     for path in sorted((PACKAGE / "enums").glob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
+        type_only = {
+            id(n)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.If) and "TYPE_CHECKING" in ast.unparse(node.test)
+            for n in ast.walk(node)
+        }
         for node in ast.walk(tree):
             if isinstance(node, ast.Import) and [a.name for a in node.names] != ["enum"]:
                 bad.append(f"enums/{path.name}:{node.lineno} (enums import only enum)")
             elif isinstance(node, ast.ImportFrom):
-                ok = node.level == 1 if path.name == "__init__.py" else node.module in ("enum", "__future__")
+                if path.name == "__init__.py":
+                    ok = (
+                        node.level == 1
+                        or node.module in ("typing", "empire_core.utils.lazy")
+                        or (node.module == "empire_core.gamedata.ids" and id(node) in type_only)
+                    )
+                else:
+                    ok = node.module in ("enum", "__future__")
                 if not ok:
                     bad.append(f"enums/{path.name}:{node.lineno} (enums import only enum)")
     return bad

@@ -1,5 +1,7 @@
 """Alliances: info, members, diplomacy, help, bookmarks, search, chat and the chronicle."""
 
+from typing import TYPE_CHECKING
+
 from empire_core.enums import (
     AllianceBuffType,
     AllianceChronicleAction,
@@ -7,8 +9,11 @@ from empire_core.enums import (
     BookmarkType,
     DiplomacyStatus,
     HelpType,
+    Kingdom,
     OnlineState,
+    RankingType,
 )
+from empire_core.utils.lazy import lazy_exports
 
 from .models import (
     ATTACK_ORDER_MAX_SECONDS,
@@ -103,6 +108,9 @@ from .models import (
     SetAutoWarResponse,
 )
 from .service import AllianceHelpUpdate, AllianceService
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout
 
 __all__ = [
     "AllianceChatMessageRequest",
@@ -204,4 +212,12 @@ __all__ = [
     "OnlineState",
     "AllianceHelpUpdate",
     "AllianceService",
+    "Kingdom",
+    "RankingType",
+    "AllianceCrestColor",
+    "AllianceCrestLayout",
 ]
+
+
+if not TYPE_CHECKING:
+    __getattr__ = lazy_exports(__name__, "empire_core.gamedata.ids", ("AllianceCrestColor", "AllianceCrestLayout"))

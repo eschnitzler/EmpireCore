@@ -32,10 +32,9 @@ from empire_core.castle.models.transfers import (
     MinuteSkipKingdomTransferResponse,
 )
 from empire_core.commanders import CommanderEffect
-from empire_core.enums import Kingdom, KingdomTransferType, MarketScope, Resource, ResourceCartType
+from empire_core.enums import GGEError, Kingdom, KingdomTransferType, MarketScope, Resource, ResourceCartType
 from empire_core.exceptions import CommandError, UnsendableGoodsError
 from empire_core.gamedata import Currency, Tool, Unit, WodAmount
-from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import parse_response
 from empire_core.state.manager import GameState
 from tests.service_helpers import StubPlayer, StubState, conn, make_client, xt_packet

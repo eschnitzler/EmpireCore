@@ -339,7 +339,7 @@ class TestMemberData:
 
     def test_the_enums_load_lazily(self):
         code = (
-            "import sys, empire_core, empire_core.gamedata as g\n"
+            "import sys, empire_core, empire_core.gamedata as g, empire_core.enums as e, empire_core.army as a\n"
             "heavy = [f'empire_core.gamedata.ids.{m}' for m in ('units', 'tools', 'effects', 'buildings', 'quests')]\n"
             "assert not any(m in sys.modules for m in heavy)\n"
             "import empire_core.gamedata.ids.events\n"
@@ -347,6 +347,9 @@ class TestMemberData:
             "g.Unit\n"
             "assert 'empire_core.gamedata.ids.units' in sys.modules\n"
             "assert 'empire_core.gamedata.ids.tools' not in sys.modules\n"
+            "assert e.Unit is g.Unit is a.Unit\n"
+            "assert 'empire_core.gamedata.ids.tools' not in sys.modules\n"
+            "assert e.Tool is a.Tool\n"
         )
         subprocess.run([sys.executable, "-c", code], check=True)
 

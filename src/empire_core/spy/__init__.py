@@ -1,6 +1,6 @@
 """Espionage: spy missions, their risk and their reports."""
 
-from empire_core.enums import LogResult, SpyLogType, SpyType
+from empire_core.enums import Kingdom, LogResult, SpyLogType, SpyOutcome, SpyStep, SpyType
 
 from .models import (
     AutoSpyRequest,
@@ -40,4 +40,7 @@ __all__ = [
     "SpyHandle",
     "SpyResult",
     "SpyService",
+    "Kingdom",
+    "SpyOutcome",
+    "SpyStep",
 ]

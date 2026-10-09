@@ -32,12 +32,11 @@ from empire_core.attack.models.target_info import (
 )
 from empire_core.combat import Bonus, TargetRead, invasion_camp_level, owner_id_from_row
 from empire_core.commanders.models.roster import Commander
-from empire_core.enums import Kingdom, MapItemType
+from empire_core.enums import GGEError, Kingdom, MapItemType
 from empire_core.exceptions import CommandError
 from empire_core.map.models.areas import GetMapAreaResponse, MapObject
 from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.base import BaseRequest
-from empire_core.protocol.errors import GGEError
 
 if TYPE_CHECKING:
     from empire_core.attack.service import AttackService

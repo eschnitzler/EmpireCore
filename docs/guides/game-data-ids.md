@@ -21,7 +21,10 @@ raid bosses, global effects, buildings, researches, construction items,
 events, loot boxes and their types, equipment groups, event difficulty types,
 quests (`QuestId`), daily quests (`DailyQuestId`), main quests (`MainQuest`),
 gems, sceat skills, achievements, horses, titles and alliance crest layouts and
-colours each have one. The 27,000 rewards have none: the game shows no text
+colours each have one. Like every enum, each also imports from
+`empire_core.enums`, and from each area whose models or methods use it
+(`from empire_core.army import Unit`); every path gives the same class, loaded on
+first use. The 27,000 rewards have none: the game shows no text
 for a reward, and the notes some rows carry name where it is given, not the
 reward. Reward ids stay ints; the game reads each as the collectables it holds.
 

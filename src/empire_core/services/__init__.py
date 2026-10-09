@@ -10,6 +10,11 @@ Usage:
     client.alliance.send_chat("Hello!")
 """
 
+from empire_core.enums import GGEError
+
 from .base import BaseService
 
-__all__ = ["BaseService"]
+__all__ = [
+    "BaseService",
+    "GGEError",
+]

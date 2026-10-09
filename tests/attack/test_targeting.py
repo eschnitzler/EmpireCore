@@ -11,9 +11,8 @@ from empire_core.army.spy_army import SpyArmy
 from empire_core.attack.filling import _target_defense
 from empire_core.attack.targeting import _read_precalculation, _read_target
 from empire_core.combat import TargetRead
-from empire_core.enums import MapItemType
+from empire_core.enums import GGEError, MapItemType
 from empire_core.exceptions import EmpireTimeoutError
-from empire_core.protocol.errors import GGEError
 from tests.attack.fill_helpers import FillClient
 from tests.service_helpers import conn, xt_packet
 

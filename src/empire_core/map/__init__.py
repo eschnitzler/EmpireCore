@@ -1,6 +1,9 @@
 """The world map: map areas, map objects and their owners."""
 
-from empire_core.enums import Kingdom, MapItemType, NPCOwner
+from typing import TYPE_CHECKING
+
+from empire_core.enums import Kingdom, MapItemType, NPCOwner, PeaceModeStatus
+from empire_core.utils.lazy import lazy_exports
 
 from .models import (
     INVASION_AREA_TYPES,
@@ -29,6 +32,9 @@ from .models import (
 )
 from .scanner import ChunkHandler, MapScanner, ScanResult, scan_kingdom_with
 from .service import MapService
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout, Title
 
 __all__ = [
     "GetMapAreaRequest",
@@ -62,4 +68,14 @@ __all__ = [
     "ChunkHandler",
     "scan_kingdom_with",
     "MapService",
+    "PeaceModeStatus",
+    "AllianceCrestColor",
+    "AllianceCrestLayout",
+    "Title",
 ]
+
+
+if not TYPE_CHECKING:
+    __getattr__ = lazy_exports(
+        __name__, "empire_core.gamedata.ids", ("AllianceCrestColor", "AllianceCrestLayout", "Title")
+    )

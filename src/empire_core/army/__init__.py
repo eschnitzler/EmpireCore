@@ -1,6 +1,9 @@
 """The army: units, production, the hospital and spy-report armies."""
 
-from empire_core.enums import ProductionListId, SlotType, SpyArmySection
+from typing import TYPE_CHECKING
+
+from empire_core.enums import Kingdom, ProductionListId, SlotType, SpyArmySection
+from empire_core.utils.lazy import lazy_exports
 
 from .models import (
     BUY_UNIT_PACKAGE_SK,
@@ -39,6 +42,9 @@ from .models import (
 )
 from .service import ArmyService
 from .spy_army import SpyArmy, SpyArmyBlock, SpyStacks
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Tool, Unit
 
 __all__ = [
     "AttackWave",
@@ -81,4 +87,11 @@ __all__ = [
     "SpyArmySection",
     "SpyArmyBlock",
     "SpyStacks",
+    "Kingdom",
+    "Tool",
+    "Unit",
 ]
+
+
+if not TYPE_CHECKING:
+    __getattr__ = lazy_exports(__name__, "empire_core.gamedata.ids", ("Tool", "Unit"))

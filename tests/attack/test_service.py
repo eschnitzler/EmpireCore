@@ -86,7 +86,7 @@ class TestCreateAttackReply:
         assert [o.player_id for o in reply.owners] == [6]
 
     def test_attack_in_progress_explains_itself(self):
-        from empire_core.protocol.errors import GGEError
+        from empire_core.enums import GGEError
         from empire_core.protocol.models import CreateAttackRequest
 
         client = make_client({"cra": xt_packet("cra", {"TS": 95, "AS": 40}, error_code=234)}, castles=OWN)
