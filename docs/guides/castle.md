@@ -49,7 +49,7 @@ queue = client.castle.get_build_queue()
 
 if castle.buildings:
     building = castle.buildings.buildings[0]
-    client.castle.upgrade_building(building.object_id)
+    client.castle.upgrade_building(12345, building.object_id)
 ```
 
 `client.castle.select(castle_id)` joins without returning the state, and
@@ -62,11 +62,17 @@ position, as the client does for the areas it may visit that are not castles.
     so does joining another one. `client.army` joins its castle itself; for
     anything else castle-scoped, join again first.
 
-The joined-castle commands are `build`, `upgrade_building`, `move_building`,
-`sell_decoration`, `destroy_building`, `finish_construction`,
-`skip_construction_time`, `upgrade_defense`, `repair_building`, `repair_all`,
+The joined-castle commands are `build`, `move_building`, `sell_decoration`,
+`destroy_building`, `skip_construction_time`, `repair_building`, `repair_all`,
 `buy_expansion`, `open_treasure_chest`, `collect_mine` and
-`collect_resource_cart`. Each returns `True` when the server accepts it.
+`collect_resource_cart`. `upgrade_building`, `upgrade_defense` and
+`finish_construction` take the castle id and join it themselves, as
+`client.army` does, pricing the building from the join's reply. Each returns
+`True` when the server accepts it. A building with a ruby price, finishing a
+construction with over 240 seconds left (or a time left that cannot be worked
+out), `repair_all`, a premium expansion and a castle rename spend rubies and
+need `spend_rubies=True`, which also pays missing resources with rubies; see
+[Spending rubies](index.md#spending-rubies).
 `skip_construction_time` raises `ValueError` for a currency that is no minute
 skip and, once the special currencies are known, for one you hold none of.
 
@@ -180,7 +186,9 @@ currencies (`client.state.get_special_currencies()`) are known, for one you
 hold none of. The full skip the game also offers costs rubies and is not in the
 library.
 
-`rename(castle_id, new_name)` renames a castle.
+`rename(castle_id, new_name)` renames a castle. A rename costs 2500 rubies unless
+a premium account runs, so without one it needs `spend_rubies=True`;
+`is_initial_name=True` names a new castle, for free.
 
 ## Tax
 
@@ -293,7 +301,8 @@ ruby cost multipliers (`cost_factor_c1`, `cost_factor_c2`), and
 `is_instant_spy_horse`, a horse that can be paid with rubies or, sent with
 `feathers=True`, with feathers. Pass a horse's `wod_id` as `horse_booster_id`
 to `send_resources`, `send_support`, `send_troops`, `client.attack.send_attack`
-or the spy missions.
+or the spy missions. A horse whose `cost_factor_c2` is above 0, unless paid with
+feathers, and any slowdown cost rubies and need `spend_rubies=True`.
 
 On a live account, main and kingdom castles offered horses 1007 to 1009, the
 Storm castle 1030 to 1032, and outposts none. Without game data,

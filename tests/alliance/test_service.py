@@ -775,6 +775,17 @@ class TestAllianceDiplomacy:
         assert response.currency is not None and response.currency.coins == 900
         assert response.alliance is not None and response.alliance.alliance_id == 301
 
+    def test_donating_rubies_needs_spend_rubies(self):
+        reply = {"gcu": {"C1": 900, "C2": 10}, "ain": GOLDEN_AIN}
+        client = member_client({"ado": xt_packet("ado", reply)}, castles=[(12345, Kingdom.GREEN)])
+
+        with pytest.raises(ValueError, match="spend_rubies=True"):
+            client.alliance.donate(12345, AllianceDonation(wood=5, rubies=50))
+        assert conn(client).request_payloads == []
+
+        client.alliance.donate(12345, AllianceDonation(rubies=50), spend_rubies=True)
+        assert conn(client).request_payloads == [("ado", {"AID": 12345, "KID": 0, "RV": {"C2": 50}})]
+
     def test_an_empty_donation_is_not_sent(self):
         client = make_client(castles=[(12345, Kingdom.GREEN)])
         with pytest.raises(ValueError):

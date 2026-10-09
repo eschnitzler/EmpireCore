@@ -314,19 +314,22 @@ class DestroyBuildingResponse(_BuildingReply):
 
 class FastCompleteRequest(BaseRequest):
     """
-    Finish a building's running construction at once, for rubies.
+    Finish a building's running construction at once: for free with ``FS`` 1, else for rubies.
 
     Command: fco
     Payload: {"OID": object_id, "FS": 0 or 1}
 
     Client: ``C2SIsoFastCompleteObjectVO`` (bundle line 31951), sent by
-    ``IsoServerCommands.fastCompleteBuilding`` (bundle line 63773)
+    ``IsoServerCommands.fastCompleteBuilding`` (bundle line 63773) with ``FS`` 1 when
+    ``CastleSpecialEventData.hasSkipForFree`` (bundle line 139853)
     """
 
     command = "fco"
 
     object_id: int = Field(alias="OID", description=_OBJECT_ID)
-    free_skip: bool = Field(alias="FS", default=False, description="Use an event's free skip")
+    free_skip: bool = Field(
+        alias="FS", default=False, description="Finish for free, the time left being within the free skip time"
+    )
 
     @field_serializer("free_skip")
     def _flag(self, value: bool) -> int:

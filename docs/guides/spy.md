@@ -45,7 +45,8 @@ many seconds while spies are on their way home.
 
 Nothing is paid unless you ask: by default the spies travel without a horse.
 `feathers=True` uses the instant spy horse, paid with feathers, and
-`horse_booster_id` a horse of your own.
+`horse_booster_id` a horse of your own. A horse paid in rubies and a slowdown
+need `spend_rubies=True`; see [Spending rubies](index.md#spending-rubies).
 
 ### How a mission ends
 
