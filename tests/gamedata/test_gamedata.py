@@ -33,6 +33,7 @@ from empire_core.gamedata import (
 )
 from empire_core.gamedata import data as data_module
 from empire_core.gamedata.troops import count_troops, get_troop_ids
+from tests.service_helpers import make_client
 
 
 def _recording_fetch(fetches: list[str]):
@@ -281,6 +282,27 @@ class TestOneLoader:
         assert get_troop_ids() == {211}
         assert GameData.load(cache_dir=tmp_path) is loaded
         assert len(list(downloads.iterdir())) == 1
+
+    def test_the_client_reads_what_the_process_loaded(self, downloads, tmp_path):
+        client = make_client()
+        assert client.game_data is None
+
+        loaded = GameData.load(cache_dir=tmp_path)
+
+        assert client.game_data is loaded
+        assert client.load_game_data() is loaded and client.game_data is loaded
+        assert get_troop_ids() == set(client.game_data.units) == {211}
+        assert len(list(downloads.iterdir())) == 1
+
+    def test_data_attached_to_a_client_comes_before_the_loaded_data(self, downloads, tmp_path):
+        loaded = GameData.load(cache_dir=tmp_path)
+        own = GameData.parse("own", PAYLOAD)
+        client = make_client()
+
+        client.game_data = own
+        assert client.game_data is own and GameData.loaded() is loaded
+        client.game_data = None
+        assert client.game_data is loaded
 
     def test_troops_first_then_load_downloads_once(self, downloads):
         assert get_troop_ids() == {211}
