@@ -157,32 +157,62 @@ class LeaderBase(BasePayload):
     default commander with a general; elsewhere the client ignores them.
     """
 
-    commander_id: int = Field(alias="ID", description="Commander id; for a default commander, its default-commander id")
-    wearer_id: ClientInt | None = Field(alias="WID", default=None, description="2 for a commander, 1 for a castellan")
-    picture_id: ClientInt = Field(alias="VIS", default=0, description="Portrait id")
-    name: str = Field(alias="N", default="", description="Name")
-    wins: ClientInt = Field(alias="W", default=0, description="Battles won")
-    defeats: ClientInt = Field(alias="D", default=0, description="Battles lost")
-    win_spree: ClientInt = Field(alias="SPR", default=0, description="Current winning streak")
-    effects: CommanderEffects = Field(alias="E", default_factory=list, description="The commander's own effects")
-    area_effects: CommanderEffects = Field(alias="AE", default_factory=list, description="Area effects")
-    equipment: list[Equipment] = Field(alias="EQ", default_factory=list, description="Equipped items")
+    commander_id: int = Field(
+        validation_alias="ID",
+        serialization_alias="ID",
+        description="Commander id; for a default commander, its default-commander id",
+    )
+    wearer_id: ClientInt | None = Field(
+        validation_alias="WID",
+        serialization_alias="WID",
+        default=None,
+        description="2 for a commander, 1 for a castellan",
+    )
+    picture_id: ClientInt = Field(
+        validation_alias="VIS", serialization_alias="VIS", default=0, description="Portrait id"
+    )
+    name: str = Field(validation_alias="N", serialization_alias="N", default="", description="Name")
+    wins: ClientInt = Field(validation_alias="W", serialization_alias="W", default=0, description="Battles won")
+    defeats: ClientInt = Field(validation_alias="D", serialization_alias="D", default=0, description="Battles lost")
+    win_spree: ClientInt = Field(
+        validation_alias="SPR", serialization_alias="SPR", default=0, description="Current winning streak"
+    )
+    effects: CommanderEffects = Field(
+        validation_alias="E", serialization_alias="E", default_factory=list, description="The commander's own effects"
+    )
+    area_effects: CommanderEffects = Field(
+        validation_alias="AE", serialization_alias="AE", default_factory=list, description="Area effects"
+    )
+    equipment: list[Equipment] = Field(
+        validation_alias="EQ", serialization_alias="EQ", default_factory=list, description="Equipped items"
+    )
     alien_equipment: AlienEquipment | None = Field(
-        alias="AIE", default=None, description="Alien equipment; applies when equipment is empty"
+        validation_alias="AIE",
+        serialization_alias="AIE",
+        default=None,
+        description="Alien equipment; applies when equipment is empty",
     )
     temporary_equipment: AlienEquipment | None = Field(
-        alias="TAE",
+        validation_alias="TAE",
+        serialization_alias="TAE",
         default=None,
         description="Temporary equipment; applies when equipment is empty and alien_equipment absent",
     )
     alien_gem_ids: tuple[EnumOrInt["Gem"], ...] = Field(
-        alias="GEM", default=(), description="The gems added to the alien or temporary equipment"
+        validation_alias="GEM",
+        serialization_alias="GEM",
+        default=(),
+        description="The gems added to the alien or temporary equipment",
     )
     general_id: ClientInt | None = Field(
-        alias="GID", default=None, description="The assigned general's id; -1 or None for none"
+        validation_alias="GID",
+        serialization_alias="GID",
+        default=None,
+        description="The assigned general's id; -1 or None for none",
     )
     star_level: ClientInt = Field(
-        alias="ST",
+        validation_alias="ST",
+        serialization_alias="ST",
         default=0,
         description=(
             "The general's star level when the entry doubles as its general: a default commander with"
@@ -190,31 +220,46 @@ class LeaderBase(BasePayload):
         ),
     )
     level: ClientInt = Field(
-        alias="L",
+        validation_alias="L",
+        serialization_alias="L",
         default=0,
         description=(
             "The general's level when the entry doubles as its general: a default commander with a general_id above 0"
         ),
     )
     general_xp: ClientInt | None = Field(
-        alias="XP", default=None, description="The general's experience; None when the entry does not carry it"
+        validation_alias="XP",
+        serialization_alias="XP",
+        default=None,
+        description="The general's experience; None when the entry does not carry it",
     )
     general_old_xp: ClientInt | None = Field(
-        alias="OXP",
+        validation_alias="OXP",
+        serialization_alias="OXP",
         default=None,
         description="The general's experience before the battle; None when the entry does not carry it",
     )
     general_is_new: bool | None = Field(
-        alias="IN", default=None, description="The general is newly unlocked; None when the entry does not say"
+        validation_alias="IN",
+        serialization_alias="IN",
+        default=None,
+        description="The general is newly unlocked; None when the entry does not say",
     )
     general_has_level_up: bool | None = Field(
-        alias="LU", default=None, description="The general gained a level; None when the entry does not say"
+        validation_alias="LU",
+        serialization_alias="LU",
+        default=None,
+        description="The general gained a level; None when the entry does not say",
     )
     general_skill_ids: tuple[EnumOrInt["GeneralSkill"], ...] | None = Field(
-        alias="SIDS", default=None, description="The general's unlocked skills; None when the entry has none"
+        validation_alias="SIDS",
+        serialization_alias="SIDS",
+        default=None,
+        description="The general's unlocked skills; None when the entry has none",
     )
     general_selected_abilities: tuple[SelectedAbility, ...] | None = Field(
-        alias="GASAIDS",
+        validation_alias="GASAIDS",
+        serialization_alias="GASAIDS",
         default=None,
         description="The general's ability slots, filled or empty; None when the entry has none",
     )
@@ -361,7 +406,8 @@ class Castellan(LeaderBase):
     """
 
     locked_in_castle_id: ClientInt = Field(
-        alias="LICID",
+        validation_alias="LICID",
+        serialization_alias="LICID",
         default=0,
         description="Castle the castellan is locked in, -1 for none; 0 when the entry has none",
     )
@@ -415,8 +461,12 @@ class CommanderRoster(BasePayload):
     (bundle lines 38572-38573), ``BaronVO.parseLord`` (bundle line 43534)
     """
 
-    commanders: list[Commander] = Field(alias="C", default_factory=list, description="Commanders")
-    castellans: list[Castellan] = Field(alias="B", default_factory=list, description="Castellans")
+    commanders: list[Commander] = Field(
+        validation_alias="C", serialization_alias="C", default_factory=list, description="Commanders"
+    )
+    castellans: list[Castellan] = Field(
+        validation_alias="B", serialization_alias="B", default_factory=list, description="Castellans"
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -471,10 +521,13 @@ class RenameCommanderRequest(BaseRequest):
     command = "arl"
 
     commander_id: int = Field(
-        alias="LID",
+        validation_alias="LID",
+        serialization_alias="LID",
         description="The commander_id of a Commander or Castellan from client.commanders.get_all()",
     )
-    name: str = Field(alias="N", description="The new name; the game allows 3 to 15 characters")
+    name: str = Field(
+        validation_alias="N", serialization_alias="N", description="The new name; the game allows 3 to 15 characters"
+    )
 
 
 class RenameCommanderResponse(BaseResponse):
@@ -490,5 +543,8 @@ class RenameCommanderResponse(BaseResponse):
     command = "arl"
 
     commander_roster: CommanderRoster = Field(
-        alias="gli", default_factory=CommanderRoster, description="Commanders and castellans after the rename"
+        validation_alias="gli",
+        serialization_alias="gli",
+        default_factory=CommanderRoster,
+        description="Commanders and castellans after the rename",
     )

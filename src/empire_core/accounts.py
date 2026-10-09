@@ -142,7 +142,7 @@ class AccountRegistry:
         self._loaded = False
         self._load_lock = threading.Lock()
 
-    def load(self, file_path: str | os.PathLike[str] | None = None, load_env_file: bool = False):
+    def load(self, file_path: str | os.PathLike[str] | None = None, load_env_file: bool = False) -> None:
         """
         Load accounts from all sources.
         Prioritizes environment variables, then file: an account whose

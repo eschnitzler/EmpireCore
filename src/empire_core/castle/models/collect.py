@@ -10,7 +10,7 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import ConfigDict, Field, field_serializer, field_validator
 
@@ -56,7 +56,9 @@ class CollectMineResourcesRequest(BaseRequest):
 
     command = "cmr"
 
-    object_id: int = Field(alias="OID", description="The mine's object id, a BuildingRow.object_id")
+    object_id: int = Field(
+        validation_alias="OID", serialization_alias="OID", description="The mine's object id, a BuildingRow.object_id"
+    )
 
 
 class MineStatus(BasePayload):
@@ -67,15 +69,29 @@ class MineStatus(BasePayload):
     ``triggerInfoFlash`` (bundle line 50371)
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
-    object_id: int = Field(alias="OID", default=-1, description="The mine's object id")
-    remaining_collection_amount: int = Field(alias="RC", default=0, description="What is left to collect")
-    next_collect_seconds: int = Field(
-        alias="NC", default=0, description="Seconds until the mine can be collected again, -1 when it is done"
+    object_id: int = Field(
+        validation_alias="OID", serialization_alias="OID", default=-1, description="The mine's object id"
     )
-    coins: int | None = Field(alias="C1", default=None, description="Coins just collected; None for none")
-    rubies: int | None = Field(alias="C2", default=None, description="Rubies just collected; None for none")
+    remaining_collection_amount: int = Field(
+        validation_alias="RC", serialization_alias="RC", default=0, description="What is left to collect"
+    )
+    next_collect_seconds: int = Field(
+        validation_alias="NC",
+        serialization_alias="NC",
+        default=0,
+        description="Seconds until the mine can be collected again, -1 when it is done",
+    )
+    coins: int | None = Field(
+        validation_alias="C1", serialization_alias="C1", default=None, description="Coins just collected; None for none"
+    )
+    rubies: int | None = Field(
+        validation_alias="C2",
+        serialization_alias="C2",
+        default=None,
+        description="Rubies just collected; None for none",
+    )
 
 
 class MineStatusList(BaseResponse):
@@ -92,7 +108,9 @@ class MineStatusList(BaseResponse):
 
     command = "gsm"
 
-    mines: list[MineStatus] = Field(alias="M", default_factory=list, description="Each mine")
+    mines: list[MineStatus] = Field(
+        validation_alias="M", serialization_alias="M", default_factory=list, description="Each mine"
+    )
 
     @field_validator("mines", mode="before")
     @classmethod
@@ -112,8 +130,12 @@ class CollectMineResourcesResponse(BaseResponse):
 
     command = "cmr"
 
-    mines: MineStatusList | None = Field(alias="gsm", default=None, description="The castle's mines after")
-    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after")
+    mines: MineStatusList | None = Field(
+        validation_alias="gsm", serialization_alias="gsm", default=None, description="The castle's mines after"
+    )
+    currencies: CurrencyBlock = Field(
+        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after"
+    )
 
     @field_validator("mines", mode="before")
     @classmethod
@@ -139,7 +161,9 @@ class CollectResourceCartRequest(BaseRequest):
 
     command = "rcc"
 
-    cart_type: ResourceCartType = Field(alias="RT", description="The cart's resource")
+    cart_type: ResourceCartType = Field(
+        validation_alias="RT", serialization_alias="RT", description="The cart's resource"
+    )
 
     @field_serializer("cart_type")
     def _index(self, value: ResourceCartType) -> int:
@@ -153,14 +177,17 @@ class ResourceCart(BasePayload):
     Client: ``ResourceCartData.parseRciItem`` (bundle line 81053)
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     cart_type: ResourceCartType | None = Field(
-        alias="RT", default=None, description="The cart's resource; None for an unknown index"
+        validation_alias="RT",
+        serialization_alias="RT",
+        default=None,
+        description="The cart's resource; None for an unknown index",
     )
-    amount: int = Field(alias="A", default=0, description="What the cart carries")
+    amount: int = Field(validation_alias="A", serialization_alias="A", default=0, description="What the cart carries")
     remaining_seconds: int | float | None = Field(
-        alias="RS", default=None, description="Seconds until the cart is ready"
+        validation_alias="RS", serialization_alias="RS", default=None, description="Seconds until the cart is ready"
     )
 
     _type = field_validator("cart_type", mode="before")(_cart_type)
@@ -183,7 +210,9 @@ class ResourceCartInfo(BaseResponse):
 
     command = "rci"
 
-    carts: list[ResourceCart] = Field(alias="RC", default_factory=list, description="Each cart")
+    carts: list[ResourceCart] = Field(
+        validation_alias="RC", serialization_alias="RC", default_factory=list, description="Each cart"
+    )
 
     @field_validator("carts", mode="before")
     @classmethod
@@ -207,11 +236,18 @@ class CollectResourceCartResponse(BaseResponse):
     command = "rcc"
 
     cart_type: ResourceCartType | None = Field(
-        alias="RT", default=None, description="The collected cart's resource; None for an unknown index"
+        validation_alias="RT",
+        serialization_alias="RT",
+        default=None,
+        description="The collected cart's resource; None for an unknown index",
     )
-    amount: int = Field(alias="A", default=0, description="How much was collected")
-    resources: CastleResources | None = Field(alias="grc", default=None, description="The castle's resources after")
-    carts: ResourceCartInfo | None = Field(alias="rci", default=None, description="The castle's carts after")
+    amount: int = Field(validation_alias="A", serialization_alias="A", default=0, description="How much was collected")
+    resources: CastleResources | None = Field(
+        validation_alias="grc", serialization_alias="grc", default=None, description="The castle's resources after"
+    )
+    carts: ResourceCartInfo | None = Field(
+        validation_alias="rci", serialization_alias="rci", default=None, description="The castle's carts after"
+    )
 
     _type = field_validator("cart_type", mode="before")(_cart_type)
     _amount = field_validator("amount", mode="before")(js_int)

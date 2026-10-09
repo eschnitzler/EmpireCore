@@ -53,13 +53,19 @@ class GetDefenseRequest(BaseRequest):
 
     command = "dfc"
 
-    castle_x: int = Field(alias="CX", description="Castle map x")
-    castle_y: int = Field(alias="CY", description="Castle map y")
+    castle_x: int = Field(validation_alias="CX", serialization_alias="CX", description="Castle map x")
+    castle_y: int = Field(validation_alias="CY", serialization_alias="CY", description="Castle map y")
     area_id: int = Field(
-        alias="AID",
+        validation_alias="AID",
+        serialization_alias="AID",
         description="The castle's id: CastleInfo.castle_id from client.castle.get_all() or Castle.id",
     )
-    kingdom_id: Kingdom | None = Field(alias="KID", default=None, description="The castle's kingdom; None for none")
+    kingdom_id: Kingdom | None = Field(
+        validation_alias="KID",
+        serialization_alias="KID",
+        default=None,
+        description="The castle's kingdom; None for none",
+    )
 
     @field_validator("kingdom_id", mode="before")
     @classmethod
@@ -90,9 +96,18 @@ class WallSection(BasePayload):
     Client: ``CastleDefenceData.parse_DFW`` (bundle line 134250)
     """
 
-    slots: WodAmountSlots = Field(alias="S", default=(), description="Wall tool slots")
-    unit_percent: ClientInt = Field(alias="UP", default=0, description="Share of the wall's units on this section")
-    unit_composition: ClientInt = Field(alias="UC", default=0, description="Unit composition of this section")
+    slots: WodAmountSlots = Field(
+        validation_alias="S", serialization_alias="S", default=(), description="Wall tool slots"
+    )
+    unit_percent: ClientInt = Field(
+        validation_alias="UP",
+        serialization_alias="UP",
+        default=0,
+        description="Share of the wall's units on this section",
+    )
+    unit_composition: ClientInt = Field(
+        validation_alias="UC", serialization_alias="UC", default=0, description="Unit composition of this section"
+    )
 
 
 class WallDefense(BaseResponse):
@@ -106,12 +121,24 @@ class WallDefense(BaseResponse):
 
     command = "dfw"
 
-    left: WallSection = Field(alias="L", default_factory=WallSection, description="Left wall section")
-    middle: WallSection = Field(alias="M", default_factory=WallSection, description="Middle wall section")
-    right: WallSection = Field(alias="R", default_factory=WallSection, description="Right wall section")
-    unit_count: ClientInt = Field(alias="U", default=0, description="Units on the wall")
-    unit_slot_count: ClientInt = Field(alias="US", default=0, description="Units the wall can hold")
-    defense: ClientInt = Field(alias="D", default=0, description="Wall defence, as a whole number")
+    left: WallSection = Field(
+        validation_alias="L", serialization_alias="L", default_factory=WallSection, description="Left wall section"
+    )
+    middle: WallSection = Field(
+        validation_alias="M", serialization_alias="M", default_factory=WallSection, description="Middle wall section"
+    )
+    right: WallSection = Field(
+        validation_alias="R", serialization_alias="R", default_factory=WallSection, description="Right wall section"
+    )
+    unit_count: ClientInt = Field(
+        validation_alias="U", serialization_alias="U", default=0, description="Units on the wall"
+    )
+    unit_slot_count: ClientInt = Field(
+        validation_alias="US", serialization_alias="US", default=0, description="Units the wall can hold"
+    )
+    defense: ClientInt = Field(
+        validation_alias="D", serialization_alias="D", default=0, description="Wall defence, as a whole number"
+    )
 
 
 class KeepDefense(BaseResponse):
@@ -125,14 +152,27 @@ class KeepDefense(BaseResponse):
 
     command = "dfk"
 
-    slots: WodAmountSlots = Field(alias="S", default=(), description="Keep tool slots")
-    support_tool_slots: WodAmountSlots = Field(alias="STS", default=(), description="Keep support-tool slots")
-    alliance_unit_yard_limit: ClientInt = Field(alias="AUYL", default=0, description="Alliance unit yard limit")
-    unit_yard_limit: ClientInt = Field(alias="UYL", default=0, description="Unit yard limit")
-    unit_count: ClientInt = Field(alias="U", default=0, description="Units in the keep")
-    unit_composition: ClientInt = Field(alias="UC", default=0, description="Keep unit composition")
+    slots: WodAmountSlots = Field(
+        validation_alias="S", serialization_alias="S", default=(), description="Keep tool slots"
+    )
+    support_tool_slots: WodAmountSlots = Field(
+        validation_alias="STS", serialization_alias="STS", default=(), description="Keep support-tool slots"
+    )
+    alliance_unit_yard_limit: ClientInt = Field(
+        validation_alias="AUYL", serialization_alias="AUYL", default=0, description="Alliance unit yard limit"
+    )
+    unit_yard_limit: ClientInt = Field(
+        validation_alias="UYL", serialization_alias="UYL", default=0, description="Unit yard limit"
+    )
+    unit_count: ClientInt = Field(
+        validation_alias="U", serialization_alias="U", default=0, description="Units in the keep"
+    )
+    unit_composition: ClientInt = Field(
+        validation_alias="UC", serialization_alias="UC", default=0, description="Keep unit composition"
+    )
     min_attacking_units_for_tools: ClientInt = Field(
-        alias="MAUCT",
+        validation_alias="MAUCT",
+        serialization_alias="MAUCT",
         default=0,
         description="Minimum attacking units before the keep's tools are used",
     )
@@ -159,10 +199,18 @@ class MoatDefense(BaseResponse):
 
     command = "dfm"
 
-    left_slots: WodAmountSlots = Field(alias="LS", default=(), description="Left moat slots")
-    middle_slots: WodAmountSlots = Field(alias="MS", default=(), description="Middle moat slots")
-    right_slots: WodAmountSlots = Field(alias="RS", default=(), description="Right moat slots")
-    defense: ClientInt = Field(alias="D", default=0, description="Moat defence, as a whole number")
+    left_slots: WodAmountSlots = Field(
+        validation_alias="LS", serialization_alias="LS", default=(), description="Left moat slots"
+    )
+    middle_slots: WodAmountSlots = Field(
+        validation_alias="MS", serialization_alias="MS", default=(), description="Middle moat slots"
+    )
+    right_slots: WodAmountSlots = Field(
+        validation_alias="RS", serialization_alias="RS", default=(), description="Right moat slots"
+    )
+    defense: ClientInt = Field(
+        validation_alias="D", serialization_alias="D", default=0, description="Moat defence, as a whole number"
+    )
 
 
 class GetDefenseResponse(BaseResponse):
@@ -178,28 +226,47 @@ class GetDefenseResponse(BaseResponse):
     command = "dfc"
 
     unit_inventory: UnitInventory = Field(
-        alias="gui",
+        validation_alias="gui",
+        serialization_alias="gui",
         default_factory=UnitInventory,
         description="The castle's unit inventory",
     )
-    area: MovementArea | None = Field(alias="A", default=None, description="The castle's map row")
+    area: MovementArea | None = Field(
+        validation_alias="A", serialization_alias="A", default=None, description="The castle's map row"
+    )
     home_defense_workshop_level: int | None = Field(
-        alias="HDWL",
+        validation_alias="HDWL",
+        serialization_alias="HDWL",
         default=None,
         description="Defense workshop level, which unlocks the keep's support-tool slots",
     )
-    wall: WallDefense | None = Field(alias="dfw", default=None, description="Wall setup")
-    keep: KeepDefense | None = Field(alias="dfk", default=None, description="Keep setup")
-    moat: MoatDefense | None = Field(alias="dfm", default=None, description="Moat setup")
+    wall: WallDefense | None = Field(
+        validation_alias="dfw", serialization_alias="dfw", default=None, description="Wall setup"
+    )
+    keep: KeepDefense | None = Field(
+        validation_alias="dfk", serialization_alias="dfk", default=None, description="Keep setup"
+    )
+    moat: MoatDefense | None = Field(
+        validation_alias="dfm", serialization_alias="dfm", default=None, description="Moat setup"
+    )
     range_priority: tuple[EnumOrInt["Unit"], ...] = Field(
-        alias="PR", default=(), description="The ranged units in the order the castle places them on the wall"
+        validation_alias="PR",
+        serialization_alias="PR",
+        default=(),
+        description="The ranged units in the order the castle places them on the wall",
     )
     melee_priority: tuple[EnumOrInt["Unit"], ...] = Field(
-        alias="PM", default=(), description="The melee units in the order the castle places them on the wall"
+        validation_alias="PM",
+        serialization_alias="PM",
+        default=(),
+        description="The melee units in the order the castle places them on the wall",
     )
-    gate_defense: ClientInt = Field(alias="GD", default=0, description="Gate defence, as a whole number")
+    gate_defense: ClientInt = Field(
+        validation_alias="GD", serialization_alias="GD", default=0, description="Gate defence, as a whole number"
+    )
     castellan: Castellan | None = Field(
-        alias="L",
+        validation_alias="L",
+        serialization_alias="L",
         default=None,
         description="The castle's castellan; None when there is none",
     )
@@ -253,20 +320,26 @@ class ChangeKeepDefenseRequest(BaseRequest):
 
     command = "dfk"
 
-    castle_x: int = Field(alias="CX", description="Castle map x")
-    castle_y: int = Field(alias="CY", description="Castle map y")
+    castle_x: int = Field(validation_alias="CX", serialization_alias="CX", description="Castle map x")
+    castle_y: int = Field(validation_alias="CY", serialization_alias="CY", description="Castle map y")
     area_id: int = Field(
-        alias="AID",
+        validation_alias="AID",
+        serialization_alias="AID",
         description="The castle's id: CastleInfo.castle_id from client.castle.get_all() or Castle.id",
     )
     min_attacking_units_for_tools: int = Field(
-        alias="MAUCT",
+        validation_alias="MAUCT",
+        serialization_alias="MAUCT",
         default=0,
         description="Minimum attacking units before the keep's tools are used",
     )
-    unit_composition: int = Field(alias="UC", default=50, description="Keep unit composition")
-    slots: WodAmountSlots = Field(alias="S", description="Keep tool slots")
-    support_tool_slots: WodAmountSlots = Field(alias="STS", default=(), description="Keep support-tool slots")
+    unit_composition: int = Field(
+        validation_alias="UC", serialization_alias="UC", default=50, description="Keep unit composition"
+    )
+    slots: WodAmountSlots = Field(validation_alias="S", serialization_alias="S", description="Keep tool slots")
+    support_tool_slots: WodAmountSlots = Field(
+        validation_alias="STS", serialization_alias="STS", default=(), description="Keep support-tool slots"
+    )
 
 
 class WallSectionSetup(BasePayload):
@@ -276,9 +349,13 @@ class WallSectionSetup(BasePayload):
     Client: ``C2SDefenceWallVO`` (bundle line 66616)
     """
 
-    slots: WodAmountSlots = Field(alias="S", description="Wall tool slots")
-    unit_percent: int = Field(alias="UP", description="Share of the wall's units on this section")
-    unit_composition: int = Field(alias="UC", description="Unit composition of this section")
+    slots: WodAmountSlots = Field(validation_alias="S", serialization_alias="S", description="Wall tool slots")
+    unit_percent: int = Field(
+        validation_alias="UP", serialization_alias="UP", description="Share of the wall's units on this section"
+    )
+    unit_composition: int = Field(
+        validation_alias="UC", serialization_alias="UC", description="Unit composition of this section"
+    )
 
 
 class ChangeWallDefenseRequest(BaseRequest):
@@ -295,15 +372,16 @@ class ChangeWallDefenseRequest(BaseRequest):
 
     command = "dfw"
 
-    castle_x: int = Field(alias="CX", description="Castle map x")
-    castle_y: int = Field(alias="CY", description="Castle map y")
+    castle_x: int = Field(validation_alias="CX", serialization_alias="CX", description="Castle map x")
+    castle_y: int = Field(validation_alias="CY", serialization_alias="CY", description="Castle map y")
     area_id: int = Field(
-        alias="AID",
+        validation_alias="AID",
+        serialization_alias="AID",
         description="The castle's id: CastleInfo.castle_id from client.castle.get_all() or Castle.id",
     )
-    left: WallSectionSetup = Field(alias="L", description="Left wall section")
-    middle: WallSectionSetup = Field(alias="M", description="Middle wall section")
-    right: WallSectionSetup = Field(alias="R", description="Right wall section")
+    left: WallSectionSetup = Field(validation_alias="L", serialization_alias="L", description="Left wall section")
+    middle: WallSectionSetup = Field(validation_alias="M", serialization_alias="M", description="Middle wall section")
+    right: WallSectionSetup = Field(validation_alias="R", serialization_alias="R", description="Right wall section")
 
 
 class ChangeMoatDefenseRequest(BaseRequest):
@@ -319,15 +397,18 @@ class ChangeMoatDefenseRequest(BaseRequest):
 
     command = "dfm"
 
-    castle_x: int = Field(alias="CX", description="Castle map x")
-    castle_y: int = Field(alias="CY", description="Castle map y")
+    castle_x: int = Field(validation_alias="CX", serialization_alias="CX", description="Castle map x")
+    castle_y: int = Field(validation_alias="CY", serialization_alias="CY", description="Castle map y")
     area_id: int = Field(
-        alias="AID",
+        validation_alias="AID",
+        serialization_alias="AID",
         description="The castle's id: CastleInfo.castle_id from client.castle.get_all() or Castle.id",
     )
-    left_slots: WodAmountSlots = Field(alias="LS", description="Left moat slots")
-    middle_slots: WodAmountSlots = Field(alias="MS", description="Middle moat slots")
-    right_slots: WodAmountSlots = Field(alias="RS", description="Right moat slots")
+    left_slots: WodAmountSlots = Field(validation_alias="LS", serialization_alias="LS", description="Left moat slots")
+    middle_slots: WodAmountSlots = Field(
+        validation_alias="MS", serialization_alias="MS", description="Middle moat slots"
+    )
+    right_slots: WodAmountSlots = Field(validation_alias="RS", serialization_alias="RS", description="Right moat slots")
 
 
 # =============================================================================
@@ -355,10 +436,14 @@ class GetSupportDefenseRequest(BaseRequest):
 
     command = "sdi"
 
-    target_x: int = Field(alias="TX", description="Map x of the castle to support")
-    target_y: int = Field(alias="TY", description="Map y of the castle to support")
-    source_x: int = Field(alias="SX", description="Map x of your castle the support would leave from")
-    source_y: int = Field(alias="SY", description="Map y of your castle the support would leave from")
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Map x of the castle to support")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Map y of the castle to support")
+    source_x: int = Field(
+        validation_alias="SX", serialization_alias="SX", description="Map x of your castle the support would leave from"
+    )
+    source_y: int = Field(
+        validation_alias="SY", serialization_alias="SY", description="Map y of your castle the support would leave from"
+    )
 
 
 class GetSupportDefenseResponse(BaseResponse):
@@ -389,40 +474,51 @@ class GetSupportDefenseResponse(BaseResponse):
 
     command = "sdi"
 
-    castle_id: int = Field(alias="SCID", default=0)
+    castle_id: int = Field(validation_alias="SCID", serialization_alias="SCID", default=0)
     defense_positions: SpyArmyBlock = Field(
-        alias="S",
+        validation_alias="S",
+        serialization_alias="S",
         default=None,
         description="The castle's defenders by the position they hold; None when the reply lists none",
     )
     castellan: Castellan | None = Field(
-        alias="B",
+        validation_alias="B",
+        serialization_alias="B",
         default=None,
         description="The castle's castellan, without its equipment; None when there is none",
     )
     tower_castellan: Castellan | None = Field(
-        alias="abe",
+        validation_alias="abe",
+        serialization_alias="abe",
         default=None,
         description="The castellan of an alliance battleground tower, in place of castellan",
     )
     unit_inventory: UnitInventory = Field(
-        alias="gui",
+        validation_alias="gui",
+        serialization_alias="gui",
         default_factory=UnitInventory,
         description="Your own units and tools, and your stronghold units",
     )
     commander_roster: CommanderRoster = Field(
-        alias="gli",
+        validation_alias="gli",
+        serialization_alias="gli",
         default_factory=CommanderRoster,
         description="Your commanders and castellans",
     )
 
     yard_limit: int = Field(
-        alias="UYL", default=0, description="Courtyard unit limit, the alliance share (available_yard_limit) included"
+        validation_alias="UYL",
+        serialization_alias="UYL",
+        default=0,
+        description="Courtyard unit limit, the alliance share (available_yard_limit) included",
     )
     available_yard_limit: int = Field(
-        alias="AUYL", default=0, description="The share of the courtyard limit open to alliance support"
+        validation_alias="AUYL",
+        serialization_alias="AUYL",
+        default=0,
+        description="The share of the courtyard limit open to alliance support",
     )
-    wall_limit: int = Field(alias="UWL", default=0, description="Wall unit limit")
+    wall_limit: int = Field(validation_alias="UWL", serialization_alias="UWL", default=0, description="Wall unit limit")
 
     @field_validator("castellan", "tower_castellan", mode="wrap")
     @classmethod

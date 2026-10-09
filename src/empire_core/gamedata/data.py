@@ -23,7 +23,7 @@ import time
 from collections.abc import Callable, Iterable, Mapping
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
@@ -211,7 +211,8 @@ def _schema_fingerprint() -> str:
     ]
     for model in _CACHED_MODELS:
         fields = ",".join(
-            f"{name}={field.alias}={field.default!r}" for name, field in sorted(model.model_fields.items())
+            f"{name}={field.serialization_alias}={field.default!r}"
+            for name, field in sorted(model.model_fields.items())
         )
         tables.append(f"{model.__name__}:{fields}")
     return hashlib.sha256(";".join(tables).encode()).hexdigest()[:12]
@@ -295,8 +296,8 @@ class _TableSource(NamedTuple):
         as the client's tables keep it. Either is warned once per table.
         """
         fields = self.model.model_fields
-        columns = {field.alias or name for name, field in fields.items()}
-        id_column = fields[self.id_field].alias or self.id_field
+        columns = {field.serialization_alias or name for name, field in fields.items()}
+        id_column = fields[self.id_field].serialization_alias or self.id_field
         rows: dict[int, dict[str, Any]] = {}
         without_id: list[object] = []
         replaced: list[int] = []
@@ -481,7 +482,7 @@ class GameData(BaseModel):
     validate a row the first time it is read, so loading costs no validation for them.
     """
 
-    model_config = ConfigDict(extra="ignore")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
 
     version: str
     schema_fingerprint: str = ""
@@ -502,7 +503,7 @@ class GameData(BaseModel):
     camps: dict[str, list[NpcCampDefence]] = Field(default_factory=dict)
     event_camps: dict[str, dict[int, EventCampDef]] = Field(default_factory=dict)
     league_brackets: list[LeagueBracketDef] = Field(default_factory=list)
-    raw_tables: dict[str, list] = Field(default_factory=dict)
+    raw_tables: dict[str, list[Any]] = Field(default_factory=dict)
     _table_rows: _TableRows = PrivateAttr(default_factory=lambda: _TableRows({}))
 
     def _table(self, name: str, context: dict[str, Any] | None = None) -> Table[Any, Any]:
@@ -828,7 +829,7 @@ class GameData(BaseModel):
                 return row
         return None
 
-    def raw(self, table: str) -> list:
+    def raw(self, table: str) -> list[Any]:
         """An unmodeled table, exactly as the payload had it."""
         return self.raw_tables.get(table, [])
 
@@ -962,7 +963,7 @@ class GameData(BaseModel):
     # ------------------------------------------------------------------
 
     @classmethod
-    def parse(cls, version: str, items_data: dict) -> "GameData":
+    def parse(cls, version: str, items_data: dict[str, Any]) -> "GameData":
         """Trim a full items payload down to the combat-relevant tables."""
         equipment_sets: dict[int, list[EquipmentSetDef]] = {}
         for row in _rows(items_data.get("equipment_sets"), EquipmentSetDef):

@@ -47,14 +47,25 @@ class ProductionSlot(BasePayload):
         default=0,
         description="Index in the queue, the position boost and cancel requests take; 0 for the slot producing now",
     )
-    wod_id: int = Field(alias="WID", default=0, description="Unit or tool wod id")
-    amount: int = Field(alias="TUA", default=0, description="Units in the slot")
-    boost_count: int = Field(alias="CBS", default=0, description="How often the slot's units were doubled")
-    received_alliance_help: bool = Field(alias="RAH", default=False)
-    recruitment_id: int = Field(alias="PID", default=0)
-    remaining_seconds: int = Field(alias="RCT", default=0, description="Seconds left on the slot")
-    production_seconds: int = Field(alias="ICT", default=0, description="Total production time, in seconds")
-    source_recruitment_id: int = Field(alias="SPID", default=0, description="Source recruitment id")
+    wod_id: int = Field(validation_alias="WID", serialization_alias="WID", default=0, description="Unit or tool wod id")
+    amount: int = Field(validation_alias="TUA", serialization_alias="TUA", default=0, description="Units in the slot")
+    boost_count: int = Field(
+        validation_alias="CBS",
+        serialization_alias="CBS",
+        default=0,
+        description="How often the slot's units were doubled",
+    )
+    received_alliance_help: bool = Field(validation_alias="RAH", serialization_alias="RAH", default=False)
+    recruitment_id: int = Field(validation_alias="PID", serialization_alias="PID", default=0)
+    remaining_seconds: int = Field(
+        validation_alias="RCT", serialization_alias="RCT", default=0, description="Seconds left on the slot"
+    )
+    production_seconds: int = Field(
+        validation_alias="ICT", serialization_alias="ICT", default=0, description="Total production time, in seconds"
+    )
+    source_recruitment_id: int = Field(
+        validation_alias="SPID", serialization_alias="SPID", default=0, description="Source recruitment id"
+    )
     seconds_till_locked: int | float | str | None = Field(
         default=0, description="Seconds until the slot locks while it is empty, else -1; 0 means locked"
     )
@@ -206,26 +217,44 @@ class ProductionList(BasePayload):
     ``RecruitmentConst`` (dll line 19660) for the ``RM`` modes
     """
 
-    list_id: int | None = Field(alias="LID", default=None, description="A ProductionListId; None when missing")
+    list_id: int | None = Field(
+        validation_alias="LID",
+        serialization_alias="LID",
+        default=None,
+        description="A ProductionListId; None when missing",
+    )
     queue: Annotated[list[ProductionSlot], BeforeValidator(_queue_slots)] = Field(
-        alias="QS", default_factory=list, description="Queued slots, by position"
+        validation_alias="QS", serialization_alias="QS", default_factory=list, description="Queued slots, by position"
     )
     current: Annotated[CurrentProductionSlot, BeforeValidator(_current_slot)] = Field(
-        alias="PS",
+        validation_alias="PS",
+        serialization_alias="PS",
         default_factory=lambda: CurrentProductionSlot.model_validate({"position": 0}),
         description="The slot producing now",
     )
     recruitment_mode: int = Field(
-        alias="RM",
+        validation_alias="RM",
+        serialization_alias="RM",
         default=0,
         description="0 finishes the first stack first, 1 finishes the stacks equally",
     )
-    remaining_seconds: int = Field(alias="TCT", default=0, description="Seconds until the list's production is done")
+    remaining_seconds: int = Field(
+        validation_alias="TCT",
+        serialization_alias="TCT",
+        default=0,
+        description="Seconds until the list's production is done",
+    )
     hospital_slots: Annotated[list[HospitalSlot], BeforeValidator(_hospital_slots)] = Field(
-        alias="PIDL", default_factory=list, description="Hospital list only: slots by position"
+        validation_alias="PIDL",
+        serialization_alias="PIDL",
+        default_factory=list,
+        description="Hospital list only: slots by position",
     )
     active_slot_index: ParseInt = Field(
-        alias="ASI", default=0, description="Index of the active hospital slot; hospital list only"
+        validation_alias="ASI",
+        serialization_alias="ASI",
+        default=0,
+        description="Index of the active hospital slot; hospital list only",
     )
 
     @model_validator(mode="before")
@@ -271,15 +300,32 @@ class ProduceUnitsRequest(BaseRequest):
 
     command = "bup"
 
-    list_id: ProductionListId = Field(alias="LID", description="The list to produce into")
-    wod_id: int = Field(alias="WID", description="Unit or tool wod id")
-    amount: int = Field(alias="AMT", description="How many to produce")
-    private_offer_id: int = Field(alias="PO", default=-1, description="Resource merchant offer id, -1 for none")
-    pay_with_rubies: int = Field(alias="PWR", default=0, description="1 to pay rubies for missing resources")
-    sk: int = Field(alias="SK", default=BUY_UNIT_PACKAGE_SK, description="Always 73")
-    kingdom_id: Kingdom = Field(alias="SID", description="The joined castle's kingdom")
+    list_id: ProductionListId = Field(
+        validation_alias="LID", serialization_alias="LID", description="The list to produce into"
+    )
+    wod_id: int = Field(validation_alias="WID", serialization_alias="WID", description="Unit or tool wod id")
+    amount: int = Field(validation_alias="AMT", serialization_alias="AMT", description="How many to produce")
+    private_offer_id: int = Field(
+        validation_alias="PO",
+        serialization_alias="PO",
+        default=-1,
+        description="Resource merchant offer id, -1 for none",
+    )
+    pay_with_rubies: int = Field(
+        validation_alias="PWR",
+        serialization_alias="PWR",
+        default=0,
+        description="1 to pay rubies for missing resources",
+    )
+    sk: int = Field(
+        validation_alias="SK", serialization_alias="SK", default=BUY_UNIT_PACKAGE_SK, description="Always 73"
+    )
+    kingdom_id: Kingdom = Field(
+        validation_alias="SID", serialization_alias="SID", description="The joined castle's kingdom"
+    )
     castle_id: int = Field(
-        alias="AID",
+        validation_alias="AID",
+        serialization_alias="AID",
         description=(
             "The castle the session is in, a Castle.id from client.state.get_castles(); ArmyService joins it first"
         ),
@@ -294,8 +340,8 @@ class AddedUnit(BasePayload):
     ``unitInventory.addUnit(O.W, O.AMT)`` when ``O`` is set and not 0
     """
 
-    wod_id: int = Field(alias="W", default=0)
-    amount: int = Field(alias="AMT", default=0)
+    wod_id: int = Field(validation_alias="W", serialization_alias="W", default=0)
+    amount: int = Field(validation_alias="AMT", serialization_alias="AMT", default=0)
 
     @model_validator(mode="before")
     @classmethod
@@ -319,11 +365,20 @@ class ProduceUnitsResponse(BaseResponse):
 
     command = "bup"
 
-    production_list: ProductionListBlock = Field(alias="spl", default=None)
-    resources: RawBlock = Field(alias="grc", default=None, description="The castle's resources, as a raw block")
-    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after the change")
-    unit_inventory: UnitInventoryBlock = Field(alias="gui", default=None)
-    added_unit: Annotated[AddedUnit | None, BeforeValidator(object_or_none)] = Field(alias="O", default=None)
+    production_list: ProductionListBlock = Field(validation_alias="spl", serialization_alias="spl", default=None)
+    resources: RawBlock = Field(
+        validation_alias="grc",
+        serialization_alias="grc",
+        default=None,
+        description="The castle's resources, as a raw block",
+    )
+    currencies: CurrencyBlock = Field(
+        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after the change"
+    )
+    unit_inventory: UnitInventoryBlock = Field(validation_alias="gui", serialization_alias="gui", default=None)
+    added_unit: Annotated[AddedUnit | None, BeforeValidator(object_or_none)] = Field(
+        validation_alias="O", serialization_alias="O", default=None
+    )
 
 
 # =============================================================================
@@ -343,7 +398,7 @@ class GetProductionListRequest(BaseRequest):
 
     command = "spl"
 
-    list_id: ProductionListId = Field(alias="LID")
+    list_id: ProductionListId = Field(validation_alias="LID", serialization_alias="LID")
 
     def accepts_reply(self, payload: Any) -> bool:
         """Whether an spl reply is about this list: its ``LID`` is the one asked for, or it is empty.
@@ -395,16 +450,27 @@ class DoubleProductionSlotRequest(BaseRequest):
 
     command = "bou"
 
-    list_id: ProductionListId = Field(alias="LID", description="The list the slot belongs to")
-    position: int = Field(alias="S", description="0 for the slot producing now, its index in QS for a queued one")
+    list_id: ProductionListId = Field(
+        validation_alias="LID", serialization_alias="LID", description="The list the slot belongs to"
+    )
+    position: int = Field(
+        validation_alias="S",
+        serialization_alias="S",
+        description="0 for the slot producing now, its index in QS for a queued one",
+    )
     castle_id: int = Field(
-        alias="AID",
+        validation_alias="AID",
+        serialization_alias="AID",
         description=(
             "The castle the session is in, a Castle.id from client.state.get_castles(); ArmyService joins it first"
         ),
     )
-    kingdom_id: Kingdom = Field(alias="SID", description="The joined castle's kingdom")
-    slot_type: SlotType = Field(alias="ST", description="Whether the slot is producing now or queued")
+    kingdom_id: Kingdom = Field(
+        validation_alias="SID", serialization_alias="SID", description="The joined castle's kingdom"
+    )
+    slot_type: SlotType = Field(
+        validation_alias="ST", serialization_alias="ST", description="Whether the slot is producing now or queued"
+    )
 
 
 class DoubleProductionSlotResponse(BaseResponse):
@@ -418,8 +484,10 @@ class DoubleProductionSlotResponse(BaseResponse):
 
     command = "bou"
 
-    production_list: ProductionListBlock = Field(alias="spl", default=None)
-    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after the change")
+    production_list: ProductionListBlock = Field(validation_alias="spl", serialization_alias="spl", default=None)
+    currencies: CurrencyBlock = Field(
+        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after the change"
+    )
 
 
 # =============================================================================
@@ -440,9 +508,13 @@ class CancelProductionRequest(BaseRequest):
 
     command = "mcu"
 
-    list_id: ProductionListId = Field(alias="LID")
-    position: int = Field(alias="S", description="0 for the slot producing now, else its index in the queue")
-    slot_type: SlotType = Field(alias="ST")
+    list_id: ProductionListId = Field(validation_alias="LID", serialization_alias="LID")
+    position: int = Field(
+        validation_alias="S",
+        serialization_alias="S",
+        description="0 for the slot producing now, else its index in the queue",
+    )
+    slot_type: SlotType = Field(validation_alias="ST", serialization_alias="ST")
 
 
 class CancelProductionResponse(BaseResponse):
@@ -456,7 +528,7 @@ class CancelProductionResponse(BaseResponse):
 
     command = "mcu"
 
-    production_list: ProductionListBlock = Field(alias="spl", default=None)
+    production_list: ProductionListBlock = Field(validation_alias="spl", serialization_alias="spl", default=None)
 
 
 __all__ = [

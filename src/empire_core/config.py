@@ -8,7 +8,7 @@ import sys
 import threading
 import time
 import xml.etree.ElementTree as ET
-from typing import Any
+from typing import Any, ClassVar
 
 import requests
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -107,7 +107,7 @@ class NetworkInstance(BaseModel):
     Client: ``NetworkXMLParser`` (dll line 20264)
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     instance_id: int = Field(description="The instance's id")
     server: str = Field(description="Host name of the game server")
@@ -310,7 +310,7 @@ class EmpireConfig(BaseModel):
     validates, and a value the field does not take raises ``ValidationError``.
     """
 
-    model_config = ConfigDict(validate_assignment=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(validate_assignment=True)
 
     # Connection
     game_url: str = "wss://ep-live-us1-game.goodgamestudios.com/"
@@ -374,7 +374,7 @@ class _FrozenEmpireConfig(EmpireConfig):
     ``cfg = EmpireConfig(); cfg.username = ...`` pattern that consumers use.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
 
 #: Shared fallback used by ``EmpireClient(config=None)``. Every such client

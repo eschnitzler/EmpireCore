@@ -321,6 +321,7 @@ class TestToolFeedback:
         game = strategy_data()
         effects = AttackerFlankEffects()
         ram = game.get_tool(611)  # gate bonus 0.10
+        assert ram is not None
 
         updated = effects.apply_tool(ram, 3)
 
@@ -331,6 +332,7 @@ class TestToolFeedback:
     def test_defense_reductions_accumulate_per_unit_placed(self):
         game = strategy_data()
         stakes = game.get_tool(646)  # a defensive tool, moat 0.80
+        assert stakes is not None
 
         updated = AttackerFlankEffects().apply_tool(stakes, 2)
 

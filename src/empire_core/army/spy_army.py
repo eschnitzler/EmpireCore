@@ -14,7 +14,7 @@ where a castle is actually strong.
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, ClassVar
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
@@ -50,7 +50,7 @@ class SpyArmy(BaseModel):
     Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` (bundle line 30699)
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     left: SpyStacks = Field(default=(), description="Defenders on the left wall flank")
     middle: SpyStacks = Field(default=(), description="Defenders on the middle wall flank")

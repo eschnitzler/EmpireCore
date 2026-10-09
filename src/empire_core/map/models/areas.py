@@ -10,7 +10,7 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
@@ -60,11 +60,13 @@ class GetMapAreaRequest(BaseRequest):
 
     command = "gaa"
 
-    kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom to read")
-    x1: int = Field(alias="AX1", description="First corner's map x")
-    y1: int = Field(alias="AY1", description="First corner's map y")
-    x2: int = Field(alias="AX2", description="Second corner's map x")
-    y2: int = Field(alias="AY2", description="Second corner's map y")
+    kingdom: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="The kingdom to read"
+    )
+    x1: int = Field(validation_alias="AX1", serialization_alias="AX1", description="First corner's map x")
+    y1: int = Field(validation_alias="AY1", serialization_alias="AY1", description="First corner's map y")
+    x2: int = Field(validation_alias="AX2", serialization_alias="AX2", description="Second corner's map x")
+    y2: int = Field(validation_alias="AY2", serialization_alias="AY2", description="Second corner's map y")
 
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a gaa reply is about this rectangle: this ``KID`` and no row outside it.
@@ -116,8 +118,15 @@ class MapObject(BasePayload):
     ``CastleOtherPlayerData.parseOwnerInfo`` (bundle line 138996)
     """
 
-    owner_id: int | None = Field(alias="OID", default=None, description="Player id; negative for an NPC")
-    is_dummy: bool = Field(alias="DUM", default=False, description="The record stands in for a player not loaded")
+    owner_id: int | None = Field(
+        validation_alias="OID", serialization_alias="OID", default=None, description="Player id; negative for an NPC"
+    )
+    is_dummy: bool = Field(
+        validation_alias="DUM",
+        serialization_alias="DUM",
+        default=False,
+        description="The record stands in for a player not loaded",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -128,39 +137,76 @@ class MapObject(BasePayload):
             return {"OID": data.get("OID"), "N": "", "DUM": 1}
         return data
 
-    owner_name: str | None = Field(alias="N", default=None, description="Player name")
-    emblem: OwnerCrest | None = Field(alias="E", default=None, description="The player's crest")
-    level: ParseInt = Field(alias="L", default=0, description="Player level")
-    legendary_level: ParseInt = Field(alias="LL", default=0, description="Legendary level")
-    honor: ParseInt = Field(alias="H", default=0, description="Honor")
-    achievement_points: ParseInt = Field(alias="AVP", default=0, description="Achievement points")
-    prefix_title: int | None = Field(alias="PRE", default=None, description="Title id shown before the name")
-    suffix_title: int | None = Field(alias="SUF", default=None, description="Title id shown after the name")
-    current_top_x: ParseInt = Field(alias="TOPX", default=0, description="Top-ranking placement marker")
-    might_points: ParseInt = Field(alias="MP", default=0, description="Might points")
-    is_ruin: bool = Field(alias="R", default=False, description="The player's castles are ruins")
-    alliance_id: int | None = Field(alias="AID", default=None, description="Alliance id; negative for none")
-    alliance_rank: ParseInt = Field(alias="AR", default=0, description="Rank in the alliance")
-    alliance_name: str = Field(alias="AN", default="", description="Alliance name")
-    alliance_emblem: AllianceEmblem | None = Field(alias="aee", default=None, description="The alliance's crest")
-    remaining_protection_time: ParseInt = Field(alias="RPT", default=0, description="Seconds of peace protection left")
+    owner_name: str | None = Field(
+        validation_alias="N", serialization_alias="N", default=None, description="Player name"
+    )
+    emblem: OwnerCrest | None = Field(
+        validation_alias="E", serialization_alias="E", default=None, description="The player's crest"
+    )
+    level: ParseInt = Field(validation_alias="L", serialization_alias="L", default=0, description="Player level")
+    legendary_level: ParseInt = Field(
+        validation_alias="LL", serialization_alias="LL", default=0, description="Legendary level"
+    )
+    honor: ParseInt = Field(validation_alias="H", serialization_alias="H", default=0, description="Honor")
+    achievement_points: ParseInt = Field(
+        validation_alias="AVP", serialization_alias="AVP", default=0, description="Achievement points"
+    )
+    prefix_title: int | None = Field(
+        validation_alias="PRE", serialization_alias="PRE", default=None, description="Title id shown before the name"
+    )
+    suffix_title: int | None = Field(
+        validation_alias="SUF", serialization_alias="SUF", default=None, description="Title id shown after the name"
+    )
+    current_top_x: ParseInt = Field(
+        validation_alias="TOPX", serialization_alias="TOPX", default=0, description="Top-ranking placement marker"
+    )
+    might_points: ParseInt = Field(
+        validation_alias="MP", serialization_alias="MP", default=0, description="Might points"
+    )
+    is_ruin: bool = Field(
+        validation_alias="R", serialization_alias="R", default=False, description="The player's castles are ruins"
+    )
+    alliance_id: int | None = Field(
+        validation_alias="AID", serialization_alias="AID", default=None, description="Alliance id; negative for none"
+    )
+    alliance_rank: ParseInt = Field(
+        validation_alias="AR", serialization_alias="AR", default=0, description="Rank in the alliance"
+    )
+    alliance_name: str = Field(validation_alias="AN", serialization_alias="AN", default="", description="Alliance name")
+    alliance_emblem: AllianceEmblem | None = Field(
+        validation_alias="aee", serialization_alias="aee", default=None, description="The alliance's crest"
+    )
+    remaining_protection_time: ParseInt = Field(
+        validation_alias="RPT", serialization_alias="RPT", default=0, description="Seconds of peace protection left"
+    )
     castle_positions: list[OwnerCastlePosition] = Field(
-        alias="AP", default_factory=list, description="The player's castles"
+        validation_alias="AP", serialization_alias="AP", default_factory=list, description="The player's castles"
     )
     village_positions: list[OwnerCastlePosition] = Field(
-        alias="VP", default_factory=list, description="The player's villages"
+        validation_alias="VP", serialization_alias="VP", default_factory=list, description="The player's villages"
     )
-    is_searching_alliance: bool = Field(alias="SA", default=False, description="Looking for an alliance")
-    has_vip_flag: bool = Field(alias="VF", default=False, description="VIP flag")
-    has_premium_flag: bool = Field(alias="PF", default=False, description="Premium flag")
+    is_searching_alliance: bool = Field(
+        validation_alias="SA", serialization_alias="SA", default=False, description="Looking for an alliance"
+    )
+    has_vip_flag: bool = Field(validation_alias="VF", serialization_alias="VF", default=False, description="VIP flag")
+    has_premium_flag: bool = Field(
+        validation_alias="PF", serialization_alias="PF", default=False, description="Premium flag"
+    )
     remaining_relocation_time: ParseInt = Field(
-        alias="RRD", default=0, description="Seconds until the player's castle relocation ends"
+        validation_alias="RRD",
+        serialization_alias="RRD",
+        default=0,
+        description="Seconds until the player's castle relocation ends",
     )
     remaining_noob_protection: ParseInt = Field(
-        alias="RNP", default=0, description="Seconds of beginner protection left"
+        validation_alias="RNP", serialization_alias="RNP", default=0, description="Seconds of beginner protection left"
     )
-    faction: OwnerFaction | None = Field(alias="FN", default=None, description="Faction event standing")
-    via_refer_a_friend: bool = Field(alias="IRF", default=False, description="Joined through refer-a-friend")
+    faction: OwnerFaction | None = Field(
+        validation_alias="FN", serialization_alias="FN", default=None, description="Faction event standing"
+    )
+    via_refer_a_friend: bool = Field(
+        validation_alias="IRF", serialization_alias="IRF", default=False, description="Joined through refer-a-friend"
+    )
 
     @field_validator("owner_id", "alliance_id", mode="before")
     @classmethod
@@ -228,17 +274,29 @@ class KingdomProtection(BasePayload):
     Berimond block to ``FactionEventVO.parse_uap`` (bundle line 7366)
     """
 
-    kingdom_id: int | None = Field(alias="KID", default=None, description="The kingdom this protection is for")
+    kingdom_id: int | None = Field(
+        validation_alias="KID",
+        serialization_alias="KID",
+        default=None,
+        description="The kingdom this protection is for",
+    )
     noob_protection_seconds: ClientInt = Field(
-        alias="NS", default=0, description="Seconds of beginner protection left in that kingdom"
+        validation_alias="NS",
+        serialization_alias="NS",
+        default=0,
+        description="Seconds of beginner protection left in that kingdom",
     )
     protection_status: ClientInt = Field(
-        alias="PMS",
+        validation_alias="PMS",
+        serialization_alias="PMS",
         default=0,
         description="Peace mode status (see peace_mode_status), or in Berimond the faction protection status",
     )
     protection_seconds: ClientInt = Field(
-        alias="PMT", default=0, description="Seconds left of the peace mode stage, or in Berimond of faction protection"
+        validation_alias="PMT",
+        serialization_alias="PMT",
+        default=0,
+        description="Seconds left of the peace mode stage, or in Berimond of faction protection",
     )
 
     @property
@@ -260,8 +318,12 @@ class MapArea(BasePayload):
     with ``parseOwnerInfoArray`` and ``gaa.AI`` with ``parseAreaInfos``.
     """
 
-    items: list[MapAreaItem] = Field(alias="AI", default_factory=list, description="The map rows")
-    owners: list[MapObject] = Field(alias="OI", default_factory=list, description="Owner records for the rows")
+    items: list[MapAreaItem] = Field(
+        validation_alias="AI", serialization_alias="AI", default_factory=list, description="The map rows"
+    )
+    owners: list[MapObject] = Field(
+        validation_alias="OI", serialization_alias="OI", default_factory=list, description="Owner records for the rows"
+    )
 
     @field_validator("items", mode="before")
     @classmethod
@@ -296,15 +358,28 @@ class GetMapAreaResponse(BaseResponse):
 
     command = "gaa"
 
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
+    model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True, extra="allow")
 
-    kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom the area lies in")
-    items: list[MapAreaItem] = Field(alias="AI", default_factory=list, description="The area's map rows")
+    kingdom: Kingdom = Field(
+        validation_alias="KID",
+        serialization_alias="KID",
+        default=Kingdom.GREEN,
+        description="The kingdom the area lies in",
+    )
+    items: list[MapAreaItem] = Field(
+        validation_alias="AI", serialization_alias="AI", default_factory=list, description="The area's map rows"
+    )
     owners: list[MapObject] = Field(
-        alias="OI", default_factory=list, description="Owner records for the players the rows name"
+        validation_alias="OI",
+        serialization_alias="OI",
+        default_factory=list,
+        description="Owner records for the players the rows name",
     )
     protection: KingdomProtection | None = Field(
-        alias="uap", default=None, description="The player's own protection in the kingdom"
+        validation_alias="uap",
+        serialization_alias="uap",
+        default=None,
+        description="The player's own protection in the kingdom",
     )
 
     @field_validator("items", mode="before")
@@ -378,11 +453,24 @@ class FindNextMapObjectRequest(BaseRequest):
 
     command = "fnm"
 
-    area_type: MapItemType = Field(alias="T", description="The area type to look for")
-    kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The kingdom to look in")
-    min_level: int = Field(alias="LMIN", default=-1, description="Lowest level to match, -1 for any")
-    max_level: int = Field(alias="LMAX", default=-1, description="Highest level to match, -1 for any")
-    owner_id: int = Field(alias="NID", default=-1, description="The NPC owner to match, -1 for any")
+    area_type: MapItemType = Field(
+        validation_alias="T", serialization_alias="T", description="The area type to look for"
+    )
+    kingdom: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="The kingdom to look in"
+    )
+    min_level: int = Field(
+        validation_alias="LMIN", serialization_alias="LMIN", default=-1, description="Lowest level to match, -1 for any"
+    )
+    max_level: int = Field(
+        validation_alias="LMAX",
+        serialization_alias="LMAX",
+        default=-1,
+        description="Highest level to match, -1 for any",
+    )
+    owner_id: int = Field(
+        validation_alias="NID", serialization_alias="NID", default=-1, description="The NPC owner to match, -1 for any"
+    )
 
 
 class FindNextMapObjectResponse(BaseResponse):
@@ -399,9 +487,11 @@ class FindNextMapObjectResponse(BaseResponse):
 
     command = "fnm"
 
-    x: int = Field(alias="X", default=0, description="Map x of the object found")
-    y: int = Field(alias="Y", default=0, description="Map y of the object found")
-    area: MapArea = Field(alias="gaa", default_factory=MapArea, description="The map rows around it")
+    x: int = Field(validation_alias="X", serialization_alias="X", default=0, description="Map x of the object found")
+    y: int = Field(validation_alias="Y", serialization_alias="Y", default=0, description="Map y of the object found")
+    area: MapArea = Field(
+        validation_alias="gaa", serialization_alias="gaa", default_factory=MapArea, description="The map rows around it"
+    )
 
     @field_validator("area", mode="before")
     @classmethod
@@ -444,11 +534,23 @@ class FindNextEnemyCastleRequest(BaseRequest):
 
     command = "fec"
 
-    x: int = Field(alias="X", description="Map x to search from")
-    y: int = Field(alias="Y", description="Map y to search from")
-    index: int = Field(alias="N", default=0, description="Which castle to find, 0 for the first, up to 9")
-    min_level: int = Field(alias="LMIN", default=-1, description="Lowest level to match, -1 for any")
-    max_level: int = Field(alias="LMAX", default=-1, description="Highest level to match, -1 for any")
+    x: int = Field(validation_alias="X", serialization_alias="X", description="Map x to search from")
+    y: int = Field(validation_alias="Y", serialization_alias="Y", description="Map y to search from")
+    index: int = Field(
+        validation_alias="N",
+        serialization_alias="N",
+        default=0,
+        description="Which castle to find, 0 for the first, up to 9",
+    )
+    min_level: int = Field(
+        validation_alias="LMIN", serialization_alias="LMIN", default=-1, description="Lowest level to match, -1 for any"
+    )
+    max_level: int = Field(
+        validation_alias="LMAX",
+        serialization_alias="LMAX",
+        default=-1,
+        description="Highest level to match, -1 for any",
+    )
 
 
 class FindNextEnemyCastleResponse(FindNextMapObjectResponse):

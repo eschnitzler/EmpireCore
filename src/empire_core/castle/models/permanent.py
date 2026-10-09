@@ -7,7 +7,7 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -41,13 +41,16 @@ class CastleUnitUnlocks(BaseModel):
     the ``units`` rows and keeps the soldiers, auxiliaries and tools
     """
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True)
 
     unlocked_units: tuple[UnitOrTool, ...] = Field(
-        alias="U", default=(), description="The units and tools the castle can recruit"
+        validation_alias="U",
+        serialization_alias="U",
+        default=(),
+        description="The units and tools the castle can recruit",
     )
     locked_units: tuple[UnitOrTool, ...] = Field(
-        alias="L", default=(), description="The units and tools still locked there"
+        validation_alias="L", serialization_alias="L", default=(), description="The units and tools still locked there"
     )
 
     @field_validator("unlocked_units", "locked_units", mode="before")
@@ -64,15 +67,23 @@ class PermanentCastle(BaseModel):
     ``CastleHorsesVO.parseParamObject`` (bundle line 139177)
     """
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True)
 
-    castle_id: ClientInt = Field(alias="AID", description="The castle's object id")
-    kingdom_id: Kingdom = Field(alias="KID", description="The castle's kingdom")
+    castle_id: ClientInt = Field(
+        validation_alias="AID", serialization_alias="AID", description="The castle's object id"
+    )
+    kingdom_id: Kingdom = Field(validation_alias="KID", serialization_alias="KID", description="The castle's kingdom")
     units: CastleUnitUnlocks = Field(
-        alias="U", default_factory=CastleUnitUnlocks, description="Units and tools unlocked and locked there"
+        validation_alias="U",
+        serialization_alias="U",
+        default_factory=CastleUnitUnlocks,
+        description="Units and tools unlocked and locked there",
     )
     horse_ids: list[EnumOrInt["Horse"]] = Field(
-        alias="UH", default_factory=list, description="The horses the castle's movements can use"
+        validation_alias="UH",
+        serialization_alias="UH",
+        default_factory=list,
+        description="The horses the castle's movements can use",
     )
 
     @field_validator("kingdom_id", mode="before")
@@ -110,7 +121,9 @@ class PermanentCastleDataResponse(BaseResponse):
 
     command = "gpc"
 
-    castles: list[PermanentCastle] = Field(alias="A", default_factory=list, description="One entry per castle")
+    castles: list[PermanentCastle] = Field(
+        validation_alias="A", serialization_alias="A", default_factory=list, description="One entry per castle"
+    )
 
     @field_validator("castles", mode="before")
     @classmethod

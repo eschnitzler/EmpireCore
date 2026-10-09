@@ -41,12 +41,20 @@ class StartResearchRequest(BaseRequest):
 
     command = "res"
 
-    research_id: EnumOrInt["Research"] = Field(alias="RID", description="The research to start")
+    research_id: EnumOrInt["Research"] = Field(
+        validation_alias="RID", serialization_alias="RID", description="The research to start"
+    )
     private_offer_id: int = Field(
-        alias="PO", default=-1, description="The private offer the purchase uses, -1 for none"
+        validation_alias="PO",
+        serialization_alias="PO",
+        default=-1,
+        description="The private offer the purchase uses, -1 for none",
     )
     pay_with_rubies: Literal[0] = Field(
-        alias="PWR", default=0, description="Always 0: missing resources are never paid with rubies"
+        validation_alias="PWR",
+        serialization_alias="PWR",
+        default=0,
+        description="Always 0: missing resources are never paid with rubies",
     )
 
 
@@ -62,10 +70,17 @@ class StartResearchResponse(BaseResponse):
 
     command = "res"
 
-    research: ResearchInfoResponse | None = Field(alias="rei", default=None, description="Your research after")
-    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after")
+    research: ResearchInfoResponse | None = Field(
+        validation_alias="rei", serialization_alias="rei", default=None, description="Your research after"
+    )
+    currencies: CurrencyBlock = Field(
+        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after"
+    )
     resources: CastleResources | None = Field(
-        alias="grc", default=None, description="The joined castle's resources after"
+        validation_alias="grc",
+        serialization_alias="grc",
+        default=None,
+        description="The joined castle's resources after",
     )
 
 
@@ -84,7 +99,8 @@ class SkipResearchRequest(BaseRequest):
     command = "msr"
 
     minute_skip: EnumOrStr["Currency"] = Field(
-        alias="MST",
+        validation_alias="MST",
+        serialization_alias="MST",
         description="The minute skip used, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``; sent as its key",
     )
 
@@ -101,7 +117,9 @@ class SkipResearchResponse(BaseResponse):
 
     command = "msr"
 
-    research: ResearchInfoResponse | None = Field(alias="rei", default=None, description="Your research after")
+    research: ResearchInfoResponse | None = Field(
+        validation_alias="rei", serialization_alias="rei", default=None, description="Your research after"
+    )
 
 
 __all__ = ["SkipResearchRequest", "SkipResearchResponse", "StartResearchRequest", "StartResearchResponse"]

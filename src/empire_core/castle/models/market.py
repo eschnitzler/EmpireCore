@@ -77,23 +77,41 @@ class CreateMarketMovementRequest(BaseRequest):
 
     command = "crm"
 
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The source castle's kingdom")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID",
+        serialization_alias="KID",
+        default=Kingdom.GREEN,
+        description="The source castle's kingdom",
+    )
     source_castle_id: int = Field(
-        alias="SID",
+        validation_alias="SID",
+        serialization_alias="SID",
         description=(
             "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
             "client.state.get_castles()"
         ),
     )
-    target_x: int = Field(alias="TX", description="Map x of the target castle")
-    target_y: int = Field(alias="TY", description="Map y of the target castle")
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Map x of the target castle")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Map y of the target castle")
     horse_booster_id: int = Field(
-        alias="HBW", default=-1, description="The horse booster's wod id, -1 for none or when paid with feathers"
+        validation_alias="HBW",
+        serialization_alias="HBW",
+        default=-1,
+        description="The horse booster's wod id, -1 for none or when paid with feathers",
     )
-    feathers: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
-    slowdown: int = Field(alias="SD", default=0, description="Seconds the arrival is delayed by")
+    feathers: int = Field(
+        validation_alias="PTT",
+        serialization_alias="PTT",
+        default=0,
+        description="1 when the horse is paid with feathers",
+    )
+    slowdown: int = Field(
+        validation_alias="SD", serialization_alias="SD", default=0, description="Seconds the arrival is delayed by"
+    )
     goods: ResourceAmounts = Field(
-        alias="G", description="The amount of each resource to send, sent as [key, amount] pairs such as ['W', 1000]"
+        validation_alias="G",
+        serialization_alias="G",
+        description="The amount of each resource to send, sent as [key, amount] pairs such as ['W', 1000]",
     )
 
 
@@ -111,9 +129,14 @@ class CreateMarketMovementResponse(BaseResponse):
 
     command = "crm"
 
-    currencies: CurrencyBlock = Field(alias="gcu", default=None, description="Coins and rubies after")
+    currencies: CurrencyBlock = Field(
+        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after"
+    )
     resources: CastleResources | None = Field(
-        alias="grc", default=None, description="The joined castle's resources after"
+        validation_alias="grc",
+        serialization_alias="grc",
+        default=None,
+        description="The joined castle's resources after",
     )
 
     @field_validator("resources", mode="before")
@@ -141,8 +164,18 @@ class MarketInfoRequest(BaseRequest):
 
     command = "cmi"
 
-    scope: MarketScope = Field(alias="S", default=MarketScope.ALL_KINGDOMS, description="Which castles to list")
-    kingdom_id: int = Field(alias="KID", default=-1, description="The kingdom to list, -1 with ALL_KINGDOMS")
+    scope: MarketScope = Field(
+        validation_alias="S",
+        serialization_alias="S",
+        default=MarketScope.ALL_KINGDOMS,
+        description="Which castles to list",
+    )
+    kingdom_id: int = Field(
+        validation_alias="KID",
+        serialization_alias="KID",
+        default=-1,
+        description="The kingdom to list, -1 with ALL_KINGDOMS",
+    )
 
 
 class MarketCastle(BasePayload):
@@ -155,20 +188,30 @@ class MarketCastle(BasePayload):
     reads every number through ``int()``
     """
 
-    kingdom_id: ClientInt = Field(alias="KID", default=0, description="The castle's kingdom")
-    castle_id: ClientInt = Field(alias="CID", default=0, description="The castle's object id")
-    total_carriages: ClientInt = Field(alias="TC", default=0, description="The castle's market carriages")
-    available_carriages: ClientInt = Field(alias="AC", default=0, description="Carriages not on the road")
-    wood: ClientInt = Field(alias="W", default=0, description="Wood in stock")
-    stone: ClientInt = Field(alias="S", default=0, description="Stone in stock")
-    food: ClientInt = Field(alias="F", default=0, description="Food in stock")
-    coal: ClientInt = Field(alias="C", default=0, description="Coal in stock")
-    oil: ClientInt = Field(alias="O", default=0, description="Oil in stock")
-    glass: ClientInt = Field(alias="G", default=0, description="Glass in stock")
-    iron: ClientInt = Field(alias="I", default=0, description="Iron in stock")
-    honey: ClientInt = Field(alias="HONEY", default=0, description="Honey in stock")
-    mead: ClientInt = Field(alias="MEAD", default=0, description="Mead in stock")
-    beef: ClientInt = Field(alias="BEEF", default=0, description="Beef in stock")
+    kingdom_id: ClientInt = Field(
+        validation_alias="KID", serialization_alias="KID", default=0, description="The castle's kingdom"
+    )
+    castle_id: ClientInt = Field(
+        validation_alias="CID", serialization_alias="CID", default=0, description="The castle's object id"
+    )
+    total_carriages: ClientInt = Field(
+        validation_alias="TC", serialization_alias="TC", default=0, description="The castle's market carriages"
+    )
+    available_carriages: ClientInt = Field(
+        validation_alias="AC", serialization_alias="AC", default=0, description="Carriages not on the road"
+    )
+    wood: ClientInt = Field(validation_alias="W", serialization_alias="W", default=0, description="Wood in stock")
+    stone: ClientInt = Field(validation_alias="S", serialization_alias="S", default=0, description="Stone in stock")
+    food: ClientInt = Field(validation_alias="F", serialization_alias="F", default=0, description="Food in stock")
+    coal: ClientInt = Field(validation_alias="C", serialization_alias="C", default=0, description="Coal in stock")
+    oil: ClientInt = Field(validation_alias="O", serialization_alias="O", default=0, description="Oil in stock")
+    glass: ClientInt = Field(validation_alias="G", serialization_alias="G", default=0, description="Glass in stock")
+    iron: ClientInt = Field(validation_alias="I", serialization_alias="I", default=0, description="Iron in stock")
+    honey: ClientInt = Field(
+        validation_alias="HONEY", serialization_alias="HONEY", default=0, description="Honey in stock"
+    )
+    mead: ClientInt = Field(validation_alias="MEAD", serialization_alias="MEAD", default=0, description="Mead in stock")
+    beef: ClientInt = Field(validation_alias="BEEF", serialization_alias="BEEF", default=0, description="Beef in stock")
 
 
 class MarketInfoResponse(BaseResponse):
@@ -184,7 +227,9 @@ class MarketInfoResponse(BaseResponse):
 
     command = "cmi"
 
-    castles: list[MarketCastle] = Field(alias="C", default_factory=list, description="Each of your castles")
+    castles: list[MarketCastle] = Field(
+        validation_alias="C", serialization_alias="C", default_factory=list, description="Each of your castles"
+    )
 
     @field_validator("castles", mode="before")
     @classmethod
