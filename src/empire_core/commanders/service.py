@@ -197,7 +197,7 @@ class CommandersService(BaseService):
         return self._premium_account_runs() or (self.free_premium_commanders() or 0) >= 1
 
     def premium_send(
-        self, commander_id: int, use_premium_commander: bool, send: Callable[[], bool], *, spend_rubies: bool
+        self, commander_id: int, use_premium_commander: bool, send: Callable[[], bool], *, spend_rubies: bool = False
     ) -> bool:
         """
         Run ``send``, refusing it first when the premium commander leads and may cost rubies, unless ``spend_rubies``.

@@ -110,6 +110,7 @@ for application in client.alliance.get_applications().applications:
 
 client.alliance.set_rank(player_id, AllianceRank.SERGEANT)
 client.alliance.donate(castle_id, AllianceDonation(wood=1000))
+client.alliance.donate(castle_id, AllianceDonation(rubies=50), spend_rubies=True)
 ```
 
 Also on the service: `invite`, `kick_member`, `leave`, `change_diplomacy`,

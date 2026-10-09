@@ -42,7 +42,9 @@ client.army.cancel_production(
 )
 ```
 
-`double_production_slot` doubles a slot's units, for rubies.
+`double_production_slot` doubles a slot's units, for rubies. A unit with a ruby
+price, and paying missing resources with rubies, need `spend_rubies=True`; see
+[Spending rubies](index.md#spending-rubies).
 
 ## The hospital
 
@@ -55,7 +57,8 @@ client.army.heal_units(12345, wod_id=620, amount=10)
 client.army.cancel_heal(12345, position=hospital.hospital_slots[0].position)
 ```
 
-`heal_all` and `skip_heal` finish healing for rubies; `dismiss_wounded` and
+`heal_all` and `skip_heal` finish healing for rubies, and `heal_units` heals a
+unit that costs rubies to heal, only with `spend_rubies=True`; `dismiss_wounded` and
 `dismiss_wounded_units` give wounded units up instead of healing them.
 
 !!! tip "Unit ids"
