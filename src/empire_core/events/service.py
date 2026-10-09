@@ -283,11 +283,11 @@ class EventsService(BaseService):
             if scoreboard.alliance_list is None:
                 raise ValueError(f"{event.name} has no alliance board")
             return scoreboard.alliance_list
-        if not scoreboard.player_lists:
-            raise ValueError(f"{event.name} has no player board; pass alliance=True")
         if len(scoreboard.player_lists) > 1:
             names = " or ".join(f"RankingType.{board.name}" for board in scoreboard.player_lists)
             raise ValueError(f"{event.name} has a player board per faction; pass list_type={names}")
+        if not scoreboard.player_lists:
+            raise ValueError(f"{event.name} has no player board; pass alliance=True")
         return scoreboard.player_lists[0]
 
     def _league(self, event: Event, board: RankingType) -> int:

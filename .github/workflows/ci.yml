@@ -33,6 +33,26 @@ jobs:
       - name: Run pre-commit
         uses: pre-commit/action@v3.0.1
 
+  pyright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --extra dev --locked
+
+      # What Pylance users see: the library has to be clean under pyright too, not only mypy
+      - name: Check the library with basedpyright
+        run: uv run --locked basedpyright
+
   test:
     runs-on: ubuntu-latest
     strategy:

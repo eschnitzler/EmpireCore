@@ -53,8 +53,8 @@ AttackWave(left=WaveFlank(units={Unit.SWORDMAN: 100}))
 AttackWave.model_validate({"L": {"U": [[601, 100]]}})   # the same wave, from its wire form
 ```
 
-Prefer field names: with pydantic's mypy plugin, mypy checks those calls for
-missing fields, wrong types and typos, and rejects wire keys.
+Prefer field names: mypy (with pydantic's plugin) and pyright, and so Pylance,
+check those calls for missing fields, wrong types and typos, and reject wire keys.
 
 `model_dump(by_alias=True)` gives the wire form back. The
 [API reference](../reference/index.md) lists every model's fields with their
