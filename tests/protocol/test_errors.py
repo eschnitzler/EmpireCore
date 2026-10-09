@@ -2,7 +2,7 @@
 
 import pytest
 
-from empire_core.protocol.errors import GGEError
+from empire_core.enums import GGEError
 
 
 @pytest.mark.parametrize(

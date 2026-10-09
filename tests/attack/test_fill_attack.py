@@ -10,7 +10,7 @@ import pytest
 
 from empire_core.army.spy_army import SpyArmy
 from empire_core.combat import TargetRead
-from empire_core.enums import Kingdom
+from empire_core.enums import GGEError, Kingdom
 from empire_core.events import GlobalEffectTimer
 from empire_core.exceptions import (
     AmbiguousCastleError,
@@ -18,7 +18,6 @@ from empire_core.exceptions import (
     EmpireTimeoutError,
     UnknownCastleError,
 )
-from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import Commander
 from tests.attack.fill_helpers import OWN, FillClient
 from tests.service_helpers import LIVE_ADI, conn, gcl_castles, make_client, placed, stub_player, wave, xt_packet

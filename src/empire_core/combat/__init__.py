@@ -1,6 +1,9 @@
 """Combat maths ported from the game client."""
 
-from empire_core.enums import CombatEffectType, Flank
+from typing import TYPE_CHECKING
+
+from empire_core.enums import CombatEffectType, Flank, Kingdom, TargetRead
+from empire_core.utils.lazy import lazy_exports
 
 from .bonuses import (
     Bonus,
@@ -62,7 +65,6 @@ from .solver import (
     FilledAttack,
     FillOptions,
     Inventory,
-    TargetRead,
     fill_flank_with_soldiers,
     fill_wave,
     fill_waves,
@@ -83,6 +85,9 @@ from .tools import (
     fill_flank_with_tools,
     is_tool_usable_against_active_raid_boss,
 )
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import GlobalEffect
 
 __all__ = [
     "AttackerFlankEffects",
@@ -159,4 +164,10 @@ __all__ = [
     "tool_effect_strength",
     "pick_soldier_stack",
     "wave_limit_violations",
+    "Kingdom",
+    "GlobalEffect",
 ]
+
+
+if not TYPE_CHECKING:
+    __getattr__ = lazy_exports(__name__, "empire_core.gamedata.ids", ("GlobalEffect",))

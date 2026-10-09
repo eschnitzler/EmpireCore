@@ -19,6 +19,7 @@ from empire_core.client import session as session_module
 from empire_core.client.client import EmpireClient
 from empire_core.client.session import Session
 from empire_core.config import EmpireConfig
+from empire_core.enums import GGEError
 from empire_core.exceptions import (
     EmpireError,
     EmpireTimeoutError,
@@ -28,7 +29,6 @@ from empire_core.exceptions import (
 )
 from empire_core.network.connection import ResponseWaiter
 from empire_core.player.models.info import GetPlayerInfoRequest
-from empire_core.protocol.errors import GGEError
 from empire_core.protocol.models import BaseResponse
 from empire_core.protocol.packet import Packet
 

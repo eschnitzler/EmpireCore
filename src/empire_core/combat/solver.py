@@ -13,12 +13,11 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable, Mapping, Sequence
-from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from empire_core.army.models.units import AttackWave, WaveFlank
-from empire_core.enums import Flank
+from empire_core.enums import Flank, TargetRead
 from empire_core.exceptions import CommandError
 from empire_core.gamedata import EMPTY_SLOT, GameData, WodAmount, WodAmountSlots
 
@@ -543,20 +542,6 @@ def wave_limit_violations(
     return problems
 
 
-class TargetRead(str, Enum):
-    """
-    A read ``fill_attack`` makes of its target, naming what it filled without in ``FilledAttack.unread``.
-
-    ``TILE`` is the map scan (``gaa``), ``PRECALCULATION`` the attack pre-calculation,
-    ``GENERAL_SKILLS`` the general's skills (``gie``) and ``LEGEND_SKILLS`` the player's (``skl``).
-    """
-
-    TILE = "tile"
-    PRECALCULATION = "precalculation"
-    GENERAL_SKILLS = "general_skills"
-    LEGEND_SKILLS = "legend_skills"
-
-
 class FilledAttack(BaseModel):
     """
     A complete attack: its waves and its courtyard wave.
@@ -589,7 +574,6 @@ __all__ = [
     "FillOptions",
     "FilledAttack",
     "Inventory",
-    "TargetRead",
     "fill_flank_with_soldiers",
     "fill_wave",
     "fill_waves",

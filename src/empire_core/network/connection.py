@@ -16,10 +16,10 @@ from dataclasses import dataclass, field
 
 import websocket
 
+from empire_core.enums import GGEError
 from empire_core.exceptions import ConnectionClosedError, EmpireTimeoutError, NetworkError, ReceiveThreadError
 from empire_core.network.framing import FrameBuffer
 from empire_core.protocol.base import NO_ROOM, build_command
-from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import DegradedFrameCounts, Packet, degraded_frame_counts
 from empire_core.utils.callbacks import Registry
 

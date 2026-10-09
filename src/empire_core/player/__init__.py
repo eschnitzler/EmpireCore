@@ -1,6 +1,17 @@
 """Players: player info, search, the shared player profile and your progress."""
 
-from empire_core.enums import MercenaryMissionRarity, MercenaryMissionState, PremiumAccountType, TitleSystem
+from typing import TYPE_CHECKING
+
+from empire_core.enums import (
+    AllianceRank,
+    Kingdom,
+    MapItemType,
+    MercenaryMissionRarity,
+    MercenaryMissionState,
+    PremiumAccountType,
+    TitleSystem,
+)
+from empire_core.utils.lazy import lazy_exports
 
 from .models import (
     PERMANENT_BOOSTER_DURATION,
@@ -44,6 +55,9 @@ from .models import (
 )
 from .service import PlayerDetailsBulkResult, PlayerService
 from .titles import held_titles, player_title_ids, titles_in_order
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Achievement, Currency, Effect, GlobalEffect, LootBox, LootBoxType, Research, Title
 
 __all__ = [
     "GetPlayerInfoRequest",
@@ -93,4 +107,23 @@ __all__ = [
     "MercenaryPackageRequest",
     "MercenaryMissionRarity",
     "MercenaryMissionState",
+    "AllianceRank",
+    "Kingdom",
+    "MapItemType",
+    "Achievement",
+    "Currency",
+    "Effect",
+    "GlobalEffect",
+    "LootBox",
+    "LootBoxType",
+    "Research",
+    "Title",
 ]
+
+
+if not TYPE_CHECKING:
+    __getattr__ = lazy_exports(
+        __name__,
+        "empire_core.gamedata.ids",
+        ("Achievement", "Currency", "Effect", "GlobalEffect", "LootBox", "LootBoxType", "Research", "Title"),
+    )

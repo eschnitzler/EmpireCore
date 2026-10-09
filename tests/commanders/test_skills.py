@@ -11,10 +11,10 @@ from empire_core.protocol.models import (
     AssignGeneralRequest,
     AssignGeneralResponse,
     BaseRequest,
-    General,
     GetGeneralsResponse,
     GetSkillsResponse,
     ObjectUpdateEvent,
+    OwnedGeneral,
     ResetGeneralSkillsRequest,
     SelectedAbility,
     SetGeneralAbilitiesRequest,
@@ -69,7 +69,7 @@ class TestGenerals:
 
     def test_skills_are_general_skills_and_an_unknown_one_stays_an_int(self, caplog):
         with caplog.at_level(logging.WARNING):
-            general = General.model_validate({"GID": 101, "SIDS": [10110201, 9999901]})
+            general = OwnedGeneral.model_validate({"GID": 101, "SIDS": [10110201, 9999901]})
 
         assert general.skill_ids == (GeneralSkill.TORIL_ASPECTOFTHE_DRAGON_L1, 9999901)
         assert type(general.skill_ids[1]) is int
@@ -123,7 +123,7 @@ class TestGenerals:
     # getSelectedAbilities from the client bundle in node.
 
     def test_the_abilities_of_each_side(self):
-        general = General.model_validate(
+        general = OwnedGeneral.model_validate(
             {
                 "GID": 103,
                 "GASAIDS": [
@@ -152,21 +152,21 @@ class TestGenerals:
         ],
     )
     def test_the_star_level_falls_back_on_the_fixed_level(self, data, star_level, fixed_level):
-        general = General.model_validate({"GID": 103, **data})
+        general = OwnedGeneral.model_validate({"GID": 103, **data})
 
         assert (general.star_level, general.fixed_level) == (star_level, fixed_level)
 
     def test_no_star_level_from_a_fixed_level_the_client_reads_as_nan(self):
         # The client's other branch reads a getter-less property and gets NaN.
-        assert General.model_validate({"GID": 103, "L": 15}).star_level == 0
+        assert OwnedGeneral.model_validate({"GID": 103, "L": 15}).star_level == 0
 
     def test_the_flags_and_the_old_xp(self):
-        general = General.model_validate({"GID": 103, "IN": 1, "LU": "1", "OXP": 2400})
+        general = OwnedGeneral.model_validate({"GID": 103, "IN": 1, "LU": "1", "OXP": 2400})
 
         assert (general.is_new, general.has_level_up, general.old_experience) == (True, True, 2400)
 
     def test_a_flag_other_than_1_is_off(self):
-        general = General.model_validate({"GID": 103, "IN": 0, "LU": 2})
+        general = OwnedGeneral.model_validate({"GID": 103, "IN": 0, "LU": 2})
 
         assert (general.is_new, general.has_level_up, general.old_experience) == (False, False, 0)
 

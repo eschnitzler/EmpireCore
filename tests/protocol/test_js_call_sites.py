@@ -5,7 +5,7 @@ import pytest
 from empire_core.army.spy_army import SpyArmy
 from empire_core.gamedata.models import EquipmentEffectDef
 from empire_core.movements.models import MovementOwner
-from empire_core.protocol.models import AllianceInfo, General, MessageInfo
+from empire_core.protocol.models import AllianceInfo, MessageInfo, OwnedGeneral
 from empire_core.state.models import Alliance
 
 
@@ -20,7 +20,7 @@ class TestLooseOneFlags:
     @pytest.mark.parametrize(("value", "expected"), [("1", True), ("1.0", True), (1.5, False), (2, False)])
     def test_general_new_flag(self, value, expected):
         # GeneralVO.parseData (bundle line 26666): 1 == e.IN
-        assert General.model_validate({"GID": 1, "IN": value}).is_new is expected
+        assert OwnedGeneral.model_validate({"GID": 1, "IN": value}).is_new is expected
 
     @pytest.mark.parametrize(("value", "expected"), [("1.0", True), (1.5, False), ([1], True)])
     def test_message_read_flag(self, value, expected):

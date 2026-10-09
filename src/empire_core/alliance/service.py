@@ -89,10 +89,9 @@ from empire_core.alliance.models.members import (
     RerankMemberResponse,
 )
 from empire_core.alliance.models.search import AllianceSearchResult, SearchAllianceRequest, SearchAllianceResponse
-from empire_core.enums import AllianceRank, BookmarkType, DiplomacyStatus, HelpType, Kingdom
+from empire_core.enums import AllianceRank, BookmarkType, DiplomacyStatus, GGEError, HelpType, Kingdom
 from empire_core.exceptions import CommandError, NotInAllianceError, PacketError
 from empire_core.protocol.base import BaseRequest, BaseResponse
-from empire_core.protocol.errors import GGEError
 from empire_core.services.base import BaseService
 from empire_core.utils.callbacks import Event
 

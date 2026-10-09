@@ -3,17 +3,27 @@
 from typing import TYPE_CHECKING
 
 from empire_core.enums import (
+    AllianceBuffType,
     BuildingGroundType,
     BuildingGroup,
     CastleEffect,
+    CollectableKind,
+    EffectTemplate,
+    EquipmentSlot,
+    Kingdom,
+    MapItemType,
     PlayerRelation,
     QuestConditionType,
     RelicEffectType,
+    RewardGrantType,
     TitleDisplayType,
+    TitleSystem,
     ToolCategory,
     ToolSide,
     UnitRole,
+    WearerType,
 )
+from empire_core.utils.lazy import lazy_exports
 
 if TYPE_CHECKING:
     from .ids import (
@@ -55,7 +65,6 @@ from .cdn import fetch_items_data, get_items_version
 from .collectables import Collectable, CollectableObject, CollectableRows, CurrencyAmounts, CurrencyIdRows
 from .data import CAMP_TABLES, RAW_TABLES, GameData, default_cache_dir
 from .effect_texts import (
-    EffectTemplate,
     describe_building,
     describe_construction_item,
     describe_effect,
@@ -266,6 +275,14 @@ __all__ = [
     "describe_effects",
     "parse_ids",
     "parse_stacks",
+    "AllianceBuffType",
+    "CollectableKind",
+    "EquipmentSlot",
+    "Kingdom",
+    "MapItemType",
+    "RewardGrantType",
+    "TitleSystem",
+    "WearerType",
 ]
 
 _IDS = frozenset(
@@ -306,10 +323,5 @@ _IDS = frozenset(
 )
 
 
-def __getattr__(name: str) -> object:
-    # The id enums hold thousands of members, so they load on first use
-    if name in _IDS:
-        from . import ids
-
-        return getattr(ids, name)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+if not TYPE_CHECKING:
+    __getattr__ = lazy_exports(__name__, f"{__name__}.ids", _IDS)

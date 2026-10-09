@@ -28,6 +28,7 @@ import pytest
 from empire_core.client.client import EmpireClient
 from empire_core.client.session import Session
 from empire_core.config import LOGIN_DEFAULTS, EmpireConfig
+from empire_core.enums import GGEError
 from empire_core.exceptions import (
     AccountBannedError,
     ClientVersionError,
@@ -39,7 +40,6 @@ from empire_core.exceptions import (
     WrongServerError,
 )
 from empire_core.network.connection import ResponseWaiter
-from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import MALFORMED_STATUS_CODE, Packet
 
 # The requests in wire order: XML version check, XML zone login, XML autojoin,

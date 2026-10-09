@@ -15,6 +15,7 @@ from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING, NoReturn
 
 from empire_core.config import LOGIN_DEFAULTS
+from empire_core.enums import GGEError
 from empire_core.exceptions import (
     AccountBannedError,
     ClientVersionError,
@@ -28,7 +29,6 @@ from empire_core.exceptions import (
 )
 from empire_core.protocol.auth import LoginRequest, LoginResponse, build_version_check
 from empire_core.protocol.base import NO_ROOM, read_or_none
-from empire_core.protocol.errors import GGEError
 from empire_core.protocol.js import js_number_or_none
 from empire_core.protocol.packet import Packet
 
