@@ -1,6 +1,7 @@
 # Enums
 
-Every finite set of game constants, one module per area.
+Every finite set of game constants, one module per area. `empire_core.enums` also exports the generated
+game-data id enums (`Unit`, `Tool`, `Research`, ...), documented under [Game data](gamedata.md#generated-ids).
 
 ## `enums.alliance`
 
@@ -26,9 +27,17 @@ Every finite set of game constants, one module per area.
 
 ::: empire_core.enums.commanders
 
+## `enums.errors`
+
+::: empire_core.enums.errors
+
 ## `enums.gamedata`
 
 ::: empire_core.enums.gamedata
+
+## `enums.login`
+
+::: empire_core.enums.login
 
 ## `enums.map`
 
@@ -41,6 +50,10 @@ Every finite set of game constants, one module per area.
 ## `enums.movements`
 
 ::: empire_core.enums.movements
+
+## `enums.player`
+
+::: empire_core.enums.player
 
 ## `enums.ranking`
 

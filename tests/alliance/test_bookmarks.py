@@ -14,9 +14,8 @@ from empire_core.alliance import (
     ChangeBookmarkRequest,
     DeleteBookmarkResponse,
 )
-from empire_core.enums import BookmarkType, Kingdom
+from empire_core.enums import BookmarkType, GGEError, Kingdom
 from empire_core.exceptions import CommandError, NotInAllianceError
-from empire_core.protocol.errors import GGEError
 from tests.service_helpers import StubPlayer, StubState, conn, make_client, xt_packet
 
 # A bad or bch reply, read as a gbl entry

@@ -56,7 +56,7 @@ from empire_core.combat import (
 from empire_core.combat import fill_waves as solve_waves
 from empire_core.combat.capacity import ALIEN_INVASION_AREA_TYPES, OTHER_PLAYER_INFO_AREA_TYPES, LegendaryFight
 from empire_core.commanders.models.roster import Commander
-from empire_core.enums import AttackType, CombatEffectType, Flank, Kingdom, LootPriority, MapItemType
+from empire_core.enums import AttackType, CombatEffectType, Flank, GGEError, Kingdom, LootPriority, MapItemType
 from empire_core.events.models import GlobalEffectBuffEvent, GlobalEffectEvent, GlobalEffectTimer
 from empire_core.exceptions import (
     AttackBelowMinimumError,
@@ -66,7 +66,6 @@ from empire_core.exceptions import (
 )
 from empire_core.gamedata import WodAmount, WodAmountMapping
 from empire_core.gamedata.ids.events import Event
-from empire_core.protocol.errors import GGEError
 from empire_core.protocol.text import SMARTFOX_INVALID_CHARS, is_smartfox_valid
 from empire_core.services.base import BaseService
 

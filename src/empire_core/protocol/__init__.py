@@ -1,5 +1,6 @@
 """The wire protocol: request and response bases, packets, error codes, text codecs and the login models."""
 
+from empire_core.enums import GGEError
 from empire_core.protocol.auth import (
     CheckUsernameAvailableRequest,
     CheckUsernameAvailableResponse,
@@ -27,7 +28,6 @@ from empire_core.protocol.base import (
     get_response_model,
     parse_response,
 )
-from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import Packet
 from empire_core.protocol.text import decode_json_text, encode_json_text
 

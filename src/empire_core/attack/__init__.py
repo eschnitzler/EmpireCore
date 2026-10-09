@@ -1,6 +1,9 @@
 """Attacks: sending, pre-calculation, presets and dungeon cooldowns."""
 
-from empire_core.enums import AttackType, AutoSkipCooldownType, LootPriority
+from typing import TYPE_CHECKING
+
+from empire_core.enums import AttackType, AutoSkipCooldownType, Flank, Kingdom, LootPriority, MapItemType
+from empire_core.utils.lazy import lazy_exports
 
 from .models import (
     PRESET_NAME_MAX_LENGTH,
@@ -41,6 +44,9 @@ from .models import (
     SkipDungeonCooldownResponse,
 )
 from .service import AttackService
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Currency, CurrencyId, LegendSkill, Tool
 
 __all__ = [
     "MinuteSkipDungeonRequest",
@@ -83,4 +89,15 @@ __all__ = [
     "AutoSkipCooldownType",
     "AttackService",
     "AttackCounterResponse",
+    "Flank",
+    "Kingdom",
+    "MapItemType",
+    "Currency",
+    "CurrencyId",
+    "LegendSkill",
+    "Tool",
 ]
+
+
+if not TYPE_CHECKING:
+    __getattr__ = lazy_exports(__name__, "empire_core.gamedata.ids", ("Currency", "CurrencyId", "LegendSkill", "Tool"))

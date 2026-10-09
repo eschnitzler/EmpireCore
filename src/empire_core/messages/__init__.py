@@ -1,13 +1,19 @@
 """Messages: the mailbox, mail, spy reports and battle reports."""
 
+from typing import TYPE_CHECKING
+
 from empire_core.enums import (
     AttackAdvisorType,
     AutoSkipCooldownType,
     BattleLogAttackType,
     BattleLogFlank,
+    Kingdom,
     LogResult,
+    MapItemType,
     MessageType,
+    SpyLogType,
 )
+from empire_core.utils.lazy import lazy_exports
 
 from .models import (
     ATTACKER_FRONT,
@@ -67,6 +73,9 @@ from .models import (
     repair_header,
 )
 from .service import BattleReportDetail, MessagesService
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Event, Gem, GeneralAbility, LegendSkill
 
 __all__ = [
     "MAX_SUBJECT_LENGTH",
@@ -132,4 +141,15 @@ __all__ = [
     "EventAnnouncementHeader",
     "BattleReportDetail",
     "MessagesService",
+    "Kingdom",
+    "MapItemType",
+    "SpyLogType",
+    "Event",
+    "Gem",
+    "GeneralAbility",
+    "LegendSkill",
 ]
+
+
+if not TYPE_CHECKING:
+    __getattr__ = lazy_exports(__name__, "empire_core.gamedata.ids", ("Event", "Gem", "GeneralAbility", "LegendSkill"))
