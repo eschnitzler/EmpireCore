@@ -243,7 +243,7 @@ class Equipment(BasePayload):
     def _from_row(cls, data: Any) -> Any:
         if not isinstance(data, (list, tuple)):
             return data
-        row = dict(zip(_EQUIPMENT_ROW, data, strict=False))
+        row: dict[str, Any] = dict(zip(_EQUIPMENT_ROW, data, strict=False))
         if len(data) >= 12 and js_int(data[11]) == EquipmentType.RELIC:
             row["relic_bonuses"] = row.pop("bonuses", [])
             if len(data) >= 13:

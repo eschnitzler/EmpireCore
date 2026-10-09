@@ -515,7 +515,7 @@ class MovementState(StateBase):
                     )
                 if names:
                     # Already-validated values, set as pydantic's own __setattr__ would
-                    mov.__dict__.update(names)
+                    vars(mov).update(names)
                     mov.__pydantic_fields_set__.update(names)
 
             return mov
