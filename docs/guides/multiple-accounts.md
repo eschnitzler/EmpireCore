@@ -61,10 +61,11 @@ again by itself, honouring login cooldowns (see
 [Keeping the session](game-state.md#keeping-the-session)):
 
 ```python
-client = pool.lease(username="watcher1")
-client.keep_session = True
-client.on_session_restored(lambda: print("watcher1 is back"))
-client.on_session_lost(lambda error: print("watcher1 is gone:", error))
+client = pool.lease(username="watcher1")   # None when the account is not available
+if client is not None:
+    client.keep_session = True
+    client.on_session_restored(lambda: print("watcher1 is back"))
+    client.on_session_lost(lambda error: print("watcher1 is gone:", error))
 ```
 
 A release closes the client or keeps it as before, and closing ends any
