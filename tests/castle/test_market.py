@@ -37,7 +37,16 @@ from empire_core.exceptions import CommandError, UnsendableGoodsError
 from empire_core.gamedata import Currency, Tool, Unit, WodAmount
 from empire_core.protocol.models import parse_response
 from empire_core.state.manager import GameState
-from tests.service_helpers import StubPlayer, StubState, conn, make_client, xt_packet
+from tests.service_helpers import (
+    COIN_HORSE,
+    RUBY_HORSE,
+    StubPlayer,
+    StubState,
+    conn,
+    make_client,
+    with_horses,
+    xt_packet,
+)
 
 # =============================================================================
 # crm
@@ -70,17 +79,33 @@ class TestSendResources:
         assert request.to_payload()["G"] == [["W", 120], ["S", 5]]
 
     def test_send_resources(self):
-        client = make_client(castles=[(1234, Kingdom.ICE)])
-        assert (
-            client.castle.send_resources(1234, 10, 20, {Resource.WOOD: 100, Resource.STONE: 50}, horse_booster_id=5)
-            is True
-        )
+        client = with_horses(make_client(castles=[(1234, Kingdom.ICE)]))
+        goods = {Resource.WOOD: 100, Resource.STONE: 50}
+        assert client.castle.send_resources(1234, 10, 20, goods, horse_booster_id=COIN_HORSE) is True
         assert conn(client).request_payloads == [
             (
                 "crm",
-                {"KID": 2, "SID": 1234, "TX": 10, "TY": 20, "HBW": 5, "PTT": 0, "SD": 0, "G": [["W", 100], ["S", 50]]},
+                {
+                    "KID": 2,
+                    "SID": 1234,
+                    "TX": 10,
+                    "TY": 20,
+                    "HBW": 1001,
+                    "PTT": 0,
+                    "SD": 0,
+                    "G": [["W", 100], ["S", 50]],
+                },
             )
         ]
+
+    @pytest.mark.parametrize("kwargs", [{"horse_booster_id": RUBY_HORSE}, {"slowdown": 30}])
+    def test_a_horse_or_slowdown_that_costs_rubies_needs_spend_rubies(self, kwargs):
+        # CastlePostSendGoodsDialog.getBoostCostC2, ACastlePostActionDialog.getTotalCostsC2
+        client = with_horses(make_client(castles=[(1234, Kingdom.GREEN)]))
+        with pytest.raises(ValueError, match="spend_rubies=True"):
+            client.castle.send_resources(1234, 10, 20, {Resource.WOOD: 1}, **kwargs)
+        assert conn(client).request_payloads == []
+        assert client.castle.send_resources(1234, 10, 20, {Resource.WOOD: 1}, spend_rubies=True, **kwargs) is True
 
     def test_feathers_send_no_horse(self):
         client = make_client(castles=[(1234, Kingdom.GREEN)])

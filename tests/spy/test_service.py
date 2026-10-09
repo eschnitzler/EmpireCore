@@ -15,7 +15,7 @@ from empire_core.exceptions import CommandError, EmpireTimeoutError
 from empire_core.protocol.packet import Packet
 from empire_core.spy import service as spy_module
 from empire_core.spy.service import SpyHandle
-from tests.service_helpers import conn, make_client, xt_packet
+from tests.service_helpers import COIN_HORSE, RUBY_HORSE, conn, make_client, with_horses, xt_packet
 from tests.spy.payloads import BSD_NPC_CAMP_REPORT, CSM_REPLY
 
 NPC_REPORT_HEADER = "1+0+2#0+-211+"
@@ -597,12 +597,35 @@ class TestPaying:
         assert (sent["HBW"], sent["PTT"]) == (-1, 1)
 
     def test_a_horse_is_sent_by_its_wod_id(self, no_sleep):
-        client = spy_client()
+        client = with_horses(spy_client())
 
-        client.spy.execute_instant_spy(12345, 700, 710, horse_booster_id=1010)
+        client.spy.execute_instant_spy(12345, 700, 710, horse_booster_id=COIN_HORSE)
 
         sent = dict(conn(client).request_payloads)["csm"]
-        assert (sent["HBW"], sent["PTT"]) == (1010, 0)
+        assert (sent["HBW"], sent["PTT"]) == (COIN_HORSE, 0)
+
+    @pytest.mark.parametrize("kwargs", [{"horse_booster_id": RUBY_HORSE}, {"slowdown": 30}])
+    @pytest.mark.parametrize(
+        "send",
+        [
+            lambda spy, kwargs: spy.execute_instant_spy(12345, 700, 710, **kwargs),
+            lambda spy, kwargs: spy.send_instant_spy(12345, 700, 710, **kwargs),
+            lambda spy, kwargs: spy.send_sabotage(12345, 700, 710, **kwargs),
+            lambda spy, kwargs: spy.send_spy_mission(
+                12345, 700, 710, spy_type=SpyType.MILITARY, spies=1, accuracy_or_damage=50, **kwargs
+            ),
+        ],
+    )
+    def test_a_horse_or_slowdown_that_costs_rubies_is_refused_before_anything_is_sent(self, no_sleep, send, kwargs):
+        # CastlePostSpyDialog.getBoostCostC2, ACastlePostActionDialog.getTotalCostsC2
+        client = with_horses(spy_client())
+
+        with pytest.raises(ValueError, match="spend_rubies=True"):
+            send(client.spy, kwargs)
+        assert conn(client).request_payloads == []
+
+        send(client.spy, {**kwargs, "spend_rubies": True})
+        assert "csm" in dict(conn(client).request_payloads)
 
     def test_feathers_win_over_a_horse(self, no_sleep):
         client = spy_client()
@@ -615,14 +638,14 @@ class TestPaying:
     def test_the_slowdown_is_sent(self, no_sleep):
         client = spy_client()
 
-        client.spy.execute_instant_spy(12345, 700, 710, slowdown=30)
+        client.spy.execute_instant_spy(12345, 700, 710, slowdown=30, spend_rubies=True)
 
         assert dict(conn(client).request_payloads)["csm"]["SD"] == 30
 
     def test_the_keys_keep_the_client_order(self, no_sleep):
-        client = spy_client()
+        client = with_horses(spy_client())
 
-        client.spy.execute_instant_spy(12345, 700, 710, horse_booster_id=1010)
+        client.spy.execute_instant_spy(12345, 700, 710, horse_booster_id=COIN_HORSE)
 
         sent = dict(conn(client).request_payloads)["csm"]
         assert list(sent) == ["SID", "TX", "TY", "SC", "ST", "SE", "HBW", "KID", "PTT", "SD"]

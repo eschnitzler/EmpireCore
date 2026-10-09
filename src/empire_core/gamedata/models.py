@@ -132,7 +132,8 @@ class _UnitRow(_Row):
     """
     What ``AVisualVO.parseXmlNode`` and ``BasicUnitVO.parseXmlNode`` read for every unit and tool.
 
-    Client: ``AVisualVO.parseXmlNode`` (bundle line 17800), ``BasicUnitVO.parseXmlNode`` (bundle line 19211)
+    Client: ``AVisualVO.parseXmlNode`` (bundle line 17800), ``BasicUnitVO.parseXmlNode`` (bundle line 19211);
+    ``BasicUnitVO.basicCostC2`` (bundle line 19248) takes the temporary server's ruby cost there
     """
 
     wod_id: int = Field(alias="wodID", description="Unit or tool id; required")
@@ -148,6 +149,12 @@ class _UnitRow(_Row):
         default=FIGHT_TYPE_OFFENSIVE,
         description="0 offensive, 1 defensive",
     )
+    cost_rubies: int = Field(alias="costC2", default=0, description="Rubies one costs to produce")
+    temp_server_cost_rubies: int = Field(
+        alias="tempServerCostC2",
+        default=0,
+        description="Rubies one costs to produce on a temporary server; the client takes cost_rubies when absent",
+    )
 
     @field_validator("wod_id", mode="before")
     @classmethod
@@ -159,7 +166,7 @@ class _UnitRow(_Row):
             raise ValueError(f"wodID {value!r} has no leading integer")
         return parsed
 
-    @field_validator("level", "speed", "fight_type", mode="before")
+    @field_validator("level", "speed", "fight_type", "cost_rubies", "temp_server_cost_rubies", mode="before")
     @classmethod
     def _parse_int(cls, value: object, info: ValidationInfo) -> object:
         return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
