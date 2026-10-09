@@ -8,9 +8,11 @@ their inputs are aggregated, which lives in :mod:`empire_core.combat.defense`.
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from pydantic import BaseModel, ConfigDict
 
-from empire_core.gamedata import UnitStats
+from empire_core.gamedata import ToolStats, UnitStats
 
 
 class AttackerFlankEffects(BaseModel):
@@ -21,7 +23,7 @@ class AttackerFlankEffects(BaseModel):
     subtracted from the defender's matching bonus.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     melee_bonus: float = 1.0
     range_bonus: float = 1.0
@@ -35,7 +37,7 @@ class AttackerFlankEffects(BaseModel):
 
     def apply_tool(
         self,
-        tool,
+        tool: ToolStats,
         count: int,
         *,
         range_malus: float = 0.0,
@@ -131,7 +133,7 @@ class DefenderFlankEffects(BaseModel):
     defenders to ``range_units_*``. Bonuses are multipliers starting at 1.0.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     melee_units_melee_strength: float = 0.0
     melee_units_range_strength: float = 0.0

@@ -34,41 +34,96 @@ class PlayerProfileBase(BasePayload):
     ``received_at_wall`` is stamped with it, for the ``*_utc`` ends: the wall clock at reading.
     """
 
-    player_id: ParseInt = Field(alias="OID", default=0, description="Player id")
-    name: str = Field(alias="N", default="", description="Player name")
-    emblem: OwnerCrest | None = Field(alias="E", default=None, description="The player's crest")
-    level: ParseInt = Field(alias="L", default=0, description="Level")
-    legendary_level: ParseInt = Field(alias="LL", default=0, description="Legendary level")
+    player_id: ParseInt = Field(validation_alias="OID", serialization_alias="OID", default=0, description="Player id")
+    name: str = Field(validation_alias="N", serialization_alias="N", default="", description="Player name")
+    emblem: OwnerCrest | None = Field(
+        validation_alias="E", serialization_alias="E", default=None, description="The player's crest"
+    )
+    level: ParseInt = Field(validation_alias="L", serialization_alias="L", default=0, description="Level")
+    legendary_level: ParseInt = Field(
+        validation_alias="LL", serialization_alias="LL", default=0, description="Legendary level"
+    )
     beginner_protection_seconds: ParseInt = Field(
-        alias="RNP", default=0, description="Seconds of beginner protection left"
+        validation_alias="RNP", serialization_alias="RNP", default=0, description="Seconds of beginner protection left"
     )
-    honor: ParseInt = Field(alias="H", default=0, description="Honor points")
-    might: ParseInt = Field(alias="MP", default=0, description="Might points")
-    top_ranking: ParseInt = Field(alias="TOPX", default=-1, description="Top ranking place")
-    is_ruin: bool = Field(alias="R", default=False, description="The player's castle is a ruin")
-    alliance_id: int = Field(alias="AID", default=-1, description="Alliance id; -1 when the player is in none")
+    honor: ParseInt = Field(validation_alias="H", serialization_alias="H", default=0, description="Honor points")
+    might: ParseInt = Field(validation_alias="MP", serialization_alias="MP", default=0, description="Might points")
+    top_ranking: ParseInt = Field(
+        validation_alias="TOPX", serialization_alias="TOPX", default=-1, description="Top ranking place"
+    )
+    is_ruin: bool = Field(
+        validation_alias="R", serialization_alias="R", default=False, description="The player's castle is a ruin"
+    )
+    alliance_id: int = Field(
+        validation_alias="AID",
+        serialization_alias="AID",
+        default=-1,
+        description="Alliance id; -1 when the player is in none",
+    )
     alliance_rank: int | None = Field(
-        alias="AR", default=None, description="Rank in the alliance, an AllianceRank value; None when unreadable"
+        validation_alias="AR",
+        serialization_alias="AR",
+        default=None,
+        description="Rank in the alliance, an AllianceRank value; None when unreadable",
     )
-    alliance_name: str = Field(alias="AN", default="", description="Alliance name")
-    is_searching_alliance: bool = Field(alias="SA", default=False, description="The player is looking for an alliance")
-    revenge_protection_seconds: ParseInt = Field(alias="RPT", default=0, description="Seconds of peace protection left")
-    castle_positions: list[OwnerCastlePosition] = Field(alias="AP", default_factory=list, description="Castles")
-    village_positions: list[OwnerCastlePosition] = Field(alias="VP", default_factory=list, description="Villages")
-    has_premium_flag: bool = Field(alias="PF", default=False, description="The player has the premium flag")
-    has_vip_flag: bool = Field(alias="VF", default=False, description="The player has the VIP flag")
-    is_dummy: bool = Field(alias="DUM", default=False, description="A placeholder record, not a real player")
-    achievement_points: ParseInt = Field(alias="AVP", default=0, description="Achievement points")
+    alliance_name: str = Field(validation_alias="AN", serialization_alias="AN", default="", description="Alliance name")
+    is_searching_alliance: bool = Field(
+        validation_alias="SA",
+        serialization_alias="SA",
+        default=False,
+        description="The player is looking for an alliance",
+    )
+    revenge_protection_seconds: ParseInt = Field(
+        validation_alias="RPT", serialization_alias="RPT", default=0, description="Seconds of peace protection left"
+    )
+    castle_positions: list[OwnerCastlePosition] = Field(
+        validation_alias="AP", serialization_alias="AP", default_factory=list, description="Castles"
+    )
+    village_positions: list[OwnerCastlePosition] = Field(
+        validation_alias="VP", serialization_alias="VP", default_factory=list, description="Villages"
+    )
+    has_premium_flag: bool = Field(
+        validation_alias="PF", serialization_alias="PF", default=False, description="The player has the premium flag"
+    )
+    has_vip_flag: bool = Field(
+        validation_alias="VF", serialization_alias="VF", default=False, description="The player has the VIP flag"
+    )
+    is_dummy: bool = Field(
+        validation_alias="DUM",
+        serialization_alias="DUM",
+        default=False,
+        description="A placeholder record, not a real player",
+    )
+    achievement_points: ParseInt = Field(
+        validation_alias="AVP", serialization_alias="AVP", default=0, description="Achievement points"
+    )
     relocation_remaining_seconds: int = Field(
-        alias="RRD", default=0, description="Seconds until the player's castle relocation ends"
+        validation_alias="RRD",
+        serialization_alias="RRD",
+        default=0,
+        description="Seconds until the player's castle relocation ends",
     )
-    faction: OwnerFaction | None = Field(alias="FN", default=None, description="Faction event standing")
+    faction: OwnerFaction | None = Field(
+        validation_alias="FN", serialization_alias="FN", default=None, description="Faction event standing"
+    )
     alliance_emblem: AllianceEmblem | None = Field(
-        alias="aee", default=None, description="The alliance's crest; None outside an alliance"
+        validation_alias="aee",
+        serialization_alias="aee",
+        default=None,
+        description="The alliance's crest; None outside an alliance",
     )
-    title_suffix: int | None = Field(alias="SUF", default=None, description="Suffix title id; None when unsent")
-    title_prefix: int | None = Field(alias="PRE", default=None, description="Prefix title id; None when unsent")
-    via_refer_a_friend: bool = Field(alias="IRF", default=False, description="The player joined through a referral")
+    title_suffix: int | None = Field(
+        validation_alias="SUF", serialization_alias="SUF", default=None, description="Suffix title id; None when unsent"
+    )
+    title_prefix: int | None = Field(
+        validation_alias="PRE", serialization_alias="PRE", default=None, description="Prefix title id; None when unsent"
+    )
+    via_refer_a_friend: bool = Field(
+        validation_alias="IRF",
+        serialization_alias="IRF",
+        default=False,
+        description="The player joined through a referral",
+    )
     received_at: float = Field(
         default_factory=time.monotonic, description="When the values were read, in time.monotonic() seconds"
     )

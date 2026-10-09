@@ -54,10 +54,24 @@ class UnitInventory(BasePayload):
     ``AUnitInventory.fillFromWodAmountArray`` (bundle line 42572)
     """
 
-    units: WodAmounts = Field(alias="I", default_factory=dict, description="Units and tools in the castle")
-    in_production: WodAmounts = Field(alias="TU", default_factory=dict, description="Units on their way in")
-    stronghold: WodAmounts = Field(alias="SHI", default_factory=dict, description="Units stored in the stronghold")
-    hospital: WodAmounts = Field(alias="HI", default_factory=dict, description="Wounded units in the hospital")
+    units: WodAmounts = Field(
+        validation_alias="I", serialization_alias="I", default_factory=dict, description="Units and tools in the castle"
+    )
+    in_production: WodAmounts = Field(
+        validation_alias="TU", serialization_alias="TU", default_factory=dict, description="Units on their way in"
+    )
+    stronghold: WodAmounts = Field(
+        validation_alias="SHI",
+        serialization_alias="SHI",
+        default_factory=dict,
+        description="Units stored in the stronghold",
+    )
+    hospital: WodAmounts = Field(
+        validation_alias="HI",
+        serialization_alias="HI",
+        default_factory=dict,
+        description="Wounded units in the hospital",
+    )
 
 
 class GetUnitsResponse(BaseResponse, UnitInventory):
@@ -95,9 +109,11 @@ class DismissUnitsRequest(BaseRequest):
 
     command = "dup"
 
-    wod_id: int = Field(alias="WID")
-    amount: int = Field(alias="A")
-    from_stronghold: int = Field(alias="S", default=0, description="1 to dismiss from the stronghold")
+    wod_id: int = Field(validation_alias="WID", serialization_alias="WID")
+    amount: int = Field(validation_alias="A", serialization_alias="A")
+    from_stronghold: int = Field(
+        validation_alias="S", serialization_alias="S", default=0, description="1 to dismiss from the stronghold"
+    )
 
 
 class DismissUnitsResponse(BaseResponse):
@@ -112,9 +128,12 @@ class DismissUnitsResponse(BaseResponse):
     command = "dup"
 
     production_area: RawBlock = Field(
-        alias="gpa", default=None, description="The castle's production and storage figures, as a raw block"
+        validation_alias="gpa",
+        serialization_alias="gpa",
+        default=None,
+        description="The castle's production and storage figures, as a raw block",
     )
-    unit_inventory: UnitInventoryBlock = Field(alias="gui", default=None)
+    unit_inventory: UnitInventoryBlock = Field(validation_alias="gui", serialization_alias="gui", default=None)
 
 
 # =============================================================================
@@ -132,8 +151,18 @@ class WaveFlank(BasePayload):
     container's ``getSlotList()`` (bundle line 20573)
     """
 
-    tools: WodAmountSlots = Field(alias="T", default=(), description="The tool slots, [-1, 0] for an empty one")
-    units: WodAmountSlots = Field(alias="U", default=(), description="The unit slots, [-1, 0] for an empty one")
+    tools: WodAmountSlots = Field(
+        validation_alias="T",
+        serialization_alias="T",
+        default=(),
+        description="The tool slots, [-1, 0] for an empty one",
+    )
+    units: WodAmountSlots = Field(
+        validation_alias="U",
+        serialization_alias="U",
+        default=(),
+        description="The unit slots, [-1, 0] for an empty one",
+    )
 
     if TYPE_CHECKING:
 
@@ -149,9 +178,9 @@ class AttackWave(BasePayload):
     Client: ``CastleAttackWaveVO.getWaveInfoObject`` (bundle line 99930)
     """
 
-    left: WaveFlank = Field(alias="L", default_factory=WaveFlank)
-    right: WaveFlank = Field(alias="R", default_factory=WaveFlank)
-    middle: WaveFlank = Field(alias="M", default_factory=WaveFlank)
+    left: WaveFlank = Field(validation_alias="L", serialization_alias="L", default_factory=WaveFlank)
+    right: WaveFlank = Field(validation_alias="R", serialization_alias="R", default_factory=WaveFlank)
+    middle: WaveFlank = Field(validation_alias="M", serialization_alias="M", default_factory=WaveFlank)
 
     def unit_count(self) -> int:
         """Total units across all three flanks."""

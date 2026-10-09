@@ -8,7 +8,7 @@ Commands:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import ConfigDict, Field, field_validator
 
@@ -32,12 +32,16 @@ class ConstructionItemExpiryResponse(TimedResponse):
     command = "nec"
 
     next_expiry_seconds: ClientNumber = Field(
-        alias="NCRS",
+        validation_alias="NCRS",
+        serialization_alias="NCRS",
         default=-1,
         description="Seconds until the next construction item expires when the values were read, -1 for none",
     )
     last_expired_at: ClientNumber = Field(
-        alias="LECT", default=-1, description="When a construction item last expired, the server's timestamp; -1 none"
+        validation_alias="LECT",
+        serialization_alias="LECT",
+        default=-1,
+        description="When a construction item last expired, the server's timestamp; -1 none",
     )
 
     def remaining_seconds(self, now: float | None = None) -> float | None:
@@ -60,13 +64,18 @@ class ResourcePoolResponse(BaseResponse):
     the state does not follow, so it can outlast the citizen until the next ``irc``.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     command = "irc"
 
-    goods: CollectableRows = Field(alias="G", default=(), description="The goods the citizen carries")
+    goods: CollectableRows = Field(
+        validation_alias="G", serialization_alias="G", default=(), description="The goods the citizen carries"
+    )
     has_extra_goods: bool = Field(
-        alias="EG", default=False, description="Whether the client counts the goods as 1000, whatever G says"
+        validation_alias="EG",
+        serialization_alias="EG",
+        default=False,
+        description="Whether the client counts the goods as 1000, whatever G says",
     )
 
     @field_validator("has_extra_goods", mode="before")

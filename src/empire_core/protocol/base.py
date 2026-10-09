@@ -328,7 +328,7 @@ class GGECommand:
 class BasePayload(BaseModel):
     """Base class for all protocol payloads."""
 
-    model_config = ConfigDict(
+    model_config: ClassVar[ConfigDict] = ConfigDict(
         populate_by_name=True,
         extra="allow",  # Allow extra fields we don't know about
     )
@@ -399,7 +399,7 @@ class BaseResponse(BasePayload):
     # "E" is not reserved: an aci response uses it for the player's crest, and
     # a response whose payload happens to use the key for something else must
     # still parse, so anything that is not an integer is treated as no error.
-    error_code: int = Field(alias="E", default=0)
+    error_code: int = Field(validation_alias="E", serialization_alias="E", default=0)
 
     @field_validator("error_code", mode="before")
     @classmethod
@@ -431,7 +431,7 @@ class BaseResponse(BasePayload):
 class TimedPayload(BasePayload):
     """A read-only block whose times count down from when it was read, as the client counts them from its timer."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     received_at: float = Field(
         default_factory=time.monotonic, description="When the values were read, in time.monotonic() seconds"
@@ -478,11 +478,11 @@ def parse_response(command: str, payload: dict[str, Any]) -> BaseResponse | None
 class Position(BaseModel):
     """A position on the game map."""
 
-    x: int = Field(alias="X")
-    y: int = Field(alias="Y")
-    kingdom: int = Field(alias="KID", default=0)
+    x: int = Field(validation_alias="X", serialization_alias="X")
+    y: int = Field(validation_alias="Y", serialization_alias="Y")
+    kingdom: int = Field(validation_alias="KID", serialization_alias="KID", default=0)
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True)
 
 
 def object_or_none(value: Any) -> Any:
@@ -582,10 +582,16 @@ class CurrencyTotals(BasePayload):
     """
 
     coins: int | float | None = Field(
-        alias="C1", default=None, description="Coins; None when the reply has no number for it"
+        validation_alias="C1",
+        serialization_alias="C1",
+        default=None,
+        description="Coins; None when the reply has no number for it",
     )
     rubies: int | float | None = Field(
-        alias="C2", default=None, description="Rubies; None when the reply has no number for it"
+        validation_alias="C2",
+        serialization_alias="C2",
+        default=None,
+        description="Rubies; None when the reply has no number for it",
     )
 
     @field_validator("coins", "rubies", mode="before")
@@ -650,12 +656,12 @@ def enum_or_none(enum: type[_E], value: int) -> _E | None:
 class PlayerInfo(BaseModel):
     """Basic player information."""
 
-    player_id: int = Field(alias="PID")
-    player_name: str = Field(alias="PN")
-    alliance_id: int | None = Field(alias="AID", default=None)
-    alliance_name: str | None = Field(alias="AN", default=None)
+    player_id: int = Field(validation_alias="PID", serialization_alias="PID")
+    player_name: str = Field(validation_alias="PN", serialization_alias="PN")
+    alliance_id: int | None = Field(validation_alias="AID", serialization_alias="AID", default=None)
+    alliance_name: str | None = Field(validation_alias="AN", serialization_alias="AN", default=None)
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True)
 
 
 __all__ = [

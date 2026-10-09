@@ -43,32 +43,73 @@ class LoginRequest(BaseRequest):
     command = "lli"
 
     connection_time: int = Field(
-        alias="CONM", default=0, description="Milliseconds from opening the socket to the server's apiOK"
+        validation_alias="CONM",
+        serialization_alias="CONM",
+        default=0,
+        description="Milliseconds from opening the socket to the server's apiOK",
     )
     round_trip_time: int = Field(
-        alias="RTM", default=0, description="Milliseconds from sending roundTrip to its answer; 0 before one came back"
+        validation_alias="RTM",
+        serialization_alias="RTM",
+        default=0,
+        description="Milliseconds from sending roundTrip to its answer; 0 before one came back",
     )
-    login_id: int = Field(alias="ID", default=0, description="Always 0")
+    login_id: int = Field(validation_alias="ID", serialization_alias="ID", default=0, description="Always 0")
     persistent_login: bool = Field(
-        alias="PL", default=False, description="Stay logged in; the server then pushes a login token (slt)"
+        validation_alias="PL",
+        serialization_alias="PL",
+        default=False,
+        description="Stay logged in; the server then pushes a login token (slt)",
     )
-    username: str = Field(alias="NOM", description="The login name, encoded")
+    username: str = Field(validation_alias="NOM", serialization_alias="NOM", description="The login name, encoded")
     password: str | None = Field(
-        alias="PW", default=None, repr=False, description="The password, encoded; None to log in by token"
+        validation_alias="PW",
+        serialization_alias="PW",
+        default=None,
+        repr=False,
+        description="The password, encoded; None to log in by token",
     )
-    login_token: str | None = Field(alias="LT", default=None, repr=False, description="A persistent login's token")
-    language: str = Field(alias="LANG", default="en", description="Language code of the chosen country")
-    distributor_id: str = Field(alias="DID", default="0", description="Distributor id of the install")
-    account_id: str = Field(alias="AID", description="Account (install) id")
+    login_token: str | None = Field(
+        validation_alias="LT",
+        serialization_alias="LT",
+        default=None,
+        repr=False,
+        description="A persistent login's token",
+    )
+    language: str = Field(
+        validation_alias="LANG",
+        serialization_alias="LANG",
+        default="en",
+        description="Language code of the chosen country",
+    )
+    distributor_id: str = Field(
+        validation_alias="DID", serialization_alias="DID", default="0", description="Distributor id of the install"
+    )
+    account_id: str = Field(validation_alias="AID", serialization_alias="AID", description="Account (install) id")
     identity_management_id: str = Field(
-        alias="KID", default="", description="Identity management id, empty outside Korea"
+        validation_alias="KID",
+        serialization_alias="KID",
+        default="",
+        description="Identity management id, empty outside Korea",
     )
-    referrer: str = Field(alias="REF", default="", description="The page the game was opened from")
-    gci: str = Field(alias="GCI", default="", description="The page's gci URL parameter")
-    store_id: int = Field(alias="SID", default=9, description="Store id: 9 for the web")
-    platform_id: int = Field(alias="PLFID", default=1, description="Platform id: 1 for the web")
+    referrer: str = Field(
+        validation_alias="REF", serialization_alias="REF", default="", description="The page the game was opened from"
+    )
+    gci: str = Field(
+        validation_alias="GCI", serialization_alias="GCI", default="", description="The page's gci URL parameter"
+    )
+    store_id: int = Field(
+        validation_alias="SID", serialization_alias="SID", default=9, description="Store id: 9 for the web"
+    )
+    platform_id: int = Field(
+        validation_alias="PLFID", serialization_alias="PLFID", default=1, description="Platform id: 1 for the web"
+    )
     recaptcha_token: str | None = Field(
-        alias="RCT", default=None, repr=False, description="A reCAPTCHA v3 token for the action 'login'"
+        validation_alias="RCT",
+        serialization_alias="RCT",
+        default=None,
+        repr=False,
+        description="A reCAPTCHA v3 token for the action 'login'",
     )
 
     @classmethod
@@ -127,14 +168,26 @@ class LoginResponse(BaseResponse):
     command = "lli"
 
     account_deleted: Annotated[bool, BeforeValidator(js_truthy)] = Field(
-        alias="GDPR", default=False, description="The banned account was deleted"
+        validation_alias="GDPR", serialization_alias="GDPR", default=False, description="The banned account was deleted"
     )
-    remaining_ban_seconds: _Number = Field(alias="RS", default=None, description="Seconds until the ban ends")
-    instance_id: _Number = Field(alias="IID", default=None, description="Instance id of the server the account is on")
+    remaining_ban_seconds: _Number = Field(
+        validation_alias="RS", serialization_alias="RS", default=None, description="Seconds until the ban ends"
+    )
+    instance_id: _Number = Field(
+        validation_alias="IID",
+        serialization_alias="IID",
+        default=None,
+        description="Instance id of the server the account is on",
+    )
     remaining_cooldown_seconds: _Number = Field(
-        alias="CD", default=None, description="Seconds until the next login attempt is allowed"
+        validation_alias="CD",
+        serialization_alias="CD",
+        default=None,
+        description="Seconds until the next login attempt is allowed",
     )
-    player_id: _Number = Field(alias="PID", default=None, description="The player's id")
+    player_id: _Number = Field(
+        validation_alias="PID", serialization_alias="PID", default=None, description="The player's id"
+    )
 
 
 # =============================================================================
@@ -155,7 +208,7 @@ class LoginTokenResponse(BaseResponse):
     command = "slt"
 
     login_token: Annotated[str | None, BeforeValidator(lambda value: None if value is None else js_string(value))] = (
-        Field(alias="LT", default=None, repr=False, description="The token")
+        Field(validation_alias="LT", serialization_alias="LT", default=None, repr=False, description="The token")
     )
 
 
@@ -204,29 +257,71 @@ class RegisterRequest(BaseRequest):
 
     command = "lre"
 
-    distributor_id: int = Field(alias="DID", default=0, description="Distributor id of the install")
+    distributor_id: int = Field(
+        validation_alias="DID", serialization_alias="DID", default=0, description="Distributor id of the install"
+    )
     connection_time: int = Field(
-        alias="CONM", default=0, description="Milliseconds from opening the socket to the server's apiOK"
+        validation_alias="CONM",
+        serialization_alias="CONM",
+        default=0,
+        description="Milliseconds from opening the socket to the server's apiOK",
     )
     round_trip_time: int = Field(
-        alias="RTM", default=0, description="Milliseconds from sending roundTrip to its answer"
+        validation_alias="RTM",
+        serialization_alias="RTM",
+        default=0,
+        description="Milliseconds from sending roundTrip to its answer",
     )
-    campaign_partner_id: int = Field(alias="campainPId", default=0, description="Campaign partner id")
-    campaign_creative: int = Field(alias="campainCr", default=0, description="Campaign creative")
-    campaign_landing_page: int = Field(alias="campainLP", default=0, description="Campaign landing page")
-    ad_id: int = Field(alias="adID", default=0, description="Campaign ad id")
-    time_zone: int = Field(alias="timeZone", default=0, description="UTC offset in hours plus 13")
-    username: str = Field(alias="PN", description="The new player's name")
-    password: str | None = Field(alias="PW", default=None, repr=False, description="The new account's password")
-    referrer: str = Field(alias="REF", default="", description="The page the game was opened from")
-    language: str = Field(alias="LANG", default="en", description="Language code of the chosen country")
-    account_id: str = Field(alias="AID", description="Account (install) id")
-    gci: str = Field(alias="GCI", default="", description="The page's gci URL parameter")
-    store_id: int = Field(alias="SID", default=9, description="Store id: 9 for the web")
-    platform_id: int = Field(alias="PLFID", default=1, description="Platform id: 1 for the web")
-    network_id: int = Field(alias="NID", description="Network id of the install")
+    campaign_partner_id: int = Field(
+        validation_alias="campainPId", serialization_alias="campainPId", default=0, description="Campaign partner id"
+    )
+    campaign_creative: int = Field(
+        validation_alias="campainCr", serialization_alias="campainCr", default=0, description="Campaign creative"
+    )
+    campaign_landing_page: int = Field(
+        validation_alias="campainLP", serialization_alias="campainLP", default=0, description="Campaign landing page"
+    )
+    ad_id: int = Field(validation_alias="adID", serialization_alias="adID", default=0, description="Campaign ad id")
+    time_zone: int = Field(
+        validation_alias="timeZone",
+        serialization_alias="timeZone",
+        default=0,
+        description="UTC offset in hours plus 13",
+    )
+    username: str = Field(validation_alias="PN", serialization_alias="PN", description="The new player's name")
+    password: str | None = Field(
+        validation_alias="PW",
+        serialization_alias="PW",
+        default=None,
+        repr=False,
+        description="The new account's password",
+    )
+    referrer: str = Field(
+        validation_alias="REF", serialization_alias="REF", default="", description="The page the game was opened from"
+    )
+    language: str = Field(
+        validation_alias="LANG",
+        serialization_alias="LANG",
+        default="en",
+        description="Language code of the chosen country",
+    )
+    account_id: str = Field(validation_alias="AID", serialization_alias="AID", description="Account (install) id")
+    gci: str = Field(
+        validation_alias="GCI", serialization_alias="GCI", default="", description="The page's gci URL parameter"
+    )
+    store_id: int = Field(
+        validation_alias="SID", serialization_alias="SID", default=9, description="Store id: 9 for the web"
+    )
+    platform_id: int = Field(
+        validation_alias="PLFID", serialization_alias="PLFID", default=1, description="Platform id: 1 for the web"
+    )
+    network_id: int = Field(validation_alias="NID", serialization_alias="NID", description="Network id of the install")
     recaptcha_token: str | None = Field(
-        alias="RCT", default=None, repr=False, description="A reCAPTCHA v3 token for the action 'submit'"
+        validation_alias="RCT",
+        serialization_alias="RCT",
+        default=None,
+        repr=False,
+        description="A reCAPTCHA v3 token for the action 'submit'",
     )
 
 
@@ -239,8 +334,15 @@ class RegisterResponse(BaseResponse):
 
     command = "lre"
 
-    player_id: _Number = Field(alias="PID", default=None, description="The new player's id")
-    suggested_names: _Names = Field(alias="NS", default_factory=list, description="Free names like the refused one")
+    player_id: _Number = Field(
+        validation_alias="PID", serialization_alias="PID", default=None, description="The new player's id"
+    )
+    suggested_names: _Names = Field(
+        validation_alias="NS",
+        serialization_alias="NS",
+        default_factory=list,
+        description="Free names like the refused one",
+    )
 
 
 # =============================================================================
@@ -262,7 +364,7 @@ class CheckUsernameAvailableRequest(BaseRequest):
 
     command = "vpn"
 
-    username: str = Field(alias="PN", description="The name to check")
+    username: str = Field(validation_alias="PN", serialization_alias="PN", description="The name to check")
 
 
 class CheckUsernameAvailableResponse(BaseResponse):
@@ -274,7 +376,12 @@ class CheckUsernameAvailableResponse(BaseResponse):
 
     command = "vpn"
 
-    suggested_names: _Names = Field(alias="NS", default_factory=list, description="Free names like the refused one")
+    suggested_names: _Names = Field(
+        validation_alias="NS",
+        serialization_alias="NS",
+        default_factory=list,
+        description="Free names like the refused one",
+    )
 
 
 # =============================================================================
@@ -295,7 +402,7 @@ class CheckUsernameExistsRequest(BaseRequest):
 
     command = "vln"
 
-    username: str = Field(alias="NOM", description="The name to check")
+    username: str = Field(validation_alias="NOM", serialization_alias="NOM", description="The name to check")
 
 
 class CheckUsernameExistsResponse(BaseResponse):
@@ -323,7 +430,7 @@ class PasswordRecoveryRequest(BaseRequest):
 
     command = "lpp"
 
-    email: str = Field(alias="MAIL", description="Email address of the account")
+    email: str = Field(validation_alias="MAIL", serialization_alias="MAIL", description="Email address of the account")
 
 
 class PasswordRecoveryResponse(BaseResponse):

@@ -46,7 +46,7 @@ if TYPE_CHECKING:
 class Scoreboard(BaseModel):
     """The boards an event's dialogs open, and the dialog the lists come from."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     player_lists: tuple[RankingType, ...] = Field(
         description="The player boards; Berimond invasion has one per faction, blue first"
@@ -301,17 +301,26 @@ def _with_points(model: Any, ranks: Any, points: Any, maxima: Any, index: int = 
 
 
 class _ScoreFields(BaseModel):
-    model_config = ConfigDict(frozen=True, populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True)
 
-    league_id: int = Field(default=1, alias="LID", description="Your league")
-    own_rank: int = Field(default=-1, alias="OR", description="Your rank, -1 while unranked")
-    own_points: int = Field(default=0, alias="OP", description="Your points")
-    max_points: int = Field(default=0, description="The most points the event counts, from the pep pushes")
-    sub_type: int = Field(default=0, alias="ST", description="The score's sub type")
-    point_scale: int = Field(
-        default=1, alias="SC", description="The factor the reward thresholds after the first scale by"
+    league_id: int = Field(default=1, validation_alias="LID", serialization_alias="LID", description="Your league")
+    own_rank: int = Field(
+        default=-1, validation_alias="OR", serialization_alias="OR", description="Your rank, -1 while unranked"
     )
-    leaderboard_reward_set_id: int = Field(default=0, alias="LRSI", description="The leaderboard's reward set")
+    own_points: int = Field(default=0, validation_alias="OP", serialization_alias="OP", description="Your points")
+    max_points: int = Field(default=0, description="The most points the event counts, from the pep pushes")
+    sub_type: int = Field(
+        default=0, validation_alias="ST", serialization_alias="ST", description="The score's sub type"
+    )
+    point_scale: int = Field(
+        default=1,
+        validation_alias="SC",
+        serialization_alias="SC",
+        description="The factor the reward thresholds after the first scale by",
+    )
+    leaderboard_reward_set_id: int = Field(
+        default=0, validation_alias="LRSI", serialization_alias="LRSI", description="The leaderboard's reward set"
+    )
 
 
 class EventPart(_ScoreFields):
@@ -323,7 +332,9 @@ class EventPart(_ScoreFields):
     ``AScoreEventVO.setRankAndPoints`` (bundle line 15044) for a ``pep``
     """
 
-    reward_set_id: int = Field(default=0, alias="RSID", description="The reward set")
+    reward_set_id: int = Field(
+        default=0, validation_alias="RSID", serialization_alias="RSID", description="The reward set"
+    )
 
     @classmethod
     def parse(cls, entry: Any, previous: EventPart | None = None, sub_type: int = 0) -> EventPart:
@@ -346,7 +357,7 @@ class SpecialEvent(BaseModel):
     ``SpecialEventSeasonLeagueComponent.parseServerData`` (bundle line 64551) reads ``KL``
     """
 
-    model_config = ConfigDict(frozen=True, populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True)
 
     # Whether the class's parseParamObject reaches ASpecialEventVO's, which reads KL
     _reads_kl: ClassVar[bool] = True
@@ -355,14 +366,17 @@ class SpecialEvent(BaseModel):
     is_trigger: ClassVar[bool] = False
     """Whether the event is a trigger event (``tei``): the kingdoms league or a global effect event."""
 
-    event_id: int = Field(alias="EID", description="The event's id")
+    event_id: int = Field(validation_alias="EID", serialization_alias="EID", description="The event's id")
     event: Event | None = Field(default=None, description="The event, None for an id the event table lacks")
     end_time: float = Field(
         default=0.0, description="When the event ends, in time.monotonic() seconds; inf while it has no end"
     )
     updated_at: float = Field(default=0.0, description="When an entry for the event was last applied, wall clock")
     kingdoms_league_mode: bool = Field(
-        default=False, alias="KL", description="Whether the event runs in the kingdoms league's season mode"
+        default=False,
+        validation_alias="KL",
+        serialization_alias="KL",
+        description="Whether the event runs in the kingdoms league's season mode",
     )
     raw: _Raw = Field(
         default_factory=ReadOnlyDict,
@@ -430,9 +444,17 @@ class ScoredEvent(SpecialEvent, _ScoreFields):
     """
 
     difficulty_id: int = Field(
-        default=-1, alias="EDID", description="The difficulty chosen, -1 before one is; 0 without difficulty scaling"
+        default=-1,
+        validation_alias="EDID",
+        serialization_alias="EDID",
+        description="The difficulty chosen, -1 before one is; 0 without difficulty scaling",
     )
-    difficulty_scaling: bool = Field(default=False, alias="EASE", description="Whether the event scales its difficulty")
+    difficulty_scaling: bool = Field(
+        default=False,
+        validation_alias="EASE",
+        serialization_alias="EASE",
+        description="Whether the event scales its difficulty",
+    )
     parts: _Parts = Field(default_factory=ReadOnlyDict, description="The event's scores by their entry key; read-only")
 
     @classmethod
@@ -461,7 +483,9 @@ class PointEvent(ScoredEvent):
     Client: ``APointEventTypeScoreEventVO.parseBasicsFromParamObject`` (bundle line 59997)
     """
 
-    point_event_type: int = Field(default=-1, alias="PET", description="Which contest it is")
+    point_event_type: int = Field(
+        default=-1, validation_alias="PET", serialization_alias="PET", description="Which contest it is"
+    )
 
     @classmethod
     def _read(
@@ -479,7 +503,9 @@ class LeagueScoredEvent(ScoredEvent):
     Client: ``ALeagueTypeScoreEventVO.parseBasicsFromParamObject`` (bundle line 10260)
     """
 
-    reward_set_id: int = Field(default=0, alias="RSID", description="The reward set")
+    reward_set_id: int = Field(
+        default=0, validation_alias="RSID", serialization_alias="RSID", description="The reward set"
+    )
 
     @classmethod
     def _read(
@@ -496,7 +522,9 @@ class BeggingKnightsEvent(LeagueScoredEvent):
     Client: ``BeggingKnightsEventVO.parseBasicsFromParamObject`` (bundle line 114780)
     """
 
-    total_hours: int = Field(default=0, alias="TH", description="The contest's length in hours")
+    total_hours: int = Field(
+        default=0, validation_alias="TH", serialization_alias="TH", description="The contest's length in hours"
+    )
 
     @classmethod
     def _read(
@@ -514,7 +542,10 @@ class LongTermPointEvent(LeagueScoredEvent):
     """
 
     upcoming_event_ids: tuple[EnumOrInt["Event"], ...] = Field(
-        default=(), alias="UE", description="The events whose points count towards it"
+        default=(),
+        validation_alias="UE",
+        serialization_alias="UE",
+        description="The events whose points count towards it",
     )
 
     @classmethod
@@ -534,7 +565,10 @@ class GachaEvent(LeagueScoredEvent):
     """
 
     free_chest_reset_time: float = Field(
-        default=0.0, alias="FCRT", description="When the free chest comes back, in time.monotonic() seconds"
+        default=0.0,
+        validation_alias="FCRT",
+        serialization_alias="FCRT",
+        description="When the free chest comes back, in time.monotonic() seconds",
     )
 
     @classmethod
@@ -604,10 +638,18 @@ class AlienInvasionEvent(InvasionEvent):
     ``setRankAndPoints`` (bundle line 58926)
     """
 
-    target_zone_id: int = Field(default=0, alias="TZID", description="The zone the invasion targets")
-    source_zone_id: int = Field(default=0, alias="SZID", description="The zone the invasion comes from")
-    use_reroll: bool = Field(default=False, alias="CRE", description="Whether camps can be rerolled")
-    reroll_currency_keys: tuple[str, ...] = Field(default=(), alias="RCKS", description="The currencies a reroll costs")
+    target_zone_id: int = Field(
+        default=0, validation_alias="TZID", serialization_alias="TZID", description="The zone the invasion targets"
+    )
+    source_zone_id: int = Field(
+        default=0, validation_alias="SZID", serialization_alias="SZID", description="The zone the invasion comes from"
+    )
+    use_reroll: bool = Field(
+        default=False, validation_alias="CRE", serialization_alias="CRE", description="Whether camps can be rerolled"
+    )
+    reroll_currency_keys: tuple[str, ...] = Field(
+        default=(), validation_alias="RCKS", serialization_alias="RCKS", description="The currencies a reroll costs"
+    )
 
     @classmethod
     def _read(
@@ -682,9 +724,13 @@ class BerimondEvent(SpecialEvent):
     defaults at bundle line 7353; ``setRankAndPoints`` (bundle line 7461)
     """
 
-    league_id: int = Field(default=1, alias="LID", description="Your league")
-    unlocked: bool = Field(default=False, alias="UL", description="Whether Berimond is open to you")
-    reward_set_id: int = Field(default=0, alias="RSID", description="The reward set")
+    league_id: int = Field(default=1, validation_alias="LID", serialization_alias="LID", description="Your league")
+    unlocked: bool = Field(
+        default=False, validation_alias="UL", serialization_alias="UL", description="Whether Berimond is open to you"
+    )
+    reward_set_id: int = Field(
+        default=0, validation_alias="RSID", serialization_alias="RSID", description="The reward set"
+    )
     own_rank: int = Field(default=-1, description="Your rank, -1 while unranked; from the pep pushes")
     own_points: int = Field(default=0, description="Your points, from the pep pushes")
     faction_id: int = Field(default=0, description="Your faction")
@@ -737,11 +783,18 @@ class RaidBossEvent(SpecialEvent):
     alliance_points: int = Field(default=0, description="Your alliance's points, from the entry's A and the pep pushes")
     alliance_rank: int = Field(default=0, description="Your alliance's rank, from the pep pushes")
     subdivision_id: int = Field(default=0, description="Your alliance's subdivision, from the entry's A")
-    division_round_id: int = Field(default=0, alias="DRI", description="The division round")
-    raid_boss_ids: tuple[EnumOrInt["RaidBoss"], ...] = Field(
-        default=(), alias="RBIDS", description="The bosses that can be fought"
+    division_round_id: int = Field(
+        default=0, validation_alias="DRI", serialization_alias="DRI", description="The division round"
     )
-    boss_level_points: int = Field(default=0, alias="BLPP", description="The points on the current boss level")
+    raid_boss_ids: tuple[EnumOrInt["RaidBoss"], ...] = Field(
+        default=(), validation_alias="RBIDS", serialization_alias="RBIDS", description="The bosses that can be fought"
+    )
+    boss_level_points: int = Field(
+        default=0,
+        validation_alias="BLPP",
+        serialization_alias="BLPP",
+        description="The points on the current boss level",
+    )
 
     @classmethod
     def _read(
@@ -779,11 +832,23 @@ class TempServerEvent(SpecialEvent):
     _reads_kl = False
 
     daily_reset_time: float = Field(
-        default=0.0, alias="RD", description="When the daily scores reset, in time.monotonic() seconds"
+        default=0.0,
+        validation_alias="RD",
+        serialization_alias="RD",
+        description="When the daily scores reset, in time.monotonic() seconds",
     )
-    setting_id: int | None = Field(default=None, alias="TSID", description="The server's settings")
-    castle_bought: bool = Field(default=False, alias="IPS", description="Whether you have a castle there")
-    is_cross_play: bool = Field(default=False, alias="ICSE", description="Whether the server is a cross-play one")
+    setting_id: int | None = Field(
+        default=None, validation_alias="TSID", serialization_alias="TSID", description="The server's settings"
+    )
+    castle_bought: bool = Field(
+        default=False, validation_alias="IPS", serialization_alias="IPS", description="Whether you have a castle there"
+    )
+    is_cross_play: bool = Field(
+        default=False,
+        validation_alias="ICSE",
+        serialization_alias="ICSE",
+        description="Whether the server is a cross-play one",
+    )
 
     @classmethod
     def _read(
@@ -808,9 +873,11 @@ class DonationEvent(SpecialEvent):
 
     _reads_kl = False
 
-    setting_id: int | None = Field(default=None, alias="DSI", description="The donation settings")
+    setting_id: int | None = Field(
+        default=None, validation_alias="DSI", serialization_alias="DSI", description="The donation settings"
+    )
     leaderboard_reward_set_id: int | None = Field(
-        default=None, alias="LRSI", description="The leaderboard's reward set"
+        default=None, validation_alias="LRSI", serialization_alias="LRSI", description="The leaderboard's reward set"
     )
 
     @classmethod
@@ -834,11 +901,22 @@ class KingdomsLeagueEvent(SpecialEvent):
 
     is_trigger = True
 
-    remaining_days: int = Field(default=0, alias="KLRD", description="Days left")
-    original_days: int = Field(default=0, alias="KLRT", description="The league's length in days")
-    reward_set_id: int = Field(default=0, alias="RSID", description="The reward set")
-    has_alliance_ranking: bool = Field(default=False, alias="KLARE", description="Whether alliances are ranked too")
-    league_type_id: int = Field(default=0, alias="KLLID", description="The league type")
+    remaining_days: int = Field(default=0, validation_alias="KLRD", serialization_alias="KLRD", description="Days left")
+    original_days: int = Field(
+        default=0, validation_alias="KLRT", serialization_alias="KLRT", description="The league's length in days"
+    )
+    reward_set_id: int = Field(
+        default=0, validation_alias="RSID", serialization_alias="RSID", description="The reward set"
+    )
+    has_alliance_ranking: bool = Field(
+        default=False,
+        validation_alias="KLARE",
+        serialization_alias="KLARE",
+        description="Whether alliances are ranked too",
+    )
+    league_type_id: int = Field(
+        default=0, validation_alias="KLLID", serialization_alias="KLLID", description="The league type"
+    )
 
     @classmethod
     def _read(
@@ -875,7 +953,7 @@ class KingdomsLeagueEvent(SpecialEvent):
 class GlobalEffectTimer(BaseModel):
     """One global effect of a global effect event."""
 
-    model_config = ConfigDict(frozen=True, populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True)
 
     effect_id: EnumOrInt["GlobalEffect"] = Field(description="The global effect")
     end_time: float = Field(description="When it ends, in time.monotonic() seconds")
@@ -892,9 +970,11 @@ class GlobalEffectEvent(SpecialEvent):
 
     is_trigger = True
 
-    effects: tuple[GlobalEffectTimer, ...] = Field(default=(), alias="GE", description="The effects")
+    effects: tuple[GlobalEffectTimer, ...] = Field(
+        default=(), validation_alias="GE", serialization_alias="GE", description="The effects"
+    )
     seen_effect_ids: tuple[EnumOrInt["GlobalEffect"], ...] = Field(
-        default=(), alias="SGE", description="The effects you have seen"
+        default=(), validation_alias="SGE", serialization_alias="SGE", description="The effects you have seen"
     )
 
     @classmethod
@@ -936,11 +1016,13 @@ class GlobalEffectEvent(SpecialEvent):
 class GlobalEffectBoost(BaseModel):
     """A global effect a boost event can strengthen."""
 
-    model_config = ConfigDict(frozen=True, populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True)
 
-    effect_id: EnumOrInt["GlobalEffect"] = Field(alias="GEID", description="The global effect")
-    boost_value: float = Field(alias="BV", description="How much the boost adds")
-    cost: int = Field(alias="C2", description="The boost's price in rubies")
+    effect_id: EnumOrInt["GlobalEffect"] = Field(
+        validation_alias="GEID", serialization_alias="GEID", description="The global effect"
+    )
+    boost_value: float = Field(validation_alias="BV", serialization_alias="BV", description="How much the boost adds")
+    cost: int = Field(validation_alias="C2", serialization_alias="C2", description="The boost's price in rubies")
 
 
 class GlobalEffectBuffEvent(SpecialEvent):
@@ -954,7 +1036,9 @@ class GlobalEffectBuffEvent(SpecialEvent):
 
     is_trigger = True
 
-    boosts: tuple[GlobalEffectBoost, ...] = Field(default=(), alias="GEB", description="The effects it boosts")
+    boosts: tuple[GlobalEffectBoost, ...] = Field(
+        default=(), validation_alias="GEB", serialization_alias="GEB", description="The effects it boosts"
+    )
 
     @classmethod
     def _read(
@@ -1024,7 +1108,9 @@ class AllianceMobilizationEvent(ScoredEvent):
     _rebuilt_parts = ("SP", "A")
 
     subdivision_id: int = Field(default=0, description="Your alliance's subdivision, from the entry's A")
-    division_round_id: int = Field(default=0, alias="DRI", description="The division round")
+    division_round_id: int = Field(
+        default=0, validation_alias="DRI", serialization_alias="DRI", description="The division round"
+    )
 
     @classmethod
     def accepts(cls, entry: dict[str, Any]) -> bool:
@@ -1067,13 +1153,36 @@ class LuckyWheelEvent(PointEvent):
 
     _reads_kl = False
 
-    has_visited_pro_mode: bool = Field(default=False, alias="HVPM", description="Whether you opened the pro mode")
-    has_free_spin: bool = Field(default=False, alias="HFS", description="Whether a free spin is waiting")
-    pro_mode: bool = Field(default=False, alias="PMA", description="Whether the pro mode is on")
-    win_class: int = Field(default=0, alias="CWC", description="The wheel's current win class")
-    win_class_progress: float = Field(default=0.0, alias="WCP", description="The progress towards the next win class")
-    jackpot_set_id: int = Field(default=0, alias="JSID", description="The next jackpot set")
-    jackpot_spin_set_id: int = Field(default=0, alias="JHID", description="The jackpot set of the next jackpot spin")
+    has_visited_pro_mode: bool = Field(
+        default=False,
+        validation_alias="HVPM",
+        serialization_alias="HVPM",
+        description="Whether you opened the pro mode",
+    )
+    has_free_spin: bool = Field(
+        default=False, validation_alias="HFS", serialization_alias="HFS", description="Whether a free spin is waiting"
+    )
+    pro_mode: bool = Field(
+        default=False, validation_alias="PMA", serialization_alias="PMA", description="Whether the pro mode is on"
+    )
+    win_class: int = Field(
+        default=0, validation_alias="CWC", serialization_alias="CWC", description="The wheel's current win class"
+    )
+    win_class_progress: float = Field(
+        default=0.0,
+        validation_alias="WCP",
+        serialization_alias="WCP",
+        description="The progress towards the next win class",
+    )
+    jackpot_set_id: int = Field(
+        default=0, validation_alias="JSID", serialization_alias="JSID", description="The next jackpot set"
+    )
+    jackpot_spin_set_id: int = Field(
+        default=0,
+        validation_alias="JHID",
+        serialization_alias="JHID",
+        description="The jackpot set of the next jackpot spin",
+    )
 
     @classmethod
     def _read(
@@ -1103,9 +1212,13 @@ class ArtifactEvent(SpecialEvent):
 
     _reads_kl = False
 
-    artifact_league_id: int = Field(default=0, alias="ALID", description="Your artifact league")
-    parts_found: int = Field(default=0, alias="PF", description="The artifact parts you have found")
-    skin_id: int = Field(default=0, alias="SID", description="The event's skin")
+    artifact_league_id: int = Field(
+        default=0, validation_alias="ALID", serialization_alias="ALID", description="Your artifact league"
+    )
+    parts_found: int = Field(
+        default=0, validation_alias="PF", serialization_alias="PF", description="The artifact parts you have found"
+    )
+    skin_id: int = Field(default=0, validation_alias="SID", serialization_alias="SID", description="The event's skin")
 
     @classmethod
     def _read(
@@ -1130,8 +1243,12 @@ class SeasonEvent(SpecialEvent):
     _reads_kl = False
 
     unlocked: bool = Field(default=False, description="Whether the event is open to you, from UL.UL")
-    reward_id: int | None = Field(default=None, alias="RID", description="The reward the event's end gives")
-    finished: bool = Field(default=False, alias="F", description="Whether you have finished the event")
+    reward_id: int | None = Field(
+        default=None, validation_alias="RID", serialization_alias="RID", description="The reward the event's end gives"
+    )
+    finished: bool = Field(
+        default=False, validation_alias="F", serialization_alias="F", description="Whether you have finished the event"
+    )
     map_id: int | None = Field(default=None, description="The event's treasure map, from UL.MID")
 
     @classmethod
@@ -1154,7 +1271,9 @@ class FameBoosterEvent(SpecialEvent):
 
     _reads_kl = False
 
-    bonus_percent: int = Field(default=0, alias="GBP", description="The extra glory, in percent")
+    bonus_percent: int = Field(
+        default=0, validation_alias="GBP", serialization_alias="GBP", description="The extra glory, in percent"
+    )
 
     @classmethod
     def _read(
@@ -1173,7 +1292,9 @@ class AllianceBonusEvent(SpecialEvent):
 
     _reads_kl = False
 
-    bonus_percent: int = Field(default=0, alias="APP", description="The bonus, in percent")
+    bonus_percent: int = Field(
+        default=0, validation_alias="APP", serialization_alias="APP", description="The bonus, in percent"
+    )
 
     @classmethod
     def _read(
@@ -1193,7 +1314,9 @@ class DiscountSaleEvent(SpecialEvent):
 
     _reads_kl = False
 
-    discount: int = Field(default=0, alias="DIS", description="The discount, in percent")
+    discount: int = Field(
+        default=0, validation_alias="DIS", serialization_alias="DIS", description="The discount, in percent"
+    )
 
     @classmethod
     def _read(
@@ -1209,7 +1332,10 @@ class SkipForFreeEvent(SpecialEvent):
     _reads_kl = False
 
     free_skip_seconds: int = Field(
-        default=0, alias="SEC", description="A wait this long or shorter is skipped for free"
+        default=0,
+        validation_alias="SEC",
+        serialization_alias="SEC",
+        description="A wait this long or shorter is skipped for free",
     )
 
     @classmethod
@@ -1225,8 +1351,18 @@ class GiftEvent(SpecialEvent):
 
     _reads_kl = False
 
-    collected: bool = Field(default=False, alias="AC", description="Whether you have collected the gift")
-    skin_id: int | None = Field(default=None, alias="SID", description="The gift's skin, None before one is sent")
+    collected: bool = Field(
+        default=False,
+        validation_alias="AC",
+        serialization_alias="AC",
+        description="Whether you have collected the gift",
+    )
+    skin_id: int | None = Field(
+        default=None,
+        validation_alias="SID",
+        serialization_alias="SID",
+        description="The gift's skin, None before one is sent",
+    )
 
     @classmethod
     def _read(
@@ -1241,9 +1377,12 @@ class GiftEvent(SpecialEvent):
 class FortuneTellerEvent(SpecialEvent):
     """The fortune teller. Client: ``FortuneTellerEventVO.parseParamObject`` (bundle line 116134)"""
 
-    tries: int = Field(default=0, alias="FTDC", description="Today's readings")
+    tries: int = Field(default=0, validation_alias="FTDC", serialization_alias="FTDC", description="Today's readings")
     daily_reset_time: float | None = Field(
-        default=None, alias="STR", description="When the readings reset, in time.monotonic() seconds; None without STR"
+        default=None,
+        validation_alias="STR",
+        serialization_alias="STR",
+        description="When the readings reset, in time.monotonic() seconds; None without STR",
     )
 
     @classmethod
@@ -1264,7 +1403,7 @@ class TournamentRank(BaseModel):
     (bundle line 138996), which reads nothing from a record without an ``OID``
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     rank: int = Field(description="The place")
     fame_points: int = Field(description="The fame the player has earned, read through int()")
@@ -1287,12 +1426,17 @@ class TournamentEvent(SpecialEvent):
 
     _reads_kl = False
 
-    own_rank: int = Field(default=0, alias="OR", description="Your rank")
-    own_fame_points: int = Field(default=0, alias="OEP", description="The fame you have earned")
-    booby_prize_min_fame: int = Field(default=0, alias="MFB", description="The fame the consolation prize needs")
+    own_rank: int = Field(default=0, validation_alias="OR", serialization_alias="OR", description="Your rank")
+    own_fame_points: int = Field(
+        default=0, validation_alias="OEP", serialization_alias="OEP", description="The fame you have earned"
+    )
+    booby_prize_min_fame: int = Field(
+        default=0, validation_alias="MFB", serialization_alias="MFB", description="The fame the consolation prize needs"
+    )
     ranking: tuple[TournamentRank, ...] = Field(
         default=(),
-        alias="R",
+        validation_alias="R",
+        serialization_alias="R",
         description="The ranking by place; an entry's rows replace the places they name, the others stay",
     )
 
@@ -1330,12 +1474,25 @@ class CampaignEvent(SpecialEvent):
 
     reward_ids: tuple[RewardId, ...] = Field(
         default=(),
-        alias="RIDS",
+        validation_alias="RIDS",
+        serialization_alias="RIDS",
         description="The campaign's rewards; GameData.reward_list gives what they hold",
     )
-    reward_collected: bool = Field(default=False, alias="COL", description="Whether you collected the end reward")
-    end_reward_value: int = Field(default=0, alias="ERV", description="The end reward's value")
-    quests: tuple[Quest, ...] = Field(default=(), alias="CQS", description="The campaign's quests, in campaign order")
+    reward_collected: bool = Field(
+        default=False,
+        validation_alias="COL",
+        serialization_alias="COL",
+        description="Whether you collected the end reward",
+    )
+    end_reward_value: int = Field(
+        default=0, validation_alias="ERV", serialization_alias="ERV", description="The end reward's value"
+    )
+    quests: tuple[Quest, ...] = Field(
+        default=(),
+        validation_alias="CQS",
+        serialization_alias="CQS",
+        description="The campaign's quests, in campaign order",
+    )
 
     @classmethod
     def _read(
@@ -1389,7 +1546,10 @@ class CampaignQuestEvent(SpecialEvent):
     _reads_kl = False
 
     quest_ids: tuple[EnumOrInt["QuestId"], ...] = Field(
-        default=(), alias="CQS", description="The campaign quests it times, each QID read through int()"
+        default=(),
+        validation_alias="CQS",
+        serialization_alias="CQS",
+        description="The campaign quests it times, each QID read through int()",
     )
 
     @classmethod
@@ -1532,7 +1692,9 @@ class GetEventPointsRequest(BaseRequest):
 
     command = "pep"
 
-    event_id: int = Field(alias="EID", description="The event, e.g. Event.POINT_EVENT")
+    event_id: int = Field(
+        validation_alias="EID", serialization_alias="EID", description="The event, e.g. Event.POINT_EVENT"
+    )
 
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a pep reply is about this event: its ``EID``, when sent, is the one asked for.
@@ -1566,25 +1728,37 @@ class GetEventPointsResponse(BaseResponse):
 
     command: ClassVar[str] = GGECommand.PEP
 
-    event_id: ClientInt = Field(alias="EID", description="The event")
+    event_id: ClientInt = Field(validation_alias="EID", serialization_alias="EID", description="The event")
     own_ranks: list[ClientInt] = Field(
-        default_factory=list, alias="OR", description="Your ranks, one per score in the order above; -1 unranked"
+        default_factory=list,
+        validation_alias="OR",
+        serialization_alias="OR",
+        description="Your ranks, one per score in the order above; -1 unranked",
     )
     own_points: list[ClientInt] = Field(
-        default_factory=list, alias="OP", description="Your points, one per score in the order above"
+        default_factory=list,
+        validation_alias="OP",
+        serialization_alias="OP",
+        description="Your points, one per score in the order above",
     )
     max_points: list[ClientInt] | None = Field(
-        default=None, alias="PT", description="The most points each score counts; None when not sent"
+        default=None,
+        validation_alias="PT",
+        serialization_alias="PT",
+        description="The most points each score counts; None when not sent",
     )
     boss_level_points: ClientInt | None = Field(
-        default=None, alias="BLPP", description="The points on the raid boss's current level; None for other events"
+        default=None,
+        validation_alias="BLPP",
+        serialization_alias="BLPP",
+        description="The points on the raid boss's current level; None for other events",
     )
 
 
 class GameEvent(BaseModel):
     """A running event with its in-game title."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     event_id: int = Field(description="The event's id")
     event: Event | None = Field(default=None, description="The event, None for an id the event table lacks")

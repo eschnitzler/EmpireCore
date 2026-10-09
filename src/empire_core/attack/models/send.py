@@ -50,58 +50,97 @@ class CreateAttackRequest(BaseRequest):
 
     command = "cra"
 
-    source_x: int = Field(alias="SX", description="Attacking castle's map x")
-    source_y: int = Field(alias="SY", description="Attacking castle's map y")
-    target_x: int = Field(alias="TX", description="Target map x")
-    target_y: int = Field(alias="TY", description="Target map y")
-    kingdom_id: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The attacking castle's kingdom")
+    source_x: int = Field(validation_alias="SX", serialization_alias="SX", description="Attacking castle's map x")
+    source_y: int = Field(validation_alias="SY", serialization_alias="SY", description="Attacking castle's map y")
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Target map y")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID",
+        serialization_alias="KID",
+        default=Kingdom.GREEN,
+        description="The attacking castle's kingdom",
+    )
     commander_id: int = Field(
-        alias="LID",
+        validation_alias="LID",
+        serialization_alias="LID",
         description=(
             "A Commander.commander_id from client.commanders.get_commanders(); "
             "0 is the free starting commander, -14 the premium one"
         ),
     )
-    wait_time: int = Field(alias="WT", default=0, description="Wait time the attack is sent with")
+    wait_time: int = Field(
+        validation_alias="WT", serialization_alias="WT", default=0, description="Wait time the attack is sent with"
+    )
     horse_booster_id: int = Field(
-        alias="HBW", default=-1, description="The horse booster's wod id, -1 for none or when paid with feathers"
+        validation_alias="HBW",
+        serialization_alias="HBW",
+        default=-1,
+        description="The horse booster's wod id, -1 for none or when paid with feathers",
     )
     use_premium_commander: int = Field(
-        alias="BPC",
+        validation_alias="BPC",
+        serialization_alias="BPC",
         default=0,
         description=(
             "1 when the premium commander (commander_id -14) leads, which uses a premium commander or"
             " costs rubies; 0 for any other commander"
         ),
     )
-    attack_type: AttackType = Field(alias="ATT", default=AttackType.ATTACK, description="The kind of attack")
-    share_battle_view: int = Field(alias="AV", default=0, description="1 to let others watch the battle")
-    loot_priority: LootPriority = Field(alias="LP", default=LootPriority.NO, description="Resource to loot first")
+    attack_type: AttackType = Field(
+        validation_alias="ATT", serialization_alias="ATT", default=AttackType.ATTACK, description="The kind of attack"
+    )
+    share_battle_view: int = Field(
+        validation_alias="AV", serialization_alias="AV", default=0, description="1 to let others watch the battle"
+    )
+    loot_priority: LootPriority = Field(
+        validation_alias="LP", serialization_alias="LP", default=LootPriority.NO, description="Resource to loot first"
+    )
     send_anyway: int = Field(
-        alias="FC",
+        validation_alias="FC",
+        serialization_alias="FC",
         default=0,
         description="1 to send although one of your attacks is already on its way there (after ATTACK_IN_PROGRESS)",
     )
-    feathers: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
-    slowdown: int = Field(alias="SD", default=0, description="Seconds the arrival is delayed by")
-    collector_attack: int = Field(alias="ICA", default=0, description="1 for a collector event attack")
-    countdown: int = Field(alias="CD", default=99, description="Always 99")
-    waves: list[AttackWave] = Field(alias="A", default_factory=list, description="The attack waves, front to back")
+    feathers: int = Field(
+        validation_alias="PTT",
+        serialization_alias="PTT",
+        default=0,
+        description="1 when the horse is paid with feathers",
+    )
+    slowdown: int = Field(
+        validation_alias="SD", serialization_alias="SD", default=0, description="Seconds the arrival is delayed by"
+    )
+    collector_attack: int = Field(
+        validation_alias="ICA", serialization_alias="ICA", default=0, description="1 for a collector event attack"
+    )
+    countdown: int = Field(validation_alias="CD", serialization_alias="CD", default=99, description="Always 99")
+    waves: list[AttackWave] = Field(
+        validation_alias="A",
+        serialization_alias="A",
+        default_factory=list,
+        description="The attack waves, front to back",
+    )
     collector_booster: CurrencyAmounts = Field(
-        alias="BKS",
+        validation_alias="BKS",
+        serialization_alias="BKS",
         default_factory=dict,
         description="Collector event boosters by currency, such as CurrencyId.SAMURAI_MEDAL_BOOSTER",
     )
     support_tools: SupportToolSlots = Field(
-        alias="AST",
+        validation_alias="AST",
+        serialization_alias="AST",
         default=(),
         description="Support tools, one per slot, None for an empty one; the client sends every slot",
     )
     yard_wave: WodAmountSlots = Field(
-        alias="RW", default=(), description="The courtyard wave's unit slots, [-1, 0] for an empty one"
+        validation_alias="RW",
+        serialization_alias="RW",
+        default=(),
+        description="The courtyard wave's unit slots, [-1, 0] for an empty one",
     )
     auto_skip_cooldown: AutoSkipCooldownType = Field(
-        alias="ASCT",
+        validation_alias="ASCT",
+        serialization_alias="ASCT",
         default=AutoSkipCooldownType.OFF,
         description="How the target's cooldown is skipped when the attack lands",
     )
@@ -158,23 +197,34 @@ class CreateAttackResponse(BaseResponse):
     command = "cra"
 
     attack_movement: MovementWrapper | None = Field(
-        alias="AAM", default=None, description="The created movement; None when there is none"
+        validation_alias="AAM",
+        serialization_alias="AAM",
+        default=None,
+        description="The created movement; None when there is none",
     )
     currencies: CurrencyBlock = Field(
-        alias="gcu", default=None, description="Coins and rubies after the send; None when the reply has none"
+        validation_alias="gcu",
+        serialization_alias="gcu",
+        default=None,
+        description="Coins and rubies after the send; None when the reply has none",
     )
     owners: list[MovementOwner] = Field(
-        alias="O",
+        validation_alias="O",
+        serialization_alias="O",
         default_factory=list,
         description="Owner records for the movement's areas",
     )
     arrival_seconds: int | float | None = Field(
-        alias="TS",
+        validation_alias="TS",
+        serialization_alias="TS",
         default=None,
         description="On ATTACK_IN_PROGRESS: seconds until the attack already on its way arrives",
     )
     army_size: int | float | None = Field(
-        alias="AS", default=None, description="On ATTACK_IN_PROGRESS: the size of the attack already on its way"
+        validation_alias="AS",
+        serialization_alias="AS",
+        default=None,
+        description="On ATTACK_IN_PROGRESS: the size of the attack already on its way",
     )
 
     _raw_attack_movement: dict[str, Any] = PrivateAttr(default_factory=dict)

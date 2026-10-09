@@ -1,6 +1,6 @@
 """The state's models: the local player, castles and resources."""
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
@@ -83,18 +83,32 @@ class Alliance(BaseModel):
     Client: ``CastleUserData.parse_GAL``.
     """
 
-    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore", populate_by_name=True)
 
-    id: int = Field(default=-1, alias="AID", description="Alliance id; 0 or less means no alliance")
+    id: int = Field(
+        default=-1,
+        validation_alias="AID",
+        serialization_alias="AID",
+        description="Alliance id; 0 or less means no alliance",
+    )
     # The client reads AN; live servers send N
     name: str = Field(
         default="",
         validation_alias=AliasChoices("AN", "N", "name"),
         description="Alliance name",
     )
-    rank: int = Field(default=0, alias="R", description="The player's rank in the alliance")
-    current_fame: int = Field(default=0, alias="ACF", description="The alliance's current fame")
-    is_searching: bool = Field(default=False, alias="SA", description="The player is looking for an alliance")
+    rank: int = Field(
+        default=0, validation_alias="R", serialization_alias="R", description="The player's rank in the alliance"
+    )
+    current_fame: int = Field(
+        default=0, validation_alias="ACF", serialization_alias="ACF", description="The alliance's current fame"
+    )
+    is_searching: bool = Field(
+        default=False,
+        validation_alias="SA",
+        serialization_alias="SA",
+        description="The player is looking for an alliance",
+    )
 
     @field_validator("is_searching", mode="before")
     @classmethod
@@ -123,18 +137,26 @@ class Castle(BaseModel):
     which is the parsed *protocol* model for another player's castle.
     """
 
-    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore", populate_by_name=True)
 
-    id: int = Field(default=-1, alias="OID", description="Castle (area) id")
-    name: str = Field(default="Unknown", alias="N", description="Castle name")
-    kingdom_id: Kingdom = Field(default=Kingdom.GREEN, alias="KID", description="The kingdom the castle is in")
-    x: int = Field(default=0, alias="X", description="Map x")
-    y: int = Field(default=0, alias="Y", description="Map y")
+    id: int = Field(default=-1, validation_alias="OID", serialization_alias="OID", description="Castle (area) id")
+    name: str = Field(default="Unknown", validation_alias="N", serialization_alias="N", description="Castle name")
+    kingdom_id: Kingdom = Field(
+        default=Kingdom.GREEN,
+        validation_alias="KID",
+        serialization_alias="KID",
+        description="The kingdom the castle is in",
+    )
+    x: int = Field(default=0, validation_alias="X", serialization_alias="X", description="Map x")
+    y: int = Field(default=0, validation_alias="Y", serialization_alias="Y", description="Map y")
 
     resources: Resources = Field(default_factory=Resources, description="The castle's resources")
     units: WodAmounts = Field(default_factory=dict, description="Units and tools stationed here")
     open_gate_counter: int = Field(
-        default=0, alias="OGC", description="How often the gate has been opened since the last Monday reset"
+        default=0,
+        validation_alias="OGC",
+        serialization_alias="OGC",
+        description="How often the gate has been opened since the last Monday reset",
     )
     details: DetailedCastleInfo | None = Field(
         default=None, description="The castle's latest details; None until they arrive"
@@ -203,27 +225,35 @@ class Player(BaseModel):
     ``parseSCE`` and ``CastleVIPData.parse_VIP``.
     """
 
-    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore", populate_by_name=True)
 
     PID: int = Field(default=-1)
     PN: str = Field(default="Unknown")
     AID: int | None = Field(default=None)
 
-    level: int = Field(default=0, alias="LVL", description="Level; 70 is the cap before legend levels")
-    xp: int = Field(default=0, alias="XP", description="Total XP")
+    level: int = Field(
+        default=0,
+        validation_alias="LVL",
+        serialization_alias="LVL",
+        description="Level; 70 is the cap before legend levels",
+    )
+    xp: int = Field(default=0, validation_alias="XP", serialization_alias="XP", description="Total XP")
     legendary_level: int = Field(
         default=0,
-        alias="LL",
+        validation_alias="LL",
+        serialization_alias="LL",
         description="Legend level, computed from XP once level reaches 70, else 0",
     )
     xp_for_current_level: int = Field(
         default=0,
-        alias="XPFCL",
+        validation_alias="XPFCL",
+        serialization_alias="XPFCL",
         description="Total XP at which the current level (or legend level) starts, computed from level and XP",
     )
     xp_to_next_level: int = Field(
         default=0,
-        alias="XPTNL",
+        validation_alias="XPTNL",
+        serialization_alias="XPTNL",
         description="Total XP at which the next level (or legend level) starts, computed from level and XP",
     )
 
@@ -239,18 +269,28 @@ class Player(BaseModel):
         ),
     )
 
-    vip_points: int = Field(default=0, alias="VP", description="VIP points")
-    vip_level: int = Field(default=0, alias="VRL", description="The highest VIP level reached")
-    vip_time_left: int = Field(default=0, alias="VRS", description="Seconds of VIP time left when last read")
+    vip_points: int = Field(default=0, validation_alias="VP", serialization_alias="VP", description="VIP points")
+    vip_level: int = Field(
+        default=0, validation_alias="VRL", serialization_alias="VRL", description="The highest VIP level reached"
+    )
+    vip_time_left: int = Field(
+        default=0,
+        validation_alias="VRS",
+        serialization_alias="VRS",
+        description="Seconds of VIP time left when last read",
+    )
     used_premium_commanders: int = Field(
-        default=0, alias="UPG", description="Premium commanders used today from the VIP level's free ones"
+        default=0,
+        validation_alias="UPG",
+        serialization_alias="UPG",
+        description="Premium commanders used today from the VIP level's free ones",
     )
 
     # Alliance
     alliance: Alliance | None = None
 
-    honor: int = Field(default=0, alias="H", description="Honor")
-    ranking: int = Field(default=0, alias="RP", description="Ranking points")
+    honor: int = Field(default=0, validation_alias="H", serialization_alias="H", description="Honor")
+    ranking: int = Field(default=0, validation_alias="RP", serialization_alias="RP", description="Ranking points")
     beginner_protection: dict[Kingdom, bool] = Field(
         default_factory=dict,
         description="Whether the player is under beginner protection, by kingdom",
@@ -328,7 +368,7 @@ class JoinedArea(BaseModel):
     (bundle line 130992)
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     kingdom_id: Kingdom | None = Field(description="The area's kingdom; None for one Kingdom lacks")
     castle_id: int | None = Field(

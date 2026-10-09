@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable, Mapping, Sequence
+from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -31,7 +32,7 @@ from .capacity import (
     max_wave_count,
 )
 from .effects import AttackerFlankEffects, DefenderFlankEffects
-from .tools import TargetContext, check_flank, default_tool_strategies, fill_flank_with_tools
+from .tools import TargetContext, ToolStrategy, check_flank, default_tool_strategies, fill_flank_with_tools
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class FillOptions(BaseModel):
     rubies out of the wave, for instance.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     fill_left: bool = True
     fill_middle: bool = True
@@ -251,7 +252,7 @@ def fill_wave(
     defense: Mapping[Flank, DefenderFlankEffects] | None = None,
     options: FillOptions | None = None,
     unit_attack_bonuses: Mapping[int, float] | None = None,
-    strategies: Sequence | None = None,
+    strategies: Sequence[ToolStrategy] | None = None,
     area_type: int | None = None,
     space_id: int | None = None,
     target_is_player: bool = True,
@@ -316,7 +317,7 @@ def fill_wave(
         defender = (defense or {}).get(flank)
         # A fresh pool per flank: a strategy that retires on one flank is
         # available again on the next.
-        pool = default_tool_strategies() if strategies is None else list(strategies)
+        pool: list[ToolStrategy] = list(default_tool_strategies()) if strategies is None else list(strategies)
         tools_placed = fill_flank_with_tools(
             capacity.tool_capacity(flank),
             capacity.tool_slots(flank),
@@ -549,7 +550,7 @@ class FilledAttack(BaseModel):
     ``waves`` goes in the ``A`` field of a ``cra`` and ``yard`` in ``RW``.
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(arbitrary_types_allowed=True)
 
     waves: list[AttackWave] = Field(default_factory=list)
     yard: WodAmountSlots = Field(default=(), description="The courtyard wave's unit slots, for send_attack's yard_wave")

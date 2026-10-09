@@ -10,7 +10,7 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import ConfigDict, Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
@@ -61,25 +61,48 @@ class SendSpyRequest(BaseRequest):
     command = "csm"
 
     castle_id: int = Field(
-        alias="SID",
+        validation_alias="SID",
+        serialization_alias="SID",
         description=(
             "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
             "client.state.get_castles()"
         ),
     )
-    target_x: int = Field(alias="TX", description="Target map x")
-    target_y: int = Field(alias="TY", description="Target map y")
-    spy_count: int = Field(alias="SC", default=1, description="How many spies to send")
-    spy_type: SpyType = Field(alias="ST", default=SpyType.MILITARY, description="What the spies are sent to do")
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Target map y")
+    spy_count: int = Field(
+        validation_alias="SC", serialization_alias="SC", default=1, description="How many spies to send"
+    )
+    spy_type: SpyType = Field(
+        validation_alias="ST",
+        serialization_alias="ST",
+        default=SpyType.MILITARY,
+        description="What the spies are sent to do",
+    )
     accuracy_or_damage: int = Field(
-        alias="SE", default=100, description="Damage percent for a sabotage mission, accuracy percent for any other"
+        validation_alias="SE",
+        serialization_alias="SE",
+        default=100,
+        description="Damage percent for a sabotage mission, accuracy percent for any other",
     )
     horse_booster_id: int = Field(
-        alias="HBW", default=-1, description="The horse booster's wod id, -1 for none or when paid with feathers"
+        validation_alias="HBW",
+        serialization_alias="HBW",
+        default=-1,
+        description="The horse booster's wod id, -1 for none or when paid with feathers",
     )
-    target_kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The target's kingdom")
-    feathers: int = Field(alias="PTT", default=0, description="1 when the horse is paid with feathers")
-    slowdown: int = Field(alias="SD", default=0, description="Seconds the arrival is delayed by")
+    target_kingdom: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="The target's kingdom"
+    )
+    feathers: int = Field(
+        validation_alias="PTT",
+        serialization_alias="PTT",
+        default=0,
+        description="1 when the horse is paid with feathers",
+    )
+    slowdown: int = Field(
+        validation_alias="SD", serialization_alias="SD", default=0, description="Seconds the arrival is delayed by"
+    )
 
     @model_validator(mode="after")
     def _feathers_send_no_horse(self) -> SendSpyRequest:
@@ -122,13 +145,22 @@ class SendSpyResponse(BaseResponse):
     command = "csm"
 
     spy_movement: MovementWrapper | None = Field(
-        alias="A", default=None, description="The spy movement; None when there is none"
+        validation_alias="A",
+        serialization_alias="A",
+        default=None,
+        description="The spy movement; None when there is none",
     )
     owners: list[MovementOwner] = Field(
-        alias="O", default_factory=list, description="Owner records for the movement's areas"
+        validation_alias="O",
+        serialization_alias="O",
+        default_factory=list,
+        description="Owner records for the movement's areas",
     )
     currencies: CurrencyBlock = Field(
-        alias="gcu", default=None, description="Coins and rubies after the send; None when the reply has none"
+        validation_alias="gcu",
+        serialization_alias="gcu",
+        default=None,
+        description="Coins and rubies after the send; None when the reply has none",
     )
 
     @field_validator("spy_movement", mode="wrap")
@@ -191,9 +223,11 @@ class SpyScreenInfoRequest(BaseRequest):
 
     command = "ssi"
 
-    target_x: int = Field(alias="TX", description="Target map x")
-    target_y: int = Field(alias="TY", description="Target map y")
-    target_kingdom: Kingdom = Field(alias="KID", default=Kingdom.GREEN, description="The target's kingdom")
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Target map y")
+    target_kingdom: Kingdom = Field(
+        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="The target's kingdom"
+    )
 
     def accepts_reply(self, payload: Any) -> bool:
         """Whether an ssi reply is about this target: its ``TX``/``TY``, when both are set, are the ones asked for.
@@ -220,10 +254,18 @@ class SpyTargetArea(BasePayload):
     with ``parseAreaInfos``, as a map area reply
     """
 
-    kingdom_id: int | None = Field(alias="KID", default=None, description="The target's kingdom")
-    protection: KingdomProtection | None = Field(alias="uap", default=None, description="Your own protection")
-    owners: list[MapObject] = Field(alias="OI", default_factory=list, description="Owner records of the rows")
-    rows: list[MapAreaItem] = Field(alias="AI", default_factory=list, description="The target's map rows")
+    kingdom_id: int | None = Field(
+        validation_alias="KID", serialization_alias="KID", default=None, description="The target's kingdom"
+    )
+    protection: KingdomProtection | None = Field(
+        validation_alias="uap", serialization_alias="uap", default=None, description="Your own protection"
+    )
+    owners: list[MapObject] = Field(
+        validation_alias="OI", serialization_alias="OI", default_factory=list, description="Owner records of the rows"
+    )
+    rows: list[MapAreaItem] = Field(
+        validation_alias="AI", serialization_alias="AI", default_factory=list, description="The target's map rows"
+    )
 
     @field_validator("protection", mode="before")
     @classmethod
@@ -270,14 +312,35 @@ class SpyScreenInfoResponse(BaseResponse):
 
     command = "ssi"
 
-    available_spies: ClientInt = Field(alias="AS", default=0, description="Spies free to send")
-    guard_count: ClientInt = Field(alias="GC", default=0, description="Guards at the target")
-    available_plague_monks: ClientInt = Field(alias="APM", default=0, description="Plague monks free to send")
-    total_plague_monks: ClientInt = Field(alias="TPM", default=0, description="Plague monks owned")
-    target_x: int | None = Field(alias="TX", default=None, description="The target's map x; None when not sent")
-    target_y: int | None = Field(alias="TY", default=None, description="The target's map y; None when not sent")
+    available_spies: ClientInt = Field(
+        validation_alias="AS", serialization_alias="AS", default=0, description="Spies free to send"
+    )
+    guard_count: ClientInt = Field(
+        validation_alias="GC", serialization_alias="GC", default=0, description="Guards at the target"
+    )
+    available_plague_monks: ClientInt = Field(
+        validation_alias="APM", serialization_alias="APM", default=0, description="Plague monks free to send"
+    )
+    total_plague_monks: ClientInt = Field(
+        validation_alias="TPM", serialization_alias="TPM", default=0, description="Plague monks owned"
+    )
+    target_x: int | None = Field(
+        validation_alias="TX",
+        serialization_alias="TX",
+        default=None,
+        description="The target's map x; None when not sent",
+    )
+    target_y: int | None = Field(
+        validation_alias="TY",
+        serialization_alias="TY",
+        default=None,
+        description="The target's map y; None when not sent",
+    )
     target_area: SpyTargetArea = Field(
-        alias="gaa", default_factory=SpyTargetArea, description="The target's map rows and owner records"
+        validation_alias="gaa",
+        serialization_alias="gaa",
+        default_factory=SpyTargetArea,
+        description="The target's map rows and owner records",
     )
 
     @model_validator(mode="before")
@@ -346,8 +409,8 @@ class AutoSpyRequest(BaseRequest):
 
     command = "ssu"
 
-    target_x: int = Field(alias="TX", description="Target map x")
-    target_y: int = Field(alias="TY", description="Target map y")
+    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Target map y")
 
 
 class AutoSpyResponse(SpyReportResponse):
@@ -384,8 +447,12 @@ class MaxSpiesResponse(BaseResponse):
 
     command = "gms"
 
-    max_spies: ClientInt = Field(alias="MS", default=0, description="Spies owned, before boosts")
-    bonus_spies: ClientInt = Field(alias="BS", default=0, description="Bonus spies, not part of the spy count")
+    max_spies: ClientInt = Field(
+        validation_alias="MS", serialization_alias="MS", default=0, description="Spies owned, before boosts"
+    )
+    bonus_spies: ClientInt = Field(
+        validation_alias="BS", serialization_alias="BS", default=0, description="Bonus spies, not part of the spy count"
+    )
 
 
 class PlagueMonkInfoResponse(BaseResponse):
@@ -398,12 +465,16 @@ class PlagueMonkInfoResponse(BaseResponse):
     which skips a falsy section
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     command = "cpi"
 
-    available_plague_monks: ClientInt = Field(alias="APM", default=0, description="Plague monks at home")
-    total_plague_monks: ClientInt = Field(alias="TPM", default=0, description="All your plague monks")
+    available_plague_monks: ClientInt = Field(
+        validation_alias="APM", serialization_alias="APM", default=0, description="Plague monks at home"
+    )
+    total_plague_monks: ClientInt = Field(
+        validation_alias="TPM", serialization_alias="TPM", default=0, description="All your plague monks"
+    )
 
 
 __all__ = [

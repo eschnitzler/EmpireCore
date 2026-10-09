@@ -39,10 +39,18 @@ class RecruitHelpParams(BasePayload):
     Client: ``AllianceHelpRequestRecruitParamsVO.parseParams`` (bundle line 51138)
     """
 
-    recruit_id: ClientInt = Field(alias="RID", default=0, description="The recruitment's id")
-    area_id: ClientInt = Field(alias="AID", default=0, description="The castle recruiting")
-    space_id: ClientInt = Field(alias="SID", default=0, description="The recruiting building's space")
-    recruitment_list_id: ClientInt = Field(alias="RLID", default=0, description="The recruitment list")
+    recruit_id: ClientInt = Field(
+        validation_alias="RID", serialization_alias="RID", default=0, description="The recruitment's id"
+    )
+    area_id: ClientInt = Field(
+        validation_alias="AID", serialization_alias="AID", default=0, description="The castle recruiting"
+    )
+    space_id: ClientInt = Field(
+        validation_alias="SID", serialization_alias="SID", default=0, description="The recruiting building's space"
+    )
+    recruitment_list_id: ClientInt = Field(
+        validation_alias="RLID", serialization_alias="RLID", default=0, description="The recruitment list"
+    )
 
 
 class HealHelpParams(BasePayload):
@@ -52,10 +60,18 @@ class HealHelpParams(BasePayload):
     Client: ``AllianceHelpRequestHealParamsVO.parseParams`` (bundle line 50800)
     """
 
-    hospital_entry_id: ClientInt = Field(alias="RID", default=0, description="The hospital entry")
-    hospital_list_id: ClientInt = Field(alias="T", default=0, description="The hospital list the entry is on")
-    area_id: ClientInt = Field(alias="AID", default=0, description="The castle with the hospital")
-    space_id: ClientInt = Field(alias="SID", default=0, description="The hospital's space")
+    hospital_entry_id: ClientInt = Field(
+        validation_alias="RID", serialization_alias="RID", default=0, description="The hospital entry"
+    )
+    hospital_list_id: ClientInt = Field(
+        validation_alias="T", serialization_alias="T", default=0, description="The hospital list the entry is on"
+    )
+    area_id: ClientInt = Field(
+        validation_alias="AID", serialization_alias="AID", default=0, description="The castle with the hospital"
+    )
+    space_id: ClientInt = Field(
+        validation_alias="SID", serialization_alias="SID", default=0, description="The hospital's space"
+    )
 
 
 class BuildingHelpParams(BasePayload):
@@ -66,9 +82,13 @@ class BuildingHelpParams(BasePayload):
     ``AllianceHelpRequestConstructionParamsVO.parseParams`` (bundle line 31702)
     """
 
-    kingdom_id: ClientInt = Field(alias="KID", default=0, description="The castle's kingdom")
-    area_id: ClientInt = Field(alias="AID", default=0, description="The castle")
-    object_id: ClientInt = Field(alias="OID", default=0, description="The building's object id")
+    kingdom_id: ClientInt = Field(
+        validation_alias="KID", serialization_alias="KID", default=0, description="The castle's kingdom"
+    )
+    area_id: ClientInt = Field(validation_alias="AID", serialization_alias="AID", default=0, description="The castle")
+    object_id: ClientInt = Field(
+        validation_alias="OID", serialization_alias="OID", default=0, description="The building's object id"
+    )
 
 
 HelpParams = RecruitHelpParams | HealHelpParams | BuildingHelpParams
@@ -98,15 +118,37 @@ class AllianceHelpRequest(BasePayload):
     Client: ``AllianceHelpRequestData.parseHelpRequestEntry`` (bundle line 133416)
     """
 
-    already_confirmed: bool = Field(alias="AC", default=False, description="You already helped this request")
-    list_id: ClientInt = Field(alias="LID", default=0, description="The request's id on the help list")
-    player_name: str | None = Field(alias="PN", default=None, description="The asking player's name")
-    progress: ClientInt = Field(alias="P", default=0, description="Helps received so far")
-    player_id: ClientInt = Field(alias="PID", default=0, description="The asking player's id")
-    help_type: ClientInt = Field(alias="TID", default=0, description="What help is asked for, a HelpType value")
-    params: HelpParams = Field(alias="OP", description="What the request is for; its shape follows help_type")
+    already_confirmed: bool = Field(
+        validation_alias="AC", serialization_alias="AC", default=False, description="You already helped this request"
+    )
+    list_id: ClientInt = Field(
+        validation_alias="LID", serialization_alias="LID", default=0, description="The request's id on the help list"
+    )
+    player_name: str | None = Field(
+        validation_alias="PN", serialization_alias="PN", default=None, description="The asking player's name"
+    )
+    progress: ClientInt = Field(
+        validation_alias="P", serialization_alias="P", default=0, description="Helps received so far"
+    )
+    player_id: ClientInt = Field(
+        validation_alias="PID", serialization_alias="PID", default=0, description="The asking player's id"
+    )
+    help_type: ClientInt = Field(
+        validation_alias="TID",
+        serialization_alias="TID",
+        default=0,
+        description="What help is asked for, a HelpType value",
+    )
+    params: HelpParams = Field(
+        validation_alias="OP",
+        serialization_alias="OP",
+        description="What the request is for; its shape follows help_type",
+    )
     remaining_seconds: int | float = Field(
-        alias="RT", default=-1, description="Seconds until the request expires; -1 when it does not"
+        validation_alias="RT",
+        serialization_alias="RT",
+        default=-1,
+        description="Seconds until the request expires; -1 when it does not",
     )
 
     @model_validator(mode="before")
@@ -170,9 +212,14 @@ class AllianceHelpListResponse(BaseResponse):
 
     command = "ahl"
 
-    requests: list[AllianceHelpRequest] = Field(alias="AHL", default_factory=list, description="The help requests")
+    requests: list[AllianceHelpRequest] = Field(
+        validation_alias="AHL", serialization_alias="AHL", default_factory=list, description="The help requests"
+    )
     seconds_since_repair_help: ClientInt = Field(
-        alias="TSL", default=-1, description="Seconds since you last asked for repair help; -1 when never"
+        validation_alias="TSL",
+        serialization_alias="TSL",
+        default=-1,
+        description="Seconds since you last asked for repair help; -1 when never",
     )
 
     @field_validator("requests", mode="before")
@@ -209,7 +256,10 @@ class AllianceHelpRequestChanged(BaseResponse):
 
     request: AllianceHelpRequest | None = Field(default=None, description="The request; None when unreadable")
     seconds_since_repair_help: ClientInt | None = Field(
-        alias="TSL", default=None, description="Seconds since you last asked for repair help; -1 when never"
+        validation_alias="TSL",
+        serialization_alias="TSL",
+        default=None,
+        description="Seconds since you last asked for repair help; -1 when never",
     )
 
     @model_validator(mode="before")
@@ -232,7 +282,9 @@ class AllianceHelpRequestRemoved(BaseResponse):
 
     command = "ahd"
 
-    list_id: ClientInt = Field(alias="LID", default=0, description="The removed request's id")
+    list_id: ClientInt = Field(
+        validation_alias="LID", serialization_alias="LID", default=0, description="The removed request's id"
+    )
 
 
 class AllianceHelpReceived(BaseResponse):
@@ -248,9 +300,18 @@ class AllianceHelpReceived(BaseResponse):
 
     command = "ahf"
 
-    helper_name: str | None = Field(alias="PN", default=None, description="The helping player's name")
-    list_id: ClientInt = Field(alias="LID", default=0, description="Your request's id")
-    building_wod_id: ClientInt = Field(alias="WID", default=0, description="The helped building's wod id; 0 for none")
+    helper_name: str | None = Field(
+        validation_alias="PN", serialization_alias="PN", default=None, description="The helping player's name"
+    )
+    list_id: ClientInt = Field(
+        validation_alias="LID", serialization_alias="LID", default=0, description="Your request's id"
+    )
+    building_wod_id: ClientInt = Field(
+        validation_alias="WID",
+        serialization_alias="WID",
+        default=0,
+        description="The helped building's wod id; 0 for none",
+    )
 
 
 # =============================================================================
@@ -273,8 +334,12 @@ class HelpMemberRequest(BaseRequest):
 
     command = "ahc"
 
-    list_id: int = Field(alias="LID", description="The request's AllianceHelpRequest.list_id")
-    kingdom_id: int = Field(alias="KID", default=1, description="Always 1, as the client sends it")
+    list_id: int = Field(
+        validation_alias="LID", serialization_alias="LID", description="The request's AllianceHelpRequest.list_id"
+    )
+    kingdom_id: int = Field(
+        validation_alias="KID", serialization_alias="KID", default=1, description="Always 1, as the client sends it"
+    )
 
     @classmethod
     def for_request(cls, request: AllianceHelpRequest) -> HelpMemberRequest:
@@ -301,7 +366,9 @@ class HelpAllRequest(BaseRequest):
 
     command = "aha"
 
-    kingdom_id: int = Field(alias="KID", default=15, description="Always 15, as the client sends it")
+    kingdom_id: int = Field(
+        validation_alias="KID", serialization_alias="KID", default=15, description="Always 15, as the client sends it"
+    )
 
 
 # =============================================================================
@@ -326,8 +393,14 @@ class AskHelpRequest(BaseRequest):
 
     command = "ahr"
 
-    target_id: int = Field(alias="ID", description="The building, recruitment or hospital entry to help")
-    type_id: int = Field(alias="T", description="The HelpType, or for heal help the hospital list id")
+    target_id: int = Field(
+        validation_alias="ID",
+        serialization_alias="ID",
+        description="The building, recruitment or hospital entry to help",
+    )
+    type_id: int = Field(
+        validation_alias="T", serialization_alias="T", description="The HelpType, or for heal help the hospital list id"
+    )
 
     @classmethod
     def build(cls, building_id: int) -> AskHelpRequest:
