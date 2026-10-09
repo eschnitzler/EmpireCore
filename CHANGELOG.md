@@ -2,6 +2,45 @@
 
 <!-- version list -->
 
+## v0.51.0 (2026-10-09)
+
+### Bug Fixes
+
+- **castle**: Check the minute skip before skip_construction_time sends it
+  ([`b54f9c3`](https://github.com/eschnitzler/EmpireCore/commit/b54f9c317fecf8f36f512f0718e94f8cd9ee1533))
+
+### Features
+
+- **alliance**: Type a chronicle entry's values by action and write its line
+  ([`5489ed0`](https://github.com/eschnitzler/EmpireCore/commit/5489ed0b750e5979a3f5dbdb772dbed782c1e786))
+
+- **castle**: Ask for the travel pre-calculation before sending troops
+  ([`b22c550`](https://github.com/eschnitzler/EmpireCore/commit/b22c550665e8c959128fc82450bb0bd4bd12fbc4))
+
+- **castle**: Transfer goods to another kingdom, and minute-skip a transfer
+  ([`3a19228`](https://github.com/eschnitzler/EmpireCore/commit/3a19228618f04bbd6a460839536ed66f85c56046))
+
+- **player**: List, start and collect mercenary camp missions
+  ([`adfbcd7`](https://github.com/eschnitzler/EmpireCore/commit/adfbcd70c6198fb55b23388ffc90bd462d3ceea2))
+
+- **player**: Start research and skip it with a minute skip
+  ([`cfeed56`](https://github.com/eschnitzler/EmpireCore/commit/cfeed56ded05309936bfdb84730a72c6f8f4ad62))
+
+- **state**: Apply every grc block to its castle's resources
+  ([`f41f51b`](https://github.com/eschnitzler/EmpireCore/commit/f41f51bc51284e9f81ac19055b755ab52ba064fb))
+
+### Testing
+
+- Drop an account name from two login bonus fixtures
+  ([`bea44a6`](https://github.com/eschnitzler/EmpireCore/commit/bea44a61ebfe0c4d3a64ee8ebd638e486158d127))
+
+### Breaking Changes
+
+- **castle**: Client.castle.skip_construction_time raises ValueError for a currency that is no
+  minute skip, or a minute skip you hold none of, where it sent msb before; pass a Currency.SKIP_*
+  you hold.
+
+
 ## v0.50.0 (2026-10-08)
 
 ### Bug Fixes
