@@ -1,7 +1,7 @@
 """Tests for account loading, login configuration, and the account pool."""
 
 import builtins
-import importlib
+import inspect
 import json
 import logging
 import os
@@ -13,13 +13,12 @@ from typing import IO, Any
 import pytest
 from pydantic import ValidationError
 
-from empire_core.accounts import Account, AccountRegistry
+import empire_core.accounts
+import empire_core.accounts as accounts_module
+from empire_core.accounts import Account, AccountRegistry, account_registry
 from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, default_config, generate_aid, resolve_aid
 from empire_core.exceptions import LoginCooldownError, LoginError
 from empire_core.pool import AccountPool, PoolExhaustedError
-
-# empire_core.accounts as an attribute is the root's registry object, so reach the module itself
-accounts_module = importlib.import_module("empire_core.accounts")
 
 
 @pytest.fixture
@@ -27,6 +26,13 @@ def isolated_environ(monkeypatch):
     """Give the test a private os.environ so dotenv writes cannot leak."""
     monkeypatch.setattr(os, "environ", dict(os.environ))
     return os.environ
+
+
+def test_empire_core_accounts_names_the_module_and_the_registry_has_its_own_name():
+    assert inspect.ismodule(empire_core.accounts)
+    assert empire_core.accounts is accounts_module
+    assert empire_core.account_registry is account_registry
+    assert isinstance(account_registry, AccountRegistry)
 
 
 class TestAccountRegistryEnv:

@@ -15,7 +15,7 @@ release::
 
 from importlib.metadata import PackageNotFoundError, version
 
-from empire_core.accounts import Account, accounts
+from empire_core.accounts import Account, account_registry
 from empire_core.alliance.models.info import AllianceInfo, AllianceMember
 from empire_core.army.models.units import AttackWave, WaveFlank
 from empire_core.castle.models.castles import CastleInfo
@@ -99,7 +99,7 @@ __all__ = [
     "parse_network_instances",
     "AccountPool",
     "Account",
-    "accounts",
+    "account_registry",
     # Exceptions
     "EmpireError",
     "NetworkError",
