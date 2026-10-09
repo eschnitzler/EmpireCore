@@ -293,7 +293,7 @@ class AccountRegistry:
         return None
 
 
-# Global Singleton
-accounts = AccountRegistry()
+account_registry = AccountRegistry()
+"""The shared registry, loaded from the environment and ``accounts.json`` on first use."""
 
-__all__ = ["Account", "AccountRegistry", "accounts"]
+__all__ = ["Account", "AccountRegistry", "account_registry"]
