@@ -235,8 +235,9 @@ from empire_core.gamedata import Currency, Research
 client.player.start_research(Research.MANEUVER_L1)
 client.player.skip_research(Currency.SKIP_10_MINUTES)
 
-research = client.state.get_research()
-print(research.current_research_id, research.remaining_research_seconds())
+research = client.state.get_research()  # None until the login data arrives
+if research is not None:
+    print(research.current_research_id, research.remaining_research_seconds())
 ```
 
 Both return False when the server refuses. `start_research` needs the game

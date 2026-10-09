@@ -133,7 +133,8 @@ points = client.events.get_own_points(Event.SAMURAI_INVASION)
 print(points.own_ranks, points.own_points)   # [yours, your alliance's]
 
 event = client.state.get_event(Event.SAMURAI_INVASION)  # updated by the same reply
-print(event.parts["SP"].own_points, event.parts["A"].own_points)
+if event is not None:
+    print(event.parts["SP"].own_points, event.parts["A"].own_points)
 ```
 
 The reply's `own_ranks`, `own_points` and `max_points` are lists with one value

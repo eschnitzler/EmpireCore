@@ -140,7 +140,8 @@ pushes it again when it changes:
 
 ```python
 owned = client.state.get_max_spies()  # None until the login data arrives
-print(owned.max_spies)
+if owned is not None:
+    print(owned.max_spies)
 ```
 
 `client.spy.total_spies()` counts all your spies as the game does, and

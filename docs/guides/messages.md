@@ -80,8 +80,9 @@ A log the server no longer has raises `MessageUnavailableError` (error 66 or
 Forward one to other players, e.g. your alliance's other members, as the game client offers:
 
 ```python
-me = client.state.local_player.id
-members = [m.player_id for m in client.alliance.get_local_members() if m.player_id != me]
+me = client.state.local_player   # None before the login data arrives
+my_id = me.id if me else None
+members = [m.player_id for m in client.alliance.get_local_members() if m.player_id != my_id]
 client.messages.forward_battle_report(message_id, members)
 ```
 

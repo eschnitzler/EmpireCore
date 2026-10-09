@@ -59,12 +59,11 @@ def main() -> int:
 
         print(f"\n{len(filled.waves)} wave(s), {filled.unit_count()} units, led by {leader.commander_id}:")
         for index, wave in enumerate(filled.waves):
-            payload = wave.model_dump(by_alias=True)
-            for flank in ("L", "M", "R"):
-                units = [pair for pair in payload[flank]["U"] if pair[0] != -1]
-                tools = [pair for pair in payload[flank]["T"] if pair[0] != -1]
+            for name, flank in (("left", wave.left), ("middle", wave.middle), ("right", wave.right)):
+                units = [(unit, amount) for unit, amount in flank.units if unit is not None]
+                tools = [(tool, amount) for tool, amount in flank.tools if tool is not None]
                 if units or tools:
-                    print(f"  wave {index} {flank}: units {units} tools {tools}")
+                    print(f"  wave {index} {name}: units {units} tools {tools}")
         placed = [(unit, amount) for unit, amount in filled.yard if unit is not None]
         print(f"  courtyard: {placed or 'empty'}")
 
