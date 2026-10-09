@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.51.1 (2026-10-09)
+
+### Bug Fixes
+
+- **accounts**: Read accounts.json as UTF-8 on every platform
+  ([#398](https://github.com/eschnitzler/EmpireCore/pull/398),
+  [`9921b30`](https://github.com/eschnitzler/EmpireCore/commit/9921b30994ffb825e8892cb47209aae378a37164))
+
+
 ## v0.51.0 (2026-10-09)
 
 ### Bug Fixes
