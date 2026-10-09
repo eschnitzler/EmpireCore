@@ -190,6 +190,8 @@ class MapScanner:
                 logger.warning(f"Chunk ({cx}, {cy}) refused with a cooldown. Retrying...")
             if sleep_unless_cancelled(self.RETRY_BACKOFF * 2**attempt, cancel):
                 return _FAILED
+        else:
+            return _FAILED
 
         if response.error_code == GGEError.ADDITIONAL_KINGDOM_NOT_UNLOCKED:
             return _NOT_UNLOCKED
