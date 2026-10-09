@@ -527,6 +527,7 @@ change; CI installs with `--locked` and will reject a stale lockfile.
 ```bash
 uv run pytest                       # the suite
 uv run pre-commit run --all-files   # exactly what CI's lint job runs
+uv run basedpyright                 # CI's pyright job: src must have zero errors
 ```
 
 > [!TIP]

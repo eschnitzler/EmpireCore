@@ -49,9 +49,9 @@ def _first(effect: EffectValue) -> Number:
 def _wod_values(effect: EffectValue) -> dict[int, Number]:
     """``wodID+value`` pairs joined by ``#``: ``EffectValueWodID.parseFromValueString`` (bundle line 17699)."""
     pairs: dict[int, Number] = {}
-    for part in effect.values:
-        if part and part[0] is not None:
-            pairs[int(part[0])] = part[1] if len(part) > 1 else None
+    for wod_id, *rest in filter(None, effect.values):
+        if wod_id is not None:
+            pairs[int(wod_id)] = rest[0] if rest else None
     return pairs
 
 
