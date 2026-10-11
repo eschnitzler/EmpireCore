@@ -30,10 +30,33 @@ def isolated_environ(monkeypatch):
 
 
 class TestAccountRegistryEnv:
+    @pytest.fixture(autouse=True)
+    def _no_accounts_file_in_cwd(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+
+    def test_an_explicit_path_must_exist(self, tmp_path):
+        with pytest.raises(FileNotFoundError, match=str(tmp_path / "missing.json")):
+            AccountRegistry().load(file_path=tmp_path / "missing.json")
+
+    def test_an_explicit_default_name_must_exist_too(self):
+        with pytest.raises(FileNotFoundError, match="accounts.json"):
+            AccountRegistry().load(file_path="accounts.json")
+
+    def test_the_default_file_may_be_absent(self):
+        registry = AccountRegistry()
+        registry.load()
+        assert registry.get_all() == []
+
+    def test_a_file_that_is_not_json_names_itself(self, tmp_path):
+        accounts_file = tmp_path / "accounts.json"
+        accounts_file.write_text('[{"username": "u", "password": "p"},]', "utf-8")
+        with pytest.raises(ValueError, match="accounts.json is not valid JSON"):
+            AccountRegistry().load(file_path=accounts_file)
+
     def test_csv_env_account(self, monkeypatch):
         monkeypatch.setenv("EMPIRE_ACCOUNT_MAIN", "user1,pass1,EmpireEx_21")
         registry = AccountRegistry()
-        registry.load(file_path="nonexistent.json")
+        registry.load()
         acc = registry.get_by_alias("main")
         assert acc is not None
         assert acc.username == "user1"
@@ -43,7 +66,7 @@ class TestAccountRegistryEnv:
         payload = json.dumps({"username": "user2", "password": "pa,ss,word", "world": "EmpireEx_21"})
         monkeypatch.setenv("EMPIRE_ACCOUNT_ALT", payload)
         registry = AccountRegistry()
-        registry.load(file_path="nonexistent.json")
+        registry.load()
         acc = registry.get_by_username("user2")
         assert acc is not None
         assert acc.password == "pa,ss,word"
@@ -66,7 +89,7 @@ class TestAccountRegistryEnv:
     def test_invalid_csv_skipped(self, monkeypatch):
         monkeypatch.setenv("EMPIRE_ACCOUNT_BAD", "only_username")
         registry = AccountRegistry()
-        registry.load(file_path="nonexistent.json")
+        registry.load()
         assert registry.get_by_alias("bad") is None
 
     def test_an_account_logs_in_to_its_worlds_server(self, monkeypatch):
@@ -138,7 +161,7 @@ class TestAccountRegistryEnv:
         monkeypatch.chdir(tmp_path)
 
         registry = AccountRegistry()
-        registry.load(file_path="nonexistent.json")
+        registry.load()
         assert registry.get_by_alias("dotenvoff") is None
         assert "EMPIRE_ACCOUNT_DOTENVOFF" not in isolated_environ
 
@@ -147,7 +170,7 @@ class TestAccountRegistryEnv:
         monkeypatch.chdir(tmp_path)
 
         registry = AccountRegistry()
-        registry.load(file_path="nonexistent.json", load_env_file=True)
+        registry.load(load_env_file=True)
         acc = registry.get_by_alias("dotenvon")
         assert acc is not None
         assert acc.username == "dotuser"
@@ -158,7 +181,7 @@ class TestAccountRegistryEnv:
         monkeypatch.setenv("EMPIRE_ACCOUNT_B", '{"password": "SecretPW"}')
         registry = AccountRegistry()
         with caplog.at_level(logging.ERROR):
-            registry.load(file_path="nonexistent.json")
+            registry.load()
         assert registry.get_by_alias("b") is None
         assert "SecretPW" not in caplog.text
 
@@ -309,7 +332,7 @@ class SlowRegistry(AccountRegistry):
         super().__init__()
         self.load_calls = 0
 
-    def load(self, file_path: str = "accounts.json", load_env_file: bool = False):
+    def load(self, file_path=None, load_env_file: bool = False):
         self.load_calls += 1
         return super().load(file_path=file_path, load_env_file=load_env_file)
 
@@ -318,7 +341,7 @@ class SlowRegistry(AccountRegistry):
             self._add_account(Account(username=f"u{i}", password="p"))
             time.sleep(0.02)
 
-    def _load_from_file(self, path_str: str):
+    def _load_from_file(self, path_str: str, required: bool):
         return  # never read the developer's real accounts.json
 
 
@@ -350,7 +373,7 @@ class TestAccountRegistryThreadSafety:
     def test_explicit_reload_still_allowed(self):
         registry = SlowRegistry()
         assert len(registry.get_all()) == SlowRegistry.ACCOUNT_COUNT
-        registry.load(file_path="nonexistent.json")
+        registry.load()
         assert registry.load_calls == 2
         assert len(registry.get_all()) == SlowRegistry.ACCOUNT_COUNT
 
@@ -639,10 +662,18 @@ class TestLeasedContextManager:
 
     def test_no_available_account_raises_instead_of_yielding_none(self, fake_accounts):
         pool = AccountPool(fake_accounts[2])
-        with pytest.raises(PoolExhaustedError):
+        with pytest.raises(PoolExhaustedError, match="No active account matches"):
             with pool.leased(tag="nonexistent-tag"):
                 pass
         assert pool.busy_count == 0
+
+    def test_an_empty_registry_says_no_accounts_are_configured(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        registry = AccountRegistry()
+        registry.load()
+        with pytest.raises(PoolExhaustedError, match="No accounts configured"):
+            with AccountPool(registry).leased():
+                pass
 
     def test_pool_exhausted_is_an_empire_error(self):
         from empire_core.exceptions import EmpireError
