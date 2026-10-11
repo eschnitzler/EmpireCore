@@ -139,6 +139,14 @@ State is only as fresh as the last packet that carried it; see
 [State and freshness](guides/game-state.md) before trusting resources read from
 it.
 
+## Game data
+
+Unit stats, building prices and the other static tables come from the game's
+items file. An API that needs them loads it on first use, from the disk cache
+or a download, so nothing has to be loaded first. That first download is
+large; call `client.load_game_data()` up front to take it before
+timing-sensitive work. See [Game data](guides/game-data.md).
+
 ## Scan the map
 
 ```python

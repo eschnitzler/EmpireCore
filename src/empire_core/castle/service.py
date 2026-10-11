@@ -110,7 +110,6 @@ from empire_core.enums import (
 )
 from empire_core.exceptions import (
     AmbiguousCastleError,
-    GameDataNotLoadedError,
     UnknownCastleError,
     UnsendableGoodsError,
 )
@@ -416,14 +415,14 @@ class CastleService(BaseService):
 
         Client: ``ABasicBuildingVO.upgradeTargetWodId`` and ``getUpgradeVO`` (bundle lines 17918-17922)
         """
-        buildings = self._require_game_data("Pricing an upgrade").buildings
+        buildings = self._require_game_data().buildings
         if row.state in _UPGRADING and row.upgrade_target_wod_id > 0:
             return buildings.get(row.upgrade_target_wod_id)
         current = buildings.get(row.wod_id)
         return None if current is None else buildings.get(current.upgrade_building_id)
 
     def _building_ruby_cost(self, wod_id: int) -> str | None:
-        building = self._require_game_data("Pricing a building").buildings.get(wod_id)
+        building = self._require_game_data().buildings.get(wod_id)
         if building is None:
             return f"building {wod_id} is not in the game data and may cost rubies"
         rubies = building.rubies_to_build(self._player_level())
@@ -456,7 +455,7 @@ class CastleService(BaseService):
         if boost is None or boost <= 0:
             return None
         if row.state in _BUILDING:
-            building = self._require_game_data("Timing a construction").buildings.get(row.wod_id)
+            building = self._require_game_data().buildings.get(row.wod_id)
         elif row.state in _UPGRADING:
             building = self._next_level(row)
         else:
@@ -467,7 +466,7 @@ class CastleService(BaseService):
 
     def _join_and_price_upgrade(self, castle_id: int, object_id: int, spend_rubies: bool, timeout: float) -> None:
         if not spend_rubies:
-            self._require_game_data("Pricing an upgrade")
+            self._require_game_data()
         row = self._castle_object(castle_id, object_id, timeout)
         if not spend_rubies:
             self._require_spend_rubies(spend_rubies, self._upgrade_ruby_cost(row, object_id))
@@ -502,7 +501,7 @@ class CastleService(BaseService):
 
         Raises:
             ValueError: The building has a ruby price, or is not in the game data, and ``spend_rubies`` is False
-            GameDataNotLoadedError: ``spend_rubies`` is False and ``client.load_game_data()`` has not been called
+            GameDataNotLoadedError: ``spend_rubies`` is False and the game data cannot be loaded
 
         Client: ``IsoServerCommands.buyObjectFromShop`` (bundle line 63766); ``ABasicBuildingVO.costC2``
         (bundle lines 17950-17953)
@@ -547,7 +546,7 @@ class CastleService(BaseService):
         Raises:
             ValueError: The next level has a ruby price, or the building or its next level is not
                 known, and ``spend_rubies`` is False
-            GameDataNotLoadedError: ``spend_rubies`` is False and ``client.load_game_data()`` has not been called
+            GameDataNotLoadedError: ``spend_rubies`` is False and the game data cannot be loaded
             UnknownCastleError / AmbiguousCastleError / CommandError: see :meth:`join`
 
         Client: ``RingMenuButtonUpgradeBuilding.onClick`` (bundle line 50092),
@@ -594,7 +593,7 @@ class CastleService(BaseService):
         Raises:
             ValueError: More than 240 seconds are left, or the time left is not known, and
                 ``spend_rubies`` is False
-            GameDataNotLoadedError: ``client.load_game_data()`` has not been called
+            GameDataNotLoadedError: the game data cannot be loaded
             UnknownCastleError / AmbiguousCastleError / CommandError: see :meth:`join`
 
         Client: ``IsoServerCommands.fastCompleteBuilding`` (bundle line 63773) sends ``FS`` 1 when
@@ -602,7 +601,7 @@ class CastleService(BaseService):
         (bundle line 139849) decides from ``getTimeLeftForBuilding`` (bundle line 17967);
         ``FREE_SKIP_TIME`` (dll line 18962)
         """
-        self._require_game_data("Timing a construction")
+        self._require_game_data()
         row = self._castle_object(castle_id, object_id, timeout)
         received = time.monotonic()
         seconds_left = self._construction_seconds_left(row)
@@ -657,7 +656,7 @@ class CastleService(BaseService):
         Raises:
             ValueError: The next level has a ruby price, or the object or its next level is not
                 known, and ``spend_rubies`` is False
-            GameDataNotLoadedError: ``spend_rubies`` is False and ``client.load_game_data()`` has not been called
+            GameDataNotLoadedError: ``spend_rubies`` is False and the game data cannot be loaded
             UnknownCastleError / AmbiguousCastleError / CommandError: see :meth:`join`
 
         Client: ``C2SIsoUpgradeDefenceVO``, sent with ``PWR`` 1 by
@@ -884,8 +883,7 @@ class CastleService(BaseService):
             UnknownCastleError: ``source_castle_id`` is not in your castle list
             AmbiguousCastleError: ``source_castle_id`` repeats across your kingdoms
             ValueError: The horse or slowdown costs rubies and ``spend_rubies`` is False
-            GameDataNotLoadedError: A horse is picked without feathers and ``client.load_game_data()``
-                has not been called
+            GameDataNotLoadedError: A horse is picked without feathers and the game data cannot be loaded
 
         Client: ``CastlePostSendGoodsDialog.sendGoods`` (bundle line 33378), which
         sends ``castleList.getKingdomIdByCastleId`` of the source castle as ``KID``;
@@ -1008,7 +1006,7 @@ class CastleService(BaseService):
                 and ``spend_rubies`` is False
             ValueError: The horse or slowdown costs rubies and ``spend_rubies`` is False
             GameDataNotLoadedError: The premium commander leads, VIP time runs and
-                ``client.load_game_data()`` has not been called; or a horse is picked without feathers
+                the game data cannot be loaded; or a horse is picked without feathers
                 before it was called
         """
         self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
@@ -1099,7 +1097,7 @@ class CastleService(BaseService):
                 and ``spend_rubies`` is False; see ``client.commanders.premium_send``
             ValueError: The horse or slowdown costs rubies and ``spend_rubies`` is False
             GameDataNotLoadedError: The premium commander leads, VIP time runs and
-                ``client.load_game_data()`` has not been called; or a horse is picked without feathers
+                the game data cannot be loaded; or a horse is picked without feathers
                 before it was called
         """
         self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
@@ -1301,16 +1299,14 @@ class CastleService(BaseService):
             The horses sorted by wod id, or None when no ``gpc`` named the castle yet
 
         Raises:
-            GameDataNotLoadedError: ``client.load_game_data()`` has not been called
+            GameDataNotLoadedError: the game data cannot be loaded
             UnknownCastleError: ``castle_id`` is not in your castle list
             AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
 
         Client: ``CastleHorsesVO.parseParamObject`` (bundle line 139177),
         ``CastlePermanentCastleData.getCastleByWorldAreaId`` (bundle line 139145)
         """
-        game_data = self.client.game_data
-        if game_data is None:
-            raise GameDataNotLoadedError("Horse stats need the items payload: call client.load_game_data() first")
+        game_data = self._require_game_data()
         self._require_own_castle(castle_id)
         horse_ids = self.client.state.get_castle_horse_ids(castle_id)
         if horse_ids is None:

@@ -5,7 +5,7 @@ Failure modes are kept distinct so callers can react to them individually:
 - ``EmpireTimeoutError``: the server did not answer in time.
 - ``ConnectionClosedError``: the connection dropped while waiting.
 - ``CommandError``: the server answered with a non-zero error code.
-- ``GameDataNotLoadedError``: an API needed the items payload; load it first.
+- ``GameDataNotLoadedError``: an API needed the game data and it could not be loaded.
 - ``AmbiguousLookupError``: a game-data lookup matched more than one row.
 - ``UnknownCastleError``: a castle is not one of the logged-in player's castles.
 - ``AmbiguousCastleError``: a castle id or position matches castles in several kingdoms.
@@ -170,10 +170,10 @@ class EmpireTimeoutError(EmpireError, TimeoutError):
 
 class GameDataNotLoadedError(EmpireError):
     """
-    Raised when an API needs the static game data and it has not been loaded.
+    Raised when an API needs the static game data and it cannot be loaded.
 
-    Call :meth:`EmpireClient.load_game_data` (or :meth:`GameData.load`, which
-    it calls) first: it is explicit because the items payload is a large download.
+    The APIs load it on first use (:meth:`GameData.require`); this is raised when nothing
+    is loaded and :meth:`GameData.load` failed, with that failure as its cause.
     """
 
 

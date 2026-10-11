@@ -368,13 +368,14 @@ class TestAttackService:
         )
         assert response.movement_id is None
 
-    def test_fill_waves_needs_game_data(self):
-        from empire_core.exceptions import GameDataNotLoadedError
+    def test_fill_waves_fails_when_the_game_data_cannot_be_loaded(self):
+        from empire_core.exceptions import GameDataNotLoadedError, NetworkError
 
         client = make_client(castles=OWN)
 
-        with pytest.raises(GameDataNotLoadedError):
+        with pytest.raises(GameDataNotLoadedError) as raised:
             client.attack.fill_waves(12345)
+        assert isinstance(raised.value.__cause__, NetworkError)
 
     def test_tools_are_drawn_from_the_same_inventory(self):
         # Tools live in the same gui inventory as units; filtering them out of

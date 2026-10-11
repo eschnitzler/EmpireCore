@@ -16,7 +16,7 @@ from pydantic import ValidationError
 
 from empire_core.army.spy_army import SpyArmy
 from empire_core.enums import GGEError, Kingdom, SpyLogType, SpyOutcome, SpyStep, SpyType, TitleSystem
-from empire_core.exceptions import CommandError, EmpireError, GameDataNotLoadedError
+from empire_core.exceptions import CommandError, EmpireError
 from empire_core.messages.models import (
     ForwardSpyLogRequest,
     GetSpyReportRequest,
@@ -329,8 +329,8 @@ class SpyService(BaseService):
         The count is for the whole account, not one castle. Each boost left as None is read
         from state: your finished research (``rei``), legend skills (``skl``), and the glory,
         Berimond and Storm Islands titles your points and ranks give (``ufa``, ``ufp``, ``uar``).
-        Pass a value to count that instead, ``()`` for none. A boost needs
-        ``client.load_game_data()``; after login the state's titles always do.
+        Pass a value to count that instead, ``()`` for none. A boost reads
+        the game data, loaded on first use; after login the state's titles always count.
 
         Args:
             research_ids: Your finished research ids, the ``BR`` of the ``rei`` section
@@ -346,7 +346,7 @@ class SpyService(BaseService):
             The count, or None before the login gbd brought ``gms``
 
         Raises:
-            GameDataNotLoadedError: A boost counts and ``client.load_game_data()`` has not been called
+            GameDataNotLoadedError: A boost counts and the game data cannot be loaded
 
         Client: ``CastleSpyData.getNumAllSpies`` (bundle line 139976), called with the target's
         ``ownerInfo.isLegend`` (bundle lines 34325, 34342, 127082) or ``userData.isLegend``
@@ -381,9 +381,7 @@ class SpyService(BaseService):
             or (titles_from_state and (points_known or ranks is not None))
         ):
             return total_spies(max_spies.max_spies)
-        game_data = self.client.game_data
-        if game_data is None:
-            raise GameDataNotLoadedError("Spy boosts need the items payload: call client.load_game_data() first")
+        game_data = self._require_game_data()
         if titles_from_state:
             glory_rank = ranks.glory.top_rank if ranks is not None else None
             faction_rank = ranks.faction.top_rank if ranks is not None else None
@@ -468,8 +466,7 @@ class SpyService(BaseService):
         Raises:
             ValueError: For ``SpyType.PLAGUE``
             ValueError: The horse or slowdown costs rubies and ``spend_rubies`` is False
-            GameDataNotLoadedError: A horse is picked without feathers and ``client.load_game_data()``
-                has not been called
+            GameDataNotLoadedError: A horse is picked without feathers and the game data cannot be loaded
             CommandError: The server refused the mission
 
         Client: ``CastlePostSpyDialog.spyCastle`` (bundle line 38459), ``C2SCreateSpyMovementVO``
@@ -540,8 +537,7 @@ class SpyService(BaseService):
         Raises:
             ValueError: For a spy type other than MILITARY or ECO, or the horse or slowdown costs
                 rubies and ``spend_rubies`` is False, before anything is sent
-            GameDataNotLoadedError: A horse is picked without feathers and ``client.load_game_data()``
-                has not been called
+            GameDataNotLoadedError: A horse is picked without feathers and the game data cannot be loaded
         """
         if spy_type not in (SpyType.MILITARY, SpyType.ECO):
             raise ValueError(f"send_instant_spy sends MILITARY or ECO missions, not {spy_type!r}")
@@ -833,8 +829,7 @@ class SpyService(BaseService):
         Raises:
             ValueError: A damage the client would not send, or the horse or slowdown costs rubies
                 and ``spend_rubies`` is False, before anything is sent
-            GameDataNotLoadedError: A horse is picked without feathers and ``client.load_game_data()``
-                has not been called
+            GameDataNotLoadedError: A horse is picked without feathers and the game data cannot be loaded
 
         Client: ``CastleSpyDialogSabotageState.updateSpyVO`` and ``spyCastle`` (bundle lines
         72203-72205), ``ACastleSpyDialogState.updateSliderForDamage`` (bundle line 34360),

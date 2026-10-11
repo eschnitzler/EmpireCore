@@ -148,9 +148,18 @@ class TestSpyService:
         client = self.client(gms={"MS": 10})
         assert client.spy.total_spies(legend_skill_ids=[53]) == 10
 
-    def test_boosts_need_game_data(self):
+    def test_boosts_load_the_game_data_on_first_use(self, game_data, stub_game_data_load):
+        client = self.client(gms={"MS": 10}, movements=[spy_movement(1, 4)])
+        loads = stub_game_data_load(game_data)
+        kwargs = {"research_ids": ALL_SPY_RESEARCH, "legend_skill_ids": [53], "island_title_id": 50}
+
+        assert client.spy.total_spies(**kwargs, legend_target=True) == 40
+        assert client.spy.available_spies(**kwargs, legend_target=True) == 36
+        assert len(loads) == 1
+
+    def test_boosts_fail_when_the_game_data_cannot_be_loaded(self):
         client = self.client(gms={"MS": 10})
-        with pytest.raises(GameDataNotLoadedError):
+        with pytest.raises(GameDataNotLoadedError, match="could not load the game data"):
             client.spy.total_spies(research_ids=[171])
 
     def test_boosts_come_from_state_when_not_passed(self, game_data):
@@ -170,10 +179,10 @@ class TestSpyService:
         assert client.spy.total_spies(research_ids=(), island_title_id=-1) == 10
         assert client.spy.total_spies(title_ids=[], island_title_id=54) == 34
 
-    def test_state_boosts_need_game_data(self):
+    def test_state_boosts_fail_when_the_game_data_cannot_be_loaded(self):
         client = self.client(gms={"MS": 10})
         client.state.update_from_packet("ufa", {"CF": 0, "HF": 0})
-        with pytest.raises(GameDataNotLoadedError):
+        with pytest.raises(GameDataNotLoadedError, match="could not load the game data"):
             client.spy.total_spies()
         assert client.spy.total_spies(title_ids=()) == 10
 
