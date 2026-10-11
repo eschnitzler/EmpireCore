@@ -75,19 +75,15 @@ class SearchAllianceRequest(BaseRequest):
 
     list_type: RankingType = Field(
         validation_alias="LT",
-        serialization_alias="LT",
         default=RankingType.ALLIANCE_MIGHT_POINTS,
         description="The highscore list searched",
     )
     league_type_id: int = Field(
         validation_alias="LID",
-        serialization_alias="LID",
         default=6,
         description="The league to search in; 6 is the level 70 league",
     )
-    search_value: str = Field(
-        validation_alias="SV", serialization_alias="SV", description="The alliance name to search for"
-    )
+    search_value: str = Field(validation_alias="SV", description="The alliance name to search for")
 
     @field_serializer("search_value")
     def _encoded_search_value(self, value: str) -> str:
@@ -114,7 +110,7 @@ class SearchAllianceResponse(BaseResponse, register=False):
     command = "hgh"
 
     results: list[AllianceSearchResult] = Field(
-        validation_alias="L", serialization_alias="L", default_factory=list, description="The matching rows"
+        validation_alias="L", default_factory=list, description="The matching rows"
     )
 
     @field_validator("results", mode="before")

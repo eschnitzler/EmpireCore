@@ -18,9 +18,10 @@ from collections.abc import Callable, Iterable, Mapping
 from enum import Enum
 from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer, PlainValidator
+from pydantic import BeforeValidator, ConfigDict, Field, PlainSerializer, PlainValidator
 
 from empire_core.enums import BoosterId, CollectableKind, Rareness
+from empire_core.protocol.base import EmpireModel
 from empire_core.protocol.js import js_int, js_number_or_none, js_parse_int, js_parse_int_or_zero, js_truthy
 
 from .lenient import EnumOrInt, known
@@ -437,7 +438,7 @@ def is_reward_column(column: str) -> bool:
     return column in _KINDS_BY_XML_KEY or column.startswith(_XML_ADD_PREFIX)
 
 
-class Collectable(BaseModel):
+class Collectable(EmpireModel):
     """
     One collectable: a reward, a cost or a lot of goods, typed by its kind.
 

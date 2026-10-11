@@ -16,13 +16,13 @@ import math
 from collections.abc import Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 
 from empire_core.commanders.models.equipment import Equipment
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import CombatEffectType
 from empire_core.gamedata import EffectDef, EffectValue, EquipmentEffectValue, GameData, GlobalEffectDef, ToolStats
-from empire_core.protocol.base import CommanderEffect
+from empire_core.protocol.base import CommanderEffect, EmpireModel
 
 if TYPE_CHECKING:
     from empire_core.gamedata import GlobalEffect
@@ -76,7 +76,7 @@ UNCAPPED_EQUIPMENT_CAP_ID = -1
 """``EquipmentBonusVO.capID`` of a bonus that overrides its cap (bundle line 20962)."""
 
 
-class Bonus(BaseModel):
+class Bonus(EmpireModel):
     """
     One granted bonus: an id, its strength, and which id space the id is in.
 

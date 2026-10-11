@@ -377,24 +377,16 @@ class AllianceChronicleEntry(BasePayload):
     Client: ``AllianceActionListItemVO.parseActionListItem`` (bundle line 66338)
     """
 
-    player_id: ClientInt = Field(
-        validation_alias="PID", serialization_alias="PID", default=0, description="The player the entry is about"
-    )
-    player_name: str | None = Field(
-        validation_alias="PN", serialization_alias="PN", default=None, description="The player's name"
-    )
-    seconds_ago: ClientInt = Field(
-        validation_alias="MA", serialization_alias="MA", default=0, description="Seconds since the action"
-    )
+    player_id: ClientInt = Field(validation_alias="PID", default=0, description="The player the entry is about")
+    player_name: str | None = Field(validation_alias="PN", default=None, description="The player's name")
+    seconds_ago: ClientInt = Field(validation_alias="MA", default=0, description="Seconds since the action")
     action: Annotated[EnumOrInt[AllianceChronicleAction], BeforeValidator(js_int)] = Field(
         validation_alias="A",
-        serialization_alias="A",
         default=AllianceChronicleAction.MEMBER_JOIN,
         description="What happened",
     )
     action_values: list[Any] = Field(
         validation_alias="AV",
-        serialization_alias="AV",
         default_factory=list,
         description="The action's text arguments as sent; typed by details",
     )
@@ -523,11 +515,9 @@ class AllianceChronicleResponse(BaseResponse):
 
     command = "all"
 
-    alliance_id: ClientInt = Field(
-        validation_alias="AID", serialization_alias="AID", default=0, description="Your alliance's id"
-    )
+    alliance_id: ClientInt = Field(validation_alias="AID", default=0, description="Your alliance's id")
     entries: list[AllianceChronicleEntry] = Field(
-        validation_alias="AL", serialization_alias="AL", default_factory=list, description="The entries, newest first"
+        validation_alias="AL", default_factory=list, description="The entries, newest first"
     )
 
     @field_validator("entries", mode="before")
@@ -573,7 +563,6 @@ class AllianceSubscriberCountResponse(BaseResponse):
 
     subscriber_count: ClientInt = Field(
         validation_alias="ASC",
-        serialization_alias="ASC",
         default=0,
         description="Members of your alliance with a subscription",
     )

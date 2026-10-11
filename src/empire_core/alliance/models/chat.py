@@ -39,7 +39,7 @@ class AllianceChatMessageRequest(BaseRequest):
 
     command = "acm"
 
-    message: str = Field(validation_alias="M", serialization_alias="M")
+    message: str = Field(validation_alias="M")
 
     @classmethod
     def create(cls, text: str) -> "AllianceChatMessageRequest":
@@ -59,21 +59,15 @@ class ChatMessageData(BasePayload):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
-    player_id: ClientInt = Field(
-        validation_alias="PID", serialization_alias="PID", default=0, description="The sender's player id"
-    )
-    player_name: str = Field(
-        validation_alias="PN", serialization_alias="PN", default="", description="The sender's name"
-    )
+    player_id: ClientInt = Field(validation_alias="PID", default=0, description="The sender's player id")
+    player_name: str = Field(validation_alias="PN", default="", description="The sender's name")
     message_text: str = Field(
         validation_alias="MT",
-        serialization_alias="MT",
         default="",
         description="The message text as sent, still encoded",
     )
     age_seconds: int | float | None = Field(
         validation_alias="MA",
-        serialization_alias="MA",
         default=None,
         description="Seconds since the message was sent; None when the reply has no number for it",
     )
@@ -122,7 +116,7 @@ class AllianceChatMessageResponse(BaseResponse):
 
     command = "acm"
 
-    chat_message: ChatMessageData | None = Field(validation_alias="CM", serialization_alias="CM", default=None)
+    chat_message: ChatMessageData | None = Field(validation_alias="CM", default=None)
 
     @property
     def player_name(self) -> str:
@@ -183,7 +177,6 @@ class AllianceChatLogResponse(BaseResponse):
 
     chat_log: list[ChatMessageData] = Field(
         validation_alias="CM",
-        serialization_alias="CM",
         default_factory=list,
         description="The messages, in the order the reply lists them",
     )

@@ -16,10 +16,11 @@ from __future__ import annotations
 
 from typing import Annotated, Any, ClassVar
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
+from pydantic import BeforeValidator, ConfigDict, Field, model_validator
 
 from empire_core.enums import SpyArmySection
 from empire_core.gamedata import WodAmount, wod_amount_pairs
+from empire_core.protocol.base import EmpireModel
 
 
 def _stacks(value: Any) -> Any:
@@ -39,7 +40,7 @@ SpyStacks = Annotated[tuple[WodAmount, ...], BeforeValidator(_stacks)]
 """One position of a spied army: its stacks in the order sent, an id sent twice kept twice."""
 
 
-class SpyArmy(BaseModel):
+class SpyArmy(EmpireModel):
     """
     A spied castle's defenders, by the position they hold.
 

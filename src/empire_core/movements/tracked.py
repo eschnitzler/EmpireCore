@@ -4,14 +4,14 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import AttackAdvisorType, AutoSkipCooldownType, MapItemType, MovementType, NPCOwner
 from empire_core.gamedata import CollectableRows, EnumOrInt, SupportToolSlots, WodAmounts
 from empire_core.gamedata.troops import count_troops
 from empire_core.movements.models import MovementArea, MovementOwner, MovementSpy
-from empire_core.protocol.base import enum_or_none, read_or_none
+from empire_core.protocol.base import EmpireModel, enum_or_none, read_or_none
 from empire_core.protocol.js import js_int
 
 if TYPE_CHECKING:
@@ -68,7 +68,7 @@ villages and nomad camps are runs of ids (see :class:`~empire_core.enums.NPCOwne
 """
 
 
-class MovementResources(BaseModel):
+class MovementResources(EmpireModel):
     """Resources a movement carries: the goods among its market goods or travel loot, added up.
 
     Keys are the client's collectable server keys (``CollectableItem*VO.SERVER_KEY``). Goods sent
@@ -78,17 +78,17 @@ class MovementResources(BaseModel):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore", populate_by_name=True)
 
-    wood: int = Field(default=0, validation_alias="W", serialization_alias="W")
-    stone: int = Field(default=0, validation_alias="S", serialization_alias="S")
-    food: int = Field(default=0, validation_alias="F", serialization_alias="F")
-    coal: int = Field(default=0, validation_alias="C", serialization_alias="C")
-    oil: int = Field(default=0, validation_alias="O", serialization_alias="O")
-    glass: int = Field(default=0, validation_alias="G", serialization_alias="G")
-    iron: int = Field(default=0, validation_alias="I", serialization_alias="I")
-    aquamarine: int = Field(default=0, validation_alias="A", serialization_alias="A")
-    honey: int = Field(default=0, validation_alias="HONEY", serialization_alias="HONEY")
-    mead: int = Field(default=0, validation_alias="MEAD", serialization_alias="MEAD")
-    beef: int = Field(default=0, validation_alias="BEEF", serialization_alias="BEEF")
+    wood: int = Field(default=0, validation_alias="W")
+    stone: int = Field(default=0, validation_alias="S")
+    food: int = Field(default=0, validation_alias="F")
+    coal: int = Field(default=0, validation_alias="C")
+    oil: int = Field(default=0, validation_alias="O")
+    glass: int = Field(default=0, validation_alias="G")
+    iron: int = Field(default=0, validation_alias="I")
+    aquamarine: int = Field(default=0, validation_alias="A")
+    honey: int = Field(default=0, validation_alias="HONEY")
+    mead: int = Field(default=0, validation_alias="MEAD")
+    beef: int = Field(default=0, validation_alias="BEEF")
 
     @property
     def total(self) -> int:
@@ -101,7 +101,7 @@ class MovementResources(BaseModel):
         return self.total == 0
 
 
-class Movement(BaseModel):
+class Movement(EmpireModel):
     """A live army movement (Attack, Support, Transport, ...) tracked in state.
 
     This is the movement type the client returns from
@@ -125,35 +125,21 @@ class Movement(BaseModel):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore", populate_by_name=True)
 
-    movement_id: int = Field(default=-1, validation_alias="MID", serialization_alias="MID", description="Movement id")
-    movement_type: int = Field(
-        default=0, validation_alias="T", serialization_alias="T", description="MovementType value"
-    )
-    progress_time: int = Field(
-        default=0, validation_alias="PT", serialization_alias="PT", description="Seconds travelled at last_updated"
-    )
-    total_time: int = Field(
-        default=0, validation_alias="TT", serialization_alias="TT", description="Seconds the trip takes"
-    )
+    movement_id: int = Field(default=-1, validation_alias="MID", description="Movement id")
+    movement_type: int = Field(default=0, validation_alias="T", description="MovementType value")
+    progress_time: int = Field(default=0, validation_alias="PT", description="Seconds travelled at last_updated")
+    total_time: int = Field(default=0, validation_alias="TT", description="Seconds the trip takes")
     direction: int = Field(
         default=0,
         validation_alias="D",
-        serialization_alias="D",
         description="1 = returning home, 0 = heading to the target",
     )
-    target_id: int = Field(
-        default=-1, validation_alias="TID", serialization_alias="TID", description="Player id owning the target area"
-    )
-    kingdom_id: int = Field(default=0, validation_alias="KID", serialization_alias="KID", description="Kingdom id")
-    source_id: int = Field(
-        default=-1, validation_alias="SID", serialization_alias="SID", description="Player id owning the source area"
-    )
-    owner_id: int = Field(
-        default=-1, validation_alias="OID", serialization_alias="OID", description="Player id owning the movement"
-    )
+    target_id: int = Field(default=-1, validation_alias="TID", description="Player id owning the target area")
+    kingdom_id: int = Field(default=0, validation_alias="KID", description="Kingdom id")
+    source_id: int = Field(default=-1, validation_alias="SID", description="Player id owning the source area")
+    owner_id: int = Field(default=-1, validation_alias="OID", description="Player id owning the movement")
     horse_booster: EnumOrInt["Horse"] | None = Field(
         validation_alias="HBW",
-        serialization_alias="HBW",
         default=None,
         description="The horse booster; None for none or when paid with feathers",
     )
@@ -161,13 +147,11 @@ class Movement(BaseModel):
     target_area: MovementArea | None = Field(
         default=None,
         validation_alias="TA",
-        serialization_alias="TA",
         description="Target area row; None when there is none",
     )
     source_area: MovementArea | None = Field(
         default=None,
         validation_alias="SA",
-        serialization_alias="SA",
         description="Source area row; None when there is none",
     )
 

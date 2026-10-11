@@ -31,7 +31,7 @@ class _AllianceEcho(BaseResponse):
     """A reply that carries the updated alliance as a nested ain reply."""
 
     alliance: AllianceInfo | None = Field(
-        validation_alias="ain", serialization_alias="ain", default=None, description="The alliance after the change"
+        validation_alias="ain", default=None, description="The alliance after the change"
     )
 
     @field_validator("alliance", mode="before")
@@ -58,9 +58,7 @@ class KickMemberRequest(BaseRequest):
 
     command = "akm"
 
-    player_id: int = Field(
-        validation_alias="PID", serialization_alias="PID", description="The member's AllianceMember.player_id"
-    )
+    player_id: int = Field(validation_alias="PID", description="The member's AllianceMember.player_id")
 
 
 class KickMemberResponse(_AllianceEcho):
@@ -94,10 +92,8 @@ class RerankMemberRequest(BaseRequest):
 
     command = "arm"
 
-    player_id: int = Field(
-        validation_alias="PID", serialization_alias="PID", description="The member's AllianceMember.player_id"
-    )
-    rank: AllianceRank = Field(validation_alias="R", serialization_alias="R", description="The new rank")
+    player_id: int = Field(validation_alias="PID", description="The member's AllianceMember.player_id")
+    rank: AllianceRank = Field(validation_alias="R", description="The new rank")
 
 
 class RerankMemberResponse(_AllianceEcho):
@@ -134,9 +130,7 @@ class InvitePlayerRequest(BaseRequest):
 
     command = "aip"
 
-    search_value: str = Field(
-        validation_alias="SV", serialization_alias="SV", description="The player's id, as a string"
-    )
+    search_value: str = Field(validation_alias="SV", description="The player's id, as a string")
 
     @classmethod
     def for_player(cls, player_id: int) -> InvitePlayerRequest:
@@ -181,17 +175,11 @@ class AllianceApplication(BasePayload):
     Client: ``AllianceApplicationListItemVO.parseItem`` (bundle line 66522)
     """
 
-    player_id: ClientInt = Field(
-        validation_alias="PID", serialization_alias="PID", default=0, description="The applying player's id"
-    )
-    distance: ClientInt = Field(
-        validation_alias="D", serialization_alias="D", default=0, description="Distance to the applicant"
-    )
-    text: str = Field(
-        validation_alias="AT", serialization_alias="AT", default="", description="The application's text, decoded"
-    )
+    player_id: ClientInt = Field(validation_alias="PID", default=0, description="The applying player's id")
+    distance: ClientInt = Field(validation_alias="D", default=0, description="Distance to the applicant")
+    text: str = Field(validation_alias="AT", default="", description="The application's text, decoded")
     seconds_since_applied: int | float = Field(
-        validation_alias="AA", serialization_alias="AA", default=0, description="Seconds since the application"
+        validation_alias="AA", default=0, description="Seconds since the application"
     )
 
     @field_validator("text", mode="before")
@@ -220,13 +208,10 @@ class AllianceApplicationListResponse(BaseResponse):
 
     applications: list[AllianceApplication] = Field(
         validation_alias="AL",
-        serialization_alias="AL",
         default_factory=list,
         description="The applications, nearest first",
     )
-    owners: list[PlayerProfileBase] = Field(
-        validation_alias="OI", serialization_alias="OI", default_factory=list, description="The applicants"
-    )
+    owners: list[PlayerProfileBase] = Field(validation_alias="OI", default_factory=list, description="The applicants")
 
     @field_validator("applications", mode="before")
     @classmethod
@@ -272,10 +257,8 @@ class AnswerApplicationRequest(BaseRequest):
 
     command = "aaa"
 
-    player_id: int = Field(
-        validation_alias="PID", serialization_alias="PID", description="The applicant's AllianceApplication.player_id"
-    )
-    accept: int = Field(validation_alias="A", serialization_alias="A", description="1 to accept, 0 to refuse")
+    player_id: int = Field(validation_alias="PID", description="The applicant's AllianceApplication.player_id")
+    accept: int = Field(validation_alias="A", description="1 to accept, 0 to refuse")
 
     @classmethod
     def create(cls, player_id: int, accept: bool) -> AnswerApplicationRequest:

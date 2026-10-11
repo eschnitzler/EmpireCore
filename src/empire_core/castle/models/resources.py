@@ -27,27 +27,19 @@ class CastleResources(BasePayload):
     (bundle line 131382) reads each amount through ``int()``
     """
 
-    castle_id: ClientInt = Field(
-        validation_alias="AID", serialization_alias="AID", default=0, description="The castle's object id"
-    )
-    kingdom_id: ClientInt = Field(
-        validation_alias="KID", serialization_alias="KID", default=0, description="The castle's kingdom"
-    )
-    wood: ClientInt = Field(validation_alias="W", serialization_alias="W", default=0, description="Wood in stock")
-    stone: ClientInt = Field(validation_alias="S", serialization_alias="S", default=0, description="Stone in stock")
-    food: ClientInt = Field(validation_alias="F", serialization_alias="F", default=0, description="Food in stock")
-    coal: ClientInt = Field(validation_alias="C", serialization_alias="C", default=0, description="Coal in stock")
-    oil: ClientInt = Field(validation_alias="O", serialization_alias="O", default=0, description="Oil in stock")
-    glass: ClientInt = Field(validation_alias="G", serialization_alias="G", default=0, description="Glass in stock")
-    iron: ClientInt = Field(validation_alias="I", serialization_alias="I", default=0, description="Iron in stock")
-    aquamarine: ClientInt = Field(
-        validation_alias="A", serialization_alias="A", default=0, description="Aquamarine in stock"
-    )
-    honey: ClientInt = Field(
-        validation_alias="HONEY", serialization_alias="HONEY", default=0, description="Honey in stock"
-    )
-    mead: ClientInt = Field(validation_alias="MEAD", serialization_alias="MEAD", default=0, description="Mead in stock")
-    beef: ClientInt = Field(validation_alias="BEEF", serialization_alias="BEEF", default=0, description="Beef in stock")
+    castle_id: ClientInt = Field(validation_alias="AID", default=0, description="The castle's object id")
+    kingdom_id: ClientInt = Field(validation_alias="KID", default=0, description="The castle's kingdom")
+    wood: ClientInt = Field(validation_alias="W", default=0, description="Wood in stock")
+    stone: ClientInt = Field(validation_alias="S", default=0, description="Stone in stock")
+    food: ClientInt = Field(validation_alias="F", default=0, description="Food in stock")
+    coal: ClientInt = Field(validation_alias="C", default=0, description="Coal in stock")
+    oil: ClientInt = Field(validation_alias="O", default=0, description="Oil in stock")
+    glass: ClientInt = Field(validation_alias="G", default=0, description="Glass in stock")
+    iron: ClientInt = Field(validation_alias="I", default=0, description="Iron in stock")
+    aquamarine: ClientInt = Field(validation_alias="A", default=0, description="Aquamarine in stock")
+    honey: ClientInt = Field(validation_alias="HONEY", default=0, description="Honey in stock")
+    mead: ClientInt = Field(validation_alias="MEAD", default=0, description="Mead in stock")
+    beef: ClientInt = Field(validation_alias="BEEF", default=0, description="Beef in stock")
 
 
 # =============================================================================
@@ -70,15 +62,12 @@ class GetResourcesRequest(BaseRequest):
 
     castle_id: int = Field(
         validation_alias="AID",
-        serialization_alias="AID",
         description=(
             "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
             "client.state.get_castles()"
         ),
     )
-    kingdom_id: Kingdom = Field(
-        validation_alias="KID", serialization_alias="KID", default=Kingdom.GREEN, description="The castle's kingdom"
-    )
+    kingdom_id: Kingdom = Field(validation_alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
 
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a grc reply is about this castle: its ``AID``, when sent, is the one asked for.

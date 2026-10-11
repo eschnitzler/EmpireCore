@@ -12,10 +12,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
 
 from empire_core.enums import DiplomacyStatus, Kingdom
-from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock
+from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, EmpireModel
 from empire_core.protocol.js import ClientInt, js_loose_equals
 from empire_core.protocol.text import encode_json_text
 
@@ -44,13 +44,9 @@ class ChangeDiplomacyRequest(BaseRequest):
 
     command = "adp"
 
-    alliance_id: int = Field(validation_alias="AID", serialization_alias="AID", description="The other alliance")
-    new_status: DiplomacyStatus = Field(
-        validation_alias="NDR", serialization_alias="NDR", description="The relation to change to"
-    )
-    tribute: int = Field(
-        validation_alias="T", serialization_alias="T", default=0, description="The peace offer's tribute; 0 otherwise"
-    )
+    alliance_id: int = Field(validation_alias="AID", description="The other alliance")
+    new_status: DiplomacyStatus = Field(validation_alias="NDR", description="The relation to change to")
+    tribute: int = Field(validation_alias="T", default=0, description="The peace offer's tribute; 0 otherwise")
 
 
 class ChangeDiplomacyResponse(BaseResponse):
@@ -66,25 +62,17 @@ class ChangeDiplomacyResponse(BaseResponse):
 
     old_status: ClientInt = Field(
         validation_alias="ODR",
-        serialization_alias="ODR",
         default=0,
         description="The relation before, a DiplomacyStatus value",
     )
     new_status: ClientInt = Field(
         validation_alias="NDR",
-        serialization_alias="NDR",
         default=0,
         description="The relation now, a DiplomacyStatus value",
     )
-    request_status: ClientInt = Field(
-        validation_alias="S", serialization_alias="S", default=0, description="How the request stands"
-    )
-    own_alliance: AllianceInfo | None = Field(
-        validation_alias="AS", serialization_alias="AS", default=None, description="Your alliance"
-    )
-    other_alliance: AllianceInfo | None = Field(
-        validation_alias="AO", serialization_alias="AO", default=None, description="The other alliance"
-    )
+    request_status: ClientInt = Field(validation_alias="S", default=0, description="How the request stands")
+    own_alliance: AllianceInfo | None = Field(validation_alias="AS", default=None, description="Your alliance")
+    other_alliance: AllianceInfo | None = Field(validation_alias="AO", default=None, description="The other alliance")
 
     @field_validator("own_alliance", "other_alliance", mode="before")
     @classmethod
@@ -111,7 +99,7 @@ class RefuseDiplomacyRequest(BaseRequest):
 
     command = "ard"
 
-    alliance_id: int = Field(validation_alias="AID", serialization_alias="AID", description="The other alliance")
+    alliance_id: int = Field(validation_alias="AID", description="The other alliance")
 
 
 class RefuseDiplomacyResponse(BaseResponse):
@@ -125,9 +113,7 @@ class RefuseDiplomacyResponse(BaseResponse):
 
     command = "ard"
 
-    alliance: AllianceInfo | None = Field(
-        validation_alias="A", serialization_alias="A", default=None, description="The other alliance"
-    )
+    alliance: AllianceInfo | None = Field(validation_alias="A", default=None, description="The other alliance")
 
     @field_validator("alliance", mode="before")
     @classmethod
@@ -153,7 +139,7 @@ class SetAutoWarRequest(BaseRequest):
 
     command = "saw"
 
-    auto_war: int = Field(validation_alias="AW", serialization_alias="AW", description="1 for on, 0 for off")
+    auto_war: int = Field(validation_alias="AW", description="1 for on, 0 for off")
 
 
 class SetAutoWarResponse(BaseResponse):
@@ -167,7 +153,7 @@ class SetAutoWarResponse(BaseResponse):
 
     command = "saw"
 
-    auto_war: bool = Field(validation_alias="AW", serialization_alias="AW", default=False, description="Auto war is on")
+    auto_war: bool = Field(validation_alias="AW", default=False, description="Auto war is on")
 
     @field_validator("auto_war", mode="before")
     @classmethod
@@ -193,8 +179,8 @@ class SendNewsletterRequest(BaseRequest):
 
     command = "anl"
 
-    subject: str = Field(validation_alias="SJ", serialization_alias="SJ", description="The subject, encoded")
-    text: str = Field(validation_alias="TXT", serialization_alias="TXT", description="The text, encoded")
+    subject: str = Field(validation_alias="SJ", description="The subject, encoded")
+    text: str = Field(validation_alias="TXT", description="The text, encoded")
 
     @classmethod
     def create(cls, subject: str, text: str) -> SendNewsletterRequest:
@@ -234,7 +220,7 @@ _DONATION_KEYS = {
 }
 
 
-class AllianceDonation(BaseModel):
+class AllianceDonation(EmpireModel):
     """
     What to donate to the alliance treasury.
 
@@ -282,14 +268,10 @@ class DonateRequest(BaseRequest):
 
     command = "ado"
 
-    castle_id: int = Field(
-        validation_alias="AID", serialization_alias="AID", description="The donating castle, e.g. CastleInfo.castle_id"
-    )
-    kingdom: Kingdom = Field(
-        validation_alias="KID", serialization_alias="KID", description="The donating castle's kingdom"
-    )
+    castle_id: int = Field(validation_alias="AID", description="The donating castle, e.g. CastleInfo.castle_id")
+    kingdom: Kingdom = Field(validation_alias="KID", description="The donating castle's kingdom")
     resources: dict[str, int] = Field(
-        validation_alias="RV", serialization_alias="RV", description="The amounts, keyed as AllianceDonation keys them"
+        validation_alias="RV", description="The amounts, keyed as AllianceDonation keys them"
     )
 
     @classmethod
@@ -311,12 +293,11 @@ class DonateResponse(BaseResponse):
 
     currency: CurrencyBlock = Field(
         validation_alias="gcu",
-        serialization_alias="gcu",
         default=None,
         description="Coins and rubies after the donation",
     )
     alliance: AllianceInfo | None = Field(
-        validation_alias="ain", serialization_alias="ain", default=None, description="The alliance after the donation"
+        validation_alias="ain", default=None, description="The alliance after the donation"
     )
 
     @field_validator("alliance", mode="before")

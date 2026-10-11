@@ -61,17 +61,15 @@ class ResearchInfoResponse(TimedResponse):
     command = "rei"
 
     bought_research_ids: Annotated[tuple[EnumOrInt["Research"], ...], BeforeValidator(_ints)] = Field(
-        validation_alias="BR", serialization_alias="BR", default=(), description="Finished researches"
+        validation_alias="BR", default=(), description="Finished researches"
     )
     current_research_id: ClientInt = Field(
         validation_alias="ARID",
-        serialization_alias="ARID",
         default=0,
         description="The research running now, -1 for none",
     )
     research_seconds: ClientNumber = Field(
         validation_alias="ARRT",
-        serialization_alias="ARRT",
         default=0,
         description="Seconds left on the running research when the values were read",
     )
@@ -94,26 +92,20 @@ class Booster(TimedPayload):
     90670, 90864)
     """
 
-    booster_id: ClientInt = Field(
-        validation_alias="ID", serialization_alias="ID", default=0, description="The booster's id"
-    )
-    level: ClientInt = Field(
-        validation_alias="L", serialization_alias="L", default=0, description="The booster's level"
-    )
+    booster_id: ClientInt = Field(validation_alias="ID", default=0, description="The booster's id")
+    level: ClientInt = Field(validation_alias="L", default=0, description="The booster's level")
     seconds: ClientInt = Field(
         validation_alias="RT",
-        serialization_alias="RT",
         default=0,
         description="Seconds left when the values were read; PERMANENT_BOOSTER_DURATION for ever",
     )
     purchase_count: int | float | None = Field(
         validation_alias="PC",
-        serialization_alias="PC",
         default=None,
         description="How many times in a row it was bought; None when not sent",
     )
     bonus_percent: ClientInt | None = Field(
-        validation_alias="B", serialization_alias="B", default=None, description="Its bonus in percent, if it has one"
+        validation_alias="B", default=None, description="Its bonus in percent, if it has one"
     )
 
     @field_validator("purchase_count", mode="before")
@@ -144,11 +136,9 @@ class Festival(TimedPayload):
     Client: ``FestivalVO.fillFromParamObject`` and ``parseDuration`` (bundle lines 90214-90215)
     """
 
-    festival_type: ClientInt = Field(
-        validation_alias="T", serialization_alias="T", default=0, description="The festival's id, -1 for none"
-    )
+    festival_type: ClientInt = Field(validation_alias="T", default=0, description="The festival's id, -1 for none")
     seconds: ClientNumber = Field(
-        validation_alias="RT", serialization_alias="RT", default=0, description="Seconds left when the values were read"
+        validation_alias="RT", default=0, description="Seconds left when the values were read"
     )
 
     def remaining_seconds(self, now: float | None = None) -> float:
@@ -178,34 +168,30 @@ class BoosterInfoResponse(TimedResponse):
     command = "boi"
 
     boosters: tuple[Booster, ...] = Field(
-        validation_alias="BO", serialization_alias="BO", default=(), description="The boosters this packet lists"
+        validation_alias="BO", default=(), description="The boosters this packet lists"
     )
     premium_seconds: ClientNumber = Field(
         validation_alias="PA",
-        serialization_alias="PA",
         default=0,
         description="Seconds of premium account left when the values were read",
     )
     premium_type: EnumOrInt[PremiumAccountType] | None = Field(
         validation_alias="PT",
-        serialization_alias="PT",
         default=None,
         description="The premium account's type; None when the packet names none",
     )
     unit_slots: Numbers = Field(
         validation_alias="SU",
-        serialization_alias="SU",
         default=(),
         description="Unit production slots: above 0 bought, below 0 permanent",
     )
     tool_slots: Numbers = Field(
         validation_alias="ST",
-        serialization_alias="ST",
         default=(),
         description="Tool production slots: above 0 bought, below 0 permanent",
     )
     festival: Festival | None = Field(
-        validation_alias="bfs", serialization_alias="bfs", default=None, description="The festival; None when not sent"
+        validation_alias="bfs", default=None, description="The festival; None when not sent"
     )
 
     @field_validator("boosters", mode="before")
@@ -274,17 +260,15 @@ class MightPointsResponse(TimedResponse):
     command = "gmu"
 
     might_points: ParsedInt = Field(
-        validation_alias="MP", serialization_alias="MP", default=None, description="Might points; None when unreadable"
+        validation_alias="MP", default=None, description="Might points; None when unreadable"
     )
     building_might: ParsedInt = Field(
         validation_alias="TSBM",
-        serialization_alias="TSBM",
         default=None,
         description="Might points from buildings; None when unreadable",
     )
     highest_might_points: ParsedInt = Field(
         validation_alias="HMP",
-        serialization_alias="HMP",
         default=None,
         description="The most might points ever reached; None when unreadable",
     )
@@ -301,11 +285,9 @@ class GloryPointsResponse(TimedResponse):
 
     command = "ufa"
 
-    glory_points: int | float | None = Field(
-        validation_alias="CF", serialization_alias="CF", default=None, description="Glory points"
-    )
+    glory_points: int | float | None = Field(validation_alias="CF", default=None, description="Glory points")
     highest_glory_points: int | float | None = Field(
-        validation_alias="HF", serialization_alias="HF", default=None, description="The most glory points ever"
+        validation_alias="HF", default=None, description="The most glory points ever"
     )
 
     @field_validator("glory_points", "highest_glory_points", mode="before")
@@ -329,13 +311,11 @@ class FactionPointsResponse(TimedResponse):
 
     faction_points: ParsedInt = Field(
         validation_alias="CFP",
-        serialization_alias="CFP",
         default=None,
         description="Berimond points; None when unreadable",
     )
     highest_faction_points: ParsedInt = Field(
         validation_alias="HFP",
-        serialization_alias="HFP",
         default=None,
         description="The most Berimond points ever; None when unreadable",
     )
@@ -350,22 +330,19 @@ class TopTitleRanking(TimedPayload):
 
     top_rank: ClientInt = Field(
         validation_alias="CTXT",
-        serialization_alias="CTXT",
         default=0,
         description="Your rank for the system's top-X titles, -1 or 0 for none",
     )
     reset_seconds: ClientNumber = Field(
-        validation_alias="RS", serialization_alias="RS", default=0, description="Seconds until the top-X titles reset"
+        validation_alias="RS", default=0, description="Seconds until the top-X titles reset"
     )
     thresholds: tuple[int, ...] = Field(
         validation_alias="NTFP",
-        serialization_alias="NTFP",
         default=(),
         description="The points the top-X titles need, highest title first",
     )
     top_player_id: int | None = Field(
         validation_alias="TOID",
-        serialization_alias="TOID",
         default=None,
         description="The player holding the system's top title; None when not sent",
     )
@@ -389,7 +366,6 @@ class IslandTitle(BasePayload):
 
     title_id: EnumOrInt["Title"] | None = Field(
         validation_alias="TID",
-        serialization_alias="TID",
         default=None,
         description="Your Storm Islands title; None for none",
     )
@@ -413,13 +389,11 @@ class AllianceCityTitle(BasePayload):
 
     title_id: EnumOrInt["Title"] | None = Field(
         validation_alias="TID",
-        serialization_alias="TID",
         default=None,
         description="The alliance city title; None for none",
     )
     player_id: int | None = Field(
         validation_alias="PID",
-        serialization_alias="PID",
         default=None,
         description="The player holding it; None when not sent",
     )
@@ -450,37 +424,31 @@ class TitleRanksResponse(TimedResponse):
 
     glory: TopTitleRanking = Field(
         validation_alias="FTM",
-        serialization_alias="FTM",
         default_factory=TopTitleRanking,
         description="The glory system",
     )
     faction: TopTitleRanking = Field(
         validation_alias="BTM",
-        serialization_alias="BTM",
         default_factory=TopTitleRanking,
         description="The Berimond system",
     )
     island_title: IslandTitle = Field(
         validation_alias="ITM",
-        serialization_alias="ITM",
         default_factory=IslandTitle,
         description="Your Storm Islands title",
     )
     alliance_city_title: AllianceCityTitle | None = Field(
         validation_alias="ATM",
-        serialization_alias="ATM",
         default=None,
         description="The alliance city title; None when not sent",
     )
     prefix_system: EnumOrStr[TitleSystem] | None = Field(
         validation_alias="PFX",
-        serialization_alias="PFX",
         default=None,
         description="The title system shown before your name; None when not sent",
     )
     suffix_system: EnumOrStr[TitleSystem] | None = Field(
         validation_alias="SFX",
-        serialization_alias="SFX",
         default=None,
         description="The title system shown after your name; None when not sent",
     )
@@ -511,12 +479,9 @@ class AchievementProgress(BasePayload):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
-    achievement_id: ClientInt = Field(
-        validation_alias="AID", serialization_alias="AID", default=0, description="The achievement's id"
-    )
+    achievement_id: ClientInt = Field(validation_alias="AID", default=0, description="The achievement's id")
     progress: Numbers = Field(
         validation_alias="P",
-        serialization_alias="P",
         default=(),
         description="Progress per condition, in condition order; -1 for a condition done",
     )
@@ -536,15 +501,12 @@ class AchievementsResponse(TimedResponse):
 
     command = "vli"
 
-    achievement_points: ClientInt = Field(
-        validation_alias="AVP", serialization_alias="AVP", default=0, description="Achievement points"
-    )
+    achievement_points: ClientInt = Field(validation_alias="AVP", default=0, description="Achievement points")
     finished_achievement_ids: Annotated[tuple[EnumOrInt["Achievement"], ...], BeforeValidator(_ints)] = Field(
-        validation_alias="FA", serialization_alias="FA", default=(), description="Finished achievements"
+        validation_alias="FA", default=(), description="Finished achievements"
     )
     progress: tuple[AchievementProgress, ...] = Field(
         validation_alias="RA",
-        serialization_alias="RA",
         default=(),
         description="Progress of the achievements this packet lists",
     )
@@ -567,18 +529,14 @@ class RelocationInfoResponse(TimedResponse):
 
     command = "gri"
 
-    relocation_count: ClientInt = Field(
-        validation_alias="RLC", serialization_alias="RLC", default=0, description="Relocations made"
-    )
+    relocation_count: ClientInt = Field(validation_alias="RLC", default=0, description="Relocations made")
     relocation_seconds: ClientNumber = Field(
         validation_alias="RD",
-        serialization_alias="RD",
         default=0,
         description="Seconds left on the running relocation when the values were read",
     )
     relocation_mode: int | None = Field(
         validation_alias="JM",
-        serialization_alias="JM",
         default=None,
         description=(
             "The relocation's mode: its time counts only while this is 0, and the client redraws the map"
@@ -587,16 +545,11 @@ class RelocationInfoResponse(TimedResponse):
     )
     cooldown_seconds: ClientNumber = Field(
         validation_alias="RMC",
-        serialization_alias="RMC",
         default=0,
         description="Seconds until you may relocate again, when the values were read",
     )
-    destination_x: ClientInt = Field(
-        validation_alias="DX", serialization_alias="DX", default=0, description="The relocation's destination X"
-    )
-    destination_y: ClientInt = Field(
-        validation_alias="DY", serialization_alias="DY", default=0, description="The relocation's destination Y"
-    )
+    destination_x: ClientInt = Field(validation_alias="DX", default=0, description="The relocation's destination X")
+    destination_y: ClientInt = Field(validation_alias="DY", default=0, description="The relocation's destination Y")
 
     @field_validator("relocation_mode", mode="before")
     @classmethod

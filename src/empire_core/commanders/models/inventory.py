@@ -69,11 +69,9 @@ class GemInventoryResponse(BaseResponse):
 
     command = "ggm"
 
-    gems: tuple[GemStack, ...] = Field(
-        validation_alias="GEM", serialization_alias="GEM", default=(), description="The gems you hold, per gem id"
-    )
+    gems: tuple[GemStack, ...] = Field(validation_alias="GEM", default=(), description="The gems you hold, per gem id")
     relic_gems: Annotated[tuple[RelicGem, ...], BeforeValidator(partial(readable_list, RelicGem))] = Field(
-        validation_alias="RGEM", serialization_alias="RGEM", default=(), description="The relic gems you hold"
+        validation_alias="RGEM", default=(), description="The relic gems you hold"
     )
 
     @field_validator("gems", mode="before")
@@ -112,19 +110,14 @@ class InventorySpace(BasePayload):
 
     equipment_space: ParseInt = Field(
         validation_alias="E",
-        serialization_alias="E",
         default=0,
         description="Free equipment inventory space; negative when you hold more than fits, full at 0 or less",
     )
     equipment_total_space: ParseInt = Field(
-        validation_alias="TE", serialization_alias="TE", default=0, description="Total equipment inventory space"
+        validation_alias="TE", default=0, description="Total equipment inventory space"
     )
-    gem_space: ClientInt = Field(
-        validation_alias="G", serialization_alias="G", default=0, description="Free gem inventory space, as sent"
-    )
-    gem_total_space: ClientInt = Field(
-        validation_alias="TG", serialization_alias="TG", default=0, description="Total gem inventory space"
-    )
+    gem_space: ClientInt = Field(validation_alias="G", default=0, description="Free gem inventory space, as sent")
+    gem_total_space: ClientInt = Field(validation_alias="TG", default=0, description="Total gem inventory space")
 
 
 class NewRelicsResponse(BaseResponse):
@@ -140,9 +133,7 @@ class NewRelicsResponse(BaseResponse):
 
     command = "nrf"
 
-    has_new_relics: bool = Field(
-        validation_alias="NR", serialization_alias="NR", default=False, description="Whether new relics wait to be seen"
-    )
+    has_new_relics: bool = Field(validation_alias="NR", default=False, description="Whether new relics wait to be seen")
 
     @field_validator("has_new_relics", mode="before")
     @classmethod
