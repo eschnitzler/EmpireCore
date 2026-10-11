@@ -15,12 +15,13 @@ import logging
 from collections.abc import Iterable, Mapping, Sequence
 from typing import ClassVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from empire_core.army.models.units import AttackWave, WaveFlank
 from empire_core.enums import Flank, TargetRead
 from empire_core.exceptions import CommandError
 from empire_core.gamedata import EMPTY_SLOT, GameData, WodAmount, WodAmountSlots
+from empire_core.protocol.base import EmpireModel
 
 from .capacity import (
     TOOL_SLOT_LEVELS_FLANK,
@@ -37,7 +38,7 @@ from .tools import TargetContext, ToolStrategy, check_flank, default_tool_strate
 logger = logging.getLogger(__name__)
 
 
-class FillOptions(BaseModel):
+class FillOptions(EmpireModel):
     """
     Which flanks to fill and which units may be used.
 
@@ -543,7 +544,7 @@ def wave_limit_violations(
     return problems
 
 
-class FilledAttack(BaseModel):
+class FilledAttack(EmpireModel):
     """
     A complete attack: its waves and its courtyard wave.
 

@@ -11,9 +11,10 @@ import xml.etree.ElementTree as ET
 from typing import Any, ClassVar
 
 import requests
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from empire_core.exceptions import NetworkError
+from empire_core.protocol.base import EmpireModel
 from empire_core.protocol.js import js_number
 
 _AID_ENV_VAR = "EMPIRE_AID"
@@ -100,7 +101,7 @@ LOGIN_DEFAULTS: dict[str, Any] = {
 # ============================================================
 
 
-class NetworkInstance(BaseModel):
+class NetworkInstance(EmpireModel):
     """
     One game server (world) of a network, as ``network.xml`` lists it.
 
@@ -298,7 +299,7 @@ def instance_for_zone(
 # ============================================================
 
 
-class EmpireConfig(BaseModel):
+class EmpireConfig(EmpireModel):
     """
     Configuration for EmpireCore.
     Defaults can be overridden by passing arguments to EmpireClient

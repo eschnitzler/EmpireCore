@@ -12,9 +12,10 @@ from __future__ import annotations
 import math
 from typing import Any, ClassVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 
 from empire_core.enums import Flank, MapItemType, NPCOwner
+from empire_core.protocol.base import EmpireModel
 
 # Attackers per wave stops growing past level 69.
 MAX_ATTACKERS_ABOVE_69 = 320
@@ -170,7 +171,7 @@ def is_npc_pvp_player(player_id: int) -> bool:
     return player_id in ALIEN_INVASION_PLAYER_IDS or player_id in COLLECTOR_PLAYER_IDS
 
 
-class LegendaryFight(BaseModel):
+class LegendaryFight(EmpireModel):
     """
     Which legend skills an attack gets. The client checks three different rules.
 
@@ -496,7 +497,7 @@ def max_wave_count(level: int, *, conquer: bool = False, bonus: int = 0) -> int:
     return count + bonus
 
 
-class WaveCapacity(BaseModel):
+class WaveCapacity(EmpireModel):
     """
     The size of one wave at a given effective level.
 

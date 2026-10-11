@@ -2,18 +2,19 @@
 
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, ConfigDict, Field, field_validator
 
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
 from empire_core.enums import Kingdom
 from empire_core.gamedata import EnumOrStr, WodAmounts
+from empire_core.protocol.base import EmpireModel
 from empire_core.protocol.js import js_parse_int
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Currency
 
 
-class Resources(BaseModel):
+class Resources(EmpireModel):
     """A castle's resources: stock, storage capacity, hourly production and plunder-safe amount.
 
     Stock comes from the castle's ``dcl`` entry; capacity, production and the
@@ -77,7 +78,7 @@ class Resources(BaseModel):
         return self.safe.food
 
 
-class Alliance(BaseModel):
+class Alliance(EmpireModel):
     """The local player's alliance membership, from the ``gal`` login section.
 
     Client: ``CastleUserData.parse_GAL``.
@@ -88,7 +89,6 @@ class Alliance(BaseModel):
     id: int = Field(
         default=-1,
         validation_alias="AID",
-        serialization_alias="AID",
         description="Alliance id; 0 or less means no alliance",
     )
     # The client reads AN; live servers send N
@@ -97,16 +97,11 @@ class Alliance(BaseModel):
         validation_alias=AliasChoices("AN", "N", "name"),
         description="Alliance name",
     )
-    rank: int = Field(
-        default=0, validation_alias="R", serialization_alias="R", description="The player's rank in the alliance"
-    )
-    current_fame: int = Field(
-        default=0, validation_alias="ACF", serialization_alias="ACF", description="The alliance's current fame"
-    )
+    rank: int = Field(default=0, validation_alias="R", description="The player's rank in the alliance")
+    current_fame: int = Field(default=0, validation_alias="ACF", description="The alliance's current fame")
     is_searching: bool = Field(
         default=False,
         validation_alias="SA",
-        serialization_alias="SA",
         description="The player is looking for an alliance",
     )
 
@@ -120,7 +115,7 @@ CastleKey = tuple[Kingdom, int]
 """A castle's (kingdom, object id): ids repeat across kingdoms, as the client's castle list is kept per kingdom."""
 
 
-class Castle(BaseModel):
+class Castle(EmpireModel):
     """A castle, outpost or metropolis owned by the logged-in player.
 
     Name, position, kingdom and the open-gate counter come from the castle
@@ -139,23 +134,21 @@ class Castle(BaseModel):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore", populate_by_name=True)
 
-    id: int = Field(default=-1, validation_alias="OID", serialization_alias="OID", description="Castle (area) id")
-    name: str = Field(default="Unknown", validation_alias="N", serialization_alias="N", description="Castle name")
+    id: int = Field(default=-1, validation_alias="OID", description="Castle (area) id")
+    name: str = Field(default="Unknown", validation_alias="N", description="Castle name")
     kingdom_id: Kingdom = Field(
         default=Kingdom.GREEN,
         validation_alias="KID",
-        serialization_alias="KID",
         description="The kingdom the castle is in",
     )
-    x: int = Field(default=0, validation_alias="X", serialization_alias="X", description="Map x")
-    y: int = Field(default=0, validation_alias="Y", serialization_alias="Y", description="Map y")
+    x: int = Field(default=0, validation_alias="X", description="Map x")
+    y: int = Field(default=0, validation_alias="Y", description="Map y")
 
     resources: Resources = Field(default_factory=Resources, description="The castle's resources")
     units: WodAmounts = Field(default_factory=dict, description="Units and tools stationed here")
     open_gate_counter: int = Field(
         default=0,
         validation_alias="OGC",
-        serialization_alias="OGC",
         description="How often the gate has been opened since the last Monday reset",
     )
     details: DetailedCastleInfo | None = Field(
@@ -212,7 +205,7 @@ class Castle(BaseModel):
         return cls(**data)
 
 
-class Player(BaseModel):
+class Player(EmpireModel):
     """The logged-in player, as tracked by :class:`~empire_core.state.manager.StateManager`.
 
     Some fields are still stored under their raw wire keys (``PID``, ``PN``,
@@ -234,26 +227,22 @@ class Player(BaseModel):
     level: int = Field(
         default=0,
         validation_alias="LVL",
-        serialization_alias="LVL",
         description="Level; 70 is the cap before legend levels",
     )
-    xp: int = Field(default=0, validation_alias="XP", serialization_alias="XP", description="Total XP")
+    xp: int = Field(default=0, validation_alias="XP", description="Total XP")
     legendary_level: int = Field(
         default=0,
         validation_alias="LL",
-        serialization_alias="LL",
         description="Legend level, computed from XP once level reaches 70, else 0",
     )
     xp_for_current_level: int = Field(
         default=0,
         validation_alias="XPFCL",
-        serialization_alias="XPFCL",
         description="Total XP at which the current level (or legend level) starts, computed from level and XP",
     )
     xp_to_next_level: int = Field(
         default=0,
         validation_alias="XPTNL",
-        serialization_alias="XPTNL",
         description="Total XP at which the next level (or legend level) starts, computed from level and XP",
     )
 
@@ -269,28 +258,24 @@ class Player(BaseModel):
         ),
     )
 
-    vip_points: int = Field(default=0, validation_alias="VP", serialization_alias="VP", description="VIP points")
-    vip_level: int = Field(
-        default=0, validation_alias="VRL", serialization_alias="VRL", description="The highest VIP level reached"
-    )
+    vip_points: int = Field(default=0, validation_alias="VP", description="VIP points")
+    vip_level: int = Field(default=0, validation_alias="VRL", description="The highest VIP level reached")
     vip_time_left: int = Field(
         default=0,
         validation_alias="VRS",
-        serialization_alias="VRS",
         description="Seconds of VIP time left when last read",
     )
     used_premium_commanders: int = Field(
         default=0,
         validation_alias="UPG",
-        serialization_alias="UPG",
         description="Premium commanders used today from the VIP level's free ones",
     )
 
     # Alliance
     alliance: Alliance | None = None
 
-    honor: int = Field(default=0, validation_alias="H", serialization_alias="H", description="Honor")
-    ranking: int = Field(default=0, validation_alias="RP", serialization_alias="RP", description="Ranking points")
+    honor: int = Field(default=0, validation_alias="H", description="Honor")
+    ranking: int = Field(default=0, validation_alias="RP", description="Ranking points")
     beginner_protection: dict[Kingdom, bool] = Field(
         default_factory=dict,
         description="Whether the player is under beginner protection, by kingdom",
@@ -357,7 +342,7 @@ class Player(BaseModel):
         return self.vip_time_left > 0
 
 
-class JoinedArea(BaseModel):
+class JoinedArea(EmpireModel):
     """
     The castle or area last joined (``jaa``, the reply to ``client.castle.join``), and the
     slum level and builder discount it was sent with or pushed since (``csl``, ``gab``).

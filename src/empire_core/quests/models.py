@@ -12,16 +12,17 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from empire_core.gamedata import Collectable, EnumOrInt
+from empire_core.protocol.base import EmpireModel
 from empire_core.protocol.js import js_int, js_loose_equals, js_truthy
 
 if TYPE_CHECKING:
     from empire_core.gamedata import DailyQuestId, MainQuest, QuestId
 
 
-class Quest(BaseModel):
+class Quest(EmpireModel):
     """
     One of your active quests, or a time-limited campaign's quest.
 
@@ -35,26 +36,20 @@ class Quest(BaseModel):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True)
 
-    quest_id: EnumOrInt["QuestId"] = Field(validation_alias="QID", serialization_alias="QID", description="The quest")
-    progress: tuple[int, ...] = Field(
-        default=(), validation_alias="P", serialization_alias="P", description="Each condition's counter"
-    )
+    quest_id: EnumOrInt["QuestId"] = Field(validation_alias="QID", description="The quest")
+    progress: tuple[int, ...] = Field(default=(), validation_alias="P", description="Each condition's counter")
     end_time: float | None = Field(
         default=None,
         validation_alias="RS",
-        serialization_alias="RS",
         description="When the quest runs out, in time.monotonic() seconds; None without RS or for a negative one",
     )
     completed: bool = Field(default=False, description="Whether the quest is done, from S or QCS")
     failed: bool = Field(default=False, description="Whether the quest has failed, from S or QCS")
     locked: bool = Field(default=False, description="Whether the quest is not open yet, from QCS")
-    campaign_quest_id: int = Field(
-        default=0, validation_alias="CQID", serialization_alias="CQID", description="The quest's place in a campaign"
-    )
+    campaign_quest_id: int = Field(default=0, validation_alias="CQID", description="The quest's place in a campaign")
     campaign_timestamp: int | None = Field(
         default=None,
         validation_alias="ST",
-        serialization_alias="ST",
         description="When a campaign quest opens, as sent; None without one",
     )
 
@@ -92,7 +87,7 @@ class Quest(BaseModel):
         return max(0.0, self.end_time - (time.monotonic() if now is None else now))
 
 
-class QuestBook(BaseModel):
+class QuestBook(EmpireModel):
     """
     The quest book's main quests, its chapters: those announced, running and finished.
 
@@ -104,13 +99,13 @@ class QuestBook(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True)
 
     announced_quest_ids: tuple[EnumOrInt["MainQuest"], ...] = Field(
-        default=(), validation_alias="ANN", serialization_alias="ANN", description="The main quests announced"
+        default=(), validation_alias="ANN", description="The main quests announced"
     )
     running_quest_ids: tuple[EnumOrInt["MainQuest"], ...] = Field(
-        default=(), validation_alias="R", serialization_alias="R", description="The main quests running"
+        default=(), validation_alias="R", description="The main quests running"
     )
     finished_quest_ids: tuple[EnumOrInt["MainQuest"], ...] = Field(
-        default=(), validation_alias="D", serialization_alias="D", description="The main quests finished"
+        default=(), validation_alias="D", description="The main quests finished"
     )
 
     @classmethod
@@ -126,7 +121,7 @@ class QuestBook(BaseModel):
         return cls(announced_quest_ids=announced, running_quest_ids=running, finished_quest_ids=finished)
 
 
-class DailyQuest(BaseModel):
+class DailyQuest(EmpireModel):
     """
     One of today's daily quests.
 
@@ -135,19 +130,16 @@ class DailyQuest(BaseModel):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True)
 
-    quest_id: EnumOrInt["DailyQuestId"] = Field(
-        validation_alias="QID", serialization_alias="QID", description="The daily quest"
-    )
+    quest_id: EnumOrInt["DailyQuestId"] = Field(validation_alias="QID", description="The daily quest")
     progress: tuple[int, ...] = Field(
         default=(),
         validation_alias="P",
-        serialization_alias="P",
         description="Each condition's counter, read through int(); empty for a finished quest, whose counters are full",
     )
     finished: bool = Field(default=False, description="Whether you finished it today (listed in FDQ)")
 
 
-class DailyQuests(BaseModel):
+class DailyQuests(EmpireModel):
     """
     Your daily quests: your daily quest level, today's quests and the reward thresholds.
 
@@ -157,16 +149,13 @@ class DailyQuests(BaseModel):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True)
 
-    level: int = Field(
-        default=0, validation_alias="PQL", serialization_alias="PQL", description="Your daily quest level"
-    )
+    level: int = Field(default=0, validation_alias="PQL", description="Your daily quest level")
     quests: tuple[DailyQuest, ...] = Field(
         default=(), description="The finished (FDQ) and running (RDQ) quests, by quest id"
     )
     threshold_rewards: tuple[tuple[Collectable, ...], ...] = Field(
         default=(),
         validation_alias="RS",
-        serialization_alias="RS",
         description="Each reward threshold's rewards, in threshold order",
     )
 

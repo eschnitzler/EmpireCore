@@ -50,97 +50,76 @@ class CreateAttackRequest(BaseRequest):
 
     command = "cra"
 
-    source_x: int = Field(validation_alias="SX", serialization_alias="SX", description="Attacking castle's map x")
-    source_y: int = Field(validation_alias="SY", serialization_alias="SY", description="Attacking castle's map y")
-    target_x: int = Field(validation_alias="TX", serialization_alias="TX", description="Target map x")
-    target_y: int = Field(validation_alias="TY", serialization_alias="TY", description="Target map y")
+    source_x: int = Field(validation_alias="SX", description="Attacking castle's map x")
+    source_y: int = Field(validation_alias="SY", description="Attacking castle's map y")
+    target_x: int = Field(validation_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", description="Target map y")
     kingdom_id: Kingdom = Field(
         validation_alias="KID",
-        serialization_alias="KID",
         default=Kingdom.GREEN,
         description="The attacking castle's kingdom",
     )
     commander_id: int = Field(
         validation_alias="LID",
-        serialization_alias="LID",
         description=(
             "A Commander.commander_id from client.commanders.get_commanders(); "
             "0 is the free starting commander, -14 the premium one"
         ),
     )
-    wait_time: int = Field(
-        validation_alias="WT", serialization_alias="WT", default=0, description="Wait time the attack is sent with"
-    )
+    wait_time: int = Field(validation_alias="WT", default=0, description="Wait time the attack is sent with")
     horse_booster_id: int = Field(
         validation_alias="HBW",
-        serialization_alias="HBW",
         default=-1,
         description="The horse booster's wod id, -1 for none or when paid with feathers",
     )
     use_premium_commander: int = Field(
         validation_alias="BPC",
-        serialization_alias="BPC",
         default=0,
         description=(
             "1 when the premium commander (commander_id -14) leads, which uses a premium commander or"
             " costs rubies; 0 for any other commander"
         ),
     )
-    attack_type: AttackType = Field(
-        validation_alias="ATT", serialization_alias="ATT", default=AttackType.ATTACK, description="The kind of attack"
-    )
-    share_battle_view: int = Field(
-        validation_alias="AV", serialization_alias="AV", default=0, description="1 to let others watch the battle"
-    )
+    attack_type: AttackType = Field(validation_alias="ATT", default=AttackType.ATTACK, description="The kind of attack")
+    share_battle_view: int = Field(validation_alias="AV", default=0, description="1 to let others watch the battle")
     loot_priority: LootPriority = Field(
-        validation_alias="LP", serialization_alias="LP", default=LootPriority.NO, description="Resource to loot first"
+        validation_alias="LP", default=LootPriority.NO, description="Resource to loot first"
     )
     send_anyway: int = Field(
         validation_alias="FC",
-        serialization_alias="FC",
         default=0,
         description="1 to send although one of your attacks is already on its way there (after ATTACK_IN_PROGRESS)",
     )
     feathers: int = Field(
         validation_alias="PTT",
-        serialization_alias="PTT",
         default=0,
         description="1 when the horse is paid with feathers",
     )
-    slowdown: int = Field(
-        validation_alias="SD", serialization_alias="SD", default=0, description="Seconds the arrival is delayed by"
-    )
-    collector_attack: int = Field(
-        validation_alias="ICA", serialization_alias="ICA", default=0, description="1 for a collector event attack"
-    )
-    countdown: int = Field(validation_alias="CD", serialization_alias="CD", default=99, description="Always 99")
+    slowdown: int = Field(validation_alias="SD", default=0, description="Seconds the arrival is delayed by")
+    collector_attack: int = Field(validation_alias="ICA", default=0, description="1 for a collector event attack")
+    countdown: int = Field(validation_alias="CD", default=99, description="Always 99")
     waves: list[AttackWave] = Field(
         validation_alias="A",
-        serialization_alias="A",
         default_factory=list,
         description="The attack waves, front to back",
     )
     collector_booster: CurrencyAmounts = Field(
         validation_alias="BKS",
-        serialization_alias="BKS",
         default_factory=dict,
         description="Collector event boosters by currency, such as CurrencyId.SAMURAI_MEDAL_BOOSTER",
     )
     support_tools: SupportToolSlots = Field(
         validation_alias="AST",
-        serialization_alias="AST",
         default=(),
         description="Support tools, one per slot, None for an empty one; the client sends every slot",
     )
     yard_wave: WodAmountSlots = Field(
         validation_alias="RW",
-        serialization_alias="RW",
         default=(),
         description="The courtyard wave's unit slots, [-1, 0] for an empty one",
     )
     auto_skip_cooldown: AutoSkipCooldownType = Field(
         validation_alias="ASCT",
-        serialization_alias="ASCT",
         default=AutoSkipCooldownType.OFF,
         description="How the target's cooldown is skipped when the attack lands",
     )
@@ -198,31 +177,26 @@ class CreateAttackResponse(BaseResponse):
 
     attack_movement: MovementWrapper | None = Field(
         validation_alias="AAM",
-        serialization_alias="AAM",
         default=None,
         description="The created movement; None when there is none",
     )
     currencies: CurrencyBlock = Field(
         validation_alias="gcu",
-        serialization_alias="gcu",
         default=None,
         description="Coins and rubies after the send; None when the reply has none",
     )
     owners: list[MovementOwner] = Field(
         validation_alias="O",
-        serialization_alias="O",
         default_factory=list,
         description="Owner records for the movement's areas",
     )
     arrival_seconds: int | float | None = Field(
         validation_alias="TS",
-        serialization_alias="TS",
         default=None,
         description="On ATTACK_IN_PROGRESS: seconds until the attack already on its way arrives",
     )
     army_size: int | float | None = Field(
         validation_alias="AS",
-        serialization_alias="AS",
         default=None,
         description="On ATTACK_IN_PROGRESS: the size of the attack already on its way",
     )

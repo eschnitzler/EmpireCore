@@ -18,7 +18,9 @@ from enum import IntEnum
 from functools import partial
 from typing import Annotated, Any, ClassVar, TypeVar
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationError, field_validator, model_validator
+import pydantic
+from pydantic import BeforeValidator, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic.fields import FieldInfo
 
 # Type variable for generic response payloads
 T = TypeVar("T")
@@ -325,7 +327,28 @@ class GGECommand:
     SDS = "sds"  # Sell from inventory
 
 
-class BasePayload(BaseModel):
+class EmpireModel(pydantic.BaseModel):
+    """
+    Base of every model with wire keys: a field declares its key once, as ``Field(validation_alias="X")``.
+
+    The model writes each field back under the key it reads it from: a string ``validation_alias``
+    is copied to ``serialization_alias`` as the class is created, before pydantic collects the
+    fields, so every later rebuild of the model sees it. The key must be on the assigned
+    ``Field(...)``, not inside ``Annotated[...]``. An ``AliasChoices`` or ``AliasPath`` field names
+    its ``serialization_alias`` itself.
+    """
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        for field in vars(cls).values():
+            if isinstance(field, FieldInfo) and isinstance(field.validation_alias, str):
+                if field.serialization_alias is None:
+                    field.serialization_alias = field.validation_alias
+                    # pydantic re-derives a field from the attributes set on its Field() call
+                    field._attributes_set["serialization_alias"] = field.validation_alias
+
+
+class BasePayload(EmpireModel):
     """Base class for all protocol payloads."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
@@ -399,7 +422,7 @@ class BaseResponse(BasePayload):
     # "E" is not reserved: an aci response uses it for the player's crest, and
     # a response whose payload happens to use the key for something else must
     # still parse, so anything that is not an integer is treated as no error.
-    error_code: int = Field(validation_alias="E", serialization_alias="E", default=0)
+    error_code: int = Field(validation_alias="E", default=0)
 
     @field_validator("error_code", mode="before")
     @classmethod
@@ -475,19 +498,19 @@ def parse_response(command: str, payload: dict[str, Any]) -> BaseResponse | None
     return model_cls.model_validate(payload)
 
 
-class Position(BaseModel):
+class Position(EmpireModel):
     """A position on the game map."""
 
-    x: int = Field(validation_alias="X", serialization_alias="X")
-    y: int = Field(validation_alias="Y", serialization_alias="Y")
-    kingdom: int = Field(validation_alias="KID", serialization_alias="KID", default=0)
+    x: int = Field(validation_alias="X")
+    y: int = Field(validation_alias="Y")
+    kingdom: int = Field(validation_alias="KID", default=0)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True)
 
 
 def object_or_none(value: Any) -> Any:
     """A reply block that is an object, else None: the client reads keys off it only when it is one."""
-    return value if isinstance(value, (dict, BaseModel)) else None
+    return value if isinstance(value, (dict, pydantic.BaseModel)) else None
 
 
 def list_or_empty(value: Any) -> Any:
@@ -511,7 +534,7 @@ def int_entries(value: Any, *, warn: logging.Logger, what: str) -> list[int]:
     return ids
 
 
-_M = TypeVar("_M", bound=BaseModel)
+_M = TypeVar("_M", bound=pydantic.BaseModel)
 
 
 def readable_list(
@@ -583,13 +606,11 @@ class CurrencyTotals(BasePayload):
 
     coins: int | float | None = Field(
         validation_alias="C1",
-        serialization_alias="C1",
         default=None,
         description="Coins; None when the reply has no number for it",
     )
     rubies: int | float | None = Field(
         validation_alias="C2",
-        serialization_alias="C2",
         default=None,
         description="Rubies; None when the reply has no number for it",
     )
@@ -653,13 +674,13 @@ def enum_or_none(enum: type[_E], value: int) -> _E | None:
         return None
 
 
-class PlayerInfo(BaseModel):
+class PlayerInfo(EmpireModel):
     """Basic player information."""
 
-    player_id: int = Field(validation_alias="PID", serialization_alias="PID")
-    player_name: str = Field(validation_alias="PN", serialization_alias="PN")
-    alliance_id: int | None = Field(validation_alias="AID", serialization_alias="AID", default=None)
-    alliance_name: str | None = Field(validation_alias="AN", serialization_alias="AN", default=None)
+    player_id: int = Field(validation_alias="PID")
+    player_name: str = Field(validation_alias="PN")
+    alliance_id: int | None = Field(validation_alias="AID", default=None)
+    alliance_name: str | None = Field(validation_alias="AN", default=None)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(populate_by_name=True)
 

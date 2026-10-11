@@ -99,23 +99,14 @@ class BuildRequest(BaseRequest):
 
     command = "ebu"
 
-    wod_id: int = Field(validation_alias="WID", serialization_alias="WID", description="The building type's wod id")
-    x: int = Field(
-        validation_alias="X", serialization_alias="X", description="Castle grid x, -1 when placing into a district"
-    )
-    y: int = Field(
-        validation_alias="Y", serialization_alias="Y", description="Castle grid y, -1 when placing into a district"
-    )
-    rotation: int = Field(validation_alias="R", serialization_alias="R", default=0, description="Rotation")
-    pay_with_rubies: bool = Field(
-        validation_alias="PWR", serialization_alias="PWR", default=False, description=_PAY_WITH_RUBIES
-    )
-    private_offer_id: int = Field(
-        validation_alias="PO", serialization_alias="PO", default=-1, description=_PRIVATE_OFFER
-    )
+    wod_id: int = Field(validation_alias="WID", description="The building type's wod id")
+    x: int = Field(validation_alias="X", description="Castle grid x, -1 when placing into a district")
+    y: int = Field(validation_alias="Y", description="Castle grid y, -1 when placing into a district")
+    rotation: int = Field(validation_alias="R", default=0, description="Rotation")
+    pay_with_rubies: bool = Field(validation_alias="PWR", default=False, description=_PAY_WITH_RUBIES)
+    private_offer_id: int = Field(validation_alias="PO", default=-1, description=_PRIVATE_OFFER)
     district_object_id: int = Field(
         validation_alias="DOID",
-        serialization_alias="DOID",
         default=-1,
         description="Object id of the district to place into, -1 for none",
     )
@@ -140,18 +131,14 @@ class BuildResponse(_BuildingReply):
 
     command = "ebu"
 
-    building: BuildingRow | None = Field(
-        validation_alias="NO", serialization_alias="NO", default=None, description="The new building"
-    )
+    building: BuildingRow | None = Field(validation_alias="NO", default=None, description="The new building")
     resources: CastleResources | None = Field(
-        validation_alias="grc", serialization_alias="grc", default=None, description="The castle's resources after"
+        validation_alias="grc", default=None, description="The castle's resources after"
     )
     construction_list: ConstructionList | None = Field(
-        validation_alias="scl", serialization_alias="scl", default=None, description="The construction slots after"
+        validation_alias="scl", default=None, description="The construction slots after"
     )
-    currencies: CurrencyBlock = Field(
-        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after"
-    )
+    currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
@@ -173,13 +160,9 @@ class UpgradeBuildingRequest(BaseRequest):
 
     command = "eup"
 
-    object_id: int = Field(validation_alias="OID", serialization_alias="OID", description=_OBJECT_ID)
-    pay_with_rubies: bool = Field(
-        validation_alias="PWR", serialization_alias="PWR", default=False, description=_PAY_WITH_RUBIES
-    )
-    private_offer_id: int = Field(
-        validation_alias="PO", serialization_alias="PO", default=-1, description=_PRIVATE_OFFER
-    )
+    object_id: int = Field(validation_alias="OID", description=_OBJECT_ID)
+    pay_with_rubies: bool = Field(validation_alias="PWR", default=False, description=_PAY_WITH_RUBIES)
+    private_offer_id: int = Field(validation_alias="PO", default=-1, description=_PRIVATE_OFFER)
 
     @field_serializer("pay_with_rubies")
     def _flag(self, value: bool) -> int:
@@ -200,17 +183,15 @@ class UpgradeBuildingResponse(_BuildingReply):
     command = "eup"
 
     buildings: list[BuildingRow] = Field(
-        validation_alias="O", serialization_alias="O", default_factory=list, description="The changed buildings"
+        validation_alias="O", default_factory=list, description="The changed buildings"
     )
     resources: CastleResources | None = Field(
-        validation_alias="grc", serialization_alias="grc", default=None, description="The castle's resources after"
+        validation_alias="grc", default=None, description="The castle's resources after"
     )
     construction_list: ConstructionList | None = Field(
-        validation_alias="scl", serialization_alias="scl", default=None, description="The construction slots after"
+        validation_alias="scl", default=None, description="The construction slots after"
     )
-    currencies: CurrencyBlock = Field(
-        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after"
-    )
+    currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
@@ -232,10 +213,10 @@ class MoveBuildingRequest(BaseRequest):
 
     command = "emo"
 
-    object_id: int = Field(validation_alias="OID", serialization_alias="OID", description=_OBJECT_ID)
-    x: int = Field(validation_alias="X", serialization_alias="X", description="Castle grid x")
-    y: int = Field(validation_alias="Y", serialization_alias="Y", description="Castle grid y")
-    rotation: int = Field(validation_alias="R", serialization_alias="R", default=0, description="Rotation")
+    object_id: int = Field(validation_alias="OID", description=_OBJECT_ID)
+    x: int = Field(validation_alias="X", description="Castle grid x")
+    y: int = Field(validation_alias="Y", description="Castle grid y")
+    rotation: int = Field(validation_alias="R", default=0, description="Rotation")
 
 
 class MoveBuildingResponse(_BuildingReply):
@@ -252,7 +233,7 @@ class MoveBuildingResponse(_BuildingReply):
     command = "emo"
 
     building: BuildingRow | None = Field(
-        validation_alias="MO", serialization_alias="MO", default=None, description="The building where it now stands"
+        validation_alias="MO", default=None, description="The building where it now stands"
     )
 
 
@@ -274,7 +255,7 @@ class SellBuildingRequest(BaseRequest):
 
     command = "sbd"
 
-    object_id: int = Field(validation_alias="OID", serialization_alias="OID", description=_OBJECT_ID)
+    object_id: int = Field(validation_alias="OID", description=_OBJECT_ID)
 
 
 class SellBuildingResponse(_BuildingReply):
@@ -290,14 +271,10 @@ class SellBuildingResponse(_BuildingReply):
 
     command = "sbd"
 
-    object_id: int = Field(
-        validation_alias="OID", serialization_alias="OID", default=-1, description="Object id of the removed decoration"
-    )
+    object_id: int = Field(validation_alias="OID", default=-1, description="Object id of the removed decoration")
 
     _object_id = field_validator("object_id", mode="before")(js_int)
-    currencies: CurrencyBlock = Field(
-        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after"
-    )
+    currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
@@ -317,7 +294,7 @@ class DestroyBuildingRequest(BaseRequest):
 
     command = "edo"
 
-    object_id: int = Field(validation_alias="OID", serialization_alias="OID", description=_OBJECT_ID)
+    object_id: int = Field(validation_alias="OID", description=_OBJECT_ID)
 
 
 class DestroyBuildingResponse(_BuildingReply):
@@ -334,11 +311,9 @@ class DestroyBuildingResponse(_BuildingReply):
 
     command = "edo"
 
-    building: BuildingRow | None = Field(
-        validation_alias="O", serialization_alias="O", default=None, description="The building"
-    )
+    building: BuildingRow | None = Field(validation_alias="O", default=None, description="The building")
     construction_list: ConstructionList | None = Field(
-        validation_alias="scl", serialization_alias="scl", default=None, description="The construction slots after"
+        validation_alias="scl", default=None, description="The construction slots after"
     )
 
 
@@ -361,10 +336,9 @@ class FastCompleteRequest(BaseRequest):
 
     command = "fco"
 
-    object_id: int = Field(validation_alias="OID", serialization_alias="OID", description=_OBJECT_ID)
+    object_id: int = Field(validation_alias="OID", description=_OBJECT_ID)
     free_skip: bool = Field(
         validation_alias="FS",
-        serialization_alias="FS",
         default=False,
         description="Finish for free, the time left being within the free skip time",
     )
@@ -387,12 +361,8 @@ class FastCompleteResponse(_BuildingReply):
 
     command = "fco"
 
-    building: BuildingRow | None = Field(
-        validation_alias="O", serialization_alias="O", default=None, description="The building"
-    )
-    currencies: CurrencyBlock = Field(
-        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after"
-    )
+    building: BuildingRow | None = Field(validation_alias="O", default=None, description="The building")
+    currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
@@ -418,10 +388,9 @@ class TimeSkipBuildingRequest(BaseRequest):
 
     command = "msb"
 
-    object_id: int = Field(validation_alias="OID", serialization_alias="OID", description=_OBJECT_ID)
+    object_id: int = Field(validation_alias="OID", description=_OBJECT_ID)
     minute_skip: EnumOrStr["Currency"] = Field(
         validation_alias="MST",
-        serialization_alias="MST",
         description="The minute skip used, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``; sent as its key",
     )
 
@@ -439,7 +408,7 @@ class TimeSkipBuildingResponse(_BuildingReply):
     command = "msb"
 
     construction_list: ConstructionList | None = Field(
-        validation_alias="scl", serialization_alias="scl", default=None, description="The construction slots after"
+        validation_alias="scl", default=None, description="The construction slots after"
     )
 
 
@@ -462,15 +431,10 @@ class UpgradeWallRequest(BaseRequest):
 
     object_id: int = Field(
         validation_alias="OID",
-        serialization_alias="OID",
         description="Object id of the wall, gate or tower, a BuildingRow.object_id",
     )
-    private_offer_id: int = Field(
-        validation_alias="PO", serialization_alias="PO", default=-1, description=_PRIVATE_OFFER
-    )
-    pay_with_rubies: bool = Field(
-        validation_alias="PWR", serialization_alias="PWR", default=False, description=_PAY_WITH_RUBIES
-    )
+    private_offer_id: int = Field(validation_alias="PO", default=-1, description=_PRIVATE_OFFER)
+    pay_with_rubies: bool = Field(validation_alias="PWR", default=False, description=_PAY_WITH_RUBIES)
 
     @field_serializer("pay_with_rubies")
     def _flag(self, value: bool) -> int:
@@ -490,15 +454,11 @@ class UpgradeWallResponse(_BuildingReply):
 
     command = "eud"
 
-    building: BuildingRow | None = Field(
-        validation_alias="N", serialization_alias="N", default=None, description="The upgraded object"
-    )
+    building: BuildingRow | None = Field(validation_alias="N", default=None, description="The upgraded object")
     resources: CastleResources | None = Field(
-        validation_alias="grc", serialization_alias="grc", default=None, description="The castle's resources after"
+        validation_alias="grc", default=None, description="The castle's resources after"
     )
-    currencies: CurrencyBlock = Field(
-        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after"
-    )
+    currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
@@ -518,13 +478,9 @@ class RepairBuildingRequest(BaseRequest):
 
     command = "rbu"
 
-    object_id: int = Field(validation_alias="OID", serialization_alias="OID", description=_OBJECT_ID)
-    private_offer_id: int = Field(
-        validation_alias="PO", serialization_alias="PO", default=-1, description=_PRIVATE_OFFER
-    )
-    pay_with_rubies: bool = Field(
-        validation_alias="PWR", serialization_alias="PWR", default=False, description=_PAY_WITH_RUBIES
-    )
+    object_id: int = Field(validation_alias="OID", description=_OBJECT_ID)
+    private_offer_id: int = Field(validation_alias="PO", default=-1, description=_PRIVATE_OFFER)
+    pay_with_rubies: bool = Field(validation_alias="PWR", default=False, description=_PAY_WITH_RUBIES)
 
     @field_serializer("pay_with_rubies")
     def _flag(self, value: bool) -> int:
@@ -544,18 +500,14 @@ class RepairBuildingResponse(_BuildingReply):
 
     command = "rbu"
 
-    building: BuildingRow | None = Field(
-        validation_alias="O", serialization_alias="O", default=None, description="The building"
-    )
+    building: BuildingRow | None = Field(validation_alias="O", default=None, description="The building")
     construction_list: ConstructionList | None = Field(
-        validation_alias="scl", serialization_alias="scl", default=None, description="The construction slots after"
+        validation_alias="scl", default=None, description="The construction slots after"
     )
     resources: CastleResources | None = Field(
-        validation_alias="grc", serialization_alias="grc", default=None, description="The castle's resources after"
+        validation_alias="grc", default=None, description="The castle's resources after"
     )
-    currencies: CurrencyBlock = Field(
-        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after"
-    )
+    currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
@@ -591,16 +543,13 @@ class RepairAllResponse(_BuildingReply):
 
     production_area: CastleProductionArea | None = Field(
         validation_alias="gpa",
-        serialization_alias="gpa",
         default=None,
         description="The castle's production area after",
     )
     buildings: list[BuildingRow] = Field(
-        validation_alias="B", serialization_alias="B", default_factory=list, description="The repaired buildings"
+        validation_alias="B", default_factory=list, description="The repaired buildings"
     )
-    currencies: CurrencyBlock = Field(
-        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after"
-    )
+    currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
@@ -622,12 +571,11 @@ class BuyExtensionRequest(BaseRequest):
 
     command = "ebe"
 
-    x: int = Field(validation_alias="X", serialization_alias="X", description="Castle grid x of the expansion")
-    y: int = Field(validation_alias="Y", serialization_alias="Y", description="Castle grid y of the expansion")
-    rotation: int = Field(validation_alias="R", serialization_alias="R", default=0, description="Rotation")
+    x: int = Field(validation_alias="X", description="Castle grid x of the expansion")
+    y: int = Field(validation_alias="Y", description="Castle grid y of the expansion")
+    rotation: int = Field(validation_alias="R", default=0, description="Rotation")
     expansion_type: ExpansionType = Field(
         validation_alias="CT",
-        serialization_alias="CT",
         default=ExpansionType.NORMAL,
         description="Pay with resources (NORMAL) or rubies (PREMIUM)",
     )
@@ -649,17 +597,15 @@ class BuyExtensionResponse(_BuildingReply):
     command = "ebe"
 
     castle_buildings: CastleBuildings | None = Field(
-        validation_alias="gca", serialization_alias="gca", default=None, description="The castle's buildings after"
+        validation_alias="gca", default=None, description="The castle's buildings after"
     )
     resources: CastleResources | None = Field(
-        validation_alias="grc", serialization_alias="grc", default=None, description="The castle's resources after"
+        validation_alias="grc", default=None, description="The castle's resources after"
     )
     construction_list: ConstructionList | None = Field(
-        validation_alias="scl", serialization_alias="scl", default=None, description="The construction slots after"
+        validation_alias="scl", default=None, description="The construction slots after"
     )
-    currencies: CurrencyBlock = Field(
-        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after"
-    )
+    currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
@@ -680,9 +626,7 @@ class CollectExtensionGiftRequest(BaseRequest):
 
     command = "etc"
 
-    object_id: int = Field(
-        validation_alias="OID", serialization_alias="OID", description="The treasure chest's object id"
-    )
+    object_id: int = Field(validation_alias="OID", description="The treasure chest's object id")
 
 
 class CollectExtensionGiftResponse(_BuildingReply):
@@ -699,12 +643,8 @@ class CollectExtensionGiftResponse(_BuildingReply):
 
     command = "etc"
 
-    reward_id: ClientInt = Field(
-        validation_alias="RID", serialization_alias="RID", default=0, description="The reward list the chest held"
-    )
-    object_id: ClientInt = Field(
-        validation_alias="OID", serialization_alias="OID", default=-1, description="Object id of the removed chest"
-    )
+    reward_id: ClientInt = Field(validation_alias="RID", default=0, description="The reward list the chest held")
+    object_id: ClientInt = Field(validation_alias="OID", default=-1, description="Object id of the removed chest")
 
 
 __all__ = [

@@ -70,7 +70,7 @@ and commit the diff.
 
 Request models inherit from `BaseRequest` and define:
 - `command` class variable (the command code)
-- Fields with `Field(validation_alias="X", serialization_alias="X")` for wire format
+- Fields with `Field(validation_alias="X")` for wire format
 
 ```python
 # <area>/models.py, or <area>/models/<topic>.py
@@ -91,16 +91,18 @@ class YourRequest(BaseRequest):
     
     command = "xyz"
     
-    field_id: int = Field(validation_alias="FID", serialization_alias="FID")
-    value: str = Field(validation_alias="V", serialization_alias="V")
+    field_id: int = Field(validation_alias="FID")
+    value: str = Field(validation_alias="V")
 ```
 
 **Key points:**
 - Name the client class that builds the payload in a `Client:` line (see
   [Client reference](#client-reference))
-- Map Python names to the wire with `Field(validation_alias="X", serialization_alias="X")`,
-  never `Field(validation_alias="X", serialization_alias="X")`: pyright and Pylance take `alias` as the `__init__`
-  parameter name and would reject the field name (a test bans bare `alias=`)
+- Declare each wire key once, as `Field(validation_alias="X")`: `EmpireModel`, the base of every
+  request, response and wire model, writes the field back under the same key. Never `alias="X"`:
+  pyright and Pylance take `alias` as the `__init__` parameter name and would reject the field
+  name. Only an `AliasChoices` or `AliasPath` field names its `serialization_alias` itself (tests
+  ban bare `alias=` and a repeated `serialization_alias`)
 - Build models by field name (`cls(target_id=...)`, not `cls(ID=...)`): mypy and
   pyright both check those calls and reject wire keys
 - Add `@classmethod` factory methods for common patterns
@@ -127,8 +129,8 @@ class YourResponse(BaseResponse):
     
     command = "xyz"  # Auto-registers in response registry
     
-    result: str = Field(validation_alias="R", serialization_alias="R")
-    finished: bool = Field(validation_alias="S", serialization_alias="S", default=True)
+    result: str = Field(validation_alias="R")
+    finished: bool = Field(validation_alias="S", default=True)
 ```
 
 **Key points:**
@@ -190,11 +192,11 @@ class Bookmark(BaseResponse):
     
     model_config = ConfigDict(populate_by_name=True, extra="allow")
     
-    bookmark_id: int = Field(validation_alias="BID", serialization_alias="BID")
-    name: str = Field(validation_alias="N", serialization_alias="N")
-    x: int = Field(validation_alias="X", serialization_alias="X")
-    y: int = Field(validation_alias="Y", serialization_alias="Y")
-    kingdom_id: int = Field(validation_alias="KID", serialization_alias="KID", default=0)
+    bookmark_id: int = Field(validation_alias="BID")
+    name: str = Field(validation_alias="N")
+    x: int = Field(validation_alias="X")
+    y: int = Field(validation_alias="Y")
+    kingdom_id: int = Field(validation_alias="KID", default=0)
     
     @property
     def position(self) -> Position:
@@ -211,7 +213,7 @@ class GetBookmarksResponse(BaseResponse):
     
     command = "zzb"
     
-    bookmarks: list[Bookmark] = Field(validation_alias="BL", serialization_alias="BL", default_factory=list)
+    bookmarks: list[Bookmark] = Field(validation_alias="BL", default_factory=list)
 
 
 __all__ = [
@@ -425,12 +427,12 @@ client has no code for goes in its `CLIENT_LESS` list with the reason.
 
 ### Field Naming
 
-Use descriptive Python names with the wire key as both aliases:
+Use descriptive Python names with the wire key as the `validation_alias`:
 
 ```python
 # Good
-player_id: int = Field(validation_alias="PID", serialization_alias="PID")
-castle_name: str = Field(validation_alias="CN", serialization_alias="CN")
+player_id: int = Field(validation_alias="PID")
+castle_name: str = Field(validation_alias="CN")
 
 # Bad - don't use the wire names directly
 PID: int
@@ -447,7 +449,7 @@ classmethod, and list the positions in the class docstring.
 Use `| None` with `default=None`:
 
 ```python
-error_message: str | None = Field(validation_alias="EM", serialization_alias="EM", default=None)
+error_message: str | None = Field(validation_alias="EM", default=None)
 ```
 
 ### Lists
@@ -455,21 +457,23 @@ error_message: str | None = Field(validation_alias="EM", serialization_alias="EM
 Use `default_factory=list`:
 
 ```python
-castles: list[CastleInfo] = Field(validation_alias="C", serialization_alias="C", default_factory=list)
+castles: list[CastleInfo] = Field(validation_alias="C", default_factory=list)
 ```
 
 ### Nested Models
 
-Create separate model classes for nested structures:
+Create separate model classes for nested structures. A nested model that is not a
+request or response subclasses `EmpireModel` (from `empire_core.protocol`), as every model does, so its keys
+are written back too:
 
 ```python
-class ChatMessageData(BaseModel):
-    player_name: str = Field(validation_alias="PN", serialization_alias="PN")
-    message_text: str = Field(validation_alias="MT", serialization_alias="MT")
+class ChatMessageData(EmpireModel):
+    player_name: str = Field(validation_alias="PN")
+    message_text: str = Field(validation_alias="MT")
 
 class AllianceChatMessageResponse(BaseResponse):
     command = "acm"
-    chat_message: ChatMessageData = Field(validation_alias="CM", serialization_alias="CM")
+    chat_message: ChatMessageData = Field(validation_alias="CM")
 ```
 
 ### Factory Methods
@@ -480,8 +484,8 @@ Add `@classmethod` factory methods for common patterns:
 class AskHelpRequest(BaseRequest):
     command = "ahr"
 
-    target_id: int = Field(validation_alias="ID", serialization_alias="ID")
-    type_id: int = Field(validation_alias="T", serialization_alias="T")
+    target_id: int = Field(validation_alias="ID")
+    type_id: int = Field(validation_alias="T")
 
     @classmethod
     def repair(cls, building_id: int) -> "AskHelpRequest":

@@ -37,7 +37,6 @@ class DailyResetResponse(TimedResponse):
 
     seconds: ClientNumber = Field(
         validation_alias="STR",
-        serialization_alias="STR",
         default=0,
         description="Seconds until the daily reset when the values were read",
     )
@@ -82,15 +81,12 @@ class OfficerTraining(TimedPayload):
     ``OfficersSchoolData.getBonusByEffectType`` (bundle line 144634)
     """
 
-    slot_id: ClientInt = Field(
-        validation_alias="S", serialization_alias="S", default=-1, description="The program's slot, -1 for none"
-    )
+    slot_id: ClientInt = Field(validation_alias="S", default=-1, description="The program's slot, -1 for none")
     bonus: OfficerBonus | None = Field(
-        validation_alias="E", serialization_alias="E", default=None, description="The program's bonus; None for none"
+        validation_alias="E", default=None, description="The program's bonus; None for none"
     )
     seconds: ClientNumber = Field(
         validation_alias="RS",
-        serialization_alias="RS",
         default=-1,
         description="Seconds the program runs when the values were read, -1 for none",
     )
@@ -128,7 +124,7 @@ class BoostedGlobalEffectsResponse(BaseResponse):
     command = "bie"
 
     global_effect_ids: tuple[EnumOrInt["GlobalEffect"], ...] = Field(
-        validation_alias="GE", serialization_alias="GE", default=(), description="The boosted global effects"
+        validation_alias="GE", default=(), description="The boosted global effects"
     )
 
     @field_validator("global_effect_ids", mode="before")
@@ -172,12 +168,9 @@ class PlayerGiftsResponse(BaseResponse):
 
     command = "pgl"
 
-    gifts: tuple[PlayerGift, ...] = Field(
-        validation_alias="G", serialization_alias="G", default=(), description="The gift packages you hold"
-    )
+    gifts: tuple[PlayerGift, ...] = Field(validation_alias="G", default=(), description="The gift packages you hold")
     sendable_amount: ClientNumber = Field(
         validation_alias="RA",
-        serialization_alias="RA",
         default=0,
         description="Gift packages you may still send; none at 0 or less",
     )

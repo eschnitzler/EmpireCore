@@ -11,11 +11,11 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import Field, ValidationError, field_validator
 
 from empire_core.army.models.units import AttackWave, WaveFlank
 from empire_core.gamedata import SupportToolSlots, WodAmount, WodAmountSlots, WodAmountSlotsInput
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, EmpireModel
 
 # =============================================================================
 # GAS / SAS - Attack presets
@@ -49,7 +49,7 @@ def _flat(slots: tuple[WodAmount, ...]) -> list[int]:
     return [value for item, amount in slots if item is not None for value in (item, amount)]
 
 
-class PresetArmy(BaseModel):
+class PresetArmy(EmpireModel):
     """
     A preset's army, decoded from its ``A`` string.
 
@@ -157,16 +157,14 @@ class AttackPreset(BasePayload):
     ``FightPresetVO.update`` / ``deserialize`` (bundle lines 141830, 141836)
     """
 
-    index: int = Field(validation_alias="S", serialization_alias="S", description="Preset slot index")
+    index: int = Field(validation_alias="S", description="Preset slot index")
     name: str | None = Field(
         validation_alias="SN",
-        serialization_alias="SN",
         default=None,
         description="Preset name; None or empty means the game's default name",
     )
     raw_army: str | None = Field(
         validation_alias="A",
-        serialization_alias="A",
         default=None,
         description="The army as a JSON string, see PresetArmy",
     )
@@ -200,9 +198,7 @@ class GetPresetsResponse(BaseResponse):
 
     command = "gas"
 
-    presets: list[AttackPreset] = Field(
-        validation_alias="S", serialization_alias="S", default_factory=list, description="Unlocked preset slots"
-    )
+    presets: list[AttackPreset] = Field(validation_alias="S", default_factory=list, description="Unlocked preset slots")
 
     @field_validator("presets", mode="before")
     @classmethod
@@ -223,10 +219,8 @@ class SavePresetRequest(BaseRequest):
 
     command = "sas"
 
-    index: int = Field(validation_alias="S", serialization_alias="S", description="Preset slot index")
-    raw_army: str = Field(
-        validation_alias="A", serialization_alias="A", description="The army as a compact JSON string"
-    )
+    index: int = Field(validation_alias="S", description="Preset slot index")
+    raw_army: str = Field(validation_alias="A", description="The army as a compact JSON string")
 
     @classmethod
     def create(cls, index: int, army: PresetArmy) -> SavePresetRequest:
@@ -270,8 +264,8 @@ class RenamePresetRequest(BaseRequest):
 
     command = "upan"
 
-    index: int = Field(validation_alias="S", serialization_alias="S", description="Preset slot index")
-    name: str = Field(validation_alias="SN", serialization_alias="SN", description="The new name")
+    index: int = Field(validation_alias="S", description="Preset slot index")
+    name: str = Field(validation_alias="SN", description="The new name")
 
 
 class RenamePresetResponse(BaseResponse):

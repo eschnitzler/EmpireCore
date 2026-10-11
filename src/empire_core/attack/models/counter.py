@@ -31,18 +31,14 @@ class AttackCounterResponse(BaseResponse):
 
     command = "gai"
 
-    attack_count: ClientNumber = Field(
-        validation_alias="AC", serialization_alias="AC", default=0, description="Attacks counted"
-    )
+    attack_count: ClientNumber = Field(validation_alias="AC", default=0, description="Attacks counted")
     attack_count_threshold: ClientNumber = Field(
         validation_alias="ACTH",
-        serialization_alias="ACTH",
         default=0,
         description="Attacks counted before travel costs grow",
     )
     growth_rate: ClientNumber = Field(
         validation_alias="ACGR",
-        serialization_alias="ACGR",
         default=0,
         description="How fast the travel costs grow per attack past the threshold",
     )

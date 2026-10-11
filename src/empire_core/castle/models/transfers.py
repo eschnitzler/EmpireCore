@@ -49,7 +49,6 @@ class KingdomUnitTransferRequest(BaseRequest):
 
     source_castle_id: int = Field(
         validation_alias="SCID",
-        serialization_alias="SCID",
         description=(
             "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
             "client.state.get_castles()"
@@ -57,22 +56,16 @@ class KingdomUnitTransferRequest(BaseRequest):
     )
     source_kingdom_id: Kingdom = Field(
         validation_alias="SKID",
-        serialization_alias="SKID",
         default=Kingdom.GREEN,
         description="The source castle's kingdom",
     )
-    target_kingdom_id: Kingdom = Field(
-        validation_alias="TKID", serialization_alias="TKID", description="The kingdom to send the units to"
-    )
+    target_kingdom_id: Kingdom = Field(validation_alias="TKID", description="The kingdom to send the units to")
     target_castle_id: int = Field(
         validation_alias="CID",
-        serialization_alias="CID",
         default=-1,
         description="Object id of a picked target castle, -1 for none",
     )
-    units: WodAmountSlots = Field(
-        validation_alias="A", serialization_alias="A", description="The units, one pair per unit"
-    )
+    units: WodAmountSlots = Field(validation_alias="A", description="The units, one pair per unit")
 
 
 class KingdomUnitTransferResponse(BaseResponse):
@@ -89,9 +82,7 @@ class KingdomUnitTransferResponse(BaseResponse):
 
     command = "kut"
 
-    currencies: CurrencyBlock = Field(
-        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after"
-    )
+    currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
@@ -121,7 +112,6 @@ class KingdomGoodsTransferRequest(BaseRequest):
 
     source_castle_id: int = Field(
         validation_alias="SCID",
-        serialization_alias="SCID",
         description=(
             "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
             "client.state.get_castles()"
@@ -129,16 +119,12 @@ class KingdomGoodsTransferRequest(BaseRequest):
     )
     source_kingdom_id: Kingdom = Field(
         validation_alias="SKID",
-        serialization_alias="SKID",
         default=Kingdom.GREEN,
         description="The source castle's kingdom",
     )
-    target_kingdom_id: Kingdom = Field(
-        validation_alias="TKID", serialization_alias="TKID", description="The kingdom to send the goods to"
-    )
+    target_kingdom_id: Kingdom = Field(validation_alias="TKID", description="The kingdom to send the goods to")
     goods: ResourceAmounts = Field(
         validation_alias="G",
-        serialization_alias="G",
         description="The amount of each resource to send, sent as [key, amount] pairs such as ['W', 1000]",
     )
 
@@ -158,12 +144,9 @@ class KingdomGoodsTransferResponse(BaseResponse):
 
     command = "kgt"
 
-    currencies: CurrencyBlock = Field(
-        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after"
-    )
+    currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
     resources: CastleResources | None = Field(
         validation_alias="grc",
-        serialization_alias="grc",
         default=None,
         description="The joined castle's resources after",
     )
@@ -199,14 +182,11 @@ class MinuteSkipKingdomTransferRequest(BaseRequest):
 
     minute_skip: EnumOrStr["Currency"] = Field(
         validation_alias="MST",
-        serialization_alias="MST",
         description="The minute skip used, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``; sent as its key",
     )
-    kingdom_id: Kingdom = Field(
-        validation_alias="KID", serialization_alias="KID", description="The kingdom the transfer goes to"
-    )
+    kingdom_id: Kingdom = Field(validation_alias="KID", description="The kingdom the transfer goes to")
     transfer_type: KingdomTransferType = Field(
-        validation_alias="TT", serialization_alias="TT", description="Whether the transfer carries units or goods"
+        validation_alias="TT", description="Whether the transfer carries units or goods"
     )
 
     @field_serializer("kingdom_id", "transfer_type")

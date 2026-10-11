@@ -45,12 +45,8 @@ class LootBoxAmount(BasePayload):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
-    loot_box_id: EnumOrInt["LootBox"] = Field(
-        validation_alias="ID", serialization_alias="ID", default=0, description="The loot box"
-    )
-    amount: ClientNumber = Field(
-        validation_alias="AMT", serialization_alias="AMT", default=0, description="How many you hold"
-    )
+    loot_box_id: EnumOrInt["LootBox"] = Field(validation_alias="ID", default=0, description="The loot box")
+    amount: ClientNumber = Field(validation_alias="AMT", default=0, description="How many you hold")
 
 
 class LootBoxKeys(BasePayload):
@@ -63,11 +59,9 @@ class LootBoxKeys(BasePayload):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     loot_box_type_id: EnumOrInt["LootBoxType"] = Field(
-        validation_alias="ID", serialization_alias="ID", default=0, description="The loot box type"
+        validation_alias="ID", default=0, description="The loot box type"
     )
-    keys: ClientNumber = Field(
-        validation_alias="AMT", serialization_alias="AMT", default=0, description="The keys collected"
-    )
+    keys: ClientNumber = Field(validation_alias="AMT", default=0, description="The keys collected")
 
 
 class LootBoxesResponse(BaseResponse):
@@ -87,11 +81,10 @@ class LootBoxesResponse(BaseResponse):
     command = "gls"
 
     loot_boxes: tuple[LootBoxAmount, ...] = Field(
-        validation_alias="ALL", serialization_alias="ALL", default=(), description="The loot boxes you hold"
+        validation_alias="ALL", default=(), description="The loot boxes you hold"
     )
     key_progress: tuple[LootBoxKeys, ...] = Field(
         validation_alias="KEY",
-        serialization_alias="KEY",
         default=(),
         description="Keys collected per loot box type this packet lists",
     )
@@ -122,33 +115,22 @@ class MercenaryMission(TimedPayload):
     Client: ``CastleMercenaryMissionItemVO.fillFromParamObject`` and ``remainingTime`` (bundle lines 81134-81135)
     """
 
-    mission_id: ClientInt = Field(
-        validation_alias="ID", serialization_alias="ID", default=0, description="The mission's id"
-    )
-    rewards: CollectableRows = Field(
-        validation_alias="R", serialization_alias="R", default=(), description="The rewards"
-    )
-    duration_seconds: ClientNumber = Field(
-        validation_alias="D", serialization_alias="D", default=0, description="How long the mission takes"
-    )
-    price: ClientNumber = Field(
-        validation_alias="P", serialization_alias="P", default=0, description="What starting the mission costs in coins"
-    )
+    mission_id: ClientInt = Field(validation_alias="ID", default=0, description="The mission's id")
+    rewards: CollectableRows = Field(validation_alias="R", default=(), description="The rewards")
+    duration_seconds: ClientNumber = Field(validation_alias="D", default=0, description="How long the mission takes")
+    price: ClientNumber = Field(validation_alias="P", default=0, description="What starting the mission costs in coins")
     quality: EnumOrInt[MercenaryMissionRarity] = Field(
         validation_alias="Q",
-        serialization_alias="Q",
         default=MercenaryMissionRarity.FREE,
         description="The mission's rarity",
     )
     state: EnumOrInt[MercenaryMissionState] = Field(
         validation_alias="S",
-        serialization_alias="S",
         default=MercenaryMissionState.OPEN,
         description="Where the mission stood when the values were read",
     )
     seconds: ClientNumber = Field(
         validation_alias="RD",
-        serialization_alias="RD",
         default=0,
         description="Seconds the running mission still takes when the values were read",
     )
@@ -190,12 +172,11 @@ class MercenaryMissionsResponse(TimedResponse):
 
     next_missions_seconds: ClientNumber = Field(
         validation_alias="NM",
-        serialization_alias="NM",
         default=0,
         description="Seconds until new missions come when the values were read",
     )
     missions: tuple[MercenaryMission, ...] = Field(
-        validation_alias="M", serialization_alias="M", default=(), description="The missions not collected"
+        validation_alias="M", default=(), description="The missions not collected"
     )
 
     @field_validator("missions", mode="before")
@@ -242,7 +223,6 @@ class MercenaryPackageRequest(BaseRequest):
 
     mission_id: int = Field(
         validation_alias="MID",
-        serialization_alias="MID",
         default=-1,
         description="The mission to start or collect, -1 to list them",
     )
