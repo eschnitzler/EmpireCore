@@ -5,7 +5,13 @@ from __future__ import annotations
 import pytest
 
 from empire_core.enums import Kingdom
-from empire_core.exceptions import AmbiguousCastleError, CommandError, GameDataNotLoadedError, UnknownCastleError
+from empire_core.exceptions import (
+    AmbiguousCastleError,
+    CommandError,
+    GameDataNotLoadedError,
+    NetworkError,
+    UnknownCastleError,
+)
 from empire_core.gamedata import GameData, Tool, Unit
 from empire_core.protocol.models import ProductionListId, SlotType
 from tests.service_helpers import conn, make_client, xt_packet
@@ -206,11 +212,12 @@ class TestArmyService:
             lambda s: s.heal_units(12345, 620, 1),
         ],
     )
-    def test_pricing_a_unit_needs_the_game_data(self, call):
+    def test_pricing_a_unit_fails_when_the_game_data_cannot_be_loaded(self, call):
         client = make_client(castles=OWN)
 
-        with pytest.raises(GameDataNotLoadedError):
+        with pytest.raises(GameDataNotLoadedError) as raised:
             call(client.army)
+        assert isinstance(raised.value.__cause__, NetworkError)
         assert conn(client).request_payloads == []
 
     def test_a_castle_not_in_the_castle_list_raises_before_joining(self):

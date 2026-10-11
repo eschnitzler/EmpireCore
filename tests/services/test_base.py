@@ -14,6 +14,7 @@ from empire_core.commanders.service import CommandersService
 from empire_core.config import EmpireConfig
 from empire_core.enums import Kingdom
 from empire_core.exceptions import CommandError, ConnectionClosedError, EmpireTimeoutError, NetworkError, PacketError
+from empire_core.gamedata import GameData
 from empire_core.protocol.models import (
     GetAllianceInfoRequest,
     GetAllianceInfoResponse,
@@ -211,3 +212,23 @@ class TestRequestBuilding:
         response = GetAllianceInfoResponse.model_validate({})
         assert response.members == []
         assert response.online_members == []
+
+
+class TestRequireGameData:
+    def test_the_client_s_own_data_is_read_without_a_load(self, stub_game_data_load):
+        client = make_client()
+        client.game_data = GameData.parse("test", {})
+        loads = stub_game_data_load(GameData.parse("other", {}))
+
+        assert client.castle._require_game_data() is client.game_data
+        assert loads == []
+
+    def test_without_data_it_loads_once(self, stub_game_data_load):
+        client = make_client()
+        loads = stub_game_data_load(GameData.parse("test", {}))
+
+        data = client.castle._require_game_data()
+
+        assert client.castle._require_game_data() is data
+        assert client.game_data is data
+        assert loads == [data]

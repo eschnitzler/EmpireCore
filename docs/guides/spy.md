@@ -154,12 +154,10 @@ total = int((owned + int(research) + int(legend skills)) * (1 + title percent / 
 ```
 
 State carries your research (`rei`), legend skills (`skl`) and the points and
-ranks that give your titles (`ufa`, `ufp`, `uar`), so with the game data loaded
-no argument is needed. After login that is always the case, so call
-`client.load_game_data()` first:
+ranks that give your titles (`ufa`, `ufp`, `uar`), so after login no argument is
+needed; the game data the boosts read is loaded on first use:
 
 ```python
-client.load_game_data()
 free = client.spy.available_spies()                    # boosts from state
 legend = client.spy.total_spies(legend_target=True)    # the target's owner is a legend
 ```

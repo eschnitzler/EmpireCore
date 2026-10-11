@@ -1032,12 +1032,13 @@ class TestFillAttack(FillClient):
 
         assert placed(result.waves[0].model_dump(by_alias=True)["M"]["T"]) == [[611, 1]]
 
-    def test_no_game_data_is_an_error(self):
-        from empire_core.exceptions import GameDataNotLoadedError
+    def test_game_data_that_cannot_be_loaded_is_an_error(self):
+        from empire_core.exceptions import GameDataNotLoadedError, NetworkError
 
         client = make_client(castles=OWN)
-        with pytest.raises(GameDataNotLoadedError):
+        with pytest.raises(GameDataNotLoadedError) as raised:
             client.attack.fill_attack(12345, target_level=13)
+        assert isinstance(raised.value.__cause__, NetworkError)
 
 
 class TestFillAttackLevelDerivation:

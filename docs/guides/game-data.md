@@ -83,14 +83,17 @@ and so on. A value the client does not name (a newer release, or a type only the
 server reads) stays plain text, so `data.units_by_role(UnitRole.MELEE)` and
 comparisons keep working.
 
-`client.load_game_data()` is the one call to make, before the APIs that need the
-data (they raise `GameDataNotLoadedError` without it). It is explicit on
-purpose: the items data is a large download. It calls `GameData.load`, which
-keeps the data for the process: a process downloads it once per game version,
-caches it on disk (safe for several processes sharing the cache directory), and
-after a failed download leaves the CDN alone for five minutes. When the CDN is
-down, a load returns the data already in memory and raises `NetworkError` only
-when there is none. `refresh=True` downloads it again.
+Nothing has to be loaded first: an API that needs the data loads it on first
+use (`GameData.require()`), from the disk cache when present and from the CDN
+otherwise, and raises `GameDataNotLoadedError` (with the failure as its cause)
+only when it cannot be loaded. That first use may wait on a large download, so
+call `client.load_game_data()` before timing-sensitive work to take the cost up
+front. It calls `GameData.load`, which keeps the data for the process: a process
+downloads it once per game version, caches it on disk (safe for several
+processes sharing the cache directory), and after a failed download leaves the
+CDN alone for five minutes. When the CDN is down, a load returns the data
+already in memory and raises `NetworkError` only when there is none.
+`refresh=True` downloads it again.
 
 Everything else reads that one copy:
 

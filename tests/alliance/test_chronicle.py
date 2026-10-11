@@ -1,5 +1,6 @@
 """The chronicle entries' values typed by action, and their lines as the overview writes them."""
 
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -21,6 +22,7 @@ from empire_core.alliance import (
     ChronicleTournamentPrize,
     DiplomacyStatus,
 )
+from empire_core.exceptions import GameDataNotLoadedError
 from empire_core.gamedata import GameData, ids
 
 Action = AllianceChronicleAction
@@ -182,9 +184,20 @@ class TestDescribe:
             == "Completed township contract rank 1 level (3/3)"
         )
 
-    def test_a_daimyo_contract_needs_the_game_data_that_has_it(self, game_data: GameData) -> None:
-        with pytest.raises(ValueError, match="game data"):
+    def test_a_daimyo_contract_loads_the_game_data_on_first_use(
+        self, game_data: GameData, stub_game_data_load: Callable[[GameData], list[GameData]]
+    ) -> None:
+        loads = stub_game_data_load(game_data)
+        completed = entry(Action.DAIMYO_ALLIANCE_CASTLE_CONTRACT_COMPLETED, 2)
+
+        assert completed.describe() == completed.describe(game_data)
+        assert len(loads) == 1
+
+    def test_a_daimyo_contract_fails_when_the_game_data_cannot_be_loaded(self) -> None:
+        with pytest.raises(GameDataNotLoadedError, match="could not load the game data"):
             entry(Action.DAIMYO_ALLIANCE_CASTLE_CONTRACT_COMPLETED, 2).describe()
+
+    def test_a_daimyo_contract_needs_the_game_data_that_has_it(self, game_data: GameData) -> None:
         with pytest.raises(KeyError):
             entry(Action.DAIMYO_ALLIANCE_CASTLE_CONTRACT_COMPLETED, 404).describe(game_data)
 

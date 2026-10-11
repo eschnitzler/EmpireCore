@@ -9,7 +9,7 @@ from collections.abc import Callable, Collection
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from empire_core.enums import GGEError, Kingdom
-from empire_core.exceptions import AmbiguousCastleError, CommandError, GameDataNotLoadedError, UnknownCastleError
+from empire_core.exceptions import AmbiguousCastleError, CommandError, UnknownCastleError
 from empire_core.gamedata import Currency, GameData
 from empire_core.gamedata.collectables import MINUTE_SKIP_FIRST_ID, MINUTE_SKIP_KEY
 from empire_core.gamedata.lenient import known
@@ -163,15 +163,15 @@ class BaseService:
         if cost is not None and not spend_rubies:
             raise ValueError(f"{cost}; pass spend_rubies=True to spend them")
 
-    def _require_game_data(self, needed_for: str) -> GameData:
+    def _require_game_data(self) -> GameData:
         """
+        The client's game data, loaded through :meth:`GameData.require` on first use.
+
         Raises:
-            GameDataNotLoadedError: ``client.load_game_data()`` has not been called
+            GameDataNotLoadedError: The game data cannot be loaded
         """
         game_data = self.client.game_data
-        if game_data is None:
-            raise GameDataNotLoadedError(f"{needed_for} needs the items payload: call client.load_game_data() first")
-        return game_data
+        return game_data if game_data is not None else GameData.require()
 
     def _travel_ruby_cost(self, horse_booster_id: int, feathers: bool, slowdown: int) -> str | None:
         """
@@ -182,8 +182,7 @@ class BaseService:
         lacks counts as costing them.
 
         Raises:
-            GameDataNotLoadedError: A horse is picked without feathers and ``client.load_game_data()``
-                has not been called
+            GameDataNotLoadedError: A horse is picked without feathers and the game data cannot be loaded
 
         Client: ``ACastlePostActionDialog.getTotalCostsC2`` (bundle line 27330), the horse's
         ``getBoostCostC2`` per dialog (bundle lines 33395, 38397, 38477), 0 when
@@ -193,7 +192,7 @@ class BaseService:
             return f"a slowdown costs {_SLOWDOWN_RUBIES} rubies"
         if feathers or horse_booster_id == -1:
             return None
-        horse = self._require_game_data("Pricing a horse").get_horse(horse_booster_id)
+        horse = self._require_game_data().get_horse(horse_booster_id)
         if horse is None:
             return f"horse {horse_booster_id} is not in the game data and may cost rubies"
         if horse.cost_factor_c2 > 0:

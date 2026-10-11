@@ -776,6 +776,14 @@ class TestCheckFlankRefundsTheBudget:
         ]
     }
 
+    def test_the_budget_loads_the_game_data_when_none_is_given(self, stub_game_data_load):
+        loads = stub_game_data_load(GameData.parse("test", self.PAYLOAD))
+        used = {"Ram": 5}
+
+        assert check_flank([(320, 5)], [], Inventory({320: 100}), used_per_type=used) is False
+        assert used["Ram"] == 0
+        assert len(loads) == 1
+
     def test_the_budget_is_credited_back(self):
         game = GameData.parse("test", self.PAYLOAD)
         inv = Inventory({320: 100})

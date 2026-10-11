@@ -602,9 +602,10 @@ class EmpireClient:
         The static game data the services read, or None while none is loaded.
 
         The data the process loaded (:meth:`GameData.loaded`, which
-        :meth:`load_game_data` and every :meth:`GameData.load` fill), the same
-        instance the troop counts read. Setting it attaches data of your own,
-        e.g. ``GameData.parse`` of a saved payload, which this client then reads
+        :meth:`load_game_data`, every :meth:`GameData.load` and the first API that
+        needs the data fill), the same instance the troop counts read. Reading it
+        never loads anything. Setting it attaches data of your own, e.g.
+        ``GameData.parse`` of a saved payload, which this client then reads
         instead; setting None goes back to the process's data.
         """
         return self._game_data if self._game_data is not None else GameData.loaded()
@@ -615,13 +616,15 @@ class EmpireClient:
 
     def load_game_data(self, *, refresh: bool = False, cache_dir: str | Path | None = None) -> GameData:
         """
-        Load the static game data (unit and tool stats): the one entry point to call before the APIs that need it.
+        Load the static game data (unit and tool stats) now; optional.
 
-        Explicit by design: the items payload is a large download. It is
-        :meth:`GameData.load`, so the data is kept for the process and cached on
-        disk per game version, and this is cheap after the first call. Code
-        without a client calls :meth:`GameData.load` itself; either way
-        ``client.game_data`` and the troop counts read what it loaded.
+        The APIs that need the data load it on first use, so the first of them
+        may wait on the disk cache or, on a cache miss, a large download. Call
+        this before timing-sensitive work to take that cost up front, or with
+        ``refresh=True`` to download again. It is :meth:`GameData.load`, so the
+        data is kept for the process and cached on disk per game version, and
+        this is cheap after the first call; ``client.game_data`` and the troop
+        counts read what it loaded.
 
         Args:
             refresh: Ignore any cached copy and any failure backoff, and re-download

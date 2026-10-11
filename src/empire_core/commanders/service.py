@@ -48,7 +48,7 @@ from empire_core.commanders.models.skills import (
     SkillList,
     UnlockGeneralSkillRequest,
 )
-from empire_core.exceptions import GameDataNotLoadedError, PremiumCommanderCostError
+from empire_core.exceptions import PremiumCommanderCostError
 from empire_core.protocol.base import BaseResponse
 from empire_core.services.base import BaseService
 from empire_core.utils.callbacks import Event
@@ -157,7 +157,7 @@ class CommandersService(BaseService):
             The count, 0 at least, or None before the login data brought your VIP
 
         Raises:
-            GameDataNotLoadedError: VIP time runs and ``client.load_game_data()`` has not been called
+            GameDataNotLoadedError: VIP time runs and the game data cannot be loaded
 
         Client: ``CastleVIPData.remainingPremiumCommanders`` (bundle line 47554), the
         ``freePremiumCommandersPerDay`` of ``currentActiveVIPLevel`` (bundle line 47546), which
@@ -173,9 +173,7 @@ class CommandersService(BaseService):
         elapsed = (time.time() if now is None else now) - received_at
         if player.vip_time_left - elapsed <= 0:
             return 0
-        game_data = self.client.game_data
-        if game_data is None:
-            raise GameDataNotLoadedError("VIP levels need the items payload: call client.load_game_data() first")
+        game_data = self._require_game_data()
         level = game_data.vip_level(player.vip_points)
         per_day = level.free_premium_commanders_per_day if level is not None else 0
         counted_at, own_sends = self._own_premium_sends
@@ -190,8 +188,7 @@ class CommandersService(BaseService):
         False when neither is known yet.
 
         Raises:
-            GameDataNotLoadedError: No premium account runs, VIP time does, and
-                ``client.load_game_data()`` has not been called
+            GameDataNotLoadedError: No premium account runs, VIP time does, and the game data cannot be loaded
 
         Client: ``CastlePostAttackDialog.startAttack`` (bundle line 38360), which sends with a
         free premium commander left and otherwise asks for
@@ -344,7 +341,7 @@ class SkillsService(BaseService):
             commander_id: A ``Commander.commander_id`` from
                 ``client.commanders.get_commanders()``
             general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
-                ``client.game_data.general(name)`` finds its ``generalID`` by name
+                ``GameData.require().general(name)`` finds its ``generalID`` by name
             timeout: Timeout in seconds
 
         Returns:
@@ -365,10 +362,10 @@ class SkillsService(BaseService):
 
         Args:
             general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
-                ``client.game_data.general(name)`` finds its ``generalID`` by name
+                ``GameData.require().general(name)`` finds its ``generalID`` by name
             abilities: ``(slot_id, ability_id)`` pairs, ``-1`` or ``None`` to clear a slot.
                 The client sends every slot it shows. An ability id comes from
-                ``client.game_data.general_ability(name, level)``
+                ``GameData.require().general_ability(name, level)``
             timeout: Timeout in seconds
 
         Returns:
@@ -385,7 +382,7 @@ class SkillsService(BaseService):
 
         Args:
             skill_id: The skill level's ``skillID``, from
-                ``client.game_data.general_skill(general_id, name, level)``
+                ``GameData.require().general_skill(general_id, name, level)``
                 (``GeneralVO.unlockSkill``, bundle line 26773)
             timeout: Timeout in seconds
 
@@ -400,7 +397,7 @@ class SkillsService(BaseService):
 
         Args:
             general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
-                ``client.game_data.general(name)`` finds its ``generalID`` by name
+                ``GameData.require().general(name)`` finds its ``generalID`` by name
             timeout: Timeout in seconds
 
         Returns:
@@ -414,9 +411,9 @@ class SkillsService(BaseService):
 
         Args:
             general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
-                ``client.game_data.general(name)`` finds its ``generalID`` by name
+                ``GameData.require().general(name)`` finds its ``generalID`` by name
             currency_id: The xp item's ``currencyID``, e.g.
-                ``client.game_data.currency("GXP1").currency_id``
+                ``GameData.require().currency("GXP1").currency_id``
                 (``GeneralsLevelUpDialogListItem.sendXPSelected``, bundle line 74485)
             amount: How many of the item to use
             timeout: Timeout in seconds

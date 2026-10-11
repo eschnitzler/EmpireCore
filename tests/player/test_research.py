@@ -110,9 +110,18 @@ class TestService:
         assert client.player.start_research(Research.MANEUVER_L1) is True
         assert conn(client).request_payloads == [("res", {"RID": 1, "PO": -1, "PWR": 0})]
 
-    def test_start_research_needs_the_game_data(self):
+    def test_start_research_loads_the_game_data_on_first_use(self, stub_game_data_load):
+        client = make_client({"res": xt_packet("res", {"rei": REI, "gcu": {}})}, state=GameState())  # type: ignore[arg-type]
+        conn(client).on_packet = client._on_packet
+        loads = stub_game_data_load(game_data())
+
+        assert client.player.start_research(Research.MANEUVER_L1) is True
+        assert client.player.start_research(Research.MANEUVER_L1) is True
+        assert len(loads) == 1
+
+    def test_start_research_fails_when_the_game_data_cannot_be_loaded(self):
         client = make_client()
-        with pytest.raises(GameDataNotLoadedError):
+        with pytest.raises(GameDataNotLoadedError, match="could not load the game data"):
             client.player.start_research(Research.MANEUVER_L1)
         assert conn(client).request_payloads == []
 

@@ -14,13 +14,14 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 from pydantic import BeforeValidator, Field, field_validator
 
 from empire_core.enums import AllianceBuffType, AllianceChronicleAction, DiplomacyStatus
+from empire_core.gamedata import GameData
 from empire_core.gamedata.lenient import EnumOrInt, known
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
 from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_number_or_none, js_parse_int, js_string
 from empire_core.texts import PlainText, has_text, text
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import DaimyoContractDef, GameData
+    from empire_core.gamedata import DaimyoContractDef
 
 logger = logging.getLogger(__name__)
 
@@ -462,16 +463,17 @@ class AllianceChronicleEntry(BasePayload):
         """
         The entry's line in the chronicle, as the alliance overview writes it.
 
-        Fetches the language file on first use, as :func:`empire_core.texts.text` does.
+        Fetches the language file on first use, as :func:`empire_core.texts.text` does, and a daimyo contract
+        entry loads the game data on first use.
 
         Args:
-            game_data: The game data; only a daimyo contract entry needs it
+            game_data: The game data a daimyo contract entry reads; :meth:`GameData.require` when not given
             lang: Language code (default: "en")
             skin: The skin of the special server played on, such as ``"Maya"``, whose own texts
                 the client prefers there (in the Great Empire only); empty elsewhere
 
         Raises:
-            ValueError: A daimyo contract entry without ``game_data``
+            GameDataNotLoadedError: A daimyo contract entry without ``game_data``, and the game data cannot be loaded
             KeyError: A daimyo contract the game data lacks, where the client fails too
 
         Client: ``AllianceActionListItemVO.getActionText`` (bundle lines 66341-66358), its text id
@@ -501,9 +503,9 @@ class AllianceChronicleEntry(BasePayload):
         if action in ChronicleText.ACTIONS or action == Action.ALLIANCE_BATTLE_GROUND_MALUS_RESET:
             return text(key, PlainText(_name(values, 0) or ""), lang=lang, grouping=False)
         if action in ChronicleDaimyoContract.ACTIONS:
-            if game_data is None:
-                raise ValueError("describing a daimyo contract entry needs the game data")
-            contract, level, levels = ChronicleDaimyoContract.from_values(values).series_position(game_data)
+            contract, level, levels = ChronicleDaimyoContract.from_values(values).series_position(
+                game_data if game_data is not None else GameData.require()
+            )
             return text(key, contract.rank, level, levels, lang=lang)
         return text(key, *values, lang=lang)
 

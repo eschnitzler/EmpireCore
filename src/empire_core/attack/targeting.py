@@ -255,9 +255,9 @@ def _read_target(service: AttackService, target: "_Target", *, castle_id: int, t
         if target.camp_kingdom_id == Kingdom.GREEN:
             target.camp_kingdom_id = item.kingdom
     elif item.is_invasion_camp:
-        if target.level is None and service.client.game_data is not None:
+        if target.level is None:
             player = service.client.state.get_local_player()
-            target.level = invasion_camp_level(service.client.game_data, item, player.level if player else 0)
+            target.level = invasion_camp_level(service._require_game_data(), item, player.level if player else 0)
     elif item.dungeon_level is not None and item.dungeon_level > 0:
         # A camp whose row gives its level (an alien camp, the wolf king, an event
         # or boss dungeon, a faction object) has an NPC owner and no record to read;

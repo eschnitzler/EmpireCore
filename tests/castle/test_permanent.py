@@ -9,7 +9,7 @@ import pytest
 
 from empire_core.castle.models import PermanentCastleDataResponse
 from empire_core.enums import Kingdom
-from empire_core.exceptions import GameDataNotLoadedError, UnknownCastleError
+from empire_core.exceptions import GameDataNotLoadedError, NetworkError, UnknownCastleError
 from empire_core.gamedata import GameData, Horse, Tool
 from empire_core.state.manager import GameState
 from tests.service_helpers import make_client
@@ -186,9 +186,23 @@ class TestGetHorses:
             client.castle.get_horses(2009)
         client.state.shutdown()
 
-    def test_needs_game_data(self):
+    def test_loads_the_game_data_on_first_use(self, stub_game_data_load):
+        client = self._client([1001], game_data=False)
+        loads = stub_game_data_load(GameData.parse("test", {"horses": HORSES}))
+        assert client.game_data is None
+
+        horses = client.castle.get_horses(2001)
+        client.castle.get_horses(2001)
+
+        assert horses is not None and [h.wod_id for h in horses] == [1001]
+        assert len(loads) == 1
+        assert client.game_data is loads[0]
+        client.state.shutdown()
+
+    def test_game_data_that_cannot_be_loaded_is_an_error(self):
         client = self._client([1001], game_data=False)
 
-        with pytest.raises(GameDataNotLoadedError):
+        with pytest.raises(GameDataNotLoadedError) as raised:
             client.castle.get_horses(2001)
+        assert isinstance(raised.value.__cause__, NetworkError)
         client.state.shutdown()

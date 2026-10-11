@@ -62,7 +62,6 @@ from empire_core.exceptions import (
     AttackBelowMinimumError,
     AttackInProgressError,
     CommandError,
-    GameDataNotLoadedError,
 )
 from empire_core.gamedata import WodAmount, WodAmountMapping
 from empire_core.gamedata.ids.events import Event
@@ -190,7 +189,7 @@ class AttackService(BaseService):
             PremiumCommanderCostError: The premium commander leads, may cost rubies,
                 and ``spend_rubies`` is False
             GameDataNotLoadedError: The premium commander leads, VIP time runs and
-                ``client.load_game_data()`` has not been called; or a horse is picked without feathers
+                the game data cannot be loaded; or a horse is picked without feathers
                 before it was called
             ValueError: No wave carries any units, a container is overfull, or the horse or
                 slowdown costs rubies and ``spend_rubies`` is False
@@ -457,7 +456,7 @@ class AttackService(BaseService):
             general_skill_ids: Unlocked skill ids of the general leading the
                 attack, from ``gie``; its unit-limit skills size the wave
             legend_skill_ids: The player's unlocked legend skills, from
-                ``skl`` or ``client.game_data.legend_skill(tree, group, level)``.
+                ``skl`` or ``GameData.require().legend_skill(tree, group, level)``.
                 Which of them count follows the three rules of
                 :class:`~empire_core.combat.capacity.LegendaryFight`
             target_is_player: True when the target belongs to a player
@@ -473,7 +472,7 @@ class AttackService(BaseService):
                 control; the legend rules then rate its owner by ``level``
                 rather than by the area's minimum owner level
             active_raid_boss_id: The boss of the alliance raid-boss event
-                running now, None when none is; ``client.game_data.raid_boss(name)``
+                running now, None when none is; ``GameData.require().raid_boss(name)``
                 finds one by name. Tools tied to other raid bosses are left out
             global_effects: The global effects running, as the timers of
                 ``GlobalEffectEvent.effects``; the ``Event.GLOBAL_EFFECT`` event's
@@ -491,14 +490,12 @@ class AttackService(BaseService):
             One wave per filled wave, ready to pass to :meth:`send_attack`
 
         Raises:
-            GameDataNotLoadedError: ``client.load_game_data()`` has not been called
+            GameDataNotLoadedError: the game data cannot be loaded
             ValueError: No level was given and none is known for the player
             UnknownCastleError: No ``inventory`` given and ``castle_id`` is not in your castle list
             AmbiguousCastleError: No ``inventory`` given and ``castle_id`` repeats across your kingdoms
         """
-        game_data = self.client.game_data
-        if game_data is None:
-            raise GameDataNotLoadedError("Wave filling needs the items payload: call client.load_game_data() first")
+        game_data = self._require_game_data()
 
         player = self.client.state.get_local_player()
         attacker_level = player.level if player else 0
@@ -658,12 +655,11 @@ class AttackService(BaseService):
             An :class:`Inventory` the fill methods deduct from as they place
 
         Raises:
+            GameDataNotLoadedError: The game data cannot be loaded
             UnknownCastleError: ``castle_id`` is not in your castle list
             AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
         """
-        game_data = self.client.game_data
-        if game_data is None:
-            raise GameDataNotLoadedError("Reading an inventory needs the items payload: call load_game_data() first")
+        game_data = self._require_game_data()
         response = self.client.army.get_units_response(castle_id, timeout=timeout)
         return _pool(game_data, _merged(response.units, response.stronghold))
 
@@ -788,7 +784,7 @@ class AttackService(BaseService):
                 ``AST``; pass the same list to :meth:`send_attack`
             conquer: A conquest attack carries two extra waves
             active_raid_boss_id: The boss of the alliance raid-boss event
-                running now, None when none is; see ``client.game_data.raid_boss(name)``
+                running now, None when none is; see ``GameData.require().raid_boss(name)``
             tool_bonus: Extra flank tool capacity on top of the legend skill
             yard_bonus: Absolute courtyard capacity bonus, effect type 179
             yard_boost: Courtyard capacity boost, effect type 180
@@ -811,9 +807,7 @@ class AttackService(BaseService):
                 pre-calculation modelled
             EmpireTimeoutError / ConnectionClosedError / PacketError: A read of the target failed
         """
-        game_data = self.client.game_data
-        if game_data is None:
-            raise GameDataNotLoadedError("Wave filling needs the items payload: call client.load_game_data() first")
+        game_data = self._require_game_data()
 
         target = _Target(
             x=target_x or 0,
