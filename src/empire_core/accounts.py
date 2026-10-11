@@ -13,7 +13,7 @@ import threading
 from pydantic import BaseModel, Field, ValidationError
 
 from empire_core.client.client import EmpireClient
-from empire_core.config import EmpireConfig
+from empire_core.config import EmpireConfig, default_config, instance_for_zone
 
 logger = logging.getLogger(__name__)
 
@@ -87,8 +87,21 @@ class Account(BaseModel):
     active: bool = Field(default=True, description="Whether this account should be used")
 
     def to_empire_config(self) -> EmpireConfig:
-        """Convert to EmpireConfig for client usage."""
-        return EmpireConfig(username=self.username, password=self.password, default_zone=self.world)
+        """
+        A config that logs in to this account's world: its server's URL and its zone.
+
+        Each world lives on its own server, so the zone alone would log in to the
+        default server, which then never answers for a zone it does not serve. A
+        world other than the default one is looked up in ``network.xml`` (once per
+        process).
+
+        Raises:
+            NetworkError: The server list could not be downloaded
+            ValueError: No world of that name is listed
+        """
+        if self.world == default_config.default_zone:
+            return EmpireConfig(username=self.username, password=self.password, default_zone=self.world)
+        return EmpireConfig.for_instance(instance_for_zone(self.world), username=self.username, password=self.password)
 
     def has_tag(self, tag: str) -> bool:
         """Check if account has a specific tag (case-insensitive)."""

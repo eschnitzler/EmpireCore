@@ -60,19 +60,19 @@ closed before the error reaches you, so a failed login leaks nothing.
 
 ### Choose a server and client version
 
-The default configuration connects to the `EmpireEx_21` zone. To pick another
-server, list the servers of a network and build a config for one:
+The default configuration connects to the `EmpireEx_21` zone. Each world lives
+on its own server, so another world needs that server's address as well as its
+zone; `instance_for_zone` looks both up in the game's server list:
 
 ```python
-from empire_core import EmpireClient, EmpireConfig, fetch_network_instances
+from empire_core import EmpireClient, EmpireConfig, instance_for_zone
 
-servers = fetch_network_instances(game_id=GAME_ID, network_id=NETWORK_ID)
-config = EmpireConfig.for_instance(servers[0], client_version="1.169.11")
-
+config = EmpireConfig.for_instance(instance_for_zone("EmpireEx_2"))
 client = EmpireClient(username="your_user", password="your_pass", config=config)
 ```
 
-The game and network ids come from the page the game runs in. When the server
+An account in `accounts.json` with `"world": "EmpireEx_2"` does this for you.
+`fetch_network_instances()` lists every world of a network. When the server
 raises `ClientVersionError`, set `client_version` to the current game client's
 version.
 

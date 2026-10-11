@@ -12,6 +12,7 @@ from empire_core.config import (
     fetch_network_instances,
     generate_aid,
     generate_session_id,
+    instance_for_zone,
     network_config_url,
     parse_network_instances,
 )
@@ -130,7 +131,37 @@ class TestNetworkXml:
         monkeypatch.setattr(config_module.requests, "get", get)
         assert len(fetch_network_instances(12, 1)) == 2
         assert urls == [network_config_url(12, 1)]
-        assert urls[0] == "https://content.goodgamestudios.com/games-netconf/12/1.xml"
+        assert urls[0] == "https://files-ak.goodgamestudios.com/games-netconf/12/1.xml"
+
+    def test_fetch_falls_back_to_the_fallback_cdn(self, monkeypatch):
+        # Client: cdnSubDomain is "media" once _useFallbackCDN is set (dll line 34406)
+        urls = []
+
+        class Reply:
+            text = NETWORK_XML
+
+            def raise_for_status(self):
+                pass
+
+        def get(url, timeout):
+            urls.append(url)
+            if "files-ak" in url:
+                raise requests.ConnectionError("down")
+            return Reply()
+
+        monkeypatch.setattr(config_module.requests, "get", get)
+        assert len(fetch_network_instances(12, 1)) == 2
+        assert urls == [
+            "https://files-ak.goodgamestudios.com/games-netconf/12/1.xml",
+            "https://media.goodgamestudios.com/games-netconf/12/1.xml",
+        ]
+
+    def test_a_zone_names_its_server(self, monkeypatch):
+        monkeypatch.setattr(config_module, "_instances", {})
+        monkeypatch.setattr(config_module, "fetch_network_instances", lambda g, n: parse_network_instances(NETWORK_XML))
+        assert instance_for_zone("EmpireEx").server == "ep-live-other-game.example.com"
+        with pytest.raises(ValueError, match="EmpireEx_99"):
+            instance_for_zone("EmpireEx_99")
 
     def test_fetch_failure_is_a_network_error(self, monkeypatch):
         def get(url, timeout):

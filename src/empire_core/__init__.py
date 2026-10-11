@@ -23,7 +23,13 @@ from empire_core.client.client import EmpireClient
 from empire_core.client.stream import ClientEvent, EventStream
 from empire_core.commanders.models.equipment import Equipment
 from empire_core.commanders.models.roster import Castellan, Commander
-from empire_core.config import EmpireConfig, NetworkInstance, fetch_network_instances, parse_network_instances
+from empire_core.config import (
+    EmpireConfig,
+    NetworkInstance,
+    fetch_network_instances,
+    instance_for_zone,
+    parse_network_instances,
+)
 from empire_core.enums import (
     AttackType,
     EquipmentSlot,
@@ -96,6 +102,7 @@ __all__ = [
     "EmpireConfig",
     "NetworkInstance",
     "fetch_network_instances",
+    "instance_for_zone",
     "parse_network_instances",
     "AccountPool",
     "Account",
