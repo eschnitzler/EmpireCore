@@ -18,7 +18,7 @@ import pytest
 from pydantic import BaseModel
 
 from empire_core.enums import CollectableKind, Kingdom, ToolCategory, ToolSide, UnitRole
-from empire_core.exceptions import AmbiguousLookupError, NetworkError
+from empire_core.exceptions import AmbiguousLookupError, GameDataNotLoadedError, NetworkError
 from empire_core.gamedata import (
     Effect,
     EffectValue,
@@ -248,6 +248,52 @@ class TestLoading:
         # The modeled tables only, never the whole payload; typed tables, rewards among them, sit under table_rows
         assert "version" in cached and "units" in cached["table_rows"] and "tools" in cached["table_rows"]
         assert "rewards" not in cached and "mainquests" not in cached
+
+
+class TestRequire:
+    def test_the_loaded_data_is_returned_without_a_load(self, monkeypatch):
+        data = GameData.parse("783.01", PAYLOAD)
+        monkeypatch.setattr(data_module, "_loaded", data)
+        monkeypatch.setattr(cdn, "get_items_version", lambda: pytest.fail("require loaded again"))
+
+        assert GameData.require() is data
+
+    def test_nothing_loaded_loads_once(self, monkeypatch):
+        fetches: list[str] = []
+        monkeypatch.setattr(cdn, "get_items_version", lambda: "783.01")
+        monkeypatch.setattr(cdn, "fetch_items_data", _recording_fetch(fetches))
+
+        data = GameData.require()
+
+        assert GameData.require() is data
+        assert GameData.loaded() is data
+        assert fetches == ["783.01"]
+
+    def test_a_failed_load_raises_with_its_cause_and_backs_off(self, monkeypatch):
+        asked: list[None] = []
+
+        def boom() -> str:
+            asked.append(None)
+            raise OSError("dns is having a day")
+
+        monkeypatch.setattr(cdn, "get_items_version", boom)
+
+        with pytest.raises(GameDataNotLoadedError, match="could not load the game data") as raised:
+            GameData.require()
+        assert isinstance(raised.value.__cause__, NetworkError)
+        with pytest.raises(GameDataNotLoadedError):
+            GameData.require()
+        assert len(asked) == 1
+
+    def test_client_game_data_stays_none_until_something_loads(self, monkeypatch):
+        monkeypatch.setattr(cdn, "get_items_version", lambda: "783.01")
+        monkeypatch.setattr(cdn, "fetch_items_data", lambda version: PAYLOAD)
+        client = make_client()
+
+        assert client.game_data is None
+        assert GameData.loaded() is None
+        data = GameData.require()
+        assert client.game_data is data
 
 
 def _marking_fetch(downloads: Path, delay: float = 0.0):

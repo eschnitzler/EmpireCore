@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from empire_core.enums import CollectableKind, MercenaryMissionState
-from empire_core.exceptions import CommandError, EmpireTimeoutError, GameDataNotLoadedError, PacketError
+from empire_core.exceptions import CommandError, EmpireTimeoutError, PacketError
 from empire_core.player.models.economy import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
 from empire_core.player.models.info import (
     GetPlayerInfoRequest,
@@ -147,7 +147,7 @@ class PlayerService(BaseService):
             timeout: Timeout in seconds
 
         Raises:
-            GameDataNotLoadedError: ``client.load_game_data()`` has not been called
+            GameDataNotLoadedError: the game data cannot be loaded
             ValueError: The game data has no such research, or it costs rubies and ``spend_rubies`` is False
 
         Client: ``ResearchInfo.buyResearch`` (bundle line 79704) sends ``C2SResearchStartVO`` whatever the
@@ -155,9 +155,7 @@ class PlayerService(BaseService):
         79679-79680), and ``AResearchVO.getBaseCosts`` takes the temporary server's costs there (bundle
         line 61530); ``RESCommand`` (bundle line 126872)
         """
-        game_data = self.client.game_data
-        if game_data is None:
-            raise GameDataNotLoadedError("Starting research needs the items payload: call load_game_data() first")
+        game_data = self._require_game_data()
         row = game_data.researches.get(research)
         if row is None:
             raise ValueError(f"the game data has no research {research!r}")

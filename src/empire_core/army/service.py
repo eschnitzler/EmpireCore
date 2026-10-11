@@ -169,7 +169,7 @@ class ArmyService(BaseService):
         Raises:
             ValueError: The list is the hospital, or the unit has a ruby price or is not in the
                 game data, and ``spend_rubies`` is False
-            GameDataNotLoadedError: ``spend_rubies`` is False and ``client.load_game_data()`` has not been called
+            GameDataNotLoadedError: ``spend_rubies`` is False and the game data cannot be loaded
 
         Client: ``C2SBuyUnitPackageVO`` (bundle line 35277); ``BasicUnitVO.basicCostC2`` (bundle line
         19248); the ruby path is ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35218)
@@ -177,7 +177,7 @@ class ArmyService(BaseService):
         if list_id == ProductionListId.HOSPITAL:
             raise ValueError("bup produces soldiers, tools or auxiliaries; the hospital list is healed with heal_units")
         if not spend_rubies:
-            game_data = self._require_game_data("Pricing a unit")
+            game_data = self._require_game_data()
             row = game_data.get_unit(wod_id) or game_data.get_tool(wod_id)
             if row is None:
                 self._require_spend_rubies(spend_rubies, f"wod id {wod_id} is not in the game data and may cost rubies")
@@ -288,13 +288,13 @@ class ArmyService(BaseService):
 
         Raises:
             ValueError: The unit heals for rubies, or is not in the game data, and ``spend_rubies`` is False
-            GameDataNotLoadedError: ``spend_rubies`` is False and ``client.load_game_data()`` has not been called
+            GameDataNotLoadedError: ``spend_rubies`` is False and the game data cannot be loaded
 
         Client: ``CastleRecruitSelectedUnitComponent.onReviveClick`` (bundle line 51105), priced at
         ``healingCostC2`` per unit (bundle line 51110)
         """
         if not spend_rubies:
-            unit = self._require_game_data("Pricing a heal").get_unit(wod_id)
+            unit = self._require_game_data().get_unit(wod_id)
             if unit is None:
                 self._require_spend_rubies(spend_rubies, f"unit {wod_id} is not in the game data and may cost rubies")
             elif unit.healing_cost_rubies > 0:

@@ -563,14 +563,14 @@ class TestBuildingService:
             client.castle.finish_construction(777, 44)
         assert conn(client).request_payloads == []
 
-    def test_pricing_a_building_needs_the_game_data(self):
+    def test_pricing_a_building_fails_when_the_game_data_cannot_be_loaded(self):
         client = building_client()
         client.game_data = None
-        with pytest.raises(GameDataNotLoadedError):
+        with pytest.raises(GameDataNotLoadedError, match="could not load the game data"):
             client.castle.build(101, 5, 6)
-        with pytest.raises(GameDataNotLoadedError):
+        with pytest.raises(GameDataNotLoadedError, match="could not load the game data"):
             client.castle.upgrade_building(12345, 42)
-        with pytest.raises(GameDataNotLoadedError):
+        with pytest.raises(GameDataNotLoadedError, match="could not load the game data"):
             client.castle.finish_construction(12345, 44)
         assert conn(client).request_payloads == []
 

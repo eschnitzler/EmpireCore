@@ -278,7 +278,7 @@ class CastleState(StateBase):
     def get_castle_horse_ids(self, castle_id: int) -> list[EnumOrInt["Horse"]] | None:
         """The horses one of your castles can send movements with, as gpc sent them.
 
-        Look each up with ``client.game_data.get_horse``, or use
+        Look each up with ``GameData.require().get_horse``, or use
         ``client.castle.get_horses``. ``None`` when :meth:`get_permanent_castle` is.
         """
         permanent = self.get_permanent_castle(castle_id)

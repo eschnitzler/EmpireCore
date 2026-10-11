@@ -353,10 +353,18 @@ class TestFreePremiumCommanders:
         assert client.commanders.free_premium_commanders() is None
         assert not client.commanders.premium_commander_is_free()
 
-    def test_vip_time_needs_the_game_data(self):
+    def test_vip_time_loads_the_game_data_on_first_use(self, stub_game_data_load):
+        client = premium_client({"VP": 9000, "VRL": 5, "VRS": 3600, "UPG": 0}, game_data=False)
+        reference = premium_client({"VP": 9000, "VRL": 5, "VRS": 3600, "UPG": 0})
+        loads = stub_game_data_load(GameData.parse("786.03", {"viplevels": VIP_LEVELS}))
+
+        assert client.commanders.free_premium_commanders() == reference.commanders.free_premium_commanders()
+        assert len(loads) == 1
+
+    def test_vip_time_fails_when_the_game_data_cannot_be_loaded(self):
         client = premium_client({"VP": 9000, "VRL": 5, "VRS": 3600, "UPG": 0}, game_data=False)
 
-        with pytest.raises(GameDataNotLoadedError):
+        with pytest.raises(GameDataNotLoadedError, match="could not load the game data"):
             client.commanders.free_premium_commanders()
 
     def test_a_vip_push_updates_the_count(self):

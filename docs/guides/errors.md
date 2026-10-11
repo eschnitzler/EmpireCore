@@ -69,7 +69,7 @@ classDiagram
 | `PacketError` | A reply could not be parsed |
 | `LoginError` and subclasses | The login failed; see [Getting started](../getting-started.md#log-in) |
 | `ReceiveThreadError` | A call that waits for a reply was made on the receive thread |
-| `GameDataNotLoadedError` | An API needs `client.load_game_data()` first |
+| `GameDataNotLoadedError` | An API needs the game data and it cannot be loaded |
 | `AmbiguousLookupError` | A [game-data lookup](game-data.md) matched several rows |
 | `AttackBelowMinimumError` | An attack carries fewer units than the client allows |
 | `AttackInProgressError` | One of your attacks is already on its way to that target |

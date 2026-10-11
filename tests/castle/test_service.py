@@ -305,9 +305,9 @@ class TestCastleActions:
             12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=RUBY_HORSE, feathers=True
         )
 
-    def test_pricing_a_horse_needs_the_game_data(self):
+    def test_pricing_a_horse_fails_when_the_game_data_cannot_be_loaded(self):
         client = make_client()
-        with pytest.raises(GameDataNotLoadedError):
+        with pytest.raises(GameDataNotLoadedError, match="could not load the game data"):
             client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=COIN_HORSE)
         assert conn(client).request_payloads == []
 

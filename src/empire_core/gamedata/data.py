@@ -2,8 +2,9 @@
 Static game data from the GGE items payload.
 
 The client builds its combat maths from ``items_v{version}.json`` on the GGE
-CDN. That file is ~20 MB, so nothing here is fetched implicitly: call
-:meth:`GameData.load` (or :meth:`EmpireClient.load_game_data`) when you want it.
+CDN. That file is ~20 MB: :meth:`GameData.require` loads it on the first use of an
+API that needs it, and :meth:`GameData.load` (or :meth:`EmpireClient.load_game_data`)
+loads it up front.
 What is parsed is trimmed to the combat-relevant tables, the tables the
 id enums name and the rewards, and cached on disk per version, so the download happens once
 per game patch.
@@ -28,7 +29,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, TypeVar
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from empire_core.enums import Kingdom, UnitRole
-from empire_core.exceptions import AmbiguousLookupError, NetworkError
+from empire_core.exceptions import AmbiguousLookupError, GameDataNotLoadedError, NetworkError
 
 from . import cache, cdn
 from .collectables import _KINDS_BY_XML_KEY, _XML_ADD_PREFIX, Collectable, is_reward_column
@@ -1095,6 +1096,27 @@ class GameData(BaseModel):
         It is the instance :meth:`load` hands every caller, so treat it as read-only.
         """
         return _loaded
+
+    @classmethod
+    def require(cls) -> "GameData":
+        """
+        The data loaded in this process, loading it on first use: what the APIs that need game data read.
+
+        :meth:`loaded` when there is data, without touching the network; otherwise
+        :meth:`load`, which reads the disk cache when present and downloads only on a
+        miss. Threads that call it at once share one download. After a failed load
+        it raises without another request for five minutes, as :meth:`load` does.
+
+        Raises:
+            GameDataNotLoadedError: Nothing is loaded and the game data cannot be loaded
+        """
+        data = cls.loaded()
+        if data is not None:
+            return data
+        try:
+            return cls.load()
+        except NetworkError as e:
+            raise GameDataNotLoadedError(f"could not load the game data: {e}") from e
 
     @classmethod
     def _read_cache(cls, cache_file: Path, version: str) -> "GameData | None":

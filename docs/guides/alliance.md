@@ -149,8 +149,8 @@ for entry in client.alliance.get_chronicle():
 ```
 
 `describe()` fetches the language file on first use, as `empire_core.texts`
-does, and takes `lang`. A completed daimyo contract needs the game data for
-its rank and level: `entry.describe(client.load_game_data())`. On a special server
+does, and takes `lang`. A completed daimyo contract reads its rank and level
+from the game data, loaded on first use or passed as `entry.describe(data)`. On a special server
 with a skin (such as `"Maya"` on an alliance battle ground), pass `skin` for
 the texts the client shows there. An entry no player made (`player_id` -1)
 names an alliance instead: `named_alliance_id` and `named_alliance_name`.

@@ -452,14 +452,21 @@ def check_flank(
         tools: The flank's placed tools
         units: The flank's placed units
         inventory: Pool the tools return to
-        game_data: Loaded tool stats, needed to credit the budget back
+        game_data: Tool stats, to credit the budget back; :meth:`GameData.require` when not given
+            and ``used_per_type`` is
         used_per_type: The wave's per-tool-type budget, updated in place
 
     Returns:
         True when the flank stands, False when its tools were taken back
+
+    Raises:
+        GameDataNotLoadedError: Tools are taken back against ``used_per_type`` without ``game_data``,
+            and the game data cannot be loaded
     """
     if sum(count for _wod_id, count in units) > 0:
         return True
+    if tools and used_per_type is not None and game_data is None:
+        game_data = GameData.require()
     for wod_id, count in tools:
         inventory.counts[wod_id] = inventory.counts.get(wod_id, 0) + count
         if game_data is None or used_per_type is None:
