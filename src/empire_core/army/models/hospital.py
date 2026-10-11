@@ -37,8 +37,8 @@ class HealUnitsRequest(BaseRequest):
 
     command = "hru"
 
-    wod_id: int = Field(validation_alias="U", serialization_alias="U")
-    amount: int = Field(validation_alias="A", serialization_alias="A")
+    wod_id: int = Field(validation_alias="U")
+    amount: int = Field(validation_alias="A")
 
 
 class HealUnitsResponse(BaseResponse):
@@ -52,11 +52,11 @@ class HealUnitsResponse(BaseResponse):
 
     command = "hru"
 
-    production_list: ProductionListBlock = Field(validation_alias="spl", serialization_alias="spl", default=None)
+    production_list: ProductionListBlock = Field(validation_alias="spl", default=None)
     currencies: CurrencyBlock = Field(
-        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after the change"
+        validation_alias="gcu", default=None, description="Coins and rubies after the change"
     )
-    unit_inventory: UnitInventoryBlock = Field(validation_alias="gui", serialization_alias="gui", default=None)
+    unit_inventory: UnitInventoryBlock = Field(validation_alias="gui", default=None)
 
 
 # =============================================================================
@@ -77,9 +77,7 @@ class CancelHealRequest(BaseRequest):
 
     command = "hcs"
 
-    position: int = Field(
-        validation_alias="S", serialization_alias="S", description="The slot's index in the hospital list"
-    )
+    position: int = Field(validation_alias="S", description="The slot's index in the hospital list")
 
 
 class CancelHealResponse(BaseResponse):
@@ -93,8 +91,8 @@ class CancelHealResponse(BaseResponse):
 
     command = "hcs"
 
-    production_list: ProductionListBlock = Field(validation_alias="spl", serialization_alias="spl", default=None)
-    unit_inventory: UnitInventoryBlock = Field(validation_alias="gui", serialization_alias="gui", default=None)
+    production_list: ProductionListBlock = Field(validation_alias="spl", default=None)
+    unit_inventory: UnitInventoryBlock = Field(validation_alias="gui", default=None)
 
 
 # =============================================================================
@@ -115,9 +113,7 @@ class SkipHealRequest(BaseRequest):
 
     command = "hss"
 
-    position: int = Field(
-        validation_alias="S", serialization_alias="S", description="The slot's index in the hospital list"
-    )
+    position: int = Field(validation_alias="S", description="The slot's index in the hospital list")
 
 
 class SkipHealResponse(BaseResponse):
@@ -132,7 +128,7 @@ class SkipHealResponse(BaseResponse):
     command = "hss"
 
     currencies: CurrencyBlock = Field(
-        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after the change"
+        validation_alias="gcu", default=None, description="Coins and rubies after the change"
     )
 
 
@@ -154,15 +150,15 @@ class DismissWoundedRequest(BaseRequest):
 
     command = "hdu"
 
-    wod_id: int = Field(validation_alias="U", serialization_alias="U")
-    amount: int = Field(validation_alias="A", serialization_alias="A")
+    wod_id: int = Field(validation_alias="U")
+    amount: int = Field(validation_alias="A")
 
 
 class WoundedUnits(BasePayload):
     """One ``UT`` entry of a many-type ``hdu``."""
 
-    wod_id: int = Field(validation_alias="U", serialization_alias="U")
-    amount: int = Field(validation_alias="A", serialization_alias="A")
+    wod_id: int = Field(validation_alias="U")
+    amount: int = Field(validation_alias="A")
 
 
 class DismissManyWoundedRequest(BaseRequest):
@@ -178,7 +174,7 @@ class DismissManyWoundedRequest(BaseRequest):
 
     command = "hdu"
 
-    units: list[WoundedUnits] = Field(validation_alias="UT", serialization_alias="UT")
+    units: list[WoundedUnits] = Field(validation_alias="UT")
 
 
 class DismissWoundedResponse(BaseResponse):
@@ -192,7 +188,7 @@ class DismissWoundedResponse(BaseResponse):
 
     command = "hdu"
 
-    unit_inventory: UnitInventoryBlock = Field(validation_alias="gui", serialization_alias="gui", default=None)
+    unit_inventory: UnitInventoryBlock = Field(validation_alias="gui", default=None)
 
 
 # =============================================================================
@@ -219,7 +215,7 @@ class HealAllRequest(BaseRequest):
 
     command = "hra"
 
-    ruby_cost: int = Field(validation_alias="C2", serialization_alias="C2")
+    ruby_cost: int = Field(validation_alias="C2")
 
 
 class HealAllResponse(BaseResponse):
@@ -234,12 +230,11 @@ class HealAllResponse(BaseResponse):
     command = "hra"
 
     currencies: CurrencyBlock = Field(
-        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after the change"
+        validation_alias="gcu", default=None, description="Coins and rubies after the change"
     )
-    unit_inventory: UnitInventoryBlock = Field(validation_alias="gui", serialization_alias="gui", default=None)
+    unit_inventory: UnitInventoryBlock = Field(validation_alias="gui", default=None)
     production_area: RawBlock = Field(
         validation_alias="gpa",
-        serialization_alias="gpa",
         default=None,
         description="The castle's production and storage figures, as a raw block",
     )

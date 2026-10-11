@@ -431,9 +431,7 @@ class SystemNotificationEvent(BaseResponse):
 
     command = "sne"
 
-    messages: list[MessageInfo] = Field(
-        validation_alias="MSG", serialization_alias="MSG", default_factory=list, description="The new messages"
-    )
+    messages: list[MessageInfo] = Field(validation_alias="MSG", default_factory=list, description="The new messages")
 
     @field_validator("messages", mode="before")
     @classmethod
@@ -461,7 +459,6 @@ class GetSpyReportRequest(BaseRequest):
 
     message_id: int = Field(
         validation_alias="MID",
-        serialization_alias="MID",
         description="The report's message id: MessageInfo.message_id of a spy log, or SpyResult.message_id",
     )
 
@@ -485,12 +482,10 @@ class ForwardSpyLogRequest(BaseRequest):
 
     message_id: int = Field(
         validation_alias="MID",
-        serialization_alias="MID",
         description="The report's message id: MessageInfo.message_id of a spy log, or SpyResult.message_id",
     )
     player_ids: list[int] = Field(
         validation_alias="PID",
-        serialization_alias="PID",
         description=(
             "Recipients, e.g. your alliance's other members: AllianceMember.player_id from "
             "client.alliance.get_local_members()"
@@ -518,74 +513,61 @@ class SpyReportArea(BasePayload):
     ``DL`` and ``RT``
     """
 
-    area_type: MapItemType = Field(validation_alias="AT", serialization_alias="AT", description="The area's type")
-    x: int = Field(validation_alias="X", serialization_alias="X", description="Map x")
-    y: int = Field(validation_alias="Y", serialization_alias="Y", description="Map y")
-    kingdom: Kingdom = Field(
-        validation_alias="K", serialization_alias="K", default=Kingdom.GREEN, description="The area's kingdom"
-    )
+    area_type: MapItemType = Field(validation_alias="AT", description="The area's type")
+    x: int = Field(validation_alias="X", description="Map x")
+    y: int = Field(validation_alias="Y", description="Map y")
+    kingdom: Kingdom = Field(validation_alias="K", default=Kingdom.GREEN, description="The area's kingdom")
     name: str = Field(
         validation_alias="N",
-        serialization_alias="N",
         default="",
         description="The area's name; empty for an NPC area the game names",
     )
-    map_id: int | None = Field(validation_alias="MID", serialization_alias="MID", default=None, description="Map id")
+    map_id: int | None = Field(validation_alias="MID", default=None, description="Map id")
     skin_id: ClientInt = Field(
         validation_alias="EID",
-        serialization_alias="EID",
         default=0,
         description="Unique id of the castle skin item, 0 for none",
     )
     owner_id: int | None = Field(
         validation_alias="DP",
-        serialization_alias="DP",
         default=None,
         description="The owner's player id, below 0 for an NPC; for a faction invasion camp, its dungeon type",
     )
     level: int | None = Field(
         validation_alias="DL",
-        serialization_alias="DL",
         default=None,
         description="The NPC's level, when owner_id is below 0",
     )
-    keep_level: ClientInt = Field(validation_alias="KL", serialization_alias="KL", default=0, description="Keep level")
-    wall_level: ClientInt = Field(validation_alias="WL", serialization_alias="WL", default=0, description="Wall level")
-    gate_level: ClientInt = Field(validation_alias="GL", serialization_alias="GL", default=0, description="Gate level")
-    tower_level: ClientInt = Field(
-        validation_alias="TL", serialization_alias="TL", default=0, description="Tower level"
-    )
-    moat_level: ClientInt = Field(validation_alias="ML", serialization_alias="ML", default=0, description="Moat level")
+    keep_level: ClientInt = Field(validation_alias="KL", default=0, description="Keep level")
+    wall_level: ClientInt = Field(validation_alias="WL", default=0, description="Wall level")
+    gate_level: ClientInt = Field(validation_alias="GL", default=0, description="Gate level")
+    tower_level: ClientInt = Field(validation_alias="TL", default=0, description="Tower level")
+    moat_level: ClientInt = Field(validation_alias="ML", default=0, description="Moat level")
     area_subtype: int | None = Field(
         validation_alias="RT",
-        serialization_alias="RT",
         default=None,
         description="Outpost type, village type or monument type, or a resource isle's isle id",
     )
     special_camp_id: int | None = Field(
-        validation_alias="SPC", serialization_alias="SPC", default=None, description="A faction area's special camp id"
+        validation_alias="SPC", default=None, description="A faction area's special camp id"
     )
     daimyo_rank: int | None = Field(
         validation_alias="DAR",
-        serialization_alias="DAR",
         default=None,
         description="A daimyo castle's or township's rank",
     )
     daimyo_camp_id: int | None = Field(
         validation_alias="DDCID",
-        serialization_alias="DDCID",
         default=None,
         description="A daimyo castle's or township's difficulty camp id",
     )
     victory_count: int | None = Field(
         validation_alias="ACVC",
-        serialization_alias="ACVC",
         default=None,
         description="An alliance tower's victory count",
     )
     alliance_id: int | None = Field(
         validation_alias="AID",
-        serialization_alias="AID",
         default=None,
         description="The alliance holding an alliance tower",
     )
@@ -626,80 +608,60 @@ class SpyReportResponse(BaseResponse):
 
     command = "bsd"
 
-    message_id: int | None = Field(
-        validation_alias="MID", serialization_alias="MID", default=None, description="The report's message id"
-    )
+    message_id: int | None = Field(validation_alias="MID", default=None, description="The report's message id")
     area_object_id: ClientInt = Field(
         validation_alias="CID",
-        serialization_alias="CID",
         default=0,
         description="The spied area's object id, -1 when it has none",
     )
     spy_owner_id: ClientInt = Field(
-        validation_alias="SID", serialization_alias="SID", default=0, description="Player id of whoever sent the spies"
+        validation_alias="SID", default=0, description="Player id of whoever sent the spies"
     )
     owner_id: ClientInt = Field(
         validation_alias="PID",
-        serialization_alias="PID",
         default=0,
         description="Player id of the spied area's owner; below 0 for an NPC",
     )
-    spy_count: ClientInt = Field(validation_alias="SC", serialization_alias="SC", default=0, description="Spies sent")
-    guard_count: ClientInt = Field(
-        validation_alias="GC", serialization_alias="GC", default=0, description="Guards at the spied area"
-    )
+    spy_count: ClientInt = Field(validation_alias="SC", default=0, description="Spies sent")
+    guard_count: ClientInt = Field(validation_alias="GC", default=0, description="Guards at the spied area")
     accuracy_or_damage: ClientInt = Field(
         validation_alias="SA",
-        serialization_alias="SA",
         default=0,
         description="Accuracy percent, or damage percent for sabotage and plague monks",
     )
-    risk: ClientInt = Field(
-        validation_alias="SR", serialization_alias="SR", default=0, description="Risk of being caught, percent"
-    )
+    risk: ClientInt = Field(validation_alias="SR", default=0, description="Risk of being caught, percent")
     army: SpyArmyBlock = Field(
         validation_alias="S",
-        serialization_alias="S",
         default=None,
         description="The spied defenders by the position they hold; None when the report has no army",
     )
     seconds_since_spy: int = Field(
         validation_alias="AS",
-        serialization_alias="AS",
         default=-1,
         description="Seconds between the spying and this reply; -1 without an army",
     )
     defending_castellan: Castellan | None = Field(
         validation_alias="B",
-        serialization_alias="B",
         default=None,
         description="The castellan defending the spied area, without its equipment; None when there is none",
     )
     legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
-        validation_alias="LS", serialization_alias="LS", default=(), description="The defender's legend skills"
+        validation_alias="LS", default=(), description="The defender's legend skills"
     )
     resources: CollectableRows = Field(
         validation_alias="R",
-        serialization_alias="R",
         default=(),
         description="What an economy mission saw (CastleSpyLogVO.parseSpyLog reads it with "
         "CollectableParserS2CParamList.createList, bundle line 60579)",
     )
     dungeon_cooldown_seconds: int | None = Field(
         validation_alias="RS",
-        serialization_alias="RS",
         default=None,
         description="Seconds until the spied dungeon can be attacked again; 0 or less when it can be now",
     )
-    owner: MapObject | None = Field(
-        validation_alias="OI", serialization_alias="OI", default=None, description="The spied area owner's record"
-    )
-    spy_owner: MapObject | None = Field(
-        validation_alias="SO", serialization_alias="SO", default=None, description="The spy owner's record"
-    )
-    area: SpyReportArea | None = Field(
-        validation_alias="AI", serialization_alias="AI", default=None, description="The spied area"
-    )
+    owner: MapObject | None = Field(validation_alias="OI", default=None, description="The spied area owner's record")
+    spy_owner: MapObject | None = Field(validation_alias="SO", default=None, description="The spy owner's record")
+    area: SpyReportArea | None = Field(validation_alias="AI", default=None, description="The spied area")
 
     @model_validator(mode="before")
     @classmethod
@@ -794,9 +756,7 @@ class ReadMessageRequest(BaseRequest):
 
     command = "rms"
 
-    message_id: int = Field(
-        validation_alias="MID", serialization_alias="MID", description="The message's MessageInfo.message_id"
-    )
+    message_id: int = Field(validation_alias="MID", description="The message's MessageInfo.message_id")
 
 
 class ReadMessageResponse(BaseResponse):
@@ -813,12 +773,9 @@ class ReadMessageResponse(BaseResponse):
 
     command = "rms"
 
-    body: str | None = Field(
-        validation_alias="MTXT", serialization_alias="MTXT", default=None, description="The body, still encoded"
-    )
+    body: str | None = Field(validation_alias="MTXT", default=None, description="The body, still encoded")
     bookmark: Bookmark | None = Field(
         validation_alias="ABI",
-        serialization_alias="ABI",
         default=None,
         description="An alliance attack order's bookmark; None for other messages",
     )
@@ -851,9 +808,7 @@ class MarkMessageReadRequest(BaseRequest):
 
     command = "mmr"
 
-    message_id: int = Field(
-        validation_alias="MID", serialization_alias="MID", description="The message's MessageInfo.message_id"
-    )
+    message_id: int = Field(validation_alias="MID", description="The message's MessageInfo.message_id")
 
 
 class ArchiveMessageRequest(BaseRequest):
@@ -869,9 +824,7 @@ class ArchiveMessageRequest(BaseRequest):
 
     command = "ams"
 
-    message_id: int = Field(
-        validation_alias="MID", serialization_alias="MID", description="The message's MessageInfo.message_id"
-    )
+    message_id: int = Field(validation_alias="MID", description="The message's MessageInfo.message_id")
 
 
 class ArchiveMessageResponse(BaseResponse):
@@ -885,9 +838,7 @@ class ArchiveMessageResponse(BaseResponse):
 
     command = "ams"
 
-    message_id: int | None = Field(
-        validation_alias="MID", serialization_alias="MID", default=None, description="The archived message"
-    )
+    message_id: int | None = Field(validation_alias="MID", default=None, description="The archived message")
 
 
 class DeleteMessageRequest(BaseRequest):
@@ -903,9 +854,7 @@ class DeleteMessageRequest(BaseRequest):
 
     command = "dms"
 
-    message_id: int = Field(
-        validation_alias="MID", serialization_alias="MID", description="The message's MessageInfo.message_id"
-    )
+    message_id: int = Field(validation_alias="MID", description="The message's MessageInfo.message_id")
 
 
 class DeleteMessagesRequest(BaseRequest):
@@ -921,9 +870,7 @@ class DeleteMessagesRequest(BaseRequest):
 
     command = "dms"
 
-    message_ids: list[int] = Field(
-        validation_alias="MIDS", serialization_alias="MIDS", description="The messages' MessageInfo.message_id values"
-    )
+    message_ids: list[int] = Field(validation_alias="MIDS", description="The messages' MessageInfo.message_id values")
 
 
 class DeleteMessagesResponse(BaseResponse):
@@ -937,9 +884,7 @@ class DeleteMessagesResponse(BaseResponse):
 
     command = "dms"
 
-    message_ids: list[int] = Field(
-        validation_alias="MID", serialization_alias="MID", default_factory=list, description="The deleted messages"
-    )
+    message_ids: list[int] = Field(validation_alias="MID", default_factory=list, description="The deleted messages")
 
     @field_validator("message_ids", mode="before")
     @classmethod
@@ -963,11 +908,9 @@ class SendMessageRequest(BaseRequest):
 
     command = "sms"
 
-    receiver_name: str = Field(
-        validation_alias="RN", serialization_alias="RN", description="The receiving player's name"
-    )
-    subject: str = Field(validation_alias="MH", serialization_alias="MH", description="The subject, encoded")
-    text: str = Field(validation_alias="TXT", serialization_alias="TXT", description="The text, encoded")
+    receiver_name: str = Field(validation_alias="RN", description="The receiving player's name")
+    subject: str = Field(validation_alias="MH", description="The subject, encoded")
+    text: str = Field(validation_alias="TXT", description="The text, encoded")
 
     @classmethod
     def create(cls, receiver_name: str, subject: str, text: str) -> SendMessageRequest:

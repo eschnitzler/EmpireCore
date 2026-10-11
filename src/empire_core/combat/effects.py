@@ -10,12 +10,13 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 
 from empire_core.gamedata import ToolStats, UnitStats
+from empire_core.protocol.base import EmpireModel
 
 
-class AttackerFlankEffects(BaseModel):
+class AttackerFlankEffects(EmpireModel):
     """
     The attacker's multipliers for one flank.
 
@@ -124,7 +125,7 @@ def _buffed(attack: float, bonus: int) -> float:
     return attack + bonus if attack > 0 else 0.0
 
 
-class DefenderFlankEffects(BaseModel):
+class DefenderFlankEffects(EmpireModel):
     """
     The defender's strength on one flank.
 

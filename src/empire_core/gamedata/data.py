@@ -26,10 +26,11 @@ from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+from pydantic import ConfigDict, Field, PrivateAttr
 
 from empire_core.enums import Kingdom, UnitRole
 from empire_core.exceptions import AmbiguousLookupError, GameDataNotLoadedError, NetworkError
+from empire_core.protocol.base import EmpireModel
 
 from . import cache, cdn
 from .collectables import _KINDS_BY_XML_KEY, _XML_ADD_PREFIX, Collectable, is_reward_column
@@ -277,7 +278,7 @@ class _TableSource(NamedTuple):
     """Where a lazily read table's rows come from."""
 
     items_table: str
-    model: type[BaseModel]
+    model: type[EmpireModel]
     id_field: str
     where: Callable[[dict[str, Any]], bool] | None = None
     """Keeps only the items rows it is true for, when the table is part of an items table."""
@@ -407,7 +408,7 @@ meaning is the server's; it reads ``specialcamps`` into two value objects by row
 (``FactionEventVO.parseAdditionalXmlFromRoot``, bundle line 7400), which are not modeled yet.
 """
 
-R = TypeVar("R", bound=BaseModel)
+R = TypeVar("R", bound=EmpireModel)
 
 
 _warned_versions: set[str] = set()
@@ -463,7 +464,7 @@ def _single(what: str, matches: list[R], id_of: Callable[[R], int]) -> R | None:
     return matches[0] if matches else None
 
 
-class GameData(BaseModel):
+class GameData(EmpireModel):
     """
     The combat-relevant tables for one items version.
 

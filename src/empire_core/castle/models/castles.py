@@ -283,9 +283,7 @@ class GetCastlesRequest(BaseRequest):
 
     command = "gcl"
 
-    player_id: int | None = Field(
-        validation_alias="PID", serialization_alias="PID", default=None, description="Your player id; None for none"
-    )
+    player_id: int | None = Field(validation_alias="PID", default=None, description="Your player id; None for none")
 
 
 _ENTRY_KEYS = ("OGT", "OGC", "AOT", "CAT", "TA")
@@ -315,7 +313,6 @@ class CastleInfo(BasePayload):
     y: int = Field(default=0, description="Map y")
     kingdom_id: Kingdom = Field(
         validation_alias="KID",
-        serialization_alias="KID",
         default=Kingdom.GREEN,
         description="The castle's kingdom: the row's own, else the block it is listed under",
     )
@@ -345,27 +342,20 @@ class CastleInfo(BasePayload):
         default=None, description="Unique id of the castle skin equipped; None for a type with none"
     )
     has_sabotage_protection: bool = Field(default=False, description="Whether a temporary sabotage protection is on")
-    open_gate_seconds: int = Field(
-        validation_alias="OGT", serialization_alias="OGT", default=0, description="Seconds the gate stays open"
-    )
-    open_gate_counter: int = Field(
-        validation_alias="OGC", serialization_alias="OGC", default=0, description="How often the gate has been opened"
-    )
+    open_gate_seconds: int = Field(validation_alias="OGT", default=0, description="Seconds the gate stays open")
+    open_gate_counter: int = Field(validation_alias="OGC", default=0, description="How often the gate has been opened")
     abandon_outpost_seconds: int = Field(
         validation_alias="AOT",
-        serialization_alias="AOT",
         default=0,
         description="Seconds until the outpost is abandoned; not positive when it is not",
     )
     cancel_abandon_seconds: int = Field(
         validation_alias="CAT",
-        serialization_alias="CAT",
         default=0,
         description="Seconds left to cancel abandoning the outpost",
     )
     no_abandon_seconds: int = Field(
         validation_alias="TA",
-        serialization_alias="TA",
         default=0,
         description="Seconds before the outpost may be abandoned again",
     )
@@ -447,7 +437,7 @@ class GetCastlesResponse(BaseResponse):
 
     command = "gcl"
 
-    player_id: int = Field(validation_alias="PID", serialization_alias="PID", default=0)
+    player_id: int = Field(validation_alias="PID", default=0)
     castles: list[CastleInfo] = Field(default_factory=list)
 
     @model_validator(mode="before")

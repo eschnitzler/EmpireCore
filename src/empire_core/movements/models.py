@@ -114,47 +114,30 @@ class MovementRecord(BasePayload):
     Client: ``BasicMapmovementVO.loadFromParamObject``.
     """
 
-    movement_id: int = Field(validation_alias="MID", serialization_alias="MID", description="Movement id")
-    movement_type: int = Field(
-        validation_alias="T", serialization_alias="T", default=0, description="MovementType value"
-    )
+    movement_id: int = Field(validation_alias="MID", description="Movement id")
+    movement_type: int = Field(validation_alias="T", default=0, description="MovementType value")
     progress_time: int = Field(
         validation_alias="PT",
-        serialization_alias="PT",
         default=0,
         description="Seconds travelled when the reply was sent",
     )
-    total_time: int = Field(
-        validation_alias="TT", serialization_alias="TT", default=0, description="Seconds the trip takes"
-    )
+    total_time: int = Field(validation_alias="TT", default=0, description="Seconds the trip takes")
     direction: int = Field(
         validation_alias="D",
-        serialization_alias="D",
         default=0,
         description="1 = returning home, 0 = heading to the target",
     )
-    target_id: int = Field(
-        validation_alias="TID", serialization_alias="TID", default=-1, description="Player id owning the target area"
-    )
-    kingdom_id: int = Field(validation_alias="KID", serialization_alias="KID", default=0, description="Kingdom id")
-    source_id: int = Field(
-        validation_alias="SID", serialization_alias="SID", default=-1, description="Player id owning the source area"
-    )
-    owner_id: int = Field(
-        validation_alias="OID", serialization_alias="OID", default=-1, description="Player id owning the movement"
-    )
+    target_id: int = Field(validation_alias="TID", default=-1, description="Player id owning the target area")
+    kingdom_id: int = Field(validation_alias="KID", default=0, description="Kingdom id")
+    source_id: int = Field(validation_alias="SID", default=-1, description="Player id owning the source area")
+    owner_id: int = Field(validation_alias="OID", default=-1, description="Player id owning the movement")
     horse_booster: EnumOrInt["Horse"] | None = Field(
         validation_alias="HBW",
-        serialization_alias="HBW",
         default=None,
         description="The horse booster; None for none or when paid with feathers",
     )
-    target_area: MovementArea | None = Field(
-        validation_alias="TA", serialization_alias="TA", default=None, description="Target area"
-    )
-    source_area: MovementArea | None = Field(
-        validation_alias="SA", serialization_alias="SA", default=None, description="Source area"
-    )
+    target_area: MovementArea | None = Field(validation_alias="TA", default=None, description="Target area")
+    source_area: MovementArea | None = Field(validation_alias="SA", default=None, description="Source area")
 
     @model_validator(mode="before")
     @classmethod
@@ -188,18 +171,10 @@ class MovementArmy(BasePayload):
     67529) read each into a ``UnitInventoryDictionary``, which adds up an id sent twice.
     """
 
-    left: WodAmounts = Field(
-        validation_alias="L", serialization_alias="L", default_factory=dict, description="Left flank"
-    )
-    middle: WodAmounts = Field(
-        validation_alias="M", serialization_alias="M", default_factory=dict, description="Middle"
-    )
-    right: WodAmounts = Field(
-        validation_alias="R", serialization_alias="R", default_factory=dict, description="Right flank"
-    )
-    courtyard: WodAmounts = Field(
-        validation_alias="RW", serialization_alias="RW", default_factory=dict, description="Courtyard (yard) wave"
-    )
+    left: WodAmounts = Field(validation_alias="L", default_factory=dict, description="Left flank")
+    middle: WodAmounts = Field(validation_alias="M", default_factory=dict, description="Middle")
+    right: WodAmounts = Field(validation_alias="R", default_factory=dict, description="Right flank")
+    courtyard: WodAmounts = Field(validation_alias="RW", default_factory=dict, description="Courtyard (yard) wave")
 
 
 class MovementUnitInfo(BasePayload):
@@ -211,34 +186,25 @@ class MovementUnitInfo(BasePayload):
 
     commander: Commander | None = Field(
         validation_alias="L",
-        serialization_alias="L",
         default=None,
         description="Commander leading the army; None when there is none",
     )
     wait_passed: int = Field(
         validation_alias="PWD",
-        serialization_alias="PWD",
         default=0,
         description="Seconds of the wait at the target already passed",
     )
-    wait_total: int = Field(
-        validation_alias="TWD", serialization_alias="TWD", default=0, description="Seconds the army waits at its target"
-    )
+    wait_total: int = Field(validation_alias="TWD", default=0, description="Seconds the army waits at its target")
     advisor_type: EnumOrInt[AttackAdvisorType] = Field(
         validation_alias="AAT",
-        serialization_alias="AAT",
         default=AttackAdvisorType.NONE,
         description="The attack advisor that sent the attack",
     )
-    advisor_movement_count: int = Field(
-        validation_alias="AAC", serialization_alias="AAC", default=0, description="Attacks in the advisor series"
-    )
+    advisor_movement_count: int = Field(validation_alias="AAC", default=0, description="Attacks in the advisor series")
     advisor_movement_number: int = Field(
-        validation_alias="AAN", serialization_alias="AAN", default=0, description="This attack's place in the series"
+        validation_alias="AAN", default=0, description="This attack's place in the series"
     )
-    advisor_is_last: int = Field(
-        validation_alias="AAL", serialization_alias="AAL", default=0, description="1 on the series' last attack"
-    )
+    advisor_is_last: int = Field(validation_alias="AAL", default=0, description="1 on the series' last attack")
 
     @field_validator("commander", mode="before")
     @classmethod
@@ -254,12 +220,8 @@ class MovementMarket(BasePayload):
     ``CollectableParserS2CParamList.createList`` (bundle line 40560)
     """
 
-    carriages: int = Field(
-        validation_alias="C", serialization_alias="C", default=0, description="Market carriages used"
-    )
-    goods: CollectableRows = Field(
-        validation_alias="G", serialization_alias="G", default=(), description="Goods carried"
-    )
+    carriages: int = Field(validation_alias="C", default=0, description="Market carriages used")
+    goods: CollectableRows = Field(validation_alias="G", default=(), description="Goods carried")
 
 
 class MovementSpy(BasePayload):
@@ -268,19 +230,14 @@ class MovementSpy(BasePayload):
     Client: ``SpyMapmovementVO.parseSpyInfo`` (bundle line 43748), which reads each through ``int()``.
     """
 
-    spy_type: ClientInt = Field(
-        validation_alias="ST", serialization_alias="ST", default=0, description="Kind of spy mission, a SpyType value"
-    )
+    spy_type: ClientInt = Field(validation_alias="ST", default=0, description="Kind of spy mission, a SpyType value")
     accuracy_or_damage: ClientInt = Field(
         validation_alias="SA",
-        serialization_alias="SA",
         default=0,
         description="Accuracy percent, or damage percent for sabotage",
     )
-    spy_count: ClientInt = Field(validation_alias="SC", serialization_alias="SC", default=0, description="Spies sent")
-    risk: ClientInt = Field(
-        validation_alias="SR", serialization_alias="SR", default=0, description="Risk of being caught, percent"
-    )
+    spy_count: ClientInt = Field(validation_alias="SC", default=0, description="Spies sent")
+    risk: ClientInt = Field(validation_alias="SR", default=0, description="Risk of being caught, percent")
 
     @property
     def spy_type_enum(self) -> SpyType | None:
@@ -303,62 +260,48 @@ class MovementWrapper(BasePayload):
     of each movement class.
     """
 
-    movement: MovementRecord = Field(validation_alias="M", serialization_alias="M", description="The movement record")
+    movement: MovementRecord = Field(validation_alias="M", description="The movement record")
     full_army: MovementArmy | None = Field(
-        validation_alias="FA", serialization_alias="FA", default=None, description="The full army, preferred over army"
+        validation_alias="FA", default=None, description="The full army, preferred over army"
     )
-    army: MovementArmy | None = Field(validation_alias="GA", serialization_alias="GA", default=None, description="Army")
+    army: MovementArmy | None = Field(validation_alias="GA", default=None, description="Army")
     army_size: int | None = Field(
         validation_alias="GS",
-        serialization_alias="GS",
         default=None,
         description="Estimated army size when the army is hidden",
     )
     unit_info: MovementUnitInfo | None = Field(
-        validation_alias="UM", serialization_alias="UM", default=None, description="Commander and wait details"
+        validation_alias="UM", default=None, description="Commander and wait details"
     )
-    attack_type: int | None = Field(
-        validation_alias="ATT", serialization_alias="ATT", default=None, description="AttackType value of an attack"
-    )
-    is_shadow: bool = Field(
-        validation_alias="SM", serialization_alias="SM", default=False, description="Shadow movement"
-    )
+    attack_type: int | None = Field(validation_alias="ATT", default=None, description="AttackType value of an attack")
+    is_shadow: bool = Field(validation_alias="SM", default=False, description="Shadow movement")
     force_cancelable: bool = Field(
         validation_alias="FC",
-        serialization_alias="FC",
         default=False,
         description="The movement can be force-cancelled",
     )
     support_tools: SupportToolSlots = Field(
         validation_alias="AST",
-        serialization_alias="AST",
         default=(),
         description="Support tools sent along, as the attack sent them; None for an empty slot",
     )
     auto_skip_cooldown_type: EnumOrInt[AutoSkipCooldownType] = Field(
         validation_alias="ASCT",
-        serialization_alias="ASCT",
         default=AutoSkipCooldownType.OFF,
         description="How the target's cooldown is skipped on arrival",
     )
     travel_units: WodAmounts = Field(
         validation_alias="A",
-        serialization_alias="A",
         default_factory=dict,
         description="Units and tools of a travel movement",
     )
     travel_goods: CollectableRows = Field(
         validation_alias="G",
-        serialization_alias="G",
         default=(),
         description="Loot a travel movement carries (ArmyTravelMapMovementVO.loadFromParamObject, bundle line 26798)",
     )
-    market: MovementMarket | None = Field(
-        validation_alias="MM", serialization_alias="MM", default=None, description="Market transport cargo"
-    )
-    spy: MovementSpy | None = Field(
-        validation_alias="S", serialization_alias="S", default=None, description="Spy mission details"
-    )
+    market: MovementMarket | None = Field(validation_alias="MM", default=None, description="Market transport cargo")
+    spy: MovementSpy | None = Field(validation_alias="S", default=None, description="Spy mission details")
 
     @field_validator("spy", mode="before")
     @classmethod
@@ -383,66 +326,48 @@ class MovementOwner(BasePayload):
     Client: ``WorldMapOwnerInfoVO.fillFromParamObject``.
     """
 
-    player_id: int = Field(validation_alias="OID", serialization_alias="OID", description="Player id")
-    name: str = Field(validation_alias="N", serialization_alias="N", default="")
-    crest: OwnerCrest | None = Field(validation_alias="E", serialization_alias="E", default=None)
-    level: int = Field(validation_alias="L", serialization_alias="L", default=0)
-    legend_level: int = Field(validation_alias="LL", serialization_alias="LL", default=0)
-    beginner_protection_seconds: int = Field(
-        validation_alias="RNP", serialization_alias="RNP", default=-1, description="-1 when not protected"
-    )
-    honor: int = Field(validation_alias="H", serialization_alias="H", default=0)
-    might: int = Field(validation_alias="MP", serialization_alias="MP", default=0)
+    player_id: int = Field(validation_alias="OID", description="Player id")
+    name: str = Field(validation_alias="N", default="")
+    crest: OwnerCrest | None = Field(validation_alias="E", default=None)
+    level: int = Field(validation_alias="L", default=0)
+    legend_level: int = Field(validation_alias="LL", default=0)
+    beginner_protection_seconds: int = Field(validation_alias="RNP", default=-1, description="-1 when not protected")
+    honor: int = Field(validation_alias="H", default=0)
+    might: int = Field(validation_alias="MP", default=0)
     top_x: int = Field(
         validation_alias="TOPX",
-        serialization_alias="TOPX",
         default=-1,
         description="Top-ranking placement, -1 for none",
     )
     is_ruin: bool = Field(
         validation_alias="R",
-        serialization_alias="R",
         default=False,
         description="The owner record is flagged as a ruin",
     )
-    alliance_id: int = Field(
-        validation_alias="AID", serialization_alias="AID", default=-1, description="-1 for no alliance"
-    )
-    alliance_rank: int = Field(validation_alias="AR", serialization_alias="AR", default=0)
-    alliance_name: str = Field(validation_alias="AN", serialization_alias="AN", default="")
-    is_searching_alliance: bool = Field(validation_alias="SA", serialization_alias="SA", default=False)
-    peace_seconds: int = Field(
-        validation_alias="RPT", serialization_alias="RPT", default=0, description="Remaining peace time"
-    )
-    castle_positions: list[OwnerCastlePosition] = Field(
-        validation_alias="AP", serialization_alias="AP", default_factory=list
-    )
-    village_positions: list[OwnerCastlePosition] = Field(
-        validation_alias="VP", serialization_alias="VP", default_factory=list
-    )
-    has_premium: bool = Field(validation_alias="PF", serialization_alias="PF", default=False)
-    has_vip: bool = Field(validation_alias="VF", serialization_alias="VF", default=False)
-    is_dummy: bool = Field(
-        validation_alias="DUM", serialization_alias="DUM", default=False, description="The owner record is a dummy"
-    )
-    achievement_points: int = Field(validation_alias="AVP", serialization_alias="AVP", default=0)
-    relocation_seconds: int = Field(
-        validation_alias="RRD", serialization_alias="RRD", default=0, description="Seconds until a relocation ends"
-    )
-    faction: OwnerFaction | None = Field(validation_alias="FN", serialization_alias="FN", default=None)
+    alliance_id: int = Field(validation_alias="AID", default=-1, description="-1 for no alliance")
+    alliance_rank: int = Field(validation_alias="AR", default=0)
+    alliance_name: str = Field(validation_alias="AN", default="")
+    is_searching_alliance: bool = Field(validation_alias="SA", default=False)
+    peace_seconds: int = Field(validation_alias="RPT", default=0, description="Remaining peace time")
+    castle_positions: list[OwnerCastlePosition] = Field(validation_alias="AP", default_factory=list)
+    village_positions: list[OwnerCastlePosition] = Field(validation_alias="VP", default_factory=list)
+    has_premium: bool = Field(validation_alias="PF", default=False)
+    has_vip: bool = Field(validation_alias="VF", default=False)
+    is_dummy: bool = Field(validation_alias="DUM", default=False, description="The owner record is a dummy")
+    achievement_points: int = Field(validation_alias="AVP", default=0)
+    relocation_seconds: int = Field(validation_alias="RRD", default=0, description="Seconds until a relocation ends")
+    faction: OwnerFaction | None = Field(validation_alias="FN", default=None)
     title_prefix_id: EnumOrInt["Title"] | None = Field(
         validation_alias="PRE",
-        serialization_alias="PRE",
         default=None,
         description="The title shown before the name; None for none",
     )
     title_suffix_id: EnumOrInt["Title"] | None = Field(
         validation_alias="SUF",
-        serialization_alias="SUF",
         default=None,
         description="The title shown after the name; None for none",
     )
-    via_refer_a_friend: bool = Field(validation_alias="IRF", serialization_alias="IRF", default=False)
+    via_refer_a_friend: bool = Field(validation_alias="IRF", default=False)
 
     @field_validator("title_prefix_id", "title_suffix_id", mode="before")
     @classmethod
@@ -489,11 +414,10 @@ class GetMovementsResponse(BaseResponse):
     command = "gam"
 
     movements: list[MovementWrapper] = Field(
-        validation_alias="M", serialization_alias="M", default_factory=list, description="Movement wrappers"
+        validation_alias="M", default_factory=list, description="Movement wrappers"
     )
     owners: list[MovementOwner] = Field(
         validation_alias="O",
-        serialization_alias="O",
         default_factory=list,
         description="Owner records for every player the movements name",
     )
@@ -548,7 +472,7 @@ class CancelMovementRequest(BaseRequest):
 
     command = "mcm"
 
-    movement_id: int = Field(validation_alias="MID", serialization_alias="MID", description="The movement to recall")
+    movement_id: int = Field(validation_alias="MID", description="The movement to recall")
 
     def accepts_reply(self, payload: Any) -> bool:
         """Whether an mcm reply is the movement this recalled: its ``A.M.MID``, when sent, is ``MID``.
@@ -579,9 +503,7 @@ class CancelMovementResponse(BaseResponse):
 
     command = "mcm"
 
-    movement: MovementWrapper = Field(
-        validation_alias="A", serialization_alias="A", description="The recalled movement"
-    )
+    movement: MovementWrapper = Field(validation_alias="A", description="The recalled movement")
 
 
 __all__ = [

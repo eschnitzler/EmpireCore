@@ -33,13 +33,11 @@ class ConstructionItemExpiryResponse(TimedResponse):
 
     next_expiry_seconds: ClientNumber = Field(
         validation_alias="NCRS",
-        serialization_alias="NCRS",
         default=-1,
         description="Seconds until the next construction item expires when the values were read, -1 for none",
     )
     last_expired_at: ClientNumber = Field(
         validation_alias="LECT",
-        serialization_alias="LECT",
         default=-1,
         description="When a construction item last expired, the server's timestamp; -1 none",
     )
@@ -68,12 +66,9 @@ class ResourcePoolResponse(BaseResponse):
 
     command = "irc"
 
-    goods: CollectableRows = Field(
-        validation_alias="G", serialization_alias="G", default=(), description="The goods the citizen carries"
-    )
+    goods: CollectableRows = Field(validation_alias="G", default=(), description="The goods the citizen carries")
     has_extra_goods: bool = Field(
         validation_alias="EG",
-        serialization_alias="EG",
         default=False,
         description="Whether the client counts the goods as 1000, whatever G says",
     )

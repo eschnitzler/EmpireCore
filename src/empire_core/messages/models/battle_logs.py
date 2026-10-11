@@ -107,12 +107,9 @@ class GetBattleLogShortRequest(BaseRequest):
 
     command = "bls"
 
-    message_id: int = Field(
-        validation_alias="MID", serialization_alias="MID", description="The battle log's MessageInfo.message_id"
-    )
+    message_id: int = Field(validation_alias="MID", description="The battle log's MessageInfo.message_id")
     include_details: int = Field(
         validation_alias="IM",
-        serialization_alias="IM",
         default=0,
         description="1 to have the reply carry the middle and detail logs too, else 0",
     )
@@ -145,7 +142,6 @@ class GetBattleLogMiddleRequest(BaseRequest):
 
     log_id: int = Field(
         validation_alias="LID",
-        serialization_alias="LID",
         description="The battle log id: BattleLogShortResponse.log_id",
     )
 
@@ -169,7 +165,6 @@ class GetBattleLogDetailRequest(BaseRequest):
 
     log_id: int = Field(
         validation_alias="LID",
-        serialization_alias="LID",
         description="The battle log id: BattleLogShortResponse.log_id",
     )
 
@@ -192,12 +187,9 @@ class ForwardBattleLogRequest(BaseRequest):
 
     command = "mfb"
 
-    message_id: int = Field(
-        validation_alias="MID", serialization_alias="MID", description="The battle log's MessageInfo.message_id"
-    )
+    message_id: int = Field(validation_alias="MID", description="The battle log's MessageInfo.message_id")
     player_ids: list[int] = Field(
         validation_alias="PID",
-        serialization_alias="PID",
         description=(
             "Recipients, e.g. your alliance's other members: AllianceMember.player_id from "
             "client.alliance.get_local_members()"
@@ -670,13 +662,11 @@ class BattleLogArea(SpyReportArea):
 
     treasure_map_node_id: ClientInt = Field(
         validation_alias="NID",
-        serialization_alias="NID",
         default=0,
         description="The treasure map node fought over; 0 or less for none",
     )
     alliance_crest: dict[str, Any] | None = Field(
         validation_alias="E",
-        serialization_alias="E",
         default=None,
         description="An alliance tower's alliance crest, as sent",
     )
@@ -765,208 +755,171 @@ class BattleLogShortResponse(BaseResponse):
 
     command = "bls"
 
-    message_id: int | None = Field(
-        validation_alias="MID", serialization_alias="MID", default=None, description="The battle log's message id"
-    )
+    message_id: int | None = Field(validation_alias="MID", default=None, description="The battle log's message id")
     log_id: ClientInt = Field(
         validation_alias="LID",
-        serialization_alias="LID",
         default=0,
         description="The battle log id, for the middle and detail logs",
     )
     message_type: Annotated[EnumOrInt[MessageType], BeforeValidator(js_int)] = Field(
         validation_alias="MT",
-        serialization_alias="MT",
         default=0,
         description="The message type: BATTLE_LOG for a battle log",
     )
-    defender_won: bool = Field(
-        validation_alias="DW", serialization_alias="DW", default=False, description="The defender won"
-    )
+    defender_won: bool = Field(validation_alias="DW", default=False, description="The defender won")
     meta: str = Field(
         validation_alias="MS",
-        serialization_alias="MS",
         default="",
         description="area_type+attack_type+result[+treasure_map_id[+map_area_type]]",
     )
-    area: BattleLogArea | None = Field(
-        validation_alias="AI", serialization_alias="AI", default=None, description="The area fought over"
-    )
+    area: BattleLogArea | None = Field(validation_alias="AI", default=None, description="The area fought over")
     participants: list[BattleParticipant] = Field(
-        validation_alias="PBI", serialization_alias="PBI", default_factory=list, description="The players"
+        validation_alias="PBI", default_factory=list, description="The players"
     )
     owners: list[MapObject] = Field(
-        validation_alias="PI", serialization_alias="PI", default_factory=list, description="The players' owner records"
+        validation_alias="PI", default_factory=list, description="The players' owner records"
     )
-    honor: ClientInt = Field(validation_alias="H", serialization_alias="H", default=0, description="Honor won or lost")
-    survival_rate: ClientInt = Field(
-        validation_alias="SR", serialization_alias="SR", default=0, description="Survival rate, percent"
-    )
+    honor: ClientInt = Field(validation_alias="H", default=0, description="Honor won or lost")
+    survival_rate: ClientInt = Field(validation_alias="SR", default=0, description="Survival rate, percent")
     found_equipment: Equipment | None = Field(
         validation_alias="EQF",
-        serialization_alias="EQF",
         default=None,
         description="Equipment found in the battle; None for none",
     )
     found_gem: EnumOrInt["Gem"] | None = Field(
-        validation_alias="GF", serialization_alias="GF", default=None, description="Gem found in the battle"
+        validation_alias="GF", default=None, description="Gem found in the battle"
     )
     found_minute_skip: Collectable | None = Field(
         validation_alias="MSF",
-        serialization_alias="MSF",
         default=None,
         description="The time skip found in the battle, one of its currency; None for none",
     )
     rage_points: int = Field(
         validation_alias="RP",
-        serialization_alias="RP",
         default=-1,
         description="Rage points; -1 when the reply has none",
     )
     jump_disabled: bool = Field(
         validation_alias="DJ",
-        serialization_alias="DJ",
         default=False,
         description="The client offers no jump to the area",
     )
     seconds_since_battle: int | float | None = Field(
         validation_alias="PS",
-        serialization_alias="PS",
         default=None,
         description="Seconds since the battle; None when the reply has none",
     )
     attacker_home_castle_id: int | None = Field(
-        validation_alias="AHC", serialization_alias="AHC", default=None, description="The attacker's home castle"
+        validation_alias="AHC", default=None, description="The attacker's home castle"
     )
     attacker_had_hospital: bool = Field(
-        validation_alias="AHH", serialization_alias="AHH", default=False, description="The attacker had a hospital"
+        validation_alias="AHH", default=False, description="The attacker had a hospital"
     )
     attacker_hospital_full: bool = Field(
-        validation_alias="AHF", serialization_alias="AHF", default=False, description="The attacker's hospital was full"
+        validation_alias="AHF", default=False, description="The attacker's hospital was full"
     )
     defender_home_castle_id: int | None = Field(
-        validation_alias="DHC", serialization_alias="DHC", default=None, description="The defender's home castle"
+        validation_alias="DHC", default=None, description="The defender's home castle"
     )
     defender_had_hospital: bool = Field(
-        validation_alias="DHH", serialization_alias="DHH", default=False, description="The defender had a hospital"
+        validation_alias="DHH", default=False, description="The defender had a hospital"
     )
     defender_hospital_full: bool = Field(
-        validation_alias="DHF", serialization_alias="DHF", default=False, description="The defender's hospital was full"
+        validation_alias="DHF", default=False, description="The defender's hospital was full"
     )
     attacker_only_auxiliaries: bool = Field(
         validation_alias="AUA",
-        serialization_alias="AUA",
         default=False,
         description="The attacker fought with auxiliaries only",
     )
     defender_only_auxiliaries: bool = Field(
         validation_alias="DUA",
-        serialization_alias="DUA",
         default=False,
         description="The defender fought with auxiliaries only",
     )
     supporters_wounded: tuple[SupporterWounded, ...] = Field(
         validation_alias="WSU",
-        serialization_alias="WSU",
         default=(),
         description="Soldiers each supporting player had wounded",
     )
     attacking_commander: Commander | None = Field(
-        validation_alias="AL", serialization_alias="AL", default=None, description="The attacking commander"
+        validation_alias="AL", default=None, description="The attacking commander"
     )
     defending_castellan: Castellan | None = Field(
-        validation_alias="DB", serialization_alias="DB", default=None, description="The defending castellan"
+        validation_alias="DB", default=None, description="The defending castellan"
     )
     auto_skip_costs: CurrencyIdRows = Field(
         validation_alias="ASMS",
-        serialization_alias="ASMS",
         default=(),
         description="The currencies the auto-skip cost (an amount above 0) or refunded (0 or below), as sent",
     )
     auto_skip_rubies: ClientInt = Field(
         validation_alias="ASC",
-        serialization_alias="ASC",
         default=0,
         description="Rubies the auto-skip cost; 0 or less for none",
     )
     auto_skip_type: EnumOrInt[AutoSkipCooldownType] | None = Field(
         validation_alias="ASCT",
-        serialization_alias="ASCT",
         default=None,
         description="How the target's cooldown was skipped; None when the reply has none",
     )
     advisor_type: EnumOrInt[AttackAdvisorType] = Field(
         validation_alias="AAT",
-        serialization_alias="AAT",
         default=AttackAdvisorType.NONE,
         description="The attack advisor that sent the attack",
     )
     advisor_movement_count: ClientInt = Field(
-        validation_alias="AAC", serialization_alias="AAC", default=0, description="Movements the attack advisor sent"
+        validation_alias="AAC", default=0, description="Movements the attack advisor sent"
     )
     advisor_movement_number: ClientInt = Field(
-        validation_alias="AAN", serialization_alias="AAN", default=0, description="This movement's number among them"
+        validation_alias="AAN", default=0, description="This movement's number among them"
     )
     attacker_alliance_subscribers: ClientInt = Field(
         validation_alias="AAS",
-        serialization_alias="AAS",
         default=0,
         description="Subscribed members of the attacker's alliance",
     )
     attacker_had_subscription: bool = Field(
-        validation_alias="AHP", serialization_alias="AHP", default=False, description="The attacker had a subscription"
+        validation_alias="AHP", default=False, description="The attacker had a subscription"
     )
     defender_alliance_subscribers: ClientInt = Field(
         validation_alias="DAS",
-        serialization_alias="DAS",
         default=0,
         description="Subscribed members of the defender's alliance",
     )
     defender_had_subscription: bool = Field(
-        validation_alias="DHP", serialization_alias="DHP", default=False, description="The defender had a subscription"
+        validation_alias="DHP", default=False, description="The defender had a subscription"
     )
-    old_charge_points: int = Field(
-        validation_alias="CPO", serialization_alias="CPO", default=0, description="The attacker's charge points before"
-    )
-    old_charge_rank: int = Field(
-        validation_alias="CRO", serialization_alias="CRO", default=0, description="The attacker's charge rank before"
-    )
-    new_charge_points: int = Field(
-        validation_alias="CPN", serialization_alias="CPN", default=0, description="The attacker's charge points after"
-    )
-    new_charge_rank: int = Field(
-        validation_alias="CRN", serialization_alias="CRN", default=0, description="The attacker's charge rank after"
-    )
+    old_charge_points: int = Field(validation_alias="CPO", default=0, description="The attacker's charge points before")
+    old_charge_rank: int = Field(validation_alias="CRO", default=0, description="The attacker's charge rank before")
+    new_charge_points: int = Field(validation_alias="CPN", default=0, description="The attacker's charge points after")
+    new_charge_rank: int = Field(validation_alias="CRN", default=0, description="The attacker's charge rank after")
     defender_old_charge_points: int = Field(
         validation_alias="DCPO",
-        serialization_alias="DCPO",
         default=0,
         description="The defender's charge points before",
     )
     defender_old_charge_rank: int = Field(
-        validation_alias="DCRO", serialization_alias="DCRO", default=0, description="The defender's charge rank before"
+        validation_alias="DCRO", default=0, description="The defender's charge rank before"
     )
     defender_new_charge_points: int = Field(
-        validation_alias="DCPN", serialization_alias="DCPN", default=0, description="The defender's charge points after"
+        validation_alias="DCPN", default=0, description="The defender's charge points after"
     )
     defender_new_charge_rank: int = Field(
-        validation_alias="DCRN", serialization_alias="DCRN", default=0, description="The defender's charge rank after"
+        validation_alias="DCRN", default=0, description="The defender's charge rank after"
     )
     includes_details: bool = Field(
         validation_alias="IM",
-        serialization_alias="IM",
         default=False,
         description="The reply carries the middle and detail logs",
     )
     middle: BattleLogMiddleResponse | None = Field(
         validation_alias="blm",
-        serialization_alias="blm",
         default=None,
         description="The middle log, when includes_details",
     )
     detail: BattleLogDetailResponse | None = Field(
         validation_alias="bld",
-        serialization_alias="bld",
         default=None,
         description="The detail log, when includes_details",
     )
@@ -1279,78 +1232,66 @@ class BattleLogMiddleResponse(BaseResponse):
 
     command = "blm"
 
-    log_id: ClientInt = Field(
-        validation_alias="LID", serialization_alias="LID", default=0, description="The battle log id"
-    )
+    log_id: ClientInt = Field(validation_alias="LID", default=0, description="The battle log id")
     courtyard: MiddleCourtyard = Field(
-        validation_alias="Y", serialization_alias="Y", default_factory=MiddleCourtyard, description="The courtyard"
+        validation_alias="Y", default_factory=MiddleCourtyard, description="The courtyard"
     )
-    waves: list[MiddleWave] = Field(
-        validation_alias="W", serialization_alias="W", default_factory=list, description="The waves, in order"
-    )
+    waves: list[MiddleWave] = Field(validation_alias="W", default_factory=list, description="The waves, in order")
     pre_combat_wave: MiddleWave | None = Field(
         validation_alias="PW",
-        serialization_alias="PW",
         default=None,
         description="What each side brought before the waves; None when not sent",
     )
     support_tools: UnitsBySide = Field(
         validation_alias="SD",
-        serialization_alias="SD",
         default_factory=UnitsBySide,
         description="Support tools each side used",
     )
     reinforcements: FlankTotals = Field(
         validation_alias="RW",
-        serialization_alias="RW",
         default_factory=FlankTotals,
         description="The reinforcement wave's totals",
     )
     attacking_commander: Commander | None = Field(
-        validation_alias="AL", serialization_alias="AL", default=None, description="The attacking commander"
+        validation_alias="AL", default=None, description="The attacking commander"
     )
     defending_castellan: Castellan | None = Field(
-        validation_alias="DB", serialization_alias="DB", default=None, description="The defending castellan"
+        validation_alias="DB", default=None, description="The defending castellan"
     )
     jump_disabled: bool = Field(
         validation_alias="DJ",
-        serialization_alias="DJ",
         default=False,
         description="The client offers no jump to the area",
     )
     seconds_since_battle: int | float | None = Field(
         validation_alias="PS",
-        serialization_alias="PS",
         default=None,
         description="Seconds since the battle; None when the reply has none",
     )
     attacker_triggered_gems: tuple[EnumOrInt["Gem"], ...] = Field(
-        validation_alias="AGT", serialization_alias="AGT", default=(), description="The attacker's gems that triggered"
+        validation_alias="AGT", default=(), description="The attacker's gems that triggered"
     )
     defender_triggered_gems: tuple[EnumOrInt["Gem"], ...] = Field(
-        validation_alias="DGT", serialization_alias="DGT", default=(), description="The defender's gems that triggered"
+        validation_alias="DGT", default=(), description="The defender's gems that triggered"
     )
     attacker_legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
-        validation_alias="ALS", serialization_alias="ALS", default=(), description="The attacker's legend skills"
+        validation_alias="ALS", default=(), description="The attacker's legend skills"
     )
     defender_legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
-        validation_alias="DLS", serialization_alias="DLS", default=(), description="The defender's legend skills"
+        validation_alias="DLS", default=(), description="The defender's legend skills"
     )
     defender_used_support_tools: bool = Field(
         validation_alias="DUST",
-        serialization_alias="DUST",
         default=False,
         description="The defender used support tools",
     )
     attacker_abilities: list[BattleLogAbility] = Field(
         validation_alias="AA",
-        serialization_alias="AA",
         default_factory=list,
         description="The attacking general's abilities that took effect",
     )
     defender_abilities: list[BattleLogAbility] = Field(
         validation_alias="DA",
-        serialization_alias="DA",
         default_factory=list,
         description="The defending general's abilities that took effect",
     )
@@ -1437,32 +1378,25 @@ class BattleLogDetailResponse(BaseResponse):
 
     command = "bld"
 
-    log_id: ClientInt = Field(
-        validation_alias="LID", serialization_alias="LID", default=0, description="The battle log id"
-    )
+    log_id: ClientInt = Field(validation_alias="LID", default=0, description="The battle log id")
     courtyard: UnitsBySide = Field(
         validation_alias="Y",
-        serialization_alias="Y",
         default_factory=UnitsBySide,
         description="Each side's courtyard units",
     )
-    waves: list[DetailWave] = Field(
-        validation_alias="W", serialization_alias="W", default_factory=list, description="The waves, in order"
-    )
+    waves: list[DetailWave] = Field(validation_alias="W", default_factory=list, description="The waves, in order")
     pre_combat_wave: DetailWave | None = Field(
         validation_alias="PW",
-        serialization_alias="PW",
         default=None,
         description="What each side brought before the waves; None when not sent",
     )
     post_combat_wave: DetailWave | None = Field(
         validation_alias="EW",
-        serialization_alias="EW",
         default=None,
         description="What fought after the waves; None when not sent",
     )
     reinforcements: list[BattleLogUnit] = Field(
-        validation_alias="RW", serialization_alias="RW", default_factory=list, description="Reinforcement units"
+        validation_alias="RW", default_factory=list, description="Reinforcement units"
     )
 
     @field_validator("waves", mode="before")

@@ -53,26 +53,23 @@ class MinuteSkipDungeonRequest(BaseRequest):
 
     command = "msd"
 
-    x: int = Field(validation_alias="X", serialization_alias="X", description="Dungeon map x")
-    y: int = Field(validation_alias="Y", serialization_alias="Y", description="Dungeon map y")
+    x: int = Field(validation_alias="X", description="Dungeon map x")
+    y: int = Field(validation_alias="Y", description="Dungeon map y")
     map_id: int = Field(
         validation_alias="MID",
-        serialization_alias="MID",
         default=-1,
         description="Treasure-map id, -1 for an ordinary dungeon",
     )
     node_id: int = Field(
         validation_alias="NID",
-        serialization_alias="NID",
         default=-1,
         description="Treasure-map node id, -1 for an ordinary dungeon",
     )
     minute_skip: EnumOrStr["Currency"] = Field(
         validation_alias="MST",
-        serialization_alias="MST",
         description="The minute skip used, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``; sent as its key",
     )
-    kingdom_id: Kingdom = Field(validation_alias="KID", serialization_alias="KID", description="Kingdom id")
+    kingdom_id: Kingdom = Field(validation_alias="KID", description="Kingdom id")
 
     @field_serializer("kingdom_id")
     def _kingdom_id_as_string(self, value: Kingdom) -> str:
@@ -93,7 +90,6 @@ class MinuteSkipDungeonResponse(BaseResponse):
 
     area: MapAreaItem | None = Field(
         validation_alias="AI",
-        serialization_alias="AI",
         default=None,
         description="The dungeon's updated map row, with its victories and remaining cooldown",
     )
@@ -115,18 +111,16 @@ class SkipDungeonCooldownRequest(BaseRequest):
 
     command = "sdc"
 
-    x: int = Field(validation_alias="X", serialization_alias="X", description="Dungeon map x")
-    y: int = Field(validation_alias="Y", serialization_alias="Y", description="Dungeon map y")
-    kingdom_id: Kingdom = Field(validation_alias="KID", serialization_alias="KID", description="Kingdom id")
+    x: int = Field(validation_alias="X", description="Dungeon map x")
+    y: int = Field(validation_alias="Y", description="Dungeon map y")
+    kingdom_id: Kingdom = Field(validation_alias="KID", description="Kingdom id")
     map_id: int = Field(
         validation_alias="MID",
-        serialization_alias="MID",
         default=-1,
         description="Treasure-map id, -1 for an ordinary dungeon",
     )
     node_id: int = Field(
         validation_alias="NID",
-        serialization_alias="NID",
         default=-1,
         description="Treasure-map node id, -1 for an ordinary dungeon",
     )
@@ -145,7 +139,6 @@ class SkipDungeonCooldownResponse(BaseResponse):
 
     area: MapAreaItem | None = Field(
         validation_alias="AI",
-        serialization_alias="AI",
         default=None,
         description="The dungeon's updated map row, with its victories and remaining cooldown",
     )

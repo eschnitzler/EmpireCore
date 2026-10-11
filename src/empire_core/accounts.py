@@ -10,10 +10,11 @@ import os
 import stat
 import threading
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import Field, ValidationError
 
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig, default_config, instance_for_zone
+from empire_core.protocol.base import EmpireModel
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,7 @@ def _describe_validation_error(e: ValidationError) -> str:
     return "; ".join(parts) or "unknown validation error"
 
 
-class Account(BaseModel):
+class Account(EmpireModel):
     """
     Represents a single game account configuration.
     Wraps credentials and metadata.

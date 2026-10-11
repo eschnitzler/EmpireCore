@@ -108,13 +108,10 @@ class LoginBonus(BasePayload):
 
     day_index: ClientInt = Field(
         validation_alias="D",
-        serialization_alias="D",
         default=0,
         description="Days of the bonus so far; today is day_index % 7",
     )
-    days: tuple[LoginBonusDay, ...] = Field(
-        validation_alias="R", serialization_alias="R", default=(), description="The week's days, in order"
-    )
+    days: tuple[LoginBonusDay, ...] = Field(validation_alias="R", default=(), description="The week's days, in order")
 
     @field_validator("days", mode="before")
     @classmethod
@@ -190,19 +187,16 @@ class CollectLoginBonusRequest(BaseRequest):
 
     unit_id: int = Field(
         validation_alias="ID",
-        serialization_alias="ID",
         default=-1,
         description="The unit's id for a units reward, else -1",
     )
     reward_key: str | None = Field(
         validation_alias="I",
-        serialization_alias="I",
         default=None,
         description="The picked reward's Collectable.send_key",
     )
     special: LoginBonusSpecial | None = Field(
         validation_alias="SP",
-        serialization_alias="SP",
         default=None,
         description="The alliance or VIP bonus instead of a reward",
     )
@@ -224,7 +218,7 @@ class CollectLoginBonusResponse(BaseResponse):
     command = "clb"
 
     login_bonus: LoginBonus | None = Field(
-        validation_alias="alb", serialization_alias="alb", default=None, description="The login bonus after the pick"
+        validation_alias="alb", default=None, description="The login bonus after the pick"
     )
 
     @field_validator("login_bonus", mode="before")
@@ -268,13 +262,11 @@ class GetStartupBonusResponse(BaseResponse):
 
     next_reward_id: ClientInt = Field(
         validation_alias="NRR",
-        serialization_alias="NRR",
         default=0,
         description="The next reward's beginnerLoginRewardID; -1 once all are collected",
     )
     can_collect: bool = Field(
         validation_alias="CC",
-        serialization_alias="CC",
         default=False,
         description="Whether the next reward can be collected now",
     )
@@ -329,22 +321,16 @@ class LostAndFoundItem(BasePayload):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
-    item_id: ClientInt = Field(
-        validation_alias="LFID", serialization_alias="LFID", default=0, description="The entry's id, to collect it"
-    )
+    item_id: ClientInt = Field(validation_alias="LFID", default=0, description="The entry's id, to collect it")
     reward: Collectable = Field(description="The item, from its server key (ROT) and entry (ROV)")
-    seconds: int | float = Field(
-        validation_alias="ET", serialization_alias="ET", default=0, description="Seconds until it expires, when read"
-    )
+    seconds: int | float = Field(validation_alias="ET", default=0, description="Seconds until it expires, when read")
     received_time: int | float | None = Field(
         validation_alias="CT",
-        serialization_alias="CT",
         default=None,
         description="When it arrived, unix seconds; None when not sent",
     )
     equipment_elapsed: ClientInt = Field(
         validation_alias="LFES",
-        serialization_alias="LFES",
         default=0,
         description="Seconds a timed equipment has run while here",
     )
@@ -403,7 +389,6 @@ class GetLostAndFoundResponse(BaseResponse):
 
     items: list[LostAndFoundItem] = Field(
         validation_alias="lfe",
-        serialization_alias="lfe",
         default_factory=list,
         description="The items, in the order sent",
     )
@@ -428,9 +413,7 @@ class CollectLostAndFoundRequest(BaseRequest):
 
     command = "clf"
 
-    item_id: int = Field(
-        validation_alias="LFID", serialization_alias="LFID", description="The item's LostAndFoundItem.item_id"
-    )
+    item_id: int = Field(validation_alias="LFID", description="The item's LostAndFoundItem.item_id")
 
 
 class CollectLostAndFoundResponse(BaseResponse):
@@ -465,13 +448,11 @@ class ActivityChestInfo(BaseResponse):
 
     next_reward_id: ClientInt = Field(
         validation_alias="CID",
-        serialization_alias="CID",
         default=0,
         description="The next chest's activityRewardID; -1 without one",
     )
     seconds: int | float = Field(
         validation_alias="TTU",
-        serialization_alias="TTU",
         default=0,
         description="Seconds until it can be opened, when read",
     )
@@ -559,20 +540,16 @@ class GetWeeklyHonorResponse(BaseResponse):
 
     last_week_rank: ParseInt = Field(
         validation_alias="LWR",
-        serialization_alias="LWR",
         default=0,
         description="Last week's rank, whose reward waits; 0 when none waits",
     )
-    current_rank: ParseInt = Field(
-        validation_alias="CWR", serialization_alias="CWR", default=0, description="This week's rank so far"
-    )
+    current_rank: ParseInt = Field(validation_alias="CWR", default=0, description="This week's rank so far")
     seconds: ParseInt = Field(
         validation_alias="RT",
-        serialization_alias="RT",
         default=0,
         description="Seconds until the next reward, when read",
     )
-    league_id: ParseInt = Field(validation_alias="LID", serialization_alias="LID", default=0, description="Your league")
+    league_id: ParseInt = Field(validation_alias="LID", default=0, description="Your league")
     received_at: float = Field(
         default_factory=time.monotonic, description="When the values were read, in time.monotonic() seconds"
     )
@@ -615,10 +592,10 @@ class RedeemWeeklyHonorResponse(BaseResponse):
     command = "rwb"
 
     currencies: CurrencyBlock = Field(
-        validation_alias="gcu", serialization_alias="gcu", default=None, description="Coins and rubies after the reward"
+        validation_alias="gcu", default=None, description="Coins and rubies after the reward"
     )
     unit_inventory: UnitInventoryBlock = Field(
-        validation_alias="gui", serialization_alias="gui", default=None, description="Units after the reward"
+        validation_alias="gui", default=None, description="Units after the reward"
     )
 
 
@@ -642,7 +619,6 @@ class GetPatchNoteRewardsRequest(BaseRequest):
 
     patch_note_id: int = Field(
         validation_alias="PNID",
-        serialization_alias="PNID",
         description="The patch note's PatchNoteHeader.patch_note_id",
     )
 
@@ -661,9 +637,7 @@ class GetPatchNoteRewardsResponse(BaseResponse):
 
     command = "gpn"
 
-    rewards: CollectableObject = Field(
-        validation_alias="R", serialization_alias="R", default=(), description="The rewards, in the order sent"
-    )
+    rewards: CollectableObject = Field(validation_alias="R", default=(), description="The rewards, in the order sent")
 
 
 class CollectPatchNoteRewardsRequest(BaseRequest):
@@ -681,12 +655,9 @@ class CollectPatchNoteRewardsRequest(BaseRequest):
 
     patch_note_id: int = Field(
         validation_alias="PNID",
-        serialization_alias="PNID",
         description="The patch note's PatchNoteHeader.patch_note_id",
     )
-    message_id: int = Field(
-        validation_alias="MID", serialization_alias="MID", description="The patch note message's MessageInfo.message_id"
-    )
+    message_id: int = Field(validation_alias="MID", description="The patch note message's MessageInfo.message_id")
 
 
 class CollectPatchNoteRewardsResponse(BaseResponse):
@@ -723,9 +694,7 @@ class PendingRewardsInfo(BaseResponse):
 
     command = "pre"
 
-    amount: ClientInt = Field(
-        validation_alias="AMT", serialization_alias="AMT", default=0, description="How many rewards wait"
-    )
+    amount: ClientInt = Field(validation_alias="AMT", default=0, description="How many rewards wait")
 
 
 __all__ = [
