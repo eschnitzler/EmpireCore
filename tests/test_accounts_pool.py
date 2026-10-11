@@ -14,7 +14,7 @@ import pytest
 from pydantic import ValidationError
 
 from empire_core.accounts import Account, AccountRegistry
-from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, default_config, generate_aid, resolve_aid
+from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, NetworkInstance, default_config, generate_aid, resolve_aid
 from empire_core.exceptions import LoginCooldownError, LoginError
 from empire_core.pool import AccountPool, PoolExhaustedError
 
@@ -68,6 +68,32 @@ class TestAccountRegistryEnv:
         registry = AccountRegistry()
         registry.load(file_path="nonexistent.json")
         assert registry.get_by_alias("bad") is None
+
+    def test_an_account_logs_in_to_its_worlds_server(self, monkeypatch):
+        instance = NetworkInstance(
+            instance_id=2,
+            server="ep-live-de1-game.example.com",
+            port=443,
+            zone="EmpireEx_2",
+            zone_id=3,
+            instance_number=2,
+            is_international=True,
+            is_favorite=False,
+            default_country="",
+            instance_loca_id="",
+            countries=[],
+        )
+        monkeypatch.setattr(accounts_module, "instance_for_zone", lambda zone: instance)
+        config = Account(username="u", password="p", world="EmpireEx_2").to_empire_config()
+        assert (config.game_url, config.default_zone) == ("wss://ep-live-de1-game.example.com:443", "EmpireEx_2")
+
+    def test_the_default_world_needs_no_server_list(self, monkeypatch):
+        def no_lookup(zone):
+            raise AssertionError("looked up the default world")
+
+        monkeypatch.setattr(accounts_module, "instance_for_zone", no_lookup)
+        config = Account(username="u", password="p").to_empire_config()
+        assert (config.game_url, config.default_zone) == (default_config.game_url, default_config.default_zone)
 
     def test_inactive_file_accounts_skipped(self, tmp_path):
         accounts_file = tmp_path / "accounts.json"

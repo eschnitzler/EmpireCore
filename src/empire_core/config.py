@@ -5,6 +5,7 @@ import math
 import os
 import random
 import sys
+import threading
 import time
 import xml.etree.ElementTree as ET
 from typing import Any
@@ -126,12 +127,28 @@ class NetworkInstance(BaseModel):
         return f"wss://{self.server}:443"
 
 
+EMPIRE_GAME_ID = 12
+"""Goodgame Empire's game id, as in its ``games-netconf`` and language file URLs."""
+
+EMPIRE_NETWORK_ID = 1
+"""The network of Goodgame Empire's international worlds (``EmpireEx_*``)."""
+
+CDN_SUB_DOMAIN = "files-ak"
+"""The CDN host the client loads files from: ``files-`` and the active CDN's abbreviation (Akamai, ``ak``).
+
+Client: ``cdnSubDomain`` (dll line 34406), ``CDN.abbreviation`` (dll lines 10973-10978)
+"""
+
+FALLBACK_CDN_SUB_DOMAIN = "media"
+"""The host the client falls back to when its CDN fails (``_useFallbackCDN``, dll line 34406)."""
+
+
 def network_config_url(
     game_id: int,
     network_id: int,
     *,
     test_servers: bool = False,
-    cdn_sub_domain: str = "content",
+    cdn_sub_domain: str = CDN_SUB_DOMAIN,
     domain: str = "goodgamestudios.com",
 ) -> str:
     """
@@ -234,13 +251,46 @@ def fetch_network_instances(
         NetworkError: The file could not be downloaded
         ValueError: The file is not XML
     """
-    url = network_config_url(game_id, network_id, **url_parts)
-    try:
-        response = requests.get(url, timeout=timeout)
-        response.raise_for_status()
-    except requests.RequestException as e:
-        raise NetworkError(f"Could not load {url}: {e}") from e
-    return parse_network_instances(response.text, include_test=include_test)
+    hosts = (
+        [url_parts.pop("cdn_sub_domain")]
+        if "cdn_sub_domain" in url_parts
+        else [CDN_SUB_DOMAIN, FALLBACK_CDN_SUB_DOMAIN]
+    )
+    errors = []
+    for host in hosts:
+        url = network_config_url(game_id, network_id, cdn_sub_domain=host, **url_parts)
+        try:
+            response = requests.get(url, timeout=timeout)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            errors.append(f"{url}: {e}")
+            continue
+        return parse_network_instances(response.text, include_test=include_test)
+    raise NetworkError(f"Could not load network.xml: {'; '.join(errors)}")
+
+
+_instances_lock = threading.Lock()
+_instances: dict[tuple[int, int], list[NetworkInstance]] = {}
+
+
+def instance_for_zone(
+    zone: str, *, game_id: int = EMPIRE_GAME_ID, network_id: int = EMPIRE_NETWORK_ID
+) -> NetworkInstance:
+    """
+    The server a world (zone) lives on, from the network's ``network.xml``, read once per process.
+
+    Raises:
+        NetworkError: The server list could not be downloaded
+        ValueError: The network lists no world of that zone
+    """
+    with _instances_lock:
+        listed = _instances.get((game_id, network_id))
+        if listed is None:
+            listed = _instances[(game_id, network_id)] = fetch_network_instances(game_id, network_id)
+    for instance in listed:
+        if instance.zone == zone:
+            return instance
+    raise ValueError(f"No world {zone!r} in network {network_id} (known: {', '.join(sorted(i.zone for i in listed))})")
 
 
 # ============================================================
@@ -340,7 +390,12 @@ default_config = _FrozenEmpireConfig()
 __all__ = [
     "EmpireConfig",
     "NetworkInstance",
+    "CDN_SUB_DOMAIN",
+    "EMPIRE_GAME_ID",
+    "EMPIRE_NETWORK_ID",
+    "FALLBACK_CDN_SUB_DOMAIN",
     "fetch_network_instances",
+    "instance_for_zone",
     "network_config_url",
     "parse_network_instances",
 ]
