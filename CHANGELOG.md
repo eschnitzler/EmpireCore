@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.51.2 (2026-10-11)
+
+### Bug Fixes
+
+- **accounts**: Log in to an account's world on that world's server
+  ([#436](https://github.com/eschnitzler/EmpireCore/pull/436),
+  [`c3368a1`](https://github.com/eschnitzler/EmpireCore/commit/c3368a19a727d1c4ade6db931395159fa7be7443))
+
+
 ## v0.51.1 (2026-10-09)
 
 ### Bug Fixes
