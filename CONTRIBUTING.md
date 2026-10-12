@@ -62,7 +62,7 @@ The id must be one the game client has: `tests/protocol/test_client_commands.py`
 fails for any request, response or `GGECommand` id, or command id the code uses as
 a plain string (a handler, a waiter, `state/manager.py`'s tables), missing from
 `tests/data/client_commands.json`, a snapshot of the client's `C2S_`/`S2C_`
-constants. A weekly workflow fails when the live client's tables differ from it;
+constants. A weekly workflow fails when the live client's command tables differ from it;
 regenerate it with `uv run python scripts/extract_client_commands.py --download`
 and commit the diff.
 
