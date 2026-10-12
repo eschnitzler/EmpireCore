@@ -1,8 +1,8 @@
 name: Client commands
 
 # Weekly: extract the command tables from the live game client and fail when
-# they differ from tests/data/client_commands.json, which happens on every new
-# client release as well as when a command is dropped or renamed. The log lists
+# they differ from tests/data/client_commands.json, that is when a command is
+# added, dropped or renamed; a new client release alone passes. The log lists
 # every change and any command the library registers that the client lacks.
 # Regenerate with scripts/extract_client_commands.py --download and commit.
 

@@ -4,7 +4,7 @@ Extract the game client's command tables into ``tests/data/client_commands.json`
     uv run python scripts/extract_client_commands.py --download              # the live client
     uv run python scripts/extract_client_commands.py --bundle Game.bundle.a4a25ae6d735e29092f6.js \\
         --dll ggs.dll.145565eddbcbe244aab0.js
-    uv run python scripts/extract_client_commands.py --download --check      # exit 1 if the tables changed
+    uv run python scripts/extract_client_commands.py --download --check      # exit 1 if the command tables changed
 
 The client names every command it sends ``C2S_<NAME>`` and every reply or push
 it handles ``S2C_<NAME>``, as static fields of its constant classes
@@ -19,7 +19,8 @@ on (``apiOK``, ``joinOK``, ``roundTripRes``), as server messages, and every
 constant the client passes to ``sendMessage``, as a client command, since the
 keepalive is sent under ``S2C_PING``.
 
-``--check`` exits 1 when the snapshot would change. Both modes also list every
+``--check`` exits 1 when a command table would change; a new release alone
+only prints its hashes. Both modes also list every
 command the library registers that the fresh tables lack;
 ``tests/protocol/test_client_commands.py`` fails on those against the committed
 snapshot, offline.
@@ -295,7 +296,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--bundle-release", help="the bundle's release hash, when its file name lacks it")
     parser.add_argument("--dll-release", help="the dll's release hash, when its file name lacks it")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="snapshot file to write")
-    parser.add_argument("--check", action="store_true", help="write nothing; exit 1 if the snapshot would change")
+    parser.add_argument("--check", action="store_true", help="write nothing; exit 1 if a command table would change")
     args = parser.parse_args(argv)
 
     if args.download:
@@ -319,7 +320,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"library {side} command not in the client: {command} ({', '.join(where)})", file=sys.stderr)
     print(f"{len(new['client'])} client and {len(new['server'])} server commands")
     if args.check:
-        return 1 if diff else 0
+        return 1 if any(old.get(side) != new[side] for side in ("client", "server")) else 0
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(render(new), encoding="utf-8")
     return 0

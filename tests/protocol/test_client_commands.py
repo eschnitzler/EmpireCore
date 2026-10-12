@@ -62,6 +62,23 @@ def test_a_dropped_command_fails_the_check():
     ]
 
 
+def _check(tmp_path, bundle: str, out: Path) -> int:
+    (tmp_path / "bundle.js").write_text(bundle, encoding="utf-8")
+    (tmp_path / "dll.js").write_text('BasicSmartfoxConstants.S2C_P="p";', encoding="utf-8")
+    argv = ["--bundle", str(tmp_path / "bundle.js"), "--dll", str(tmp_path / "dll.js"), "--out", str(out)]
+    return script.main([*argv, "--bundle-release", "b2", "--dll-release", "d2", "--check"])
+
+
+def test_a_new_release_alone_passes_the_check(tmp_path):
+    out = tmp_path / "snapshot.json"
+    out.write_text(
+        script.render(script.snapshot('ClientConstSF.C2S_A="a";', 'BasicSmartfoxConstants.S2C_P="p";', "b1", "d1"))
+    )
+
+    assert _check(tmp_path, 'ClientConstSF.C2S_A="a";', out) == 0
+    assert _check(tmp_path, 'ClientConstSF.C2S_B="a";', out) == 1
+
+
 def test_raw_commands_cover_the_code_outside_the_models():
     found = {(side, command) for side, command, _ in script.raw_commands()}
 
