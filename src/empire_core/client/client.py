@@ -472,14 +472,16 @@ class EmpireClient:
                 dialog), so the waits are library policy.
 
         Raises:
-            NetworkError: The WebSocket connection could not be established
+            NetworkError: The WebSocket connection could not be established, or the live
+                client's version could not be downloaded (``config.client_version`` None)
             EmpireTimeoutError: A required login step timed out
-            ClientVersionError: The version check says ``config.client_version`` is too low or too high
+            ClientVersionError: The version check says the client version is too low or too high
             LoginCooldownError: The server is rate-limiting this account
             AccountBannedError: The account is banned or deleted
             WrongServerError: The account is on another server
-            LoginError: Username and password or token missing, the version
-                check failed, or the server rejected the login
+            LoginError: Username and password or token missing, the live
+                client's files name no version, the version check failed, or
+                the server rejected the login
 
         Every failure mode is an ``EmpireError`` subclass, so
         ``except EmpireError`` catches all of them.

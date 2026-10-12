@@ -88,6 +88,9 @@ class Account(BaseModel):
     alias: str | None = Field(default=None, description="Short name for this account (e.g., 'main', 'farmer1')")
     tags: list[str] = Field(default_factory=list, description="Categorization tags (e.g., ['farmer', 'k1'])")
     active: bool = Field(default=True, description="Whether this account should be used")
+    client_version: str | None = Field(
+        default=None, description="Game client version to log in with; None reads the live client's at each login"
+    )
 
     def to_empire_config(self) -> EmpireConfig:
         """
@@ -103,8 +106,13 @@ class Account(BaseModel):
             ValueError: No world of that name is listed
         """
         if self.world == default_config.default_zone:
-            return EmpireConfig(username=self.username, password=self.password, default_zone=self.world)
-        return EmpireConfig.for_instance(instance_for_zone(self.world), username=self.username, password=self.password)
+            config = EmpireConfig(default_zone=self.world)
+        else:
+            config = EmpireConfig.for_instance(instance_for_zone(self.world))
+        config.username = self.username
+        config.password = self.password
+        config.client_version = self.client_version
+        return config
 
     def has_tag(self, tag: str) -> bool:
         """Check if account has a specific tag (case-insensitive)."""
