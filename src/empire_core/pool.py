@@ -174,6 +174,23 @@ class AccountPool:
             and (not tag or acc.has_tag(tag))
         ]
 
+    def _nothing_to_lease(self, username: str | None, tag: str | None) -> str:
+        """Why a lease found no account to try: none configured, none matching, or all in use."""
+        accounts = [acc for acc in self.all_accounts if acc.active]
+        if not accounts:
+            return (
+                "No accounts configured: the registry loaded none (check the accounts file's path "
+                "and the EMPIRE_ACCOUNT_* variables)"
+            )
+        matching = [
+            acc
+            for acc in accounts
+            if (not username or acc.username.lower() == username.lower()) and (not tag or acc.has_tag(tag))
+        ]
+        if not matching:
+            return f"No active account matches user={username}, tag={tag} ({len(accounts)} configured)"
+        return f"All {len(matching)} matching account(s) are leased or logging back in (user={username}, tag={tag})"
+
     def _free(self, username: str) -> bool:
         """Not leased, and no kept client logging back in; called under the lock."""
         kept = self._clients.get(username)
@@ -268,7 +285,7 @@ class AccountPool:
                         self._busy.discard(account.username)
 
         if not tried:
-            logger.warning(f"AccountPool: No available accounts (user={username}, tag={tag})")
+            logger.warning(f"AccountPool: {self._nothing_to_lease(username, tag)}")
             return None
 
         # Candidates existed but none could be leased. Raising (rather than
@@ -313,7 +330,7 @@ class AccountPool:
         """
         client = self.lease(username=username, tag=tag, login=login)
         if client is None:
-            raise PoolExhaustedError(f"No account available to lease (user={username}, tag={tag})")
+            raise PoolExhaustedError(self._nothing_to_lease(username, tag))
         with self._lock:
             lease_id = self._lease_ids[str(client.username)]
         try:

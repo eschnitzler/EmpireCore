@@ -17,6 +17,9 @@ from empire_core.config import EmpireConfig, default_config, instance_for_zone
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_ACCOUNTS_FILE = "accounts.json"
+"""The file :meth:`AccountRegistry.load` reads when given no path; it may be absent."""
+
 
 def _load_env_file() -> None:
     """Merge a .env file, searched for from the current working directory upwards.
@@ -139,18 +142,24 @@ class AccountRegistry:
         self._loaded = False
         self._load_lock = threading.Lock()
 
-    def load(self, file_path: str = "accounts.json", load_env_file: bool = False):
+    def load(self, file_path: str | os.PathLike[str] | None = None, load_env_file: bool = False):
         """
         Load accounts from all sources.
         Prioritizes environment variables, then file: an account whose
         username appears in both sources keeps the env definition.
 
         Args:
-            file_path: Path to the accounts JSON file (as given, or relative to cwd).
+            file_path: Path to the accounts JSON file, relative to the current working
+                directory unless absolute; it must exist. When None, ``accounts.json``
+                in the current working directory is read if it is there.
             load_env_file: When True, first merge a ``.env`` file found from the
                 current working directory upwards into ``os.environ`` (existing
                 variables are never overridden). Defaults to False so that merely
                 importing ``empire_core`` never mutates the caller's environment.
+
+        Raises:
+            FileNotFoundError: ``file_path`` was given and no file is there
+            ValueError: The file is not a JSON list of accounts
         """
         self._accounts = []
 
@@ -161,7 +170,10 @@ class AccountRegistry:
         self._load_from_env()
 
         # 2. Load from JSON file (skipping usernames already defined via env)
-        self._load_from_file(file_path)
+        if file_path is None:
+            self._load_from_file(DEFAULT_ACCOUNTS_FILE, required=False)
+        else:
+            self._load_from_file(os.fspath(file_path), required=True)
 
         self._loaded = True
         logger.debug(f"AccountRegistry loaded {len(self._accounts)} active accounts.")
@@ -188,7 +200,7 @@ class AccountRegistry:
             return
         self._accounts.append(account)
 
-    def _load_from_file(self, path_str: str):
+    def _load_from_file(self, path_str: str, required: bool):
         """Internal: Load from JSON file (as given, or relative to cwd).
 
         Security: this file stores passwords in plain text. Keep it out of version
@@ -200,29 +212,31 @@ class AccountRegistry:
         target_path = path_str
 
         if not os.path.exists(target_path):
+            if required:
+                raise FileNotFoundError(f"No accounts file at {os.path.abspath(target_path)}")
             logger.debug(f"Account file '{path_str}' not found. Skipping file load.")
             return
 
         _warn_on_loose_permissions(target_path)
 
-        try:
-            with open(target_path, encoding="utf-8") as f:
+        with open(target_path, encoding="utf-8") as f:
+            try:
                 data = json.load(f)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"{os.path.abspath(target_path)} is not valid JSON: {e}") from e
 
-            if not isinstance(data, list):
-                logger.warning(f"Invalid format in '{target_path}'. Expected a list of accounts.")
-                return
+        if not isinstance(data, list):
+            raise ValueError(f"{os.path.abspath(target_path)} must be a JSON list of accounts")
 
-            for entry in data:
-                try:
-                    account = Account(**entry)
-                    if account.active:
-                        self._add_account(account)
-                except ValidationError as e:
-                    logger.error(f"Skipping invalid account entry in {target_path}: {_describe_validation_error(e)}")
-
-        except Exception as e:
-            logger.error(f"Error reading '{target_path}': {e}")
+        for entry in data:
+            try:
+                account = Account(**entry)
+            except (TypeError, ValidationError) as e:
+                detail = _describe_validation_error(e) if isinstance(e, ValidationError) else "not an object"
+                logger.error(f"Skipping invalid account entry in {target_path}: {detail}")
+                continue
+            if account.active:
+                self._add_account(account)
 
     def _load_from_env(self):
         """
