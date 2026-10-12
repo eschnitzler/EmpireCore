@@ -2,11 +2,14 @@
 Pacing of map area reads (``gaa``) per account.
 
 The server bans an account for 12 hours (``IS_BANNED``) once it has read about
-810,000 map tiles within a window of roughly 26 to 50 seconds, whatever the
-request size and whatever other commands go with it. The game client has no
+810,000 map tiles within a window of 29 to 31 seconds, whatever the request
+size and whatever other commands go with it, so an account can read about
+27,000 tiles a second for as long as it likes. The limit is per account:
+several accounts on one address each have their own. The game client has no
 such limit of its own: it reads only the part of the map on screen, so it
-never comes near. Measured on server build 6.1174.6 (2026-10-12), on fresh
-accounts in one kingdom:
+never comes near. Measured on server build 6.1174.6 (2026-10-12):
+
+Bursts of map area reads, one fresh account each:
 
 =========  ===========  ========  =============
 Side       Requests/s   Requests  Outcome
@@ -17,11 +20,22 @@ Side       Requests/s   Requests  Outcome
 60         ~16          150       not banned
 30         ~22          150       not banned
 90         ~2           150       not banned
-90         ~1.45        400       not banned
 =========  ===========  ========  =============
 
-The pacer spaces requests by their tile count, with no burst allowance: with
-the window not known exactly, any burst could be the one that crosses it.
+A full green kingdom scan through this pacer:
+
+=============  ==============================  ==========================
+Tiles/s        Accounts at once                Outcome
+=============  ==============================  ==========================
+28,000         1                               banned after 30.6 s
+26,000         1                               not banned (90 s)
+25,000         5                               not banned
+24,000         1                               not banned (97 s)
+11,700         5                               not banned (199 s)
+=============  ==============================  ==========================
+
+The pacer spaces requests by their tile count, with no burst allowance, so no
+stretch of the window ever holds more than the rate allows.
 """
 
 import math
