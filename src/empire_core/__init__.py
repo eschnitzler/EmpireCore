@@ -26,6 +26,7 @@ from empire_core.commanders.models.roster import Castellan, Commander
 from empire_core.config import (
     EmpireConfig,
     NetworkInstance,
+    fetch_client_version,
     fetch_network_instances,
     instance_for_zone,
     parse_network_instances,
@@ -101,6 +102,7 @@ __all__ = [
     "EventStream",
     "EmpireConfig",
     "NetworkInstance",
+    "fetch_client_version",
     "fetch_network_instances",
     "instance_for_zone",
     "parse_network_instances",

@@ -9,6 +9,7 @@ from empire_core import config as config_module
 from empire_core.config import (
     EmpireConfig,
     build_number,
+    fetch_client_version,
     fetch_network_instances,
     generate_aid,
     generate_session_id,
@@ -16,7 +17,7 @@ from empire_core.config import (
     network_config_url,
     parse_network_instances,
 )
-from empire_core.exceptions import NetworkError
+from empire_core.exceptions import LoginError, NetworkError
 
 
 @pytest.mark.parametrize(
@@ -28,9 +29,83 @@ def test_build_number(version, build):
     assert build_number(version) == build
 
 
-def test_config_build_number_follows_the_client_version():
-    assert EmpireConfig().build_number == "1169011"
-    assert EmpireConfig(client_version="1.170.2").build_number == "1170002"
+INDEX_HTML = """<link id="CacheBreaker" rel="preload" href="CacheBreaker.bundle.de68e795.js" as="script">"""
+CACHE_BREAKER = (
+    'psl:"1.10.0"}}},858:function(e){e.exports={name:"TranspilationEmpire",version:"1.170.22",'
+    'description:"Transpiled version of the Flash game"}}'
+)
+
+
+class TestClientVersion:
+    """Read as CastleVersionInformation reads appVersion, from the CacheBreaker bundle index.html names."""
+
+    @staticmethod
+    def serve(monkeypatch, files):
+        urls = []
+
+        class Reply:
+            def __init__(self, text):
+                self.text = text
+
+            def raise_for_status(self):
+                pass
+
+        def get(url, timeout):
+            urls.append(url)
+            text = files[url.rsplit("/", 1)[1]]
+            if isinstance(text, Exception):
+                raise text
+            return Reply(text)
+
+        monkeypatch.setattr(config_module.requests, "get", get)
+        return urls
+
+    def test_reads_the_live_version(self, monkeypatch):
+        urls = self.serve(monkeypatch, {"index.html": INDEX_HTML, "CacheBreaker.bundle.de68e795.js": CACHE_BREAKER})
+        assert fetch_client_version() == "1.170.22"
+        assert urls == [
+            "https://empire-html5.goodgamestudios.com/default/index.html",
+            "https://empire-html5.goodgamestudios.com/default/CacheBreaker.bundle.de68e795.js",
+        ]
+
+    def test_a_known_bundle_is_not_downloaded_again(self, monkeypatch):
+        urls = self.serve(monkeypatch, {"index.html": INDEX_HTML, "CacheBreaker.bundle.de68e795.js": CACHE_BREAKER})
+        fetch_client_version()
+        assert fetch_client_version() == "1.170.22"
+        assert [url.rsplit("/", 1)[1] for url in urls] == [
+            "index.html",
+            "CacheBreaker.bundle.de68e795.js",
+            "index.html",
+        ]
+
+    def test_a_new_bundle_is_read_after_an_update(self, monkeypatch):
+        files = {"index.html": INDEX_HTML, "CacheBreaker.bundle.de68e795.js": CACHE_BREAKER}
+        self.serve(monkeypatch, files)
+        fetch_client_version()
+        files["index.html"] = INDEX_HTML.replace("de68e795", "0a1b2c3d")
+        files["CacheBreaker.bundle.0a1b2c3d.js"] = CACHE_BREAKER.replace("1.170.22", "1.171.1")
+        assert fetch_client_version() == "1.171.1"
+
+    def test_a_download_failure_is_a_network_error(self, monkeypatch):
+        self.serve(monkeypatch, {"index.html": requests.ConnectionError("down")})
+        with pytest.raises(NetworkError):
+            fetch_client_version()
+
+    @pytest.mark.parametrize(
+        "files",
+        [
+            {"index.html": "<html></html>"},
+            {"index.html": INDEX_HTML, "CacheBreaker.bundle.de68e795.js": "no version here"},
+        ],
+    )
+    def test_files_without_a_version_raise(self, monkeypatch, files):
+        self.serve(monkeypatch, files)
+        with pytest.raises(LoginError):
+            fetch_client_version()
+
+
+def test_config_client_version_defaults_to_the_live_one():
+    assert EmpireConfig().client_version is None
 
 
 def test_session_id_looks_like_the_clients():

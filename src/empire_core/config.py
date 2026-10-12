@@ -4,6 +4,7 @@ import json
 import math
 import os
 import random
+import re
 import sys
 import threading
 import time
@@ -13,7 +14,7 @@ from typing import Any
 import requests
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from empire_core.exceptions import NetworkError
+from empire_core.exceptions import LoginError, NetworkError
 from empire_core.protocol.js import js_number
 
 _AID_ENV_VAR = "EMPIRE_AID"
@@ -75,6 +76,58 @@ def build_number(version: str) -> str:
     """
     major, minor, patch = version.split(".")[:3]
     return major + minor.rjust(3, "0") + patch.split("-")[0].rjust(3, "0")
+
+
+GAME_CLIENT_URL = "https://empire-html5.goodgamestudios.com/default"
+"""Where the HTML5 game client is served from: its ``index.html`` and bundles."""
+
+_CACHE_BREAKER_BUNDLE = re.compile(r"CacheBreaker\.bundle\.[0-9a-f]+\.js")
+_APP_VERSION = re.compile(r'name:"TranspilationEmpire",version:"(\d+\.\d+\.\d+(?:-[\w.]+)?)"')
+
+_client_versions_lock = threading.Lock()
+_client_versions: dict[str, str] = {}
+
+
+def fetch_client_version(timeout: float = 10.0) -> str:
+    """
+    The live game client's version, read from the client's own files.
+
+    Downloads ``index.html`` every call, so a game update is picked up at once,
+    and the small ``CacheBreaker`` bundle it names only when the bundle is new
+    to this process.
+
+    Client: ``index.html`` preloads ``CacheBreaker.bundle.<hash>.js``, which
+    ``CastleLoader`` loads first (``loadCacheBreaker``); in it
+    ``CastleVersionInformation`` reads ``appVersion`` from the
+    ``TranspilationEmpire`` package (module 858), the version
+    ``buildNumberGame`` is made from
+
+    Raises:
+        NetworkError: ``index.html`` or the bundle could not be downloaded
+        LoginError: The files name no bundle or no version
+    """
+    try:
+        response = requests.get(f"{GAME_CLIENT_URL}/index.html", timeout=timeout)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        raise NetworkError(f"Could not load the game client's index.html: {e}") from e
+    bundle = _CACHE_BREAKER_BUNDLE.search(response.text)
+    if bundle is None:
+        raise LoginError("The game client's index.html names no CacheBreaker bundle")
+    with _client_versions_lock:
+        version = _client_versions.get(bundle.group(0))
+        if version is not None:
+            return version
+        try:
+            response = requests.get(f"{GAME_CLIENT_URL}/{bundle.group(0)}", timeout=timeout)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            raise NetworkError(f"Could not load the game client's {bundle.group(0)}: {e}") from e
+        found = _APP_VERSION.search(response.text)
+        if found is None:
+            raise LoginError(f"The game client's {bundle.group(0)} names no client version")
+        version = _client_versions[bundle.group(0)] = found.group(1)
+        return version
 
 
 # Default login payload values; CONM and RTM are measured during the login.
@@ -316,8 +369,10 @@ class EmpireConfig(BaseModel):
     game_url: str = "wss://ep-live-us1-game.goodgamestudios.com/"
     default_zone: str = "EmpireEx_21"
     game_version: str = Field(default="166", description="SmartFox API version the verChk handshake sends")
-    client_version: str = Field(
-        default="1.169.11", description="Game client version whose build number the login and version check send"
+    client_version: str | None = Field(
+        default=None,
+        description="Game client version whose build number the login and version check send; "
+        "None reads the live client's version at each login (fetch_client_version)",
     )
 
     # Timeouts
@@ -355,11 +410,6 @@ class EmpireConfig(BaseModel):
             )
         return self
 
-    @property
-    def build_number(self) -> str:
-        """The build number of :attr:`client_version`."""
-        return build_number(self.client_version)
-
     @classmethod
     def for_instance(cls, instance: NetworkInstance, **fields: Any) -> "EmpireConfig":
         """A config for one server of ``network.xml``: its URL and zone, and ``fields`` for the rest."""
@@ -394,6 +444,8 @@ __all__ = [
     "EMPIRE_GAME_ID",
     "EMPIRE_NETWORK_ID",
     "FALLBACK_CDN_SUB_DOMAIN",
+    "GAME_CLIENT_URL",
+    "fetch_client_version",
     "fetch_network_instances",
     "instance_for_zone",
     "network_config_url",

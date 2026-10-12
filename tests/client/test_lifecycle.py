@@ -298,6 +298,18 @@ class TestLoginClientVersion:
         assert conn.request_data["vck"].split("%")[5] == "1170002"
         assert json.loads(conn.request_data["lli"].split("%")[5])["LANG"] == "de"
 
+    def test_no_configured_version_logs_in_with_the_live_one_read_before_connecting(self, monkeypatch):
+        conn = StubConnection()
+        monkeypatch.setattr(session_module, "fetch_client_version", lambda: conn.events.append("fetch") or "1.170.22")
+        client = make_client(conn)
+
+        client.login()
+
+        assert conn.events.index("fetch") < conn.events.index("connect")
+        assert "<![CDATA[1170022%en%0]]>" in conn.request_data["rlu"]
+        assert conn.request_data["vck"].split("%")[5] == "1170022"
+        assert client.config.client_version is None
+
 
 class TestOnPacketPayloadTypes:
     def test_list_payload_reaches_state(self):

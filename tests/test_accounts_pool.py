@@ -118,6 +118,26 @@ class TestAccountRegistryEnv:
         config = Account(username="u", password="p").to_empire_config()
         assert (config.game_url, config.default_zone) == (default_config.game_url, default_config.default_zone)
 
+    @pytest.mark.parametrize("world", ["EmpireEx_21", "EmpireEx_2"])
+    def test_an_account_pins_its_client_version(self, monkeypatch, world):
+        instance = NetworkInstance(
+            instance_id=2,
+            server="ep-live-de1-game.example.com",
+            port=443,
+            zone="EmpireEx_2",
+            zone_id=2,
+            instance_number=2,
+            is_international=False,
+            is_favorite=False,
+            default_country="DE",
+            instance_loca_id="",
+            countries=[],
+        )
+        monkeypatch.setattr(accounts_module, "instance_for_zone", lambda zone: instance)
+        assert Account(username="u", password="p", world=world).to_empire_config().client_version is None
+        account = Account.model_validate({"username": "u", "password": "p", "world": world, "client_version": "1.2.3"})
+        assert account.to_empire_config().client_version == "1.2.3"
+
     def test_inactive_file_accounts_skipped(self, tmp_path):
         accounts_file = tmp_path / "accounts.json"
         accounts_file.write_text(
