@@ -317,7 +317,7 @@ class EmpireConfig(BaseModel):
     default_zone: str = "EmpireEx_21"
     game_version: str = Field(default="166", description="SmartFox API version the verChk handshake sends")
     client_version: str = Field(
-        default="1.169.11", description="Game client version whose build number the login and version check send"
+        default="1.170.22", description="Game client version whose build number the login and version check send"
     )
 
     # Timeouts
