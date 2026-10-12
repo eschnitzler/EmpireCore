@@ -25,6 +25,8 @@ from typing import Any
 
 import pytest
 
+from empire_core import config as config_module
+from empire_core.client import session as session_module
 from empire_core.client.client import EmpireClient
 from empire_core.client.session import Session
 from empire_core.config import LOGIN_DEFAULTS, EmpireConfig
@@ -799,6 +801,28 @@ class TestVersionCheck:
         assert exc_info.value.server_build == "1170001"
         assert "lli" not in conn.requested
         assert "disconnect" in conn.events
+
+    def test_a_refused_live_version_is_read_again_by_any_later_login(self, monkeypatch):
+        monkeypatch.setattr(config_module, "fetch_client_version", lambda: "1.171.0")
+        refused = ScriptedConnection({"vck": Packet.from_bytes(b"%xt%vck%1%1%1171000%")})
+        with pytest.raises(ClientVersionError):
+            make_client(refused).login()
+
+        conn = ScriptedConnection()
+        make_client(conn).login()
+
+        assert refused.request_data["vck"].split("%")[5] == "1170022"
+        assert conn.request_data["vck"].split("%")[5] == "1171000"
+
+    def test_a_pinned_version_never_reads_the_live_one(self, monkeypatch):
+        monkeypatch.setattr(session_module, "live_client_version", pytest.fail)
+        conn = ScriptedConnection({"vck": Packet.from_bytes(b"%xt%vck%1%1%1170023%")})
+        client = make_client(conn, config=EmpireConfig(client_version="1.2.3"))
+
+        with pytest.raises(ClientVersionError):
+            client.login()
+
+        assert conn.request_data["vck"].split("%")[5] == "1002003"
 
     def test_another_status_is_a_login_error(self):
         conn = ScriptedConnection({"vck": xt_packet("vck", error_code=1000)})

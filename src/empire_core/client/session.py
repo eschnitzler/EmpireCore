@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING, NoReturn
 
-from empire_core.config import LOGIN_DEFAULTS
+from empire_core.config import LOGIN_DEFAULTS, build_number, forget_client_version, live_client_version
 from empire_core.exceptions import (
     AccountBannedError,
     ClientVersionError,
@@ -162,6 +162,7 @@ class Session:
     def _login_attempt(self, login: int, recaptcha_token: str | Callable[[], str] | None) -> None:
         """Connect unless connected, and log in; ``ConnectionClosedError`` when the login ended before the connect."""
         client = self._client
+        build = self._build_number()
         # The client times the connection from before it opens the socket.
         started = time.monotonic()
         with self._session_lock:
@@ -169,7 +170,11 @@ class Session:
                 raise ConnectionClosedError("Closed before the login")
             if not client.connection.connected:
                 client.connection.connect(timeout=client.config.connection_timeout)
-        self._login_sequence(started, recaptcha_token)
+        self._login_sequence(build, started, recaptcha_token)
+
+    def _build_number(self) -> str:
+        """The build number to log in with: the configured client version's, else the live client's."""
+        return build_number(self._client.config.client_version or live_client_version())
 
     def close(self) -> None:
         """See :meth:`EmpireClient.close`."""
@@ -233,7 +238,7 @@ class Session:
             )
             self._relogin_thread.start()
 
-    def _login_sequence(self, started: float, recaptcha_token: str | Callable[[], str] | None) -> None:
+    def _login_sequence(self, build: str, started: float, recaptcha_token: str | Callable[[], str] | None) -> None:
         """Run the handshake/auth exchange on an already-connected socket."""
         client = self._client
         config = client.config
@@ -249,7 +254,7 @@ class Session:
             f"<msg t='sys'><body action='login' r='0'>"
             f"<login z='{config.default_zone}'>"
             f"<nick><![CDATA[]]></nick>"
-            f"<pword><![CDATA[{config.build_number}%{LOGIN_DEFAULTS['LANG']}%{LOGIN_DEFAULTS['DID']}]]></pword>"
+            f"<pword><![CDATA[{build}%{LOGIN_DEFAULTS['LANG']}%{LOGIN_DEFAULTS['DID']}]]></pword>"
             f"</login></body></msg>"
         )
         rooms: dict[int, str] = {}
@@ -280,7 +285,7 @@ class Session:
         if rooms.get(room_id) != LOBBY_ROOM_NAME:
             raise LoginError(f"Joined room {room_id} ({rooms.get(room_id, 'not in the room list')}) is not the lobby")
 
-        round_trip_time = self._version_check()
+        round_trip_time = self._version_check(build)
 
         request = LoginRequest.create(
             client.username or "",
@@ -317,7 +322,7 @@ class Session:
         finally:
             connection.cancel_waiter("gbd", gbd_waiter)
 
-    def _version_check(self) -> int:
+    def _version_check(self, build: str) -> int:
         """
         Send ``roundTrip`` and ``vck`` back to back, as the client does on joining the lobby.
 
@@ -340,9 +345,7 @@ class Session:
         try:
             sent = time.monotonic()
             connection.send(f"<msg t='sys'><body action='roundTrip' r='{room_id}'></body></msg>")
-            vck_packet = build_version_check(
-                client.config.default_zone, client.config.build_number, client.session_id, room_id
-            )
+            vck_packet = build_version_check(client.config.default_zone, build, client.session_id, room_id)
             try:
                 vck = connection.request(vck_packet, "vck", timeout=client.config.request_timeout)
             except EmpireTimeoutError as e:
@@ -351,6 +354,8 @@ class Session:
             connection.unsubscribe("roundTripRes", on_round_trip)
 
         if vck.error_code in tuple(VersionCheckStatus):
+            if client.config.client_version is None:
+                forget_client_version()
             raise ClientVersionError(VersionCheckStatus(vck.error_code), _first_field(vck))
         if vck.error_code != 0:
             raise LoginError(f"Version check failed with code {vck.error_code}")
@@ -450,6 +455,7 @@ class Session:
         """
         client = self._client
         connection = client.connection
+        build = self._build_number()
         started = time.monotonic()
         with self._session_lock:
             if self._closed.is_set() or connection.connected:
@@ -460,7 +466,7 @@ class Session:
         movements = connection.create_waiter("gam")
         try:
             try:
-                self._login_sequence(started, None)
+                self._login_sequence(build, started, None)
             except Exception:
                 if connection.generation == generation and connection.connected:
                     self._end_quietly()

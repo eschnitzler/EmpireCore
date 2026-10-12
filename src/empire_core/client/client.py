@@ -472,9 +472,12 @@ class EmpireClient:
                 dialog), so the waits are library policy.
 
         Raises:
-            NetworkError: The WebSocket connection could not be established
+            NetworkError: The WebSocket connection could not be established, or with
+                ``config.client_version`` unset the live client's version could not be downloaded
+            ClientVersionUnreadableError: With ``config.client_version`` unset, the live
+                client's version could not be read from its files
             EmpireTimeoutError: A required login step timed out
-            ClientVersionError: The version check says ``config.client_version`` is too low or too high
+            ClientVersionError: The version check says the client version sent is too low or too high
             LoginCooldownError: The server is rate-limiting this account
             AccountBannedError: The account is banned or deleted
             WrongServerError: The account is on another server

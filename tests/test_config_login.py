@@ -7,16 +7,20 @@ import requests
 
 from empire_core import config as config_module
 from empire_core.config import (
+    CLIENT_BASE_URL,
     EmpireConfig,
     build_number,
+    fetch_client_version,
     fetch_network_instances,
+    forget_client_version,
     generate_aid,
     generate_session_id,
     instance_for_zone,
+    live_client_version,
     network_config_url,
     parse_network_instances,
 )
-from empire_core.exceptions import NetworkError
+from empire_core.exceptions import ClientVersionUnreadableError, NetworkError
 
 
 @pytest.mark.parametrize(
@@ -28,9 +32,70 @@ def test_build_number(version, build):
     assert build_number(version) == build
 
 
-def test_config_build_number_follows_the_client_version():
-    assert EmpireConfig().build_number == "1170022"
-    assert EmpireConfig(client_version="1.170.2").build_number == "1170002"
+INDEX_HTML = '<script src="vendor.bundle.4aee.js"></script><script src="CacheBreaker.bundle.de68e795.js"></script>'
+CACHE_BREAKER = '858:function(e){e.exports={name:"TranspilationEmpire",version:"1.171.3",description:"Transpiled"}}'
+
+
+def serve_client(monkeypatch, pages):
+    """Answer requests.get from ``pages`` by URL; returns the URLs asked for."""
+    urls = []
+
+    class Reply:
+        def __init__(self, text):
+            self.text = text
+
+        def raise_for_status(self):
+            pass
+
+    def get(url, timeout):
+        urls.append(url)
+        if url not in pages:
+            raise requests.HTTPError(f"404 {url}")
+        return Reply(pages[url])
+
+    monkeypatch.setattr(config_module.requests, "get", get)
+    return urls
+
+
+class TestClientVersion:
+    PAGES = {
+        f"{CLIENT_BASE_URL}/index.html": INDEX_HTML,
+        f"{CLIENT_BASE_URL}/CacheBreaker.bundle.de68e795.js": CACHE_BREAKER,
+    }
+
+    def test_the_cache_breaker_bundle_names_the_version(self, monkeypatch):
+        urls = serve_client(monkeypatch, self.PAGES)
+        assert fetch_client_version() == "1.171.3"
+        assert urls == list(self.PAGES)
+
+    def test_a_page_without_the_bundle_is_a_value_error(self, monkeypatch):
+        serve_client(monkeypatch, {f"{CLIENT_BASE_URL}/index.html": "<html></html>"})
+        with pytest.raises(ClientVersionUnreadableError, match="CacheBreaker"):
+            fetch_client_version()
+
+    def test_a_bundle_without_the_version_is_a_value_error(self, monkeypatch):
+        serve_client(monkeypatch, {**self.PAGES, f"{CLIENT_BASE_URL}/CacheBreaker.bundle.de68e795.js": "x"})
+        with pytest.raises(ClientVersionUnreadableError, match="TranspilationEmpire"):
+            fetch_client_version()
+
+    def test_a_download_failure_is_a_network_error(self, monkeypatch):
+        serve_client(monkeypatch, {})
+        with pytest.raises(NetworkError):
+            fetch_client_version()
+
+    def test_the_live_version_is_read_once_until_forgotten(self, monkeypatch):
+        forget_client_version()
+        urls = serve_client(monkeypatch, self.PAGES)
+        assert live_client_version() == "1.171.3"
+        assert live_client_version() == "1.171.3"
+        assert len(urls) == 2
+        forget_client_version()
+        assert live_client_version() == "1.171.3"
+        assert len(urls) == 4
+
+    def test_the_config_sends_the_live_version_unless_pinned(self):
+        assert EmpireConfig().client_version is None
+        assert EmpireConfig(client_version="1.170.2").client_version == "1.170.2"
 
 
 def test_session_id_looks_like_the_clients():

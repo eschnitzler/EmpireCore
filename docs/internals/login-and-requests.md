@@ -42,8 +42,12 @@ sequenceDiagram
 ```
 
 - `joinOK`'s room id goes into every `%xt%` message after it.
-- `vck` refused with code 1 or 2 raises `ClientVersionError`; set
-  `EmpireConfig.client_version` to the current client's version.
+- The zone login and `vck` send the build number of `EmpireConfig.client_version`,
+  or when unset of the live client's version: `index.html` names the
+  `CacheBreaker` bundle, which carries it. It is read before the socket opens,
+  once per process.
+- `vck` refused with code 1 or 2 raises `ClientVersionError`; with
+  `client_version` unset, the next login reads the live version again.
 - `lli` sends the connection time and the round-trip time the client measured,
   and either the password or a login token.
 - A refused `lli` raises a typed `LoginError`: `LoginCooldownError`,

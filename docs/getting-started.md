@@ -72,9 +72,12 @@ client = EmpireClient(username="your_user", password="your_pass", config=config)
 ```
 
 An account in `accounts.json` with `"world": "EmpireEx_2"` does this for you.
-`fetch_network_instances()` lists every world of a network. When the server
-raises `ClientVersionError`, set `client_version` to the current game client's
-version.
+`fetch_network_instances()` lists every world of a network.
+
+The login sends the live game client's version, read from the game's CDN once
+per process. After a game update the server refuses it with
+`ClientVersionError`, and the next login reads the new one. Set
+`client_version` to pin a version instead.
 
 ### Log in again without the password
 

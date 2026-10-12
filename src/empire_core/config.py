@@ -4,6 +4,7 @@ import json
 import math
 import os
 import random
+import re
 import sys
 import threading
 import time
@@ -13,7 +14,7 @@ from typing import Any
 import requests
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from empire_core.exceptions import NetworkError
+from empire_core.exceptions import ClientVersionUnreadableError, NetworkError
 from empire_core.protocol.js import js_number
 
 _AID_ENV_VAR = "EMPIRE_AID"
@@ -293,6 +294,68 @@ def instance_for_zone(
     raise ValueError(f"No world {zone!r} in network {network_id} (known: {', '.join(sorted(i.zone for i in listed))})")
 
 
+CLIENT_BASE_URL = "https://empire-html5.goodgamestudios.com/default"
+
+_CACHE_BREAKER_BUNDLE = re.compile(r"CacheBreaker\.bundle\.[0-9a-f]+\.js")
+_APP_VERSION = re.compile(r'name:"TranspilationEmpire",version:"(\d+\.\d+\.\d+[^"]*)"')
+
+
+def fetch_client_version(timeout: float = 10.0) -> str:
+    """
+    The version of the live game client, read from its small ``CacheBreaker`` bundle.
+
+    ``index.html`` names the bundle; the bundle carries the client's
+    ``package.json``, whose ``version`` is the client's ``appVersion``.
+
+    Client: ``CastleVersionInformation`` reads ``appVersion`` from ``TranspilationEmpire``'s
+    ``package.json`` (CacheBreaker bundle modules 293 and 858, Game bundle line 10446)
+
+    Raises:
+        NetworkError: The page or the bundle could not be downloaded
+        ClientVersionUnreadableError: The page names no CacheBreaker bundle, or the bundle carries no version
+    """
+    try:
+        page = requests.get(f"{CLIENT_BASE_URL}/index.html", timeout=timeout)
+        page.raise_for_status()
+        bundle_name = _CACHE_BREAKER_BUNDLE.search(page.text)
+        if bundle_name is None:
+            raise ClientVersionUnreadableError("The game client's index.html names no CacheBreaker bundle")
+        bundle = requests.get(f"{CLIENT_BASE_URL}/{bundle_name.group()}", timeout=timeout)
+        bundle.raise_for_status()
+    except requests.RequestException as e:
+        raise NetworkError(f"Could not load the game client's version: {e}") from e
+    version = _APP_VERSION.search(bundle.text)
+    if version is None:
+        raise ClientVersionUnreadableError(f"{bundle_name.group()} carries no TranspilationEmpire version")
+    return version.group(1)
+
+
+_client_version_lock = threading.Lock()
+_client_version: str | None = None
+
+
+def live_client_version() -> str:
+    """
+    :func:`fetch_client_version`, read once per process and again after :func:`forget_client_version`.
+
+    Raises:
+        NetworkError: The version could not be downloaded
+        ClientVersionUnreadableError: The live client carries no readable version
+    """
+    global _client_version
+    with _client_version_lock:
+        if _client_version is None:
+            _client_version = fetch_client_version()
+        return _client_version
+
+
+def forget_client_version() -> None:
+    """Drop the version :func:`live_client_version` read, so the next call reads it again."""
+    global _client_version
+    with _client_version_lock:
+        _client_version = None
+
+
 # ============================================================
 # Configuration
 # ============================================================
@@ -316,8 +379,10 @@ class EmpireConfig(BaseModel):
     game_url: str = "wss://ep-live-us1-game.goodgamestudios.com/"
     default_zone: str = "EmpireEx_21"
     game_version: str = Field(default="166", description="SmartFox API version the verChk handshake sends")
-    client_version: str = Field(
-        default="1.170.22", description="Game client version whose build number the login and version check send"
+    client_version: str | None = Field(
+        default=None,
+        description="Game client version whose build number the login and version check send; "
+        "None sends the live client's, from live_client_version",
     )
 
     # Timeouts
@@ -355,11 +420,6 @@ class EmpireConfig(BaseModel):
             )
         return self
 
-    @property
-    def build_number(self) -> str:
-        """The build number of :attr:`client_version`."""
-        return build_number(self.client_version)
-
     @classmethod
     def for_instance(cls, instance: NetworkInstance, **fields: Any) -> "EmpireConfig":
         """A config for one server of ``network.xml``: its URL and zone, and ``fields`` for the rest."""
@@ -393,9 +453,14 @@ __all__ = [
     "CDN_SUB_DOMAIN",
     "EMPIRE_GAME_ID",
     "EMPIRE_NETWORK_ID",
+    "CLIENT_BASE_URL",
     "FALLBACK_CDN_SUB_DOMAIN",
+    "build_number",
+    "fetch_client_version",
     "fetch_network_instances",
+    "forget_client_version",
     "instance_for_zone",
+    "live_client_version",
     "network_config_url",
     "parse_network_instances",
 ]

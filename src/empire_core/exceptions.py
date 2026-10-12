@@ -137,7 +137,8 @@ class ClientVersionError(LoginError):
     """
     Raised when the version check (``vck``) says the client's version is too low or too high.
 
-    Set ``EmpireConfig.client_version`` to the current game client's version.
+    With ``EmpireConfig.client_version`` unset the next login reads the live client's version again;
+    a pinned version has to be raised by hand.
 
     Attributes:
         status: ``VersionCheckStatus.VERSION_TOO_LOW`` or ``VERSION_TOO_HIGH``
@@ -151,6 +152,13 @@ class ClientVersionError(LoginError):
         self.server_build = server_build
         which = "too low" if status is VersionCheckStatus.VERSION_TOO_LOW else "too high"
         super().__init__(f"Client version {which} for the server (server build {server_build})")
+
+
+class ClientVersionUnreadableError(EmpireError, ValueError):
+    """Raised when the live game client's files no longer show its version where it is looked for.
+
+    Set ``EmpireConfig.client_version`` to log in meanwhile.
+    """
 
 
 class PacketError(EmpireError):
@@ -470,6 +478,7 @@ __all__ = [
     "AccountBannedError",
     "WrongServerError",
     "ClientVersionError",
+    "ClientVersionUnreadableError",
     "VersionCheckStatus",
     "PacketError",
     "ReplyMismatchError",
