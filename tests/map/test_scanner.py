@@ -485,7 +485,12 @@ class TestChunkRetry:
     def test_every_attempt_waits_its_turn(self, monkeypatch):
         waits: list[int] = []
         fake = _FakeClient(content_chunks={(1, 1)}, raises={(1, 1): [EmpireTimeoutError("no answer")]})
-        monkeypatch.setattr(fake.map.pacer, "wait", lambda tiles, cancel=None: waits.append(tiles) or False)
+
+        def wait(tiles: int, cancel: object = None) -> bool:
+            waits.append(tiles)
+            return False
+
+        monkeypatch.setattr(fake.map.pacer, "wait", wait)
         _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
         assert waits == [MapScanner.CHUNK_SIZE**2] * 2
 

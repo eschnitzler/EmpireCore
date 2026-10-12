@@ -33,7 +33,12 @@ class TestScanMapArea:
     def test_area_reads_wait_on_the_account_pacer(self, monkeypatch):
         client = make_client({"gaa": xt_packet("gaa", {"KID": 0, "AI": [], "OI": []})})
         waits: list[int] = []
-        monkeypatch.setattr(client.map.pacer, "wait", lambda tiles, cancel=None: waits.append(tiles) or False)
+
+        def wait(tiles: int, cancel: object = None) -> bool:
+            waits.append(tiles)
+            return False
+
+        monkeypatch.setattr(client.map.pacer, "wait", wait)
 
         client.map.scan_map_area(0, 0, 89, 89)
         client.map.scan_map_area(0, 0, 9, 9)
