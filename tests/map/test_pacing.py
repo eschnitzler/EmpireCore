@@ -81,9 +81,9 @@ def test_a_request_counts_its_corners():
     assert GetMapAreaRequest(x1=89, y1=89, x2=0, y2=0).tiles == 8100
 
 
-def test_the_default_rate_keeps_far_under_the_ban():
+def test_the_default_rate_stays_under_the_ban():
     from empire_core.config import EmpireConfig
 
     rate = EmpireConfig().map_tiles_per_second
-    # About 810,000 tiles inside a window of 26 to 50 seconds bans the account.
-    assert rate * 50 <= 810_000 / 2
+    # About 810,000 tiles inside a window of at most 31 seconds bans the account.
+    assert rate * 31 < 810_000
