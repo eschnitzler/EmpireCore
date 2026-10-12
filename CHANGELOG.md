@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v0.52.0 (2026-10-12)
+
+### Bug Fixes
+
+- **accounts**: Say why no account could be leased
+  ([#438](https://github.com/eschnitzler/EmpireCore/pull/438),
+  [`5d588e5`](https://github.com/eschnitzler/EmpireCore/commit/5d588e5500227b575125414abe6ad848522eaac8))
+
+### Breaking Changes
+
+- **accounts**: AccountRegistry.load raises FileNotFoundError for a missing explicit file_path and
+  ValueError for a file that is not a JSON list, where it logged and loaded nothing; pass no
+  file_path to make the file optional. The file_path default is None (meaning accounts.json in the
+  current directory, if present) instead of "accounts.json".
+
+
 ## v0.51.2 (2026-10-11)
 
 ### Bug Fixes
