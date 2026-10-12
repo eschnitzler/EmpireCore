@@ -461,8 +461,9 @@ class EmpireClient:
                 logins are accepted without it today. A function is called
                 again for each attempt.
             retry: Retry a failed login, as :attr:`keep_session` retries a
-                re-login: after a timeout, a network error or a login
-                cooldown, wait and log in again, until a login holds. Each
+                re-login: after a timeout, a network error, a login
+                cooldown or, with ``config.client_version`` None, a version
+                refusal, wait and log in again, until a login holds. Each
                 failed attempt fires :meth:`on_session_retry`. Any other
                 failure raises at once. A :meth:`close`, or a newer
                 :meth:`login`, from another thread ends the attempts, also
