@@ -142,7 +142,7 @@ class Session:
                 # a receive and a keepalive thread pinging an unauthenticated
                 # session forever.
                 self._end_quietly()
-                if not (retry and isinstance(e, RETRIED_LOGIN_ERRORS)):
+                if not (retry and self._retried(e)):
                     self._client.state.shutdown()
                     raise
                 with self._session_lock:
@@ -154,6 +154,15 @@ class Session:
                 self._closed.wait(wait)
                 if self._ended(login):
                     raise
+
+    def _retried(self, error: Exception) -> bool:
+        """
+        Whether a failed login is tried again: a timeout, a network error, a cooldown, or, with the live
+        client's version, a version refusal, as the client's files and the server disagree during a game update.
+        """
+        if isinstance(error, ClientVersionError):
+            return self._client.config.client_version is None
+        return isinstance(error, RETRIED_LOGIN_ERRORS)
 
     def _ended(self, login: int) -> bool:
         """Whether :meth:`close` or a newer :meth:`login` ended login number ``login``."""
@@ -423,15 +432,13 @@ class Session:
                 attempt += 1
                 try:
                     restored = self._relogin()
-                except RETRIED_LOGIN_ERRORS as e:
-                    if self._closed.is_set():
-                        return
-                    wait = next(waits)
-                    self._retrying("re-login", attempt, wait, e)
-                    continue
                 except Exception as e:
                     if self._closed.is_set():
                         return
+                    if self._retried(e):
+                        wait = next(waits)
+                        self._retrying("re-login", attempt, wait, e)
+                        continue
                     logger.exception(f"Client {client.username}: re-login stopped; the session is not restored")
                     lost = e
                     break

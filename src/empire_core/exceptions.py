@@ -137,8 +137,9 @@ class ClientVersionError(LoginError):
     """
     Raised when the version check (``vck``) says the client's version is too low or too high.
 
-    With ``EmpireConfig.client_version`` set, that version is out of date; leave it None to
-    log in with the live client's version.
+    With ``EmpireConfig.client_version`` set, that version is out of date. With it None, the
+    live client's files and the server disagree, usually briefly around a game update, and
+    ``login(retry=True)`` and ``keep_session`` try again.
 
     Attributes:
         status: ``VersionCheckStatus.VERSION_TOO_LOW`` or ``VERSION_TOO_HIGH``
