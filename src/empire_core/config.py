@@ -325,6 +325,13 @@ class EmpireConfig(BaseModel):
     login_timeout: float = 15.0
     request_timeout: float = 5.0
 
+    map_tiles_per_second: float = Field(
+        default=8100.0,
+        gt=0,
+        description="Map tiles an account reads per second at most, one 90 by 90 scan chunk; the server bans "
+        "an account for 12 hours past about 810,000 tiles in under a minute (see empire_core.map.pacing)",
+    )
+
     # Login retries: library policy, the game client logs in again only when the player clicks
     # its reconnect dialog (CastleConnectionLostCommand.execute, onReconnect, bundle lines 120253, 120256)
     relogin_first_delay: float = Field(

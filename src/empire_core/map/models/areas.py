@@ -66,6 +66,11 @@ class GetMapAreaRequest(BaseRequest):
     x2: int = Field(alias="AX2", description="Second corner's map x")
     y2: int = Field(alias="AY2", description="Second corner's map y")
 
+    @property
+    def tiles(self) -> int:
+        """The number of map tiles the rectangle covers, corners included."""
+        return (abs(self.x2 - self.x1) + 1) * (abs(self.y2 - self.y1) + 1)
+
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a gaa reply is about this rectangle: this ``KID`` and no row outside it.
 

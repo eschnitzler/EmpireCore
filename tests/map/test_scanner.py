@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 import threading
 import time
 from types import SimpleNamespace
@@ -11,6 +12,7 @@ import pytest
 
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
+from empire_core.map.pacing import MapAreaPacer
 from empire_core.map.scanner import MapScanner, scan_kingdom_with
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.packet import Packet
@@ -112,6 +114,7 @@ class _FakeClient:
         self.connection = _FakeConnection(content_chunks, **connection_kwargs)
         self.config = _FakeConfig()
         self.state = _FakeState(start_chunk)
+        self.map = SimpleNamespace(pacer=MapAreaPacer(lambda: math.inf))
 
     def request_packet(self, request: Any, response_command: str, timeout: float = 5.0) -> Any:
         frame = request.to_packet(zone=self.config.default_zone, room_id=getattr(self.connection, "room_id", 1))
@@ -478,6 +481,20 @@ class TestChunkRetry:
         result = MapScanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[])
         assert slept == [0.5, 1.0], "no pacing by default, only the backoff"
         assert result.failed_chunks == ()
+
+    def test_every_attempt_waits_its_turn(self, monkeypatch):
+        waits: list[int] = []
+        fake = _FakeClient(content_chunks={(1, 1)}, raises={(1, 1): [EmpireTimeoutError("no answer")]})
+        monkeypatch.setattr(fake.map.pacer, "wait", lambda tiles, cancel=None: waits.append(tiles) or False)
+        _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
+        assert waits == [MapScanner.CHUNK_SIZE**2] * 2
+
+    def test_a_cancel_while_waiting_its_turn_fails_the_chunk_unsent(self, monkeypatch):
+        fake = _FakeClient(content_chunks={(1, 1)})
+        monkeypatch.setattr(fake.map.pacer, "wait", lambda tiles, cancel=None: True)
+        result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
+        assert fake.connection.requests == []
+        assert result.failed_chunks == ((1, 1),)
 
     def test_a_cooldown_refusal_is_retried(self):
         fake = _FakeClient(content_chunks={(1, 1)}, error_codes={(1, 1): 95})

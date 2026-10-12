@@ -30,6 +30,21 @@ class TestPublicSurfaceIsTyped:
 
 
 class TestScanMapArea:
+    def test_area_reads_wait_on_the_account_pacer(self, monkeypatch):
+        client = make_client({"gaa": xt_packet("gaa", {"KID": 0, "AI": [], "OI": []})})
+        waits: list[int] = []
+        monkeypatch.setattr(client.map.pacer, "wait", lambda tiles, cancel=None: waits.append(tiles) or False)
+
+        client.map.scan_map_area(0, 0, 89, 89)
+        client.map.scan_map_area(0, 0, 9, 9)
+
+        assert waits == [8100, 100]
+
+    def test_the_pacer_follows_the_config_rate(self):
+        client = make_client({})
+        client.config.map_tiles_per_second = 100.0
+        assert client.map.pacer._tiles_per_second() == 100.0
+
     def test_rows_carry_the_kingdom_scanned(self):
         client = make_client({"gaa": xt_packet("gaa", {"KID": 2, "AI": [[1, 5, 6, 4242]], "OI": []})})
         response = client.map.scan_map_area(0, 0, 10, 10, kingdom=Kingdom.ICE)
