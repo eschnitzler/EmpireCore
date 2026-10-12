@@ -2,6 +2,41 @@
 
 <!-- version list -->
 
+## v0.53.0 (2026-10-12)
+
+### Bug Fixes
+
+- **client**: Retry a version refusal when logging in with the live version
+  ([`730a45c`](https://github.com/eschnitzler/EmpireCore/commit/730a45c423fa954eb009dafcb086806c04ae1f99))
+
+- **config**: Log in with the live client's version
+  ([`1e1c5e2`](https://github.com/eschnitzler/EmpireCore/commit/1e1c5e282ed5c1af8ba8bb844f061001a05f09b2))
+
+- **map**: Pace map area reads under the server's tile budget
+  ([`9658217`](https://github.com/eschnitzler/EmpireCore/commit/9658217e839ea198b58a4a999b3be5d6570aef9e))
+
+- **map**: Pace map reads at 25,000 tiles a second
+  ([`6346d56`](https://github.com/eschnitzler/EmpireCore/commit/6346d56efc526c376879ee2c7c778e88879cf952))
+
+### Features
+
+- **gamedata**: Regenerate ids for items v787.03
+  ([`d920b3d`](https://github.com/eschnitzler/EmpireCore/commit/d920b3d27a7a35a52b57624a864b827cda988c4d))
+
+### Testing
+
+- **client**: Stub the live version fetch with a function mypy accepts
+  ([`9a8b30e`](https://github.com/eschnitzler/EmpireCore/commit/9a8b30eeca9823936e6a368bbcd150128eed527f))
+
+- **map**: Stub the pacer wait with a function mypy accepts
+  ([`875309c`](https://github.com/eschnitzler/EmpireCore/commit/875309c1fbb71dc26ac8cf84f9bba6388dbb1c92))
+
+### Breaking Changes
+
+- **config**: EmpireConfig.client_version defaults to None instead of "1.169.11", and the
+  EmpireConfig.build_number property is removed; use empire_core.config.build_number(version).
+
+
 ## v0.52.0 (2026-10-12)
 
 ### Bug Fixes
