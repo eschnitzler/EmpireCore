@@ -4,7 +4,8 @@ from collections.abc import Generator
 
 import pytest
 
-from empire_core import texts
+from empire_core import config, texts
+from empire_core.client import session
 from empire_core.gamedata import data as gamedata_data
 from empire_core.gamedata import troops
 from empire_core.state.manager import GameState
@@ -20,6 +21,13 @@ def fresh_game_data(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytes
     monkeypatch.setattr(texts, "_texts", {})
     monkeypatch.setattr(texts, "_fetched_at", {})
     monkeypatch.setattr(texts, "_failed_at", {})
+
+
+@pytest.fixture(autouse=True)
+def offline_client_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Logins send version 1.169.11 rather than download the live client's."""
+    monkeypatch.setattr(config, "_client_versions", {})
+    monkeypatch.setattr(session, "fetch_client_version", lambda: "1.169.11")
 
 
 @pytest.fixture

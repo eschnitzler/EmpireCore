@@ -67,7 +67,7 @@ class FakeServer:
         self.connects += 1
         new_session(self.client)
 
-    def login_sequence(self, _started: float, recaptcha: object) -> None:
+    def login_sequence(self, _started: float, _build: str, recaptcha: object) -> None:
         self.logins += 1
         self.recaptchas.append(recaptcha)
         if not self.client.connection.connected:
@@ -187,10 +187,10 @@ class TestRestore:
         client.on_session_restored(lambda: restored.append(True))
         login_sequence = server.login_sequence
 
-        def dropping_at_first(started: float, recaptcha: object) -> None:
+        def dropping_at_first(started: float, build: str, recaptcha: object) -> None:
             attempts.append(threading.current_thread())
             if len(attempts) > 1:
-                login_sequence(started, recaptcha)
+                login_sequence(started, build, recaptcha)
                 return
             client.is_logged_in = True
             drop(client)
@@ -311,7 +311,7 @@ class TestTiming:
     def test_an_attempt_close_ends_is_not_retried(self, client, monkeypatch, waits, caplog):
         logging_in = threading.Event()
 
-        def login_sequence(_started: float, _recaptcha: object) -> None:
+        def login_sequence(_started: float, _build: str, _recaptcha: object) -> None:
             logging_in.set()
             client.connection.request("<verChk/>", "apiOK", timeout=30)
 
@@ -660,7 +660,7 @@ class TestClose:
     ):
         logging_in = threading.Event()
 
-        def login_sequence(_started: float, _recaptcha: object) -> None:
+        def login_sequence(_started: float, _build: str, _recaptcha: object) -> None:
             logging_in.set()
             client.connection.request("<verChk/>", "apiOK", timeout=30)
 
@@ -732,7 +732,7 @@ class TestLoginOfYourOwn:
         client.on_session_lost(events.append)
         login_sequence = server.login_sequence
 
-        def one_at_a_time(started: float, recaptcha: object) -> None:
+        def one_at_a_time(started: float, build: str, recaptcha: object) -> None:
             inside[0] += 1
             most_inside[0] = max(most_inside[0], inside[0])
             try:
@@ -740,7 +740,7 @@ class TestLoginOfYourOwn:
                     relogin_logging_in.set()
                     assert wait_for(lambda: not client.connection.connected)
                     raise ConnectionClosedError("closed by the login")
-                login_sequence(started, recaptcha)
+                login_sequence(started, build, recaptcha)
             finally:
                 inside[0] -= 1
 
