@@ -249,7 +249,7 @@ class TestHandshakeSequence:
         rlu = conn.request_data["rlu"]
         assert "<nick><![CDATA[]]></nick>" in rlu
         # Client: the build number, language and distributor id (dll line 7230).
-        assert "<pword><![CDATA[1169011%en%0]]></pword>" in rlu
+        assert "<pword><![CDATA[1170022%en%0]]></pword>" in rlu
 
     def test_zone_login_sends_the_configured_client_version(self):
         conn = ScriptedConnection()
@@ -290,7 +290,7 @@ class TestHandshakeSequence:
         conn = ScriptedConnection(lobby("2"))
         make_client(conn).login()
         # Client: BasicJoinedRoomCommand sends [build, "web-html5", "", sessionId] (dll line 33011).
-        assert conn.request_data["vck"] == f"%xt%EmpireEx_21%vck%2%1169011%web-html5%<RoundHouseKick>%{SESSION_ID}%"
+        assert conn.request_data["vck"] == f"%xt%EmpireEx_21%vck%2%1170022%web-html5%<RoundHouseKick>%{SESSION_ID}%"
 
     def test_xt_login_packet_shape(self):
         conn = ScriptedConnection()
@@ -806,7 +806,7 @@ class TestVersionCheck:
             make_client(conn).login()
 
     def test_ok_goes_on_to_the_login(self):
-        conn = ScriptedConnection({"vck": Packet.from_bytes(b"%xt%vck%1%0%1169011%")})
+        conn = ScriptedConnection({"vck": Packet.from_bytes(b"%xt%vck%1%0%1170022%")})
         client = make_client(conn)
         client.login()
         assert client.is_logged_in

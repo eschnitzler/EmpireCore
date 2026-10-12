@@ -29,7 +29,7 @@ def test_build_number(version, build):
 
 
 def test_config_build_number_follows_the_client_version():
-    assert EmpireConfig().build_number == "1169011"
+    assert EmpireConfig().build_number == "1170022"
     assert EmpireConfig(client_version="1.170.2").build_number == "1170002"
 
 
