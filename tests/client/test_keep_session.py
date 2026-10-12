@@ -16,10 +16,12 @@ from empire_core.config import EmpireConfig
 from empire_core.enums import MovementType
 from empire_core.exceptions import (
     AccountBannedError,
+    ClientVersionError,
     ConnectionClosedError,
     EmpireTimeoutError,
     LoginCooldownError,
     NetworkError,
+    VersionCheckStatus,
 )
 from empire_core.protocol.errors import GGEError
 from tests.client.test_disconnect import arrive_packet, drop, new_session
@@ -136,6 +138,18 @@ class TestRestore:
         assert server.logins == 3
         assert disconnects == [False]
         assert client.state.local_player is not None and client.state.local_player.name == "me"
+
+    def test_a_version_refusal_during_a_game_update_is_retried(self, client, monkeypatch, waits):
+        refused = ClientVersionError(VersionCheckStatus.VERSION_TOO_LOW, "1170022")
+        server = serve(client, monkeypatch, refused, [])
+        restored: list[bool] = []
+        client.on_session_restored(lambda: restored.append(True))
+        logged_in(client)
+
+        drop(client)
+
+        assert wait_for(lambda: restored == [True])
+        assert server.logins == 2
 
     def test_the_backoff_stops_growing_at_its_cap(self, client, monkeypatch, waits):
         client.config = EmpireConfig(relogin_max_delay=12.0)
@@ -441,6 +455,27 @@ class TestFirstLoginRetry:
         assert isinstance(retries[2][2], LoginCooldownError)
         assert server.recaptchas == [token] * 4
         assert not client.is_restoring_session
+
+    def test_a_version_refusal_is_retried_with_the_live_version(self, client, monkeypatch, waits):
+        server = serve(client, monkeypatch, ClientVersionError(VersionCheckStatus.VERSION_TOO_LOW, "1170022"), [])
+
+        client.login(retry=True)
+
+        assert client.is_logged_in
+        assert server.logins == 2
+        assert waits == [5.0]
+
+    def test_a_version_refusal_of_a_pinned_version_raises_at_once(self, client, monkeypatch, waits):
+        client.config = EmpireConfig(client_version="1.169.11")
+        refused = ClientVersionError(VersionCheckStatus.VERSION_TOO_LOW, "1170022")
+        server = serve(client, monkeypatch, refused, [])
+
+        with pytest.raises(ClientVersionError) as raised:
+            client.login(retry=True)
+
+        assert raised.value is refused
+        assert server.logins == 1
+        assert waits == []
 
     def test_without_retry_the_first_failure_raises(self, client, monkeypatch, waits):
         server = serve(client, monkeypatch, NetworkError("down"), [])
