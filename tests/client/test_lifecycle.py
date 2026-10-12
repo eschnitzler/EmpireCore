@@ -300,7 +300,12 @@ class TestLoginClientVersion:
 
     def test_no_configured_version_logs_in_with_the_live_one_read_before_connecting(self, monkeypatch):
         conn = StubConnection()
-        monkeypatch.setattr(session_module, "fetch_client_version", lambda: conn.events.append("fetch") or "1.170.22")
+
+        def fetch() -> str:
+            conn.events.append("fetch")
+            return "1.170.22"
+
+        monkeypatch.setattr(session_module, "fetch_client_version", fetch)
         client = make_client(conn)
 
         client.login()
