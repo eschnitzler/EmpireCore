@@ -11,6 +11,7 @@ from empire_core.enums import Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
 from empire_core.map.models.areas import GetMapAreaRequest, MapObject
 from empire_core.map.models.items import MapAreaItem
+from empire_core.map.pacing import MapAreaPacer
 from empire_core.protocol.errors import GGEError
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.protocol.packet import Packet
@@ -109,11 +110,18 @@ class _State(Protocol):
     def get_castles(self) -> Iterable[_Castle]: ...
 
 
+class _Map(Protocol):
+    @property
+    def pacer(self) -> MapAreaPacer: ...
+
+
 class _Client(Protocol):
     """What the scanner uses of EmpireClient, which the map area can't import."""
 
     @property
     def connection(self) -> _Connection: ...
+    @property
+    def map(self) -> _Map: ...
     def request_packet(self, request: GetMapAreaRequest, response_command: str, timeout: float = 5.0) -> Packet: ...
     @property
     def state(self) -> _State: ...
@@ -167,7 +175,7 @@ class MapScanner:
 
         Returns (ok, has_content). ``ok=False`` means the request failed
         (as opposed to succeeding with an empty area), or ``cancel`` was set
-        before a retry; ``_NOT_UNLOCKED`` that this client has not unlocked
+        before an attempt; ``_NOT_UNLOCKED`` that this client has not unlocked
         the kingdom.
         """
         x1, y1, x2, y2 = self._chunk_bounds(cx, cy)
@@ -175,6 +183,8 @@ class MapScanner:
 
         for attempt in range(self.CHUNK_RETRIES + 1):
             last = attempt == self.CHUNK_RETRIES
+            if self.client.map.pacer.wait(request.tiles, cancel):
+                return _FAILED
             try:
                 response = self._request_chunk(request, request_timeout)
             except (EmpireTimeoutError, NetworkError) as e:

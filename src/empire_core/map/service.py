@@ -26,6 +26,7 @@ from empire_core.map.models.areas import (
     GetMapAreaResponse,
 )
 from empire_core.map.models.items import parse_area_rows
+from empire_core.map.pacing import MapAreaPacer
 from empire_core.map.scanner import ChunkHandler, MapScanner, ScanResult
 from empire_core.protocol.base import BaseRequest
 from empire_core.protocol.errors import GGEError
@@ -40,6 +41,10 @@ class MapService(BaseService):
 
     Reached as client.map.
     """
+
+    def __init__(self, client) -> None:
+        super().__init__(client)
+        self.pacer = MapAreaPacer(lambda: client.config.map_tiles_per_second)
 
     def scan_map_area(
         self,
@@ -67,6 +72,7 @@ class MapService(BaseService):
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
         request = GetMapAreaRequest(kingdom=kingdom, x1=x1, y1=y1, x2=x2, y2=y2)
+        self.pacer.wait(request.tiles)
         return self.request(request, GetMapAreaResponse, timeout=timeout)
 
     def scan_kingdom(
