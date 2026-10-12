@@ -2,6 +2,93 @@
 
 <!-- version list -->
 
+## v0.54.0 (2026-10-12)
+
+### Bug Fixes
+
+- **accounts**: Empire_core.accounts names the module
+  ([`e791ea2`](https://github.com/eschnitzler/EmpireCore/commit/e791ea20963c90df1f3454698259438d266baaed))
+
+- **gamedata**: One source for the loaded game data
+  ([`eda0f08`](https://github.com/eschnitzler/EmpireCore/commit/eda0f0875764e0c0e7783b07debc787e417425e3))
+
+- **services**: One spend_rubies consent for every call that can spend rubies
+  ([`d6ce8be`](https://github.com/eschnitzler/EmpireCore/commit/d6ce8be523afdb3b54beadafeaeffff4d6e76d56))
+
+### Documentation
+
+- Check for None and read typed fields in the examples
+  ([`dc84806`](https://github.com/eschnitzler/EmpireCore/commit/dc8480659ba040be4d8a6c3982ace6c5d87c1d89))
+
+### Features
+
+- One import home per enum and one object per public name
+  ([`124c230`](https://github.com/eschnitzler/EmpireCore/commit/124c23067f0f3ae7b5dc4cc3a1fa42a3402d5617))
+
+- **events**: Get_event is typed per event
+  ([`2bdf32f`](https://github.com/eschnitzler/EmpireCore/commit/2bdf32fc7e3e28742b0ed2164115e3aa805dc281))
+
+- **gamedata**: Load the game data on first use
+  ([`f90ae39`](https://github.com/eschnitzler/EmpireCore/commit/f90ae39443ad8da58d21719c76fa97d8e6299f52))
+
+- **protocol**: Models take their field names under every type checker
+  ([`713266c`](https://github.com/eschnitzler/EmpireCore/commit/713266c88e66fca923e2c9290586942a9f8d33de))
+
+- **utils**: Event registration returns the callback
+  ([`492aa8b`](https://github.com/eschnitzler/EmpireCore/commit/492aa8be6d19886e1de830a1587bd0ddb120768f))
+
+### Refactoring
+
+- **protocol**: Declare each wire key once, on one model base
+  ([`e5c6b58`](https://github.com/eschnitzler/EmpireCore/commit/e5c6b58e1d66b4d303cfcba7f188e7153d5921a5))
+
+### Breaking Changes
+
+- Empire_core.commanders.General (the owned general model, GetGeneralsResponse.generals) is renamed
+  OwnedGeneral; the name General is now only the generated id enum (empire_core.gamedata,
+  empire_core.enums). empire_core.Building, empire_core.state.Building and Castle.buildings are
+  removed: they were never filled; read a castle's buildings from client.castle.join. GGEError,
+  VersionCheckStatus, TargetRead and EffectTemplate are defined in empire_core.enums; import them
+  from a public path (empire_core.enums, or protocol, exceptions, combat and gamedata as before)
+  instead of their old private modules.
+
+- **accounts**: The shared registry is empire_core.account_registry (also
+  empire_core.accounts.account_registry); empire_core.accounts is the module. Replace `from
+  empire_core import accounts` with `from empire_core import account_registry`.
+
+- **gamedata**: AllianceChronicleEntry.describe() on a daimyo contract entry without game_data no
+  longer raises ValueError: it loads the game data, and raises GameDataNotLoadedError when that
+  fails. Catch GameDataNotLoadedError instead of ValueError.
+
+- **protocol**: Building a model by wire key (`AttackWave(L=...)`) is now a type error under pyright
+  and Pylance too (mypy already rejected it); it still works at runtime. Build by field name
+  (`AttackWave(left=...)`) or parse with `model_validate`. `FieldInfo.alias` is None for every wire
+  field; read `serialization_alias` (or `validation_alias`) for the wire key.
+
+- **services**: Pay_with_rubies is renamed spend_rubies on army.produce_units and castle.build,
+  upgrade_building, upgrade_defense and repair_building; in produce_units it is now keyword-only,
+  with private_offer_id and timeout. castle.upgrade_building, upgrade_defense and
+  finish_construction take castle_id first, (castle_id, object_id, *, ...), and join that castle
+  (jca) on every call, which makes it the session's active castle. castle.finish_construction loses
+  free_skip: it sends the free finish when the time left it works out is 240 s or less, and
+  otherwise, or when the castle, the object, its building or upgrade target, the player level or the
+  state does not let it work the time out (a repair or tear-down), needs spend_rubies=True; it needs
+  client.load_game_data(). BuildingRow.construction_seconds_left is renamed
+  construction_completed_seconds, the seconds done, as the client reads it. These now raise
+  ValueError before sending unless spend_rubies=True: army.double_production_slot, army.skip_heal
+  and castle.repair_all always; army.heal_all for a ruby_cost above 0; army.heal_units and
+  army.produce_units for a unit priced in rubies (or not in the game data); castle.build for a
+  building priced in rubies; castle.upgrade_building and upgrade_defense when the next level is
+  priced in rubies at your level, or the object or its next level is not known; castle.buy_expansion
+  for ExpansionType.PREMIUM; castle.rename unless is_initial_name or a premium account runs;
+  alliance.donate when rubies are donated; castle.send_resources, send_support, send_troops,
+  attack.send_attack and spy.send_spy_mission, send_instant_spy, execute_instant_spy and
+  send_sabotage for a horse priced in rubies without feathers or any slowdown. Pricing a unit,
+  building or horse needs client.load_game_data() or raises GameDataNotLoadedError. timeout is
+  keyword-only on double_production_slot, heal_units, heal_all, skip_heal, repair_all, buy_expansion
+  and donate. Pass spend_rubies=True where spending is meant.
+
+
 ## v0.53.0 (2026-10-12)
 
 ### Bug Fixes
