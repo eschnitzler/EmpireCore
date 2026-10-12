@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import math
 import statistics
 import time
 from pathlib import Path
@@ -14,6 +15,7 @@ from empire_core.enums import Kingdom, MapItemType
 from empire_core.map.models import owners
 from empire_core.map.models.areas import GetMapAreaResponse
 from empire_core.map.models.items import MapAreaItem
+from empire_core.map.pacing import MapAreaPacer
 from empire_core.map.scanner import MapScanner
 from empire_core.protocol.packet import Packet
 
@@ -51,6 +53,7 @@ class _OneReply:
 
     def __init__(self, payload: dict[str, Any]) -> None:
         self.connection = SimpleNamespace(connected=True)
+        self.map = SimpleNamespace(pacer=MapAreaPacer(lambda: math.inf))
         self.reply = Packet(raw_data="", is_xml=False, command_id="gaa", payload=payload)
 
     def request_packet(self, request: Any, response_command: str, timeout: float = 5.0) -> Packet:
