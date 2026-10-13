@@ -23,7 +23,7 @@ client.equipment.equip(item.equipment_id, commander.commander_id)
 client.equipment.unequip(item.equipment_id, commander.commander_id)
 ```
 
-Both return `False` when the server refuses the move. Their replies carry no
+Both raise `CommandError` when the server refuses the move. Their replies carry no
 data, so read `client.commanders.get_all()` again to see the change. To move an
 item from one wearer to another, do as the game client does: take it off the
 first, then put it on the second.

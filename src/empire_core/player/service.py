@@ -131,7 +131,7 @@ class PlayerService(BaseService):
     # Research
     # =========================================================================
 
-    def start_research(self, research: Research | int, *, spend_rubies: bool = False, timeout: float = 5.0) -> bool:
+    def start_research(self, research: Research | int, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
         """
         Start a research, paying what it costs.
 
@@ -163,9 +163,9 @@ class PlayerService(BaseService):
         rubies = max((cost.amount for cost in costs if cost.kind is CollectableKind.RUBIES), default=0)
         if rubies > 0 and not spend_rubies:
             raise ValueError(f"research {research!r} costs {rubies} rubies; pass spend_rubies=True")
-        return self.execute(StartResearchRequest(research_id=research), timeout=timeout)
+        self.execute(StartResearchRequest(research_id=research), timeout=timeout)
 
-    def skip_research(self, minute_skip: Currency | str, timeout: float = 5.0) -> bool:
+    def skip_research(self, minute_skip: Currency | str, timeout: float = 5.0) -> None:
         """
         Shorten the running research with a minute skip from your inventory.
 
@@ -183,7 +183,7 @@ class PlayerService(BaseService):
         ``CastleMinuteSkipDialog.showLoaded`` (bundle line 7671), ``MSRCommand`` (bundle line 125825)
         """
         self._require_minute_skip(minute_skip)
-        return self.execute(SkipResearchRequest(minute_skip=minute_skip), timeout=timeout)
+        self.execute(SkipResearchRequest(minute_skip=minute_skip), timeout=timeout)
 
     # =========================================================================
     # Mercenary camp
@@ -201,7 +201,7 @@ class PlayerService(BaseService):
         """
         return self.request(MercenaryPackageRequest(), MercenaryMissionsResponse, timeout=timeout)
 
-    def start_mission(self, mission_id: int, timeout: float = 5.0) -> bool:
+    def start_mission(self, mission_id: int, timeout: float = 5.0) -> None:
         """
         Start an open mercenary mission, paying its price in coins.
 
@@ -226,9 +226,9 @@ class PlayerService(BaseService):
             raise ValueError(f"mercenary mission {mission_id} is not open")
         if missions.current_mission_state() != MercenaryMissionState.OPEN:
             raise ValueError("another mercenary mission runs or waits to be collected")
-        return self.execute(MercenaryPackageRequest(mission_id=mission_id), timeout=timeout)
+        self.execute(MercenaryPackageRequest(mission_id=mission_id), timeout=timeout)
 
-    def collect_mission(self, mission_id: int, timeout: float = 5.0) -> bool:
+    def collect_mission(self, mission_id: int, timeout: float = 5.0) -> None:
         """
         Collect a finished mercenary mission's rewards.
 
@@ -258,7 +258,7 @@ class PlayerService(BaseService):
         )
         if mission.state != MercenaryMissionState.COLLECTABLE and not finished:
             raise ValueError(f"mercenary mission {mission_id} is not collectable")
-        return self.execute(MercenaryPackageRequest(mission_id=mission_id), timeout=timeout)
+        self.execute(MercenaryPackageRequest(mission_id=mission_id), timeout=timeout)
 
     @staticmethod
     def _mission(missions: MercenaryMissionsResponse, mission_id: int) -> MercenaryMission:

@@ -491,15 +491,16 @@ class TestAllianceHelp:
     def test_asking_for_help(self, call, payload):
         client = make_client()
 
-        assert call(client.alliance) is True
+        call(client.alliance)
 
         (sent,) = conn(client).request_payloads
         assert sent == ("ahr", payload)
         assert list(sent[1]) == ["ID", "T"]
 
-    def test_a_refused_request_is_false(self):
+    def test_a_refused_request_raises(self):
         client = make_client({"ahr": xt_packet("ahr", error_code=21)})
-        assert client.alliance.request_repair_help(88) is False
+        with pytest.raises(CommandError):
+            client.alliance.request_repair_help(88)
 
     def test_recruit_help_needs_a_recruit_type(self):
         client = make_client()
@@ -661,13 +662,14 @@ class TestAllianceMemberManagement:
     def test_invite_sends_the_player_id_as_a_string(self):
         client = member_client()
 
-        assert client.alliance.invite(4242) is True
+        client.alliance.invite(4242)
 
         assert conn(client).request_payloads == [("aip", {"SV": "4242"})]
 
-    def test_an_invitation_to_no_such_player_is_false(self):
+    def test_an_invitation_to_no_such_player_raises(self):
         client = member_client({"aip": xt_packet("aip", error_code=GGEError.INVALID_PLAYER_ID)})
-        assert client.alliance.invite(4242) is False
+        with pytest.raises(CommandError):
+            client.alliance.invite(4242)
 
     def test_applications(self):
         reply = {
@@ -696,7 +698,7 @@ class TestAllianceMemberManagement:
     def test_answer_application(self, accept, answer):
         client = member_client()
 
-        assert client.alliance.answer_application(4242, accept) is True
+        client.alliance.answer_application(4242, accept)
 
         (sent,) = conn(client).request_payloads
         assert sent == ("aaa", {"PID": 4242, "A": answer})
@@ -705,7 +707,7 @@ class TestAllianceMemberManagement:
     def test_leave(self):
         client = member_client()
 
-        assert client.alliance.leave() is True
+        client.alliance.leave()
 
         assert conn(client).request_payloads == [("aqi", {})]
 
@@ -751,7 +753,7 @@ class TestAllianceDiplomacy:
     def test_newsletter_encodes_both_parts(self):
         client = member_client()
 
-        assert client.alliance.send_newsletter("Plan 100%", 'Say "go"\nnow') is True
+        client.alliance.send_newsletter("Plan 100%", 'Say "go"\nnow')
 
         (sent,) = conn(client).request_payloads
         assert sent == ("anl", {"SJ": "Plan 100&percnt;", "TXT": "Say &quot;go&quot;<br />now"})
@@ -816,7 +818,7 @@ class TestAllianceReviewFollowUps:
         client = member_client()
         client._on_packet(xt_packet("ahl", {"AHL": [HEAL_ENTRY]}))
 
-        assert client.alliance.leave() is True
+        client.alliance.leave()
 
         assert client.alliance.help_requests == []
 
@@ -824,6 +826,7 @@ class TestAllianceReviewFollowUps:
         client = member_client({"aqi": xt_packet("aqi", error_code=21)})
         client._on_packet(xt_packet("ahl", {"AHL": [HEAL_ENTRY]}))
 
-        assert client.alliance.leave() is False
+        with pytest.raises(CommandError):
+            client.alliance.leave()
 
         assert [r.list_id for r in client.alliance.help_requests] == [31]

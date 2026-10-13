@@ -214,12 +214,11 @@ class SpyService(BaseService):
         self._missions: list[SpyHandle] = []
         self._spy_logs: list[_SpyLog] = []
 
-    def forward_report(self, message_id: int, player_ids: list[int]) -> bool:
+    def forward_report(self, message_id: int, player_ids: list[int]) -> None:
         """Share a spy report with other players in game.
 
-        Returns False when the server rejects it — a report can age out of the
-        mailbox, and the recipients may no longer be reachable. A recipient
-        who has the report already (error 167) counts as done, as in the client.
+        A recipient who has the report already (``ALREADY_HAS_SPY_REPORT``) counts as done,
+        as in the client.
 
         Args:
             message_id: The report's message id: ``SpyResult.message_id``, or a
@@ -231,6 +230,7 @@ class SpyService(BaseService):
         Raises:
             ValueError: ``player_ids`` is empty; the client's forward button stays
                 disabled until a recipient is picked
+            CommandError: The server refused it; a report can age out of the mailbox
 
         Client: ``CastleForwardMessageDialog.fillList`` and ``sendMessage`` (bundle lines 60719, 60740),
         ``checkEnableForwardButton`` (bundle line 60753), ``MFSCommand.executeCommand`` (bundle line 125409)
@@ -240,11 +240,8 @@ class SpyService(BaseService):
         try:
             self.client.send(ForwardSpyLogRequest(message_id=message_id, player_ids=list(player_ids)), wait=True)
         except CommandError as e:
-            if e.error is GGEError.ALREADY_HAS_SPY_REPORT:
-                return True
-            logger.warning(f"Action 'mfs' rejected: {e}")
-            return False
-        return True
+            if e.error is not GGEError.ALREADY_HAS_SPY_REPORT:
+                raise
 
     def get_screen_info(
         self, target_x: int, target_y: int, target_kingdom: Kingdom = Kingdom.GREEN

@@ -65,23 +65,16 @@ OWN = [(12345, Kingdom.GREEN)]
 
 
 class TestExecuteSemantics:
-    """``execute()`` returns False for game-rule rejections and raises for
-    transport failures - infrastructure problems must never look like a
-    rejected action."""
+    """``execute()`` returns nothing once the server accepts and raises ``CommandError`` when it refuses."""
 
-    def test_accepted_action_returns_true(self):
+    def test_an_accepted_action_returns(self):
         client = make_client({"jaa": xt_packet("jaa")}, castles=OWN)
-        assert client.castle.select(12345) is True
+        client.castle.select(12345)
 
-    def test_rejected_action_returns_false(self):
+    def test_rejected_action_raises(self):
         client = make_client({"jaa": xt_packet("jaa", error_code=21)}, castles=OWN)
-        assert client.castle.select(12345) is False
-
-    def test_rejection_is_logged_with_the_command(self, caplog):
-        client = make_client({"jaa": xt_packet("jaa", error_code=21)}, castles=OWN)
-        with caplog.at_level(logging.WARNING, logger="empire_core.services.base"):
+        with pytest.raises(CommandError):
             client.castle.select(12345)
-        assert "jca" in caplog.text
 
     @pytest.mark.parametrize(
         "failure",
@@ -100,7 +93,8 @@ class TestExecuteSemantics:
         # A garbled status field parses to the MALFORMED_STATUS_CODE sentinel,
         # which must read as a rejection rather than a success.
         client = make_client({"jaa": Packet.from_bytes(b"%xt%jaa%1%notanumber%{}%")}, castles=OWN)
-        assert client.castle.select(12345) is False
+        with pytest.raises(CommandError):
+            client.castle.select(12345)
 
 
 class TestRequestSemantics:

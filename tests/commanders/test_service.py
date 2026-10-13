@@ -80,7 +80,7 @@ class TestGeneralCommands:
     def test_set_abilities_sends_every_slot(self):
         client = make_client()
 
-        assert client.skills.set_abilities(103, [(101031, 10073), (101033, -1)]) is True
+        client.skills.set_abilities(103, [(101031, 10073), (101033, -1)])
 
         assert conn(client).request_payloads == [("gaae", {"GID": 103, "SAIDS": [[101031, 10073], [101033, -1]]})]
 
@@ -95,14 +95,15 @@ class TestGeneralCommands:
     def test_the_no_body_commands(self, call, command, payload):
         client = make_client()
 
-        assert call(client.skills) is True
+        call(client.skills)
 
         assert conn(client).request_payloads == [(command, payload)]
 
-    def test_a_rejected_command_is_false(self):
+    def test_a_rejected_command_raises(self):
         client = make_client({"grs": xt_packet("grs", error_code=114)})
 
-        assert client.skills.reset_skills(103) is False
+        with pytest.raises(CommandError):
+            client.skills.reset_skills(103)
 
 
 # =============================================================================
@@ -273,19 +274,20 @@ class TestEquipmentService:
     def test_equip_sends_one(self):
         client = make_client()
 
-        assert client.equipment.equip(equipment_id=880, commander_id=91) is True
+        client.equipment.equip(equipment_id=880, commander_id=91)
         assert conn(client).request_payloads == [("eeq", {"EID": 880, "LID": 91, "E": 1})]
 
     def test_unequip_sends_zero(self):
         client = make_client()
 
-        assert client.equipment.unequip(equipment_id=880, commander_id=1005) is True
+        client.equipment.unequip(equipment_id=880, commander_id=1005)
         assert conn(client).request_payloads == [("eeq", {"EID": 880, "LID": 1005, "E": 0})]
 
-    def test_a_rejected_equip_returns_false(self):
+    def test_a_rejected_equip_raises(self):
         client = make_client({"eeq": xt_packet("eeq", error_code=21)})
 
-        assert client.equipment.equip(equipment_id=880, commander_id=91) is False
+        with pytest.raises(CommandError):
+            client.equipment.equip(equipment_id=880, commander_id=91)
 
 
 # Two viplevels rows as the items payload has them: below level 5 there is no freePremiumGeneralsPerDay.
@@ -387,17 +389,17 @@ class TestPremiumCommanderSends:
     FREE = {"VP": 9000, "VRL": 5, "VRS": 3600, "UPG": 0}
 
     @staticmethod
-    def send_support(client, **options: Any) -> bool:
-        return client.castle.send_support(12345, 700, 710, [[487, 1]], **options)
+    def send_support(client, **options: Any) -> None:
+        client.castle.send_support(12345, 700, 710, [[487, 1]], **options)
 
     @staticmethod
-    def send_troops(client, **options: Any) -> bool:
-        return client.castle.send_troops(100, 200, 110, 205, [[620, 1]], **options)
+    def send_troops(client, **options: Any) -> None:
+        client.castle.send_troops(100, 200, 110, 205, [[620, 1]], **options)
 
     @staticmethod
-    def send_attack(client, **options: Any) -> bool:
+    def send_attack(client, **options: Any) -> None:
         waves = [wave(units=[[487, 1]])]
-        return client.attack.send_attack(500, 510, 700, 710, waves, kingdom_id=Kingdom.GREEN, **options)
+        client.attack.send_attack(500, 510, 700, 710, waves, kingdom_id=Kingdom.GREEN, **options)
 
     SENDS = [send_support, send_troops, send_attack]
 
@@ -433,7 +435,7 @@ class TestPremiumCommanderSends:
     def test_spend_rubies_sends_anyway(self, send):
         client = premium_client(self.NO_FREE)
 
-        assert send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True, spend_rubies=True)
+        send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True, spend_rubies=True)
 
         assert conn(client).request_payloads[0][1]["BPC"] == 1
 
@@ -441,7 +443,7 @@ class TestPremiumCommanderSends:
     def test_a_free_one_sends(self, send):
         client = premium_client(self.FREE)
 
-        assert send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True)
+        send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True)
 
         assert (conn(client).request_payloads[0][1]["LID"], conn(client).request_payloads[0][1]["BPC"]) == (-14, 1)
 
@@ -449,13 +451,13 @@ class TestPremiumCommanderSends:
     def test_a_premium_account_sends(self, send):
         client = premium_client(self.NO_FREE, {"PA": 3600, "PT": 1})
 
-        assert send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True)
+        send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True)
 
     @pytest.mark.parametrize("send", SENDS)
     def test_another_commander_is_not_checked(self, send):
         client = premium_client()
 
-        assert send(client, commander_id=5)
+        send(client, commander_id=5)
 
         assert conn(client).request_payloads[0][1]["BPC"] == 0
 
@@ -466,15 +468,15 @@ class TestOwnPremiumSends:
     ONE_FREE = {"VP": 9000, "VRL": 5, "VRS": 3600, "UPG": 24}
 
     @staticmethod
-    def send_support(client, **options: Any) -> bool:
-        return client.castle.send_support(
+    def send_support(client, **options: Any) -> None:
+        client.castle.send_support(
             12345, 700, 710, [[487, 1]], commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True, **options
         )
 
     def test_an_accepted_send_counts_until_the_next_vip(self):
         client = premium_client(self.ONE_FREE)
 
-        assert self.send_support(client)
+        self.send_support(client)
         assert client.commanders.free_premium_commanders() == 0
         with pytest.raises(PremiumCommanderCostError):
             self.send_support(client)
@@ -486,19 +488,20 @@ class TestOwnPremiumSends:
         client = premium_client(self.ONE_FREE)
         client.connection = conn(make_client({"cds": xt_packet("cds", error_code=5)}))
 
-        assert not self.send_support(client)
+        with pytest.raises(CommandError):
+            self.send_support(client)
         assert client.commanders.free_premium_commanders() == 1
 
     def test_a_send_with_a_premium_account_is_not_counted(self):
         client = premium_client(self.ONE_FREE, {"PA": 3600, "PT": 1})
 
-        assert self.send_support(client)
+        self.send_support(client)
         assert client.commanders.free_premium_commanders() == 1
 
     def test_a_send_with_another_commander_is_not_counted(self):
         client = premium_client(self.ONE_FREE)
 
-        assert client.castle.send_support(12345, 700, 710, [[487, 1]], commander_id=5)
+        client.castle.send_support(12345, 700, 710, [[487, 1]], commander_id=5)
         assert client.commanders.free_premium_commanders() == 1
 
     def test_two_sends_at_once_cannot_both_take_the_last_free_one(self):
@@ -507,19 +510,18 @@ class TestOwnPremiumSends:
 
         def other_send() -> None:
             try:
-                client.commanders.premium_send(PREMIUM_COMMANDER_ID, True, lambda: True, spend_rubies=False)
+                client.commanders.premium_send(PREMIUM_COMMANDER_ID, True, lambda: None, spend_rubies=False)
             except PremiumCommanderCostError as error:
                 second.append(error)
 
         thread = threading.Thread(target=other_send)
 
-        def first_send() -> bool:
+        def first_send() -> None:
             thread.start()
             thread.join(0.2)
             assert thread.is_alive()
-            return True
 
-        assert client.commanders.premium_send(PREMIUM_COMMANDER_ID, True, first_send, spend_rubies=False)
+        client.commanders.premium_send(PREMIUM_COMMANDER_ID, True, first_send, spend_rubies=False)
         thread.join(5)
 
         assert len(second) == 1

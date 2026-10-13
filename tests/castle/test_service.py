@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from types import SimpleNamespace
 from typing import Any
 
@@ -10,7 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from empire_core.enums import Kingdom, Resource
-from empire_core.exceptions import AmbiguousCastleError, GameDataNotLoadedError, UnknownCastleError
+from empire_core.exceptions import AmbiguousCastleError, CommandError, GameDataNotLoadedError, UnknownCastleError
 from tests.service_helpers import (
     COIN_HORSE,
     GOLDEN_GCL,
@@ -129,7 +128,7 @@ class TestCastleActions:
     def test_select_sends_castle_and_its_kingdom_from_the_castle_list(self):
         client = make_client(castles=[(777, Kingdom.GREEN), (12345, Kingdom.ICE)])
 
-        assert client.castle.select(12345) is True
+        client.castle.select(12345)
 
         assert conn(client).request_payloads == [("jaa", {"CID": 12345, "KID": 2})]
 
@@ -194,21 +193,14 @@ class TestCastleActions:
         # Waiting on the request command times out on every single call.
         client = make_client({"jaa": xt_packet("jaa")}, castles=[(12345, Kingdom.GREEN)])
 
-        assert client.castle.select(12345) is True
+        client.castle.select(12345)
         assert conn(client).requested == ["jaa"]
 
     def test_select_reports_a_rejected_jump(self):
         client = make_client({"jaa": xt_packet("jaa", error_code=21)}, castles=[(12345, Kingdom.GREEN)])
 
-        assert client.castle.select(12345) is False
-
-    def test_select_rejection_is_logged_against_the_request_command(self, caplog):
-        client = make_client({"jaa": xt_packet("jaa", error_code=21)}, castles=[(12345, Kingdom.GREEN)])
-
-        with caplog.at_level(logging.WARNING, logger="empire_core.services.base"):
+        with pytest.raises(CommandError):
             client.castle.select(12345)
-
-        assert "jca" in caplog.text
 
     def test_rename_sends_the_castle_type_and_kingdom_from_the_castle_list(self):
         client = make_client(
@@ -218,7 +210,7 @@ class TestCastleActions:
             }
         )
 
-        assert client.castle.rename(2001, "My Fortress", spend_rubies=True) is True
+        client.castle.rename(2001, "My Fortress", spend_rubies=True)
 
         assert conn(client).request_payloads[-1] == (
             "arc",
@@ -235,7 +227,7 @@ class TestCastleActions:
         assert conn(client).request_payloads == []
 
         stub.boosts = SimpleNamespace(is_premium_active=lambda: True)
-        assert client.castle.rename(2001, "My Fortress") is True
+        client.castle.rename(2001, "My Fortress")
 
     def test_naming_a_new_castle_sends_p_0(self):
         client = make_client(
@@ -245,13 +237,14 @@ class TestCastleActions:
             }
         )
 
-        assert client.castle.rename(2001, "My Fortress", is_initial_name=True) is True
+        client.castle.rename(2001, "My Fortress", is_initial_name=True)
 
         assert conn(client).request_payloads[-1][1]["P"] == 0
 
-    def test_rejected_rename_is_false(self):
+    def test_rejected_rename_raises(self):
         client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL), "arc": xt_packet("arc", error_code=21)})
-        assert client.castle.rename(2001, "nope", spend_rubies=True) is False
+        with pytest.raises(CommandError):
+            client.castle.rename(2001, "nope", spend_rubies=True)
 
     def test_renaming_a_castle_you_do_not_own_raises(self):
         client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL)})
@@ -261,7 +254,7 @@ class TestCastleActions:
     def test_send_support_builds_the_documented_payload(self):
         client = make_client()
 
-        assert client.castle.send_support(12345, 700, 710, {487: 100}, commander_id=5, wait_time=6) is True
+        client.castle.send_support(12345, 700, 710, {487: 100}, commander_id=5, wait_time=6)
 
         command, payload = conn(client).request_payloads[0]
         assert command == "cds"
@@ -296,12 +289,12 @@ class TestCastleActions:
             client.castle.send_troops(10, 20, 700, 710, {487: 1}, 5, **kwargs)
         assert conn(client).request_payloads == []
 
-        assert client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, spend_rubies=True, **kwargs)
-        assert client.castle.send_troops(10, 20, 700, 710, {487: 1}, 5, spend_rubies=True, **kwargs)
+        client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, spend_rubies=True, **kwargs)
+        client.castle.send_troops(10, 20, 700, 710, {487: 1}, 5, spend_rubies=True, **kwargs)
 
     def test_a_ruby_horse_paid_with_feathers_costs_no_rubies(self):
         client = make_client()
-        assert client.castle.send_support(
+        client.castle.send_support(
             12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=RUBY_HORSE, feathers=True
         )
 

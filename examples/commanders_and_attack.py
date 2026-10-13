@@ -90,7 +90,7 @@ def main() -> int:
             print("\nDry run. Re-run with --send to actually send it.")
             return 0
 
-        accepted = client.attack.send_attack(
+        client.attack.send_attack(
             source_x=source.x,
             source_y=source.y,
             target_x=target_x,
@@ -99,9 +99,7 @@ def main() -> int:
             kingdom_id=source.kingdom_id,
             commander_id=leader.commander_id,
         )
-        # send_attack returns False when the server rejects the attack by rule
-        # (no troops, target out of range, commander already in a movement).
-        print("Attack sent." if accepted else "Server rejected the attack.")
+        print("Attack sent.")
 
     except EmpireError as e:
         print(f"{type(e).__name__}: {e}", file=sys.stderr)

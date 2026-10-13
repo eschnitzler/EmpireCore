@@ -84,12 +84,13 @@ classDiagram
 The library does not leak `pydantic.ValidationError` or raw socket exceptions
 past its own API: catching `EmpireError` covers everything.
 
-## Actions return `bool`
+## A refused action raises
 
 Action helpers, such as `client.castle.select()` or
-`client.equipment.equip()`, return `False` when the server refuses the action
-and log the refusal. Transport failures still raise, so an infrastructure
-problem is never mistaken for a game-rule refusal.
+`client.equipment.equip()`, return nothing once the server accepts the action
+and raise `CommandError` with the game's message when it refuses. Match
+`CommandError.error` to tell a game-rule refusal from the rest; a transport
+failure raises its own error (`EmpireTimeoutError`, `ConnectionClosedError`).
 
 ## `None` means a named not-found
 

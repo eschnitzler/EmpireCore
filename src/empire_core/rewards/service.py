@@ -198,18 +198,15 @@ class RewardsService(BaseService):
         """
         return self.request(GetStartupBonusRequest(), GetStartupBonusResponse, timeout=timeout)
 
-    def collect_startup_bonus(self, timeout: float = 5.0) -> bool:
+    def collect_startup_bonus(self, timeout: float = 5.0) -> None:
         """
         Collect the next startup login bonus reward.
-
-        Returns:
-            True when the server accepted it, False when it refused it
 
         Client: ``C2SStartupLoginBonusCollectVO`` (bundle line 104974), sent by
         ``CastleStartupLoginBonusDialog.onClick`` (bundle line 57261) from a button enabled only
         for the next reward while it can be collected (bundle line 57258)
         """
-        return self.execute(CollectStartupBonusRequest(), timeout=timeout)
+        self.execute(CollectStartupBonusRequest(), timeout=timeout)
 
     # =========================================================================
     # Lost and found
@@ -226,7 +223,7 @@ class RewardsService(BaseService):
         """
         return self.request(GetLostAndFoundRequest(), GetLostAndFoundResponse, timeout=timeout).items
 
-    def collect_lost_and_found(self, item_id: int, timeout: float = 5.0) -> bool:
+    def collect_lost_and_found(self, item_id: int, timeout: float = 5.0) -> None:
         """
         Collect an item from lost and found into its inventory.
 
@@ -234,14 +231,14 @@ class RewardsService(BaseService):
             item_id: A ``LostAndFoundItem.item_id`` from :meth:`get_lost_and_found`
             timeout: Timeout in seconds
 
-        Returns:
-            True when the server accepted it, False when it refused it (the client keeps the
-            button disabled while the item's inventory is full)
+        Raises:
+            CommandError: The server refused it; the client keeps the button disabled while
+                the item's inventory is full
 
         Client: ``C2SCollectLostAndFoundItemVO`` (bundle line 107195), ``LostAndFoundListItem.onCollect``
         (bundle line 107151)
         """
-        return self.execute(CollectLostAndFoundRequest(item_id=item_id), timeout=timeout)
+        self.execute(CollectLostAndFoundRequest(item_id=item_id), timeout=timeout)
 
     # =========================================================================
     # Activity chest
@@ -389,7 +386,7 @@ class RewardsService(BaseService):
         request = GetPatchNoteRewardsRequest(patch_note_id=patch_note_id)
         return self.request(request, GetPatchNoteRewardsResponse, timeout=timeout).rewards
 
-    def collect_patch_note_rewards(self, message_id: int, timeout: float = 5.0) -> bool:
+    def collect_patch_note_rewards(self, message_id: int, timeout: float = 5.0) -> None:
         """
         Collect a patch note's rewards.
 
@@ -400,9 +397,6 @@ class RewardsService(BaseService):
         Args:
             message_id: A patch note's ``MessageInfo.message_id`` in ``client.messages.mailbox``
             timeout: Timeout in seconds for each request
-
-        Returns:
-            True when the server accepted it, False when it refused it
 
         Raises:
             ValueError: ``message_id`` is no patch note in the mailbox, its header names no patch
@@ -421,7 +415,7 @@ class RewardsService(BaseService):
         if not self.get_patch_note_rewards(message_id, timeout=timeout):
             raise ValueError(f"the patch note {message_id} has no rewards")
         request = CollectPatchNoteRewardsRequest(patch_note_id=patch_note_id, message_id=message_id)
-        return self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout)
 
     def _patch_note(self, message_id: int) -> tuple[int, bool]:
         message = next((m for m in self.client.messages.mailbox if m.message_id == message_id), None)

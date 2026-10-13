@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from empire_core.exceptions import CommandError
 from empire_core.gamedata import Collectable
 from empire_core.player import (
     MercenaryMissionRarity,
@@ -72,7 +73,7 @@ class TestService:
         listed = xt_packet("mpe", mpe(mission(1, 0), mission(2, 0)))
         client = make_client({"mpe": [listed, xt_packet("mpe", mpe(mission(1, 0), mission(2, 1, rd=3600)))]})
 
-        assert client.player.start_mission(2) is True
+        client.player.start_mission(2)
 
         assert conn(client).request_payloads == [("mpe", {"MID": -1}), ("mpe", {"MID": 2})]
 
@@ -103,7 +104,7 @@ class TestService:
     def test_collect_mission_collects_a_finished_mission(self, finished: dict[str, Any]):
         client = make_client({"mpe": [xt_packet("mpe", mpe(finished)), xt_packet("mpe", mpe())]})
 
-        assert client.player.collect_mission(4) is True
+        client.player.collect_mission(4)
 
         assert conn(client).request_payloads == [("mpe", {"MID": -1}), ("mpe", {"MID": 4})]
 
@@ -125,6 +126,7 @@ class TestService:
         assert listed.seconds_past_end(listed.received_at + 3) == pytest.approx(3)
         assert listed.remaining_seconds(listed.received_at + 3) == 0
 
-    def test_a_refused_start_is_false(self):
+    def test_a_refused_start_raises(self):
         client = make_client({"mpe": [xt_packet("mpe", mpe(mission(1, 0))), xt_packet("mpe", error_code=21)]})
-        assert client.player.start_mission(1) is False
+        with pytest.raises(CommandError):
+            client.player.start_mission(1)
