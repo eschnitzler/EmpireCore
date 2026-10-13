@@ -283,14 +283,14 @@ rubies) are left out.
 
 ## Horses
 
-`client.castle.get_horses(castle_id)` lists the horses a castle can send
+`client.castle.horses(castle_id)` lists the horses a castle can send
 movements with, read from the login data's `gpc` section and its pushes, so
 nothing is sent. It reads the horses' stats from the game data, raises
 `UnknownCastleError` for a castle that is not yours, and returns `None` while
 no `gpc` has named the castle yet:
 
 ```python
-for horse in client.castle.get_horses(castle_id=12345) or []:
+for horse in client.castle.horses(castle_id=12345) or []:
     print(horse.wod_id, horse.unit_boost, horse.market_boost, horse.spy_boost)
 ```
 
@@ -305,7 +305,7 @@ feathers, and any slowdown cost rubies and need `spend_rubies=True`.
 
 On a live account, main and kingdom castles offered horses 1007 to 1009, the
 Storm castle 1030 to 1032, and outposts none. Without game data,
-`client.state.get_castle_horse_ids(castle_id)` gives the `Horse` members
+`client.state.get_permanent_castle(castle_id).horse_ids` gives the `Horse` members
 (`Horse.HORSE_STABLE3` is 1007).
 
 **API:** [`CastleService`](../reference/castle.md#empire_core.castle.service.CastleService)

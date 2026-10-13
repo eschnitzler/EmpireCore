@@ -23,10 +23,10 @@ class TestEventLeagues:
         client._on_packet(xt_packet("sei", {"E": [{"EID": 83, "RS": 60, "LID": 3, "OP": [0]}, {"EID": 7, "RS": 60}]}))
 
         # A running event without a league is in league 1, the client's default
-        leagues = [client.events.get_league_id(event) for event in (83, 7)]
+        leagues = [client.events.league_id(event) for event in (83, 7)]
         assert leagues == [3, 1]
         with pytest.raises(EventNotRunningError) as raised:
-            client.events.get_league_id(60)
+            client.events.league_id(60)
         assert raised.value.event_id == 60
 
     def test_a_later_entry_without_a_league_keeps_it(self):
@@ -36,14 +36,14 @@ class TestEventLeagues:
 
         client._on_packet(xt_packet("sei", {"E": [{"EID": 83, "RS": 60, "LID": 0}, {"EID": 60, "RS": 60, "LID": "7"}]}))
 
-        assert (client.events.get_league_id(83), client.events.get_league_id(60)) == (3, 7)
+        assert (client.events.league_id(83), client.events.league_id(60)) == (3, 7)
 
     def test_the_login_data_carries_them_too(self):
         client = _client()
 
         client._on_packet(xt_packet("gbd", {"sei": {"E": [{"EID": 83, "RS": 60, "LID": 2}]}}))
 
-        assert client.events.get_league_id(83) == 2
+        assert client.events.league_id(83) == 2
 
     def test_a_reset_forgets_them(self):
         state = GameState()
@@ -53,7 +53,7 @@ class TestEventLeagues:
         state.reset()
 
         with pytest.raises(EventNotRunningError):
-            client.events.get_league_id(83)
+            client.events.league_id(83)
 
 
 class TestActiveEvents:
@@ -61,10 +61,10 @@ class TestActiveEvents:
         client = _client()
         client._on_packet(xt_packet("sei", {"E": [{"EID": 11, "RS": 60}, {"EID": 10, "RS": 60}]}))
 
-        ids = client.events.get_active_event_ids()
+        ids = list(client.state.get_events())
         ids.append(99)
 
-        assert client.events.get_active_event_ids() == [11, 10]
+        assert list(client.state.get_events()) == [11, 10]
 
     def test_active_events_carry_their_titles(self, monkeypatch):
         monkeypatch.setattr(events_module, "get_event_titles", lambda lang="en", force_refresh=False: {72: lang})
@@ -129,7 +129,7 @@ class TestRefusedReplies:
         client._on_packet(xt_packet("see", {"EID": 60}, error_code=1))
         client._on_packet(xt_packet("fjf", {"sei": {"E": [{"EID": 3, "RS": 60}]}}, error_code=1))
 
-        assert client.events.get_active_event_ids() == [60]
+        assert list(client.state.get_events()) == [60]
         assert client.state.get_event(60).own_points == 0  # type: ignore[union-attr]
 
 
@@ -141,7 +141,7 @@ class TestEventUpdates:
 
         client._on_packet(xt_packet("sei", {"E": [{"EID": 83, "RS": 60}, {"EID": 60, "RS": 60}]}))
 
-        assert client.events.get_active_event_ids() == [3, 83, 60]
+        assert list(client.state.get_events()) == [3, 83, 60]
 
     def test_a_see_ends_its_event(self):
         client = _client()
@@ -150,7 +150,7 @@ class TestEventUpdates:
         client._on_packet(xt_packet("see", {"EID": 3}))
         client._on_packet(xt_packet("see", {"EID": 999}))
 
-        assert client.events.get_active_event_ids() == [83]
+        assert list(client.state.get_events()) == [83]
 
     def test_berimond_invasion_rebuilds_every_part_at_league_one(self):
         # FactionInvasionEventVO.parseData builds FB, FR and A anew from every entry
@@ -158,10 +158,10 @@ class TestEventUpdates:
         first = {"EID": 85, "RS": 60, "FB": {"LID": 2}, "FR": {"LID": "3"}, "A": {}}
         client._on_packet(xt_packet("sei", {"E": [first]}))
         parts = (None, "FB", "FR", "A", "SP")
-        before = [client.events.get_league_id(85, part) for part in parts]
+        before = [client.events.league_id(85, part) for part in parts]
 
         client._on_packet(xt_packet("sei", {"E": [{"EID": 85, "RS": 60, "FB": {"LID": 0}, "SP": "x"}]}))
 
         # SP is not one of its parts, so it reads as the default league
         assert before == [1, 2, 3, 1, 1]
-        assert [client.events.get_league_id(85, part) for part in parts] == [1, 1, 1, 1, 1]
+        assert [client.events.league_id(85, part) for part in parts] == [1, 1, 1, 1, 1]

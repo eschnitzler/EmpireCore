@@ -251,7 +251,7 @@ a movement does not carry them.
 
 ```python
 movements = client.movements.get_movements()       # asks the server
-attacks = client.movements.get_incoming_attacks()   # reads state
+attacks = client.movements.incoming_attacks         # sends nothing
 client.movements.recall(movement_id)
 ```
 
