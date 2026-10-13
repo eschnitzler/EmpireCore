@@ -15,7 +15,6 @@ It covers:
 from __future__ import annotations
 
 import logging
-import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
@@ -145,10 +144,6 @@ class AllianceService(BaseService):
 
     def __init__(self, client: EmpireClient) -> None:
         super().__init__(client)
-        self._members: dict[int, AllianceMember] = {}
-        self._members_alliance_id: int | None = None
-        self._help_requests: list[AllianceHelpRequest] = []
-        self._help_lock = threading.Lock()
 
         self.on_response("acm", self._handle_chat_message)
         for command in ("ahl", "ahh", "ahd", "ahf"):
@@ -196,9 +191,6 @@ class AllianceService(BaseService):
         response = self.request(
             GetAllianceInfoRequest(alliance_id=alliance_id), GetAllianceInfoResponse, timeout=timeout
         )
-        # Update cached members and remember which alliance they belong to
-        self._members = {m.player_id: m for m in response.members}
-        self._members_alliance_id = alliance_id
         return response.members
 
     def get_online_members(self, alliance_id: int, timeout: float = 5.0) -> list[AllianceMember]:
@@ -224,45 +216,20 @@ class AllianceService(BaseService):
         members = self.get_members(alliance_id, timeout=timeout)
         return [m for m in members if m.is_online]
 
-    def get_member(self, player_id: int, no_cache: bool = False) -> AllianceMember | None:
+    def get_member(self, alliance_id: int, player_id: int, timeout: float = 5.0) -> AllianceMember | None:
         """
-        Get a specific member by player ID.
+        Get one member of an alliance, from a fresh member list.
+
+        Your own alliance's members are also in ``client.state.get_own_alliance()``, without a request.
 
         Args:
-            player_id: The member's ``AllianceMember.player_id``, as :meth:`get_members` lists it
-            no_cache: If True, refresh alliance data from server first
+            alliance_id: The alliance, as for :meth:`get_members`
+            player_id: The member's ``AllianceMember.player_id``
 
         Returns:
-            AllianceMember if found, None otherwise
-
-        Raises:
-            NotInAllianceError: ``no_cache`` with no alliance cached, and you are in none; nothing is sent
-
-        Example:
-            member = client.alliance.get_member(12345)  # From cache
-            member = client.alliance.get_member(12345, no_cache=True)  # Fresh data
+            The member, or None when the alliance has no such member
         """
-        if no_cache:
-            # Refresh the alliance the cache actually belongs to, not
-            # unconditionally the local one
-            if self._members_alliance_id is not None:
-                self.get_members(self._members_alliance_id)
-            else:
-                self.get_local_members()
-        return self._members.get(player_id)
-
-    @property
-    def cached_members(self) -> dict[int, AllianceMember]:
-        """
-        Get the cached member dictionary.
-
-        Returns members from the last get_members() call, keyed by player_id.
-        Call get_members() to refresh.
-
-        Returns:
-            Dict mapping player_id to AllianceMember
-        """
-        return self._members.copy()
+        return next((m for m in self.get_members(alliance_id, timeout=timeout) if m.player_id == player_id), None)
 
     # =========================================================================
     # Member Management
@@ -374,8 +341,6 @@ class AllianceService(BaseService):
         """
         with self._own_alliance():
             self.execute(QuitAllianceRequest(), timeout=timeout)
-        with self._help_lock:
-            self._help_requests = []
 
     # =========================================================================
     # Diplomacy, Newsletter and Donations
@@ -740,21 +705,13 @@ class AllianceService(BaseService):
     @property
     def help_requests(self) -> list[AllianceHelpRequest]:
         """
-        The alliance help list as the login data and the pushes since left it.
+        The alliance help list as the login data and the pushes since left it; nothing is sent.
 
-        The login data's ``ahl`` section fills it, and so does an ahl push;
-        ahh replaces or adds a request by ``LID``, ahd removes one. The client
-        never asks the server for the list, and neither does this library.
-        The list is not emptied when the session drops, as the client keeps
-        it; the next login's ``ahl`` section replaces it.
-
-        Client: ``AllianceHelpRequestData`` (bundle line 133359) keeps the list
-        the same way, from ``GBDCommand.exec`` (bundle line 129381) and the
-        ``AHL``/``AHH``/``AHD`` commands; it has no ``reset`` of its own
-        (``CastleBasicData.reset``, bundle line 2109, is empty)
+        The login data's ``ahl`` section fills it, and so does an ahl push; ahh replaces or adds a
+        request by ``LID``, ahd removes one, and leaving your alliance empties it. It is kept when
+        the session drops, as the client keeps it.
         """
-        with self._help_lock:
-            return list(self._help_requests)
+        return self.client.state.get_alliance_help()
 
     on_help_update = Event[AllianceHelpUpdate]()
     """
@@ -764,28 +721,11 @@ class AllianceService(BaseService):
     Detach it again with ``on_help_update.remove(callback)``, a no-op if it is not registered.
     """
 
-    def _apply_help_update(self, response: BaseResponse) -> AllianceHelpUpdate | None:
-        if isinstance(response, AllianceHelpListResponse):
-            self._help_requests = list(response.requests)
-        elif isinstance(response, AllianceHelpRequestChanged) and response.request is not None:
-            changed = response.request
-            index = next((i for i, r in enumerate(self._help_requests) if r.list_id == changed.list_id), None)
-            if index is None:
-                self._help_requests.append(changed)
-            else:
-                self._help_requests[index] = changed
-        elif isinstance(response, AllianceHelpRequestRemoved):
-            self._help_requests = [r for r in self._help_requests if r.list_id != response.list_id]
-        elif not isinstance(response, AllianceHelpReceived):
-            return None
-        return response
-
     def _handle_help_update(self, response: BaseResponse) -> None:
-        with self._help_lock:
-            update = self._apply_help_update(response)
-        if update is None:
+        if isinstance(response, AllianceHelpRequestChanged) and response.request is None:
             return
-        self._fire(self.on_help_update, update)
+        if isinstance(response, AllianceHelpUpdate):
+            self._fire(self.on_help_update, response)
 
     def help_member(self, request: AllianceHelpRequest | int) -> None:
         """

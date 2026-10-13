@@ -318,7 +318,7 @@ class TestStartupBonus:
         assert conn(client).request_payloads == [("sli", {}), ("slc", {})]
 
     def test_a_refused_collect_raises(self):
-        client = make_client({"slc": xt_packet("slc", {}, error_code=1)})
+        client = make_client({"slc": xt_packet("slc", {}, error_code=1)}, state=GameState())
         with pytest.raises(CommandError):
             client.rewards.collect_startup_bonus()
 
@@ -360,7 +360,7 @@ class TestActivityChest:
         assert not chest.is_active and not chest.is_ready()
 
     def test_the_push_is_kept_and_announced(self):
-        client = make_client()
+        client = make_client(state=GameState())
         seen: list[ActivityChestInfo] = []
         client.rewards.on_activity_chest(seen.append)
         assert client.rewards.activity_chest is None
@@ -369,12 +369,12 @@ class TestActivityChest:
 
         chest = client.rewards.activity_chest
         assert chest is not None and chest.next_reward_id == 2 and chest.is_ready()
-        assert seen == [chest]
+        assert [c.next_reward_id for c in seen] == [2]
         client.rewards.on_activity_chest.remove(seen.append)
 
     @staticmethod
     def ready_client(script=None, chest=None):
-        client = make_client(script)
+        client = make_client(script, state=GameState())
         client._on_packet(xt_packet("uac", chest or {"CID": 2, "TTU": 0}))
         return client
 
@@ -392,7 +392,7 @@ class TestActivityChest:
     @pytest.mark.parametrize("chest", [None, {"CID": 2, "TTU": 60}, {"CID": -1, "TTU": 0}])
     def test_a_chest_not_ready_sends_nothing(self, chest):
         # CastleActivityBonusDialog.onClick sends uoa only with no time left (bundle line 104934)
-        client = make_client() if chest is None else self.ready_client(chest=chest)
+        client = make_client(state=GameState()) if chest is None else self.ready_client(chest=chest)
         with pytest.raises(ValueError, match="not ready"):
             client.rewards.open_activity_chest()
         assert conn(client).request_frames == [] and conn(client).sent == []
@@ -487,7 +487,7 @@ class TestWeeklyHonor:
 
 def mailbox_client(script=None, *rows):
     """A client whose mailbox holds the sne ``rows``."""
-    client = make_client(script)
+    client = make_client(script, state=GameState())
     client._on_packet(xt_packet("sne", {"MSG": list(rows)}))
     return client
 
@@ -547,7 +547,7 @@ class TestPatchNoteRewards:
 
 class TestPendingRewards:
     def test_the_push_is_kept_and_announced(self):
-        client = make_client()
+        client = make_client(state=GameState())
         seen: list[PendingRewardsInfo] = []
         client.rewards.on_pending_rewards(seen.append)
         assert client.rewards.pending_rewards is None
@@ -559,7 +559,7 @@ class TestPendingRewards:
         client.rewards.on_pending_rewards.remove(seen.append)
 
     def test_a_dropped_session_forgets_the_count(self):
-        client = make_client()
+        client = make_client(state=GameState())
         client._on_packet(xt_packet("pre", {"AMT": 3}))
 
         client._session.dropped(conn(client).generation)
