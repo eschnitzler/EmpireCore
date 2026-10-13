@@ -850,7 +850,8 @@ class AttackService(BaseService):
         general_id = commander.general_id if commander is not None else None
         if general_skill_ids is None and general_id is not None and general_id >= 0:
             try:
-                general_skill_ids = self.client.skills.get_generals(timeout=timeout).skill_ids(general_id)
+                generals = self.client.skills.get_generals(timeout=timeout)
+                general_skill_ids = next((g.skill_ids for g in generals if g.general_id == general_id), ())
             except CommandError as e:
                 logger.warning(f"Could not read the general's skills, sizing without them: {e}")
                 target.unread[TargetRead.GENERAL_SKILLS] = e

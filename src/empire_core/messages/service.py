@@ -106,14 +106,14 @@ class MessagesService(BaseService):
         self.send(MarkMessageReadRequest(message_id=message_id))
         self.client.state.mark_message_read(message_id)
 
-    def archive(self, message_id: int, *, timeout: float = 5.0) -> ArchiveMessageResponse:
+    def archive(self, message_id: int, *, timeout: float = 5.0) -> None:
         """
         Move a message to the archive, which holds 20.
 
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        return self.request(ArchiveMessageRequest(message_id=message_id), ArchiveMessageResponse, timeout=timeout)
+        self.request(ArchiveMessageRequest(message_id=message_id), ArchiveMessageResponse, timeout=timeout)
 
     def delete(self, message_id: int, *, timeout: float = 5.0) -> list[int]:
         """

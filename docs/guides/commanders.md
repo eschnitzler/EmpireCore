@@ -37,7 +37,7 @@ if roster is not None:
 client.commanders.rename(castellans[0].commander_id, "farm-1")
 ```
 
-`rename` takes either kind, and its reply carries the updated list.
+`rename` takes either kind and returns the updated `CommanderRoster`.
 
 ## The premium commander
 

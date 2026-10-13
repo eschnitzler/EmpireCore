@@ -75,7 +75,7 @@ class TestGeneralCommands:
         response = client.skills.assign_general(7, 103)
 
         assert conn(client).request_payloads == [("gla", {"LID": 7, "GID": 103})]
-        assert [(c.commander_id, c.general_id) for c in response.commander_roster.commanders] == [(7, 103)]
+        assert [(c.commander_id, c.general_id) for c in response.commanders] == [(7, 103)]
 
     def test_set_abilities_sends_every_slot(self):
         client = make_client()
@@ -241,7 +241,7 @@ class TestCommandersService:
         # C2SRenameLordVO sets LID before N
         assert conn(client).request_payloads == [("arl", {"LID": 91, "N": "farm-1"})]
         assert list(conn(client).request_payloads[0][1]) == ["LID", "N"]
-        roster = response.commander_roster
+        roster = response
         assert [(c.commander_id, c.name) for c in roster.commanders] == [(91, "farm-1")]
         assert [c.commander_id for c in roster.castellans] == [1005]
 

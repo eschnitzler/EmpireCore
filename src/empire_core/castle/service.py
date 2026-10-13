@@ -217,8 +217,7 @@ class CastleService(BaseService):
         ``kingdomID`` (``JoinAreaAndSavePositionCommand.execute``, bundle line 100892)
 
         Example:
-            if client.castle.select(12345):
-                print("Castle selected!")
+            client.castle.select(12345)
         """
         kingdom_id = self._require_own_castle(castle_id).kingdom_id
         self.execute(SelectCastleRequest(castle_id=castle_id, kingdom_id=kingdom_id), timeout=timeout)
@@ -318,8 +317,7 @@ class CastleService(BaseService):
         the first name with 0 and shows no price; ``CHANGE_CASTLE_NAME_C2`` (dll line 19599)
 
         Example:
-            if client.castle.rename(12345, "My Fortress", spend_rubies=True):
-                print("Castle renamed!")
+            client.castle.rename(12345, "My Fortress", spend_rubies=True)
         """
         if not is_initial_name:
             boosts = self.client.state.get_boosts()
