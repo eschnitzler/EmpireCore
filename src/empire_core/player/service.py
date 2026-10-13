@@ -8,6 +8,7 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from empire_core.commanders.models.skills import GetSkillsRequest, GetSkillsResponse, ObjectUpdateEvent, SkillList
 from empire_core.enums import CollectableKind, MercenaryMissionState
 from empire_core.exceptions import CommandError, EmpireTimeoutError, PacketError
 from empire_core.player.models.economy import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
@@ -18,10 +19,13 @@ from empire_core.player.models.info import (
     SearchPlayerResponse,
 )
 from empire_core.player.models.research import SkipResearchRequest, StartResearchRequest
+from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.js import js_truthy
 from empire_core.services.base import BaseService
+from empire_core.utils.callbacks import Event
 
 if TYPE_CHECKING:
+    from empire_core.client.client import EmpireClient
     from empire_core.gamedata import Currency, Research
 
 
@@ -48,10 +52,16 @@ class PlayerDetailsBulkResult:
 
 class PlayerService(BaseService):
     """
-    Other players' details, finding a player by name, your research and the mercenary camp's missions.
+    Other players' details, finding a player by name, your legend skills, your research and the
+    mercenary camp's missions.
 
     Reached as client.player.
     """
+
+    def __init__(self, client: EmpireClient) -> None:
+        super().__init__(client)
+        self.on_response("skl", self._handle_skill_list)
+        self.on_response("ego", self._handle_skill_list)
 
     def get_player_info(self, player_id: int, *, timeout: float = 5.0) -> GetPlayerInfoResponse:
         """
@@ -255,6 +265,45 @@ class PlayerService(BaseService):
         if mission is None:
             raise ValueError(f"no mercenary mission {mission_id}")
         return mission
+
+    def get_skills(self, *, timeout: float = 5.0) -> GetSkillsResponse:
+        """
+        The player's legend and sceat skills.
+
+        Args:
+            timeout: Timeout in seconds
+
+        Returns:
+            The ``skl`` response
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
+        """
+        return self.request(GetSkillsRequest(), GetSkillsResponse, timeout=timeout)
+
+    on_skill_list = Event[SkillList]()
+    """
+    Register a callback for every skill list the server sends.
+
+    That is each ``skl`` packet, including the reply to :meth:`get_skills`,
+    and the ``skl`` block of an ``ego`` push.
+
+    Client: ``SKLCommand.executeCommand`` (bundle line 129742) and
+    ``EGOCommand.executeCommand`` (bundle line 122801) both call ``parse_SKL``.
+
+    Removing a callback not registered is a no-op.
+    """
+
+    def _handle_skill_list(self, response: BaseResponse) -> None:
+        if isinstance(response, GetSkillsResponse):
+            skills: SkillList | None = response
+        elif isinstance(response, ObjectUpdateEvent):
+            skills = response.skills
+        else:
+            return
+        if skills is None:
+            return
+        self._fire(self.on_skill_list, skills)
 
 
 __all__ = ["PlayerDetailsBulkResult", "PlayerService"]

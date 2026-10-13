@@ -98,7 +98,7 @@ every value is as old as the last packet that carried it:
 | Special currencies | `sce` (pushed) | none |
 | Spies owned, before boosts | `gms` (pushed) | log in again |
 | Commanders and castellans | `gli`, and the replies that carry it (`arl`, `gla`, `seq`, `sdi`, `sti`, the attack and conquer info replies) | `client.commanders.get_all()` |
-| Legend and sceat skills | `skl`, `ego` (pushed) | `client.skills.get_skills()` |
+| Legend and sceat skills | `skl`, `ego` (pushed) | `client.player.get_skills()` |
 | Your alliance's details and members | `ain`, `acn`, `cal`, `acd`, `ado`, `akm`, `arm`; an `acm` marks its sender online | `client.alliance.get_alliance_info(alliance_id)` |
 | Alliance chat history | `acl`, `acm` (pushed) | none |
 | Research | `rei` (pushed), the `res` and `msr` replies | log in again |

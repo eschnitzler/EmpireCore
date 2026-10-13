@@ -10,9 +10,9 @@ beside them.
 
 ```python
 client.alliance     client.castle      client.army       client.attack
-client.commanders   client.equipment   client.skills     client.spy
-client.map          client.movements   client.messages   client.player
-client.defense      client.ranking     client.events     client.rewards
+client.commanders   client.equipment   client.spy        client.map
+client.movements    client.messages    client.player     client.defense
+client.ranking      client.events      client.rewards
 ```
 
 ## Services

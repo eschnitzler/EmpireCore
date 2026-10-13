@@ -23,7 +23,7 @@ class TestSkillListUpdates:
     def test_a_skl_packet_reaches_the_callback(self):
         client = make_client()
         seen: list[Any] = []
-        client.skills.on_skill_list(seen.append)
+        client.player.on_skill_list(seen.append)
 
         client._on_packet(xt_packet("skl", {"SID": [3], "SIDS": [90], "SP": 10, "RS": 0, "RC": 1}))
 
@@ -32,7 +32,7 @@ class TestSkillListUpdates:
     def test_the_skl_block_of_an_ego_push_reaches_the_callback(self):
         client = make_client()
         seen: list[Any] = []
-        client.skills.on_skill_list(seen.append)
+        client.player.on_skill_list(seen.append)
 
         client._on_packet(xt_packet("ego", {"skl": {"SID": [], "SIDS": [90], "SSA": [{"ID": 91, "RS": 60}]}}))
         client._on_packet(xt_packet("ego", {"A": {"OID": 5}}))
@@ -47,8 +47,8 @@ class TestSkillListUpdates:
         def boom(skills: Any) -> None:
             raise RuntimeError("callback bug")
 
-        client.skills.on_skill_list(boom)
-        client.skills.on_skill_list(seen.append)
+        client.player.on_skill_list(boom)
+        client.player.on_skill_list(seen.append)
 
         with caplog.at_level(logging.ERROR, logger="empire_core.commanders.service"):
             client._on_packet(xt_packet("skl", {"SID": [3]}))
@@ -59,10 +59,10 @@ class TestSkillListUpdates:
     def test_a_removed_callback_is_not_called(self):
         client = make_client()
         seen: list[Any] = []
-        client.skills.on_skill_list(seen.append)
+        client.player.on_skill_list(seen.append)
 
-        client.skills.on_skill_list.remove(seen.append)
-        client.skills.on_skill_list.remove(seen.append)
+        client.player.on_skill_list.remove(seen.append)
+        client.player.on_skill_list.remove(seen.append)
         client._on_packet(xt_packet("skl", {"SID": [3]}))
 
         assert seen == []
@@ -72,7 +72,7 @@ class TestGeneralCommands:
     def test_assign_general_returns_the_commander_list(self):
         client = make_client({"gla": xt_packet("gla", {"gli": {"C": [{"ID": 7, "GID": 103}], "B": []}})})
 
-        response = client.skills.assign_general(7, 103)
+        response = client.commanders.assign_general(7, 103)
 
         assert conn(client).request_payloads == [("gla", {"LID": 7, "GID": 103})]
         assert [(c.commander_id, c.general_id) for c in response.commanders] == [(7, 103)]
@@ -80,22 +80,22 @@ class TestGeneralCommands:
     def test_set_abilities_sends_every_slot(self):
         client = make_client()
 
-        client.skills.set_abilities(103, [(101031, 10073), (101033, -1)])
+        client.commanders.set_general_abilities(103, [(101031, 10073), (101033, -1)])
 
         assert conn(client).request_payloads == [("gaae", {"GID": 103, "SAIDS": [[101031, 10073], [101033, -1]]})]
 
     @pytest.mark.parametrize(
         ("call", "command", "payload"),
         [
-            (lambda s: s.unlock_skill(10317), "guse", {"ID": 10317}),
-            (lambda s: s.reset_skills(103), "grs", {"GID": 103}),
-            (lambda s: s.add_xp(103, 7001, 5), "gaxp", {"GID": 103, "CID": 7001, "AMT": 5}),
+            (lambda s: s.unlock_general_skill(10317), "guse", {"ID": 10317}),
+            (lambda s: s.reset_general_skills(103), "grs", {"GID": 103}),
+            (lambda s: s.add_general_xp(103, 7001, 5), "gaxp", {"GID": 103, "CID": 7001, "AMT": 5}),
         ],
     )
     def test_the_no_body_commands(self, call, command, payload):
         client = make_client()
 
-        call(client.skills)
+        call(client.commanders)
 
         assert conn(client).request_payloads == [(command, payload)]
 
@@ -103,7 +103,7 @@ class TestGeneralCommands:
         client = make_client({"grs": xt_packet("grs", error_code=114)})
 
         with pytest.raises(CommandError):
-            client.skills.reset_skills(103)
+            client.commanders.reset_general_skills(103)
 
 
 # =============================================================================

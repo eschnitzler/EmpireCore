@@ -118,7 +118,7 @@ For data newer than the generated enums, look a row up by the key that names it:
 ```python
 toril = data.general("Toril")           # None when no general has that name
 if toril is not None:
-    client.skills.assign_general(commander_id=3, general_id=toril.general_id)
+    client.commanders.assign_general(commander_id=3, general_id=toril.general_id)
     skill = data.general_skill(toril.general_id, "AspectoftheDragon", 1)
 
 surge = data.general_ability("PowerSurge", 1)
