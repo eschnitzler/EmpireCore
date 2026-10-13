@@ -14,7 +14,7 @@ from empire_core.gamedata import Tool, Unit
 
 commanders = client.commanders.get_commanders()
 
-accepted = client.attack.send_attack(
+client.attack.send_attack(
     source_x=500,
     source_y=510,
     target_x=700,

@@ -5,10 +5,7 @@ Every command here acts on the castle the session has joined, so each method
 joins the castle first (``jca``), as the client is inside a castle before it
 shows the recruit or hospital dialog.
 
-Action methods return True when the server accepted the action and False
-when it rejected it with an error code; transport failures (timeout,
-disconnect) raise. Query methods raise on any failure. A refused join raises
-before anything is sent.
+Actions raise ``CommandError`` when the server refuses them; a refused join raises before anything is sent.
 """
 
 from __future__ import annotations
@@ -120,7 +117,7 @@ class ArmyService(BaseService):
         amount: int,
         from_stronghold: bool = False,
         timeout: float = 5.0,
-    ) -> bool:
+    ) -> None:
         """
         Dismiss units of the castle, or of its stronghold.
 
@@ -131,7 +128,7 @@ class ArmyService(BaseService):
         """
         self._join_castle(castle_id, timeout)
         request = DismissUnitsRequest(wod_id=wod_id, amount=amount, from_stronghold=1 if from_stronghold else 0)
-        return self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout)
 
     # =========================================================================
     # Production
@@ -147,7 +144,7 @@ class ArmyService(BaseService):
         spend_rubies: bool = False,
         private_offer_id: int = -1,
         timeout: float = 5.0,
-    ) -> bool:
+    ) -> None:
         """
         Produce units or tools.
 
@@ -193,7 +190,7 @@ class ArmyService(BaseService):
             kingdom_id=kingdom_id,
             castle_id=castle_id,
         )
-        return self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout)
 
     def get_production_list(self, castle_id: int, list_id: ProductionListId, timeout: float = 5.0) -> ProductionList:
         """
@@ -215,7 +212,7 @@ class ArmyService(BaseService):
         slot_type: SlotType,
         position: int,
         timeout: float = 5.0,
-    ) -> bool:
+    ) -> None:
         """
         Cancel a production slot.
 
@@ -229,7 +226,7 @@ class ArmyService(BaseService):
         """
         self._join_castle(castle_id, timeout)
         request = CancelProductionRequest(list_id=list_id, position=position, slot_type=slot_type)
-        return self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout)
 
     def double_production_slot(
         self,
@@ -240,7 +237,7 @@ class ArmyService(BaseService):
         *,
         spend_rubies: bool = False,
         timeout: float = 5.0,
-    ) -> bool:
+    ) -> None:
         """
         Double the units of a production slot, for rubies; see "Spending rubies" in the guides.
 
@@ -264,7 +261,7 @@ class ArmyService(BaseService):
         request = DoubleProductionSlotRequest(
             list_id=list_id, position=position, castle_id=castle_id, kingdom_id=kingdom_id, slot_type=slot_type
         )
-        return self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout)
 
     # =========================================================================
     # Hospital
@@ -272,7 +269,7 @@ class ArmyService(BaseService):
 
     def heal_units(
         self, castle_id: int, wod_id: int, amount: int, *, spend_rubies: bool = False, timeout: float = 5.0
-    ) -> bool:
+    ) -> None:
         """
         Queue wounded units for healing.
 
@@ -300,9 +297,9 @@ class ArmyService(BaseService):
             elif unit.healing_cost_rubies > 0:
                 self._require_spend_rubies(spend_rubies, f"healing unit {wod_id} costs rubies")
         self._join_castle(castle_id, timeout)
-        return self.execute(HealUnitsRequest(wod_id=wod_id, amount=amount), timeout=timeout)
+        self.execute(HealUnitsRequest(wod_id=wod_id, amount=amount), timeout=timeout)
 
-    def heal_all(self, castle_id: int, ruby_cost: int, *, spend_rubies: bool = False, timeout: float = 5.0) -> bool:
+    def heal_all(self, castle_id: int, ruby_cost: int, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
         """
         Heal every wounded unit at once, for rubies; see "Spending rubies" in the guides.
 
@@ -321,9 +318,9 @@ class ArmyService(BaseService):
         """
         self._require_spend_rubies(spend_rubies, f"healing all costs {ruby_cost} rubies" if ruby_cost > 0 else None)
         self._join_castle(castle_id, timeout)
-        return self.execute(HealAllRequest(ruby_cost=ruby_cost), timeout=timeout)
+        self.execute(HealAllRequest(ruby_cost=ruby_cost), timeout=timeout)
 
-    def cancel_heal(self, castle_id: int, position: int, timeout: float = 5.0) -> bool:
+    def cancel_heal(self, castle_id: int, position: int, timeout: float = 5.0) -> None:
         """
         Cancel a hospital slot, by its ``HospitalSlot.position``.
 
@@ -333,9 +330,9 @@ class ArmyService(BaseService):
         Client: ``CastleRecruitDialogHospital.onCurrentSlotCancelled`` (bundle line 83508)
         """
         self._join_castle(castle_id, timeout)
-        return self.execute(CancelHealRequest(position=position), timeout=timeout)
+        self.execute(CancelHealRequest(position=position), timeout=timeout)
 
-    def skip_heal(self, castle_id: int, position: int, *, spend_rubies: bool = False, timeout: float = 5.0) -> bool:
+    def skip_heal(self, castle_id: int, position: int, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
         """
         Finish a hospital slot now, by its ``HospitalSlot.position``, for rubies; see "Spending
         rubies" in the guides.
@@ -354,9 +351,9 @@ class ArmyService(BaseService):
         """
         self._require_spend_rubies(spend_rubies, "finishing a hospital slot costs rubies")
         self._join_castle(castle_id, timeout)
-        return self.execute(SkipHealRequest(position=position), timeout=timeout)
+        self.execute(SkipHealRequest(position=position), timeout=timeout)
 
-    def dismiss_wounded(self, castle_id: int, wod_id: int, amount: int, timeout: float = 5.0) -> bool:
+    def dismiss_wounded(self, castle_id: int, wod_id: int, amount: int, timeout: float = 5.0) -> None:
         """
         Dismiss wounded units of one type instead of healing them.
 
@@ -366,9 +363,9 @@ class ArmyService(BaseService):
         Client: ``CastleHospitalDismissUnitsDialog.dismissUnits`` (bundle line 83737)
         """
         self._join_castle(castle_id, timeout)
-        return self.execute(DismissWoundedRequest(wod_id=wod_id, amount=amount), timeout=timeout)
+        self.execute(DismissWoundedRequest(wod_id=wod_id, amount=amount), timeout=timeout)
 
-    def dismiss_wounded_units(self, castle_id: int, units: Mapping[int, int], timeout: float = 5.0) -> bool:
+    def dismiss_wounded_units(self, castle_id: int, units: Mapping[int, int], timeout: float = 5.0) -> None:
         """
         Dismiss wounded units of several types at once, as ``{wod_id: amount}``.
 
@@ -379,4 +376,4 @@ class ArmyService(BaseService):
         """
         self._join_castle(castle_id, timeout)
         entries = [WoundedUnits(wod_id=wod_id, amount=amount) for wod_id, amount in units.items()]
-        return self.execute(DismissManyWoundedRequest(units=entries), timeout=timeout)
+        self.execute(DismissManyWoundedRequest(units=entries), timeout=timeout)

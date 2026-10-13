@@ -12,8 +12,7 @@ The client enables a collect button only when the read says the reward is
 there. Where the library knows what the client checks, it refuses the collect
 without sending it (each section says which); the rest is left to you and to
 the server. A collect the
-server refuses returns False, or raises `CommandError` where the call returns
-the reply's data.
+server refuses raises `CommandError`.
 
 ## Daily login bonus
 

@@ -108,7 +108,7 @@ class AttackService(BaseService):
         timeout: float = 5.0,
         *,
         spend_rubies: bool = False,
-    ) -> bool:
+    ) -> None:
         """
         Send an attack from a castle to a target position.
 
@@ -175,10 +175,6 @@ class AttackService(BaseService):
             timeout: Timeout in seconds
             spend_rubies: Send even when the premium commander, the horse or the slowdown costs rubies
 
-        Returns:
-            True when the server accepted the attack, False when it rejected it,
-            such as with MOVEMENT_HAS_NO_UNITS (100) for too few units
-
         Raises:
             AttackInProgressError: One of your attacks is already on its way
                 there; it carries that attack's arrival time and size. Retry
@@ -193,6 +189,8 @@ class AttackService(BaseService):
                 before it was called
             ValueError: No wave carries any units, a container is overfull, or the horse or
                 slowdown costs rubies and ``spend_rubies`` is False
+            CommandError: The server refused the attack, such as with ``MOVEMENT_HAS_NO_UNITS``
+                for too few units
             UnknownCastleError: No ``kingdom_id`` given and no area of yours in
                 the castle list is at the source position
             AmbiguousCastleError: No ``kingdom_id`` given and areas of yours sit
@@ -246,17 +244,15 @@ class AttackService(BaseService):
             send_anyway=1 if send_anyway else 0,
         )
 
-        def send() -> bool:
+        def send() -> None:
             try:
-                self.client.send(request, wait=True, timeout=timeout)
+                self.execute(request, timeout=timeout)
             except CommandError as e:
                 if e.error is GGEError.ATTACK_IN_PROGRESS:
                     raise AttackInProgressError(e.command, e.code, e.payload) from e
-                logger.warning(f"Action '{request.get_command()}' rejected: {e}")
-                return False
-            return True
+                raise
 
-        return self.client.commanders.premium_send(commander_id, use_premium_commander, send, spend_rubies=spend_rubies)
+        self.client.commanders.premium_send(commander_id, use_premium_commander, send, spend_rubies=spend_rubies)
 
     def get_attack_info(
         self,
@@ -321,7 +317,7 @@ class AttackService(BaseService):
         """
         return self.request(GetPresetsRequest(), GetPresetsResponse, timeout=timeout).presets
 
-    def save_preset(self, index: int, army: PresetArmy | AttackWave, timeout: float = 5.0) -> bool:
+    def save_preset(self, index: int, army: PresetArmy | AttackWave, timeout: float = 5.0) -> None:
         """
         Save an army into an unlocked preset slot.
 
@@ -333,18 +329,15 @@ class AttackService(BaseService):
             army: The army, a ``PresetArmy`` or a wave
             timeout: Timeout in seconds
 
-        Returns:
-            True when the server accepted it, False when it refused it.
-
         Client: ``C2SUpdatePreDefinedAttackSetupVO`` (bundle line 141820), sent by
         ``FightPresetData.savePresetArmy`` (bundle line 141780) from
         ``AttackDialogPresets.handleSavePresetRequested`` (bundle line 101661), which
         saves only an unlocked slot
         """
         preset = army if isinstance(army, PresetArmy) else PresetArmy.from_wave(army)
-        return self.execute(SavePresetRequest.create(index, preset), timeout=timeout)
+        self.execute(SavePresetRequest.create(index, preset), timeout=timeout)
 
-    def rename_preset(self, index: int, name: str, timeout: float = 5.0) -> bool:
+    def rename_preset(self, index: int, name: str, timeout: float = 5.0) -> None:
         """
         Rename a preset slot.
 
@@ -352,9 +345,6 @@ class AttackService(BaseService):
             index: The preset slot, an ``AttackPreset.index`` from :meth:`get_presets`
             name: The new name, at most 15 characters, none of ``SMARTFOX_INVALID_CHARS``
             timeout: Timeout in seconds
-
-        Returns:
-            True when the server accepted it, False when it refused it.
 
         Raises:
             ValueError: The client's rename dialog would refuse the name
@@ -368,7 +358,7 @@ class AttackService(BaseService):
                 f"Preset names are 1 to {PRESET_NAME_MAX_LENGTH} characters without any of "
                 f"{''.join(SMARTFOX_INVALID_CHARS)}, got {name!r}"
             )
-        return self.execute(RenamePresetRequest(index=index, name=name), timeout=timeout)
+        self.execute(RenamePresetRequest(index=index, name=name), timeout=timeout)
 
     def fill_waves(
         self,

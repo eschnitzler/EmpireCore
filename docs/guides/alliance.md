@@ -176,7 +176,7 @@ raise `CommandError` when the server refuses, such as `BOOKMARK_ALREADY_ADDED`,
 has `ALLIANCE_BOOKMARK_MAX_ENTRYS`.
 `change_bookmark` changes only your own bookmarks, as the client does.
 `delete_bookmark` deletes an own bookmark by its position and an alliance one
-by its id, and returns False when the server refuses. An alliance attack order
+by its id, and raises `CommandError` when the server refuses. An alliance attack order
 takes `attack_in_seconds` (an hour to just under a day) and `attacker_ids`.
 Adding or deleting an alliance bookmark outside an alliance raises
 `NotInAllianceError` without sending anything.

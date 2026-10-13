@@ -105,9 +105,6 @@ AllianceHelpUpdate = (
     AllianceHelpListResponse | AllianceHelpRequestChanged | AllianceHelpRequestRemoved | AllianceHelpReceived
 )
 
-_ALLIANCE_GONE = frozenset({GGEError.ALLI_NOT_FOUND})
-
-
 _PLAYER_BOOKMARK_TYPES = frozenset({BookmarkType.PLAYER_ENEMY, BookmarkType.PLAYER_FRIEND})
 
 
@@ -322,25 +319,22 @@ class AllianceService(BaseService):
             raise
         return _echoed(response.alliance, "arm")
 
-    def invite(self, player_id: int, timeout: float = 5.0) -> bool:
+    def invite(self, player_id: int, timeout: float = 5.0) -> None:
         """
         Invite a player to your alliance.
 
         Args:
             player_id: The player's id, e.g. ``PlayerOwnerInfo.player_id`` from ``client.player.get_player_info()``
 
-        Returns:
-            Whether the server accepted the invitation; it refuses an id that names
-            no player with ``INVALID_PLAYER_ID``
-
         Raises:
             NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
+            CommandError: The server refused it, with ``INVALID_PLAYER_ID`` for an id that names no player
 
         Client: ``CastlePlayerInfoDialog`` shows its invite button for
         ``CastleUserData.canInviteToAlliance`` (bundle line 9994), which needs ``isInAlliance``
         """
         with self._own_alliance():
-            return self.execute(InvitePlayerRequest.for_player(player_id), timeout=timeout, raise_on=_ALLIANCE_GONE)
+            self.execute(InvitePlayerRequest.for_player(player_id), timeout=timeout)
 
     def get_applications(self, timeout: float = 5.0) -> AllianceApplicationListResponse:
         """
@@ -353,7 +347,7 @@ class AllianceService(BaseService):
         with self._own_alliance():
             return self.request(AllianceApplicationListRequest(), AllianceApplicationListResponse, timeout=timeout)
 
-    def answer_application(self, player_id: int, accept: bool, timeout: float = 5.0) -> bool:
+    def answer_application(self, player_id: int, accept: bool, timeout: float = 5.0) -> None:
         """
         Accept or refuse an application.
 
@@ -361,35 +355,27 @@ class AllianceService(BaseService):
             player_id: The applicant's ``AllianceApplication.player_id``
             accept: True to accept, False to refuse
 
-        Returns:
-            Whether the server accepted the answer
-
         Raises:
             NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
         """
         request = AnswerApplicationRequest.create(player_id, accept)
         with self._own_alliance():
-            return self.execute(request, timeout=timeout, raise_on=_ALLIANCE_GONE)
+            self.execute(request, timeout=timeout)
 
-    def leave(self, timeout: float = 5.0) -> bool:
+    def leave(self, timeout: float = 5.0) -> None:
         """
         Leave your alliance. Once the server accepts, :attr:`help_requests` is emptied.
 
         Client: ``AQICommand.executeCommand`` (bundle line 121556) calls
         ``CastleAllianceData.resetMyAlliance`` (bundle line 11620), which cleans the help list
 
-        Returns:
-            Whether the server accepted it
-
         Raises:
             NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
         """
         with self._own_alliance():
-            left = self.execute(QuitAllianceRequest(), timeout=timeout, raise_on=_ALLIANCE_GONE)
-        if left:
-            with self._help_lock:
-                self._help_requests = []
-        return left
+            self.execute(QuitAllianceRequest(), timeout=timeout)
+        with self._help_lock:
+            self._help_requests = []
 
     # =========================================================================
     # Diplomacy, Newsletter and Donations
@@ -453,16 +439,13 @@ class AllianceService(BaseService):
         with self._own_alliance():
             return self.request(request, SetAutoWarResponse, timeout=timeout).auto_war
 
-    def send_newsletter(self, subject: str, text: str, timeout: float = 5.0) -> bool:
+    def send_newsletter(self, subject: str, text: str, timeout: float = 5.0) -> None:
         """
         Send the alliance newsletter to every member.
 
         Args:
             subject: The subject (the client's field takes 20 characters)
             text: The text; the client does not send an empty one
-
-        Returns:
-            Whether the server accepted it
 
         Raises:
             ValueError: ``text`` is empty
@@ -471,7 +454,7 @@ class AllianceService(BaseService):
         if not text:
             raise ValueError("a newsletter needs text")
         with self._own_alliance():
-            return self.execute(SendNewsletterRequest.create(subject, text), timeout=timeout, raise_on=_ALLIANCE_GONE)
+            self.execute(SendNewsletterRequest.create(subject, text), timeout=timeout)
 
     def donate(
         self, castle_id: int, donation: AllianceDonation, *, spend_rubies: bool = False, timeout: float = 5.0
@@ -824,55 +807,43 @@ class AllianceService(BaseService):
         """
         self.send(HelpAllRequest())
 
-    def request_build_help(self, building_id: int, timeout: float = 5.0) -> bool:
+    def request_build_help(self, building_id: int, timeout: float = 5.0) -> None:
         """
         Ask the alliance to help build a building.
 
         Args:
             building_id: The building's object id, e.g. ``BuildResponse.building_id``
-
-        Returns:
-            Whether the server accepted the request
         """
-        return self.execute(AskHelpRequest.build(building_id), timeout=timeout)
+        self.execute(AskHelpRequest.build(building_id), timeout=timeout)
 
-    def request_repair_help(self, building_id: int, timeout: float = 5.0) -> bool:
+    def request_repair_help(self, building_id: int, timeout: float = 5.0) -> None:
         """
         Ask the alliance to help repair a building.
 
         Args:
             building_id: The damaged building's object id
-
-        Returns:
-            Whether the server accepted the request
         """
-        return self.execute(AskHelpRequest.repair(building_id), timeout=timeout)
+        self.execute(AskHelpRequest.repair(building_id), timeout=timeout)
 
-    def request_recruit_help(self, recruit_id: int, help_type: HelpType, timeout: float = 5.0) -> bool:
+    def request_recruit_help(self, recruit_id: int, help_type: HelpType, timeout: float = 5.0) -> None:
         """
         Ask the alliance to help with a recruitment.
 
         Args:
             recruit_id: The recruitment's id; the library does not read recruitment ids yet
             help_type: ``HelpType.RECRUITMENT``, ``LOOP_RECRUIT`` or ``RECRUITMENT_LIST``
-
-        Returns:
-            Whether the server accepted the request
         """
-        return self.execute(AskHelpRequest.recruit(recruit_id, help_type), timeout=timeout)
+        self.execute(AskHelpRequest.recruit(recruit_id, help_type), timeout=timeout)
 
-    def request_heal_help(self, hospital_entry_id: int, hospital_list_id: int, timeout: float = 5.0) -> bool:
+    def request_heal_help(self, hospital_entry_id: int, hospital_list_id: int, timeout: float = 5.0) -> None:
         """
         Ask the alliance to help heal wounded units.
 
         Args:
             hospital_entry_id: The hospital entry; the library does not read hospital entry ids yet
             hospital_list_id: The hospital list the entry is on
-
-        Returns:
-            Whether the server accepted the request
         """
-        return self.execute(AskHelpRequest.heal(hospital_entry_id, hospital_list_id), timeout=timeout)
+        self.execute(AskHelpRequest.heal(hospital_entry_id, hospital_list_id), timeout=timeout)
 
     # =========================================================================
     # Bookmark Operations
@@ -1007,7 +978,7 @@ class AllianceService(BaseService):
         request = ChangeBookmarkRequest(kingdom=kingdom, x=x, y=y, friend=friend, name=name)
         return self.request(request, ChangeBookmarkResponse, timeout=timeout)
 
-    def delete_bookmark(self, bookmark: Bookmark, *, notify_attackers: bool = False, timeout: float = 5.0) -> bool:
+    def delete_bookmark(self, bookmark: Bookmark, *, notify_attackers: bool = False, timeout: float = 5.0) -> None:
         """
         Delete a bookmark: one of your own by its position, an alliance one by its id.
 
@@ -1016,9 +987,6 @@ class AllianceService(BaseService):
             notify_attackers: For an alliance bookmark, tell an attack order's attackers, as the
                 delete dialog's notify button does
             timeout: Timeout in seconds
-
-        Returns:
-            True when the server accepted it, False when it refused it
 
         Raises:
             ValueError: The bookmark has no type the client knows, so it sends nothing
@@ -1038,7 +1006,7 @@ class AllianceService(BaseService):
             request = DeleteAllianceBookmarkRequest(entries=[[bookmark.bookmark_id, 1 if notify_attackers else 0]])
         else:
             raise ValueError(f"bookmark type {bookmark.bookmark_type!r} is neither an own nor an alliance bookmark")
-        return self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout)
 
 
 __all__ = ["AllianceHelpUpdate", "AllianceService"]

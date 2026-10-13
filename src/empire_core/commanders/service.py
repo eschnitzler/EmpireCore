@@ -198,8 +198,8 @@ class CommandersService(BaseService):
         return self._premium_account_runs() or (self.free_premium_commanders() or 0) >= 1
 
     def premium_send(
-        self, commander_id: int, use_premium_commander: bool, send: Callable[[], bool], *, spend_rubies: bool = False
-    ) -> bool:
+        self, commander_id: int, use_premium_commander: bool, send: Callable[[], None], *, spend_rubies: bool = False
+    ) -> None:
         """
         Run ``send``, refusing it first when the premium commander leads and may cost rubies, unless ``spend_rubies``.
 
@@ -211,18 +211,15 @@ class CommandersService(BaseService):
         Library policy, not client behaviour: the server sends no ``vip`` with the send's
         reply (``CRACommand``, bundle line 125954; ``CDSCommand``, bundle line 125939; ``CATCommand``,
         bundle line 125924), so a
-        premium send that ``send`` reports accepted while no premium account runs counts as one
+        premium send that the server accepts while no premium account runs counts as one
         used in :meth:`free_premium_commanders` until the next ``vip`` arrives. The check and the
         send hold one lock, so two premium sends at once cannot both take the last free one.
 
         Args:
             commander_id: The leader's ``commander_id``
             use_premium_commander: The send's ``BPC`` flag
-            send: Sends the request; True when the server accepted it
+            send: Sends the request and raises when the server refuses it
             spend_rubies: Send even when the premium commander may cost rubies
-
-        Returns:
-            What ``send`` returned
 
         Raises:
             PremiumCommanderCostError: The premium commander leads, :meth:`premium_commander_is_free`
@@ -233,17 +230,17 @@ class CommandersService(BaseService):
         exactly when the selected commander is ``TravelConst.COMMANDER_PREMIUM``
         """
         if not (use_premium_commander or commander_id == PREMIUM_COMMANDER_ID):
-            return send()
+            send()
+            return
         with self._premium_send_lock:
             premium_account = self._premium_account_runs()
             if not (spend_rubies or premium_account or (self.free_premium_commanders() or 0) >= 1):
                 raise PremiumCommanderCostError(self.free_premium_commanders())
             vip_at = self.client.state.get_last_packet_time("vip")
-            accepted = send()
-            if accepted and not premium_account:
+            send()
+            if not premium_account:
                 counted_at, own_sends = self._own_premium_sends
                 self._own_premium_sends = (vip_at, own_sends + 1 if counted_at == vip_at else 1)
-            return accepted
 
     def _premium_account_runs(self) -> bool:
         boosts = self.client.state.get_boosts()
@@ -267,7 +264,7 @@ class EquipmentService(BaseService):
         """
         return self.request(GetEquipmentInventoryRequest(), GetEquipmentInventoryResponse, timeout=timeout).items
 
-    def equip(self, equipment_id: int, commander_id: int, timeout: float = 5.0) -> bool:
+    def equip(self, equipment_id: int, commander_id: int, timeout: float = 5.0) -> None:
         """
         Put an item on a commander or castellan.
 
@@ -281,14 +278,11 @@ class EquipmentService(BaseService):
             commander_id: The leader's ``commander_id``, a ``Commander`` or ``Castellan``
                 from ``client.commanders.get_all()``
             timeout: Timeout in seconds
-
-        Returns:
-            False when the server rejects the request
         """
         request = EquipEquipmentRequest(equipment_id=equipment_id, commander_id=commander_id, equip=1)
-        return self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout)
 
-    def unequip(self, equipment_id: int, commander_id: int, timeout: float = 5.0) -> bool:
+    def unequip(self, equipment_id: int, commander_id: int, timeout: float = 5.0) -> None:
         """
         Take an item off a commander or castellan.
 
@@ -298,12 +292,9 @@ class EquipmentService(BaseService):
             commander_id: The leader's ``commander_id``, a ``Commander`` or ``Castellan``
                 from ``client.commanders.get_all()``
             timeout: Timeout in seconds
-
-        Returns:
-            False when the server rejects the request
         """
         request = EquipEquipmentRequest(equipment_id=equipment_id, commander_id=commander_id, equip=0)
-        return self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout)
 
 
 class SkillsService(BaseService):
@@ -356,7 +347,7 @@ class SkillsService(BaseService):
             timeout=timeout,
         )
 
-    def set_abilities(self, general_id: int, abilities: Iterable[tuple[int, int | None]], timeout: float = 5.0) -> bool:
+    def set_abilities(self, general_id: int, abilities: Iterable[tuple[int, int | None]], timeout: float = 5.0) -> None:
         """
         Choose a general's abilities.
 
@@ -367,14 +358,11 @@ class SkillsService(BaseService):
                 The client sends every slot it shows. An ability id comes from
                 ``GameData.require().general_ability(name, level)``
             timeout: Timeout in seconds
-
-        Returns:
-            True if the server accepted the change
         """
         slots = [SelectedAbility(slot_id=slot_id, ability_id=ability_id) for slot_id, ability_id in abilities]
-        return self.execute(SetGeneralAbilitiesRequest(general_id=general_id, abilities=slots), timeout=timeout)
+        self.execute(SetGeneralAbilitiesRequest(general_id=general_id, abilities=slots), timeout=timeout)
 
-    def unlock_skill(self, skill_id: int, timeout: float = 5.0) -> bool:
+    def unlock_skill(self, skill_id: int, timeout: float = 5.0) -> None:
         """
         Unlock a general skill; the skill id names the general.
 
@@ -385,13 +373,10 @@ class SkillsService(BaseService):
                 ``GameData.require().general_skill(general_id, name, level)``
                 (``GeneralVO.unlockSkill``, bundle line 26773)
             timeout: Timeout in seconds
-
-        Returns:
-            True if the server accepted the unlock
         """
-        return self.execute(UnlockGeneralSkillRequest(skill_id=skill_id), timeout=timeout)
+        self.execute(UnlockGeneralSkillRequest(skill_id=skill_id), timeout=timeout)
 
-    def reset_skills(self, general_id: int, timeout: float = 5.0) -> bool:
+    def reset_skills(self, general_id: int, timeout: float = 5.0) -> None:
         """
         Reset a general's skill tree.
 
@@ -399,13 +384,10 @@ class SkillsService(BaseService):
             general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
                 ``GameData.require().general(name)`` finds its ``generalID`` by name
             timeout: Timeout in seconds
-
-        Returns:
-            True if the server accepted the reset
         """
-        return self.execute(ResetGeneralSkillsRequest(general_id=general_id), timeout=timeout)
+        self.execute(ResetGeneralSkillsRequest(general_id=general_id), timeout=timeout)
 
-    def add_xp(self, general_id: int, currency_id: int, amount: int, timeout: float = 5.0) -> bool:
+    def add_xp(self, general_id: int, currency_id: int, amount: int, timeout: float = 5.0) -> None:
         """
         Feed a general xp items.
 
@@ -417,11 +399,8 @@ class SkillsService(BaseService):
                 (``GeneralsLevelUpDialogListItem.sendXPSelected``, bundle line 74485)
             amount: How many of the item to use
             timeout: Timeout in seconds
-
-        Returns:
-            True if the server accepted the items
         """
-        return self.execute(
+        self.execute(
             AddGeneralXpRequest(general_id=general_id, currency_id=currency_id, amount=amount), timeout=timeout
         )
 

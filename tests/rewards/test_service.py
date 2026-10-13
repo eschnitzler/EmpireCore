@@ -314,12 +314,13 @@ class TestStartupBonus:
         client = make_client({"sli": xt_packet("sli", {"NRR": 3, "CC": 1}), "slc": xt_packet("slc", {})})
 
         assert client.rewards.get_startup_bonus().next_reward_id == 3
-        assert client.rewards.collect_startup_bonus() is True
+        client.rewards.collect_startup_bonus()
         assert conn(client).request_payloads == [("sli", {}), ("slc", {})]
 
-    def test_a_refused_collect_is_false(self):
+    def test_a_refused_collect_raises(self):
         client = make_client({"slc": xt_packet("slc", {}, error_code=1)})
-        assert client.rewards.collect_startup_bonus() is False
+        with pytest.raises(CommandError):
+            client.rewards.collect_startup_bonus()
 
 
 class TestLostAndFound:
@@ -342,7 +343,7 @@ class TestLostAndFound:
         client = make_client({"lfe": xt_packet("lfe", {"lfe": [self.ITEM]}), "clf": xt_packet("clf", {})})
 
         items = client.rewards.get_lost_and_found()
-        assert client.rewards.collect_lost_and_found(items[0].item_id) is True
+        client.rewards.collect_lost_and_found(items[0].item_id)
         assert conn(client).request_payloads == [("lfe", {}), ("clf", {"LFID": 12})]
 
 
@@ -512,13 +513,14 @@ class TestPatchNoteRewards:
     def test_collect_reads_then_collects(self):
         client = mailbox_client({"gpn": xt_packet("gpn", self.GPN), "cpn": xt_packet("cpn", {})}, patch_note())
 
-        assert client.rewards.collect_patch_note_rewards(41) is True
+        client.rewards.collect_patch_note_rewards(41)
         assert conn(client).request_payloads == [("gpn", {"PNID": 87}), ("cpn", {"PNID": 87, "MID": 41})]
 
-    def test_a_refused_collect_is_false(self):
+    def test_a_refused_collect_raises(self):
         script = {"gpn": xt_packet("gpn", self.GPN), "cpn": xt_packet("cpn", {}, error_code=1)}
         client = mailbox_client(script, patch_note())
-        assert client.rewards.collect_patch_note_rewards(41) is False
+        with pytest.raises(CommandError):
+            client.rewards.collect_patch_note_rewards(41)
 
     def test_a_collected_patch_note_sends_nothing(self):
         client = mailbox_client(None, patch_note(collected=1))

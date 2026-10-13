@@ -168,15 +168,16 @@ class TestAttackService:
 
         assert conn(client).request_payloads[0][1]["KID"] == Kingdom.SANDS
 
-    def test_other_rejections_still_return_false(self):
+    def test_other_rejections_raises(self):
         client = make_client({"cra": xt_packet("cra", None, error_code=219)}, castles=OWN)
 
-        assert client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91) is False
+        with pytest.raises(CommandError):
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91)
 
     def test_send_attack_builds_the_client_payload(self):
         client = make_client(castles=OWN)
 
-        sent = client.attack.send_attack(
+        client.attack.send_attack(
             source_x=500,
             source_y=510,
             target_x=700,
@@ -186,7 +187,6 @@ class TestAttackService:
             commander_id=91,
         )
 
-        assert sent is True
         command, payload = conn(client).request_payloads[0]
         assert command == "cra"
         assert (payload["SX"], payload["SY"]) == (500, 510)
@@ -286,14 +286,15 @@ class TestAttackService:
             client.attack.send_attack(
                 500, 510, 700, 710, [wave(units=[[487, 7]])], 3, yard_wave={487: 50}, min_soldiers=8
             )
-        assert client.attack.send_attack(
+        client.attack.send_attack(
             500, 510, 700, 710, [wave(units=[[487, 4]]), wave(units=[[487, 4]])], 3, min_soldiers=8
         )
 
-    def test_the_servers_refusal_of_too_few_units_is_false(self):
+    def test_the_servers_refusal_of_too_few_units_raises(self):
         client = make_client({"cra": xt_packet("cra", {"MS": 8}, error_code=100)}, castles=OWN)
 
-        assert client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3) is False
+        with pytest.raises(CommandError):
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3)
 
     def test_feathers_force_the_horse_field_to_minus_one(self):
         client = make_client(castles=OWN)
@@ -321,7 +322,7 @@ class TestAttackService:
         with pytest.raises(ValueError, match="spend_rubies=True"):
             client.attack.send_attack(500, 510, 700, 710, waves, 3, **kwargs)
         assert conn(client).request_payloads == []
-        assert client.attack.send_attack(500, 510, 700, 710, waves, 3, spend_rubies=True, **kwargs) is True
+        client.attack.send_attack(500, 510, 700, 710, waves, 3, spend_rubies=True, **kwargs)
 
     def test_conquer_attack_type(self):
         client = make_client(castles=OWN)
@@ -480,9 +481,10 @@ class TestAttackService:
         with pytest.raises(ValueError, match="level"):
             client.attack.fill_waves(12345)
 
-    def test_rejected_attack_is_false(self):
+    def test_rejected_attack_raises(self):
         client = make_client({"cra": xt_packet("cra", error_code=21)}, castles=OWN)
-        assert client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3) is False
+        with pytest.raises(CommandError):
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3)
 
 
 class TestAttackInfo:

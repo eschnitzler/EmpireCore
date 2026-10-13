@@ -5,11 +5,11 @@ The base every service builds on: typed requests and action results.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Collection
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from empire_core.enums import GGEError, Kingdom
-from empire_core.exceptions import AmbiguousCastleError, CommandError, UnknownCastleError
+from empire_core.enums import Kingdom
+from empire_core.exceptions import AmbiguousCastleError, UnknownCastleError
 from empire_core.gamedata import Currency, GameData
 from empire_core.gamedata.collectables import MINUTE_SKIP_FIRST_ID, MINUTE_SKIP_KEY
 from empire_core.gamedata.lenient import known
@@ -38,15 +38,14 @@ class BaseService:
 
     Every service method reports failure by one rule:
 
-    - transport errors and unexpected server errors raise (``EmpireTimeoutError``,
-      ``ConnectionClosedError``, ``CommandError``);
+    - transport errors and server errors raise (``EmpireTimeoutError``,
+      ``ConnectionClosedError``, ``CommandError``), an action the server refuses too;
     - ``None`` only for a not-found (or nothing-to-do) outcome mapped from a named
       ``GGEError``, matched on ``CommandError.error`` and documented on the method;
     - an empty collection only when the collection really is empty;
     - invalid arguments, and a call the client would not make, raise ``ValueError``
       or a typed error from ``empire_core.exceptions``;
-    - a malformed reply raises ``PacketError``;
-    - an action the server refuses returns False (see :meth:`execute`).
+    - a malformed reply raises ``PacketError``.
 
     Four kinds of method follow rules of their own, each documented on the method:
 
@@ -219,26 +218,15 @@ class BaseService:
         """
         return self.client.request(request, response_type, timeout=timeout)
 
-    def execute(self, request: BaseRequest, timeout: float = 5.0, *, raise_on: Collection[GGEError] = ()) -> bool:
+    def execute(self, request: BaseRequest, timeout: float = 5.0) -> None:
         """
-        Send an action request and report whether the server accepted it.
+        Send an action request and wait until the server accepts it.
 
-        Returns False when the server rejects the action with an error code
-        (logged at warning level). Transport failures (timeout, disconnect)
-        still raise, so infrastructure problems are never mistaken for a
-        game-rule rejection.
-
-        Args:
-            raise_on: Errors that raise their ``CommandError`` instead, for a caller that maps them
+        Raises:
+            CommandError: The server refused the action, with the game's message
+            EmpireTimeoutError / ConnectionClosedError / NetworkError: transport failures
         """
-        try:
-            self.client.send(request, wait=True, timeout=timeout)
-            return True
-        except CommandError as e:
-            if e.error in raise_on:
-                raise
-            logger.warning(f"Action '{request.get_command()}' rejected: {e}")
-            return False
+        self.client.send(request, wait=True, timeout=timeout)
 
     def on_response(self, command: str, handler: Callable[[BaseResponse], None]) -> None:
         """

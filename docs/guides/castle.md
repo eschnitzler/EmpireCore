@@ -240,7 +240,7 @@ if research is not None:
     print(research.current_research_id, research.remaining_research_seconds())
 ```
 
-Both return False when the server refuses. `start_research` looks the research
+Both raise `CommandError` when the server refuses. `start_research` looks the research
 up in the game data (loaded on first use): some
 researches cost rubies themselves (`ResearchDef.cost_rubies`, `costs`), and
 it raises `ValueError` for those unless you pass `spend_rubies=True`. Their
