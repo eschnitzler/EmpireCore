@@ -41,14 +41,14 @@ side by side.
 
 | Service | What it does |
 |---|---|
-| [`client.castle`](https://eschnitzler.github.io/EmpireCore/guides/castle/) | Castles, buildings, resources, horses, tax, sending goods and troops |
+| [`client.castle`](https://eschnitzler.github.io/EmpireCore/guides/castle/) | Castles, buildings, resources, horses, tax, research and the mercenary camp |
 | [`client.army`](https://eschnitzler.github.io/EmpireCore/guides/army/) | Units, recruitment and the hospital |
 | [`client.attack`](https://eschnitzler.github.io/EmpireCore/guides/attack/) | Sending attacks, attack presets, and [filling waves](https://eschnitzler.github.io/EmpireCore/guides/filling-waves/) like the game does |
 | [`client.commanders`](https://eschnitzler.github.io/EmpireCore/guides/commanders/) | Commanders, castellans and [generals](https://eschnitzler.github.io/EmpireCore/guides/skills/) |
 | [`client.equipment`](https://eschnitzler.github.io/EmpireCore/guides/equipment/) | The equipment inventory |
 | [`client.spy`](https://eschnitzler.github.io/EmpireCore/guides/spy/) | Spy missions, sabotage and spy reports |
 | [`client.map`](https://eschnitzler.github.io/EmpireCore/guides/map-scanning/) | Kingdom scans and map lookups |
-| [`client.movements`](https://eschnitzler.github.io/EmpireCore/guides/movements/) | Army movements, recalls and incoming attacks |
+| [`client.movements`](https://eschnitzler.github.io/EmpireCore/guides/movements/) | Army movements, recalls, incoming attacks, and sending goods, support and troops |
 | [`client.alliance`](https://eschnitzler.github.io/EmpireCore/guides/alliance/) | Chat, help requests, members and the treasury |
 | [`client.messages`](https://eschnitzler.github.io/EmpireCore/guides/messages/) | The mailbox, mail and battle reports |
 | [`client.defense`](https://eschnitzler.github.io/EmpireCore/guides/defense/) | Reading and setting castle defense |

@@ -134,7 +134,7 @@ call always does.
 | Finishing at once | `castle.finish_construction` | over 240 seconds left, or a time left it cannot work out |
 | | `castle.repair_all`, `army.skip_heal`, `double_production_slot` | always |
 | | `army.heal_all` | a price above 0 |
-| Travel | `castle.send_resources`, `send_support`, `send_troops`, `attack.send_attack`, the `client.spy` sends | a horse that costs rubies (not paid with feathers), any slowdown, the premium commander when none is free |
+| Travel | `movements.send_resources`, `send_support`, `send_troops`, `attack.send_attack`, the `client.spy` sends | a horse that costs rubies (not paid with feathers), any slowdown, the premium commander when none is free |
 | The rest | `castle.buy_expansion`, `rename`, `start_tax`, `player.start_research`, `alliance.donate` | a premium expansion; a rename with no premium account; tax types 5 and 6; a ruby research; donated rubies |
 
 Pricing reads the game data, loaded on first use; the call raises
@@ -155,7 +155,7 @@ no flag.
 
     ---
 
-    Callbacks for incoming attacks, arrivals, recalls and removals.
+    Callbacks for incoming attacks, arrivals, recalls and removals, and sending goods, support and troops.
 
 -   :material-magnify:{ .lg .middle } **[Game data](game-data.md)**
 

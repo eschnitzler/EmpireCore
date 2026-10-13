@@ -7,12 +7,12 @@ from empire_core.army.models.production import GetProductionListRequest
 from empire_core.attack.models.send import CreateAttackRequest
 from empire_core.castle.models.actions import JoinAreaRequest, RenameCastleRequest, SelectCastleRequest
 from empire_core.castle.models.resources import GetResourcesRequest
-from empire_core.castle.models.support import SendSupportRequest, SendTroopsRequest
 from empire_core.defense.models import GetDefenseRequest
 from empire_core.enums import Kingdom, MapItemType, ProductionListId, RankingType
 from empire_core.exceptions import EmpireTimeoutError
 from empire_core.map.models.areas import GetMapAreaRequest
 from empire_core.movements.models import CancelMovementRequest
+from empire_core.movements.models.support import SendSupportRequest, SendTroopsRequest
 from empire_core.ranking.models import (
     GetHighscoreRequest,
     GetRankingListRequest,

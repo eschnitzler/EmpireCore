@@ -12,13 +12,13 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, field_serializer, field_validator
 
+from empire_core.castle.models.objects import block_or_none
+from empire_core.castle.models.resources import CastleResources
 from empire_core.enums import Kingdom, KingdomTransferType
 from empire_core.gamedata import EnumOrStr, WodAmountSlots
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock
 
 from .market import ResourceAmounts
-from .objects import block_or_none
-from .resources import CastleResources
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Currency

@@ -390,11 +390,11 @@ class TestPremiumCommanderSends:
 
     @staticmethod
     def send_support(client, **options: Any) -> None:
-        client.castle.send_support(12345, 700, 710, [[487, 1]], **options)
+        client.movements.send_support(12345, 700, 710, [[487, 1]], **options)
 
     @staticmethod
     def send_troops(client, **options: Any) -> None:
-        client.castle.send_troops(100, 200, 110, 205, [[620, 1]], **options)
+        client.movements.send_troops(100, 200, 110, 205, [[620, 1]], **options)
 
     @staticmethod
     def send_attack(client, **options: Any) -> None:
@@ -469,7 +469,7 @@ class TestOwnPremiumSends:
 
     @staticmethod
     def send_support(client, **options: Any) -> None:
-        client.castle.send_support(
+        client.movements.send_support(
             12345, 700, 710, [[487, 1]], commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True, **options
         )
 
@@ -501,7 +501,7 @@ class TestOwnPremiumSends:
     def test_a_send_with_another_commander_is_not_counted(self):
         client = premium_client(self.ONE_FREE)
 
-        client.castle.send_support(12345, 700, 710, [[487, 1]], commander_id=5)
+        client.movements.send_support(12345, 700, 710, [[487, 1]], commander_id=5)
         assert client.commanders.free_premium_commanders() == 1
 
     def test_two_sends_at_once_cannot_both_take_the_last_free_one(self):
