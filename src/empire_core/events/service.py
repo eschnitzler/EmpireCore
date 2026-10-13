@@ -56,7 +56,7 @@ class EventsService(BaseService):
     Reached as client.events.
     """
 
-    def refresh(self, timeout: float = 5.0) -> dict[int, SpecialEvent]:
+    def refresh(self, *, timeout: float = 5.0) -> dict[int, SpecialEvent]:
         """
         Ask the server for the running events and return them once its ``sei`` is applied.
 
@@ -232,7 +232,7 @@ class EventsService(BaseService):
             page = self.request(own, GetRankingWindowResponse, timeout=timeout)
         return EventScores.from_leaderboard(event, board, page)
 
-    def get_own_points(self, event: Event | int, timeout: float = 5.0) -> GetEventPointsResponse:
+    def get_own_points(self, event: Event | int, *, timeout: float = 5.0) -> GetEventPointsResponse:
         """
         Ask the server for your rank and points in a running event.
 

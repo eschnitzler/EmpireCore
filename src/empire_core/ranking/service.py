@@ -30,11 +30,7 @@ class RankingService(BaseService):
     """
 
     def get_highscore(
-        self,
-        list_type: RankingType,
-        search_value: str,
-        league_type_id: int = -1,
-        timeout: float = 5.0,
+        self, list_type: RankingType, search_value: str, league_type_id: int = -1, *, timeout: float = 5.0
     ) -> list[HighscoreRow]:
         """
         Search for a highscore entry (e.g. player rank).
@@ -65,6 +61,7 @@ class RankingService(BaseService):
         league_type_id: int,
         sub_division_id: int | None = None,
         event_id: int | None = None,
+        *,
         timeout: float = 5.0,
     ) -> list[LeaderboardScore]:
         """
@@ -115,6 +112,7 @@ class RankingService(BaseService):
         league_type_id: int,
         sub_division_id: int | None = None,
         event_id: int | None = None,
+        *,
         timeout: float = 5.0,
     ) -> list[LeaderboardScore]:
         """
@@ -156,6 +154,7 @@ class RankingService(BaseService):
         league_type_id: int | None,
         sub_division_id: int | None = None,
         event_id: int | None = None,
+        *,
         timeout: float = 5.0,
     ) -> list[LeaderboardScore]:
         """
@@ -192,6 +191,7 @@ class RankingService(BaseService):
         search_value: str,
         sub_division_id: int | None = None,
         event_id: int | None = None,
+        *,
         timeout: float = 5.0,
     ) -> list[LeaderboardSearchResult]:
         """

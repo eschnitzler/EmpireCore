@@ -105,9 +105,9 @@ class AttackService(BaseService):
         collector_booster: Mapping[CurrencyId, int] | Mapping[int, int] | None = None,
         send_anyway: bool = False,
         min_soldiers: int | None = None,
-        timeout: float = 5.0,
         *,
         spend_rubies: bool = False,
+        timeout: float = 5.0,
     ) -> None:
         """
         Send an attack from a castle to a target position.
@@ -300,7 +300,7 @@ class AttackService(BaseService):
     # Presets
     # =========================================================================
 
-    def get_presets(self, timeout: float = 5.0) -> list[AttackPreset]:
+    def get_presets(self, *, timeout: float = 5.0) -> list[AttackPreset]:
         """
         Get your unlocked attack preset slots.
 
@@ -317,7 +317,7 @@ class AttackService(BaseService):
         """
         return self.request(GetPresetsRequest(), GetPresetsResponse, timeout=timeout).presets
 
-    def save_preset(self, index: int, army: PresetArmy | AttackWave, timeout: float = 5.0) -> None:
+    def save_preset(self, index: int, army: PresetArmy | AttackWave, *, timeout: float = 5.0) -> None:
         """
         Save an army into an unlocked preset slot.
 
@@ -337,7 +337,7 @@ class AttackService(BaseService):
         preset = army if isinstance(army, PresetArmy) else PresetArmy.from_wave(army)
         self.execute(SavePresetRequest.create(index, preset), timeout=timeout)
 
-    def rename_preset(self, index: int, name: str, timeout: float = 5.0) -> None:
+    def rename_preset(self, index: int, name: str, *, timeout: float = 5.0) -> None:
         """
         Rename a preset slot.
 

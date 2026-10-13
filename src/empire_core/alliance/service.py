@@ -153,7 +153,7 @@ class AllianceService(BaseService):
     # Member Operations
     # =========================================================================
 
-    def get_alliance_info(self, alliance_id: int, timeout: float = 5.0) -> GetAllianceInfoResponse:
+    def get_alliance_info(self, alliance_id: int, *, timeout: float = 5.0) -> GetAllianceInfoResponse:
         """
         Get info about an alliance.
 
@@ -167,7 +167,7 @@ class AllianceService(BaseService):
         """
         return self.request(GetAllianceInfoRequest(alliance_id=alliance_id), GetAllianceInfoResponse, timeout=timeout)
 
-    def get_members(self, alliance_id: int, timeout: float = 5.0) -> list[AllianceMember]:
+    def get_members(self, alliance_id: int, *, timeout: float = 5.0) -> list[AllianceMember]:
         """
         Get the list of alliance members from the server.
 
@@ -193,7 +193,7 @@ class AllianceService(BaseService):
         )
         return response.members
 
-    def get_online_members(self, alliance_id: int, timeout: float = 5.0) -> list[AllianceMember]:
+    def get_online_members(self, alliance_id: int, *, timeout: float = 5.0) -> list[AllianceMember]:
         """
         Get alliance members who are currently online.
 
@@ -216,7 +216,7 @@ class AllianceService(BaseService):
         members = self.get_members(alliance_id, timeout=timeout)
         return [m for m in members if m.is_online]
 
-    def get_member(self, alliance_id: int, player_id: int, timeout: float = 5.0) -> AllianceMember | None:
+    def get_member(self, alliance_id: int, player_id: int, *, timeout: float = 5.0) -> AllianceMember | None:
         """
         Get one member of an alliance, from a fresh member list.
 
@@ -235,7 +235,7 @@ class AllianceService(BaseService):
     # Member Management
     # =========================================================================
 
-    def kick_member(self, player_id: int, timeout: float = 5.0) -> AllianceInfo:
+    def kick_member(self, player_id: int, *, timeout: float = 5.0) -> AllianceInfo:
         """
         Remove a member from your alliance.
 
@@ -256,7 +256,7 @@ class AllianceService(BaseService):
             response = self.request(KickMemberRequest(player_id=player_id), KickMemberResponse, timeout=timeout)
         return _echoed(response.alliance, "akm")
 
-    def set_rank(self, player_id: int, rank: AllianceRank, timeout: float = 5.0) -> AllianceInfo | None:
+    def set_rank(self, player_id: int, rank: AllianceRank, *, timeout: float = 5.0) -> AllianceInfo | None:
         """
         Give a member another rank; ``AllianceRank.LEADER`` hands over the leadership.
 
@@ -286,7 +286,7 @@ class AllianceService(BaseService):
             raise
         return _echoed(response.alliance, "arm")
 
-    def invite(self, player_id: int, timeout: float = 5.0) -> None:
+    def invite(self, player_id: int, *, timeout: float = 5.0) -> None:
         """
         Invite a player to your alliance.
 
@@ -303,7 +303,7 @@ class AllianceService(BaseService):
         with self._own_alliance():
             self.execute(InvitePlayerRequest.for_player(player_id), timeout=timeout)
 
-    def get_applications(self, timeout: float = 5.0) -> AllianceApplicationListResponse:
+    def get_applications(self, *, timeout: float = 5.0) -> AllianceApplicationListResponse:
         """
         Get your alliance's applications, nearest first, with the applicants' owner records.
 
@@ -314,7 +314,7 @@ class AllianceService(BaseService):
         with self._own_alliance():
             return self.request(AllianceApplicationListRequest(), AllianceApplicationListResponse, timeout=timeout)
 
-    def answer_application(self, player_id: int, accept: bool, timeout: float = 5.0) -> None:
+    def answer_application(self, player_id: int, accept: bool, *, timeout: float = 5.0) -> None:
         """
         Accept or refuse an application.
 
@@ -329,7 +329,7 @@ class AllianceService(BaseService):
         with self._own_alliance():
             self.execute(request, timeout=timeout)
 
-    def leave(self, timeout: float = 5.0) -> None:
+    def leave(self, *, timeout: float = 5.0) -> None:
         """
         Leave your alliance. Once the server accepts, :attr:`help_requests` is emptied.
 
@@ -347,7 +347,7 @@ class AllianceService(BaseService):
     # =========================================================================
 
     def change_diplomacy(
-        self, alliance_id: int, new_status: DiplomacyStatus, tribute: int = 0, timeout: float = 5.0
+        self, alliance_id: int, new_status: DiplomacyStatus, tribute: int = 0, *, timeout: float = 5.0
     ) -> ChangeDiplomacyResponse:
         """
         Change or propose your alliance's relation with another alliance.
@@ -368,7 +368,7 @@ class AllianceService(BaseService):
         with self._own_alliance():
             return self.request(request, ChangeDiplomacyResponse, timeout=timeout)
 
-    def refuse_diplomacy(self, alliance_id: int, timeout: float = 5.0) -> AllianceInfo | None:
+    def refuse_diplomacy(self, alliance_id: int, *, timeout: float = 5.0) -> AllianceInfo | None:
         """
         Refuse another alliance's diplomacy request or peace offer.
 
@@ -389,7 +389,7 @@ class AllianceService(BaseService):
             )
         return _echoed(response.alliance, "ard")
 
-    def set_auto_war(self, enabled: bool, timeout: float = 5.0) -> bool:
+    def set_auto_war(self, enabled: bool, *, timeout: float = 5.0) -> bool:
         """
         Turn auto war on or off.
 
@@ -404,7 +404,7 @@ class AllianceService(BaseService):
         with self._own_alliance():
             return self.request(request, SetAutoWarResponse, timeout=timeout).auto_war
 
-    def send_newsletter(self, subject: str, text: str, timeout: float = 5.0) -> None:
+    def send_newsletter(self, subject: str, text: str, *, timeout: float = 5.0) -> None:
         """
         Send the alliance newsletter to every member.
 
@@ -458,7 +458,7 @@ class AllianceService(BaseService):
     # Search Operations
     # =========================================================================
 
-    def search_alliances(self, search_term: str, timeout: float = 5.0) -> list[AllianceSearchResult]:
+    def search_alliances(self, search_term: str, *, timeout: float = 5.0) -> list[AllianceSearchResult]:
         """
         Search for alliances by name.
 
@@ -556,7 +556,7 @@ class AllianceService(BaseService):
                 raise NotInAllianceError() from e
             raise
 
-    def get_local_members(self, timeout: float = 5.0) -> list[AllianceMember]:
+    def get_local_members(self, *, timeout: float = 5.0) -> list[AllianceMember]:
         """
         Get members of the local player's alliance.
 
@@ -579,7 +579,7 @@ class AllianceService(BaseService):
         """
         return self.get_members(self._require_local_alliance_id(), timeout=timeout)
 
-    def get_local_online_members(self, timeout: float = 5.0) -> list[AllianceMember]:
+    def get_local_online_members(self, *, timeout: float = 5.0) -> list[AllianceMember]:
         """
         Get online members of the local player's alliance.
 
@@ -601,7 +601,7 @@ class AllianceService(BaseService):
         """
         return self.get_online_members(self._require_local_alliance_id(), timeout=timeout)
 
-    def get_chronicle(self, timeout: float = 5.0) -> list[AllianceChronicleEntry]:
+    def get_chronicle(self, *, timeout: float = 5.0) -> list[AllianceChronicleEntry]:
         """
         Get your alliance's chronicle, newest first.
 
@@ -614,7 +614,7 @@ class AllianceService(BaseService):
         with self._own_alliance():
             return self.request(AllianceChronicleRequest(), AllianceChronicleResponse, timeout=timeout).entries
 
-    def get_subscriber_count(self, timeout: float = 5.0) -> int:
+    def get_subscriber_count(self, *, timeout: float = 5.0) -> int:
         """
         Get how many of your alliance's members have a subscription.
 
@@ -649,7 +649,7 @@ class AllianceService(BaseService):
         request = AllianceChatMessageRequest.create(message)
         self.send(request)
 
-    def get_chat_log(self, timeout: float = 5.0) -> list[ChatMessageData]:
+    def get_chat_log(self, *, timeout: float = 5.0) -> list[ChatMessageData]:
         """
         Get alliance chat history.
 
@@ -747,7 +747,7 @@ class AllianceService(BaseService):
         """
         self.send(HelpAllRequest())
 
-    def request_build_help(self, building_id: int, timeout: float = 5.0) -> None:
+    def request_build_help(self, building_id: int, *, timeout: float = 5.0) -> None:
         """
         Ask the alliance to help build a building.
 
@@ -756,7 +756,7 @@ class AllianceService(BaseService):
         """
         self.execute(AskHelpRequest.build(building_id), timeout=timeout)
 
-    def request_repair_help(self, building_id: int, timeout: float = 5.0) -> None:
+    def request_repair_help(self, building_id: int, *, timeout: float = 5.0) -> None:
         """
         Ask the alliance to help repair a building.
 
@@ -765,7 +765,7 @@ class AllianceService(BaseService):
         """
         self.execute(AskHelpRequest.repair(building_id), timeout=timeout)
 
-    def request_recruit_help(self, recruit_id: int, help_type: HelpType, timeout: float = 5.0) -> None:
+    def request_recruit_help(self, recruit_id: int, help_type: HelpType, *, timeout: float = 5.0) -> None:
         """
         Ask the alliance to help with a recruitment.
 
@@ -775,7 +775,7 @@ class AllianceService(BaseService):
         """
         self.execute(AskHelpRequest.recruit(recruit_id, help_type), timeout=timeout)
 
-    def request_heal_help(self, hospital_entry_id: int, hospital_list_id: int, timeout: float = 5.0) -> None:
+    def request_heal_help(self, hospital_entry_id: int, hospital_list_id: int, *, timeout: float = 5.0) -> None:
         """
         Ask the alliance to help heal wounded units.
 
@@ -789,7 +789,7 @@ class AllianceService(BaseService):
     # Bookmark Operations
     # =========================================================================
 
-    def get_bookmarks(self, timeout: float = 5.0) -> GetBookmarksResponse:
+    def get_bookmarks(self, *, timeout: float = 5.0) -> GetBookmarksResponse:
         """
         Get your own and your alliance's map bookmarks.
 
@@ -884,6 +884,7 @@ class AllianceService(BaseService):
         name: str,
         bookmark_type: BookmarkType = BookmarkType.PLAYER_FRIEND,
         kingdom: Kingdom = Kingdom.GREEN,
+        *,
         timeout: float = 5.0,
     ) -> Bookmark:
         """

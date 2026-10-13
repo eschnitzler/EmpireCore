@@ -154,7 +154,7 @@ class CastleService(BaseService):
     # Castle List Operations
     # =========================================================================
 
-    def get_all(self, timeout: float = 5.0) -> list[CastleInfo]:
+    def get_all(self, *, timeout: float = 5.0) -> list[CastleInfo]:
         """
         Get list of all player's castles.
 
@@ -170,7 +170,7 @@ class CastleService(BaseService):
         request = GetCastlesRequest(player_id=player_id if isinstance(player_id, int) and player_id > 0 else None)
         return self.request(request, GetCastlesResponse, timeout=timeout).castles
 
-    def get_details(self, castle_id: int, timeout: float = 5.0) -> DetailedCastleInfo:
+    def get_details(self, castle_id: int, *, timeout: float = 5.0) -> DetailedCastleInfo:
         """
         Get resources and stationed units for one castle.
 
@@ -199,7 +199,7 @@ class CastleService(BaseService):
     # Castle Selection
     # =========================================================================
 
-    def select(self, castle_id: int, timeout: float = 5.0) -> None:
+    def select(self, castle_id: int, *, timeout: float = 5.0) -> None:
         """
         Select/jump to a castle (makes it the active castle).
 
@@ -223,7 +223,7 @@ class CastleService(BaseService):
         kingdom_id = self._require_own_castle(castle_id).kingdom_id
         self.execute(SelectCastleRequest(castle_id=castle_id, kingdom_id=kingdom_id), timeout=timeout)
 
-    def join(self, castle_id: int, timeout: float = 5.0) -> SelectCastleResponse:
+    def join(self, castle_id: int, *, timeout: float = 5.0) -> SelectCastleResponse:
         """
         Join a castle, making it the active castle, and return its state.
 
@@ -250,7 +250,7 @@ class CastleService(BaseService):
         )
 
     def join_area(
-        self, x: int, y: int, kingdom_id: Kingdom = Kingdom.GREEN, timeout: float = 5.0
+        self, x: int, y: int, kingdom_id: Kingdom = Kingdom.GREEN, *, timeout: float = 5.0
     ) -> SelectCastleResponse:
         """
         Join an area by its position (``jaa``), making it the active area, and return its state.
@@ -346,7 +346,7 @@ class CastleService(BaseService):
     # Resource Operations
     # =========================================================================
 
-    def get_resources(self, castle_id: int, timeout: float = 5.0) -> CastleResources:
+    def get_resources(self, castle_id: int, *, timeout: float = 5.0) -> CastleResources:
         """
         Get one of your castles' resources.
 
@@ -370,7 +370,7 @@ class CastleService(BaseService):
             GetResourcesRequest(castle_id=castle_id, kingdom_id=kingdom_id), GetResourcesResponse, timeout=timeout
         )
 
-    def get_production(self, timeout: float = 5.0) -> CastleProductionArea:
+    def get_production(self, *, timeout: float = 5.0) -> CastleProductionArea:
         """
         Get the joined castle's production area: production, storage, population and the rest.
 
@@ -387,7 +387,7 @@ class CastleService(BaseService):
     # Buildings
     # =========================================================================
 
-    def get_build_queue(self, timeout: float = 5.0) -> ConstructionList:
+    def get_build_queue(self, *, timeout: float = 5.0) -> ConstructionList:
         """
         Get the joined castle's construction slots.
 
@@ -557,15 +557,15 @@ class CastleService(BaseService):
         )
         self.execute(request, timeout=timeout)
 
-    def move_building(self, object_id: int, x: int, y: int, rotation: int = 0, timeout: float = 5.0) -> None:
+    def move_building(self, object_id: int, x: int, y: int, rotation: int = 0, *, timeout: float = 5.0) -> None:
         """Move a building in the joined castle."""
         self.execute(MoveBuildingRequest(object_id=object_id, x=x, y=y, rotation=rotation), timeout=timeout)
 
-    def sell_decoration(self, object_id: int, timeout: float = 5.0) -> None:
+    def sell_decoration(self, object_id: int, *, timeout: float = 5.0) -> None:
         """Sell a decoration placed in the joined castle."""
         self.execute(SellBuildingRequest(object_id=object_id), timeout=timeout)
 
-    def destroy_building(self, object_id: int, timeout: float = 5.0) -> None:
+    def destroy_building(self, object_id: int, *, timeout: float = 5.0) -> None:
         """Start taking a building in the joined castle down."""
         self.execute(DestroyBuildingRequest(object_id=object_id), timeout=timeout)
 
@@ -607,7 +607,7 @@ class CastleService(BaseService):
         self._require_spend_rubies(spend_rubies, cost)
         self.execute(FastCompleteRequest(object_id=object_id, free_skip=free), timeout=timeout)
 
-    def skip_construction_time(self, object_id: int, minute_skip: Currency | str, timeout: float = 5.0) -> None:
+    def skip_construction_time(self, object_id: int, minute_skip: Currency | str, *, timeout: float = 5.0) -> None:
         """
         Shorten a building's running construction with a minute skip.
 
@@ -739,15 +739,15 @@ class CastleService(BaseService):
         self._require_spend_rubies(spend_rubies, "a premium expansion costs rubies" if premium else None)
         self.execute(BuyExtensionRequest(x=x, y=y, rotation=rotation, expansion_type=expansion_type), timeout=timeout)
 
-    def open_treasure_chest(self, object_id: int, timeout: float = 5.0) -> None:
+    def open_treasure_chest(self, object_id: int, *, timeout: float = 5.0) -> None:
         """Open a treasure chest found on an expansion of the joined castle."""
         self.execute(CollectExtensionGiftRequest(object_id=object_id), timeout=timeout)
 
-    def collect_mine(self, object_id: int, timeout: float = 5.0) -> None:
+    def collect_mine(self, object_id: int, *, timeout: float = 5.0) -> None:
         """Collect what a mine in the joined castle has produced."""
         self.execute(CollectMineResourcesRequest(object_id=object_id), timeout=timeout)
 
-    def collect_resource_cart(self, cart_type: ResourceCartType, timeout: float = 5.0) -> None:
+    def collect_resource_cart(self, cart_type: ResourceCartType, *, timeout: float = 5.0) -> None:
         """Collect the joined castle's resource cart of one resource."""
         self.execute(CollectResourceCartRequest(cart_type=cart_type), timeout=timeout)
 
@@ -755,7 +755,7 @@ class CastleService(BaseService):
     # Tax
     # =========================================================================
 
-    def get_tax_info(self, timeout: float = 5.0) -> TaxInfo:
+    def get_tax_info(self, *, timeout: float = 5.0) -> TaxInfo:
         """
         Read the tax collection status.
 
@@ -802,7 +802,7 @@ class CastleService(BaseService):
             )
         return self.request(StartTaxRequest(tax_type=tax_type), StartTaxResponse, timeout=timeout)
 
-    def collect_tax(self, timeout: float = 5.0) -> CollectTaxResponse:
+    def collect_tax(self, *, timeout: float = 5.0) -> CollectTaxResponse:
         """
         Collect the tax.
 
@@ -933,7 +933,7 @@ class CastleService(BaseService):
                 )
         return amounts
 
-    def get_market_info(self, timeout: float = 5.0) -> list[MarketCastle]:
+    def get_market_info(self, *, timeout: float = 5.0) -> list[MarketCastle]:
         """
         List every castle's market carriages, those not on the road, and its resources.
 
@@ -959,9 +959,9 @@ class CastleService(BaseService):
         horse_booster_id: int = -1,
         feathers: bool = False,
         slowdown: int = 0,
-        timeout: float = 5.0,
         *,
         spend_rubies: bool = False,
+        timeout: float = 5.0,
     ) -> None:
         """
         Send support troops from a castle to a target location.
@@ -1247,6 +1247,7 @@ class CastleService(BaseService):
         kingdom_id: Kingdom,
         transfer_type: KingdomTransferType,
         minute_skip: Currency | str,
+        *,
         timeout: float = 5.0,
     ) -> None:
         """
