@@ -1,6 +1,6 @@
 # Castle
 
-Castles, buildings, resources and transfers behind `client.castle`.
+Castles, buildings, resources, transfers, research and the mercenary camp behind `client.castle`.
 
 ## `castle.service`
 
@@ -34,6 +34,10 @@ Castles, buildings, resources and transfers behind `client.castle`.
 
 ::: empire_core.castle.models.market
 
+## `castle.models.mercenaries`
+
+::: empire_core.castle.models.mercenaries
+
 ## `castle.models.objects`
 
 ::: empire_core.castle.models.objects
@@ -41,6 +45,10 @@ Castles, buildings, resources and transfers behind `client.castle`.
 ## `castle.models.permanent`
 
 ::: empire_core.castle.models.permanent
+
+## `castle.models.research`
+
+::: empire_core.castle.models.research
 
 ## `castle.models.resources`
 

@@ -6,14 +6,10 @@ from typing import Any
 
 import pytest
 
+from empire_core.castle import MercenaryMissionsResponse, MercenaryPackageRequest
+from empire_core.enums import MercenaryMissionRarity, MercenaryMissionState
 from empire_core.exceptions import CommandError
 from empire_core.gamedata import Collectable
-from empire_core.player import (
-    MercenaryMissionRarity,
-    MercenaryMissionsResponse,
-    MercenaryMissionState,
-    MercenaryPackageRequest,
-)
 from empire_core.protocol.models import parse_response
 from empire_core.state.manager import GameState
 from tests.service_helpers import conn, make_client, xt_packet
@@ -62,7 +58,7 @@ class TestService:
         client = make_client({"mpe": xt_packet("mpe", mpe(mission(1, 0)))}, state=GameState())  # type: ignore[arg-type]
         conn(client).on_packet = client._on_packet
 
-        missions = client.player.list_missions()
+        missions = client.castle.list_missions()
 
         assert conn(client).request_payloads == [("mpe", {"MID": -1})]
         assert [m.mission_id for m in missions.missions] == [1]
@@ -73,7 +69,7 @@ class TestService:
         listed = xt_packet("mpe", mpe(mission(1, 0), mission(2, 0)))
         client = make_client({"mpe": [listed, xt_packet("mpe", mpe(mission(1, 0), mission(2, 1, rd=3600)))]})
 
-        client.player.start_mission(2)
+        client.castle.start_mission(2)
 
         assert conn(client).request_payloads == [("mpe", {"MID": -1}), ("mpe", {"MID": 2})]
 
@@ -93,7 +89,7 @@ class TestService:
         client = make_client({"mpe": xt_packet("mpe", mpe(*missions))})
 
         with pytest.raises(ValueError):
-            client.player.start_mission(mission_id)
+            client.castle.start_mission(mission_id)
 
         assert conn(client).request_payloads == [("mpe", {"MID": -1})]
 
@@ -104,7 +100,7 @@ class TestService:
     def test_collect_mission_collects_a_finished_mission(self, finished: dict[str, Any]):
         client = make_client({"mpe": [xt_packet("mpe", mpe(finished)), xt_packet("mpe", mpe())]})
 
-        client.player.collect_mission(4)
+        client.castle.collect_mission(4)
 
         assert conn(client).request_payloads == [("mpe", {"MID": -1}), ("mpe", {"MID": 4})]
 
@@ -117,7 +113,7 @@ class TestService:
         client = make_client({"mpe": xt_packet("mpe", mpe(not_finished))})
 
         with pytest.raises(ValueError):
-            client.player.collect_mission(4)
+            client.castle.collect_mission(4)
 
         assert conn(client).request_payloads == [("mpe", {"MID": -1})]
 
@@ -129,4 +125,4 @@ class TestService:
     def test_a_refused_start_raises(self):
         client = make_client({"mpe": [xt_packet("mpe", mpe(mission(1, 0))), xt_packet("mpe", error_code=21)]})
         with pytest.raises(CommandError):
-            client.player.start_mission(1)
+            client.castle.start_mission(1)

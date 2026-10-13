@@ -38,9 +38,9 @@ RUBY_REQUESTS = {
 }
 
 SENT_WITHOUT_CONSENT = {
-    "PlayerService.list_missions": "mpe with no mission id only lists the missions",
-    "PlayerService.start_mission": "sends mpe only for an open mission while none runs, which costs coins",
-    "PlayerService.collect_mission": "sends mpe only for a mission the client would collect for 0 rubies",
+    "CastleService.list_missions": "mpe with no mission id only lists the missions",
+    "CastleService.start_mission": "sends mpe only for an open mission while none runs, which costs coins",
+    "CastleService.collect_mission": "sends mpe only for a mission the client would collect for 0 rubies",
 }
 
 CONSENT_WITHOUT_REQUEST = {

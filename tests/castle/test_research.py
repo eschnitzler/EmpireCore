@@ -4,16 +4,16 @@ from __future__ import annotations
 
 import pytest
 
-from empire_core.enums import CollectableKind
-from empire_core.exceptions import CommandError, GameDataNotLoadedError
-from empire_core.gamedata import Currency, GameData, Research
-from empire_core.gamedata import data as data_module
-from empire_core.player import (
+from empire_core.castle import (
     SkipResearchRequest,
     SkipResearchResponse,
     StartResearchRequest,
     StartResearchResponse,
 )
+from empire_core.enums import CollectableKind
+from empire_core.exceptions import CommandError, GameDataNotLoadedError
+from empire_core.gamedata import Currency, GameData, Research
+from empire_core.gamedata import data as data_module
 from empire_core.protocol.models import parse_response
 from empire_core.state.manager import GameState
 from tests.service_helpers import conn, make_client, xt_packet
@@ -95,7 +95,7 @@ class TestService:
         conn(client).on_packet = client._on_packet
         client.game_data = game_data()
 
-        client.player.start_research(Research.MANEUVER_L1)
+        client.castle.start_research(Research.MANEUVER_L1)
 
         assert conn(client).request_payloads == [("res", {"RID": 1, "PO": -1, "PWR": 0})]
         research = client.state.get_research()
@@ -107,7 +107,7 @@ class TestService:
         conn(client).on_packet = client._on_packet
         monkeypatch.setattr(data_module, "_loaded", game_data())
 
-        client.player.start_research(Research.MANEUVER_L1)
+        client.castle.start_research(Research.MANEUVER_L1)
         assert conn(client).request_payloads == [("res", {"RID": 1, "PO": -1, "PWR": 0})]
 
     def test_start_research_loads_the_game_data_on_first_use(self, stub_game_data_load):
@@ -115,21 +115,21 @@ class TestService:
         conn(client).on_packet = client._on_packet
         loads = stub_game_data_load(game_data())
 
-        client.player.start_research(Research.MANEUVER_L1)
-        client.player.start_research(Research.MANEUVER_L1)
+        client.castle.start_research(Research.MANEUVER_L1)
+        client.castle.start_research(Research.MANEUVER_L1)
         assert len(loads) == 1
 
     def test_start_research_fails_when_the_game_data_cannot_be_loaded(self):
         client = make_client()
         with pytest.raises(GameDataNotLoadedError, match="could not load the game data"):
-            client.player.start_research(Research.MANEUVER_L1)
+            client.castle.start_research(Research.MANEUVER_L1)
         assert conn(client).request_payloads == []
 
     def test_a_research_the_game_data_lacks_is_refused(self):
         client = make_client()
         client.game_data = game_data()
         with pytest.raises(ValueError, match="no research"):
-            client.player.start_research(Research.MANEUVER_L2)
+            client.castle.start_research(Research.MANEUVER_L2)
         assert conn(client).request_payloads == []
 
     def test_a_research_that_costs_rubies_is_refused(self):
@@ -137,26 +137,26 @@ class TestService:
         client = make_client()
         client.game_data = game_data()
         with pytest.raises(ValueError, match="3500 rubies"):
-            client.player.start_research(Research.MARCHING_FORMATION_L4)
+            client.castle.start_research(Research.MARCHING_FORMATION_L4)
         assert conn(client).request_payloads == []
 
     def test_a_research_that_costs_rubies_starts_when_asked_to_spend_them(self):
         client = make_client()
         client.game_data = game_data()
-        client.player.start_research(Research.MARCHING_FORMATION_L4, spend_rubies=True)
+        client.castle.start_research(Research.MARCHING_FORMATION_L4, spend_rubies=True)
         assert conn(client).request_payloads == [("res", {"RID": 184, "PO": -1, "PWR": 0})]
 
     def test_a_research_that_costs_legendary_tokens_starts(self):
         client = make_client()
         client.game_data = game_data()
-        client.player.start_research(799)
+        client.castle.start_research(799)
         assert conn(client).request_payloads == [("res", {"RID": 799, "PO": -1, "PWR": 0})]
 
     def test_skip_research_sends_msr_and_its_reply_reaches_the_state(self):
         client = make_client({"msr": xt_packet("msr", {"rei": REI})}, state=GameState())  # type: ignore[arg-type]
         conn(client).on_packet = client._on_packet
 
-        client.player.skip_research(Currency.SKIP_10_MINUTES)
+        client.castle.skip_research(Currency.SKIP_10_MINUTES)
 
         assert conn(client).request_payloads == [("msr", {"MST": "MS3"})]
         research = client.state.get_research()
@@ -164,15 +164,15 @@ class TestService:
 
     def test_a_skip_newer_than_the_enum_goes_out_by_its_key(self):
         client = make_client()
-        client.player.skip_research("MS99")
+        client.castle.skip_research("MS99")
         assert conn(client).request_payloads == [("msr", {"MST": "MS99"})]
 
     def test_a_currency_that_is_no_minute_skip_is_refused(self):
         client = make_client()
         with pytest.raises(ValueError, match="no minute skip"):
-            client.player.skip_research(Currency.CONSTRUCTION_TOKEN)
+            client.castle.skip_research(Currency.CONSTRUCTION_TOKEN)
         with pytest.raises(ValueError, match="no minute skip"):
-            client.player.skip_research("LT")
+            client.castle.skip_research("LT")
         assert conn(client).request_payloads == []
 
     def test_a_minute_skip_you_hold_none_of_is_refused(self):
@@ -182,9 +182,9 @@ class TestService:
         state.update_from_packet("sce", [["MS1", 0], ["MS3", 2]])  # type: ignore[arg-type]
         client = make_client({"msr": xt_packet("msr", {"rei": REI})}, state=state)  # type: ignore[arg-type]
         with pytest.raises(ValueError, match="SKIP_1_MINUTE"):
-            client.player.skip_research(Currency.SKIP_1_MINUTE)
+            client.castle.skip_research(Currency.SKIP_1_MINUTE)
         assert conn(client).request_payloads == []
-        client.player.skip_research(Currency.SKIP_10_MINUTES)
+        client.castle.skip_research(Currency.SKIP_10_MINUTES)
 
     def test_a_refused_start_raises_and_leaves_the_state(self):
         client = make_client({"res": xt_packet("res", error_code=21)}, state=GameState())  # type: ignore[arg-type]
@@ -192,5 +192,5 @@ class TestService:
         client.game_data = game_data()
 
         with pytest.raises(CommandError):
-            client.player.start_research(Research.MANEUVER_L1)
+            client.castle.start_research(Research.MANEUVER_L1)
         assert client.state.get_research() is None

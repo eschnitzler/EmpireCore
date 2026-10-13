@@ -16,7 +16,9 @@ from empire_core.alliance.models.info import AllianceInfo
 from empire_core.attack.models.counter import AttackCounterResponse
 from empire_core.castle.models.collect import MineStatus, ResourceCart
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
+from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.permanent import PermanentCastle
+from empire_core.castle.models.research import ResearchInfoResponse
 from empire_core.castle.models.tax import TaxInfo
 from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
 from empire_core.castle.models.wishing_well import WishingWellResponse
@@ -33,7 +35,7 @@ from empire_core.player.models.account import (
     OfficerTraining,
     PlayerGiftsResponse,
 )
-from empire_core.player.models.economy import LootBoxesResponse, MercenaryMissionsResponse
+from empire_core.player.models.economy import LootBoxesResponse
 from empire_core.player.models.progress import (
     AchievementsResponse,
     BoosterInfoResponse,
@@ -41,7 +43,6 @@ from empire_core.player.models.progress import (
     GloryPointsResponse,
     MightPointsResponse,
     RelocationInfoResponse,
-    ResearchInfoResponse,
     TitleRanksResponse,
 )
 from empire_core.protocol.base import read_or_none

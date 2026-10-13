@@ -4,10 +4,11 @@ construction item expiry and the resource citizen."""
 from typing import Any
 
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
+from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.tax import TaxInfo, TaxInfoResponse
 from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
 from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace
-from empire_core.player.models.economy import LootBoxesResponse, MercenaryMissionsResponse
+from empire_core.player.models.economy import LootBoxesResponse
 from empire_core.protocol.js import js_truthy
 from empire_core.state.base import StateBase, read_section
 

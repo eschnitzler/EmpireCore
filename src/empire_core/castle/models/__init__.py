@@ -68,6 +68,7 @@ from .market import (
     MarketInfoRequest,
     MarketInfoResponse,
 )
+from .mercenaries import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
 from .objects import (
     FREE_SLOT,
     LOCKED_SLOT,
@@ -82,6 +83,13 @@ from .objects import (
     ShowConstructionListResponse,
 )
 from .permanent import CastleUnitUnlocks, PermanentCastle, PermanentCastleDataResponse
+from .research import (
+    ResearchInfoResponse,
+    SkipResearchRequest,
+    SkipResearchResponse,
+    StartResearchRequest,
+    StartResearchResponse,
+)
 from .resources import (
     CastleResources,
     GetProductionRequest,
@@ -134,6 +142,14 @@ from .upkeep import (
 from .wishing_well import WishingWellResponse
 
 __all__ = [
+    "ResearchInfoResponse",
+    "SkipResearchRequest",
+    "SkipResearchResponse",
+    "StartResearchRequest",
+    "StartResearchResponse",
+    "MercenaryMission",
+    "MercenaryMissionsResponse",
+    "MercenaryPackageRequest",
     "SelectCastleRequest",
     "SelectCastleResponse",
     "JoinAreaRequest",

@@ -9,6 +9,8 @@ from empire_core.enums import (
     KingdomTransferType,
     MapItemType,
     MarketScope,
+    MercenaryMissionRarity,
+    MercenaryMissionState,
     Resource,
     ResourceCartType,
     TaxStatus,
@@ -77,6 +79,9 @@ from .models import (
     MarketCastle,
     MarketInfoRequest,
     MarketInfoResponse,
+    MercenaryMission,
+    MercenaryMissionsResponse,
+    MercenaryPackageRequest,
     MineStatus,
     MineStatusList,
     MinuteSkipKingdomTransferRequest,
@@ -96,6 +101,7 @@ from .models import (
     RepairAllResponse,
     RepairBuildingRequest,
     RepairBuildingResponse,
+    ResearchInfoResponse,
     ResourceCart,
     ResourceCartInfo,
     ResourcePoolResponse,
@@ -111,7 +117,11 @@ from .models import (
     SendTroopsResponse,
     ShowConstructionListRequest,
     ShowConstructionListResponse,
+    SkipResearchRequest,
+    SkipResearchResponse,
     SlumLevel,
+    StartResearchRequest,
+    StartResearchResponse,
     StartTaxRequest,
     StartTaxResponse,
     StorageCapacity,
@@ -131,9 +141,20 @@ from .models import (
 from .service import CastleService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import ConstructionItem, Currency, Horse, Tool, Unit
+    from empire_core.gamedata import ConstructionItem, Currency, Horse, Research, Tool, Unit
 
 __all__ = [
+    "MercenaryMissionRarity",
+    "MercenaryMissionState",
+    "Research",
+    "ResearchInfoResponse",
+    "SkipResearchRequest",
+    "SkipResearchResponse",
+    "StartResearchRequest",
+    "StartResearchResponse",
+    "MercenaryMission",
+    "MercenaryMissionsResponse",
+    "MercenaryPackageRequest",
     "AreaBooster",
     "BuildingEfficiencyChanged",
     "BuildingFinished",
@@ -265,5 +286,5 @@ __all__ = [
 
 if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
-        __name__, "empire_core.gamedata.ids", ("ConstructionItem", "Currency", "Horse", "Tool", "Unit")
+        __name__, "empire_core.gamedata.ids", ("ConstructionItem", "Currency", "Horse", "Research", "Tool", "Unit")
     )
