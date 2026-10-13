@@ -234,7 +234,7 @@ class CommandersService(BaseService):
 
         Example:
             if client.commanders.premium_commander_is_free():
-                client.castle.send_support(..., commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True)
+                client.movements.send_support(..., commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True)
 
         Args:
             now: Wall-clock time to measure the VIP time left at, ``time.time()`` when not given
@@ -289,8 +289,8 @@ class CommandersService(BaseService):
         """
         Run ``send``, refusing it first when the premium commander leads and may cost rubies, unless ``spend_rubies``.
 
-        The army sends go through this: ``client.castle.send_support``,
-        ``client.castle.send_troops`` and ``client.attack.send_attack``. The premium commander
+        The army sends go through this: ``client.movements.send_support``,
+        ``client.movements.send_troops`` and ``client.attack.send_attack``. The premium commander
         leads when ``use_premium_commander`` is set or ``commander_id`` is ``PREMIUM_COMMANDER_ID``;
         the client always sends the two together.
 

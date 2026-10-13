@@ -1,5 +1,5 @@
 ---
-description: Castles, resources, buildings, the construction queue, moving goods and troops, research and the mercenary camp.
+description: Castles, resources, buildings, the construction queue, research and the mercenary camp.
 ---
 
 # Castle
@@ -92,99 +92,6 @@ if wood is not None and wood.amount > 0:
 
 Units that finish arrive as `rue` pushes, which update that castle's `units`
 in state.
-
-## Moving goods and troops
-
-```python
-from empire_core import Resource
-
-goods = {Resource.WOOD: 1000, Resource.STONE: 500}
-client.castle.send_resources(source_castle_id, target_x, target_y, goods)
-
-from empire_core.gamedata import Unit
-
-commander = client.commanders.get_commanders()[0]
-client.castle.send_support(
-    source_castle_id, target_x, target_y,
-    units={Unit.SWORDMAN: 50}, commander_id=commander.commander_id,
-)
-client.castle.send_troops(
-    source_x, source_y, target_x, target_y,
-    units={Unit.SWORDMAN: 50}, commander_id=commander.commander_id,
-)
-```
-
-Led by the premium commander, a support or troop send that may cost rubies
-raises `PremiumCommanderCostError` unless you pass `spend_rubies=True`; see
-[the premium commander](commanders.md#the-premium-commander).
-
-### Goods, one tab per send
-
-The game's send dialog offers goods on three tabs, and the server refuses a
-send that mixes them (`INVALID_PARAMETER_VALUE`, seen live), so each send
-carries goods from one tab only:
-
-| Tab | `Resource` members |
-|---|---|
-| Classic | `WOOD`, `STONE`, `FOOD` |
-| Kingdom | `COAL`, `OIL`, `GLASS`, `IRON` |
-| Mead | `HONEY`, `MEAD`, `BEEF` |
-
-A player without a legend level gets only the classic tab. `send_resources`
-raises `UnsendableGoodsError`, without sending anything, for goods from more
-than one tab, anything but classic goods for such a player, or an amount that
-is not a positive int. The target owner's level, the carriage capacity and the
-castle's stock are left to the server.
-
-### Troops
-
-`send_support` sends troops to someone else's area; the server refuses one to
-your own with `NO_SELF_DESTRUCTION` (92). Move troops between your own areas
-with `send_troops`. Before sending, `get_travel_info` asks for what the game's
-send dialog asks for:
-
-```python
-info = client.castle.get_travel_info(source_x, source_y, target_x, target_y)
-print(info.units.units)                 # {Unit or Tool: amount} at the source
-print(info.target_area.owner)           # the target's owner record
-print(info.area_effects)                # CommanderEffect rows on the movement
-```
-
-Your commanders in the reply update [state](game-state.md). The reply has no
-travel time, which the game works out from the units it sends. A source that
-is not yours raises `CommandError` with `NOT_IN_OWNED_CASTLE`.
-
-`get_market_info()` lists each castle's free carriages.
-
-### Other kingdoms
-
-`transfer_units_to_kingdom` sends units to another kingdom and
-`transfer_goods_to_kingdom` goods to your castle there:
-
-```python
-from empire_core.enums import Kingdom, KingdomTransferType
-from empire_core.gamedata import Currency
-
-client.castle.transfer_goods_to_kingdom(castle_id, Kingdom.ICE, {Resource.WOOD: 1000})
-kingdoms = client.state.get_kingdoms()
-for transfer in kingdoms.goods_transfers if kingdoms else ():
-    print(transfer.kingdom_id, transfer.remaining_seconds())
-
-client.castle.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.GOODS, Currency.SKIP_1_HOUR)
-```
-
-The goods pass the same checks as `send_resources` (one tab per send, classic
-goods only below legend level). Like the game, `transfer_goods_to_kingdom`
-raises `ValueError` for a source castle in the target kingdom or in Berimond,
-and for a kingdom with no castle of yours to receive them. The travel tax and
-the target's storage are left to the server.
-
-`skip_kingdom_transfer_time` spends one minute skip item on the units or goods
-on their way to a kingdom. As the game lists only the minute skips you hold, it
-raises `ValueError` for a currency that is no minute skip and, once the special
-currencies (`client.state.get_special_currencies()`) are known, for one you
-hold none of. The full skip the game also offers costs rubies and is not in the
-library.
 
 `rename(castle_id, new_name)` renames a castle. A rename costs 2500 rubies unless
 a premium account runs, so without one it needs `spend_rubies=True`;

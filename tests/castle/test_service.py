@@ -135,18 +135,18 @@ class TestCastleActions:
     @pytest.mark.parametrize(
         "call",
         [
-            lambda c: c.select(12345),
-            lambda c: c.join(12345),
-            lambda c: c.get_resources(12345),
-            lambda c: c.send_resources(12345, 10, 20, {Resource.WOOD: 1}),
-            lambda c: c.transfer_units_to_kingdom(12345, Kingdom.ICE, [[620, 1]]),
+            lambda c: c.castle.select(12345),
+            lambda c: c.castle.join(12345),
+            lambda c: c.castle.get_resources(12345),
+            lambda c: c.movements.send_resources(12345, 10, 20, {Resource.WOOD: 1}),
+            lambda c: c.movements.transfer_units_to_kingdom(12345, Kingdom.ICE, [[620, 1]]),
         ],
     )
     def test_a_castle_not_in_the_castle_list_raises_and_sends_nothing(self, call):
         client = make_client(castles=[(777, Kingdom.ICE)])
 
         with pytest.raises(UnknownCastleError) as raised:
-            call(client.castle)
+            call(client)
 
         assert raised.value.castle_id == 12345
         assert conn(client).request_payloads == []
@@ -154,18 +154,18 @@ class TestCastleActions:
     @pytest.mark.parametrize(
         "call",
         [
-            lambda c: c.select(1),
-            lambda c: c.join(1),
-            lambda c: c.get_resources(1),
-            lambda c: c.send_resources(1, 10, 20, {"W": 1}),
-            lambda c: c.transfer_units_to_kingdom(1, Kingdom.GREEN, [[620, 1]]),
+            lambda c: c.castle.select(1),
+            lambda c: c.castle.join(1),
+            lambda c: c.castle.get_resources(1),
+            lambda c: c.movements.send_resources(1, 10, 20, {"W": 1}),
+            lambda c: c.movements.transfer_units_to_kingdom(1, Kingdom.GREEN, [[620, 1]]),
         ],
     )
     def test_an_id_repeated_across_your_kingdoms_raises_and_sends_nothing(self, call):
         client = make_client(castles=[(1, Kingdom.STORM), (1, Kingdom.BERIMOND)])
 
         with pytest.raises(AmbiguousCastleError) as raised:
-            call(client.castle)
+            call(client)
 
         assert (raised.value.castle_id, raised.value.kingdoms) == (1, [Kingdom.STORM, Kingdom.BERIMOND])
         assert "repeats across your kingdoms" in str(raised.value)
@@ -254,7 +254,7 @@ class TestCastleActions:
     def test_send_support_builds_the_documented_payload(self):
         client = make_client()
 
-        client.castle.send_support(12345, 700, 710, {487: 100}, commander_id=5, wait_time=6)
+        client.movements.send_support(12345, 700, 710, {487: 100}, commander_id=5, wait_time=6)
 
         command, payload = conn(client).request_payloads[0]
         assert command == "cds"
@@ -269,13 +269,13 @@ class TestCastleActions:
 
     def test_send_support_with_feathers_sends_no_horses(self):
         client = make_client()
-        client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=3, feathers=True)
+        client.movements.send_support(12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=3, feathers=True)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
 
     def test_send_support_without_feathers_keeps_the_horses(self):
         client = with_horses(make_client())
-        client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=COIN_HORSE)
+        client.movements.send_support(12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=COIN_HORSE)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (COIN_HORSE, 0)
 
@@ -284,29 +284,29 @@ class TestCastleActions:
         # ACastlePostActionDialog.getTotalCostsC2: the horse's ruby cost and SLOWDOWN_C2_COSTS
         client = with_horses(make_client(castles=[(12345, Kingdom.GREEN)]))
         with pytest.raises(ValueError, match="spend_rubies=True"):
-            client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, **kwargs)
+            client.movements.send_support(12345, 700, 710, {487: 1}, commander_id=5, **kwargs)
         with pytest.raises(ValueError, match="spend_rubies=True"):
-            client.castle.send_troops(10, 20, 700, 710, {487: 1}, 5, **kwargs)
+            client.movements.send_troops(10, 20, 700, 710, {487: 1}, 5, **kwargs)
         assert conn(client).request_payloads == []
 
-        client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, spend_rubies=True, **kwargs)
-        client.castle.send_troops(10, 20, 700, 710, {487: 1}, 5, spend_rubies=True, **kwargs)
+        client.movements.send_support(12345, 700, 710, {487: 1}, commander_id=5, spend_rubies=True, **kwargs)
+        client.movements.send_troops(10, 20, 700, 710, {487: 1}, 5, spend_rubies=True, **kwargs)
 
     def test_a_ruby_horse_paid_with_feathers_costs_no_rubies(self):
         client = make_client()
-        client.castle.send_support(
+        client.movements.send_support(
             12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=RUBY_HORSE, feathers=True
         )
 
     def test_pricing_a_horse_fails_when_the_game_data_cannot_be_loaded(self):
         client = make_client()
         with pytest.raises(GameDataNotLoadedError, match="could not load the game data"):
-            client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=COIN_HORSE)
+            client.movements.send_support(12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=COIN_HORSE)
         assert conn(client).request_payloads == []
 
     def test_send_support_with_the_premium_commander(self):
         client = make_client()
-        client.castle.send_support(
+        client.movements.send_support(
             12345, 700, 710, {487: 1}, commander_id=-14, use_premium_commander=True, spend_rubies=True
         )
         payload = conn(client).request_payloads[0][1]
@@ -316,6 +316,6 @@ class TestCastleActions:
         client = make_client()
 
         with pytest.raises(ValidationError):
-            client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, wait_time=13)
+            client.movements.send_support(12345, 700, 710, {487: 1}, commander_id=5, wait_time=13)
 
         assert conn(client).requested == []

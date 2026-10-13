@@ -52,7 +52,7 @@ from empire_core.gamedata import Unit
 
 print(client.commanders.free_premium_commanders())  # None before the login data
 if client.commanders.premium_commander_is_free():
-    client.castle.send_support(
+    client.movements.send_support(
         source_castle_id, target_x, target_y, units={Unit.SWORDMAN: 50},
         commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True,
     )

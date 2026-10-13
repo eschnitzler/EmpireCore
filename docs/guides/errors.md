@@ -77,7 +77,7 @@ classDiagram
 | `UnknownCastleError` | A castle id, or a source position, is not one of your castles; also a `ValueError` |
 | `AmbiguousCastleError` | A castle id or position matches your castles in several kingdoms; also a `LookupError` |
 | `NotInAllianceError` | A call about your own alliance, such as `get_local_members()`, while you are in none; also a `LookupError` |
-| `UnsendableGoodsError` | A [market send](castle.md#goods-one-tab-per-send) carries goods the client would not send; also a `ValueError` |
+| `UnsendableGoodsError` | A [market send](movements.md#goods-one-tab-per-send) carries goods the client would not send; also a `ValueError` |
 | `PremiumCommanderCostError` | A send led by the [premium commander](commanders.md#the-premium-commander) may cost rubies and `spend_rubies` is not set; also a `ValueError` |
 | `LoginBonusUnavailableError` | The [login bonus](rewards.md#daily-login-bonus) was asked for below 1200 XP, or before the player data arrived; the server would not answer |
 
