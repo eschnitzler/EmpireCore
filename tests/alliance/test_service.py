@@ -139,6 +139,18 @@ class TestAllianceMembers:
         assert leader.emblem.background_type == 1
         assert leader.emblem.symbol1 == 4
 
+    def test_alliance_info_is_the_alliance(self):
+        client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)})
+
+        assert client.alliance.get_alliance_info(301).alliance_id == 301
+
+    def test_alliance_info_without_an_alliance_id_raises(self):
+        # CastleAllianceData.parseAllianceInfo reads no block without an AID
+        client = make_client({"ain": xt_packet("ain", {"A": {"N": "x"}})})
+
+        with pytest.raises(PacketError, match="carries no alliance"):
+            client.alliance.get_alliance_info(301)
+
     def test_get_member_asks_for_the_member_list(self):
         client = make_client({"ain": xt_packet("ain", GOLDEN_AIN)})
 
