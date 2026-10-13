@@ -75,7 +75,7 @@ class ArmyService(BaseService):
     # Unit Inventory
     # =========================================================================
 
-    def get_units(self, castle_id: int, timeout: float = 5.0) -> dict[UnitOrTool, int]:
+    def get_units(self, castle_id: int, *, timeout: float = 5.0) -> dict[UnitOrTool, int]:
         """
         Get the available unit inventory for a castle.
 
@@ -92,7 +92,7 @@ class ArmyService(BaseService):
         """
         return self.get_units_response(castle_id, timeout=timeout).units
 
-    def get_units_response(self, castle_id: int, timeout: float = 5.0) -> GetUnitsResponse:
+    def get_units_response(self, castle_id: int, *, timeout: float = 5.0) -> GetUnitsResponse:
         """
         Get every unit inventory a castle reports.
 
@@ -111,12 +111,7 @@ class ArmyService(BaseService):
         return self.request(GetUnitsRequest(), GetUnitsResponse, timeout=timeout)
 
     def dismiss_units(
-        self,
-        castle_id: int,
-        wod_id: int,
-        amount: int,
-        from_stronghold: bool = False,
-        timeout: float = 5.0,
+        self, castle_id: int, wod_id: int, amount: int, from_stronghold: bool = False, *, timeout: float = 5.0
     ) -> None:
         """
         Dismiss units of the castle, or of its stronghold.
@@ -192,7 +187,7 @@ class ArmyService(BaseService):
         )
         self.execute(request, timeout=timeout)
 
-    def get_production_list(self, castle_id: int, list_id: ProductionListId, timeout: float = 5.0) -> ProductionList:
+    def get_production_list(self, castle_id: int, list_id: ProductionListId, *, timeout: float = 5.0) -> ProductionList:
         """
         Get one production list of a castle: the slot producing now and the queue,
         or the hospital slots for ``ProductionListId.HOSPITAL``.
@@ -206,12 +201,7 @@ class ArmyService(BaseService):
         return self.request(GetProductionListRequest(list_id=list_id), GetProductionListResponse, timeout=timeout)
 
     def cancel_production(
-        self,
-        castle_id: int,
-        list_id: ProductionListId,
-        slot_type: SlotType,
-        position: int,
-        timeout: float = 5.0,
+        self, castle_id: int, list_id: ProductionListId, slot_type: SlotType, position: int, *, timeout: float = 5.0
     ) -> None:
         """
         Cancel a production slot.
@@ -320,7 +310,7 @@ class ArmyService(BaseService):
         self._join_castle(castle_id, timeout)
         self.execute(HealAllRequest(ruby_cost=ruby_cost), timeout=timeout)
 
-    def cancel_heal(self, castle_id: int, position: int, timeout: float = 5.0) -> None:
+    def cancel_heal(self, castle_id: int, position: int, *, timeout: float = 5.0) -> None:
         """
         Cancel a hospital slot, by its ``HospitalSlot.position``.
 
@@ -353,7 +343,7 @@ class ArmyService(BaseService):
         self._join_castle(castle_id, timeout)
         self.execute(SkipHealRequest(position=position), timeout=timeout)
 
-    def dismiss_wounded(self, castle_id: int, wod_id: int, amount: int, timeout: float = 5.0) -> None:
+    def dismiss_wounded(self, castle_id: int, wod_id: int, amount: int, *, timeout: float = 5.0) -> None:
         """
         Dismiss wounded units of one type instead of healing them.
 
@@ -365,7 +355,7 @@ class ArmyService(BaseService):
         self._join_castle(castle_id, timeout)
         self.execute(DismissWoundedRequest(wod_id=wod_id, amount=amount), timeout=timeout)
 
-    def dismiss_wounded_units(self, castle_id: int, units: Mapping[int, int], timeout: float = 5.0) -> None:
+    def dismiss_wounded_units(self, castle_id: int, units: Mapping[int, int], *, timeout: float = 5.0) -> None:
         """
         Dismiss wounded units of several types at once, as ``{wod_id: amount}``.
 

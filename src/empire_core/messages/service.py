@@ -78,7 +78,7 @@ class MessagesService(BaseService):
         if isinstance(response, SystemNotificationEvent):
             self._fire(self.on_new_messages, response)
 
-    def read(self, message_id: int, timeout: float = 5.0) -> ReadMessageResponse:
+    def read(self, message_id: int, *, timeout: float = 5.0) -> ReadMessageResponse:
         """
         Read a message's body.
 
@@ -106,7 +106,7 @@ class MessagesService(BaseService):
         self.send(MarkMessageReadRequest(message_id=message_id))
         self.client.state.mark_message_read(message_id)
 
-    def archive(self, message_id: int, timeout: float = 5.0) -> ArchiveMessageResponse:
+    def archive(self, message_id: int, *, timeout: float = 5.0) -> ArchiveMessageResponse:
         """
         Move a message to the archive, which holds 20.
 
@@ -115,7 +115,7 @@ class MessagesService(BaseService):
         """
         return self.request(ArchiveMessageRequest(message_id=message_id), ArchiveMessageResponse, timeout=timeout)
 
-    def delete(self, message_id: int, timeout: float = 5.0) -> list[int]:
+    def delete(self, message_id: int, *, timeout: float = 5.0) -> list[int]:
         """
         Delete one message.
 
@@ -129,7 +129,7 @@ class MessagesService(BaseService):
             DeleteMessageRequest(message_id=message_id), DeleteMessagesResponse, timeout=timeout
         ).message_ids
 
-    def delete_many(self, message_ids: list[int], timeout: float = 5.0) -> list[int]:
+    def delete_many(self, message_ids: list[int], *, timeout: float = 5.0) -> list[int]:
         """
         Delete several messages at once.
 
@@ -142,7 +142,7 @@ class MessagesService(BaseService):
         request = DeleteMessagesRequest(message_ids=list(message_ids))
         return self.request(request, DeleteMessagesResponse, timeout=timeout).message_ids
 
-    def send_message(self, receiver_name: str, subject: str, text: str, timeout: float = 5.0) -> None:
+    def send_message(self, receiver_name: str, subject: str, text: str, *, timeout: float = 5.0) -> None:
         """
         Send a message to a player.
 
@@ -169,7 +169,7 @@ class MessagesService(BaseService):
         self.request(SendMessageRequest.create(receiver_name, subject, text), SendMessageResponse, timeout=timeout)
 
     def get_battle_report(
-        self, message_id: int, detail: BattleReportDetail = "short", timeout: float = 5.0
+        self, message_id: int, detail: BattleReportDetail = "short", *, timeout: float = 5.0
     ) -> BattleReport:
         """
         Read a battle report from the mailbox.
@@ -210,7 +210,7 @@ class MessagesService(BaseService):
         full = self.request(GetBattleLogDetailRequest(log_id=short.log_id), BattleLogDetailResponse, timeout=timeout)
         return BattleReport(short, middle, full)
 
-    def forward_battle_report(self, message_id: int, player_ids: list[int], timeout: float = 5.0) -> None:
+    def forward_battle_report(self, message_id: int, player_ids: list[int], *, timeout: float = 5.0) -> None:
         """
         Forward a battle report to other players.
 

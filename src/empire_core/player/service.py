@@ -53,7 +53,7 @@ class PlayerService(BaseService):
     Reached as client.player.
     """
 
-    def get_player_info(self, player_id: int, timeout: float = 5.0) -> GetPlayerInfoResponse:
+    def get_player_info(self, player_id: int, *, timeout: float = 5.0) -> GetPlayerInfoResponse:
         """
         Get detailed player information (gdi), including castle list with
         capture info.
@@ -69,19 +69,12 @@ class PlayerService(BaseService):
         """
         return self.request(GetPlayerInfoRequest(player_id=player_id), GetPlayerInfoResponse, timeout=timeout)
 
-    def get_player_details(
-        self,
-        player_id: int,
-        timeout: float = 5.0,
-    ) -> GetPlayerInfoResponse:
+    def get_player_details(self, player_id: int, *, timeout: float = 5.0) -> GetPlayerInfoResponse:
         """Alias for :meth:`get_player_info` (both use the 'gdi' command)."""
         return self.get_player_info(player_id, timeout=timeout)
 
     def get_player_details_bulk(
-        self,
-        player_ids: list[int],
-        timeout: float = 5.0,
-        send_delay: float = 0.0,
+        self, player_ids: list[int], send_delay: float = 0.0, *, timeout: float = 5.0
     ) -> PlayerDetailsBulkResult:
         """
         Get detailed info for several players, one gdi request after another.
@@ -120,11 +113,7 @@ class PlayerService(BaseService):
             result.found[pid] = response
         return result
 
-    def search_player_by_name(
-        self,
-        player_name: str,
-        timeout: float = 5.0,
-    ) -> SearchPlayerResponse:
+    def search_player_by_name(self, player_name: str, *, timeout: float = 5.0) -> SearchPlayerResponse:
         return self.request(SearchPlayerRequest(player_name=player_name), SearchPlayerResponse, timeout=timeout)
 
     # =========================================================================
@@ -165,7 +154,7 @@ class PlayerService(BaseService):
             raise ValueError(f"research {research!r} costs {rubies} rubies; pass spend_rubies=True")
         self.execute(StartResearchRequest(research_id=research), timeout=timeout)
 
-    def skip_research(self, minute_skip: Currency | str, timeout: float = 5.0) -> None:
+    def skip_research(self, minute_skip: Currency | str, *, timeout: float = 5.0) -> None:
         """
         Shorten the running research with a minute skip from your inventory.
 
@@ -189,7 +178,7 @@ class PlayerService(BaseService):
     # Mercenary camp
     # =========================================================================
 
-    def list_missions(self, timeout: float = 5.0) -> MercenaryMissionsResponse:
+    def list_missions(self, *, timeout: float = 5.0) -> MercenaryMissionsResponse:
         """
         The mercenary camp's missions, and when new ones come.
 
@@ -201,7 +190,7 @@ class PlayerService(BaseService):
         """
         return self.request(MercenaryPackageRequest(), MercenaryMissionsResponse, timeout=timeout)
 
-    def start_mission(self, mission_id: int, timeout: float = 5.0) -> None:
+    def start_mission(self, mission_id: int, *, timeout: float = 5.0) -> None:
         """
         Start an open mercenary mission, paying its price in coins.
 
@@ -228,7 +217,7 @@ class PlayerService(BaseService):
             raise ValueError("another mercenary mission runs or waits to be collected")
         self.execute(MercenaryPackageRequest(mission_id=mission_id), timeout=timeout)
 
-    def collect_mission(self, mission_id: int, timeout: float = 5.0) -> None:
+    def collect_mission(self, mission_id: int, *, timeout: float = 5.0) -> None:
         """
         Collect a finished mercenary mission's rewards.
 

@@ -46,13 +46,7 @@ class MapService(BaseService):
         self.pacer = MapAreaPacer(lambda: client.config.map_tiles_per_second)
 
     def scan_map_area(
-        self,
-        x1: int,
-        y1: int,
-        x2: int,
-        y2: int,
-        kingdom: Kingdom = Kingdom.GREEN,
-        timeout: float = 5.0,
+        self, x1: int, y1: int, x2: int, y2: int, kingdom: Kingdom = Kingdom.GREEN, *, timeout: float = 5.0
     ) -> GetMapAreaResponse:
         """
         Scan a specific area of the map.
@@ -78,24 +72,24 @@ class MapService(BaseService):
         self,
         kingdom: Kingdom = Kingdom.GREEN,
         item_types: list[MapItemType] | None = None,
-        timeout: float = 300.0,
+        *,
         request_timeout: float = 5.0,
         chunk_delay: float = 0.0,
         include_unowned_types: set[MapItemType] | None = None,
-        *,
         cancel: threading.Event | None = None,
         on_chunk: ChunkHandler | None = None,
+        timeout: float = 300.0,
     ) -> ScanResult:
         """Scan a kingdom map. See MapScanner.scan_kingdom; the session leaves its castle."""
         return MapScanner(self.client).scan_kingdom(
             kingdom,
             item_types,
-            timeout,
-            request_timeout,
-            chunk_delay,
+            request_timeout=request_timeout,
+            chunk_delay=chunk_delay,
             include_unowned_types=include_unowned_types,
             cancel=cancel,
             on_chunk=on_chunk,
+            timeout=timeout,
         )
 
     def scan_chunks(
@@ -103,25 +97,25 @@ class MapService(BaseService):
         kingdom: Kingdom,
         chunks: list[tuple[int, int]],
         item_types: list[MapItemType] | None = None,
-        timeout: float = 300.0,
+        *,
         request_timeout: float = 5.0,
         chunk_delay: float = 0.0,
         include_unowned_types: set[MapItemType] | None = None,
-        *,
         cancel: threading.Event | None = None,
         on_chunk: ChunkHandler | None = None,
+        timeout: float = 300.0,
     ) -> ScanResult:
         """Scan an explicit chunk list (no BFS). See MapScanner.scan_chunks; the session leaves its castle."""
         return MapScanner(self.client).scan_chunks(
             kingdom,
             chunks,
             item_types,
-            timeout,
-            request_timeout,
-            chunk_delay,
+            request_timeout=request_timeout,
+            chunk_delay=chunk_delay,
             include_unowned_types=include_unowned_types,
             cancel=cancel,
             on_chunk=on_chunk,
+            timeout=timeout,
         )
 
     def find_next(
@@ -199,7 +193,7 @@ class MapService(BaseService):
         request = FindNextEnemyCastleRequest(x=x, y=y, index=index, min_level=min_level, max_level=max_level)
         return self._find(request, FindNextEnemyCastleResponse, kingdom, timeout)
 
-    def find_next_tower(self, timeout: float = 5.0) -> FindNextTowerResponse | None:
+    def find_next_tower(self, *, timeout: float = 5.0) -> FindNextTowerResponse | None:
         """
         Find the next Berimond tower, with the map rows around it, read in Berimond.
 

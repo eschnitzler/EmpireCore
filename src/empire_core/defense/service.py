@@ -43,12 +43,7 @@ class DefenseService(BaseService):
     """
 
     def get_own_defense(
-        self,
-        castle_x: int,
-        castle_y: int,
-        castle_id: int,
-        kingdom: Kingdom | None = None,
-        timeout: float = 5.0,
+        self, castle_x: int, castle_y: int, castle_id: int, kingdom: Kingdom | None = None, *, timeout: float = 5.0
     ) -> GetDefenseResponse:
         """
         Get the keep, wall and moat setup of one of your own castles.
@@ -74,7 +69,7 @@ class DefenseService(BaseService):
         return self.request(request, GetDefenseResponse, timeout=timeout)
 
     def set_keep(
-        self, castle_x: int, castle_y: int, castle_id: int, keep: KeepDefense, timeout: float = 5.0
+        self, castle_x: int, castle_y: int, castle_id: int, keep: KeepDefense, *, timeout: float = 5.0
     ) -> KeepDefense:
         """
         Set the keep's tools, support tools and unit settings of one of your castles.
@@ -111,7 +106,7 @@ class DefenseService(BaseService):
         return self.request(request, KeepDefense, timeout=timeout)
 
     def set_wall(
-        self, castle_x: int, castle_y: int, castle_id: int, wall: WallDefense, timeout: float = 5.0
+        self, castle_x: int, castle_y: int, castle_id: int, wall: WallDefense, *, timeout: float = 5.0
     ) -> WallDefense:
         """
         Set the wall's tools and unit split of one of your castles.
@@ -147,7 +142,7 @@ class DefenseService(BaseService):
         return self.request(request, WallDefense, timeout=timeout)
 
     def set_moat(
-        self, castle_x: int, castle_y: int, castle_id: int, moat: MoatDefense, timeout: float = 5.0
+        self, castle_x: int, castle_y: int, castle_id: int, moat: MoatDefense, *, timeout: float = 5.0
     ) -> MoatDefense:
         """
         Set the moat's tools of one of your castles.
@@ -185,6 +180,7 @@ class DefenseService(BaseService):
         target_y: int,
         source_x: int | None = None,
         source_y: int | None = None,
+        *,
         timeout: float = 5.0,
     ) -> GetSupportDefenseResponse:
         """

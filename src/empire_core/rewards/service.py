@@ -72,7 +72,7 @@ class RewardsService(BaseService):
     # Daily login bonus
     # =========================================================================
 
-    def get_login_bonus(self, timeout: float = 5.0) -> GetLoginBonusResponse:
+    def get_login_bonus(self, *, timeout: float = 5.0) -> GetLoginBonusResponse:
         """
         Get the daily login bonus: today's rewards to pick one from, and what was collected.
 
@@ -93,7 +93,7 @@ class RewardsService(BaseService):
         self._require_login_bonus_xp()
         return self.request(GetLoginBonusRequest(), GetLoginBonusResponse, timeout=timeout)
 
-    def collect_login_bonus(self, reward: Collectable, timeout: float = 5.0) -> LoginBonus:
+    def collect_login_bonus(self, reward: Collectable, *, timeout: float = 5.0) -> LoginBonus:
         """
         Pick one of today's login bonus rewards.
 
@@ -121,7 +121,7 @@ class RewardsService(BaseService):
         self._require_login_bonus_xp()
         return self._collect_login_bonus(request, timeout)
 
-    def collect_login_bonus_special(self, special: LoginBonusSpecial, timeout: float = 5.0) -> LoginBonus:
+    def collect_login_bonus_special(self, special: LoginBonusSpecial, *, timeout: float = 5.0) -> LoginBonus:
         """
         Collect today's alliance or VIP login bonus.
 
@@ -173,7 +173,7 @@ class RewardsService(BaseService):
     # Startup login bonus
     # =========================================================================
 
-    def get_startup_bonus(self, timeout: float = 5.0) -> GetStartupBonusResponse:
+    def get_startup_bonus(self, *, timeout: float = 5.0) -> GetStartupBonusResponse:
         """
         Get the startup (beginner) login bonus; ``collectable`` says whether its next reward waits.
 
@@ -184,7 +184,7 @@ class RewardsService(BaseService):
         """
         return self.request(GetStartupBonusRequest(), GetStartupBonusResponse, timeout=timeout)
 
-    def collect_startup_bonus(self, timeout: float = 5.0) -> None:
+    def collect_startup_bonus(self, *, timeout: float = 5.0) -> None:
         """
         Collect the next startup login bonus reward.
 
@@ -198,7 +198,7 @@ class RewardsService(BaseService):
     # Lost and found
     # =========================================================================
 
-    def get_lost_and_found(self, timeout: float = 5.0) -> list[LostAndFoundItem]:
+    def get_lost_and_found(self, *, timeout: float = 5.0) -> list[LostAndFoundItem]:
         """
         Get the items in lost and found: those that found no room in their inventory.
 
@@ -209,7 +209,7 @@ class RewardsService(BaseService):
         """
         return self.request(GetLostAndFoundRequest(), GetLostAndFoundResponse, timeout=timeout).items
 
-    def collect_lost_and_found(self, item_id: int, timeout: float = 5.0) -> None:
+    def collect_lost_and_found(self, item_id: int, *, timeout: float = 5.0) -> None:
         """
         Collect an item from lost and found into its inventory.
 
@@ -251,7 +251,7 @@ class RewardsService(BaseService):
         if isinstance(response, ActivityChestInfo):
             self._fire(self.on_activity_chest, response)
 
-    def open_activity_chest(self, timeout: float = 10.0) -> ActivityChestInfo | None:
+    def open_activity_chest(self, *, timeout: float = 10.0) -> ActivityChestInfo | None:
         """
         Open the activity chest, and wait for the next chest the server pushes.
 
@@ -311,7 +311,7 @@ class RewardsService(BaseService):
     # Weekly honour reward
     # =========================================================================
 
-    def get_weekly_honor(self, timeout: float = 5.0) -> GetWeeklyHonorResponse:
+    def get_weekly_honor(self, *, timeout: float = 5.0) -> GetWeeklyHonorResponse:
         """
         Get your weekly honour rank; ``is_ready`` says whether last week's reward waits.
 
@@ -322,7 +322,7 @@ class RewardsService(BaseService):
         """
         return self.request(GetWeeklyHonorRequest(), GetWeeklyHonorResponse, timeout=timeout)
 
-    def redeem_weekly_honor(self, timeout: float = 5.0) -> RedeemWeeklyHonorResponse:
+    def redeem_weekly_honor(self, *, timeout: float = 5.0) -> RedeemWeeklyHonorResponse:
         """
         Redeem last week's honour reward.
 
@@ -345,7 +345,7 @@ class RewardsService(BaseService):
     # Patch note rewards
     # =========================================================================
 
-    def get_patch_note_rewards(self, message_id: int, timeout: float = 5.0) -> tuple[Collectable, ...]:
+    def get_patch_note_rewards(self, message_id: int, *, timeout: float = 5.0) -> tuple[Collectable, ...]:
         """
         Get a patch note's rewards; the header's ``collected`` says whether they were collected.
 
@@ -366,7 +366,7 @@ class RewardsService(BaseService):
         request = GetPatchNoteRewardsRequest(patch_note_id=patch_note_id)
         return self.request(request, GetPatchNoteRewardsResponse, timeout=timeout).rewards
 
-    def collect_patch_note_rewards(self, message_id: int, timeout: float = 5.0) -> None:
+    def collect_patch_note_rewards(self, message_id: int, *, timeout: float = 5.0) -> None:
         """
         Collect a patch note's rewards.
 

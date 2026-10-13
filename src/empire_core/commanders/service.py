@@ -64,7 +64,7 @@ class CommandersService(BaseService):
     Reached as client.commanders.
     """
 
-    def get_all(self, timeout: float = 5.0) -> GetCommandersResponse:
+    def get_all(self, *, timeout: float = 5.0) -> GetCommandersResponse:
         """
         Get commanders and castellans in one request.
 
@@ -79,7 +79,7 @@ class CommandersService(BaseService):
         """
         return self.request(GetCommandersRequest(), GetCommandersResponse, timeout=timeout)
 
-    def get_commanders(self, timeout: float = 5.0) -> list[Commander]:
+    def get_commanders(self, *, timeout: float = 5.0) -> list[Commander]:
         """
         Get all available commanders.
 
@@ -94,7 +94,7 @@ class CommandersService(BaseService):
         """
         return self.get_all(timeout=timeout).commanders
 
-    def get_castellans(self, timeout: float = 5.0) -> list[Castellan]:
+    def get_castellans(self, *, timeout: float = 5.0) -> list[Castellan]:
         """
         Get all available castellans.
 
@@ -109,7 +109,7 @@ class CommandersService(BaseService):
         """
         return self.get_all(timeout=timeout).castellans
 
-    def rename(self, commander_id: int, name: str, timeout: float = 5.0) -> RenameCommanderResponse:
+    def rename(self, commander_id: int, name: str, *, timeout: float = 5.0) -> RenameCommanderResponse:
         """
         Rename a commander or castellan.
 
@@ -255,7 +255,7 @@ class EquipmentService(BaseService):
     wears comes with ``client.commanders`` (``gli`` ``EQ``).
     """
 
-    def get_inventory(self, timeout: float = 5.0) -> list[Equipment]:
+    def get_inventory(self, *, timeout: float = 5.0) -> list[Equipment]:
         """
         The items in the player's inventory, the ones no leader wears.
 
@@ -264,7 +264,7 @@ class EquipmentService(BaseService):
         """
         return self.request(GetEquipmentInventoryRequest(), GetEquipmentInventoryResponse, timeout=timeout).items
 
-    def equip(self, equipment_id: int, commander_id: int, timeout: float = 5.0) -> None:
+    def equip(self, equipment_id: int, commander_id: int, *, timeout: float = 5.0) -> None:
         """
         Put an item on a commander or castellan.
 
@@ -282,7 +282,7 @@ class EquipmentService(BaseService):
         request = EquipEquipmentRequest(equipment_id=equipment_id, commander_id=commander_id, equip=1)
         self.execute(request, timeout=timeout)
 
-    def unequip(self, equipment_id: int, commander_id: int, timeout: float = 5.0) -> None:
+    def unequip(self, equipment_id: int, commander_id: int, *, timeout: float = 5.0) -> None:
         """
         Take an item off a commander or castellan.
 
@@ -309,7 +309,7 @@ class SkillsService(BaseService):
         self.on_response("skl", self._handle_skill_list)
         self.on_response("ego", self._handle_skill_list)
 
-    def get_generals(self, timeout: float = 5.0) -> GetGeneralsResponse:
+    def get_generals(self, *, timeout: float = 5.0) -> GetGeneralsResponse:
         """
         Every general the player owns, with the skills each has unlocked.
 
@@ -324,7 +324,7 @@ class SkillsService(BaseService):
         """
         return self.request(GetGeneralsRequest(), GetGeneralsResponse, timeout=timeout)
 
-    def assign_general(self, commander_id: int, general_id: int, timeout: float = 5.0) -> AssignGeneralResponse:
+    def assign_general(self, commander_id: int, general_id: int, *, timeout: float = 5.0) -> AssignGeneralResponse:
         """
         Assign a general to a commander; ``general_id=-1`` takes its general away.
 
@@ -347,7 +347,9 @@ class SkillsService(BaseService):
             timeout=timeout,
         )
 
-    def set_abilities(self, general_id: int, abilities: Iterable[tuple[int, int | None]], timeout: float = 5.0) -> None:
+    def set_abilities(
+        self, general_id: int, abilities: Iterable[tuple[int, int | None]], *, timeout: float = 5.0
+    ) -> None:
         """
         Choose a general's abilities.
 
@@ -362,7 +364,7 @@ class SkillsService(BaseService):
         slots = [SelectedAbility(slot_id=slot_id, ability_id=ability_id) for slot_id, ability_id in abilities]
         self.execute(SetGeneralAbilitiesRequest(general_id=general_id, abilities=slots), timeout=timeout)
 
-    def unlock_skill(self, skill_id: int, timeout: float = 5.0) -> None:
+    def unlock_skill(self, skill_id: int, *, timeout: float = 5.0) -> None:
         """
         Unlock a general skill; the skill id names the general.
 
@@ -376,7 +378,7 @@ class SkillsService(BaseService):
         """
         self.execute(UnlockGeneralSkillRequest(skill_id=skill_id), timeout=timeout)
 
-    def reset_skills(self, general_id: int, timeout: float = 5.0) -> None:
+    def reset_skills(self, general_id: int, *, timeout: float = 5.0) -> None:
         """
         Reset a general's skill tree.
 
@@ -387,7 +389,7 @@ class SkillsService(BaseService):
         """
         self.execute(ResetGeneralSkillsRequest(general_id=general_id), timeout=timeout)
 
-    def add_xp(self, general_id: int, currency_id: int, amount: int, timeout: float = 5.0) -> None:
+    def add_xp(self, general_id: int, currency_id: int, amount: int, *, timeout: float = 5.0) -> None:
         """
         Feed a general xp items.
 
@@ -404,7 +406,7 @@ class SkillsService(BaseService):
             AddGeneralXpRequest(general_id=general_id, currency_id=currency_id, amount=amount), timeout=timeout
         )
 
-    def get_skills(self, timeout: float = 5.0) -> GetSkillsResponse:
+    def get_skills(self, *, timeout: float = 5.0) -> GetSkillsResponse:
         """
         The player's legend and sceat skills.
 

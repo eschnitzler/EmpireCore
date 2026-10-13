@@ -310,13 +310,13 @@ class MapScanner:
         self,
         kingdom: Kingdom = Kingdom.GREEN,
         item_types: list[MapItemType] | None = None,
-        timeout: float = 300.0,
+        *,
         request_timeout: float = 5.0,
         chunk_delay: float = 0.0,
         include_unowned_types: set[MapItemType] | None = None,
-        *,
         cancel: threading.Event | None = None,
         on_chunk: ChunkHandler | None = None,
+        timeout: float = 300.0,
     ) -> ScanResult:
         """
         Scan a kingdom map with dynamic boundary detection.
@@ -393,13 +393,13 @@ class MapScanner:
         kingdom: Kingdom,
         chunks: list[tuple[int, int]],
         item_types: list[MapItemType] | None = None,
-        timeout: float = 300.0,
+        *,
         request_timeout: float = 5.0,
         chunk_delay: float = 0.0,
         include_unowned_types: set[MapItemType] | None = None,
-        *,
         cancel: threading.Event | None = None,
         on_chunk: ChunkHandler | None = None,
+        timeout: float = 300.0,
     ) -> ScanResult:
         """
         Scan an explicit list of chunks — no BFS discovery.

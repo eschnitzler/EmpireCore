@@ -200,7 +200,7 @@ class BaseService:
             return f"horse {horse_booster_id} costs rubies unless paid with feathers"
         return None
 
-    def send(self, request: BaseRequest, wait: bool = False, timeout: float = 5.0) -> BaseResponse | None:
+    def send(self, request: BaseRequest, wait: bool = False, *, timeout: float = 5.0) -> BaseResponse | None:
         """
         Send a request to the server.
 
@@ -209,7 +209,7 @@ class BaseService:
         """
         return self.client.send(request, wait=wait, timeout=timeout)
 
-    def request(self, request: BaseRequest, response_type: type[R], timeout: float = 5.0) -> R:
+    def request(self, request: BaseRequest, response_type: type[R], *, timeout: float = 5.0) -> R:
         """
         Send a request and return its typed response.
 
@@ -220,7 +220,7 @@ class BaseService:
         """
         return self.client.request(request, response_type, timeout=timeout)
 
-    def execute(self, request: BaseRequest, timeout: float = 5.0) -> None:
+    def execute(self, request: BaseRequest, *, timeout: float = 5.0) -> None:
         """
         Send an action request and wait until the server accepts it.
 

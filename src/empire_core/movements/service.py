@@ -22,7 +22,7 @@ class MovementsService(BaseService):
     Reached as client.movements.
     """
 
-    def get_movements(self, wait: bool = True, timeout: float = 5.0) -> list[Movement]:
+    def get_movements(self, wait: bool = True, *, timeout: float = 5.0) -> list[Movement]:
         """
         Request army movements from server.
 
@@ -68,7 +68,7 @@ class MovementsService(BaseService):
         """Your movements on their way, as the movement pushes left them; nothing is sent."""
         return self.client.state.get_outgoing_movements()
 
-    def recall(self, movement_id: int, timeout: float = 5.0) -> MovementWrapper:
+    def recall(self, movement_id: int, *, timeout: float = 5.0) -> MovementWrapper:
         """
         Recall one of your movements (``mcm``), as the client's retreat and "send home" buttons do.
 
