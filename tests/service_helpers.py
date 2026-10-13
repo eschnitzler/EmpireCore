@@ -307,7 +307,7 @@ def with_horses(client: EmpireClient) -> EmpireClient:
 
 def make_client(
     script: dict[str, Any] | None = None,
-    state: StubState | None = None,
+    state: StubState | GameState | None = None,
     pushes: dict[str, list[Packet]] | None = None,
     castles: Sequence[OwnCastle] | None = None,
 ) -> EmpireClient:
@@ -323,7 +323,7 @@ def make_client(
     client.connection = ScriptedConnection(script, pushes)  # type: ignore[assignment]
     stub = state or StubState()
     if castles is not None:
-        stub.castles = gcl_castles(*castles)
+        stub.castles = gcl_castles(*castles)  # type: ignore[assignment]
     client.state = stub  # type: ignore[assignment]
     client.game_data = None
     client.is_logged_in = True

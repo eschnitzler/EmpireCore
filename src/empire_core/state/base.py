@@ -11,6 +11,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel
 
 from empire_core.alliance.models.chat import ChatMessageData
+from empire_core.alliance.models.help import AllianceHelpRequest
 from empire_core.alliance.models.info import AllianceInfo
 from empire_core.attack.models.counter import AttackCounterResponse
 from empire_core.castle.models.collect import MineStatus, ResourceCart
@@ -23,6 +24,7 @@ from empire_core.commanders.models.inventory import GemInventoryResponse, Invent
 from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.commanders.models.skills import SkillList
 from empire_core.events.models import SpecialEvent
+from empire_core.messages.models import MessageInfo
 from empire_core.movements.models import MovementOwner
 from empire_core.movements.tracked import Movement
 from empire_core.player.models.account import (
@@ -44,6 +46,7 @@ from empire_core.player.models.progress import (
 )
 from empire_core.protocol.base import read_or_none
 from empire_core.quests.models import DailyQuests, Quest, QuestBook
+from empire_core.rewards.models import ActivityChestInfo
 from empire_core.spy.models import MaxSpiesResponse, PlagueMonkInfoResponse
 from empire_core.state.models import Castle, CastleKey, JoinedArea, Player
 from empire_core.utils.callbacks import BoundEvent, Registry
@@ -90,6 +93,10 @@ class StateBase:
         self._executor_lock = threading.Lock()
         self._callbacks_pending = 0
         self._callback_queue_warn_at = 0.0
+
+        # Kept when the session drops, as the client keeps them
+        self.alliance_help: tuple[AllianceHelpRequest, ...] = ()
+        self.activity_chest: ActivityChestInfo | None = None
 
         # Rate-limit state for movement parse failure warnings
         self._movement_parse_warn_at = 0.0
@@ -144,6 +151,9 @@ class StateBase:
         # The ain block own_alliance was read from, for the keys a later ain leaves out
         self._own_alliance_raw: dict[str, Any] | None = None
         self.alliance_chat: tuple[ChatMessageData, ...] = ()
+        # The mailbox by message id, in the order the messages first arrived; swapped, never edited
+        self.mailbox: dict[int, MessageInfo] = {}
+        self.pending_rewards: int | None = None
         self.research: ResearchInfoResponse | None = None
         self.boosts: BoosterInfoResponse | None = None
         self.might: MightPointsResponse | None = None

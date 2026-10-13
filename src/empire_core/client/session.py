@@ -215,12 +215,7 @@ class Session:
         client = self._client
         logged_in = client.is_logged_in
 
-        def forget() -> None:
-            self._forget()
-            client.messages._reset()
-            client.rewards._reset()
-
-        if not client.connection.run_if_current(generation, forget):
+        if not client.connection.run_if_current(generation, self._forget):
             logger.debug(f"Client {client.username}: drop of an earlier session reported late, ignored")
             return
         cause = client.connection.close_error

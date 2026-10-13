@@ -9,7 +9,6 @@ the rest.
 
 from __future__ import annotations
 
-import threading
 from typing import TYPE_CHECKING
 
 from empire_core.enums import CollectableKind, LoginBonusSpecial
@@ -66,21 +65,8 @@ class RewardsService(BaseService):
 
     def __init__(self, client: EmpireClient) -> None:
         super().__init__(client)
-        self._activity_chest: ActivityChestInfo | None = None
-        self._pending_rewards: int | None = None
-        self._activity_lock = threading.Lock()
         self.on_response("uac", self._handle_activity_chest)
         self.on_response("pre", self._handle_pending_rewards)
-
-    def _reset(self) -> None:
-        """
-        Forget the pending rewards count; the client resets it when the session drops.
-
-        Client: ``CastleDestroyGameCommand`` (bundle line 120270) resets every model, and
-        ``RewardHubData.reset`` (bundle line 29783) zeroes the count
-        """
-        with self._activity_lock:
-            self._pending_rewards = None
 
     # =========================================================================
     # Daily login bonus
@@ -247,15 +233,12 @@ class RewardsService(BaseService):
     @property
     def activity_chest(self) -> ActivityChestInfo | None:
         """
-        The activity chest from the last ``uac`` push; None until one arrived.
+        The activity chest from the last ``uac`` push, None until one arrived; nothing is sent.
 
         The server pushes it and nothing asks for it, so it is only as fresh as the last push;
         ``is_ready()`` says whether the chest can be opened now.
-
-        Client: ``CastleActivityBonusData.parse_UAC`` (bundle line 110921)
         """
-        with self._activity_lock:
-            return self._activity_chest
+        return self.client.state.get_activity_chest()
 
     on_activity_chest = Event[ActivityChestInfo]()
     """
@@ -265,11 +248,8 @@ class RewardsService(BaseService):
     """
 
     def _handle_activity_chest(self, response: BaseResponse) -> None:
-        if not isinstance(response, ActivityChestInfo):
-            return
-        with self._activity_lock:
-            self._activity_chest = response
-        self._fire(self.on_activity_chest, response)
+        if isinstance(response, ActivityChestInfo):
+            self._fire(self.on_activity_chest, response)
 
     def open_activity_chest(self, timeout: float = 10.0) -> ActivityChestInfo | None:
         """
@@ -431,15 +411,12 @@ class RewardsService(BaseService):
     @property
     def pending_rewards(self) -> int | None:
         """
-        How many rewards wait in the reward hub, from the last ``pre`` push; None until one arrived.
+        How many rewards wait in the reward hub, from the last ``pre`` push, None until one arrived; nothing is sent.
 
         The reward hub lists and hands out the rewards over its web service, which the library
         does not reach.
-
-        Client: ``RewardHubData.getAmountOfPendingRewards`` (bundle line 29787)
         """
-        with self._activity_lock:
-            return self._pending_rewards
+        return self.client.state.get_pending_rewards()
 
     on_pending_rewards = Event[PendingRewardsInfo]()
     """
@@ -451,11 +428,8 @@ class RewardsService(BaseService):
     """
 
     def _handle_pending_rewards(self, response: BaseResponse) -> None:
-        if not isinstance(response, PendingRewardsInfo):
-            return
-        with self._activity_lock:
-            self._pending_rewards = response.amount
-        self._fire(self.on_pending_rewards, response)
+        if isinstance(response, PendingRewardsInfo):
+            self._fire(self.on_pending_rewards, response)
 
 
 __all__ = ["RewardsService"]
