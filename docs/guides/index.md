@@ -135,7 +135,7 @@ call always does.
 | | `castle.repair_all`, `army.skip_heal`, `double_production_slot` | always |
 | | `army.heal_all` | a price above 0 |
 | Travel | `movements.send_resources`, `send_support`, `send_troops`, `attack.send_attack`, the `client.spy` sends | a horse that costs rubies (not paid with feathers), any slowdown, the premium commander when none is free |
-| The rest | `castle.buy_expansion`, `rename`, `start_tax`, `player.start_research`, `alliance.donate` | a premium expansion; a rename with no premium account; tax types 5 and 6; a ruby research; donated rubies |
+| The rest | `castle.buy_expansion`, `rename`, `start_tax`, `castle.start_research`, `alliance.donate` | a premium expansion; a rename with no premium account; tax types 5 and 6; a ruby research; donated rubies |
 
 Pricing reads the game data, loaded on first use; the call raises
 `GameDataNotLoadedError` when it cannot be loaded. Minute skips are items, not rubies, and need
