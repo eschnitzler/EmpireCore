@@ -68,7 +68,7 @@ def legend_spy_bonus(game_data: GameData, legend_skill_ids: Iterable[int]) -> fl
 
     Args:
         game_data: Loaded tables
-        legend_skill_ids: ``SkillList.legend_skill_ids``, from ``client.skills.get_skills()``
+        legend_skill_ids: ``SkillList.legend_skill_ids``, from ``client.player.get_skills()``
 
     Client: ``CastleLegendSkillData.getTotalValueOfLegendSkillEffect`` (bundle line 112086)
     """

@@ -1831,7 +1831,7 @@ A bot gets most values without extra round-trips.
   active area (`parseEGO`) and, when it carries `skl`, hands that to
   `legendSkillData.parse_SKL`, so legend-skill updates can arrive outside an
   `skl` reply. EmpireCore reads it as `ObjectUpdateEvent`, and
-  `client.skills.on_skill_list` fires for one that carries `skl`.
+  `client.player.on_skill_list` fires for one that carries `skl`.
 
 ---
 

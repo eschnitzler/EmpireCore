@@ -51,7 +51,7 @@ models.
 | [Ranking](ranking.md) | `client.ranking` |
 | [Quests](quests.md) | read from `client.state` |
 | [Events](events.md) | `client.events` |
-| [Commanders](commanders.md) | `client.commanders`, `client.equipment`, `client.skills` |
+| [Commanders](commanders.md) | `client.commanders`, `client.equipment` |
 | [Castle](castle.md) | `client.castle` |
 | [Army](army.md) | `client.army` |
 | [Movements](movements.md) | `client.movements` |

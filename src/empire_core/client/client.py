@@ -24,7 +24,7 @@ from empire_core.attack.service import AttackService
 from empire_core.castle.service import CastleService
 from empire_core.client.session import Session
 from empire_core.client.stream import Args, EventStream, callback_sources
-from empire_core.commanders.service import CommandersService, EquipmentService, SkillsService
+from empire_core.commanders.service import CommandersService, EquipmentService
 from empire_core.config import EmpireConfig, default_config, generate_session_id
 from empire_core.defense.service import DefenseService
 from empire_core.events.service import EventsService
@@ -115,7 +115,6 @@ class EmpireClient:
     attack: AttackService
     commanders: CommandersService
     equipment: EquipmentService
-    skills: SkillsService
     spy: SpyService
     ranking: RankingService
     map: MapService
@@ -189,7 +188,6 @@ class EmpireClient:
         self.attack = AttackService(self)
         self.commanders = CommandersService(self)
         self.equipment = EquipmentService(self)
-        self.skills = SkillsService(self)
         self.spy = SpyService(self)
         self.ranking = RankingService(self)
         self.map = MapService(self)

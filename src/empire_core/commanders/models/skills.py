@@ -171,7 +171,7 @@ class AssignGeneralRequest(BaseRequest):
         validation_alias="GID",
         default=-1,
         description=(
-            "The general, an OwnedGeneral.general_id from client.skills.get_generals(); -1 unassigns the "
+            "The general, an OwnedGeneral.general_id from client.commanders.get_generals(); -1 unassigns the "
             "commander's general"
         ),
     )
@@ -215,7 +215,7 @@ class SetGeneralAbilitiesRequest(BaseRequest):
     general_id: int = Field(
         validation_alias="GID",
         description=(
-            "The general whose abilities are chosen, an OwnedGeneral.general_id from client.skills.get_generals()"
+            "The general whose abilities are chosen, an OwnedGeneral.general_id from client.commanders.get_generals()"
         ),
     )
     abilities: list[SelectedAbility] = Field(
@@ -258,7 +258,7 @@ class ResetGeneralSkillsRequest(BaseRequest):
     general_id: int = Field(
         validation_alias="GID",
         description=(
-            "The general whose skills are reset, an OwnedGeneral.general_id from client.skills.get_generals()"
+            "The general whose skills are reset, an OwnedGeneral.general_id from client.commanders.get_generals()"
         ),
     )
 
@@ -279,7 +279,7 @@ class AddGeneralXpRequest(BaseRequest):
 
     general_id: int = Field(
         validation_alias="GID",
-        description=("The general to give xp to, an OwnedGeneral.general_id from client.skills.get_generals()"),
+        description=("The general to give xp to, an OwnedGeneral.general_id from client.commanders.get_generals()"),
     )
     currency_id: int = Field(validation_alias="CID", description="The xp item, a currency")
     amount: int = Field(validation_alias="AMT", description="How many of the xp item to use")

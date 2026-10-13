@@ -1,14 +1,11 @@
-"""Commanders and castellans, their equipment, and generals and skills.
+"""Commanders and castellans, their generals, and their equipment.
 
-- CommandersService reads and renames the player's commanders and castellans, and
-  says whether the premium commander leads for free.
+- CommandersService reads and renames the player's commanders and castellans, says
+  whether the premium commander leads for free, and changes generals: assigning one
+  to a commander, choosing its abilities, unlocking and resetting its skills, and
+  feeding it xp items. A general's skills widen the flanks whatever the target is.
 - EquipmentService reads the equipment inventory and moves items on and off
   commanders and castellans.
-- SkillsService reads a general's unlocked skills and the player's own, and
-  changes generals: assigning one to a commander, choosing its abilities,
-  unlocking and resetting its skills, and feeding it xp items. A general's
-  skills widen the flanks whatever the target is; the player's legend skills
-  widen them further and add waves, but only when both sides are at the level cap.
 """
 
 from __future__ import annotations
@@ -41,19 +38,13 @@ from empire_core.commanders.models.skills import (
     AssignGeneralResponse,
     GetGeneralsRequest,
     GetGeneralsResponse,
-    GetSkillsRequest,
-    GetSkillsResponse,
-    ObjectUpdateEvent,
     OwnedGeneral,
     ResetGeneralSkillsRequest,
     SetGeneralAbilitiesRequest,
-    SkillList,
     UnlockGeneralSkillRequest,
 )
 from empire_core.exceptions import PremiumCommanderCostError
-from empire_core.protocol.base import BaseResponse
 from empire_core.services.base import BaseService
-from empire_core.utils.callbacks import Event
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
@@ -61,7 +52,7 @@ if TYPE_CHECKING:
 
 class CommandersService(BaseService):
     """
-    Your commanders and castellans, and renaming them.
+    Your commanders and castellans, renaming them, and their generals.
 
     Reached as client.commanders.
     """
@@ -129,6 +120,100 @@ class CommandersService(BaseService):
         """
         request = RenameCommanderRequest(commander_id=commander_id, name=name)
         return self.request(request, RenameCommanderResponse, timeout=timeout).commander_roster
+
+    def get_generals(self, *, timeout: float = 5.0) -> list[OwnedGeneral]:
+        """
+        Every general the player owns, with the skills each has unlocked.
+
+        Args:
+            timeout: Timeout in seconds
+
+        Returns:
+            Your generals, from the ``gie`` reply
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
+        """
+        return self.request(GetGeneralsRequest(), GetGeneralsResponse, timeout=timeout).generals
+
+    def assign_general(self, commander_id: int, general_id: int, *, timeout: float = 5.0) -> CommanderRoster:
+        """
+        Assign a general to a commander; ``general_id=-1`` takes its general away.
+
+        Args:
+            commander_id: A ``Commander.commander_id`` from
+                ``client.commanders.get_commanders()``
+            general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
+                ``GameData.require().general(name)`` finds its ``generalID`` by name
+            timeout: Timeout in seconds
+
+        Returns:
+            Your commanders and castellans after the change, from the ``gla`` reply
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
+        """
+        request = AssignGeneralRequest(commander_id=commander_id, general_id=general_id)
+        return self.request(request, AssignGeneralResponse, timeout=timeout).commander_roster
+
+    def set_general_abilities(
+        self, general_id: int, abilities: Iterable[tuple[int, int | None]], *, timeout: float = 5.0
+    ) -> None:
+        """
+        Choose a general's abilities.
+
+        Args:
+            general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
+                ``GameData.require().general(name)`` finds its ``generalID`` by name
+            abilities: ``(slot_id, ability_id)`` pairs, ``-1`` or ``None`` to clear a slot.
+                The client sends every slot it shows. An ability id comes from
+                ``GameData.require().general_ability(name, level)``
+            timeout: Timeout in seconds
+        """
+        slots = [SelectedAbility(slot_id=slot_id, ability_id=ability_id) for slot_id, ability_id in abilities]
+        self.execute(SetGeneralAbilitiesRequest(general_id=general_id, abilities=slots), timeout=timeout)
+
+    def unlock_general_skill(self, skill_id: int, *, timeout: float = 5.0) -> None:
+        """
+        Unlock a general skill; the skill id names the general.
+
+        The general's new skills arrive with the next ``gie``.
+
+        Args:
+            skill_id: The skill level's ``skillID``, from
+                ``GameData.require().general_skill(general_id, name, level)``
+                (``GeneralVO.unlockSkill``, bundle line 26773)
+            timeout: Timeout in seconds
+        """
+        self.execute(UnlockGeneralSkillRequest(skill_id=skill_id), timeout=timeout)
+
+    def reset_general_skills(self, general_id: int, *, timeout: float = 5.0) -> None:
+        """
+        Reset a general's skill tree.
+
+        Args:
+            general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
+                ``GameData.require().general(name)`` finds its ``generalID`` by name
+            timeout: Timeout in seconds
+        """
+        self.execute(ResetGeneralSkillsRequest(general_id=general_id), timeout=timeout)
+
+    def add_general_xp(self, general_id: int, currency_id: int, amount: int, *, timeout: float = 5.0) -> None:
+        """
+        Feed a general xp items.
+
+        Args:
+            general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
+                ``GameData.require().general(name)`` finds its ``generalID`` by name
+            currency_id: The xp item's ``currencyID``, e.g.
+                ``GameData.require().currency("GXP1").currency_id``
+                (``GeneralsLevelUpDialogListItem.sendXPSelected``, bundle line 74485)
+            amount: How many of the item to use
+            timeout: Timeout in seconds
+        """
+        self.execute(
+            AddGeneralXpRequest(general_id=general_id, currency_id=currency_id, amount=amount), timeout=timeout
+        )
 
     def __init__(self, client: EmpireClient) -> None:
         super().__init__(client)
@@ -296,149 +381,3 @@ class EquipmentService(BaseService):
         """
         request = EquipEquipmentRequest(equipment_id=equipment_id, commander_id=commander_id, equip=0)
         self.execute(request, timeout=timeout)
-
-
-class SkillsService(BaseService):
-    """
-    Generals, their abilities and skills, and the player's legend and sceat skills.
-
-    Reached as client.skills.
-    """
-
-    def __init__(self, client: EmpireClient) -> None:
-        super().__init__(client)
-        self.on_response("skl", self._handle_skill_list)
-        self.on_response("ego", self._handle_skill_list)
-
-    def get_generals(self, *, timeout: float = 5.0) -> list[OwnedGeneral]:
-        """
-        Every general the player owns, with the skills each has unlocked.
-
-        Args:
-            timeout: Timeout in seconds
-
-        Returns:
-            Your generals, from the ``gie`` reply
-
-        Raises:
-            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
-        """
-        return self.request(GetGeneralsRequest(), GetGeneralsResponse, timeout=timeout).generals
-
-    def assign_general(self, commander_id: int, general_id: int, *, timeout: float = 5.0) -> CommanderRoster:
-        """
-        Assign a general to a commander; ``general_id=-1`` takes its general away.
-
-        Args:
-            commander_id: A ``Commander.commander_id`` from
-                ``client.commanders.get_commanders()``
-            general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
-                ``GameData.require().general(name)`` finds its ``generalID`` by name
-            timeout: Timeout in seconds
-
-        Returns:
-            Your commanders and castellans after the change, from the ``gla`` reply
-
-        Raises:
-            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
-        """
-        request = AssignGeneralRequest(commander_id=commander_id, general_id=general_id)
-        return self.request(request, AssignGeneralResponse, timeout=timeout).commander_roster
-
-    def set_abilities(
-        self, general_id: int, abilities: Iterable[tuple[int, int | None]], *, timeout: float = 5.0
-    ) -> None:
-        """
-        Choose a general's abilities.
-
-        Args:
-            general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
-                ``GameData.require().general(name)`` finds its ``generalID`` by name
-            abilities: ``(slot_id, ability_id)`` pairs, ``-1`` or ``None`` to clear a slot.
-                The client sends every slot it shows. An ability id comes from
-                ``GameData.require().general_ability(name, level)``
-            timeout: Timeout in seconds
-        """
-        slots = [SelectedAbility(slot_id=slot_id, ability_id=ability_id) for slot_id, ability_id in abilities]
-        self.execute(SetGeneralAbilitiesRequest(general_id=general_id, abilities=slots), timeout=timeout)
-
-    def unlock_skill(self, skill_id: int, *, timeout: float = 5.0) -> None:
-        """
-        Unlock a general skill; the skill id names the general.
-
-        The general's new skills arrive with the next ``gie``.
-
-        Args:
-            skill_id: The skill level's ``skillID``, from
-                ``GameData.require().general_skill(general_id, name, level)``
-                (``GeneralVO.unlockSkill``, bundle line 26773)
-            timeout: Timeout in seconds
-        """
-        self.execute(UnlockGeneralSkillRequest(skill_id=skill_id), timeout=timeout)
-
-    def reset_skills(self, general_id: int, *, timeout: float = 5.0) -> None:
-        """
-        Reset a general's skill tree.
-
-        Args:
-            general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
-                ``GameData.require().general(name)`` finds its ``generalID`` by name
-            timeout: Timeout in seconds
-        """
-        self.execute(ResetGeneralSkillsRequest(general_id=general_id), timeout=timeout)
-
-    def add_xp(self, general_id: int, currency_id: int, amount: int, *, timeout: float = 5.0) -> None:
-        """
-        Feed a general xp items.
-
-        Args:
-            general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
-                ``GameData.require().general(name)`` finds its ``generalID`` by name
-            currency_id: The xp item's ``currencyID``, e.g.
-                ``GameData.require().currency("GXP1").currency_id``
-                (``GeneralsLevelUpDialogListItem.sendXPSelected``, bundle line 74485)
-            amount: How many of the item to use
-            timeout: Timeout in seconds
-        """
-        self.execute(
-            AddGeneralXpRequest(general_id=general_id, currency_id=currency_id, amount=amount), timeout=timeout
-        )
-
-    def get_skills(self, *, timeout: float = 5.0) -> GetSkillsResponse:
-        """
-        The player's legend and sceat skills.
-
-        Args:
-            timeout: Timeout in seconds
-
-        Returns:
-            The ``skl`` response
-
-        Raises:
-            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
-        """
-        return self.request(GetSkillsRequest(), GetSkillsResponse, timeout=timeout)
-
-    on_skill_list = Event[SkillList]()
-    """
-    Register a callback for every skill list the server sends.
-
-    That is each ``skl`` packet, including the reply to :meth:`get_skills`,
-    and the ``skl`` block of an ``ego`` push.
-
-    Client: ``SKLCommand.executeCommand`` (bundle line 129742) and
-    ``EGOCommand.executeCommand`` (bundle line 122801) both call ``parse_SKL``.
-
-    Removing a callback not registered is a no-op.
-    """
-
-    def _handle_skill_list(self, response: BaseResponse) -> None:
-        if isinstance(response, GetSkillsResponse):
-            skills: SkillList | None = response
-        elif isinstance(response, ObjectUpdateEvent):
-            skills = response.skills
-        else:
-            return
-        if skills is None:
-            return
-        self._fire(self.on_skill_list, skills)
