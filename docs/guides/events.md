@@ -185,7 +185,7 @@ client.events.get_scores(Event.FACTION_INVASION, list_type=RankingType.FACTION_I
 The top of every board of every running event:
 
 ```python
-for event in client.events.get_running_score_events():
+for event in client.events.running_score_events:
     for board in client.events.scoreboard(event).lists:
         top = client.events.get_scores(event, list_type=board, rank=1)
         print(event.name, board.name, [row.points for row in top.scores[:3]])
@@ -202,7 +202,7 @@ yet; the `client.ranking` calls reach their lists directly.
 
 Your league is the one the event's model holds (for the invasions, the one of
 that board's part), and league 1 when the server named none, as in the game;
-`client.events.get_league_id(event_id, part)` reads it, and raises
+`client.events.league_id(event_id, part)` reads it, and raises
 `EventNotRunningError` for an event that is not running. The donation board
 has no league.
 

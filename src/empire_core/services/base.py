@@ -49,8 +49,10 @@ class BaseService:
 
     Four kinds of method follow rules of their own, each documented on the method:
 
-    - state read without a request returns ``None`` while the login data or push it
-      comes from has not arrived yet (``client.castle.get_horses`` before a ``gpc``);
+    - a read that sends nothing is a property, or a noun method when it takes an argument,
+      never a ``get_*`` (a ``get_*`` always sends a request); it reads ``client.state`` and
+      returns ``None`` while the login data or push it comes from has not arrived yet
+      (``client.castle.horses`` before a ``gpc``);
     - a call made of several requests returns a result object that names each outcome,
       such as ``SpyOutcome.COMMAND_FAILED`` on a ``SpyResult`` or the ``failed`` and
       ``timed_out`` players of ``get_player_details_bulk``;

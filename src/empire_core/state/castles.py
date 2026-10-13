@@ -14,14 +14,13 @@ from empire_core.castle.models.resources import CastleResources
 from empire_core.castle.models.updates import UnitsReceived
 from empire_core.enums import Kingdom
 from empire_core.exceptions import AmbiguousCastleError
-from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import enum_or_none, read_or_none
 from empire_core.protocol.js import js_int, js_loose_equals, js_truthy
 from empire_core.state.base import StateBase
 from empire_core.state.models import Castle, CastleKey, Resources
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Horse
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -274,15 +273,6 @@ class CastleState(StateBase):
         with self._lock:
             key = self._castle_key(castle_id)
             return None if key is None else self.permanent_castles.get(key)
-
-    def get_castle_horse_ids(self, castle_id: int) -> list[EnumOrInt["Horse"]] | None:
-        """The horses one of your castles can send movements with, as gpc sent them.
-
-        Look each up with ``GameData.require().get_horse``, or use
-        ``client.castle.get_horses``. ``None`` when :meth:`get_permanent_castle` is.
-        """
-        permanent = self.get_permanent_castle(castle_id)
-        return None if permanent is None else list(permanent.horse_ids)
 
     def get_castles(self) -> list[Castle]:
         """Get a snapshot of the player's castles.

@@ -1276,7 +1276,7 @@ class CastleService(BaseService):
         )
         self.execute(request, timeout=timeout)
 
-    def get_horses(self, castle_id: int) -> list[HorseStats] | None:
+    def horses(self, castle_id: int) -> list[HorseStats] | None:
         """
         The horses one of your castles can send movements with, by wod id.
 
@@ -1303,10 +1303,10 @@ class CastleService(BaseService):
         """
         game_data = self._require_game_data()
         self._require_own_castle(castle_id)
-        horse_ids = self.client.state.get_castle_horse_ids(castle_id)
-        if horse_ids is None:
+        permanent = self.client.state.get_permanent_castle(castle_id)
+        if permanent is None:
             return None
-        horses = [horse for wod_id in horse_ids if (horse := game_data.get_horse(wod_id)) is not None]
+        horses = [horse for wod_id in permanent.horse_ids if (horse := game_data.get_horse(wod_id)) is not None]
         return sorted(horses, key=lambda horse: horse.wod_id)
 
 

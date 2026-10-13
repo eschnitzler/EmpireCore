@@ -53,6 +53,21 @@ class MovementsService(BaseService):
 
         return self.client.state.get_all_movements()
 
+    @property
+    def incoming_attacks(self) -> list[Movement]:
+        """The attacks heading for you, as the movement pushes left them; nothing is sent."""
+        return self.client.state.get_incoming_attacks()
+
+    @property
+    def incoming_movements(self) -> list[Movement]:
+        """Every movement heading for you, as the movement pushes left them; nothing is sent."""
+        return self.client.state.get_incoming_movements()
+
+    @property
+    def outgoing_movements(self) -> list[Movement]:
+        """Your movements on their way, as the movement pushes left them; nothing is sent."""
+        return self.client.state.get_outgoing_movements()
+
     def recall(self, movement_id: int, timeout: float = 5.0) -> MovementWrapper:
         """
         Recall one of your movements (``mcm``), as the client's retreat and "send home" buttons do.
@@ -80,15 +95,3 @@ class MovementsService(BaseService):
         return self.request(
             CancelMovementRequest(movement_id=movement_id), CancelMovementResponse, timeout=timeout
         ).movement
-
-    def get_incoming_attacks(self) -> list[Movement]:
-        """Get all incoming attack movements."""
-        return self.client.state.get_incoming_attacks()
-
-    def get_incoming_movements(self) -> list[Movement]:
-        """Get all incoming movements."""
-        return self.client.state.get_incoming_movements()
-
-    def get_outgoing_movements(self) -> list[Movement]:
-        """Get all outgoing movements."""
-        return self.client.state.get_outgoing_movements()

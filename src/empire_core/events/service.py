@@ -28,7 +28,9 @@ from .models import (
     GameEvent,
     GetEventPointsRequest,
     GetEventPointsResponse,
+    RaidBossEvent,
     Scoreboard,
+    ScoredEvent,
     SpecialEvent,
     SpecialEventInfoRequest,
 )
@@ -54,10 +56,6 @@ class EventsService(BaseService):
     Reached as client.events.
     """
 
-    def get_active_event_ids(self) -> list[int]:
-        """The running events' ids, in the order they started; empty before login."""
-        return list(self.client.state.get_events())
-
     def refresh(self, timeout: float = 5.0) -> dict[int, SpecialEvent]:
         """
         Ask the server for the running events and return them once its ``sei`` is applied.
@@ -76,16 +74,16 @@ class EventsService(BaseService):
         self.send(SpecialEventInfoRequest(), wait=True, timeout=timeout)
         return self.client.state.get_events()
 
-    def get_league_id(self, event_id: int, part: str | None = None) -> int:
+    def league_id(self, event: Event | int, part: str | None = None) -> int:
         """
-        Get the league your score is in for an event, the ``LID`` of its sei entry.
+        The league your score is in for a running event, the ``LID`` of its sei entry; nothing is sent.
 
         Pass it as ``league_type_id`` to ``client.ranking.get_ranking_list``,
         ``get_own_ranking_page`` and ``get_ranking_window``, as the client's
         leaderboard dialogs do. :meth:`get_scores` reads it for you.
 
         Args:
-            event_id: The event (EID)
+            event: The event (EID)
             part: One part of the entry instead, for the invasion boards: ``SP`` (players),
                 ``A`` (alliances), ``FB`` or ``FR`` (Berimond invasion's blue and red players)
 
@@ -98,17 +96,19 @@ class EventsService(BaseService):
         Client: ``AScoreEventVO.parseBasicsFromParamObject`` (bundle line 14967), defaults at
         bundle line 14965, read by ``GlobalLeaderBoardLeagueComponent`` (bundle line 100470)
         """
-        found = self.client.state.get_event(event_id)
+        found = self.client.state.get_event(event)
         if found is None:
-            raise EventNotRunningError(event_id)
+            raise EventNotRunningError(int(event))
         if part is not None:
-            parts = getattr(found, "parts", {})
-            return parts[part].league_id if part in parts else 1
-        league = getattr(found, "league_id", None)
-        return league if isinstance(league, int) else 1
+            entry = found.parts.get(part) if isinstance(found, ScoredEvent) else None
+            return 1 if entry is None else entry.league_id
+        if isinstance(found, ScoredEvent | BerimondEvent | RaidBossEvent):
+            return found.league_id
+        return 1
 
-    def get_running_score_events(self) -> list[Event]:
-        """The running events that have a scoreboard, in the order they started."""
+    @property
+    def running_score_events(self) -> list[Event]:
+        """The running events that have a scoreboard, in the order they started; nothing is sent."""
         return [Event(eid) for eid in self.client.state.get_events() if eid in EVENT_SCOREBOARDS]
 
     def scoreboard(self, event: Event) -> Scoreboard:
@@ -295,7 +295,7 @@ class EventsService(BaseService):
         # AScoreEventVO (bundle line 14965) and FactionEventVO (bundle line 7353) start at league 1
         if event == 123:  # Event.DONATION_EVENT
             return -1
-        return self.get_league_id(event, _LEAGUE_PART.get(board))
+        return self.league_id(event, _LEAGUE_PART.get(board))
 
     def get_active_events(self, lang: str = "en", force_refresh: bool = False) -> list[GameEvent]:
         """
