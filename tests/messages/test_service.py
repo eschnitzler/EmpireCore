@@ -121,7 +121,7 @@ class TestMail:
 
     def test_archive(self):
         client = make_client({"ams": xt_packet("ams", {"MID": 501})})
-        assert client.messages.archive(501).message_id == 501
+        client.messages.archive(501)
         assert conn(client).request_payloads == [("ams", {"MID": 501})]
 
     def test_delete_one(self):

@@ -153,7 +153,7 @@ class AllianceService(BaseService):
     # Member Operations
     # =========================================================================
 
-    def get_alliance_info(self, alliance_id: int, *, timeout: float = 5.0) -> GetAllianceInfoResponse:
+    def get_alliance_info(self, alliance_id: int, *, timeout: float = 5.0) -> AllianceInfo | None:
         """
         Get info about an alliance.
 
@@ -162,10 +162,14 @@ class AllianceService(BaseService):
                 ``AllianceSearchResult.alliance_id`` from ``client.alliance.search_alliances()``
             timeout: Timeout in seconds
 
+        Returns:
+            The alliance, or None when the reply names none (no ``AID``)
+
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        return self.request(GetAllianceInfoRequest(alliance_id=alliance_id), GetAllianceInfoResponse, timeout=timeout)
+        request = GetAllianceInfoRequest(alliance_id=alliance_id)
+        return self.request(request, GetAllianceInfoResponse, timeout=timeout).alliance
 
     def get_members(self, alliance_id: int, *, timeout: float = 5.0) -> list[AllianceMember]:
         """

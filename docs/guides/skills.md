@@ -10,8 +10,7 @@ and the player's own skill trees.
 ## Generals
 
 ```python
-generals = client.skills.get_generals()
-for general in generals.generals:
+for general in client.skills.get_generals():
     print(general.general_id, general.star_level, general.ability_ids)
 ```
 

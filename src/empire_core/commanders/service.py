@@ -28,6 +28,7 @@ from empire_core.commanders.models.roster import (
     PREMIUM_COMMANDER_ID,
     Castellan,
     Commander,
+    CommanderRoster,
     GetCommandersRequest,
     GetCommandersResponse,
     RenameCommanderRequest,
@@ -43,6 +44,7 @@ from empire_core.commanders.models.skills import (
     GetSkillsRequest,
     GetSkillsResponse,
     ObjectUpdateEvent,
+    OwnedGeneral,
     ResetGeneralSkillsRequest,
     SetGeneralAbilitiesRequest,
     SkillList,
@@ -109,7 +111,7 @@ class CommandersService(BaseService):
         """
         return self.get_all(timeout=timeout).castellans
 
-    def rename(self, commander_id: int, name: str, *, timeout: float = 5.0) -> RenameCommanderResponse:
+    def rename(self, commander_id: int, name: str, *, timeout: float = 5.0) -> CommanderRoster:
         """
         Rename a commander or castellan.
 
@@ -120,14 +122,13 @@ class CommandersService(BaseService):
             timeout: Timeout in seconds
 
         Returns:
-            The arl response, which carries the updated commander list
+            Your commanders and castellans after the rename, from the ``arl`` reply
 
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
-        return self.request(
-            RenameCommanderRequest(commander_id=commander_id, name=name), RenameCommanderResponse, timeout=timeout
-        )
+        request = RenameCommanderRequest(commander_id=commander_id, name=name)
+        return self.request(request, RenameCommanderResponse, timeout=timeout).commander_roster
 
     def __init__(self, client: EmpireClient) -> None:
         super().__init__(client)
@@ -309,7 +310,7 @@ class SkillsService(BaseService):
         self.on_response("skl", self._handle_skill_list)
         self.on_response("ego", self._handle_skill_list)
 
-    def get_generals(self, *, timeout: float = 5.0) -> GetGeneralsResponse:
+    def get_generals(self, *, timeout: float = 5.0) -> list[OwnedGeneral]:
         """
         Every general the player owns, with the skills each has unlocked.
 
@@ -317,14 +318,14 @@ class SkillsService(BaseService):
             timeout: Timeout in seconds
 
         Returns:
-            The ``gie`` response
+            Your generals, from the ``gie`` reply
 
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
-        return self.request(GetGeneralsRequest(), GetGeneralsResponse, timeout=timeout)
+        return self.request(GetGeneralsRequest(), GetGeneralsResponse, timeout=timeout).generals
 
-    def assign_general(self, commander_id: int, general_id: int, *, timeout: float = 5.0) -> AssignGeneralResponse:
+    def assign_general(self, commander_id: int, general_id: int, *, timeout: float = 5.0) -> CommanderRoster:
         """
         Assign a general to a commander; ``general_id=-1`` takes its general away.
 
@@ -336,16 +337,13 @@ class SkillsService(BaseService):
             timeout: Timeout in seconds
 
         Returns:
-            The ``gla`` response, with the commander list after the change
+            Your commanders and castellans after the change, from the ``gla`` reply
 
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
-        return self.request(
-            AssignGeneralRequest(commander_id=commander_id, general_id=general_id),
-            AssignGeneralResponse,
-            timeout=timeout,
-        )
+        request = AssignGeneralRequest(commander_id=commander_id, general_id=general_id)
+        return self.request(request, AssignGeneralResponse, timeout=timeout).commander_roster
 
     def set_abilities(
         self, general_id: int, abilities: Iterable[tuple[int, int | None]], *, timeout: float = 5.0
