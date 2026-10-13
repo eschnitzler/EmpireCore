@@ -1,7 +1,8 @@
 """
-Starting research and shortening it with a minute skip.
+Your research, starting it and shortening it with a minute skip.
 
 Commands:
+- rei: your research, as a login section of ``gbd``, a push, and inside the ``res`` and ``msr`` replies
 - res: start a research
 - msr: shorten the running research with a minute skip
 
@@ -10,17 +11,58 @@ Finishing a research at once for rubies (``C2SResearchFinishInstantVO``, bundle 
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
-from pydantic import Field
+from pydantic import BeforeValidator, Field
 
 from empire_core.castle.models.resources import CastleResources
 from empire_core.gamedata import EnumOrInt, EnumOrStr
-from empire_core.player.models.progress import ResearchInfoResponse
-from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock
+from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, TimedResponse
+from empire_core.protocol.js import ClientInt, ClientNumber, js_int
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Currency, Research
+
+
+def _ints(value: Any) -> tuple[int, ...]:
+    if not isinstance(value, list):
+        return ()
+    return tuple(entry for entry in value if isinstance(entry, int) and not isinstance(entry, bool))
+
+
+class ResearchInfoResponse(TimedResponse):
+    """
+    Your research: what is finished and what runs now.
+
+    Command: rei, as a login section of ``gbd``, a push, and inside the ``res`` and ``msr`` replies.
+
+    Client: ``CastleResearchData.parse_REI`` (bundle line 139330), ``remainingResearchTimeInSeconds``
+    and ``isSomeResearchActive`` (bundle lines 139337-139338)
+    """
+
+    command = "rei"
+
+    bought_research_ids: Annotated[tuple[EnumOrInt["Research"], ...], BeforeValidator(_ints)] = Field(
+        validation_alias="BR", default=(), description="Finished researches"
+    )
+    current_research_id: ClientInt = Field(
+        validation_alias="ARID",
+        default=0,
+        description="The research running now, -1 for none",
+    )
+    research_seconds: ClientNumber = Field(
+        validation_alias="ARRT",
+        default=0,
+        description="Seconds left on the running research when the values were read",
+    )
+
+    def remaining_research_seconds(self, now: float | None = None) -> int:
+        """Whole seconds left on the running research, 0 when none runs."""
+        return js_int(max(self.research_seconds - self._elapsed(now), 0))
+
+    def is_research_active(self, now: float | None = None) -> bool:
+        """Whether a research runs: an id other than -1 with time left."""
+        return self.current_research_id != -1 and self.remaining_research_seconds(now) > 0
 
 
 class StartResearchRequest(BaseRequest):
@@ -32,7 +74,7 @@ class StartResearchRequest(BaseRequest):
 
     ``PWR`` 1 would pay missing resources with rubies (``CastleResourceWaitDialogProperties.getResourceSkipCommand``,
     bundle line 35216); this request always sends 0. A research whose own costs hold rubies
-    (``ResearchDef.cost_rubies``) is sent the same way and spends them; ``client.player.start_research``
+    (``ResearchDef.cost_rubies``) is sent the same way and spends them; ``client.castle.start_research``
     refuses it unless asked to spend rubies.
 
     Client: ``C2SResearchStartVO`` (bundle line 47697), sent by ``ResearchInfo.buyResearch`` (bundle line 79704)
@@ -114,4 +156,10 @@ class SkipResearchResponse(BaseResponse):
     )
 
 
-__all__ = ["SkipResearchRequest", "SkipResearchResponse", "StartResearchRequest", "StartResearchResponse"]
+__all__ = [
+    "ResearchInfoResponse",
+    "SkipResearchRequest",
+    "SkipResearchResponse",
+    "StartResearchRequest",
+    "StartResearchResponse",
+]

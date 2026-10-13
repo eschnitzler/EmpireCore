@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from empire_core.castle.models.research import ResearchInfoResponse
 from empire_core.player.models.progress import (
     AchievementProgress,
     AchievementsResponse,
@@ -11,7 +12,6 @@ from empire_core.player.models.progress import (
     GloryPointsResponse,
     MightPointsResponse,
     RelocationInfoResponse,
-    ResearchInfoResponse,
     TitleRanksResponse,
 )
 from empire_core.protocol.js import js_truthy

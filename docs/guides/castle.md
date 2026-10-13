@@ -226,14 +226,14 @@ it does not check for a waiver, so the flag may spend rubies.
 
 ## Research
 
-Research runs on `client.player`. Start one, or shorten the running one with a
+Research runs on `client.castle`. Start one, or shorten the running one with a
 minute skip from your inventory:
 
 ```python
 from empire_core.gamedata import Currency, Research
 
-client.player.start_research(Research.MANEUVER_L1)
-client.player.skip_research(Currency.SKIP_10_MINUTES)
+client.castle.start_research(Research.MANEUVER_L1)
+client.castle.skip_research(Currency.SKIP_10_MINUTES)
 
 research = client.state.get_research()  # None until the login data arrives
 if research is not None:
@@ -252,16 +252,16 @@ no minute skip, or one you hold none of. Each reply's research reaches
 
 ## Mercenary camp
 
-The mercenary camp's missions are on `client.player` too. One request, `mpe`,
+The mercenary camp's missions are on `client.castle` too. One request, `mpe`,
 lists them, starts one and collects one:
 
 ```python
-missions = client.player.list_missions()
+missions = client.castle.list_missions()
 for mission in missions.missions:
     print(mission.mission_id, mission.quality, mission.current_state(), mission.price, mission.rewards)
 
-client.player.start_mission(mission_id=3)    # an open mission, paid in coins
-client.player.collect_mission(mission_id=3)  # once its time has run out
+client.castle.start_mission(mission_id=3)    # an open mission, paid in coins
+client.castle.collect_mission(mission_id=3)  # once its time has run out
 ```
 
 Each mission's `rewards` are `Collectable`s, `quality` a `MercenaryMissionRarity`
@@ -279,7 +279,7 @@ can still change a mission between the list and the send; nothing closes that
 window. Finishing a mission for rubies and swapping one for another (240
 rubies) are left out.
 
-**API:** [`PlayerService`](../reference/player.md#empire_core.player.service.PlayerService)
+**API:** [`CastleService`](../reference/castle.md#empire_core.castle.service.CastleService)
 
 ## Horses
 

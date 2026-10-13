@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from empire_core.castle import ResearchInfoResponse
 from empire_core.enums import PremiumAccountType, TitleSystem
 from empire_core.gamedata import Achievement, Research, Title
 from empire_core.player import PERMANENT_BOOSTER_DURATION, BoosterInfoResponse
@@ -13,7 +14,6 @@ from empire_core.player.models.progress import (
     AllianceCityTitle,
     IslandTitle,
     RelocationInfoResponse,
-    ResearchInfoResponse,
     TitleRanksResponse,
 )
 
