@@ -9,7 +9,7 @@ from empire_core.gamedata import Currency
 from empire_core.gamedata.lenient import known
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.spy.models import MaxSpiesResponse
-from empire_core.state.base import StateBase
+from empire_core.state.base import StateBase, loaded
 from empire_core.state.models import Alliance, Player
 
 logger = logging.getLogger(__name__)
@@ -260,8 +260,8 @@ class PlayerState(StateBase):
             self._player_updated_at = time.time()
             logger.debug(f"Updated {len(entries)} special currencies from sce")
 
-    def get_local_player(self) -> Player | None:
-        """Get a snapshot of the local player, or None before login.
+    def get_local_player(self) -> Player:
+        """Get a snapshot of the local player, which the login data brings.
 
         Returns a copy taken under the lock, with detached ``special_currencies``,
         ``castles`` and ``beginner_protection`` containers, so several fields can be read consistently
@@ -270,11 +270,12 @@ class PlayerState(StateBase):
 
         The Castle objects inside the snapshot are the live ones, as with
         ``get_castles()``.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
         """
         with self._lock:
-            player = self.local_player
-            if player is None:
-                return None
+            player = loaded(self.local_player, "The local player")
             return player.model_copy(
                 update={
                     "special_currencies": dict(player.special_currencies),
@@ -297,14 +298,17 @@ class PlayerState(StateBase):
                 return {}
             return dict(self.local_player.special_currencies)
 
-    def get_max_spies(self) -> MaxSpiesResponse | None:
-        """The spies you own before boosts, from ``gms``; None until the login gbd brings it.
+    def get_max_spies(self) -> MaxSpiesResponse:
+        """The spies you own before boosts, from ``gms``; the login data brings one.
 
         The model is replaced, never edited, on each ``gms``, so the one returned stays as it was.
         ``client.spy.total_spies()`` adds the boosts, read from state.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
         """
         with self._lock:
-            return self.max_spies
+            return loaded(self.max_spies, "Max spies")
 
     def get_player_last_updated(self) -> float | None:
         """When any local-player field was last refreshed, or ``None``.

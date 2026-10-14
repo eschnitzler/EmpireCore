@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from empire_core.enums import Kingdom
+from empire_core.exceptions import StateNotLoadedError
 from empire_core.gamedata import Currency
 from empire_core.state.models import Player
 from tests.state.state_helpers import gam_payload, gcl_payload
@@ -43,8 +44,9 @@ class TestLocalPlayerSnapshots:
         snapshot.PN = "tampered"
         assert state.local_player.PN == "me"
 
-    def test_get_local_player_is_none_before_login(self, state):
-        assert state.get_local_player() is None
+    def test_get_local_player_raises_before_login(self, state):
+        with pytest.raises(StateNotLoadedError):
+            state.get_local_player()
 
     def test_snapshot_containers_are_detached(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": [["A", 1]], "gcl": gcl_payload([(1, "Main")])})
@@ -387,7 +389,8 @@ class TestPlayerPushes:
 
     def test_push_before_login_is_ignored(self, state):
         state.update_from_packet("gcu", {"C1": 5, "C2": 1})
-        assert state.get_local_player() is None
+        with pytest.raises(StateNotLoadedError):
+            state.get_local_player()
 
     def test_push_refreshes_player_stamp(self, state):
         state.update_from_packet("gbd", LIVE_LOGIN)
@@ -518,8 +521,9 @@ class TestLevelProgress:
 class TestMaxSpies:
     """gms: the gbd section and the push, as CastleSpyData.parse_GMS reads them."""
 
-    def test_none_before_login(self, state):
-        assert state.get_max_spies() is None
+    def test_raises_before_login(self, state):
+        with pytest.raises(StateNotLoadedError):
+            state.get_max_spies()
         assert state.get_last_packet_time("gms") is None
 
     def test_read_from_the_login_gbd(self, state):
@@ -561,5 +565,6 @@ class TestMaxSpies:
         state.update_from_packet("gbd", {"gms": {"MS": 12}})
         state.reset()
 
-        assert state.get_max_spies() is None
+        with pytest.raises(StateNotLoadedError):
+            state.get_max_spies()
         assert state.get_last_packet_time("gms") is None

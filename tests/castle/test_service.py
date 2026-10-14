@@ -93,7 +93,7 @@ class TestCastleQueries:
 
     def test_gcl_sends_the_player_id_once_known(self):
         player = StubPlayer()
-        player.id = 777  # type: ignore[attr-defined]
+        player.id = 777
         client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL)}, state=StubState(local_player=player))
 
         client.castle.get_all()
@@ -219,7 +219,7 @@ class TestCastleActions:
 
     def test_a_rename_costs_rubies_unless_a_premium_account_runs(self):
         # CastleRenameCastleDialog.showLoaded: CHANGE_CASTLE_NAME_C2, 0 while premiumAccountVO.isActive
-        stub = StubState()
+        stub = StubState(StubPlayer())
         script = {"gcl": xt_packet("gcl", GOLDEN_GCL), "arc": xt_packet("arc", {"CID": 2001, "KID": 0, "P": 1})}
         client = make_client(script, state=stub)
         with pytest.raises(ValueError, match="2500 rubies"):

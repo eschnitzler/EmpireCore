@@ -103,9 +103,10 @@ docstring; any other error code raises `CommandError`. Invalid arguments raise
 Four kinds of method follow rules of their own, each documented on the method:
 
 - A read that sends nothing (a property or noun method on the service, never a
-  `get_*`) returns `None` while the login data or push it comes from has not
-  arrived: `client.castle.horses()` before a `gpc` named the castle,
-  `client.player.local_player` before login.
+  `get_*`) returns `None` while the push or reply it comes from has not
+  arrived: `client.castle.horses()` before a `gpc` named the castle. Data every
+  login brings is never `None`; read before a login, it raises
+  `StateNotLoadedError` (`client.player.local_player`).
 - A call made of several requests returns a result object that names each
   outcome: a `SpyResult` with `SpyOutcome.COMMAND_FAILED` and its `error`, or
   the `failed` and `timed_out` players of `client.player.get_player_details_bulk()`.

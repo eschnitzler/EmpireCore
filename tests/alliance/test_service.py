@@ -16,6 +16,7 @@ from empire_core.exceptions import (
     CommandError,
     NotInAllianceError,
     PacketError,
+    StateNotLoadedError,
     UnknownCastleError,
 )
 from empire_core.protocol.models import AllianceChatMessageResponse, AllianceMember, HelpType
@@ -170,9 +171,10 @@ class TestAllianceLocalHelpers:
         client = make_client(state=StubState(local_player=StubPlayer(alliance_id=301)))
         assert client.alliance.local_alliance_id == 301
 
-    def test_local_alliance_id_is_none_without_a_local_player(self):
+    def test_local_alliance_id_raises_before_login(self):
         client = make_client(state=StubState(local_player=None))
-        assert client.alliance.local_alliance_id is None
+        with pytest.raises(StateNotLoadedError):
+            _ = client.alliance.local_alliance_id
 
     def test_local_alliance_id_is_none_for_a_negative_aid(self):
         client = make_client(state=StubState(local_player=StubPlayer(alliance_id=-1)))
@@ -204,7 +206,7 @@ class TestAllianceLocalHelpers:
         assert [m.name for m in client.alliance.get_local_online_members()] == ["LeaderGuy"]
 
     def test_local_online_members_without_an_alliance_raise(self):
-        client = make_client(state=StubState(local_player=None))
+        client = make_client(state=StubState(local_player=StubPlayer(alliance_id=-1)))
         with pytest.raises(NotInAllianceError):
             client.alliance.get_local_online_members()
         assert conn(client).requested == []

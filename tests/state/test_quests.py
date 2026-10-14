@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from empire_core.enums import CollectableKind
+from empire_core.exceptions import StateNotLoadedError
 from empire_core.gamedata import Collectable
 from empire_core.quests import DailyQuest, DailyQuests, Quest, QuestBook
 from empire_core.state import quests as quest_state
@@ -159,12 +160,15 @@ class TestDailyQuests:
     def test_a_falsy_section_is_not_applied_or_stamped(self, state, dql):
         state.update_from_packet("gbd", {"dql": dql})
 
-        assert state.get_daily_quests() is None and state.get_last_packet_time("dql") is None
+        assert state.get_last_packet_time("dql") is None
+        with pytest.raises(StateNotLoadedError):
+            state.get_daily_quests()
 
     def test_an_error_push_is_not_applied(self, state):
         state.update_from_packet("dql", self.DQL, error_code=1)
 
-        assert state.get_daily_quests() is None
+        with pytest.raises(StateNotLoadedError):
+            state.get_daily_quests()
 
 
 def test_reset_forgets_the_quests(state):
@@ -173,4 +177,6 @@ def test_reset_forgets_the_quests(state):
 
     state.reset()
 
-    assert state.get_quests() == {} and state.get_quest_book() is None and state.get_daily_quests() is None
+    assert state.get_quests() == {} and state.get_quest_book() is None
+    with pytest.raises(StateNotLoadedError):
+        state.get_daily_quests()

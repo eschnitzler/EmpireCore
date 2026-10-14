@@ -260,7 +260,7 @@ class CommandersService(BaseService):
         state = self.client.state
         player = state.get_local_player()
         received_at = state.get_last_packet_time("vip")
-        if player is None or received_at is None:
+        if received_at is None:
             return None
         elapsed = (time.time() if now is None else now) - received_at
         if player.vip_time_left - elapsed <= 0:
@@ -335,8 +335,7 @@ class CommandersService(BaseService):
                 self._own_premium_sends = (vip_at, own_sends + 1 if counted_at == vip_at else 1)
 
     def _premium_account_runs(self) -> bool:
-        boosts = self.client.state.get_boosts()
-        return boosts is not None and boosts.is_premium_active()
+        return self.client.state.get_boosts().is_premium_active()
 
 
 class EquipmentService(BaseService):

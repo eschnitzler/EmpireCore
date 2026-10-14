@@ -26,9 +26,8 @@ reply brought (a rename, a general assignment, an attack info reply, ...), so
 reading it costs no request:
 
 ```python
-roster = client.commanders.roster   # None before the login data
-if roster is not None:
-    print(len(roster.commanders), len(roster.castellans))
+roster = client.commanders.roster
+print(len(roster.commanders), len(roster.castellans))
 ```
 
 ## Rename

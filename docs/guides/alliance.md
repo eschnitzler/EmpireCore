@@ -56,8 +56,7 @@ recruiting in items version 786.03):
 
 ```python
 max_helpers = {1: 3, 2: 5, 3: 3, 4: 3, 5: 20, 6: 3}
-player = client.player.local_player
-my_id = player.id if player else None
+my_id = client.player.local_player.id
 
 for request in client.alliance.help_requests:
     finished = request.progress >= max_helpers.get(request.help_type, 0)

@@ -51,8 +51,9 @@ class BaseService:
 
     - a read that sends nothing is a property, or a noun method when it takes an argument,
       never a ``get_*`` (a ``get_*`` always sends a request); it reads ``client.state`` and
-      returns ``None`` while the login data or push it comes from has not arrived yet
-      (``client.castle.horses`` before a ``gpc``);
+      returns ``None`` while the push or reply it comes from has not arrived yet
+      (``client.castle.horses`` before a ``gpc``); data every login brings is never
+      ``None``: before a login its read raises ``StateNotLoadedError``;
     - a call made of several requests returns a result object that names each outcome,
       such as ``SpyOutcome.COMMAND_FAILED`` on a ``SpyResult`` or the ``failed`` and
       ``timed_out`` players of ``get_player_details_bulk``;

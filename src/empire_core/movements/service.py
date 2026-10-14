@@ -241,7 +241,7 @@ class MovementsService(BaseService):
                 goods,
             )
         player = self.client.state.get_local_player()
-        if player is not None and player.level > 0 and player.legendary_level <= 0:
+        if player.level > 0 and player.legendary_level <= 0:
             beyond = [key.value for key in amounts if key not in _CLASSIC_GOODS]
             if beyond:
                 raise UnsendableGoodsError(

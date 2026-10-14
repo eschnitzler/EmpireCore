@@ -160,7 +160,7 @@ class TestSendResources:
             client.movements.send_resources(1234, 10, 20, goods)
         assert conn(client).request_payloads == []
 
-    def test_goods_are_not_checked_by_level_before_the_player_is_known(self):
+    def test_goods_are_not_checked_by_level_before_the_level_is_known(self):
         client = make_client(castles=[(1234, Kingdom.GREEN)])
         client.movements.send_resources(1234, 10, 20, {Resource.COAL: 1})
         assert conn(client).request_payloads[0][1]["G"] == [["C", 1]]

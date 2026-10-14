@@ -130,7 +130,7 @@ raises `AmbiguousCastleError`.
 client is in `client.state`, readable without a request:
 
 ```python
-player = client.player.local_player      # None until the login data arrives
+player = client.player.local_player
 for castle in client.castle.castles:
     print(castle.id, castle.name)
 ```

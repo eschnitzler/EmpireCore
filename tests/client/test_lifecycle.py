@@ -274,13 +274,15 @@ class TestLoginCleansUpOnFailure:
         assert conn.disconnect_count == 0
         assert client.is_logged_in is True
 
-    def test_missing_gbd_is_not_fatal(self):
-        # gbd is best-effort: a missing one must not close the session.
+    def test_missing_gbd_fails_the_login_and_closes_the_connection(self):
         conn = StubConnection({"gbd": EmpireTimeoutError("no gbd")})
         client = make_client(conn)
 
-        client.login()
-        assert conn.disconnect_count == 0
+        with pytest.raises(EmpireTimeoutError, match="login data"):
+            client.login()
+
+        assert conn.disconnect_count == 1
+        assert client.is_logged_in is False
 
 
 class TestLoginClientVersion:

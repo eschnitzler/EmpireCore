@@ -398,7 +398,8 @@ class TestGbdWaiterRace:
         conn = ScriptedConnection({"gbd": EmpireTimeoutError("no gbd")})
         client = make_client(conn)
 
-        client.login()
+        with pytest.raises(EmpireTimeoutError):
+            client.login()
 
         assert conn.waiters_canceled == ["gbd"]
 
@@ -417,27 +418,6 @@ class TestNonFatalSteps:
         assert client.is_logged_in is True
         assert xt_login_payload(conn)["RTM"] == 0
 
-    def test_both_optional_steps_missing_is_still_a_login(self):
-        conn = ScriptedConnection(
-            {
-                "roundTripRes": EmpireTimeoutError("no roundTripRes"),
-                "gbd": EmpireTimeoutError("no gbd"),
-            }
-        )
-        client = make_client(conn)
-
-        client.login()
-        assert "disconnect" not in conn.events
-
-    def test_missing_gbd_is_warned_about(self, caplog):
-        conn = ScriptedConnection({"gbd": EmpireTimeoutError("no gbd")})
-        client = make_client(conn)
-
-        with caplog.at_level("WARNING", logger="empire_core.client.session"):
-            client.login()
-
-        assert "gbd" in caplog.text
-
 
 class TestFatalSteps:
     @pytest.mark.parametrize(
@@ -448,6 +428,7 @@ class TestFatalSteps:
             ("joinOK", "Room join"),
             ("vck", "Version check"),
             ("lli", "XT login timed out"),
+            ("gbd", "login data"),
         ],
     )
     def test_required_step_timeouts_are_labeled_and_fatal(self, step, message):
@@ -458,6 +439,7 @@ class TestFatalSteps:
             client.login()
 
         assert "disconnect" in conn.events
+        assert client.is_logged_in is False
 
     def test_a_failed_step_stops_the_sequence(self):
         conn = ScriptedConnection({"rlu": EmpireTimeoutError("no rlu")})

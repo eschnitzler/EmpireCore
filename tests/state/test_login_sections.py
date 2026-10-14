@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from empire_core.client.client import EmpireClient
 from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.enums import OnlineState
+from empire_core.exceptions import StateNotLoadedError
 from empire_core.protocol.packet import Packet
 
 PLAYER = {"gpi": {"PID": 7, "PN": "me"}, "gal": {"AID": 300, "R": 8, "N": "Guild", "ACF": 22, "SA": 0}}
@@ -57,7 +58,8 @@ def message(pid: int, text: str, age: float = 60) -> dict:
 
 class TestCommanders:
     def test_login_list_is_kept_in_the_clients_order(self, state):
-        assert state.get_commanders() is None
+        with pytest.raises(StateNotLoadedError):
+            state.get_commanders()
         castellans = [castellan(1, 5), castellan(2, 0), castellan(3, 99)]
         gli = {"C": [commander(9), commander(2), commander(5)], "B": castellans}
         state.update_from_packet("gbd", {**PLAYER, "gli": gli})
@@ -166,7 +168,9 @@ class TestOwnAlliance:
         state.update_from_packet("skl", SKILLS)
         state.reset()
         assert state.get_own_alliance() is None and state.get_alliance_chat() == []
-        assert state.get_commanders() is None and state.get_skills() is None
+        assert state.get_skills() is None
+        with pytest.raises(StateNotLoadedError):
+            state.get_commanders()
 
 
 class TestAllianceChat:

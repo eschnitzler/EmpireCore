@@ -150,8 +150,7 @@ class RewardsService(BaseService):
         """
         special = LoginBonusSpecial(special)
         self._require_login_bonus_xp()
-        player = self.client.state.get_local_player()
-        alliance_id = None if player is None else player.alliance_id
+        alliance_id = self.client.state.get_local_player().alliance_id
         if special is LoginBonusSpecial.ALLIANCE and (alliance_id is None or alliance_id < 0):
             raise NotInAllianceError()
         return self._collect_login_bonus(CollectLoginBonusRequest(special=special), timeout)
@@ -165,7 +164,7 @@ class RewardsService(BaseService):
 
     def _require_login_bonus_xp(self) -> None:
         player = self.client.state.get_local_player()
-        xp = player.xp if player is not None and "xp" in player.model_fields_set else None
+        xp = player.xp if "xp" in player.model_fields_set else None
         if xp is None or xp < LOGIN_BONUS_REQUIRED_XP:
             raise LoginBonusUnavailableError(xp, LOGIN_BONUS_REQUIRED_XP)
 

@@ -13,8 +13,7 @@ from empire_core.enums import Kingdom
 from empire_core.exceptions import CommandError, GameDataNotLoadedError, PremiumCommanderCostError
 from empire_core.gamedata import GameData
 from empire_core.protocol.models import EquipmentSlot, EquipmentType, WearerType
-from empire_core.state.manager import GameState
-from tests.service_helpers import conn, make_client, wave, xt_packet
+from tests.service_helpers import conn, logged_in_state, make_client, wave, xt_packet
 
 
 class TestSkillListUpdates:
@@ -298,13 +297,12 @@ VIP_LEVELS = [
 
 
 def premium_client(vip: dict[str, Any] | None = None, boi: dict[str, Any] | None = None, *, game_data: bool = True):
-    state = GameState()
-    login: dict[str, Any] = {"gpi": {"PID": 7}}
+    login: dict[str, Any] = {}
     if vip is not None:
         login["vip"] = vip
     if boi is not None:
         login["boi"] = boi
-    state.update_from_packet("gbd", login)
+    state = logged_in_state(**login)
     client = make_client(state=state)  # type: ignore[arg-type]
     if game_data:
         client.game_data = GameData.parse("786.03", {"viplevels": VIP_LEVELS})

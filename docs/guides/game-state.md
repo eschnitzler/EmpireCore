@@ -14,13 +14,13 @@ code reads it.
 ## Read it on the service of its game area
 
 Each game area's service reads what the server sent for it. A property, or a
-noun method when it takes an argument, sends nothing and returns `None` until
-its data has arrived; a `get_*` always asks the server. Each read takes the
+noun method when it takes an argument, sends nothing; a `get_*` always asks
+the server. Each read takes the
 state lock and returns a snapshot, so nothing changes underneath you
 mid-iteration:
 
 ```python
-player = client.player.local_player             # None until the login data arrives
+player = client.player.local_player
 castles = client.castle.castles
 unlocks = client.castle.unlocks(castle_id)      # unlocked units, horses
 movements = client.movements.tracked
@@ -64,6 +64,13 @@ area = client.castle.joined_area                # None until a castle is joined
 mines = client.castle.mines                     # the joined castle's mines, by object id
 carts = client.castle.resource_carts            # its wood, stone and food carts
 ```
+
+The login data always carries the local player, commanders, research,
+boosters, might, glory points, title ranks, achievements, daily quests, new
+relics and spy count, so their reads never return `None`. Read before a
+login, or while a dropped session waits for the next one, they raise
+`StateNotLoadedError`. The others return `None` until their section arrives,
+or when the game has none (no alliance, no officer training running).
 
 The commanders, skills and alliance accessors return copies, and the chat
 messages, progress and account models are read-only, so changing what you hold
@@ -248,7 +255,8 @@ quest a `qst` starts, `on_quest_progress` when a `qpg` names an active quest
 When the connection drops, state is emptied, as the game client empties its
 own. The next login's `gbd` refills the player, castles, commanders, skills,
 alliance and chat, and the movement
-list the server pushes shortly after refills the movements.
+list the server pushes shortly after refills the movements. Until then the
+accessors of the login data raise `StateNotLoadedError`.
 `client.on_disconnect(callback)` tells you when a session drops; `close()`
 does not fire it.
 

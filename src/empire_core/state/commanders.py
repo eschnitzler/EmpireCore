@@ -7,7 +7,7 @@ from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.commanders.models.skills import SkillList
 from empire_core.protocol.base import read_or_none
 from empire_core.protocol.js import js_truthy
-from empire_core.state.base import StateBase
+from empire_core.state.base import StateBase, loaded
 
 logger = logging.getLogger(__name__)
 
@@ -43,15 +43,18 @@ class CommanderState(StateBase):
         self.skills = skills
         return True
 
-    def get_commanders(self) -> CommanderRoster | None:
-        """Your commanders and castellans as the last ``gli`` listed them; None until one arrived.
+    def get_commanders(self) -> CommanderRoster:
+        """Your commanders and castellans as the last ``gli`` listed them.
 
         The login gbd brings them, and so does every reply that carries the list (``gli``,
         ``arl``, ``gla``, ``seq``, ``sdi``, ``sti`` and the attack and conquer info replies).
         A copy: changing it changes nothing in state.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
         """
         with self._lock:
-            return None if self.commanders is None else self.commanders.model_copy(deep=True)
+            return loaded(self.commanders, "Commanders").model_copy(deep=True)
 
     def get_skills(self) -> SkillList | None:
         """Your legend and sceat skills as the last ``skl`` listed them; None until one arrived.
