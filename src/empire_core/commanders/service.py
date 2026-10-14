@@ -84,7 +84,7 @@ class CommandersService(BaseService):
 
     def get_commanders(self, *, timeout: float = 5.0) -> list[Commander]:
         """
-        Get all available commanders.
+        Get every commander, whether or not it leads an army now.
 
         Args:
             timeout: Timeout in seconds
@@ -111,6 +111,35 @@ class CommandersService(BaseService):
             CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
         return self.get_all(timeout=timeout).castellans
+
+    @property
+    def travelling_commanders(self) -> list[Commander]:
+        """
+        The commanders leading one of your movements in state, returning ones included; nothing is sent.
+
+        Only as fresh as the movements in state.
+
+        Raises:
+            StateNotLoadedError: No login has brought the roster
+
+        Client: ``LordVO.isAvailableForMovement`` (bundle line 26607), false while any map movement
+        that ``isMyMovement`` (``BasicMapmovementVO``, bundle line 19436) has the lord as its ``lordVO``,
+        whichever way it travels
+        """
+        movements = self.client.state.get_all_movements()
+        leading = {m.commander.commander_id for m in movements if m.is_mine and m.commander is not None}
+        return [c for c in self.roster.commanders if c.commander_id in leading]
+
+    @property
+    def idle_commanders(self) -> list[Commander]:
+        """
+        The commanders free to lead an army: those not in :attr:`travelling_commanders`; nothing is sent.
+
+        Raises:
+            StateNotLoadedError: No login has brought the roster
+        """
+        away = {c.commander_id for c in self.travelling_commanders}
+        return [c for c in self.roster.commanders if c.commander_id not in away]
 
     def rename(self, commander_id: int, name: str, *, timeout: float = 5.0) -> CommanderRoster:
         """
