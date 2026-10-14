@@ -629,6 +629,16 @@ class TestRowKingdom:
         assert MapAreaItem.from_list([31, 1, 2], Kingdom.STORM).kingdom is Kingdom.STORM
 
 
+class TestDistance:
+    """MapHelper.getShortestDistance: straight-line tiles, rounded half up to one decimal."""
+
+    @pytest.mark.parametrize(
+        ("x", "y", "expected"), [(500, 500, 0.0), (503, 504, 5.0), (501, 501, 1.4), (497, 498, 3.6)]
+    )
+    def test_distance_to_a_position(self, x: int, y: int, expected: float):
+        assert MapAreaItem.from_list([31, 500, 500]).distance_to(x, y) == expected
+
+
 class TestKingdomProtection:
     """GAACommand.executeCommand passes uap to CastleUserData.parse_UAP (bundle lines 9899-9906)."""
 

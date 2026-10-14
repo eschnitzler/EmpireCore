@@ -69,6 +69,24 @@ flowchart LR
     B -.->|now and then| A
 ```
 
+## Scanning around a castle
+
+`client.map.scan_around(x, y, radius, kingdom, item_types)` reads the map rows
+within `radius` tiles of a position, nearest first. Rows without a player
+owner, such as robber baron castles, are kept. A radius up to 50 is one request;
+a larger one is read chunk by chunk, so check `failed_chunks` as for any scan.
+`MapAreaItem.distance_to(x, y)` measures as the game does, to one decimal,
+except that it does not wrap round the map's x edge.
+
+```python
+from empire_core import Kingdom, MapItemType
+
+castle = next(c for c in client.state.get_castles() if c.kingdom_id == Kingdom.GREEN)
+nearby = client.map.scan_around(castle.x, castle.y, 40, Kingdom.GREEN, [MapItemType.DUNGEON])
+for dungeon in nearby.items:
+    print(dungeon.x, dungeon.y, dungeon.distance_to(castle.x, castle.y))
+```
+
 ## Scanning with several accounts
 
 The server limits the request rate per account, and each client keeps one
@@ -195,7 +213,8 @@ join their castle again themselves; anything else castle-scoped needs
 
 Each find returns `None` when nothing matches, and `found()` on the reply
 gives the row it found.
-- `client.map.scan_map_area(x1, y1, x2, y2)` reads one rectangle of the map.
+- `client.map.scan_map_area(x1, y1, x2, y2)` reads one rectangle of the map;
+  as in the game, a side reaching more than 100 tiles past `x1` (or `y1`) is cut to 100.
 - `client.castle.join_area(x, y)` joins an outpost, capital, metropolis or
   faction camp by its position.
 
