@@ -6,7 +6,6 @@ import pytest
 
 from empire_core.enums import Kingdom
 from empire_core.exceptions import (
-    AmbiguousCastleError,
     CommandError,
     GameDataNotLoadedError,
     NetworkError,
@@ -226,14 +225,6 @@ class TestArmyService:
 
         with pytest.raises(UnknownCastleError):
             client.army.heal_units(12345, 620, 1)
-        assert conn(client).request_payloads == []
-
-    def test_an_id_repeated_across_your_kingdoms_raises_before_joining(self):
-        client = army_client(castles=[(12345, Kingdom.STORM), (12345, Kingdom.BERIMOND)])
-
-        with pytest.raises(AmbiguousCastleError):
-            client.army.produce_units(12345, ProductionListId.SOLDIERS, 620, 1)
-
         assert conn(client).request_payloads == []
 
     def test_a_refused_join_sends_no_action(self):

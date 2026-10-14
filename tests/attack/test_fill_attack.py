@@ -13,7 +13,6 @@ from empire_core.combat import TargetRead
 from empire_core.enums import GGEError, Kingdom
 from empire_core.events import GlobalEffectTimer
 from empire_core.exceptions import (
-    AmbiguousCastleError,
     AttackBelowMinimumError,
     EmpireTimeoutError,
     UnknownCastleError,
@@ -731,15 +730,6 @@ class TestFillAttack(FillClient):
             client.attack.fill_attack(12345, target_x=700, target_y=710)
 
         assert conn(client).request_payloads == []
-
-    def test_an_id_repeated_across_your_kingdoms_raises_before_joining(self):
-        client = self.build([[601, 100_000]])
-        client.state.castles = gcl_castles((12345, Kingdom.STORM, 5, 6), (12345, Kingdom.BERIMOND, 7, 8))  # type: ignore[attr-defined]
-
-        with pytest.raises(AmbiguousCastleError):
-            client.attack.fill_attack(12345, target_level=13)
-
-        assert "jaa" not in [command for command, _ in conn(client).request_payloads]
 
     def test_the_stronghold_units_join_the_army(self):
         # AttackDialogUnitPicker adds gui.SHI into the inventory the dialog fills from

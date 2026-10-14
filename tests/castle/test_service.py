@@ -9,7 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from empire_core.enums import Kingdom, Resource
-from empire_core.exceptions import AmbiguousCastleError, CommandError, GameDataNotLoadedError, UnknownCastleError
+from empire_core.exceptions import CommandError, GameDataNotLoadedError, UnknownCastleError
 from tests.service_helpers import (
     COIN_HORSE,
     GOLDEN_GCL,
@@ -150,43 +150,6 @@ class TestCastleActions:
 
         assert raised.value.castle_id == 12345
         assert conn(client).request_payloads == []
-
-    @pytest.mark.parametrize(
-        "call",
-        [
-            lambda c: c.castle.select(1),
-            lambda c: c.castle.join(1),
-            lambda c: c.castle.get_resources(1),
-            lambda c: c.movements.send_resources(1, 10, 20, {"W": 1}),
-            lambda c: c.movements.transfer_units_to_kingdom(1, Kingdom.GREEN, [[620, 1]]),
-        ],
-    )
-    def test_an_id_repeated_across_your_kingdoms_raises_and_sends_nothing(self, call):
-        client = make_client(castles=[(1, Kingdom.STORM), (1, Kingdom.BERIMOND)])
-
-        with pytest.raises(AmbiguousCastleError) as raised:
-            call(client)
-
-        assert (raised.value.castle_id, raised.value.kingdoms) == (1, [Kingdom.STORM, Kingdom.BERIMOND])
-        assert "repeats across your kingdoms" in str(raised.value)
-        assert conn(client).request_payloads == []
-
-    def test_details_of_an_id_listed_in_two_kingdoms_raise(self):
-        dcl = {"C": [{"KID": 4, "AI": [{"AID": 1, "W": 4}]}, {"KID": 10, "AI": [{"AID": 1, "W": 10}]}]}
-        client = make_client({"dcl": xt_packet("dcl", dcl)})
-
-        with pytest.raises(AmbiguousCastleError):
-            client.castle.get_details(1)
-
-    def test_rename_of_an_id_listed_in_two_kingdoms_raises_and_sends_no_rename(self):
-        row = [1, 10, 20, 1, 1001, 1, 1, 1, 0, 0, "Keep"]
-        gcl = {"PID": 1001, "C": [{"KID": 4, "AI": [{"AI": row}]}, {"KID": 10, "AI": [{"AI": row}]}]}
-        client = make_client({"gcl": xt_packet("gcl", gcl)})
-
-        with pytest.raises(AmbiguousCastleError):
-            client.castle.rename(1, "New", spend_rubies=True)
-
-        assert [command for command, _ in conn(client).request_payloads] == ["gcl"]
 
     def test_select_waits_for_the_jaa_acknowledgement(self):
         # The server answers a castle jump with 'jaa', never with 'jca'.

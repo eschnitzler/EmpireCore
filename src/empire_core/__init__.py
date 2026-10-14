@@ -48,7 +48,6 @@ from empire_core.enums import (
 from empire_core.events.models import GameEvent
 from empire_core.exceptions import (
     AccountBannedError,
-    AmbiguousCastleError,
     AmbiguousLookupError,
     AttackBelowMinimumError,
     AttackInProgressError,
@@ -130,7 +129,6 @@ __all__ = [
     "StateNotLoadedError",
     "AmbiguousLookupError",
     "UnknownCastleError",
-    "AmbiguousCastleError",
     "EventNotRunningError",
     "EventHasNoPointsError",
     "NotInAllianceError",

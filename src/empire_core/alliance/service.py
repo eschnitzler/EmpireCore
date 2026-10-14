@@ -450,7 +450,6 @@ class AllianceService(BaseService):
 
         Raises:
             UnknownCastleError: ``castle_id`` is not in your castle list
-            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
             ValueError: every amount is 0, or rubies are donated and ``spend_rubies`` is False
             NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
