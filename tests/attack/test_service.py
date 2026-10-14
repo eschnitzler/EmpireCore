@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from empire_core.combat import WaveCapacity
+from empire_core.combat import FilledAttack, WaveCapacity
 from empire_core.enums import Kingdom
 from empire_core.exceptions import AttackBelowMinimumError, CommandError, UnknownCastleError
 from empire_core.gamedata import EMPTY_SLOT, Unit, WodAmount
@@ -278,6 +278,53 @@ class TestAttackService:
         client.attack.send_attack(
             500, 510, 700, 710, [wave(units=[[487, 4]]), wave(units=[[487, 4]])], 3, min_soldiers=8
         )
+
+    def test_a_filled_attack_brings_its_courtyard_and_minimum(self):
+        client = make_client(castles=OWN)
+        filled = FilledAttack(waves=[wave(units=[[487, 7]])], yard=WodAmount.slots({601: 50}), min_soldiers=8)
+
+        with pytest.raises(AttackBelowMinimumError):
+            client.attack.send_attack(500, 510, 700, 710, filled, 3)
+        client.attack.send_attack(500, 510, 700, 710, filled, 3, min_soldiers=7)
+
+        assert conn(client).request_payloads[0][1]["RW"] == [[601, 50]]
+
+    def test_sends_are_spaced_by_the_configured_interval(self, monkeypatch):
+        client = make_client(castles=OWN)
+        client.config.attack_send_interval = 4.0
+        clock = [100.0]
+        slept: list[float] = []
+        monkeypatch.setattr("empire_core.attack.pacing.time.monotonic", lambda: clock[0])
+        monkeypatch.setattr(
+            "empire_core.attack.pacing.sleep_unless_cancelled", lambda seconds, cancel: slept.append(seconds) or False
+        )
+
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3)
+        clock[0] = 101.5
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3)
+
+        assert slept == [2.5]
+
+    def test_an_interval_of_zero_sends_at_once(self, monkeypatch):
+        client = make_client(castles=OWN)
+        client.config.attack_send_interval = 0
+        slept: list[float] = []
+        monkeypatch.setattr(
+            "empire_core.attack.pacing.sleep_unless_cancelled", lambda seconds, cancel: slept.append(seconds) or False
+        )
+
+        for _ in range(3):
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3)
+
+        assert slept == []
+
+    def test_a_source_position_yours_in_two_kingdoms_needs_the_kingdom(self):
+        client = make_client(castles=[(12345, Kingdom.GREEN, 500, 510), (777, Kingdom.ICE, 500, 510)])
+
+        with pytest.raises(ValueError, match="pass the kingdom"):
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3)
+
+        assert conn(client).requested == []
 
     def test_the_servers_refusal_of_too_few_units_raises(self):
         client = make_client({"cra": xt_packet("cra", {"MS": 8}, error_code=100)}, castles=OWN)

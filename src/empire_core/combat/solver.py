@@ -45,7 +45,9 @@ class FillOptions(EmpireModel):
     Every filter defaults to allowed, matching the client's
     ``AutoFillOptions.createNewUnitFilter``. Turning one off excludes units that
     carry that cost: ``allow_ruby_cost=False`` keeps units whose healing costs
-    rubies out of the wave, for instance.
+    rubies out of the wave, for instance. ``use_tools``, ``fill_yard`` and
+    ``max_waves`` are the library's own and have no counterpart in the client's
+    auto-fill.
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
@@ -53,6 +55,11 @@ class FillOptions(EmpireModel):
     fill_left: bool = True
     fill_middle: bool = True
     fill_right: bool = True
+    use_tools: bool = Field(default=True, description="Place tools on the flanks; False fills soldiers only")
+    fill_yard: bool = Field(default=True, description="Fill the courtyard wave; False leaves every slot empty")
+    max_waves: int | None = Field(
+        default=None, ge=1, description="The most waves to fill; None fills every wave the attack may carry"
+    )
     allow_coin_cost: bool = True
     allow_ruby_cost: bool = True
     allow_mead: bool = True
@@ -318,7 +325,12 @@ def fill_wave(
         defender = (defense or {}).get(flank)
         # A fresh pool per flank: a strategy that retires on one flank is
         # available again on the next.
-        pool: list[ToolStrategy] = list(default_tool_strategies()) if strategies is None else list(strategies)
+        if not options.use_tools:
+            pool: list[ToolStrategy] = []
+        elif strategies is None:
+            pool = list(default_tool_strategies())
+        else:
+            pool = list(strategies)
         tools_placed = fill_flank_with_tools(
             capacity.tool_capacity(flank),
             capacity.tool_slots(flank),
@@ -478,6 +490,8 @@ def fill_waves(
         conquer=conquer,
         bonus=wave_bonus,
     )
+    if options is not None and options.max_waves is not None:
+        wave_count = min(wave_count, options.max_waves)
     for _index in range(wave_count):
         wave = fill_wave(
             inventory,
