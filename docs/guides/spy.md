@@ -139,7 +139,7 @@ The login data carries how many spies you own before boosts, and the server
 pushes it again when it changes:
 
 ```python
-owned = client.state.get_max_spies()  # None until the login data arrives
+owned = client.spy.max_spies  # None until the login data arrives
 if owned is not None:
     print(owned.max_spies)
 ```

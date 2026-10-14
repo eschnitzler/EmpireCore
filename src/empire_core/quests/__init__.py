@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from empire_core.utils.lazy import lazy_exports
 
 from .models import DailyQuest, DailyQuests, Quest, QuestBook
+from .service import QuestsService
 
 if TYPE_CHECKING:
     from empire_core.gamedata import DailyQuestId, MainQuest, QuestId
@@ -14,6 +15,7 @@ __all__ = [
     "DailyQuests",
     "Quest",
     "QuestBook",
+    "QuestsService",
     "DailyQuestId",
     "MainQuest",
     "QuestId",

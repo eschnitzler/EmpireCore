@@ -69,6 +69,7 @@ from empire_core.protocol.text import SMARTFOX_INVALID_CHARS, is_smartfox_valid
 from empire_core.services.base import BaseService
 
 if TYPE_CHECKING:
+    from empire_core.attack.models.counter import AttackCounterResponse
     from empire_core.gamedata import CurrencyId, GameData, GlobalEffect, Tool
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,11 @@ class AttackService(BaseService):
 
     Reached as client.attack.
     """
+
+    @property
+    def counter(self) -> AttackCounterResponse | None:
+        """Your attack counter, from the last ``gai``; None until one arrived."""
+        return self.client.state.get_attack_counter()
 
     def send_attack(
         self,

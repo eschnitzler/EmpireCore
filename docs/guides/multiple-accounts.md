@@ -97,7 +97,7 @@ changes nothing and logs a warning.
 
     What the client announced stays announced, also across `close()` and
     `login()`: an attack or occupation announced to you is not announced again
-    to the next leaseholder. It reads `client.state.get_announced_attacks()` and
+    to the next leaseholder. It reads `client.movements.announced_attacks` and
     `get_occupations()`, or calls `client.state.reannounce(movement_id)`,
     with `when_listed=True` while the movement list has not come yet (see [Movements](movements.md#what-was-announced-and-announcing-again)).
     Release drops the `when_listed` calls you left waiting, so they do not

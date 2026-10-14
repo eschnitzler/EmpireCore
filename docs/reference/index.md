@@ -49,7 +49,7 @@ models.
 |---|---|
 | [Map](map.md) | `client.map` |
 | [Ranking](ranking.md) | `client.ranking` |
-| [Quests](quests.md) | read from `client.state` |
+| [Quests](quests.md) | `client.quests` |
 | [Events](events.md) | `client.events` |
 | [Commanders](commanders.md) | `client.commanders`, `client.equipment` |
 | [Castle](castle.md) | `client.castle` |

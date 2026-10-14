@@ -149,6 +149,16 @@ class AllianceService(BaseService):
         for command in ("ahl", "ahh", "ahd", "ahf"):
             self.on_response(command, self._handle_help_update)
 
+    @property
+    def own_alliance(self) -> AllianceInfo | None:
+        """Your alliance's details and members, from the last ``ain`` about it; None in no alliance or before one."""
+        return self.client.state.get_own_alliance()
+
+    @property
+    def chat(self) -> list[ChatMessageData]:
+        """The alliance chat history, oldest first; a copy of the list, of read-only messages."""
+        return self.client.state.get_alliance_chat()
+
     # =========================================================================
     # Member Operations
     # =========================================================================

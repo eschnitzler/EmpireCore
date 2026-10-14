@@ -4,6 +4,8 @@ The running events, as the state keeps them, and their scoreboards.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from empire_core.enums import RankingType
 from empire_core.events.titles import get_event_titles
 from empire_core.exceptions import EventHasNoPointsError, EventNotRunningError
@@ -19,6 +21,9 @@ from empire_core.ranking.models import (
     SearchRankingListResponse,
 )
 from empire_core.services.base import BaseService
+
+if TYPE_CHECKING:
+    pass
 
 from .models import (
     EVENT_SCOREBOARDS,
@@ -55,6 +60,15 @@ class EventsService(BaseService):
 
     Reached as client.events.
     """
+
+    @property
+    def running(self) -> dict[int, SpecialEvent]:
+        """The running events by id, in the order they started; a copy."""
+        return self.client.state.get_events()
+
+    def is_running(self, event: Event | int) -> bool:
+        """Whether an event runs and has not ended."""
+        return self.client.state.is_event_active(event)
 
     def refresh(self, *, timeout: float = 5.0) -> dict[int, SpecialEvent]:
         """

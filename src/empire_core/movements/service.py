@@ -46,6 +46,25 @@ class MovementsService(BaseService):
     Reached as client.movements.
     """
 
+    @property
+    def tracked(self) -> list[Movement]:
+        """All tracked movements (stale ones pruned first)."""
+        return self.client.state.get_all_movements()
+
+    def movement(self, movement_id: int) -> Movement | None:
+        """a tracked movement by its ``Movement.movement_id``, as ``client.movements.get_movements()`` lists it."""
+        return self.client.state.get_movement_by_id(movement_id)
+
+    @property
+    def announced_attacks(self) -> list[Movement]:
+        """The attacks :meth:`on_incoming_attack` announced that are still on their way, in the order announced."""
+        return self.client.state.get_announced_attacks()
+
+    @property
+    def occupations(self) -> list[Movement]:
+        """The occupations :meth:`on_occupation_started` announced that have not ended, in the order announced."""
+        return self.client.state.get_occupations()
+
     def get_movements(self, wait: bool = True, *, timeout: float = 5.0) -> list[Movement]:
         """
         Request army movements from server.

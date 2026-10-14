@@ -19,7 +19,7 @@ State keeps the chat history from the login data on, with every message the
 server sends after it, oldest first, so reading it costs no request:
 
 ```python
-for entry in client.state.get_alliance_chat():
+for entry in client.alliance.chat:
     print(entry.sent_at, entry.player_name, entry.decoded_text)
 ```
 
@@ -56,7 +56,7 @@ recruiting in items version 786.03):
 
 ```python
 max_helpers = {1: 3, 2: 5, 3: 3, 4: 3, 5: 20, 6: 3}
-player = client.state.get_local_player()
+player = client.player.local_player
 my_id = player.id if player else None
 
 for request in client.alliance.help_requests:
@@ -96,7 +96,7 @@ it as a UTC `datetime` (or `None`), counted from the wall-clock time stamped at
 the same read (`received_at_wall`), so they do not move between calls. A player
 from `client.player.get_player_info` has the same on its `owner`.
 
-`client.state.get_own_alliance()` is your alliance's details as the login data
+`client.alliance.own_alliance` is your alliance's details as the login data
 and the replies since left them (a chat message marks its sender online), or
 `None` outside one, without a request.
 

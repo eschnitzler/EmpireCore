@@ -53,6 +53,7 @@ side by side.
 | [`client.messages`](https://eschnitzler.github.io/EmpireCore/guides/messages/) | The mailbox, mail and battle reports |
 | [`client.defense`](https://eschnitzler.github.io/EmpireCore/guides/defense/) | Reading and setting castle defense |
 | [`client.rewards`](https://eschnitzler.github.io/EmpireCore/guides/rewards/) | The free daily rewards |
+| [`client.quests`](https://eschnitzler.github.io/EmpireCore/guides/game-state/#quests) | Your active quests, the quest book and the daily quests |
 | [`client.player`, `ranking`, `events`](https://eschnitzler.github.io/EmpireCore/guides/) | Players, highscores and events |
 
 ## Install

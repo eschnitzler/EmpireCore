@@ -24,7 +24,7 @@ castle's resources and units in [state](game-state.md).
 
 Methods that act on one of your castles take its id alone and send its
 kingdom from the castle list the server sent at login
-(`client.state.get_castles()`), as the game client does. There is no
+(`client.castle.castles`), as the game client does. There is no
 `kingdom_id` argument to get wrong:
 
 - an id that is not one of your castles raises `UnknownCastleError`;
@@ -84,8 +84,8 @@ what is ready before you collect it:
 from empire_core.enums import ResourceCartType
 
 client.castle.join(castle_id)
-mines = client.state.get_mines()        # object id -> MineStatus
-wood = client.state.get_resource_cart(ResourceCartType.WOOD)
+mines = client.castle.mines        # object id -> MineStatus
+wood = client.castle.resource_cart(ResourceCartType.WOOD)
 if wood is not None and wood.amount > 0:
     client.castle.collect_resource_cart(ResourceCartType.WOOD)
 ```
@@ -142,7 +142,7 @@ from empire_core.gamedata import Currency, Research
 client.castle.start_research(Research.MANEUVER_L1)
 client.castle.skip_research(Currency.SKIP_10_MINUTES)
 
-research = client.state.get_research()  # None until the login data arrives
+research = client.castle.research  # None until the login data arrives
 if research is not None:
     print(research.current_research_id, research.remaining_research_seconds())
 ```
@@ -155,7 +155,7 @@ other costs, legendary tokens included, are paid as the game charges them. It
 never pays missing resources with rubies, and finishing a research at once for
 rubies is left out. `skip_research` raises `ValueError` for a currency that is
 no minute skip, or one you hold none of. Each reply's research reaches
-`client.state.get_research()`.
+`client.castle.research`.
 
 ## Mercenary camp
 
@@ -212,7 +212,7 @@ feathers, and any slowdown cost rubies and need `spend_rubies=True`.
 
 On a live account, main and kingdom castles offered horses 1007 to 1009, the
 Storm castle 1030 to 1032, and outposts none. Without game data,
-`client.state.get_permanent_castle(castle_id).horse_ids` gives the `Horse` members
+`client.castle.unlocks(castle_id).horse_ids` gives the `Horse` members
 (`Horse.HORSE_STABLE3` is 1007).
 
 **API:** [`CastleService`](../reference/castle.md#empire_core.castle.service.CastleService)

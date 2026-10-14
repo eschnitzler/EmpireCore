@@ -28,6 +28,7 @@ others) can be read with ``client.request``.
 from __future__ import annotations
 
 import time
+from typing import TYPE_CHECKING
 
 from empire_core.castle.models.actions import (
     JoinAreaRequest,
@@ -99,6 +100,15 @@ from empire_core.gamedata import BuildingDef, Currency, HorseStats, Research
 from empire_core.protocol.js import js_truthy
 from empire_core.services.base import BaseService
 
+if TYPE_CHECKING:
+    from empire_core.castle.models.collect import MineStatus, ResourceCart
+    from empire_core.castle.models.kingdoms import KingdomInfoResponse
+    from empire_core.castle.models.permanent import PermanentCastle
+    from empire_core.castle.models.research import ResearchInfoResponse
+    from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
+    from empire_core.castle.models.wishing_well import WishingWellResponse
+    from empire_core.state.models import Castle, JoinedArea
+
 # PlayerConst.CHANGE_CASTLE_NAME_C2 (dll line 19599)
 _RENAME_RUBIES = 2500
 # ConstructionConst.FREE_SKIP_TIME (dll line 18962)
@@ -136,6 +146,69 @@ class CastleService(BaseService):
     # =========================================================================
     # Castle List Operations
     # =========================================================================
+
+    @property
+    def castles(self) -> list[Castle]:
+        """A snapshot of the player's castles."""
+        return self.client.state.get_castles()
+
+    def unlocks(self, castle_id: int) -> PermanentCastle | None:
+        """One of your castles' unlocked units and horses, from the last gpc that named it."""
+        return self.client.state.get_permanent_castle(castle_id)
+
+    @property
+    def joined_area(self) -> JoinedArea | None:
+        """The area joined, with its slum level and builder discount; ``None`` before any join."""
+        return self.client.state.get_joined_area()
+
+    @property
+    def mines(self) -> dict[int, MineStatus]:
+        """The joined castle's mines by object id, as the last ``gsm`` sent them."""
+        return self.client.state.get_mines()
+
+    @property
+    def resource_carts(self) -> list[ResourceCart]:
+        """The joined castle's resource carts, wood, stone and food, as the last ``rci`` sent them."""
+        return self.client.state.get_resource_carts()
+
+    def resource_cart(self, cart_type: ResourceCartType) -> ResourceCart | None:
+        """The cart of one resource in the last ``rci``; ``None`` before any."""
+        return self.client.state.get_resource_cart(cart_type)
+
+    @property
+    def tax(self) -> TaxInfo | None:
+        """The tax collection, from the last ``txi``; None until one arrived."""
+        return self.client.state.get_tax()
+
+    @property
+    def kingdoms(self) -> KingdomInfoResponse | None:
+        """Your kingdoms and the transfers to them; None until a ``kpi`` arrived."""
+        return self.client.state.get_kingdoms()
+
+    @property
+    def construction_item_expiry(self) -> ConstructionItemExpiryResponse | None:
+        """When the next construction item expires, from the last ``nec``; None until one arrived."""
+        return self.client.state.get_construction_item_expiry()
+
+    @property
+    def resource_pool(self) -> ResourcePoolResponse | None:
+        """What the citizen in your castle carries, from the last ``irc`` push; None until one arrived."""
+        return self.client.state.get_resource_pool()
+
+    @property
+    def wishing_well(self) -> WishingWellResponse | None:
+        """The ruby wishing well, from the last ``rww``; None until one arrived."""
+        return self.client.state.get_wishing_well()
+
+    @property
+    def research(self) -> ResearchInfoResponse | None:
+        """Your finished and running research, from the last ``rei``; None until the login data brought one."""
+        return self.client.state.get_research()
+
+    @property
+    def mercenary_missions(self) -> MercenaryMissionsResponse | None:
+        """The mercenary camp's missions, from the last ``mpe``; None until one arrived."""
+        return self.client.state.get_mercenary_missions()
 
     def get_all(self, *, timeout: float = 5.0) -> list[CastleInfo]:
         """

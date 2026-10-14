@@ -16,14 +16,14 @@ names: Berimond is `Event.FACTION`.
 ```python
 from empire_core.gamedata import Event
 
-for event_id, event in client.state.get_events().items():
+for event_id, event in client.events.running.items():
     print(event_id, type(event).__name__, round(event.remaining_seconds()))
 
 point = client.state.get_event(Event.POINT_EVENT)       # None when it is not running
 if point is not None:
     print(point.league_id, point.own_rank, point.own_points)
 
-client.state.is_event_active(Event.SAMURAI_INVASION)
+client.events.is_running(Event.SAMURAI_INVASION)
 ```
 
 Each event is a model of its kind, with the fields its game dialog reads, and
