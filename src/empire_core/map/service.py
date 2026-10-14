@@ -15,6 +15,7 @@ from typing import TypeVar
 from empire_core.enums import GGEError, Kingdom, MapItemType
 from empire_core.exceptions import CommandError
 from empire_core.map.models.areas import (
+    MAX_AREA_SPAN,
     MAX_FINDABLE_ENEMY_INDEX,
     FindNextEnemyCastleRequest,
     FindNextEnemyCastleResponse,
@@ -51,7 +52,9 @@ class MapService(BaseService):
         """
         Scan a specific area of the map.
 
-        The session leaves the castle it had joined; see the module docstring.
+        As the game client does, a side spanning more than 100 tiles past its
+        first corner is cut to 100 tiles: ``x2`` becomes ``x1 + 99``, and ``y2`` the
+        same way. The session leaves the castle it had joined; see the module docstring.
 
         Args:
             x1: Left X coordinate
@@ -63,10 +66,75 @@ class MapService(BaseService):
 
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleWorldmapData.updateAreaRange`` (bundle line 19006)
         """
+        if x2 - x1 > MAX_AREA_SPAN:
+            x2 = x1 + MAX_AREA_SPAN - 1
+        if y2 - y1 > MAX_AREA_SPAN:
+            y2 = y1 + MAX_AREA_SPAN - 1
         request = GetMapAreaRequest(kingdom=kingdom, x1=x1, y1=y1, x2=x2, y2=y2)
         self.pacer.wait(request.tiles)
         return self.request(request, GetMapAreaResponse, timeout=timeout)
+
+    def scan_around(
+        self,
+        x: int,
+        y: int,
+        radius: int,
+        kingdom: Kingdom,
+        item_types: list[MapItemType] | None = None,
+        *,
+        timeout: float = 5.0,
+    ) -> ScanResult:
+        """
+        The map rows within ``radius`` tiles of ``(x, y)``, nearest first.
+
+        A row is kept when :meth:`MapAreaItem.distance_to` the position is at most
+        ``radius``; ``item_types`` keeps only those types, None every type, and rows
+        without a player owner are kept too. A box up to 101 tiles a side
+        (``radius`` 50) is one ``gaa`` request; a larger one is read chunk by chunk
+        through :meth:`scan_chunks`, whose chunks that failed are in
+        ``failed_chunks``, and which leaves out position-only rows of three fields.
+        Either way each read waits on the account's map pacer. The session leaves
+        the castle it had joined; see the module docstring.
+
+        Args:
+            x: Map x to measure from
+            y: Map y to measure from
+            radius: Greatest distance in tiles
+            kingdom: Kingdom to scan
+            item_types: Area types to keep; None for every type
+            timeout: Timeout in seconds of each request
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`,
+                for the one request of a small box
+        """
+        if 2 * radius <= MAX_AREA_SPAN:
+            response = self.scan_map_area(x - radius, y - radius, x + radius, y + radius, kingdom, timeout=timeout)
+            wanted = set(item_types) if item_types else None
+            scan = ScanResult(
+                items=[item for item in response.items if wanted is None or item.item_type in wanted],
+                objects={owner.owner_id: owner for owner in response.owners if owner.owner_id},
+                kingdom=kingdom,
+            )
+        else:
+            scanner = MapScanner(self.client)
+            low_x, low_y = scanner.chunk_for_position(x - radius, y - radius)
+            high_x, high_y = scanner.chunk_for_position(x + radius, y + radius)
+            chunks = [(cx, cy) for cx in range(low_x, high_x + 1) for cy in range(low_y, high_y + 1)]
+            scan = scanner.scan_chunks(
+                kingdom,
+                chunks,
+                item_types or [],
+                request_timeout=timeout,
+                include_unowned_types=set(item_types or MapItemType),
+            )
+        nearby = sorted(
+            (item for item in scan.items if item.distance_to(x, y) <= radius), key=lambda item: item.distance_to(x, y)
+        )
+        return scan._replace(items=nearby)
 
     def scan_kingdom(
         self,

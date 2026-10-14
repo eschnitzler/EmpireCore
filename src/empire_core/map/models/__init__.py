@@ -1,6 +1,7 @@
 """The world map: map areas, map objects and their owners: protocol models."""
 
 from .areas import (
+    MAX_AREA_SPAN,
     MAX_FINDABLE_ENEMY_INDEX,
     FindNextEnemyCastleRequest,
     FindNextEnemyCastleResponse,
@@ -34,6 +35,7 @@ __all__ = [
     "AllianceEmblem",
     "FindNextMapObjectRequest",
     "FindNextMapObjectResponse",
+    "MAX_AREA_SPAN",
     "MAX_FINDABLE_ENEMY_INDEX",
     "FindNextEnemyCastleRequest",
     "FindNextEnemyCastleResponse",

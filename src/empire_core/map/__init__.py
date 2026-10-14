@@ -7,6 +7,7 @@ from empire_core.utils.lazy import lazy_exports
 
 from .models import (
     INVASION_AREA_TYPES,
+    MAX_AREA_SPAN,
     MAX_FINDABLE_ENEMY_INDEX,
     ROW_PARSERS,
     AbgCastleConnection,
@@ -46,6 +47,7 @@ __all__ = [
     "AllianceEmblem",
     "FindNextMapObjectRequest",
     "FindNextMapObjectResponse",
+    "MAX_AREA_SPAN",
     "MAX_FINDABLE_ENEMY_INDEX",
     "FindNextEnemyCastleRequest",
     "FindNextEnemyCastleResponse",
