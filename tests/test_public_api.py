@@ -697,7 +697,7 @@ _SNAKE_CASE_ALIASES = {
         ("total_time", "TT"),
         ("direction", "D"),
         ("target_id", "TID"),
-        ("kingdom_id", "KID"),
+        ("kingdom", "KID"),
         ("source_id", "SID"),
         ("owner_id", "OID"),
     ],

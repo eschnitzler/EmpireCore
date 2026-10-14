@@ -197,7 +197,7 @@ class MovementAnnouncer:
         me = mov.local_player_id
         if me == -1:
             return False
-        is_alien = mov.movement_type_enum is MovementType.ALIEN_ATTACK
+        is_alien = mov.movement_type is MovementType.ALIEN_ATTACK
         if mov.target_id == me or (mov.target_id == NPCOwner.DAIMYO_TOWNSHIP and not is_alien):
             return True
         if alliance_id is None or alliance_id <= 0 or mov.target_alliance_id != alliance_id:

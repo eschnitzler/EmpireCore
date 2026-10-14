@@ -14,6 +14,7 @@ from empire_core.enums import (
     AttackAdvisorType,
     AutoSkipCooldownType,
     CollectableKind,
+    Kingdom,
     MapItemType,
     MovementType,
     NPCOwner,
@@ -786,17 +787,23 @@ class TestMovementTypes:
         assert Movement(movement_type=11).movement_type_name == "NPC_ATTACK"
         assert Movement(movement_type=99).movement_type_name == "UNKNOWN_99"
 
-    def test_a_type_the_client_lacks_has_no_enum(self):
+    def test_a_type_the_client_lacks_stays_an_int(self):
         movement = Movement(movement_type=-1)
-        assert movement.movement_type_enum is None
+        assert movement.movement_type == -1 and not isinstance(movement.movement_type, MovementType)
         assert not (movement.is_attack or movement.is_support or movement.is_occupation)
-        assert Movement(movement_type=11).movement_type_enum is MovementType.NPC_ATTACK
+        assert Movement(movement_type=11).movement_type is MovementType.NPC_ATTACK
 
     def test_target_type_reads_as_an_area_type(self):
-        assert Movement(target_type=1).target_type_enum is MapItemType.CASTLE
-        assert Movement(target_type=43).target_type_enum is MapItemType.ARE_PORTAL
-        assert Movement(target_type=32).target_type_enum is None
-        assert Movement().target_type_enum is None
+        assert Movement(target_type=1).target_type is MapItemType.CASTLE
+        assert Movement(target_type=43).target_type is MapItemType.ARE_PORTAL
+        unknown = Movement(target_type=32).target_type
+        assert unknown == 32 and not isinstance(unknown, MapItemType)
+        assert Movement().target_type == -1
+
+    def test_kingdom_reads_as_a_kingdom(self):
+        assert Movement.model_validate({"KID": 2}).kingdom is Kingdom.ICE
+        assert Movement.model_validate({"KID": 99}).kingdom is Kingdom.GREEN
+        assert Movement().kingdom is Kingdom.GREEN
 
     def test_direction_flag_marks_returns_for_any_type(self):
         assert Movement(movement_type=11, direction=0).is_returning is False
