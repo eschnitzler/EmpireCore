@@ -7,6 +7,7 @@ import pytest
 
 from empire_core.castle import ResearchInfoResponse
 from empire_core.enums import PremiumAccountType, TitleSystem
+from empire_core.exceptions import StateNotLoadedError
 from empire_core.gamedata import Achievement, Research, Title
 from empire_core.player import PERMANENT_BOOSTER_DURATION, BoosterInfoResponse
 from empire_core.player.models.progress import (
@@ -79,7 +80,9 @@ class TestLoginSections:
     def test_reset_forgets_them(self, state):
         state.update_from_packet("gbd", LOGIN)
         state.reset()
-        assert state.get_research() is None and state.get_boosts() is None and state.get_achievements() is None
+        for getter in (state.get_research, state.get_boosts, state.get_achievements):
+            with pytest.raises(StateNotLoadedError):
+                getter()
 
 
 class TestPushesAndReplies:
@@ -154,8 +157,10 @@ class TestStamps:
         state.update_from_packet("gbd", {"gpi": {"PID": 7}})
         state.update_from_packet("rei", {"raw": "unreadable"})
         state.update_from_packet("boi", {"raw": "unreadable"})
-        assert state.get_research() is None and state.get_last_packet_time("rei") is None
-        assert state.get_boosts() is None and state.get_last_packet_time("boi") is None
+        assert state.get_last_packet_time("rei") is None and state.get_last_packet_time("boi") is None
+        for getter in (state.get_research, state.get_boosts):
+            with pytest.raises(StateNotLoadedError):
+                getter()
 
 
 class TestMerges:

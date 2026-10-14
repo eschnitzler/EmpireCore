@@ -13,9 +13,10 @@ from empire_core.client.session import Session
 from empire_core.config import EmpireConfig
 from empire_core.enums import Kingdom
 from empire_core.events.models import SpecialEvent
-from empire_core.exceptions import EmpireTimeoutError
+from empire_core.exceptions import EmpireTimeoutError, StateNotLoadedError
 from empire_core.gamedata import GameData
 from empire_core.network.connection import ResponseWaiter
+from empire_core.player import BoosterInfoResponse
 from empire_core.player.models.account import BoostedGlobalEffectsResponse
 from empire_core.protocol.models import AttackWave
 from empire_core.protocol.packet import Packet
@@ -201,6 +202,7 @@ class ScriptedConnection:
 
 class StubPlayer:
     def __init__(self, alliance_id: int = 0, level: int = 0, xp: int = 0):
+        self.id = 0
         self.alliance_id = alliance_id
         self.level = level
         self.xp = xp
@@ -242,6 +244,29 @@ def gcl_castles(*castles: OwnCastle, owner_id: int = 1001) -> list[Castle]:
         state.shutdown()
 
 
+LOGIN_SECTIONS: dict[str, Any] = {
+    "gpi": {"PID": 1001, "PN": "me"},
+    "rei": {"ARID": -1, "ARRT": 0, "BR": []},
+    "boi": {"BO": [], "PA": 0, "PT": -1},
+    "gmu": {"MP": 0, "TSBM": 0, "HMP": 0},
+    "ufa": {"CF": 0, "HF": 0, "NHT": -1},
+    "uar": {"FTM": {"CTXT": -1}, "BTM": {"CTXT": -1}, "ITM": {"TID": -1}, "PFX": "FAME", "SFX": "FAME"},
+    "vli": {"AVP": 0, "RA": [], "FA": []},
+    "gms": {"MS": 0, "BS": 0},
+    "gli": {"C": [], "B": []},
+    "nrf": {"NR": 0},
+    "dql": {"PQL": 1},
+}
+"""The sections every login gbd brings, with nothing in them."""
+
+
+def logged_in_state(**sections: Any) -> GameState:
+    """A GameState fed a login gbd: :data:`LOGIN_SECTIONS` with ``sections`` replacing theirs."""
+    state = GameState()
+    state.update_from_packet("gbd", {**LOGIN_SECTIONS, **sections})
+    return state
+
+
 class StubState:
     """Only the members the services actually touch."""
 
@@ -258,18 +283,22 @@ class StubState:
         self.updates: list[tuple[str, object]] = []
         self.special_events: dict[int, SpecialEvent] = {}
         self.boosted_global_effects: BoostedGlobalEffectsResponse | None = None
-        self.boosts: Any = None
+        self.boosts: Any = BoosterInfoResponse.model_validate(LOGIN_SECTIONS["boi"])
 
     def update_from_packet(self, cmd_id: str, payload: object, error_code: int = 0) -> None:
         self.updates.append((cmd_id, payload))
 
-    def get_local_player(self) -> StubPlayer | None:
+    def get_local_player(self) -> StubPlayer:
+        if self.local_player is None:
+            raise StateNotLoadedError("The local player not loaded: log in first")
         return self.local_player
 
     def get_castles(self) -> list[Castle]:
         return list(self.castles)
 
     def get_boosts(self) -> Any:
+        if self.boosts is None:
+            raise StateNotLoadedError("Boosters not loaded: log in first")
         return self.boosts
 
     def get_event(self, event: int) -> SpecialEvent | None:
@@ -321,7 +350,7 @@ def make_client(
     client.username = "tester"
     client.password = "secret"
     client.connection = ScriptedConnection(script, pushes)  # type: ignore[assignment]
-    stub = state or StubState()
+    stub = state or StubState(StubPlayer())
     if castles is not None:
         stub.castles = gcl_castles(*castles)  # type: ignore[assignment]
     client.state = stub  # type: ignore[assignment]

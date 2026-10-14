@@ -142,9 +142,8 @@ from empire_core.gamedata import Currency, Research
 client.castle.start_research(Research.MANEUVER_L1)
 client.castle.skip_research(Currency.SKIP_10_MINUTES)
 
-research = client.castle.research  # None until the login data arrives
-if research is not None:
-    print(research.current_research_id, research.remaining_research_seconds())
+research = client.castle.research
+print(research.current_research_id, research.remaining_research_seconds())
 ```
 
 Both raise `CommandError` when the server refuses. `start_research` looks the research

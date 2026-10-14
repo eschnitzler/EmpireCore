@@ -265,10 +265,9 @@ class TestLoginBonus:
         assert conn(client).request_payloads == [("alb", {})]
         state.shutdown()
 
-    @pytest.mark.parametrize("player", [StubPlayer(xp=1199), None])
-    def test_below_the_xp_gate_nothing_is_sent(self, player):
+    def test_below_the_xp_gate_nothing_is_sent(self):
         # GBDCommand sends alb only with userXP >= REQUIRED_XP; the server stays silent below it
-        client = make_client(state=StubState(player))
+        client = make_client(state=StubState(StubPlayer(xp=1199)))
         with pytest.raises(LoginBonusUnavailableError) as raised:
             client.rewards.get_login_bonus()
         with pytest.raises(LoginBonusUnavailableError):
@@ -276,7 +275,7 @@ class TestLoginBonus:
         with pytest.raises(LoginBonusUnavailableError):
             client.rewards.collect_login_bonus_special(LoginBonusSpecial.ALLIANCE)
         assert raised.value.required_xp == 1200
-        assert raised.value.xp == (None if player is None else 1199)
+        assert raised.value.xp == 1199
         assert conn(client).request_payloads == []
         assert conn(client).sent == []
 

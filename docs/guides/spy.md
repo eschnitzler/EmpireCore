@@ -139,9 +139,8 @@ The login data carries how many spies you own before boosts, and the server
 pushes it again when it changes:
 
 ```python
-owned = client.spy.max_spies  # None until the login data arrives
-if owned is not None:
-    print(owned.max_spies)
+owned = client.spy.max_spies
+print(owned.max_spies)
 ```
 
 `client.spy.total_spies()` counts all your spies as the game does, and

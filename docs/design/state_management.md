@@ -40,14 +40,14 @@ for m in client.state.get_all_movements():   # snapshot list
     ...
 client.state.get_castles()
 client.state.get_incoming_attacks()
-client.state.get_local_player()              # Player copy, or None before login
+client.state.get_local_player()              # Player copy
 client.state.get_special_currencies()        # dict copy: currency key -> amount
 ```
 
 * `get_local_player()` returns a `Player` copy taken under the lock, with
   **detached** `special_currencies`, `castles` and `beginner_protection` containers, so several fields can be
-  read consistently while the receive thread is applying an update. It returns
-  `None` before login. The `Castle` objects inside the snapshot are the live
+  read consistently while the receive thread is applying an update. It raises
+  `StateNotLoadedError` before login. The `Castle` objects inside the snapshot are the live
   ones, as with `get_castles()`.
 * `get_special_currencies()` returns a `dict[str, int]` copy of the special
   currencies (`PTT`, `MS1`, ...). Empty before login, or before the first `sce`.

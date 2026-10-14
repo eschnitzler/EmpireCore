@@ -535,12 +535,13 @@ class AllianceService(BaseService):
             Alliance ID if in an alliance, None otherwise: the player data sends
             a negative ``AID`` outside one
 
+        Raises:
+            StateNotLoadedError: No login has brought the player data
+
         Client: ``CastleUserData.isInAlliance`` (bundle line 9986) is ``allianceID >= 0``
         """
-        player = self.client.state.local_player
-        if player is None or player.alliance_id is None or player.alliance_id < 0:
-            return None
-        return player.alliance_id
+        alliance_id = self.client.state.get_local_player().alliance_id
+        return alliance_id if alliance_id is not None and alliance_id >= 0 else None
 
     def _require_local_alliance_id(self) -> int:
         alliance_id = self.local_alliance_id

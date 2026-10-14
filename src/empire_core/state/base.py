@@ -26,6 +26,7 @@ from empire_core.commanders.models.inventory import GemInventoryResponse, Invent
 from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.commanders.models.skills import SkillList
 from empire_core.events.models import SpecialEvent
+from empire_core.exceptions import StateNotLoadedError
 from empire_core.messages.models import MessageInfo
 from empire_core.movements.models import MovementOwner
 from empire_core.movements.tracked import Movement
@@ -67,11 +68,19 @@ MovementEventCallback = Callable[[int], Any] | Callable[[int, Movement | None], 
 
 
 _M = TypeVar("_M", bound=BaseModel)
+_T = TypeVar("_T")
 
 
 def read_section(model: type[_M], body: Any, what: str) -> _M | None:
     """A section block read as ``model``; None, with a warning, when it is no object or does not validate."""
     return read_or_none(model.model_validate, body, warn=logger, what=what) if isinstance(body, dict) else None
+
+
+def loaded(value: _T | None, what: str) -> _T:
+    """``value`` of a section the login data always brings; :class:`StateNotLoadedError` while none has arrived."""
+    if value is None:
+        raise StateNotLoadedError(f"{what} not loaded: log in first")
+    return value
 
 
 class StateBase:

@@ -318,11 +318,11 @@ class Session:
             if lli_response.error_code != 0:
                 self._raise_login_refusal(lli_response)
 
-            # Wait for gbd (Get Big Data) which contains player info, castles, etc.
+            # The client enters the game only once gbd is parsed (GBDCommand.exec, bundle line 129376)
             try:
                 connection.wait_for_result("gbd", gbd_waiter, timeout=config.request_timeout)
-            except EmpireTimeoutError:
-                logger.warning(f"gbd packet not received for {client.username}, player state may be incomplete")
+            except EmpireTimeoutError as e:
+                raise EmpireTimeoutError("The login data (gbd) did not arrive") from e
 
             logger.debug(f"Logged in as {client.username}")
             self._login_cooldown = None

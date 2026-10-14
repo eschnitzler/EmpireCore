@@ -221,8 +221,7 @@ class CastleService(BaseService):
             for c in castles:
                 print(f"{c.castle_name} (ID: {c.castle_id}) at ({c.x}, {c.y})")
         """
-        player = self.client.state.get_local_player()
-        player_id = getattr(player, "id", None)
+        player_id = self.client.state.get_local_player().id
         request = GetCastlesRequest(player_id=player_id if isinstance(player_id, int) and player_id > 0 else None)
         return self.request(request, GetCastlesResponse, timeout=timeout).castles
 
@@ -376,8 +375,7 @@ class CastleService(BaseService):
             client.castle.rename(12345, "My Fortress", spend_rubies=True)
         """
         if not is_initial_name:
-            boosts = self.client.state.get_boosts()
-            if boosts is None or not boosts.is_premium_active():
+            if not self.client.state.get_boosts().is_premium_active():
                 self._require_spend_rubies(spend_rubies, f"renaming a castle costs {_RENAME_RUBIES} rubies")
         matches = [c for c in self.get_all(timeout=timeout) if c.castle_id == castle_id]
         if len(matches) > 1:
@@ -457,8 +455,8 @@ class CastleService(BaseService):
         return None if buildings is None else buildings.find(object_id)
 
     def _player_level(self) -> int | None:
-        player = self.client.state.get_local_player()
-        return player.level if player is not None and player.level > 0 else None
+        level = self.client.state.get_local_player().level
+        return level if level > 0 else None
 
     def _next_level(self, row: BuildingRow) -> BuildingDef | None:
         """

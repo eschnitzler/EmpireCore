@@ -16,7 +16,7 @@ from empire_core.gamedata import Currency, GameData, Research
 from empire_core.gamedata import data as data_module
 from empire_core.protocol.models import parse_response
 from empire_core.state.manager import GameState
-from tests.service_helpers import conn, make_client, xt_packet
+from tests.service_helpers import conn, logged_in_state, make_client, xt_packet
 
 REI = {"ARID": 172, "ARRT": 300, "BR": [1, 2, 171]}
 
@@ -187,10 +187,12 @@ class TestService:
         client.castle.skip_research(Currency.SKIP_10_MINUTES)
 
     def test_a_refused_start_raises_and_leaves_the_state(self):
-        client = make_client({"res": xt_packet("res", error_code=21)}, state=GameState())  # type: ignore[arg-type]
+        state = logged_in_state(rei=REI)
+        client = make_client({"res": xt_packet("res", error_code=21)}, state=state)  # type: ignore[arg-type]
         conn(client).on_packet = client._on_packet
         client.game_data = game_data()
+        before = state.get_research()
 
         with pytest.raises(CommandError):
             client.castle.start_research(Research.MANEUVER_L1)
-        assert client.state.get_research() is None
+        assert client.state.get_research() == before

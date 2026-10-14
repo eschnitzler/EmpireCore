@@ -494,9 +494,9 @@ class AttackService(BaseService):
         game_data = self._require_game_data()
 
         player = self.client.state.get_local_player()
-        attacker_level = player.level if player else 0
+        attacker_level = player.level
         if attacker_legend_level is None:
-            attacker_legend_level = player.legendary_level if player else 0
+            attacker_legend_level = player.legendary_level
         if level is None:
             raise ValueError("A wave is sized by the level of whoever owns the target; pass level=")
         # Client: CastleFightScreenVO.targetOwnerLevel, the owner's own level under
@@ -904,8 +904,7 @@ class AttackService(BaseService):
             timeout=timeout,
         )
 
-        player = self.client.state.get_local_player()
-        attacker_level = player.level if player else 0
+        attacker_level = self.client.state.get_local_player().level
         # getMaxUnitsInReinforcementWave reads the area's own defense level when
         # the target is under conquer control, and its owner's otherwise.
         yard_level = (

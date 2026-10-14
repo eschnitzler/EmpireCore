@@ -14,7 +14,7 @@ from empire_core.player.models.account import (
     PlayerGiftsResponse,
 )
 from empire_core.protocol.js import js_int, js_truthy
-from empire_core.state.base import StateBase, read_section
+from empire_core.state.base import StateBase, loaded, read_section
 
 ACCOUNT_SECTIONS = ("drt", "gai", "gatp", "bie", "pgl", "rww", "nrf")
 
@@ -130,7 +130,11 @@ class AccountState(StateBase):
         with self._lock:
             return self.wishing_well
 
-    def get_new_relics(self) -> NewRelicsResponse | None:
-        """Whether new relics wait to be seen, from the last ``nrf``; None until one arrived."""
+    def get_new_relics(self) -> NewRelicsResponse:
+        """Whether new relics wait to be seen, from the last ``nrf``; the login data brings one.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
         with self._lock:
-            return self.new_relics
+            return loaded(self.new_relics, "New relics")

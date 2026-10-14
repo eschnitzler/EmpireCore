@@ -6,6 +6,7 @@ Failure modes are kept distinct so callers can react to them individually:
 - ``ConnectionClosedError``: the connection dropped while waiting.
 - ``CommandError``: the server answered with a non-zero error code.
 - ``GameDataNotLoadedError``: an API needed the game data and it could not be loaded.
+- ``StateNotLoadedError``: a read needs data the login brings and no login has brought it.
 - ``AmbiguousLookupError``: a game-data lookup matched more than one row.
 - ``UnknownCastleError``: a castle is not one of the logged-in player's castles.
 - ``AmbiguousCastleError``: a castle id or position matches castles in several kingdoms.
@@ -174,6 +175,14 @@ class GameDataNotLoadedError(EmpireError):
 
     The APIs load it on first use (:meth:`GameData.require`); this is raised when nothing
     is loaded and :meth:`GameData.load` failed, with that failure as its cause.
+    """
+
+
+class StateNotLoadedError(EmpireError, LookupError):
+    """
+    Raised when a read needs a section the login data always brings and none has arrived.
+
+    That is before the first login, and after the session dropped until the next login.
     """
 
 
@@ -463,6 +472,7 @@ __all__ = [
     "ReplyMismatchError",
     "EmpireTimeoutError",
     "GameDataNotLoadedError",
+    "StateNotLoadedError",
     "AmbiguousLookupError",
     "EventNotRunningError",
     "EventHasNoPointsError",
