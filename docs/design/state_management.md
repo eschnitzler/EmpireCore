@@ -14,8 +14,8 @@ for every decision.
 class GameState:
     local_player: Player | None
     players: dict[int, Player]        # player_id -> Player (local player only)
-    castles: dict[CastleKey, Castle]  # (kingdom, castle_id) -> Castle
-    permanent_castles: dict[CastleKey, PermanentCastle]  # gpc: unlocked units and horses
+    castles: dict[int, Castle]  # castle_id -> Castle
+    permanent_castles: dict[int, PermanentCastle]  # gpc: unlocked units and horses
     movements: dict[int, Movement]    # movement_id -> Movement
     events: dict[int, SpecialEvent]  # event id -> its model (sei/tei), in start order
 ```

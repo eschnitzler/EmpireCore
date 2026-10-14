@@ -123,8 +123,7 @@ print(resources.wood, resources.stone)
 
 Methods that act on one of your castles take its id alone: the kingdom comes
 from the castle list the server sent at login. An id that is not one of your
-castles raises `UnknownCastleError`, and one listed in several of your kingdoms
-raises `AmbiguousCastleError`.
+castles raises `UnknownCastleError`.
 
 `client.castle.get_all()` asks the server. What the login data already told the
 client is in `client.state`, readable without a request:

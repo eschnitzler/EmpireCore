@@ -94,10 +94,10 @@ def _login(state: GameState, gpc: dict[str, Any], kingdom: int = 0) -> None:
 
 
 class TestPermanentCastleState:
-    def test_login_stores_each_castle_by_kingdom_and_id(self, game_state):
+    def test_login_stores_each_castle_by_id(self, game_state):
         _login(game_state, LIVE_GPC)
 
-        assert list(game_state.permanent_castles) == [(Kingdom.GREEN, 2001)]
+        assert list(game_state.permanent_castles) == [2001]
         permanent = game_state.get_permanent_castle(2001)
         assert permanent is not None and permanent.units.unlocked_units[0] == 640
         assert permanent.horse_ids == []
@@ -110,16 +110,16 @@ class TestPermanentCastleState:
 
         game_state.update_from_packet("gpc", {"A": [{"AID": 2001, "KID": 0, "U": {"U": [620], "L": []}, "UH": [1002]}]})
 
-        assert game_state.permanent_castles[(Kingdom.GREEN, 2001)].horse_ids == [1002]
-        assert game_state.permanent_castles[(Kingdom.SANDS, 2002)].horse_ids == [1001]
-        assert before[(Kingdom.GREEN, 2001)].horse_ids == [], "the dict a reader held was changed in place"
+        assert game_state.permanent_castles[2001].horse_ids == [1002]
+        assert game_state.permanent_castles[2002].horse_ids == [1001]
+        assert before[2001].horse_ids == [], "the dict a reader held was changed in place"
 
     def test_a_gbd_without_gpc_leaves_the_castles_alone(self, game_state):
         _login(game_state, {"A": [{"AID": 2001, "KID": 0, "UH": [1001]}]})
 
         game_state.update_from_packet("gbd", {"gpi": {"PID": 7}})
 
-        assert game_state.permanent_castles[(Kingdom.GREEN, 2001)].horse_ids == [1001]
+        assert game_state.permanent_castles[2001].horse_ids == [1001]
 
     def test_the_castle_is_looked_up_in_its_own_kingdom(self, game_state):
         # getDicKey is kingdom and id: an entry under another kingdom is not this castle's

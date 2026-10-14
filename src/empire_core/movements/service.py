@@ -193,7 +193,6 @@ class MovementsService(BaseService):
         Raises:
             UnsendableGoodsError: The goods fail one of the checks above
             UnknownCastleError: ``source_castle_id`` is not in your castle list
-            AmbiguousCastleError: ``source_castle_id`` repeats across your kingdoms
             ValueError: The horse or slowdown costs rubies and ``spend_rubies`` is False
             GameDataNotLoadedError: A horse is picked without feathers and the game data cannot be loaded
 
@@ -493,7 +492,6 @@ class MovementsService(BaseService):
 
         Raises:
             UnknownCastleError: ``source_castle_id`` is not in your castle list
-            AmbiguousCastleError: ``source_castle_id`` repeats across your kingdoms
 
         Client: ``CastleTransferTroopsToKingdomProperties.getUnitTransferCommand``
         (bundle line 37448) sends the source castle's ``kingdomID`` as ``SKID``
@@ -537,7 +535,6 @@ class MovementsService(BaseService):
             ValueError: The source castle sits in the target kingdom or in Berimond,
                 or no castle of yours sits in the target kingdom
             UnknownCastleError: ``source_castle_id`` is not in your castle list
-            AmbiguousCastleError: ``source_castle_id`` repeats across your kingdoms
 
         Client: ``CastleTransferResourcesDialog.sendResources`` (bundle line 38082) sends the
         picked castle's ``kingdomID`` as ``SKID``; its castle picker leaves out

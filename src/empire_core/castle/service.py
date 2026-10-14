@@ -15,8 +15,7 @@ Actions raise ``CommandError`` when the server refuses them.
 
 Methods that take one of your castles send its kingdom from the castle
 list the server sent at login (``client.state.get_castles()``), as the
-client does, and raise ``UnknownCastleError`` for an id not in it, or
-``AmbiguousCastleError`` for an id listed in several of your kingdoms.
+client does, and raise ``UnknownCastleError`` for an id not in it.
 
 Building methods act on the castle joined last (:meth:`CastleService.join`)
 and name buildings by object id, a ``BuildingRow.object_id`` from
@@ -92,10 +91,7 @@ from empire_core.enums import (
     MercenaryMissionState,
     ResourceCartType,
 )
-from empire_core.exceptions import (
-    AmbiguousCastleError,
-    UnknownCastleError,
-)
+from empire_core.exceptions import UnknownCastleError
 from empire_core.gamedata import BuildingDef, Currency, HorseStats, Research
 from empire_core.protocol.js import js_truthy
 from empire_core.services.base import BaseService
@@ -242,7 +238,6 @@ class CastleService(BaseService):
 
         Raises:
             UnknownCastleError: The reply lists no castle with that id
-            AmbiguousCastleError: The reply lists the id in several kingdoms
 
         Example:
             details = client.castle.get_details(12345)
@@ -270,7 +265,6 @@ class CastleService(BaseService):
 
         Raises:
             UnknownCastleError: ``castle_id`` is not in your castle list
-            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
 
         Client: ``C2SJoinCastleVO`` sent with the castle's ``objectId`` and
         ``kingdomID`` (``JoinAreaAndSavePositionCommand.execute``, bundle line 100892)
@@ -291,7 +285,6 @@ class CastleService(BaseService):
 
         Raises:
             UnknownCastleError: ``castle_id`` is not in your castle list
-            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
             CommandError: The server refused the join.
 
         Client: ``C2SJoinCastleVO`` sent with the castle's ``objectId`` and
@@ -369,7 +362,6 @@ class CastleService(BaseService):
         Raises:
             ValueError: A rename, no premium account is known to run, and ``spend_rubies`` is False
             UnknownCastleError: ``castle_id`` is not one of your castles.
-            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
 
         Client: ``CastleRenameCastleDialog.showLoaded`` and ``sendCommand`` (bundle lines 57219, 57231)
         price a rename, sent with 1; ``CastleNameCastleDialog.sendCommand`` (bundle line 32589) sends
@@ -381,12 +373,9 @@ class CastleService(BaseService):
         if not is_initial_name:
             if not self.client.state.get_boosts().is_premium_active():
                 self._require_spend_rubies(spend_rubies, f"renaming a castle costs {_RENAME_RUBIES} rubies")
-        matches = [c for c in self.get_all(timeout=timeout) if c.castle_id == castle_id]
-        if len(matches) > 1:
-            raise AmbiguousCastleError(castle_id, [c.kingdom_id for c in matches])
-        if not matches:
+        castle = next((c for c in self.get_all(timeout=timeout) if c.castle_id == castle_id), None)
+        if castle is None:
             raise UnknownCastleError(castle_id)
-        castle = matches[0]
         self.execute(
             RenameCastleRequest(
                 castle_id=castle_id,
@@ -412,7 +401,6 @@ class CastleService(BaseService):
 
         Raises:
             UnknownCastleError: ``castle_id`` is not in your castle list
-            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
 
         Client: ``C2SGetCastleResourcesVO`` sent with the castle's ``objectId`` and
         ``kingdomID`` (``CastleTransferResourcesDialog.onSelectCastle``, bundle line 38076)
@@ -600,7 +588,7 @@ class CastleService(BaseService):
             ValueError: The next level has a ruby price, or the building or its next level is not
                 known, and ``spend_rubies`` is False
             GameDataNotLoadedError: ``spend_rubies`` is False and the game data cannot be loaded
-            UnknownCastleError / AmbiguousCastleError / CommandError: see :meth:`join`
+            UnknownCastleError / CommandError: see :meth:`join`
 
         Client: ``RingMenuButtonUpgradeBuilding.onClick`` (bundle line 50092),
         ``IsoServerCommands.upgradeBuilding`` (bundle line 63774); the price is the next level's
@@ -647,7 +635,7 @@ class CastleService(BaseService):
             ValueError: More than 240 seconds are left, or the time left is not known, and
                 ``spend_rubies`` is False
             GameDataNotLoadedError: the game data cannot be loaded
-            UnknownCastleError / AmbiguousCastleError / CommandError: see :meth:`join`
+            UnknownCastleError / CommandError: see :meth:`join`
 
         Client: ``IsoServerCommands.fastCompleteBuilding`` (bundle line 63773) sends ``FS`` 1 when
         ``CastleSpecialEventData.hasSkipForFree`` (bundle line 139853), which ``calculateSkipCosts``
@@ -710,7 +698,7 @@ class CastleService(BaseService):
             ValueError: The next level has a ruby price, or the object or its next level is not
                 known, and ``spend_rubies`` is False
             GameDataNotLoadedError: ``spend_rubies`` is False and the game data cannot be loaded
-            UnknownCastleError / AmbiguousCastleError / CommandError: see :meth:`join`
+            UnknownCastleError / CommandError: see :meth:`join`
 
         Client: ``C2SIsoUpgradeDefenceVO``, sent with ``PWR`` 1 by
         ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35220); the price
@@ -902,7 +890,6 @@ class CastleService(BaseService):
         Raises:
             GameDataNotLoadedError: the game data cannot be loaded
             UnknownCastleError: ``castle_id`` is not in your castle list
-            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
 
         Client: ``CastleHorsesVO.parseParamObject`` (bundle line 139177),
         ``CastlePermanentCastleData.getCastleByWorldAreaId`` (bundle line 139145)

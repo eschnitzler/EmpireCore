@@ -12,7 +12,6 @@ from empire_core.alliance.models.diplomacy import AllianceDonation
 from empire_core.client.client import EmpireClient
 from empire_core.enums import AllianceRank, BookmarkType, DiplomacyStatus, GGEError, Kingdom
 from empire_core.exceptions import (
-    AmbiguousCastleError,
     CommandError,
     NotInAllianceError,
     PacketError,
@@ -766,14 +765,6 @@ class TestAllianceDiplomacy:
         client = make_client(castles=[(12345, Kingdom.GREEN)])
         with pytest.raises(ValueError):
             client.alliance.donate(12345, AllianceDonation())
-        assert conn(client).request_payloads == []
-
-    def test_a_donation_from_an_id_repeated_across_your_kingdoms_raises(self):
-        client = make_client(castles=[(1, Kingdom.STORM), (1, Kingdom.BERIMOND)])
-
-        with pytest.raises(AmbiguousCastleError):
-            client.alliance.donate(1, AllianceDonation(wood=1))
-
         assert conn(client).request_payloads == []
 
     def test_a_donation_from_a_castle_not_in_the_castle_list_raises(self):

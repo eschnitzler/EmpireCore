@@ -193,14 +193,13 @@ class AttackService(BaseService):
             GameDataNotLoadedError: The premium commander leads, VIP time runs and
                 the game data cannot be loaded; or a horse is picked without feathers
                 before it was called
-            ValueError: No wave carries any units, a container is overfull, or the horse or
+            ValueError: Areas of yours sit at the source position in several kingdoms and no
+                ``kingdom_id`` is given, no wave carries any units, a container is overfull, or the horse or
                 slowdown costs rubies and ``spend_rubies`` is False
             CommandError: The server refused the attack, such as with ``MOVEMENT_HAS_NO_UNITS``
                 for too few units
             UnknownCastleError: No ``kingdom_id`` given and no area of yours in
                 the castle list is at the source position
-            AmbiguousCastleError: No ``kingdom_id`` given and areas of yours sit
-                at the source position in several kingdoms
             EmpireTimeoutError / ConnectionClosedError / NetworkError: transport failures
 
         Client: ``CastleAttackData.sendAttack`` (bundle line 133852) sends the
@@ -489,7 +488,6 @@ class AttackService(BaseService):
             GameDataNotLoadedError: the game data cannot be loaded
             ValueError: No level was given and none is known for the player
             UnknownCastleError: No ``inventory`` given and ``castle_id`` is not in your castle list
-            AmbiguousCastleError: No ``inventory`` given and ``castle_id`` repeats across your kingdoms
         """
         game_data = self._require_game_data()
 
@@ -653,7 +651,6 @@ class AttackService(BaseService):
         Raises:
             GameDataNotLoadedError: The game data cannot be loaded
             UnknownCastleError: ``castle_id`` is not in your castle list
-            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
         """
         game_data = self._require_game_data()
         response = self.client.army.get_units_response(castle_id, timeout=timeout)
@@ -798,7 +795,6 @@ class AttackService(BaseService):
                 error's ``attack``
             UnknownCastleError: ``castle_id`` is not in your castle list and
                 its kingdom, position or inventory had to be read from it
-            AmbiguousCastleError: So, and ``castle_id`` repeats across your kingdoms
             ValueError: ``area_type`` is not an area type, or the target's has no
                 pre-calculation modelled
             EmpireTimeoutError / ConnectionClosedError / PacketError: A read of the target failed

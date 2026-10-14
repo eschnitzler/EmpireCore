@@ -50,7 +50,7 @@ from empire_core.protocol.base import read_or_none
 from empire_core.quests.models import DailyQuests, Quest, QuestBook
 from empire_core.rewards.models import ActivityChestInfo
 from empire_core.spy.models import MaxSpiesResponse, PlagueMonkInfoResponse
-from empire_core.state.models import Castle, CastleKey, JoinedArea, Player
+from empire_core.state.models import Castle, JoinedArea, Player
 from empire_core.utils.callbacks import BoundEvent, Registry
 
 logger = logging.getLogger(__name__)
@@ -123,9 +123,9 @@ class StateBase:
         # (ain) or the commander/profile services for other players.
         self.players: dict[int, Player] = {}
 
-        self.castles: dict[CastleKey, Castle] = {}
-        # (kingdom, castle id) -> the castle's unlocked units and horses, from gpc
-        self.permanent_castles: dict[CastleKey, PermanentCastle] = {}
+        self.castles: dict[int, Castle] = {}
+        # castle id -> the castle's unlocked units and horses, from gpc
+        self.permanent_castles: dict[int, PermanentCastle] = {}
 
         # World State
         self.movements: dict[int, Movement] = {}  # MovementID -> Movement
@@ -191,7 +191,7 @@ class StateBase:
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}
-        self._castle_details_at: dict[CastleKey, float] = {}
+        self._castle_details_at: dict[int, float] = {}
         self._player_updated_at: float | None = None
 
     def reset(self) -> None:

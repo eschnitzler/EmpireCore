@@ -8,7 +8,7 @@ import pytest
 
 from empire_core.combat import WaveCapacity
 from empire_core.enums import Kingdom
-from empire_core.exceptions import AmbiguousCastleError, AttackBelowMinimumError, CommandError, UnknownCastleError
+from empire_core.exceptions import AttackBelowMinimumError, CommandError, UnknownCastleError
 from empire_core.gamedata import EMPTY_SLOT, Unit, WodAmount
 from empire_core.protocol.models import AttackType, Commander, CreateAttackRequest, CreateAttackResponse, MapItemType
 from tests.service_helpers import (
@@ -147,17 +147,6 @@ class TestAttackService:
 
         assert raised.value.position == (500, 510)
         assert conn(client).request_payloads == []
-
-    def test_a_source_position_yours_in_two_kingdoms_needs_the_kingdom(self):
-        client = make_client(castles=[(1, Kingdom.GREEN, 500, 510), (1, Kingdom.STORM, 500, 510)])
-        args = (500, 510, 700, 710, [wave(units=[[487, 1]])])
-
-        with pytest.raises(AmbiguousCastleError) as raised:
-            client.attack.send_attack(*args, commander_id=91)
-        client.attack.send_attack(*args, commander_id=91, kingdom_id=Kingdom.STORM)
-
-        assert raised.value.kingdoms == [Kingdom.GREEN, Kingdom.STORM]
-        assert [payload["KID"] for _, payload in conn(client).request_payloads] == [Kingdom.STORM]
 
     def test_a_given_source_kingdom_needs_no_castle_list(self):
         client = make_client(castles=[])

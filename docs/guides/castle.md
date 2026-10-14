@@ -25,11 +25,8 @@ castle's resources and units in [state](game-state.md).
 Methods that act on one of your castles take its id alone and send its
 kingdom from the castle list the server sent at login
 (`client.castle.castles`), as the game client does. There is no
-`kingdom_id` argument to get wrong:
-
-- an id that is not one of your castles raises `UnknownCastleError`;
-- an id listed in several of your kingdoms raises `AmbiguousCastleError`,
-  since the library then cannot tell which castle is meant.
+`kingdom_id` argument to get wrong, and an id that is not one of your castles
+raises `UnknownCastleError`.
 
 That covers `select`, `join`, `get_resources`, `get_details`, `rename`,
 `send_resources`, `transfer_units_to_kingdom`, `transfer_goods_to_kingdom`, the `client.army` methods and

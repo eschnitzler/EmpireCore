@@ -45,7 +45,6 @@ class ArmyService(BaseService):
     Each method joins the castle it is given first (``jca``), as the client acts
     on the castle it is in. It joins in that castle's ``Castle.kingdom_id`` from
     ``client.state.get_castles()``, and raises ``UnknownCastleError`` for a castle not listed there.
-    A castle id listed in several of your kingdoms raises ``AmbiguousCastleError``.
 
     Usage:
         client = EmpireClient(...)
