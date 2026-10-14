@@ -11,7 +11,7 @@ keep, wall and moat setup of one of your castles, with its units, unit
 priorities and castellan:
 
 ```python
-castle = client.state.get_castles()[0]
+castle = client.castle.castles[0]
 defense = client.defense.get_own_defense(castle.x, castle.y, castle.id)
 
 if defense.keep and defense.wall and defense.moat:   # None when the reply has no such block

@@ -48,6 +48,7 @@ from empire_core.services.base import BaseService
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
+    from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace, NewRelicsResponse
 
 
 class CommandersService(BaseService):
@@ -56,6 +57,11 @@ class CommandersService(BaseService):
 
     Reached as client.commanders.
     """
+
+    @property
+    def roster(self) -> CommanderRoster | None:
+        """Your commanders and castellans as the last ``gli`` listed them; None until one arrived."""
+        return self.client.state.get_commanders()
 
     def get_all(self, *, timeout: float = 5.0) -> GetCommandersResponse:
         """
@@ -340,6 +346,21 @@ class EquipmentService(BaseService):
     Reached as client.equipment. What a leader
     wears comes with ``client.commanders`` (``gli`` ``EQ``).
     """
+
+    @property
+    def gems(self) -> GemInventoryResponse | None:
+        """The gems and relic gems in your inventory; None until a ``ggm`` or ``gec`` arrived."""
+        return self.client.state.get_gems()
+
+    @property
+    def inventory_space(self) -> InventorySpace | None:
+        """The equipment and gem inventory space, from the last ``esl``; None until one arrived."""
+        return self.client.state.get_inventory_space()
+
+    @property
+    def new_relics(self) -> NewRelicsResponse | None:
+        """Whether new relics wait to be seen, from the last ``nrf``; None until one arrived."""
+        return self.client.state.get_new_relics()
 
     def get_inventory(self, *, timeout: float = 5.0) -> list[Equipment]:
         """

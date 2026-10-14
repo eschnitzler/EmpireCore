@@ -21,6 +21,7 @@ from empire_core.map.service import MapService
 from empire_core.messages.service import MessagesService
 from empire_core.movements.service import MovementsService
 from empire_core.player.service import PlayerService
+from empire_core.quests.service import QuestsService
 from empire_core.ranking.service import RankingService
 from empire_core.rewards.service import RewardsService
 from empire_core.services.base import BaseService
@@ -42,6 +43,7 @@ SERVICE_TYPES = {
     "player": PlayerService,
     "events": EventsService,
     "rewards": RewardsService,
+    "quests": QuestsService,
 }
 
 

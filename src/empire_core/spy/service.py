@@ -54,6 +54,7 @@ from .risk import (
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
+    from empire_core.spy.models import MaxSpiesResponse, PlagueMonkInfoResponse
 
 logger = logging.getLogger(__name__)
 
@@ -213,6 +214,16 @@ class SpyService(BaseService):
         self._logs_changed = threading.Condition()
         self._missions: list[SpyHandle] = []
         self._spy_logs: list[_SpyLog] = []
+
+    @property
+    def max_spies(self) -> MaxSpiesResponse | None:
+        """The spies you own before boosts, from ``gms``; None until the login gbd brings it."""
+        return self.client.state.get_max_spies()
+
+    @property
+    def plague_monks(self) -> PlagueMonkInfoResponse | None:
+        """Your plague monks, from the last ``cpi``; None until one arrived."""
+        return self.client.state.get_plague_monks()
 
     def forward_report(self, message_id: int, player_ids: list[int]) -> None:
         """Share a spy report with other players in game.

@@ -123,7 +123,7 @@ stateDiagram-v2
 
 ## What was announced, and announcing again
 
-`client.state.get_announced_attacks()` and `get_occupations()` list what
+`client.movements.announced_attacks` and `get_occupations()` list what
 `on_incoming_attack` and `on_occupation_started` announced that has not
 arrived or ended, in the order announced, each as the latest packet has it. That is not
 `get_incoming_attacks()`, which lists only attacks aimed at you; the announced
@@ -344,7 +344,7 @@ from empire_core.enums import Kingdom, KingdomTransferType
 from empire_core.gamedata import Currency
 
 client.movements.transfer_goods_to_kingdom(castle_id, Kingdom.ICE, {Resource.WOOD: 1000})
-kingdoms = client.state.get_kingdoms()
+kingdoms = client.castle.kingdoms
 for transfer in kingdoms.goods_transfers if kingdoms else ():
     print(transfer.kingdom_id, transfer.remaining_seconds())
 
@@ -360,7 +360,7 @@ the target's storage are left to the server.
 `skip_kingdom_transfer_time` spends one minute skip item on the units or goods
 on their way to a kingdom. As the game lists only the minute skips you hold, it
 raises `ValueError` for a currency that is no minute skip and, once the special
-currencies (`client.state.get_special_currencies()`) are known, for one you
+currencies (`client.player.currencies`) are known, for one you
 hold none of. The full skip the game also offers costs rubies and is not in the
 library.
 
