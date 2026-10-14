@@ -30,6 +30,19 @@ roster = client.commanders.roster
 print(len(roster.commanders), len(roster.castellans))
 ```
 
+## Who is free to lead
+
+`idle_commanders` and `travelling_commanders` split the roster by the
+movements in state, again without a request. A commander leading one of your
+movements is travelling until that movement leaves state, its way home
+included, as in the game client; the rest are idle.
+
+```python
+idle = client.commanders.idle_commanders
+if idle:
+    client.attack.send_attack(..., commander_id=idle[0].commander_id)
+```
+
 ## Rename
 
 ```python

@@ -10,6 +10,7 @@ from typing import Any, cast
 
 from empire_core.client.client import EmpireClient
 from empire_core.client.session import Session
+from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.config import EmpireConfig
 from empire_core.enums import Kingdom
 from empire_core.events.models import SpecialEvent
@@ -284,6 +285,7 @@ class StubState:
         self.special_events: dict[int, SpecialEvent] = {}
         self.boosted_global_effects: BoostedGlobalEffectsResponse | None = None
         self.boosts: Any = BoosterInfoResponse.model_validate(LOGIN_SECTIONS["boi"])
+        self.commanders: CommanderRoster | None = None
 
     def update_from_packet(self, cmd_id: str, payload: object, error_code: int = 0) -> None:
         self.updates.append((cmd_id, payload))
@@ -295,6 +297,11 @@ class StubState:
 
     def get_castles(self) -> list[Castle]:
         return list(self.castles)
+
+    def get_commanders(self) -> CommanderRoster:
+        if self.commanders is None:
+            raise StateNotLoadedError("Commanders not loaded: log in first")
+        return self.commanders
 
     def get_boosts(self) -> Any:
         if self.boosts is None:
