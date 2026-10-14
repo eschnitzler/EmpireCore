@@ -7,6 +7,7 @@ import pytest
 from empire_core.army.spy_army import SpyArmy
 from empire_core.combat import (
     DefenderFlankEffects,
+    FillOptions,
     Flank,
     Inventory,
     LegendaryFight,
@@ -286,6 +287,11 @@ class TestFillWaves:
         assert len(normal) == 4
         assert len(conquest) == 6
 
+    def test_max_waves_caps_the_wave_count(self):
+        waves = fill_waves(Inventory({601: 10_000}), solver_data(), level=70, options=FillOptions(max_waves=1))
+
+        assert len(waves) == 1
+
     def test_a_level_70_wave_maxes_out(self):
         waves = fill_waves(Inventory({601: 10_000}), solver_data(), level=70)
 
@@ -396,6 +402,18 @@ class TestWaveWithTools:
         wave = fill_wave(inv, game, self.capacity(), defense=defense, strategies=[])
 
         assert placed(wave.model_dump(by_alias=True)["L"]["T"]) == []
+        assert inv.available(611) == 100
+
+    def test_use_tools_off_fills_soldiers_only(self):
+        game = self.data()
+        inv = Inventory({601: 100, 611: 100})
+        defense = {Flank.LEFT: DefenderFlankEffects(gate_bonus=0.30)}
+
+        wave = fill_wave(inv, game, self.capacity(), defense=defense, options=FillOptions(use_tools=False))
+
+        payload = wave.model_dump(by_alias=True)
+        assert placed(payload["L"]["T"]) == []
+        assert placed(payload["L"]["U"]) == [[601, 10]]
         assert inv.available(611) == 100
 
 
