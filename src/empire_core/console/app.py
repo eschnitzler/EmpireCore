@@ -41,6 +41,7 @@ from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.menus import CompletionsMenu
 from prompt_toolkit.lexers import DynamicLexer, PygmentsLexer
 from prompt_toolkit.mouse_events import MouseEvent, MouseEventType
+from prompt_toolkit.styles import DynamicStyle
 from prompt_toolkit.widgets import TextArea
 from pygments.lexers.data import JsonLexer
 from pygments.lexers.python import PythonLexer
@@ -60,7 +61,7 @@ from empire_core.console.frames import (
 from empire_core.console.highlight import BANNER_MARK, OutputLexer
 from empire_core.console.pretty import pretty
 from empire_core.console.runner import CodeRunner, PaneWriter
-from empire_core.console.theme import STYLE
+from empire_core.console.theme import THEMES
 from empire_core.console.widgets import Panel, ScrollbarControl, TextPane, osc52, selected_text, text_scrollbar
 from empire_core.exceptions import EmpireError
 
@@ -102,11 +103,13 @@ HELP = [
     ("Home / End", "oldest frame / follow the newest"),
     ("r", "parsed model or raw payload"),
     ("F3", "zoom the focused side"),
+    ("F4", "dark or light theme"),
     ("Commands", ""),
     (":filter gbd gam", "only these commands; none for all"),
     (":grep text", "only frames containing text"),
     (":pause  :clear", "freeze the view / forget frames"),
     (":raw", "toggle parsed and raw detail"),
+    (":theme [dark|light]", "switch the theme; none to toggle"),
     (":save [file]", "write the shown frames as JSON lines"),
     (":quit", "close the client and exit, as does exit()"),
 ]
@@ -125,7 +128,7 @@ class PaneSizes:
 class Console:
     """A REPL on ``client`` beside every frame its connection sends and receives."""
 
-    def __init__(self, client: EmpireClient, *, history: Path | None = None) -> None:
+    def __init__(self, client: EmpireClient, *, history: Path | None = None, theme: str = "dark") -> None:
         self.client = client
         self.frames = FrameLog()
         self.namespace: dict[str, Any] = {"client": client, "empire_core": importlib.import_module("empire_core")}
@@ -134,12 +137,14 @@ class Console:
         self.raw = False
         self.show_help = False
         self.zoomed = False
+        self.theme = theme
         self.sizes = PaneSizes()
         self.dragging: str | None = None
         self.commands: dict[str, Callable[[list[str]], object]] = {
             "filter": self._filter,
             "grep": lambda args: self._search(" ".join(args)),
             "pause": lambda _args: self.frames.toggle_pause(),
+            "theme": self._theme,
             "clear": self._clear,
             "raw": lambda _args: self.toggle_raw(),
             "save": self._save,
@@ -186,7 +191,7 @@ class Console:
         self.application: Application[None] = Application(
             layout=Layout(self._layout(), focused_element=self.input),
             key_bindings=self._bindings(),
-            style=STYLE,
+            style=DynamicStyle(lambda: THEMES[self.theme]),
             full_screen=True,
             mouse_support=True,
             min_redraw_interval=0.05,
@@ -245,7 +250,8 @@ class Console:
         )
         frames = HSplit([self.panels["frames"], self.panels["detail"]])
         body = HSplit(
-            [
+            style="class:app",
+            children=[
                 VSplit(
                     [
                         ConditionalContainer(code, Condition(lambda: not (self.zoomed and right_side()))),
@@ -253,7 +259,7 @@ class Console:
                     ]
                 ),
                 Window(FormattedTextControl(self.toolbar), height=1, style="class:toolbar"),
-            ]
+            ],
         )
         width = max(len(key) for key, _ in HELP) + max(len(what) for _, what in HELP) + 4
         help_text = Window(FormattedTextControl(self._help), width=width, height=len(HELP), style="class:help")
@@ -338,6 +344,10 @@ class Console:
         @keys.add("end", filter=in_text)
         def _(event: KeyPressEvent) -> None:
             event.current_buffer.cursor_position = len(event.current_buffer.text)
+
+        @keys.add("f4")
+        def _(event: KeyPressEvent) -> None:
+            self._theme([])
 
         @keys.add("f3")
         def _(event: KeyPressEvent) -> None:
@@ -507,6 +517,14 @@ class Console:
     def detail_title_text(self) -> str:
         return "".join(fragment[1] for fragment in self._detail_title())
 
+    def _theme(self, args: list[str]) -> None:
+        """Switch to the named theme, or to the other one when none is named."""
+        name = args[0] if args else next(theme for theme in THEMES if theme != self.theme)
+        if name in THEMES:
+            self.theme = name
+        else:
+            self._queue_output(f"✗ unknown theme {name}; {' or '.join(THEMES)}\n")
+
     def _filter(self, commands: list[str]) -> None:
         self.frames.set_filter(c for arg in commands for c in arg.split(",") if c)
         self.selected = None
@@ -671,6 +689,7 @@ def run(argv: list[str]) -> int:
     parser.add_argument("--username", default=os.getenv("GGE_USERNAME"), help="defaults to $GGE_USERNAME")
     parser.add_argument("--no-login", action="store_true", help="start without connecting")
     parser.add_argument("--log-level", default="WARNING", help="library log level shown in the output pane")
+    parser.add_argument("--theme", choices=sorted(THEMES), default="dark", help="dark (default) or light")
     args = parser.parse_args(argv)
 
     password = None
@@ -680,7 +699,7 @@ def run(argv: list[str]) -> int:
         password = os.getenv("GGE_PASSWORD") or getpass(f"Password for {args.username}: ")
 
     client = EmpireClient(username=args.username, password=password)
-    console = Console(client)
+    console = Console(client, theme=args.theme)
     if not args.no_login:
         print(f"Logging in as {args.username}…")
         try:

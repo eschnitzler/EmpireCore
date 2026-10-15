@@ -381,3 +381,24 @@ def test_c_in_frames_copies_the_shown_detail(tmp_path):
         pipe.send_text("c\x04")
         console.application.run()
         assert console.application.clipboard.get_data().text.startswith("MightPointsResponse(")
+
+
+def test_dark_is_the_default_theme_and_theme_toggles(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        assert console.theme == "dark"
+        console.execute_command(":theme")
+        assert console.theme == "light"
+        console.execute_command(":theme dark")
+        assert console.theme == "dark"
+        console.execute_command(":theme sepia")
+        console.flush()
+        assert console.theme == "dark" and "unknown theme" in console.output_text
+
+
+def test_f4_toggles_the_theme(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        pipe.send_text("\x1bOS\x04")
+        console.application.run()
+        assert console.theme == "light"
