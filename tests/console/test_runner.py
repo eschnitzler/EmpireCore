@@ -36,6 +36,28 @@ def test_system_exit_is_reported_not_raised():
     assert "KeyboardInterrupt" in run("raise KeyboardInterrupt")
 
 
+def test_on_done_reports_time_and_success():
+    outcomes: list[tuple[float, bool]] = []
+    runner = CodeRunner({}, lambda _: None, on_done=lambda elapsed, ok: outcomes.append((elapsed, ok)))
+    runner.run("x = 1")
+    runner.join(5)
+    runner.run("1 / 0")
+    runner.join(5)
+    assert [ok for _, ok in outcomes] == [True, False]
+    assert all(0 <= elapsed < 1 for elapsed, _ in outcomes)
+
+
+def test_results_go_through_display_and_land_in_underscore():
+    out: list[str] = []
+    namespace: dict = {}
+    runner = CodeRunner(namespace, out.append, display=lambda value: f"<{value}>")
+    runner.run("[1, 2]")
+    runner.join(5)
+    runner.run("None")
+    runner.join(5)
+    assert out == ["<[1, 2]>\n"] and namespace["_"] == [1, 2]
+
+
 def test_namespace_persists():
     namespace: dict = {}
     run("x = 5", namespace)

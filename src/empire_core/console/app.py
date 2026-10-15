@@ -2,10 +2,12 @@
 
 import argparse
 import importlib
+import json
 import logging
 import os
 import sys
 import threading
+import time
 from collections.abc import Callable
 from contextlib import redirect_stderr, redirect_stdout
 from getpass import getpass
@@ -16,40 +18,59 @@ from prompt_toolkit.application import Application
 from prompt_toolkit.completion import ThreadedCompleter
 from prompt_toolkit.data_structures import Point
 from prompt_toolkit.document import Document
-from prompt_toolkit.filters import Condition, has_focus
+from prompt_toolkit.filters import Condition, has_focus, to_filter
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
-from prompt_toolkit.layout import Float, FloatContainer, HSplit, Layout, VSplit, Window
+from prompt_toolkit.layout import ConditionalContainer, Float, FloatContainer, HSplit, Layout, VSplit, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.menus import CompletionsMenu
-from prompt_toolkit.lexers import PygmentsLexer
-from prompt_toolkit.styles import Style
+from prompt_toolkit.lexers import DynamicLexer, PygmentsLexer
+from prompt_toolkit.mouse_events import MouseEvent, MouseEventType
 from prompt_toolkit.widgets import TextArea
+from pygments.lexers.data import JsonLexer
 from pygments.lexers.python import PythonLexer
 
 from empire_core.client.client import EmpireClient
 from empire_core.console.completion import NamespaceCompleter, signature_at
-from empire_core.console.frames import FrameLog, Row, frame_detail
+from empire_core.console.frames import HEADER, Detail, FrameLog, Row, detail_title, duration_label, frame_detail
+from empire_core.console.highlight import BANNER_MARK, OutputLexer
+from empire_core.console.pretty import pretty
 from empire_core.console.runner import CodeRunner, PaneWriter
+from empire_core.console.theme import STYLE
+from empire_core.console.widgets import Panel
 from empire_core.exceptions import EmpireError
 
 HISTORY = Path.home() / ".empire_console_history"
 RENDER_ROWS = 500
 OUTPUT_CHARS = 200_000
-KEYS = " F2 focus · Enter run · Esc Enter force run · Ctrl-C clear · Ctrl-D quit · :filter cmd… · :pause · :clear "
+PAGE = 20
+SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
-STYLE = Style.from_dict(
-    {
-        "sent": "ansicyan",
-        "received": "ansigreen",
-        "error": "ansired",
-        "selected": "reverse",
-        "title": "bold",
-        "toolbar": "reverse",
-    }
-)
+CODE_KEYS = [("Enter", "run"), ("Tab", "complete"), ("F2", "frames"), ("F1", "help"), ("Ctrl-D", "quit")]
+FRAME_KEYS = [("↑↓", "select"), ("End", "follow"), ("r", "raw"), ("F3", "zoom"), ("F2", "code"), ("F1", "help")]
+HELP = [
+    ("Code", ""),
+    ("Enter", "run once the statement is complete"),
+    ("Esc Enter", "run whatever is typed"),
+    ("Tab / ↑↓", "complete / history"),
+    ("Ctrl-C", "clear the input"),
+    ("Ctrl-L", "clear the output"),
+    ("Frames", ""),
+    ("F2", "switch between code and frames"),
+    ("↑↓ PgUp PgDn", "select a frame (or click it)"),
+    ("Home / End", "oldest frame / follow the newest"),
+    ("r", "parsed model or raw payload"),
+    ("F3", "zoom the focused side"),
+    ("Commands", ""),
+    (":filter gbd gam", "only these commands; none for all"),
+    (":grep text", "only frames containing text"),
+    (":pause  :clear", "freeze the view / forget frames"),
+    (":raw", "toggle parsed and raw detail"),
+    (":save [file]", "write the shown frames as JSON lines"),
+    (":quit", "close the client and exit, as does exit()"),
+]
 
 
 class Console:
@@ -59,32 +80,52 @@ class Console:
         self.client = client
         self.frames = FrameLog()
         self.namespace: dict[str, Any] = {"client": client, "empire_core": importlib.import_module("empire_core")}
-        self._pending: list[str] = []
-        self._pending_lock = threading.Lock()
+        self.namespace["exit"] = self.namespace["quit"] = self.quit
         self.selected: Row | None = None
+        self.raw = False
+        self.show_help = False
+        self.zoomed = False
         self.commands: dict[str, Callable[[list[str]], object]] = {
             "filter": self._filter,
+            "grep": lambda args: self._search(" ".join(args)),
             "pause": lambda _args: self.frames.toggle_pause(),
             "clear": self._clear,
+            "raw": lambda _args: self.toggle_raw(),
+            "save": self._save,
+            "help": lambda _args: self.toggle_help(),
             "quit": lambda _args: self.quit(),
         }
-        self.namespace["exit"] = self.namespace["quit"] = self.quit
-        self._render_top = 0
+        self._pending: list[str] = []
+        self._pending_lock = threading.Lock()
+        self._cursor_row = 0
         self._signature_cache: tuple[tuple[str, int, int], str] | None = None
+        self._shown: tuple[Row | None, bool] = (None, False)
+        self._detail = Detail("")
         self.writer = PaneWriter(self._queue_output)
-        self.runner = CodeRunner(self.namespace, self._queue_output, on_done=self._refresh)
+        self.runner = CodeRunner(
+            self.namespace,
+            self._queue_output,
+            on_done=self._finished,
+            display=lambda value: pretty(value, width=self._output_width()),
+        )
 
-        self.output = TextArea(read_only=True, wrap_lines=True, scrollbar=True)
+        python, json_lexer = PygmentsLexer(PythonLexer), PygmentsLexer(JsonLexer)
+        self.output = TextArea(read_only=True, wrap_lines=True, scrollbar=True, lexer=OutputLexer())
         self.input = TextArea(
-            prompt=">>> ",
             multiline=True,
-            lexer=PygmentsLexer(PythonLexer),
+            lexer=python,
             completer=ThreadedCompleter(NamespaceCompleter(self.namespace)),
             complete_while_typing=True,
             history=FileHistory(str(history or HISTORY)),
+            get_line_prefix=lambda line, _wrap: [("class:output.prompt", "... " if line else ">>> ")],
             height=Dimension(min=1, max=10),
         )
-        self.detail = TextArea(read_only=True, wrap_lines=True, scrollbar=True)
+        self.detail = TextArea(
+            read_only=True,
+            wrap_lines=False,
+            scrollbar=True,
+            lexer=DynamicLexer(lambda: python if self._detail.model else json_lexer),
+        )
         self.frame_list = FormattedTextControl(self.render_frame_list, focusable=True, get_cursor_position=self._cursor)
         self.application: Application[None] = Application(
             layout=Layout(self._layout(), focused_element=self.input),
@@ -93,43 +134,91 @@ class Console:
             full_screen=True,
             mouse_support=True,
             min_redraw_interval=0.05,
+            refresh_interval=0.5,
             before_render=lambda _app: self.flush(),
         )
-        self.frames.on_change = self._refresh
+        self.frames.on_change = self.application.invalidate
         client.connection.add_frame_listener(self.frames.add)
+        who = client.username or "no account"
+        self._queue_output(f"{BANNER_MARK}empire-console · {who} · client and empire_core are ready · F1 help\n")
 
     @property
     def output_text(self) -> str:
         return self.output.text
 
     def _layout(self) -> FloatContainer:
-        signature = Window(FormattedTextControl(self._signature), height=1, style="class:title")
-        title = Window(FormattedTextControl(self._frames_title), height=1, style="class:title")
-        toolbar = Window(FormattedTextControl(self._toolbar), height=1, style="class:toolbar")
-        left = HSplit([self.output, signature, self.input], width=Dimension(weight=1))
-        frame_list = Window(self.frame_list, wrap_lines=False)
-        right = HSplit([title, frame_list, Window(height=1, char="─"), self.detail], width=Dimension(weight=1))
-        body = HSplit([VSplit([left, Window(width=1, char="│"), right]), toolbar])
-        menu = Float(xcursor=True, ycursor=True, content=CompletionsMenu(max_height=12, scroll_offset=1))
-        return FloatContainer(body, floats=[menu])
+        in_frames = has_focus(self.frame_list)
+        code = HSplit(
+            [
+                Panel(self.output, lambda: [("", "Output")], has_focus(self.output)),
+                Panel(self.input, self._input_title, has_focus(self.input)),
+            ],
+            width=Dimension(weight=1),
+        )
+        header = Window(FormattedTextControl([("class:frame.header", " " + HEADER)]), height=1)
+        frames = HSplit(
+            [
+                Panel(HSplit([header, Window(self.frame_list, wrap_lines=False)]), self._frames_title, in_frames),
+                Panel(self.detail, self._detail_title, has_focus(self.detail)),
+            ],
+            width=Dimension(weight=1),
+        )
+        body = HSplit(
+            [
+                VSplit(
+                    [
+                        ConditionalContainer(code, Condition(lambda: not (self.zoomed and in_frames()))),
+                        ConditionalContainer(frames, Condition(lambda: not (self.zoomed and not in_frames()))),
+                    ]
+                ),
+                Window(FormattedTextControl(self.toolbar), height=1, style="class:toolbar"),
+            ]
+        )
+        width = max(len(key) for key, _ in HELP) + max(len(what) for _, what in HELP) + 4
+        help_text = Window(FormattedTextControl(self._help), width=width, height=len(HELP), style="class:help")
+        help_panel = Panel(help_text, lambda: [("", "Help · Esc to close")], to_filter(True))
+        return FloatContainer(
+            body,
+            floats=[
+                Float(xcursor=True, ycursor=True, content=CompletionsMenu(max_height=12, scroll_offset=1)),
+                Float(content=ConditionalContainer(help_panel, Condition(lambda: self.show_help))),
+            ],
+        )
 
     def _bindings(self) -> KeyBindings:
         keys = KeyBindings()
         in_input = has_focus(self.input)
         in_frames = has_focus(self.frame_list)
+        helping = Condition(lambda: self.show_help)
         # The menu opens while typing; Enter runs the input unless a completion is picked.
         picked = Condition(
             lambda: self.input.buffer.complete_state is not None
             and self.input.buffer.complete_state.current_completion is not None
         )
 
+        @keys.add("f1")
+        def _(event: KeyPressEvent) -> None:
+            self.toggle_help()
+
+        @keys.add("escape", filter=helping)
+        def _(event: KeyPressEvent) -> None:
+            self.show_help = False
+
         @keys.add("f2")
         def _(event: KeyPressEvent) -> None:
             event.app.layout.focus(self.frame_list if event.app.layout.has_focus(self.input) else self.input)
 
+        @keys.add("f3")
+        def _(event: KeyPressEvent) -> None:
+            self.zoomed = not self.zoomed
+
         @keys.add("c-c")
         def _(event: KeyPressEvent) -> None:
             self.input.buffer.reset()
+
+        @keys.add("c-l")
+        def _(event: KeyPressEvent) -> None:
+            self.output.buffer.set_document(Document(""), bypass_readonly=True)
 
         @keys.add("c-d")
         def _(event: KeyPressEvent) -> None:
@@ -154,18 +243,17 @@ class Console:
         def _(event: KeyPressEvent) -> None:
             self._take_input()
 
-        @keys.add("up", filter=in_frames)
-        def _(event: KeyPressEvent) -> None:
-            self.select(-1)
-
-        @keys.add("down", filter=in_frames)
-        def _(event: KeyPressEvent) -> None:
-            self.select(1)
+        for key, step in (("up", -1), ("down", 1), ("pageup", -PAGE), ("pagedown", PAGE), ("home", -sys.maxsize)):
+            keys.add(key, filter=in_frames)(lambda _event, step=step: self.select(step))
 
         @keys.add("end", filter=in_frames)
         def _(event: KeyPressEvent) -> None:
             self.selected = None
-            self._show_detail(None)
+            self._sync_detail()
+
+        @keys.add("r", filter=in_frames)
+        def _(event: KeyPressEvent) -> None:
+            self.toggle_raw()
 
         return keys
 
@@ -184,13 +272,13 @@ class Console:
         echo = "\n".join(("... " if i else ">>> ") + line for i, line in enumerate(source.rstrip().splitlines()))
         self._queue_output(echo + "\n")
         if not self.runner.run(source):
-            self._queue_output("still running the last input\n")
+            self._queue_output("✗ still running the last input\n")
 
     def execute_command(self, line: str) -> None:
         name, *args = line[1:].split() or [""]
         command = self.commands.get(name)
         if command is None:
-            self._queue_output(f"unknown command :{name}\n")
+            self._queue_output(f"✗ unknown command :{name}, F1 lists them\n")
         else:
             command(args)
 
@@ -206,25 +294,23 @@ class Console:
         if rows:
             current = self._row_index(rows)
             self.selected = rows[max(0, min(current + step, len(rows) - 1))]
-            self._show_detail(self.selected)
+            self._sync_detail()
 
-    def _filter(self, commands: list[str]) -> None:
-        self.frames.set_filter(commands)
-        self.selected = None
-        self._show_detail(None)
+    def toggle_raw(self) -> None:
+        self.raw = not self.raw
+        self._sync_detail()
 
-    def _clear(self, _args: list[str]) -> None:
-        self.frames.clear()
-        self.selected = None
-        self._show_detail(None)
+    def toggle_help(self) -> None:
+        self.show_help = not self.show_help
 
     def flush(self) -> None:
-        """Move output written from other threads into the pane; runs on the render thread."""
+        """Bring the panes up to date with other threads; runs on the render thread."""
         with self._pending_lock:
             text, self._pending = "".join(self._pending), []
         if text:
             content = (self.output.text + text)[-OUTPUT_CHARS:]
             self.output.buffer.set_document(Document(content, len(content)), bypass_readonly=True)
+        self._sync_detail()
 
     def close(self) -> None:
         self.client.connection.remove_frame_listener(self.frames.add)
@@ -233,21 +319,80 @@ class Console:
         """The rows around the cursor only; the list may hold thousands."""
         rows = self.frames.visible()
         current = self._row_index(rows)
-        self._render_top = max(0, min(current - RENDER_ROWS // 2, len(rows) - RENDER_ROWS))
+        top = max(0, min(current - RENDER_ROWS // 2, len(rows) - RENDER_ROWS))
+        # The cursor must point into these rows, even if frames arrive before it is asked for.
+        self._cursor_row = max(current - top, 0)
         lines: StyleAndTextTuples = []
-        for row in rows[self._render_top : self._render_top + RENDER_ROWS]:
-            style = "class:error" if row.frame.error_code else f"class:{row.frame.direction.value}"
-            if row is self.selected:
-                style += " class:selected"
-            lines.append((style, row.line + "\n"))
-        return lines
+        for row in rows[top : top + RENDER_ROWS]:
+            chosen = row is self.selected
+            highlight = " class:frame.selected" if chosen else ""
+            handler = self._mouse_handler(row)
+            lines.append(("class:frame.marker" + highlight, "▌" if chosen else " ", handler))
+            lines.extend((style + highlight, text, handler) for style, text, *_ in row.cells)
+            lines.append(("", "\n"))
+        return lines[:-1]
+
+    def toolbar(self) -> StyleAndTextTuples:
+        online = self.client.connection.connected
+        who = self.client.username or "no account"
+        status = f" ● {who} " if online else f" ○ {who} offline "
+        parts: StyleAndTextTuples = [("class:toolbar.online" if online else "class:toolbar.offline", status)]
+        for key, what in FRAME_KEYS if self.application.layout.has_focus(self.frame_list) else CODE_KEYS:
+            parts += [("class:toolbar.key", f" {key}"), ("class:toolbar", f" {what} ")]
+        if self.runner.busy:
+            elapsed = time.monotonic() - self.runner.started_at
+            spin = SPINNER[int(elapsed * 4) % len(SPINNER)]
+            parts.append(("class:toolbar.busy", f"  {spin} running {duration_label(elapsed)} "))
+        return parts
+
+    def detail_title_text(self) -> str:
+        return "".join(fragment[1] for fragment in self._detail_title())
+
+    def _filter(self, commands: list[str]) -> None:
+        self.frames.set_filter(c for arg in commands for c in arg.split(",") if c)
+        self.selected = None
+        self._sync_detail()
+
+    def _search(self, text: str) -> None:
+        self.frames.set_search(text)
+        self.selected = None
+        self._sync_detail()
+
+    def _clear(self, _args: list[str]) -> None:
+        self.frames.clear()
+        self.selected = None
+        self._sync_detail()
+
+    def _save(self, args: list[str]) -> None:
+        path = Path(args[0] if args else time.strftime("frames-%Y%m%d-%H%M%S.jsonl")).expanduser()
+        rows = self.frames.visible()
+        records = (
+            {
+                "at": row.frame.at,
+                "direction": row.frame.direction.value,
+                "command": row.frame.command,
+                "error_code": row.frame.error_code,
+                "text": row.frame.text,
+            }
+            for row in rows
+        )
+        try:
+            path.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
+        except OSError as e:
+            self._queue_output(f"✗ could not save: {e}\n")
+        else:
+            self._queue_output(f"✓ saved {len(rows)} frames to {path}\n")
+
+    def _finished(self, elapsed: float, ok: bool) -> None:
+        self._queue_output(f"{'✓' if ok else '✗'} {duration_label(elapsed)}\n")
+
+    def _output_width(self) -> int:
+        info = self.output.window.render_info
+        return info.window_width - 2 if info is not None else 88
 
     def _queue_output(self, text: str) -> None:
         with self._pending_lock:
             self._pending.append(text)
-        self._refresh()
-
-    def _refresh(self) -> None:
         self.application.invalidate()
 
     def _row_index(self, rows: list[Row]) -> int:
@@ -260,18 +405,35 @@ class Console:
         return len(rows) - 1
 
     def _cursor(self) -> Point:
-        return Point(0, max(self._row_index(self.frames.visible()) - self._render_top, 0))
+        return Point(0, self._cursor_row)
 
-    def _show_detail(self, row: Row | None) -> None:
-        text = frame_detail(row.frame) if row is not None else ""
-        self.detail.buffer.set_document(Document(text, 0), bypass_readonly=True)
+    def _mouse_handler(self, row: Row) -> Callable[[MouseEvent], object]:
+        def handle(event: MouseEvent) -> object:
+            if event.event_type is MouseEventType.MOUSE_UP:
+                self.selected = row
+                self.application.layout.focus(self.frame_list)
+                self._sync_detail()
+            elif event.event_type is MouseEventType.SCROLL_UP:
+                self.select(-3)
+            elif event.event_type is MouseEventType.SCROLL_DOWN:
+                self.select(3)
+            else:
+                return NotImplemented
+            return None
 
-    def _frames_title(self) -> StyleAndTextTuples:
-        shown = ",".join(sorted(self.frames.filter)) or "all"
-        state = "paused" if self.frames.paused else "live"
-        return [("", f" frames  [{shown}]  [{state}]  {len(self.frames.visible())}")]
+        return handle
 
-    def _signature(self) -> StyleAndTextTuples:
+    def _sync_detail(self) -> None:
+        """Show the selected frame, or the newest one while following, unless it is already shown."""
+        rows = self.frames.visible()
+        row = self.selected if self.selected is not None else (rows[-1] if rows else None)
+        if self._shown[0] is row and self._shown[1] == self.raw:
+            return
+        self._shown = (row, self.raw)
+        self._detail = frame_detail(row.frame, parsed=not self.raw) if row is not None else Detail("")
+        self.detail.buffer.set_document(Document(self._detail.text, 0), bypass_readonly=True)
+
+    def _input_title(self) -> StyleAndTextTuples:
         document = self.input.document
         key = (document.text, document.cursor_position_row, document.cursor_position_col)
         if self._signature_cache is None or self._signature_cache[0] != key:
@@ -280,10 +442,38 @@ class Console:
             except Exception:
                 text = ""
             self._signature_cache = (key, text)
-        return [("", self._signature_cache[1])]
+        signature = self._signature_cache[1]
+        return [("class:signature", signature)] if signature else [("", "Python")]
 
-    def _toolbar(self) -> StyleAndTextTuples:
-        return [("", KEYS + ("· running… " if self.runner.busy else ""))]
+    def _frames_title(self) -> StyleAndTextTuples:
+        title: StyleAndTextTuples = [("", "Frames"), ("class:panel.chip", f" · {len(self.frames.visible())}")]
+        if self.frames.filter:
+            title.append(("class:panel.chip.filter", f" · {','.join(sorted(self.frames.filter))}"))
+        if self.frames.search:
+            title.append(("class:panel.chip.filter", f" · /{self.frames.search}"))
+        if self.frames.paused:
+            title.append(("class:panel.chip.paused", " · paused"))
+        else:
+            title.append(("class:panel.chip.live", " · live"))
+        return title
+
+    def _detail_title(self) -> StyleAndTextTuples:
+        row = self._shown[0]
+        if row is None:
+            return [("", "Detail")]
+        mode = "parsed" if self._detail.model else "raw"
+        following = "" if self.selected is not None else " · following"
+        return [("", detail_title(row)), ("class:panel.chip.model", f" · {mode}"), ("class:panel.chip", following)]
+
+    def _help(self) -> StyleAndTextTuples:
+        width = max(len(key) for key, _ in HELP) + 2
+        lines: StyleAndTextTuples = []
+        for key, what in HELP:
+            if what:
+                lines += [("class:help.key", f" {key:<{width}}"), ("class:help", f"{what}\n")]
+            else:
+                lines.append(("class:help.heading", f" {key}\n"))
+        return lines
 
 
 def run(argv: list[str]) -> int:
@@ -304,6 +494,7 @@ def run(argv: list[str]) -> int:
     client = EmpireClient(username=args.username, password=password)
     console = Console(client)
     if not args.no_login:
+        print(f"Logging in as {args.username}…")
         try:
             client.login()
         except EmpireError as e:
