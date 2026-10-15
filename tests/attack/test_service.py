@@ -295,9 +295,12 @@ class TestAttackService:
         clock = [100.0]
         slept: list[float] = []
         monkeypatch.setattr("empire_core.attack.pacing.time.monotonic", lambda: clock[0])
-        monkeypatch.setattr(
-            "empire_core.attack.pacing.sleep_unless_cancelled", lambda seconds, cancel: slept.append(seconds) or False
-        )
+
+        def sleep(seconds, cancel):
+            slept.append(seconds)
+            return False
+
+        monkeypatch.setattr("empire_core.attack.pacing.sleep_unless_cancelled", sleep)
 
         client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3)
         clock[0] = 101.5
@@ -309,9 +312,12 @@ class TestAttackService:
         client = make_client(castles=OWN)
         client.config.attack_send_interval = 0
         slept: list[float] = []
-        monkeypatch.setattr(
-            "empire_core.attack.pacing.sleep_unless_cancelled", lambda seconds, cancel: slept.append(seconds) or False
-        )
+
+        def sleep(seconds, cancel):
+            slept.append(seconds)
+            return False
+
+        monkeypatch.setattr("empire_core.attack.pacing.sleep_unless_cancelled", sleep)
 
         for _ in range(3):
             client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3)
