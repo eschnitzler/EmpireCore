@@ -12,7 +12,8 @@ Tools are not placed yet, so a wave built here carries units only.
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from typing import ClassVar
 
 from pydantic import ConfigDict, Field
@@ -20,7 +21,7 @@ from pydantic import ConfigDict, Field
 from empire_core.army.models.units import AttackWave, WaveFlank
 from empire_core.enums import Flank, TargetRead
 from empire_core.exceptions import CommandError
-from empire_core.gamedata import EMPTY_SLOT, GameData, WodAmount, WodAmountSlots
+from empire_core.gamedata import EMPTY_SLOT, GameData, ToolCategory, ToolStats, WodAmount, WodAmountSlots
 from empire_core.protocol.base import EmpireModel
 
 from .capacity import (
@@ -40,14 +41,16 @@ logger = logging.getLogger(__name__)
 
 class FillOptions(EmpireModel):
     """
-    Which flanks to fill and which units may be used.
+    Which flanks to fill and which units and tools may be used.
 
     Every filter defaults to allowed, matching the client's
-    ``AutoFillOptions.createNewUnitFilter``. Turning one off excludes units that
-    carry that cost: ``allow_ruby_cost=False`` keeps units whose healing costs
-    rubies out of the wave, for instance. ``use_tools``, ``fill_yard`` and
-    ``max_waves`` are the library's own and have no counterpart in the client's
-    auto-fill.
+    ``AutoFillOptions.createNewUnitFilter`` and ``createNewToolFilter``. Turning
+    one off excludes what carries that cost or category: ``allow_ruby_cost=False``
+    keeps units whose healing costs rubies out of the wave, ``allow_event_tools=False``
+    keeps event tools out. ``use_tools``, ``fill_yard`` and ``max_waves`` are the
+    library's own and have no counterpart in the client's auto-fill.
+
+    Client: ``AutoFillOptions`` (bundle line 56371)
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
@@ -66,6 +69,29 @@ class FillOptions(EmpireModel):
     allow_beef: bool = True
     use_melee: bool = True
     use_ranged: bool = True
+    allow_basic_tools: bool = True
+    allow_premium_tools: bool = True
+    allow_elite_tools: bool = True
+    allow_event_tools: bool = True
+    allow_combo_tools: bool = True
+
+    def allows_tool(self, tool: ToolStats) -> bool:
+        """
+        Whether the tool filters let a tool into the fill.
+
+        A tool without a category always passes; one whose category the client
+        does not name never does.
+
+        Client: ``AFillWaveStrategy.createFilteredInventory`` (bundle line 221038)
+        """
+        allowed: dict[str, bool] = {
+            ToolCategory.BASIC: self.allow_basic_tools,
+            ToolCategory.PREMIUM: self.allow_premium_tools,
+            ToolCategory.ELITE: self.allow_elite_tools,
+            ToolCategory.EVENT: self.allow_event_tools,
+            ToolCategory.COMBO: self.allow_combo_tools,
+        }
+        return not tool.tool_category or allowed.get(tool.tool_category, False)
 
 
 class Inventory:
@@ -101,6 +127,21 @@ class Inventory:
             else:
                 del self.counts[wod_id]
         return taken
+
+    @contextmanager
+    def filtered(self, keep: Callable[[int], bool]) -> Iterator[Inventory]:
+        """
+        A copy holding only the stacks ``keep`` accepts, spent from inside the block.
+
+        Its counts replace those stacks when the block ends; a block that raises
+        leaves this inventory as it was.
+
+        Client: ``AFillWaveStrategy.createFilteredInventory`` and
+        ``applyInventoryChanges`` (bundle lines 221038 and 221028)
+        """
+        part = Inventory({wod_id: count for wod_id, count in self.counts.items() if keep(wod_id)})
+        yield part
+        self.counts = {wod_id: count for wod_id, count in self.counts.items() if not keep(wod_id)} | part.counts
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"Inventory({len(self.counts)} kinds, {sum(self.counts.values())} units)"
@@ -316,55 +357,61 @@ def fill_wave(
     # One per-tool-type budget for the whole wave, as getSumOfToolsByTool reads
     # all three containers.
     used_per_type: dict[str, int] = {}
-    for flank, should_fill in wanted.items():
-        units[flank] = []
-        tools[flank] = []
-        if not should_fill:
-            continue
 
-        defender = (defense or {}).get(flank)
-        # A fresh pool per flank: a strategy that retires on one flank is
-        # available again on the next.
-        if not options.use_tools:
-            pool: list[ToolStrategy] = []
-        elif strategies is None:
-            pool = list(default_tool_strategies())
-        else:
-            pool = list(strategies)
-        tools_placed = fill_flank_with_tools(
-            capacity.tool_capacity(flank),
-            capacity.tool_slots(flank),
-            capacity.tool_slot_type(flank),
-            inventory,
-            game_data,
-            pool,
-            attacker=attacker,
-            defender=defender,
-            target=TargetContext(
-                area_type=area_type,
-                space_id=space_id,
-                is_player=target_is_player,
-                active_raid_boss_id=active_raid_boss_id,
-            ),
-            used_per_type=used_per_type,
-        )
-        placed_tools = tools_placed.placed
-        placed_units = fill_flank_with_soldiers(
-            capacity.soldier_capacity(flank),
-            capacity.unit_slots(flank),
-            inventory,
-            game_data,
-            # The tools just placed have dented this flank's defense, and the
-            # client scores its soldiers against the dented values.
-            attacker=tools_placed.effects,
-            defender=defender,
-            options=options,
-            unit_attack_bonuses=unit_attack_bonuses,
-        )
-        check_flank(placed_tools, placed_units, inventory, game_data=game_data, used_per_type=used_per_type)
+    def allowed(wod_id: int) -> bool:
+        tool = game_data.get_tool(wod_id)
+        return tool is None or options.allows_tool(tool)
 
-        units[flank] = [WodAmount(item=wod_id, amount=count) for wod_id, count in placed_units]
-        tools[flank] = [WodAmount(item=wod_id, amount=count) for wod_id, count in placed_tools]
+    with inventory.filtered(allowed) as usable:
+        for flank, should_fill in wanted.items():
+            units[flank] = []
+            tools[flank] = []
+            if not should_fill:
+                continue
+
+            defender = (defense or {}).get(flank)
+            # A fresh pool per flank: a strategy that retires on one flank is
+            # available again on the next.
+            if not options.use_tools:
+                pool: list[ToolStrategy] = []
+            elif strategies is None:
+                pool = list(default_tool_strategies())
+            else:
+                pool = list(strategies)
+            tools_placed = fill_flank_with_tools(
+                capacity.tool_capacity(flank),
+                capacity.tool_slots(flank),
+                capacity.tool_slot_type(flank),
+                usable,
+                game_data,
+                pool,
+                attacker=attacker,
+                defender=defender,
+                target=TargetContext(
+                    area_type=area_type,
+                    space_id=space_id,
+                    is_player=target_is_player,
+                    active_raid_boss_id=active_raid_boss_id,
+                ),
+                used_per_type=used_per_type,
+            )
+            placed_tools = tools_placed.placed
+            placed_units = fill_flank_with_soldiers(
+                capacity.soldier_capacity(flank),
+                capacity.unit_slots(flank),
+                usable,
+                game_data,
+                # The tools just placed have dented this flank's defense, and the
+                # client scores its soldiers against the dented values.
+                attacker=tools_placed.effects,
+                defender=defender,
+                options=options,
+                unit_attack_bonuses=unit_attack_bonuses,
+            )
+            check_flank(placed_tools, placed_units, usable, game_data=game_data, used_per_type=used_per_type)
+
+            units[flank] = [WodAmount(item=wod_id, amount=count) for wod_id, count in placed_units]
+            tools[flank] = [WodAmount(item=wod_id, amount=count) for wod_id, count in placed_tools]
 
     for flank in wanted:
         middle = flank == Flank.MIDDLE
