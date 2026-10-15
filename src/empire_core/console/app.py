@@ -378,10 +378,11 @@ class Console:
         lines: StyleAndTextTuples = []
         for row in rows[top : top + RENDER_ROWS]:
             chosen = row is self.selected
-            highlight = " class:frame.selected" if chosen else ""
+            # Selection goes first, so a cell's own background (the direction badge) wins over it.
+            highlight = "class:frame.selected " if chosen else ""
             handler = self._mouse_handler(row)
-            lines.append(("class:frame.marker" + highlight, "▌" if chosen else " ", handler))
-            lines.extend((style + highlight, text, handler) for style, text, *_ in row.cells)
+            lines.append((highlight + "class:frame.marker", "▌" if chosen else " ", handler))
+            lines.extend((highlight + style, text, handler) for style, text, *_ in row.cells)
             lines.append(("", "\n"))
         return lines[:-1]
 
