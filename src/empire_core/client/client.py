@@ -103,9 +103,10 @@ class EmpireClient:
         A :class:`~empire_core.exceptions.LoginCooldownError` counts as a
         failed attempt too, and is retried no sooner than the seconds the
         refusal named (see :meth:`remaining_login_cooldown`): after
-        the longer of that cooldown and the delay. A refusal that waiting does
-        not cure (a ban, the wrong server, the client version, credentials, or
-        any other refusal) ends the attempts, logged as an error and reported
+        the longer of that cooldown and the delay. A ban the server named an
+        end for is waited out the same way. A refusal that waiting does
+        not cure (a ban without an end, a deleted account, the wrong server,
+        the client version, credentials, or any other refusal) ends the attempts, logged as an error and reported
         to :meth:`on_session_lost`; the client then stays logged out. A
         re-login sends no reCAPTCHA token.
     """
@@ -463,8 +464,8 @@ class EmpireClient:
                 again for each attempt.
             retry: Retry a failed login, as :attr:`keep_session` retries a
                 re-login: after a timeout, a network error, a login
-                cooldown or, with ``config.client_version`` None, a version
-                refusal, wait and log in again, until a login holds. Each
+                cooldown, a ban the server named an end for or, with
+                ``config.client_version`` None, a version refusal, wait and log in again, until a login holds. Each
                 failed attempt fires :meth:`on_session_retry`. Any other
                 failure raises at once. A :meth:`close`, or a newer
                 :meth:`login`, from another thread ends the attempts, also
@@ -500,7 +501,7 @@ class EmpireClient:
         """Seconds until the login cooldown the server last named is over; 0 when there is none.
 
         Only what the server last said: the ``CD`` of the last refused login of
-        this client, less the time since, cleared by a login that holds. The
+        this client, or the ``RS`` of a ban that ends, less the time since, cleared by a login that holds. The
         server may start a cooldown this client has not been told about yet.
 
         Client: ``LLICommand.executeCommand`` (bundle line 120673) shows the
