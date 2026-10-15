@@ -1,7 +1,7 @@
 from prompt_toolkit.data_structures import Point
 from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
 
-from empire_core.console.widgets import ScrollbarControl
+from empire_core.console.widgets import BorderControl, ScrollbarControl
 
 
 def event(y, kind=MouseEventType.MOUSE_DOWN, button=MouseButton.LEFT):
@@ -45,3 +45,12 @@ def test_moving_without_a_button_does_nothing():
     control, jumps, _ = bar(0, 10, 100)
     assert control.mouse_handler(event(5, MouseEventType.MOUSE_MOVE, MouseButton.NONE)) is NotImplemented
     assert jumps == []
+
+
+def test_border_draws_its_line_and_reports_a_press():
+    presses: list[int] = []
+    border = BorderControl("│", lambda: "class:panel.border", lambda: presses.append(1))
+    content = border.create_content(1, 3)
+    assert content.line_count == 3 and content.get_line(2)[0][1] == "│"
+    assert border.mouse_handler(event(1)) is None and presses == [1]
+    assert border.mouse_handler(event(1, MouseEventType.MOUSE_UP)) is NotImplemented

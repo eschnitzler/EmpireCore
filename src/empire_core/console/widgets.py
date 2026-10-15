@@ -1,6 +1,6 @@
 """A rounded panel whose border lights up with focus, and a scrollbar the mouse can use."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 from prompt_toolkit.filters import Filter
 from prompt_toolkit.formatted_text import StyleAndTextTuples
@@ -72,8 +72,30 @@ def text_scrollbar(area: TextArea) -> ScrollbarControl:
     return ScrollbarControl(position, scroll_to)
 
 
+class BorderControl(UIControl):
+    """A border line that starts a resize when pressed."""
+
+    def __init__(self, char: str, style: Callable[[], str], on_press: Callable[[], None]) -> None:
+        self.char = char
+        self.style = style
+        self.on_press = on_press
+
+    def create_content(self, width: int, height: int) -> UIContent:
+        line: StyleAndTextTuples = [(self.style(), self.char * width)]
+        return UIContent(get_line=lambda _row: line, line_count=height)
+
+    def mouse_handler(self, mouse_event: MouseEvent) -> object:
+        if mouse_event.event_type is not MouseEventType.MOUSE_DOWN:
+            return NotImplemented
+        self.on_press()
+        return None
+
+
 class Panel:
-    """``body`` in a rounded border with a title; ``title`` is called on every render."""
+    """``body`` in a rounded border with a title; ``title`` is called on every render.
+
+    ``grips`` maps an edge (``"left"``, ``"right"``, ``"top"``, ``"bottom"``) to what pressing it starts.
+    """
 
     def __init__(
         self,
@@ -82,7 +104,11 @@ class Panel:
         focused: Filter,
         *,
         height: AnyDimension = None,
+        width: AnyDimension = None,
+        grips: Mapping[str, Callable[[], None]] | None = None,
     ) -> None:
+        grips = grips or {}
+
         def border() -> str:
             return "class:panel.border.focused" if focused() else "class:panel.border"
 
@@ -90,23 +116,30 @@ class Panel:
             name = "class:panel.title.focused" if focused() else "class:panel.title"
             return [(border(), "─ "), *[(style or name, text) for style, text, *_ in title()], (border(), " ")]
 
-        def edge(char: str) -> Window:
+        def corner(char: str) -> Window:
             return Window(width=1, height=1, char=char, style=border)
+
+        def line(edge: str, char: str) -> Window:
+            width, height = (1, None) if char == "│" else (None, 1)
+            if edge in grips:
+                return Window(BorderControl(char, border, grips[edge]), width=width, height=height)
+            return Window(char=char, style=border, width=width, height=height)
 
         self.container = HSplit(
             [
                 VSplit(
                     [
-                        edge("╭"),
+                        corner("╭"),
                         Window(FormattedTextControl(heading), height=1, dont_extend_width=True),
-                        Window(height=1, char="─", style=border),
-                        edge("╮"),
+                        line("top", "─"),
+                        corner("╮"),
                     ]
                 ),
-                VSplit([Window(width=1, char="│", style=border), body, Window(width=1, char="│", style=border)]),
-                VSplit([edge("╰"), Window(height=1, char="─", style=border), edge("╯")]),
+                VSplit([line("left", "│"), body, line("right", "│")]),
+                VSplit([corner("╰"), line("bottom", "─"), corner("╯")]),
             ],
             height=height,
+            width=width,
         )
 
     def __pt_container__(self) -> Container:

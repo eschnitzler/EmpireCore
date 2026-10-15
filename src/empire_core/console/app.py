@@ -5,11 +5,13 @@ import importlib
 import json
 import logging
 import os
+import re
 import sys
 import threading
 import time
 from collections.abc import Callable
 from contextlib import redirect_stderr, redirect_stdout
+from dataclasses import dataclass
 from getpass import getpass
 from pathlib import Path
 from typing import Any
@@ -22,6 +24,7 @@ from prompt_toolkit.filters import Condition, has_focus, to_filter
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
+from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout import (
     AnyContainer,
     ConditionalContainer,
@@ -56,6 +59,7 @@ RENDER_ROWS = 500
 OUTPUT_CHARS = 200_000
 PAGE = 20
 SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+SGR_MOUSE = re.compile(r"\x1b\[<\d+;(?P<x>\d+);(?P<y>\d+)(?P<kind>[mM])")
 
 CODE_KEYS = [("Enter", "run"), ("Tab", "complete"), ("Ctrl-arrows", "panes"), ("F1", "help"), ("Ctrl-D", "quit")]
 FRAME_KEYS = [
@@ -97,6 +101,16 @@ HELP = [
 ]
 
 
+@dataclass
+class PaneSizes:
+    """Where the borders sit: the code column's share of the width, the input's lines and the frame list's
+    share of the height."""
+
+    column: float = 0.5
+    input_rows: int = 5
+    frames: float = 0.55
+
+
 class Console:
     """A REPL on ``client`` beside every frame its connection sends and receives."""
 
@@ -109,6 +123,8 @@ class Console:
         self.raw = False
         self.show_help = False
         self.zoomed = False
+        self.sizes = PaneSizes()
+        self.dragging: str | None = None
         self.commands: dict[str, Callable[[list[str]], object]] = {
             "filter": self._filter,
             "grep": lambda args: self._search(" ".join(args)),
@@ -143,7 +159,6 @@ class Console:
             complete_while_typing=True,
             history=FileHistory(str(history or HISTORY)),
             get_line_prefix=lambda line, _wrap: [("class:output.prompt", "... " if line else ">>> ")],
-            height=Dimension(min=1, max=10),
         )
         self.detail = TextArea(
             read_only=True,
@@ -181,22 +196,43 @@ class Console:
 
     def _layout(self) -> FloatContainer:
         right_side = has_focus(self.frame_list) | has_focus(self.detail)
-        code = HSplit(
-            [
-                Panel(self._scrolled(self.output, "output"), lambda: [("", "Output")], has_focus(self.output)),
-                Panel(self.input, self._input_title, has_focus(self.input)),
-            ],
-            width=Dimension(weight=1),
+        column, code_rows, frame_rows = (
+            lambda kind=kind: self.start_drag(kind) for kind in ("column", "code", "frames")
         )
         header = Window(FormattedTextControl([("class:frame.header", " " + HEADER)]), height=1)
-        frame_list = self._scrolled(Window(self.frame_list, wrap_lines=False), "frames")
-        frames = HSplit(
-            [
-                Panel(HSplit([header, frame_list]), self._frames_title, has_focus(self.frame_list)),
-                Panel(self._scrolled(self.detail, "detail"), self._detail_title, has_focus(self.detail)),
-            ],
-            width=Dimension(weight=1),
+        self.panels = {
+            "output": Panel(
+                self._scrolled(self.output, "output"),
+                lambda: [("", "Output")],
+                has_focus(self.output),
+                grips={"right": column, "bottom": code_rows},
+            ),
+            "input": Panel(
+                self.input,
+                self._input_title,
+                has_focus(self.input),
+                height=lambda: Dimension.exact(self.sizes.input_rows + 2),
+                grips={"right": column, "top": code_rows},
+            ),
+            "frames": Panel(
+                HSplit([header, self._scrolled(Window(self.frame_list, wrap_lines=False), "frames")]),
+                self._frames_title,
+                has_focus(self.frame_list),
+                height=lambda: Dimension.exact(self._frames_height()),
+                grips={"left": column, "bottom": frame_rows},
+            ),
+            "detail": Panel(
+                self._scrolled(self.detail, "detail"),
+                self._detail_title,
+                has_focus(self.detail),
+                grips={"left": column, "top": frame_rows},
+            ),
+        }
+        code = HSplit(
+            [self.panels["output"], self.panels["input"]],
+            width=lambda: Dimension() if self.zoomed else Dimension.exact(self._code_width()),
         )
+        frames = HSplit([self.panels["frames"], self.panels["detail"]])
         body = HSplit(
             [
                 VSplit(
@@ -219,6 +255,28 @@ class Console:
             ],
         )
 
+    def start_drag(self, kind: str) -> None:
+        """Start resizing at a border: ``"column"``, ``"code"`` (output and input) or ``"frames"``."""
+        self.dragging = kind
+
+    def _drag_to(self, x: int, y: int) -> None:
+        rows, columns = self.application.output.get_size()
+        body = rows - 1
+        resize = {
+            "column": lambda: setattr(self.sizes, "column", min(max(x / columns, 0.2), 0.8)),
+            "code": lambda: setattr(self.sizes, "input_rows", max(min(body - y - 2, body - 8), 1)),
+            "frames": lambda: setattr(self.sizes, "frames", min(max((y + 1) / body, 0.15), 0.85)),
+        }
+        if self.dragging in resize:
+            resize[self.dragging]()
+
+    def _code_width(self) -> int:
+        return max(round(self.application.output.get_size().columns * self.sizes.column), 20)
+
+    def _frames_height(self) -> int:
+        body = self.application.output.get_size().rows - 1
+        return max(min(round(body * self.sizes.frames), body - 5), 5)
+
     def _scrolled(self, body: AnyContainer, pane: str) -> VSplit:
         return VSplit([body, Window(self.scrollbars[pane], width=1)])
 
@@ -228,11 +286,24 @@ class Console:
         in_frames = has_focus(self.frame_list)
         in_text = has_focus(self.output) | has_focus(self.detail)
         helping = Condition(lambda: self.show_help)
+        dragging = Condition(lambda: self.dragging is not None)
         # The menu opens while typing; Enter runs the input unless a completion is picked.
         picked = Condition(
             lambda: self.input.buffer.complete_state is not None
             and self.input.buffer.complete_state.current_completion is not None
         )
+
+        # While a border is held, read the terminal's mouse reports directly: they carry screen
+        # positions, where a control only learns positions inside itself.
+        @keys.add(Keys.Vt100MouseEvent, filter=dragging, eager=True)
+        def _(event: KeyPressEvent) -> None:
+            report = SGR_MOUSE.match(event.data)
+            if report is None:
+                return
+            if report["kind"] == "m":
+                self.dragging = None
+            else:
+                self._drag_to(int(report["x"]) - 1, int(report["y"]) - 1)
 
         @keys.add("f1")
         def _(event: KeyPressEvent) -> None:

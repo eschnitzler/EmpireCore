@@ -314,3 +314,39 @@ def test_exit_in_code_quits_the_console(tmp_path):
         console.application.run(pre_run=lambda: console.submit("exit()"))
         fallback.cancel()
         assert time.perf_counter() - start < 4
+
+
+def drag(console, pipe, kind, x, y):
+    """Press a border, then move and release with the terminal's own (1-based) SGR mouse reports."""
+    console.start_drag(kind)
+    pipe.send_text(f"\x1b[<32;{x + 1};{y + 1}M\x1b[<0;{x + 1};{y + 1}m\x04")
+    console.application.run()
+
+
+def test_panes_have_fixed_sizes_that_typing_does_not_change(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        before = console.panels["input"].container.preferred_height(80, 100).preferred
+        console.input.buffer.text = "\n".join("x" for _ in range(20))
+        assert console.panels["input"].container.preferred_height(80, 100).preferred == before
+
+
+def test_dragging_borders_resizes_panes(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        rows, columns = console.application.output.get_size()
+        drag(console, pipe, "column", 20, 5)
+        assert console.sizes.column == 20 / columns and console.dragging is None
+        drag(console, pipe, "code", 0, 30)
+        assert console.sizes.input_rows == (rows - 1) - 30 - 2
+        drag(console, pipe, "frames", 0, 19)
+        assert round(console.sizes.frames * (rows - 1)) == 20
+
+
+def test_drags_are_clamped(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        drag(console, pipe, "column", 0, 0)
+        assert console.sizes.column >= 0.2
+        drag(console, pipe, "code", 0, 0)
+        assert console.sizes.input_rows >= 1
