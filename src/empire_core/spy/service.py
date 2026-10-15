@@ -216,8 +216,12 @@ class SpyService(BaseService):
         self._spy_logs: list[_SpyLog] = []
 
     @property
-    def max_spies(self) -> MaxSpiesResponse | None:
-        """The spies you own before boosts, from ``gms``; None until the login gbd brings it."""
+    def max_spies(self) -> MaxSpiesResponse:
+        """The spies you own before boosts, from ``gms``.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
         return self.client.state.get_max_spies()
 
     @property

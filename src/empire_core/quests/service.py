@@ -34,8 +34,12 @@ class QuestsService(BaseService):
         return self.client.state.get_quest_book()
 
     @property
-    def daily(self) -> DailyQuests | None:
-        """Your daily quests, from the last ``dql`` (the login data has one); None until one arrived."""
+    def daily(self) -> DailyQuests:
+        """Your daily quests, from the last ``dql`` (the login data has one).
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
         return self.client.state.get_daily_quests()
 
 
