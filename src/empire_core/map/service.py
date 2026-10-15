@@ -27,6 +27,7 @@ from empire_core.map.models.areas import (
     GetMapAreaResponse,
 )
 from empire_core.map.models.items import parse_area_rows
+from empire_core.map.models.world import MapSize
 from empire_core.map.pacing import MapAreaPacer
 from empire_core.map.scanner import ChunkHandler, MapScanner, ScanResult
 from empire_core.protocol.base import BaseRequest
@@ -45,6 +46,15 @@ class MapService(BaseService):
     def __init__(self, client) -> None:
         super().__init__(client)
         self.pacer = MapAreaPacer(lambda: client.config.map_tiles_per_second)
+
+    def map_size(self, kingdom: Kingdom) -> MapSize:
+        """
+        ``kingdom``'s map in tiles, which sends nothing: the server names it when the connection opens.
+
+        Raises:
+            StateNotLoadedError: Not connected yet
+        """
+        return self.client.state.get_map_size(kingdom)
 
     def scan_map_area(
         self, x1: int, y1: int, x2: int, y2: int, kingdom: Kingdom = Kingdom.GREEN, *, timeout: float = 5.0

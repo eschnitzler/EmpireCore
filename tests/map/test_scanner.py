@@ -12,9 +12,12 @@ import pytest
 
 from empire_core.enums import GGEError, Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
+from empire_core.map.models.world import MapSize
 from empire_core.map.pacing import MapAreaPacer
 from empire_core.map.scanner import MapScanner, scan_kingdom_with
 from empire_core.protocol.packet import Packet
+
+MAP_SIZE = MapSize(1287, 1287)
 
 
 class TestChunkBounds:
@@ -113,7 +116,7 @@ class _FakeClient:
         self.connection = _FakeConnection(content_chunks, **connection_kwargs)
         self.config = _FakeConfig()
         self.state = _FakeState(start_chunk)
-        self.map = SimpleNamespace(pacer=MapAreaPacer(lambda: math.inf))
+        self.map = SimpleNamespace(pacer=MapAreaPacer(lambda: math.inf), map_size=lambda kingdom: MAP_SIZE)
 
     def request_packet(self, request: Any, response_command: str, timeout: float = 5.0) -> Any:
         frame = request.to_packet(zone=self.config.default_zone, room_id=getattr(self.connection, "room_id", 1))
@@ -150,11 +153,11 @@ class TestScanChunks:
         assert result.failed_chunks == ()
         assert len(result.items) == 1
 
-    def test_deduplicates_and_skips_out_of_range(self):
+    def test_deduplicates_and_skips_chunks_off_the_map(self):
         fake = _FakeClient(content_chunks=set())
         _make_scanner(fake).scan_chunks(
             kingdom=Kingdom.GREEN,
-            chunks=[(1, 1), (1, 1), (-1, 0), (0, MapScanner.MAX_COORD + 1)],
+            chunks=[(1, 1), (1, 1), (-1, 0), (0, 15), (15, 0)],
             item_types=[],
             chunk_delay=0,
         )
@@ -167,6 +170,13 @@ class TestScanChunks:
         assert result.content_chunks == ((5, 5),)
         # Discovery probed more chunks than had content
         assert len(fake.connection.requests) > 1
+
+    def test_kingdom_scan_stops_at_the_map_edge(self):
+        # 1287 tiles a side: chunk 14 (tiles 1260-1349) is the last that holds any of the map
+        fake = _FakeClient(content_chunks={(13, 13), (14, 14)}, start_chunk=(14, 14))
+        _make_scanner(fake).scan_kingdom(kingdom=Kingdom.GREEN, item_types=[], chunk_delay=0)
+        assert (14, 14) in fake.connection.requests
+        assert max(max(chunk) for chunk in fake.connection.requests) == 14
 
     def test_rescan_of_content_chunks_is_cheaper_than_discovery(self):
         content = {(5, 5), (5, 6), (6, 5)}
