@@ -36,7 +36,7 @@ class TestGoldenMapArea:
     def test_registry_parses_gaa(self):
         assert isinstance(parse_response("gaa", {"KID": 0, "AI": []}), GetMapAreaResponse)
 
-    def test_items_and_objects_parse(self):
+    def test_items_and_owners_parse(self):
         payload = {"KID": 2, "AI": [CASTLE_ROW], "OI": [{"OID": 4242, "N": "Owner", "AN": "Alliance", "L": 70}]}
         response = GetMapAreaResponse.model_validate(payload)
         item = response.items[0]

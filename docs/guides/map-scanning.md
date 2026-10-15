@@ -27,7 +27,7 @@ A `ScanResult` holds:
 | Field | What it is |
 |---|---|
 | `items` | Every `MapAreaItem` found, read by its area type's layout; empty with [`on_chunk`](#keeping-only-what-you-need). |
-| `objects` | The owner records (`MapObject`) the chunks sent, by player id; empty with `on_chunk`. |
+| `owners` | The owner records (`MapObject`) the chunks sent, by player id; empty with `on_chunk`. |
 | `kingdom` | The kingdom scanned; every item carries it too. |
 | `failed_chunks` | Chunks that still failed after their retries, or were left unscanned by a timeout, a cancel or a dropped connection. |
 | `content_chunks` | Chunks that answered and held items. |
@@ -154,13 +154,13 @@ A `ScanResult` keeps every item and owner record of the kingdom, and Python's
 full garbage collections walk all of them while the result lives: for a dense
 kingdom that is a pause of a tenth of a second or more each time. Pass
 `on_chunk` to take each chunk as it is read and keep only what you need; the
-scan then keeps nothing itself, and `items` and `objects` come back empty:
+scan then keeps nothing itself, and `items` and `owners` come back empty:
 
 ```python
 wanted_players = {1234, 5678}
 castles: dict[tuple[int, int], int] = {}
 
-def keep_castles(chunk, items, objects):
+def keep_castles(chunk, items, owners):
     for item in items:
         if item.owner_id in wanted_players:
             castles[(item.x, item.y)] = item.owner_id

@@ -116,7 +116,7 @@ class MapService(BaseService):
             wanted = set(item_types) if item_types else None
             scan = ScanResult(
                 items=[item for item in response.items if wanted is None or item.item_type in wanted],
-                objects={owner.owner_id: owner for owner in response.owners if owner.owner_id},
+                owners={owner.owner_id: owner for owner in response.owners if owner.owner_id},
                 kingdom=kingdom,
             )
         else:

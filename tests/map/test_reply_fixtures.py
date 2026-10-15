@@ -68,7 +68,7 @@ def _scan(payload: dict[str, Any], **kwargs: Any) -> Any:
 def _scan_digest(result: Any) -> str:
     dump = {
         "items": [item.model_dump(mode="json") for item in result.items],
-        "objects": {str(oid): record.model_dump(mode="json") for oid, record in result.objects.items()},
+        "objects": {str(oid): record.model_dump(mode="json") for oid, record in result.owners.items()},
     }
     return hashlib.sha256(json.dumps(dump, sort_keys=True).encode()).hexdigest()
 
