@@ -349,6 +349,26 @@ class TestWaveWithTools:
                 "gateBonus": "10",
                 "fightType": "1",
             },
+            {
+                "wodID": 612,
+                "name": "Workshop",
+                "type": "Ram",
+                "typ": "Attack",
+                "slotTypes": "1,2,9",
+                "gateBonus": "10",
+                "fightType": "1",
+                "toolCategory": "Event",
+            },
+            {
+                "wodID": 613,
+                "name": "Workshop",
+                "type": "Ram",
+                "typ": "Attack",
+                "slotTypes": "1,2,9",
+                "gateBonus": "10",
+                "fightType": "1",
+                "toolCategory": "Mythic",
+            },
         ],
     )
 
@@ -415,6 +435,48 @@ class TestWaveWithTools:
         assert placed(payload["L"]["T"]) == []
         assert placed(payload["L"]["U"]) == [[601, 10]]
         assert inv.available(611) == 100
+
+    def test_a_tool_category_filtered_out_stays_in_the_inventory(self):
+        game = self.data()
+        inv = Inventory({601: 100, 612: 100})
+        defense = {Flank.LEFT: DefenderFlankEffects(gate_bonus=0.30)}
+
+        allowed = fill_wave(Inventory(inv.counts), game, self.capacity(), defense=defense)
+        wave = fill_wave(inv, game, self.capacity(), defense=defense, options=FillOptions(allow_event_tools=False))
+
+        assert placed(allowed.model_dump(by_alias=True)["L"]["T"]) == [[612, 3]]
+        payload = wave.model_dump(by_alias=True)
+        assert placed(payload["L"]["T"]) == []
+        assert placed(payload["L"]["U"]) == [[601, 10]]
+        assert inv.available(612) == 100
+        assert inv.available(601) == 70
+
+    def test_a_tool_without_a_category_passes_every_filter(self):
+        game = self.data()
+        inv = Inventory({601: 100, 611: 100})
+        defense = {Flank.LEFT: DefenderFlankEffects(gate_bonus=0.30)}
+        options = FillOptions(
+            allow_basic_tools=False,
+            allow_premium_tools=False,
+            allow_elite_tools=False,
+            allow_event_tools=False,
+            allow_combo_tools=False,
+        )
+
+        wave = fill_wave(inv, game, self.capacity(), defense=defense, options=options)
+
+        assert placed(wave.model_dump(by_alias=True)["L"]["T"]) == [[611, 3]]
+        assert inv.available(611) == 97
+
+    def test_a_category_the_client_does_not_name_is_never_used(self):
+        game = self.data()
+        inv = Inventory({601: 100, 613: 100})
+        defense = {Flank.LEFT: DefenderFlankEffects(gate_bonus=0.30)}
+
+        wave = fill_wave(inv, game, self.capacity(), defense=defense)
+
+        assert placed(wave.model_dump(by_alias=True)["L"]["T"]) == []
+        assert inv.available(613) == 100
 
 
 class TestYardWave:

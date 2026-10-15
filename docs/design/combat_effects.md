@@ -1337,7 +1337,9 @@ i.e. a tool is dropped when its non-empty `units.toolCategory` has its
 `AutoFillOptions` filter off. Filters:
 `TOOL_FILTER_BASIC = "basic"`, `TOOL_FILTER_PREMIUM = "premium"`,
 `TOOL_FILTER_ELITE = "elite"`, `TOOL_FILTER_EVENT = "event"`,
-`TOOL_FILTER_COMBO = "combo"`. An empty `toolCategory` always passes.
+`TOOL_FILTER_COMBO = "combo"`. An empty `toolCategory` always passes. A non-empty one outside
+those five is always dropped: `isToolFilterActive` reads false for a key the
+filter map lacks.
 
 **`amountPerWave` is a hard cap, not display metadata:**
 

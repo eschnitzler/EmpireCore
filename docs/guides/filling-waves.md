@@ -116,7 +116,7 @@ defense the units are then chosen against.
 
 ## Choosing what to fill
 
-`options=FillOptions(...)` narrows the fill. The flank and unit filters match
+`options=FillOptions(...)` narrows the fill. The flank, unit and tool filters match
 the game's auto-fill settings; the last three are the library's own.
 
 | Option | Default | Effect |
@@ -124,6 +124,7 @@ the game's auto-fill settings; the last three are the library's own.
 | `fill_left`, `fill_middle`, `fill_right` | `True` | Which flanks get units and tools |
 | `allow_coin_cost`, `allow_ruby_cost`, `allow_mead`, `allow_beef` | `True` | Allow units with that healing cost or upkeep |
 | `use_melee`, `use_ranged` | `True` | Allow that kind of unit |
+| `allow_basic_tools`, `allow_premium_tools`, `allow_elite_tools`, `allow_event_tools`, `allow_combo_tools` | `True` | Allow tools of that category; a tool without one is always allowed |
 | `use_tools` | `True` | `False` fills soldiers only |
 | `fill_yard` | `True` | `False` leaves the courtyard wave empty |
 | `max_waves` | `None` | Fill at most this many waves |
