@@ -2,6 +2,183 @@
 
 <!-- version list -->
 
+## v0.55.0 (2026-10-15)
+
+### Bug Fixes
+
+- **alliance**: Get_alliance_info raises for a reply without an alliance
+  ([`ce78e58`](https://github.com/eschnitzler/EmpireCore/commit/ce78e5823ad6029de6df85898d2c57ef7a7fda85))
+
+- **castle**: A castle id names one castle
+  ([`92e1562`](https://github.com/eschnitzler/EmpireCore/commit/92e156214d0339bb401ed1c661fb92555c8aa4b9))
+
+- **map**: A kingdom scan stops at the map's edge
+  ([`8c2e2c1`](https://github.com/eschnitzler/EmpireCore/commit/8c2e2c1ca206c638b72912fbdc758de36f73e427))
+
+- **map**: A scan's owner records are owners, as on MapArea
+  ([`f9b790d`](https://github.com/eschnitzler/EmpireCore/commit/f9b790dc11e9aa90d647ff021f07e6699b8c35f3))
+
+- **movements**: Movement.kingdom is a Kingdom, its types are enums
+  ([`d0f791b`](https://github.com/eschnitzler/EmpireCore/commit/d0f791b6ccba2d24af829c67b629df4bec4410b2))
+
+- **services**: A read that sends nothing is a noun, a get_* always sends
+  ([`0a20ccc`](https://github.com/eschnitzler/EmpireCore/commit/0a20cccf4443c5f3cf280ca72eb0b2c3f6697777))
+
+- **services**: A refused action raises CommandError
+  ([`b613aba`](https://github.com/eschnitzler/EmpireCore/commit/b613abab23985fa66468247a1fb132d1a191e94c))
+
+- **services**: A reply with one record returns the record
+  ([`5849c67`](https://github.com/eschnitzler/EmpireCore/commit/5849c67f0735fdf395bd0e305c99b9cc3ae5eb55))
+
+- **services**: The service reads of the login data are never None
+  ([`1f1afae`](https://github.com/eschnitzler/EmpireCore/commit/1f1afae9f48d4103d1fb6b94e5f09235a0b196cd))
+
+- **state**: Data every login brings is never None
+  ([`f3c4cdb`](https://github.com/eschnitzler/EmpireCore/commit/f3c4cdb513dd99cb9159e484b7cd7d4f2e1b9ec1))
+
+- **state**: The mailbox, help list and pushed rewards are stored in client.state
+  ([`1784f58`](https://github.com/eschnitzler/EmpireCore/commit/1784f58a0815c7d5e625a27920cab32c6d1342ab))
+
+### Documentation
+
+- The ruby research is castle.start_research in the spend_rubies table
+  ([`099a99d`](https://github.com/eschnitzler/EmpireCore/commit/099a99d755f49efb8a9c6ae8bc2850b3694412a3))
+
+- **map**: The world module in the reference, MapSize from empire_core
+  ([`7648ccc`](https://github.com/eschnitzler/EmpireCore/commit/7648ccc1a26d97d274148779326f7784d393d014))
+
+### Features
+
+- **attack**: Paced sends, a fill sent whole, a scanned target filled
+  ([`db31922`](https://github.com/eschnitzler/EmpireCore/commit/db319225f4f9d3c90b422709766483ca82799902))
+
+- **combat**: Fill with the client's tool-category filters too
+  ([`82bda35`](https://github.com/eschnitzler/EmpireCore/commit/82bda35d814e4dcee9a3406058cef2da4f5f0b20))
+
+- **commanders**: Which commanders are free to lead an attack
+  ([`4359749`](https://github.com/eschnitzler/EmpireCore/commit/4359749d511e65c4f936e82e88b460b81a69fe39))
+
+- **map**: Scan_around a position and distance_to a map item
+  ([`6b0247b`](https://github.com/eschnitzler/EmpireCore/commit/6b0247b04af10df3da9c23476907801ccd268ab3))
+
+- **services**: Every state read has a home on its game area
+  ([`9327420`](https://github.com/eschnitzler/EmpireCore/commit/9327420e3178cec8426b07e836e2455711e1b24f))
+
+### Refactoring
+
+- **castle**: Research and the mercenary camp live on client.castle
+  ([`cdd20f8`](https://github.com/eschnitzler/EmpireCore/commit/cdd20f80d3eeb08efd1866bf5a7496f05f1c3704))
+
+- **commanders**: Generals live on client.commanders, legend skills on client.player
+  ([`cdd92c4`](https://github.com/eschnitzler/EmpireCore/commit/cdd92c45407f13441d8406b417a86598ac14872b))
+
+- **movements**: Support, troop, goods and kingdom sends live on client.movements
+  ([`590d89a`](https://github.com/eschnitzler/EmpireCore/commit/590d89a0b9c7bc191ee1f3d89007ad57644be6d8))
+
+- **services**: Timeout is the last keyword-only parameter
+  ([`bd6acc0`](https://github.com/eschnitzler/EmpireCore/commit/bd6acc05208c7c65c531579f0b87ab8f79c70bfc))
+
+### Testing
+
+- Fakes that record and return are functions, not append-or lambdas
+  ([`d842b10`](https://github.com/eschnitzler/EmpireCore/commit/d842b10ea456fcd7ffe0cbba05bf9d28612385c4))
+
+### Breaking Changes
+
+- **alliance**: Client.alliance.get_alliance_info returns AllianceInfo and raises PacketError for a
+  reply without an alliance id, instead of returning AllianceInfo | None.
+
+- **castle**: AmbiguousCastleError is removed; state castles, permanent_castles and Player.castles
+  are keyed by castle id instead of (kingdom, id); a source position held in several kingdoms raises
+  ValueError instead of AmbiguousCastleError.
+
+- **castle**: Client.player.start_research, skip_research, list_missions, start_mission and
+  collect_mission are client.castle.start_research, skip_research, list_missions, start_mission and
+  collect_mission. ResearchInfoResponse, StartResearchRequest, StartResearchResponse,
+  SkipResearchRequest, SkipResearchResponse, MercenaryMission, MercenaryMissionsResponse and
+  MercenaryPackageRequest are imported from empire_core.castle (or empire_core.protocol.models, as
+  before), no longer from empire_core.player; empire_core.player.models.research is removed, and
+  empire_core.player.models.economy keeps only the loot boxes.
+
+- **commanders**: Client.skills is removed, and SkillsService with it. client.skills.get_generals
+  and assign_general are client.commanders.get_generals and assign_general;
+  client.skills.set_abilities, unlock_skill, reset_skills and add_xp are
+  client.commanders.set_general_abilities, unlock_general_skill, reset_general_skills and
+  add_general_xp. client.skills.get_skills and on_skill_list are client.player.get_skills and
+  on_skill_list.
+
+- **map**: MapScanner.MAX_COORD is gone. scan_chunks skips chunks off the kingdom's map, and a scan
+  raises StateNotLoadedError on a client whose connection has not brought the server info.
+
+- **map**: ScanResult.objects is ScanResult.owners.
+
+- **movements**: Client.castle.send_resources, get_market_info, send_support, send_troops,
+  get_travel_info, transfer_units_to_kingdom, transfer_goods_to_kingdom and
+  skip_kingdom_transfer_time are client.movements.send_resources and so on. Their models
+  (CreateMarketMovementRequest, CreateMarketMovementResponse, MarketCastle, MarketInfoRequest,
+  MarketInfoResponse, GetTravelInfoRequest, GetTravelInfoResponse, SendSupportRequest,
+  SendSupportResponse, SendTroopsRequest, SendTroopsResponse, TravelTargetArea, TravelUnits,
+  KingdomGoodsTransferRequest, KingdomGoodsTransferResponse, KingdomUnitTransferRequest,
+  KingdomUnitTransferResponse, MinuteSkipKingdomTransferRequest, MinuteSkipKingdomTransferResponse)
+  are imported from empire_core.movements (or empire_core.protocol.models, as before), no longer
+  from empire_core.castle; empire_core.castle.models.market, support and transfers are
+  empire_core.movements.models.market, support and transfers.
+
+- **movements**: Movement.kingdom_id is renamed kingdom and typed Kingdom; Movement.target_type_enum
+  and Movement.movement_type_enum are removed, as target_type and movement_type are now the enum
+  members themselves.
+
+- **services**: Client.alliance.get_alliance_info returns AllianceInfo | None (was
+  GetAllianceInfoResponse; read .alliance before). client.commanders.rename and
+  client.skills.assign_general return CommanderRoster (was the reply; read .commander_roster
+  before). client.skills.get_generals returns list[OwnedGeneral] (was GetGeneralsResponse;
+  .skill_ids(general_id) is gone, look the general up in the list). client.messages.archive returns
+  None.
+
+- **services**: Client.castle.get_horses(castle_id) is client.castle.horses(castle_id).
+  client.events.get_league_id is client.events.league_id. client.events.get_running_score_events()
+  is the property client.events.running_score_events. client.movements.get_incoming_attacks(),
+  get_incoming_movements() and get_outgoing_movements() are the properties incoming_attacks,
+  incoming_movements and outgoing_movements. client.events.get_active_event_ids() is removed; use
+  list(client.state.get_events()). client.state.get_castle_horse_ids is removed; read
+  client.state.get_permanent_castle(castle_id).horse_ids.
+
+- **services**: Every service action that returned bool now returns None and raises CommandError
+  when the server refuses it, instead of returning False: army (dismiss_units, produce_units,
+  cancel_production, double_production_slot, heal_units, heal_all, cancel_heal, skip_heal,
+  dismiss_wounded, dismiss_wounded_units), castle (select, rename, build, upgrade_building,
+  move_building, sell_decoration, destroy_building, finish_construction, skip_construction_time,
+  upgrade_defense, repair_building, repair_all, buy_expansion, open_treasure_chest, collect_mine,
+  collect_resource_cart, send_resources, send_support, send_troops, transfer_units_to_kingdom,
+  transfer_goods_to_kingdom, skip_kingdom_transfer_time), commanders (equip, unequip, set_abilities,
+  unlock_skill, reset_skills, add_xp), player (start_research, skip_research, start_mission,
+  collect_mission), rewards (collect_startup_bonus, collect_lost_and_found,
+  collect_patch_note_rewards), alliance (invite, answer_application, leave, send_newsletter,
+  request_build_help, request_repair_help, request_recruit_help, request_heal_help,
+  delete_bookmark), attack (send_attack, save_preset, rename_preset) and spy.forward_report. Replace
+  `if not client.castle.select(...)` with `try: ... except CommandError`. A refusal is no longer
+  logged. BaseService.execute returns None and loses raise_on; CommanderService.premium_send returns
+  None and its send callback is Callable[[], None]. alliance.leave empties help_requests whenever
+  the server accepts.
+
+- **services**: These properties raise StateNotLoadedError before a login, where they returned None.
+
+- **services**: Timeout can no longer be passed positionally to any service method (120 of them,
+  BaseService.send, request and execute included); pass timeout=. client.map.scan_kingdom and
+  scan_chunks, and MapScanner.scan_kingdom and scan_chunks, take only kingdom (and chunks) and
+  item_types positionally; request_timeout, chunk_delay, include_unowned_types and timeout are
+  keyword-only.
+
+- **state**: Client.alliance.cached_members is removed, and get_member(player_id, no_cache=False) is
+  now get_member(alliance_id, player_id, timeout=5.0), which always sends ain. A gbd with a non-zero
+  status no longer updates the state.
+
+- **state**: Login() raises EmpireTimeoutError when the gbd does not arrive, where it logged a
+  warning. The accessors above, spy.total_spies, spy.available_spies and alliance.local_alliance_id
+  raise StateNotLoadedError before a login and while a dropped session waits for the next one, where
+  they returned None.
+
+
 ## v0.54.0 (2026-10-12)
 
 ### Bug Fixes
