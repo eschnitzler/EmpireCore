@@ -157,11 +157,14 @@ class Session:
 
     def _retried(self, error: Exception) -> bool:
         """
-        Whether a failed login is tried again: a timeout, a network error, a cooldown, or, with the live
-        client's version, a version refusal, as the client's files and the server disagree during a game update.
+        Whether a failed login is tried again: a timeout, a network error, a cooldown, a ban the server named an
+        end for, or, with the live client's version, a version refusal, as the client's files and the server
+        disagree during a game update.
         """
         if isinstance(error, ClientVersionError):
             return self._client.config.client_version is None
+        if isinstance(error, AccountBannedError):
+            return error.remaining_seconds is not None and not error.deleted
         return isinstance(error, RETRIED_LOGIN_ERRORS)
 
     def _ended(self, login: int) -> bool:
@@ -382,6 +385,8 @@ class Session:
                 self._login_cooldown = (float(details.remaining_cooldown_seconds or 0), time.monotonic())
                 raise LoginCooldownError(int(details.remaining_cooldown_seconds or 0))
             case GGEError.IS_BANNED:
+                if details.remaining_ban_seconds is not None and not details.account_deleted:
+                    self._login_cooldown = (float(details.remaining_ban_seconds), time.monotonic())
                 raise AccountBannedError(details.remaining_ban_seconds, details.account_deleted)
             case GGEError.EXISTING_MAPPING_WRONG_SERVER:
                 raise WrongServerError(details.instance_id)
