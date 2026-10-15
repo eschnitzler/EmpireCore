@@ -73,8 +73,12 @@ class PlayerService(BaseService):
         self.on_response("ego", self._handle_skill_list)
 
     @property
-    def local_player(self) -> Player | None:
-        """A snapshot of the local player, or None before login."""
+    def local_player(self) -> Player:
+        """A snapshot of the local player.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
         return self.client.state.get_local_player()
 
     @property
@@ -88,18 +92,30 @@ class PlayerService(BaseService):
         return self.client.state.get_skills()
 
     @property
-    def boosts(self) -> BoosterInfoResponse | None:
-        """Your boosters, premium account, production slots and festival; None until a ``boi`` arrived."""
+    def boosts(self) -> BoosterInfoResponse:
+        """Your boosters, premium account, production slots and festival.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
         return self.client.state.get_boosts()
 
     @property
-    def might(self) -> MightPointsResponse | None:
-        """Your might points, from the last ``gmu``; None until one arrived."""
+    def might(self) -> MightPointsResponse:
+        """Your might points, from the last ``gmu``.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
         return self.client.state.get_might()
 
     @property
-    def glory_points(self) -> GloryPointsResponse | None:
-        """Your glory points, from the last ``ufa``; None until one arrived."""
+    def glory_points(self) -> GloryPointsResponse:
+        """Your glory points, from the last ``ufa``.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
         return self.client.state.get_glory_points()
 
     @property
@@ -108,13 +124,21 @@ class PlayerService(BaseService):
         return self.client.state.get_faction_points()
 
     @property
-    def title_ranks(self) -> TitleRanksResponse | None:
-        """Your top-X ranks, Storm Islands title and displayed title systems, from the last ``uar``; None before one."""
+    def title_ranks(self) -> TitleRanksResponse:
+        """Your top-X ranks, Storm Islands title and displayed title systems, from the last ``uar``.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
         return self.client.state.get_title_ranks()
 
     @property
-    def achievements(self) -> AchievementsResponse | None:
-        """Your achievement points, finished achievements and progress; None until a ``vli`` arrived."""
+    def achievements(self) -> AchievementsResponse:
+        """Your achievement points, finished achievements and progress.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
         return self.client.state.get_achievements()
 
     @property

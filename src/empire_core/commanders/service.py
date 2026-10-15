@@ -59,8 +59,12 @@ class CommandersService(BaseService):
     """
 
     @property
-    def roster(self) -> CommanderRoster | None:
-        """Your commanders and castellans as the last ``gli`` listed them; None until one arrived."""
+    def roster(self) -> CommanderRoster:
+        """Your commanders and castellans as the last ``gli`` listed them.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
         return self.client.state.get_commanders()
 
     def get_all(self, *, timeout: float = 5.0) -> GetCommandersResponse:
@@ -357,8 +361,12 @@ class EquipmentService(BaseService):
         return self.client.state.get_inventory_space()
 
     @property
-    def new_relics(self) -> NewRelicsResponse | None:
-        """Whether new relics wait to be seen, from the last ``nrf``; None until one arrived."""
+    def new_relics(self) -> NewRelicsResponse:
+        """Whether new relics wait to be seen, from the last ``nrf``.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
         return self.client.state.get_new_relics()
 
     def get_inventory(self, *, timeout: float = 5.0) -> list[Equipment]:

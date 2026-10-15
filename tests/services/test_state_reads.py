@@ -57,9 +57,9 @@ def test_the_state_only_readers_exist() -> None:
 
 def test_each_property_hands_out_what_state_holds() -> None:
     from empire_core.services.base import BaseService
-    from tests.service_helpers import make_client
+    from tests.service_helpers import logged_in_state, make_client
 
-    client = make_client(state=GameState())
+    client = make_client(state=logged_in_state())
     services = {type(s).__name__: s for s in vars(client).values() if isinstance(s, BaseService)}
     for path in PACKAGE.glob("*/service.py"):
         for cls in [n for n in ast.parse(path.read_text()).body if isinstance(n, ast.ClassDef)]:

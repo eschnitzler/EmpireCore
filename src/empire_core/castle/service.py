@@ -201,8 +201,12 @@ class CastleService(BaseService):
         return self.client.state.get_wishing_well()
 
     @property
-    def research(self) -> ResearchInfoResponse | None:
-        """Your finished and running research, from the last ``rei``; None until the login data brought one."""
+    def research(self) -> ResearchInfoResponse:
+        """Your finished and running research, from the last ``rei``.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
         return self.client.state.get_research()
 
     @property
