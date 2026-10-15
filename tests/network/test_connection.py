@@ -1307,3 +1307,20 @@ def test_listener_frames_carry_no_password(live_conn):
     frames = listening(live_conn)
     live_conn.send("%xt%EmpireEx_21%lli%1%" + json.dumps({"PW": "hunter2"}) + "%")
     assert "hunter2" not in frames[0].text
+
+
+def test_auth_bearer_token_push_is_masked():
+    push = '%xt%ato%1%0%{"ABT":"eyJraWQiOiJ4In0.payload.sig"}%'
+    assert "eyJ" not in redact_frame(push, "ato")
+
+
+def test_any_jwt_value_is_masked():
+    push = '%xt%ato%1%0%{"ABTV2":"eyJraWQiOiJ4In0.eyJzdWIiOjF9.c2ln","N":1}%'
+    redacted = redact_frame(push, "ato")
+    assert "eyJ" not in redacted and '"N":1' in redacted
+
+
+def test_jwt_inside_nested_json_or_url_is_masked():
+    jwt = "eyJraWQiOiJ4In0.eyJzdWIiOjF9.c2ln"
+    nested = '%xt%x%1%0%{"inner":"{\\"T\\":\\"' + jwt + '\\"}","url":"https://h/?t=' + jwt + '"}%'
+    assert "eyJ" not in redact_frame(nested, "x")

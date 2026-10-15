@@ -48,9 +48,11 @@ _SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     # escaped characters (\" and \\): with a plain [^"]* a password containing
     # a double-quote would leak its tail after the json.dumps-escaped \".
     (
-        re.compile(r'("(?:PW|PWD|PASS|PASSWORD|TOKEN|SECRET|AUTH|LT|RCT)"\s*:\s*)"(?:\\.|[^"\\])*"', re.IGNORECASE),
+        re.compile(r'("(?:PW|PWD|PASS|PASSWORD|TOKEN|SECRET|AUTH|LT|RCT|ABT)"\s*:\s*)"(?:\\.|[^"\\])*"', re.IGNORECASE),
         r'\1"<redacted>"',
     ),
+    # Bearer tokens (ato's ABT, ABTV2, ...) whatever key carries them.
+    (re.compile(r"\beyJ[\w-]+\.[\w-]+\.[\w-]+"), "<redacted>"),
     # SmartFox XML handshake: <pword><![CDATA[...]]></pword>
     (re.compile(r"(<pword>).*?(</pword>)", re.IGNORECASE | re.DOTALL), r"\1<redacted>\2"),
 )
