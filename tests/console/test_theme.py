@@ -41,3 +41,8 @@ def test_code_and_json_are_coloured(theme):
 
 def test_selection_keeps_the_arrow_colour():
     assert attrs("dark", "frame.selected frame.sent").color == attrs("dark", "frame.sent").color
+
+
+@pytest.mark.parametrize("theme", ["dark", "light"])
+def test_the_toolbar_has_no_block_of_its_own(theme):
+    assert attrs(theme, "app toolbar").bgcolor == attrs(theme, "app").bgcolor

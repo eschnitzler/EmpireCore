@@ -11,11 +11,15 @@ into the same models the library returns.
 ```bash
 pip install 'empire-core[console]'
 
-empire-console --username your_user   # asks for the password; or set GGE_USERNAME / GGE_PASSWORD
-python -m empire_core.console         # the same
+empire-console                        # asks for the username and password
+empire-console --username your_user   # or set GGE_USERNAME / GGE_PASSWORD
+empire-console --zone EmpireEx_3      # another world; US1 (EmpireEx_21) by default
+empire-console --list-zones           # every world, the default marked *
+python -m empire_core.console         # the same as empire-console
 ```
 
-`--no-login` starts without connecting, which is enough to explore the API with completion.
+`--zone` looks the world up in the game's server list. The banner and the toolbar show the
+account and its world, as `you @ EmpireEx_3`. `--no-login` starts without connecting, which is enough to explore the API with completion.
 `--log-level INFO` shows the library's log in the output pane. `--theme light` starts in the
 light theme; dark is the default, and F4 or `:theme` switches while it runs. Both themes paint
 their own background, so they look the same whatever your terminal's colours are.

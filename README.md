@@ -69,7 +69,7 @@ frame, install the `console` extra and run `empire-console`:
 
 ```bash
 pip install 'empire-core[console]'
-GGE_USERNAME=your_user empire-console
+empire-console                    # asks for the username and password; --zone for another world
 ```
 
 ## Quick start

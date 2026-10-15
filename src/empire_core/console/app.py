@@ -47,6 +47,13 @@ from pygments.lexers.data import JsonLexer
 from pygments.lexers.python import PythonLexer
 
 from empire_core.client.client import EmpireClient
+from empire_core.config import (
+    EMPIRE_GAME_ID,
+    EMPIRE_NETWORK_ID,
+    EmpireConfig,
+    fetch_network_instances,
+    instance_for_zone,
+)
 from empire_core.console.completion import NamespaceCompleter, signature_at
 from empire_core.console.frames import (
     HEADER,
@@ -174,8 +181,12 @@ class Console:
         )
         self.frames.on_change = self.application.invalidate
         client.connection.add_frame_listener(self.frames.add)
-        who = client.username or "no account"
-        self._queue_output(f"{BANNER_MARK}empire-console · {who} · client and empire_core are ready · F1 help\n")
+        self._queue_output(f"{BANNER_MARK}empire-console · {self.who} · client and empire_core are ready · F1 help\n")
+
+    @property
+    def who(self) -> str:
+        """``user @ EmpireEx_21``: the account and the world it plays on."""
+        return f"{self.client.username or 'no account'} @ {self.client.config.default_zone}"
 
     @property
     def output_text(self) -> str:
@@ -489,8 +500,7 @@ class Console:
 
     def toolbar(self) -> StyleAndTextTuples:
         online = self.client.connection.connected
-        who = self.client.username or "no account"
-        status = f" ● {who} " if online else f" ○ {who} offline "
+        status = f" ● {self.who} " if online else f" ○ {self.who} offline "
         parts: StyleAndTextTuples = [("class:toolbar.online" if online else "class:toolbar.offline", status)]
         layout = self.application.layout
         keys = CODE_KEYS
@@ -667,26 +677,56 @@ class Console:
         return [("", detail_title(row)), ("class:panel.chip.model", f" · {mode}"), ("class:panel.chip", following)]
 
 
+def zone_config(zone: str | None) -> EmpireConfig:
+    """US1 unless ``zone`` names another world, which the game's server list resolves."""
+    return EmpireConfig() if zone is None else EmpireConfig.for_instance(instance_for_zone(zone))
+
+
+def credentials(
+    username: str | None,
+    *,
+    ask: Callable[[str], str] = input,
+    ask_secret: Callable[[str], str] = getpass,
+) -> tuple[str, str]:
+    """The username and password, asking for whichever the flags and environment do not give."""
+    username = username or ask("Username: ").strip()
+    return username, os.getenv("GGE_PASSWORD") or ask_secret(f"Password for {username}: ")
+
+
+def print_zones() -> None:
+    default = EmpireConfig().default_zone
+    for world in fetch_network_instances(EMPIRE_GAME_ID, EMPIRE_NETWORK_ID):
+        # A world is named by its country or language key: generic_country_FR, generic_language_pt.
+        country = world.instance_loca_id.rsplit("_", 1)[-1]
+        print(f"{'*' if world.zone == default else ' '} {world.zone:<14} {country:<14} {world.server}")
+
+
 def run(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="empire-console", description="A Python REPL on a live client beside its socket frames."
     )
-    parser.add_argument("--username", default=os.getenv("GGE_USERNAME"), help="defaults to $GGE_USERNAME")
+    parser.add_argument("--username", default=os.getenv("GGE_USERNAME"), help="defaults to $GGE_USERNAME, else asked")
+    parser.add_argument("--zone", help="the world to play on, such as EmpireEx_3; US1 (EmpireEx_21) by default")
+    parser.add_argument("--list-zones", action="store_true", help="list the worlds and exit")
     parser.add_argument("--no-login", action="store_true", help="start without connecting")
     parser.add_argument("--log-level", default="WARNING", help="library log level shown in the output pane")
     parser.add_argument("--theme", choices=sorted(THEMES), default="dark", help="dark (default) or light")
     args = parser.parse_args(argv)
 
-    password = None
-    if not args.no_login:
-        if not args.username:
-            parser.error("give --username or set GGE_USERNAME, or pass --no-login")
-        password = os.getenv("GGE_PASSWORD") or getpass(f"Password for {args.username}: ")
+    try:
+        if args.list_zones:
+            print_zones()
+            return 0
+        config = zone_config(args.zone)
+    except (EmpireError, ValueError) as e:
+        print(f"empire-console: {e}", file=sys.stderr)
+        return 2
 
-    client = EmpireClient(username=args.username, password=password)
+    username, password = (args.username, None) if args.no_login else credentials(args.username)
+    client = EmpireClient(username=username, password=password, config=config)
     console = Console(client, theme=args.theme)
     if not args.no_login:
-        print(f"Logging in as {args.username}…")
+        print(f"Logging in as {username} on {config.default_zone}…")
         try:
             client.login()
         except EmpireError as e:

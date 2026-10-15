@@ -14,6 +14,7 @@ from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
 from prompt_toolkit.output import DummyOutput
 
 from empire_core.client.client import EmpireClient
+from empire_core.config import EmpireConfig
 from empire_core.console.app import RENDER_ROWS, Console
 from empire_core.console.highlight import BANNER_MARK
 from empire_core.network.connection import Frame, FrameDirection
@@ -408,3 +409,12 @@ def test_overlays_take_the_theme_background(tmp_path):
     with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
         console = make_console(tmp_path)
         assert "class:app" in console.application.layout.container.style
+
+
+def test_banner_and_toolbar_name_the_world(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        config = EmpireConfig(default_zone="EmpireEx_3")
+        console = Console(EmpireClient(username="u", password="p", config=config), history=tmp_path / "h")
+        console.flush()
+        assert "u @ EmpireEx_3" in console.output_text.splitlines()[0]
+        assert "u @ EmpireEx_3" in "".join(fragment[1] for fragment in console.toolbar())
