@@ -21,3 +21,7 @@ Map areas, map rows and the kingdom scanner behind `client.map`.
 ## `map.models.owners`
 
 ::: empire_core.map.models.owners
+
+## `map.models.world`
+
+::: empire_core.map.models.world
