@@ -1,7 +1,13 @@
+from prompt_toolkit.application import Application, create_app_session
+from prompt_toolkit.application.current import set_app
 from prompt_toolkit.data_structures import Point
+from prompt_toolkit.document import Document
+from prompt_toolkit.input import DummyInput
+from prompt_toolkit.layout import Layout
 from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
+from prompt_toolkit.output import DummyOutput
 
-from empire_core.console.widgets import BorderControl, ScrollbarControl
+from empire_core.console.widgets import BorderControl, ScrollbarControl, TextPane, osc52
 
 
 def event(y, kind=MouseEventType.MOUSE_DOWN, button=MouseButton.LEFT):
@@ -54,3 +60,30 @@ def test_border_draws_its_line_and_reports_a_press():
     assert content.line_count == 3 and content.get_line(2)[0][1] == "│"
     assert border.mouse_handler(event(1)) is None and presses == [1]
     assert border.mouse_handler(event(1, MouseEventType.MOUSE_UP)) is NotImplemented
+
+
+def selecting_pane(copied):
+    pane = TextPane(lexer=None, wrap_lines=False, on_copy=copied.append)
+    pane.buffer.set_document(Document("alpha beta gamma", 0), bypass_readonly=True)
+    pane.buffer.start_selection()
+    pane.buffer.cursor_position = 5
+    return pane
+
+
+def test_scrolling_drops_the_selection_instead_of_growing_it():
+    pane = selecting_pane([])
+    assert pane.control.mouse_handler(event(0, MouseEventType.SCROLL_DOWN, MouseButton.NONE)) is NotImplemented
+    assert pane.buffer.selection_state is None
+
+
+def test_releasing_the_mouse_copies_the_selection():
+    copied: list[str] = []
+    pane = selecting_pane(copied)
+    with create_app_session(input=DummyInput(), output=DummyOutput()):
+        with set_app(Application(layout=Layout(pane))):
+            pane.control.mouse_handler(event(0, MouseEventType.MOUSE_UP))
+    assert copied == ["alpha"]
+
+
+def test_osc52_carries_the_text_base64_encoded():
+    assert osc52("hi") == "\x1b]52;c;aGk=\x07"

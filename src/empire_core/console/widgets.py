@@ -1,14 +1,17 @@
-"""A rounded panel whose border lights up with focus, and a scrollbar the mouse can use."""
+"""The console's building blocks: panels, read-only text panes, scrollbars and resize grips."""
 
+import base64
 from collections.abc import Callable, Mapping
 
+from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.document import Document
 from prompt_toolkit.filters import Filter
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.layout import AnyContainer, Container, HSplit, VSplit, Window
-from prompt_toolkit.layout.controls import FormattedTextControl, UIContent, UIControl
+from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl, UIContent, UIControl
 from prompt_toolkit.layout.dimension import AnyDimension
+from prompt_toolkit.lexers import Lexer
 from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
-from prompt_toolkit.widgets import TextArea
 
 WHEEL_STEP = 3
 
@@ -53,8 +56,57 @@ class ScrollbarControl(UIControl):
         return None
 
 
-def text_scrollbar(area: TextArea) -> ScrollbarControl:
-    """A scrollbar for a read-only text area; scrolling moves its cursor, which the view follows."""
+def osc52(text: str) -> str:
+    """The escape sequence that asks the terminal to put ``text`` on the system clipboard."""
+    return f"\x1b]52;c;{base64.b64encode(text.encode()).decode()}\x07"
+
+
+def selected_text(buffer: Buffer) -> str:
+    return buffer.document.cut_selection()[1].text if buffer.selection_state is not None else ""
+
+
+class SelectingControl(BufferControl):
+    """Drag to select, and the selection is copied on release; scrolling drops a selection.
+
+    The view follows the cursor, so scrolling moves it, which would otherwise grow the selection.
+    """
+
+    def __init__(self, buffer: Buffer, lexer: Lexer | None, on_copy: Callable[[str], None]) -> None:
+        super().__init__(buffer=buffer, lexer=lexer, focus_on_click=True)
+        self.on_copy = on_copy
+
+    def mouse_handler(self, mouse_event: MouseEvent) -> object:
+        if mouse_event.event_type in (MouseEventType.SCROLL_UP, MouseEventType.SCROLL_DOWN):
+            self.buffer.exit_selection()
+            return NotImplemented
+        result = super().mouse_handler(mouse_event)
+        if mouse_event.event_type is MouseEventType.MOUSE_UP and (text := selected_text(self.buffer)):
+            self.on_copy(text)
+        return result
+
+
+class TextPane:
+    """Read-only text that can be scrolled, selected and copied."""
+
+    def __init__(self, *, lexer: Lexer | None, wrap_lines: bool, on_copy: Callable[[str], None]) -> None:
+        self.buffer = Buffer(read_only=True, multiline=True)
+        self.control = SelectingControl(self.buffer, lexer, on_copy)
+        self.window = Window(self.control, wrap_lines=wrap_lines)
+
+    @property
+    def text(self) -> str:
+        return self.buffer.text
+
+    @property
+    def document(self) -> Document:
+        return self.buffer.document
+
+    def __pt_container__(self) -> Container:
+        return self.window
+
+
+def text_scrollbar(area: TextPane) -> ScrollbarControl:
+    """A scrollbar for a text pane; scrolling moves its cursor, which the view follows."""
 
     def position() -> tuple[int, int, int]:
         info = area.window.render_info
@@ -66,6 +118,7 @@ def text_scrollbar(area: TextArea) -> ScrollbarControl:
     def scroll_to(line: int) -> None:
         document = area.document
         line = max(0, min(line, document.line_count - 1))
+        area.buffer.exit_selection()
         area.window.vertical_scroll = line
         area.buffer.cursor_position = document.translate_row_col_to_index(line, 0)
 

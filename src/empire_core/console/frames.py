@@ -15,7 +15,7 @@ from empire_core.network.connection import Frame, FrameDirection
 from empire_core.protocol.base import get_response_model, parse_response
 
 PREVIEW_CHARS = 70
-HEADER = "time      ⇅  command      status       size     rtt  payload"
+HEADER = "time     ⇅ command      status       size     rtt  payload"
 
 
 @dataclass(frozen=True)
@@ -174,8 +174,7 @@ def _cells(frame: Frame, size: int, latency: float | None) -> StyleAndTextTuples
     preview = " ".join(_payload(frame.text)[: PREVIEW_CHARS * 2].split())[:PREVIEW_CHARS]
     return [
         ("class:frame.time", time.strftime("%H:%M:%S ", time.localtime(frame.at))),
-        ("class:frame.sent" if sent else "class:frame.received", " ↑ " if sent else " ↓ "),
-        ("", " "),
+        ("class:frame.sent" if sent else "class:frame.received", "↑ " if sent else "↓ "),
         ("class:frame.command", f"{frame.command or '?':<13}"),
         ("class:frame.error" if status else "", f"{status:<9}"),
         ("class:frame.size", f"{size_label(size):>8}"),

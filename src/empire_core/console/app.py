@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from prompt_toolkit.application import Application
+from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.completion import ThreadedCompleter
 from prompt_toolkit.data_structures import Point
 from prompt_toolkit.document import Document
@@ -46,18 +47,28 @@ from pygments.lexers.python import PythonLexer
 
 from empire_core.client.client import EmpireClient
 from empire_core.console.completion import NamespaceCompleter, signature_at
-from empire_core.console.frames import HEADER, Detail, FrameLog, Row, detail_title, duration_label, frame_detail
+from empire_core.console.frames import (
+    HEADER,
+    Detail,
+    FrameLog,
+    Row,
+    detail_title,
+    duration_label,
+    frame_detail,
+    size_label,
+)
 from empire_core.console.highlight import BANNER_MARK, OutputLexer
 from empire_core.console.pretty import pretty
 from empire_core.console.runner import CodeRunner, PaneWriter
 from empire_core.console.theme import STYLE
-from empire_core.console.widgets import Panel, ScrollbarControl, text_scrollbar
+from empire_core.console.widgets import Panel, ScrollbarControl, TextPane, osc52, selected_text, text_scrollbar
 from empire_core.exceptions import EmpireError
 
 HISTORY = Path.home() / ".empire_console_history"
 RENDER_ROWS = 500
 OUTPUT_CHARS = 200_000
 PAGE = 20
+NOTICE_SECONDS = 2.5
 SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 SGR_MOUSE = re.compile(r"\x1b\[<\d+;(?P<x>\d+);(?P<y>\d+)(?P<kind>[mM])")
 
@@ -141,6 +152,7 @@ class Console:
         self._signature_cache: tuple[tuple[str, int, int], str] | None = None
         self._shown: tuple[Row | None, bool] = (None, False)
         self._detail = Detail("")
+        self._notice = ("", 0.0)
         self.writer = PaneWriter(self._queue_output)
         self.runner = CodeRunner(
             self.namespace,
@@ -150,7 +162,7 @@ class Console:
         )
 
         python, json_lexer = PygmentsLexer(PythonLexer), PygmentsLexer(JsonLexer)
-        self.output = TextArea(read_only=True, wrap_lines=True, focus_on_click=True, lexer=OutputLexer())
+        self.output = TextPane(lexer=OutputLexer(), wrap_lines=True, on_copy=self.copy)
         self.input = TextArea(
             multiline=True,
             focus_on_click=True,
@@ -160,11 +172,10 @@ class Console:
             history=FileHistory(str(history or HISTORY)),
             get_line_prefix=lambda line, _wrap: [("class:output.prompt", "... " if line else ">>> ")],
         )
-        self.detail = TextArea(
-            read_only=True,
-            wrap_lines=False,
-            focus_on_click=True,
+        self.detail = TextPane(
             lexer=DynamicLexer(lambda: python if self._detail.model else json_lexer),
+            wrap_lines=False,
+            on_copy=self.copy,
         )
         self.frame_list = FormattedTextControl(self.render_frame_list, focusable=True, get_cursor_position=self._cursor)
         self.scrollbars = {
@@ -191,7 +202,7 @@ class Console:
     def output_text(self) -> str:
         return self.output.text
 
-    def panes(self) -> dict[str, TextArea | FormattedTextControl]:
+    def panes(self) -> dict[str, TextArea | TextPane | FormattedTextControl]:
         return {"output": self.output, "input": self.input, "frames": self.frame_list, "detail": self.detail}
 
     def _layout(self) -> FloatContainer:
@@ -332,9 +343,16 @@ class Console:
         def _(event: KeyPressEvent) -> None:
             self.zoomed = not self.zoomed
 
-        @keys.add("c-c")
+        @keys.add("c-c", filter=in_input)
         def _(event: KeyPressEvent) -> None:
             self.input.buffer.reset()
+
+        for key in ("c-c", "y"):
+            keys.add(key, filter=in_text)(lambda event: self._copy_pane(event.current_buffer))
+
+        @keys.add("c", filter=in_frames)
+        def _(event: KeyPressEvent) -> None:
+            self._copy_pane(self.detail.buffer)
 
         @keys.add("c-l")
         def _(event: KeyPressEvent) -> None:
@@ -408,6 +426,14 @@ class Console:
         if loop is not None:
             loop.call_soon_threadsafe(self.application.exit)
 
+    def copy(self, text: str) -> None:
+        """Put ``text`` on the in-app clipboard and, through the terminal, the system one."""
+        self.application.clipboard.set_text(text)
+        self.application.output.write_raw(osc52(text))
+        self.application.output.flush()
+        self._notice = (f"copied {size_label(len(text.encode()))}", time.monotonic() + NOTICE_SECONDS)
+        self.application.invalidate()
+
     def select(self, step: int) -> None:
         """Move the selection ``step`` frames from the selected one, or from the newest."""
         rows = self.frames.visible()
@@ -449,7 +475,6 @@ class Console:
         lines: StyleAndTextTuples = []
         for row in rows[top : top + RENDER_ROWS]:
             chosen = row is self.selected
-            # Selection goes first, so a cell's own background (the direction badge) wins over it.
             highlight = "class:frame.selected " if chosen else ""
             handler = self._mouse_handler(row)
             lines.append((highlight + "class:frame.marker", "▌" if chosen else " ", handler))
@@ -470,6 +495,9 @@ class Console:
             keys = TEXT_KEYS
         for key, what in keys:
             parts += [("class:toolbar.key", f" {key}"), ("class:toolbar", f" {what} ")]
+        notice, until = self._notice
+        if notice and time.monotonic() < until:
+            parts.append(("class:toolbar.online", f"  ✓ {notice} "))
         if self.runner.busy:
             elapsed = time.monotonic() - self.runner.started_at
             spin = SPINNER[int(elapsed * 4) % len(SPINNER)]
@@ -516,6 +544,10 @@ class Console:
 
     def _finished(self, elapsed: float, ok: bool) -> None:
         self._queue_output(f"{'✓' if ok else '✗'} {duration_label(elapsed)}\n")
+
+    def _copy_pane(self, buffer: Buffer) -> None:
+        """Copy the selection, or the whole pane when nothing is selected."""
+        self.copy(selected_text(buffer) or buffer.text)
 
     def _focused_pane(self) -> str:
         layout = self.application.layout

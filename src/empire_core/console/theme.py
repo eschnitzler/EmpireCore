@@ -4,7 +4,6 @@ from prompt_toolkit.styles import BaseStyle, Style, merge_styles, style_from_pyg
 from pygments.styles import get_style_by_name
 
 BLUE, GREEN, YELLOW, RED, PURPLE, CYAN = "#61afef", "#98c379", "#e5c07b", "#e06c75", "#c678dd", "#56b6c2"
-ORANGE, INK = "#d19a66", "#282c34"
 TEXT, DIM, FAINT, PANEL, SELECTED = "#abb2bf", "#7f848e", "#5c6370", "#21252b", "#2c313c"
 
 UI = Style.from_dict(
@@ -20,9 +19,8 @@ UI = Style.from_dict(
         "panel.chip.model": PURPLE,
         "frame.header": f"bold {FAINT}",
         "frame.time": FAINT,
-        # Opposite hues as solid badges, so direction reads at a glance.
-        "frame.sent": f"bg:{ORANGE} bold {INK}",
-        "frame.received": f"bg:{CYAN} bold {INK}",
+        "frame.sent": f"bold {RED}",
+        "frame.received": f"bold {GREEN}",
         "frame.command": f"bold {YELLOW}",
         "frame.error": f"bold {RED}",
         "frame.size": DIM,
@@ -50,6 +48,7 @@ UI = Style.from_dict(
         "completion-menu.completion.current": f"bg:{BLUE} #282c34",
         "completion-menu.meta.completion": f"bg:{SELECTED} {DIM}",
         "completion-menu.meta.completion.current": f"bg:{BLUE} #282c34",
+        "selected": "bg:#3e4451",
         "scrollbar.background": f"bg:{SELECTED}",
         "scrollbar.button": f"bg:{FAINT}",
     }
