@@ -402,3 +402,9 @@ def test_f4_toggles_the_theme(tmp_path):
         pipe.send_text("\x1bOS\x04")
         console.application.run()
         assert console.theme == "light"
+
+
+def test_overlays_take_the_theme_background(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        assert "class:app" in console.application.layout.container.style

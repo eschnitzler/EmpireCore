@@ -58,6 +58,7 @@ from empire_core.console.frames import (
     frame_detail,
     size_label,
 )
+from empire_core.console.help import COLUMNS, GUTTER, column_width, help_column, help_size
 from empire_core.console.highlight import BANNER_MARK, OutputLexer
 from empire_core.console.pretty import pretty
 from empire_core.console.runner import CodeRunner, PaneWriter
@@ -86,33 +87,6 @@ TEXT_KEYS = [("↑↓ PgUp PgDn", "scroll"), ("Home End", "top / bottom"), ("Ctr
 # Panes by where they sit, for Ctrl-arrows, and in F2's cycle order.
 GRID = (("output", "frames"), ("input", "detail"))
 CYCLE = ("input", "frames", "detail", "output")
-HELP = [
-    ("Code", ""),
-    ("Enter", "run once the statement is complete"),
-    ("Esc Enter", "run whatever is typed"),
-    ("Tab / ↑↓", "complete / history"),
-    ("Ctrl-C", "clear the input"),
-    ("Ctrl-L", "clear the output"),
-    ("Panes", ""),
-    ("Ctrl-arrows", "move to the pane in that direction"),
-    ("F2 / Shift-F2", "next / previous pane"),
-    ("click, wheel", "focus a pane, scroll it or its scrollbar"),
-    ("Home / End", "top / bottom of Output and Detail"),
-    ("Frames", ""),
-    ("↑↓ PgUp PgDn", "select a frame (or click it)"),
-    ("Home / End", "oldest frame / follow the newest"),
-    ("r", "parsed model or raw payload"),
-    ("F3", "zoom the focused side"),
-    ("F4", "dark or light theme"),
-    ("Commands", ""),
-    (":filter gbd gam", "only these commands; none for all"),
-    (":grep text", "only frames containing text"),
-    (":pause  :clear", "freeze the view / forget frames"),
-    (":raw", "toggle parsed and raw detail"),
-    (":theme [dark|light]", "switch the theme; none to toggle"),
-    (":save [file]", "write the shown frames as JSON lines"),
-    (":quit", "close the client and exit, as does exit()"),
-]
 
 
 @dataclass
@@ -261,11 +235,32 @@ class Console:
                 Window(FormattedTextControl(self.toolbar), height=1, style="class:toolbar"),
             ],
         )
-        width = max(len(key) for key, _ in HELP) + max(len(what) for _, what in HELP) + 4
-        help_text = Window(FormattedTextControl(self._help), width=width, height=len(HELP), style="class:help")
-        help_panel = Panel(help_text, lambda: [("", "Help · Esc to close")], to_filter(True))
+        left, right = COLUMNS
+        help_body = HSplit(
+            [
+                Window(height=1),
+                VSplit(
+                    [
+                        Window(width=2),
+                        Window(FormattedTextControl(help_column(left)), width=column_width(left)),
+                        Window(width=GUTTER),
+                        Window(FormattedTextControl(help_column(right)), width=column_width(right)),
+                        Window(width=2),
+                    ],
+                    height=help_size()[1],
+                ),
+                Window(height=1),
+            ],
+            style="class:help",
+        )
+        help_panel = Panel(
+            help_body,
+            lambda: [("", "Keys and commands"), ("class:panel.chip", " · Esc or F1 to close")],
+            to_filter(True),
+        )
         return FloatContainer(
             body,
+            style="class:app",
             floats=[
                 Float(xcursor=True, ycursor=True, content=CompletionsMenu(max_height=12, scroll_offset=1)),
                 Float(content=ConditionalContainer(help_panel, Condition(lambda: self.show_help))),
@@ -670,16 +665,6 @@ class Console:
         mode = "parsed" if self._detail.model else "raw"
         following = "" if self.selected is not None else " · following"
         return [("", detail_title(row)), ("class:panel.chip.model", f" · {mode}"), ("class:panel.chip", following)]
-
-    def _help(self) -> StyleAndTextTuples:
-        width = max(len(key) for key, _ in HELP) + 2
-        lines: StyleAndTextTuples = []
-        for key, what in HELP:
-            if what:
-                lines += [("class:help.key", f" {key:<{width}}"), ("class:help", f"{what}\n")]
-            else:
-                lines.append(("class:help.heading", f" {key}\n"))
-        return lines
 
 
 def run(argv: list[str]) -> int:
